@@ -179,13 +179,13 @@ public sealed class NativeV2ImportRecoveryTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task V2MergeBlocksEvenWithAnExactCommittedReceiptOrOnlyOrphanHistory(bool orphan)
+    public async Task V2MergeCommittedOrOrphanHistoryPassesBothRecoveryGatesWithoutCandidateFiles(bool orphan)
     {
         await using NativeV2ImportFixture f = await NativeV2ImportFixture.CreateAsync();
         await SeedImportAsync(f, "Committed", receipt: true);
         await AssertRecoveryAsync(f.Catalog, blocked: false);
-        // Copy authentic identity/Full evidence into a synthetic v2 merge with empty
-        // Safe and zero deltas. Do not invoke or enable any v2 merge producer.
+        // Copy authentic identity/Full evidence into synthetic historical v2 merge
+        // rows with empty Safe and zero deltas. This is not a merge Apply proof.
         await f.Catalog.WriteAsync((c, tx) =>
         {
             using (SqliteCommand operation = ArchiveSql.Command(c, tx, """
@@ -210,7 +210,8 @@ public sealed class NativeV2ImportRecoveryTests
                     (operation_id,request_sha256,plan_version,new_posts,updated_posts,new_attachments,new_bindings,conflicts)
                 SELECT operation_id,request_sha256,2,0,0,0,0,0 FROM archive_media_merge_operations
                 """)) Assert.Equal(1, receipt.ExecuteNonQuery());
-            // Prove the blocker is the unsupported version, not malformed evidence.
+            // W32b5 admits this exact typed operation/receipt pair as history, not
+            // every storage-valid v2 shape. Legacy readers remain gated separately.
             NativeMediaPersistedMergeOperation stored = Assert.IsType<NativeMediaPersistedMergeOperation>(
                 ArchiveSql.ReadPersistedMediaMergeOperation(c, tx, f.Plan.OperationId, f.Plan.RequestSha256));
             NativeMediaPersistedMergeReceipt matched = Assert.IsType<NativeMediaPersistedMergeReceipt>(
@@ -224,7 +225,89 @@ public sealed class NativeV2ImportRecoveryTests
             }
             return true;
         });
+        await f.Stage.DisposeAsync();
+        Assert.False(Directory.Exists(f.Plan.OperationsParent));
+        Assert.Empty(NativeV2ImportFixture.PayloadFiles(f.Files.Profile));
+        for (int attempt = 0; attempt < 2; attempt++)
+            await AssertRecoveryAsync(f.Catalog, blocked: false);
+        await f.Catalog.ReadAsync(c =>
+        {
+            using SqliteTransaction tx = c.BeginTransaction(deferred: true);
+            NativeMediaPersistedMergeOperation? operation = ArchiveSql.ReadPersistedMediaMergeOperation(
+                c, tx, f.Plan.OperationId, f.Plan.RequestSha256);
+            NativeMediaPersistedMergeReceipt receipt = Assert.IsType<NativeMediaPersistedMergeReceipt>(
+                ArchiveSql.ReadPersistedMediaMergeReceipt(c, tx, f.Plan.OperationId, f.Plan.RequestSha256, 2));
+            if (orphan) Assert.Null(operation);
+            else Assert.True(ArchiveSql.PersistedMediaMergeReceiptMatches(
+                Assert.IsType<NativeMediaPersistedMergeOperation>(operation), receipt));
+            Assert.Equal(new NativeMediaMergeResult(NativeMediaImportCommitStatus.Committed, IsReplay: true),
+                ArchiveSql.ReadMediaMergeReceiptV2(c, tx, f.Plan.OperationId, f.Plan.RequestSha256));
+            Assert.False(ArchiveSql.HasIncompatibleMediaTransferHistory(c, tx));
+            Assert.True(ArchiveSql.MediaImportResourceAbsent(c, tx, f.Plan.Resource));
+            return true;
+        });
+    }
+
+    [Theory]
+    [InlineData("Preparing", false)]
+    [InlineData("Preparing", true)]
+    [InlineData("Prepared", false)]
+    [InlineData("Prepared", true)]
+    [InlineData("Committed", false)]
+    public async Task NonterminalOrUnreceiptedV2MergeStillBlocksBothRecoveryGates(string state, bool receipt)
+    {
+        await using NativeV2ImportFixture f = await NativeV2ImportFixture.CreateAsync();
+        // A healthy import receipt must not hide a separate unfinished/unmatched merge.
+        await SeedImportAsync(f, "Committed", receipt: true);
+        await AssertRecoveryAsync(f.Catalog, blocked: false);
+        Assert.NotEqual(f.Plan.OperationId, PersistedMediaFixture.OperationId);
+        await f.Catalog.WriteAsync((c, tx) =>
+        {
+            Dictionary<string, object?> row = PersistedMediaFixture.Row(merge: true, state: state);
+            InsertMergeHistory(c, tx, "archive_media_merge_operations", row);
+            if (receipt) InsertMergeHistory(c, tx, "archive_media_merge_receipts", PersistedMediaFixture.Receipt(true, row));
+            AssertUnreconciledMergeEvidence(c, tx, state, receipt);
+            return true;
+        });
         await AssertRecoveryAsync(f.Catalog, blocked: true);
+        // Both recovery entrypoints must leave the exact state/receipt evidence intact.
+        await f.Catalog.ReadAsync(c =>
+        {
+            using SqliteTransaction tx = c.BeginTransaction(deferred: true);
+            AssertUnreconciledMergeEvidence(c, tx, state, receipt);
+            return true;
+        });
+        Assert.False(Directory.Exists(f.Plan.OperationsParent));
+        Assert.Empty(NativeV2ImportFixture.PayloadFiles(f.Files.Profile));
+    }
+
+    private static void AssertUnreconciledMergeEvidence(SqliteConnection connection, SqliteTransaction transaction,
+        string state, bool receipt)
+    {
+        NativeMediaPersistedMergeOperation operation = Assert.IsType<NativeMediaPersistedMergeOperation>(
+            ArchiveSql.ReadPersistedMediaMergeOperation(connection, transaction,
+                PersistedMediaFixture.OperationId, PersistedMediaFixture.Request));
+        Assert.Equal(state, operation.State.ToString());
+        NativeMediaPersistedMergeReceipt? found = ArchiveSql.ReadPersistedMediaMergeReceipt(connection, transaction,
+            PersistedMediaFixture.OperationId, PersistedMediaFixture.Request, 2);
+        if (receipt)
+        {
+            Assert.NotNull(found);
+            Assert.Equal(operation.Counts, found.Counts);
+            Assert.False(ArchiveSql.PersistedMediaMergeReceiptMatches(operation, found));
+        }
+        else Assert.Null(found);
+        Assert.True(ArchiveSql.HasIncompatibleMediaTransferHistory(connection, transaction));
+    }
+
+    private static void InsertMergeHistory(SqliteConnection connection, SqliteTransaction transaction, string table,
+        Dictionary<string, object?> row)
+    {
+        // Fixed synthetic table/column names; no package-controlled SQL identifiers.
+        using SqliteCommand command = ArchiveSql.Command(connection, transaction,
+            $"INSERT INTO {table} ({string.Join(",", row.Keys)}) VALUES ({string.Join(",", row.Keys.Select(key => "$" + key))})");
+        foreach (var field in row) command.Parameters.AddWithValue("$" + field.Key, field.Value ?? DBNull.Value);
+        Assert.Equal(1, command.ExecuteNonQuery());
     }
 
     [Fact]

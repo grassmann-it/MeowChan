@@ -7,9 +7,10 @@ using static MeowChan.Tests.Transfer.NativeMediaImportTests;
 
 namespace MeowChan.Tests.Transfer;
 
-// Storage10 accepts bounded shapes, not v2 execution. All rows below are synthetic,
+// Storage10 shapes do not grant legacy v2 execution. All rows below are synthetic,
 // inserted with CHECKs enabled into the real ArchiveCatalog-created schema. The v2
-// selection/catalog documents deliberately claim no semantic validity or Ready files.
+// operation selection/catalog documents are deliberately not semantically valid;
+// their content-free orphan receipts can still be valid W32b5 history. No Ready files.
 public sealed class Schema10LegacyMediaGateTests
 {
     private static readonly Guid Operation = Guid.Parse("10000000-0000-4000-8000-000000000001");
@@ -177,15 +178,37 @@ public sealed class Schema10LegacyMediaGateTests
         await Seed(catalog, merge, receiptVersion, state: null, receipt: true);
         byte[] before = File.ReadAllBytes(catalog.DatabasePath);
         string[] paths = Directory.GetFileSystemEntries(files.Path, "*", SearchOption.AllDirectories).Order().ToArray();
+        bool compatibleOrphan = state is null && receiptVersion == 2;
         using (SqliteConnection connection = OpenRead(catalog))
+        {
             Assert.True(ArchiveSql.HasUnsupportedMediaTransferRecords(connection, null));
+            Assert.Equal(!compatibleOrphan, ArchiveSql.HasIncompatibleMediaTransferHistory(connection, null));
+            if (merge && compatibleOrphan)
+            {
+                NativeMediaPersistedMergeReceipt receipt = Assert.IsType<NativeMediaPersistedMergeReceipt>(
+                    ArchiveSql.ReadPersistedMediaMergeReceipt(connection, null, Operation, Request, 2));
+                Assert.Equal(2, receipt.Identity.PlanVersion);
+                Assert.Equal(new NativeMediaMergeCounts(2, 3, 1, 0, 1, 2, 3, 1), receipt.Counts);
+                Assert.Null(ArchiveSql.ReadPersistedMediaMergeOperation(connection, null, Operation, Request));
+                AssertVersionGate(Assert.Throws<InvalidDataException>(() => ReadReceipt(connection, null, merge)));
+            }
+            if (state == "Committed" && receiptVersion == 2)
+            {
+                // The '{}' operation is malformed in either family. Matching scalar
+                // receipt counters must not turn it into valid committed history.
+                if (merge) Assert.Throws<InvalidDataException>(() =>
+                    ArchiveSql.ReadPersistedMediaMergeOperation(connection, null, Operation, Request));
+                else Assert.Throws<InvalidDataException>(() =>
+                    ArchiveSql.ReadPersistedMediaImportOperation(connection, null, Operation, Request));
+            }
+        }
         for (int attempt = 0; attempt < 2; attempt++)
         {
-            if (!merge && state is null && receiptVersion == 2)
+            if (compatibleOrphan)
             {
-                // W32b3 supports valid orphan v2 import receipts as content-free history.
-                // The strict legacy discovery check above remains true; no v1 execution
-                // or operation/payload reconstruction is granted by a startup read.
+                // W32b5 supports valid orphan receipts from BOTH v2 families as history.
+                // Strict legacy discovery remains true; no v1 execution or operation/
+                // payload reconstruction is granted by this recovery-gate read.
                 await catalog.EnsureNativeMediaRecoveryClearAsync();
             }
             else
@@ -237,6 +260,10 @@ public sealed class Schema10LegacyMediaGateTests
     [InlineData(true, 2, "Committed", 2)]
     [InlineData(false, 2, "Committed", 1)]
     [InlineData(true, 2, "Committed", 1)]
+    [InlineData(false, 2, "Preparing", 2)]
+    [InlineData(true, 2, "Preparing", 2)]
+    [InlineData(false, 2, "Prepared", 2)]
+    [InlineData(true, 2, "Prepared", 2)]
     public async Task IndependentImportReconciliationUsesTheSameVersionAwareHistoryGateAsStartup(bool merge, int version, string? state, int receiptVersion)
     {
         // Reuse the existing real writer/stage/admission harness. A deliberate pre-claim
@@ -266,9 +293,12 @@ public sealed class Schema10LegacyMediaGateTests
         Assert.Equal(1, beforeAdmission);
         Assert.Equal(0, checkpoints);
         Assert.Equal(0, dispatches);
-        // Valid orphan v2 import receipts are historical evidence now. Unsupported
-        // merge-v2, incomplete/malformed v2 operations and version mismatches still block.
-        bool blocked = version == 2 && (merge || state is not null);
+        // Both families' valid orphan v2 receipts are historical evidence. Every v2
+        // operation seeded HERE is deliberately malformed ('{}'), or unfinished;
+        // committed fixtures with a v1 receipt also remain version mismatches.
+        bool blocked = version == 2 && state is not null;
+        using (SqliteConnection connection = OpenRead(catalog))
+            Assert.Equal(blocked, ArchiveSql.HasIncompatibleMediaTransferHistory(connection, null));
         Assert.Equal(blocked ? ProfileExclusiveDisposition.RecoveryRequired : ProfileExclusiveDisposition.SafeToResume,
             outcome.Disposition);
         Assert.Equal(blocked ? NativeMediaImportCommitStatus.ReconciliationRequired : NativeMediaImportCommitStatus.Inactive,

@@ -257,6 +257,102 @@ public sealed class NativeInventoryProjectionUnionTests
         Assert.Equal(cancellation.Token, error.CancellationToken);
     }
 
+    [Theory]
+    [InlineData((int)MediaObservedContentStatus.Unknown, false)]
+    [InlineData((int)MediaObservedContentStatus.Unknown, true)]
+    [InlineData((int)MediaObservedContentStatus.Failed, false)]
+    [InlineData((int)MediaObservedContentStatus.Failed, true)]
+    [InlineData((int)MediaObservedContentStatus.Cancelled, false)]
+    [InlineData((int)MediaObservedContentStatus.Cancelled, true)]
+    public void ExactOriginalSupplementsEarlierObservationWithoutPromisingVerifiedBytes(int status, bool reverse)
+    {
+        var prior = Evidence(1) with { IncomingStatus = (MediaObservedContentStatus)status };
+        var missing = Snapshot("prior-evidence", prior, Derived(prior));
+        var later = BoundSnapshot("later-original", 2);
+        var member = Assert.Single(Create(Thread(), reverse ? [later, missing] : [missing, later]).Members);
+        Assert.Same(later, Assert.Single(member.Originals).Manifest);
+        Assert.Equal(TransferContentStatus.Unavailable, member.Attachment.Status);
+        Assert.Null(member.Attachment.PayloadSha256);
+        Assert.Equal(Version(Actual), member.Attachment.OriginalByteVersion);
+        Assert.Equal(prior, Assert.Single(missing.OriginalEvidence));
+        Assert.Equal(MediaObservedContentStatus.Contained, Assert.Single(later.OriginalEvidence).IncomingStatus);
+        Assert.Single(member.Derived[TransferDerivedRepresentationKind.Preview]);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void MultipleObservationStatusesResolveAfterAllRootsWithoutOrderDependence(bool reverse)
+    {
+        var failed = Evidence(1) with { IncomingStatus = MediaObservedContentStatus.Failed };
+        var cancelled = Evidence(2) with { IncomingStatus = MediaObservedContentStatus.Cancelled };
+        var a = Snapshot("failed", failed);
+        var b = Snapshot("cancelled", cancelled);
+        var original = BoundSnapshot("original", 2);
+        var member = Assert.Single(Create(Thread(), reverse ? [original, b, a] : [a, b, original]).Members);
+        Assert.Same(original, Assert.Single(member.Originals).Manifest);
+        Assert.Equal(TransferContentStatus.Unavailable, member.Attachment.Status);
+        Assert.Null(member.Attachment.PayloadSha256);
+        Assert.Equal(failed, Assert.Single(a.OriginalEvidence));
+        Assert.Equal(cancelled, Assert.Single(b.OriginalEvidence));
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void PreviewWithMatchingShaReconcilesObservationsWithoutInventingAnOriginal(bool reverse)
+    {
+        var failed = Evidence(1) with { IncomingStatus = MediaObservedContentStatus.Failed };
+        var contained = Evidence(2);
+        var a = Snapshot("failed", failed, Derived(failed, Actual));
+        var b = Snapshot("reported-contained-no-original", contained, Derived(contained, Actual));
+        var member = Assert.Single(Create(Thread(), reverse ? [b, a] : [a, b]).Members);
+        Assert.Empty(member.Originals);
+        Assert.Equal(TransferContentStatus.Unavailable, member.Attachment.Status);
+        Assert.Null(member.Attachment.PayloadSha256);
+        Assert.Null(member.Attachment.History);
+        Assert.Equal(2, member.Derived[TransferDerivedRepresentationKind.Preview].Length);
+        Assert.Equal(failed, Assert.Single(a.OriginalEvidence));
+        Assert.Equal(contained, Assert.Single(b.OriginalEvidence));
+    }
+
+    public static IEnumerable<object[]> ObservationPairs()
+    {
+        foreach (var left in Enum.GetValues<MediaObservedContentStatus>())
+        foreach (var right in Enum.GetValues<MediaObservedContentStatus>())
+            yield return [(int)left, (int)right];
+    }
+
+    [Theory]
+    [MemberData(nameof(ObservationPairs))]
+    public void ObservationUnionKeepsExactSourceButNeverPromotesLocalAvailability(
+        int leftValue, int rightValue)
+    {
+        var left = (MediaObservedContentStatus)leftValue;
+        var right = (MediaObservedContentStatus)rightValue;
+        var a = Evidence(1) with { IncomingStatus = left };
+        var b = Evidence(2) with { IncomingStatus = right };
+        var member = Assert.Single(Create(Thread(), [Snapshot("left", a), Snapshot("right", b)]).Members);
+        var distinct = new[] { left, right }.Where(s => s != MediaObservedContentStatus.Omitted).Distinct().ToArray();
+        TransferContentStatus expected = distinct.Length == 0 ? TransferContentStatus.Omitted
+            : distinct.Length > 1 || distinct[0] == MediaObservedContentStatus.Contained ? TransferContentStatus.Unavailable
+            : Enum.Parse<TransferContentStatus>(distinct[0].ToString());
+        Assert.Equal(expected, member.Attachment.Status);
+        Assert.Equal(Version(Actual), member.Attachment.OriginalByteVersion);
+        Assert.Empty(member.Originals);
+        Assert.Empty(member.Derived);
+        Assert.Null(member.Attachment.PayloadSha256);
+        Assert.Null(member.Attachment.History);
+        Assert.Equal(left, a.IncomingStatus);
+        Assert.Equal(right, b.IncomingStatus);
+    }
+
+    [Fact]
+    public void InvalidObservationStatusStillRejectsEvenBesideARealOriginal()
+    {
+        var invalid = Evidence(1) with { IncomingStatus = (MediaObservedContentStatus)999 };
+        Assert.Throws<InvalidDataException>(() => Create(Thread(),
+            [Snapshot("invalid", invalid), BoundSnapshot("original", 2)]));
+    }
+
     private static NativeTransferMediaInventoryProjection.Plan Create(TransferThread thread,
         ImmutableArray<MediaAssetSnapshot> snapshots) => NativeTransferMediaInventoryProjection.Create(thread, snapshots, default);
 

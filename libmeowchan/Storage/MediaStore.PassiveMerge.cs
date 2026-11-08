@@ -53,6 +53,8 @@ public sealed partial class MediaStore
     {
         ArgumentNullException.ThrowIfNull(plan);
         plan.Owner.EnsureTransferAdmission(admission);
+        if (plan.PlanVersion != 1)
+            throw new InvalidDataException("The original-only target verifier does not accept representation plans.");
         return WithPassiveMergeTargetRootsAsync(plan.Roots.Select(root => root.Directory).ToArray(), callback, token);
     }
 
@@ -220,7 +222,7 @@ public sealed partial class MediaStore
         }
     }
 
-    private async Task VerifyPassiveMergeTargetBytesAsync(MediaAssetSnapshot snapshot, CancellationToken token)
+    private async Task VerifyPassiveMergeTargetBytesAsync(MediaAssetSnapshot snapshot, CancellationToken token, bool verifyAllAssets = false)
     {
         Dictionary<string, FileDigest> measured = new(PassiveMergePathComparer);
         for (int offset = 0; offset < snapshot.Count; offset += 500)
@@ -233,7 +235,7 @@ public sealed partial class MediaStore
             // Check ALL declared payload types before opening, even non-original assets.
             // Several distinct attachment assets may legitimately share one physical payload.
             ValidateCandidateRegularFile(path);
-            if (asset.Variant != "original") continue;
+            if (!verifyAllAssets && asset.Variant != "original") continue;
             if (!measured.TryGetValue(path, out FileDigest? digest))
             {
                 digest = await HashCandidateFileAsync(path, token, asset.Length).ConfigureAwait(false)
@@ -256,7 +258,7 @@ public sealed partial class MediaStore
             MediaAssetReference asset = snapshot.FindById(binding.AssetId)
                 ?? throw new InvalidDataException("A target binding has no asset.");
             if (!MediaAttachmentResolver.BindingMatchesAsset(binding, asset)
-                || asset.Variant == "original" && (!measured.TryGetValue(asset.Path, out FileDigest? digest)
+                || (verifyAllAssets || asset.Variant == "original") && (!measured.TryGetValue(asset.Path, out FileDigest? digest)
                     || !MediaIntegrityValidation.MatchesMeasured(binding.Actual, Actual(digest))))
                 throw new InvalidDataException("A target binding disagrees with its original bytes.");
         }
@@ -265,6 +267,8 @@ public sealed partial class MediaStore
     private static Dictionary<string, MediaAttachmentBinding> ValidatePassiveMergePlan(NativeMediaMergePlan plan)
     {
         ArgumentNullException.ThrowIfNull(plan);
+        if (plan.PlanVersion != 1)
+            throw new InvalidDataException("The original-only merge API does not accept representation plans.");
         if (plan.FullKeys.IsDefaultOrEmpty || plan.SafeKeys.IsDefault || plan.Inputs.IsDefault
             || plan.Roots.IsDefault || plan.FullKeys.Length > MaximumPassiveMergeItems
             || plan.Inputs.Length != plan.FullKeys.Length || plan.Conflicts < 0

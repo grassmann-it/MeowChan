@@ -12,7 +12,7 @@ using Microsoft.Data.Sqlite;
 namespace MeowChan.Tests.Transfer;
 
 // Synthetic manifest6 wire is not a journalled v4 import. These tests keep the
-// original-only consumers closed until their complete preservation path exists.
+// legacy original-only consumers closed; versioned v2 merge preparation is separate.
 public sealed class NativeV6ConsumerBoundaryTests
 {
     private const string ManifestName = ".meowchan-manifest.json";
@@ -271,12 +271,11 @@ public sealed class NativeV6ConsumerBoundaryTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task V4WirePreparesV2ImportWhileOriginalOnlyMergeStillRejectsBeforeTargetRead(bool merge)
+    public async Task V4WirePreparesV2ImportOrInventoryMergeWithoutPublishingCandidates(bool merge)
     {
         using TempDirectory profile = new();
         using TempDirectory staging = new();
         string root = Path.Combine(profile.Path, "media");
-        if (merge) await CaptureAsync(profile.Path, root);
         MediaOriginalEvidence evidence = Evidence(MediaObservedContentStatus.Omitted);
         TransferAttachment attachment = new(evidence.Metadata, TransferMediaRole.Original,
             TransferContentStatus.Contained, Hash(Bytes), null)
@@ -300,19 +299,81 @@ public sealed class NativeV6ConsumerBoundaryTests
         Assert.Equal(TransferContentStatus.Contained, stage.Package.Catalog.Threads[0].Posts[0].Attachments[0].Status);
         using ProfileLease lease = ProfileLease.Acquire(profile.Path);
         await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile.Path, lease);
-        if (merge) await catalog.DisposeAsync(); // Unsupported merge must still reject before target reads.
+        MediaAssetSnapshot? mediaBefore = null;
+        if (merge)
+        {
+            // Unlike the old unsupported-package sentinel, supported v2 merge reads
+            // a live valid database and an available target root. SQL already knows
+            // the attachment, but this empty v6 has no stored Original or evidence.
+            await WriteInventoryAsync(root, 0);
+            mediaBefore = await AssertAvailableV6Async(root, 0);
+            AssertOriginalUnavailable(mediaBefore, attachment.Metadata);
+            TransferThread thread = stage.Package.Catalog.Threads[0];
+            await catalog.CapturePreservingRevisionsAsync(new(Id, thread.PageUrl!, thread.Title,
+                thread.SourceState, At, root, thread.Posts.Select(post => post.Metadata).ToArray())
+                { DecimalPostOrder = thread.DecimalPostOrder });
+        }
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(profile.Path);
+        ArchivedThreadView? targetBefore = await reader.ReadThreadAsync(Id);
+        if (merge)
+        {
+            Assert.NotNull(targetBefore);
+            Assert.Equal(attachment.Metadata, Assert.Single(Assert.Single(targetBefore.GetPosts()).Attachments!));
+        }
+        else Assert.Null(targetBefore);
         Dictionary<string, string> before = NativeMediaImportTests.Files(profile.Path);
         string[] directoriesBefore = Directory.GetDirectories(profile.Path, "*", SearchOption.AllDirectories)
             .OrderBy(path => path, StringComparer.Ordinal).ToArray();
-
+        NativeMediaCandidateSelection selection;
+        NativeMediaCandidateInventory inventory;
         if (merge)
         {
             NativeMediaMergePreparation result = await catalog.PrepareNativeMediaMergeAsync(stage);
-            Assert.Equal(NativeMediaMergeError.UnsupportedPackage, result.Error);
-            Assert.Null(result.Plan);
+            Assert.Equal(NativeMediaMergeError.None, result.Error);
+            NativeMediaMergePlan plan = Assert.IsType<NativeMediaMergePlan>(result.Plan);
+            Assert.Equal(2, plan.PlanVersion);
+            Assert.Same(catalog, plan.Owner);
+            Assert.Same(stage, plan.Stage);
+            Assert.Same(stage.Package, plan.Package);
+            Assert.Equal(Id, plan.Resource);
+            Assert.Equal(targetBefore!.Summary, plan.Target.Summary);
+            NativeMediaMergeRoot frozenRoot = Assert.Single(plan.Roots);
+            Assert.Equal(root, frozenRoot.Directory);
+            Assert.Equal(mediaBefore!.Generation, frozenRoot.Generation);
+            NativeMediaMergeV2State representation = Assert.IsType<NativeMediaMergeV2State>(plan.Representation);
+            selection = representation.FullSelection;
+            inventory = representation.FullInventory;
+            Assert.Equal(stage.Package.Envelope.CatalogBytes.ToArray(), representation.CatalogBytes.ToArray());
+            Assert.Equal(selection.CanonicalJson, representation.SafeSelection.CanonicalJson);
+            Assert.Equal(selection.Sha256, representation.SafeSelection.Sha256);
+            NativeMediaCandidateInventory safe = Assert.IsType<NativeMediaCandidateInventory>(representation.SafeInventory);
+            Assert.Equal(inventory.Sha256, safe.Sha256);
+            Assert.Equal(inventory.OriginalEvidence.ToArray(), safe.OriginalEvidence.ToArray());
+            Assert.Equal(inventory.Bindings.ToArray(), safe.Bindings.ToArray());
+            Assert.Empty(safe.DerivedRepresentations);
+            Assert.True(plan.HasSafeCandidate);
+            Assert.True(plan.ReuseFullAsSafe);
+            Assert.Equal(0, plan.Conflicts);
+            Assert.Empty(plan.AddedPosts);
+            Assert.Empty(plan.UpdatedPosts);
+            Assert.Empty(plan.AddedAttachments);
+            Assert.Equal(0, plan.NewAttachmentCount);
+            Assert.Equal(safe.Bindings.Length, plan.NewBindingCount);
+            Assert.Equal(new NativeMediaMergeCounts(0, 0, 0, safe.Bindings.Length, 0,
+                safe.OriginalEvidence.Length, safe.DerivedRepresentations.Length,
+                safe.DerivedRepresentations.Count(d => d.IncomingStatus == MediaDerivedStatus.Contained)), representation.Counts);
+            Assert.Throws<InvalidOperationException>(() => { _ = plan.Inputs; });
+            Assert.Throws<InvalidOperationException>(() => { _ = plan.FullKeys; });
+            Assert.Throws<InvalidOperationException>(() => { _ = plan.SafeKeys; });
+            Assert.Throws<InvalidOperationException>(() => { _ = plan.FullKeysJson; });
+            Assert.Throws<InvalidOperationException>(() => { _ = plan.SafeKeysJson; });
+            Assert.False(Directory.Exists(plan.OperationsParent));
         }
         else
         {
+            NativeMediaMergePreparation missing = await catalog.PrepareNativeMediaMergeAsync(stage);
+            Assert.Equal(NativeMediaMergeError.MissingTarget, missing.Error);
+            Assert.Null(missing.Plan);
             NativeMediaImportPreparation result = await catalog.PrepareNativeMediaImportAsync(stage);
             Assert.Equal(NativeMediaImportError.None, result.Error);
             NativeMediaImportPlan plan = Assert.IsType<NativeMediaImportPlan>(result.Plan);
@@ -322,37 +383,54 @@ public sealed class NativeV6ConsumerBoundaryTests
             Assert.Same(stage.Package, plan.Package);
             Assert.Equal(Id, plan.Resource);
             NativeMediaImportV2State representation = Assert.IsType<NativeMediaImportV2State>(plan.Representation);
-            NativeMediaCandidateSelection expected = NativeMediaMaterializationPlan.Create(stage, Id).FullSelection;
-            Assert.False(representation.Selection.IsEmpty);
-            Assert.Equal(expected.CanonicalJson, representation.Selection.CanonicalJson);
-            Assert.Equal(expected.Sha256, representation.Selection.Sha256);
+            selection = representation.Selection;
+            inventory = representation.Inventory;
             Assert.Equal(stage.Package.Envelope.CatalogBytes.ToArray(), representation.CatalogBytes.ToArray());
-            Assert.Equal(2, representation.Selection.Members.Length);
-            Assert.Single(representation.Selection.Members, member => member.Id.Role == NativeMediaMemberRole.OriginalEvidence);
-            Assert.Single(representation.Selection.Members, member => member.Id.Role == NativeMediaMemberRole.OriginalPayload);
-            Assert.All(representation.Selection.Members, member =>
-            {
-                Assert.False(member.ContextOnly);
-                Assert.False(member.Descriptor.Retained);
-                Assert.Equal(Id, member.Id.Occurrence.Resource);
-                Assert.Equal(PostId, member.Id.Occurrence.PostId);
-                Assert.Equal(attachment.Metadata, member.Descriptor.Metadata);
-                Assert.Equal(attachment.OriginalByteVersion, member.Id.SourceVersion);
-                Assert.Equal(attachment.PayloadSha256, member.Descriptor.PayloadSha256);
-            });
-            Assert.Single(representation.Inventory.OriginalEvidence);
-            Assert.Single(representation.Inventory.Bindings);
-            Assert.Empty(representation.Inventory.DerivedRepresentations);
             Assert.Throws<InvalidOperationException>(() => { _ = plan.Attachments; });
             Assert.Throws<InvalidOperationException>(() => { _ = plan.RevisionKeysJson; });
             Assert.False(Directory.Exists(plan.OperationsParent));
-            await using ArchiveReader reader = await ArchiveReader.OpenAsync(profile.Path);
-            Assert.Null(await reader.ReadThreadAsync(Id));
         }
+        NativeMediaCandidateSelection expected = NativeMediaMaterializationPlan.Create(stage, Id).FullSelection;
+        Assert.False(selection.IsEmpty);
+        Assert.Equal(expected.CanonicalJson, selection.CanonicalJson);
+        Assert.Equal(expected.Sha256, selection.Sha256);
+        Assert.Equal(2, selection.Members.Length);
+        Assert.Single(selection.Members, member => member.Id.Role == NativeMediaMemberRole.OriginalEvidence);
+        Assert.Single(selection.Members, member => member.Id.Role == NativeMediaMemberRole.OriginalPayload);
+        Assert.All(selection.Members, member =>
+        {
+            Assert.False(member.ContextOnly);
+            Assert.False(member.Descriptor.Retained);
+            Assert.Equal(Id, member.Id.Occurrence.Resource);
+            Assert.Equal(PostId, member.Id.Occurrence.PostId);
+            Assert.Equal(attachment.Metadata, member.Descriptor.Metadata);
+            Assert.Equal(attachment.OriginalByteVersion, member.Id.SourceVersion);
+            Assert.Equal(attachment.PayloadSha256, member.Descriptor.PayloadSha256);
+        });
+        Assert.Single(inventory.OriginalEvidence);
+        Assert.Single(inventory.Bindings);
+        Assert.Empty(inventory.DerivedRepresentations);
+        ArchivedThreadView? targetAfter = await reader.ReadThreadAsync(Id);
+        if (merge)
+        {
+            Assert.NotNull(targetAfter);
+            Assert.Equal(targetBefore!.Summary, targetAfter.Summary);
+            Assert.Equal(targetBefore.MediaDirectories, targetAfter.MediaDirectories);
+            Assert.Equal(targetBefore.DecimalPostOrder, targetAfter.DecimalPostOrder);
+            CapturedPost postBefore = Assert.Single(targetBefore.GetPosts());
+            CapturedPost postAfter = Assert.Single(targetAfter.GetPosts());
+            Assert.Equal(postBefore with { Attachments = null }, postAfter with { Attachments = null });
+            Assert.Equal(postBefore.Attachments, postAfter.Attachments);
+            MediaAssetSnapshot mediaAfter = await AssertAvailableV6Async(root, 0);
+            Assert.Equal(mediaBefore!.Generation, mediaAfter.Generation);
+            AssertOriginalUnavailable(mediaAfter, attachment.Metadata);
+            AssertLeaseReleased(root);
+        }
+        else Assert.Null(targetAfter);
         Assert.Equal(before, NativeMediaImportTests.Files(profile.Path));
         Assert.Equal(directoriesBefore, Directory.GetDirectories(profile.Path, "*", SearchOption.AllDirectories)
             .OrderBy(path => path, StringComparer.Ordinal).ToArray());
-        Assert.False(Directory.Exists(root));
+        Assert.Equal(merge, Directory.Exists(root));
         using SqliteConnection connection = ArchiveSql.OpenConnection(catalog.DatabasePath, SqliteOpenMode.ReadOnly);
         using SqliteCommand command = connection.CreateCommand();
         command.CommandText = "SELECT (SELECT count(*) FROM archive_media_import_operations)"

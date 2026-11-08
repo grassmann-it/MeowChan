@@ -77,7 +77,7 @@ internal static partial class ArchiveSql
 
     // Unlike startup, a legacy phase may have its own live Preparing/Prepared row.
     // Preserve that v1 behavior, but do not seal an otherwise usable profile merely
-    // because a different, fully reconciled v2 import remains in durable history.
+    // because a different, fully reconciled v2 import/merge remains in durable history.
     // This is coexistence only: it cannot grant legacy execution of a v2 operation.
     internal static bool HasIncompatibleMediaTransferHistory(SqliteConnection connection, SqliteTransaction? transaction)
     {
@@ -87,18 +87,15 @@ internal static partial class ArchiveSql
             return HasIncompatibleMediaTransferHistory(connection, snapshot);
         }
         if (!HasUnsupportedMediaTransferRecords(connection, transaction)) return false;
-        using (SqliteCommand command = Command(connection, transaction, """
-            SELECT EXISTS(SELECT 1 FROM archive_media_merge_operations
-                WHERE typeof(plan_version) IS NOT 'integer' OR plan_version IS NOT 1)
-            OR EXISTS(SELECT 1 FROM archive_media_merge_receipts
-                WHERE typeof(plan_version) IS NOT 'integer' OR plan_version IS NOT 1);
-            """))
-            if ((long)command.ExecuteScalar()! != 0) return true;
         try
         {
             return HasPersistedMediaOperationRecoveryBlocker(connection, transaction, merge: false,
                     CancellationToken.None, nonLegacyOnly: true)
                 || HasPersistedMediaReceiptRecoveryBlocker(connection, transaction, merge: false,
+                    CancellationToken.None, nonLegacyOnly: true)
+                || HasPersistedMediaOperationRecoveryBlocker(connection, transaction, merge: true,
+                    CancellationToken.None, nonLegacyOnly: true)
+                || HasPersistedMediaReceiptRecoveryBlocker(connection, transaction, merge: true,
                     CancellationToken.None, nonLegacyOnly: true);
         }
         catch (Exception error) when (error is InvalidDataException or JsonException

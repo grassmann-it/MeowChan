@@ -107,8 +107,6 @@ internal static partial class ArchiveSql
             foreach (MediaTransferRecoveryOperationHeader header in page)
             {
                 ct.ThrowIfCancellationRequested();
-                // Version-two merge is still unsupported, even if all its counters match.
-                if (merge && header.Identity.PlanVersion != 1) return true;
                 if (header.State != NativeMediaImportOperationState.Committed) return true;
                 if (merge)
                 {
@@ -176,10 +174,10 @@ internal static partial class ArchiveSql
             foreach (NativeMediaReceiptIdentity identity in page)
             {
                 ct.ThrowIfCancellationRequested();
-                if (merge && identity.PlanVersion != 1) return true;
                 // Check ALL receipts, not just those reached through surviving operations.
-                // A valid orphan import v1/v2 receipt is history; an orphan merge-v2 or
-                // unknown-version receipt still seals the lane. No files are needed.
+                // A valid orphan receipt is historical success, for either supported
+                // version/family. Unknown versions and malformed counters still seal the lane.
+                // No target, operation or files are needed to attest historical success.
                 if (merge)
                 {
                     if (ReadPersistedMediaMergeReceipt(connection, transaction, identity.OperationId,

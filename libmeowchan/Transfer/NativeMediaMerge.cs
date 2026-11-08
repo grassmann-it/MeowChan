@@ -22,6 +22,17 @@ public sealed partial class ArchiveCatalog
 {
     private readonly System.Runtime.CompilerServices.ConditionalWeakTable<NativeMediaMergePlan, object> _issuedNativeMediaMergePlans = new();
 
+    internal NativeMediaMergeV2State RequireIssuedNativeMediaMergeV2Plan(ProfileAdmissionToken admission,
+        NativeMediaMergePlan plan)
+    {
+        EnsureTransferAdmission(admission);
+        ArgumentNullException.ThrowIfNull(plan);
+        if (!ReferenceEquals(plan.Owner, this) || !_issuedNativeMediaMergePlans.TryGetValue(plan, out _)
+            || plan.Representation is not { } state)
+            throw new InvalidOperationException("Versioned merge requires the exact owner-issued plan.");
+        return state;
+    }
+
     /// <summary>Prepares a bounded current/retained-original merge for an existing archived resource.</summary>
     internal async Task<NativeMediaMergePreparation> PrepareNativeMediaMergeAsync(NativeTransferImportStage stage,
         CancellationToken cancellationToken = default)
@@ -29,11 +40,10 @@ public sealed partial class ArchiveCatalog
         ArgumentNullException.ThrowIfNull(stage);
         cancellationToken.ThrowIfCancellationRequested();
         NativeTransferPackage package = stage.Package;
-        // These original-only materializers cannot preserve nested representations or
-        // original byte-version evidence. Reject the admitted wire schema before any
-        // target lookup, even when hashes alias or the DTO could downlevel.
-        if (package.IsChanV4) return new(null, NativeMediaMergeError.UnsupportedPackage);
-        if (package.Catalog.Threads.Length != 1) return new(null, NativeMediaMergeError.UnsupportedPackage);
+        if (package.Catalog.Threads.Length != 1 || package.PrivateMetadata != null)
+            return new(null, NativeMediaMergeError.UnsupportedPackage);
+        if (package.IsChanV4)
+            return await PrepareNativeMediaInventoryMergeAsync(stage, cancellationToken).ConfigureAwait(false);
         TransferThread thread = package.Catalog.Threads[0];
         if (thread.PageUrl == null || thread.Posts.Any(post => post.AttachmentsWereNull))
             return new(null, NativeMediaMergeError.UnsupportedPackage);
@@ -59,31 +69,7 @@ public sealed partial class ArchiveCatalog
             || package.Envelope.Payloads.Any(payload => !payloads.Contains(payload.Sha256)))
             return new(null, NativeMediaMergeError.UnsupportedPackage);
 
-        var read = await ReadAsync(connection =>
-        {
-            using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
-            (string instance, long generation) = ArchiveSql.ReadImportFence(connection, transaction);
-            long work = 0, bytes = 0;
-            foreach ((string table, string[] columns, int cap) in new (string, string[], int)[] {
-                ("archive_threads", ["source", "board", "thread", "url", "title", "media_directory", "first_seen_at", "last_captured_at"], 1),
-                ("archive_posts", ["post", "subject", "author", "html", "posted_at"], 100_000),
-                ("archive_attachments", ["post", "media_id", "variant", "url", "original_name", "planned_path", "expected_md5", "expected_sha256", "attachment_revision_key", "expected_sha1", "provider_size_hint_json"], 100_000),
-                ("archive_media_directories", ["directory"], 32) })
-            {
-                using SqliteCommand budget = ArchiveSql.Command(connection, transaction,
-                    "SELECT count(*),COALESCE(sum(" + string.Join("+", columns.Select(column => "COALESCE(length(CAST(" + column + " AS BLOB)),0)"))
-                    + $"),0) FROM {table} WHERE source=$source AND board=$board AND thread=$thread");
-                ArchiveSql.AddId(budget, thread.Id);
-                using SqliteDataReader counts = budget.ExecuteReader(); counts.Read();
-                long rows = counts.GetInt64(0);
-                work = checked(work + rows); bytes = checked(bytes + counts.GetInt64(1));
-                if (rows > cap || work > 201_000 || bytes > 32L * 1024 * 1024)
-                    return (instance, generation, (ArchivedThreadView?)null, NativeMediaMergeError.TargetBudgetExceeded);
-            }
-            ArchivedThreadView? target = ArchiveSql.ReadThread(connection, transaction, thread.Id);
-            transaction.Commit();
-            return (instance, generation, target, target == null ? NativeMediaMergeError.MissingTarget : NativeMediaMergeError.None);
-        }, cancellationToken).ConfigureAwait(false);
+        var read = await ReadMediaMergeTargetAsync(thread.Id, cancellationToken).ConfigureAwait(false);
         if (read.Item4 != NativeMediaMergeError.None) return new(null, read.Item4);
         ArchivedThreadView target = read.Item3!;
         var frozenInputs = inputs.ToImmutable();
@@ -345,6 +331,7 @@ public sealed partial class ArchiveCatalog
         CancellationToken cancellationToken, Action? beforeAdmission, Action<NativeMediaImportPhase>? checkpoint)
     {
         bool claimAttempted = false, durableOperationObserved = false;
+        NativeMediaPersistedMergeOperation? preparing = null;
         NativeMediaMergeResult? completed = null;
         Exception? failure = null;
         try { completed = await ExecuteAsync().ConfigureAwait(false); }
@@ -355,7 +342,7 @@ public sealed partial class ArchiveCatalog
 
         async Task<NativeMediaMergeResult> ExecuteAsync()
         {
-            NativeMediaMergeResult? replay = await ReadNativeMediaMergeReceiptAsync(plan.OperationId, plan.RequestSha256, CancellationToken.None).ConfigureAwait(false);
+            NativeMediaMergeResult? replay = await ReadNativeMediaMergeReceiptAsync(plan.OperationId, plan.RequestSha256, plan.PlanVersion, CancellationToken.None).ConfigureAwait(false);
             if (replay != null) return replay;
             // A callback may win a SQL race or mutate a cooperative media root. Invoke it
             // before acquiring the stable root leases; the snapshot below then either binds the
@@ -366,17 +353,17 @@ public sealed partial class ArchiveCatalog
             NativeMediaImportCommitStatus preliminary = await WriteTransferAdmittedAsync(admission, (connection, transaction) =>
                 Admit(connection, transaction, claim: false), cancellationToken).ConfigureAwait(false);
             if (preliminary == NativeMediaImportCommitStatus.Committed)
-                return await ReadNativeMediaMergeReceiptAsync(plan.OperationId, plan.RequestSha256, CancellationToken.None).ConfigureAwait(false)
+                return await ReadNativeMediaMergeReceiptAsync(plan.OperationId, plan.RequestSha256, plan.PlanVersion, CancellationToken.None).ConfigureAwait(false)
                     ?? new(NativeMediaImportCommitStatus.Unknown);
             if (preliminary != NativeMediaImportCommitStatus.Inactive) return new(preliminary);
-            return await store.WithPassiveMergeTargetRootsAdmittedAsync(admission, plan, async snapshots =>
+            Func<ImmutableArray<MediaAssetSnapshot>, Task<NativeMediaMergeResult>> merge = async snapshots =>
             {
                 if (snapshots.Length != plan.Roots.Length
                     || snapshots.Select(snapshot => (snapshot.Directory, snapshot.Generation))
                         .OrderBy(pair => pair.Directory, StringComparer.Ordinal)
                         .SequenceEqual(plan.Roots.Select(root => (root.Directory, (string?)root.Generation))
                             .OrderBy(pair => pair.Directory, StringComparer.Ordinal)) == false)
-                    return await ReadNativeMediaMergeReceiptAsync(plan.OperationId, plan.RequestSha256, CancellationToken.None).ConfigureAwait(false)
+                    return await ReadNativeMediaMergeReceiptAsync(plan.OperationId, plan.RequestSha256, plan.PlanVersion, CancellationToken.None).ConfigureAwait(false)
                         ?? new NativeMediaMergeResult(NativeMediaImportCommitStatus.StalePlan);
 
                 // Receipt/recovery and freshness remain first inside the SQL admission. The
@@ -385,7 +372,7 @@ public sealed partial class ArchiveCatalog
                 NativeMediaImportCommitStatus claimStatus = await WriteTransferAdmittedAsync(admission, (connection, transaction) =>
                     Admit(connection, transaction, claim: true), cancellationToken).ConfigureAwait(false);
                 if (claimStatus == NativeMediaImportCommitStatus.Committed)
-                    return await ReadNativeMediaMergeReceiptAsync(plan.OperationId, plan.RequestSha256, CancellationToken.None).ConfigureAwait(false)
+                    return await ReadNativeMediaMergeReceiptAsync(plan.OperationId, plan.RequestSha256, plan.PlanVersion, CancellationToken.None).ConfigureAwait(false)
                         ?? new(NativeMediaImportCommitStatus.Unknown);
                 if (claimStatus != NativeMediaImportCommitStatus.Inactive) return new(claimStatus);
 
@@ -393,47 +380,74 @@ public sealed partial class ArchiveCatalog
                 cancellationToken.ThrowIfCancellationRequested();
                 CreateMergeOperationsParent(plan.OperationsParent);
                 checkpoint?.Invoke(NativeMediaImportPhase.OperationsParentCreated);
-                PassiveMediaImportCandidate full = await store.MaterializePassiveMergeCandidateAdmittedAsync(admission, plan, false, cancellationToken,
-                    _ => checkpoint?.Invoke(NativeMediaImportPhase.CandidateDirectoryCreated)).ConfigureAwait(false);
+                PassiveMediaImportCandidate full = plan.PlanVersion == 2
+                    ? await store.MaterializePassiveMergeCandidateAdmittedAsync(admission, plan, preparing!, false, cancellationToken,
+                        _ => checkpoint?.Invoke(NativeMediaImportPhase.CandidateDirectoryCreated)).ConfigureAwait(false)
+                    : await store.MaterializePassiveMergeCandidateAdmittedAsync(admission, plan, false, cancellationToken,
+                        _ => checkpoint?.Invoke(NativeMediaImportPhase.CandidateDirectoryCreated)).ConfigureAwait(false);
                 checkpoint?.Invoke(NativeMediaImportPhase.CandidateReady);
                 PassiveMediaImportCandidate? safe = null;
-                if (!plan.SafeKeys.IsEmpty)
+                if (plan.HasSafeCandidate)
                     safe = plan.ReuseFullAsSafe ? full
-                        : await store.MaterializePassiveMergeCandidateAdmittedAsync(admission, plan, true, cancellationToken).ConfigureAwait(false);
-                await WriteTransferAdmittedAsync(admission, (connection, transaction) =>
-                { ArchiveSql.MarkMediaMergePrepared(connection, transaction, plan, full, safe); return true; }, cancellationToken)
-                    .ConfigureAwait(false);
+                        : plan.PlanVersion == 2
+                            ? await store.MaterializePassiveMergeCandidateAdmittedAsync(admission, plan, preparing!, true, cancellationToken).ConfigureAwait(false)
+                            : await store.MaterializePassiveMergeCandidateAdmittedAsync(admission, plan, true, cancellationToken).ConfigureAwait(false);
+                NativeMediaPersistedMergeOperation? prepared = await WriteTransferAdmittedAsync(admission, (connection, transaction) =>
+                {
+                    if (plan.PlanVersion == 2) return ArchiveSql.MarkMediaMergePreparedV2(connection, transaction, plan, full, safe);
+                    ArchiveSql.MarkMediaMergePrepared(connection, transaction, plan, full, safe);
+                    return (NativeMediaPersistedMergeOperation?)null;
+                }, cancellationToken).ConfigureAwait(false);
                 checkpoint?.Invoke(NativeMediaImportPhase.PreparedSaved);
-                return await store.WithVerifiedPassiveMergeCandidatesAdmittedAsync(admission, plan, full, safe, async () =>
+                Func<Task<NativeMediaMergeResult>> apply = async () =>
                 {
                     checkpoint?.Invoke(NativeMediaImportPhase.CandidateVerified);
                     NativeMediaMergeResult result = await WriteTransferAdmittedAsync(admission, (connection, transaction) =>
                     {
-                        NativeMediaMergeResult? receipt = ArchiveSql.ReadMediaMergeReceipt(connection, transaction, plan.OperationId, plan.RequestSha256);
+                        NativeMediaMergeResult? receipt = ReadMediaMergeReceiptForPlan(connection, transaction, plan);
                         if (receipt != null) return receipt;
-                        if (!ArchiveSql.MediaMergeOperationMatches(connection, transaction, plan, full, safe)
-                            || !MediaMergeFresh(connection, transaction, plan)) return new(NativeMediaImportCommitStatus.StalePlan);
-                        ArchiveSql.ApplyMediaMergeContent(connection, transaction, plan, full, safe);
-                        ArchiveSql.FinishMediaMerge(connection, transaction, plan);
+                        bool matches = plan.PlanVersion == 2
+                            ? ArchiveSql.MediaMergeOperationMatchesV2(connection, transaction, plan, NativeMediaImportOperationState.Prepared, full, safe)
+                            : ArchiveSql.MediaMergeOperationMatches(connection, transaction, plan, full, safe);
+                        if (!matches || !MediaMergeFresh(connection, transaction, plan)) return new(NativeMediaImportCommitStatus.StalePlan);
+                        NativeMediaMergeResult committed;
+                        if (plan.PlanVersion == 2)
+                        {
+                            ArchiveSql.ApplyMediaMergeContentV2(connection, transaction, plan, full, safe);
+                            ArchiveSql.FinishMediaMergeV2(connection, transaction, plan, full, safe);
+                            committed = plan.Representation!.CommittedResult();
+                        }
+                        else
+                        {
+                            ArchiveSql.ApplyMediaMergeContent(connection, transaction, plan, full, safe);
+                            ArchiveSql.FinishMediaMerge(connection, transaction, plan);
+                            committed = new(NativeMediaImportCommitStatus.Committed, plan.AddedPosts.Length, plan.UpdatedPosts.Length,
+                                plan.NewAttachmentCount, plan.NewBindingCount, plan.Conflicts);
+                        }
                         checkpoint?.Invoke(NativeMediaImportPhase.BeforeSqlCommit);
-                        return new(NativeMediaImportCommitStatus.Committed, plan.AddedPosts.Length, plan.UpdatedPosts.Length,
-                            plan.AddedAttachments.Length + plan.AddedPosts.Sum(p => p.Attachments?.Count ?? 0), plan.SafeKeys.Length, plan.Conflicts);
+                        return committed;
                     }, cancellationToken).ConfigureAwait(false);
                     if (result.Status == NativeMediaImportCommitStatus.Committed) checkpoint?.Invoke(NativeMediaImportPhase.SqlCommitted);
                     return result;
-                }, cancellationToken).ConfigureAwait(false);
-            }, cancellationToken).ConfigureAwait(false);
+                };
+                return await (plan.PlanVersion == 2
+                    ? store.WithVerifiedPassiveMergeCandidatesAdmittedAsync(admission, plan, prepared!, apply, cancellationToken)
+                    : store.WithVerifiedPassiveMergeCandidatesAdmittedAsync(admission, plan, full, safe, apply, cancellationToken)).ConfigureAwait(false);
+            };
+            return await (plan.PlanVersion == 2
+                ? store.WithPassiveMergeInventoryTargetRootsAdmittedAsync(admission, plan, merge, cancellationToken)
+                : store.WithPassiveMergeTargetRootsAdmittedAsync(admission, plan, merge, cancellationToken)).ConfigureAwait(false);
         }
 
         NativeMediaImportCommitStatus Admit(SqliteConnection connection, SqliteTransaction transaction, bool claim)
         {
-            if (ArchiveSql.ReadMediaMergeReceipt(connection, transaction, plan.OperationId, plan.RequestSha256) != null)
+            if (ReadMediaMergeReceiptForPlan(connection, transaction, plan) != null)
                 return NativeMediaImportCommitStatus.Committed;
-            NativeMediaMergeOperation? existing = ArchiveSql.ReadMediaMergeOperation(connection, transaction, plan.OperationId, plan.RequestSha256);
+            NativeMediaImportOperationState? existing = ReadMediaMergeStateForPlan(connection, transaction, plan);
             if (existing != null)
             {
                 durableOperationObserved = true;
-                return existing.State == NativeMediaImportOperationState.Committed
+                return existing == NativeMediaImportOperationState.Committed
                     ? NativeMediaImportCommitStatus.Committed : NativeMediaImportCommitStatus.ReconciliationRequired;
             }
             if (ArchiveSql.HasUnresolvedMediaOperation(connection, transaction, plan.Resource))
@@ -442,8 +456,17 @@ public sealed partial class ArchiveCatalog
             if (!claim) return NativeMediaImportCommitStatus.Inactive;
             // Record uncertainty BEFORE INSERT/Commit/return, including commit-return loss.
             claimAttempted = true;
-            return ArchiveSql.ClaimMediaMerge(connection, transaction, plan)
-                ? NativeMediaImportCommitStatus.Inactive : NativeMediaImportCommitStatus.ReconciliationRequired;
+            bool claimed = plan.PlanVersion == 2
+                ? ArchiveSql.ClaimMediaMergeV2(connection, transaction, plan)
+                : ArchiveSql.ClaimMediaMerge(connection, transaction, plan);
+            if (claimed && plan.PlanVersion == 2)
+            {
+                preparing = ArchiveSql.ReadPersistedMediaMergeOperation(connection, transaction, plan.OperationId, plan.RequestSha256)
+                    ?? throw new InvalidDataException("The representation merge claim disappeared.");
+                if (!plan.Representation!.MatchesOperation(preparing, NativeMediaImportOperationState.Preparing))
+                    throw new InvalidDataException("The representation merge claim differs from the issued plan.");
+            }
+            return claimed ? NativeMediaImportCommitStatus.Inactive : NativeMediaImportCommitStatus.ReconciliationRequired;
         }
     }
 
@@ -456,7 +479,7 @@ public sealed partial class ArchiveCatalog
             return await ReadMediaMergeRecoveryAsync(connection =>
             {
                 using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
-                historicalReceipt = ArchiveSql.ReadMediaMergeReceipt(connection, transaction, plan.OperationId, plan.RequestSha256);
+                historicalReceipt = ReadMediaMergeReceiptForPlan(connection, transaction, plan);
                 // Same snapshot, both families, whole profile: a historical success does not
                 // authorize resuming over a separate unfinished or receipt-inconsistent operation.
                 bool blocked = HasNativeMediaImportRecoveryBlocker(connection, transaction);
@@ -476,11 +499,10 @@ public sealed partial class ArchiveCatalog
                         ? ProfileExclusiveOutcome<NativeMediaMergeResult>.RecoveryRequired(success)
                         : ProfileExclusiveOutcome<NativeMediaMergeResult>.SafeToResume(success);
                 }
-                NativeMediaMergeOperation? operation = ArchiveSql.ReadMediaMergeOperation(connection, transaction,
-                    plan.OperationId, plan.RequestSha256);
+                NativeMediaImportOperationState? operation = ReadMediaMergeStateForPlan(connection, transaction, plan);
                 NativeMediaImportCommitStatus status;
                 bool safeToResume = false;
-                if (operation?.State == NativeMediaImportOperationState.Committed)
+                if (operation == NativeMediaImportOperationState.Committed)
                     status = NativeMediaImportCommitStatus.Unknown;
                 else if (fence.Item1 != plan.Instance)
                     // A completed freshness rejection is still the truthful attempt result.
@@ -524,6 +546,34 @@ public sealed partial class ArchiveCatalog
                     ? new(NativeMediaImportCommitStatus.Unknown, Diagnostic: diagnostic)
                     : historicalReceipt with { Diagnostic = diagnostic });
         }
+    }
+
+    private static NativeMediaMergeResult? ReadMediaMergeReceiptForPlan(SqliteConnection connection,
+        SqliteTransaction transaction, NativeMediaMergePlan plan)
+        => plan.PlanVersion == 1
+            ? ArchiveSql.ReadMediaMergeReceipt(connection, transaction, plan.OperationId, plan.RequestSha256)
+            : ArchiveSql.ReadMediaMergeReceiptV2(connection, transaction, plan.OperationId, plan.RequestSha256);
+
+    private static NativeMediaImportOperationState? ReadMediaMergeStateForPlan(SqliteConnection connection,
+        SqliteTransaction transaction, NativeMediaMergePlan plan)
+    {
+        if (plan.PlanVersion == 1)
+            return ArchiveSql.ReadMediaMergeOperation(connection, transaction, plan.OperationId, plan.RequestSha256)?.State;
+        NativeMediaPersistedMergeOperation? operation = ArchiveSql.ReadPersistedMediaMergeOperation(connection, transaction,
+            plan.OperationId, plan.RequestSha256);
+        if (operation != null && !plan.Representation!.MatchesOperation(operation, operation.State))
+            throw new InvalidDataException("The persisted representation merge differs from its issued plan.");
+        return operation?.State;
+    }
+
+    internal Task<NativeMediaMergeResult?> ReadNativeMediaMergeReceiptAsync(Guid operationId, string requestSha256,
+        int planVersion, CancellationToken cancellationToken = default)
+    {
+        ArchiveSql.ValidateMediaMergeIdentity(operationId, requestSha256);
+        if (planVersion is not (1 or 2)) throw new ArgumentOutOfRangeException(nameof(planVersion));
+        return ReadMediaMergeRecoveryAsync(connection => planVersion == 1
+            ? ArchiveSql.ReadMediaMergeReceipt(connection, null, operationId, requestSha256)
+            : ArchiveSql.ReadMediaMergeReceiptV2(connection, null, operationId, requestSha256), cancellationToken);
     }
 
     private static bool MediaMergeFresh(SqliteConnection connection, SqliteTransaction transaction, NativeMediaMergePlan plan)

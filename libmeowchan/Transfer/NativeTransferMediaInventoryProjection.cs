@@ -42,6 +42,7 @@ internal static class NativeTransferMediaInventoryProjection
     private sealed class Evidence
     {
         internal required MediaOriginalEvidence Value;
+        internal readonly HashSet<MediaObservedContentStatus> ObservedStatuses = new();
         internal readonly Dictionary<MediaDerivedKind, List<(MediaAssetSnapshot Manifest, MediaDerivedRepresentation Member)>> Derived = new();
     }
 
@@ -67,9 +68,9 @@ internal static class NativeTransferMediaInventoryProjection
                     // CompatibleEvidence to erase a nullable recorded SHA1 or source version.
                     if (previous.Value.Metadata != item.Metadata || previous.Value.OriginalByteVersion != item.OriginalByteVersion)
                         throw InvalidUnion();
-                    previous.Value = previous.Value with { IncomingStatus = CombineStatus(previous.Value.IncomingStatus, item.IncomingStatus) };
                 }
-                else evidence.Add(item.Occurrence, new() { Value = item });
+                else evidence.Add(item.Occurrence, previous = new() { Value = item });
+                previous.ObservedStatuses.Add(item.IncomingStatus);
             }
             foreach (MediaAttachmentBinding binding in manifest.AttachmentBindings.Values)
             {
@@ -184,7 +185,8 @@ internal static class NativeTransferMediaInventoryProjection
                 history = thisHistory; hasHistory = true;
                 originals.Add(new(manifest, resolved.Asset));
             }
-            TransferContentStatus status = observed == null ? attachment.Status : Status(observed.Value.IncomingStatus);
+            TransferContentStatus status = observed == null ? attachment.Status
+                : Status(CombineStatus(observed.ObservedStatuses));
             // Incoming Contained is not local availability. Byte selection happens later.
             if (status == TransferContentStatus.Contained) status = TransferContentStatus.Unavailable;
             var derivedOrigins = ImmutableDictionary.CreateBuilder<TransferDerivedRepresentationKind, ImmutableArray<NativeTransferInventoryOrigin>>();
@@ -209,15 +211,21 @@ internal static class NativeTransferMediaInventoryProjection
         }
     }
 
-    private static MediaObservedContentStatus CombineStatus(MediaObservedContentStatus left, MediaObservedContentStatus right)
+    private static MediaObservedContentStatus CombineStatus(HashSet<MediaObservedContentStatus> observed)
     {
-        if (left == right) return left;
-        if (left is MediaObservedContentStatus.Contained or MediaObservedContentStatus.Unavailable
-            && right is MediaObservedContentStatus.Contained or MediaObservedContentStatus.Unavailable) return MediaObservedContentStatus.Unavailable;
-        // Omission is an export choice, not contrary evidence of local availability.
-        if (left == MediaObservedContentStatus.Omitted) return right;
-        if (right == MediaObservedContentStatus.Omitted) return left;
-        throw InvalidUnion();
+        // These statuses describe separate transfer observations, not source identity.
+        // All exact metadata/version checks still apply above. Keep every recorded
+        // observation in its original manifest and combine without depending on order.
+        foreach (MediaObservedContentStatus value in observed) _ = Status(value);
+        var included = observed.Where(s => s != MediaObservedContentStatus.Omitted).ToArray();
+        if (included.Length == 0) return MediaObservedContentStatus.Omitted;
+        if (included.Length == 1) return included[0];
+        // The portable occurrence has one status, so differing past observations get
+        // a neutral local descriptor rather than one invented "winning" failure.
+        // This also permits a new preview with a ContextOnly parent to supplement
+        // earlier Failed/Cancelled/Unknown evidence without claiming an original.
+        // Only independently verified, selected original bytes yield Contained output.
+        return MediaObservedContentStatus.Unavailable;
     }
     private static TransferContentStatus Status(MediaObservedContentStatus status) => status switch
     {
