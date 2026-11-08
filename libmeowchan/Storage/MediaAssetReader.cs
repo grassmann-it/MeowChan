@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
@@ -38,13 +39,17 @@ public sealed class MediaAssetSnapshot
 
     internal MediaAssetSnapshot(string directory, MediaManifestStatus status, int? manifestVersion,
         string? generation, IEnumerable<MediaAssetReference> assets, string? warning = null,
-        IReadOnlyDictionary<string, MediaAttachmentBinding>? attachmentBindings = null)
+        IReadOnlyDictionary<string, MediaAttachmentBinding>? attachmentBindings = null,
+        IEnumerable<MediaOriginalEvidence>? originalEvidence = null,
+        IEnumerable<MediaDerivedRepresentation>? derivedRepresentations = null)
     {
         Directory = directory;
         Status = status;
         ManifestVersion = manifestVersion;
         Generation = generation;
         Warning = warning;
+        OriginalEvidence = originalEvidence?.ToImmutableArray() ?? ImmutableArray<MediaOriginalEvidence>.Empty;
+        DerivedRepresentations = derivedRepresentations?.ToImmutableArray() ?? ImmutableArray<MediaDerivedRepresentation>.Empty;
         _assets = assets.OrderBy(asset => asset.MediaIdentifier, StringComparer.Ordinal)
             .ThenBy(asset => asset.RequestedFileName, StringComparer.Ordinal)
             .ThenBy(asset => asset.AssetId, StringComparer.Ordinal).ToArray();
@@ -60,6 +65,21 @@ public sealed class MediaAssetSnapshot
     /// <summary>SHA-256 of the exact manifest bytes read, or null when no valid manifest was loaded.</summary>
     public string? Generation { get; }
     public string? Warning { get; }
+    internal ImmutableArray<MediaOriginalEvidence> OriginalEvidence { get; }
+    internal ImmutableArray<MediaDerivedRepresentation> DerivedRepresentations { get; }
+
+    // Value equality covers the entire exact semantic member, not only its digest or filename.
+    // Internal inventory intentionally stays outside the Original asset and resolver API.
+    internal Task<Stream> OpenVerifiedDerivedReadAsync(MediaDerivedRepresentation member,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(member);
+        if (Status != MediaManifestStatus.Available || !DerivedRepresentations.Contains(member))
+            throw new ArgumentException("The representation does not belong to this manifest snapshot.", nameof(member));
+        return MediaStore.OpenVerifiedDerivedFileAsync(Directory, member, cancellationToken);
+    }
+
     public int Count => _assets.Length;
     public IReadOnlyDictionary<string, MediaAttachmentBinding> AttachmentBindings => _attachmentBindings;
 
@@ -187,7 +207,8 @@ public sealed partial class MediaStore
         catch (Exception error) when (error is InvalidDataException or ArgumentException or FormatException or NullReferenceException)
         { return CorruptAssetSnapshot(directory); }
         return new MediaAssetSnapshot(directory, MediaManifestStatus.Available, read.SourceVersion,
-            read.Generation, assets, attachmentBindings: read.Manifest.AttachmentBindings);
+            read.Generation, assets, attachmentBindings: read.Manifest.AttachmentBindings,
+            originalEvidence: read.Manifest.OriginalEvidence, derivedRepresentations: read.Manifest.DerivedRepresentations);
     }
 
     private static MediaAssetSnapshot CorruptAssetSnapshot(string directory)

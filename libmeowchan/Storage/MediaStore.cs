@@ -135,6 +135,7 @@ public sealed partial class MediaStore
                 FileDigest? digest = await TryHashFileAsync(destination, cancellationToken, item.ExpectedSize.Value).ConfigureAwait(false);
                 if (digest != null && MatchesExpected(item, expectedMd5, digest))
                 {
+                    ValidateOriginalPublicationPath(manifestRead.Manifest, destination);
                     cancellationToken.ThrowIfCancellationRequested();
                     using IDisposable? publication = item.AcquirePublicationFence == null ? null
                         : await item.AcquirePublicationFence(cancellationToken).ConfigureAwait(false);
@@ -158,6 +159,7 @@ public sealed partial class MediaStore
                         continue;
                     }
 
+                    ValidateOriginalPublicationPath(manifestRead.Manifest, candidatePath);
                     cancellationToken.ThrowIfCancellationRequested();
                     using IDisposable? publication = item.AcquirePublicationFence == null ? null
                         : await item.AcquirePublicationFence(cancellationToken).ConfigureAwait(false);
@@ -326,6 +328,7 @@ public sealed partial class MediaStore
                 string? boundAssetId = FindBoundAssetId(manifestRead.Manifest, item);
                 string assetId = boundAssetId ?? GetAssetId(Path.GetFileName(item.DestinationPath), new MediaManifestEntry {
                     MediaIdentifier = item.MediaIdentifier, Variant = item.Variant, FileName = Path.GetFileName(publishedPath), Sha256 = digest.Sha256 });
+                ValidateOriginalPublicationPath(manifestRead.Manifest, publishedPath);
                 ValidateBindingCollisions(manifestRead.Manifest, item, assetId, digest);
                 cancellationToken.ThrowIfCancellationRequested();
                 await using MediaAcceptanceLease? acceptanceLease = policy == null ? null
@@ -798,6 +801,7 @@ public sealed partial class MediaStore
     private static void AddManifestEntry(MediaManifest manifest, DownloadItem item, string actualPath, FileDigest digest,
         SourceMediaIntegrityPolicySnapshot? policy = null)
     {
+        ValidateOriginalPublicationPath(manifest, actualPath);
         string requestedName = Path.GetFileName(item.DestinationPath);
         MediaManifestEntry entry = new MediaManifestEntry
         {
@@ -837,7 +841,7 @@ public sealed partial class MediaStore
     private async Task<ManifestRead> ReadWriterManifestAsync(string directory, CancellationToken cancellationToken)
     {
         ManifestRead current = await ReadManifestAsync(directory, ManifestFileName, cancellationToken).ConfigureAwait(false);
-        if (current.Corrupt && current.SourceVersion >= 3)
+        if (current.Corrupt && (current.SourceVersion >= 3 || current.HasRepresentationFields || current.HasStructuredCorruption))
             throw new InvalidDataException("The media manifest has invalid attachment evidence and cannot be replaced.");
         if (!current.Missing) return current;
         string legacyPath = Path.Combine(directory, LegacyManifestFileName);
@@ -885,31 +889,42 @@ public sealed partial class MediaStore
         cancellationToken.ThrowIfCancellationRequested();
         string path = Path.Combine(directory, fileName);
         int? wireVersion = null;
+        bool representationFields = false;
+        bool wireParsed = false;
+        byte[] bytes = Array.Empty<byte>();
         try
         {
-            byte[] bytes = await ReadManifestBytesAsync(path, cancellationToken).ConfigureAwait(false);
+            bytes = await ReadManifestBytesAsync(path, cancellationToken).ConfigureAwait(false);
             string generation = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
             // Preserve the declared schema even if a typed field later fails deserialization.
             using JsonDocument wireDocument = JsonDocument.Parse(bytes);
+            wireParsed = true;
             if (wireDocument.RootElement.ValueKind == JsonValueKind.Object
                 && wireDocument.RootElement.TryGetProperty("Version", out JsonElement versionElement)
                 && versionElement.ValueKind == JsonValueKind.Number && versionElement.TryGetInt32(out int declaredVersion))
                 wireVersion = declaredVersion;
-            if (wireVersion > 0 && wireVersion != 1 && wireVersion != 2 && wireVersion != 3 && wireVersion != 4 && wireVersion != ManifestVersion)
+            representationFields = wireDocument.RootElement.ValueKind == JsonValueKind.Object
+                && (wireDocument.RootElement.TryGetProperty("OriginalEvidence", out _)
+                    || wireDocument.RootElement.TryGetProperty("DerivedRepresentations", out _));
+            if (wireVersion > 0 && wireVersion != 1 && wireVersion != 2 && wireVersion != 3 && wireVersion != 4 && wireVersion != ManifestVersion && wireVersion != RepresentationManifestVersion)
                 throw new InvalidDataException("This media manifest was written with an unsupported schema version.");
             // Check raw properties before DTO deserialization can hide an earlier passive
             // discriminator/inventory behind a later duplicate, including v1/2 projections.
-            try { ValidateUniqueJson(wireDocument.RootElement); }
-            catch (InvalidDataException) { return NewManifestRead(corrupt: true) with { SourceVersion = wireVersion }; }
+            try
+            {
+                ValidateUniqueJson(wireDocument.RootElement);
+                MediaRepresentationWire.Validate(wireDocument.RootElement, wireVersion ?? 0, cancellationToken);
+            }
+            catch (InvalidDataException) { return NewManifestRead(corrupt: true) with { SourceVersion = wireVersion, HasRepresentationFields = representationFields }; }
             MediaManifest? manifest = JsonSerializer.Deserialize<MediaManifest>(bytes, JsonOptions);
-            if (manifest != null && manifest.Version > 0 && manifest.Version != 1 && manifest.Version != 2 && manifest.Version != 3 && manifest.Version != 4 && manifest.Version != ManifestVersion)
+            if (manifest != null && manifest.Version > 0 && manifest.Version != 1 && manifest.Version != 2 && manifest.Version != 3 && manifest.Version != 4 && manifest.Version != ManifestVersion && manifest.Version != RepresentationManifestVersion)
             {
                 throw new InvalidDataException("This media manifest was written with an unsupported schema version.");
             }
 
             if (manifest == null || manifest.Version < 1 || manifest.Entries == null || manifest.Assets == null)
             {
-                return NewManifestRead(corrupt: true) with { SourceVersion = manifest?.Version };
+                return NewManifestRead(corrupt: true) with { SourceVersion = wireVersion, HasRepresentationFields = representationFields };
             }
 
             int sourceVersion = manifest.Version;
@@ -917,7 +932,7 @@ public sealed partial class MediaStore
             if (sourceVersion < 5 && manifest.AttachmentBindings != null
                 && System.Linq.Enumerable.Any(manifest.AttachmentBindings.Values,
                     binding => binding != null && (binding.Acceptance?.Kind == MediaAcceptanceKind.PassiveImport || binding.PassiveImport != null)))
-                return NewManifestRead(corrupt: true) with { SourceVersion = sourceVersion };
+                return NewManifestRead(corrupt: true) with { SourceVersion = sourceVersion, HasRepresentationFields = representationFields };
             try
             {
                 if (sourceVersion >= 3)
@@ -926,6 +941,23 @@ public sealed partial class MediaStore
                         throw new InvalidDataException("A manifest with attachment evidence must contain its binding inventory.");
                 }
                 if (sourceVersion < 3) manifest.AttachmentBindings = new(StringComparer.Ordinal);
+                // V6 is never repaired by an active writer. Check the entire original
+                // inventory before legacy projection could replace a malformed entry.
+                if (sourceVersion == RepresentationManifestVersion)
+                {
+                    foreach (var pair in manifest.Entries)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (!IsValidAssetEntry(directory, pair.Key, pair.Value)) throw InvalidRepresentations();
+                    }
+                    foreach (var pair in manifest.Assets)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        MediaManifestAsset? asset = pair.Value;
+                        if (asset == null || !IsValidAssetEntry(directory, asset.RequestedFileName, asset.Entry)
+                            || pair.Key != GetAssetId(asset.RequestedFileName, asset.Entry)) throw InvalidRepresentations();
+                    }
+                }
                 // Version 1 names only its current assets. Never infer ownership of other files.
                 if (sourceVersion == 1) manifest.Assets.Clear();
                 foreach (KeyValuePair<string, MediaManifestEntry> pair in manifest.Entries)
@@ -933,17 +965,28 @@ public sealed partial class MediaStore
                     if (pair.Value != null) AddAsset(manifest, pair.Key, pair.Value);
                 }
                 ValidateManifestBindings(manifest);
+                ValidateManifestRepresentations(manifest, cancellationToken);
             }
             catch (Exception failure) when (sourceVersion >= 3 && (failure is InvalidDataException or ArgumentException))
             {
-                return NewManifestRead(corrupt: true) with { SourceVersion = sourceVersion };
+                return NewManifestRead(corrupt: true) with { SourceVersion = sourceVersion, HasRepresentationFields = representationFields };
             }
-            manifest.Version = ManifestVersion;
+            manifest.Version = sourceVersion == RepresentationManifestVersion ? RepresentationManifestVersion : ManifestVersion;
             return new ManifestRead(manifest, false, false, generation, sourceVersion);
         }
         catch (JsonException)
         {
-            return NewManifestRead(corrupt: true) with { SourceVersion = wireVersion };
+            // A full DOM parse can fail even after complete inventory/version fields
+            // (e.g. trailing garbage). Never classify a partially structured document
+            // as inventory-free legacy corruption and overwrite it. This probe only
+            // controls repair, not validity: readers still expose no partial records.
+            return NewManifestRead(corrupt: true) with
+            {
+                SourceVersion = wireVersion,
+                HasRepresentationFields = representationFields,
+                HasStructuredCorruption = !wireParsed && bytes.Length != 0
+                    && MediaRepresentationWire.HasReadableProperty(bytes, cancellationToken)
+            };
         }
         catch (FileNotFoundException)
         {
@@ -984,8 +1027,10 @@ public sealed partial class MediaStore
     {
         // Old active-only writers retain their original v4 contract. A passive binding must
         // never be published under a schema whose readers could misinterpret its provenance.
-        manifestRead.Manifest.Version = System.Linq.Enumerable.Any(manifestRead.Manifest.AttachmentBindings.Values,
-            binding => binding.Acceptance.Kind == MediaAcceptanceKind.PassiveImport) ? ManifestVersion : 4;
+        ValidateManifestRepresentations(manifestRead.Manifest, cancellationToken);
+        manifestRead.Manifest.Version = manifestRead.Manifest.OriginalEvidence != null ? RepresentationManifestVersion
+            : System.Linq.Enumerable.Any(manifestRead.Manifest.AttachmentBindings.Values,
+                binding => binding.Acceptance.Kind == MediaAcceptanceKind.PassiveImport) ? ManifestVersion : 4;
         Directory.CreateDirectory(directory);
         string destination = Path.Combine(directory, ManifestFileName);
         string temporaryPath = Path.Combine(directory, ".meowchan-manifest-" + Guid.NewGuid().ToString("N") + ".part");
@@ -1064,7 +1109,11 @@ public sealed partial class MediaStore
     private sealed record VerificationFingerprint(string ActualPath, FileStamp Stamp, long? ExpectedSize,
         string? ExpectedMd5, string? ExpectedSha256, string? ExpectedSha1, ManifestEntryFingerprint ManifestEntry);
     private sealed record VerifiedFile(VerificationFingerprint Fingerprint, FileDigest Digest, long VerifiedAtTimestamp);
-    private sealed record ManifestRead(MediaManifest Manifest, bool Corrupt, bool Missing, string? Generation, int? SourceVersion);
+    private sealed record ManifestRead(MediaManifest Manifest, bool Corrupt, bool Missing, string? Generation, int? SourceVersion)
+    {
+        internal bool HasRepresentationFields { get; init; }
+        internal bool HasStructuredCorruption { get; init; }
+    }
 
     private sealed class MediaManifest
     {
@@ -1073,6 +1122,10 @@ public sealed partial class MediaStore
         public Dictionary<string, MediaManifestEntry> Entries { get; set; } = new(StringComparer.Ordinal);
         public Dictionary<string, MediaManifestAsset> Assets { get; set; } = new(StringComparer.Ordinal);
         public Dictionary<string, MediaAttachmentBinding> AttachmentBindings { get; set; } = new(StringComparer.Ordinal);
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public MediaOriginalEvidence[]? OriginalEvidence { get; set; }
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public MediaDerivedRepresentation[]? DerivedRepresentations { get; set; }
     }
 
     private sealed class MediaManifestAsset

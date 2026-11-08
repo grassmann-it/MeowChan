@@ -88,7 +88,10 @@ public sealed partial class MediaStore
                 ValidateCandidateDirectory(root, requireCandidateName: false);
                 ValidatePassiveMergeTargetManifest(root);
                 MediaAssetSnapshot snapshot = await ReadAssetSnapshotAsync(root, token).ConfigureAwait(false);
-                if (snapshot.Status != MediaManifestStatus.Available || !IsLowerCandidateHash(snapshot.Generation))
+                // The current planner verifies original-only roots. Inventory-aware planning
+                // must be wired before this gate can be lifted without losing observations.
+                if (snapshot.Status != MediaManifestStatus.Available || snapshot.ManifestVersion == RepresentationManifestVersion
+                    || !IsLowerCandidateHash(snapshot.Generation))
                     throw new InvalidDataException("A merge target manifest is missing or corrupt.");
                 items += (long)snapshot.Count + snapshot.AttachmentBindings.Count;
                 if (items > MaximumPassiveMergeItems)

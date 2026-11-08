@@ -85,10 +85,17 @@ public sealed partial class MediaStore
     {
         MediaProviderMetadata provider = MediaIntegrityValidation.Provider(item);
         MediaActualIntegrity actual = Actual(digest);
+        Dictionary<string, MediaOriginalEvidence>? evidence = manifest.OriginalEvidence?
+            .Where(value => value.Occurrence.OriginalRevisionKey != null)
+            .ToDictionary(value => value.Occurrence.OriginalRevisionKey!, StringComparer.Ordinal);
         foreach (AttachmentRevisionReference reference in item.AttachmentReferences)
+        {
             if (manifest.AttachmentBindings.TryGetValue(reference.RevisionKey, out MediaAttachmentBinding? previous)
                 && (previous.Reference != reference || previous.Provider != provider || !MediaIntegrityValidation.MatchesMeasured(previous.Actual, actual) || previous.AssetId != assetId))
                 throw new InvalidDataException("An immutable attachment revision is already bound to different bytes or another asset.");
+            if (evidence != null && evidence.TryGetValue(reference.RevisionKey, out MediaOriginalEvidence? recorded))
+                ValidateEvidenceBinding(recorded, reference, provider, actual, measured: true);
+        }
     }
 
     private static void AddBindings(MediaManifest manifest, DownloadItem item, string assetId, FileDigest digest,
@@ -161,6 +168,9 @@ public sealed partial class MediaStore
         if (!TryGetEntryPath(directory, asset.Entry.FileName, out string? path)) throw new InvalidDataException("Invalid bound asset path.");
         FileDigest? digest = await TryHashFileAsync(path!, token, first.Actual.Length).ConfigureAwait(false);
         if (digest == null || !MediaIntegrityValidation.MatchesMeasured(first.Actual, Actual(digest))) return null;
+        // A historic binding may omit SHA-1, while passive evidence knows it. Once
+        // bytes are measured here, do not return success against contrary evidence.
+        ValidateBindingCollisions(manifest, item, first.AssetId, digest);
         return new MediaCommitResult(path!, digest.Length, digest.Sha256, true) {
             AssetId = first.AssetId, AcquisitionRevisionKey = item.AcquisitionRevisionKey,
             AttachmentRevisionKeys = Array.AsReadOnly(item.AttachmentReferences.Select(reference => reference.RevisionKey).ToArray()) };

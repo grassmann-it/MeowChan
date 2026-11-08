@@ -140,7 +140,10 @@ internal static class NativeTransferArchiveExporter
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     MediaAssetSnapshot manifest = await ReadManifestAsync(directory, cancellationToken).ConfigureAwait(false);
-                    if (manifest.Status == MediaManifestStatus.Corrupt) return FreezeFail(TransferArchiveError.InvalidMedia);
+                    // Until the representation-aware projection is integrated, never silently drop
+                    // passive absence/derived inventory through the original-only exporter.
+                    if (manifest.Status == MediaManifestStatus.Corrupt || manifest.ManifestVersion == 6)
+                        return FreezeFail(TransferArchiveError.InvalidMedia);
                     assetCount = checked(assetCount + manifest.Count);
                     if (assetCount > MaxAssets) return FreezeFail(TransferArchiveError.SelectionLimit);
                     manifests.Add(manifest);
