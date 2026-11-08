@@ -8,14 +8,14 @@ using static MeowChan.Tests.Transfer.NativeMediaImportTests;
 
 namespace MeowChan.Tests.Transfer;
 
-// A valid new wire schema is not permission for older materializers to discard
-// fields they cannot preserve. Exercise real framing/staging and the actual APIs.
+// Public one-thread v4 imports use the lossless v2 plan, never a legacy projection.
+// Original-only merge remains closed. Exercise real framing/staging and the actual APIs.
 public sealed class NativeTransferV4ConsumerBoundaryTests
 {
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task FullOriginalV4CannotEnterAnOriginalOnlyMaterializer(bool existingTarget)
+    public async Task FullOriginalV4PreparesV2ImportButCannotEnterOriginalOnlyMerge(bool existingTarget)
     {
         using Workspace files = new();
         using ProfileLease lease = ProfileLease.Acquire(files.Profile);
@@ -36,13 +36,13 @@ public sealed class NativeTransferV4ConsumerBoundaryTests
         await using NativeTransferImportStage stage = await Stage(files, content);
         Assert.Equal("chan-v4", stage.Package.Envelope.ContentSchema);
         Assert.NotNull(stage.Package.Catalog.Threads[0].Posts[0].Attachments[0].OriginalByteVersion);
-        await AssertMediaRejectedBeforeTargetRead(files, target, stage, existingTarget);
+        await AssertV2ImportPreparationOrLegacyMergeRejection(files, target, stage, existingTarget);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task EqualHashContainedOriginalAndPreviewV4CannotEnterAnOriginalOnlyMaterializer(bool existingTarget)
+    public async Task EqualHashOriginalAndPreviewV4PrepareDistinctV2MembersButCannotEnterOriginalOnlyMerge(bool existingTarget)
     {
         using Workspace files = new();
         using ProfileLease lease = ProfileLease.Acquire(files.Profile);
@@ -77,13 +77,13 @@ public sealed class NativeTransferV4ConsumerBoundaryTests
         Assert.Equal(Bytes, copied.ToArray());
         Assert.Equal(new TransferMeasuredBlob(Bytes.Length, Hash(Bytes), Md5(Bytes), Sha1(Bytes)), measured);
         // One physical blob is not permission to drop the separately bound Preview.
-        await AssertMediaRejectedBeforeTargetRead(files, target, stage, existingTarget);
+        await AssertV2ImportPreparationOrLegacyMergeRejection(files, target, stage, existingTarget);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task AbsentOriginalWithKnownByteVersionV4IsEvidenceOnlyAndCannotEnterAnOriginalOnlyMaterializer(bool existingTarget)
+    public async Task AbsentOriginalV4PreparesEvidenceOnlyV2ImportButCannotEnterOriginalOnlyMerge(bool existingTarget)
     {
         using Workspace files = new();
         using ProfileLease lease = ProfileLease.Acquire(files.Profile);
@@ -109,7 +109,7 @@ public sealed class NativeTransferV4ConsumerBoundaryTests
         using MemoryStream absent = new();
         await Assert.ThrowsAsync<ArgumentException>(() => stage.CopyPayloadToAsync(parsed.OriginalByteVersion!.Sha256, absent));
         Assert.Equal(0L, absent.Length); // Evidence must not invent even an unpublished payload.
-        await AssertMediaRejectedBeforeTargetRead(files, target, stage, existingTarget);
+        await AssertV2ImportPreparationOrLegacyMergeRejection(files, target, stage, existingTarget);
     }
 
     [Fact]
@@ -189,7 +189,7 @@ public sealed class NativeTransferV4ConsumerBoundaryTests
         return stage;
     }
 
-    private static async Task AssertMediaRejectedBeforeTargetRead(Workspace files, ArchiveCatalog target,
+    private static async Task AssertV2ImportPreparationOrLegacyMergeRejection(Workspace files, ArchiveCatalog target,
         NativeTransferImportStage stage, bool existingTarget)
     {
         Dictionary<string, string> before = Files(files.Profile);
@@ -204,26 +204,59 @@ public sealed class NativeTransferV4ConsumerBoundaryTests
         else
         {
             NativeMediaImportPreparation result = await target.PrepareNativeMediaImportAsync(stage);
-            Assert.Equal(NativeMediaImportError.UnsupportedPackage, result.Error);
-            Assert.Null(result.Plan);
+            Assert.Equal(NativeMediaImportError.None, result.Error);
+            NativeMediaImportPlan plan = Assert.IsType<NativeMediaImportPlan>(result.Plan);
+            Assert.Equal(2, plan.PlanVersion);
+            Assert.Same(target, plan.Owner);
+            Assert.Same(stage, plan.Stage);
+            Assert.Same(stage.Package, plan.Package);
+            Assert.Equal(Id, plan.Resource);
+            NativeMediaImportV2State representation = Assert.IsType<NativeMediaImportV2State>(plan.Representation);
+            NativeMediaCandidateSelection selection = representation.Selection;
+            NativeMediaCandidateSelection expected = NativeMediaMaterializationPlan.Create(stage, Id).FullSelection;
+            Assert.False(selection.IsEmpty);
+            Assert.Equal(expected.CanonicalJson, selection.CanonicalJson);
+            Assert.Equal(expected.Sha256, selection.Sha256);
+            Assert.Equal(stage.Package.Envelope.CatalogBytes.ToArray(), representation.CatalogBytes.ToArray());
+
+            TransferPost post = stage.Package.Catalog.Threads[0].Posts[0];
+            TransferAttachment attachment = Assert.Single(post.Attachments);
+            int originals = attachment.Status == TransferContentStatus.Contained ? 1 : 0;
+            Assert.Equal(1 + originals + attachment.DerivedRepresentations.Length, selection.Members.Length);
+            NativeMediaSelectedMember evidence = Assert.Single(selection.Members,
+                member => member.Id.Role == NativeMediaMemberRole.OriginalEvidence);
+            Assert.Equal(attachment.Metadata, evidence.Descriptor.Metadata);
+            Assert.Equal(attachment.Status, evidence.Descriptor.Status);
+            Assert.Equal(attachment.OriginalByteVersion, evidence.Id.SourceVersion);
+            Assert.All(selection.Members, member =>
+            {
+                Assert.False(member.ContextOnly);
+                Assert.False(member.Descriptor.Retained);
+                Assert.Equal(Id, member.Id.Occurrence.Resource);
+                Assert.Equal(post.Metadata.PostId, member.Id.Occurrence.PostId);
+                Assert.Equal(attachment.Metadata.AttachmentRevisionKey, member.Id.Occurrence.OriginalRevisionKey);
+            });
+            Assert.Equal(originals, selection.Members.Count(member => member.Id.Role == NativeMediaMemberRole.OriginalPayload));
+            Assert.Equal(attachment.DerivedRepresentations.Length,
+                selection.Members.Count(member => member.Id.Role == NativeMediaMemberRole.Preview));
+            Assert.Single(representation.Inventory.OriginalEvidence);
+            Assert.Equal(originals, representation.Inventory.Bindings.Length);
+            Assert.Equal(attachment.DerivedRepresentations.Length, representation.Inventory.DerivedRepresentations.Length);
+            Assert.Throws<InvalidOperationException>(() => { _ = plan.Attachments; });
+            Assert.Throws<InvalidOperationException>(() => { _ = plan.RevisionKeysJson; });
+            Assert.False(Directory.Exists(plan.OperationsParent));
         }
         Assert.Equal(before, Files(files.Profile));
         Assert.Equal(directoriesBefore, Directory.GetDirectories(files.Profile, "*", SearchOption.AllDirectories)
             .OrderBy(path => path, StringComparer.Ordinal).ToArray());
         AssertNoOperations(files.Profile);
-        // A disposed catalog is a target-read sentinel: wire admission must reject
-        // before consulting target state or issuing any materialization authority.
-        await target.DisposeAsync();
         if (existingTarget)
         {
+            // Keep the disposed-catalog sentinel for the still unsupported v1-only
+            // merge. Accepted v2 import preparation legitimately reads target state.
+            await target.DisposeAsync();
             NativeMediaMergePreparation rejected = await target.PrepareNativeMediaMergeAsync(stage);
             Assert.Equal(NativeMediaMergeError.UnsupportedPackage, rejected.Error);
-            Assert.Null(rejected.Plan);
-        }
-        else
-        {
-            NativeMediaImportPreparation rejected = await target.PrepareNativeMediaImportAsync(stage);
-            Assert.Equal(NativeMediaImportError.UnsupportedPackage, rejected.Error);
             Assert.Null(rejected.Plan);
         }
         Assert.Equal(before, Files(files.Profile));
@@ -266,7 +299,7 @@ public sealed class NativeTransferV4ConsumerBoundaryTests
     {
         using SqliteConnection connection = ArchiveSql.OpenConnection(Path.Combine(profile, "archive.db"), SqliteOpenMode.ReadOnly);
         using SqliteCommand command = connection.CreateCommand();
-        command.CommandText = "SELECT (SELECT count(*) FROM archive_media_import_operations) + (SELECT count(*) FROM archive_media_merge_operations) + (SELECT count(*) FROM archive_import_candidates)";
+        command.CommandText = "SELECT (SELECT count(*) FROM archive_media_import_operations) + (SELECT count(*) FROM archive_media_merge_operations) + (SELECT count(*) FROM archive_import_candidates) + (SELECT count(*) FROM archive_media_import_receipts) + (SELECT count(*) FROM archive_media_merge_receipts)";
         Assert.Equal(0L, command.ExecuteScalar());
     }
 }

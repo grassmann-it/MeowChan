@@ -220,10 +220,11 @@ public sealed class NativeMediaImportTests
         using (SqliteConnection connection = ArchiveSql.OpenConnection(database, SqliteOpenMode.ReadWrite))
         using (SqliteTransaction tx = connection.BeginTransaction())
         {
-            // Rebuild the frozen old media tables before restamping; v10 tables are not v6.
+            // Restore legacy media DDL and remove the schema11 post marker before restamping to v6.
             RestoreSchema9MediaOperations(connection, tx);
             using var command = ArchiveSql.Command(connection, tx,
-                "DROP TABLE archive_media_import_operations; DROP TABLE archive_media_import_receipts; PRAGMA user_version=6");
+                "ALTER TABLE archive_posts DROP COLUMN attachments_were_null; "
+                + "DROP TABLE archive_media_import_operations; DROP TABLE archive_media_import_receipts; PRAGMA user_version=6");
             command.ExecuteNonQuery();
             tx.Commit();
         }
@@ -237,7 +238,7 @@ public sealed class NativeMediaImportTests
         await using ArchiveCatalog migrated = await ArchiveCatalog.OpenAsync(files.Profile, lease);
         using (SqliteConnection connection = ArchiveSql.OpenConnection(database, SqliteOpenMode.ReadOnly))
         {
-            Assert.Equal(10, ArchiveSql.GetPragma(connection, "user_version"));
+            Assert.Equal(11, ArchiveSql.GetPragma(connection, "user_version"));
             var fence = ArchiveSql.ReadImportFence(connection, null);
             Assert.Equal(before, new[] { fence.Instance, fence.Generation.ToString() });
         }
@@ -542,7 +543,8 @@ public sealed class NativeMediaImportTests
                 tx.Commit();
             }
             using SqliteCommand command = connection.CreateCommand();
-            command.CommandText = "DROP TABLE archive_media_import_operations; DROP TABLE archive_media_import_receipts; PRAGMA user_version=6; "
+            command.CommandText = "ALTER TABLE archive_posts DROP COLUMN attachments_were_null; "
+                + "DROP TABLE archive_media_import_operations; DROP TABLE archive_media_import_receipts; PRAGMA user_version=6; "
                 + "CREATE TABLE " + tableName + "(" + string.Join(",", columns.Where(c => c != missingColumn).Select(c => c + " TEXT")) + "); "
                 + "INSERT INTO " + tableName + " DEFAULT VALUES";
             command.ExecuteNonQuery();

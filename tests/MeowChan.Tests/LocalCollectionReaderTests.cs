@@ -27,7 +27,7 @@ public sealed class LocalCollectionReaderTests
             new(Guid.Parse("33333333-3333-3333-3333-333333333333"))), 0, LocalMediaRole.Original, 0, Hash)));
 
     [Theory]
-    [InlineData(9)] [InlineData(10)]
+    [InlineData(9)] [InlineData(11)]
     public async Task AbsenceRequiresCompatibleSameInstanceSchemaAndDoesNotWrite(int version)
     {
         using Workspace files = new();
@@ -61,7 +61,7 @@ public sealed class LocalCollectionReaderTests
     }
 
     [Theory]
-    [InlineData(9)] [InlineData(10)]
+    [InlineData(9)] [InlineData(11)]
     public async Task HistoricalReceiptSurvivesContentDeletionAndNewGenerationWithoutInventoryOrPayload(int version)
     {
         using Workspace files = new();
@@ -145,7 +145,8 @@ public sealed class LocalCollectionReaderTests
     }
 
     [Theory]
-    [InlineData("PRAGMA user_version=11")]
+    [InlineData("PRAGMA user_version=12")]
+    [InlineData("ALTER TABLE archive_posts DROP COLUMN attachments_were_null; PRAGMA user_version=11")]
     [InlineData("PRAGMA application_id=123")]
     [InlineData("DROP TABLE local_import_receipts")]
     [InlineData("DROP TRIGGER import_fence_local_items_INSERT")]

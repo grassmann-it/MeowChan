@@ -13,7 +13,7 @@ public sealed class LocalCollectionEarliestV4MigrationTests
     private static readonly string Sha256 = new('a', 64);
 
     [Fact]
-    public async Task PreV5ShapeIsPassiveThenActuallyMigratesToTenWithSentinelAndFence()
+    public async Task PreV5ShapeIsPassiveThenActuallyMigratesToElevenWithSentinelAndFence()
     {
         using Workspace files = new();
         SeedPreV5Shape(files);
@@ -31,7 +31,7 @@ public sealed class LocalCollectionEarliestV4MigrationTests
         using (var connection = ArchiveSql.OpenConnection(files.Database, SqliteOpenMode.ReadOnly))
         using (var tx = connection.BeginTransaction(deferred: true))
         {
-            Assert.Equal(10, ArchiveSql.GetPragma(connection, "user_version", tx));
+            Assert.Equal(11, ArchiveSql.GetPragma(connection, "user_version", tx));
             ArchiveSql.ValidateSchema(connection, tx);
             Assert.Equal(new[] { "local_collections", "local_import_operations", "local_import_receipts",
                     "local_items", "local_media_revisions" },

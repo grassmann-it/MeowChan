@@ -88,8 +88,16 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
                             $"PRAGMA application_id={ArchiveSql.ApplicationId}");
                         app.ExecuteNonQuery();
                     }
-                    // Last schema mutation. Cancellation or any fault still rolls back the DDL and stamp.
                     using SqliteCommand stamp = ArchiveSql.Command(connection, transaction, "PRAGMA user_version=10");
+                    stamp.ExecuteNonQuery();
+                }
+                if (fresh || version < 11)
+                {
+                    // Both fresh and upgraded catalogs reach schema10 first. The additive
+                    // ALTER and both stamps are atomic in this same outer transaction.
+                    ArchiveSql.MigratePostAttachmentPresenceSchema11(connection, transaction, cancellationToken);
+                    ArchiveSql.ValidateTargetSchema(connection, transaction, 11);
+                    using SqliteCommand stamp = ArchiveSql.Command(connection, transaction, "PRAGMA user_version=11");
                     stamp.ExecuteNonQuery();
                 }
                 cancellationToken.ThrowIfCancellationRequested();
@@ -417,5 +425,6 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
             insert.Parameters.AddWithValue("$deleted", attachment.IsDeleted ? 1 : 0);
             insert.ExecuteNonQuery();
         }
+        ArchiveSql.WritePostAttachmentPresence(connection, transaction, id, post);
     }
 }

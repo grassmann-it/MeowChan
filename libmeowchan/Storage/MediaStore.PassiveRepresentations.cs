@@ -8,12 +8,69 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Archive;
+using MeowChan.Persistence;
 using MeowChan.Transfer;
 
 namespace MeowChan.Storage;
 
 public sealed partial class MediaStore
 {
+    // Persisted evidence is not an execution capability. The exact owner-issued plan and
+    // live Exclusive admission must be checked before the candidate path is consulted.
+    internal async Task<PassiveMediaImportCandidate> MaterializePassiveImportCandidateAdmittedAsync(
+        ProfileAdmissionToken admission, NativeMediaImportPlan plan,
+        NativeMediaPersistedImportOperation preparing, CancellationToken cancellationToken = default,
+        Action<string>? childDirectoryCreated = null)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        NativeMediaImportV2State state = plan.Owner.RequireIssuedNativeMediaImportV2Plan(admission, plan);
+        ArgumentNullException.ThrowIfNull(preparing);
+        if (!state.MatchesOperation(preparing, NativeMediaImportOperationState.Preparing))
+            throw new InvalidDataException("The preparing operation differs from the issued representation import plan.");
+        cancellationToken.ThrowIfCancellationRequested();
+        PassiveMediaImportCandidate candidate = await MaterializePassiveImportCandidateAsync(
+            state.Materialization, state.Selection, plan.OperationsParent, plan.OperationId, plan.ImportedAtUtc,
+            cancellationToken, checkpoint: null, childDirectoryCreated: childDirectoryCreated).ConfigureAwait(false);
+        // Keep the low-level materializer's post-Ready cancellation semantics. This checks
+        // its complete semantic result, never just the original-only Bindings projection.
+        if (!PathsEqual(Path.GetDirectoryName(candidate.Directory)!, plan.OperationsParent)
+            || !state.MatchesCandidate(candidate))
+            throw new PassiveMediaCandidateWriteException(candidate.Directory,
+                new InvalidDataException("The candidate differs from the issued representation import plan."));
+        return candidate;
+    }
+
+    // Reuse the strict Journal2 inspector only while holding the EXISTING child lock.
+    // The awaited callback shares that same lease; no DTO/token can transfer verification.
+    internal async Task<T> WithVerifiedPassiveImportCandidateAdmittedAsync<T>(
+        ProfileAdmissionToken admission, NativeMediaImportPlan plan,
+        NativeMediaPersistedImportOperation prepared, Func<Task<T>> callback,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        NativeMediaImportV2State state = plan.Owner.RequireIssuedNativeMediaImportV2Plan(admission, plan);
+        ArgumentNullException.ThrowIfNull(prepared);
+        ArgumentNullException.ThrowIfNull(callback);
+        if (!state.MatchesOperation(prepared, NativeMediaImportOperationState.Prepared))
+            throw new InvalidDataException("The prepared operation differs from the issued representation import plan.");
+        cancellationToken.ThrowIfCancellationRequested();
+        if (prepared.Full.Directory is not { } persistedDirectory)
+            throw new InvalidDataException("The prepared operation has no candidate directory.");
+        string directory = ValidateCandidateDirectory(persistedDirectory, requireCandidateName: true);
+        if (!PathsEqual(Path.GetDirectoryName(directory)!, plan.OperationsParent))
+            throw new InvalidDataException("The candidate is not an immediate child of this import plan's parent.");
+        using FileStream lease = await OpenExistingCandidateLeaseAsync(Path.Combine(directory, DirectoryLeaseFileName),
+            cancellationToken).ConfigureAwait(false);
+        PassiveMediaCandidateInspection inspection = await InspectPassiveImportCandidateV2Async(directory,
+            cancellationToken).ConfigureAwait(false);
+        if (inspection.Status != PassiveMediaCandidateStatus.Ready || inspection.Candidate is not { } candidate
+            || !PathsEqual(candidate.Directory, directory)
+            || candidate.ManifestGeneration != prepared.Full.ManifestGeneration || !state.MatchesCandidate(candidate))
+            throw new InvalidDataException("The verified candidate differs from the prepared representation import operation.");
+        cancellationToken.ThrowIfCancellationRequested();
+        return await callback().ConfigureAwait(false);
+    }
+
     /// <summary>
     /// Prepares only a fresh INACTIVE Manifest6 child. A semantic selection and a Ready
     /// journal are not profile admission, registered-root publication or source authority.
@@ -21,7 +78,7 @@ public sealed partial class MediaStore
     internal async Task<PassiveMediaImportCandidate> MaterializePassiveImportCandidateAsync(
         NativeMediaMaterializationPlan plan, NativeMediaCandidateSelection selection, string candidateRoot,
         Guid operationId, DateTimeOffset importedAtUtc, CancellationToken cancellationToken = default,
-        Action<PassiveMediaCandidatePhase, string>? checkpoint = null)
+        Action<PassiveMediaCandidatePhase, string>? checkpoint = null, Action<string>? childDirectoryCreated = null)
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(selection);
@@ -57,6 +114,7 @@ public sealed partial class MediaStore
             throw new IOException("The new candidate path is occupied.");
         if (OperatingSystem.IsWindows()) System.IO.Directory.CreateDirectory(directory);
         else System.IO.Directory.CreateDirectory(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        childDirectoryCreated?.Invoke(directory);
         PassiveMediaImportCandidate? ready = null;
         try
         {

@@ -177,8 +177,9 @@ public sealed class NativeTextImportFenceTests
         string db = Path.Combine(profile.Path, "archive.db");
         string before = Snapshot(db);
         await using ArchiveCatalog upgraded = await ArchiveCatalog.OpenAsync(profile.Path, lease);
-        Assert.Equal(10L, Scalar(db, "PRAGMA user_version"));
+        Assert.Equal(11L, Scalar(db, "PRAGMA user_version"));
         Assert.Equal(before, Snapshot(db, excludeImport: true));
+        Assert.Equal(0L, Scalar(db, "SELECT count(*) FROM archive_posts WHERE attachments_were_null IS NOT 0"));
         Assert.Equal(1L, Scalar(db, "SELECT count(*) FROM archive_import_fence"));
         NativeTextImportPlan plan = await Prepare(upgraded);
         await upgraded.RegisterThreadAsync(new(Id, Url, "migration intervening registration", Path.Combine(profile.Path, "inert"), false));
@@ -338,11 +339,12 @@ public sealed class NativeTextImportFenceTests
         }
         foreach (string name in objects) Execute(db, "DROP TRIGGER " + Quote(name));
         // Schema-shape fixture: retain only the v5 content/search/decision tables and
-        // columns. The seed is current schema10, so every table introduced after v5
-        // must be removed before stamping the historical version; otherwise the fixture
+        // columns. The seed is current schema11, so the post marker and every table
+        // introduced after v5 must be removed before stamping; otherwise the fixture
         // is merely a future schema with a misleading user_version and the v5 migration
         // path is never exercised.
         Execute(db, """
+            ALTER TABLE archive_posts DROP COLUMN attachments_were_null;
             DROP TABLE IF EXISTS local_import_receipts;
             DROP TABLE IF EXISTS local_import_operations;
             DROP TABLE IF EXISTS local_media_revisions;
@@ -397,10 +399,17 @@ public sealed class NativeTextImportFenceTests
         List<string> snapshot = new();
         foreach (string name in names)
         {
-            using SqliteCommand command = connection.CreateCommand(); command.CommandText = "SELECT * FROM " + Quote(name);
+            using SqliteCommand command = connection.CreateCommand();
+            command.CommandText = "SELECT * FROM " + Quote(name);
             using SqliteDataReader rows = command.ExecuteReader(); List<string> values = new();
+            // Exclude only the named schema11 addition for the upgrade comparison, never
+            // a positional tail or a fixed projection that drops legacy search_text.
+            // Its default-zero migration is asserted separately; ordinary snapshots retain it.
+            int[] columns = Enumerable.Range(0, rows.FieldCount)
+                .Where(i => !excludeImport || name != "archive_posts" || rows.GetName(i) != "attachments_were_null")
+                .ToArray();
             while (rows.Read())
-                values.Add(JsonSerializer.Serialize(Enumerable.Range(0, rows.FieldCount).Select(i => rows.IsDBNull(i) ? null :
+                values.Add(JsonSerializer.Serialize(columns.Select(i => rows.IsDBNull(i) ? null :
                     rows.GetValue(i) is byte[] bytes ? "blob:" + Convert.ToBase64String(bytes) :
                     Convert.ToString(rows.GetValue(i), CultureInfo.InvariantCulture)).ToArray()));
             values.Sort(StringComparer.Ordinal); snapshot.Add(name + "\n" + string.Join("\n", values));

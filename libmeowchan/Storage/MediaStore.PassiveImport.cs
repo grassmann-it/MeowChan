@@ -71,6 +71,8 @@ public sealed partial class MediaStore
     {
         ArgumentNullException.ThrowIfNull(plan);
         plan.Owner.EnsureTransferAdmission(admission);
+        if (plan.PlanVersion != 1)
+            throw new InvalidDataException("The original-only import overload requires a legacy plan.");
         return MaterializePassiveImportCandidateCoreAsync(plan.Stage, plan.Package, plan.Resource,
             plan.Attachments.Select(item => item.RevisionKey).ToHashSet(StringComparer.Ordinal),
             plan.OperationsParent, plan.OperationId, plan.ImportedAtUtc, cancellationToken, null, childDirectoryCreated);
@@ -255,6 +257,8 @@ public sealed partial class MediaStore
     {
         ArgumentNullException.ThrowIfNull(plan);
         plan.Owner.EnsureTransferAdmission(admission);
+        if (plan.PlanVersion != 1)
+            throw new InvalidDataException("The original-only import overload requires a legacy plan.");
         ArgumentNullException.ThrowIfNull(expected);
         ArgumentNullException.ThrowIfNull(callback);
         if (!expected.IsLegacyCandidate)

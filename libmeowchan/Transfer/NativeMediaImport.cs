@@ -27,39 +27,46 @@ public sealed partial class ArchiveCatalog
         // The opaque stage was fully validated at creation. Snapshot its immutable package once;
         // do not reopen/re-inspect its source or read fresh metadata after issuing the plan.
         NativeTransferPackage package = stage.Package;
-        // These original-only materializers cannot preserve nested representations or
-        // original byte-version evidence. Reject the admitted wire schema before any
-        // target lookup, even when hashes alias or the DTO could downlevel.
-        if (package.IsChanV4) return new(null, NativeMediaImportError.UnsupportedPackage);
-        if (package.Catalog.Threads.Length != 1) return new(null, NativeMediaImportError.UnsupportedPackage);
+        if (package.Catalog.Threads.Length != 1 || package.PrivateMetadata != null)
+            return new(null, NativeMediaImportError.UnsupportedPackage);
         TransferThread thread = package.Catalog.Threads[0];
-        if (!thread.RetainedBindings.IsEmpty || thread.Posts.Any(post => post.AttachmentsWereNull))
-            return new(null, NativeMediaImportError.UnsupportedPackage);
         if (thread.PageUrl == null) return new(null, NativeMediaImportError.MissingPageUrl);
-        var attachments = ImmutableArray.CreateBuilder<NativeMediaImportAttachment>();
-        HashSet<string> keys = new(StringComparer.Ordinal), payloads = new(StringComparer.Ordinal);
-        foreach (TransferPost post in thread.Posts)
-        foreach (TransferAttachment attachment in post.Attachments)
+        NativeMediaMaterializationPlan? representation = null;
+        if (package.IsChanV4)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            CapturedAttachment raw = attachment.Metadata;
-            if (attachment.Role != TransferMediaRole.Original || attachment.Status != TransferContentStatus.Contained
-                || raw.Variant != "original" || raw.MediaId == null || raw.Url == null || raw.PlannedPath != null
-                || attachment.PayloadSha256 == null || !package.Envelope.MeasuredPayloads.ContainsKey(attachment.PayloadSha256))
-                return new(null, NativeMediaImportError.UnsupportedPackage);
-            MediaProviderMetadata provider = new(raw.MediaId, raw.Variant, raw.Url, raw.OriginalFileName,
-                raw.ExpectedSize, raw.ExpectedMd5, raw.ExpectedSha256)
-                { ExpectedSha1 = raw.ExpectedSha1, ProviderSizeHint = raw.ProviderSizeHint };
-            string key = MediaRevisionKeys.CreateAttachmentKey(thread.Id, post.Metadata.PostId, raw.Position, provider);
-            if (!keys.Add(key)) return new(null, NativeMediaImportError.UnsupportedPackage);
-            payloads.Add(attachment.PayloadSha256);
-            attachments.Add(new(post.Metadata.PostId, key, attachment, provider));
+            representation = NativeMediaMaterializationPlan.Create(stage, thread.Id, cancellationToken);
+            // Text-only/rootless v4 is not silently projected through the legacy path.
+            if (representation.FullSelection.IsEmpty) return new(null, NativeMediaImportError.UnsupportedPackage);
         }
-        // Whole-package gate, not merely the candidate producer's selected-key gate. No hidden
-        // payload, private extension, preview, null collection or retained binding is dropped.
-        if (attachments.Count == 0 || payloads.Count != package.Envelope.Payloads.Length
-            || package.Envelope.Payloads.Any(payload => !payloads.Contains(payload.Sha256)))
+        else if (!thread.RetainedBindings.IsEmpty || thread.Posts.Any(post => post.AttachmentsWereNull))
             return new(null, NativeMediaImportError.UnsupportedPackage);
+        var attachments = ImmutableArray.CreateBuilder<NativeMediaImportAttachment>();
+        if (representation is null)
+        {
+            HashSet<string> keys = new(StringComparer.Ordinal), payloads = new(StringComparer.Ordinal);
+            foreach (TransferPost post in thread.Posts)
+            foreach (TransferAttachment attachment in post.Attachments)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                CapturedAttachment raw = attachment.Metadata;
+                if (attachment.Role != TransferMediaRole.Original || attachment.Status != TransferContentStatus.Contained
+                    || raw.Variant != "original" || raw.MediaId == null || raw.Url == null || raw.PlannedPath != null
+                    || attachment.PayloadSha256 == null || !package.Envelope.MeasuredPayloads.ContainsKey(attachment.PayloadSha256))
+                    return new(null, NativeMediaImportError.UnsupportedPackage);
+                MediaProviderMetadata provider = new(raw.MediaId, raw.Variant, raw.Url, raw.OriginalFileName,
+                    raw.ExpectedSize, raw.ExpectedMd5, raw.ExpectedSha256)
+                    { ExpectedSha1 = raw.ExpectedSha1, ProviderSizeHint = raw.ProviderSizeHint };
+                string key = MediaRevisionKeys.CreateAttachmentKey(thread.Id, post.Metadata.PostId, raw.Position, provider);
+                if (!keys.Add(key)) return new(null, NativeMediaImportError.UnsupportedPackage);
+                payloads.Add(attachment.PayloadSha256);
+                attachments.Add(new(post.Metadata.PostId, key, attachment, provider));
+            }
+            // Whole-package gate, not merely the candidate producer's selected-key gate. No hidden
+            // payload, private extension, preview, null collection or retained binding is dropped.
+            if (attachments.Count == 0 || payloads.Count != package.Envelope.Payloads.Length
+                || package.Envelope.Payloads.Any(payload => !payloads.Contains(payload.Sha256)))
+                return new(null, NativeMediaImportError.UnsupportedPackage);
+        }
         ImmutableArray<NativeMediaImportAttachment> frozen = attachments.ToImmutable();
         return await ReadAsync(connection =>
         {
@@ -70,13 +77,26 @@ public sealed partial class ArchiveCatalog
             Guid operation = Guid.NewGuid();
             string parent = MediaImportOperationsParent(operation);
             string request = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-                "native-new-media-v1\0" + operation.ToString("D") + "\0" + package.Envelope.Fingerprint + "\0"
+                (representation is null ? "native-new-media-v1\0" : "native-new-media-v2\0") + operation.ToString("D") + "\0" + package.Envelope.Fingerprint + "\0"
                 + instance + "\0" + generation.ToString(CultureInfo.InvariantCulture)))).ToLowerInvariant();
             cancellationToken.ThrowIfCancellationRequested(); transaction.Commit();
-            NativeMediaImportPlan plan = new(this, stage, package, instance, generation, operation, request, parent, frozen);
+            NativeMediaImportPlan plan = representation is null
+                ? new(this, stage, package, instance, generation, operation, request, parent, frozen)
+                : new(this, representation, instance, generation, operation, request, parent);
             _issuedNativeMediaPlans.Add(plan, new object());
             return new NativeMediaImportPreparation(plan, NativeMediaImportError.None);
         }, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal NativeMediaImportV2State RequireIssuedNativeMediaImportV2Plan(ProfileAdmissionToken admission,
+        NativeMediaImportPlan plan)
+    {
+        EnsureTransferAdmission(admission);
+        ArgumentNullException.ThrowIfNull(plan);
+        if (!ReferenceEquals(plan.Owner, this) || !_issuedNativeMediaPlans.TryGetValue(plan, out _)
+            || plan.Representation is not { } representation)
+            throw new InvalidOperationException("Representation import requires the exact owner-issued plan.");
+        return representation;
     }
 
     // No tokenless profile mutation entry. The caller borrows the live lane's Exclusive
@@ -135,67 +155,98 @@ public sealed partial class ArchiveCatalog
             // Replay has priority over cancellation, freshness and ALL filesystem
             // access. Deletion/recreation and lost files cannot revoke historical SQL success.
             NativeMediaImportCommitResult? replay = await ReadNativeMediaImportReceiptAsync(plan.OperationId,
-                plan.RequestSha256, CancellationToken.None).ConfigureAwait(false);
+                plan.RequestSha256, plan.PlanVersion, CancellationToken.None).ConfigureAwait(false);
             if (replay != null) return replay;
+            NativeMediaPersistedImportOperation? preparing = null;
             beforeAdmission?.Invoke(); // Narrow observer after the negative read, outside the SQL/ProfileLease lock.
             NativeMediaImportCommitStatus claimed = await WriteTransferAdmittedAsync(admission, (connection, transaction) =>
             {
                 // The first independent lookup can race with committed-only operation cleanup.
                 // Recheck the content-free receipt in this same admission transaction before
                 // evaluating operation metadata or the now-advanced content fence.
-                if (ArchiveSql.ReadMediaImportReceipt(connection, transaction, plan.OperationId, plan.RequestSha256) != null)
+                if (ReadMediaImportReceiptForPlan(connection, transaction, plan) != null)
                     return NativeMediaImportCommitStatus.Committed;
-                NativeMediaImportOperation? existing = ArchiveSql.ReadMediaImportOperation(connection, transaction, plan.OperationId, plan.RequestSha256);
+                NativeMediaImportOperationState? existing = ReadMediaImportStateForPlan(connection, transaction, plan);
                 if (existing != null)
                 {
                     durableOperationObserved = true;
-                    return existing.State == NativeMediaImportOperationState.Committed
+                    return existing == NativeMediaImportOperationState.Committed
                         ? NativeMediaImportCommitStatus.Committed : NativeMediaImportCommitStatus.ReconciliationRequired;
                 }
                 if (!MediaImportFresh(connection, transaction, plan)) return NativeMediaImportCommitStatus.StalePlan;
                 // This transaction's actual INSERT winner is the only filesystem admission.
                 // Existing Preparing/Prepared rows never grant another attempt, even to this plan.
                 claimAttempted = true; // BEFORE INSERT/Commit/return: a lost response cannot erase uncertainty.
-                return ArchiveSql.ClaimMediaImport(connection, transaction, plan)
-                    ? NativeMediaImportCommitStatus.Inactive : NativeMediaImportCommitStatus.ReconciliationRequired;
+                bool won = plan.PlanVersion == 1 ? ArchiveSql.ClaimMediaImport(connection, transaction, plan)
+                    : ArchiveSql.ClaimMediaImportV2(connection, transaction, plan);
+                if (won && plan.PlanVersion == 2)
+                {
+                    preparing = ArchiveSql.ReadPersistedMediaImportOperation(connection, transaction, plan.OperationId, plan.RequestSha256)
+                        ?? throw new InvalidDataException("The claimed representation operation is missing.");
+                    if (!plan.Representation!.MatchesOperation(preparing, NativeMediaImportOperationState.Preparing))
+                        throw new InvalidDataException("The representation import claim changed.");
+                }
+                return won ? NativeMediaImportCommitStatus.Inactive : NativeMediaImportCommitStatus.ReconciliationRequired;
             }, cancellationToken).ConfigureAwait(false);
             if (claimed == NativeMediaImportCommitStatus.Committed)
-                return (await ReadNativeMediaImportReceiptAsync(plan.OperationId, plan.RequestSha256, CancellationToken.None).ConfigureAwait(false))
+                return (await ReadNativeMediaImportReceiptAsync(plan.OperationId, plan.RequestSha256, plan.PlanVersion, CancellationToken.None).ConfigureAwait(false))
                     ?? new(NativeMediaImportCommitStatus.Unknown);
             if (claimed != NativeMediaImportCommitStatus.Inactive) return new(claimed);
             checkpoint?.Invoke(NativeMediaImportPhase.PreparingSaved);
             cancellationToken.ThrowIfCancellationRequested();
             CreateMediaImportOperationsParent(plan.OperationsParent);
             checkpoint?.Invoke(NativeMediaImportPhase.OperationsParentCreated);
-            PassiveMediaImportCandidate candidate = await store.MaterializePassiveImportCandidateAdmittedAsync(admission, plan, cancellationToken,
-                directory => checkpoint?.Invoke(NativeMediaImportPhase.CandidateDirectoryCreated)).ConfigureAwait(false);
+            PassiveMediaImportCandidate candidate = plan.PlanVersion == 1
+                ? await store.MaterializePassiveImportCandidateAdmittedAsync(admission, plan, cancellationToken,
+                    _ => checkpoint?.Invoke(NativeMediaImportPhase.CandidateDirectoryCreated)).ConfigureAwait(false)
+                : await store.MaterializePassiveImportCandidateAdmittedAsync(admission, plan, preparing!, cancellationToken,
+                    _ => checkpoint?.Invoke(NativeMediaImportPhase.CandidateDirectoryCreated)).ConfigureAwait(false);
             checkpoint?.Invoke(NativeMediaImportPhase.CandidateReady);
-            string bindingsHash = ArchiveSql.MediaImportBindingsHash(candidate);
-            await WriteTransferAdmittedAsync(admission, (connection, transaction) =>
+            string? bindingsHash = plan.PlanVersion == 1 ? ArchiveSql.MediaImportBindingsHash(candidate) : null;
+            NativeMediaPersistedImportOperation? prepared = await WriteTransferAdmittedAsync(admission, (connection, transaction) =>
             {
-                ArchiveSql.MarkMediaImportPrepared(connection, transaction, plan, candidate, bindingsHash);
-                return true;
+                if (plan.PlanVersion == 2) return ArchiveSql.MarkMediaImportPreparedV2(connection, transaction, plan, candidate);
+                ArchiveSql.MarkMediaImportPrepared(connection, transaction, plan, candidate, bindingsHash!);
+                return (NativeMediaPersistedImportOperation?)null;
             }, cancellationToken).ConfigureAwait(false);
             checkpoint?.Invoke(NativeMediaImportPhase.PreparedSaved);
-            return await store.WithVerifiedPassiveImportCandidateAdmittedAsync(admission, plan, candidate, async () =>
+            // Both versions enter the same final transaction, under their version-specific
+            // verifier's *held* existing candidate lease. No inspect/release/commit gap.
+            return plan.PlanVersion == 1
+                ? await store.WithVerifiedPassiveImportCandidateAdmittedAsync(admission, plan, candidate, CommitVerifiedAsync, cancellationToken).ConfigureAwait(false)
+                : await store.WithVerifiedPassiveImportCandidateAdmittedAsync(admission, plan, prepared!, CommitVerifiedAsync, cancellationToken).ConfigureAwait(false);
+
+            async Task<NativeMediaImportCommitResult> CommitVerifiedAsync()
             {
                 checkpoint?.Invoke(NativeMediaImportPhase.CandidateVerified);
                 NativeMediaImportCommitResult result = await WriteTransferAdmittedAsync(admission, (connection, transaction) =>
                 {
-                    NativeMediaImportCommitResult? receipt = ArchiveSql.ReadMediaImportReceipt(connection, transaction, plan.OperationId, plan.RequestSha256);
+                    NativeMediaImportCommitResult? receipt = ReadMediaImportReceiptForPlan(connection, transaction, plan);
                     if (receipt != null) return receipt;
-                    if (!ArchiveSql.MediaImportOperationMatches(connection, transaction, plan, NativeMediaImportOperationState.Prepared, candidate, bindingsHash)
-                        || !MediaImportFresh(connection, transaction, plan))
+                    bool matches = plan.PlanVersion == 1
+                        ? ArchiveSql.MediaImportOperationMatches(connection, transaction, plan, NativeMediaImportOperationState.Prepared, candidate, bindingsHash!)
+                        : ArchiveSql.MediaImportOperationMatchesV2(connection, transaction, plan, NativeMediaImportOperationState.Prepared, candidate);
+                    if (!matches || !MediaImportFresh(connection, transaction, plan))
                         return new NativeMediaImportCommitResult(NativeMediaImportCommitStatus.StalePlan);
-                    ArchiveSql.InsertMediaImportContent(connection, transaction, plan, candidate);
-                    ArchiveSql.FinishMediaImport(connection, transaction, plan);
+                    NativeMediaImportCommitResult committed;
+                    if (plan.PlanVersion == 1)
+                    {
+                        ArchiveSql.InsertMediaImportContent(connection, transaction, plan, candidate);
+                        ArchiveSql.FinishMediaImport(connection, transaction, plan);
+                        committed = new(NativeMediaImportCommitStatus.Committed, 1, plan.Thread.Posts.Length, plan.Attachments.Length);
+                    }
+                    else
+                    {
+                        ArchiveSql.InsertMediaImportContentV2(connection, transaction, plan, candidate);
+                        ArchiveSql.FinishMediaImportV2(connection, transaction, plan, candidate);
+                        committed = plan.Representation!.CommittedResult();
+                    }
                     checkpoint?.Invoke(NativeMediaImportPhase.BeforeSqlCommit);
-                    return new NativeMediaImportCommitResult(NativeMediaImportCommitStatus.Committed,
-                        1, plan.Thread.Posts.Length, plan.Attachments.Length);
+                    return committed;
                 }, cancellationToken).ConfigureAwait(false);
                 if (result.Status == NativeMediaImportCommitStatus.Committed) checkpoint?.Invoke(NativeMediaImportPhase.SqlCommitted);
                 return result;
-            }, cancellationToken).ConfigureAwait(false);
+            }
         }
     }
 
@@ -208,7 +259,7 @@ public sealed partial class ArchiveCatalog
             return await ReadMediaImportIndependentAsync(connection =>
             {
                 using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
-                historicalReceipt = ArchiveSql.ReadMediaImportReceipt(connection, transaction, plan.OperationId, plan.RequestSha256);
+                historicalReceipt = ReadMediaImportReceiptForPlan(connection, transaction, plan);
                 // Same snapshot, both families, whole profile: a historical success does not
                 // authorize resuming over a separate unfinished or receipt-inconsistent operation.
                 bool blocked = HasNativeMediaImportRecoveryBlocker(connection, transaction);
@@ -228,11 +279,10 @@ public sealed partial class ArchiveCatalog
                         ? ProfileExclusiveOutcome<NativeMediaImportCommitResult>.RecoveryRequired(success)
                         : ProfileExclusiveOutcome<NativeMediaImportCommitResult>.SafeToResume(success);
                 }
-                NativeMediaImportOperation? operation = ArchiveSql.ReadMediaImportOperation(connection, transaction,
-                    plan.OperationId, plan.RequestSha256);
+                NativeMediaImportOperationState? operation = ReadMediaImportStateForPlan(connection, transaction, plan);
                 NativeMediaImportCommitStatus status;
                 bool safeToResume = false;
-                if (fence.Item1 != plan.Instance || operation?.State == NativeMediaImportOperationState.Committed)
+                if (fence.Item1 != plan.Instance || operation == NativeMediaImportOperationState.Committed)
                     status = NativeMediaImportCommitStatus.Unknown;
                 else if (operation != null || blocked)
                     status = completed?.Status == NativeMediaImportCommitStatus.StalePlan
@@ -272,35 +322,27 @@ public sealed partial class ArchiveCatalog
         }
     }
 
-    // Mirrors the startup gate's bounded consistency predicate, but on the independent
-    // reconciliation snapshot (never call the owner-bound startup reader from here).
+    // Same supported-version consistency predicate as startup, on this independent
+    // snapshot only, after candidate callbacks and SQL/lease consumers have unwound.
     private static bool HasNativeMediaImportRecoveryBlocker(SqliteConnection connection, SqliteTransaction transaction)
+        => ArchiveSql.HasNativeMediaTransferRecoveryBlocker(connection, transaction);
+
+    private static NativeMediaImportCommitResult? ReadMediaImportReceiptForPlan(SqliteConnection connection,
+        SqliteTransaction transaction, NativeMediaImportPlan plan)
+        => plan.PlanVersion == 1
+            ? ArchiveSql.ReadMediaImportReceipt(connection, transaction, plan.OperationId, plan.RequestSha256)
+            : ArchiveSql.ReadMediaImportReceiptV2(connection, transaction, plan.OperationId, plan.RequestSha256);
+
+    private static NativeMediaImportOperationState? ReadMediaImportStateForPlan(SqliteConnection connection,
+        SqliteTransaction transaction, NativeMediaImportPlan plan)
     {
-        // Historical v2 receipts also require a version-aware reader. Matching only
-        // legacy counters must never reopen the independent reconciliation lane.
-        if (ArchiveSql.HasUnsupportedMediaTransferRecords(connection, transaction)) return true;
-        using SqliteCommand command = ArchiveSql.Command(connection, transaction, """
-            SELECT EXISTS (
-                SELECT 1 FROM archive_media_import_operations AS o
-                WHERE o.state IS NOT 'Committed' OR NOT EXISTS (
-                    SELECT 1 FROM archive_media_import_receipts AS r
-                    WHERE r.operation_id = o.operation_id COLLATE BINARY
-                      AND r.request_sha256 = o.request_sha256 COLLATE BINARY
-                      AND r.post_count = o.post_count AND r.attachment_count = o.attachment_count
-                )
-            ) OR EXISTS (
-                SELECT 1 FROM archive_media_merge_operations AS o
-                WHERE o.state IS NOT 'Committed' OR NOT EXISTS (
-                    SELECT 1 FROM archive_media_merge_receipts AS r
-                    WHERE r.operation_id = o.operation_id COLLATE BINARY
-                      AND r.request_sha256 = o.request_sha256 COLLATE BINARY
-                      AND r.new_posts = o.new_posts AND r.updated_posts = o.updated_posts
-                      AND r.new_attachments = o.new_attachments AND r.new_bindings = o.new_bindings
-                      AND r.conflicts = o.conflicts
-                )
-            );
-            """);
-        return (long)command.ExecuteScalar()! != 0;
+        if (plan.PlanVersion == 1)
+            return ArchiveSql.ReadMediaImportOperation(connection, transaction, plan.OperationId, plan.RequestSha256)?.State;
+        NativeMediaPersistedImportOperation? operation = ArchiveSql.ReadPersistedMediaImportOperation(connection, transaction,
+            plan.OperationId, plan.RequestSha256);
+        if (operation != null && !plan.Representation!.MatchesOperation(operation, operation.State))
+            throw new InvalidDataException("The persisted representation import differs from its issued plan.");
+        return operation?.State;
     }
 
     private static bool MediaImportFresh(SqliteConnection connection, SqliteTransaction transaction, NativeMediaImportPlan plan)
@@ -318,6 +360,18 @@ public sealed partial class ArchiveCatalog
         ArchiveSql.ValidateMediaImportIdentity(operationId, requestSha256);
         return ReadMediaImportIndependentAsync(connection => ArchiveSql.ReadMediaImportReceipt(connection, null,
             operationId, requestSha256), cancellationToken);
+    }
+
+    // Explicit versioned historical query. The legacy Guid/request overload remains
+    // v1-only; a caller cannot accidentally erase v2 counters through that projection.
+    internal Task<NativeMediaImportCommitResult?> ReadNativeMediaImportReceiptAsync(Guid operationId, string requestSha256,
+        int planVersion, CancellationToken cancellationToken = default)
+    {
+        ArchiveSql.ValidateMediaImportIdentity(operationId, requestSha256);
+        if (planVersion is not (1 or 2)) throw new ArgumentOutOfRangeException(nameof(planVersion));
+        return ReadMediaImportIndependentAsync(connection => planVersion == 1
+            ? ArchiveSql.ReadMediaImportReceipt(connection, null, operationId, requestSha256)
+            : ArchiveSql.ReadMediaImportReceiptV2(connection, null, operationId, requestSha256), cancellationToken);
     }
 
     internal Task<NativeMediaImportOperationPage> ReadNativeMediaImportOperationsPageAsync(Guid? afterOperationId = null,

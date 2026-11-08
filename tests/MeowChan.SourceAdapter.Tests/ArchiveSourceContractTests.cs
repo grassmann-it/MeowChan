@@ -78,6 +78,13 @@ public sealed class ArchiveSourceContractTests
                 command.CommandText = $"DROP TABLE {table}";
                 command.ExecuteNonQuery();
             }
+            // Version2 predates explicit null-versus-empty attachment presence. This
+            // fixture has no such observations; restore the real old column shape before
+            // testing migration, rather than stamping today's schema as version2.
+            command.CommandText = "SELECT count(*) FROM archive_posts WHERE attachments_were_null <> 0";
+            Assert.Equal(0L, (long)command.ExecuteScalar()!);
+            command.CommandText = "ALTER TABLE archive_posts DROP COLUMN attachments_were_null";
+            command.ExecuteNonQuery();
             using SqliteCommand version = connection.CreateCommand();
             version.CommandText = "PRAGMA user_version=2";
             version.ExecuteNonQuery();

@@ -119,7 +119,7 @@ internal static partial class ArchiveSql
         ResourceId resource)
     {
         ArgumentNullException.ThrowIfNull(resource);
-        if (HasUnsupportedMediaTransferRecords(connection, transaction)) return true;
+        if (HasIncompatibleMediaTransferHistory(connection, transaction)) return true;
         using SqliteCommand command = Command(connection, transaction, """
             SELECT EXISTS (
                 SELECT 1 FROM archive_media_merge_operations
@@ -291,8 +291,8 @@ internal static partial class ArchiveSql
         }
         foreach (CapturedPost post in plan.UpdatedPosts)
         {
-            // This helper only updates scalar post fields and search text. It deliberately does
-            // not touch ordinal or attachments; the latter are handled by the insert-only loop.
+            // Update scalar fields and null-presence without replacing existing attachments.
+            // Attachment rows are handled by the insert-only loop, which clears null-presence.
             UpdateMediaMergePostText(connection, transaction, plan.Resource, post);
             WriteQuotes(connection, transaction, summary, post);
             changed = true;
@@ -674,6 +674,7 @@ internal static partial class ArchiveSql
             + ArchiveText.PlainText(post.Author) + "\n" + ArchiveText.PlainText(post.Html));
         if (command.ExecuteNonQuery() != 1)
             throw new InvalidDataException("The media merge post disappeared.");
+        WritePostAttachmentPresence(connection, transaction, id, post);
     }
 
     private static void InsertMediaMergeAttachment(SqliteConnection connection, SqliteTransaction transaction,
@@ -698,5 +699,6 @@ internal static partial class ArchiveSql
         command.Parameters.AddWithValue("$sha1", (object?)attachment.ExpectedSha1 ?? DBNull.Value);
         command.Parameters.AddWithValue("$sizeHint", (object?)WriteSizeHint(attachment.ProviderSizeHint) ?? DBNull.Value);
         command.ExecuteNonQuery();
+        ClearPostAttachmentPresence(connection, transaction, id, postId);
     }
 }

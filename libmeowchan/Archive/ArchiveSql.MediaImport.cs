@@ -359,6 +359,7 @@ internal static partial class ArchiveSql
             insert.Parameters.AddWithValue("$deleted", attachment.IsDeleted ? 1 : 0);
             insert.ExecuteNonQuery();
         }
+        WritePostAttachmentPresence(connection, transaction, id, post);
     }
 
     private static void InsertMediaImportQuotes(SqliteConnection connection, SqliteTransaction transaction, ResourceId id, string url, CapturedPost post)

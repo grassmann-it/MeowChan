@@ -52,11 +52,12 @@ public sealed class MediaRuleDecisionTests
         Assert.Equal(MediaSelectionOutcome.Excluded, first.Selection.Outcome);
         // Recreate a pre-extension persisted row independently of current writers.
         // Catalog metadata retained raw MD5, including excluded media. Remove the
-        // fixture's empty post-v4 media journals, not just their advertised version:
-        // schema10 columns must never masquerade as legacy migration input.
+        // fixture's empty post-v4 media journals and schema11 post marker, not just
+        // their advertised version: newer columns must not masquerade as legacy input.
         await RemoveEmptyMediaTransferTablesAsync(fixture.Catalog.DatabasePath);
         await ExecuteSqlAsync(fixture.Catalog.DatabasePath, """
             UPDATE media_decisions SET expected_md5='historical-opaque-checksum';
+            ALTER TABLE archive_posts DROP COLUMN attachments_were_null;
             ALTER TABLE archive_attachments DROP COLUMN expected_sha1;
             ALTER TABLE archive_attachments DROP COLUMN provider_size_hint_json;
             ALTER TABLE media_decisions DROP COLUMN expected_sha1;

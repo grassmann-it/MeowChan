@@ -421,8 +421,9 @@ public sealed class PublicStandaloneStartupRecoveryTests
     private static void MakeSyntheticVersionEight(string profile)
     {
         // Synthetic supported schema shape, NOT an authentic historical release profile.
-        // Remove the additive v9 family and rebuild the four media journals with
-        // frozen v8/v9 DDL. Restamping current v10 tables is intentionally unsupported.
+        // Remove the additive v9 family and v11 post-presence column, and rebuild
+        // the four media journals with frozen v8/v9 DDL. Restamping current tables
+        // without removing later schema additions is intentionally unsupported.
         using SqliteConnection connection = Open(DatabasePath(profile), SqliteOpenMode.ReadWrite);
         using SqliteTransaction transaction = connection.BeginTransaction();
         using var command = connection.CreateCommand();
@@ -507,6 +508,8 @@ public sealed class PublicStandaloneStartupRecoveryTests
             command.CommandText = $"INSERT INTO {table}(rowid,{columns}) SELECT rowid,{columns} FROM {table}_current_fixture; DROP TABLE {table}_current_fixture";
             command.ExecuteNonQuery();
         }
+        command.CommandText = "ALTER TABLE archive_posts DROP COLUMN attachments_were_null";
+        command.ExecuteNonQuery();
         command.CommandText = "PRAGMA user_version=8";
         command.ExecuteNonQuery();
         command.CommandText = "SELECT count(*) FROM sqlite_master WHERE name LIKE 'local_%'";
@@ -519,7 +522,7 @@ public sealed class PublicStandaloneStartupRecoveryTests
         using SqliteConnection connection = Open(DatabasePath(profile), SqliteOpenMode.ReadOnly);
         using var version = connection.CreateCommand();
         version.CommandText = "PRAGMA user_version";
-        Assert.Equal(10L, (long)version.ExecuteScalar()!);
+        Assert.Equal(11L, (long)version.ExecuteScalar()!);
         version.CommandText = "SELECT count(*) FROM sqlite_master WHERE type='table' AND name LIKE 'local_%'";
         Assert.Equal(5L, (long)version.ExecuteScalar()!);
     }

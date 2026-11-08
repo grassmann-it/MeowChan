@@ -314,25 +314,25 @@ public sealed class Schema10MediaOperationsMigrationTests
     }
 
     [Fact]
-    public void UnknownV11IsRejectedWithoutMutation()
+    public void UnknownV12IsRejectedWithoutMutation()
     {
         using SyntheticDatabase database = new();
         using (SqliteConnection connection = database.Open(SqliteOpenMode.ReadWrite))
-            Execute(connection, "PRAGMA user_version=11");
+            Execute(connection, "PRAGMA user_version=12");
         byte[] beforeBytes = File.ReadAllBytes(database.Path);
 
         using (SqliteConnection connection = database.Open(SqliteOpenMode.ReadWrite))
         using (SqliteTransaction transaction = connection.BeginTransaction(deferred: false))
         {
             Assert.Throws<InvalidDataException>(() => ArchiveSql.ValidateSchema(connection, transaction));
-            Assert.Throws<InvalidDataException>(() => ArchiveSql.ValidateTargetSchema(connection, transaction, 11));
+            Assert.Throws<InvalidDataException>(() => ArchiveSql.ValidateTargetSchema(connection, transaction, 12));
             Assert.Throws<InvalidDataException>(() => ArchiveSql.MigrateMediaTransferSchema10(
                 connection, transaction, CancellationToken.None));
             transaction.Rollback();
         }
 
         Assert.Equal(beforeBytes, File.ReadAllBytes(database.Path));
-        Assert.Equal(11, Pragma(database, "user_version"));
+        Assert.Equal(12, Pragma(database, "user_version"));
     }
 
     [Fact]
@@ -596,7 +596,7 @@ public sealed class Schema10MediaOperationsMigrationTests
         using (SqliteConnection connection = database.Open(SqliteOpenMode.ReadOnly))
         using (SqliteTransaction transaction = connection.BeginTransaction(deferred: true))
         {
-            Assert.Equal(10, ArchiveSql.GetPragma(connection, "user_version", transaction));
+            Assert.Equal(11, ArchiveSql.GetPragma(connection, "user_version", transaction));
             Assert.Equal(ArchiveSql.ApplicationId, ArchiveSql.GetPragma(connection, "application_id", transaction));
             ArchiveSql.ValidateSchema(connection, transaction);
             var actual = Schema9MediaOperationsFixture.ReadSnapshot(connection, transaction);

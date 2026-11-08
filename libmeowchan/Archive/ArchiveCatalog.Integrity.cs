@@ -14,7 +14,7 @@ public sealed partial class ArchiveCatalog
         snapshot = ArchiveValidation.CopySnapshot(snapshot);
         return snapshot with { Posts = Array.AsReadOnly(snapshot.Posts.Select(post => post with
         {
-            Attachments = Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment =>
+            Attachments = post.Attachments == null ? null : Array.AsReadOnly(post.Attachments.Select(attachment =>
             {
                 // An identity-free deletion marker retains the previous full attachment during merge.
                 if (attachment.MediaId == null) return attachment;

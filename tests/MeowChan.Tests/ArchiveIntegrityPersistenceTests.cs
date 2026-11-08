@@ -133,7 +133,8 @@ public sealed class ArchiveIntegrityPersistenceTests
         if (version > 1)
         {
             // Extend the frozen v1 fixture only as far as the requested historical
-            // version. Opening today's catalog here would also create schema10 journals.
+            // version. Opening today's catalog here would also create schema10 journals
+            // and the schema11 post attachment-presence column.
             using SqliteConnection db = ArchiveSql.OpenConnection(Path.Combine(temp.Path, "archive.db"), SqliteOpenMode.ReadWrite);
             using SqliteTransaction transaction = db.BeginTransaction(deferred: false);
             ArchiveSql.MigrateSearchSchema(db, transaction, CancellationToken.None);
@@ -168,7 +169,7 @@ public sealed class ArchiveIntegrityPersistenceTests
             await using ArchiveReader reader = await ArchiveReader.OpenAsync(temp.Path);
             Assert.Null(Attachment(await reader.ReadThreadAsync(Id)).AttachmentRevisionKey);
         }
-        Assert.Equal(10L, Scalar(temp.Path, "PRAGMA user_version"));
+        Assert.Equal(11L, Scalar(temp.Path, "PRAGMA user_version"));
         Assert.False(Directory.Exists(Path.Combine(temp.Path, "disconnected")));
     }
 

@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Text.Json;
+using System.Threading;
 using Microsoft.Data.Sqlite;
 
 namespace MeowChan.Archive;
@@ -43,9 +45,9 @@ internal static partial class ArchiveSql
         RequireLegacyMediaPlanRow(reader);
     }
 
-    // Until bounded v2 decoders/receipt matching are integrated, *all* v2 durable
-    // evidence seals the lane, including a receipt whose operation has been cleaned up.
-    // No documents, media or directories are read here, and no legacy receipt is repaired.
+    // Strict legacy-format discovery, not the supported-history or startup decision.
+    // Individual legacy readers still reject every v2 row; callers that only need
+    // compatible historical coexistence use HasIncompatibleMediaTransferHistory.
     internal static bool HasUnsupportedMediaTransferRecords(SqliteConnection connection, SqliteTransaction? transaction)
     {
         if (transaction is null)
@@ -69,7 +71,39 @@ internal static partial class ArchiveSql
 
     private static void RequireLegacyMediaTransferRecords(SqliteConnection connection, SqliteTransaction transaction)
     {
-        if (HasUnsupportedMediaTransferRecords(connection, transaction))
+        if (HasIncompatibleMediaTransferHistory(connection, transaction))
             throw new InvalidDataException("This media transfer plan requires version-aware reconciliation.");
     }
+
+    // Unlike startup, a legacy phase may have its own live Preparing/Prepared row.
+    // Preserve that v1 behavior, but do not seal an otherwise usable profile merely
+    // because a different, fully reconciled v2 import remains in durable history.
+    // This is coexistence only: it cannot grant legacy execution of a v2 operation.
+    internal static bool HasIncompatibleMediaTransferHistory(SqliteConnection connection, SqliteTransaction? transaction)
+    {
+        if (transaction is null)
+        {
+            using SqliteTransaction snapshot = connection.BeginTransaction(deferred: true);
+            return HasIncompatibleMediaTransferHistory(connection, snapshot);
+        }
+        if (!HasUnsupportedMediaTransferRecords(connection, transaction)) return false;
+        using (SqliteCommand command = Command(connection, transaction, """
+            SELECT EXISTS(SELECT 1 FROM archive_media_merge_operations
+                WHERE typeof(plan_version) IS NOT 'integer' OR plan_version IS NOT 1)
+            OR EXISTS(SELECT 1 FROM archive_media_merge_receipts
+                WHERE typeof(plan_version) IS NOT 'integer' OR plan_version IS NOT 1);
+            """))
+            if ((long)command.ExecuteScalar()! != 0) return true;
+        try
+        {
+            return HasPersistedMediaOperationRecoveryBlocker(connection, transaction, merge: false,
+                    CancellationToken.None, nonLegacyOnly: true)
+                || HasPersistedMediaReceiptRecoveryBlocker(connection, transaction, merge: false,
+                    CancellationToken.None, nonLegacyOnly: true);
+        }
+        catch (Exception error) when (error is InvalidDataException or JsonException
+            or ArgumentException or FormatException or InvalidCastException or OverflowException)
+        { return true; }
+    }
+
 }

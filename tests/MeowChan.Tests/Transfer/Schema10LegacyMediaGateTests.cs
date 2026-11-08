@@ -164,7 +164,7 @@ public sealed class Schema10LegacyMediaGateTests
     [InlineData(true, "Committed", 2)]
     [InlineData(false, "Committed", 1)]
     [InlineData(true, "Committed", 1)]
-    public async Task StartupBlocksAnyV2EvidenceEvenWithMatchingReceiptOrNoOperation(bool merge, string? state, int receiptVersion)
+    public async Task StartupDispatchesV2EvidenceWithoutGrantingLegacyExecution(bool merge, string? state, int receiptVersion)
     {
         using TempDirectory files = new();
         using ProfileLease lease = ProfileLease.Acquire(files.Path);
@@ -181,10 +181,20 @@ public sealed class Schema10LegacyMediaGateTests
             Assert.True(ArchiveSql.HasUnsupportedMediaTransferRecords(connection, null));
         for (int attempt = 0; attempt < 2; attempt++)
         {
-            InvalidDataException error = await Assert.ThrowsAsync<InvalidDataException>(
-                () => catalog.EnsureNativeMediaRecoveryClearAsync());
-            Assert.Equal("Native media transfer reconciliation is required.", error.Message);
-            Assert.Null(error.InnerException);
+            if (!merge && state is null && receiptVersion == 2)
+            {
+                // W32b3 supports valid orphan v2 import receipts as content-free history.
+                // The strict legacy discovery check above remains true; no v1 execution
+                // or operation/payload reconstruction is granted by a startup read.
+                await catalog.EnsureNativeMediaRecoveryClearAsync();
+            }
+            else
+            {
+                InvalidDataException error = await Assert.ThrowsAsync<InvalidDataException>(
+                    () => catalog.EnsureNativeMediaRecoveryClearAsync());
+                Assert.Equal("Native media transfer reconciliation is required.", error.Message);
+                Assert.Null(error.InnerException);
+            }
         }
         Assert.Equal(before, File.ReadAllBytes(catalog.DatabasePath));
         Assert.Equal(paths, Directory.GetFileSystemEntries(files.Path, "*", SearchOption.AllDirectories).Order().ToArray());
@@ -227,7 +237,7 @@ public sealed class Schema10LegacyMediaGateTests
     [InlineData(true, 2, "Committed", 2)]
     [InlineData(false, 2, "Committed", 1)]
     [InlineData(true, 2, "Committed", 1)]
-    public async Task IndependentImportReconciliationCannotResumeOverSeparateV2Evidence(bool merge, int version, string? state, int receiptVersion)
+    public async Task IndependentImportReconciliationUsesTheSameVersionAwareHistoryGateAsStartup(bool merge, int version, string? state, int receiptVersion)
     {
         // Reuse the existing real writer/stage/admission harness. A deliberate pre-claim
         // failure reaches independent reconciliation with no claim ambiguity, no reflection
@@ -256,9 +266,12 @@ public sealed class Schema10LegacyMediaGateTests
         Assert.Equal(1, beforeAdmission);
         Assert.Equal(0, checkpoints);
         Assert.Equal(0, dispatches);
-        Assert.Equal(version == 2 ? ProfileExclusiveDisposition.RecoveryRequired : ProfileExclusiveDisposition.SafeToResume,
+        // Valid orphan v2 import receipts are historical evidence now. Unsupported
+        // merge-v2, incomplete/malformed v2 operations and version mismatches still block.
+        bool blocked = version == 2 && (merge || state is not null);
+        Assert.Equal(blocked ? ProfileExclusiveDisposition.RecoveryRequired : ProfileExclusiveDisposition.SafeToResume,
             outcome.Disposition);
-        Assert.Equal(version == 2 ? NativeMediaImportCommitStatus.ReconciliationRequired : NativeMediaImportCommitStatus.Inactive,
+        Assert.Equal(blocked ? NativeMediaImportCommitStatus.ReconciliationRequired : NativeMediaImportCommitStatus.Inactive,
             outcome.Result.Status);
         Assert.False(outcome.Result.IsReplay);
         Assert.Null(await catalog.ReadNativeMediaImportReceiptAsync(plan.OperationId, plan.RequestSha256));
@@ -280,7 +293,7 @@ public sealed class Schema10LegacyMediaGateTests
         SqliteConnection connection = ArchiveSql.OpenConnection(catalog.DatabasePath, SqliteOpenMode.ReadOnly);
         try
         {
-            Assert.Equal(10, ArchiveSql.GetPragma(connection, "user_version"));
+            Assert.Equal(11, ArchiveSql.GetPragma(connection, "user_version"));
             Assert.Equal(0, ArchiveSql.GetPragma(connection, "ignore_check_constraints"));
             ArchiveSql.ValidateSchema(connection);
             return connection;
@@ -306,7 +319,7 @@ public sealed class Schema10LegacyMediaGateTests
         int attachments = 1, int safeMembers = 0, Guid? operation = null)
         => catalog.WriteAsync((connection, transaction) =>
         {
-            Assert.Equal(10, ArchiveSql.GetPragma(connection, "user_version", transaction));
+            Assert.Equal(11, ArchiveSql.GetPragma(connection, "user_version", transaction));
             Assert.Equal(0, ArchiveSql.GetPragma(connection, "ignore_check_constraints", transaction));
             Guid id = operation ?? Operation;
             string table = merge ? "archive_media_merge" : "archive_media_import";

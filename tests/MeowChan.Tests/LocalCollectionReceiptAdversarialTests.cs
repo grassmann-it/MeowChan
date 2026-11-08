@@ -48,7 +48,8 @@ public sealed class LocalCollectionReceiptAdversarialTests
 
     [Theory]
     [InlineData("PRAGMA application_id=123")]
-    [InlineData("PRAGMA user_version=11")]
+    [InlineData("PRAGMA user_version=11")] // Malformed legacy schema restamped as current.
+    [InlineData("PRAGMA user_version=12")]
     [InlineData("UPDATE archive_import_fence SET instance='60708090-a0b0-c0d0-e0f0-010203040506'")]
     public async Task IncompatibleOrForeignTargetIsNeverReportedAsReceiptAbsence(string mutation)
     {

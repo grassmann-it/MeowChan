@@ -41,7 +41,7 @@ public sealed class NativeMediaImportAdmissionTests
                 token, f.Plan, childDirectoryCreated: _ => callbacks++));
             // Null candidate must not be inspected before authority is rejected.
             await Assert.ThrowsAsync<InvalidOperationException>(() => f.Store.WithVerifiedPassiveImportCandidateAdmittedAsync(
-                token, f.Plan, null!, () => { callbacks++; return Task.FromResult(true); }));
+                token, f.Plan, (PassiveMediaImportCandidate)null!, () => { callbacks++; return Task.FromResult(true); }));
             Assert.Equal(0, callbacks);
             Assert.Equal(before, Files(f.Files.Profile));
         }

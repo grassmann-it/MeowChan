@@ -118,17 +118,22 @@ public static class ArchiveCaptureMerge
         ArgumentNullException.ThrowIfNull(next);
         if (previous.PostId != next.PostId) throw new ArgumentException("Posts must have the same identity.", nameof(next));
         bool Has(PostFieldPresence field) => (next.Fields & field) != 0;
-        IReadOnlyList<CapturedAttachment> attachments = previous.Attachments ?? Array.Empty<CapturedAttachment>();
+        IReadOnlyList<CapturedAttachment>? attachments = previous.Attachments;
+        if (attachments == null && (previous.Fields & PostFieldPresence.Attachments) == 0)
+            attachments = Array.Empty<CapturedAttachment>();
         if (Has(PostFieldPresence.Attachments))
         {
-            Dictionary<int, CapturedAttachment> merged = attachments.ToDictionary(attachment => attachment.Position);
+            Dictionary<int, CapturedAttachment> merged = (attachments ?? Array.Empty<CapturedAttachment>())
+                .ToDictionary(attachment => attachment.Position);
             foreach (CapturedAttachment attachment in next.Attachments ?? Array.Empty<CapturedAttachment>())
             {
                 if (attachment.IsDeleted && attachment.MediaId == null && merged.TryGetValue(attachment.Position, out CapturedAttachment? old))
                     merged[attachment.Position] = old with { IsDeleted = true };
                 else merged[attachment.Position] = attachment;
             }
-            attachments = Array.AsReadOnly(merged.Values.OrderBy(attachment => attachment.Position).ToArray());
+            // Null is an observation, not deletion of already known attachment metadata.
+            attachments = next.Attachments == null && merged.Count == 0 ? null
+                : Array.AsReadOnly(merged.Values.OrderBy(attachment => attachment.Position).ToArray());
         }
         return new CapturedPost(next.PostId, next.Ordinal, previous.Fields | next.Fields,
             Has(PostFieldPresence.PostedAt) ? next.PostedAt : previous.PostedAt,
@@ -136,7 +141,7 @@ public static class ArchiveCaptureMerge
             Has(PostFieldPresence.Author) ? next.Author : previous.Author,
             Has(PostFieldPresence.Html) ? next.Html : previous.Html,
             Has(PostFieldPresence.IsDeleted) ? next.IsDeleted : previous.IsDeleted,
-            Array.AsReadOnly(attachments.ToArray()));
+            attachments == null ? null : Array.AsReadOnly(attachments.ToArray()));
     }
 
     internal static CapturedPost CopyPost(CapturedPost post)
@@ -149,8 +154,9 @@ public static class ArchiveCaptureMerge
             Author = Has(PostFieldPresence.Author) ? post.Author : null,
             Html = Has(PostFieldPresence.Html) ? post.Html : null,
             IsDeleted = Has(PostFieldPresence.IsDeleted) && post.IsDeleted,
-            Attachments = Array.AsReadOnly((Has(PostFieldPresence.Attachments)
-                ? post.Attachments ?? Array.Empty<CapturedAttachment>() : Array.Empty<CapturedAttachment>()).ToArray())
+            Attachments = Has(PostFieldPresence.Attachments) && post.Attachments == null ? null
+                : Array.AsReadOnly((Has(PostFieldPresence.Attachments)
+                    ? post.Attachments! : Array.Empty<CapturedAttachment>()).ToArray())
         };
     }
 }

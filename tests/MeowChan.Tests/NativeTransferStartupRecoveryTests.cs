@@ -206,6 +206,37 @@ public sealed class NativeTransferStartupRecoveryTests
         });
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task VersionTwoReceiptCannotCompleteALegacyOperationWithTheSameOldCounters(bool merge)
+    {
+        using var directory = new TempDirectory();
+        using var lease = ProfileLease.Acquire(directory.Path);
+        await using var catalog = await ArchiveCatalog.OpenAsync(directory.Path, lease);
+        await Seed(catalog, merge, "Committed", true);
+        await catalog.EnsureNativeMediaRecoveryClearAsync();
+        string table = merge ? "archive_media_merge_receipts" : "archive_media_import_receipts";
+        Assert.Equal(1, await catalog.WriteAsync((c, tx) =>
+        {
+            using var command = ArchiveSql.Command(c, tx, $"UPDATE {table} SET plan_version=2 WHERE operation_id=$op");
+            command.Parameters.AddWithValue("$op", Operation);
+            return command.ExecuteNonQuery();
+        }));
+        byte[] before = SHA256.HashData(File.ReadAllBytes(catalog.DatabasePath));
+        await AssertBlocked(catalog);
+        Assert.Equal(before, SHA256.HashData(File.ReadAllBytes(catalog.DatabasePath)));
+        Assert.Equal(1, await catalog.WriteAsync((c, tx) =>
+        {
+            using var command = ArchiveSql.Command(c, tx, $"UPDATE {table} SET plan_version=1 WHERE operation_id=$op");
+            command.Parameters.AddWithValue("$op", Operation);
+            return command.ExecuteNonQuery();
+        }));
+        // Only restoring the receipt version clears the blocker; neither its identity
+        // nor legacy counters/payloads changed. No operation JSON is replayed at startup.
+        await catalog.EnsureNativeMediaRecoveryClearAsync();
+    }
+
     private static async Task AssertBlocked(ArchiveCatalog catalog)
     {
         var error = await Assert.ThrowsAsync<InvalidDataException>(() => catalog.EnsureNativeMediaRecoveryClearAsync());

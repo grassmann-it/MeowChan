@@ -10,7 +10,7 @@ namespace MeowChan.Archive;
 
 internal static partial class ArchiveSql
 {
-    internal const int SchemaVersion = 10;
+    internal const int SchemaVersion = 11;
     internal const int ApplicationId = 0x4F43484E;
 
     internal static SqliteConnection OpenConnection(string path, SqliteOpenMode mode)
@@ -51,7 +51,7 @@ internal static partial class ArchiveSql
             return;
         }
         int version = GetPragma(connection, "user_version", transaction);
-        if (version is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10)
+        if (version is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 11)
             || GetPragma(connection, "application_id", transaction) != ApplicationId)
             throw new InvalidDataException("The archive database has an unsupported schema or belongs to another application.");
         ValidateTargetSchema(connection, transaction, version);
@@ -60,7 +60,7 @@ internal static partial class ArchiveSql
     // Target version is explicit: migration validates its un-stamped target in its own transaction.
     internal static void ValidateTargetSchema(SqliteConnection connection, SqliteTransaction? transaction, int version)
     {
-        if (version is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10))
+        if (version is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 11))
             throw new InvalidDataException("Unsupported archive target schema.");
         using SqliteCommand journal = Command(connection, transaction, "");
         journal.CommandText = "PRAGMA journal_mode";
@@ -79,13 +79,14 @@ internal static partial class ArchiveSql
         reader.Close();
         if (version >= 9) ValidateLocalCollectionSchema(connection, transaction);
         if (version >= 6) ValidateNativeImportSchema(connection, transaction);
-        if (version == 10) ValidateMediaTransferSchema10(connection, transaction);
+        if (version >= 10) ValidateMediaTransferSchema10(connection, transaction);
         else
         {
             // Old catalogs must validate as their own shape before any table is migrated.
             if (version >= 7) ValidateMediaImportSchema(connection, transaction);
             if (version >= 8) ValidateMediaMergeSchema(connection, transaction);
         }
+        if (version >= 11) ValidatePostAttachmentPresenceSchema11(connection, transaction);
         if (version >= 2)
         {
             using SqliteCommand indexed = Command(connection, transaction, "");
@@ -241,8 +242,8 @@ internal static partial class ArchiveSql
                         ExpectedSha1 = NullableString(reader, 12), ProviderSizeHint = ReadSizeHint(NullableString(reader, 13)) });
             }
         }
-        using SqliteCommand postsCommand = Command(connection, transaction, """
-            SELECT post,ordinal,fields,posted_at,subject,author,html,is_deleted
+        using SqliteCommand postsCommand = Command(connection, transaction, $"""
+            SELECT post,ordinal,fields,posted_at,subject,author,html,is_deleted,{PostAttachmentPresenceColumn(connection, transaction)}
             FROM archive_posts WHERE source=$source AND board=$board AND thread=$thread ORDER BY ordinal,post
             """);
         AddId(postsCommand, id);
@@ -253,11 +254,13 @@ internal static partial class ArchiveSql
             string post = postsReader.GetString(0);
             PostFieldPresence fields = (PostFieldPresence)postsReader.GetInt32(2);
             if ((fields & ~PostFieldPresence.All) != 0) throw new InvalidDataException("The archive contains invalid post field flags.");
+            bool hasAttachments = attachments.TryGetValue(post, out List<CapturedAttachment>? list);
+            bool attachmentsWereNull = ReadPostAttachmentPresence(postsReader, 8, fields, hasAttachments);
             posts.Add(new CapturedPost(post, postsReader.GetInt64(1), fields,
                 postsReader.IsDBNull(3) ? null : ParseDate(postsReader.GetString(3)), NullableString(postsReader, 4),
                 NullableString(postsReader, 5), NullableString(postsReader, 6), postsReader.GetInt32(7) == 1,
-                attachments.TryGetValue(post, out List<CapturedAttachment>? list)
-                    ? Array.AsReadOnly(list.ToArray()) : Array.Empty<CapturedAttachment>()));
+                attachmentsWereNull ? null : hasAttachments
+                    ? Array.AsReadOnly(list!.ToArray()) : Array.Empty<CapturedAttachment>()));
         }
         return new ArchivedThreadView(summary, posts, ReadMediaDirectories(connection, transaction, id),
             ReadPostOrder(connection, transaction, id));

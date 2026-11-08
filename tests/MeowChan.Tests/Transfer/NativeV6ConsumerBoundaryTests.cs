@@ -7,6 +7,7 @@ using MeowChan.Persistence;
 using MeowChan.Storage;
 using MeowChan.Tests.GoalFixtures;
 using MeowChan.Transfer;
+using Microsoft.Data.Sqlite;
 
 namespace MeowChan.Tests.Transfer;
 
@@ -270,12 +271,12 @@ public sealed class NativeV6ConsumerBoundaryTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task V4WireStillCannotEnterOriginalOnlyImportOrMerge(bool merge)
+    public async Task V4WirePreparesV2ImportWhileOriginalOnlyMergeStillRejectsBeforeTargetRead(bool merge)
     {
         using TempDirectory profile = new();
         using TempDirectory staging = new();
         string root = Path.Combine(profile.Path, "media");
-        await CaptureAsync(profile.Path, root);
+        if (merge) await CaptureAsync(profile.Path, root);
         MediaOriginalEvidence evidence = Evidence(MediaObservedContentStatus.Omitted);
         TransferAttachment attachment = new(evidence.Metadata, TransferMediaRole.Original,
             TransferContentStatus.Contained, Hash(Bytes), null)
@@ -299,8 +300,10 @@ public sealed class NativeV6ConsumerBoundaryTests
         Assert.Equal(TransferContentStatus.Contained, stage.Package.Catalog.Threads[0].Posts[0].Attachments[0].Status);
         using ProfileLease lease = ProfileLease.Acquire(profile.Path);
         await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile.Path, lease);
-        await catalog.DisposeAsync(); // Sentinel: admission must precede any target read.
+        if (merge) await catalog.DisposeAsync(); // Unsupported merge must still reject before target reads.
         Dictionary<string, string> before = NativeMediaImportTests.Files(profile.Path);
+        string[] directoriesBefore = Directory.GetDirectories(profile.Path, "*", SearchOption.AllDirectories)
+            .OrderBy(path => path, StringComparer.Ordinal).ToArray();
 
         if (merge)
         {
@@ -311,11 +314,53 @@ public sealed class NativeV6ConsumerBoundaryTests
         else
         {
             NativeMediaImportPreparation result = await catalog.PrepareNativeMediaImportAsync(stage);
-            Assert.Equal(NativeMediaImportError.UnsupportedPackage, result.Error);
-            Assert.Null(result.Plan);
+            Assert.Equal(NativeMediaImportError.None, result.Error);
+            NativeMediaImportPlan plan = Assert.IsType<NativeMediaImportPlan>(result.Plan);
+            Assert.Equal(2, plan.PlanVersion);
+            Assert.Same(catalog, plan.Owner);
+            Assert.Same(stage, plan.Stage);
+            Assert.Same(stage.Package, plan.Package);
+            Assert.Equal(Id, plan.Resource);
+            NativeMediaImportV2State representation = Assert.IsType<NativeMediaImportV2State>(plan.Representation);
+            NativeMediaCandidateSelection expected = NativeMediaMaterializationPlan.Create(stage, Id).FullSelection;
+            Assert.False(representation.Selection.IsEmpty);
+            Assert.Equal(expected.CanonicalJson, representation.Selection.CanonicalJson);
+            Assert.Equal(expected.Sha256, representation.Selection.Sha256);
+            Assert.Equal(stage.Package.Envelope.CatalogBytes.ToArray(), representation.CatalogBytes.ToArray());
+            Assert.Equal(2, representation.Selection.Members.Length);
+            Assert.Single(representation.Selection.Members, member => member.Id.Role == NativeMediaMemberRole.OriginalEvidence);
+            Assert.Single(representation.Selection.Members, member => member.Id.Role == NativeMediaMemberRole.OriginalPayload);
+            Assert.All(representation.Selection.Members, member =>
+            {
+                Assert.False(member.ContextOnly);
+                Assert.False(member.Descriptor.Retained);
+                Assert.Equal(Id, member.Id.Occurrence.Resource);
+                Assert.Equal(PostId, member.Id.Occurrence.PostId);
+                Assert.Equal(attachment.Metadata, member.Descriptor.Metadata);
+                Assert.Equal(attachment.OriginalByteVersion, member.Id.SourceVersion);
+                Assert.Equal(attachment.PayloadSha256, member.Descriptor.PayloadSha256);
+            });
+            Assert.Single(representation.Inventory.OriginalEvidence);
+            Assert.Single(representation.Inventory.Bindings);
+            Assert.Empty(representation.Inventory.DerivedRepresentations);
+            Assert.Throws<InvalidOperationException>(() => { _ = plan.Attachments; });
+            Assert.Throws<InvalidOperationException>(() => { _ = plan.RevisionKeysJson; });
+            Assert.False(Directory.Exists(plan.OperationsParent));
+            await using ArchiveReader reader = await ArchiveReader.OpenAsync(profile.Path);
+            Assert.Null(await reader.ReadThreadAsync(Id));
         }
         Assert.Equal(before, NativeMediaImportTests.Files(profile.Path));
+        Assert.Equal(directoriesBefore, Directory.GetDirectories(profile.Path, "*", SearchOption.AllDirectories)
+            .OrderBy(path => path, StringComparer.Ordinal).ToArray());
         Assert.False(Directory.Exists(root));
+        using SqliteConnection connection = ArchiveSql.OpenConnection(catalog.DatabasePath, SqliteOpenMode.ReadOnly);
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = "SELECT (SELECT count(*) FROM archive_media_import_operations)"
+            + " + (SELECT count(*) FROM archive_media_merge_operations)"
+            + " + (SELECT count(*) FROM archive_media_import_receipts)"
+            + " + (SELECT count(*) FROM archive_media_merge_receipts)"
+            + " + (SELECT count(*) FROM archive_import_candidates)";
+        Assert.Equal(0L, command.ExecuteScalar());
     }
 
     private static CapturedAttachment Attachment()

@@ -53,7 +53,7 @@ public sealed class LocalCollectionSnapshotTests
     }
 
     [Theory]
-    [InlineData(9)] [InlineData(10)]
+    [InlineData(9)] [InlineData(11)]
     public async Task ListingIsBinaryOrderedBoundedAndCountIsCollectionsNotItems(int version)
     {
         using Workspace files = new();
@@ -77,7 +77,7 @@ public sealed class LocalCollectionSnapshotTests
     }
 
     [Theory]
-    [InlineData(9)] [InlineData(10)]
+    [InlineData(9)] [InlineData(11)]
     public async Task CompatibleEmptyAndAbsentCollectionAreEmptyButRegisteredEmptyIsAnError(int version)
     {
         using Workspace files = new();
@@ -104,7 +104,8 @@ public sealed class LocalCollectionSnapshotTests
 
     [Theory]
     [InlineData("PRAGMA user_version=0")]
-    [InlineData("PRAGMA user_version=11")]
+    [InlineData("PRAGMA user_version=12")]
+    [InlineData("ALTER TABLE archive_posts DROP COLUMN attachments_were_null; PRAGMA user_version=11")]
     [InlineData("PRAGMA application_id=1")]
     [InlineData("DROP TABLE local_import_receipts")]
     [InlineData("DROP TRIGGER import_fence_local_items_INSERT")]
@@ -159,7 +160,7 @@ public sealed class LocalCollectionSnapshotTests
     }
 
     [Theory]
-    [InlineData(9)] [InlineData(10)]
+    [InlineData(9)] [InlineData(11)]
     public async Task FrozenCompleteSnapshotRetainsFullMembershipAfterRowsAndReaderAreGone(int version)
     {
         using Workspace files = new();

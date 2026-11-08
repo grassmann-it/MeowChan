@@ -120,7 +120,8 @@ public sealed class NativeMediaMergeSafetyTests
             // Preserve the committed v1 import/receipt in genuine old media-table DDL.
             RestoreSchema9MediaOperations(connection, tx);
             using var command = ArchiveSql.Command(connection, tx,
-                "DROP TABLE archive_media_merge_operations; DROP TABLE archive_media_merge_receipts; PRAGMA user_version=7");
+                "ALTER TABLE archive_posts DROP COLUMN attachments_were_null; "
+                + "DROP TABLE archive_media_merge_operations; DROP TABLE archive_media_merge_receipts; PRAGMA user_version=7");
             command.ExecuteNonQuery();
             tx.Commit();
         }
@@ -132,7 +133,7 @@ public sealed class NativeMediaMergeSafetyTests
         Assert.Equal(committed with { IsReplay = true }, await migrated.ReadNativeMediaImportReceiptAsync(operation, request));
         Assert.Empty((await migrated.ReadNativeMediaMergeOperationsPageAsync()).Items);
         using SqliteConnection read = ArchiveSql.OpenConnection(db, SqliteOpenMode.ReadOnly);
-        Assert.Equal(10, ArchiveSql.GetPragma(read, "user_version"));
+        Assert.Equal(11, ArchiveSql.GetPragma(read, "user_version"));
     }
 
     // Direct synthetic storage owner via existing Core IVT, not public Registry startup.
