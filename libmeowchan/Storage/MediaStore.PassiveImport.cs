@@ -19,7 +19,21 @@ namespace MeowChan.Storage;
 internal enum PassiveMediaCandidatePhase { JournalFlushed, PayloadFlushed, PayloadRenamed, ManifestSaved, ReadyJournalSaved }
 internal enum PassiveMediaCandidateStatus { Ready, Incomplete, Invalid, Busy }
 internal sealed record PassiveMediaImportCandidate(string Directory, Guid OperationId, string PackageFingerprint,
-    ResourceId Resource, DateTimeOffset ImportedAtUtc, string ManifestGeneration, ImmutableArray<MediaAttachmentBinding> Bindings);
+    ResourceId Resource, DateTimeOffset ImportedAtUtc, string ManifestGeneration, ImmutableArray<MediaAttachmentBinding> Bindings)
+{
+    internal int PlanVersion { get; init; } = 1;
+    // Original-only callers must never accept a v2 inventory through its lossy Bindings
+    // projection, even when it happens to have the same original keys/digests.
+    internal bool IsLegacyCandidate => PlanVersion == 1 && Selection == null && InventorySha256 == null
+        && !OriginalEvidence.IsDefault && OriginalEvidence.IsEmpty
+        && !DerivedRepresentations.IsDefault && DerivedRepresentations.IsEmpty;
+    internal NativeMediaCandidateSelection? Selection { get; init; }
+    internal string? InventorySha256 { get; init; }
+    internal ImmutableArray<MediaOriginalEvidence> OriginalEvidence { get; init; }
+        = ImmutableArray<MediaOriginalEvidence>.Empty;
+    internal ImmutableArray<MediaDerivedRepresentation> DerivedRepresentations { get; init; }
+        = ImmutableArray<MediaDerivedRepresentation>.Empty;
+}
 internal sealed record PassiveMediaCandidateInspection(PassiveMediaCandidateStatus Status, PassiveMediaImportCandidate? Candidate = null);
 internal sealed class PassiveMediaCandidateWriteException(string directory, Exception error)
     : IOException("Passive media candidate preparation failed; the inactive candidate is retained.", error)
@@ -71,6 +85,10 @@ public sealed partial class MediaStore
         ArgumentNullException.ThrowIfNull(stage); ArgumentNullException.ThrowIfNull(resource);
         ArgumentNullException.ThrowIfNull(revisionKeys);
         cancellationToken.ThrowIfCancellationRequested();
+        // A revision-key vector cannot represent the v4 passive/derived inventory. Reject
+        // before even inspecting the parent directory, let alone creating a child or lease.
+        if (string.Equals(package.Envelope.ContentSchema, "chan-v4", StringComparison.Ordinal))
+            throw new InvalidDataException("The legacy revision-key candidate path does not accept chan-v4.");
         if (operationId == Guid.Empty || importedAtUtc.UtcDateTime == DateTime.MinValue)
             throw new ArgumentException("An import operation and timestamp are required.");
         ArchiveValidation.ValidateId(resource);
@@ -209,6 +227,9 @@ public sealed partial class MediaStore
             string lockPath = Path.Combine(directory, DirectoryLeaseFileName);
             ValidateCandidateRegularFile(lockPath);
             using FileStream lease = await OpenExistingCandidateLeaseAsync(lockPath, cancellationToken).ConfigureAwait(false);
+            int journalVersion = await ReadCandidateJournalVersionAsync(directory, cancellationToken).ConfigureAwait(false);
+            if (journalVersion == 2)
+                return await InspectPassiveImportCandidateV2Async(directory, cancellationToken).ConfigureAwait(false);
             PassiveCandidateJournal journal = await ReadCandidateJournalAsync(directory, cancellationToken).ConfigureAwait(false);
             if (journal.Phase == "copying")
             {
@@ -221,7 +242,8 @@ public sealed partial class MediaStore
             return new(PassiveMediaCandidateStatus.Ready, CandidateFrom(journal, directory, snapshot));
         }
         catch (PassiveCandidateBusyException) { return new(PassiveMediaCandidateStatus.Busy); }
-        catch (Exception error) when (CandidateIoError(error) || error is ArgumentException or FormatException or NullReferenceException)
+        catch (Exception error) when (CandidateIoError(error) || error is ArgumentException or FormatException or NullReferenceException
+            or InvalidOperationException or KeyNotFoundException or OverflowException)
         { return new(PassiveMediaCandidateStatus.Invalid); }
     }
 
@@ -235,6 +257,8 @@ public sealed partial class MediaStore
         plan.Owner.EnsureTransferAdmission(admission);
         ArgumentNullException.ThrowIfNull(expected);
         ArgumentNullException.ThrowIfNull(callback);
+        if (!expected.IsLegacyCandidate)
+            throw new InvalidDataException("The original-only import verifier does not accept representation candidates.");
         string directory = ValidateCandidateDirectory(expected.Directory, requireCandidateName: true);
         if (!PathsEqual(Path.GetDirectoryName(directory)!, plan.OperationsParent)
             || expected.OperationId != plan.OperationId || expected.Resource != plan.Resource
@@ -480,6 +504,11 @@ public sealed partial class MediaStore
     {
         ValidateCandidateJournal(journal);
         byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(journal, CandidateJsonOptions);
+        await WriteCandidateJournalBytesAsync(directory, bytes, createOnly, token).ConfigureAwait(false);
+    }
+
+    private async Task WriteCandidateJournalBytesAsync(string directory, byte[] bytes, bool createOnly, CancellationToken token)
+    {
         if (bytes.Length > MaximumCandidateJournalBytes) throw new InvalidDataException("The candidate journal exceeds its limit.");
         string target = Path.Combine(directory, PassiveCandidateJournalName);
         string temporary = createOnly ? target : Path.Combine(directory, ".meowchan-journal-" + Guid.NewGuid().ToString("N") + ".part");

@@ -139,7 +139,8 @@ public sealed partial class ArchiveCatalog
         PassiveMediaImportCandidate candidate)
     {
         NativeMediaMergeOperation op = evidence.Operation!;
-        if (candidate.OperationId != op.OperationId || candidate.Resource != op.Resource
+        // Keep this SQL-v1 matcher explicitly Journal1-only, including Preparing discovery.
+        if (!candidate.IsLegacyCandidate || candidate.OperationId != op.OperationId || candidate.Resource != op.Resource
             || candidate.PackageFingerprint != evidence.PackageFingerprint || candidate.ImportedAtUtc != evidence.ImportedAtUtc
             || candidate.Bindings.IsDefault)
             return false;

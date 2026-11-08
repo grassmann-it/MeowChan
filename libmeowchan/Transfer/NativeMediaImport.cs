@@ -389,7 +389,9 @@ public sealed partial class ArchiveCatalog
                 bool journalMissing = Directory.Exists(child) && !File.Exists(Path.Combine(child, ".meowchan-import-candidate.json"));
                 PassiveMediaCandidateInspection inspected = await store.InspectPassiveImportCandidateAsync(child, cancellationToken).ConfigureAwait(false);
                 PassiveMediaImportCandidate? candidate = inspected.Candidate;
-                bool matches = candidate != null && candidate.OperationId == op.OperationId && candidate.Resource == op.Resource
+                // Journal1 operation identity cannot be proved by a Journal2 Bindings projection.
+                bool matches = candidate != null && candidate.IsLegacyCandidate
+                    && candidate.OperationId == op.OperationId && candidate.Resource == op.Resource
                     && candidate.PackageFingerprint == op.PackageFingerprint && candidate.ImportedAtUtc == op.ImportedAtUtc
                     && (op.CandidateDirectory == null || MediaImportPathsEqual(candidate.Directory, op.CandidateDirectory))
                     && (op.ManifestGeneration == null || candidate.ManifestGeneration == op.ManifestGeneration)

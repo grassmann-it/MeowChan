@@ -347,6 +347,8 @@ public sealed partial class MediaStore
         ImmutableArray<string> keys, Dictionary<string, MediaAttachmentBinding> bindings)
     {
         ArgumentNullException.ThrowIfNull(candidate);
+        if (!candidate.IsLegacyCandidate)
+            throw new InvalidDataException("The original-only merge verifier does not accept representation candidates.");
         string directory = ValidateCandidateDirectory(candidate.Directory, requireCandidateName: true);
         if (!PathsEqual(Path.GetDirectoryName(directory)!, NormalizePassiveMergePath(plan.OperationsParent))
             || candidate.OperationId != plan.OperationId || candidate.Resource != plan.Resource
@@ -362,6 +364,8 @@ public sealed partial class MediaStore
     private async Task VerifyPassiveMergeCandidateAsync(NativeMediaMergePlan plan, PassiveMediaImportCandidate expected,
         string directory, ImmutableArray<string> keys, Dictionary<string, MediaAttachmentBinding> bindings, CancellationToken token)
     {
+        if (!expected.IsLegacyCandidate)
+            throw new InvalidDataException("The original-only merge verifier does not accept representation candidates.");
         ValidateCandidateDirectory(directory, requireCandidateName: true);
         PassiveCandidateJournal journal = await ReadCandidateJournalAsync(directory, token).ConfigureAwait(false);
         if (journal.Phase != "ready" || journal.OperationId != plan.OperationId.ToString("D")
