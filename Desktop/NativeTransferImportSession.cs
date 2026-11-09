@@ -20,9 +20,11 @@ internal enum NativeTransferImportError
     ReadFailure, ApplyFailure
 }
 internal sealed record NativeTransferImportPlanSummary(ResourceId Resource, bool IsMerge,
-    int NewPosts, int UpdatedPosts, int NewAttachments, int Conflicts);
+    int NewPosts, int UpdatedPosts, int NewAttachments, int Conflicts,
+    int EvidenceAdditions = 0, int DerivedDescriptorAdditions = 0, int ContainedDerivedAdditions = 0);
 internal sealed record NativeTransferImportResult(NativeMediaImportCommitStatus Status, int NewThreads,
-    int NewPosts, int UpdatedPosts, int NewAttachments, int Conflicts, bool IsReplay);
+    int NewPosts, int UpdatedPosts, int NewAttachments, int Conflicts, bool IsReplay,
+    int EvidenceAdditions = 0, int DerivedDescriptorAdditions = 0, int ContainedDerivedAdditions = 0);
 internal sealed record NativeTransferImportSnapshot(long Generation, NativeTransferImportState State,
     NativeTransferImportError Error, TransferImportPreview? Inventory,
     NativeTransferImportPlanSummary? Plan, NativeTransferImportResult? Result, bool CleanupRetained);
@@ -30,8 +32,9 @@ internal sealed record NativeTransferImportSnapshot(long Generation, NativeTrans
 /// <summary>
 /// Owns the exact verified ingress bytes from inspection through an explicit host apply.
 /// Current is descriptive only; no source path, stage or executable plan escapes it.
-/// This backend increment preserves the existing materializers' unsupported-shape guards;
-/// it is not full v4/private/multithread import or a replacement for the preview-only UI yet.
+/// Public single-thread v4 uses the existing versioned import/merge pipeline. Core/stage
+/// unsupported-shape guards remain authoritative; private/multithread import and full
+/// apply/consent/conflict UI remain future work, not part of this backend increment.
 /// </summary>
 internal sealed class NativeTransferImportSession : IAsyncDisposable
 {
@@ -157,14 +160,8 @@ internal sealed class NativeTransferImportSession : IAsyncDisposable
                     return;
                 }
             } // The original source is never consulted again, including during apply.
-            // Valid but not yet supported is different from malformed. The older
-            // inventory also has a v1-v3 boundary, so classify v4 before invoking it.
-            if (_stage.Package.IsChanV4)
-            {
-                state = NativeTransferImportState.Unsupported;
-                error = NativeTransferImportError.UnsupportedPackage;
-                return;
-            }
+            // Inventory supports public v4 too, but is not apply authority. Preparation
+            // below still enforces the core's single-thread and supported-shape gates.
             var preview = NativeTransferImportPreview.Create(_stage.Package, token);
             if (!preview.HasPreview) { error = NativeTransferImportError.InvalidPackage; return; }
             inventory = preview.Preview;

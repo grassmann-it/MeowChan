@@ -31,14 +31,31 @@ internal sealed partial class DesktopSessionHost
         // new-thread validator reject a package before checking its existing target.
         NativeMediaMergePreparation merge = await _content.Catalog.PrepareNativeMediaMergeAsync(stage, token).ConfigureAwait(false);
         if (merge.Plan is { } existing)
-            return (new(new(existing.Resource, true, existing.AddedPosts.Length, existing.UpdatedPosts.Length,
-                existing.NewAttachmentCount, existing.Conflicts), null, existing), NativeTransferImportError.None);
+        {
+            // Versioned counts describe actual additions, not the Full inventory totals
+            // (which can include retained context and inactive conflict alternatives).
+            var counts = existing.Representation?.Counts;
+            return (new(new(existing.Resource, true, counts?.NewPosts ?? existing.AddedPosts.Length,
+                counts?.UpdatedPosts ?? existing.UpdatedPosts.Length,
+                counts?.NewAttachments ?? existing.NewAttachmentCount, counts?.Conflicts ?? existing.Conflicts,
+                EvidenceAdditions: counts?.EvidenceAdditions ?? 0,
+                DerivedDescriptorAdditions: counts?.DerivedDescriptorAdditions ?? 0,
+                ContainedDerivedAdditions: counts?.ContainedDerivedAdditions ?? 0), null, existing), NativeTransferImportError.None);
+        }
         if (merge.Error != NativeMediaMergeError.MissingTarget)
             return (null, merge.Error == NativeMediaMergeError.UnsupportedPackage
                 ? NativeTransferImportError.UnsupportedPackage : NativeTransferImportError.TargetUnavailable);
         NativeMediaImportPreparation prepared = await _content.Catalog.PrepareNativeMediaImportAsync(stage, token).ConfigureAwait(false);
         if (prepared.Plan is { } added)
-            return (new(new(added.Resource, false, added.Thread.Posts.Length, 0, added.Attachments.Length, 0), added, null), NativeTransferImportError.None);
+        {
+            var counts = added.Representation?.Counts;
+            // Attachments is a legacy-only getter and throws on representation plans.
+            return (new(new(added.Resource, false, counts?.PostCount ?? added.Thread.Posts.Length, 0,
+                counts?.AttachmentCount ?? added.Attachments.Length, 0,
+                EvidenceAdditions: counts?.EvidenceAdditions ?? 0,
+                DerivedDescriptorAdditions: counts?.DerivedDescriptorAdditions ?? 0,
+                ContainedDerivedAdditions: counts?.ContainedDerivedAdditions ?? 0), added, null), NativeTransferImportError.None);
+        }
         return (null, prepared.Error == NativeMediaImportError.ResourceExists
             ? NativeTransferImportError.TargetUnavailable : NativeTransferImportError.UnsupportedPackage);
     }
@@ -66,7 +83,10 @@ internal sealed partial class DesktopSessionHost
                             admission, added, store, token, NativeImportCheckpointForTests).ConfigureAwait(false);
                         var result = outcome.Result;
                         observed = new(result.Status, result.NewThreads, result.NewPosts, 0,
-                            result.NewAttachments, 0, result.IsReplay);
+                            result.NewAttachments, 0, result.IsReplay,
+                            EvidenceAdditions: result.EvidenceAdditions,
+                            DerivedDescriptorAdditions: result.DerivedDescriptorAdditions,
+                            ContainedDerivedAdditions: result.ContainedDerivedAdditions);
                         disposition = outcome.Disposition;
                     }
                     else if (prepared.Merge is { } existing)
@@ -75,7 +95,10 @@ internal sealed partial class DesktopSessionHost
                             admission, existing, store, token, checkpoint: NativeImportCheckpointForTests).ConfigureAwait(false);
                         var result = outcome.Result;
                         observed = new(result.Status, 0, result.NewPosts, result.UpdatedPosts,
-                            result.NewAttachments, result.Conflicts, result.IsReplay);
+                            result.NewAttachments, result.Conflicts, result.IsReplay,
+                            EvidenceAdditions: result.EvidenceAdditions,
+                            DerivedDescriptorAdditions: result.DerivedDescriptorAdditions,
+                            ContainedDerivedAdditions: result.ContainedDerivedAdditions);
                         disposition = outcome.Disposition;
                     }
                     else throw new InvalidOperationException("No owned native import plan.");

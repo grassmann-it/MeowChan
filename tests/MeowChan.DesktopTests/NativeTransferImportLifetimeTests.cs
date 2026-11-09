@@ -21,7 +21,6 @@ public sealed class NativeTransferImportLifetimeTests
 
     [Theory]
     [InlineData("private")]
-    [InlineData("v4")]
     [InlineData("multithread")]
     [InlineData("preview-only")]
     public async Task UnsupportedValidatedShapesNeverGainApplyCapabilityOrMutateTarget(string shape)
