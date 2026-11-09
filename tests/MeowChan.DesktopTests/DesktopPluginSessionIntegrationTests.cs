@@ -33,6 +33,13 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
     [InlineData("meowchan.source.uboachan", "uboachan", true)]
     [InlineData("meowchan.source.zzzchan", "zzzchan", true)]
     [InlineData("meowchan.source.sushichan", "sushichan", true)]
+    [InlineData("meowchan.source.sevenchan", "sevenchan", true)]
+    [InlineData("meowchan.source.bbwchan", "bbwchan", true)]
+    [InlineData("meowchan.source.anonimageboards", "anonimageboards", true)]
+    [InlineData("meowchan.source.eightchanmoe", "eightchanmoe", true)]
+    [InlineData("meowchan.source.gurocx", "gurocx", true)]
+    [InlineData("meowchan.source.fchan", "fchan", true)]
+    [InlineData("meowchan.source.capybarachan", "capybarachan", true)]
     [InlineData("meowchan.source.4chan", "4chan", false)]
     [InlineData("meowchan.source.8kun", "8kun", false)]
     [InlineData("meowchan.source.lainchan", "lainchan", false)]
@@ -48,8 +55,14 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
     }
 
     [Theory]
+    // Existing exact-provider policies remain strict. The new 1.0.3 adapters
+    // are still MeowChan-maintained experimental sources, but that product
+    // label must not silently change their separate mismatch-permission policy.
     [InlineData("2ch", true)] [InlineData("uboachan", true)]
     [InlineData("zzzchan", true)] [InlineData("sushichan", true)]
+    [InlineData("sevenchan", false)] [InlineData("bbwchan", false)]
+    [InlineData("anonimageboards", false)] [InlineData("eightchanmoe", false)]
+    [InlineData("gurocx", false)] [InlineData("fchan", false)] [InlineData("capybarachan", false)]
     [InlineData("leftypol", false)] [InlineData("kohlchan", false)]
     public void ExperimentalMaturityDoesNotImplyAMismatchPermission(string source, bool strict)
     {
