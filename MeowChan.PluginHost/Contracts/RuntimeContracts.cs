@@ -79,6 +79,14 @@ public sealed class PluginWorkerException : Exception, MeowChan.IFailureInfoProv
         FailureInfo = ProjectFailure(Code, Message, failure.HttpStatusCode, failure.RetryAt);
     }
 
+    private PluginWorkerException(string code, string message, MeowChan.FailureInfo failureInfo,
+        Exception? innerException)
+        : base(message, innerException)
+    {
+        Code = code;
+        FailureInfo = failureInfo;
+    }
+
     /// <summary>
     /// Retains source failure evidence after the existing SDK result validation.
     /// The reported retry time is preserved, not replaced by the scheduler's minimum delay.
@@ -91,6 +99,21 @@ public sealed class PluginWorkerException : Exception, MeowChan.IFailureInfoProv
         if (failure.HttpStatusCode is < 100 or > 599)
             throw new ArgumentOutOfRangeException(nameof(failure), "HTTP status must be between 100 and 599.");
         return new PluginWorkerException(failure, innerException);
+    }
+
+    /// <summary>
+    /// Keeps the public worker exception contract while retaining a separately
+    /// correlated, sanitized host observation. The host facts are already bounded
+    /// and must not be rebuilt from the final SDK message.
+    /// </summary>
+    internal static PluginWorkerException FromCorrelatedFailure(FailureDetail failure,
+        MeowChan.FailureInfo correlatedFacts)
+    {
+        ArgumentNullException.ThrowIfNull(failure);
+        ArgumentNullException.ThrowIfNull(correlatedFacts);
+        if (failure.HttpStatusCode is < 100 or > 599)
+            throw new ArgumentOutOfRangeException(nameof(failure), "HTTP status must be between 100 and 599.");
+        return new PluginWorkerException(failure.Code, correlatedFacts.Message, correlatedFacts, null);
     }
 
     private static MeowChan.FailureInfo ProjectFailure(string code, string message,

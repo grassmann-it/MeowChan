@@ -13,7 +13,10 @@ internal static class PluginSourceDiagnostics
         if (host == null) return PluginWorkerException.FromFailure(final); // Existing SDK-only message contract.
         // Exact code/message/status echo identifies the returned HostHttpFailure. A
         // reported SDK retry may be added without reclassifying the typed host facts.
-        return new CorrelatedFailure(host with { DiagnosticCode = final.Code, RetryAt = final.RetryAt });
+        // Keep the concrete PluginWorkerException contract used by existing source
+        // consumers while carrying the already-sanitized correlated facts.
+        return PluginWorkerException.FromCorrelatedFailure(
+            final, host with { DiagnosticCode = final.Code, RetryAt = final.RetryAt });
     }
 
     internal static Exception? DeferredFailure(PluginHostHttp.MetadataHistory history,
@@ -29,8 +32,4 @@ internal static class PluginSourceDiagnostics
             "Source check deferred with a reported HTTP status.", status, reportedRetry));
     }
 
-    private sealed class CorrelatedFailure(FailureInfo facts) : Exception(facts.Message), IFailureInfoProvider
-    {
-        public FailureInfo FailureInfo { get; } = facts;
-    }
 }
