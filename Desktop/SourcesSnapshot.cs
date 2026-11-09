@@ -58,8 +58,8 @@ internal static class SourcesSnapshot
             return new SourceRow(provider, summary, Array.AsReadOnly(watches.ToArray()))
             {
                 MediaIntegrityPolicy = policy,
-                Classification = policy is null ? null : SourceWording.Classify(policy.Snapshot.PluginOwnerId,
-                    provider.SourceId, provider.DisplayName, policy.Maturity)
+                Classification = policy?.Classification ?? (policy is null ? null : SourceWording.Classify(
+                    policy.Snapshot.PluginOwnerId, provider.SourceId, provider.DisplayName, policy.Maturity))
             };
         }).ToArray());
     }

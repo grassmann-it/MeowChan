@@ -1,13 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using MeowChan.PluginHost.Activation;
 using MeowChan.PluginHost.Sources;
 using MeowChan.PluginHost.Configuration;
+using MeowChan.Desktop.Plugins;
 using MeowChan.PluginSdk;
 
 namespace MeowChan.Desktop;
 
-internal sealed record PluginSourcePolicyAuthority(string PluginOwnerId, string SourceId, SourceMaturity Maturity, bool IsActive);
+internal sealed record PluginSourcePolicyAuthority(string PluginOwnerId, string SourceId, SourceMaturity Maturity,
+    bool IsActive, SourceWordingClassification? Classification = null);
 
 internal sealed partial class PluginSession
 {
@@ -16,9 +19,18 @@ internal sealed partial class PluginSession
     internal IReadOnlyList<PluginSourcePolicyAuthority> GetSourceMediaIntegrityAuthorities()
     {
         lock (_state)
-            return Array.AsReadOnly(Sources.Select(source => new PluginSourcePolicyAuthority(
-                _sourceOwners[source], source.Name, source.Description.Maturity,
-                IsSourceMediaIntegrityActive(source))).ToArray());
+            return Array.AsReadOnly(Sources.Select(source =>
+            {
+                string owner = _sourceOwners[source];
+                PluginReleaseSnapshot? active = _active.TryGetValue(owner, out PluginActivationSnapshot? activation)
+                    ? activation.Active : null;
+                SourceWordingClassification? classification = active is { } release &&
+                    release.Description.Sources.Contains(source.Description)
+                        ? SourceWordingEvidence.Classify(release.Description, source.Description, release.ExecutionRevision)
+                        : null;
+                return new PluginSourcePolicyAuthority(owner, source.Name, source.Description.Maturity,
+                    IsSourceMediaIntegrityActive(source), classification);
+            }).ToArray());
     }
 
     // Uses the adapters' declared router only. Neither this read nor projection starts a worker.

@@ -215,6 +215,11 @@ public sealed class SourceWordingTests : IDisposable
         {
             SourceWordingClassification classification = new("fixture", "Fixture", maintenance, maturity);
             string english = SourceWording.DescribeLabels(classification);
+            if (maintenance == SourceWordingMaintenance.MeowChan && maturity == SourceWordingMaturity.Experimental)
+            {
+                Assert.Equal("MeowChan · experimental", english);
+                continue;
+            }
             Assert.Contains(MaintenanceLabel(maintenance, "en"), english, StringComparison.Ordinal);
             Assert.Contains(MaturityLabel(maturity, "en"), english, StringComparison.Ordinal);
         }
@@ -224,6 +229,11 @@ public sealed class SourceWordingTests : IDisposable
         {
             SourceWordingClassification classification = new("fixture", "Fixture", maintenance, maturity);
             string german = SourceWording.DescribeLabels(classification);
+            if (maintenance == SourceWordingMaintenance.MeowChan && maturity == SourceWordingMaturity.Experimental)
+            {
+                Assert.Equal("MeowChan · experimental", german);
+                continue;
+            }
             Assert.Contains(MaintenanceLabel(maintenance, "de"), german, StringComparison.Ordinal);
             Assert.Contains(MaturityLabel(maturity, "de"), german, StringComparison.Ordinal);
         }

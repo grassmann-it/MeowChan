@@ -36,7 +36,7 @@ internal sealed partial class DesktopSessionHost
     {
         PluginSourcePolicyAuthority[] authorities = Plugins?.GetSourceMediaIntegrityAuthorities().ToArray() ?? [];
         return Array.AsReadOnly(authorities.Select(authority =>
-            GetOrCreateSourceMediaIntegrityPolicy(authority.PluginOwnerId, authority.SourceId).GetView(authority.Maturity)).ToArray());
+            GetOrCreateSourceMediaIntegrityPolicy(authority.PluginOwnerId, authority.SourceId).GetView(authority.Maturity, authority.Classification)).ToArray());
     }
 
     internal Task SetSourceMediaIntegrityPermissionAsync(string pluginOwnerId, string sourceId, bool allow, long expectedRevision)

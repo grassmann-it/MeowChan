@@ -99,6 +99,11 @@ internal sealed class PluginEntryPresentation
             PluginDescriptionOrigin.LastGoodFallback => state?.LastGood?.Artifact,
             _ => null
         };
+        // The compiled hash allowlist is trusted presentation evidence; changed local candidates fail closed.
+        IReadOnlyList<SourceWordingClassification> classifications =
+            maintenanceEvidence == null && maturityEvidence == null
+                ? SourceWordingEvidence.DisplayClassifications(description, displayedArtifact?.ExecutionRevision)
+                : null!;
         PluginWorkerSnapshot[] workers = state?.Active is { } release && pluginId != null && state.Enabled
             ? (productionWorkers ?? Array.Empty<PluginProductionWorkerSnapshot>())
                 .Where(item => item.PluginId == pluginId &&
@@ -114,8 +119,8 @@ internal sealed class PluginEntryPresentation
             CandidateId = entry.CandidateId,
             Name = entry.Name,
             DescriptionMetadata = description,
-            SourceClassifications = description?.Sources.Select(source => SourceWording.Classify(description, source,
-                displayedArtifact?.ExecutionRevision, maintenanceEvidence, maturityEvidence)).ToArray()
+            SourceClassifications = classifications ?? description?.Sources.Select(source => SourceWording.Classify(
+                description, source, displayedArtifact?.ExecutionRevision, maintenanceEvidence, maturityEvidence)).ToArray()
                 ?? Array.Empty<SourceWordingClassification>(),
             DescriptionOrigin = origin,
             CandidateVersion = candidate?.Description?.PluginVersion,

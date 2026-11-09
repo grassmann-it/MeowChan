@@ -89,12 +89,19 @@ internal static class SourceWording
         return new(sourceId, sourceName, maintenance, maturity);
     }
 
-    internal static string Describe(SourceWordingClassification classification) => Texts.T("sources.classification",
-        Texts.T(MaintenanceKey(classification.Maintenance)), Texts.T(MaturityKey(classification.Maturity)));
+    internal static string Describe(SourceWordingClassification classification) =>
+        classification.Maintenance == SourceWordingMaintenance.MeowChan &&
+        classification.Maturity == SourceWordingMaturity.Experimental
+            ? Texts.T("sources.tierClassification.meowchanExperimental")
+            : Texts.T("sources.classification",
+                Texts.T(MaintenanceKey(classification.Maintenance)), Texts.T(MaturityKey(classification.Maturity)));
 
-    internal static string DescribeLabels(SourceWordingClassification classification) => Texts.T(
-        "sources.classificationCompact",
-        Texts.T(MaintenanceKey(classification.Maintenance)), Texts.T(MaturityKey(classification.Maturity)));
+    internal static string DescribeLabels(SourceWordingClassification classification) =>
+        classification.Maintenance == SourceWordingMaintenance.MeowChan &&
+        classification.Maturity == SourceWordingMaturity.Experimental
+            ? Texts.T("sources.tier.meowchanExperimental")
+            : Texts.T("sources.classificationCompact",
+                Texts.T(MaintenanceKey(classification.Maintenance)), Texts.T(MaturityKey(classification.Maturity)));
 
     internal static string DescribeCompact(IReadOnlyList<SourceWordingClassification> classifications)
     {
@@ -131,16 +138,17 @@ internal static class SourceWording
         string maintenance = Texts.T(classification.Maintenance == SourceWordingMaintenance.Unknown && detailed
             ? "sources.maintenance.unverifiedDetail" : MaintenanceKey(classification.Maintenance));
         string maturity = Texts.T(MaturityKey(classification.Maturity));
+        string compact = DescribeLabels(classification);
         return (detailed, includeId) switch
         {
             (true, true) => Texts.T("sources.classificationDetailedWithId",
                 classification.SourceName, classification.SourceId, maintenance, maturity),
             (true, false) => Texts.T("sources.classificationDetailed",
                 classification.SourceName, maintenance, maturity),
-            (false, true) => Texts.T("sources.classificationCompactWithId",
-                classification.SourceName, classification.SourceId, maintenance, maturity),
-            _ => Texts.T("sources.classificationCompactNamed",
-                classification.SourceName, maintenance, maturity)
+            (false, true) => Texts.T("sources.classificationCompactTierWithId",
+                classification.SourceName, classification.SourceId, compact),
+            _ => Texts.T("sources.classificationCompactTierNamed",
+                classification.SourceName, compact)
         };
     }
 

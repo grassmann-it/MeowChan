@@ -2,13 +2,14 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using MeowChan.Desktop.Plugins;
 using MeowChan.PluginSdk;
 using MeowChan.Storage;
 
 namespace MeowChan.Desktop;
 
 internal sealed record SourceMediaIntegrityPolicyView(SourceMediaIntegrityPolicySnapshot Snapshot,
-    bool IsGranted, bool IsActive, SourceMaturity Maturity);
+    bool IsGranted, bool IsActive, SourceMaturity Maturity, SourceWordingClassification? Classification = null);
 
 /// <summary>
 /// One profile/owner/source authority. Publication and revocation hold the same gate;
@@ -34,10 +35,11 @@ internal sealed class SourceMediaIntegrityPolicyService : ISourceMediaIntegrityP
 
     public SourceMediaIntegrityPolicySnapshot GetSnapshot() => Volatile.Read(ref _state).Snapshot;
 
-    internal SourceMediaIntegrityPolicyView GetView(SourceMaturity maturity = SourceMaturity.Unspecified)
+    internal SourceMediaIntegrityPolicyView GetView(SourceMaturity maturity = SourceMaturity.Unspecified,
+        SourceWordingClassification? classification = null)
     {
         PolicyState state = Volatile.Read(ref _state);
-        return new(state.Snapshot, state.Granted, state.Active && !state.Retired, maturity);
+        return new(state.Snapshot, state.Granted, state.Active && !state.Retired, maturity, classification);
     }
 
     public async ValueTask<MediaAcceptanceLease> AcquireAcceptanceLeaseAsync(long expectedRevision, CancellationToken cancellationToken)
