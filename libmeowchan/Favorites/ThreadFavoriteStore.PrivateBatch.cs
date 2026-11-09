@@ -81,6 +81,97 @@ public sealed partial class ThreadFavoriteStore
         { return PrivateStoreBatchInspection.Unreadable; }
     }
 
+    internal PrivateStoreMarkerRetirementResult RetirePreparedBatchMarker(PrivateStoreBatch batch,
+        Guid operationId, string contentPlanSha256, NativePrivateApplyStoreKind storeKind,
+        NativePrivateApplyStoreImage expectedAfter, NativePrivateApplyStoreImage? expectedBackup,
+        CancellationToken token = default)
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStartupWriter(token);
+        return RetirePreparedBatchMarkerAdmitted(batch, operationId, contentPlanSha256, storeKind,
+            expectedAfter, expectedBackup, admission, token);
+    }
+
+    internal PrivateStoreMarkerRetirementResult RetirePreparedBatchMarkerAdmitted(PrivateStoreBatch batch,
+        Guid operationId, string contentPlanSha256, NativePrivateApplyStoreKind storeKind,
+        NativePrivateApplyStoreImage expectedAfter, NativePrivateApplyStoreImage? expectedBackup,
+        ProfileAdmissionToken admission, CancellationToken token = default)
+        => _lease.RunPrivateStoreCommit(admission, () => RetirePreparedBatchMarkerCore(batch, operationId,
+            contentPlanSha256, storeKind, expectedAfter, expectedBackup, token));
+
+    private PrivateStoreMarkerRetirementResult RetirePreparedBatchMarkerCore(PrivateStoreBatch batch,
+        Guid operationId, string contentPlanSha256, NativePrivateApplyStoreKind storeKind,
+        NativePrivateApplyStoreImage expectedAfter, NativePrivateApplyStoreImage? expectedBackup,
+        CancellationToken token)
+    {
+        EnsureOwnBatch(batch);
+        PrivateStoreMarkerRetirement.ValidateRequest(batch, operationId, contentPlanSha256, storeKind,
+            expectedAfter, expectedBackup);
+        token.ThrowIfCancellationRequested();
+        PrivateStoreMarkerRetirement.EnsureNoPending(_lease, "thread-favorites.json");
+
+        var current = ReadBatchState();
+        NativePrivateApplyStoreImage backupFence = expectedBackup!;
+        if (current.Primary is { } primary && primary.OperationMarker is null
+            && PrivateStoreBatchFiles.Same(current.Image, CreateRetiredImage(primary))
+            && PrivateStoreBatchFiles.Same(current.BackupImage, backupFence))
+            return PrivateStoreMarkerRetirementResult.AlreadyRetired;
+
+        if (current.Primary?.OperationMarker != batch.Marker
+            || !PrivateStoreBatchFiles.Same(current.Image, expectedAfter)
+            || !PrivateStoreBatchFiles.Same(current.BackupImage, backupFence))
+            throw PrivateStoreBatchFiles.Invalid();
+
+        byte[] retiredBytes = CreateRetiredBytes(current.Primary);
+        PrivateStoreMarkerRetirement.EnsureReadback(_lease);
+        try
+        {
+            AtomicJsonFile.WriteAllText(_path, StrictUtf8.GetString(retiredBytes),
+                backupCurrentFile: false, token);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            if (ObserveRetiredBatch(retiredBytes, backupFence))
+                return PrivateStoreMarkerRetirementResult.Retired;
+            throw new IOException("The private store marker retirement could not be verified.");
+        }
+
+        if (!ObserveRetiredBatch(retiredBytes, backupFence))
+            throw new IOException("The private store marker retirement could not be verified.");
+        return PrivateStoreMarkerRetirementResult.Retired;
+    }
+
+    private bool ObserveRetiredBatch(byte[] retiredBytes, NativePrivateApplyStoreImage backupFence)
+    {
+        try
+        {
+            var current = ReadBatchState();
+            if (current.Primary is not { } primary) return false;
+            bool exact = primary.OperationMarker is null
+                && PrivateStoreBatchFiles.Same(current.Image, PrivateStoreBatchFiles.Image(retiredBytes, 1,
+                    null, primary.Revision))
+                && PrivateStoreBatchFiles.Same(current.BackupImage, backupFence);
+            PrivateStoreMarkerRetirement.EnsureReadback(_lease);
+            return exact;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return false;
+        }
+    }
+
+    private static byte[] CreateRetiredBytes(Document document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        var retired = document with { Version = 1, InstanceId = null, OperationMarker = null };
+        return PrivateStoreBatchFiles.SerializeBounded(retired, MaximumBytes);
+    }
+
+    private static NativePrivateApplyStoreImage CreateRetiredImage(Document document)
+    {
+        byte[] bytes = CreateRetiredBytes(document);
+        return PrivateStoreBatchFiles.Image(bytes, 1, null, document.Revision);
+    }
+
     internal PrivateStoreBatchInspection CommitPreparedBatch(PrivateStoreBatch batch, CancellationToken token = default)
     {
         using ProfileAdmissionToken admission = _lease.Admission.EnterStartupWriter(token);

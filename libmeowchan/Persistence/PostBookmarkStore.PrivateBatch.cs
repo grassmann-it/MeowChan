@@ -90,6 +90,125 @@ internal sealed partial class PostBookmarkStore
             return InspectBookmarkBatchCore(batch);
         });
 
+    internal PrivateStoreMarkerRetirementResult RetirePreparedBatchMarker(PrivateStoreBatch batch,
+        Guid operationId, string contentPlanSha256, NativePrivateApplyStoreKind storeKind,
+        NativePrivateApplyStoreImage expectedAfter, NativePrivateApplyStoreImage? expectedBackup,
+        CancellationToken token = default)
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStartupWriter(token);
+        return RetirePreparedBatchMarkerAdmitted(batch, operationId, contentPlanSha256, storeKind,
+            expectedAfter, expectedBackup, admission, token);
+    }
+
+    internal PrivateStoreMarkerRetirementResult RetirePreparedBatchMarkerAdmitted(PrivateStoreBatch batch,
+        Guid operationId, string contentPlanSha256, NativePrivateApplyStoreKind storeKind,
+        NativePrivateApplyStoreImage expectedAfter, NativePrivateApplyStoreImage? expectedBackup,
+        ProfileAdmissionToken admission, CancellationToken token = default)
+        => _lease.RunPrivateStoreCommit(admission, () => RetirePreparedBatchMarkerCore(batch, operationId,
+            contentPlanSha256, storeKind, expectedAfter, expectedBackup, token));
+
+    private PrivateStoreMarkerRetirementResult RetirePreparedBatchMarkerCore(PrivateStoreBatch batch,
+        Guid operationId, string contentPlanSha256, NativePrivateApplyStoreKind storeKind,
+        NativePrivateApplyStoreImage expectedAfter, NativePrivateApplyStoreImage? expectedBackup,
+        CancellationToken token)
+    {
+        EnsureOwnBookmarkBatch(batch);
+        PrivateStoreMarkerRetirement.ValidateRequest(batch, operationId, contentPlanSha256, storeKind,
+            expectedAfter, expectedBackup);
+        token.ThrowIfCancellationRequested();
+        PrivateStoreMarkerRetirement.EnsureNoPending(_lease, "post-bookmarks.json");
+
+        var current = ReadBookmarkBatchState();
+        if (current.Document.OperationMarker is null
+            && PrivateStoreBatchFiles.Same(current.Image, CreateRetiredImage(current.Document))
+            && !PrivateStoreBatchFiles.Same(current.Image, expectedAfter))
+            return PrivateStoreMarkerRetirementResult.AlreadyRetired;
+
+        if (current.Document.OperationMarker != batch.Marker
+            || !PrivateStoreBatchFiles.Same(current.Image, expectedAfter))
+            throw PrivateStoreBatchFiles.Invalid();
+
+        byte[] retiredBytes = CreateRetiredBytes(current.Document.Snapshot);
+        string pending = System.IO.Path.Combine(_lease.ProfileDirectory,
+            PrivatePendingPrefix + Guid.NewGuid().ToString("N"));
+        bool created = false, publicationAttempted = false, publicationVerified = false;
+        try
+        {
+            using (FileStream file = new(pending, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                created = true;
+                file.Write(retiredBytes);
+                file.Flush(flushToDisk: true);
+            }
+            token.ThrowIfCancellationRequested();
+            if (!ObserveMarkedBatch(batch, expectedAfter)) throw PrivateStoreBatchFiles.Invalid();
+            publicationAttempted = true;
+            File.Move(pending, Path, overwrite: true);
+            publicationVerified = ObserveRetiredBatch(retiredBytes);
+            if (!publicationVerified) throw new IOException("Private bookmark marker retirement could not be verified.");
+            return PrivateStoreMarkerRetirementResult.Retired;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            if (publicationAttempted && ObserveRetiredBatch(retiredBytes))
+            {
+                publicationVerified = true;
+                return PrivateStoreMarkerRetirementResult.Retired;
+            }
+            throw new IOException("Private bookmark marker retirement could not be verified.");
+        }
+        finally
+        {
+            if (created && (!publicationAttempted || publicationVerified))
+            {
+                try { File.Delete(pending); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+        }
+    }
+
+    private bool ObserveMarkedBatch(PrivateStoreBatch batch, NativePrivateApplyStoreImage expectedAfter)
+    {
+        try
+        {
+            var current = ReadBookmarkBatchState();
+            bool exact = current.Document.OperationMarker == batch.Marker
+                && PrivateStoreBatchFiles.Same(current.Image, expectedAfter);
+            PrivateStoreMarkerRetirement.EnsureReadback(_lease);
+            return exact;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return false;
+        }
+    }
+
+    private bool ObserveRetiredBatch(byte[] retiredBytes)
+    {
+        try
+        {
+            var current = ReadBookmarkBatchState();
+            bool exact = current.Document.OperationMarker is null
+                && PrivateStoreBatchFiles.Same(current.Image, PrivateStoreBatchFiles.Image(retiredBytes, 1,
+                    null, current.Document.Snapshot.Revision));
+            PrivateStoreMarkerRetirement.EnsureReadback(_lease);
+            return exact;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return false;
+        }
+    }
+
+    private static byte[] CreateRetiredBytes(PostBookmarkSnapshot snapshot) => Serialize(snapshot);
+
+    private static NativePrivateApplyStoreImage CreateRetiredImage(ParsedFile document)
+    {
+        byte[] bytes = CreateRetiredBytes(document.Snapshot);
+        return PrivateStoreBatchFiles.Image(bytes, 1, null, document.Snapshot.Revision);
+    }
+
     internal PrivateStoreBatchInspection CommitPreparedBatch(PrivateStoreBatch batch, CancellationToken token = default)
     {
         using ProfileAdmissionToken admission = _lease.Admission.EnterStartupWriter(token);
