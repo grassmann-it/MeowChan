@@ -24,7 +24,21 @@
     <ProjectReference Include="../../plugins/Examples/Uboachan/MeowChan.Plugin.Uboachan.csproj" />
     <ProjectReference Include="../../plugins/Examples/Zzzchan/MeowChan.Plugin.Zzzchan.csproj" />
     <ProjectReference Include="../../plugins/Examples/SushiChan/MeowChan.Plugin.SushiChan.csproj" />
+    <ProjectReference Include="../../plugins/Examples/SevenChan/MeowChan.Plugin.SevenChan.csproj" />
+    <ProjectReference Include="../../plugins/Examples/BbwChan/MeowChan.Plugin.BbwChan.csproj" />
+    <ProjectReference Include="../../plugins/Examples/AnonImageboards/MeowChan.Plugin.AnonImageboards.csproj" />
+    <ProjectReference Include="../../plugins/Examples/CapybaraChan/MeowChan.Plugin.CapybaraChan.csproj" />
+    <ProjectReference Include="../../plugins/Examples/EightchanMoe/MeowChan.Plugin.EightchanMoe.csproj" />
+    <ProjectReference Include="../../plugins/Examples/Fchan/MeowChan.Plugin.Fchan.csproj" />
+    <ProjectReference Include="../../plugins/Examples/GuroCx/MeowChan.Plugin.GuroCx.csproj" />
     <Using Include="Xunit" />
     <None Update="Fixtures/*.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../plugins/Examples/SevenChan/Fixtures/**" CopyToOutputDirectory="PreserveNewest" LinkBase="PluginFixtures/SevenChan" />
+    <None Include="../../plugins/Examples/BbwChan/Fixtures/**" CopyToOutputDirectory="PreserveNewest" LinkBase="PluginFixtures/BbwChan" />
+    <None Include="../../plugins/Examples/AnonImageboards/Fixtures/**" CopyToOutputDirectory="PreserveNewest" LinkBase="PluginFixtures/AnonImageboards" />
+    <None Include="../../plugins/Examples/CapybaraChan/Fixtures/**" CopyToOutputDirectory="PreserveNewest" LinkBase="PluginFixtures/CapybaraChan" />
+    <None Include="../../plugins/Examples/EightchanMoe/Fixtures/**" CopyToOutputDirectory="PreserveNewest" LinkBase="PluginFixtures/EightchanMoe" />
+    <None Include="../../plugins/Examples/Fchan/Fixtures/**" CopyToOutputDirectory="PreserveNewest" LinkBase="PluginFixtures/Fchan" />
+    <None Include="../../plugins/Examples/GuroCx/Fixtures/**" CopyToOutputDirectory="PreserveNewest" LinkBase="PluginFixtures/GuroCx" />
   </ItemGroup>
 </Project>

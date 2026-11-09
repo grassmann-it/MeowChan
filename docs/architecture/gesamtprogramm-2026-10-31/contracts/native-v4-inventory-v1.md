@@ -1,5 +1,9 @@
 # W31: honest v4 inventory within the existing native-transfer flow
 
+> **SUPERSEDED for public v4 Apply by [Native v4 Apply v2 — authoritative public single-thread contract](native-v4-apply-v2.md).**
+>
+> This W31 document is retained as historical inventory/UI implementation context. Its separated original/derived inventory rules remain historical context where compatible, but its inventory-only and blanket v4-Apply-rejection boundary is no longer normative.
+
 Technical implementation decision under accepted M1; no scope reduction or full M1 acceptance.
 Base W29 a605f5f plus separately frozen W30 retained-stage/Host apply. Root now validates W30;
 this disjoint next code change must not modify its source, tests or frozen snapshot.

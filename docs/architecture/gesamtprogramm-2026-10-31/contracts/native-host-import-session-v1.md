@@ -1,5 +1,9 @@
 # W30a exact technical cut — retained native ingress and real Desktop host apply
 
+> **SUPERSEDED for public v4 Apply by [Native v4 Apply v2 — authoritative public single-thread contract](native-v4-apply-v2.md).**
+>
+> This W30a document is retained as historical implementation context for the host session, state names, and lifecycle safeguards. It is not the current v4 Apply authority; in particular, its blanket v4-unsupported wording is superseded only for the admitted public single-thread shape defined by v2.
+
 Authority: current shortened M1/M2/GP39 goal. Base a605f5f + preserved unrelated WIP.
 Root writes Desktop/NativeTransferImportSession.cs and Desktop/DesktopSessionHost.NativeImport.cs only (plus state/docs/runner/Git). This is a backend integration increment toward M1, NOT M1/full import completion, no storage relocation/foreign import/other features. Existing preview-only UI remains unchanged until complete supported flow is ready. No public API/SQL/schema changes in this cut.
 
