@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
+using MeowChan.Favorites;
 
 namespace MeowChan.Transfer;
 
@@ -17,6 +18,7 @@ namespace MeowChan.Transfer;
 internal static class NativePrivateApplyRequestCodec
 {
     internal const int MaximumDocumentBytes = 20 * 1024 * 1024;
+    private const int Schema = 2;
     private static readonly UTF8Encoding Utf8 = new(false, true);
     private static readonly JsonWriterOptions Options = new() { Indented = false, SkipValidation = false };
 
@@ -29,7 +31,7 @@ internal static class NativePrivateApplyRequestCodec
         using (var writer = new Utf8JsonWriter(output, Options))
         {
             writer.WriteStartObject();
-            writer.WriteNumber("schema", 1);
+            writer.WriteNumber("schema", Schema);
             writer.WriteString("operationId", request.OperationId.ToString("N"));
             WriteBinding(writer, request.Binding);
             using JsonDocument payload = JsonDocument.Parse(selectedPayload);
@@ -37,6 +39,7 @@ internal static class NativePrivateApplyRequestCodec
             payload.RootElement.WriteTo(writer);
             WriteDispositions(writer, "threadDispositions", request.ThreadFavorites.Select(x => x.Disposition), cancellationToken);
             WriteDispositions(writer, "mediaDispositions", request.MediaFavorites.Select(x => x.Disposition), cancellationToken);
+            WriteMediaFavoriteEntries(writer, request.SelectedIncoming, cancellationToken);
             WriteDispositions(writer, "bookmarkDispositions", request.PostBookmarksAndNotes.Select(x => x.Disposition), cancellationToken);
             writer.WritePropertyName("storeFences");
             writer.WriteStartArray();
@@ -70,9 +73,9 @@ internal static class NativePrivateApplyRequestCodec
             });
             JsonElement root = doc.RootElement;
             Fields(root, cancellationToken, "schema", "operationId", "binding", "payload",
-                "threadDispositions", "mediaDispositions", "bookmarkDispositions", "storeFences",
+                "threadDispositions", "mediaDispositions", "mediaFavoriteEntries", "bookmarkDispositions", "storeFences",
                 "contentPlanSha256", "requestSha256");
-            if (Int(root, "schema") != 1) throw Invalid();
+            if (Int(root, "schema") != Schema) throw Invalid();
             Guid operation = ParseGuid(Text(root, "operationId"), compact: true);
             NativePrivateApplyRequestBinding binding = ParseBinding(root.GetProperty("binding"), cancellationToken);
             string payloadText = root.GetProperty("payload").GetRawText();
@@ -82,11 +85,15 @@ internal static class NativePrivateApplyRequestCodec
             NativePrivateMetadataProjection selected = inspection.Projection!;
             var threads = ParseDispositions(root.GetProperty("threadDispositions"), selected.ThreadFavorites.Length, cancellationToken);
             var media = ParseDispositions(root.GetProperty("mediaDispositions"), selected.MediaFavorites.Length, cancellationToken);
+            ImmutableArray<FavoriteEntry> mediaEntries = ParseMediaFavoriteEntries(
+                root.GetProperty("mediaFavoriteEntries"), selected, cancellationToken);
+            selected = selected.WithMediaFavoriteEntries(mediaEntries, cancellationToken);
             var notes = ParseDispositions(root.GetProperty("bookmarkDispositions"), selected.PostBookmarksAndNotes.Length, cancellationToken);
             var fences = ParseFences(root.GetProperty("storeFences"), cancellationToken);
             var comparison = new NativePrivateMetadataComparisonResult(selected.Selection, selected,
                 selected.ThreadFavorites.Select((x, i) => new NativePrivateThreadFavoriteComparison(x, threads[i])).ToImmutableArray(),
-                selected.MediaFavorites.Select((x, i) => new NativePrivateMediaFavoriteComparison(x, media[i])).ToImmutableArray(),
+                selected.MediaFavorites.Select((x, i) => new NativePrivateMediaFavoriteComparison(x, media[i],
+                    mediaEntries.Length == selected.MediaFavorites.Length ? mediaEntries[i] : null)).ToImmutableArray(),
                 selected.PostBookmarksAndNotes.Select((x, i) => new NativePrivateBookmarkComparison(x.Key, x.Note, notes[i])).ToImmutableArray());
             NativePrivateApplyRequest result = NativePrivateApplyRequest.Create(operation, comparison, binding, fences, cancellationToken);
             // Dispositions are aligned with the canonical payload identities, never
@@ -115,6 +122,37 @@ internal static class NativePrivateApplyRequestCodec
         writer.WriteString("profileIncarnation", binding.ProfileIncarnation.ToString("D"));
         writer.WriteString("targetFenceSha256", binding.TargetFenceSha256);
         writer.WriteEndObject();
+    }
+
+    private static void WriteMediaFavoriteEntries(Utf8JsonWriter writer,
+        NativePrivateMetadataProjection projection, CancellationToken token)
+    {
+        writer.WritePropertyName("mediaFavoriteEntries");
+        if (!projection.Selection.MediaFavorites)
+        {
+            writer.WriteNullValue();
+            return;
+        }
+        if (projection.MediaFavoriteEntries.IsEmpty && !projection.MediaFavorites.IsEmpty)
+        {
+            // Identity-only legacy projections remain representable, but null is
+            // explicit absence; no length/name is fabricated for a future apply.
+            writer.WriteNullValue();
+            return;
+        }
+        if (projection.MediaFavoriteEntries.Length != projection.MediaFavorites.Length)
+            throw Invalid();
+        writer.WriteStartArray();
+        foreach (FavoriteEntry entry in projection.MediaFavoriteEntries)
+        {
+            token.ThrowIfCancellationRequested();
+            if (entry is null || entry.Key is null) throw Invalid();
+            writer.WriteStartObject();
+            writer.WriteNumber("length", entry.Length);
+            writer.WriteString("originalFileName", entry.OriginalFileName);
+            writer.WriteEndObject();
+        }
+        writer.WriteEndArray();
     }
 
     private static void WriteDispositions(Utf8JsonWriter writer, string name,
@@ -175,6 +213,27 @@ internal static class NativePrivateApplyRequestCodec
             int value = Int(item);
             if (!Enum.IsDefined((NativePrivateMetadataDisposition)value)) throw Invalid();
             result.Add((NativePrivateMetadataDisposition)value);
+        }
+        return result.ToImmutable();
+    }
+
+    private static ImmutableArray<FavoriteEntry> ParseMediaFavoriteEntries(JsonElement element,
+        NativePrivateMetadataProjection projection, CancellationToken token)
+    {
+        if (element.ValueKind == JsonValueKind.Null)
+            return [];
+        if (!projection.Selection.MediaFavorites || element.ValueKind != JsonValueKind.Array
+            || element.GetArrayLength() != projection.MediaFavorites.Length) throw Invalid();
+        var result = ImmutableArray.CreateBuilder<FavoriteEntry>(element.GetArrayLength());
+        int index = 0;
+        foreach (JsonElement item in element.EnumerateArray())
+        {
+            token.ThrowIfCancellationRequested();
+            Fields(item, token, "length", "originalFileName");
+            long length = Long(item, "length");
+            string? originalFileName = NullableText(item, "originalFileName");
+            if (length < 0) throw Invalid();
+            result.Add(new FavoriteEntry(projection.MediaFavorites[index++], length, originalFileName));
         }
         return result.ToImmutable();
     }

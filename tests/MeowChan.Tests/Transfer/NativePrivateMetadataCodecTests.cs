@@ -19,6 +19,9 @@ public sealed class NativePrivateMetadataCodecTests
     private static FavoriteAssetKey Media(ResourceId thread, string media = "unresolved-media", string variant = "original") =>
         new(thread, media, variant, new string('a', 64));
 
+    private static FavoriteEntry FavoriteEntryFor(ResourceId thread) =>
+        new(Media(thread), 123, OriginalName);
+
     private static NativePrivateMetadataSelection Selection(int bits) =>
         new((bits & 1) != 0, (bits & 2) != 0, (bits & 4) != 0);
 
@@ -235,6 +238,7 @@ public sealed class NativePrivateMetadataCodecTests
         Assert.Equal(Thread, Assert.Single(projection.Threads));
         Assert.Equal(Thread, Assert.Single(projection.ThreadFavorites));
         Assert.Equal(Media(Thread), Assert.Single(projection.MediaFavorites));
+        Assert.Equal(FavoriteEntryFor(Thread), Assert.Single(projection.MediaFavoriteEntries));
         Assert.Equal(new PostBookmark(new(Thread, "unresolved-post"), Note), Assert.Single(projection.PostBookmarksAndNotes));
         byte[] wire = NativePrivateMetadataCodec.Serialize(projection);
         AssertValues(projection, Inspect(wire));
@@ -264,7 +268,8 @@ public sealed class NativePrivateMetadataCodecTests
         Type[] allowedFieldTypes =
         [
             typeof(ImmutableArray<ResourceId>), typeof(NativePrivateMetadataSelection),
-            typeof(ImmutableArray<FavoriteAssetKey>), typeof(ImmutableArray<PostBookmark>)
+            typeof(ImmutableArray<FavoriteAssetKey>), typeof(ImmutableArray<FavoriteEntry>),
+            typeof(ImmutableArray<PostBookmark>)
         ];
         Assert.All(typeof(NativePrivateMetadataProjection).GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic),
             field =>

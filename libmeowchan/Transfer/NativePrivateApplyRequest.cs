@@ -81,6 +81,7 @@ internal sealed class NativePrivateApplyRequest
     internal NativePrivateMetadataSelection Selection => SelectedIncoming.Selection;
     internal ImmutableArray<NativePrivateThreadFavoriteComparison> ThreadFavorites { get; }
     internal ImmutableArray<NativePrivateMediaFavoriteComparison> MediaFavorites { get; }
+    internal ImmutableArray<FavoriteEntry> MediaFavoriteEntries => SelectedIncoming.MediaFavoriteEntries;
     internal ImmutableArray<NativePrivateBookmarkComparison> PostBookmarksAndNotes { get; }
     internal ImmutableArray<NativePrivateApplyStoreFence> StoreFences { get; }
     internal string SelectedPayloadSha256 { get; }
@@ -100,15 +101,19 @@ internal sealed class NativePrivateApplyRequest
             NativePrivateMetadataProjection source = comparison.SelectedIncoming;
             if (source is null || source.Selection != comparison.Selection) throw Invalid();
             NativePrivateMetadataCodec.Validate(source, cancellationToken);
+            NativePrivateMetadataProjection.ValidateMediaFavoriteEntries(source, cancellationToken);
             // Sorting is explicit ordinal component ordering, not a culture/path
             // comparer or delimiter-concatenated key. No original unfiltered DTO retained.
             var threadOrder = Comparer<ResourceId>.Create(CompareThread);
             var mediaOrder = Comparer<FavoriteAssetKey>.Create(CompareMedia);
             var bookmarkOrder = Comparer<PostBookmarkKey>.Create(CompareBookmark);
+            ImmutableArray<FavoriteEntry> mediaEntries = source.MediaFavoriteEntries.Length == 0
+                ? [] : source.MediaFavoriteEntries.OrderBy(entry => entry.Key, mediaOrder).ToImmutableArray();
             var selected = new NativePrivateMetadataProjection(source.Threads.Order(threadOrder).ToImmutableArray(),
                 source.Selection, source.ThreadFavorites.Order(threadOrder).ToImmutableArray(),
                 source.MediaFavorites.Order(mediaOrder).ToImmutableArray(),
-                source.PostBookmarksAndNotes.OrderBy(b => b.Key, bookmarkOrder).ToImmutableArray());
+                source.PostBookmarksAndNotes.OrderBy(b => b.Key, bookmarkOrder).ToImmutableArray(),
+                mediaEntries);
             cancellationToken.ThrowIfCancellationRequested();
             ValidateRows(comparison, selected, cancellationToken);
             ValidateFences(storeFences, selected.Selection, comparison);
@@ -124,7 +129,7 @@ internal sealed class NativePrivateApplyRequest
             // No canonical buffer containing old target data or whole-store images.
             using (var digest = new RequestDigest(cancellationToken))
             {
-                digest.Text("meowchan-private-apply-content-plan-v1");
+                digest.Text("meowchan-private-apply-content-plan-v2");
                 digest.Number(binding.PackageLength); digest.Text(binding.PackageSha256);
                 digest.Text(binding.PublicCatalogSha256); digest.Number(binding.PrivateLength);
                 digest.Text(binding.PrivateSha256); digest.Text(binding.ProfileIncarnation.ToString("D"));
@@ -135,7 +140,8 @@ internal sealed class NativePrivateApplyRequest
                 foreach (var row in media)
                 {
                     digest.Thread(row.Target.Thread); digest.Text(row.Target.MediaIdentifier);
-                    digest.Text(row.Target.Variant); digest.Text(row.Target.Sha256); digest.Number((int)row.Disposition);
+                    digest.Text(row.Target.Variant); digest.Text(row.Target.Sha256);
+                    digest.MediaEntry(row.IncomingEntry); digest.Number((int)row.Disposition);
                 }
                 digest.Number(notes.Length);
                 foreach (var row in notes)
@@ -158,7 +164,7 @@ internal sealed class NativePrivateApplyRequest
             // the final request hash in it would introduce a circular hash dependency.
             using (var digest = new RequestDigest(cancellationToken))
             {
-                digest.Text("meowchan-private-apply-request-v1"); digest.Text(contentPlanHash);
+                digest.Text("meowchan-private-apply-request-v2"); digest.Text(contentPlanHash);
                 digest.Number(storeFences.Length);
                 foreach (var fence in storeFences)
                 { digest.Number((int)fence.Kind); digest.Image(fence.ExpectedAfter); }
@@ -196,10 +202,20 @@ internal sealed class NativePrivateApplyRequest
             if (row is null || !threads.Remove(row.Target) || !ValidDisposition(row.Disposition, false)) throw Invalid();
         }
         HashSet<FavoriteAssetKey> media = selected.MediaFavorites.ToHashSet();
+        Dictionary<FavoriteAssetKey, FavoriteEntry> mediaEntries = selected.MediaFavoriteEntries
+            .ToDictionary(entry => entry.Key);
         foreach (var row in value.MediaFavorites)
         {
             token.ThrowIfCancellationRequested();
             if (row is null || !media.Remove(row.Target) || !ValidDisposition(row.Disposition, false)) throw Invalid();
+            if (selected.MediaFavoriteEntries.IsEmpty)
+            {
+                if (row.IncomingEntry is not null) throw Invalid();
+            }
+            else if (row.IncomingEntry is null
+                || row.IncomingEntry.Key != row.Target
+                || !mediaEntries.TryGetValue(row.Target, out FavoriteEntry? expected)
+                || !expected.Equals(row.IncomingEntry)) throw Invalid();
         }
         Dictionary<PostBookmarkKey, string> notes = selected.PostBookmarksAndNotes.ToDictionary(n => n.Key, n => n.Note);
         foreach (var row in value.PostBookmarksAndNotes)
@@ -315,6 +331,14 @@ internal sealed class NativePrivateApplyRequest
         {
             Number(image.Exists ? 1 : 0); Number(image.Schema); Text(image.Instance?.ToString("D") ?? "");
             Number(image.Revision); Number(image.ByteLength); Text(image.Sha256 ?? "");
+        }
+        internal void MediaEntry(FavoriteEntry? entry)
+        {
+            Number(entry is null ? 0 : 1);
+            if (entry is null) return;
+            Number(entry.Length);
+            Number(entry.OriginalFileName is null ? 0 : 1);
+            if (entry.OriginalFileName is not null) Text(entry.OriginalFileName);
         }
         private void Append(ReadOnlySpan<byte> bytes)
         {

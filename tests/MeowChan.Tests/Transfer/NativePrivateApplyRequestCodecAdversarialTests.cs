@@ -362,7 +362,7 @@ public sealed class NativePrivateApplyRequestCodecAdversarialTests
     public void DuplicatePrimitivePropertiesAreRejectedAtEveryNestingLevel()
     {
         string wire = Encoding.UTF8.GetString(Encode(Create(new(true))));
-        Reject(wire.Replace("\"schema\":1,", "\"schema\":1,\"schema\":1,"));
+        Reject(wire.Replace("\"schema\":2,", "\"schema\":2,\"schema\":2,"));
         Reject(wire.Replace("\"packageLength\":4096,", "\"packageLength\":4096,\"packageLength\":4096,"));
         Reject(wire.Replace("\"exists\":true,", "\"exists\":true,\"exists\":true,"));
     }

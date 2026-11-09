@@ -25,9 +25,13 @@ internal sealed class NativePrivateThreadFavoriteComparison
 
 internal sealed class NativePrivateMediaFavoriteComparison
 {
-    internal NativePrivateMediaFavoriteComparison(FavoriteAssetKey target, NativePrivateMetadataDisposition disposition)
-    { Target = target; Disposition = disposition; }
+    internal NativePrivateMediaFavoriteComparison(FavoriteAssetKey target,
+        NativePrivateMetadataDisposition disposition, FavoriteEntry? incomingEntry = null)
+    { Target = target; Disposition = disposition; IncomingEntry = incomingEntry; }
     internal FavoriteAssetKey Target { get; }
+    // Optional only for legacy identity-only passive projections. A populated
+    // projection carries the complete store value and never a fabricated fallback.
+    internal FavoriteEntry? IncomingEntry { get; }
     internal NativePrivateMetadataDisposition Disposition { get; }
 }
 
@@ -88,6 +92,8 @@ internal static class NativePrivateMetadataComparison
             // below so private notes and source identities cannot become diagnostics.
             NativePrivateMetadataCodec.Validate(incoming, cancellationToken);
             NativePrivateMetadataCodec.Validate(targetMetadata, cancellationToken);
+            NativePrivateMetadataProjection.ValidateMediaFavoriteEntries(incoming, cancellationToken);
+            NativePrivateMetadataProjection.ValidateMediaFavoriteEntries(targetMetadata, cancellationToken);
             NativePrivateMetadataProjection selected = incoming.Select(selection, cancellationToken);
             NativePrivateMetadataProjection selectedTarget = targetMetadata.Select(selection, cancellationToken);
             ValidateTargetMetadata(targetCatalog, cancellationToken);
@@ -141,6 +147,8 @@ internal static class NativePrivateMetadataComparison
             }
             HashSet<FavoriteAssetKey> targetContainedMedia = selection.MediaFavorites
                 ? ContainedMedia(targetCatalog, cancellationToken) : new();
+            Dictionary<FavoriteAssetKey, FavoriteEntry> incomingMediaEntries = selected.MediaFavoriteEntries
+                .ToDictionary(entry => entry.Key);
             ImmutableArray<NativePrivateMediaFavoriteComparison>.Builder mediaRows = ImmutableArray.CreateBuilder<NativePrivateMediaFavoriteComparison>();
             if (selection.MediaFavorites)
             {
@@ -152,7 +160,8 @@ internal static class NativePrivateMetadataComparison
                             ? NativePrivateMetadataDisposition.Identical
                             : NativePrivateMetadataDisposition.Add
                         : NativePrivateMetadataDisposition.MissingTarget;
-                    mediaRows.Add(new(favorite, disposition));
+                    mediaRows.Add(new(favorite, disposition,
+                        incomingMediaEntries.TryGetValue(favorite, out FavoriteEntry? entry) ? entry : null));
                 }
             }
 

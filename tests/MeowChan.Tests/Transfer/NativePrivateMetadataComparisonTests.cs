@@ -33,14 +33,16 @@ public sealed class NativePrivateMetadataComparisonTests
         ResourceId? thread = null, NativePrivateMetadataSelection? selection = null,
         ImmutableArray<ResourceId>? threadFavorites = null,
         ImmutableArray<FavoriteAssetKey>? mediaFavorites = null,
-        ImmutableArray<PostBookmark>? bookmarks = null)
+        ImmutableArray<PostBookmark>? bookmarks = null,
+        ImmutableArray<FavoriteEntry>? mediaEntries = null)
     {
         thread ??= Thread;
         NativePrivateMetadataSelection chosen = selection ?? All;
         return new([thread], chosen,
             threadFavorites ?? (chosen.ThreadFavorites ? [thread] : []),
             mediaFavorites ?? (chosen.MediaFavorites ? [new(thread, Media, "original", MediaHash)] : []),
-            bookmarks ?? (chosen.PostBookmarksAndNotes ? [new(new(thread, Post), Note)] : []));
+            bookmarks ?? (chosen.PostBookmarksAndNotes ? [new(new(thread, Post), Note)] : []),
+            mediaEntries);
     }
 
     private static TransferAttachment Attachment(string id = Media, string? hash = null,
@@ -104,6 +106,21 @@ public sealed class NativePrivateMetadataComparisonTests
         NativePrivateMetadataProjection incoming, NativeTransferCatalog? catalog = null,
         NativePrivateMetadataProjection? target = null, NativePrivateMetadataSelection selection = default) =>
         NativePrivateMetadataComparison.Analyze(incoming, ValidCatalog(catalog ?? RawCatalog()), target ?? Projection(), selection);
+
+    [Fact]
+    public void MediaComparisonCarriesCompleteFavoriteEntryWithoutUsingTargetData()
+    {
+        FavoriteAssetKey key = new(Thread, Media, "original", MediaHash);
+        FavoriteEntry entry = new(key, 987654, "incoming-original.jpg");
+        NativePrivateMetadataProjection incoming = Projection(mediaFavorites: [key],
+            mediaEntries: [entry]);
+        NativePrivateMetadataComparisonResult result = Compare(incoming, RawCatalog(),
+            Projection(mediaFavorites: [], bookmarks: []), new(MediaFavorites: true));
+
+        NativePrivateMediaFavoriteComparison row = Assert.Single(result.MediaFavorites);
+        Assert.Equal(key, row.Target);
+        Assert.Equal(entry, row.IncomingEntry);
+    }
 
     [Fact]
     public void DefaultOffIsIndependentAndEmptySelectionsProduceNoRows()
