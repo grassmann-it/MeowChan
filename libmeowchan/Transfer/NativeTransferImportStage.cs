@@ -44,15 +44,19 @@ internal sealed class NativeTransferImportStage : IAsyncDisposable
     private bool _disposed;
 
     private NativeTransferImportStage(FileStream file, string path, NativeTransferPackage package,
-        IReadOnlyList<TransferZipEntry> entries)
+        long packageLength, IReadOnlyList<TransferZipEntry> entries)
     {
-        _file = file; _path = path; Package = package;
+        if (packageLength <= 0) throw new ArgumentOutOfRangeException(nameof(packageLength));
+        _file = file; _path = path; Package = package; PackageLength = packageLength;
         _payloads = entries.Where(entry => entry.Name.StartsWith("payload/", StringComparison.Ordinal))
             .ToDictionary(entry => entry.Name[8..], StringComparer.Ordinal);
     }
 
     // Passive, owned immutable metadata; reading this property never confers store authority.
     internal NativeTransferPackage Package { get; }
+    // The length is measured from the bytes retained by this stage, never supplied
+    // by a later caller or reconstructed from a source stream.
+    internal long PackageLength { get; }
     internal bool StageRetained { get; private set; }
 
     /// <summary>
@@ -122,7 +126,7 @@ internal sealed class NativeTransferImportStage : IAsyncDisposable
             // Reuse the same bounded ZIP reader. No raw handle or package-supplied path escapes.
             IReadOnlyList<TransferZipEntry> entries = await NativeTransferZip.ReadDirectoryAsync(file, limits, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            NativeTransferImportStage stage = new(file, path, inspection.Package!, entries);
+            NativeTransferImportStage stage = new(file, path, inspection.Package!, copied, entries);
             file = null; ownsPath = false; // Transfer the exact handle and cleanup duty, not just its path.
             return result = new(stage, NativeTransferStageError.None);
         }

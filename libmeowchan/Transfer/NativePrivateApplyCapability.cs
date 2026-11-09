@@ -65,7 +65,7 @@ internal sealed class NativePrivateApplyCapability : IDisposable
     /// </summary>
     internal static NativePrivateApplyCapability IssueFromOwner(ArchiveCatalog owner,
         ProfileLease lease, ProfileAdmissionToken admission, NativeMediaImportPlan plan,
-        NativePrivateMetadataComparisonResult comparison, long packageLength,
+        NativePrivateMetadataComparisonResult comparison,
         ImmutableArray<NativePrivateApplyStoreFence> storeFences,
         CancellationToken cancellationToken = default)
     {
@@ -95,6 +95,7 @@ internal sealed class NativePrivateApplyCapability : IDisposable
             throw new InvalidDataException("A live owner-issued private consent is required.");
         if (comparison.Selection != consent.Selection)
             throw new InvalidDataException("The private comparison selection differs from owner consent.");
+        long packageLength = plan.Stage.PackageLength;
         if (packageLength <= 0 || packageLength > 2L * 1024 * 1024 * 1024)
             throw new InvalidDataException("The staged package length is outside the private Apply bound.");
 
@@ -240,11 +241,11 @@ public sealed partial class ArchiveCatalog
 {
     internal NativePrivateApplyCapability IssueNativePrivateApplyCapability(
         ProfileLease lease, ProfileAdmissionToken admission, NativeMediaImportPlan plan,
-        NativePrivateMetadataComparisonResult comparison, long packageLength,
+        NativePrivateMetadataComparisonResult comparison,
         ImmutableArray<NativePrivateApplyStoreFence> storeFences,
         CancellationToken cancellationToken = default)
         => NativePrivateApplyCapability.IssueFromOwner(this, lease, admission, plan,
-            comparison, packageLength, storeFences, cancellationToken);
+            comparison, storeFences, cancellationToken);
 
     internal void EnsureNativePrivateApplyPlan(NativeMediaImportPlan plan, ProfileAdmissionToken admission)
     {

@@ -47,8 +47,9 @@ public sealed class NativePrivateApplyCapabilityTests
                 lease.Admission.CompleteStartup();
             using ProfileAdmissionToken admission = await lease.Admission.EnterExclusiveAsync();
             using NativePrivateApplyCapability capability = catalog.IssueNativePrivateApplyCapability(
-                lease, admission, plan, comparison, bytes.Length, NoChangeFences(selection));
+                lease, admission, plan, comparison, NoChangeFences(selection));
 
+            Assert.Equal(stage.PackageLength, capability.Request.Binding.PackageLength);
             Assert.Equal(plan.OperationId, capability.OperationId);
             Assert.Equal(plan.OperationId, capability.Request.OperationId);
             Assert.Equal(capability.Request.ContentPlanSha256, capability.ContentPlanSha256);
@@ -66,7 +67,7 @@ public sealed class NativePrivateApplyCapabilityTests
             Assert.Throws<NotSupportedException>(() => JsonSerializer.Serialize(capability));
             Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativePrivateApplyCapability>("{}"));
             Assert.Throws<InvalidOperationException>(() => catalog.IssueNativePrivateApplyCapability(
-                lease, admission, plan, comparison, bytes.Length, NoChangeFences(selection)));
+                lease, admission, plan, comparison, NoChangeFences(selection)));
         }
     }
 
@@ -94,21 +95,21 @@ public sealed class NativePrivateApplyCapabilityTests
             lease.Admission.CompleteStartup();
             using (ProfileAdmissionToken ordinary = lease.Admission.EnterOrdinaryWriter())
                 Assert.Throws<InvalidOperationException>(() => catalog.IssueNativePrivateApplyCapability(
-                    lease, ordinary, plan, comparison, bytes.Length, NoChangeFences(selection)));
+                    lease, ordinary, plan, comparison, NoChangeFences(selection)));
 
             using TempDirectory foreignDirectory = new();
             using ProfileLease foreignLease = ProfileLease.Acquire(foreignDirectory.Path);
             foreignLease.Admission.CompleteStartup();
             using ProfileAdmissionToken foreignAdmission = await foreignLease.Admission.EnterExclusiveAsync();
             Assert.Throws<InvalidOperationException>(() => catalog.IssueNativePrivateApplyCapability(
-                foreignLease, foreignAdmission, plan, comparison, bytes.Length, NoChangeFences(selection)));
+                foreignLease, foreignAdmission, plan, comparison, NoChangeFences(selection)));
 
             NativeMediaImportPlan unissued = new(catalog, stage, plan.Package, plan.Instance,
                 plan.Generation, plan.OperationId, plan.RequestSha256, plan.OperationsParent,
                 plan.Attachments, plan.PrivateConsent);
             using ProfileAdmissionToken admission = await lease.Admission.EnterExclusiveAsync();
             Assert.Throws<InvalidOperationException>(() => catalog.IssueNativePrivateApplyCapability(
-                lease, admission, unissued, comparison, bytes.Length, NoChangeFences(selection)));
+                lease, admission, unissued, comparison, NoChangeFences(selection)));
         }
     }
 
@@ -139,9 +140,9 @@ public sealed class NativePrivateApplyCapabilityTests
             NativePrivateApplyCapability capability = catalog.IssueNativePrivateApplyCapability(
                 lease, admission, plan,
                 NativePrivateMetadataComparison.Analyze(incoming, plan.Package.Catalog, incoming, all),
-                bytes.Length, NoChangeFences(all));
+                NoChangeFences(all));
             Assert.Throws<InvalidDataException>(() => catalog.IssueNativePrivateApplyCapability(
-                lease, admission, plan, mismatch, bytes.Length, NoChangeFences(threadOnly)));
+                lease, admission, plan, mismatch, NoChangeFences(threadOnly)));
 
             capability.Dispose();
             Assert.Throws<ObjectDisposedException>(() => capability.RunAdmitted(_ => true));
@@ -202,7 +203,7 @@ public sealed class NativePrivateApplyCapabilityTests
                 try
                 {
                     capability = catalog.IssueNativePrivateApplyCapability(
-                        lease, admission, plan, comparison, bytes.Length, NoChangeFences(selection));
+                        lease, admission, plan, comparison, NoChangeFences(selection));
                 }
                 catch
                 {
