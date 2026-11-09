@@ -326,6 +326,10 @@ internal static partial class GalleryPlaybackFeatureChecks
             Program.CaptureWindow(fixture.Window, $"smoke-gallery-feature-overlay-{presentation.Language}-{presentation.Theme}.png");
         }
         fixture.Window.Width = 1000;
+        // Keep the persisted favorite badge populated for the post-overlay
+        // regression below. It is passive chrome and must not disappear merely
+        // because the readable context panel is open.
+        viewer.SetFavorite(true);
         viewer.ConfigurePlayback(docked with { OverlayPostContext = true });
         // Native resize is asynchronous, especially at non-unit scale. A dispatcher
         // layout alone can still describe the previous 760-DIP window.
@@ -351,6 +355,13 @@ internal static partial class GalleryPlaybackFeatureChecks
         { before = fullWidth, after = viewport.Bounds.Width, window = fixture.Window.ClientSize.ToString(),
             viewer = viewer.Bounds.ToString(), contextParent = (context.Parent as Control)?.Name }));
         Require(Math.Abs(viewport.Bounds.Width - fullWidth) < 1, "Overlay post context still reserves the docked media column.");
+        Border favoriteBadge = Find<Border>(viewer, "GalleryFavoriteIndicator");
+        Point? favoriteOrigin = favoriteBadge.TranslatePoint(default, viewer);
+        Point? contextOrigin = context.TranslatePoint(default, viewer);
+        Require(favoriteBadge.IsEffectivelyVisible && favoriteOrigin is { } favoritePoint
+            && contextOrigin is { } contextPoint
+            && favoritePoint.X + favoriteBadge.Bounds.Width <= contextPoint.X + 1,
+            "Opening the right-hand post context covered the visible favorite badge instead of leaving it in the left safe area.");
         Click(Find<Button>(viewer, "GalleryToggleContext"));
         viewer.ConfigurePlayback(docked); // Effective, fully usable fallback; no unsupported native transparency assumption.
         viewer.Focus();

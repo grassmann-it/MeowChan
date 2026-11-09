@@ -20,7 +20,10 @@ internal sealed partial class GalleryViewer
 
     internal static Border CreateFavoriteIndicator(string name) => new()
     {
-        Name = name, HorizontalAlignment = HorizontalAlignment.Right,
+        Name = name, HorizontalAlignment = HorizontalAlignment.Left,
+        // The expandable post context is docked on the right. Keep the passive
+        // persisted-state badge in the opposite, fixed safe area so opening the
+        // context can never paint it underneath an opaque panel.
         VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12),
         Padding = new Thickness(7, 3), CornerRadius = new CornerRadius(4),
         Background = new SolidColorBrush(Color.FromArgb(210, 24, 26, 31)),

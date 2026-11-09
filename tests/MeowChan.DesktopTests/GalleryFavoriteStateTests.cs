@@ -296,7 +296,7 @@ public sealed class GalleryFavoriteStateTests
         Assert.False(badge.IsHitTestVisible);
         Assert.False(badge.Focusable);
         Assert.False(badge.IsVisible);
-        Assert.Equal(HorizontalAlignment.Right, badge.HorizontalAlignment);
+        Assert.Equal(HorizontalAlignment.Left, badge.HorizontalAlignment);
         Assert.Equal(VerticalAlignment.Top, badge.VerticalAlignment);
         Assert.Equal(new Thickness(12), badge.Margin);
         Assert.Equal(new Thickness(7, 3), badge.Padding);
@@ -305,6 +305,20 @@ public sealed class GalleryFavoriteStateTests
         Assert.Equal(16, glyph.FontSize);
         Assert.False(glyph.IsHitTestVisible);
         Assert.False(glyph.Focusable);
+    }
+
+    [Fact]
+    public void FavoriteIndicatorUsesLeftSafeAreaAwayFromRightPostContext()
+    {
+        Border badge = GalleryViewer.CreateFavoriteIndicator("GalleryFavoriteIndicator");
+
+        // Post context is an opaque right-hand overlay. The favorite badge is
+        // passive chrome and must remain in the opposite safe area instead of
+        // relying on a higher Z-index to sit on top of post text.
+        Assert.Equal(HorizontalAlignment.Left, badge.HorizontalAlignment);
+        Assert.Equal(VerticalAlignment.Top, badge.VerticalAlignment);
+        Assert.Equal(new Thickness(12), badge.Margin);
+        Assert.True(badge.ZIndex > 0);
     }
 
     [Fact]
