@@ -106,6 +106,79 @@ public sealed class NativeTransferMultiThreadAdmissionTests
     }
 
     [Fact]
+    public void PlannerRejectsTamperedAdmissionIdentityOrThreadFence()
+    {
+        NativeTransferPackage package = Package(Thread(First), Thread(Second));
+        NativeTransferAggregateAdmissionSnapshot admission =
+            NativeTransferAggregateAdmission.Admit(package, [First, Second]).Admission!;
+        NativeTransferAggregateMergePlan plan =
+            NativeTransferAggregateMergePlanner.Plan(admission).Plan!;
+
+        NativeTransferAggregateMergePlan tamperedIdentity = plan with
+        {
+            RequestSha256 = new('b', 64)
+        };
+        Assert.False(NativeTransferAggregateMergePlanner.IsWellFormed(tamperedIdentity));
+
+        NativeTransferAggregateThreadMergePlan firstThread = plan.Threads[0];
+        NativeTransferAggregateMergePlan tamperedFence = plan with
+        {
+            Threads = plan.Threads.SetItem(0, firstThread with
+            {
+                IncomingFence = firstThread.IncomingFence with { Resource = Second }
+            })
+        };
+        Assert.False(NativeTransferAggregateMergePlanner.IsWellFormed(tamperedFence));
+    }
+
+    [Fact]
+    public void MediaCoordinatorRejectsMultiThreadMaterializationWithoutRoutingThroughV2()
+    {
+        NativeTransferPackage package = Package(Thread(First), Thread(Second));
+        NativeTransferAggregateAdmissionSnapshot admission =
+            NativeTransferAggregateAdmission.Admit(package, [First, Second]).Admission!;
+        NativeTransferAggregateMergePlan plan =
+            NativeTransferAggregateMergePlanner.Plan(admission).Plan!;
+
+        NativeTransferAggregateMediaMaterializationResult result =
+            NativeTransferAggregateMediaMaterialization.Prepare(plan);
+
+        Assert.True(result.IsValidated);
+        Assert.False(result.IsMaterializable);
+        Assert.Same(plan, result.ValidatedPlan);
+        Assert.Equal(NativeTransferAggregateMediaMaterializationError.MultiThreadMaterializationUnsupported, result.Error);
+    }
+
+    [Fact]
+    public void MediaCoordinatorKeepsSingleThreadOnExistingMediaPipeline()
+    {
+        NativeTransferPackage package = Package(Thread(First));
+        NativeTransferAggregateAdmissionSnapshot admission =
+            NativeTransferAggregateAdmission.Admit(package, [First]).Admission!;
+        NativeTransferAggregateMergePlan plan =
+            NativeTransferAggregateMergePlanner.Plan(admission).Plan!;
+
+        NativeTransferAggregateMediaMaterializationResult result =
+            NativeTransferAggregateMediaMaterialization.Prepare(plan);
+
+        Assert.True(result.IsValidated);
+        Assert.False(result.IsMaterializable);
+        Assert.Equal(NativeTransferAggregateMediaMaterializationError.SingleThreadRequiresNativeMediaPipeline, result.Error);
+    }
+
+    [Fact]
+    public void MediaCoordinatorRejectsMalformedPlanBeforeAnyDownstreamWork()
+    {
+        NativeTransferAggregateMediaMaterializationResult result =
+            NativeTransferAggregateMediaMaterialization.Prepare(null);
+
+        Assert.False(result.IsValidated);
+        Assert.False(result.IsMaterializable);
+        Assert.Null(result.ValidatedPlan);
+        Assert.Equal(NativeTransferAggregateMediaMaterializationError.InvalidPlan, result.Error);
+    }
+
+    [Fact]
     public void PlannerRejectsDuplicateUnknownRootlessAndMalformedTargetFences()
     {
         NativeTransferPackage package = Package(Thread(First), Thread(Second));

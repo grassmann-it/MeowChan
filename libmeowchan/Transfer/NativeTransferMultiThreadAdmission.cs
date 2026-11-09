@@ -250,6 +250,79 @@ internal sealed record NativeTransferAggregateMergePlanResult(
 /// </summary>
 internal static class NativeTransferAggregateMergePlanner
 {
+    /// <summary>
+    /// Revalidates an aggregate plan before handing it to another core consumer.
+    /// The records are intentionally internal and constructible, so object identity
+    /// alone is not enough to establish that a plan was produced by <see cref="Plan"/>.
+    /// </summary>
+    internal static bool IsWellFormed(NativeTransferAggregateMergePlan? plan)
+    {
+        if (plan == null || plan.Identity == null || plan.Threads.IsDefaultOrEmpty
+            || plan.Identity.ThreadCount != plan.Threads.Length
+            || plan.Threads.Length > 1000
+            || !NativeTransferAggregateAdmission.IsHash(plan.PackageFingerprint)
+            || plan.Identity.PackageFingerprint != plan.PackageFingerprint
+            || !NativeTransferAggregateAdmission.IsHash(plan.Identity.ResourceSetSha256)
+            || !NativeTransferAggregateAdmission.IsHash(plan.RequestSha256)
+            || !NativeTransferAggregateAdmission.IsHash(plan.ReplayKey))
+            return false;
+
+        string admissionReplay = NativeTransferAggregateAdmission.Hash(
+            "native-transfer-aggregate-replay-v1", plan.PackageFingerprint, plan.Identity.ResourceSetSha256);
+        HashSet<ResourceId> seen = new();
+        string? previousIdentity = null;
+        foreach (NativeTransferAggregateThreadMergePlan? thread in plan.Threads)
+        {
+            if (thread == null || thread.IncomingFence == null
+                || thread.IncomingFence.Resource == null
+                || NativeTransferAggregateAdmission.ValidateIdentity(thread.Resource)
+                    != NativeTransferAggregateAdmissionError.None
+                || thread.IncomingFence.Resource != thread.Resource
+                || !seen.Add(thread.Resource))
+                return false;
+
+            string identity = NativeTransferAggregateAdmission.IdentityText(thread.Resource);
+            if (previousIdentity != null
+                && string.CompareOrdinal(previousIdentity, identity) >= 0) return false;
+            previousIdentity = identity;
+
+            if (!NativeTransferAggregateAdmission.IsHash(thread.IncomingFence.ContentSha256)
+                || thread.IncomingFence.CaptureRevision is < 0
+                || !NativeTransferAggregateAdmission.IsHash(thread.RequestSha256)
+                || !NativeTransferAggregateAdmission.IsHash(thread.ReplayKey)
+                || thread.ExpectedTargetFenceSha256 != null
+                    && !NativeTransferAggregateAdmission.IsHash(thread.ExpectedTargetFenceSha256))
+                return false;
+
+            string incomingReplay = NativeTransferAggregateAdmission.Hash(
+                "native-transfer-thread-replay-v1", plan.PackageFingerprint, identity,
+                thread.IncomingFence.ContentSha256);
+            string request = NativeTransferAggregateAdmission.Hash(
+                "native-transfer-thread-plan-v1", admissionReplay, identity,
+                thread.IncomingFence.ContentSha256, thread.ExpectedTargetFenceSha256 ?? "<new-target>");
+            if (!string.Equals(request, thread.RequestSha256, StringComparison.Ordinal)) return false;
+
+            string replay = NativeTransferAggregateAdmission.Hash(
+                "native-transfer-thread-plan-replay-v1", incomingReplay, thread.RequestSha256, incomingReplay);
+            if (!string.Equals(replay, thread.ReplayKey, StringComparison.Ordinal)) return false;
+        }
+
+        string resourceSet = NativeTransferAggregateAdmission.Hash(
+            "native-transfer-resource-set-v1",
+            string.Join("\n", plan.Threads.Select(thread =>
+                NativeTransferAggregateAdmission.IdentityText(thread.Resource))));
+        if (!string.Equals(resourceSet, plan.Identity.ResourceSetSha256, StringComparison.Ordinal)) return false;
+
+        string requestSha = NativeTransferAggregateAdmission.Hash(
+            "native-transfer-aggregate-plan-v1", admissionReplay,
+            string.Join("\n", plan.Threads.Select(thread => thread.RequestSha256)));
+        if (!string.Equals(requestSha, plan.RequestSha256, StringComparison.Ordinal)) return false;
+
+        string replayKey = NativeTransferAggregateAdmission.Hash(
+            "native-transfer-aggregate-plan-replay-v1", admissionReplay, requestSha);
+        return string.Equals(replayKey, plan.ReplayKey, StringComparison.Ordinal);
+    }
+
     internal static NativeTransferAggregateMergePlanResult Plan(
         NativeTransferAggregateAdmissionSnapshot? admission,
         IEnumerable<NativeTransferAggregateTargetFence>? targetFences = null)
@@ -300,8 +373,11 @@ internal static class NativeTransferAggregateMergePlanner
         string requestSha = NativeTransferAggregateAdmission.Hash("native-transfer-aggregate-plan-v1", admission.ReplayKey,
             string.Join("\n", threads.Select(thread => thread.RequestSha256)));
         string replayKey = NativeTransferAggregateAdmission.Hash("native-transfer-aggregate-plan-replay-v1", admission.ReplayKey, requestSha);
-        return new(new(admission.Identity, admission.PackageFingerprint, requestSha, replayKey, threads.ToImmutable()),
-            NativeTransferAggregateMergePlanError.None);
+        NativeTransferAggregateMergePlan plan = new(admission.Identity, admission.PackageFingerprint,
+            requestSha, replayKey, threads.ToImmutable());
+        return IsWellFormed(plan)
+            ? new(plan, NativeTransferAggregateMergePlanError.None)
+            : Fail(NativeTransferAggregateMergePlanError.InvalidAdmission);
     }
 
     private static NativeTransferAggregateMergePlanResult Fail(NativeTransferAggregateMergePlanError error) => new(null, error);
