@@ -1,0 +1,50 @@
+namespace MeowChan.Desktop.Localization;
+
+internal static class NativeTransferImportCatalog
+{
+    internal static readonly (string Key, string English, string German)[] Entries =
+    {
+        ("transfer.import.title", "Import transfer package", "Transferpaket importieren"),
+        ("transfer.import.heading", "Import transfer package", "Transferpaket importieren"),
+        ("transfer.import.choose", "Choose transfer package…", "Transferpaket wählen …"),
+        ("transfer.import.fileType", "Transfer package (ZIP)", "Transferpaket (ZIP)"),
+        ("transfer.import.apply", "Import and merge", "Importieren und zusammenführen"),
+        ("transfer.import.cancel", "Cancel", "Abbrechen"),
+        ("transfer.import.close", "Close", "Schließen"),
+        ("transfer.import.noSource", "No package selected.", "Kein Paket ausgewählt."),
+        ("transfer.import.source", "Selected package: {0}", "Gewähltes Paket: {0}"),
+        ("transfer.import.choosing", "Choosing package…", "Paket wird gewählt …"),
+        ("transfer.import.reading", "Reading and preparing package…", "Paket wird gelesen und vorbereitet …"),
+        ("transfer.import.ready", "Ready to import", "Bereit zum Import"),
+        ("transfer.import.applying", "Applying import…", "Import wird übernommen …"),
+        ("transfer.import.completed", "Import completed", "Import abgeschlossen"),
+        ("transfer.import.needsReview", "Import needs review", "Import muss geprüft werden"),
+        ("transfer.import.canceled", "Import cancelled", "Import abgebrochen"),
+        ("transfer.import.unsupported", "Package is not supported for import", "Paket wird für den Import nicht unterstützt"),
+        ("transfer.import.failed", "Import failed", "Import fehlgeschlagen"),
+        ("transfer.import.recoveryRequired", "Recovery is required before more profile writes", "Vor weiteren Profilschreibvorgängen ist eine Wiederherstellung nötig"),
+        ("transfer.import.closed", "Import closed", "Import geschlossen"),
+        ("transfer.import.idle", "Choose a package to inspect and import.", "Ein Paket zum Prüfen und Importieren wählen."),
+        ("transfer.import.inventory", "The package is staged and verified before any archive write. Apply is enabled only for the exact ready plan.", "Das Paket wird vor jedem Archivschreibvorgang geprüft und zwischengespeichert. Übernehmen ist nur für den exakt bereiten Plan möglich."),
+        ("transfer.import.privacy", "Private metadata is never imported silently. This package must be explicitly supported before it can be applied.", "Private Metadaten werden niemals still importiert. Dieses Paket muss ausdrücklich unterstützt werden, bevor es übernommen werden kann."),
+        ("transfer.import.cleanupRetained", "Cleanup did not finish; temporary import files may remain. Check the profile before retrying.", "Die Bereinigung wurde nicht abgeschlossen; temporäre Importdateien können zurückbleiben. Prüfe das Profil vor einem neuen Versuch."),
+        ("transfer.import.summary", "{0} threads · {1} posts · {2} unique payloads · {3:N0} bytes", "{0} Threads · {1} Beiträge · {2} eindeutige Payloads · {3:N0} Bytes"),
+        ("transfer.import.thread", "{0} /{1}/ {2} · {3} posts\n{4}\n{5}\n{6}", "{0} /{1}/ {2} · {3} Beiträge\n{4}\n{5}\n{6}"),
+        ("transfer.import.originals", "Originals: contained {0} · omitted {1} · unknown {2} · unavailable {3} · failed {4} · cancelled {5}", "Originale: enthalten {0} · ausgelassen {1} · unbekannt {2} · nicht verfügbar {3} · fehlgeschlagen {4} · abgebrochen {5}"),
+        ("transfer.import.previews", "Previews: contained {0} · omitted {1} · unknown {2} · unavailable {3} · failed {4} · cancelled {5}", "Vorschauen: enthalten {0} · ausgelassen {1} · unbekannt {2} · nicht verfügbar {3} · fehlgeschlagen {4} · abgebrochen {5}"),
+        ("transfer.import.retained", "Retained bindings: contained {0} · omitted {1} · unknown {2} · unavailable {3} · failed {4} · cancelled {5}", "Retained Bindungen: enthalten {0} · ausgelassen {1} · unbekannt {2} · nicht verfügbar {3} · fehlgeschlagen {4} · abgebrochen {5}"),
+        ("transfer.import.planNew", "New thread plan: {0} posts · {1} attachments · {2} evidence · {3} derived", "Plan für neuen Thread: {0} Beiträge · {1} Anhänge · {2} Evidenz · {3} abgeleitete Darstellungen"),
+        ("transfer.import.planMerge", "Merge plan: {0} new posts · {1} updated posts · {2} new attachments · {3} conflicts · {4} evidence · {5} derived", "Zusammenführungsplan: {0} neue Beiträge · {1} aktualisierte Beiträge · {2} neue Anhänge · {3} Konflikte · {4} Evidenz · {5} abgeleitete Darstellungen"),
+        ("transfer.import.result", "Result: {0} new threads · {1} new posts · {2} updated posts · {3} attachments · {4} conflicts", "Ergebnis: {0} neue Threads · {1} neue Beiträge · {2} aktualisierte Beiträge · {3} Anhänge · {4} Konflikte"),
+        ("transfer.import.replay", "This import was already applied; no duplicate writes were made.", "Dieser Import wurde bereits übernommen; es wurden keine doppelten Schreibvorgänge ausgeführt."),
+        ("transfer.import.error.source", "The selected package source is invalid or unreadable.", "Die ausgewählte Paketquelle ist ungültig oder nicht lesbar."),
+        ("transfer.import.error.workDirectory", "The temporary import directory is invalid or cannot be used safely.", "Der temporäre Importordner ist ungültig oder kann nicht sicher verwendet werden."),
+        ("transfer.import.error.package", "The transfer package is invalid or unsupported.", "Das Transferpaket ist ungültig oder wird nicht unterstützt."),
+        ("transfer.import.error.private", "Private transfer metadata is not yet supported. Nothing was changed.", "Private Transfermetadaten werden noch nicht unterstützt. Es wurde nichts geändert."),
+        ("transfer.import.error.limit", "The transfer package exceeds a safety limit. Nothing was changed.", "Das Transferpaket überschreitet ein Sicherheitslimit. Es wurde nichts geändert."),
+        ("transfer.import.error.target", "The existing archive target could not be admitted safely. Nothing was changed.", "Das bestehende Archivziel konnte nicht sicher zugelassen werden. Es wurde nichts geändert."),
+        ("transfer.import.error.profile", "The profile is not ready for import. Nothing was changed.", "Das Profil ist für den Import nicht bereit. Es wurde nichts geändert."),
+        ("transfer.import.error.apply", "The import could not be completed. Review the result before trying again.", "Der Import konnte nicht abgeschlossen werden. Prüfe das Ergebnis vor einem neuen Versuch."),
+        ("transfer.import.error.read", "The transfer package could not be read.", "Das Transferpaket konnte nicht gelesen werden.")
+    };
+}
