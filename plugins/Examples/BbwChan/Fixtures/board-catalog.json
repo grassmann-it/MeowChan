@@ -1,0 +1,30 @@
+[
+  {
+    "threadId": 123,
+    "postCount": 8,
+    "fileCount": 2,
+    "page": 1,
+    "subject": "A catalog subject",
+    "markdown": "Catalog opening",
+    "lastBump": 1794000000,
+    "creation": 1793990000
+  },
+  {
+    "threadId": 124,
+    "postCount": 1,
+    "fileCount": 0,
+    "page": 1,
+    "subject": "No catalog file listing",
+    "message": "The thread endpoint remains authoritative.",
+    "creation": "2026-11-09T12:00:00Z"
+  },
+  {
+    "threadId": 125,
+    "postCount": 4,
+    "fileCount": 1,
+    "page": 1,
+    "subject": "Pinned / cyclic flags are not inferred here",
+    "markdown": "Flags are intentionally omitted from the adapter state.",
+    "creation": 1793980000
+  }
+]

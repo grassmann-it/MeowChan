@@ -1,0 +1,11 @@
+GET https://bbw-chan.link/does-not-exist/catalog.json
+HTTP/1.1 404 Not Found
+Content-Type: text/html
+
+<!doctype html><title>Not found</title>
+
+GET https://bbw-chan.link/bbw/res/999999999.json
+HTTP/1.1 404 Not Found
+Content-Type: text/html
+
+<!doctype html><title>Not found</title>

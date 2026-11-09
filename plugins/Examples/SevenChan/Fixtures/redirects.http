@@ -1,0 +1,14 @@
+# Redirect observations from the bounded 2026-11-09 probe.
+GET http://7chan.org/x/
+HTTP/1.1 301 Moved Permanently
+Location: https://7chan.org/x/
+
+GET http://www.7chan.org/x/
+HTTP/1.1 301 Moved Permanently
+Location: https://7chan.org/x/
+
+GET https://7chan.org/x
+HTTP/1.1 301 Moved Permanently
+Location: https://7chan.org/x/
+
+# The adapter declares only the final canonical HTTPS host.

@@ -70,7 +70,14 @@ def main():
                     'MeowChan.Plugin.Dvach': 'meowchan.source.2ch',
                     'MeowChan.Plugin.Uboachan': 'meowchan.source.uboachan',
                     'MeowChan.Plugin.Zzzchan': 'meowchan.source.zzzchan',
-                    'MeowChan.Plugin.SushiChan': 'meowchan.source.sushichan'}
+                    'MeowChan.Plugin.SushiChan': 'meowchan.source.sushichan',
+                    'MeowChan.Plugin.SevenChan': 'meowchan.source.sevenchan',
+                    'MeowChan.Plugin.BbwChan': 'meowchan.source.bbwchan',
+                    'MeowChan.Plugin.AnonImageboards': 'meowchan.source.anonimageboards',
+                    'MeowChan.Plugin.CapybaraChan': 'meowchan.source.capybarachan',
+                    'MeowChan.Plugin.EightchanMoe': 'meowchan.source.eightchanmoe',
+                    'MeowChan.Plugin.Fchan': 'meowchan.source.fchan',
+                    'MeowChan.Plugin.GuroCx': 'meowchan.source.gurocx'}
     manifests = sorted((bundle / 'plugins').glob('*.plugin.json'))
     assert {path.stem.removesuffix(".plugin") for path in manifests} == set(expected_ids)
     for index, manifest_path in enumerate(manifests):

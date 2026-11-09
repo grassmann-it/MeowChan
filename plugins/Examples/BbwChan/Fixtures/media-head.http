@@ -1,0 +1,13 @@
+# Metadata-only media observations; no original bytes are included.
+HEAD https://bbw-chan.link/.media/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.jpg
+HTTP/1.1 200 OK
+Content-Type: image/jpeg
+Content-Length: 32768
+
+HEAD https://bbw-chan.link/.media/t_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.jpg
+HTTP/1.1 200 OK
+Content-Type: image/jpeg
+Content-Length: 4096
+
+HEAD https://bbw-chan.link/.media/missing.jpg
+HTTP/1.1 404 Not Found

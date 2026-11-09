@@ -1,0 +1,2 @@
+GET https://8chan.moe/unknown/catalog.json 404
+GET https://8chan.moe/board/res/999999999.json 404

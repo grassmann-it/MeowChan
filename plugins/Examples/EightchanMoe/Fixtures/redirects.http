@@ -1,0 +1,3 @@
+# Synthetic challenge/host boundary. No mirror or alias is a fallback.
+GET https://8chan.moe/board/catalog.json 200 text/json-or-challenge
+GET https://8chan.moe/board/catalog.json 403 text/html POWBlock

@@ -1,0 +1,19 @@
+# Synthetic/redacted probe record. No members-only response body or credentials
+# are included. Captured 2026-11-09; redirects can change independently.
+
+GET https://anonimageboards.com/
+HTTP/1.1 302 Found
+Location: https://anonpremium.com/site-offline-members-only/
+
+GET https://boards.anonimages.com/
+HTTP/1.1 302 Found
+Location: https://anonpremium.com/site-offline-members-only/
+
+GET https://anonimageboard.com/
+HTTP/1.1 301 Moved Permanently
+Location: https://anonimageboards.com/
+
+# The final destination is intentionally represented only by its public path.
+GET https://anonpremium.com/site-offline-members-only/
+HTTP/1.1 200 OK
+X-MeowChan-Observation: members-only landing page; body omitted

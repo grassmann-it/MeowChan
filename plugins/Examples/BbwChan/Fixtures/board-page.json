@@ -1,0 +1,10 @@
+{
+  "pageCount": 2,
+  "boardName": "BBW",
+  "boardDescription": "Synthetic page fixture",
+  "settings": { "pageSize": 10 },
+  "threads": [
+    { "threadId": 123, "postCount": 8, "fileCount": 2, "page": 1, "subject": "Page one", "markdown": "First page" },
+    { "threadId": 126, "postCount": 2, "fileCount": 1, "page": 1, "subject": "Second page sample", "markdown": "More threads" }
+  ]
+}

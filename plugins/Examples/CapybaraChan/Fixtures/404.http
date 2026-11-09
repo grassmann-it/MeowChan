@@ -1,0 +1,2 @@
+GET https://capybarachan.org/unknown/catalog.json 404
+GET https://capybarachan.org/site/res/999999999.json 404

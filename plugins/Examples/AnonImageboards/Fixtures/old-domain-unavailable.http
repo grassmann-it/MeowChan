@@ -1,0 +1,6 @@
+# Negative probe record; no replacement host is inferred.
+# Captured 2026-11-09.
+
+GET https://anonimageboards.org/
+HTTP/1.1 522 Connection timed out
+X-MeowChan-Observation: public board contract unavailable

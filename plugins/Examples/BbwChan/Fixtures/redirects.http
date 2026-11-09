@@ -1,0 +1,13 @@
+# Positive canonicalization observed for the configured root.
+GET https://bbw-chan.link/bbw
+HTTP/1.1 301 Moved Permanently
+Location: https://bbw-chan.link/bbw/
+
+# These are deliberately negative: no alias/fallback is declared by the plugin.
+GET https://bbw-chan.nl/bbw/
+HTTP/1.1 302 Found
+Location: https://example.invalid/foreign-destination
+
+GET https://bbw-chan.xyz/bbw/
+HTTP/1.1 200 OK
+X-MeowChan-Observation: separate live root; not configured as an alias

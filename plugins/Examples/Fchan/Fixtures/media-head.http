@@ -1,0 +1,3 @@
+HEAD http://fchan.us/src/sample%5B1%5D.png 200 image/png 32
+HEAD http://fchan.us/f/thumb/sample%5B1%5Ds.png 200 image/png 12
+HEAD http://fchan.us/src/missing.png 404

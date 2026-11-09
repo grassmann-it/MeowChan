@@ -1,0 +1,5 @@
+# Synthetic route expectations; no alternate host is granted.
+GET http://capybarachan.org/site/ 301 -> https://capybarachan.org/site/
+GET https://capybarachan.org/site/ 200
+GET https://capybarachan.org/site/res/999.json 404
+GET https://capybarachan.org/webring.json 404

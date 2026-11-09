@@ -1,0 +1,13 @@
+# Metadata-only media observations; no media bytes are included.
+HEAD https://7chan.org/x/src/opening.jpg
+HTTP/1.1 200 OK
+Content-Type: image/jpeg
+Content-Length: 125952
+
+HEAD https://7chan.org/x/thumb/openings.jpg
+HTTP/1.1 200 OK
+Content-Type: image/jpeg
+Content-Length: 8123
+
+HEAD https://7chan.org/x/src/missing.jpg
+HTTP/1.1 404 Not Found

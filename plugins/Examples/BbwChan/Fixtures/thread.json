@@ -1,0 +1,42 @@
+{
+  "threadId": 123,
+  "boardUri": "bbw",
+  "postId": 123,
+  "subject": "A BBW-Chan thread",
+  "creation": 1793990000,
+  "name": "Anon",
+  "markdown": "Opening **markdown**",
+  "files": [
+    {
+      "path": "/.media/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.jpg",
+      "originalName": "same-name.jpg",
+      "extension": ".jpg",
+      "mime": "image/jpeg",
+      "size": 32768,
+      "width": 640,
+      "height": 480
+    },
+    {
+      "path": "/.media/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.webm",
+      "originalName": "same-name.jpg",
+      "extension": ".webm",
+      "mime": "video/webm",
+      "size": 65536
+    }
+  ],
+  "posts": [
+    {
+      "postId": 124,
+      "boardUri": "bbw",
+      "creation": "2026-11-09T12:01:00Z",
+      "name": "Reply",
+      "message": "A reply with **HTML-capable** source text.",
+      "files": []
+    },
+    {
+      "postId": 125,
+      "creation": "2026-11-09T12:02:00Z",
+      "message": "A reply without a file list; absence is preserved."
+    }
+  ]
+}
