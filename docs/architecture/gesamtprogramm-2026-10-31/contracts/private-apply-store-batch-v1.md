@@ -57,8 +57,24 @@ Changed schema forms:
 | Bookmarks | schemaVersion2, instanceId, operationMarker |
 
 Legacy reads do not migrate. Ordinary unmarked writes keep their established schema
-and serialization behavior in this slice. New schemas require a valid nonnull marker;
-there is deliberately **no marker retirement/unblock API yet**.
+and serialization behavior in this slice. New schemas require a valid nonnull marker.
+The store now also exposes an internal `RetirePreparedBatchMarker` primitive (and
+its already-admitted form) for the owning coordinator. This is deliberately **not**
+an Apply/consent authority: it accepts only the same store-owned prepared batch,
+operation/plan/store-kind binding and exact after/backup fences, plus the caller's
+already-issued profile admission token. It may be called only after the durable
+journal/receipt step that authorizes retirement; the store primitive itself does
+not create that authorization.
+
+Retirement projects the exact marker-bearing after-image bound in the prepared
+batch into the store's unmarked form. A retry returns `AlreadyRetired` only when
+that exact retired image and the original backup fence are still present (for
+bookmarks there is no backup). It does not derive the retry image from the current
+document, so a later ordinary unmarked write cannot be mistaken for the old
+retirement. Media returns to schema/version 2 without its marker, thread favorites
+return to their legacy version 1 form without `InstanceId` or marker, and
+bookmarks use their established unmarked serialization. Favorite backups remain
+untouched; bookmark stores retain their no-backup behavior.
 
 Marker fields are `(OperationId, ContentPlanSha256, StoreKind)` (PascalCase, numeric
 StoreKind), published with values in the same primary replacement. Never include
@@ -101,7 +117,10 @@ No automatic restore of favorite backup or note pending image.
 - Explicit default-off receiving consent, selected-only durable incoming conflicts,
   resolve/discard, private tags and Desktop workflow. No silent overwrite/resurrection.
 - Marker retirement only after a verified durable acknowledgement, with exact fences;
-  do not clear a marker just to unblock normal mutations.
+  do not clear a marker just to unblock normal mutations. If the store cannot
+  verify the post-publication state, the coordinator must record a bound
+  `RecoveryRequired` outcome; it must not reinterpret the error as Failed,
+  Cancelled or `AlreadyRetired`.
 
 Three JSON stores, candidates, journal and archive SQL are **not common ACID**.
 Intermediate/partial progress is possible, no common rollback. Flush/rename is not a

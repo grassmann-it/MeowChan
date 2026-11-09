@@ -43,6 +43,46 @@ public sealed class PrivateStoreMarkerRetirementTests
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
+    public void RetryingAfterDifferentUnmarkedDocumentDoesNotReturnAlreadyRetired(int family)
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        Store store = new(family, lease);
+        PrivateStoreBatch batch = store.Prepare();
+        store.Commit(batch);
+        NativePrivateApplyStoreImage expectedBackup = batch.Fence.Before.Exists
+            ? batch.Fence.Before : batch.Fence.BeforeBackup!;
+
+        // Keep the original backup fence so the test isolates the retry image
+        // rather than accidentally relying on backup rotation to reject it.
+        string backupPath = store.PrimaryPath + ".bak";
+        byte[]? originalBackup = File.Exists(backupPath) ? File.ReadAllBytes(backupPath) : null;
+
+        Assert.Equal(PrivateStoreMarkerRetirementResult.Retired,
+            store.Retire(batch, batch.Fence.ExpectedAfter, expectedBackup));
+        store.AddOrdinaryValue();
+        if (family == 2)
+        {
+            // Bookmarks have no backup fence; the changed primary alone must
+            // prevent the old operation from being acknowledged.
+        }
+        else if (originalBackup is null)
+        {
+            File.Delete(backupPath);
+        }
+        else
+        {
+            File.WriteAllBytes(backupPath, originalBackup);
+        }
+
+        Assert.Throws<InvalidDataException>(() => store.Retire(
+            batch, batch.Fence.ExpectedAfter, expectedBackup));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
     public void EveryRetirementFenceIsExactAndMismatchCannotUnblockOrMutate(int family)
     {
         using TempDirectory temp = new();

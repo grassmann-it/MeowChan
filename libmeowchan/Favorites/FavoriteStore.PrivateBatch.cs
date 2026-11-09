@@ -145,10 +145,17 @@ public sealed partial class FavoriteStore
         token.ThrowIfCancellationRequested();
         PrivateStoreMarkerRetirement.EnsureNoPending(_lease, "media-favorites.json");
 
+        // The retry fence must be derived from the originally bound after-image,
+        // not from whatever unmarked document happens to be present now. A later
+        // ordinary write may be unmarked as well, but it is not this retirement.
+        Document boundAfter = ParseDocument(batch.CopyAfterBytes());
+        byte[] retiredBytes = CreateRetiredBytes(boundAfter);
+        NativePrivateApplyStoreImage expectedRetired = PrivateStoreBatchFiles.Image(retiredBytes, 2,
+            boundAfter.InstanceId, boundAfter.Revision);
         var current = ReadBatchState();
         NativePrivateApplyStoreImage backupFence = expectedBackup!;
         if (current.Primary is { } primary && primary.OperationMarker is null
-            && PrivateStoreBatchFiles.Same(current.Image, CreateRetiredImage(primary))
+            && PrivateStoreBatchFiles.Same(current.Image, expectedRetired)
             && PrivateStoreBatchFiles.Same(current.BackupImage, backupFence))
             return PrivateStoreMarkerRetirementResult.AlreadyRetired;
 
@@ -157,7 +164,6 @@ public sealed partial class FavoriteStore
             || !PrivateStoreBatchFiles.Same(current.BackupImage, backupFence))
             throw PrivateStoreBatchFiles.Invalid();
 
-        byte[] retiredBytes = CreateRetiredBytes(current.Primary);
         PrivateStoreMarkerRetirement.EnsureReadback(_lease);
         try
         {
@@ -204,12 +210,6 @@ public sealed partial class FavoriteStore
         ArgumentNullException.ThrowIfNull(document);
         var retired = document with { Version = 2, OperationMarker = null };
         return PrivateStoreBatchFiles.SerializeBounded(retired, MaximumBytes);
-    }
-
-    private static NativePrivateApplyStoreImage CreateRetiredImage(Document document)
-    {
-        byte[] bytes = CreateRetiredBytes(document);
-        return PrivateStoreBatchFiles.Image(bytes, 2, document.InstanceId, document.Revision);
     }
 
     internal PrivateStoreBatchInspection CommitPreparedBatch(PrivateStoreBatch batch, CancellationToken token = default)

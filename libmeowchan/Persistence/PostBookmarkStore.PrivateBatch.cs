@@ -118,17 +118,22 @@ internal sealed partial class PostBookmarkStore
         token.ThrowIfCancellationRequested();
         PrivateStoreMarkerRetirement.EnsureNoPending(_lease, "post-bookmarks.json");
 
+        // The retry fence is the exact unmarked projection of this batch's
+        // marker-bearing after-image. A newer ordinary unmarked document is not
+        // an acknowledgement of this operation and must fail closed.
+        ParsedFile boundAfter = ParseBookmarkBytes(batch.CopyAfterBytes(), exactNotes: true);
+        byte[] retiredBytes = CreateRetiredBytes(boundAfter.Snapshot);
+        NativePrivateApplyStoreImage expectedRetired = PrivateStoreBatchFiles.Image(retiredBytes, 1,
+            null, boundAfter.Snapshot.Revision);
         var current = ReadBookmarkBatchState();
         if (current.Document.OperationMarker is null
-            && PrivateStoreBatchFiles.Same(current.Image, CreateRetiredImage(current.Document))
-            && !PrivateStoreBatchFiles.Same(current.Image, expectedAfter))
+            && PrivateStoreBatchFiles.Same(current.Image, expectedRetired))
             return PrivateStoreMarkerRetirementResult.AlreadyRetired;
 
         if (current.Document.OperationMarker != batch.Marker
             || !PrivateStoreBatchFiles.Same(current.Image, expectedAfter))
             throw PrivateStoreBatchFiles.Invalid();
 
-        byte[] retiredBytes = CreateRetiredBytes(current.Document.Snapshot);
         string pending = System.IO.Path.Combine(_lease.ProfileDirectory,
             PrivatePendingPrefix + Guid.NewGuid().ToString("N"));
         bool created = false, publicationAttempted = false, publicationVerified = false;
@@ -202,12 +207,6 @@ internal sealed partial class PostBookmarkStore
     }
 
     private static byte[] CreateRetiredBytes(PostBookmarkSnapshot snapshot) => Serialize(snapshot);
-
-    private static NativePrivateApplyStoreImage CreateRetiredImage(ParsedFile document)
-    {
-        byte[] bytes = CreateRetiredBytes(document.Snapshot);
-        return PrivateStoreBatchFiles.Image(bytes, 1, null, document.Snapshot.Revision);
-    }
 
     internal PrivateStoreBatchInspection CommitPreparedBatch(PrivateStoreBatch batch, CancellationToken token = default)
     {
