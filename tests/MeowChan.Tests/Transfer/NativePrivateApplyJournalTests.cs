@@ -135,6 +135,26 @@ public sealed class NativePrivateApplyJournalTests
     }
 
     [Fact]
+    public void StaleTargetCanBeRecordedAsNeedsReviewWithoutBecomingFailureBeforeApply()
+    {
+        using var w = new Workspace();
+        var state = Applying(w, Request());
+        state = w.Journal.AppendObservation(state.Snapshot,
+            NativePrivateApplyOperationObservation.None,
+            [NativePrivateApplyStepObservation.Drifted]);
+
+        Assert.Equal(NativePrivateApplyOperationPhase.NeedsReview, state.State.Phase);
+        var review = Receipt(state, NativePrivateApplyOperationPhase.NeedsReview,
+            NativePrivateApplyStepPhase.Drifted);
+        var finalized = w.Journal.AppendReceipt(state.Snapshot, review);
+
+        Assert.Equal(NativePrivateApplyOperationPhase.NeedsReview, finalized.State.Phase);
+        Assert.True(finalized.HasTerminalReceipt);
+        Assert.Equal(NativePrivateApplyOperationPhase.NeedsReview,
+            w.Journal.Replay(state.OperationId).State.Phase);
+    }
+
+    [Fact]
     public void PartialWithUnrecordedPublicationIsRejected()
     {
         using var w = new Workspace(); var state = Applying(w, Request(notes: true));

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Immutable;
 using System.IO;
+using System.Linq;
 
 namespace MeowChan.Transfer;
 
@@ -9,7 +10,7 @@ internal enum NativePrivateApplyStoreKind { ThreadFavorites, MediaFavorites, Pos
 internal enum NativePrivateApplyOperationPhase
 {
     Claimed, Prepared, Applying, Completed, CancelledBeforeApply, Partial,
-    FailedBeforeApply, RecoveryRequired,
+    FailedBeforeApply, RecoveryRequired, NeedsReview,
 }
 
 internal enum NativePrivateApplyStepPhase
@@ -109,6 +110,7 @@ internal sealed class NativePrivateApplyRecoveryState
         bool publication = false;
         bool incomplete = false;
         bool stoppedOrFailed = false;
+        bool staleTarget = false;
         foreach (NativePrivateApplyRecoveryStep step in steps)
         {
             NativePrivateApplyStepPhase value = step.Phase;
@@ -128,6 +130,7 @@ internal sealed class NativePrivateApplyRecoveryState
             incomplete |= !settled;
             stoppedOrFailed |= value is NativePrivateApplyStepPhase.NotStartedProven
                 or NativePrivateApplyStepPhase.Drifted or NativePrivateApplyStepPhase.Unreadable;
+            staleTarget |= value == NativePrivateApplyStepPhase.Drifted;
 
             if (phase is NativePrivateApplyOperationPhase.Claimed or NativePrivateApplyOperationPhase.Prepared)
             {
@@ -148,9 +151,19 @@ internal sealed class NativePrivateApplyRecoveryState
                     or NativePrivateApplyStepPhase.Drifted or NativePrivateApplyStepPhase.Unreadable
                     or NativePrivateApplyStepPhase.Planned))
                 throw NativePrivateApplyRecovery.Invalid();
+            if (phase == NativePrivateApplyOperationPhase.NeedsReview
+                && value is not (NativePrivateApplyStepPhase.Recorded or NativePrivateApplyStepPhase.NoChange
+                    or NativePrivateApplyStepPhase.ConflictOnly or NativePrivateApplyStepPhase.MissingTarget
+                    or NativePrivateApplyStepPhase.Drifted or NativePrivateApplyStepPhase.Planned))
+                throw NativePrivateApplyRecovery.Invalid();
         }
         if (phase == NativePrivateApplyOperationPhase.Partial
             && (!publication || !incomplete || !stoppedOrFailed))
+            throw NativePrivateApplyRecovery.Invalid();
+        if (phase == NativePrivateApplyOperationPhase.NeedsReview
+            && (!staleTarget || steps.Any(step => step.Phase is NativePrivateApplyStepPhase.Unknown
+                or NativePrivateApplyStepPhase.Unreadable or NativePrivateApplyStepPhase.IntentDurable
+                or NativePrivateApplyStepPhase.PublishedVerified)))
             throw NativePrivateApplyRecovery.Invalid();
     }
 }
@@ -289,6 +302,7 @@ internal static class NativePrivateApplyRecovery
             if (evidence.Steps[i].StoreKind != state.Steps[i].StoreKind) throw Invalid();
 
         var next = ImmutableArray.CreateBuilder<NativePrivateApplyRecoveryStep>(state.Steps.Length);
+        bool staleTargetBeforeApply = false;
         foreach (NativePrivateApplyRecoveryStep step in state.Steps)
         {
             NativePrivateApplyStepObservation observation = NativePrivateApplyStepObservation.NotObserved;
@@ -297,12 +311,15 @@ internal static class NativePrivateApplyRecovery
             if (Advances(observation) && !PreviousStepsSettled(state.Steps, step.StoreKind))
                 throw Invalid();
             NativePrivateApplyStepPhase phase = Observe(observedOperationPhase, step.Phase, observation);
+            staleTargetBeforeApply |= observation == NativePrivateApplyStepObservation.Drifted
+                && step.Phase == NativePrivateApplyStepPhase.Planned;
             changed |= phase != step.Phase;
             next.Add(phase == step.Phase ? step : new NativePrivateApplyRecoveryStep(step.StoreKind, phase));
         }
         if (!changed) return state;
         ImmutableArray<NativePrivateApplyRecoveryStep> steps = next.ToImmutable();
-        NativePrivateApplyOperationPhase resultPhase = Classify(observedOperationPhase, steps);
+        NativePrivateApplyOperationPhase resultPhase = Classify(observedOperationPhase, steps,
+            staleTargetBeforeApply);
         return new NativePrivateApplyRecoveryState(state.OperationGuid, state.RequestSha256,
             state.Selection, resultPhase, steps);
     }
@@ -409,7 +426,7 @@ internal static class NativePrivateApplyRecovery
     }
 
     private static NativePrivateApplyOperationPhase Classify(NativePrivateApplyOperationPhase current,
-        ImmutableArray<NativePrivateApplyRecoveryStep> steps)
+        ImmutableArray<NativePrivateApplyRecoveryStep> steps, bool staleTargetBeforeApply)
     {
         bool publication = false;
         bool stopped = false;
@@ -424,6 +441,8 @@ internal static class NativePrivateApplyRecovery
         foreach (NativePrivateApplyRecoveryStep step in steps)
             knownFailure |= step.Phase is NativePrivateApplyStepPhase.Drifted
                 or NativePrivateApplyStepPhase.Unreadable;
+        if (staleTargetBeforeApply && steps.Any(step => step.Phase == NativePrivateApplyStepPhase.Drifted))
+            return NativePrivateApplyOperationPhase.NeedsReview;
         if (knownFailure)
         {
             // Drift and unreadable evidence cannot prove non-publication after a
@@ -461,7 +480,7 @@ internal static class NativePrivateApplyRecovery
     internal static bool IsTerminal(NativePrivateApplyOperationPhase phase)
         => phase is NativePrivateApplyOperationPhase.Completed or NativePrivateApplyOperationPhase.CancelledBeforeApply
             or NativePrivateApplyOperationPhase.Partial or NativePrivateApplyOperationPhase.FailedBeforeApply
-            or NativePrivateApplyOperationPhase.RecoveryRequired;
+            or NativePrivateApplyOperationPhase.RecoveryRequired or NativePrivateApplyOperationPhase.NeedsReview;
 
     internal static bool IsSelected(NativePrivateMetadataSelection selection, NativePrivateApplyStoreKind kind)
         => kind switch

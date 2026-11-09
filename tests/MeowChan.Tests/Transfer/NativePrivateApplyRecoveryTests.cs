@@ -178,8 +178,11 @@ public sealed class NativePrivateApplyRecoveryTests
             State next = Move(state, step: input);
             Phase phase = Enum.Parse<Phase>(expected);
             Assert.Equal(phase, next.Steps[0].Phase);
-            Assert.Equal(phase is Phase.Unknown or Phase.Drifted or Phase.Unreadable
-                ? Operation.RecoveryRequired : Operation.Applying, next.Phase);
+            Operation expectedOperation = phase == Phase.Drifted && from == Phase.Planned.ToString()
+                ? Operation.NeedsReview
+                : phase is Phase.Unknown or Phase.Drifted or Phase.Unreadable
+                    ? Operation.RecoveryRequired : Operation.Applying;
+            Assert.Equal(expectedOperation, next.Phase);
         }
         Assert.Equal(Enum.Parse<Phase>(from), state.Steps[0].Phase);
         Assert.Equal(Operation.Applying, state.Phase);
@@ -198,6 +201,35 @@ public sealed class NativePrivateApplyRecoveryTests
         Assert.NotEqual(Phase.PublishedVerified, next.Steps[0].Phase);
         // A second observation is inspection only, not an automatic retry.
         Assert.Same(next, Move(next, step: Observation.ExactAfterWithMatchingAtomicMarker));
+    }
+
+    [Fact]
+    public void StaleTargetBeforeIntentIsAnExplicitNeedsReviewOutcome()
+    {
+        State state = Move(Applying(), step: Observation.Drifted);
+
+        Assert.Equal(Operation.NeedsReview, state.Phase);
+        Assert.Equal(Phase.Drifted, state.Steps[0].Phase);
+
+        Receipt receipt = new(OperationId, RequestHash, ThreadsOnly,
+            Operation.NeedsReview, Single(Phase.Drifted));
+        State finalized = NativePrivateApplyRecovery.Reduce(state,
+            new Evidence(OperationId, RequestHash, OperationObservation.None, [], receipt));
+
+        Assert.Equal(Operation.NeedsReview, finalized.Phase);
+        Assert.Equal(Phase.Drifted, finalized.Steps[0].Phase);
+        Assert.Same(finalized, NativePrivateApplyRecovery.Reduce(finalized,
+            Observe(OperationObservation.Applying, E(Store.ThreadFavorites, Observation.IntentDurable))));
+    }
+
+    [Fact]
+    public void StaleTargetAfterIntentRemainsRecoveryRequired()
+    {
+        State intent = Move(Applying(), step: Observation.IntentDurable);
+        State stale = Move(intent, step: Observation.Drifted);
+
+        Assert.Equal(Operation.RecoveryRequired, stale.Phase);
+        Assert.Equal(Phase.Drifted, stale.Steps[0].Phase);
     }
 
     [Fact]

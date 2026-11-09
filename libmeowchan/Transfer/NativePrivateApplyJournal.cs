@@ -182,7 +182,8 @@ internal sealed partial class NativePrivateApplyJournal
         LoadedOperation loaded = CheckSnapshot(snapshot);
         if (observations.IsDefault || !Enum.IsDefined(operationObservation)) throw Invalid();
         if (NativePrivateApplyRecovery.IsTerminal(loaded.State.Phase)
-            && (receipt is null || loaded.State.Phase != NativePrivateApplyOperationPhase.RecoveryRequired)) throw Invalid();
+            && (receipt is null || loaded.State.Phase is not (NativePrivateApplyOperationPhase.RecoveryRequired
+                or NativePrivateApplyOperationPhase.NeedsReview))) throw Invalid();
         ImmutableArray<NativePrivateApplyStepObservation> full = observations;
         if (receipt is null && operationObservation != NativePrivateApplyOperationObservation.None)
         {
