@@ -33,12 +33,12 @@ public sealed class NativeTransferPrivatePackageTests
         [Thread], [new FavoriteAssetKey(Thread, "7001001", "original", Hash(Media))],
         [new PostBookmark(new(Thread, "1"), Note)]);
 
-    private static async Task<MemoryStream> WriteAsync(NativePrivateMetadataProjection? projection = null)
+    private static async Task<MemoryStream> WriteAsync(NativePrivateMetadataProjection? projection = null, Guid? packageId = null)
     {
         MemoryStream output = new();
         TransferPayloadSource source = new(new(Media.Length, Hash(Media)),
             _ => Task.FromResult<Stream>(new MemoryStream(Media, writable: false)));
-        TransferWriteResult result = await NativeTransferPackageWriter.WriteAsync(output, Catalog(), [source], PackageId,
+        TransferWriteResult result = await NativeTransferPackageWriter.WriteAsync(output, Catalog(), [source], packageId ?? PackageId,
             privateMetadata: projection);
         Assert.True(result.IsComplete, result.Error.ToString());
         return output;
@@ -172,7 +172,7 @@ public sealed class NativeTransferPrivatePackageTests
     }
 
     [Fact]
-    public async Task LegacyStageRejectsPrivatePackageAndRemovesItsPendingCopy()
+    public async Task StageAcceptsPrivatePackageAndRemovesItsPendingCopy()
     {
         string parent = Path.Combine(Path.GetTempPath(), "meowchan-private-package-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(parent);
@@ -180,9 +180,10 @@ public sealed class NativeTransferPrivatePackageTests
         {
             using MemoryStream bytes = await WriteAsync(Private());
             NativeTransferStageResult result = await NativeTransferImportStage.CreateAsync(bytes, parent);
-            Assert.Equal(NativeTransferStageError.PrivateMetadataNotYetSupported, result.Error);
-            Assert.Null(result.Stage);
+            Assert.Equal(NativeTransferStageError.None, result.Error);
+            Assert.NotNull(result.Stage);
             Assert.False(result.StageRetained);
+            await result.Stage!.DisposeAsync();
             Assert.Empty(Directory.EnumerateFileSystemEntries(parent));
             Assert.True(bytes.CanRead);
             // The same store path retains its public-only ingress behavior.
@@ -194,6 +195,68 @@ public sealed class NativeTransferPrivatePackageTests
             Assert.Empty(Directory.EnumerateFileSystemEntries(parent));
         }
         finally { Directory.Delete(parent, recursive: true); }
+    }
+
+    [Fact]
+    public async Task ImportAdmissionDefaultsToPublicOnlyAndRequiresBoundOwnerConsentForPrivateSelection()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(directory.Path, lease);
+
+        using MemoryStream bytes = await WriteAsync(Private());
+        NativeTransferStageResult staged = await NativeTransferImportStage.CreateAsync(bytes, directory.Path);
+        NativeTransferImportStage stage = Assert.IsType<NativeTransferImportStage>(staged.Stage);
+        await using (stage)
+        {
+            NativeMediaImportPreparation publicPreparation =
+                await catalog.PrepareNativeMediaImportAsync(stage);
+            NativeMediaImportPlan publicPlan = Assert.IsType<NativeMediaImportPlan>(publicPreparation.Plan);
+            Assert.Equal(NativeMediaImportError.None, publicPreparation.Error);
+            Assert.True(publicPlan.PrivateConsent.IsPublicOnly);
+            Assert.Null(publicPlan.SelectedPrivateMetadata);
+            Assert.Throws<InvalidDataException>(() =>
+                publicPlan.CreatePrivateApplyRequest(null!, null!, default));
+
+            NativePrivateMetadataSelection selection = new(ThreadFavorites: true, PostBookmarksAndNotes: true);
+            NativePrivateConsentDecision unissued = NativePrivateConsentDecision.Create(stage.Package,
+                NativePrivateConsentProvenance.FromPackage(stage.Package),
+                NativePrivateConsentScope.ExplicitPrivateMetadata, selection);
+            NativeMediaImportPreparation unissuedPreparation =
+                await catalog.PrepareNativeMediaImportAsync(stage, unissued);
+            Assert.Equal(NativeMediaImportError.PrivateConsentNotIssued, unissuedPreparation.Error);
+            Assert.Null(unissuedPreparation.Plan);
+
+            NativePrivateConsentDecision issued = catalog.IssueNativePrivateConsentDecision(stage,
+                NativePrivateConsentScope.ExplicitPrivateMetadata, selection);
+            NativeMediaImportPreparation privatePreparation =
+                await catalog.PrepareNativeMediaImportAsync(stage, issued);
+            NativeMediaImportPlan privatePlan = Assert.IsType<NativeMediaImportPlan>(privatePreparation.Plan);
+            Assert.Equal(NativeMediaImportError.None, privatePreparation.Error);
+            Assert.Equal(selection, privatePlan.PrivateConsent.Selection);
+            NativePrivateMetadataProjection selected = Assert.IsType<NativePrivateMetadataProjection>(
+                privatePlan.SelectedPrivateMetadata);
+            Assert.Equal(selection, selected.Selection);
+            ResourceId selectedThread = Assert.Single(selected.ThreadFavorites);
+            Assert.Equal(Thread.Source, selectedThread.Source);
+            Assert.Equal(Thread.Board, selectedThread.Board);
+            Assert.Equal(Thread.Thread, selectedThread.Thread);
+            Assert.Single(selected.PostBookmarksAndNotes);
+            Assert.Empty(selected.MediaFavorites);
+
+            using MemoryStream otherBytes = await WriteAsync(Private(),
+                Guid.Parse("fd2b8e89-5f7f-4b59-a6d8-8166b0f83a54"));
+            NativeTransferStageResult otherStaged =
+                await NativeTransferImportStage.CreateAsync(otherBytes, directory.Path);
+            NativeTransferImportStage otherStage = Assert.IsType<NativeTransferImportStage>(otherStaged.Stage);
+            await using (otherStage)
+            {
+                NativeMediaImportPreparation stalePreparation =
+                    await catalog.PrepareNativeMediaImportAsync(otherStage, issued);
+                Assert.Equal(NativeMediaImportError.PrivateConsentNotIssued, stalePreparation.Error);
+                Assert.Null(stalePreparation.Plan);
+            }
+        }
     }
 
     [Fact]

@@ -19,21 +19,48 @@ public sealed partial class ArchiveCatalog
 {
     private readonly System.Runtime.CompilerServices.ConditionalWeakTable<NativeMediaImportPlan, object> _issuedNativeMediaPlans = new();
 
-    internal async Task<NativeMediaImportPreparation> PrepareNativeMediaImportAsync(NativeTransferImportStage stage,
+    internal Task<NativeMediaImportPreparation> PrepareNativeMediaImportAsync(
+        NativeTransferImportStage stage, CancellationToken cancellationToken = default)
+        => PrepareNativeMediaImportAsync(stage, privateConsent: null, cancellationToken);
+
+    /// <summary>
+    /// Issues a public-only decision when no selection is supplied. A private
+    /// component may therefore be staged and publicly imported, but it is never
+    /// applied by presence alone. Private categories require a decision issued
+    /// by this catalog through <see cref="IssueNativePrivateConsentDecision"/>.
+    /// </summary>
+    internal async Task<NativeMediaImportPreparation> PrepareNativeMediaImportAsync(
+        NativeTransferImportStage stage, NativePrivateConsentDecision? privateConsent,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(stage);
         cancellationToken.ThrowIfCancellationRequested();
+        NativeTransferPackage package = stage.Package;
+        NativePrivateConsentDecision decision;
+        try
+        {
+            decision = privateConsent ?? NativePrivateConsentDecision.Issue(this, package,
+                NativePrivateConsentProvenance.FromPackage(package));
+            if (!decision.IsIssuedBy(this) || !decision.MatchesPackage(package))
+                return new(null, NativeMediaImportError.PrivateConsentNotIssued);
+        }
+        catch (InvalidDataException)
+        {
+            return new(null, NativeMediaImportError.PrivateConsentNotIssued);
+        }
         // The opaque stage was fully validated at creation. Snapshot its immutable package once;
         // do not reopen/re-inspect its source or read fresh metadata after issuing the plan.
-        NativeTransferPackage package = stage.Package;
-        if (package.Catalog.Threads.Length != 1 || package.PrivateMetadata != null)
+        if (package.Catalog.Threads.Length != 1)
             return new(null, NativeMediaImportError.UnsupportedPackage);
         TransferThread thread = package.Catalog.Threads[0];
         if (thread.PageUrl == null) return new(null, NativeMediaImportError.MissingPageUrl);
         NativeMediaMaterializationPlan? representation = null;
         if (package.IsChanV4)
         {
+            // v4 materialization is still public-only in this slice. Consent
+            // admission is separate from the representation capability.
+            if (package.PrivateMetadata != null)
+                return new(null, NativeMediaImportError.UnsupportedPackage);
             representation = NativeMediaMaterializationPlan.Create(stage, thread.Id, cancellationToken);
             // Text-only/rootless v4 is not silently projected through the legacy path.
             if (representation.FullSelection.IsEmpty) return new(null, NativeMediaImportError.UnsupportedPackage);
@@ -81,11 +108,22 @@ public sealed partial class ArchiveCatalog
                 + instance + "\0" + generation.ToString(CultureInfo.InvariantCulture)))).ToLowerInvariant();
             cancellationToken.ThrowIfCancellationRequested(); transaction.Commit();
             NativeMediaImportPlan plan = representation is null
-                ? new(this, stage, package, instance, generation, operation, request, parent, frozen)
-                : new(this, representation, instance, generation, operation, request, parent);
+                ? new(this, stage, package, instance, generation, operation, request, parent, frozen, decision)
+                : new(this, representation, instance, generation, operation, request, parent, decision);
             _issuedNativeMediaPlans.Add(plan, new object());
             return new NativeMediaImportPreparation(plan, NativeMediaImportError.None);
         }, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal NativePrivateConsentDecision IssueNativePrivateConsentDecision(
+        NativeTransferImportStage stage, NativePrivateConsentScope scope = NativePrivateConsentScope.PublicOnly,
+        NativePrivateMetadataSelection selection = default, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(stage);
+        cancellationToken.ThrowIfCancellationRequested();
+        NativeTransferPackage package = stage.Package;
+        return NativePrivateConsentDecision.Issue(this, package,
+            NativePrivateConsentProvenance.FromPackage(package), scope, selection, cancellationToken);
     }
 
     internal NativeMediaImportV2State RequireIssuedNativeMediaImportV2Plan(ProfileAdmissionToken admission,

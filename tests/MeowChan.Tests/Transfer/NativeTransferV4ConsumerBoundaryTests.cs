@@ -182,12 +182,24 @@ public sealed class NativeTransferV4ConsumerBoundaryTests
             .OrderBy(path => path, StringComparer.Ordinal).ToArray();
         package.Position = 0;
         NativeTransferStageResult staged = await NativeTransferImportStage.CreateAsync(package, files.StageRoot);
-        // The real ingress gate rejects private metadata before a stage can reach
-        // either Prepare API. Do not forge an otherwise unreachable private stage.
-        Assert.Equal(NativeTransferStageError.PrivateMetadataNotYetSupported, staged.Error);
-        Assert.Null(staged.Stage);
+        Assert.Equal(NativeTransferStageError.None, staged.Error);
+        await using NativeTransferImportStage stage = Assert.IsType<NativeTransferImportStage>(staged.Stage);
         Assert.False(staged.StageRetained);
-        Assert.Empty(Directory.GetFileSystemEntries(files.StageRoot));
+
+        // Staging accepts the validated private component, but the current v4
+        // media materializer remains public-only. Consent must not bypass that
+        // separate representation boundary.
+        NativeMediaImportPreparation publicPreparation = await target.PrepareNativeMediaImportAsync(stage);
+        Assert.Equal(NativeMediaImportError.UnsupportedPackage, publicPreparation.Error);
+        Assert.Null(publicPreparation.Plan);
+
+        NativePrivateConsentDecision issued = target.IssueNativePrivateConsentDecision(stage,
+            NativePrivateConsentScope.ExplicitPrivateMetadata, new(ThreadFavorites: true));
+        NativeMediaImportPreparation privatePreparation =
+            await target.PrepareNativeMediaImportAsync(stage, issued);
+        Assert.Equal(NativeMediaImportError.UnsupportedPackage, privatePreparation.Error);
+        Assert.Null(privatePreparation.Plan);
+
         Assert.Equal(before, Files(files.Profile));
         Assert.Equal(directoriesBefore, Directory.GetDirectories(files.Profile, "*", SearchOption.AllDirectories)
             .OrderBy(path => path, StringComparer.Ordinal).ToArray());

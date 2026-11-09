@@ -3,13 +3,14 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using MeowChan.Archive;
 using MeowChan.Storage;
 
 namespace MeowChan.Transfer;
 
 // Internal new-resource-only slice; none of these records grants source/download authority.
-internal enum NativeMediaImportError { None, UnsupportedPackage, MissingPageUrl, ResourceExists }
+internal enum NativeMediaImportError { None, UnsupportedPackage, MissingPageUrl, ResourceExists, PrivateConsentNotIssued }
 internal enum NativeMediaImportCommitStatus { Committed, StalePlan, ReconciliationRequired, Inactive, Unknown }
 internal enum NativeMediaImportPhase
 {
@@ -40,17 +41,24 @@ internal sealed class NativeMediaImportPlan
 {
     internal NativeMediaImportPlan(ArchiveCatalog owner, NativeTransferImportStage stage, NativeTransferPackage package,
         string instance, long generation, Guid operation, string request, string parent,
-        ImmutableArray<NativeMediaImportAttachment> attachments)
+        ImmutableArray<NativeMediaImportAttachment> attachments, NativePrivateConsentDecision privateConsent)
     {
-        Owner = owner; Stage = stage; Package = package; Instance = instance; Generation = generation;
-        OperationId = operation; RequestSha256 = request; OperationsParent = parent; _legacyAttachments = attachments;
+        Owner = owner; Stage = stage; Package = package;
+        BindPrivateConsent(owner, package, privateConsent, out NativePrivateConsentDecision boundConsent,
+            out NativePrivateMetadataProjection? selectedPrivateMetadata);
+        PrivateConsent = boundConsent; SelectedPrivateMetadata = selectedPrivateMetadata;
+        Instance = instance; Generation = generation; OperationId = operation; RequestSha256 = request; OperationsParent = parent; _legacyAttachments = attachments;
         ImportedAtUtc = DateTimeOffset.UtcNow;
         _legacyRevisionKeysJson = JsonSerializer.Serialize(attachments.Select(a => a.RevisionKey).OrderBy(k => k, StringComparer.Ordinal));
     }
     internal NativeMediaImportPlan(ArchiveCatalog owner, NativeMediaMaterializationPlan materialization,
-        string instance, long generation, Guid operation, string request, string parent)
+        string instance, long generation, Guid operation, string request, string parent,
+        NativePrivateConsentDecision privateConsent)
     {
         Owner = owner; Stage = materialization.Stage; Package = materialization.Package;
+        BindPrivateConsent(owner, Package, privateConsent, out NativePrivateConsentDecision boundConsent,
+            out NativePrivateMetadataProjection? selectedPrivateMetadata);
+        PrivateConsent = boundConsent; SelectedPrivateMetadata = selectedPrivateMetadata;
         Instance = instance; Generation = generation; OperationId = operation; RequestSha256 = request;
         OperationsParent = parent; ImportedAtUtc = DateTimeOffset.UtcNow;
         Representation = new(materialization, new(2, operation, request, Package.Envelope.Fingerprint,
@@ -64,6 +72,10 @@ internal sealed class NativeMediaImportPlan
     internal NativeTransferImportStage Stage { get; }
     // Frozen validated metadata; never re-inspect the package or caller's input after planning.
     internal NativeTransferPackage Package { get; }
+    // The decision is owner-issued and package-bound. PublicOnly is always present,
+    // including for packages carrying a validated private component.
+    internal NativePrivateConsentDecision PrivateConsent { get; }
+    internal NativePrivateMetadataProjection? SelectedPrivateMetadata { get; }
     internal TransferThread Thread => Package.Catalog.Threads[0];
     internal ResourceId Resource => Thread.Id;
     internal string Instance { get; }
@@ -76,6 +88,26 @@ internal sealed class NativeMediaImportPlan
         ? _legacyAttachments : throw new InvalidOperationException("Representation plans have semantic members, not legacy attachments.");
     internal string RevisionKeysJson => _legacyRevisionKeysJson
         ?? throw new InvalidOperationException("Representation plans have semantic members, not legacy keys.");
+
+    internal NativePrivateApplyRequest CreatePrivateApplyRequest(
+        NativePrivateMetadataComparisonResult comparison,
+        NativePrivateApplyRequestBinding binding,
+        ImmutableArray<NativePrivateApplyStoreFence> storeFences,
+        CancellationToken cancellationToken = default)
+        => NativePrivateMediaImportApplyAdmission.CreateRequest(this, comparison, binding, storeFences, cancellationToken);
+
+    private static void BindPrivateConsent(ArchiveCatalog owner, NativeTransferPackage package,
+        NativePrivateConsentDecision decision, out NativePrivateConsentDecision bound,
+        out NativePrivateMetadataProjection? selected)
+    {
+        ArgumentNullException.ThrowIfNull(decision);
+        if (!decision.IsIssuedBy(owner) || !decision.MatchesPackage(package))
+            throw new InvalidOperationException("The private consent decision is not issued by this import owner.");
+        bound = decision;
+        selected = decision.HasExplicitPrivateConsent
+            ? package.PrivateMetadata!.Select(decision.Selection)
+            : null;
+    }
 }
 
 // The immutable v2 branch of the existing owner-issued handle. This object and persisted

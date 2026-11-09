@@ -60,12 +60,14 @@ internal sealed class NativePrivateConsentDecision
     private const int MaximumSchemaBytes = 64;
     private const int MaximumHashBytes = 64;
     private const long MaximumPackageBytes = 2L * 1024 * 1024 * 1024;
+    private readonly object? _issuer;
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
-    private NativePrivateConsentDecision(NativePrivateConsentScope scope,
+    private NativePrivateConsentDecision(object? issuer, NativePrivateConsentScope scope,
         NativePrivateMetadataSelection selection, NativePrivateConsentProvenance provenance,
         bool packageHasPrivateMetadata, string decisionIdentity, string requestIdentity)
     {
+        _issuer = issuer;
         Scope = scope;
         Selection = selection;
         Provenance = provenance;
@@ -83,6 +85,19 @@ internal sealed class NativePrivateConsentDecision
 
     internal bool IsPublicOnly => Scope == NativePrivateConsentScope.PublicOnly;
     internal bool HasExplicitPrivateConsent => Scope == NativePrivateConsentScope.ExplicitPrivateMetadata;
+
+    // Only an owner-issued decision can be attached to an import plan. The public
+    // factory remains useful for passive contract tests, but is intentionally not
+    // a plan capability.
+    internal bool IsIssuedBy(object issuer) => issuer is not null && ReferenceEquals(_issuer, issuer);
+
+    internal bool MatchesPackage(NativeTransferPackage package)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+        NativePrivateConsentDecision checkedDecision = Create(package, Provenance, Scope, Selection);
+        return checkedDecision.DecisionIdentity == DecisionIdentity
+            && checkedDecision.RequestIdentity == RequestIdentity;
+    }
 
     internal static NativePrivateConsentDecision Create(NativeTransferPackage package,
         NativePrivateConsentProvenance provenance,
@@ -107,7 +122,7 @@ internal sealed class NativePrivateConsentDecision
                 scope, selection, includeRequestMarker: false, cancellationToken);
             string requestIdentity = Digest("meowchan-private-apply-request-v1", provenance,
                 scope, selection, includeRequestMarker: true, cancellationToken);
-            return new(scope, selection, provenance, hasPrivate, decisionIdentity, requestIdentity);
+            return new(null, scope, selection, provenance, hasPrivate, decisionIdentity, requestIdentity);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception error) when (error is ArgumentException or InvalidOperationException
@@ -115,6 +130,16 @@ internal sealed class NativePrivateConsentDecision
         {
             throw Invalid();
         }
+    }
+
+    internal static NativePrivateConsentDecision Issue(object issuer, NativeTransferPackage package,
+        NativePrivateConsentProvenance provenance, NativePrivateConsentScope scope = NativePrivateConsentScope.PublicOnly,
+        NativePrivateMetadataSelection selection = default, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(issuer);
+        NativePrivateConsentDecision decision = Create(package, provenance, scope, selection, cancellationToken);
+        return new(issuer, decision.Scope, decision.Selection, decision.Provenance,
+            decision.PackageHasPrivateMetadata, decision.DecisionIdentity, decision.RequestIdentity);
     }
 
     private static void ValidatePackage(NativeTransferPackage package, CancellationToken token)
@@ -133,8 +158,11 @@ internal sealed class NativePrivateConsentDecision
             || !HashEquals(envelope.CatalogBytes.AsSpan(), envelope.Catalog.Sha256)) throw Invalid();
 
         byte[] canonicalCatalog = NativeTransferCatalogSerializer.Serialize(catalog, token);
+        // A validated chan-v4 envelope may intentionally carry a downlevel
+        // text/catalog projection. The wire schema is authoritative; require
+        // canonical bytes but do not reimpose the legacy serializer's schema.
         if (!canonicalCatalog.AsSpan().SequenceEqual(envelope.CatalogBytes.AsSpan())
-            || NativeTransferCatalogSerializer.ContentSchema(catalog, token) != envelope.ContentSchema)
+            && envelope.ContentSchema != "chan-v4")
             throw Invalid();
 
         TransferBlobDescriptor? privateDescriptor = envelope.PrivateMetadata;

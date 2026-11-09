@@ -387,7 +387,7 @@ public sealed class NativeMediaImportAdmissionTests
         using ProfileAdmissionToken owner = await f.ExclusiveAsync();
         NativeMediaImportPlan p = f.Plan;
         NativeMediaImportPlan forged = new(f.Catalog, p.Stage, p.Package, p.Instance, p.Generation,
-            p.OperationId, p.RequestSha256, p.OperationsParent, p.Attachments);
+            p.OperationId, p.RequestSha256, p.OperationsParent, p.Attachments, p.PrivateConsent);
         var outcome = await f.Catalog.CommitNativeMediaImportAdmittedAsync(owner, forged, f.Store,
             checkpoint: _ => throw new InvalidOperationException("Unissued plan ran"));
         Assert.Equal(NativeMediaImportCommitStatus.StalePlan, outcome.Result.Status);

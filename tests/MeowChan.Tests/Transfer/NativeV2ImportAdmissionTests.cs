@@ -30,7 +30,7 @@ public sealed class NativeV2ImportAdmissionTests
         // The real v2 constructor copies the same materialization and operation identity.
         // It chooses its own timestamp; neither a timestamp nor matching DTO fields issues it.
         NativeMediaImportPlan forged = new(f.Catalog, state.Materialization, issued.Instance,
-            issued.Generation, issued.OperationId, issued.RequestSha256, issued.OperationsParent);
+            issued.Generation, issued.OperationId, issued.RequestSha256, issued.OperationsParent, issued.PrivateConsent);
         Assert.NotSame(issued, forged);
         Assert.Same(issued.Owner, forged.Owner);
         Assert.Same(state.Materialization, forged.Representation!.Materialization);

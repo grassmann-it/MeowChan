@@ -115,10 +115,10 @@ internal sealed class NativeTransferImportStage : IAsyncDisposable
             TransferPackageInspection inspection = await NativeTransferPackageValidator.InspectAsync(file, cancellationToken, limits).ConfigureAwait(false);
             if (!inspection.IsPackageValid)
                 return result = new(null, NativeTransferStageError.InvalidPackage, inspection.EnvelopeError, inspection.CatalogError);
-            // Inspection is passive, not receiving consent. Until private apply/recovery exists,
-            // refuse admission and let finally dispose/delete only this invocation's ingress copy.
-            if (inspection.Package!.Envelope.PrivateMetadata != null)
-                return result = new(null, NativeTransferStageError.PrivateMetadataNotYetSupported);
+            // Inspection is passive and does not grant receiving consent. A validated
+            // private component may travel with the retained stage, but downstream
+            // plans must still carry an owner-issued decision; no private value is
+            // applied by staging.
             // Reuse the same bounded ZIP reader. No raw handle or package-supplied path escapes.
             IReadOnlyList<TransferZipEntry> entries = await NativeTransferZip.ReadDirectoryAsync(file, limits, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
