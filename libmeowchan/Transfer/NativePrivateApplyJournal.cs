@@ -356,6 +356,10 @@ internal sealed partial class NativePrivateApplyJournal
             // not fabricated by first weakening an unstarted Planned step.
             if (before == NativePrivateApplyStepPhase.NotStartedProven && before != after) throw Invalid();
             if (after == NativePrivateApplyStepPhase.NoChange && before != after) throw Invalid();
+            if (after is NativePrivateApplyStepPhase.ConflictOnly or NativePrivateApplyStepPhase.MissingTarget)
+            {
+                if (before != after && before != NativePrivateApplyStepPhase.Planned) throw Invalid();
+            }
             if (after == NativePrivateApplyStepPhase.IntentDurable && before != after) throw Invalid();
             if (after == NativePrivateApplyStepPhase.Planned && before != after) throw Invalid();
         }

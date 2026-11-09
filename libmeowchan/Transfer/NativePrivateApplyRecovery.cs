@@ -15,7 +15,7 @@ internal enum NativePrivateApplyOperationPhase
 internal enum NativePrivateApplyStepPhase
 {
     Planned, IntentDurable, PublishedVerified, Recorded, NoChange,
-    NotStartedProven, Drifted, Unreadable, Unknown,
+    NotStartedProven, Drifted, Unreadable, Unknown, ConflictOnly, MissingTarget,
 }
 
 // Observations are assertions supplied by a future bounded, identity-bound
@@ -32,7 +32,7 @@ internal enum NativePrivateApplyStepObservation
 {
     NotObserved, Unknown, ExactBeforeWithContinuousFence, ExactAfterWithoutMarker,
     ExactAfterWithMatchingAtomicMarker, NoChangeVerified, RecordedReceiptVerified,
-    Drifted, Unreadable, IntentDurable,
+    Drifted, Unreadable, IntentDurable, ConflictOnlyVerified, MissingTargetVerified,
 }
 
 internal sealed class NativePrivateApplyRecoveryStep
@@ -112,7 +112,8 @@ internal sealed class NativePrivateApplyRecoveryState
         foreach (NativePrivateApplyRecoveryStep step in steps)
         {
             NativePrivateApplyStepPhase value = step.Phase;
-            bool settled = value is NativePrivateApplyStepPhase.Recorded or NativePrivateApplyStepPhase.NoChange;
+            bool settled = value is NativePrivateApplyStepPhase.Recorded or NativePrivateApplyStepPhase.NoChange
+                or NativePrivateApplyStepPhase.ConflictOnly or NativePrivateApplyStepPhase.MissingTarget;
             bool publishing = value is NativePrivateApplyStepPhase.IntentDurable or NativePrivateApplyStepPhase.PublishedVerified;
             // A later store cannot have been published or acknowledged across an
             // unresolved predecessor. Inspection-only outcomes do not imply writes.
@@ -360,6 +361,14 @@ internal static class NativePrivateApplyRecovery
                 when operationPhase == NativePrivateApplyOperationPhase.Applying
                     && (current is NativePrivateApplyStepPhase.Planned or NativePrivateApplyStepPhase.NoChange)
                 => NativePrivateApplyStepPhase.NoChange,
+            NativePrivateApplyStepObservation.ConflictOnlyVerified
+                when operationPhase == NativePrivateApplyOperationPhase.Applying
+                    && (current is NativePrivateApplyStepPhase.Planned or NativePrivateApplyStepPhase.ConflictOnly)
+                => NativePrivateApplyStepPhase.ConflictOnly,
+            NativePrivateApplyStepObservation.MissingTargetVerified
+                when operationPhase == NativePrivateApplyOperationPhase.Applying
+                    && (current is NativePrivateApplyStepPhase.Planned or NativePrivateApplyStepPhase.MissingTarget)
+                => NativePrivateApplyStepPhase.MissingTarget,
             NativePrivateApplyStepObservation.Unknown
                 when current is NativePrivateApplyStepPhase.Planned or NativePrivateApplyStepPhase.IntentDurable
                 => NativePrivateApplyStepPhase.Unknown,
@@ -379,7 +388,9 @@ internal static class NativePrivateApplyRecovery
         => observation is NativePrivateApplyStepObservation.IntentDurable
             or NativePrivateApplyStepObservation.ExactAfterWithMatchingAtomicMarker
             or NativePrivateApplyStepObservation.RecordedReceiptVerified
-            or NativePrivateApplyStepObservation.NoChangeVerified;
+            or NativePrivateApplyStepObservation.NoChangeVerified
+            or NativePrivateApplyStepObservation.ConflictOnlyVerified
+            or NativePrivateApplyStepObservation.MissingTargetVerified;
 
     private static bool PreviousStepsSettled(
         ImmutableArray<NativePrivateApplyRecoveryStep> steps,
@@ -389,7 +400,9 @@ internal static class NativePrivateApplyRecovery
         {
             if (steps[i].StoreKind == storeKind) return true;
             if (steps[i].Phase is not NativePrivateApplyStepPhase.Recorded
-                and not NativePrivateApplyStepPhase.NoChange)
+                and not NativePrivateApplyStepPhase.NoChange
+                and not NativePrivateApplyStepPhase.ConflictOnly
+                and not NativePrivateApplyStepPhase.MissingTarget)
                 return false;
         }
         return false;

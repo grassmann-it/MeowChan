@@ -141,8 +141,13 @@ public sealed class NativePrivateApplyRecoveryTests
             [(Phase.Recorded, Observation.RecordedReceiptVerified)] = Phase.Recorded,
             [(Phase.Planned, Observation.NoChangeVerified)] = Phase.NoChange,
             [(Phase.NoChange, Observation.NoChangeVerified)] = Phase.NoChange,
+            [(Phase.Planned, Observation.ConflictOnlyVerified)] = Phase.ConflictOnly,
+            [(Phase.ConflictOnly, Observation.ConflictOnlyVerified)] = Phase.ConflictOnly,
+            [(Phase.Planned, Observation.MissingTargetVerified)] = Phase.MissingTarget,
+            [(Phase.MissingTarget, Observation.MissingTargetVerified)] = Phase.MissingTarget,
         };
-        Phase[] starts = [Phase.Planned, Phase.IntentDurable, Phase.PublishedVerified, Phase.Recorded, Phase.NoChange, Phase.NotStartedProven];
+        Phase[] starts = [Phase.Planned, Phase.IntentDurable, Phase.PublishedVerified, Phase.Recorded,
+            Phase.NoChange, Phase.ConflictOnly, Phase.MissingTarget, Phase.NotStartedProven];
         foreach (Phase phase in starts)
         {
             foreach (Observation observation in Enum.GetValues<Observation>())
@@ -204,6 +209,52 @@ public sealed class NativePrivateApplyRecoveryTests
         Assert.Equal(Operation.Applying, next.Phase);
         Assert.Throws<InvalidDataException>(() => Move(next, step: Observation.IntentDurable));
         Assert.Equal(Phase.IntentDurable, state.Steps[0].Phase);
+    }
+
+    [Fact]
+    public void ConflictOnlyAndMissingTargetAreSettledNoWriteOutcomesAndPreserveStoreOrder()
+    {
+        State state = State.FromValidated(OperationId, RequestHash, All, Operation.Applying,
+            Ordered(Phase.Planned, Phase.Planned, Phase.Planned));
+        State conflict = NativePrivateApplyRecovery.Reduce(state,
+            Observe(OperationObservation.None,
+                E(Store.ThreadFavorites, Observation.ConflictOnlyVerified),
+                E(Store.MediaFavorites), E(Store.PostBookmarksAndNotes)));
+        Assert.Equal(Operation.Applying, conflict.Phase);
+        Assert.Equal(Phase.ConflictOnly, conflict.Steps[0].Phase);
+
+        State missing = NativePrivateApplyRecovery.Reduce(conflict,
+            Observe(OperationObservation.None,
+                E(Store.ThreadFavorites),
+                E(Store.MediaFavorites, Observation.MissingTargetVerified),
+                E(Store.PostBookmarksAndNotes)));
+        Assert.Equal(Operation.Applying, missing.Phase);
+        Assert.Equal(Phase.ConflictOnly, missing.Steps[0].Phase);
+        Assert.Equal(Phase.MissingTarget, missing.Steps[1].Phase);
+
+        State noChange = NativePrivateApplyRecovery.Reduce(missing,
+            Observe(OperationObservation.None,
+                E(Store.ThreadFavorites), E(Store.MediaFavorites),
+                E(Store.PostBookmarksAndNotes, Observation.NoChangeVerified)));
+        Receipt receipt = new(OperationId, RequestHash, All, Operation.Completed,
+            Ordered(Phase.ConflictOnly, Phase.MissingTarget, Phase.NoChange));
+        State completed = NativePrivateApplyRecovery.Reduce(noChange,
+            new Evidence(OperationId, RequestHash, OperationObservation.None, [], receipt));
+
+        Assert.Equal(Operation.Completed, completed.Phase);
+        Assert.Equal(new[] { Phase.ConflictOnly, Phase.MissingTarget, Phase.NoChange },
+            completed.Steps.Select(step => step.Phase));
+    }
+
+    [Theory]
+    [InlineData("ConflictOnly")]
+    [InlineData("MissingTarget")]
+    public void CompletedReceiptAcceptsSettledNonMutatingStepOutcomes(string phase)
+    {
+        Receipt receipt = new(OperationId, RequestHash, ThreadsOnly, Operation.Completed,
+            Single(Enum.Parse<Phase>(phase)));
+        Assert.Equal(Operation.Completed, receipt.ToState().Phase);
+        Assert.Equal(Enum.Parse<Phase>(phase), receipt.Steps[0].Phase);
     }
 
     [Theory]
@@ -399,12 +450,14 @@ public sealed class NativePrivateApplyRecoveryTests
     [InlineData("IntentDurable")]
     [InlineData("PublishedVerified")]
     [InlineData("NoChange")]
+    [InlineData("ConflictOnly")]
+    [InlineData("MissingTarget")]
     public void NextStoreCannotStartBeforePreviousStoreResultWasRecorded(string earlierPhase)
     {
         State state = State.FromValidated(OperationId, RequestHash, All, Operation.Applying,
             Ordered(Enum.Parse<Phase>(earlierPhase), Phase.Planned, Phase.Planned));
-        // NoChange is itself a durable explicit step result and may advance.
-        if (earlierPhase == "NoChange")
+        // Each settled no-write result is itself a durable explicit step result and may advance.
+        if (earlierPhase is "NoChange" or "ConflictOnly" or "MissingTarget")
         {
             State next = NativePrivateApplyRecovery.Reduce(state,
                 Observe(OperationObservation.None, E(Store.ThreadFavorites), E(Store.MediaFavorites, Observation.IntentDurable), E(Store.PostBookmarksAndNotes)));
