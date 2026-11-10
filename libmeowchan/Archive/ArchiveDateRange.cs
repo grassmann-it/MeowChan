@@ -52,11 +52,25 @@ public static class ArchiveDateResolver
         if (!local.HasIanaId)
         {
             if (!TimeZoneInfo.TryConvertWindowsIdToIanaId(id, out string? ianaId))
-                throw new ArgumentException("The device time zone cannot be mapped to an IANA time zone.");
+                throw new ArgumentException("The device time zone cannot be mapped to an IANA time zone. Local id: " + id + ".");
             id = ianaId;
         }
-        FindZone(id);
+        try { FindZone(id); }
+        // A broken install (missing or mismatched NodaTime.dll, stale bin) surfaces here as a
+        // load failure that is unrelated to the zone itself; name the facts instead of hiding them.
+        catch (Exception error) when (error is not ArgumentException)
+        { throw new InvalidOperationException(DescribeDeviceZoneFailure(local, id, error), error); }
         return id;
+    }
+
+    internal static string DescribeDeviceZoneFailure(TimeZoneInfo local, string mappedId, Exception error) =>
+        "The device time zone could not be resolved (local id '" + local.Id + "', IANA id '" + mappedId + "'; "
+        + error.GetType().Name + ": " + error.Message + "; NodaTime location: " + NodaTimeLocation() + ").";
+
+    private static string NodaTimeLocation()
+    {
+        try { return typeof(NodaTime.Instant).Assembly.Location is { Length: > 0 } path ? path : "bundled"; }
+        catch (Exception) { return "unavailable"; }
     }
 
     public static ResolvedDateWindow? Resolve(ArchiveDateRange? range)

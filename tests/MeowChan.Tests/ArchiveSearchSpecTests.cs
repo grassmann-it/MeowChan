@@ -67,6 +67,28 @@ public sealed class ArchiveSearchSpecTests
     }
 
     [Fact]
+    public void DeviceTimeZoneResolvesToABundledIanaZoneAndNodaTimeIsDeployed()
+    {
+        string id = ArchiveDateResolver.GetLocalTimeZoneId();
+        Assert.NotNull(NodaTime.DateTimeZoneProviders.Tzdb.GetZoneOrNull(id));
+        string noda = typeof(NodaTime.Instant).Assembly.Location;
+        Assert.True(File.Exists(noda), "NodaTime.dll must be deployed beside the host: " + noda);
+        string deps = Path.ChangeExtension(typeof(ArchiveDateResolver).Assembly.Location, ".deps.json");
+        if (File.Exists(deps)) Assert.Contains("NodaTime", File.ReadAllText(deps));
+        ResolvedDateWindow window = ArchiveDateResolver.Resolve(new ArchiveDateRange(new DateOnly(2026, 1, 1), null, id))!;
+        Assert.NotNull(window.StartInclusive);
+    }
+
+    [Fact]
+    public void DeviceTimeZoneFailureNamesTheFactsInsteadOfAGenericAssemblyMessage()
+    {
+        string text = ArchiveDateResolver.DescribeDeviceZoneFailure(TimeZoneInfo.Utc, "UTC", new FileNotFoundException("Could not load file or assembly 'NodaTime'."));
+        Assert.Contains("local id 'UTC'", text);
+        Assert.Contains("FileNotFoundException", text);
+        Assert.Contains("NodaTime location:", text);
+    }
+
+    [Fact]
     public void OpenBoundariesAndSupportedYearEdgesResolveWithoutOverflow()
     {
         Assert.Null(ArchiveDateResolver.Resolve(new ArchiveDateRange(null, null, "UTC")));
