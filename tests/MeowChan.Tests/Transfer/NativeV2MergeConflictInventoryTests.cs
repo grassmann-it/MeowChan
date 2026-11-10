@@ -45,6 +45,59 @@ public sealed class NativeV2MergeConflictInventoryTests
     }
 
     [Fact]
+    public async Task PromoteRootMakesTheContainedAlternativeActiveAndKeepsTheOlderRootUntouched()
+    {
+        await using NativeV2ImportFixture f = await CreateAsync();
+        TransferAttachment conflict = DifferentOriginal();
+        MergeObservation merged = await MergeAsync(f, Incoming([Post("15", conflict)], []),
+            [Alternative], evidence: 0, derived: 0, safe: false);
+        string key;
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(f.Files.Profile);
+        ArchivedThreadView thread = Assert.IsType<ArchivedThreadView>(await reader.ReadThreadAsync(Id));
+        string seedRoot = thread.MediaDirectories.First(d => !PathsContain(merged.Operation, d));
+        MediaAssetSnapshot seed = await MediaAssetReader.OpenAsync(seedRoot);
+        string seedManifest = File.ReadAllText(Path.Combine(seedRoot, ".meowchan-manifest.json"));
+        CapturedAttachment slot = Assert.Single(Assert.Single(thread.GetPosts(), x => x.PostId == "15").Attachments!);
+        MediaAttachmentBinding active = Assert.Single(seed.AttachmentBindings.Values);
+        key = active.Reference.RevisionKey;
+        string activeSha = active.Actual.Sha256;
+        Assert.NotEqual(Hash(Alternative), activeSha);
+
+        string target = Path.Combine(Path.GetDirectoryName(merged.Operation.Full.Directory!)!, "promote-" + Guid.NewGuid().ToString("N"));
+        PromotedMediaRoot root = await f.Store.CreatePromoteRootAsync(merged.Operation.Full.Directory!, target,
+            Hash(Alternative), [active]);
+        Assert.Equal(target, root.Directory);
+        MediaAssetSnapshot promote = await MediaAssetReader.OpenAsync(target);
+        Assert.Equal(MediaManifestStatus.Available, promote.Status);
+        Assert.Equal(root.Generation, promote.Generation);
+        Assert.Equal(new MediaSupersession(key, activeSha), Assert.Single(promote.Supersedes));
+
+        CapturedAttachment sql = slot;
+        // Both roots active: the explicit supersession decides, in either order.
+        foreach (MediaAssetSnapshot[] order in new[] { new[] { seed, promote }, new[] { promote, seed } })
+        {
+            ResolvedMediaAttachment resolved = Assert.IsType<ResolvedMediaAttachment>(MediaAttachmentResolver.Resolve(order, Id, "15", sql));
+            Assert.Equal(Alternative, await ReadOriginalAsync(resolved));
+        }
+        // The previous bytes and root are unchanged and still readable on their own.
+        Assert.Equal(seedManifest, File.ReadAllText(Path.Combine(seedRoot, ".meowchan-manifest.json")));
+        Assert.Equal(await ReadOriginalAsync(Assert.IsType<ResolvedMediaAttachment>(MediaAttachmentResolver.Resolve([seed], Id, "15", sql))),
+            await File.ReadAllBytesAsync(Assert.IsType<ResolvedMediaAttachment>(MediaAttachmentResolver.Resolve([seed], Id, "15", sql)).Asset.Path));
+        Assert.Empty(Directory.EnumerateDirectories(Path.GetDirectoryName(target)!, "*.part-*"));
+        // A wrong digest or a binding the alternative's root does not hold is refused and leaves nothing.
+        await Assert.ThrowsAsync<InvalidDataException>(() => f.Store.CreatePromoteRootAsync(merged.Operation.Full.Directory!,
+            target + "-x", new string('a', 64), [active]));
+        Assert.False(Directory.Exists(target + "-x"));
+        Assert.Empty(Directory.EnumerateDirectories(Path.GetDirectoryName(target)!, "*.part-*"));
+        await Assert.ThrowsAsync<IOException>(() => f.Store.CreatePromoteRootAsync(merged.Operation.Full.Directory!, target,
+            Hash(Alternative), [active]));
+    }
+
+    private static bool PathsContain(NativeMediaPersistedMergeOperation operation, string directory)
+        => string.Equals(directory, operation.Full.Directory, StringComparison.Ordinal)
+            || string.Equals(directory, operation.Safe.Directory, StringComparison.Ordinal);
+
+    [Fact]
     public async Task ExactOccurrenceWithDifferentSourceVersionIsOnlyAnInactiveFullAlternative()
     {
         await using NativeV2ImportFixture f = await CreateAsync();
