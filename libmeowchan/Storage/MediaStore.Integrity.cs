@@ -81,6 +81,21 @@ public sealed partial class MediaStore
         }
     }
 
+    // A supersession must name a key this very manifest binds, to bytes different from the replaced ones.
+    private static void ValidateManifestSupersession(MediaManifest manifest)
+    {
+        if (manifest.Supersedes == null) return;
+        HashSet<string> seen = new(StringComparer.Ordinal);
+        foreach (MediaSupersession item in manifest.Supersedes)
+        {
+            if (item == null || string.IsNullOrEmpty(item.RevisionKey) || !seen.Add(item.RevisionKey)
+                || !MediaIntegrityValidation.IsSha256(item.SupersededSha256)
+                || !manifest.AttachmentBindings.TryGetValue(item.RevisionKey, out MediaAttachmentBinding? own)
+                || string.Equals(own.Actual.Sha256, item.SupersededSha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("A supersession does not match this manifest's own binding.");
+        }
+    }
+
     private static void ValidateBindingCollisions(MediaManifest manifest, DownloadItem item, string assetId, FileDigest digest)
     {
         MediaProviderMetadata provider = MediaIntegrityValidation.Provider(item);

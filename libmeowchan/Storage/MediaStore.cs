@@ -965,6 +965,9 @@ public sealed partial class MediaStore
                     if (pair.Value != null) AddAsset(manifest, pair.Key, pair.Value);
                 }
                 ValidateManifestBindings(manifest);
+                if (manifest.Supersedes != null && sourceVersion != RepresentationManifestVersion)
+                    throw new InvalidDataException("Only representation manifests may supersede.");
+                ValidateManifestSupersession(manifest);
                 ValidateManifestRepresentations(manifest, cancellationToken);
             }
             catch (Exception failure) when (sourceVersion >= 3 && (failure is InvalidDataException or ArgumentException))
@@ -1126,6 +1129,8 @@ public sealed partial class MediaStore
         public MediaOriginalEvidence[]? OriginalEvidence { get; set; }
         [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
         public MediaDerivedRepresentation[]? DerivedRepresentations { get; set; }
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public MediaSupersession[]? Supersedes { get; set; }
     }
 
     private sealed class MediaManifestAsset

@@ -27,6 +27,7 @@ internal static class MediaRepresentationWire
     private static readonly string[] IntegrityFields = ["Length", "Md5", "Sha256", "Sha1"];
     private static readonly string[] OriginFields = ["OperationId", "PackageFingerprint", "ImportedAtUtc"];
     private static readonly string[] BlobFields = ["RelativeFileName", "Actual"];
+    private static readonly string[] SupersessionFields = ["RevisionKey", "SupersededSha256"];
 
     internal static void Validate(JsonElement root, int sourceVersion, CancellationToken ct)
     {
@@ -34,6 +35,18 @@ internal static class MediaRepresentationWire
         if (root.ValueKind != JsonValueKind.Object) throw Invalid();
         bool hasEvidence = root.TryGetProperty("OriginalEvidence", out JsonElement evidence);
         bool hasDerived = root.TryGetProperty("DerivedRepresentations", out JsonElement derived);
+        if (root.TryGetProperty("Supersedes", out JsonElement supersedes))
+        {
+            // Only a representation manifest may supersede, and only with exact records.
+            if (sourceVersion != 6 || supersedes.ValueKind != JsonValueKind.Array
+                || supersedes.GetArrayLength() > MaximumRecords) throw Invalid();
+            foreach (JsonElement item in supersedes.EnumerateArray())
+            {
+                Fields(item, SupersessionFields, ct);
+                Text(item.GetProperty("RevisionKey"));
+                Text(item.GetProperty("SupersededSha256"));
+            }
+        }
         if (sourceVersion != 6)
         {
             // Do not let legacy projection silently erase even empty/null inventories.

@@ -41,7 +41,8 @@ public sealed class MediaAssetSnapshot
         string? generation, IEnumerable<MediaAssetReference> assets, string? warning = null,
         IReadOnlyDictionary<string, MediaAttachmentBinding>? attachmentBindings = null,
         IEnumerable<MediaOriginalEvidence>? originalEvidence = null,
-        IEnumerable<MediaDerivedRepresentation>? derivedRepresentations = null)
+        IEnumerable<MediaDerivedRepresentation>? derivedRepresentations = null,
+        IEnumerable<MediaSupersession>? supersedes = null)
     {
         Directory = directory;
         Status = status;
@@ -50,6 +51,7 @@ public sealed class MediaAssetSnapshot
         Warning = warning;
         OriginalEvidence = originalEvidence?.ToImmutableArray() ?? ImmutableArray<MediaOriginalEvidence>.Empty;
         DerivedRepresentations = derivedRepresentations?.ToImmutableArray() ?? ImmutableArray<MediaDerivedRepresentation>.Empty;
+        Supersedes = supersedes?.ToImmutableArray() ?? ImmutableArray<MediaSupersession>.Empty;
         _assets = assets.OrderBy(asset => asset.MediaIdentifier, StringComparer.Ordinal)
             .ThenBy(asset => asset.RequestedFileName, StringComparer.Ordinal)
             .ThenBy(asset => asset.AssetId, StringComparer.Ordinal).ToArray();
@@ -67,6 +69,8 @@ public sealed class MediaAssetSnapshot
     public string? Warning { get; }
     internal ImmutableArray<MediaOriginalEvidence> OriginalEvidence { get; }
     internal ImmutableArray<MediaDerivedRepresentation> DerivedRepresentations { get; }
+    /// <summary>Bindings of this root that replace older roots' bindings for the same key (promote roots only).</summary>
+    internal ImmutableArray<MediaSupersession> Supersedes { get; }
 
     // Value equality covers the entire exact semantic member, not only its digest or filename.
     // Internal inventory intentionally stays outside the Original asset and resolver API.
@@ -208,7 +212,8 @@ public sealed partial class MediaStore
         { return CorruptAssetSnapshot(directory); }
         return new MediaAssetSnapshot(directory, MediaManifestStatus.Available, read.SourceVersion,
             read.Generation, assets, attachmentBindings: read.Manifest.AttachmentBindings,
-            originalEvidence: read.Manifest.OriginalEvidence, derivedRepresentations: read.Manifest.DerivedRepresentations);
+            originalEvidence: read.Manifest.OriginalEvidence, derivedRepresentations: read.Manifest.DerivedRepresentations,
+            supersedes: read.Manifest.Supersedes);
     }
 
     private static MediaAssetSnapshot CorruptAssetSnapshot(string directory)

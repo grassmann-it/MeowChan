@@ -74,6 +74,9 @@ public sealed record MediaPassiveImportRecord(string OperationId, string Package
 public sealed record MediaAcceptanceRecord(MediaAcceptanceKind Kind, bool SizeMismatch, bool Md5Mismatch,
     DateTimeOffset AcceptedAtUtc, string? ProfileId = null, string? PluginOwnerId = null, string? SourceId = null,
     long? PolicyRevision = null);
+/// <summary>Declared by a promote root: its binding for <paramref name="RevisionKey"/> replaces the older
+/// binding whose bytes have <paramref name="SupersededSha256"/>. Older roots are never rewritten.</summary>
+internal sealed record MediaSupersession(string RevisionKey, string SupersededSha256);
 public sealed record MediaAttachmentBinding(AttachmentRevisionReference Reference, string AcquisitionRevisionKey,
     string AssetId, MediaProviderMetadata Provider, MediaActualIntegrity Actual, MediaAcceptanceRecord Acceptance)
 {

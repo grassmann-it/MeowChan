@@ -69,7 +69,7 @@ public static class MediaAttachmentResolver
                     }
             return legacy;
         }
-        ResolvedMediaAttachment? selected = null;
+        List<ResolvedMediaAttachment> matches = new();
         foreach (MediaAssetSnapshot snapshot in ordered)
         {
             if (snapshot.Status == MediaManifestStatus.Corrupt) return null;
@@ -80,11 +80,21 @@ public static class MediaAttachmentResolver
                     return null;
                 continue;
             }
-            if (selected != null && (selected.Asset.AssetId != match.Asset.AssetId
-                || selected.Asset.Length != match.Asset.Length || selected.Asset.Sha256 != match.Asset.Sha256
-                || selected.Binding != match.Binding)) return null;
-            selected ??= match;
+            matches.Add(match);
         }
+        if (matches.Count == 0) return null;
+        // A promote root replaces exactly the older binding it names (key + replaced bytes); older roots
+        // stay untouched. Without such an explicit declaration, differing bindings remain ambiguous.
+        string key = attachment.AttachmentRevisionKey!;
+        matches = matches.Where(candidate => !matches.Any(other => !ReferenceEquals(other, candidate)
+            && other.Snapshot.Supersedes.Any(item => item.RevisionKey == key
+                && string.Equals(item.SupersededSha256, candidate.Asset.Sha256, StringComparison.OrdinalIgnoreCase)))).ToList();
+        ResolvedMediaAttachment selected = matches.Count > 0 ? matches[0] : null!;
+        if (selected == null) return null;
+        foreach (ResolvedMediaAttachment match in matches.Skip(1))
+            if (selected.Asset.AssetId != match.Asset.AssetId
+                || selected.Asset.Length != match.Asset.Length || selected.Asset.Sha256 != match.Asset.Sha256
+                || selected.Binding != match.Binding) return null;
         return selected;
     }
 
