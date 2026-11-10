@@ -202,6 +202,7 @@
                             <TextBox x:Name="ReaderFindQuery" Width="240" TextChanged="OnThreadFindQueryChanged" />
                             <Button x:Name="ReaderFindPrevious" Click="OnPreviousThreadFind" />
                             <Button x:Name="ReaderFindNext" Click="OnNextThreadFind" />
+                            <Button x:Name="ReaderFindRetry" Click="OnRetryThreadFind" IsVisible="False" />
                             <Button x:Name="ReaderFindClose" Click="OnCloseThreadFind" />
                         </WrapPanel>
                         <TextBlock x:Name="ReaderFindStatus" TextWrapping="Wrap" />

@@ -18,6 +18,7 @@ internal static class ReaderFindCatalog
         ("readerFind.subject", "subject", "Betreff"),
         ("readerFind.location", "Post {0} · {1} · UTF-16 position {2}, length {3}. Navigation selects the post; exact hit shown below.", "Beitrag {0} · {1} · UTF-16-Position {2}, Länge {3}. Navigation wählt den Beitrag; genaue Fundstelle unten."),
         ("readerFind.beyondDisplay", "This hit extends beyond the reader body display limit. The full saved-text hit is shown here, not marked in the post.", "Dieser Treffer reicht über das Anzeigelimit des Beitragstexts hinaus. Die Fundstelle im vollständigen gespeicherten Text steht hier, nicht als Markierung im Beitrag."),
-        ("readerFind.failed", "Saved thread search failed. Change the query to retry.", "Suche im gespeicherten Thread fehlgeschlagen. Suchtext ändern, um erneut zu suchen.")
+        ("readerFind.failed", "Saved thread search failed. Use Search again to retry with the same text.", "Suche im gespeicherten Thread fehlgeschlagen. Mit „Erneut suchen“ mit demselben Text wiederholen."),
+        ("readerFind.retry", "Search again", "Erneut suchen")
     };
 }

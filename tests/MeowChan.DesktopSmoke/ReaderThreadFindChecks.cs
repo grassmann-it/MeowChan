@@ -189,6 +189,26 @@ internal static class ReaderThreadFindChecks
                 await InputAsync(Needle);
                 Status(0, 2);
                 Click("ReaderFindClose");
+                // SF-06: after a failed search one explicit retry runs with the unchanged query; no automatic retry.
+                int attempts = 0;
+                page.ThreadFindIndexFactory = (_, _, _) => { attempts++; throw new IOException("Synthetic find failure"); };
+                Click("ReaderFindOpen");
+                query.Text = Needle;
+                await UntilAsync(() => C<TextBlock>("ReaderFindStatus").Text == Texts.T("readerFind.failed"));
+                await page.ThreadFindTask.WaitAsync(Deadline);
+                int failedAttempts = attempts;
+                Require(C<Button>("ReaderFindRetry").IsEffectivelyVisible && query.Text == Needle,
+                    "A failed find did not offer an explicit retry with the unchanged query.");
+                await Task.Delay(300);
+                Require(attempts == failedAttempts, "A failed find retried automatically.");
+                page.ThreadFindIndexFactory = null;
+                Task failedTask = page.ThreadFindTask;
+                Click("ReaderFindRetry");
+                await UntilAsync(() => !ReferenceEquals(failedTask, page.ThreadFindTask));
+                await page.ThreadFindTask.WaitAsync(Deadline);
+                Status(0, 2);
+                Require(!C<Button>("ReaderFindRetry").IsVisible && query.Text == Needle, "Retry kept its button or changed the query.");
+                Click("ReaderFindClose");
                 Console.WriteLine($"SMOKE reader-find input-boundary [{language}]: TextInput preserves 511ASCII+emoji513 invalid/no-navigation; selection replacement 513/512; 256 complete emoji512 exact hit. Managed TextInput only, no OS keyboard/clipboard claim.");
 
                 async Task InputAsync(string text)

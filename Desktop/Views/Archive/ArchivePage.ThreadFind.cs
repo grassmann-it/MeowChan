@@ -8,6 +8,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using System.Linq;
+using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Commands;
@@ -34,6 +35,9 @@ public partial class ArchivePage
 
     private bool IsThreadFindSource(object? source) => source is Avalonia.Visual visual
         && visual.GetSelfAndVisualAncestors().Contains(Control<StackPanel>("ReaderFindBar"));
+
+    // Test seam: lets a harness make the one index build fail without touching real data.
+    internal Func<ArchivedThreadView, string, CancellationToken, ReaderThreadFindIndex>? ThreadFindIndexFactory { get; set; }
 
     private void OnOpenThreadFind(object? sender, RoutedEventArgs e)
     {
@@ -85,8 +89,9 @@ public partial class ArchivePage
         _threadFindCancellation = cancellation;
         try
         {
-            var result = await Task.Run(() => ReaderThreadFindIndex.Create(thread, query,
-                cancellationToken: cancellation.Token), cancellation.Token);
+            var factory = ThreadFindIndexFactory;
+            var result = await Task.Run(() => factory != null ? factory(thread, query, cancellation.Token)
+                : ReaderThreadFindIndex.Create(thread, query, cancellationToken: cancellation.Token), cancellation.Token);
             if (!AcceptThreadFind(request, result) || cancellation.IsCancellationRequested) return;
             _threadFindResult = result;
             _threadFindStatus = "readerFind.count";
@@ -117,6 +122,12 @@ public partial class ArchivePage
     private void OnNextThreadFind(object? sender, RoutedEventArgs e) => MoveThreadFind(true);
     private void OnPreviousThreadFind(object? sender, RoutedEventArgs e) => MoveThreadFind(false);
     private void OnCloseThreadFind(object? sender, RoutedEventArgs e) => CloseThreadFind();
+    // One explicit attempt with the unchanged query against the current thread and revision. Never automatic.
+    private void OnRetryThreadFind(object? sender, RoutedEventArgs e)
+    {
+        if (_ended || _threadFindStatus != "readerFind.failed" || _thread == null) return;
+        ThreadFindTask = SearchThreadFindAsync();
+    }
     internal static int ThreadFindGesture(Key key, KeyModifiers modifiers) => (key, modifiers) switch
     {
         (Key.Escape, KeyModifiers.None) => 2,
@@ -143,6 +154,8 @@ public partial class ArchivePage
         Control<Button>("ReaderFindPrevious").Content = Texts.T("readerFind.previous");
         Control<Button>("ReaderFindNext").Content = Texts.T("readerFind.next");
         Control<Button>("ReaderFindClose").Content = Texts.T("readerFind.close");
+        Control<Button>("ReaderFindRetry").Content = Texts.T("readerFind.retry");
+        Control<Button>("ReaderFindRetry").IsVisible = _threadFindStatus == "readerFind.failed";
         var result = _threadFindResult;
         bool hits = result?.Hits.Count > 0;
         Control<Button>("ReaderFindPrevious").IsEnabled = hits;
