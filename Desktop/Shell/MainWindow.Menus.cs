@@ -46,7 +46,18 @@ public partial class MainWindow
         menu.Items.Clear();
         if (frozen == null) { menu.Close(); return; }
         bool ready = _restoreCompleted && !RowCommandBusy && !_selectionCommandRunning;
-        string unavailable = Texts.Language == "de" ? "Für diese Auswahl derzeit nicht verfügbar." : "Currently unavailable for this selection.";
+        // The reason names what is actually known: a running operation, an unfinished restore, or the
+        // action-specific selection condition. Everything else keeps the generic selection reason.
+        string Unavailable(string id) => Texts.T(!ready
+            ? RowCommandBusy || _selectionCommandRunning ? "menu.unavailable.busy"
+              : !_restoreCompleted ? "menu.unavailable.restoring" : "menu.unavailable.selection"
+            : id switch
+            {
+                "thread.read" => "menu.unavailable.singleThread",
+                "watch.check" => "menu.unavailable.nothingToCheck",
+                "watch.retry-media" => "menu.unavailable.nothingToRetry",
+                _ => "menu.unavailable.selection"
+            });
         MenuItem Add(string id, Action action, bool available = true, int? count = null)
         {
             var item = CommandBindings.CreateMenuItem(id, () =>
@@ -56,7 +67,7 @@ public partial class MainWindow
                 frozen = current;
                 action();
             }, () => ready && available && !RowCommandBusy && !_selectionCommandRunning,
-                () => ready && available ? null : unavailable,
+                () => ready && available ? null : Unavailable(id),
                 () => count is { } number && number != 1 ? CommandCatalog.Label(id) + " (" + number + ")" : CommandCatalog.Label(id));
             item.Tag = id;
             menu.Items.Add(item);
@@ -64,7 +75,7 @@ public partial class MainWindow
             {
                 // Disabled menu entries are skipped by native keyboard navigation.
                 // This enabled explanatory item exposes the reason without hovering.
-                string reason = CommandCatalog.Label(id) + ": " + unavailable;
+                string reason = CommandCatalog.Label(id) + ": " + Unavailable(id);
                 var explanation = new MenuItem
                 {
                     Header = reason,
