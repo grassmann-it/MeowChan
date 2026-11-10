@@ -112,7 +112,9 @@ internal static partial class NativeTransferArchiveExporter
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 foreach (MediaAssetReference asset in manifest.GetPage(offset, 500))
-                    if (!represented.Contains((manifest.Directory, asset.AssetId))) return FreezeFail(TransferArchiveError.UnrepresentedAssets);
+                    if (!represented.Contains((manifest.Directory, asset.AssetId))
+                        && !MediaAttachmentResolver.IsSuperseded(manifests, manifest, asset))
+                        return FreezeFail(TransferArchiveError.UnrepresentedAssets);
             }
             Dictionary<string, (TransferBlobDescriptor Descriptor, List<NativeTransferInventoryOrigin> Origins)> payloads = new(StringComparer.Ordinal);
             HashSet<NativeTransferInventoryOrigin> selectedOrigins = new();

@@ -167,6 +167,7 @@ internal static class NativeTransferMediaInventoryProjection
             TransferHistoricalIntegrity? history = null;
             bool hasHistory = false;
             MediaActualIntegrity? actual = null;
+            bool evidenceDescribesReplacedBytes = false;
             foreach (MediaAssetSnapshot manifest in manifests)
             {
                 token.ThrowIfCancellationRequested();
@@ -176,15 +177,24 @@ internal static class NativeTransferMediaInventoryProjection
                     if (raw.AttachmentRevisionKey != null && manifest.FindAttachmentBinding(raw.AttachmentRevisionKey) != null) throw InvalidUnion();
                     continue;
                 }
+                // A promoted alternative explicitly replaces these bytes; only the newer fassung is the active original.
+                if (MediaAttachmentResolver.IsSuperseded(manifests, manifest, resolved.Asset)) continue;
                 MediaActualIntegrity thisActual = new(resolved.Asset.Length, resolved.Asset.Md5, resolved.Asset.Sha256) { Sha1 = resolved.Asset.Sha1 };
                 if (actual != null && !MediaIntegrityValidation.CompatibleEvidence(actual, thisActual)) throw InvalidUnion();
-                if (observed?.Value.OriginalByteVersion is { } version && !MediaIntegrityValidation.CompatibleEvidence(version, thisActual)) throw InvalidUnion();
+                if (observed?.Value.OriginalByteVersion is { } version && !MediaIntegrityValidation.CompatibleEvidence(version, thisActual))
+                {
+                    // Evidence of the replaced bytes is history; it must not be claimed for the promoted ones.
+                    if (raw.AttachmentRevisionKey == null || !manifests.Any(m => m.Supersedes.Any(item => item.RevisionKey == raw.AttachmentRevisionKey
+                            && string.Equals(item.SupersededSha256, version.Sha256, StringComparison.OrdinalIgnoreCase)))) throw InvalidUnion();
+                    evidenceDescribesReplacedBytes = true;
+                }
                 actual ??= thisActual;
                 TransferHistoricalIntegrity? thisHistory = resolved.Binding == null ? null : NativeTransferArchiveExporter.HistoricalObservation(resolved.Binding);
                 if (hasHistory && history != thisHistory) throw InvalidUnion();
                 history = thisHistory; hasHistory = true;
                 originals.Add(new(manifest, resolved.Asset));
             }
+            if (evidenceDescribesReplacedBytes) observed = null;
             TransferContentStatus status = observed == null ? attachment.Status
                 : Status(CombineStatus(observed.ObservedStatuses));
             // Incoming Contained is not local availability. Byte selection happens later.

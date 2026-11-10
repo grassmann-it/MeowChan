@@ -126,6 +126,18 @@ public sealed class NativeV2MergeConflictInventoryTests
             Assert.Single((await reader.ReadMediaConflictsAsync(0, 10)).Items).Entry.Resolution);
         Assert.Equal(seedManifest, File.ReadAllText(Path.Combine(seedRoot, ".meowchan-manifest.json")));
 
+        // A promoted archive stays exportable and the package carries the active (promoted) bytes.
+        TransferArchiveFreezeResult frozen = await NativeTransferArchiveExporter.FreezeAsync(reader,
+            new NativeTransferArchiveSelection([Id]), At.AddDays(1), Guid.NewGuid(), new NativeTransferArchiveMediaOptions(true, true, true));
+        Assert.Equal(TransferArchiveError.None, frozen.Error);
+        using MemoryStream exported = new();
+        TransferArchiveWriteResult written = await NativeTransferArchiveExporter.WriteAsync(Assert.IsType<NativeTransferArchiveSnapshot>(frozen.Snapshot), exported);
+        Assert.True(written.IsComplete, written.ToString());
+        exported.Position = 0;
+        TransferPackageInspection inspected = await NativeTransferPackageValidator.InspectAsync(exported);
+        Assert.True(inspected.IsPackageValid, inspected.ToString());
+        Assert.Contains(Hash(Alternative), inspected.Package!.Envelope.Payloads.Select(p => p.Sha256));
+
         MediaPromoteResult again = await f.Catalog.PromoteMediaConflictAsync(id, f.Store);
         Assert.Equal(MediaPromoteStatus.AlreadyPromoted, again.Status);
         Assert.Equal(2, Assert.IsType<ArchivedThreadView>(await reader.ReadThreadAsync(Id)).MediaDirectories.Count);

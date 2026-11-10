@@ -153,4 +153,16 @@ public static class MediaAttachmentResolver
         return a.Length == 16 && b.Length == 16 && CryptographicOperations.FixedTimeEquals(a, b);
     }
     private static bool EvidenceError(Exception error) => error is ArgumentException or InvalidDataException or FormatException or NullReferenceException;
+
+    /// <summary>
+    /// True when every binding of <paramref name="asset"/> in <paramref name="owner"/> is replaced by another
+    /// root's explicit supersession: those bytes are historical, no longer the slot's active original.
+    /// </summary>
+    internal static bool IsSuperseded(IReadOnlyCollection<MediaAssetSnapshot> roots, MediaAssetSnapshot owner, MediaAssetReference asset)
+    {
+        var bindings = owner.AttachmentBindings.Values.Where(b => b.AssetId == asset.AssetId).ToList();
+        return bindings.Count > 0 && bindings.All(binding => roots.Any(other => !ReferenceEquals(other, owner)
+            && other.Supersedes.Any(item => item.RevisionKey == binding.Reference.RevisionKey
+                && string.Equals(item.SupersededSha256, asset.Sha256, StringComparison.OrdinalIgnoreCase))));
+    }
 }
