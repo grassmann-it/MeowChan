@@ -20,6 +20,18 @@ internal static partial class ArchiveSql
     internal static NativeMediaPersistedMergeOperation? ReadPersistedMediaMergeOperation(
         SqliteConnection connection, SqliteTransaction? transaction, Guid operation, string request,
         CancellationToken ct = default)
+        => ReadPersistedMediaMergeOperation(connection, transaction, operation, request, ct, v2Only: false);
+
+    // Explicit v2 single-row lookup. The plan-version boundary stays in SQL so a legacy row
+    // with the same operation id can never be decoded through the v2 inspection surface.
+    internal static NativeMediaPersistedMergeOperation? ReadPersistedMediaMergeV2Operation(
+        SqliteConnection connection, SqliteTransaction? transaction, Guid operation, string request,
+        CancellationToken ct = default)
+        => ReadPersistedMediaMergeOperation(connection, transaction, operation, request, ct, v2Only: true);
+
+    private static NativeMediaPersistedMergeOperation? ReadPersistedMediaMergeOperation(
+        SqliteConnection connection, SqliteTransaction? transaction, Guid operation, string request,
+        CancellationToken ct, bool v2Only)
     {
         ct.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(connection);
@@ -27,11 +39,12 @@ internal static partial class ArchiveSql
         if (transaction is null)
         {
             using SqliteTransaction owned = connection.BeginTransaction(deferred: true);
-            return ReadPersistedMediaMergeOperation(connection, owned, operation, request, ct);
+            return ReadPersistedMediaMergeOperation(connection, owned, operation, request, ct, v2Only);
         }
         RequirePersistedMediaSchema(connection, transaction);
+        string versionFilter = v2Only ? " AND plan_version=2" : string.Empty;
         using SqliteCommand command = Command(connection, transaction,
-            $"SELECT {PersistedMediaProjection(merge: true)} FROM archive_media_merge_operations WHERE operation_id=$op");
+            $"SELECT {PersistedMediaProjection(merge: true)} FROM archive_media_merge_operations WHERE operation_id=$op{versionFilter}");
         command.Parameters.AddWithValue("$op", operation.ToString("D"));
         ct.ThrowIfCancellationRequested();
         using SqliteDataReader reader = command.ExecuteReader();
@@ -52,15 +65,31 @@ internal static partial class ArchiveSql
 
     internal static NativeMediaPersistedPage<NativeMediaPersistedMergeOperation> ReadPersistedMediaMergeOperationsPage(
         SqliteConnection connection, Guid? after, CancellationToken ct = default)
+        => ReadPersistedMediaMergeOperationsPage(connection, transaction: null, after, ct, v2Only: false);
+
+    // Explicit v2 paging keeps the version boundary in SQL. The optional caller
+    // transaction is required by the ArchiveCatalog facade when receipts are read
+    // alongside operation rows.
+    internal static NativeMediaPersistedPage<NativeMediaPersistedMergeOperation> ReadPersistedMediaMergeV2OperationsPage(
+        SqliteConnection connection, SqliteTransaction? transaction, Guid? after, CancellationToken ct = default)
+        => ReadPersistedMediaMergeOperationsPage(connection, transaction, after, ct, v2Only: true);
+
+    private static NativeMediaPersistedPage<NativeMediaPersistedMergeOperation> ReadPersistedMediaMergeOperationsPage(
+        SqliteConnection connection, SqliteTransaction? transaction, Guid? after, CancellationToken ct, bool v2Only)
     {
         ct.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(connection);
         if (after == Guid.Empty) throw new ArgumentException("Invalid media merge cursor.", nameof(after));
-        using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
+        if (transaction is null)
+        {
+            using SqliteTransaction owned = connection.BeginTransaction(deferred: true);
+            return ReadPersistedMediaMergeOperationsPage(connection, owned, after, ct, v2Only);
+        }
         RequirePersistedMediaSchema(connection, transaction);
+        string versionFilter = v2Only ? " AND plan_version=2" : string.Empty;
         using SqliteCommand command = Command(connection, transaction,
             $"SELECT {PersistedMediaProjection(merge: true)} FROM archive_media_merge_operations "
-            + "WHERE operation_id>$after ORDER BY operation_id LIMIT 33");
+            + $"WHERE operation_id>$after COLLATE BINARY{versionFilter} ORDER BY operation_id COLLATE BINARY LIMIT 33");
         command.Parameters.AddWithValue("$after", after?.ToString("D") ?? string.Empty);
         ct.ThrowIfCancellationRequested();
         using SqliteDataReader reader = command.ExecuteReader();
@@ -76,20 +105,16 @@ internal static partial class ArchiveSql
             if (items.Count == PersistedMergeMaximumRows)
             {
                 next = items[items.Count - 1].Identity.OperationId;
-                break; // The 33rd lookahead is not decoded, even if its documents are invalid.
+                break;
             }
             long rowBytes = checked(PersistedMediaRowBytes(reader, merge: true));
-            if (rowBytes < 0)
-                throw new InvalidDataException("A media merge operation has invalid document lengths.");
-            // An individually valid row may exceed the combined budget on its own.
-            // Return the prior cursor when possible; reject it only as the first row.
+            if (rowBytes < 0) throw InvalidPersistedMedia();
             long combined = checked(bytes + rowBytes);
             if (combined > PersistedMergeMaximumBytes)
             {
-                if (items.Count == 0)
-                    throw InvalidPersistedMedia();
+                if (items.Count == 0) throw InvalidPersistedMedia();
                 next = items[items.Count - 1].Identity.OperationId;
-                break; // Resume from the last INCLUDED row; this row remains unread evidence.
+                break;
             }
             items.Add(ReadPersistedMergeOperationRow(reader, ct));
             bytes = combined;

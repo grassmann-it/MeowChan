@@ -20,17 +20,31 @@ internal static partial class ArchiveSql
     internal static NativeMediaPersistedImportOperation? ReadPersistedMediaImportOperation(
         SqliteConnection connection, SqliteTransaction? transaction, Guid operation, string request,
         CancellationToken ct = default)
+        => ReadPersistedMediaImportOperation(connection, transaction, operation, request, ct, v2Only: false);
+
+    // Explicit v2 single-row lookup. The plan-version boundary stays in SQL so a legacy row
+    // with the same operation id can never be decoded through the v2 inspection surface.
+    internal static NativeMediaPersistedImportOperation? ReadPersistedMediaImportV2Operation(
+        SqliteConnection connection, SqliteTransaction? transaction, Guid operation, string request,
+        CancellationToken ct = default)
+        => ReadPersistedMediaImportOperation(connection, transaction, operation, request, ct, v2Only: true);
+
+    private static NativeMediaPersistedImportOperation? ReadPersistedMediaImportOperation(
+        SqliteConnection connection, SqliteTransaction? transaction, Guid operation, string request,
+        CancellationToken ct, bool v2Only)
     {
         ct.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(connection);
         ValidateMediaImportIdentity(operation, request);
         if (transaction is null)
         {
             using SqliteTransaction snapshot = connection.BeginTransaction(deferred: true);
-            return ReadPersistedMediaImportOperation(connection, snapshot, operation, request, ct);
+            return ReadPersistedMediaImportOperation(connection, snapshot, operation, request, ct, v2Only);
         }
         RequirePersistedMediaSchema(connection, transaction);
+        string versionFilter = v2Only ? " AND plan_version=2" : string.Empty;
         using SqliteCommand command = Command(connection, transaction,
-            $"SELECT {PersistedMediaProjection(false)} FROM archive_media_import_operations WHERE operation_id=$op");
+            $"SELECT {PersistedMediaProjection(false)} FROM archive_media_import_operations WHERE operation_id=$op{versionFilter}");
         command.Parameters.AddWithValue("$op", operation.ToString("D"));
         using SqliteDataReader reader = command.ExecuteReader();
         if (!reader.Read()) return null;
@@ -44,13 +58,32 @@ internal static partial class ArchiveSql
 
     internal static NativeMediaPersistedPage<NativeMediaPersistedImportOperation> ReadPersistedMediaImportOperationsPage(
         SqliteConnection connection, Guid? after, CancellationToken ct = default)
+        => ReadPersistedMediaImportOperationsPage(connection, transaction: null, after, ct, v2Only: false);
+
+    // Explicit v2 paging keeps the version boundary in SQL. It is intentionally a
+    // separate entry point so a v2 cursor never skips over v2 rows because of
+    // interleaved legacy operations. The caller may supply its own transaction to
+    // bind operation rows and receipts to one read snapshot.
+    internal static NativeMediaPersistedPage<NativeMediaPersistedImportOperation> ReadPersistedMediaImportV2OperationsPage(
+        SqliteConnection connection, SqliteTransaction? transaction, Guid? after, CancellationToken ct = default)
+        => ReadPersistedMediaImportOperationsPage(connection, transaction, after, ct, v2Only: true);
+
+    private static NativeMediaPersistedPage<NativeMediaPersistedImportOperation> ReadPersistedMediaImportOperationsPage(
+        SqliteConnection connection, SqliteTransaction? transaction, Guid? after, CancellationToken ct, bool v2Only)
     {
         ct.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(connection);
         if (after == Guid.Empty) throw new ArgumentException("Invalid media operation cursor.", nameof(after));
-        using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
+        if (transaction is null)
+        {
+            using SqliteTransaction owned = connection.BeginTransaction(deferred: true);
+            return ReadPersistedMediaImportOperationsPage(connection, owned, after, ct, v2Only);
+        }
         RequirePersistedMediaSchema(connection, transaction);
+        string versionFilter = v2Only ? " AND plan_version=2" : string.Empty;
         using SqliteCommand command = Command(connection, transaction,
-            $"SELECT {PersistedMediaProjection(false)} FROM archive_media_import_operations WHERE operation_id>$after ORDER BY operation_id LIMIT 33");
+            $"SELECT {PersistedMediaProjection(false)} FROM archive_media_import_operations "
+            + $"WHERE operation_id>$after COLLATE BINARY{versionFilter} ORDER BY operation_id COLLATE BINARY LIMIT 33");
         command.Parameters.AddWithValue("$after", after?.ToString("D") ?? "");
         using SqliteDataReader reader = command.ExecuteReader();
         var items = ImmutableArray.CreateBuilder<NativeMediaPersistedImportOperation>();
@@ -69,6 +102,7 @@ internal static partial class ArchiveSql
             bytes += size;
             items.Add(ReadPersistedMediaImportRow(reader));
         }
+        ct.ThrowIfCancellationRequested();
         return new(items.ToImmutable(), next);
     }
 
