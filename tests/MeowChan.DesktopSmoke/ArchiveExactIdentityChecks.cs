@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -51,6 +52,7 @@ internal static class ArchiveExactIdentityChecks
                 scenario, step, error, input = "in-process materialized controls, popup keyboard events and commands; not OS input",
                 language = Texts.Language, applied = page.AppliedSearchSpec == null ? null : ArchiveSearchSpecJson.Serialize(page.AppliedSearchSpec),
                 page.HasUnappliedSearchDraft, rows = Rows().Select(row => new { row.Summary.Id.Source, row.Summary.Id.Board, row.Summary.Id.Thread }),
+                searchError = C<TextBlock>("ArchiveSearchError").Text, busy = page.IsBusy,
                 sourceRaw = C<IdentitySuggestionBox>("ArchiveSourceFilter").Text,
                 boardRaw = C<IdentitySuggestionBox>("ArchiveBoardFilter").Text,
                 sourceAccepted = page.TryReadSelectedIdentity("ArchiveSourceFilter"),
@@ -104,7 +106,7 @@ internal static class ArchiveExactIdentityChecks
                     "Routed text input did not produce a synchronized insertion caret and collapsed selection.");
                 Require(field.Text == value, "Materialized input did not reach its identity field.");
             }
-            async Task Accept(string name, string value, string? source)
+            async Task Accept(string name, string value, string? source, bool pointer = false)
             {
                 await Type(name, " ");
                 IdentitySuggestionBox field = C<IdentitySuggestionBox>(name);
@@ -136,6 +138,26 @@ internal static class ArchiveExactIdentityChecks
                     }));
                 }
                 KeyboardState("ready-before-down");
+                if (pointer)
+                {
+                    Popup? popup = field.GetVisualDescendants().OfType<Popup>().FirstOrDefault();
+                    SelectingItemsControl selector = popup?.Child as SelectingItemsControl
+                        ?? popup?.Child?.GetVisualDescendants().OfType<SelectingItemsControl>().First(item => item.Name == "PART_SelectingItemsControl")
+                        ?? throw new InvalidOperationException("Suggestion list not found.");
+                    Control option = selector.ContainerFromIndex(0) ?? throw new InvalidOperationException("Suggestion option not realized.");
+                    Visual root = TopLevel.GetTopLevel(option) ?? host;
+                    Point at = option.TranslatePoint(new Point(option.Bounds.Width / 2, option.Bounds.Height / 2), root) ?? default;
+                    var mouse = new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true);
+                    option.RaiseEvent(new PointerPressedEventArgs(option, mouse, root, at, 1,
+                        new PointerPointProperties(RawInputModifiers.LeftMouseButton, PointerUpdateKind.LeftButtonPressed), KeyModifiers.None) { RoutedEvent = InputElement.PointerPressedEvent });
+                    await Settle();
+                    option.RaiseEvent(new PointerReleasedEventArgs(option, mouse, root, at, 2,
+                        new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonReleased), KeyModifiers.None, MouseButton.Left) { RoutedEvent = InputElement.PointerReleasedEvent });
+                    await Settle();
+                    Require(!field.IsDropDownOpen && page.TryReadSelectedIdentity(name) is { } clicked
+                        && clicked.Value == value && clicked.Source == source && field.Text == value, "A clicked exact suggestion was not accepted.");
+                    return;
+                }
                 KeyEventArgs down = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Down };
                 input.RaiseEvent(down); KeyboardState("immediate-after-down", down); await Settle();
                 KeyboardState("settled-before-enter", down);
@@ -197,18 +219,20 @@ internal static class ArchiveExactIdentityChecks
             await Case("accepted-source-and-board-stay-exact-across-language", async () =>
             {
                 await Apply(Definition([], []));
-                await Accept("ArchiveSourceFilter", " A ", null);
+                await Accept("ArchiveSourceFilter", " A ", null, pointer: true);
                 Observe("accepted-source-and-board-stay-exact-across-language", "after-source-accepted-before-add");
                 Add("ArchiveAddSource");
                 Observe("accepted-source-and-board-stay-exact-across-language", "after-source-add-before-scope");
                 Scope(" A ");
                 await Accept("ArchiveBoardFilter", " x ", " A ");
-                Texts.SetLanguage(Texts.Language == "en" ? "de" : "en"); await Settle();
+                string languageBefore = Texts.Language;
+                Texts.SetLanguage(languageBefore == "en" ? "de" : "en"); await Settle();
                 Observe("accepted-source-and-board-stay-exact-across-language", "after-language");
                 Require(page.TryReadSelectedIdentity("ArchiveBoardFilter") is { Value: " x ", Source: " A " }, "Language-only relabel revoked an accepted exact board.");
                 Add("ArchiveAddBoard"); await page.ApplySearchAsync();
                 Membership((" A ", " x "));
                 Require(page.AppliedSearchSpec!.Sources.SequenceEqual([" A "]) && !page.HasUnappliedSearchDraft, "Accepted source or board was trimmed by Add.");
+                Texts.SetLanguage(languageBefore); await Settle();
             });
             await Case("explicit-scope-change-revokes-previous-board-qualification", async () =>
             {
@@ -230,6 +254,7 @@ internal static class ArchiveExactIdentityChecks
                 Require(page.TryReadSelectedIdentity("ArchiveSourceFilter") == null, "Merely typing accepted a suggestion.");
                 Add("ArchiveAddSource"); Scope("A");
                 await Type("ArchiveBoardFilter", " x "); Add("ArchiveAddBoard");
+                await Program.WaitUntilAsync(() => !page.IsBusy);
                 await page.ApplySearchAsync(); Observe("new-free-input-trims-without-normalizing-existing-identities", "after-apply");
                 Require(page.AppliedSearchSpec!.Sources.SequenceEqual([" A ", "A"]) && page.AppliedSearchSpec.Boards.SequenceEqual([new ArchiveBoardConstraint("A", "x")]),
                     "Adding free text normalized an existing identity or stopped trimming new free text.");
