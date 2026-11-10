@@ -62,6 +62,7 @@ public partial class MainWindow
         _rulesPage.BusyChanged += OnSettingsBusyChanged;
         this.FindControl<ContentControl>("RulesPageHost")!.Content = _rulesPage;
         _archivePage = new ArchivePage(_session.OpenArchiveReaderAsync, _session.SetCaptureEnabledAsync, directory => OpenDirectory(directory, _archivePage?.CaptureActionErrorReporter()));
+        _archivePage.AttachTransferImport(_session);
         _archivePage.AttachSavedSearches(_session);
         _archivePage.AttachThreadFavorites(_session);
         _archivePage.AttachArchiveCleanup(_session, () => _gallery == null && _galleryCleanupTask.IsCompletedSuccessfully

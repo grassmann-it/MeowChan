@@ -6,7 +6,20 @@
 
 MeowChan keeps saved Chan media local. You can view and navigate it in Archive and Gallery and mark individual media as favorites. Threads can also be marked as thread favorites. A favorites-related Archive overview can search existing favorites by current thread, selected threads, filtered results, or the whole archive; check them locally; view them; remove them; and export the displayed originals. Local viewing and checking alone does not start a download.
 
-There is still no Booru search or collection workspace, universal collection browser, or import/apply flow.
+There is still no Booru search or collection workspace, universal collection browser, or import/apply flow. The Archive header additionally provides the captured-filename metadata search described below.
+
+## Searching saved filenames in Archive
+
+In the Archive action bar and Reader toolbar, **Search captured filenames** opens a dedicated dialog. This metadata search is separate from thread text search. Enter text and choose **Search**; use **Previous page** / **Next page** to browse.
+
+- The query is a literal substring of the stored `original_name` claim. Letter case is ignored; input is not trimmed, spaces are preserved, and wildcards plus path or query languages are not interpreted. An empty input explicitly requests every captured name. At most 512 UTF-16 code units and no NUL are accepted.
+- Each result page reads its total count and rows in the same catalog transaction. Moving to another page is a new request and can therefore observe a newer committed catalog state.
+- Rows show source, board, thread, post, attachment position, variant, attachment/catalog revision, and deletion observations. Deleted observations remain searchable. No file or path is opened; a hit proves neither current media bytes nor current file existence.
+- **Return selected metadata** reads the target thread after selection with a fresh passive reader and validates source, board, thread, catalog thread revision, post including deletion state, plus attachment position, variant, original filename, attachment revision, and attachment deletion state. Only after this revalidation is the target post loaded and shown. On a mismatch, the destination is instead reported unavailable locally. There is no first-post fallback, gallery/path/URL reconstruction, file verification, network retrieval, current-filesystem search, global-library search, or similarity search.
+
+## Finding text in a saved thread
+
+In the Reader toolbar, **Find in saved thread** opens text search for the open saved thread: subject and body text, including posts outside the currently visible Reader page. When post, text, or hit limits are reached, the interface reports incomplete results. Empty input does not search; at most 512 UTF-16 code units and no NUL are accepted. Within the search bar, **Enter** moves to the next hit, **Shift+Enter** to the previous hit, and **Escape** closes it. Navigation selects the post; the exact hit is shown in the search bar, even when it exceeds the body display limit.
 
 ## Selecting and favoriting in Gallery
 
@@ -23,20 +36,20 @@ The upper-right indicator shows **★** for a saved favorite and **☆** for an 
 
 The favorites overview resolves the chosen scope through saved local manifests. Missing or unverifiable files remain favorites but are reported unavailable and are not exported. The original-file export freezes the displayed selection, reports missing files before copying, and copies only locally verified files. It starts no network retrieval. The favorite marks themselves are not transferred to another profile by this operation.
 
-## Inspecting a transfer package — inventory only
+## Inspecting and applying a transfer package
 
-In the Archive header, **Inspect transfer package…** opens a local ZIP file of your choice. MeowChan validates it with the production package reader and shows a bounded inventory: threads, posts, unique payloads, byte size, and the status of contained originals, previews, and retained bindings.
+In the Archive header, open **Inspect transfer package…**, then use **Choose transfer package…** in the dialog to select an existing local ZIP file. MeowChan validates it with the production package reader and shows a bounded inventory: threads, posts, unique payloads, byte size, and the status of contained originals, previews, and retained bindings. A public single-thread `chan-v4` package can then be planned as New or Merge and explicitly applied.
 
-This feature is deliberately preview-only:
+The Apply path is deliberately bounded:
 
-- Nothing is imported into, applied to, merged into, or deleted from the archive or profile.
-- Archive, profile, stores, and the source package remain unchanged; there is no Apply command.
-- Private transfer metadata is still rejected.
+- Inspection is read-only. Apply is a separate explicit user action against the displayed generation.
+- Only the public single-thread `chan-v4` path is currently supported. An existing or 404 thread is supplemented additively; originals, favorites, ratings, and notes are not silently replaced.
+- Private transfer metadata, multi-thread Apply, rootless packages, and stale or unclear plans remain blocked until their consent, batch, and recovery contracts are accepted.
 - No source provider or network is used.
-- Inspection writes a temporary staging copy in its own work directory, then attempts to remove its staging files and directories. Inspection and finalization wait for that cleanup, which can block completion. Retained temporary data or an uncertain cleanup state is reported. Archive data is not changed by this process.
-- A 404 supplemental import or existing-library merge is not included.
+- Inspection writes a temporary staging copy in its own work directory, then attempts to remove its staging files and directories. Inspection and finalization wait for that cleanup, which can block completion. Retained temporary data or an uncertain cleanup state is reported.
+- Apply reconciles receipts and recovery states. Cancellation or a lost response is not misreported as a guaranteed non-apply; retrying the same operation is idempotent.
 
-This surface also does not create a transfer package. Internal archive and curated package producers are currently technical core components without an export dialog.
+This surface also does not create a transfer package. There is no user-facing choice between full and curated transfer, no manual non-favorite selection for a transfer package, and no favorite-based transfer export yet. Internal archive and curated package producers are technical core components without a complete export dialog; the existing original-file export from the favorites overview is separate.
 
 ## Video volume, mute, and repeat
 
@@ -90,6 +103,7 @@ There is no preview after a first start, crash, or other unclean exit without a 
 
 The broader collection direction is still work in progress. The following are **not** exposed user features:
 
+- **SHA-256 search:** The separate dialog and operation core exist as technical components and check an exact 64-character ASCII-hex SHA-256 in exactly one captured inventory. They do not open or rehash files. Archive surface, start button, and a productive hash host are not wired yet, so no usable hash search is offered here.
 - **Booru:** no Booru site search, source admission, collection intake, or Booru library is offered. A bounded internal Danbooru query grammar exists; it is not a control, reads no private tags, and is not a provider, API, or network adapter.
 - **Private tags:** bounded internal tag models exist, but there is no tag UI, persistent private tag collection, tag search, or tag transfer. Token chips in Rules are rule components, not private tags.
 - **Curated export:** the internal selection and projection core is not exposed. There is no user-facing “favorites plus small previews” exporter and no private-metadata round trip.

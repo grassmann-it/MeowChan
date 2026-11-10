@@ -1,14 +1,17 @@
 # Interop-Formate — nativer Transfer und geplante Fremdprofile
 
 **Status:** unveröffentlichter Arbeitsstand. Diese Seite beschreibt den verbindlichen
-Zielvertrag und grenzt ihn von heute vorhandenen Bausteinen ab. Es gibt keinen UI- oder
-CLI-Einstieg für nativen Paketexport, Import, Merge, Apply oder Konfliktauflösung. Die
-Arbeitskopie verdrahtet lediglich einen Archiv-Dialog zum Prüfen eines ZIP-Inventars;
-er hat keinen Apply-Befehl und ersetzt keine Zielvergleichsvorschau. Diese Beschreibung
-ist daraus keine Laufzeit- oder Plattformabnahme. Davon unberührt bleiben die bestehenden,
-getrennten HTML- und Favoriten-Originalexporte. Insbesondere existiert aktuell **kein
+Zielvertrag und grenzt ihn von heute vorhandenen Bausteinen ab. Der native Archivdialog
+kann den öffentlichen `chan-v4`-Pfad inzwischen prüfen, einen einzelnen Thread als Neu-
+oder Merge-Plan anzeigen und nach ausdrücklicher Bestätigung anwenden. Das ist noch
+keine Laufzeit-, Plattform- oder Releaseabnahme: private Kategorien, Mehrthread-Apply,
+Konfliktentscheidungen und vollständige Recovery-UX bleiben bis zu ihrer eigenen
+Abnahme gesperrt. Davon unberührt bleiben die bestehenden, getrennten HTML- und
+Favoriten-Originalexporte. Insbesondere existiert aktuell **kein produktiver
 KurobaEx-, YChanEx-, Dashchan-, gallery-dl-, Hydrus- oder Grabber-Adapter**, der fremde
-Archive oder Medienbibliotheken übernimmt.
+Archive oder Medienbibliotheken übernimmt. Interne FourChan-JSON- und YChanEx-
+Inspektoren bleiben reine Metadatenprüfungen ohne Dateisystem-, Medien- oder
+Storeübernahme.
 
 MeowChan trennt drei Dinge:
 
@@ -17,7 +20,9 @@ MeowChan trennt drei Dinge:
    interne Archivexport friert dagegen genau einen Thread mit Original- und historisch
    gebundenen Anhangsfassungen ein und rät keine Preview-Rollen.
 2. **Bestehende HTML- und Originalexporte:** Ausgabefunktionen für Menschen oder Dateien.
-   Sie sind **kein** vollständiger App-Rundtrip und kein Profilbackup.
+   Sie sind **kein** vollständiger App-Rundtrip und kein Profilbackup. Die Datei
+   `meowchan-export.json` ist ein Exportmarker mit Dateiinventar, keine strukturierte
+   Postliste und deshalb kein eigenes Post-Rundtripformat.
 3. **Begrenzte Fremdprofile (Ziel):** passiv zu inspizierende, explizit ausgewählte
    Dateien. Sie dürfen erst nach einer Importvorschau und ausdrücklicher Bestätigung in
    den nativen Pfad überführt werden.
@@ -76,13 +81,14 @@ MeowChan aus den tatsächlichen Bytes gemessen. Bei privaten Daten lautet `envel
 
 ### Katalogschemata
 
-Der öffentliche Katalog verwendet derzeit die Schemata:
+Die interne Paketprüfung kennt derzeit die Schemata:
 
 | Schema | Bedeutung |
 | --- | --- |
 | `chan-v1` | aktuelle Thread-, Post- und Anhangsbeobachtungen |
 | `chan-v2` | ergänzt `retainedBindings`, also historisch erhaltene Anhangsfassungen ohne erfundene Postbeobachtung |
 | `chan-v3` | erlaubt zusätzlich eine exakt gekennzeichnete Form von Schlüsselinhalt ohne historischen Integritätsnachweis |
+| `chan-v4` | ergänzt originale Byteversionen und abgeleitete Repräsentationen; öffentlicher **Single-Thread**-Import/Merge/Apply ist im nativen v2-Apply-Vertrag erlaubt, private Kategorien und Mehrthread bleiben außerhalb dieses Pfads |
 
 Threads enthalten mindestens die Identität `source`, `board` und `thread`, dazu öffentliche
 Beobachtungen wie Seiten-URL, Titel, Quellzustand, Zeiten, Revisionsstand, Sortiervertrag,
@@ -135,22 +141,25 @@ Queryformen werden abgelehnt, nicht bereinigt und nicht sicher weggelassen.
 Der aktuelle Quellstand enthält interne Bausteine für Schema-/Paketprüfung, einen
 create-only Single-Thread-Archivexport, Eingangsstaging, eine paketseitige Inventarprüfung
 sowie Text- und Ein-Thread-Medienvorbereitung/-merge. Die Inventarprüfung kann Pakete
-mit mehreren Threads zählen; die internen Medienpfade für neue Threads und Merge lehnen
-Pakete mit mehr als einem Thread ab. Ein interner Textpfad kann mehrere medienfreie
-Threads vorbereiten. Der Archive-Header ist auf einen inventarierenden Transfer-Prüfdialog
-verdrahtet; dieser Dialog wählt genau eine ZIP-Datei, zeigt Status-/Zählwerte und lehnt
-`private.json` ab. Er hat kein Apply, öffnet keinen Zielkatalog und löst keine Konflikte.
-Native Export-/Import-/Merge-/Prepare-/Commit-Quellbausteine sind nicht in dieses Produktmenü
-geführt und haben keinen CLI-Eingang oder Consent-/Recovery-Workflow. Die existierende
+mit mehreren Threads zählen; der native **Apply**-Pfad admittiert derzeit genau einen
+öffentlichen Thread und führt New/Merge über die bestehende Host-/Receipt-Kette aus.
+Ein interner Textpfad kann mehrere medienfreie Threads vorbereiten, ist aber noch nicht
+als atomarer Desktop-Batch angeschlossen. Der Archive-Header ist auf einen echten
+Transferdialog verdrahtet: Datei wählen, lesen, Plan prüfen, Apply oder Abbruch und
+reconciliertes Ergebnis. `private.json` bleibt ohne eine gebundene explizite Consent-
+Entscheidung gesperrt; Mehrthread-Apply und dauerhafte Konfliktaktionen sind noch keine
+freigegebene Produktfunktion. Native Export-/Import-/Merge-/Prepare-/Commit-
+Quellbausteine sind weiterhin kein CLI- oder Fremdformat-Einstieg. Die existierende
 HTML-/Originalexportoberfläche ist davon getrennt. Die kuratierte native Projektion ist
-nur ein reiner Deskriptorschnitt für Files-Auswahlen ohne Preview und ist selbst kein
-ZIP-Writer, Byteprüfungs- oder UI-Lauf.
+nur ein Deskriptorschnitt für Files-Auswahlen ohne Preview und ist selbst kein ZIP-Writer,
+Byteprüfungs- oder vollständiger Transferexportdialog.
 
 Die native Eingangsstufe kopiert zuerst eine begrenzte Bytegruppe und übergibt erst nach
-vollständiger Paketprüfung ein internes Stage-Objekt. Pakete mit `private.json` werden
-auch dann abgelehnt, wenn ihr privater Codec syntaktisch gültig ist; ein öffentlicher
-Teilimport ist keine Teilübernahme des Pakets. Cleanup-Fehler bleiben als retained/
-unbekannt sichtbar, statt Erfolg oder garantierte Löschung zu behaupten.
+vollständiger Paketprüfung ein internes Stage-Objekt. `private.json` darf niemals allein
+aufgrund seines Vorhandenseins übernommen werden: Ohne owner-issued, generation- und
+paketgebundene Consent-Entscheidung bleibt der private Anteil gesperrt; ein öffentlicher
+Teilimport ist keine stillschweigende Teilübernahme. Cleanup-Fehler bleiben als
+retained/unbekannt sichtbar, statt Erfolg oder garantierte Löschung zu behaupten.
 
 ## 2. Identität und Merge
 
@@ -281,14 +290,18 @@ rufen keine Website auf, laden keine Config und übernehmen keine Credentials, J
 Berechtigungen. Ein Profil wird außerhalb einer Fremddatei ausdrücklich vom Nutzer
 gewählt; JSON-Form allein beweist weder Erzeuger noch Version.
 
-Heute implementiert sind nur zwei interne In-memory-Nähte: `ThreadArchiveRecognition`
-erkennt 4chan-API-JSON als `Recognized` und KurobaEx-/YChanEx-Strukturen nur als bekannt,
-aber unsupported; sie öffnet keine ZIP-, Medien-, HTML- oder Dateiauswahl. Der
-`PassiveSidecarCodec` parst exakte Hydrus- und gallery-dl-Danbooru-Tag-JSON im Speicher und
-kann für Hydrus explizit gewählte Tags serialisieren; er findet oder schreibt keine
-Medien-/Sidecar-Dateipaare. Die Nähte sind auf 1 MiB Eingabe bzw. Ausgabe, JSON-Tiefe 8
-und 4.096 Post-/Attachment- bzw. Tag-Claims begrenzt; ein Tag ist höchstens 4.096 UTF-8-
-Bytes lang. Dashchan und Grabber haben keinen Erkennungs- oder Importcode.
+Heute implementiert sind nur passive interne In-memory-Nähte ohne Dateisystem-, Medien-
+oder Storeimport: `ThreadArchiveRecognition` erkennt 4chan-API-JSON als `Recognized` und
+KurobaEx-/YChanEx-Strukturen als bekannt, aber als Import unsupported. Zusätzlich gibt es
+reine Metadateninspektoren für explizit übergebene 4chan-API-JSON-Bytes (`FourChanJsonArchiveParser`)
+und für ein explizit gewähltes, enges YChanEx-Profil (`YChanExArchiveParser`). Sie erzeugen
+keine URL-Autorität, öffnen keinen Medienroot und führen nicht in Staging, Store oder Merge.
+Der `PassiveSidecarCodec` parst exakte Hydrus- und gallery-dl-Danbooru-Tag-JSON im Speicher
+und kann für Hydrus explizit gewählte Tags serialisieren; er findet oder schreibt keine
+Medien-/Sidecar-Dateipaare. Erkennung, 4chan-Inspektor und Sidecarcodec verwenden maximal
+1 MiB sowie JSON-Tiefe 8; der YChanEx-Inspektor verwendet 1 MiB und JSON-Tiefe 16. Die
+Nähte begrenzen 4.096 Post-/Attachment- bzw. Tag-Claims, wobei ein Tag höchstens 4.096
+UTF-8-Bytes lang ist. Dashchan und Grabber haben keinen Erkennungs- oder Importcode.
 
 ### Zielablauf, nicht heutiger Produktablauf
 
@@ -323,9 +336,11 @@ nicht referenziertes Cache-Bild wird nicht durch Dateinamensähnlichkeit reparie
 
 ### YChanEx Thread-JSON und Medienroot
 
-**Status: known-but-unsupported.** Auch hier liefert die In-memory-Erkennung der
-Root-JSON-Struktur nur einen Hinweis; `*.thread.json` und Medienroot werden heute nicht
-geöffnet oder gepaart.
+**Status: metadata-only Inspector vorhanden; Import known-but-unsupported.** Der enge
+`YChanExArchiveParser` kann explizit übergebene Thread-JSON-Bytes mit festem Profil auf
+Identität, Textpräsenz, Anhangsnamen und feste Verlustklassen prüfen. Zeit-, Dimensions-
+und URLwerte werden bewusst weggelassen; `*.thread.json` und Medienroot werden heute nicht
+geöffnet, gepaart oder gemessen.
 
 Zielprofil:
 
@@ -357,7 +372,9 @@ dass die Originaldatei vorhanden ist.
 
 ### 4chan API JSON und BASC-Layout
 
-**Status: passive Erkennung für 4chan-API-JSON vorhanden; kein Import.**
+**Status: metadata-only Inspector vorhanden; kein Import.** Der aktuelle Inspektor braucht
+explizit übergebene JSON-Bytes und ein explizit gewähltes Board, bewertet nur Metadaten-
+claims und beschafft keine Medien.
 
 Zielprofil:
 

@@ -64,7 +64,8 @@ internal static class Program
             "MEOWCHAN_GALLERY_VOLUME_ROUTED_ONLY", "MEOWCHAN_URLTEXT_EXPORT_ONLY",
             "MEOWCHAN_URLTEXT_PAGE_BOUNDARY_ONLY", "MEOWCHAN_READER_FIND_ONLY",
             "MEOWCHAN_FILENAME_SEARCH_ONLY", "MEOWCHAN_MEDIA_HASH_SEARCH_ONLY",
-            "MEOWCHAN_FILENAME_SEARCH_HOST_ONLY"
+            "MEOWCHAN_FILENAME_SEARCH_HOST_ONLY", "MEOWCHAN_FILENAME_SEARCH_LARGE_READER_ONLY",
+            "MEOWCHAN_LOCAL_SEARCH_LANGUAGE_ONLY"
         ];
         if (focusedModes.Any(name => Environment.GetEnvironmentVariable(name) == "1"))
         {
@@ -254,6 +255,10 @@ internal static class Program
 
             string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_DIAGNOSTIC_EVIDENCE_ONLY") == "1"
                 ? "diagnostic evidence: native controls with synthetic snapshots, passive facts/waiting/language refresh; managed input and copy delegate, no live network or OS clipboard/Windows/macOS acceptance"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_FILENAME_SEARCH_LARGE_READER_ONLY") == "1"
+                ? "filename large reader: seven synthetic native host journeys, complete-reader/off-page results, selection and lifetime joins; managed input only"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_LOCAL_SEARCH_LANGUAGE_ONLY") == "1"
+                ? "local search language: EN/DE/ES/FR/RU retained drafts/results, actual native controls and 360-DIP action glyph layout; no OS typing, current-byte or cross-platform acceptance"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_READER_FIND_ONLY") == "1"
                 ? "reader find: actual offline404 native controls, whole-thread hits and managed routed keys; no OS keyboard or Windows/macOS acceptance"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_FILENAME_SEARCH_ONLY") == "1"
@@ -432,6 +437,16 @@ internal static class Program
             if (Environment.GetEnvironmentVariable("MEOWCHAN_DIAGNOSTIC_EVIDENCE_ONLY") == "1")
             {
                 await DiagnosticEvidenceChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_FILENAME_SEARCH_LARGE_READER_ONLY") == "1")
+            {
+                await FilenameSearchLargeReaderChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_LOCAL_SEARCH_LANGUAGE_ONLY") == "1")
+            {
+                await LocalSearchLanguageRefreshChecks.RunAsync(mainWindow);
                 _checksPassed = true; mainWindow.Close(); return;
             }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_FIND_ONLY") == "1")

@@ -6,7 +6,20 @@
 
 MeowChan verwahrt bereits gespeicherte Chan-Medien lokal. Sie können sie im Archiv und in der Galerie ansehen, navigieren und als Medienfavoriten markieren. Threads lassen sich zusätzlich als Threadfavoriten markieren. Ein favoritenbezogener Archiv-Überblick kann vorhandene Favoriten nach aktuellem, ausgewähltem, gefiltertem oder ganzem Archivumfang suchen, lokal prüfen, anzeigen, entfernen und die angezeigten Originale exportieren. Lokales Ansehen und Prüfen allein startet keinen Download.
 
-Booru-Suche, Booru-Sammlungen, ein universeller Sammlungs-Browser und ein Import-/Apply-Ablauf gehören weiterhin nicht zum freigeschalteten Umfang.
+Booru-Suche, Booru-Sammlungen, ein universeller Sammlungs-Browser und ein Import-/Apply-Ablauf gehören weiterhin nicht zum freigeschalteten Umfang. Im Archivkopf ist zusätzlich die unten beschriebene Suche über gespeicherte Dateinamenmetadaten erreichbar.
+
+## Gespeicherte Dateinamen im Archiv suchen
+
+In der Archivaktionsleiste und in der Readerleiste öffnet **Erfasste Dateinamen suchen** einen eigenen Dialog. Diese Metadatensuche ist nicht die Threadtextsuche. Text eingeben und **Suchen** wählen; mit **Vorherige Seite** / **Nächste Seite** blättern.
+
+- Gesucht wird ein wörtlicher Teiltext des gespeicherten `original_name`-Claims. Groß-/Kleinschreibung wird ignoriert; der Eingabetext wird nicht getrimmt, Leerzeichen bleiben erhalten, und Wildcards sowie Pfad- oder Suchsprachen werden nicht interpretiert. Eine leere Eingabe fordert ausdrücklich alle erfassten Namen an. Erlaubt sind höchstens 512 UTF-16-Codeeinheiten und kein NUL.
+- Jede Ergebnisseite liest Gesamtzahl und Zeilen in derselben Katalogtransaktion. Ein Seitenwechsel ist eine neue Anfrage und kann daher einen neueren kommittierten Katalogstand sehen.
+- Die Zeilen zeigen Quelle, Board, Thread, Beitrag, Anhangposition, Variante, Anhang-/Katalogrevision und Löschbeobachtungen. Gelöschte Beobachtungen bleiben suchbar. Dabei wird keine Datei und kein Pfad geöffnet; ein Treffer belegt weder aktuelle Medienbytes noch aktuelle Dateiexistenz.
+- **Gewählte Metadaten zurückgeben** liest den Zielthread nach der Auswahl mit einem neuen passiven Reader und prüft Quelle, Board, Thread, Katalogthreadrevision, Beitrag samt Löschzustand sowie Anhangposition, Variante, Originalnamen, Anhangrevision und Anhanglöschzustand. Der Zielbeitrag wird erst nach dieser erneuten Prüfung geladen und angezeigt. Bei Abweichung wird der Zielort stattdessen als lokal nicht verfügbar gemeldet. Es gibt keinen First-Post-Fallback, keine Galerie-, Pfad- oder URL-Rekonstruktion, keine Dateiverifikation, keinen Netzwerkabruf und keine aktuelle Dateisystem-, globale Bibliotheks- oder Ähnlichkeitssuche.
+
+## Text im gespeicherten Thread suchen
+
+In der Readerleiste öffnet **Im gespeicherten Thread suchen** die Textsuche für den geöffneten gespeicherten Thread: Betreff und Beitragstext, auch außerhalb der gerade sichtbaren Readerseite. Bei erreichten Beitrags-, Text- oder Treffergrenzen meldet die Oberfläche unvollständige Ergebnisse. Leere Eingabe sucht nicht; höchstens 512 UTF-16-Codeeinheiten und kein NUL sind erlaubt. Innerhalb der Suchleiste führt **Enter** zum nächsten, **Umschalt+Enter** zum vorigen Treffer; **Escape** schließt sie. Navigation wählt den Beitrag; die genaue Fundstelle wird in der Suchleiste gezeigt, auch wenn sie über das Anzeigelimit des Beitragstexts hinausgeht.
 
 ## In der Galerie auswählen und favorisieren
 
@@ -23,20 +36,20 @@ Oben rechts zeigt **★** einen gespeicherten Favoriten und **☆** ein nicht fa
 
 Die Favoritenübersicht löst die gewählte Menge gegen gespeicherte lokale Manifeste auf. Fehlende oder nicht verifizierbare Dateien bleiben Favoriten, werden aber als nicht verfügbar gemeldet und nicht exportiert. Der Originalexport friert die angezeigte Auswahl ein, meldet fehlende Dateien vor dem Kopieren und kopiert nur lokal verifizierte Dateien. Dabei wird kein Netzwerkabruf gestartet. Favoritenmarkierungen selbst werden dadurch nicht in ein anderes Profil übertragen.
 
-## Transferpaket prüfen — nur Inventar
+## Transferpaket prüfen und anwenden
 
-Im Archivkopf können Sie **Transferpaket prüfen …** öffnen und eine vorhandene lokale ZIP-Datei wählen. MeowChan prüft sie mit dem produktiven Paketleser und zeigt ein begrenztes Inventar: Threads, Beiträge, eindeutige Payloads, Bytegröße sowie Status vorhandener Originale, Vorschauen und erhaltener Bindungen.
+Im Archivkopf öffnen Sie **Transferpaket prüfen …** und wählen im Dialog über **Transferpaket wählen …** eine vorhandene lokale ZIP-Datei. MeowChan prüft sie mit dem produktiven Paketleser und zeigt ein begrenztes Inventar: Threads, Beiträge, eindeutige Payloads, Bytegröße sowie Status vorhandener Originale, Vorschauen und erhaltener Bindungen. Für einen öffentlichen `chan-v4`-Einzelthread kann der Dialog anschließend einen Neu- oder Merge-Plan anwenden.
 
-Diese Funktion ist bewusst nur eine Vorschau:
+Der Ablauf ist bei Apply ausdrücklich begrenzt:
 
-- Es wird nichts in Archiv oder Profil importiert, übernommen, zusammengeführt oder daraus gelöscht.
-- Archiv, Profil, Store und Quelle bleiben unverändert; es gibt keinen Apply-Befehl.
-- Private Transfermetadaten werden noch abgelehnt.
+- Prüfen/Lesen verändert noch keinen Zielbestand. Apply ist eine separate, ausdrückliche Nutzeraktion gegen die angezeigte Generation.
+- Unterstützt ist aktuell nur der öffentliche Single-Thread-`chan-v4`-Pfad. Ein vorhandener oder 404ter Thread wird additiv gemergt; Originale, Favoriten, Bewertungen und Notizen werden nicht still überschrieben.
+- Private Transfermetadaten, Mehrthread-Apply, rootless Pakete und unklare/stale Pläne bleiben gesperrt, bis der jeweilige Consent-/Batch-/Recoveryvertrag abgenommen ist.
 - Es wird kein Quellenanbieter oder Netzwerk benutzt.
-- Die Prüfung schreibt eine temporäre Staging-Kopie in einen eigenen Arbeitsordner und versucht anschließend, die eigenen Staging-Dateien und Ordner zu entfernen. Prüfung und Abschluss warten auf diese Bereinigung; sie kann den Abschluss blockieren. Bleiben temporäre Daten zurück oder ist die Bereinigung unklar, wird das gemeldet. Archivdaten werden dabei nicht geändert.
-- Ein 404-Ergänzungsimport oder Bestandsmerge ist nicht enthalten.
+- Die Prüfung schreibt eine temporäre Staging-Kopie in einen eigenen Arbeitsordner und versucht anschließend, die eigenen Staging-Dateien und Ordner zu entfernen. Prüfung und Abschluss warten auf diese Bereinigung; sie kann den Abschluss blockieren. Bleiben temporäre Daten zurück oder ist die Bereinigung unklar, wird das gemeldet.
+- Bei Apply werden Receipt-/Recoveryzustände reconciliert; ein Cancel oder eine verlorene Antwort wird nicht als sicherer Nicht-Apply behauptet. Ein erneuter Apply desselben Vorgangs ist idempotent.
 
-Die Oberfläche erstellt auch kein Transferpaket. Interne Archiv- und kuratierte Paketproduzenten sind derzeit technische Kernbausteine ohne Exportdialog.
+Die Oberfläche erstellt auch kein Transferpaket. Es gibt noch keine bedienbare Wahl zwischen vollständigem und kuratiertem Transfer, keine manuelle Nichtfavoritenauswahl für ein Transferpaket und keinen Transferexport anhand von Favoriten. Interne Archiv- und kuratierte Paketproduzenten sind technische Kernbausteine ohne vollständigen Exportdialog; der vorhandene Originalexport aus der Favoritenübersicht ist davon getrennt.
 
 ## Videolautstärke, Mute und Wiederholen
 
@@ -89,6 +102,7 @@ Nach einem Absturz, unsauberen Beenden oder ersten Start ohne geeigneten Cache g
 
 Die geplante Sammlungsrichtung — Booru-Suche, ausgewählte Originale, Offline-Bibliothek, kuratierte Ausgaben und ergänzender Import — ist Arbeit in Fortgang:
 
+- **SHA-256-Suche:** Der separate Dialog und der Operationskern existieren als technische Bausteine und prüfen einen exakten 64-Zeichen-ASCII-Hex-SHA-256 in genau einem erfassten Inventar. Sie öffnen und hashen keine Dateien neu. Archivoberfläche, Startbutton und produktiver Hash-Host sind bisher nicht verdrahtet; deshalb wird hier keine nutzbare Hashsuche angeboten.
 - **Booru:** Es gibt keine freigeschaltete Site-Suche, Quellenaufnahme, Sammlungsaufnahme oder Booru-Bibliothek. Eine interne, begrenzte Danbooru-Abfragesyntax existiert; sie ist kein Bedienelement, liest keine privaten Tags und stellt keinen Provider-, API- oder Netzwerkadapter dar.
 - **Eigene Tags:** Interne, begrenzte Tagmodelle existieren, aber es gibt keine Tag-Benutzeroberfläche, keine dauerhafte eigene Tag-Sammlung, keine Tag-Suche und keinen Tag-Transfer. Token-Chips in den Regeln sind Regelbestandteile, keine privaten Tags.
 - **Kuratierter Export:** Der interne Auswahl- und Projektionskern ist nicht in der Benutzeroberfläche freigelegt. Es gibt daher keinen bedienbaren „Favoriten plus kleine Vorschauen“-Export und keinen privaten Metadaten-Rundtrip.
