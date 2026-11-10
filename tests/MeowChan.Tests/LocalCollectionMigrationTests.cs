@@ -43,7 +43,7 @@ public sealed class LocalCollectionMigrationTests
         using var migrated = ArchiveSql.OpenConnection(files.Database, SqliteOpenMode.ReadOnly);
         using var tx = migrated.BeginTransaction(deferred: true);
         ArchiveSql.ValidateSchema(migrated, tx);
-        Assert.Equal(11, ArchiveSql.GetPragma(migrated, "user_version", tx));
+        Assert.Equal(12, ArchiveSql.GetPragma(migrated, "user_version", tx));
         Assert.Equal(5L, Scalar(migrated, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name LIKE 'local_%'", tx));
         AssertFenceNames(migrated, tx);
         if (fence.HasValue) Assert.Equal(fence.Value, ArchiveSql.ReadImportFence(migrated, tx));
@@ -86,7 +86,7 @@ public sealed class LocalCollectionMigrationTests
         Assert.Equal(before, File.ReadAllBytes(files.Database));
         using var read = ArchiveSql.OpenConnection(files.Database, SqliteOpenMode.ReadOnly);
         Assert.Equal(fence, ArchiveSql.ReadImportFence(read, null));
-        Assert.Equal(11, ArchiveSql.GetPragma(read, "user_version"));
+        Assert.Equal(12, ArchiveSql.GetPragma(read, "user_version"));
     }
 
     [Theory]

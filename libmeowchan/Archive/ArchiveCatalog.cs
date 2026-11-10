@@ -100,6 +100,13 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
                     using SqliteCommand stamp = ArchiveSql.Command(connection, transaction, "PRAGMA user_version=11");
                     stamp.ExecuteNonQuery();
                 }
+                if (fresh || version < 12)
+                {
+                    ArchiveSql.MigrateMediaConflictSchema12(connection, transaction, cancellationToken);
+                    ArchiveSql.ValidateTargetSchema(connection, transaction, 12);
+                    using SqliteCommand stamp = ArchiveSql.Command(connection, transaction, "PRAGMA user_version=12");
+                    stamp.ExecuteNonQuery();
+                }
                 cancellationToken.ThrowIfCancellationRequested();
                 transaction.Commit();
             }

@@ -21,7 +21,7 @@ internal static partial class ArchiveSql
             throw new InvalidOperationException("Schema 11 migration requires the caller's active transaction.");
         cancellationToken.ThrowIfCancellationRequested();
         int version = GetPragma(connection, "user_version", transaction);
-        if (version == 11)
+        if (version >= 11)
         {
             ValidatePostAttachmentPresenceSchema11(connection, transaction);
             cancellationToken.ThrowIfCancellationRequested();

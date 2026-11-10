@@ -257,7 +257,7 @@ internal static partial class ArchiveSql
             || state.Counts.NewAttachments != plan.NewAttachmentCount || state.Counts.Conflicts != plan.Conflicts)
             throw new InvalidDataException("Invalid representation merge plan evidence.");
         MediaTransferRequireTransaction10(connection, transaction);
-        if (GetPragma(connection, "user_version", transaction) != 11)
+        if (GetPragma(connection, "user_version", transaction) < 11)
             throw new InvalidDataException("Representation merges require schema 11.");
         ValidatePostAttachmentPresenceSchema11(connection, transaction);
         ValidateMediaTransferSchema10(connection, transaction);

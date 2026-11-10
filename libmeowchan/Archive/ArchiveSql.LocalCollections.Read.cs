@@ -28,7 +28,7 @@ internal static partial class ArchiveSql
         try
         {
             // Check the header first. In particular v8 must not reach any local-table/fence read.
-            if (GetPragma(c, "user_version", tx) is not (9 or 10 or 11) || GetPragma(c, "application_id", tx) != ApplicationId)
+            if (GetPragma(c, "user_version", tx) is not (9 or 10 or 11 or 12) || GetPragma(c, "application_id", tx) != ApplicationId)
                 throw new LocalImportReadException(LocalImportError.TargetReplaced);
 
             // Bound and type-check BEFORE the shared schema validator's older fence decoder.
@@ -347,7 +347,7 @@ internal static partial class ArchiveSql
     {
         ct.ThrowIfCancellationRequested();
         int version = GetPragma(c, "user_version", tx);
-        if (version is < 1 or > 11 || GetPragma(c, "application_id", tx) != ApplicationId)
+        if (version is < 1 or > 12 || GetPragma(c, "application_id", tx) != ApplicationId)
             throw LocalMetadataInvalid();
         if (version < 9)
         {

@@ -261,7 +261,7 @@ internal static partial class ArchiveSql
         // V2 writes are only valid against the current additive schema. Keep this
         // entry check in the same transaction as the media-table validation so a
         // caller cannot route a v2 write through a schema-10 snapshot.
-        if (GetPragma(connection, "user_version", transaction) != 11)
+        if (GetPragma(connection, "user_version", transaction) < 11)
             throw new InvalidDataException("Representation imports require schema 11.");
         ValidatePostAttachmentPresenceSchema11(connection, transaction);
         ValidateMediaTransferSchema10(connection, transaction);
