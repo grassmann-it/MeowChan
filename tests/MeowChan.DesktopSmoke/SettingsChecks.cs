@@ -30,6 +30,7 @@ internal static class SettingsChecks
             await CheckGalleryVolumeMergeAsync(owner, Path.Combine(profile, "gallery-volume"));
             CheckGalleryPairMigration(Path.Combine(profile, "gallery-pair-migration"));
             await CheckGalleryPlaybackDraftAsync(owner, Path.Combine(profile, "gallery-playback"));
+            await CheckSavedStatusRetiredAsync(owner, Path.Combine(profile, "saved-status"));
             Console.WriteLine("SMOKE settings: pending close/duplicate protection, visible errors, validation, retry, appearance persistence/cancel and folder-picker outcomes passed.");
         }
         finally
@@ -494,6 +495,40 @@ internal static class SettingsChecks
         Require(window.Editor.SelectedTheme?.Value == "Light" && window.Editor.SelectedWorkspaceMode?.Value == "Simple"
             && window.Editor.SelectedLanguage?.Code == "de" && window.Editor.CompactDensity,
             "Appearance controls did not update the detached settings edit.");
+    }
+
+    // X1: the success message belongs to the saved draft only. A later real edit retires it; save restores it.
+    private static async Task CheckSavedStatusRetiredAsync(MainWindow owner, string profile)
+    {
+        Config config = Config.LoadConfig(profile);
+        config.DownloadPath = Path.Combine(profile, "downloads");
+        SettingsEditor editor = new(config, async candidate => { await Task.Yield(); candidate.SaveConfig(); });
+        Window host = new() { Width = 900, Height = 700, Content = editor };
+        host.Show(owner);
+        try
+        {
+            await WaitUntilAsync(() => editor.Bounds.Width > 0);
+            Require(editor.StatusMessage != Texts.T("settings.saved"), "A fresh editor claims saved settings.");
+            editor.RecheckTimer = 125;
+            Require(editor.StatusMessage != Texts.T("settings.saved"), "An edit before any save claims saved settings.");
+            Click(editor.FindControl<Button>("SaveSettingsButton")!);
+            await WaitUntilAsync(() => !editor.IsBusy && editor.StatusMessage == Texts.T("settings.saved"));
+            string originalLanguage = Texts.Language;
+            try
+            {
+                Texts.SetLanguage(originalLanguage == "de" ? "en" : "de");
+                await WaitUntilAsync(() => editor.StatusMessage == Texts.T("settings.saved"));
+            }
+            finally { Texts.SetLanguage(originalLanguage); }
+            await WaitUntilAsync(() => editor.StatusMessage == Texts.T("settings.saved"));
+            editor.RecheckTimer = 130;
+            Require(editor.StatusMessage == Texts.T("settings.unsaved"), "A follow-up edit left the old saved confirmation visible.");
+            editor.ShowShortcutHelp = !editor.ShowShortcutHelp;
+            Click(editor.FindControl<Button>("SaveSettingsButton")!);
+            await WaitUntilAsync(() => !editor.IsBusy && editor.StatusMessage == Texts.T("settings.saved"));
+            Require(Config.LoadConfig(profile).RecheckTimer == 130, "Saved status without the persisted value.");
+        }
+        finally { host.Close(); }
     }
 
     private static async Task CheckDirectSaveAsync(MainWindow owner, string profile)

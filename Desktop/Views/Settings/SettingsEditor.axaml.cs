@@ -63,6 +63,12 @@ namespace MeowChan
             ErrorMessage = _errorMessageState?.Render();
         }
 
+        // A success message describes the saved draft only; a later real edit must not keep promising it.
+        private void RetireSavedStatus()
+        {
+            if (_statusMessageState?.Key == "settings.saved") SetStatusMessage("settings.unsaved");
+        }
+
         private void SetStatusMessage(string? key, params object?[] arguments)
         {
             _statusMessageState = key == null ? null : new LocalizedMessage(key, arguments);
@@ -174,6 +180,7 @@ namespace MeowChan
             InitializeComponent();
             _config = config;
             ShortcutsEditor.Load(config.ShortcutBindings);
+            ShortcutsEditor.DraftEdited += (_, _) => RetireSavedStatus();
             _initialCompactDensity = config.CompactDensity;
             _initialReadingFontSize = config.ReadingFontSize;
             _initialWorkspaceMode = config.WorkspaceMode;
@@ -1089,6 +1096,7 @@ namespace MeowChan
                 if (!rebindingChoice && propertyName is not (nameof(IsBusy) or nameof(ErrorMessage) or nameof(ErrorDetails) or nameof(StatusMessage)))
                 {
                     _draftRevision++;
+                    RetireSavedStatus();
                     _destinationWait?.Cancel();
                     _destinationStatus = null;
                     if (!_isClosed && _config != null)

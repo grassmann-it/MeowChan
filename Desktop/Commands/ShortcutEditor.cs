@@ -486,7 +486,9 @@ public sealed class ShortcutEditor : UserControl
             }
         Draft = Draft.Set(_selected, list); _pending = null; Changed();
     }
-    private void Changed() { IsDirty = true; RefreshList(); }
+    /// <summary>Raised for explicit user edits of the draft, never for Load or language refresh.</summary>
+    public event EventHandler? DraftEdited;
+    private void Changed() { IsDirty = true; RefreshList(); DraftEdited?.Invoke(this, EventArgs.Empty); }
     private void StopCapture() { _captureLease?.Dispose(); _captureLease = null; _capture.IsEnabled = false; }
     private void ShowIssues(IReadOnlyList<ShortcutIssue> issues)
     {
