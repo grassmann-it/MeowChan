@@ -77,7 +77,28 @@ internal static class GalleryFavoriteChecks
             Program.CaptureWindow(window, "smoke-favorite-marked-hidden.png");
             Press(Key.M); await latest; RequireBadge(true); // idempotent repeat
             Press(Key.U); await latest; RequireBadge(false);
-            Press(Key.F); await latest; RequireBadge(true); // compatible old toggle
+            Press(Key.F); await latest; RequireBadge(true); // F on a non-favorite adds (set-true, no question)
+
+            // FAV-01: F on a saved favorite only asks; Enter/F keep without a write, U removes exactly once.
+            FavoriteAssetKey favoriteKey = FavoriteAssetKey.From(entry.Key.Thread, entry.Asset);
+            int baseline = writes;
+            Press(Key.F, release: false); // key stays down: the following KeyDowns are repeats
+            Require(viewer.IsFavoriteConfirmOpen && writes == baseline && !queue.IsPending(favoriteKey),
+                "F on a saved favorite did not just open the confirmation.");
+            Press(Key.F, release: false); Press(Key.F, release: false);
+            Require(viewer.IsFavoriteConfirmOpen && writes == baseline, "A held F key closed or acted on the confirmation.");
+            Release(Key.F);
+            Press(Key.Enter);
+            Require(!viewer.IsFavoriteConfirmOpen && writes == baseline && window.SessionHost.IsFavorite(entry),
+                "Enter did not keep the favorite without a write.");
+            Press(Key.F); Press(Key.F);
+            Require(!viewer.IsFavoriteConfirmOpen && writes == baseline && window.SessionHost.IsFavorite(entry),
+                "A second F did not keep the favorite without a write.");
+            Press(Key.F); Press(Key.U); await latest;
+            Require(writes == baseline + 1 && savedIntents[^1] == false && !window.SessionHost.IsFavorite(entry)
+                && !viewer.IsFavoriteConfirmOpen, "U in the confirmation did not remove exactly once.");
+            RequireBadge(false);
+            Press(Key.M); await latest; RequireBadge(true);
 
             failNext = true;
             Press(Key.U);
@@ -106,7 +127,7 @@ internal static class GalleryFavoriteChecks
             await CheckShellFailureOwnershipAsync(window, entry);
             await viewer.StopAsync();
             Require(!Badge().IsVisible, "Retired gallery retained the favorite indicator.");
-            Console.WriteLine("SMOKE gallery favorites: hidden controls + truthful saved/pending badge, M/U repeat/opposite, F compatibility, synthetic failure/retry, exact-key navigation and EN/DE passed; disposable session store only.");
+            Console.WriteLine("SMOKE gallery favorites: hidden controls + truthful saved/pending badge, M/U repeat/opposite, F add and F-confirm (Enter/F keep, U remove once), synthetic failure/retry, exact-key navigation and EN/DE passed; disposable session store only.");
         }
         finally
         {
@@ -136,12 +157,14 @@ internal static class GalleryFavoriteChecks
                 && AutomationProperties.GetName(badge)!.StartsWith(label, StringComparison.Ordinal),
                 "Favorite badge misrepresents the saved state or pending write.");
         }
-        void Press(Key key)
+        void Press(Key key, bool release = true)
         {
             var e = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, Source = viewer };
             viewer.RaiseEvent(e);
             Require(e.Handled, "Favorite gallery shortcut not routed: " + key);
+            if (release) Release(key);
         }
+        void Release(Key key) => viewer.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = key, Source = viewer });
     }
     // Actual MainWindow command wiring with a real failed atomic publication, not
     // the local handlers above. MainWindow has no active gallery here, as after close.

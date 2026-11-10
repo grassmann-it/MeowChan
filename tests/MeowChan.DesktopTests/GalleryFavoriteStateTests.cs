@@ -422,6 +422,7 @@ public sealed class GalleryFavoriteStateTests
         var body = new Grid();
         SetField(h.Viewer, "_body", body);
         SetField(h.Viewer, "_helpPanel", new Border());
+        SetField(h.Viewer, "_favoriteConfirmPanel", new Border());
         SetField(h.Viewer, "_chrome", new Border());
         SetField(h.Viewer, "_infoOverlay", new Border());
         h.Viewer.SetFavorite(true);

@@ -188,13 +188,14 @@ internal sealed partial class GalleryViewer : UserControl
     internal event Action<GalleryEntry>? DetailsRequested;
     internal event Action<int>? VideoVolumeChanged;
 
-    internal bool IsOverlayOpen => _helpOpen || _contextOpen;
+    internal bool IsOverlayOpen => _helpOpen || _contextOpen || IsFavoriteConfirmOpen;
     internal bool OwnsOverlayWindow(Window window) =>
         _nativeOverlayActive && ReferenceEquals(TopLevel.GetTopLevel(_nativeVideoOverlay), window);
     internal IEnumerable<Visual> GetGalleryVisualDescendants() =>
         ((Visual)this).GetVisualDescendants().Concat(_nativeVideoOverlay.GetVisualDescendants()).Distinct();
     internal bool TryDismissOverlay()
     {
+        if (IsFavoriteConfirmOpen) { CloseFavoriteConfirm(); return true; }
         if (_helpOpen) { SetHelp(false); return true; }
         if (_contextOpen) { SetContextOpen(false); return true; }
         return false;
@@ -216,6 +217,7 @@ internal sealed partial class GalleryViewer : UserControl
         _favoriteKnown = true;
         _favoritePending = pending;
         _favoriteSelected = selected;
+        ReconcileFavoriteConfirm(selected, pending);
         UpdateFavorite();
     }
 
@@ -259,7 +261,7 @@ internal sealed partial class GalleryViewer : UserControl
     {
         // Subscribe before any of these subtrees can enter a presentation root.
         foreach (Control control in new Control[] { _overlayFooter, _chrome, _infoOverlay,
-            _contextPanel, _helpPanel, _controlsEdgeIndicator, _postEdgeIndicator })
+            _contextPanel, _helpPanel, _favoriteConfirmPanel, _controlsEdgeIndicator, _postEdgeIndicator })
             GalleryControlTransfer.Track(control, () => !_terminalRetirement);
         foreach (Control indicator in new Control[] { _controlsEdgeIndicator, _postEdgeIndicator })
             GalleryControlTransfer.Track(indicator, () => !_terminalRetirement && !_viewerInteractionStopped);
@@ -359,7 +361,9 @@ internal sealed partial class GalleryViewer : UserControl
         Content = root;
         InitializeOverlayInteraction();
         InitializeFavoriteIndicators();
+        InitializeFavoriteConfirm();
         _nativeVideoOverlay.AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
+        _nativeVideoOverlay.AddHandler(KeyUpEvent, OnFavoriteKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);
         _nativeVideoOverlay.AddHandler(KeyDownEvent, OnNativeOverlayKeyDown, RoutingStrategies.Bubble);
         _nativeVideoOverlay.ContextRequested += (_, e) =>
         {
@@ -394,6 +398,7 @@ internal sealed partial class GalleryViewer : UserControl
             if (_entry != null) { ShowMediaMenu(); e.Handled = true; }
         };
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(KeyUpEvent, OnFavoriteKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);
         AttachedToVisualTree += (_, _) =>
         {
             if (_terminalRetirement) return;
@@ -428,6 +433,7 @@ internal sealed partial class GalleryViewer : UserControl
         { Avalonia.Threading.Dispatcher.UIThread.Post(() => OnLanguageChanged(sender, e)); return; }
         CommandBindings.Apply(_ratingButton, "media.rating.edit");
         SetRating(_ratingValue, _ratingError, _ratingAvailable);
+        if (IsFavoriteConfirmOpen) UpdateFavoriteConfirmText();
         var labels = new Dictionary<string, string>
         {
             ["GalleryClose"] = "gallery.viewer0", ["GalleryPrevious"] = "gallery.viewer1",
@@ -754,6 +760,7 @@ internal sealed partial class GalleryViewer : UserControl
         if (_nativeOverlayActive == active) return;
         Grid next = active ? _nativeVideoOverlay : _visualRoot;
         MoveOverlayControl(_helpPanel, next);
+        MoveOverlayControl(_favoriteConfirmPanel, next);
         _nativeOverlayActive = active;
         _video?.SetNativeOverlay(active ? _nativeVideoOverlay : null);
         ApplyOverlayPlacement();
@@ -777,6 +784,7 @@ internal sealed partial class GalleryViewer : UserControl
         _nativeOverlayFallback = fallback;
         _visualRoot.RowDefinitions = new RowDefinitions(fallback ? "Auto,*,Auto,Auto" : "*,Auto,Auto");
         Grid.SetRow(_helpPanel, 0);
+        Grid.SetRow(_favoriteConfirmPanel, fallback ? 1 : 0);
         Grid.SetRow(_body, fallback ? 1 : 0);
         Grid.SetRow(_chrome, fallback ? 2 : 1);
         Grid.SetRow(_infoOverlay, fallback ? 3 : 2);
@@ -835,6 +843,7 @@ internal sealed partial class GalleryViewer : UserControl
             || _gifPlayPause.IsKeyboardFocusWithin)
             FocusGallerySurface();
         CancelLoads(); int request = ++_request;
+        CloseFavoriteConfirm(); // A question never survives a medium or generation change.
         Task gifRetired = RetireGifAsync();
         BeginSlideshowMedia(entry);
         _navigationId = PerformanceDiagnostics.NextId();
@@ -1129,6 +1138,7 @@ internal sealed partial class GalleryViewer : UserControl
         if (CommandBindings.Matches(e, "viewer.shortcut-help"))
         { SetHelp(!_helpOpen); e.Handled = true; return; }
         if (_helpOpen) return;
+        if (IsFavoriteConfirmOpen) { RouteFavoriteConfirmKey(e); return; }
         if ((ReferenceEquals(routingOwner, _nativeVideoOverlay) ? _nativeRatingRouter : _ratingRouter)?.Route(e) == true) return;
         // This is part of the existing gallery handler, not a second router. Only
         // actual owned transport sliders may opt into these four effective commands.
@@ -1144,7 +1154,7 @@ internal sealed partial class GalleryViewer : UserControl
             if (CommandBindings.Matches(e, id)) { e.Handled = true; _ = ExecutePlaybackActionAsync(id); return; }
         if (CommandBindings.Matches(e, "favorites.add")) { RequestFavorite(true); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "favorites.remove")) { RequestFavorite(false); e.Handled = true; return; }
-        if (CommandBindings.Matches(e, "favorites.toggle")) { ToggleFavorite(); e.Handled = true; return; }
+        if (CommandBindings.Matches(e, "favorites.toggle")) { RouteFavoriteToggleKey(e); return; }
         if (CommandBindings.Matches(e, "gallery.tools-toggle")) { SetMediaFocus(!_mediaFocus); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "gallery.context-toggle")) { SetContextOpen(!_contextOpen); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "gallery.fit")) { Fit(); e.Handled = true; return; }
@@ -1331,6 +1341,7 @@ internal sealed partial class GalleryViewer : UserControl
         // Returning must not turn a paused video into autoplay because config still says On.
         if (!_videoSuspended) _suspendedPlaybackMode = _video?.PlaybackMode;
         PauseSlideshow();
+        CloseFavoriteConfirm();
         _gif?.SetActive(false);
         _videoSuspended = _entry?.Kind == SavedMediaKind.Video;
         if (_videoSuspended && _video is { } video)
@@ -1354,11 +1365,12 @@ internal sealed partial class GalleryViewer : UserControl
     internal async Task StopAsync()
     {
         _terminalRetirement = true;
+        _favoriteConfirmKey = null; _favoriteGestureKey = null; _favoriteConfirmPanel.IsVisible = false;
         UpdateFavoriteIndicators();
         // Permanently close both owners' placement admission before the FIRST await.
         // In particular, player disposal happens only after GIF retirement below.
         foreach (Control control in new Control[] { _overlayFooter, _chrome, _infoOverlay,
-            _contextPanel, _helpPanel, _controlsEdgeIndicator, _postEdgeIndicator })
+            _contextPanel, _helpPanel, _favoriteConfirmPanel, _controlsEdgeIndicator, _postEdgeIndicator })
             GalleryControlTransfer.Cancel(control);
         _video?.RetireTransportPlacement();
         StopViewerInteraction();

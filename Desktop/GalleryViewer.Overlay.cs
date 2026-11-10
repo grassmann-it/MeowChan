@@ -77,7 +77,7 @@ internal sealed partial class GalleryViewer
     }
 
     private bool CanRunSlideshow => !_viewerInteractionStopped && _interactionAvailable && IsGalleryWindowActive && !HasGalleryDialog && !HasGalleryPopup
-        && !_videoSuspended && !_contextOpen && !_helpOpen && !_mediaFailed && !_sessionCancellation.IsCancellationRequested
+        && !_videoSuspended && !_contextOpen && !_helpOpen && !IsFavoriteConfirmOpen && !_mediaFailed && !_sessionCancellation.IsCancellationRequested
         && _entry != null && _entry.Kind != SavedMediaKind.Other;
 
     private readonly Button _controlsEdgeIndicator = CreateEdgeIndicator(post: false);
@@ -575,7 +575,7 @@ internal sealed partial class GalleryViewer
         if (!active) _pressedPointers.Clear();
         bool popup = HasGalleryPopup || HasGalleryDialog;
         bool captured = _dragging || _pressedPointers.Count != 0 || _lastPointer?.Captured != null;
-        bool reading = _helpOpen || _contextOpen || _keyboardInteraction && _infoOverlay.IsKeyboardFocusWithin;
+        bool reading = _helpOpen || _contextOpen || IsFavoriteConfirmOpen || _keyboardInteraction && _infoOverlay.IsKeyboardFocusWithin;
         RefreshHoverGeometry();
         RevealHoveredPanels();
         bool controlHasFocus = _chrome.IsKeyboardFocusWithin || _infoOverlay.IsKeyboardFocusWithin
@@ -591,7 +591,7 @@ internal sealed partial class GalleryViewer
         if (_lastRunning != _slideshow.IsRunning || _shownSlideshowStatus != CurrentSlideshowStatus) RefreshPlaybackControls();
         _slideshowToggle.IsEnabled = _slideshow.IsRunning || CanRunSlideshow && !_navigationPending;
         var activity = new GalleryOverlayActivity(OverlayControlsEffective, _playbackPreferences.AutoHideControls,
-            _interactionAvailable, active, focused, captured, popup, _helpOpen || selectedPostText || HasSelectedControlsText,
+            _interactionAvailable, active, focused, captured, popup, _helpOpen || IsFavoriteConfirmOpen || selectedPostText || HasSelectedControlsText,
             Hovered: _controlsHot || _pointerInControls || _pointerOnControlsIndicator);
         if (activity.CanHide(Stopwatch.GetElapsedTime(_lastOverlayActivity)))
         {
