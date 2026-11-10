@@ -138,6 +138,26 @@ public sealed class NativeV2MergeConflictInventoryTests
         Assert.True(inspected.IsPackageValid, inspected.ToString());
         Assert.Contains(Hash(Alternative), inspected.Package!.Envelope.Payloads.Select(p => p.Sha256));
 
+        // Merging the same package again must neither reopen the decided conflict nor change the active bytes.
+        {
+            using ProfileAdmissionToken admission = await f.ExclusiveAsync();
+            await using NativeTransferImportStage stage = await StageAsync(f.Files, Incoming([Post("15", conflict)], []), [Alternative]);
+            NativeMediaMergePreparation again2 = await f.Catalog.PrepareNativeMediaMergeAsync(stage);
+            Assert.Equal(NativeMediaMergeError.None, again2.Error);
+            NativeMediaMergePlan replan = Assert.IsType<NativeMediaMergePlan>(again2.Plan);
+            ProfileExclusiveOutcome<NativeMediaMergeResult> replay =
+                await f.Catalog.CommitNativeMediaMergeAdmittedAsync(admission, replan, f.Store);
+            Assert.Equal(ProfileExclusiveDisposition.SafeToResume, replay.Disposition);
+            Assert.Equal(NativeMediaImportCommitStatus.Committed, replay.Result.Status);
+        }
+        PersistedMediaConflict decided = Assert.Single((await reader.ReadMediaConflictsAsync(0, 10)).Items);
+        Assert.Equal(NativeMediaConflictResolutionStatus.Promoted, decided.Entry.Resolution);
+        var again3 = new List<MediaAssetSnapshot>();
+        foreach (string directory in Assert.IsType<ArchivedThreadView>(await reader.ReadThreadAsync(Id)).MediaDirectories)
+            again3.Add(await MediaAssetReader.OpenAsync(directory));
+        Assert.Equal(Alternative, await ReadOriginalAsync(Assert.IsType<ResolvedMediaAttachment>(
+            MediaAttachmentResolver.Resolve(again3, Id, "15", slot))));
+
         MediaPromoteResult again = await f.Catalog.PromoteMediaConflictAsync(id, f.Store);
         Assert.Equal(MediaPromoteStatus.AlreadyPromoted, again.Status);
         Assert.Equal(2, Assert.IsType<ArchivedThreadView>(await reader.ReadThreadAsync(Id)).MediaDirectories.Count);

@@ -89,6 +89,8 @@ public sealed partial class MediaStore
                 await CopyVerifiedAsync(Path.Combine(sourceRoot, name), Path.Combine(part, name),
                     heldEntry.Length, candidateSha256, token).ConfigureAwait(false);
             }
+            // Every registered root carries the lease file that merge, inventory and cleanup open without creating.
+            await using (new FileStream(Path.Combine(part, DirectoryLeaseFileName), FileMode.CreateNew, FileAccess.Write, FileShare.None)) { }
             await SaveManifestAsync(part, new ManifestRead(manifest, false, false, null, RepresentationManifestVersion), token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             Directory.Move(part, target);

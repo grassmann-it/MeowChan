@@ -96,7 +96,7 @@ internal static class NativeMediaMergeInventoryExportBudget
         foreach (var asset in snapshot.GetPage(offset, 500))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!represented.Contains((snapshot, asset.AssetId)))
+            if (!represented.Contains((snapshot, asset.AssetId)) && !MediaAttachmentResolver.IsSuperseded(snapshots, snapshot, asset))
                 throw new InvalidDataException("A prospective asset has no portable inventory occurrence.");
         }
         TransferAttachment Chosen(string post, TransferAttachment a)

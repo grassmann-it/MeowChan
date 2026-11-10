@@ -82,11 +82,19 @@ public sealed partial class ArchiveCatalog
                     .Select(attachment => ((post.PostId, attachment.Position), attachment)))
                     .ToDictionary(pair => pair.Item1, pair => pair.Item2);
                 var allBindings = new Dictionary<string, MediaAttachmentBinding>(StringComparer.Ordinal);
+                // A promote root explicitly supersedes the older bytes of the same key; only an unexplained
+                // disagreement between roots makes the target unusable.
+                bool Replaced(string key, MediaAttachmentBinding binding) => snapshots.Any(other => other.Supersedes.Any(item =>
+                    item.RevisionKey == key && string.Equals(item.SupersededSha256, binding.Actual.Sha256, StringComparison.OrdinalIgnoreCase)));
                 foreach (MediaAssetSnapshot snapshot in snapshots)
                 foreach (var binding in snapshot.AttachmentBindings)
                 {
                     if (allBindings.TryGetValue(binding.Key, out var previousBinding) && previousBinding != binding.Value)
-                        return Task.FromResult(new NativeMediaMergePreparation(null, NativeMediaMergeError.TargetUnavailable));
+                    {
+                        if (Replaced(binding.Key, binding.Value)) continue;
+                        if (!Replaced(binding.Key, previousBinding))
+                            return Task.FromResult(new NativeMediaMergePreparation(null, NativeMediaMergeError.TargetUnavailable));
+                    }
                     allBindings[binding.Key] = binding.Value;
                 }
                 // Every existing association must already be coherent. In particular, a legacy
