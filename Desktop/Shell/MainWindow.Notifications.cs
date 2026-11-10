@@ -97,6 +97,9 @@ public partial class MainWindow
     {
         if (_feedbackDismissWired) return;
         _feedbackDismissWired = true;
+        // Remember where the user was working so closing feedback by keyboard can hand focus back.
+        RememberFeedbackReturnTarget(FocusManager?.GetFocusedElement());
+        AddHandler(GotFocusEvent, (_, e) => RememberFeedbackReturnTarget(e.Source), RoutingStrategies.Bubble, handledEventsToo: true);
         // Button resolves Command on release. Freeze it on press as well, so publishing B
         // between pointer/Space down and up cannot turn the user's close of A into a close of B.
         dismiss.AddHandler(PointerPressedEvent, (_, e) =>
@@ -157,7 +160,22 @@ public partial class MainWindow
     {
         if (_gallery != null && !_gallerySuspended && _gallery.IsEffectivelyVisible)
             _gallery.FocusGallerySurface();
-        else this.FindControl<Button>("BrandAboutButton")!.Focus();
+        else if (_feedbackReturnTarget is { } weak && weak.TryGetTarget(out Control? target)
+            && target.IsAttachedToVisualTree() && target.IsEffectivelyVisible && target.IsEffectivelyEnabled && target.Focusable
+            && ReferenceEquals(TopLevel.GetTopLevel(target), this))
+            target.Focus();
+        // The earlier control is gone: continue in the page, never at the brand button first.
+        else if (FocusManager?.TryMoveFocus(NavigationDirection.Next) != true)
+            this.FindControl<Button>("BrandAboutButton")!.Focus();
+    }
+
+    private WeakReference<Control>? _feedbackReturnTarget;
+    private void RememberFeedbackReturnTarget(object? source)
+    {
+        if (source is not Control control || !control.Focusable) return;
+        // Focus inside the banner or a toast is the feedback surface itself, not a place to return to.
+        if (control.GetSelfAndVisualAncestors().Any(v => v is Ursa.Controls.Banner or FeedbackToastContent or NotificationCard)) return;
+        _feedbackReturnTarget = new WeakReference<Control>(control);
     }
 
     private bool GallerySuppressesFeedback => _gallery != null && !_gallerySuspended && _gallery.IsEffectivelyVisible;

@@ -151,10 +151,18 @@ internal static class FeedbackChecks
                 "The shell X is not a visible, keyboard-focusable action.");
             Require(!string.IsNullOrWhiteSpace(AutomationProperties.GetName(dismiss)), "The shell X has no accessible name.");
             ICommand closeA = dismiss.Command ?? throw new InvalidOperationException("The shell X must capture its displayed feedback identity.");
+            // X2: closing by keyboard returns to the control the user was working in, not to About.
+            Button workTarget = window.GetVisualDescendants().OfType<Button>().First(candidate =>
+                candidate.Name is not ("BrandAboutButton" or "ShellFeedbackDismissButton") && candidate.Focusable
+                && candidate.IsEffectivelyVisible && candidate.IsEffectivelyEnabled
+                && !candidate.GetVisualAncestors().OfType<Ursa.Controls.Banner>().Any());
+            Require(workTarget.Focus(), "The fixture work control cannot receive focus.");
             Require(dismiss.Focus(), "The shell X cannot receive keyboard focus.");
             SmokeActionClick.Execute(dismiss);
             Require(!banner.IsVisible && !dismiss.IsKeyboardFocusWithin && Entry("source-A").Count == 2,
                 "Closing A lost diagnostics, retained focus in hidden UI or left its banner visible.");
+            Require(workTarget.IsKeyboardFocusWithin, "Closing the banner did not return focus to the previous work control "
+                + workTarget.Name + "; focus is now " + window.FocusManager?.GetFocusedElement());
             int pendingAfterClose = Queued();
             Publish("source-A");
             Require(!banner.IsVisible && Entry("source-A").Count == 3 && Queued() == pendingAfterClose,
