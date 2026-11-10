@@ -32,6 +32,7 @@ internal sealed class NativeTransferImportDialog : Window
     private readonly Button _apply;
     private readonly Button _close;
     private readonly Button _recheck;
+    private readonly Button _conflicts;
     private string? _lastPath;
     private readonly TextBlock _heading = new() { Name = "NativeTransferImportHeading" };
     private readonly TextBlock _source = new() { Name = "NativeTransferImportSource", TextWrapping = TextWrapping.Wrap };
@@ -75,6 +76,7 @@ internal sealed class NativeTransferImportDialog : Window
         _cancel = CreateButton("NativeTransferImportCancel", "transfer.import.cancel", OnCancel);
         _apply = CreateButton("NativeTransferImportApply", "transfer.import.apply", OnApplyAsync);
         _recheck = CreateButton("NativeTransferImportRecheck", "transfer.import.recheck", OnRecheckAsync);
+        _conflicts = CreateButton("NativeTransferImportConflicts", "transfer.conflicts.open", OnOpenConflictsAsync);
         _close = CreateButton("NativeTransferImportClose", "transfer.import.close", () => Close());
         _cancel.IsEnabled = false;
         _apply.IsEnabled = false;
@@ -108,6 +110,7 @@ internal sealed class NativeTransferImportDialog : Window
         actions.Children.Add(_cancel);
         actions.Children.Add(_apply);
         actions.Children.Add(_recheck);
+        actions.Children.Add(_conflicts);
         actions.Children.Add(_close);
         Border footer = new() { Child = actions, Margin = new Thickness(16, 0, 16, 16) };
         footer.Classes.Add("workspace-dialog-footer");
@@ -146,6 +149,8 @@ internal sealed class NativeTransferImportDialog : Window
     internal Button ApplyButton => _apply;
     internal Button CloseButton => _close;
     internal Button RecheckButton => _recheck;
+    internal Button ConflictsButton => _conflicts;
+    internal Func<MediaConflictsDialog, Task>? ConflictsShowForTests { get; set; }
     internal TextBlock StateText => _state;
     internal ComboBox ScopeSelector => _scope;
     internal NativeTransferImportScope ScopeForTests => SelectedScope;
@@ -158,6 +163,7 @@ internal sealed class NativeTransferImportDialog : Window
     internal NativeTransferImportSnapshot DisplayForTests => _display;
 
     internal Task ChooseForTestsAsync() => OnChooseAsync();
+    internal Task OpenConflictsForTestsAsync() => OnOpenConflictsAsync();
     internal Task ApplyForTestsAsync() => OnApplyAsync();
 
     // UI-thread terminal ownership is explicit even if ShowDialog never reaches Closed.
@@ -171,7 +177,7 @@ internal sealed class NativeTransferImportDialog : Window
         ++_operation;
         Texts.Changed -= OnLanguageChanged;
         IsLanguageSubscribedForTests = false;
-        _choose.IsEnabled = _cancel.IsEnabled = _apply.IsEnabled = _recheck.IsEnabled = _close.IsEnabled = false;
+        _choose.IsEnabled = _cancel.IsEnabled = _apply.IsEnabled = _recheck.IsEnabled = _conflicts.IsEnabled = _close.IsEnabled = false;
         ++SessionDisposalCountForTests;
         _ = DisposeSessionAsync(completion);
         return _cleanupTask;
@@ -393,6 +399,15 @@ internal sealed class NativeTransferImportDialog : Window
                 or NativeTransferImportState.Failed or NativeTransferImportState.Canceled or NativeTransferImportState.Completed;
     }
 
+    // Conflicts are archive state, not import state: the list is available whenever the dialog is open.
+    private async Task OnOpenConflictsAsync()
+    {
+        if (_closed) return;
+        MediaConflictsDialog dialog = new(_session.ListMediaConflictsAsync, _session.DecideMediaConflictAsync);
+        if (ConflictsShowForTests is { } show) await show(dialog);
+        else await dialog.ShowDialog(this);
+    }
+
     private async Task OnRecheckAsync()
     {
         if (_closed || _pickerPending || _readPending || _applyPending || _lastPath == null || !_recheck.IsEnabled) return;
@@ -537,6 +552,7 @@ internal sealed class NativeTransferImportDialog : Window
         SetButtonLabel(_cancel, "transfer.import.cancel");
         SetButtonLabel(_apply, "transfer.import.apply");
         SetButtonLabel(_recheck, "transfer.import.recheck");
+        SetButtonLabel(_conflicts, "transfer.conflicts.open");
         SetButtonLabel(_close, "transfer.import.close");
     }
 

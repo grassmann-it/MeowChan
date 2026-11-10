@@ -9,6 +9,8 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -209,6 +211,9 @@ internal static class NativeTransferV4PreviewChecks
             RequireEmpty(fixture.Work);
             Require(ProfileSnapshot(host) == profileAfterImport, "Unsupported package changed the archive profile.");
 
+            await CheckConflictsDialogAsync(dialog);
+            Require(ProfileSnapshot(host) == profileAfterImport, "Opening the conflict list changed the archive profile.");
+
             // A private package exposes only a content-free offer with its public inventory; Apply stays
             // unsupported with a specific message until the explicit consent path exists. The previous
             // completed inventory/result must not remain visible.
@@ -353,7 +358,7 @@ internal static class NativeTransferV4PreviewChecks
     {
         Button[] buttons = dialog.GetVisualDescendants().OfType<Button>()
             .Where(button => button.Name != "ClearButton" && !button.GetVisualAncestors().Any(a => a is WindowChromeBar or ScrollBar)).ToArray(); // ClearButton is the scope ComboBox template part, not a dialog action.
-        Require(buttons.Length == 5 && buttons.Contains(dialog.ChooseButton) && buttons.Contains(dialog.CancelButton)
+        Require(buttons.Length == 6 && buttons.Contains(dialog.ConflictsButton) && buttons.Contains(dialog.ChooseButton) && buttons.Contains(dialog.CancelButton)
             && buttons.Contains(dialog.ApplyButton) && buttons.Contains(dialog.RecheckButton) && buttons.Contains(dialog.CloseButton),
             "Import dialog exposed a missing or extra action.");
         Require(dialog.ChooseButton.IsEffectivelyEnabled && dialog.CloseButton.IsEffectivelyEnabled
@@ -362,7 +367,8 @@ internal static class NativeTransferV4PreviewChecks
             "Import dialog action enabled state does not match the host state.");
         foreach ((Button button, string key) in new[] { (dialog.ChooseButton, "transfer.import.choose"),
             (dialog.CancelButton, "transfer.import.cancel"), (dialog.ApplyButton, "transfer.import.apply"),
-            (dialog.RecheckButton, "transfer.import.recheck"), (dialog.CloseButton, "transfer.import.close") })
+            (dialog.RecheckButton, "transfer.import.recheck"), (dialog.CloseButton, "transfer.import.close"),
+            (dialog.ConflictsButton, "transfer.conflicts.open") })
             Require(Equals(button.Content, Texts.T(key)) && AutomationProperties.GetName(button) == Texts.T(key),
                 "Import action label/accessibility name did not follow the open-dialog language.");
     }
@@ -383,6 +389,66 @@ internal static class NativeTransferV4PreviewChecks
         return new(counts.Sum(c => c.Contained), counts.Sum(c => c.Omitted), counts.Sum(c => c.Unknown),
             counts.Sum(c => c.Unavailable), counts.Sum(c => c.Failed), counts.Sum(c => c.Cancelled));
     }
+    // Conflict management: the real host-backed list is empty for this profile; a delegate-backed dialog
+    // proves keep/discard, the two-step discard confirmation and Escape without touching the profile.
+    private static async Task CheckConflictsDialogAsync(NativeTransferImportDialog importDialog)
+    {
+        Require(importDialog.ConflictsButton.IsEffectivelyEnabled, "The conflict list was not reachable from the import dialog.");
+        MediaConflictsDialog? real = null;
+        importDialog.ConflictsShowForTests = async shown => { real = shown; shown.Show(importDialog); await SettleAsync(shown); };
+        await importDialog.OpenConflictsForTestsAsync();
+        importDialog.ConflictsShowForTests = null;
+        MediaConflictsDialog realDialog = real ?? throw new InvalidOperationException("The conflict dialog did not open.");
+        Require(realDialog.RowsForTests.Children.Count == 0 && realDialog.StatusForTests.Text == Texts.T("transfer.conflicts.empty"),
+            "An archive without conflicts did not show the empty conflict state.");
+        realDialog.Close();
+
+        string a = new('a', 64), b = new('b', 64), active = new('d', 64);
+        List<MediaConflictRow> store =
+        [
+            new(a, new ResourceId("4chan", "g", "1"), active, a, 10, 20, MediaConflictUserStatus.Open),
+            new(b, new ResourceId("4chan", "g", "2"), active, b, 10, 30, MediaConflictUserStatus.Open)
+        ];
+        List<(string Id, MediaConflictUserAction Action)> calls = [];
+        MediaConflictsDialog fake = new(
+            (offset, limit, _) => Task.FromResult(new MediaConflictPage(store.Count, store.Skip(offset).Take(limit).ToArray())),
+            (id, action, _) =>
+            {
+                calls.Add((id, action));
+                int index = store.FindIndex(row => row.Id == id);
+                store[index] = store[index] with { Status = action == MediaConflictUserAction.Keep ? MediaConflictUserStatus.Kept : MediaConflictUserStatus.Discarded };
+                return Task.FromResult(MediaConflictActionOutcome.Applied);
+            });
+        fake.Show(importDialog);
+        await SettleAsync(fake);
+        Button[] Buttons(string name) => fake.RowsForTests.GetVisualDescendants().OfType<Button>().Where(x => x.Name == name).ToArray();
+        void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Require(fake.RowsForTests.Children.Count == 2 && Buttons("MediaConflictDiscard").Length == 2,
+            "The conflict list did not render both recorded alternatives.");
+
+        Click(Buttons("MediaConflictDiscard")[0]);
+        await SettleAsync(fake);
+        Require(calls.Count == 0 && Equals(Buttons("MediaConflictDiscard")[0].Content, Texts.T("transfer.conflicts.confirmDiscard", 20L)),
+            "Discard acted without a named confirmation step.");
+        fake.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+        await SettleAsync(fake);
+        Require(calls.Count == 0 && Equals(Buttons("MediaConflictDiscard")[0].Content, Texts.T("transfer.conflicts.discard")),
+            "Escape did not cancel the discard confirmation.");
+
+        Click(Buttons("MediaConflictDiscard")[0]);
+        await SettleAsync(fake);
+        Click(Buttons("MediaConflictDiscard")[0]);
+        await SettleAsync(fake);
+        Require(calls.Count == 1 && calls[0] == (a, MediaConflictUserAction.Discard), "Confirmed discard did not record exactly one decision.");
+        Click(Buttons("MediaConflictKeep")[1]);
+        await SettleAsync(fake);
+        Require(calls.Count == 2 && calls[1] == (b, MediaConflictUserAction.Keep), "Keep did not record exactly one decision.");
+        Require(!Buttons("MediaConflictKeep")[0].IsEnabled && !Buttons("MediaConflictDiscard")[0].IsEnabled
+            && !Buttons("MediaConflictKeep")[1].IsEnabled && Buttons("MediaConflictDiscard")[1].IsEnabled,
+            "Decided alternatives offered a repeat or contradictory action.");
+        fake.Close();
+    }
+
     private static async Task SettleAsync(Window window)
     {
         await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);

@@ -52,6 +52,20 @@ internal static class NativeTransferImportCatalog
         ("transfer.import.error.scope", "The selected New/Merge scope does not match the local archive target. Choose the other scope and select the package again. Nothing was changed.", "Der gewählte Umfang Neu/Zusammenführen passt nicht zum lokalen Archivziel. Wähle den anderen Umfang und das Paket erneut. Es wurde nichts geändert."),
         ("transfer.import.error.profile", "The profile is not ready for import. Nothing was changed.", "Das Profil ist für den Import nicht bereit. Es wurde nichts geändert."),
         ("transfer.import.error.apply", "The import could not be completed. Review the result before trying again.", "Der Import konnte nicht abgeschlossen werden. Prüfe das Ergebnis vor einem neuen Versuch."),
+        ("transfer.conflicts.open", "Manage conflicts", "Konflikte verwalten"),
+        ("transfer.conflicts.title", "Media conflicts", "Medienkonflikte"),
+        ("transfer.conflicts.empty", "No media conflicts are recorded.", "Es sind keine Medienkonflikte erfasst."),
+        ("transfer.conflicts.row", "{0} /{1}/ {2} · active {3:N0} bytes · alternative {4:N0} bytes ({6}…) · {5}", "{0} /{1}/ {2} · aktiv {3:N0} Bytes · Alternative {4:N0} Bytes ({6}…) · {5}"),
+        ("transfer.conflicts.keep", "Keep alternative", "Alternative behalten"),
+        ("transfer.conflicts.discard", "Discard alternative", "Alternative verwerfen"),
+        ("transfer.conflicts.confirmDiscard", "Confirm: discard {0:N0} bytes", "Bestätigen: {0:N0} Bytes verwerfen"),
+        ("transfer.conflicts.more", "Show more ({0} of {1})", "Mehr anzeigen ({0} von {1})"),
+        ("transfer.conflicts.status.open", "open", "offen"),
+        ("transfer.conflicts.status.kept", "kept", "behalten"),
+        ("transfer.conflicts.status.discarded", "discarded", "verworfen"),
+        ("transfer.conflicts.status.promoted", "promoted", "übernommen"),
+        ("transfer.conflicts.error.read", "The conflict list could not be read.", "Die Konfliktliste konnte nicht gelesen werden."),
+        ("transfer.conflicts.error.action", "The decision could not be recorded. Nothing was changed.", "Die Entscheidung konnte nicht gespeichert werden. Es wurde nichts geändert."),
         ("transfer.import.error.read", "The transfer package could not be read.", "Das Transferpaket konnte nicht gelesen werden.")
     };
 }

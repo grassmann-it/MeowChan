@@ -68,6 +68,11 @@ internal sealed class NativeTransferImportSession : IAsyncDisposable
     internal NativeTransferImportSession(DesktopSessionHost host, string workParentDirectory)
     { _host = host; _parent = workParentDirectory; }
 
+    internal Task<MediaConflictPage> ListMediaConflictsAsync(int offset, int limit, CancellationToken token)
+        => _host.ListMediaConflictsAsync(offset, limit, token);
+    internal Task<MediaConflictActionOutcome> DecideMediaConflictAsync(string id, MediaConflictUserAction action,
+        CancellationToken token) => _host.DecideMediaConflictAsync(id, action, token);
+
     internal Func<CancellationToken, Task>? BeforeSourceOpenForTests { get; set; }
     internal Func<CancellationToken, Task>? AfterPreparationForTests { get; set; }
     internal Action<string>? BeforeDirectoryCleanupForTests { get; set; }
