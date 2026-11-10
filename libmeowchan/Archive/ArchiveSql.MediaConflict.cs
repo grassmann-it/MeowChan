@@ -155,25 +155,69 @@ internal static partial class ArchiveSql
         select.Parameters.AddWithValue("$offset", offset);
         List<PersistedMediaConflict> items = new();
         using SqliteDataReader reader = select.ExecuteReader();
-        while (reader.Read())
-        {
-            var resource = new ResourceId(reader.GetString(1), reader.GetString(2), reader.GetString(3));
-            var identity = new MeowChan.Transfer.NativeMediaConflictIdentity(resource, reader.GetString(4),
-                reader.GetString(5), reader.GetString(6));
-            if (identity.IdentitySha256 != reader.GetString(0))
-                throw new InvalidDataException("The media conflict ledger contains a mismatched identity.");
-            var status = (MeowChan.Transfer.NativeMediaConflictResolutionStatus)reader.GetInt32(12);
-            var entry = new MeowChan.Transfer.NativeMediaConflictEntry(identity,
-                new(identity.ActiveVariantSha256, MeowChan.Transfer.NativeMediaConflictVariantStatus.Active, reader.GetInt64(7)),
-                new(identity.CandidateVariantSha256, MeowChan.Transfer.NativeMediaConflictVariantStatus.Inactive, reader.GetInt64(8)),
-                status);
-            var provenance = new MeowChan.Transfer.NativeMediaConflictProvenance(
-                Guid.ParseExact(reader.GetString(9), "D"), reader.GetString(10), reader.GetString(11));
-            DateTimeOffset? decided = reader.IsDBNull(13) ? null
-                : DateTimeOffset.Parse(reader.GetString(13), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
-            items.Add(new PersistedMediaConflict(entry, provenance, decided));
-        }
+        while (reader.Read()) items.Add(MapMediaConflict(reader));
         return (total, items);
+    }
+
+    internal static long ReadThreadRevision(SqliteConnection connection, SqliteTransaction transaction, ResourceId id)
+    {
+        using SqliteCommand command = Command(connection, transaction,
+            "SELECT revision FROM archive_threads WHERE source=$source AND board=$board AND thread=$thread");
+        AddId(command, id);
+        return command.ExecuteScalar() is long revision ? revision : throw new InvalidDataException("The conflict's thread disappeared.");
+    }
+
+    internal static void BumpThreadRevision(SqliteConnection connection, SqliteTransaction transaction, ResourceId id)
+    {
+        using SqliteCommand command = Command(connection, transaction,
+            "UPDATE archive_threads SET revision=revision+1 WHERE source=$source AND board=$board AND thread=$thread");
+        AddId(command, id);
+        if (command.ExecuteNonQuery() != 1) throw new InvalidDataException("The conflict's thread disappeared.");
+    }
+
+    internal static void RegisterMediaDirectory(SqliteConnection connection, SqliteTransaction transaction, ResourceId id, string directory)
+    {
+        using SqliteCommand command = Command(connection, transaction, """
+            INSERT INTO archive_media_directories(source,board,thread,directory)
+            VALUES($source,$board,$thread,$directory) ON CONFLICT DO NOTHING
+            """);
+        AddId(command, id);
+        command.Parameters.AddWithValue("$directory", directory);
+        command.ExecuteNonQuery();
+    }
+
+    private const string MediaConflictColumns = """
+        identity_sha256,source_id,board_id,thread_id,occurrence_sha256,active_sha256,candidate_sha256,
+        active_bytes,candidate_bytes,operation_id,request_sha256,resource_set_sha256,status,decided_at_utc
+        """;
+
+    internal static PersistedMediaConflict? ReadMediaConflict(SqliteConnection connection, SqliteTransaction transaction,
+        string identitySha256)
+    {
+        using SqliteCommand select = Command(connection, transaction,
+            "SELECT " + MediaConflictColumns + " FROM media_conflict WHERE identity_sha256=$id");
+        select.Parameters.AddWithValue("$id", identitySha256);
+        using SqliteDataReader reader = select.ExecuteReader();
+        return reader.Read() ? MapMediaConflict(reader) : null;
+    }
+
+    private static PersistedMediaConflict MapMediaConflict(SqliteDataReader reader)
+    {
+        var resource = new ResourceId(reader.GetString(1), reader.GetString(2), reader.GetString(3));
+        var identity = new MeowChan.Transfer.NativeMediaConflictIdentity(resource, reader.GetString(4),
+            reader.GetString(5), reader.GetString(6));
+        if (identity.IdentitySha256 != reader.GetString(0))
+            throw new InvalidDataException("The media conflict ledger contains a mismatched identity.");
+        var status = (MeowChan.Transfer.NativeMediaConflictResolutionStatus)reader.GetInt32(12);
+        var entry = new MeowChan.Transfer.NativeMediaConflictEntry(identity,
+            new(identity.ActiveVariantSha256, MeowChan.Transfer.NativeMediaConflictVariantStatus.Active, reader.GetInt64(7)),
+            new(identity.CandidateVariantSha256, MeowChan.Transfer.NativeMediaConflictVariantStatus.Inactive, reader.GetInt64(8)),
+            status);
+        var provenance = new MeowChan.Transfer.NativeMediaConflictProvenance(
+            Guid.ParseExact(reader.GetString(9), "D"), reader.GetString(10), reader.GetString(11));
+        DateTimeOffset? decided = reader.IsDBNull(13) ? null
+            : DateTimeOffset.Parse(reader.GetString(13), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+        return new PersistedMediaConflict(entry, provenance, decided);
     }
 }
 

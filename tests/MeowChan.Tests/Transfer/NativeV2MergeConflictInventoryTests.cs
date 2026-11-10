@@ -93,6 +93,65 @@ public sealed class NativeV2MergeConflictInventoryTests
             Hash(Alternative), [active]));
     }
 
+    [Fact]
+    public async Task CatalogPromoteRegistersTheRootAndTheDecisionTogetherAndIsRepeatable()
+    {
+        await using NativeV2ImportFixture f = await CreateAsync();
+        // Same slot and provider tuple, different original bytes carried in the package: a ledgered alternative.
+        TransferAttachment conflict = Attachment(derived: false) with
+        {
+            PayloadSha256 = Hash(Alternative),
+            OriginalByteVersion = new(Alternative.Length, Hash(Alternative), Md5(Alternative), null)
+        };
+        MergeObservation merged = await MergeAsync(f, Incoming([Post("15", conflict)], []),
+            [Alternative], evidence: 0, derived: 0, safe: false);
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(f.Files.Profile);
+        PersistedMediaConflict row = Assert.Single((await reader.ReadMediaConflictsAsync(0, 10)).Items);
+        string id = row.Entry.Identity.IdentitySha256;
+        ArchivedThreadView before = Assert.IsType<ArchivedThreadView>(await reader.ReadThreadAsync(Id));
+        CapturedAttachment slot = Assert.Single(Assert.Single(before.GetPosts(), x => x.PostId == "15").Attachments!);
+        string seedRoot = before.MediaDirectories.Single();
+        string seedManifest = File.ReadAllText(Path.Combine(seedRoot, ".meowchan-manifest.json"));
+
+        MediaPromoteResult first = await f.Catalog.PromoteMediaConflictAsync(id, f.Store);
+        Assert.Equal(MediaPromoteStatus.Promoted, first.Status);
+        ArchivedThreadView after = Assert.IsType<ArchivedThreadView>(await reader.ReadThreadAsync(Id));
+        Assert.Contains(first.Directory!, after.MediaDirectories);
+        Assert.Equal(2, after.MediaDirectories.Count);
+        var snapshots = new List<MediaAssetSnapshot>();
+        foreach (string directory in after.MediaDirectories) snapshots.Add(await MediaAssetReader.OpenAsync(directory));
+        Assert.Equal(Alternative, await ReadOriginalAsync(Assert.IsType<ResolvedMediaAttachment>(
+            MediaAttachmentResolver.Resolve(snapshots, Id, "15", slot))));
+        Assert.Equal(NativeMediaConflictResolutionStatus.Promoted,
+            Assert.Single((await reader.ReadMediaConflictsAsync(0, 10)).Items).Entry.Resolution);
+        Assert.Equal(seedManifest, File.ReadAllText(Path.Combine(seedRoot, ".meowchan-manifest.json")));
+
+        MediaPromoteResult again = await f.Catalog.PromoteMediaConflictAsync(id, f.Store);
+        Assert.Equal(MediaPromoteStatus.AlreadyPromoted, again.Status);
+        Assert.Equal(2, Assert.IsType<ArchivedThreadView>(await reader.ReadThreadAsync(Id)).MediaDirectories.Count);
+        Assert.Equal(MediaPromoteStatus.Missing, (await f.Catalog.PromoteMediaConflictAsync(new string('0', 64), f.Store)).Status);
+    }
+
+    [Fact]
+    public async Task CatalogPromoteIsRefusedWhenTheAlternativeHasNoStoredBytes()
+    {
+        await using NativeV2ImportFixture f = await CreateAsync();
+        TransferAttachment original = Attachment();
+        TransferOriginalByteVersion otherVersion = new(Alternative.Length, Hash(Alternative), Md5(Alternative), null);
+        TransferAttachment omitted = original with
+        {
+            Status = TransferContentStatus.Omitted, PayloadSha256 = null, OriginalByteVersion = otherVersion,
+            DerivedRepresentations = [original.DerivedRepresentations[0] with { SourceByteVersion = otherVersion }]
+        };
+        MergeObservation merged = await MergeAsync(f, Incoming(retained: [new("15", omitted)]), [Preview], evidence: 0, derived: 0, safe: false);
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(f.Files.Profile);
+        PersistedMediaConflict row = Assert.Single((await reader.ReadMediaConflictsAsync(0, 10)).Items);
+        MediaPromoteResult result = await f.Catalog.PromoteMediaConflictAsync(row.Entry.Identity.IdentitySha256, f.Store);
+        Assert.Equal(MediaPromoteStatus.BytesUnavailable, result.Status);
+        Assert.Equal(NativeMediaConflictResolutionStatus.Open, Assert.Single((await reader.ReadMediaConflictsAsync(0, 10)).Items).Entry.Resolution);
+        Assert.Single(Assert.IsType<ArchivedThreadView>(await reader.ReadThreadAsync(Id)).MediaDirectories);
+    }
+
     private static bool PathsContain(NativeMediaPersistedMergeOperation operation, string directory)
         => string.Equals(directory, operation.Full.Directory, StringComparison.Ordinal)
             || string.Equals(directory, operation.Safe.Directory, StringComparison.Ordinal);
