@@ -194,7 +194,8 @@ public partial class MainWindow
 
     private bool NavigateWorkspace(WorkspacePage page, bool activateArchive = true)
     {
-        if ((!_restoreCompleted && !(page == WorkspacePage.Diagnostics && _session.Projection.View.State == DesktopSessionState.RecoveryFailed))
+        if ((!_restoreCompleted && !(page == WorkspacePage.Diagnostics && _session.Projection.View.State == DesktopSessionState.RecoveryFailed)
+                && !(EarlyPageChoice && IsEarlyPage(page)))
             || WorkspaceCommandBusy) return false;
         if (page != WorkspacePage.Archive) _archivePage?.CancelPendingGalleryOpen();
         ++_readingResumeNavigationRevision;
@@ -215,6 +216,7 @@ public partial class MainWindow
         this.FindControl<Button>("ArchiveNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Archive);
         this.FindControl<Button>("SourcesNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Sources);
         this.FindControl<Button>("PluginsNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Plugins);
+        RefreshStartupPreview(); // The historical preview belongs to the Downloads page only.
         UpdatePageNavigation();
         RefreshReadingResumePresentation();
         if (page == WorkspacePage.Sources) RefreshSourcesPage();

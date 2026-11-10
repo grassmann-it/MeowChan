@@ -17,6 +17,7 @@ internal static class ArchiveCatalog
         ("archive.currentPage", "current page", "aktuelle Seite"),
         ("archive.addFilter", "Add", "Hinzufügen"),
         ("archive.pendingFilter", "Add or clear the pending source, board or state before searching.", "Quelle, Board oder Zustand vor der Suche hinzufügen oder die Eingabe leeren."),
+        ("archive.workStatusLoading", "Work status is still loading. Search without the work filter now, or apply it once the session is ready.", "Der Arbeitsstatus wird noch geladen. Jetzt ohne Arbeitsfilter suchen oder ihn anwenden, sobald die Sitzung bereit ist."),
         ("archive.allSourceBoards", "All sources", "Alle Quellen"),
         ("archive.dateBasis", "First registered locally", "Erstmals lokal registriert"),
         ("archive.dateHint", "First entry in the local archive catalog, including threads without posts. Not publication date. End day included. Type YYYY-MM-DD or use the calendar.", "Erste Aufnahme in den lokalen Archivkatalog, auch ohne Posts. Kein Veröffentlichungsdatum. Endtag eingeschlossen. YYYY-MM-DD eingeben oder Kalender verwenden."),

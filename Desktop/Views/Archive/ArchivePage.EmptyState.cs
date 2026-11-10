@@ -32,7 +32,7 @@ public partial class ArchivePage
 
     private async void OnResetArchiveFiltersClick(object? sender, RoutedEventArgs e)
     {
-        if (_busy || _ended || !_available) return;
+        if (_busy || _ended || !CanRead) return;
         ArchiveSearchSpec reset = new(sort: _query.Sort);
         WriteSearchDraft(reset);
         _showReader = false; UpdateLayoutMode();

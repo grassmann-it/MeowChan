@@ -23,7 +23,7 @@ public partial class ArchivePage
     {
         CancelInlineReplies();
         _inlineReplyRows = rows;
-        if (rows.Length == 0 || _thread == null || _openReader == null || !_available || _ended) return;
+        if (rows.Length == 0 || _thread == null || _openReader == null || !CanRead || _ended) return;
         int request = _inlineRepliesRequest;
         ResourceId thread = _thread.Summary.Id;
         CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -83,7 +83,7 @@ public partial class ArchivePage
 
     private async Task LoadInlineRepliesAsync(ArchivePostRow row)
     {
-        if (_ended || _busy || !_available || _openReader == null || _thread == null || row.RepliesLoading ||
+        if (_ended || _busy || !CanRead || _openReader == null || _thread == null || row.RepliesLoading ||
             !_inlineReplyRows.Any(item => ReferenceEquals(item, row))) return;
         int request = _inlineRepliesRequest;
         ArchivePostRow[] rows = _inlineReplyRows;

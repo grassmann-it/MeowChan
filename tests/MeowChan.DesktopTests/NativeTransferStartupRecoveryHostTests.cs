@@ -68,7 +68,11 @@ public sealed class NativeTransferStartupRecoveryHostTests
                 Assert.Null(host.Plugins); // Explicit empty providers: never discover/start plugins.
                 Assert.NotNull(observed); Assert.NotNull(lease);
                 Assert.Equal(0, observed.Loads);
+                bool readablePublished = false;
+                host.CatalogReadableChanged += () => readablePublished = true;
                 await host.StartAsync().WaitAsync(Deadline);
+                // An unresolved transfer never makes the archive readable, not even transiently.
+                Assert.Equal(healthy, readablePublished); Assert.Equal(healthy, host.CatalogReadable);
                 Assert.Equal(healthy ? DesktopSessionState.Ready : DesktopSessionState.RecoveryFailed, host.State);
                 Assert.Equal(healthy ? ProfileAdmissionPhase.Ready : ProfileAdmissionPhase.RecoveryFailed, lease.Admission.Phase);
                 Assert.Equal(healthy ? 1 : 0, observed.Loads);

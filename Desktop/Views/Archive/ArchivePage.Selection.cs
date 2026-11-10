@@ -103,7 +103,7 @@ public partial class ArchivePage
 
     private async void ArchiveSelectionChanged(object? sender)
     {
-        if (_updatingList || IsFilenameSearchOpen || _ended || !_available) return;
+        if (_updatingList || IsFilenameSearchOpen || _ended || !CanRead) return;
         IEnumerable<ArchiveThreadRow> selected = sender is DataGrid table ? table.SelectedItems.Cast<ArchiveThreadRow>()
             : (sender as ListBox ?? Control<ListBox>("ArchiveThreads")).SelectedItems!.Cast<ArchiveThreadRow>();
         _archiveSelectionIds.Clear();
@@ -175,7 +175,7 @@ public partial class ArchivePage
         {
             if (row != null) Dispatcher.UIThread.Post(async () =>
             {
-                if (!_ended && _available && CanShowArchivePreviewBesideList
+                if (!_ended && CanRead && CanShowArchivePreviewBesideList
                     && _archiveLeadId == row.Summary.Id && _archiveSelectionIds.Contains(row.Summary.Id)
                     && _selectedThread != row.Summary.Id)
                     await LoadThreadAsync(row.Summary.Id);

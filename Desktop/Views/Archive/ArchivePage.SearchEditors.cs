@@ -92,7 +92,7 @@ public partial class ArchivePage
         var origin = owner.FocusManager?.GetFocusedElement();
         if (_invalidSearchEditor != null) Control<Expander>("ArchiveFilters").IsExpanded = true;
         else editor.Focusable = true;
-        bool Current() => !_ended && !_lifetime.IsCancellationRequested && _available && !_busy && IsEffectivelyVisible && owner.IsActive
+        bool Current() => !_ended && !_lifetime.IsCancellationRequested && CanRead && !_busy && IsEffectivelyVisible && owner.IsActive
             && generation == _searchValidationGeneration && revision == _draftRevision && ReferenceEquals(applied, _appliedSearch)
             && ReferenceEquals(TopLevel.GetTopLevel(this), owner);
         // Expanding the nested filter region must finish layout before scrolling.

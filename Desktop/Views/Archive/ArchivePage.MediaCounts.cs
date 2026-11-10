@@ -92,7 +92,7 @@ public partial class ArchivePage
     // Updates inventory only: no applied-query, work-filter, row, selection or focus replacement.
     internal void NotifyArchiveMediaCountsChanged()
     {
-        if (_ended || !_available || _busy || !IsEffectivelyVisible || !this.IsAttachedToVisualTree() || _openReader == null || !_listLoaded) return;
+        if (_ended || !CanRead || _busy || !IsEffectivelyVisible || !this.IsAttachedToVisualTree() || _openReader == null || !_listLoaded) return;
         if (_obscuredByGallery)
         {
             _archiveMediaCountsDirty = true;

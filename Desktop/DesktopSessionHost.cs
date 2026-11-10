@@ -160,18 +160,22 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             Config.EnsureOrdinaryWritesAllowed();
             using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.startup.preview", epoch: _epoch))
                 await LoadStartupPreviewAsync(_startupCancellation.Token).ConfigureAwait(false);
-            if (Plugins != null)
-            {
-                using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.startup.plugins", epoch: _epoch))
-                    await Plugins.StartAsync(_startupCancellation.Token).ConfigureAwait(false);
-                await PluginRegistryAdapter.RegisterBeforeRestoreAsync(_registry, Plugins.Sources, _startupCancellation.Token).ConfigureAwait(false);
-            }
+            // Local catalog preparation needs no plugin: it runs first so the archive is readable while
+            // the (much slower) plugin and registry phases continue. Order within it is unchanged.
             using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.startup.content", epoch: _epoch))
                 await _content.InitializeAdmittedAsync(_profileStartupAdmission
                     ?? throw new InvalidOperationException("No profile startup admission."), _startupCancellation.Token).ConfigureAwait(false);
             // Startup ownership is still held. An interrupted transfer must not be
             // bypassed by restarting the ordinary producer/queue epoch.
             await _content.Catalog.EnsureNativeMediaRecoveryClearAsync(_startupCancellation.Token).ConfigureAwait(false);
+            PublishCatalogReadable();
+            if (AfterCatalogReadableForTests is { } readableHold) await readableHold(_startupCancellation.Token).ConfigureAwait(false);
+            if (Plugins != null)
+            {
+                using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.startup.plugins", epoch: _epoch))
+                    await Plugins.StartAsync(_startupCancellation.Token).ConfigureAwait(false);
+                await PluginRegistryAdapter.RegisterBeforeRestoreAsync(_registry, Plugins.Sources, _startupCancellation.Token).ConfigureAwait(false);
+            }
             Plugins?.AttachContent(_content);
             using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.startup.registry", epoch: _epoch))
                 await _registry.RestoreAdmittedAsync(_profileStartupAdmission).ConfigureAwait(false);

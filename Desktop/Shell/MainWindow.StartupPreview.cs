@@ -11,6 +11,8 @@ public partial class MainWindow
     private bool _startupPreviewShown;
     private bool _startupPreviewRetired;
     private void OnStartupPreviewChanged() => _sessionRefresh.RequestImmediate();
+    // Raised off the UI thread by the host; only the archive read gate depends on it.
+    private void OnCatalogReadableChanged() => Dispatcher.UIThread.Post(() => { if (!_isClosing) UpdateInteractionState(); });
 
     private void RefreshStartupPreview()
     {
@@ -21,6 +23,7 @@ public partial class MainWindow
         if (_restoreCompleted && !_sessionRowsApplying && _appliedSessionProjection?.View.State == DesktopSessionState.Ready)
             _startupPreviewRetired = true;
         bool show = !_startupPreviewRetired && !_isClosing && preview is { Rows.Count: > 0 }
+            && _selectedPage == WorkspacePage.Downloads
             && (state == DesktopSessionState.Starting
                 || (state == DesktopSessionState.Ready && (!_restoreCompleted || _sessionRowsApplying)));
         Border panel = this.FindControl<Border>("StartupPreviewPanel")!;

@@ -594,6 +594,7 @@
     "archive.currentPage": "page actuelle",
     "archive.addFilter": "Ajouter",
     "archive.pendingFilter": "Ajoutez ou effacez la source, le tableau ou l’état en attente avant de rechercher.",
+    "archive.workStatusLoading": "L’état de travail est encore en cours de chargement. Recherchez maintenant sans le filtre de travail ou appliquez-le lorsque la session sera prête.",
     "archive.allSourceBoards": "Toutes les sources",
     "archive.dateBasis": "Premier enregistrement local",
     "archive.dateHint": "Première entrée dans le catalogue d’archive local, y compris les fils sans messages. Ce n’est pas la date de publication. Le jour de fin est inclus. Saisissez YYYY-MM-DD ou utilisez le calendrier.",

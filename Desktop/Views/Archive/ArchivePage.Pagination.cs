@@ -102,7 +102,7 @@ public partial class ArchivePage
     internal Task<bool> NavigateResultsPage(int page) => NavigateResultsPage(page, null);
     private async Task<bool> NavigateResultsPage(int page, PaginationFocusOrigin? origin)
     {
-        if (_busy || _ended || !_available || _appliedSearch == null
+        if (_busy || _ended || !CanRead || _appliedSearch == null
             || !TryResultsOffset(page, _listTotal, out int offset) || offset == _listOffset) return false;
         int revision = ++_paginationNavigationRevision;
         bool focusChanged = false;
@@ -173,7 +173,7 @@ public partial class ArchivePage
         int? target = e.NewValue;
         PaginationFocusOrigin? origin = _paginationInputOrigin;
         ClearPaginationInput();
-        UpdateSearchActions(_available && !_busy && !_ended); // revert speculative CurrentPage before await
+        UpdateSearchActions(CanRead && !_busy && !_ended); // revert speculative CurrentPage before await
         if (target.HasValue) await NavigateResultsPage(target.Value, origin);
     }
     internal Task<bool> RetrySearchAsync() => _busy || _retryList == null

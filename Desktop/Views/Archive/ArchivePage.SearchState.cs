@@ -18,7 +18,7 @@ public partial class ArchivePage
     private ListLoad? _runningList;
     private IReadOnlyDictionary<string, ThreadWorkSnapshot> _appliedWork = new Dictionary<string, ThreadWorkSnapshot>();
     private ListLoad? _retryList;
-    internal bool CanApplySearch => _available && !_busy && !_ended;
+    internal bool CanApplySearch => CanRead && !_busy && !_ended;
     internal bool CanSaveAppliedSearch => CanApplySearch && _appliedSearch != null;
     internal bool IsSearchLoading => _runningList != null;
     internal ArchiveSearchSpec? AppliedSearchSpec => _appliedSearch?.Spec;
@@ -32,7 +32,7 @@ public partial class ArchivePage
 
     internal async Task<bool> ApplySearchSpecAsync(ArchiveSearchSpec spec, CancellationToken cancellationToken = default)
     {
-        if (_busy || _ended || !_available) return false;
+        if (_busy || _ended || !CanRead) return false;
         try
         {
             ArchiveSearchRequest request = ArchiveSearchRequest.Create(spec);

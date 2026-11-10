@@ -88,6 +88,7 @@ public partial class MainWindow : Window
             _sessionRefresh = new CoalescedUiUpdate(RefreshSession, SessionProgressIntervalForTests);
             _session.ProjectionPublished += OnSessionChanged;
             _session.StartupPreviewChanged += OnStartupPreviewChanged;
+            _session.CatalogReadableChanged += OnCatalogReadableChanged;
             DataContext = this;
             Activated += OnGalleryActivationChanged;
             Deactivated += OnGalleryActivationChanged;
@@ -132,6 +133,7 @@ public partial class MainWindow : Window
             Texts.Changed -= OnLanguageChanged;
             _session.ProjectionPublished -= OnSessionChanged;
             _session.StartupPreviewChanged -= OnStartupPreviewChanged;
+            _session.CatalogReadableChanged -= OnCatalogReadableChanged;
             DisposeWorkspace();
             DisposeWorkspacePages();
             _sessionRefresh?.Dispose();
@@ -180,30 +182,43 @@ public partial class MainWindow : Window
         else _sessionRefresh.Request();
     }
 
+    // Starting only: a failed or closing session keeps its existing, narrower navigation.
+    private bool EarlyPageChoice => !_restoreCompleted && !_isClosing && !_applyingPreferences && !WorkspaceCommandBusy
+        && _session.State == DesktopSessionState.Starting;
+    private static bool IsEarlyPage(WorkspacePage page) =>
+        page is WorkspacePage.Downloads or WorkspacePage.Archive or WorkspacePage.Settings;
+
     private void UpdateInteractionState()
     {
         RefreshStartupPreview();
         RefreshClipboardMonitor();
         bool ready = _restoreCompleted && !_isClosing && !_applyingPreferences;
         bool navigationReady = ready && !WorkspaceCommandBusy;
+        // Choosing a page is not engine readiness. While the session is still being prepared the pages that
+        // need neither plugins nor the registry can already be chosen; their own actions stay gated.
+        bool earlyPages = navigationReady || EarlyPageChoice;
         UpdatePauseControls(ready && !WorkspaceEditorBusy);
         if (_postBookmarksMenu != null) _postBookmarksMenu.IsEnabled = navigationReady;
 
         if (_settingsEditor != null) _settingsEditor.IsAvailable = ready;
         if (_rulesPage != null) _rulesPage.IsAvailable = ready;
-        if (_archivePage != null) _archivePage.IsAvailable = ready;
+        if (_archivePage != null)
+        {
+            _archivePage.IsAvailable = ready;
+            _archivePage.IsReadable = !_isClosing && _session.CatalogReadable;
+        }
         this.FindControl<Button>("AddUrlButton")!.IsEnabled = ready && !_importing;
         this.FindControl<TextBox>("UrlInput")!.IsEnabled = ready;
-        this.FindControl<MenuItem>("SettingsMenuItem")!.IsEnabled = navigationReady;
-        this.FindControl<Button>("DownloadsNavigationButton")!.IsEnabled = navigationReady;
-        this.FindControl<Button>("SettingsNavigationButton")!.IsEnabled = navigationReady;
-        this.FindControl<Button>("ArchiveNavigationButton")!.IsEnabled = navigationReady;
+        this.FindControl<MenuItem>("SettingsMenuItem")!.IsEnabled = earlyPages;
+        this.FindControl<Button>("DownloadsNavigationButton")!.IsEnabled = earlyPages;
+        this.FindControl<Button>("SettingsNavigationButton")!.IsEnabled = earlyPages;
+        this.FindControl<Button>("ArchiveNavigationButton")!.IsEnabled = earlyPages;
         this.FindControl<Button>("RulesNavigationButton")!.IsEnabled = navigationReady;
         this.FindControl<Button>("SourcesNavigationButton")!.IsEnabled = navigationReady;
         this.FindControl<Button>("PluginsNavigationButton")!.IsEnabled = navigationReady;
         RefreshReadingResumeState();
         this.FindControl<MenuItem>("SourcesMenuItem")!.IsEnabled = navigationReady;
-        this.FindControl<MenuItem>("ArchiveMenuItem")!.IsEnabled = navigationReady;
+        this.FindControl<MenuItem>("ArchiveMenuItem")!.IsEnabled = earlyPages;
         RefreshReaderGroupsEntry(); // URSA-12 shared session-readiness refresh.
         this.FindControl<MenuItem>("RulesMenuItem")!.IsEnabled = navigationReady;
         bool diagnosticsReady = !WorkspaceCommandBusy
@@ -900,6 +915,7 @@ public partial class MainWindow : Window
             Log.Debug("Shutdown: session disposed; releasing UI subscriptions.");
             _session.ProjectionPublished -= OnSessionChanged;
             _session.StartupPreviewChanged -= OnStartupPreviewChanged;
+            _session.CatalogReadableChanged -= OnCatalogReadableChanged;
             Texts.Changed -= OnLanguageChanged;
             DisposeWorkspace();
             _sessionRefresh.Dispose();

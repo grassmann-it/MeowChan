@@ -18,6 +18,7 @@ namespace MeowChan.DesktopSmoke;
 internal sealed class StartupPreviewSmokeApp : App
 {
     internal StartupPreviewBarrier Barrier { get; } = new();
+    internal StartupPreviewBarrier ReadableBarrier { get; } = new();
     internal StartupPreviewObservedStore Store { get; private set; } = null!;
     internal StartupPreviewNoNetwork Transport { get; } = new();
     private readonly HttpClient _client;
@@ -46,6 +47,7 @@ internal sealed class StartupPreviewSmokeApp : App
     {
         DesktopSessionHost host = CreateHost(Config.GetConfigDirectory(), Barrier, false, out var store);
         Store = store;
+        host.AfterCatalogReadableForTests = ReadableBarrier.HoldAsync; // main window only: UX103 early archive
         return new MainWindow(host);
     }
 }
@@ -113,6 +115,7 @@ internal static class StartupPreviewChecks
     {
         // Called only by Program's existing MEOWCHAN_STARTUP_PREVIEW_ONLY branch on its disposable profile.
         Seed(profile);
+        EarlyArchiveChecks.Seed(profile);
         foreach (string name in ChildCases) Seed(CaseProfile(profile, name));
         File.WriteAllText(CachePath(CaseProfile(profile, "malformed")), "{bad");
         string future = CachePath(CaseProfile(profile, "future"));
@@ -147,6 +150,7 @@ internal static class StartupPreviewChecks
         StartupPreviewSmokeApp app = (StartupPreviewSmokeApp)Application.Current!;
         await CheckHeldAsync(window, app.Barrier, app.Store, "pending");
         app.Barrier.Release.TrySetResult();
+        await EarlyArchiveChecks.RunHeldAsync(window, app.ReadableBarrier, () => app.Store.Loads);
         await AwaitReadyAsync(window);
         Require(app.Store.Loads == 1, "Authoritative SessionStore was not loaded exactly once.");
         Require(window.UrlList.Count == 0 && window.BoardsList.Count == 0, "Authoritative empty restore adopted cached rows.");

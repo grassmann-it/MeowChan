@@ -134,7 +134,8 @@ public partial class MainWindow
 
     private void SaveConsciousReadingPosition(LocalReadingPosition position)
     {
-        if (_isClosing || _readingPositionForgetPending || !_config.RememberReadingPosition) return;
+        // Reading before the session is ready is display only: no profile write is queued for later.
+        if (_isClosing || !_restoreCompleted || _readingPositionForgetPending || !_config.RememberReadingPosition) return;
         long generation = _session.ReadingPositionGeneration;
         int revision = ++_readingResumeStateRevision;
         _readingResumeState = ReadingResumeState.Loading;

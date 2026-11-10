@@ -143,7 +143,25 @@ public partial class ArchivePage : UserControl
         Control<Button>("ArchiveMediaColumnsButton").IsVisible = false;
         Control<ComboBox>("ArchiveVersionScope").SelectedIndex = 1;
     }
-    internal bool IsAvailable { set { if (!value) InvalidateFilenameSearch(); if (_available != value) CancelReaderMediaActivation(); _available = value; UpdateActions(); } }
+    internal bool IsAvailable
+    {
+        set
+        {
+            if (!value) InvalidateFilenameSearch();
+            if (_available != value) CancelReaderMediaActivation();
+            bool becameAvailable = value && !_available;
+            _available = value; UpdateActions();
+            // A list read before the runtime existed shows unknown work status; refresh the same applied
+            // request once, without touching the draft. A busy page picks it up with its next load.
+            if (becameAvailable && _listReadWithoutRuntime && !_busy && !_ended) _ = LoadListAsync();
+        }
+    }
+    // Catalog reads may begin before the session is ready (startup). This is never a mutation gate:
+    // every write, export, gallery and engine action stays bound to _available.
+    private bool _readable;
+    private bool _listReadWithoutRuntime;
+    private bool CanRead => _available || _readable;
+    internal bool IsReadable { set { if (_readable == value) return; _readable = value; UpdateActions(); } }
     internal bool IsBusy => _busy;
     internal bool IsMediaLoading => _mediaLoading;
     internal Task MediaLoadTask { get; private set; } = Task.CompletedTask;
@@ -151,7 +169,7 @@ public partial class ArchivePage : UserControl
 
     internal async Task ActivateAsync()
     {
-        if (_ended || IsFilenameSearchOpen || !_available || _openReader == null || _busy) return;
+        if (_ended || IsFilenameSearchOpen || !CanRead || _openReader == null || _busy) return;
         InvalidateSuggestions();
         ClosePreview();
         await LoadListAsync();
@@ -160,8 +178,15 @@ public partial class ArchivePage : UserControl
     private async Task<bool> LoadListAsync(ListLoad? pending = null, CancellationToken applicationToken = default)
     {
         InvalidateFilenameSearch();
-        if (_ended || !_available || _openReader == null || _busy || applicationToken.IsCancellationRequested) return false;
+        if (_ended || !CanRead || _openReader == null || _busy || applicationToken.IsCancellationRequested) return false;
         pending ??= NewListLoad(_appliedSearch ?? ArchiveSearchRequest.Create(new ArchiveSearchSpec()), _listOffset);
+        // Work filters need the runtime. Without it every thread would be excluded and read as "0 results";
+        // refuse locally instead, keeping the draft and the current result untouched.
+        if (!_available && pending.Request.Spec.WorkFilter != MeowChan.Archive.ArchiveWorkFilter.All)
+        {
+            SearchEditorError(Texts.T("archive.workStatusLoading"));
+            return false;
+        }
         // Everything needed for membership and SQL is captured before opening the reader.
         _runningList = pending;
         CancelArchiveMediaCounts();
@@ -226,7 +251,7 @@ public partial class ArchivePage : UserControl
                 list.SelectedItem = rows.FirstOrDefault(row => row.Summary.Id == selected);
                 table.SelectedItem = rows.FirstOrDefault(row => row.Summary.Id == selected);
                 RestoreArchiveSelection(rows, selected);
-                _listLoaded = true;
+                _listLoaded = true; _listReadWithoutRuntime = !_available;
                 _archiveMediaCountDatabasePath = reader.DatabasePath;
                 pending.AfterCommit?.Invoke();
                 UpdateAppliedFilters(); UpdateArchiveEmptyState();
@@ -275,7 +300,7 @@ public partial class ArchivePage : UserControl
         ReaderFocusIntent? focusIntent, FilenameSearchOwner? filenameNavigation = null)
     {
         if (!ReferenceEquals(_filenameSearchOwner, filenameNavigation)) InvalidateFilenameSearch();
-        if (_ended || !_available || _openReader == null) return;
+        if (_ended || !CanRead || _openReader == null) return;
         ReaderAnchor? retainedAnchor = !resetPage && _thread?.Summary.Id == id ? CaptureReaderAnchor() : null;
         CancelReferences();
         CancelInlineReplies();
@@ -529,18 +554,19 @@ public partial class ArchivePage : UserControl
         UpdateArchiveSelectionActions();
         UpdateReaderNavigation();
         bool ready = _available && !_busy && !_ended && !IsFilenameSearchOpen;
-        Control<Button>("SearchArchiveButton").IsEnabled = ready;
-        UpdateSearchActions(ready);
+        bool readReady = CanRead && !_busy && !_ended && !IsFilenameSearchOpen; // list/search/paging/reading only
+        Control<Button>("SearchArchiveButton").IsEnabled = readReady;
+        UpdateSearchActions(readReady);
         RefreshArchiveSearchContext();
-        Control<Button>("ArchiveResetFilters").IsEnabled = ready;
+        Control<Button>("ArchiveResetFilters").IsEnabled = readReady;
         UpdateResultsExportAction(ready);
         Control<Button>("ExportArchiveButton").IsEnabled = ready && _selectedThread != null && !_exportRunning;
         Control<Button>("ArchiveHistoryBack").IsVisible = _history.Count > 0;
-        Control<Button>("RefreshArchiveButton").IsEnabled = ready;
-        Control<Button>("PreviousThreadsButton").IsEnabled = ready && _listOffset > 0;
-        Control<Button>("NextThreadsButton").IsEnabled = ready && _listOffset + PageSize < _listTotal;
-        Control<Button>("PreviousPostsButton").IsEnabled = ready && _postOffset > 0;
-        Control<Button>("NextPostsButton").IsEnabled = ready && _thread != null && _postOffset + PageSize < _thread.PostCount;
+        Control<Button>("RefreshArchiveButton").IsEnabled = readReady;
+        Control<Button>("PreviousThreadsButton").IsEnabled = readReady && _listOffset > 0;
+        Control<Button>("NextThreadsButton").IsEnabled = readReady && _listOffset + PageSize < _listTotal;
+        Control<Button>("PreviousPostsButton").IsEnabled = readReady && _postOffset > 0;
+        Control<Button>("NextPostsButton").IsEnabled = readReady && _thread != null && _postOffset + PageSize < _thread.PostCount;
         Control<Grid>("ArchivePostNavigation").IsVisible = _thread?.PostCount > PageSize;
         Control<Button>("CapturePostsButton").IsEnabled = ready && _thread != null;
         Button capture = Control<Button>("CapturePostsButton");
@@ -560,7 +586,7 @@ public partial class ArchivePage : UserControl
         AutomationProperties.SetHelpText(capture, captureTip);
         Control<Button>("PreviewArchiveMediaButton").IsEnabled = ready && SelectedMediaRow() != null;
         Control<Button>("ArchiveOpenGallery").IsEnabled = ready && _selectedThread != null;
-        Control<Button>("ArchiveReadPosts").IsEnabled = ready && _selectedThread != null
+        Control<Button>("ArchiveReadPosts").IsEnabled = readReady && _selectedThread != null
             && FrozenArchiveSelection().Length == 1;
         Control<Button>("ArchiveResultsGallery").IsEnabled = ready && _listTotal > 0;
         Control<TextBlock>("ArchiveThreadPage").Text = PageLabel(_listOffset, _listTotal);

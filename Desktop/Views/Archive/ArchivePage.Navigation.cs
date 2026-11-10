@@ -87,7 +87,7 @@ public partial class ArchivePage
     }
     internal async Task ApplySearchAsync()
     {
-        if (IsFilenameSearchOpen || _busy || _ended || !_available) return;
+        if (IsFilenameSearchOpen || _busy || _ended || !CanRead) return;
         long validation = ++_searchValidationGeneration;
         try
         {
@@ -118,7 +118,7 @@ public partial class ArchivePage
     }
     internal async Task NavigateQuoteAsync(ArchiveQuoteRow row)
     {
-        if (_ended || IsFilenameSearchOpen || _busy || !_available || _openReader == null) return;
+        if (_ended || IsFilenameSearchOpen || _busy || !CanRead || _openReader == null) return;
         ReaderAnchor? originAnchor = row.Backlink && Control<TabControl>("ArchiveContentTabs").SelectedIndex == 2
             ? _backlinkOriginAnchor ?? CaptureReaderAnchor() : CaptureReaderAnchor();
         CancelReferences();
@@ -200,7 +200,7 @@ public partial class ArchivePage
     }
     private async Task LoadBacklinksAsync()
     {
-        if (_busy || _ended || !_available || _openReader == null || _backlinkPost == null) return;
+        if (_busy || _ended || !CanRead || _openReader == null || _backlinkPost == null) return;
         int request = ++_referenceRequest;
         _referenceCancellation?.Cancel();
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);

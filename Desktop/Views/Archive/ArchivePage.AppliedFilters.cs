@@ -126,7 +126,7 @@ public partial class ArchivePage
     }
     internal async Task<bool> RemoveAppliedFilter(string field, string? value = null, int focusIndex = 0)
     {
-        if (_busy || _ended || !_available || _appliedSearch == null) return false;
+        if (_busy || _ended || !CanRead || _appliedSearch == null) return false;
         ArchiveSearchSpec applied = _appliedSearch.Spec;
         ArchiveSearchSpec next = CopySearch(applied, field, value);
         long revision = _editorRevisions.GetValueOrDefault(field);

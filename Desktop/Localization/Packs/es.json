@@ -594,6 +594,7 @@
     "archive.currentPage": "página actual",
     "archive.addFilter": "Añadir",
     "archive.pendingFilter": "Añada o borre la fuente, el tablón o el estado pendiente antes de buscar.",
+    "archive.workStatusLoading": "El estado de trabajo aún se está cargando. Busque ahora sin el filtro de trabajo o aplíquelo cuando la sesión esté lista.",
     "archive.allSourceBoards": "Todas las fuentes",
     "archive.dateBasis": "Primer registro local",
     "archive.dateHint": "Primera entrada en el catálogo del archivo local, incluidos hilos sin publicaciones. No es la fecha de publicación. Se incluye el día final. Escriba YYYY-MM-DD o use el calendario.",
