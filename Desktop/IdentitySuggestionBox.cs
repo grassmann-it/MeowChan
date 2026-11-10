@@ -80,6 +80,12 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
         { e.Handled = true; return; }
         if (e.Key == Key.Escape) { Dismiss(); e.Handled = true; return; }
         if (e.Key == Key.Tab) { Dismiss(); return; }
+        if ((e.Key == Key.Down || e.Key == Key.Up) && !IsDropDownOpen && !_ended && Candidates != null)
+        {
+            // Escape or a prior accept closes the list; explicit navigation reopens it
+            // without changing the draft, applying a search or accepting anything.
+            _suppressed = false; _ = PopulateAsync(); e.Handled = true; return;
+        }
         if (e.Key != Key.Enter || !IsDropDownOpen) return;
         // Consume the popup's Enter before a parent search command can observe it.
         AcceptCandidate();

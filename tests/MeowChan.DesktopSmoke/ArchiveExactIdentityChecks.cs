@@ -235,6 +235,129 @@ internal static class ArchiveExactIdentityChecks
                     "Adding free text normalized an existing identity or stopped trimming new free text.");
                 Membership(("A", "x"));
             });
+            // ---- Suggestion keyboard navigation regressions (selection never searches; free text stays authoritative) ----
+            SelectingItemsControl? Selector(IdentitySuggestionBox field)
+            {
+                Popup? popup = field.GetVisualDescendants().OfType<Popup>().FirstOrDefault();
+                return popup?.Child is SelectingItemsControl direct ? direct
+                    : popup?.Child?.GetVisualDescendants().OfType<SelectingItemsControl>().FirstOrDefault(item => item.Name == "PART_SelectingItemsControl");
+            }
+            async Task<(IdentitySuggestionBox Field, TextBox Input)> OpenList(string name, int expected)
+            {
+                IdentitySuggestionBox field = C<IdentitySuggestionBox>(name);
+                field.BringIntoView(); await Settle();
+                TextBox input = field.GetVisualDescendants().OfType<TextBox>().First();
+                input.Focus(NavigationMethod.Tab); await Settle();
+                input.Text = ""; await Settle();
+                field.RestartSuggestions();
+                await Program.WaitUntilAsync(() => field.IsDropDownOpen && field.ItemsSource?.Cast<IdentitySuggestion>().Count() == expected);
+                return (field, input);
+            }
+            async Task<KeyEventArgs> PressKey(TextBox input, Key key)
+            {
+                KeyEventArgs args = new() { RoutedEvent = InputElement.KeyDownEvent, Key = key };
+                input.RaiseEvent(args); await Settle(); return args;
+            }
+            void NoSearchHappened(ArchiveSearchSpec? appliedBefore, string[] rowsBefore, string step)
+            {
+                Require(ReferenceEquals(page.AppliedSearchSpec, appliedBefore)
+                    && Rows().Select(row => row.Summary.Id.Source + "|" + row.Summary.Id.Board).SequenceEqual(rowsBefore), step + ": selection started a search.");
+            }
+            await Case("keyboard-multi-navigation-then-enter", async () =>
+            {
+                await Apply(Definition([], []));
+                ArchiveSearchSpec? applied = page.AppliedSearchSpec; string[] rows = Rows().Select(row => row.Summary.Id.Source + "|" + row.Summary.Id.Board).ToArray();
+                var (field, input) = await OpenList("ArchiveSourceFilter", 2);
+                var list = field.ItemsSource!.Cast<IdentitySuggestion>().Select(x => x.Value).ToArray();
+                Require(list.SequenceEqual([" A ", "A"]), "Unexpected source candidates: " + JsonSerializer.Serialize(list));
+                foreach (var (key, index) in new[] { (Avalonia.Input.Key.Down, 0), (Avalonia.Input.Key.Down, 1), (Avalonia.Input.Key.Up, 0), (Avalonia.Input.Key.Down, 1) })
+                {
+                    KeyEventArgs pressed = await PressKey(input, key);
+                    Require(pressed.Handled && field.IsDropDownOpen && Selector(field)?.SelectedIndex == index,
+                        key + " did not move the visible highlight to " + index + "; actual=" + Selector(field)?.SelectedIndex);
+                    Require(field.Text == "" && field.AcceptedCandidate == null, "Navigation rewrote the draft or accepted a candidate.");
+                }
+                NoSearchHappened(applied, rows, "navigation");
+                KeyEventArgs enter = await PressKey(input, Avalonia.Input.Key.Enter);
+                Require(enter.Handled && !field.IsDropDownOpen && field.Text == "A" && page.TryReadSelectedIdentity("ArchiveSourceFilter") is { Value: "A" },
+                    "Enter did not accept the highlighted second candidate.");
+                NoSearchHappened(applied, rows, "enter");
+                Add("ArchiveAddSource");
+                Require(page.ReadIdentityEditor("ArchiveSourceFilter") == "" && page.HasUnappliedSearchDraft, "Add did not move the accepted source into the unapplied draft.");
+                NoSearchHappened(applied, rows, "add");
+                await page.ApplySearchAsync();
+                Require(page.AppliedSearchSpec!.Sources.SequenceEqual(["A"]), "Search did not use the accepted source.");
+            });
+            await Case("escape-then-navigation-reopens-list", async () =>
+            {
+                await Apply(Definition([], []));
+                var (field, input) = await OpenList("ArchiveSourceFilter", 2);
+                await PressKey(input, Avalonia.Input.Key.Down);
+                KeyEventArgs escape = await PressKey(input, Avalonia.Input.Key.Escape);
+                Require(escape.Handled && !field.IsDropDownOpen && field.Text == "" && field.AcceptedCandidate == null, "Escape accepted or kept the list.");
+                KeyEventArgs enterClosed = await PressKey(input, Avalonia.Input.Key.Enter);
+                Require(field.AcceptedCandidate == null && field.Text == "", "Enter accepted a candidate from a closed list.");
+                KeyEventArgs down = await PressKey(input, Avalonia.Input.Key.Down);
+                await Program.WaitUntilAsync(() => field.IsDropDownOpen && field.ItemsSource?.Cast<IdentitySuggestion>().Count() == 2);
+                Require(down.Handled && field.Text == "" && field.AcceptedCandidate == null, "Reopening changed the draft.");
+                await PressKey(input, Avalonia.Input.Key.Down);
+                Require(Selector(field)?.SelectedIndex == 0, "Navigation after reopen did not highlight the first candidate.");
+                await PressKey(input, Avalonia.Input.Key.Down); await PressKey(input, Avalonia.Input.Key.Enter);
+                Require(field.Text == "A" && page.TryReadSelectedIdentity("ArchiveSourceFilter") is { Value: "A" }, "Candidate after Escape reopen was not accepted.");
+                await PressKey(input, Avalonia.Input.Key.Down);
+                await Program.WaitUntilAsync(() => field.IsDropDownOpen);
+                await PressKey(input, Avalonia.Input.Key.Escape);
+                Require(field.Text == "A" && !field.IsDropDownOpen, "Escape after accept lost the accepted text.");
+            });
+            await Case("board-candidate-add-then-explicit-search", async () =>
+            {
+                await Apply(Definition(["A", " A "], []));
+                ArchiveSearchSpec? applied = page.AppliedSearchSpec; string[] rows = Rows().Select(row => row.Summary.Id.Source + "|" + row.Summary.Id.Board).ToArray();
+                Scope("A");
+                var (field, input) = await OpenList("ArchiveBoardFilter", 2);
+                var list = field.ItemsSource!.Cast<IdentitySuggestion>().ToArray();
+                Require(list.All(x => x.Source == "A") && list.Select(x => x.Value).SequenceEqual([" x ", "x"]), "Board candidates are not scoped to source A: " + JsonSerializer.Serialize(list));
+                await PressKey(input, Avalonia.Input.Key.Down); await PressKey(input, Avalonia.Input.Key.Down);
+                await PressKey(input, Avalonia.Input.Key.Enter);
+                Require(page.TryReadSelectedIdentity("ArchiveBoardFilter") is { Value: "x", Source: "A" }, "Board candidate was not accepted with its source.");
+                NoSearchHappened(applied, rows, "board enter");
+                Add("ArchiveAddBoard");
+                Require(page.ReadIdentityEditor("ArchiveBoardFilter") == "" && page.HasUnappliedSearchDraft, "Board Add did not populate the unapplied draft.");
+                NoSearchHappened(applied, rows, "board add");
+                await page.ApplySearchAsync();
+                Membership(("A", "x"));
+                Require(page.AppliedSearchSpec!.Boards.SequenceEqual([new ArchiveBoardConstraint("A", "x")]), "Search did not receive the qualified board.");
+            });
+            await Case("stale-async-suggestions-never-resurface", async () =>
+            {
+                var (field, input) = await OpenList("ArchiveSourceFilter", 2);
+                var original = field.Candidates;
+                var pending = new List<TaskCompletionSource<IdentitySuggestion[]>>();
+                bool immediate = false;
+                try
+                {
+                    field.Candidates = (text, token) =>
+                    {
+                        if (immediate) return Task.FromResult(new[] { new IdentitySuggestion("fresh-" + text, null, "fresh-" + text) });
+                        var tcs = new TaskCompletionSource<IdentitySuggestion[]>(); pending.Add(tcs); return tcs.Task;
+                    };
+                    field.RestartSuggestions(); await Settle();
+                    Require(pending.Count >= 1 && !field.IsDropDownOpen, "Pending request opened the list early.");
+                    immediate = true; input.Text = "b"; await Settle();
+                    await Program.WaitUntilAsync(() => field.IsDropDownOpen && field.ItemsSource?.Cast<IdentitySuggestion>().Single().Value == "fresh-b");
+                    foreach (var tcs in pending) tcs.TrySetResult([new IdentitySuggestion("stale", null, "stale")]);
+                    await Settle();
+                    Require(field.ItemsSource?.Cast<IdentitySuggestion>().Select(x => x.Value).SequenceEqual(["fresh-b"]) == true, "Stale response replaced newer suggestions.");
+                    immediate = false; pending.Clear();
+                    await PressKey(input, Avalonia.Input.Key.Escape);
+                    await PressKey(input, Avalonia.Input.Key.Down);
+                    Require(pending.Count == 1 && !field.IsDropDownOpen, "Reopen did not issue exactly one pending request.");
+                    await PressKey(input, Avalonia.Input.Key.Escape);
+                    pending[0].TrySetResult([new IdentitySuggestion("late", null, "late")]); await Settle();
+                    Require(!field.IsDropDownOpen && field.Text == "b" && field.AcceptedCandidate == null, "A response after Escape reopened the list or changed the draft.");
+                }
+                finally { field.Candidates = original; field.Dismiss(); input.Text = ""; }
+            });
             Require(failures.Count == 0, "Exact identity regressions: " + string.Join(" | ", failures));
         }
         finally
