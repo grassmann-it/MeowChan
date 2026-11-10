@@ -19,6 +19,9 @@ internal static class GalleryFavoriteChecks
 {
     internal static async Task RunAsync(MainWindow window, GalleryViewer viewer, GalleryEntry entry)
     {
+        // Key routing requires an active window; the window manager grants that asynchronously.
+        window.Activate();
+        await Program.WaitUntilAsync(() => window.IsActive);
         var oldBindings = window.SessionHost.Config.ShortcutBindings;
         string oldLanguage = Texts.Language;
         ShortcutService.Publish(new());
