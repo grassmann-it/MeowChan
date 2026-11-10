@@ -140,6 +140,16 @@ internal sealed class NativePrivateApplyCapability : IDisposable
     internal T RunAdmitted<T>(Func<NativePrivateApplyRequest, T> callback)
     {
         ArgumentNullException.ThrowIfNull(callback);
+        return RunAdmitted((request, _, _) => callback(request));
+    }
+
+    // The executor needs to pass the already-owned exclusive token to the
+    // store-owned prepare/commit/retirement primitives. Exposing the token only
+    // inside this guarded callback keeps the capability as the sole live
+    // admission boundary; callers cannot retain or manufacture it.
+    internal T RunAdmitted<T>(Func<NativePrivateApplyRequest, ProfileLease, ProfileAdmissionToken, T> callback)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
         lock (_sync)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -147,7 +157,7 @@ internal sealed class NativePrivateApplyCapability : IDisposable
                 throw new InvalidOperationException("The private Apply plan is no longer owner-issued.");
             _owner.EnsureTransferAdmission(_admission);
             _lease.EnsureDirectoryIdentity();
-            return _lease.RunPrivateStoreCommit(_admission, () => callback(_request));
+            return _lease.RunPrivateStoreCommit(_admission, () => callback(_request, _lease, _admission));
         }
     }
 
