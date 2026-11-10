@@ -33,6 +33,7 @@ internal sealed class MediaConflictsDialog : Window
     private readonly CancellationTokenSource _lifetime = new();
     private readonly List<MediaConflictRow> _loaded = new();
     private string? _confirming;
+    private string? _confirmingPromote;
     private int _total;
     private bool _busy;
 
@@ -75,7 +76,7 @@ internal sealed class MediaConflictsDialog : Window
         {
             if (e.Key != Key.Escape) return;
             e.Handled = true;
-            if (_confirming != null) { _confirming = null; Render(); } else Close();
+            if (_confirming != null || _confirmingPromote != null) { _confirming = null; _confirmingPromote = null; Render(); } else Close();
         }, RoutingStrategies.Tunnel);
         Texts.Changed += OnLanguageChanged;
         Render();
@@ -114,11 +115,12 @@ internal sealed class MediaConflictsDialog : Window
         {
             MediaConflictActionOutcome outcome = await _decide(row.Id, action, _lifetime.Token);
             _status.Text = outcome is MediaConflictActionOutcome.Applied or MediaConflictActionOutcome.AlreadyApplied
-                ? string.Empty : Texts.T("transfer.conflicts.error.action");
+                ? string.Empty : Texts.T(outcome == MediaConflictActionOutcome.Unavailable
+                    ? "transfer.conflicts.error.promoteUnavailable" : "transfer.conflicts.error.action");
         }
         catch (OperationCanceledException) { return; }
         catch (Exception) { _status.Text = Texts.T("transfer.conflicts.error.action"); }
-        finally { _busy = false; _confirming = null; }
+        finally { _busy = false; _confirming = null; _confirmingPromote = null; }
         await LoadAsync(append: false);
     }
 
@@ -156,9 +158,19 @@ internal sealed class MediaConflictsDialog : Window
         discard.Click += async (_, _) =>
         {
             if (_confirming == row.Id) await DecideAsync(row, MediaConflictUserAction.Discard);
-            else { _confirming = row.Id; Render(); }
+            else { _confirmingPromote = null; _confirming = row.Id; Render(); }
         };
-        actions.Children.Add(keep); actions.Children.Add(discard);
+        // Promote needs its own confirmation: it changes which bytes the slot serves. The old active
+        // version stays referenced until a later cleanup, so the action is not destructive by itself.
+        bool confirmPromote = _confirmingPromote == row.Id;
+        Button promote = new() { Name = "MediaConflictPromote", IsEnabled = open,
+            Content = confirmPromote ? Texts.T("transfer.conflicts.confirmPromote", row.CandidateBytes) : Texts.T("transfer.conflicts.promote") };
+        promote.Click += async (_, _) =>
+        {
+            if (_confirmingPromote == row.Id) await DecideAsync(row, MediaConflictUserAction.Promote);
+            else { _confirming = null; _confirmingPromote = row.Id; Render(); }
+        };
+        actions.Children.Add(keep); actions.Children.Add(promote); actions.Children.Add(discard);
         StackPanel panel = new() { Spacing = 4 };
         panel.Children.Add(text); panel.Children.Add(actions);
         Border border = new() { Child = panel, Padding = new Thickness(8), Name = "MediaConflictRow" };

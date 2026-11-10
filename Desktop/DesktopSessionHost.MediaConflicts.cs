@@ -8,9 +8,9 @@ using MeowChan.Transfer;
 
 namespace MeowChan.Desktop;
 
-internal enum MediaConflictUserAction { Keep, Discard }
+internal enum MediaConflictUserAction { Keep, Discard, Promote }
 internal enum MediaConflictUserStatus { Open, Kept, Discarded, Promoted }
-internal enum MediaConflictActionOutcome { Applied, AlreadyApplied, Missing, NotAllowed }
+internal enum MediaConflictActionOutcome { Applied, AlreadyApplied, Missing, NotAllowed, Unavailable }
 
 /// <summary>Content-free row: identities, digests and sizes only; never a path or file name.</summary>
 internal sealed record MediaConflictRow(string Id, MeowChan.ResourceId Resource, string ActiveSha256,
@@ -36,6 +36,21 @@ internal sealed partial class DesktopSessionHost
         CancellationToken token)
     {
         EnsureReady();
+        if (action == MediaConflictUserAction.Promote)
+        {
+            // Promote writes a new immutable root and records the decision in one transaction; the active
+            // bytes, favorites, ratings and notes of the slot are never rewritten.
+            MediaPromoteResult promoted = await _content.Catalog.PromoteMediaConflictAsync(id, new MeowChan.Storage.MediaStore(), token)
+                .ConfigureAwait(false);
+            return promoted.Status switch
+            {
+                MediaPromoteStatus.Promoted => MediaConflictActionOutcome.Applied,
+                MediaPromoteStatus.AlreadyPromoted => MediaConflictActionOutcome.AlreadyApplied,
+                MediaPromoteStatus.Missing => MediaConflictActionOutcome.Missing,
+                MediaPromoteStatus.NotAllowed => MediaConflictActionOutcome.NotAllowed,
+                _ => MediaConflictActionOutcome.Unavailable // alternative bytes gone or the slot changed meanwhile
+            };
+        }
         NativeMediaConflictResolutionStatus status = action switch
         {
             MediaConflictUserAction.Keep => NativeMediaConflictResolutionStatus.Kept,

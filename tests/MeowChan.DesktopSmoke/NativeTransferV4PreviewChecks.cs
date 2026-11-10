@@ -416,7 +416,7 @@ internal static class NativeTransferV4PreviewChecks
             {
                 calls.Add((id, action));
                 int index = store.FindIndex(row => row.Id == id);
-                store[index] = store[index] with { Status = action == MediaConflictUserAction.Keep ? MediaConflictUserStatus.Kept : MediaConflictUserStatus.Discarded };
+                store[index] = store[index] with { Status = action switch { MediaConflictUserAction.Keep => MediaConflictUserStatus.Kept, MediaConflictUserAction.Promote => MediaConflictUserStatus.Promoted, _ => MediaConflictUserStatus.Discarded } };
                 return Task.FromResult(MediaConflictActionOutcome.Applied);
             });
         fake.Show(importDialog);
@@ -446,6 +446,25 @@ internal static class NativeTransferV4PreviewChecks
         Require(!Buttons("MediaConflictKeep")[0].IsEnabled && !Buttons("MediaConflictDiscard")[0].IsEnabled
             && !Buttons("MediaConflictKeep")[1].IsEnabled && Buttons("MediaConflictDiscard")[1].IsEnabled,
             "Decided alternatives offered a repeat or contradictory action.");
+
+        // Promote: a kept alternative can still become the active version, only after a named confirmation.
+        Require(Buttons("MediaConflictPromote").Length == 2 && !Buttons("MediaConflictPromote")[0].IsEnabled && Buttons("MediaConflictPromote")[1].IsEnabled,
+            "Promote is offered for a decided alternative or withheld from a kept one.");
+        Click(Buttons("MediaConflictPromote")[1]);
+        await SettleAsync(fake);
+        Require(calls.Count == 2 && Equals(Buttons("MediaConflictPromote")[1].Content, Texts.T("transfer.conflicts.confirmPromote", 30L)),
+            "Promote acted without a named confirmation step.");
+        fake.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+        await SettleAsync(fake);
+        Require(calls.Count == 2 && Equals(Buttons("MediaConflictPromote")[1].Content, Texts.T("transfer.conflicts.promote")),
+            "Escape did not cancel the promote confirmation.");
+        Click(Buttons("MediaConflictPromote")[1]);
+        await SettleAsync(fake);
+        Click(Buttons("MediaConflictPromote")[1]);
+        await SettleAsync(fake);
+        Require(calls.Count == 3 && calls[2] == (b, MediaConflictUserAction.Promote), "Confirmed promote did not record exactly one decision.");
+        Require(!Buttons("MediaConflictPromote")[1].IsEnabled && !Buttons("MediaConflictDiscard")[1].IsEnabled,
+            "A promoted alternative still offered promote or discard.");
         fake.Close();
     }
 
