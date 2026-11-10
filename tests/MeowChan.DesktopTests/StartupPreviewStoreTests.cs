@@ -138,6 +138,36 @@ public sealed class StartupPreviewStoreTests
     }
 
     [Fact]
+    public void SchemaTwoRoundTripsDisplayOnlyKeysAndSchemaOneStaysReadable()
+    {
+        using Workspace workspace = new();
+        workspace.Store.Save(Snapshot(Row() with { Url = "https://example.invalid/b/thread/123", ThreadId = "123" }));
+        StartupPreviewRow loaded = Assert.Single(workspace.Store.Load()!.Rows);
+        Assert.Equal("https://example.invalid/b/thread/123", loaded.Url);
+        Assert.Equal("123", loaded.ThreadId);
+        Assert.Contains("\"schemaVersion\":2", File.ReadAllText(workspace.CachePath));
+        // A cache written by the previous release has no keys: they read as unknown, not as an error.
+        File.WriteAllText(workspace.CachePath, Document());
+        StartupPreviewRow old = Assert.Single(workspace.Store.Load()!.Rows);
+        Assert.Equal("", old.Url);
+        Assert.Equal("", old.ThreadId);
+    }
+
+    [Theory]
+    [InlineData("\"url\":\"https://x.invalid/\"")]                       // threadId missing
+    [InlineData("\"url\":null,\"threadId\":\"1\"")]                     // null key
+    [InlineData("\"url\":\"a\\nb\",\"threadId\":\"1\"")]              // control character
+    [InlineData("\"url\":\"u\",\"threadId\":\"1\",\"extra\":\"x\"")]  // unknown field
+    [InlineData("\"url\":5,\"threadId\":\"1\"")]                        // wrong type
+    public void SchemaTwoRejectsMalformedKeys(string keys)
+    {
+        using Workspace workspace = new();
+        string row = RowJson.TrimEnd().TrimEnd('}') + "," + keys + "}";
+        File.WriteAllText(workspace.CachePath, Document(row).Replace("\"schemaVersion\":1", "\"schemaVersion\":2"));
+        Assert.Throws<InvalidDataException>(() => workspace.Store.Load());
+    }
+
+    [Fact]
     public void ExactRowAndTextLimitsWorkAndEmptySnapshotIsValid()
     {
         using Workspace workspace = new();

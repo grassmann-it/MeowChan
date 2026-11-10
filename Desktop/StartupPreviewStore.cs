@@ -7,8 +7,10 @@ using MeowChan.Persistence;
 
 namespace MeowChan.Desktop;
 
+/// <summary>Url and ThreadId are display-only keys (schema 2): they let search and the thread column show
+/// last-known values for historic rows. They authorize nothing and are never used to resolve a live thread.</summary>
 internal sealed record StartupPreviewRow(bool IsBoard, string Source, string Board, string Title,
-    int KnownMedia, int CompletedMedia);
+    int KnownMedia, int CompletedMedia, string Url = "", string ThreadId = "");
 
 internal sealed record StartupPreviewSnapshot(DateTimeOffset CapturedAtUtc, int ThreadCount,
     int BoardCount, IReadOnlyList<StartupPreviewRow> Rows);
@@ -19,6 +21,7 @@ internal sealed class StartupPreviewStore
     internal const int MaximumRows = 2000;
     internal const int MaximumBytes = 1048576;
     internal const int MaximumTextLength = 512;
+    internal const int CurrentSchema = 2;
     private readonly ProfileLease _lease;
     private readonly string _path;
 
@@ -49,7 +52,8 @@ internal sealed class StartupPreviewStore
                 using JsonDocument document = JsonDocument.Parse(bytes, new JsonDocumentOptions { MaxDepth = 8 });
                 JsonElement root = document.RootElement;
                 RequireFields(root, "schemaVersion", "capturedAtUtc", "threadCount", "boardCount", "rows");
-                if (Integer(root, "schemaVersion") != 1)
+                int schema = Integer(root, "schemaVersion");
+                if (schema is not (1 or 2))
                     throw Invalid("Unsupported schema version.");
                 JsonElement captured = root.GetProperty("capturedAtUtc");
                 if (captured.ValueKind != JsonValueKind.String || !captured.TryGetDateTimeOffset(out DateTimeOffset at))
@@ -62,12 +66,14 @@ internal sealed class StartupPreviewStore
                 foreach (JsonElement row in rows.EnumerateArray())
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    RequireFields(row, "isBoard", "source", "board", "title", "knownMedia", "completedMedia");
+                    if (schema == 1) RequireFields(row, "isBoard", "source", "board", "title", "knownMedia", "completedMedia");
+                    else RequireFields(row, "isBoard", "source", "board", "title", "knownMedia", "completedMedia", "url", "threadId");
                     JsonElement kind = row.GetProperty("isBoard");
                     if (kind.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
                         throw Invalid("Invalid row kind.");
                     parsed[index++] = new(kind.GetBoolean(), Text(row, "source"), Text(row, "board"),
-                        Text(row, "title"), Integer(row, "knownMedia"), Integer(row, "completedMedia"));
+                        Text(row, "title"), Integer(row, "knownMedia"), Integer(row, "completedMedia"),
+                        schema == 1 ? "" : Text(row, "url"), schema == 1 ? "" : Text(row, "threadId"));
                 }
                 return CopyAndValidate(new(at, Integer(root, "threadCount"), Integer(root, "boardCount"), parsed), cancellationToken);
             }
@@ -167,7 +173,8 @@ internal sealed class StartupPreviewStore
             token.ThrowIfCancellationRequested();
             StartupPreviewRow row = snapshot.Rows[i];
             if (row is null || !ValidText(row.Source, false) || !ValidText(row.Board, false) ||
-                !ValidText(row.Title, true) || row.KnownMedia < 0 || row.CompletedMedia < 0 || row.CompletedMedia > row.KnownMedia)
+                !ValidText(row.Title, true) || !ValidText(row.Url, true) || !ValidText(row.ThreadId, true)
+                || row.KnownMedia < 0 || row.CompletedMedia < 0 || row.CompletedMedia > row.KnownMedia)
                 throw Invalid("Invalid display row.");
             rows[i] = row with { }; // No caller-owned row/list retained.
             if (row.IsBoard) boards++; else threads++;
@@ -218,7 +225,7 @@ internal sealed class StartupPreviewStore
         using (Utf8JsonWriter writer = new(buffer, new JsonWriterOptions { MaxDepth = 8 }))
         {
             writer.WriteStartObject();
-            writer.WriteNumber("schemaVersion", 1);
+            writer.WriteNumber("schemaVersion", CurrentSchema);
             writer.WriteString("capturedAtUtc", snapshot.CapturedAtUtc);
             writer.WriteNumber("threadCount", snapshot.ThreadCount);
             writer.WriteNumber("boardCount", snapshot.BoardCount);
@@ -233,6 +240,8 @@ internal sealed class StartupPreviewStore
                 writer.WriteString("title", row.Title);
                 writer.WriteNumber("knownMedia", row.KnownMedia);
                 writer.WriteNumber("completedMedia", row.CompletedMedia);
+                writer.WriteString("url", row.Url);
+                writer.WriteString("threadId", row.ThreadId);
                 writer.WriteEndObject();
                 writer.Flush(); // Bound actual escaped UTF-8 output, not character estimates.
             }

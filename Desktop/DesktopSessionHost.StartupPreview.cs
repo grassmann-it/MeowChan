@@ -66,11 +66,15 @@ internal sealed partial class DesktopSessionHost
             int length = char.IsHighSurrogate(text[126]) ? 126 : 127;
             return text[..length] + "…";
         }
+        // Display-only keys: plain ASCII, short. Anything else is stored as unknown (empty), never altered.
+        static string Key(string? value, int limit) =>
+            value is { Length: > 0 } text && text.Length <= limit && text.All(c => c is > ' ' and < '\u007f') ? text : string.Empty;
         List<StartupPreviewRow> rows = new();
         foreach (DesktopThreadEntry entry in projection.View.Threads.Take(checkpointRows))
         {
             int completed = Math.Max(0, entry.Snapshot.CompletedMedia), known = Math.Max(completed, entry.Snapshot.KnownMedia);
-            rows.Add(new(false, Label(entry.HostName), Label(entry.Snapshot.Id.Board), Label(entry.Snapshot.Title), known, completed));
+            rows.Add(new(false, Label(entry.HostName), Label(entry.Snapshot.Id.Board), Label(entry.Snapshot.Title), known, completed,
+                Key(entry.Snapshot.Url, 200), Key(entry.Snapshot.Id.Thread, 32)));
         }
         foreach (DesktopBoardEntry entry in projection.View.Boards.Take(checkpointRows - rows.Count))
             rows.Add(new(true, Label(entry.HostName), Label(entry.Snapshot.Id.Board), Label(entry.Snapshot.Name), 0, 0));

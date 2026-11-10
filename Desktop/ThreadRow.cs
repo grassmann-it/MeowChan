@@ -24,12 +24,12 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
 
     internal static ThreadRow CreateHistorical(StartupPreviewRow cached, int index)
     {
-        ThreadSnapshot snapshot = new(new ResourceId(cached.Source, cached.Board, string.Empty), string.Empty, cached.Title,
+        ThreadSnapshot snapshot = new(new ResourceId(cached.Source, cached.Board, cached.ThreadId), cached.Url, cached.Title,
             string.Empty, ThreadActivity.Pending, ThreadSourceState.Active, null, cached.KnownMedia, cached.CompletedMedia,
             new Dictionary<string, FailureInfo>(), null, default);
         ThreadRow row = new(new DesktopThreadEntry(-(long)index - 1, snapshot, cached.Source, cached.Board)) { IsHistorical = true };
         // Honest placeholders: the cache holds no live state, so none is shown.
-        row.ThreadId = "—"; row.ThreadNumber = null;
+        row.ThreadId = cached.ThreadId.Length == 0 ? "—" : cached.ThreadId; row.ThreadNumber = null;
         row.Status = row.CompactStatus = Texts.T("shell.lastKnownStatus");
         row.Progress = Texts.T("progress.mediaOf", cached.CompletedMedia, cached.KnownMedia);
         row.Completion = cached.KnownMedia == 0 ? 0 : 100d * cached.CompletedMedia / cached.KnownMedia;
