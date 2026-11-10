@@ -82,6 +82,9 @@ internal static class NativeTransferImportPreview
             || package.Catalog.Threads.Length > 1000 || !CheckEnvelope(package.Envelope, cancellationToken))
             return Invalid();
 
+        // The framing and the decoded component must agree in both directions; neither alone is a private offer.
+        if ((package.Envelope.PrivateMetadata is not null) != (package.PrivateMetadata is not null)) return Invalid();
+
         // A private component is admitted for a public inventory only after the same
         // strict, content-free package/provenance validation used by consent. This
         // does not issue consent and never copies private values into the preview.

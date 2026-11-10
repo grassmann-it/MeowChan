@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Archive;
@@ -42,6 +44,9 @@ internal sealed class NativeTransferImportStage : IAsyncDisposable
     private readonly SemaphoreSlim _gate = new(1, 1);
     private int _disposeRequested;
     private bool _disposed;
+    // Non-null only for a thread slice: a borrowed, non-owning view of an already validated parent stage.
+    private readonly NativeTransferImportStage? _parent;
+    private readonly HashSet<string>? _slicePayloads;
 
     private NativeTransferImportStage(FileStream file, string path, NativeTransferPackage package,
         long packageLength, IReadOnlyList<TransferZipEntry> entries)
@@ -52,12 +57,61 @@ internal sealed class NativeTransferImportStage : IAsyncDisposable
             .ToDictionary(entry => entry.Name[8..], StringComparer.Ordinal);
     }
 
+    private NativeTransferImportStage(NativeTransferImportStage parent, NativeTransferPackage package, HashSet<string> payloads)
+    {
+        _file = parent._file; _path = parent._path; Package = package; PackageLength = parent.PackageLength;
+        _payloads = parent._payloads; _parent = parent; _slicePayloads = payloads;
+    }
+
     // Passive, owned immutable metadata; reading this property never confers store authority.
     internal NativeTransferPackage Package { get; }
     // The length is measured from the bytes retained by this stage, never supplied
     // by a later caller or reconstructed from a source stream.
     internal long PackageLength { get; }
     internal bool StageRetained { get; private set; }
+    internal bool IsThreadSlice => _parent != null;
+
+    /// <summary>
+    /// Borrowed single-thread view of a validated public multi-thread package. The slice has its own
+    /// domain-separated fingerprint, only that thread's payload descriptors and a re-serialized
+    /// single-thread catalog, so the existing single-thread v2 import/merge pipeline (fences, receipts,
+    /// recovery) is reused unchanged per thread. Disposing a slice never closes or deletes the parent.
+    /// Packages carrying private metadata are not sliced here; they need the private consent path.
+    /// </summary>
+    internal NativeTransferImportStage? CreateThreadSlice(ResourceId resource)
+    {
+        ThrowIfDisposing();
+        if (_parent != null || Package.PrivateMetadata != null || Package.Envelope.PrivateMetadata != null) return null;
+        TransferThread? thread = Package.Catalog.Threads.FirstOrDefault(item => item.Id == resource);
+        if (thread == null) return null;
+        HashSet<string> hashes = new(StringComparer.Ordinal);
+        void Collect(TransferAttachment attachment)
+        {
+            if (attachment.PayloadSha256 != null) hashes.Add(attachment.PayloadSha256);
+            foreach (TransferDerivedRepresentation derived in attachment.DerivedRepresentations)
+                if (derived.PayloadSha256 != null) hashes.Add(derived.PayloadSha256);
+        }
+        foreach (TransferPost post in thread.Posts) foreach (TransferAttachment attachment in post.Attachments) Collect(attachment);
+        foreach (TransferRetainedBinding binding in thread.RetainedBindings) Collect(binding.Attachment);
+        if (hashes.Any(hash => !Package.Envelope.MeasuredPayloads.ContainsKey(hash))) return null;
+        NativeTransferCatalog catalog = new(Package.Catalog.ExportedAtUtc, [thread]);
+        byte[] catalogBytes = NativeTransferCatalogSerializer.Serialize(catalog);
+        string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+            "native-transfer-thread-slice-v1\0" + Package.Envelope.Fingerprint + "\0" + resource.Source + "\0"
+            + resource.Board + "\0" + resource.Thread))).ToLowerInvariant();
+        NativeTransferEnvelope envelope = Package.Envelope with
+        {
+            Fingerprint = fingerprint,
+            Catalog = new(catalogBytes.Length, Convert.ToHexString(SHA256.HashData(catalogBytes)).ToLowerInvariant()),
+            Payloads = Package.Envelope.Payloads.Where(payload => hashes.Contains(payload.Sha256)).ToImmutableArray()
+        };
+        envelope = envelope with
+        {
+            CatalogBytes = ImmutableArray.Create(catalogBytes),
+            MeasuredPayloads = Package.Envelope.MeasuredPayloads.Where(pair => hashes.Contains(pair.Key)).ToImmutableDictionary()
+        };
+        return new(this, Package with { Envelope = envelope, Catalog = catalog }, hashes);
+    }
 
     /// <summary>
     /// Copies from the caller's current position to EOF, without seeking or owning that stream.
@@ -166,6 +220,12 @@ internal sealed class NativeTransferImportStage : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(destination);
         ThrowIfDisposing();
+        if (_parent != null)
+        {
+            if (sha256 == null || !_slicePayloads!.Contains(sha256))
+                throw new ArgumentException("The payload does not belong to this stage.", nameof(sha256));
+            return await _parent.CopyPayloadToAsync(sha256, destination, cancellationToken).ConfigureAwait(false);
+        }
         if (sha256 == null || !_payloads.TryGetValue(sha256, out TransferZipEntry? entry))
             throw new ArgumentException("The payload does not belong to this stage.", nameof(sha256));
         cancellationToken.ThrowIfCancellationRequested();
@@ -204,6 +264,7 @@ internal sealed class NativeTransferImportStage : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        if (_parent != null) { Interlocked.Exchange(ref _disposeRequested, 1); return; } // Borrowed view: parent owns file and cleanup.
         Interlocked.Exchange(ref _disposeRequested, 1);
         await _gate.WaitAsync().ConfigureAwait(false);
         try
