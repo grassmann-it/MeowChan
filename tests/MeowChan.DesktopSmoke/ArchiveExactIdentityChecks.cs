@@ -383,6 +383,37 @@ internal static class ArchiveExactIdentityChecks
                 }
                 finally { field.Candidates = original; field.Dismiss(); input.Text = ""; }
             });
+            await Case("draft-tag-removal-continues-focus-locally", async () =>
+            {
+                string? appliedBefore = page.AppliedSearchSpec == null ? null : ArchiveSearchSpecJson.Serialize(page.AppliedSearchSpec);
+                ComboBox state = C<ComboBox>("ArchiveStateFilter");
+                for (int choice = 1; choice <= 3; choice++) { state.SelectedIndex = choice; Add("ArchiveAddState"); await Settle(); }
+                WrapPanel tags = C<WrapPanel>("ArchiveDraftStates");
+                Require(tags.Children.Count == 3, "Three draft state tags expected.");
+                IInputElement? Focused() => TopLevel.GetTopLevel(page)?.FocusManager?.GetFocusedElement();
+                async Task Remove(int index, Key key)
+                {
+                    Control tag = tags.Children[index];
+                    tag.Focus(NavigationMethod.Tab); await Settle();
+                    Require(tag.IsKeyboardFocusWithin, "Draft tag did not take keyboard focus.");
+                    tag.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, Source = tag });
+                    await Settle();
+                }
+                await Remove(1, Key.Space); // middle: the tag that followed it takes over
+                Require(tags.Children.Count == 2 && ReferenceEquals(Focused(), tags.Children[1]), "Focus did not move to the following draft tag.");
+                await Remove(1, Key.Enter); // last: the remaining tag of the same category
+                Require(tags.Children.Count == 1 && ReferenceEquals(Focused(), tags.Children[0]), "Focus did not move to the remaining draft tag.");
+                await Remove(0, Key.Enter); // only tag: its own editor
+                Require(tags.Children.Count == 0 && ReferenceEquals(Focused(), state), "Focus did not return to the state editor.");
+                string? appliedAfter = page.AppliedSearchSpec == null ? null : ArchiveSearchSpecJson.Serialize(page.AppliedSearchSpec);
+                Require(appliedBefore == appliedAfter, "Removing a draft tag applied a search.");
+                // A pointer-style removal from a tag that is not focused must not take focus from another control.
+                state.SelectedIndex = 1; Add("ArchiveAddState"); await Settle();
+                Control other = C<IdentitySuggestionBox>("ArchiveSourceFilter").GetVisualDescendants().OfType<TextBox>().First();
+                other.Focus(NavigationMethod.Tab); await Settle();
+                ((ClosableTag)tags.Children[0]).Command!.Execute(null); await Settle();
+                Require(tags.Children.Count == 0 && other.IsKeyboardFocusWithin, "An unfocused tag removal stole focus.");
+            });
             Require(failures.Count == 0, "Exact identity regressions: " + string.Join(" | ", failures));
         }
         finally

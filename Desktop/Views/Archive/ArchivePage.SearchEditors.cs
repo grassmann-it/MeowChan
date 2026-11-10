@@ -5,7 +5,9 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using Avalonia.Threading;
 using Avalonia.LogicalTree;
 using MeowChan.Archive;
@@ -151,11 +153,11 @@ public partial class ArchivePage
     }
     private void RenderDraftSets()
     {
-        RenderDraftTags("ArchiveDraftSources", _draftSources.Select(source => (source, (Action)(() =>
+        RenderDraftTags("ArchiveDraftSources", "ArchiveSourceFilter", _draftSources.Select(source => (source, (Action)(() =>
         { _draftSources.Remove(source); DraftEdited("source"); RenderDraftSets(); }))));
-        RenderDraftTags("ArchiveDraftBoards", _draftBoards.Select(board => (BoardLabel(board) + (board.Source != null && _draftSources.Count > 0 && !_draftSources.Contains(board.Source, StringComparer.Ordinal) ? " · " + Texts.T("archive.boardOutsideSources") : ""), (Action)(() =>
+        RenderDraftTags("ArchiveDraftBoards", "ArchiveBoardFilter", _draftBoards.Select(board => (BoardLabel(board) + (board.Source != null && _draftSources.Count > 0 && !_draftSources.Contains(board.Source, StringComparer.Ordinal) ? " · " + Texts.T("archive.boardOutsideSources") : ""), (Action)(() =>
         { _draftBoards.Remove(board); DraftEdited("board"); RenderDraftSets(); }))));
-        RenderDraftTags("ArchiveDraftStates", _draftStates.Select(state => (StateLabel(state), (Action)(() =>
+        RenderDraftTags("ArchiveDraftStates", "ArchiveStateFilter", _draftStates.Select(state => (StateLabel(state), (Action)(() =>
         { _draftStates.Remove(state); DraftEdited("state"); RenderDraftSets(); }))));
         ComboBox scopes = Control<ComboBox>("ArchiveBoardScope");
         BoardScope? previousScope = scopes.SelectedItem as BoardScope;
@@ -173,10 +175,36 @@ public partial class ArchivePage
         finally { _updatingBoardScopes = false; }
         InvalidateBoardSuggestions();
     }
-    private void RenderDraftTags(string name, IEnumerable<(string Label, Action Remove)> entries)
+    private void RenderDraftTags(string name, string editorName, IEnumerable<(string Label, Action Remove)> entries)
     {
         WrapPanel panel = Control<WrapPanel>(name); panel.Children.Clear();
-        foreach (var entry in entries.ToArray()) panel.Children.Add(CreateFilterTag(entry.Label, entry.Remove));
+        int index = 0;
+        foreach (var entry in entries.ToArray())
+        {
+            int position = index++;
+            ClosableTag? tag = null;
+            // Only a removal made from the tag itself (keyboard focus on it) moves focus; pointer removals
+            // and other re-renders leave focus alone. No search is applied.
+            tag = CreateFilterTag(entry.Label, () =>
+            {
+                bool focused = tag!.IsKeyboardFocusWithin;
+                entry.Remove();
+                if (focused) FocusAfterDraftTagRemoval(name, editorName, position, tag);
+            });
+            panel.Children.Add(tag);
+        }
+    }
+    private void FocusAfterDraftTagRemoval(string panelName, string editorName, int position, Control removed)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            // A newer deliberate focus target (or a closed page) wins over this continuation.
+            IInputElement? current = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
+            if (current != null && !ReferenceEquals(current, removed) && current is Visual v && v.IsAttachedToVisualTree()) return;
+            WrapPanel panel = Control<WrapPanel>(panelName);
+            Control target = panel.Children.Count > 0 ? panel.Children[Math.Min(position, panel.Children.Count - 1)] : Control<Control>(editorName);
+            target.Focus(NavigationMethod.Tab);
+        }, Avalonia.Threading.DispatcherPriority.Input);
     }
     private static string StateLabel(ThreadSourceState state) => Texts.T(state switch
     { ThreadSourceState.Active => "archive.sourceActive", ThreadSourceState.Archived => "archive.sourceArchived", _ => "archive.sourceMissing" });
