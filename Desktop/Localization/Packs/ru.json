@@ -799,6 +799,7 @@
     "transfer.import.choose": "Выбрать пакет передачи…",
     "transfer.import.fileType": "Пакет передачи (ZIP)",
     "transfer.import.apply": "Импортировать и объединить",
+    "transfer.import.recheck": "Проверить снова",
     "transfer.import.cancel": "Отмена",
     "transfer.import.close": "Закрыть",
     "transfer.import.noSource": "Пакет не выбран.",

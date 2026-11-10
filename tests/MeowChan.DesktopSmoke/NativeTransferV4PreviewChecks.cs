@@ -155,7 +155,7 @@ internal static class NativeTransferV4PreviewChecks
                 Require(ReferenceEquals(ready, session.Current) && picks == 1 && dialog.IsVisible,
                     code + ": language refresh replaced or reinspected the live import plan.");
                 CheckRenderedImport(dialog, ready, SingleV4Threads, 2, Preview.LongLength + Poster.LongLength);
-                CheckImportActions(dialog, applyEnabled: true);
+                CheckImportActions(dialog, applyEnabled: true, recheckEnabled: true);
                 CheckNoRawLocalizationKeys(dialog);
             }
 
@@ -179,7 +179,7 @@ internal static class NativeTransferV4PreviewChecks
                 "Apply changed the selected source package.");
             NativeTransferImportDialog completedDialog = dialog ?? throw new InvalidOperationException("Import dialog disappeared before Completed.");
             CheckRenderedImport(completedDialog, done, SingleV4Threads, 2, Preview.LongLength + Poster.LongLength);
-            CheckImportActions(completedDialog, applyEnabled: false);
+            CheckImportActions(completedDialog, applyEnabled: false, recheckEnabled: true);
             Require(completedDialog.StateText.Text == Texts.T("transfer.import.completed")
                 && (completedDialog.SummaryText.Text ?? string.Empty).Contains(Texts.T("transfer.import.result", 1, 1, 0, 1, 0), StringComparison.Ordinal),
                 "Completed result was not rendered in the real dialog.");
@@ -349,19 +349,20 @@ internal static class NativeTransferV4PreviewChecks
             }), Texts.Language + ": import state/title did not refresh.");
     }
 
-    private static void CheckImportActions(NativeTransferImportDialog dialog, bool applyEnabled)
+    private static void CheckImportActions(NativeTransferImportDialog dialog, bool applyEnabled, bool recheckEnabled = false)
     {
         Button[] buttons = dialog.GetVisualDescendants().OfType<Button>()
             .Where(button => button.Name != "ClearButton" && !button.GetVisualAncestors().Any(a => a is WindowChromeBar or ScrollBar)).ToArray(); // ClearButton is the scope ComboBox template part, not a dialog action.
-        Require(buttons.Length == 4 && buttons.Contains(dialog.ChooseButton) && buttons.Contains(dialog.CancelButton)
-            && buttons.Contains(dialog.ApplyButton) && buttons.Contains(dialog.CloseButton),
+        Require(buttons.Length == 5 && buttons.Contains(dialog.ChooseButton) && buttons.Contains(dialog.CancelButton)
+            && buttons.Contains(dialog.ApplyButton) && buttons.Contains(dialog.RecheckButton) && buttons.Contains(dialog.CloseButton),
             "Import dialog exposed a missing or extra action.");
         Require(dialog.ChooseButton.IsEffectivelyEnabled && dialog.CloseButton.IsEffectivelyEnabled
-            && !dialog.CancelButton.IsEnabled && dialog.ApplyButton.IsEffectivelyEnabled == applyEnabled,
+            && !dialog.CancelButton.IsEnabled && dialog.ApplyButton.IsEffectivelyEnabled == applyEnabled
+            && dialog.RecheckButton.IsEnabled == recheckEnabled,
             "Import dialog action enabled state does not match the host state.");
         foreach ((Button button, string key) in new[] { (dialog.ChooseButton, "transfer.import.choose"),
             (dialog.CancelButton, "transfer.import.cancel"), (dialog.ApplyButton, "transfer.import.apply"),
-            (dialog.CloseButton, "transfer.import.close") })
+            (dialog.RecheckButton, "transfer.import.recheck"), (dialog.CloseButton, "transfer.import.close") })
             Require(Equals(button.Content, Texts.T(key)) && AutomationProperties.GetName(button) == Texts.T(key),
                 "Import action label/accessibility name did not follow the open-dialog language.");
     }

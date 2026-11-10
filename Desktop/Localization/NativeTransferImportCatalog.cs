@@ -9,6 +9,7 @@ internal static class NativeTransferImportCatalog
         ("transfer.import.choose", "Choose transfer package…", "Transferpaket wählen …"),
         ("transfer.import.fileType", "Transfer package (ZIP)", "Transferpaket (ZIP)"),
         ("transfer.import.apply", "Import and merge", "Importieren und zusammenführen"),
+        ("transfer.import.recheck", "Check again", "Erneut prüfen"),
         ("transfer.import.cancel", "Cancel", "Abbrechen"),
         ("transfer.import.close", "Close", "Schließen"),
         ("transfer.import.noSource", "No package selected.", "Kein Paket ausgewählt."),

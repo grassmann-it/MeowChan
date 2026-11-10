@@ -799,6 +799,7 @@
     "transfer.import.choose": "Choisir un paquet de transfert…",
     "transfer.import.fileType": "Paquet de transfert (ZIP)",
     "transfer.import.apply": "Importer et fusionner",
+    "transfer.import.recheck": "Vérifier à nouveau",
     "transfer.import.cancel": "Annuler",
     "transfer.import.close": "Fermer",
     "transfer.import.noSource": "Aucun paquet sélectionné.",
