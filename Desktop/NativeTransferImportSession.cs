@@ -160,6 +160,17 @@ internal sealed class NativeTransferImportSession : IAsyncDisposable
                     return;
                 }
             } // The original source is never consulted again, including during apply.
+            // Keep private metadata as an explicit unsupported disposition until the
+            // consent-bearing selection contract is wired through inspection and Apply.
+            // Without this guard the public-only inventory helper reports the package as
+            // merely invalid, which loses the privacy-specific state and error the dialog
+            // and recovery tests rely on. No private bytes are exposed or applied here.
+            if (_stage.Package.PrivateMetadata != null)
+            {
+                error = NativeTransferImportError.PrivateMetadataUnsupported;
+                state = NativeTransferImportState.Unsupported;
+                return;
+            }
             // Inventory supports public v4 too, but is not apply authority. Preparation
             // below still enforces the core's single-thread and supported-shape gates.
             var preview = NativeTransferImportPreview.Create(_stage.Package, token);
