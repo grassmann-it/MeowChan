@@ -93,4 +93,41 @@ public sealed class NativeTransferThreadSliceTests
         NativeTransferImportStage replay = Assert.IsType<NativeTransferImportStage>(stage.CreateThreadSlice(SecondId));
         Assert.Equal(NativeMediaImportError.ResourceExists, (await catalog.PrepareNativeMediaImportAsync(replay)).Error);
     }
+
+    [Fact]
+    public async Task ImportedSetSurvivesRestartOfflineAndReexportsBothThreads()
+    {
+        using Workspace files = new();
+        await using (NativeTransferImportStage stage = await StageAsync(files, TwoThreads(), Original, Preview, SecondOriginal, SecondPreview))
+        {
+            using ProfileLease lease = ProfileLease.Acquire(files.Profile);
+            await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(files.Profile, lease);
+            lease.Admission.CompleteStartup();
+            MediaStore store = new();
+            foreach (ResourceId resource in new[] { Id, SecondId })
+            {
+                NativeTransferImportStage slice = Assert.IsType<NativeTransferImportStage>(stage.CreateThreadSlice(resource));
+                NativeMediaImportPreparation prepared = await catalog.PrepareNativeMediaImportAsync(slice);
+                using ProfileAdmissionToken admission = await lease.Admission.EnterExclusiveAsync();
+                var outcome = await catalog.CommitNativeMediaImportAdmittedAsync(admission, Assert.IsType<NativeMediaImportPlan>(prepared.Plan), store);
+                Assert.Equal(NativeMediaImportCommitStatus.Committed, outcome.Result.Status);
+            }
+        } // Catalog, lease and stage are closed: nothing below may need a source plugin, network or the package.
+
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(files.Profile);
+        TransferArchiveFreezeResult frozen = await NativeTransferArchiveExporter.FreezeAsync(reader,
+            new NativeTransferArchiveSelection([Id, SecondId]), At.AddDays(3), Guid.NewGuid(),
+            new NativeTransferArchiveMediaOptions(true, true, true));
+        Assert.Equal(TransferArchiveError.None, frozen.Error);
+        using MemoryStream output = new();
+        TransferArchiveWriteResult written = await NativeTransferArchiveExporter.WriteAsync(Assert.IsType<NativeTransferArchiveSnapshot>(frozen.Snapshot), output);
+        Assert.True(written.IsComplete, written.ToString());
+        output.Position = 0;
+        TransferPackageInspection inspected = await NativeTransferPackageValidator.InspectAsync(output);
+        Assert.True(inspected.IsPackageValid, inspected.ToString());
+        Assert.Equal(new[] { Id, SecondId }.OrderBy(x => x.Thread), inspected.Package!.Catalog.Threads.Select(t => t.Id).OrderBy(x => x.Thread));
+        Assert.All(inspected.Package.Catalog.Threads, thread => Assert.NotEmpty(thread.Posts));
+        Assert.Contains(Hash(SecondOriginal), inspected.Package.Envelope.Payloads.Select(p => p.Sha256));
+        Assert.Contains(Hash(Original), inspected.Package.Envelope.Payloads.Select(p => p.Sha256));
+    }
 }
