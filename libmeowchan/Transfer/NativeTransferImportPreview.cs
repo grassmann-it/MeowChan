@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Collections.Immutable;
 using System.Threading;
 using MeowChan.Archive;
@@ -19,6 +20,33 @@ internal sealed record TransferImportThreadPreview(ResourceId Id, int Posts,
     internal TransferImportStatusCounts DerivedPreviews { get; init; } = new(0, 0, 0, 0, 0, 0);
     internal TransferImportStatusCounts VideoPosters { get; init; } = new(0, 0, 0, 0, 0, 0);
 }
+internal sealed record NativeTransferPrivateOffer(
+    bool Available,
+    bool ThreadFavoritesAvailable,
+    bool MediaFavoritesAvailable,
+    bool PostBookmarksAndNotesAvailable,
+    NativePrivateMetadataSelection Selected)
+{
+    internal static NativeTransferPrivateOffer FromPackage(NativeTransferPackage package)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+        NativePrivateMetadataProjection? privateMetadata = package.PrivateMetadata;
+        NativePrivateMetadataSelection available = privateMetadata?.Selection ?? default;
+        return new(privateMetadata is not null, available.ThreadFavorites, available.MediaFavorites,
+            available.PostBookmarksAndNotes, default);
+    }
+
+    internal NativeTransferPrivateOffer WithSelection(NativePrivateMetadataSelection selected)
+    {
+        if (!Available) throw new InvalidOperationException("The package has no private metadata offer.");
+        if (selected.ThreadFavorites && !ThreadFavoritesAvailable
+            || selected.MediaFavorites && !MediaFavoritesAvailable
+            || selected.PostBookmarksAndNotes && !PostBookmarksAndNotesAvailable)
+            throw new InvalidDataException("The selected private metadata category is not available.");
+        return this with { Selected = selected };
+    }
+}
+
 internal sealed record TransferImportPreview(ImmutableArray<TransferImportThreadPreview> Threads, int Posts,
     TransferImportStatusCounts CurrentOriginals, TransferImportStatusCounts CurrentPreviews,
     TransferImportStatusCounts RetainedBindings, int UniquePayloads, long UniquePayloadBytes)
@@ -26,6 +54,8 @@ internal sealed record TransferImportPreview(ImmutableArray<TransferImportThread
     // Derived occurrences on current AND retained originals, never legacy Preview-role observations.
     internal TransferImportStatusCounts DerivedPreviews { get; init; } = new(0, 0, 0, 0, 0, 0);
     internal TransferImportStatusCounts VideoPosters { get; init; } = new(0, 0, 0, 0, 0, 0);
+    // Presence and category availability only. Private values never enter a preview.
+    internal NativeTransferPrivateOffer PrivateOffer { get; init; } = new(false, false, false, false, default);
 }
 internal enum TransferImportPreviewError { None, InvalidPackage }
 internal sealed record TransferImportPreviewInspection(TransferImportPreview? Preview, TransferImportPreviewError Error)
@@ -48,9 +78,23 @@ internal static class NativeTransferImportPreview
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (package is null || package.PrivateMetadata != null || package.Catalog is null || package.Catalog.Threads.IsDefault
+        if (package is null || package.Catalog is null || package.Catalog.Threads.IsDefault
             || package.Catalog.Threads.Length > 1000 || !CheckEnvelope(package.Envelope, cancellationToken))
             return Invalid();
+
+        // A private component is admitted for a public inventory only after the same
+        // strict, content-free package/provenance validation used by consent. This
+        // does not issue consent and never copies private values into the preview.
+        if (package.PrivateMetadata is not null)
+        {
+            try
+            {
+                _ = NativePrivateConsentDecision.Create(package,
+                    NativePrivateConsentProvenance.FromPackage(package),
+                    NativePrivateConsentScope.PublicOnly, cancellationToken: cancellationToken);
+            }
+            catch (InvalidDataException) { return Invalid(); }
+        }
 
         // Exactly one bounded parse, using the existing privacy/presence/revision/history/reference
         // validator. Never serialize/reparse per thread/attachment or cache trust by package ID/hash.
@@ -105,7 +149,8 @@ internal static class NativeTransferImportPreview
         cancellationToken.ThrowIfCancellationRequested();
         return new(new(threads.ToImmutable(), posts, originals.Freeze(), previews.Freeze(), retained.Freeze(),
             package.Envelope.Payloads.Length, payloadBytes)
-            { DerivedPreviews = derived.Freeze(), VideoPosters = posters.Freeze() }, TransferImportPreviewError.None);
+            { DerivedPreviews = derived.Freeze(), VideoPosters = posters.Freeze(),
+              PrivateOffer = NativeTransferPrivateOffer.FromPackage(package) }, TransferImportPreviewError.None);
     }
 
     private static void CountDerived(TransferAttachment attachment, StatusCounter previews, StatusCounter posters,
@@ -125,16 +170,24 @@ internal static class NativeTransferImportPreview
 
     private static bool CheckEnvelope(NativeTransferEnvelope? envelope, CancellationToken ct)
     {
-        // Public inventory only. Private receiving consent is not implemented; admitting public
-        // v4 here does not admit it to original-only apply/recovery/materialization consumers.
-        if (envelope is null || envelope.EnvelopeVersion != 1 || envelope.PrivateMetadata != null
-            || envelope.PrivateMetadataBytes.IsDefault || !envelope.PrivateMetadataBytes.IsEmpty
+        // Inventory may describe a validated private component, but it never admits
+        // private values or a receiving consent. The envelope version/descriptor pair
+        // remains strict here; full private Apply has a separate owner-fenced path.
+        if (envelope is null || envelope.EnvelopeVersion is < 1 or > 2
+            || envelope.EnvelopeVersion == 1 && (envelope.PrivateMetadata != null
+                || envelope.PrivateMetadataBytes.IsDefault || !envelope.PrivateMetadataBytes.IsEmpty)
+            || envelope.EnvelopeVersion == 2 && (envelope.PrivateMetadata is null
+                || envelope.PrivateMetadataBytes.IsDefault || envelope.PrivateMetadataBytes.IsEmpty)
             || envelope.ContentSchema is not ("chan-v1" or "chan-v2" or "chan-v3" or "chan-v4")
             || !Guid.TryParseExact(envelope.PackageId, "D", out Guid id) || id == Guid.Empty
             || !LowerHash(envelope.Fingerprint) || envelope.Catalog is null
             || envelope.Catalog.Length < 0 || envelope.Catalog.Length > Caps.CatalogBytes
             || !LowerHash(envelope.Catalog.Sha256) || envelope.CatalogBytes.IsDefault
             || envelope.CatalogBytes.Length != envelope.Catalog.Length
+            || envelope.PrivateMetadata is { } privateMetadata
+                && (!LowerHash(privateMetadata.Sha256) || privateMetadata.Length <= 0
+                    || privateMetadata.Length > Caps.PrivateMetadataBytes
+                    || envelope.PrivateMetadataBytes.Length != privateMetadata.Length)
             || envelope.Payloads.IsDefault || envelope.Payloads.Length > Caps.Entries - 2
             || envelope.MeasuredPayloads is null || envelope.MeasuredPayloads.Count != envelope.Payloads.Length) return false;
         HashSet<string> hashes = new(StringComparer.Ordinal);

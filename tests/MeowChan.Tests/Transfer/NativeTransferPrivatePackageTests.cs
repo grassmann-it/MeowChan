@@ -56,7 +56,13 @@ public sealed class NativeTransferPrivatePackageTests
         NativeTransferPackage package = inspected.Package!;
         Assert.Equal(ThreadSourceState.NotFound, package.Catalog.Threads[0].SourceState);
         NativePrivateMetadataProjection received = Assert.IsType<NativePrivateMetadataProjection>(package.PrivateMetadata);
-        Assert.False(NativeTransferImportPreview.Create(package).HasPreview);
+        TransferImportPreviewInspection preview = NativeTransferImportPreview.Create(package);
+        Assert.True(preview.HasPreview);
+        NativeTransferPrivateOffer offer = preview.Preview!.PrivateOffer;
+        Assert.True(offer.Available);
+        Assert.True(offer.ThreadFavoritesAvailable && offer.MediaFavoritesAvailable
+            && offer.PostBookmarksAndNotesAvailable);
+        Assert.Equal(default, offer.Selected);
         Assert.Equal(Note, Assert.Single(received.PostBookmarksAndNotes).Note);
         Assert.Equal(Assert.Single(Private().MediaFavorites), Assert.Single(received.MediaFavorites));
         NativePrivateMetadataProjection unselected = received.Select();

@@ -31,7 +31,11 @@ internal sealed record NativeTransferImportResult(NativeMediaImportCommitStatus 
     int EvidenceAdditions = 0, int DerivedDescriptorAdditions = 0, int ContainedDerivedAdditions = 0);
 internal sealed record NativeTransferImportSnapshot(long Generation, NativeTransferImportState State,
     NativeTransferImportError Error, TransferImportPreview? Inventory,
-    NativeTransferImportPlanSummary? Plan, NativeTransferImportResult? Result, bool CleanupRetained);
+    NativeTransferImportPlanSummary? Plan, NativeTransferImportResult? Result, bool CleanupRetained)
+{
+    // Content-free private offer. The full component remains in the owned stage only.
+    internal NativeTransferPrivateOffer? PrivateOffer { get; init; }
+}
 
 /// <summary>
 /// Owns the exact verified ingress bytes from inspection through an explicit host apply.
@@ -134,7 +138,8 @@ internal sealed class NativeTransferImportSession : IAsyncDisposable
             {
                 keep &= !_closed && generation == _generation && !token.IsCancellationRequested;
                 if (keep)
-                    _current = new(generation, state, error, inventory, summary, null, _retained);
+                    _current = new(generation, state, error, inventory, summary, null, _retained)
+                    { PrivateOffer = inventory?.PrivateOffer };
                 else if (token.IsCancellationRequested)
                 { state = NativeTransferImportState.Canceled; error = NativeTransferImportError.None; }
                 if (state == NativeTransferImportState.Canceled) { inventory = null; summary = null; }
@@ -145,7 +150,8 @@ internal sealed class NativeTransferImportSession : IAsyncDisposable
                 lock (_sync)
                 {
                     if (!_closed && generation == _generation)
-                        _current = new(generation, state, error, inventory, summary, null, _retained);
+                        _current = new(generation, state, error, inventory, summary, null, _retained)
+                        { PrivateOffer = inventory?.PrivateOffer };
                     else _current = _current with { CleanupRetained = _retained };
                 }
             }
@@ -176,17 +182,9 @@ internal sealed class NativeTransferImportSession : IAsyncDisposable
                     return;
                 }
             } // The original source is never consulted again, including during apply.
-            // Keep private metadata as an explicit unsupported disposition until the
-            // consent-bearing selection contract is wired through inspection and Apply.
-            // Without this guard the public-only inventory helper reports the package as
-            // merely invalid, which loses the privacy-specific state and error the dialog
-            // and recovery tests rely on. No private bytes are exposed or applied here.
-            if (_stage.Package.PrivateMetadata != null)
-            {
-                error = NativeTransferImportError.PrivateMetadataUnsupported;
-                state = NativeTransferImportState.Unsupported;
-                return;
-            }
+            // A private package is inspected as a content-free offer. PublicOnly remains
+            // the default preparation decision; the selected categories are not applied
+            // until an explicit owner-issued consent path is wired through the dialog.
             // Inventory supports public v4 too, but is not apply authority. Preparation
             // below still enforces the core's single-thread and supported-shape gates.
             var preview = NativeTransferImportPreview.Create(_stage.Package, token);

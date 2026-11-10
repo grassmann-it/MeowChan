@@ -401,14 +401,20 @@ public sealed class NativeTransferV4ImportPreviewTests
     }
 
     [Fact]
-    public async Task ValidPrivateV4AndEachPrivateSignalRemainRejected()
+    public async Task ValidPrivateV4ExposesContentFreeOfferButForgedPrivateSignalsRemainRejected()
     {
         NativePrivateMetadataProjection privateMetadata = new([Id], new(true, false, false), [Id], [], []);
         NativeTransferPackage privatePackage = await Validated(Single(Media()), privateMetadata: privateMetadata);
         Assert.True(privatePackage.IsChanV4);
         Assert.NotNull(privatePackage.PrivateMetadata);
         Assert.NotNull(privatePackage.Envelope.PrivateMetadata);
-        Invalid(privatePackage);
+        TransferImportPreviewInspection privatePreview = NativeTransferImportPreview.Create(privatePackage);
+        Assert.True(privatePreview.HasPreview);
+        Assert.True(privatePreview.Preview!.PrivateOffer.Available);
+        Assert.True(privatePreview.Preview.PrivateOffer.ThreadFavoritesAvailable);
+        Assert.False(privatePreview.Preview.PrivateOffer.MediaFavoritesAvailable);
+        Assert.False(privatePreview.Preview.PrivateOffer.PostBookmarksAndNotesAvailable);
+        Assert.Equal(default, privatePreview.Preview.PrivateOffer.Selected);
         Invalid(privatePackage with { PrivateMetadata = null });
         NativeTransferPackage publicPackage = await Validated(Single(Media()));
         Assert.Equal(1, Inventory(publicPackage).Posts);
