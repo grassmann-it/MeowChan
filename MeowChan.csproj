@@ -54,6 +54,11 @@
     <EmbeddedResource Include="Desktop/Localization/Packs/es.json" LogicalName="MeowChan.Desktop.Localization.Packs.es.json" WithCulture="false" />
     <EmbeddedResource Include="Desktop/Localization/Packs/fr.json" LogicalName="MeowChan.Desktop.Localization.Packs.fr.json" WithCulture="false" />
     <EmbeddedResource Include="Desktop/Localization/Packs/ru.json" LogicalName="MeowChan.Desktop.Localization.Packs.ru.json" WithCulture="false" />
+    <!-- Keep production XAML explicit so every build always emits the
+         precompiled loaders used by AvaloniaXamlLoader.Load. Samples and
+         archived build trees are intentionally not part of the app. -->
+    <AvaloniaXaml Remove="**/*.axaml" />
+    <AvaloniaXaml Include="App.axaml;Desktop/**/*.axaml" SubType="Designer" />
     <AvaloniaResource Include="Assets/**" />
     <None Update="Assets/meowchan.png" CopyToPublishDirectory="PreserveNewest" />
     <None Update="LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
