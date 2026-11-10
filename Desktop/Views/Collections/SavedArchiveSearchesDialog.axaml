@@ -22,6 +22,10 @@
             <ScrollViewer MaxHeight="160" HorizontalScrollBarVisibility="Disabled">
                 <TextBlock x:Name="SavedSearchDefinition" Classes="workspace-meta" TextWrapping="Wrap" />
             </ScrollViewer>
+            <StackPanel x:Name="SavedSearchConflictPanel" Spacing="4" IsVisible="False">
+                <TextBlock x:Name="SavedSearchConflictTitle" Classes="section-title" TextWrapping="Wrap" />
+                <TextBlock x:Name="SavedSearchConflictCurrent" Classes="workspace-meta" TextWrapping="Wrap" />
+            </StackPanel>
             <WrapPanel ItemSpacing="8" LineSpacing="8">
                 <Button x:Name="SavedSearchConfirm" Classes="primary" />
                 <Button x:Name="SavedSearchCancelEdit" />

@@ -230,7 +230,7 @@ public partial class SavedArchiveSearchesDialog : Window
             if (frozen == null || !_snapshot.CanWrite) return;
         }
         if ((kind is EditKind.Apply or EditKind.Rename or EditKind.Replace or EditKind.Delete) && Selected == null) return;
-        _edit = kind; _target = kind == EditKind.Create ? Guid.NewGuid() : Selected?.Id ?? Guid.Empty;
+        _edit = kind; _conflict = false; _target = kind == EditKind.Create ? Guid.NewGuid() : Selected?.Id ?? Guid.Empty;
         _revision = _snapshot.Revision; _definition = frozen ?? Selected?.Definition;
         _initialName = kind == EditKind.Create ? "" : Selected?.Name ?? "";
         NameInput.Text = _initialName;
@@ -251,7 +251,21 @@ public partial class SavedArchiveSearchesDialog : Window
         this.FindControl<TextBlock>("SavedSearchDefinition")!.Text = _edit == EditKind.Discard ? "" : _definition is { } spec ? SavedArchiveSearchDescription.Describe(spec) : "";
         ToolTip.SetTip(this.FindControl<TextBlock>("SavedSearchDefinition")!, this.FindControl<TextBlock>("SavedSearchDefinition")!.Text);
         Button("SavedSearchConfirm").Content = Texts.T("savedSearch.confirm." + _edit);
+        RenderConflict();
         Refresh();
+    }
+    private void RenderConflict()
+    {
+        bool show = _conflict && _edit != EditKind.None && _edit != EditKind.Discard && _snapshot != null;
+        this.FindControl<StackPanel>("SavedSearchConflictPanel")!.IsVisible = show;
+        if (!show) return;
+        this.FindControl<TextBlock>("SavedSearchConflictTitle")!.Text = Texts.T("savedSearch.conflictTitle");
+        SavedArchiveSearch? current = _edit == EditKind.Create ? null : _snapshot!.Searches.FirstOrDefault(x => x.Id == _target);
+        this.FindControl<TextBlock>("SavedSearchConflictCurrent")!.Text = _edit == EditKind.Create || _edit == EditKind.Recover
+            ? Texts.T("savedSearch.conflictList", _snapshot!.Searches.Count)
+            : current == null ? Texts.T("savedSearch.conflictDeleted")
+            : Texts.T("savedSearch.conflictCurrent", current.Name,
+                current.Definition is { } spec ? SavedArchiveSearchDescription.Describe(spec) : Texts.T("savedSearch.unsupported"));
     }
     private void CancelEdit()
     {
@@ -261,6 +275,10 @@ public partial class SavedArchiveSearchesDialog : Window
         _edit = EditKind.None; RenderEditor(); List.Focus();
     }
     private EditKind _discardedEdit;
+    // Set after a revision conflict: the editor then shows the current stored state next to the frozen draft.
+    private bool _conflict;
+    private bool TargetDeletedByConflict => _conflict && _edit is EditKind.Rename or EditKind.Replace or EditKind.Delete
+        && _snapshot?.Searches.All(x => x.Id != _target) == true;
     private void ShowDiscard()
     {
         if (_edit != EditKind.Discard) _discardedEdit = _edit;
@@ -303,7 +321,7 @@ public partial class SavedArchiveSearchesDialog : Window
         catch (SavedSearchRevisionException error)
         {
             if (_closed) return;
-            _snapshot = error.Current; Render(target); Status(Texts.T("savedSearch.conflict"));
+            _snapshot = error.Current; Render(target); _conflict = true; RenderEditor(); Status(Texts.T("savedSearch.conflict"));
             // Preserve frozen target/name/definition. Retry is explicitly against the reviewed revision.
             _revision = error.Current.Revision;
         }
@@ -366,7 +384,7 @@ public partial class SavedArchiveSearchesDialog : Window
         NameInput.IsEnabled = idle;
         Button("SavedSearchReload").IsEnabled = idle && _edit == EditKind.None;
         Button("SavedSearchRecover").IsEnabled = idle && _edit == EditKind.None;
-        Button("SavedSearchConfirm").IsEnabled = idle && _edit != EditKind.None && (_edit == EditKind.Apply || _edit == EditKind.Discard || _snapshot?.CanWrite == true || _edit == EditKind.Recover && _snapshot?.State == SavedSearchStoreState.RecoveryAvailable);
+        Button("SavedSearchConfirm").IsEnabled = idle && _edit != EditKind.None && !TargetDeletedByConflict && (_edit == EditKind.Apply || _edit == EditKind.Discard || _snapshot?.CanWrite == true || _edit == EditKind.Recover && _snapshot?.State == SavedSearchStoreState.RecoveryAvailable);
         Button("SavedSearchCancelEdit").Content = Texts.T(_working ? "savedSearch.cancelOperation" : _edit == EditKind.Discard ? "savedSearch.keepEditing" : "savedSearch.cancel");
     }
     private void Status(string text) => this.FindControl<TextBlock>("SavedSearchStatus")!.Text = text;

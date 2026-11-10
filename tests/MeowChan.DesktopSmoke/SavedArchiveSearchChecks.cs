@@ -100,6 +100,8 @@ internal static partial class SavedArchiveSearchChecks
         if (double.TryParse(Environment.GetEnvironmentVariable("MEOWCHAN_SAVED_SEARCH_HEIGHT"), System.Globalization.NumberStyles.Float,
             System.Globalization.CultureInfo.InvariantCulture, out double height)) owner.Height = height;
         owner.UpdateLayout();
+        owner.Activate();
+        await Program.WaitUntilAsync(() => owner.IsActive);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         using var log = new Evidence(profile, owner);
         log.Note("start", "No automatic saved-search startup; Downloads remains selected", new { stage = Stage });

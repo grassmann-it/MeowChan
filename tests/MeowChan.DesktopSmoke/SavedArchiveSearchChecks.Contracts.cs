@@ -68,6 +68,39 @@ internal static partial class SavedArchiveSearchChecks
         finally { page.ArchiveLayoutPreference = originalLayout; }
         await FailedAndCanceledDialogApplyAsync(owner, profile, log);
         Require(savedBytes.SequenceEqual(File.ReadAllBytes(SearchFile(profile))), "Contract Apply/retry/cancel altered stored definitions.");
+        await ConflictStateAsync(owner, page, log);
+    }
+
+    // SF-01: after a revision conflict the editor shows the current stored state next to the frozen draft.
+    private static async Task ConflictStateAsync(MainWindow owner, ArchivePage page, Evidence log)
+    {
+        var host = owner.SessionHost;
+        var manager = await OpenAsync(owner, page, false, log);
+        Select(manager, Names[0], log);
+        await ClickAsync(Control<Button>(manager, "SavedSearchRename"), log, "Rename freezes the revision visible now");
+        await Program.WaitUntilAsync(() => Control<StackPanel>(manager, "SavedSearchEditor").IsVisible);
+        Require(!Control<StackPanel>(manager, "SavedSearchConflictPanel").IsVisible, "Conflict panel visible before any conflict.");
+        var before = await host.LoadSavedArchiveSearchesAsync();
+        var target = before.Searches.Single(x => x.Name == Names[0]);
+        await host.RenameSavedArchiveSearchAsync(target.Id, "Renamed elsewhere", before.Revision);
+        Edit(Control<TextBox>(manager, "SavedSearchName"), "My draft name", log, "The draft stays frozen and is not applied on conflict");
+        await ClickAsync(Control<Button>(manager, "SavedSearchConfirm"), log, "First confirm is rejected by the revision check");
+        await Program.WaitUntilAsync(() => Control<StackPanel>(manager, "SavedSearchConflictPanel").IsVisible);
+        string current = Control<TextBlock>(manager, "SavedSearchConflictCurrent").Text ?? "";
+        Require(current.Contains("Renamed elsewhere", StringComparison.Ordinal) && Control<TextBox>(manager, "SavedSearchName").Text == "My draft name",
+            "Conflict state does not show the stored name next to the unchanged draft.");
+        Require((await host.LoadSavedArchiveSearchesAsync()).Searches.Any(x => x.Name == "Renamed elsewhere") && Control<Button>(manager, "SavedSearchConfirm").IsEnabled,
+            "A conflict must not mutate the store and an explicit retry must stay possible while the target exists.");
+        var now = await host.LoadSavedArchiveSearchesAsync();
+        await host.DeleteSavedArchiveSearchAsync(target.Id, now.Revision);
+        await ClickAsync(Control<Button>(manager, "SavedSearchConfirm"), log, "Retry against a target deleted in the meantime");
+        await Program.WaitUntilAsync(() => Control<TextBlock>(manager, "SavedSearchConflictCurrent").Text == Texts.T("savedSearch.conflictDeleted"));
+        Require(!Control<Button>(manager, "SavedSearchConfirm").IsEnabled, "Retry stays enabled for a deleted target.");
+        await ClickAsync(Control<Button>(manager, "SavedSearchCancelEdit"), log, "Cancel with a changed draft asks before discarding");
+        await ClickAsync(Control<Button>(manager, "SavedSearchConfirm"), log, "Confirm discarding the draft");
+        await Program.WaitUntilAsync(() => !Control<StackPanel>(manager, "SavedSearchEditor").IsVisible);
+        Require(!Control<StackPanel>(manager, "SavedSearchConflictPanel").IsVisible, "Conflict panel survived leaving the editor.");
+        await CloseAsync(manager, owner, log);
     }
 
     private static async Task FailedAndCanceledDialogApplyAsync(MainWindow owner, string profile, Evidence log)
