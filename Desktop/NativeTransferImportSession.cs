@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Archive;
@@ -25,10 +26,12 @@ internal enum NativeTransferImportError
 }
 internal sealed record NativeTransferImportPlanSummary(ResourceId Resource, bool IsMerge,
     int NewPosts, int UpdatedPosts, int NewAttachments, int Conflicts,
-    int EvidenceAdditions = 0, int DerivedDescriptorAdditions = 0, int ContainedDerivedAdditions = 0);
+    int EvidenceAdditions = 0, int DerivedDescriptorAdditions = 0, int ContainedDerivedAdditions = 0,
+    int ThreadCount = 1, int NewThreads = 0, int MergedThreads = 0);
 internal sealed record NativeTransferImportResult(NativeMediaImportCommitStatus Status, int NewThreads,
     int NewPosts, int UpdatedPosts, int NewAttachments, int Conflicts, bool IsReplay,
-    int EvidenceAdditions = 0, int DerivedDescriptorAdditions = 0, int ContainedDerivedAdditions = 0);
+    int EvidenceAdditions = 0, int DerivedDescriptorAdditions = 0, int ContainedDerivedAdditions = 0,
+    int ThreadsApplied = 0, int ThreadsTotal = 0);
 internal sealed record NativeTransferImportSnapshot(long Generation, NativeTransferImportState State,
     NativeTransferImportError Error, TransferImportPreview? Inventory,
     NativeTransferImportPlanSummary? Plan, NativeTransferImportResult? Result, bool CleanupRetained)
@@ -59,6 +62,7 @@ internal sealed class NativeTransferImportSession : IAsyncDisposable
     private Task? _disposal;
     private bool _closed;
     private bool _retained;
+    private bool _set;
     private long _generation;
 
     internal NativeTransferImportSession(DesktopSessionHost host, string workParentDirectory)
@@ -101,11 +105,16 @@ internal sealed class NativeTransferImportSession : IAsyncDisposable
             if (!_closed && _current.State == NativeTransferImportState.Applying
                 && expectedGeneration == _generation && _active != null) return _active;
             if (_closed || _active is { IsCompleted: false } || _current.State != NativeTransferImportState.Ready
-                || expectedGeneration != _generation || _prepared == null || _stage == null)
+                || expectedGeneration != _generation || (_prepared == null && !_set) || _stage == null)
                 return Task.FromResult(_current);
             _current = _current with { State = NativeTransferImportState.Applying, Error = NativeTransferImportError.None };
             var cancellation = _cancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
-            NativeTransferPreparedImport prepared = _prepared;
+            if (_set)
+            {
+                NativeTransferImportStage setStage = _stage;
+                return _active = Task.Run(() => ApplySetCoreAsync(setStage, expectedGeneration, cancellation));
+            }
+            NativeTransferPreparedImport prepared = _prepared!;
             return _active = Task.Run(() => ApplyCoreAsync(prepared, expectedGeneration, cancellation));
         }
     }
@@ -190,13 +199,34 @@ internal sealed class NativeTransferImportSession : IAsyncDisposable
             var preview = NativeTransferImportPreview.Create(_stage.Package, token);
             if (!preview.HasPreview) { error = NativeTransferImportError.InvalidPackage; return; }
             inventory = preview.Preview;
+            if (_stage.Package.Catalog.Threads.Length > 1)
+            {
+                // A selected set is validated per thread against the current target; nothing is applied and no
+                // plan is retained, because the first commit changes the target fence. Apply re-prepares each thread.
+                var set = await _host.PrepareNativeImportSetAsync(_stage, token).ConfigureAwait(false);
+                if (set.Summary == null)
+                {
+                    error = set.Error == NativeTransferImportError.UnsupportedPackage && _stage.Package.PrivateMetadata != null
+                        ? NativeTransferImportError.PrivateMetadataUnsupported : set.Error;
+                    state = error is NativeTransferImportError.UnsupportedPackage or NativeTransferImportError.PrivateMetadataUnsupported
+                        ? NativeTransferImportState.Unsupported : NativeTransferImportState.Failed;
+                    return;
+                }
+                _set = true; summary = set.Summary;
+                if (AfterPreparationForTests is { } afterSet) await afterSet(token).ConfigureAwait(false);
+                token.ThrowIfCancellationRequested();
+                state = NativeTransferImportState.Ready; error = NativeTransferImportError.None; keep = true;
+                return;
+            }
             var plan = scope is { } selectedScope
                 ? await _host.PrepareNativeImportAsync(_stage, selectedScope, token).ConfigureAwait(false)
                 : await _host.PrepareNativeImportAsync(_stage, token).ConfigureAwait(false);
             if (plan.Plan == null)
             {
-                error = plan.Error;
-                state = error == NativeTransferImportError.UnsupportedPackage
+                // A private component is not applied by this path; keep the specific, user-visible reason.
+                error = plan.Error == NativeTransferImportError.UnsupportedPackage && _stage.Package.PrivateMetadata != null
+                    ? NativeTransferImportError.PrivateMetadataUnsupported : plan.Error;
+                state = error is NativeTransferImportError.UnsupportedPackage or NativeTransferImportError.PrivateMetadataUnsupported
                     ? NativeTransferImportState.Unsupported : NativeTransferImportState.Failed;
                 return;
             }
@@ -246,6 +276,64 @@ internal sealed class NativeTransferImportSession : IAsyncDisposable
                 // A closing session still retains the historical result for its owner.
                 _current = _current with { State = _closed ? NativeTransferImportState.Closed : state,
                     Error = error, Result = result, CleanupRetained = _retained };
+            }
+            RetireCancellation(cancellation);
+        }
+        return Current;
+    }
+
+    // Sequential composition of the unchanged single-thread pipeline. Each thread is prepared just before its
+    // own commit (the previous commit invalidates earlier fences). Not atomic across threads: a stop leaves an
+    // honest partial receipt, and a re-run is idempotent because applied threads re-prepare as no-addition merges.
+    private async Task<NativeTransferImportSnapshot> ApplySetCoreAsync(NativeTransferImportStage stage,
+        long generation, CancellationTokenSource cancellation)
+    {
+        NativeTransferImportState state = NativeTransferImportState.Failed;
+        NativeTransferImportError error = NativeTransferImportError.ApplyFailure;
+        NativeMediaImportCommitStatus status = NativeMediaImportCommitStatus.Unknown;
+        int threads = 0, newThreads = 0, posts = 0, updated = 0, attachments = 0, conflicts = 0, evidence = 0, derived = 0, contained = 0;
+        int applied = 0, total = stage.Package.Catalog.Threads.Length;
+        bool replay = total > 0;
+        NativeTransferImportResult Result() => new(status, newThreads, posts, updated, attachments, conflicts, replay,
+            evidence, derived, contained, applied, total);
+        try
+        {
+            foreach (ResourceId resource in stage.Package.Catalog.Threads.Select(thread => thread.Id).ToArray())
+            {
+                cancellation.Token.ThrowIfCancellationRequested();
+                NativeTransferImportStage? slice = stage.CreateThreadSlice(resource);
+                if (slice == null) { error = NativeTransferImportError.UnsupportedPackage; state = NativeTransferImportState.Unsupported; break; }
+                try
+                {
+                    var prepared = await _host.PrepareNativeImportAsync(slice, cancellation.Token).ConfigureAwait(false);
+                    if (prepared.Plan == null) { error = prepared.Error; state = NativeTransferImportState.Failed; break; }
+                    var outcome = await _host.ApplyNativeImportAsync(prepared.Plan, cancellation.Token).ConfigureAwait(false);
+                    NativeTransferImportResult one = outcome.Result;
+                    status = one.Status; newThreads += one.NewThreads; posts += one.NewPosts; updated += one.UpdatedPosts;
+                    attachments += one.NewAttachments; conflicts += one.Conflicts; evidence += one.EvidenceAdditions;
+                    derived += one.DerivedDescriptorAdditions; contained += one.ContainedDerivedAdditions;
+                    replay &= one.IsReplay; threads++;
+                    if (outcome.Disposition != ProfileExclusiveDisposition.SafeToResume)
+                    { state = NativeTransferImportState.RecoveryRequired; break; }
+                    if (one.Status == NativeMediaImportCommitStatus.StalePlan)
+                    { state = NativeTransferImportState.NeedsReview; error = NativeTransferImportError.None; break; }
+                    if (one.Status != NativeMediaImportCommitStatus.Committed) break;
+                    applied++;
+                }
+                finally { await slice.DisposeAsync().ConfigureAwait(false); }
+            }
+            if (applied == total) { state = NativeTransferImportState.Completed; error = NativeTransferImportError.None; status = NativeMediaImportCommitStatus.Committed; }
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        { state = NativeTransferImportState.Canceled; error = NativeTransferImportError.None; }
+        catch (Exception) { error = NativeTransferImportError.ProfileUnavailable; }
+        finally
+        {
+            await CleanupAsync().ConfigureAwait(false);
+            lock (_sync)
+            {
+                _current = _current with { State = _closed ? NativeTransferImportState.Closed : state,
+                    Error = error, Result = Result(), CleanupRetained = _retained };
             }
             RetireCancellation(cancellation);
         }
@@ -322,7 +410,7 @@ internal sealed class NativeTransferImportSession : IAsyncDisposable
 
     private async Task CleanupAsync()
     {
-        _prepared = null;
+        _prepared = null; _set = false;
         NativeTransferImportStage? stage = _stage;
         _stage = null;
         if (stage != null)

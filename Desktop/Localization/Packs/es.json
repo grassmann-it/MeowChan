@@ -828,6 +828,8 @@
     "transfer.import.previews": "Vistas previas: incluidas {0} · omitidas {1} · desconocidas {2} · no disponibles {3} · fallidas {4} · canceladas {5}",
     "transfer.import.retained": "Enlaces retenidos: incluidos {0} · omitidos {1} · desconocidos {2} · no disponibles {3} · fallidos {4} · cancelados {5}",
     "transfer.import.planNew": "Plan de hilo nuevo: {0} publicaciones · {1} adjuntos · {2} evidencia · {3} representaciones derivadas",
+    "transfer.import.planSet": "Plan de conjunto: {0} hilos ({1} nuevos · {2} a fusionar) · {3} publicaciones nuevas · {4} adjuntos nuevos · {5} conflictos",
+    "transfer.import.resultSet": "Resultado del conjunto: {0} de {1} hilos aplicados · {2} hilos nuevos · {3} publicaciones nuevas · {4} adjuntos · {5} conflictos",
     "transfer.import.planMerge": "Plan de fusión: {0} publicaciones nuevas · {1} publicaciones actualizadas · {2} adjuntos nuevos · {3} conflictos · {4} evidencia · {5} representaciones derivadas",
     "transfer.import.result": "Resultado: {0} hilos nuevos · {1} publicaciones nuevas · {2} publicaciones actualizadas · {3} adjuntos · {4} conflictos",
     "transfer.import.replay": "Esta importación ya se había aplicado; no se realizaron escrituras duplicadas.",

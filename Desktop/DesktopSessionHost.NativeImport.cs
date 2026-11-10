@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Archive;
@@ -49,6 +50,41 @@ internal sealed partial class DesktopSessionHost
             return (null, MapMergeError(merge.Error));
         NativeMediaImportPreparation added = await _content.Catalog.PrepareNativeMediaImportAsync(stage, token).ConfigureAwait(false);
         return added.Plan is { } plan ? BuildNew(plan) : (null, MapImportError(added.Error));
+    }
+
+    // Validates a public multi-thread stage thread by thread against the current target and returns one
+    // aggregate summary. No plan escapes: each thread is prepared again, just before its own commit.
+    internal async Task<(NativeTransferImportPlanSummary? Summary, NativeTransferImportError Error)>
+        PrepareNativeImportSetAsync(NativeTransferImportStage stage, CancellationToken token)
+    {
+        EnsureReady();
+        NativeTransferImportPlanSummary? total = null;
+        int newThreads = 0, merged = 0, count = 0;
+        foreach (ResourceId resource in stage.Package.Catalog.Threads.Select(thread => thread.Id).ToArray())
+        {
+            token.ThrowIfCancellationRequested();
+            NativeTransferImportStage? slice = stage.CreateThreadSlice(resource);
+            if (slice == null) return (null, NativeTransferImportError.UnsupportedPackage);
+            try
+            {
+                var prepared = await PrepareNativeImportAsync(slice, token).ConfigureAwait(false);
+                if (prepared.Plan == null) return (null, prepared.Error);
+                NativeTransferImportPlanSummary one = prepared.Plan.Summary;
+                if (one.IsMerge) merged++; else newThreads++;
+                count++;
+                total = total == null ? one : total with
+                {
+                    IsMerge = total.IsMerge || one.IsMerge, NewPosts = total.NewPosts + one.NewPosts,
+                    UpdatedPosts = total.UpdatedPosts + one.UpdatedPosts, NewAttachments = total.NewAttachments + one.NewAttachments,
+                    Conflicts = total.Conflicts + one.Conflicts, EvidenceAdditions = total.EvidenceAdditions + one.EvidenceAdditions,
+                    DerivedDescriptorAdditions = total.DerivedDescriptorAdditions + one.DerivedDescriptorAdditions,
+                    ContainedDerivedAdditions = total.ContainedDerivedAdditions + one.ContainedDerivedAdditions
+                };
+            }
+            finally { await slice.DisposeAsync().ConfigureAwait(false); }
+        }
+        return total == null ? (null, NativeTransferImportError.UnsupportedPackage)
+            : (total with { ThreadCount = count, NewThreads = newThreads, MergedThreads = merged }, NativeTransferImportError.None);
     }
 
     private async Task<(NativeTransferPreparedImport? Plan, NativeTransferImportError Error)>

@@ -21,7 +21,6 @@ public sealed class NativeTransferImportLifetimeTests
 
     [Theory]
     [InlineData("private")]
-    [InlineData("multithread")]
     [InlineData("preview-only")]
     public async Task UnsupportedValidatedShapesNeverGainApplyCapabilityOrMutateTarget(string shape)
     {
@@ -46,6 +45,44 @@ public sealed class NativeTransferImportLifetimeTests
         Assert.Empty(Directory.GetFileSystemEntries(f.Work));
         Assert.Equal(before, f.TargetSnapshot());
         Assert.Equal(DesktopSessionState.Ready, f.Host.State);
+    }
+
+    [Fact]
+    public async Task MultithreadSetAppliesEachThreadSequentiallyAndReplaysAsMerge()
+    {
+        await using Fixture f = await Fixture.StartAsync();
+        string source = await f.WritePackageAsync("multithread");
+        int commits = 0;
+        f.Host.BeforeNativeImportCommitForTests = () => { Interlocked.Increment(ref commits); return Task.CompletedTask; };
+        await using (NativeTransferImportSession session = f.Host.CreateNativeTransferImportSession(f.Work))
+        {
+            NativeTransferImportSnapshot ready = await session.InspectAsync(source, NativeTransferImportScope.New).WaitAsync(Deadline);
+            Assert.Equal(NativeTransferImportState.Ready, ready.State);
+            Assert.Equal(2, ready.Plan!.ThreadCount);
+            Assert.Equal(2, ready.Plan.NewThreads);
+            Assert.Equal(0, f.Count("archive_threads")); // Inspection alone never writes.
+            Assert.Equal(0, Volatile.Read(ref commits));
+            NativeTransferImportSnapshot done = await session.ApplyAsync(ready.Generation).WaitAsync(Deadline);
+            Assert.Equal(NativeTransferImportState.Completed, done.State);
+            Assert.Equal(2, done.Result!.ThreadsApplied);
+            Assert.Equal(2, done.Result.ThreadsTotal);
+            Assert.Equal(2, done.Result.NewThreads);
+            Assert.Equal(2, Volatile.Read(ref commits));
+            Assert.Equal(2, f.Count("archive_threads"));
+        }
+        await using (NativeTransferImportSession again = f.Host.CreateNativeTransferImportSession(f.Work))
+        {
+            NativeTransferImportSnapshot ready = await again.InspectAsync(source, NativeTransferImportScope.Merge).WaitAsync(Deadline);
+            Assert.Equal(NativeTransferImportState.Ready, ready.State);
+            Assert.Equal(2, ready.Plan!.MergedThreads);
+            Assert.Equal(0, ready.Plan.NewPosts);
+            NativeTransferImportSnapshot done = await again.ApplyAsync(ready.Generation).WaitAsync(Deadline);
+            Assert.Equal(NativeTransferImportState.Completed, done.State);
+            Assert.Equal(2, done.Result!.ThreadsApplied);
+            Assert.Equal(0, done.Result.NewPosts);
+            Assert.Equal(2, f.Count("archive_threads")); // Idempotent: no duplicate threads.
+        }
+        Assert.Empty(Directory.GetFileSystemEntries(f.Work));
     }
 
     [Fact]

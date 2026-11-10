@@ -48,7 +48,7 @@ public sealed class NativeTransferPreviewSessionTests
     }
 
     [Fact]
-    public async Task PrivateMetadataIsTypedAsUnsupportedAndLeavesNoStageDirectory()
+    public async Task PrivateMetadataIsOfferedContentFreeAndLeavesNoStageDirectory()
     {
         using Workspace workspace = new();
         string source = await workspace.WritePackageAsync(AllStatusesCatalog(), privateMetadata: true);
@@ -56,9 +56,10 @@ public sealed class NativeTransferPreviewSessionTests
 
         NativeTransferPreviewSnapshot result = await session.InspectAsync(source).WaitAsync(TimeSpan.FromSeconds(10));
 
-        Assert.Equal(NativeTransferPreviewState.Rejected, result.State);
-        Assert.Equal(NativeTransferPreviewError.PrivateMetadataNotYetSupported, result.Error);
-        Assert.Null(result.Inventory);
+        // Preview is read-only: a private component is reported as a content-free offer, never applied.
+        Assert.Equal(NativeTransferPreviewState.Inventory, result.State);
+        Assert.Equal(NativeTransferPreviewError.None, result.Error);
+        Assert.True(Assert.IsType<TransferImportPreview>(result.Inventory).PrivateOffer.Available);
         Assert.Empty(Directory.GetFileSystemEntries(workspace.Work));
     }
 

@@ -828,6 +828,8 @@
     "transfer.import.previews": "Aperçus : inclus {0} · omis {1} · inconnus {2} · indisponibles {3} · échoués {4} · annulés {5}",
     "transfer.import.retained": "Liaisons conservées : incluses {0} · omises {1} · inconnues {2} · indisponibles {3} · échouées {4} · annulées {5}",
     "transfer.import.planNew": "Plan de nouveau fil : {0} messages · {1} pièces jointes · {2} preuves · {3} représentations dérivées",
+    "transfer.import.planSet": "Plan d’ensemble : {0} fils ({1} nouveaux · {2} à fusionner) · {3} nouveaux messages · {4} nouvelles pièces jointes · {5} conflits",
+    "transfer.import.resultSet": "Résultat de l’ensemble : {0} fils appliqués sur {1} · {2} nouveaux fils · {3} nouveaux messages · {4} pièces jointes · {5} conflits",
     "transfer.import.planMerge": "Plan de fusion : {0} nouveaux messages · {1} messages mis à jour · {2} nouvelles pièces jointes · {3} conflits · {4} preuves · {5} représentations dérivées",
     "transfer.import.result": "Résultat : {0} nouveaux fils · {1} nouveaux messages · {2} messages mis à jour · {3} pièces jointes · {4} conflits",
     "transfer.import.replay": "Cet import avait déjà été appliqué ; aucune écriture en double n’a été effectuée.",

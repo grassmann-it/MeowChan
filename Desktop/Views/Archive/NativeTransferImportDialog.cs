@@ -423,6 +423,9 @@ internal sealed class NativeTransferImportDialog : Window
     private string PlanText(NativeTransferImportPlanSummary? plan)
     {
         if (plan is not { } value) return string.Empty;
+        if (value.ThreadCount > 1)
+            return Label("transfer.import.planSet", value.ThreadCount, value.NewThreads, value.MergedThreads,
+                value.NewPosts, value.NewAttachments, value.Conflicts);
         return value.IsMerge
             ? Label("transfer.import.planMerge", value.NewPosts, value.UpdatedPosts, value.NewAttachments,
                 value.Conflicts, value.EvidenceAdditions, value.DerivedDescriptorAdditions)
@@ -433,6 +436,12 @@ internal sealed class NativeTransferImportDialog : Window
     private string ResultText(NativeTransferImportResult? result)
     {
         if (result is not { } value) return string.Empty;
+        if (value.ThreadsTotal > 1)
+        {
+            string set = Label("transfer.import.resultSet", value.ThreadsApplied, value.ThreadsTotal, value.NewThreads,
+                value.NewPosts, value.NewAttachments, value.Conflicts);
+            return value.IsReplay ? set + Environment.NewLine + Label("transfer.import.replay") : set;
+        }
         string text = Label("transfer.import.result", value.NewThreads, value.NewPosts,
             value.UpdatedPosts, value.NewAttachments, value.Conflicts);
         if (value.IsReplay) text += Environment.NewLine + Label("transfer.import.replay");
