@@ -802,6 +802,10 @@
     "transfer.import.cancel": "Cancelar",
     "transfer.import.close": "Cerrar",
     "transfer.import.noSource": "No hay ningún paquete seleccionado.",
+    "transfer.import.scope": "Elegir el alcance (antes de seleccionar el paquete)",
+    "transfer.import.scopeNew": "Crear como hilo nuevo",
+    "transfer.import.scopeMerge": "Combinar con el hilo existente",
+
     "transfer.import.source": "Paquete seleccionado: {0}",
     "transfer.import.choosing": "Selección del paquete…",
     "transfer.import.reading": "Leyendo y preparando el paquete…",
@@ -833,6 +837,7 @@
     "transfer.import.error.private": "Los metadatos privados de transferencia todavía no son compatibles. No se cambió nada.",
     "transfer.import.error.limit": "El paquete de transferencia supera un límite de seguridad. No se cambió nada.",
     "transfer.import.error.target": "El destino existente del archivo no se pudo admitir de forma segura. No se cambió nada.",
+    "transfer.import.error.scope": "El alcance Nuevo/Combinar seleccionado no coincide con el destino del archivo local. Elige el otro alcance y selecciona de nuevo el paquete. No se ha cambiado nada.",
     "transfer.import.error.profile": "El perfil no está listo para la importación. No se cambió nada.",
     "transfer.import.error.apply": "La importación no se pudo completar. Revise el resultado antes de reintentarlo.",
     "transfer.import.error.read": "No se pudo leer el paquete de transferencia.",

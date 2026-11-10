@@ -802,6 +802,10 @@
     "transfer.import.cancel": "Annuler",
     "transfer.import.close": "Fermer",
     "transfer.import.noSource": "Aucun paquet sélectionné.",
+    "transfer.import.scope": "Portée de l’application (à choisir avant le paquet)",
+    "transfer.import.scopeNew": "Créer comme nouveau fil",
+    "transfer.import.scopeMerge": "Fusionner dans le fil existant",
+
     "transfer.import.source": "Paquet sélectionné : {0}",
     "transfer.import.choosing": "Sélection du paquet…",
     "transfer.import.reading": "Lecture et préparation du paquet…",
@@ -833,6 +837,7 @@
     "transfer.import.error.private": "Les métadonnées privées de transfert ne sont pas encore prises en charge. Rien n’a été modifié.",
     "transfer.import.error.limit": "Le paquet de transfert dépasse une limite de sécurité. Rien n’a été modifié.",
     "transfer.import.error.target": "La cible d’archive existante n’a pas pu être admise en toute sécurité. Rien n’a été modifié.",
+    "transfer.import.error.scope": "La portée Nouveau/Fusionner choisie ne correspond pas à la cible de l’archive locale. Choisissez l’autre portée et sélectionnez à nouveau le paquet. Aucun changement effectué.",
     "transfer.import.error.profile": "Le profil n’est pas prêt pour l’import. Rien n’a été modifié.",
     "transfer.import.error.apply": "L’import n’a pas pu être terminé. Révisez le résultat avant une nouvelle tentative.",
     "transfer.import.error.read": "Le paquet de transfert n’a pas pu être lu.",

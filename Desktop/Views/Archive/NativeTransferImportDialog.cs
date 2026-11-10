@@ -33,6 +33,8 @@ internal sealed class NativeTransferImportDialog : Window
     private readonly Button _close;
     private readonly TextBlock _heading = new() { Name = "NativeTransferImportHeading" };
     private readonly TextBlock _source = new() { Name = "NativeTransferImportSource", TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _scopeLabel = new() { Name = "NativeTransferImportScopeLabel", TextWrapping = TextWrapping.Wrap };
+    private readonly ComboBox _scope = new() { Name = "NativeTransferImportScope" };
     private readonly TextBlock _state = new() { Name = "NativeTransferImportState", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _summary = new() { Name = "NativeTransferImportSummary", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _details = new() { Name = "NativeTransferImportDetails", TextWrapping = TextWrapping.Wrap };
@@ -63,6 +65,10 @@ internal sealed class NativeTransferImportDialog : Window
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
 
+        _scope.SelectedIndex = 0;
+        _scope.MinWidth = 260;
+        _scope.SelectionChanged += (_, _) => RefreshControls();
+
         _choose = CreateButton("NativeTransferImportChoose", "transfer.import.choose", OnChooseAsync);
         _cancel = CreateButton("NativeTransferImportCancel", "transfer.import.cancel", OnCancel);
         _apply = CreateButton("NativeTransferImportApply", "transfer.import.apply", OnApplyAsync);
@@ -81,6 +87,8 @@ internal sealed class NativeTransferImportDialog : Window
         StackPanel body = new() { Spacing = 12, Margin = new Thickness(16) };
         body.Children.Add(_heading);
         body.Children.Add(_source);
+        body.Children.Add(_scopeLabel);
+        body.Children.Add(_scope);
         body.Children.Add(_state);
         body.Children.Add(_summary);
         body.Children.Add(_details);
@@ -134,6 +142,8 @@ internal sealed class NativeTransferImportDialog : Window
     internal Button ApplyButton => _apply;
     internal Button CloseButton => _close;
     internal TextBlock StateText => _state;
+    internal ComboBox ScopeSelector => _scope;
+    internal NativeTransferImportScope ScopeForTests => SelectedScope;
     internal TextBlock SummaryText => _summary;
     internal TextBlock NoticeText => _notice;
     internal TextBlock ErrorText => _error;
@@ -259,7 +269,7 @@ internal sealed class NativeTransferImportDialog : Window
 
             _fileName = Path.GetFileName(path);
             _readPending = true;
-            Task<NativeTransferImportSnapshot> pending = _session.InspectAsync(path);
+            Task<NativeTransferImportSnapshot> pending = _session.InspectAsync(path, SelectedScope);
             // InspectAsync publishes Reading synchronously before returning its
             // task. Render that snapshot before awaiting so the UI is responsive.
             Render(_session.Current);
@@ -361,6 +371,10 @@ internal sealed class NativeTransferImportDialog : Window
     {
         if (_closed) return;
         _choose.IsEnabled = !_pickerPending && !_readPending && !_applyPending;
+        // Scope is selected before opening the picker and then frozen for the
+        // staged generation. Changing it after inspection would otherwise make
+        // the visible plan and the Apply request disagree.
+        _scope.IsEnabled = !_pickerPending && !_readPending && !_applyPending && _fileName == null;
         _cancel.IsEnabled = IsChoosing
             || _readPending && _display.State == NativeTransferImportState.Reading
             || _applyPending && _display.State == NativeTransferImportState.Applying;
@@ -378,6 +392,7 @@ internal sealed class NativeTransferImportDialog : Window
         Title = Label("transfer.import.title");
         _heading.Text = Label("transfer.import.heading");
         _source.Text = _fileName == null ? Label("transfer.import.noSource") : Label("transfer.import.source", _fileName);
+        _scopeLabel.Text = Label("transfer.import.scope");
         _state.Text = Label(IsChoosing ? "transfer.import.choosing" : StateKey(snapshot));
         _notice.Text = Label("transfer.import.inventory") + Environment.NewLine + Label("transfer.import.privacy");
         if (snapshot.CleanupRetained) _notice.Text += Environment.NewLine + Label("transfer.import.cleanupRetained");
@@ -450,14 +465,24 @@ internal sealed class NativeTransferImportDialog : Window
         NativeTransferImportError.PrivateMetadataUnsupported => "transfer.import.error.private",
         NativeTransferImportError.LimitExceeded => "transfer.import.error.limit",
         NativeTransferImportError.TargetUnavailable => "transfer.import.error.target",
+        NativeTransferImportError.ScopeTargetMismatch => "transfer.import.error.scope",
         NativeTransferImportError.ProfileUnavailable => "transfer.import.error.profile",
         NativeTransferImportError.ApplyFailure => "transfer.import.error.apply",
         _ => "transfer.import.error.read"
     };
 
+    private NativeTransferImportScope SelectedScope => _scope.SelectedIndex == 1
+        ? NativeTransferImportScope.Merge
+        : NativeTransferImportScope.New;
+
     private void ApplyLabels()
     {
         if (_closed) return;
+        int selected = _scope.SelectedIndex;
+        _scopeLabel.Text = Label("transfer.import.scope");
+        _scope.ItemsSource = new[] { Label("transfer.import.scopeNew"), Label("transfer.import.scopeMerge") };
+        _scope.SelectedIndex = selected is 0 or 1 ? selected : 0;
+        AutomationProperties.SetName(_scope, _scopeLabel.Text);
         SetButtonLabel(_choose, "transfer.import.choose");
         SetButtonLabel(_cancel, "transfer.import.cancel");
         SetButtonLabel(_apply, "transfer.import.apply");

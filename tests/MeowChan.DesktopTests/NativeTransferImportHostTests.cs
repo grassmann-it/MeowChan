@@ -81,6 +81,52 @@ public sealed class NativeTransferImportHostTests
         await AssertInitialThreadOfflineAsync(files.Profile);
     }
 
+    [Fact]
+    public async Task ExplicitNewAndMergeScopesRejectTargetMismatchWithoutFallbackOrWrites()
+    {
+        using Workspace newFiles = new();
+        string seed = await newFiles.WritePackageAsync(InitialCatalog(), OriginalBytes);
+        string duplicate = await newFiles.WritePackageAsync(InitialCatalog(), OriginalBytes);
+        await using (DesktopSessionHost host = newFiles.CreateHost())
+        {
+            await StartAsync(host);
+            await ImportInitialAsync(host, newFiles, seed);
+            CatalogState before = ReadCatalogState(newFiles.Profile);
+            await using NativeTransferImportSession session = host.CreateNativeTransferImportSession(newFiles.Work);
+
+            NativeTransferImportSnapshot rejectedNew = await session.InspectAsync(duplicate, NativeTransferImportScope.New)
+                .WaitAsync(Deadline);
+
+            Assert.Equal(NativeTransferImportState.Failed, rejectedNew.State);
+            Assert.Equal(NativeTransferImportError.ScopeTargetMismatch, rejectedNew.Error);
+            Assert.NotNull(rejectedNew.Inventory);
+            Assert.Null(rejectedNew.Plan);
+            Assert.Null(rejectedNew.Result);
+            Assert.Equal(before, ReadCatalogState(newFiles.Profile));
+            Assert.Empty(Directory.GetFileSystemEntries(newFiles.Work));
+        }
+
+        using Workspace mergeFiles = new();
+        string missingTarget = await mergeFiles.WritePackageAsync(InitialCatalog(), OriginalBytes);
+        await using (DesktopSessionHost host = mergeFiles.CreateHost())
+        {
+            await StartAsync(host);
+            CatalogState before = ReadCatalogState(mergeFiles.Profile);
+            await using NativeTransferImportSession session = host.CreateNativeTransferImportSession(mergeFiles.Work);
+
+            NativeTransferImportSnapshot rejectedMerge = await session.InspectAsync(missingTarget, NativeTransferImportScope.Merge)
+                .WaitAsync(Deadline);
+
+            Assert.Equal(NativeTransferImportState.Failed, rejectedMerge.State);
+            Assert.Equal(NativeTransferImportError.ScopeTargetMismatch, rejectedMerge.Error);
+            Assert.NotNull(rejectedMerge.Inventory);
+            Assert.Null(rejectedMerge.Plan);
+            Assert.Null(rejectedMerge.Result);
+            Assert.Equal(before, ReadCatalogState(mergeFiles.Profile));
+            Assert.Empty(Directory.GetFileSystemEntries(mergeFiles.Work));
+        }
+    }
+
     [Theory]
     [InlineData("overwrite")]
     [InlineData("replace")]

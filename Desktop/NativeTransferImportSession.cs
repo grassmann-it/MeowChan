@@ -8,6 +8,10 @@ using MeowChan.Transfer;
 
 namespace MeowChan.Desktop;
 
+internal enum NativeTransferImportScope
+{
+    New, Merge
+}
 internal enum NativeTransferImportState
 {
     Idle, Reading, Ready, Unsupported, Applying, Completed, NeedsReview, Canceled,
@@ -17,7 +21,7 @@ internal enum NativeTransferImportError
 {
     None, InvalidSource, InvalidWorkDirectory, InvalidPackage, UnsupportedPackage,
     PrivateMetadataUnsupported, LimitExceeded, TargetUnavailable, ProfileUnavailable,
-    ReadFailure, ApplyFailure
+    ReadFailure, ApplyFailure, ScopeTargetMismatch
 }
 internal sealed record NativeTransferImportPlanSummary(ResourceId Resource, bool IsMerge,
     int NewPosts, int UpdatedPosts, int NewAttachments, int Conflicts,
@@ -61,7 +65,18 @@ internal sealed class NativeTransferImportSession : IAsyncDisposable
     internal Action<string>? BeforeDirectoryCleanupForTests { get; set; }
     internal NativeTransferImportSnapshot Current { get { lock (_sync) return _current; } }
 
+    // Compatibility overload for the existing core/lifetime tests. The production dialog
+    // uses the explicit overload below; this legacy entry point retains the old automatic
+    // planner only for callers that have not yet selected a scope.
     internal Task<NativeTransferImportSnapshot> InspectAsync(string sourcePath, CancellationToken token = default)
+        => InspectAsyncCore(sourcePath, scope: null, token);
+
+    internal Task<NativeTransferImportSnapshot> InspectAsync(string sourcePath, NativeTransferImportScope scope,
+        CancellationToken token = default)
+        => InspectAsyncCore(sourcePath, scope, token);
+
+    private Task<NativeTransferImportSnapshot> InspectAsyncCore(string sourcePath, NativeTransferImportScope? scope,
+        CancellationToken token)
     {
         lock (_sync)
         {
@@ -71,7 +86,7 @@ internal sealed class NativeTransferImportSession : IAsyncDisposable
                 null, null, null, _retained);
             var cancellation = _cancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
             // Regular-file open, hashing, SQLite and fsync are never on the UI dispatcher.
-            return _active = Task.Run(() => InspectCoreAsync(sourcePath, generation, cancellation));
+            return _active = Task.Run(() => InspectCoreAsync(sourcePath, scope, generation, cancellation));
         }
     }
 
@@ -91,7 +106,8 @@ internal sealed class NativeTransferImportSession : IAsyncDisposable
         }
     }
 
-    private async Task<NativeTransferImportSnapshot> InspectCoreAsync(string path, long generation, CancellationTokenSource cancellation)
+    private async Task<NativeTransferImportSnapshot> InspectCoreAsync(string path, NativeTransferImportScope? scope,
+        long generation, CancellationTokenSource cancellation)
     {
         NativeTransferImportState state = NativeTransferImportState.Failed;
         NativeTransferImportError error = NativeTransferImportError.ReadFailure;
@@ -176,7 +192,9 @@ internal sealed class NativeTransferImportSession : IAsyncDisposable
             var preview = NativeTransferImportPreview.Create(_stage.Package, token);
             if (!preview.HasPreview) { error = NativeTransferImportError.InvalidPackage; return; }
             inventory = preview.Preview;
-            var plan = await _host.PrepareNativeImportAsync(_stage, token).ConfigureAwait(false);
+            var plan = scope is { } selectedScope
+                ? await _host.PrepareNativeImportAsync(_stage, selectedScope, token).ConfigureAwait(false)
+                : await _host.PrepareNativeImportAsync(_stage, token).ConfigureAwait(false);
             if (plan.Plan == null)
             {
                 error = plan.Error;

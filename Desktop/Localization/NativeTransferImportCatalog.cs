@@ -12,6 +12,9 @@ internal static class NativeTransferImportCatalog
         ("transfer.import.cancel", "Cancel", "Abbrechen"),
         ("transfer.import.close", "Close", "Schließen"),
         ("transfer.import.noSource", "No package selected.", "Kein Paket ausgewählt."),
+        ("transfer.import.scope", "Apply scope (choose before selecting a package)", "Übernahmeumfang (vor der Paketauswahl festlegen)"),
+        ("transfer.import.scopeNew", "Create as new thread", "Als neuen Thread anlegen"),
+        ("transfer.import.scopeMerge", "Merge into existing thread", "In bestehenden Thread zusammenführen"),
         ("transfer.import.source", "Selected package: {0}", "Gewähltes Paket: {0}"),
         ("transfer.import.choosing", "Choosing package…", "Paket wird gewählt …"),
         ("transfer.import.reading", "Reading and preparing package…", "Paket wird gelesen und vorbereitet …"),
@@ -43,6 +46,7 @@ internal static class NativeTransferImportCatalog
         ("transfer.import.error.private", "Private transfer metadata is not yet supported. Nothing was changed.", "Private Transfermetadaten werden noch nicht unterstützt. Es wurde nichts geändert."),
         ("transfer.import.error.limit", "The transfer package exceeds a safety limit. Nothing was changed.", "Das Transferpaket überschreitet ein Sicherheitslimit. Es wurde nichts geändert."),
         ("transfer.import.error.target", "The existing archive target could not be admitted safely. Nothing was changed.", "Das bestehende Archivziel konnte nicht sicher zugelassen werden. Es wurde nichts geändert."),
+        ("transfer.import.error.scope", "The selected New/Merge scope does not match the local archive target. Choose the other scope and select the package again. Nothing was changed.", "Der gewählte Umfang Neu/Zusammenführen passt nicht zum lokalen Archivziel. Wähle den anderen Umfang und das Paket erneut. Es wurde nichts geändert."),
         ("transfer.import.error.profile", "The profile is not ready for import. Nothing was changed.", "Das Profil ist für den Import nicht bereit. Es wurde nichts geändert."),
         ("transfer.import.error.apply", "The import could not be completed. Review the result before trying again.", "Der Import konnte nicht abgeschlossen werden. Prüfe das Ergebnis vor einem neuen Versuch."),
         ("transfer.import.error.read", "The transfer package could not be read.", "Das Transferpaket konnte nicht gelesen werden.")

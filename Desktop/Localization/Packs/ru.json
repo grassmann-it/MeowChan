@@ -802,6 +802,10 @@
     "transfer.import.cancel": "Отмена",
     "transfer.import.close": "Закрыть",
     "transfer.import.noSource": "Пакет не выбран.",
+    "transfer.import.scope": "Область применения (выберите до выбора пакета)",
+    "transfer.import.scopeNew": "Создать как новый тред",
+    "transfer.import.scopeMerge": "Объединить с существующим тредом",
+
     "transfer.import.source": "Выбранный пакет: {0}",
     "transfer.import.choosing": "Выбор пакета…",
     "transfer.import.reading": "Пакет читается и подготавливается…",
@@ -833,6 +837,7 @@
     "transfer.import.error.private": "Личные метаданные передачи пока не поддерживаются. Ничего не изменено.",
     "transfer.import.error.limit": "Пакет передачи превышает предел безопасности. Ничего не изменено.",
     "transfer.import.error.target": "Существующую цель архива не удалось безопасно допустить. Ничего не изменено.",
+    "transfer.import.error.scope": "Выбранная область «Новый/Объединить» не соответствует локальной цели архива. Выберите другую область и заново выберите пакет. Изменений нет.",
     "transfer.import.error.profile": "Профиль не готов к импорту. Ничего не изменено.",
     "transfer.import.error.apply": "Не удалось завершить импорт. Проверьте результат перед повторной попыткой.",
     "transfer.import.error.read": "Не удалось прочитать пакет передачи.",
