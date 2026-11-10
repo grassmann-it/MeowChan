@@ -18,6 +18,12 @@ redirect validation, allowed headers and shared pacing. The host owns media
 acquisition, target paths, capture/merge, watches, retries, storage and grants.
 Deferred results carry actual due times and do not mean an empty snapshot.
 
+Research-only source bundles may use `PluginDeclarationStatus.Blocked` when a
+source is intentionally shipped as metadata without a verified executable
+route. Blocked declarations must contain neither sources nor filters; they are
+accepted for startup and presentation but never create a host adapter. This is
+not a way to bypass capability validation or to ship a guessed endpoint.
+
 Source IDs, plugin IDs, resource IDs and execution/configuration revisions are
 separate values. Routes use exact hosts and `{board}`/`{thread}` path segments;
 aliases, trailing slash, board case and optional inert title segments are

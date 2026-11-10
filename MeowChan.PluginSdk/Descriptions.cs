@@ -1,5 +1,7 @@
 namespace MeowChan.PluginSdk;
 
+using System.Text.Json.Serialization;
+
 [Flags]
 public enum SourceCapabilities
 {
@@ -18,13 +20,24 @@ public enum PostOrderKind { StableOrdinal, DecimalPostId }
 
 /// <summary>Informational source maturity; it does not authorize relaxed media integrity checks.</summary>
 public enum SourceMaturity { Unspecified, Experimental }
+/// <summary>
+/// Describes whether a plugin currently exposes an executable source/filter
+/// capability. A blocked declaration is deliberately metadata-only: it may be
+/// shipped to explain a researched source, but it must not claim a route or a
+/// filter that the host could execute.
+/// </summary>
+public enum PluginDeclarationStatus { Available, Blocked }
 public enum InformationKind { Text, Value, List }
 
 public sealed record PluginDescription(string PluginId, string Name, string PluginVersion,
     string SdkVersion, string Description, IReadOnlyList<SourceDescription> Sources,
     IReadOnlyList<FilterDescription> Filters, SettingsSchema Settings,
     IReadOnlyList<InformationEntry> Information, string? Author = null,
-    Uri? AuthorUrl = null, Uri? DocumentationUrl = null);
+    Uri? AuthorUrl = null, Uri? DocumentationUrl = null)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public PluginDeclarationStatus DeclarationStatus { get; init; }
+}
 
 public sealed record SourceDescription(string SourceId, string Name, Uri BaseUri,
     SourceCapabilities Capabilities, IReadOnlyList<UrlRoute> Routes,

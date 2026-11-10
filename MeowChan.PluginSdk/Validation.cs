@@ -532,7 +532,11 @@ public static class SdkValidation
                 Filter(filter, itemPath);
                 if (filter is not null && !filterKeys.Add(filter.Key)) Add(itemPath + ".key", "duplicate_filter", "Filter key is duplicated.");
             }, 128);
-            if (description.Sources?.Count == 0 && description.Filters?.Count == 0) Add(path, "missing_capability", "A plugin must declare a source or filter capability.");
+            bool hasCapability = description.Sources?.Count > 0 || description.Filters?.Count > 0;
+            if (!hasCapability && description.DeclarationStatus != PluginDeclarationStatus.Blocked)
+                Add(path, "missing_capability", "A plugin must declare a source or filter capability unless it is explicitly blocked.");
+            if (description.DeclarationStatus == PluginDeclarationStatus.Blocked && hasCapability)
+                Add(path + ".declarationStatus", "blocked_capability", "A blocked plugin declaration must not expose executable source or filter capabilities.");
             HashSet<string> informationKeys = new HashSet<string>(StringComparer.Ordinal);
             List(description.Information, path + ".information", (entry, itemPath) =>
             {

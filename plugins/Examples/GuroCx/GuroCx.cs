@@ -20,7 +20,8 @@ public sealed class GuroCxPlugin : ISourcePlugin
         [new InformationEntry("maturity", "Status", InformationKind.Text, "MeowChan · experimental · technically blocked"),
          new InformationEntry("block", "Technical block", InformationKind.Text,
             "The proven Kokonotsuba metadata API exposes threads through query-only koko.php requests. The SDK requires one canonical path-only thread route and validates snapshot URLs against it. No browser route is guessed; the source is therefore not registered yet.")],
-        Author: "MeowChan contributors", DocumentationUrl: new Uri("https://boards.guro.st/"));
+        Author: "MeowChan contributors", DocumentationUrl: new Uri("https://boards.guro.st/")
+    ) with { DeclarationStatus = PluginDeclarationStatus.Blocked };
 
     public Task<CatalogReadResult> ReadCatalogAsync(CatalogReadRequest request, PluginCallContext context,
         CancellationToken cancellationToken = default)

@@ -358,9 +358,7 @@ public sealed class ExamplePluginTests
         PluginDescription[] descriptions = plugins.Select(plugin => plugin.Describe()).ToArray();
         PluginDescription[] supportedDescriptions = descriptions.Where(description => description.Sources.Count != 0).ToArray();
         Assert.Empty(SdkValidation.ValidateDescriptions(supportedDescriptions));
-        ValidationIssue[] blockedValidationIssues = SdkValidation.ValidateDescriptions(descriptions).ToArray();
-        Assert.Equal(new[] { "plugins[2]", "plugins[6]" }, blockedValidationIssues.Select(issue => issue.Path));
-        Assert.All(blockedValidationIssues, issue => Assert.Equal("missing_capability", issue.Code));
+        Assert.Empty(SdkValidation.ValidateDescriptions(descriptions));
         Assert.Equal(7, descriptions.Select(description => description.PluginId).Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(7, descriptions.Select(description => description.Name).Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(5, descriptions.SelectMany(description => description.Sources).Select(source => source.SourceId).Distinct(StringComparer.Ordinal).Count());
@@ -377,10 +375,12 @@ public sealed class ExamplePluginTests
 
             if (expected[index].Origin is null)
             {
+                Assert.Equal(PluginDeclarationStatus.Blocked, description.DeclarationStatus);
                 Assert.Empty(description.Sources);
                 continue;
             }
 
+            Assert.Equal(PluginDeclarationStatus.Available, description.DeclarationStatus);
             SourceDescription source = Assert.Single(description.Sources);
             Assert.Equal(expected[index].SourceId, source.SourceId);
             Assert.Equal(description.Name, source.Name);
@@ -414,6 +414,36 @@ public sealed class ExamplePluginTests
             Assert.DoesNotContain(references, name => name is "libmeowchan" or "MeowChan.PluginHost" or "Avalonia");
             Assert.Single(type.Assembly.GetExportedTypes(), exported => typeof(IPlugin).IsAssignableFrom(exported));
         }
+    }
+
+    [Fact]
+    public void BlockedDeclarationCannotSmuggleAnExecutableCapability()
+    {
+        PluginDescription source = new SevenChanPlugin().Describe();
+        PluginDescription blocked = source with { DeclarationStatus = PluginDeclarationStatus.Blocked };
+        ValidationIssue issue = Assert.Single(SdkValidation.ValidateDescription(blocked));
+        Assert.Equal("blocked_capability", issue.Code);
+        Assert.Equal("plugin.declarationStatus", issue.Path);
+
+        PluginDescription availableWithoutCapability = blocked with { Sources = [], DeclarationStatus = PluginDeclarationStatus.Available };
+        issue = Assert.Single(SdkValidation.ValidateDescription(availableWithoutCapability));
+        Assert.Equal("missing_capability", issue.Code);
+    }
+
+    [Fact]
+    public void DeclarationStatusRoundTripsOnlyForBlockedMetadataBundles()
+    {
+        PluginDescription blocked = new AnonImageboardsPlugin().Describe();
+        string blockedJson = System.Text.Encoding.UTF8.GetString(SdkJson.Serialize(blocked));
+        Assert.Contains("\"declarationStatus\":\"Blocked\"", blockedJson, StringComparison.Ordinal);
+        Assert.Equal(PluginDeclarationStatus.Blocked,
+            SdkJson.Deserialize<PluginDescription>(SdkJson.Serialize(blocked)).DeclarationStatus);
+
+        PluginDescription available = new SevenChanPlugin().Describe();
+        string availableJson = System.Text.Encoding.UTF8.GetString(SdkJson.Serialize(available));
+        Assert.DoesNotContain("declarationStatus", availableJson, StringComparison.Ordinal);
+        Assert.Equal(PluginDeclarationStatus.Available,
+            SdkJson.Deserialize<PluginDescription>(SdkJson.Serialize(available)).DeclarationStatus);
     }
 
     [Theory]

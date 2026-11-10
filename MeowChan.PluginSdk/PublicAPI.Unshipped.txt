@@ -1,1 +1,6 @@
 #nullable enable
+MeowChan.PluginSdk.PluginDeclarationStatus
+MeowChan.PluginSdk.PluginDeclarationStatus.Available = 0 -> MeowChan.PluginSdk.PluginDeclarationStatus
+MeowChan.PluginSdk.PluginDeclarationStatus.Blocked = 1 -> MeowChan.PluginSdk.PluginDeclarationStatus
+MeowChan.PluginSdk.PluginDescription.DeclarationStatus.get -> MeowChan.PluginSdk.PluginDeclarationStatus
+MeowChan.PluginSdk.PluginDescription.DeclarationStatus.init -> void

@@ -24,7 +24,8 @@ public sealed class AnonImageboardsPlugin : ISourcePlugin
             "The current public entrances redirect to an Anon Premium members-only page. No public board, catalog, thread or media contract is proven; no login, credentials, cookies, replacement domain or synthetic Tinyboard/Vichan route is used."),
          new InformationEntry("recheck", "Recheck requirement", InformationKind.Text,
             "A future adapter requires a fresh public probe proving board, catalog, thread, media, redirect and 404 behavior before any source route is registered.")],
-        Author: "MeowChan contributors", DocumentationUrl: new Uri("https://anonimageboards.com/"));
+        Author: "MeowChan contributors", DocumentationUrl: new Uri("https://anonimageboards.com/")
+    ) with { DeclarationStatus = PluginDeclarationStatus.Blocked };
 
     public Task<CatalogReadResult> ReadCatalogAsync(CatalogReadRequest request, PluginCallContext context,
         CancellationToken cancellationToken = default)
