@@ -153,6 +153,7 @@ public partial class MainWindow
     }
 
     private DataGrid DownloadList(bool boards) => this.FindControl<DataGrid>(boards ? "BoardsDataGrid" : "ThreadsDataGrid")!;
+    internal ThreadRow[] SelectedThreadsForTests() => SelectedThreads();
     private ThreadRow[] SelectedThreads() => _sessionRowsApplying ? Array.Empty<ThreadRow>() : DownloadList(false).SelectedItems.Cast<object>().OfType<ThreadRow>()
         .Where(row => _threadRows.TryGetValue(row.WatchId, out ThreadRow? current) && ReferenceEquals(row, current)
             && (_appliedThreadSearchReconciliation?.Includes(row) ?? false)).ToArray();
@@ -368,7 +369,7 @@ public partial class MainWindow
     private async Task OpenDownloadReaderAsync(ResourceId id, Control? origin)
     {
         if (_sessionRowsApplying) return;
-        ResourceId[] scope = DownloadList(false).CollectionView.Cast<ThreadRow>().Select(row => row.Snapshot.Id).ToArray();
+        ResourceId[] scope = DownloadList(false).CollectionView.Cast<ThreadRow>().Where(row => !row.IsHistorical).Select(row => row.Snapshot.Id).ToArray();
         OpenLargeReader(origin, scope);
         await ArchivePage.LoadThreadAsync(id);
     }

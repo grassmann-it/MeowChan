@@ -210,6 +210,8 @@
     "clipboard.monitor.found": "URL trouvées dans le presse-papiers : {0}",
     "clipboard.monitor.accept": "Ajouter les URL (Entrée)",
     "clipboard.monitor.dismiss": "Ignorer",
+    "shell.lastKnownStatus": "Dernier état connu",
+    "progress.mediaOf": "{0} / {1} médias",
     "shell.startupPreview": "Session précédente — pas encore vérifiée",
     "shell.startupPreviewDetails": "Enregistrée le {0:g} · {1} fils · {2} forums · {3} lignes d’aperçu. Aperçu uniquement ; les actions seront disponibles après la restauration.",
     "plugins.reselection.reviewTitle": "Vérifier les réparations des versions incluses et les nouvelles sélections",

@@ -34,7 +34,7 @@ public partial class MainWindow
             ThreadRow[] rows = SelectedThreads();
             return new(false, lead.Snapshot.Id, lead.WatchId, lead.DownloadDirectory, lead.Url,
                 rows.Select(row => row.WatchId).ToArray(), rows.Select(row => row.Url).ToArray(), rows.Select(row => row.Snapshot.Id).ToArray(),
-                DownloadList(false).CollectionView.Cast<ThreadRow>().Select(row => row.Snapshot.Id).ToArray(),
+                DownloadList(false).CollectionView.Cast<ThreadRow>().Where(row => !row.IsHistorical).Select(row => row.Snapshot.Id).ToArray(),
                 rows.Select(row => new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId)).Where(_session.CanRequestCheck).ToArray(),
                 rows.Where(row => row.CanRetryMedia).Select(row => new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId)).ToArray(), null);
         }

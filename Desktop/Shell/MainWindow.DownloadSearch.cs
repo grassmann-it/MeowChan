@@ -73,7 +73,7 @@ public partial class MainWindow
     {
         _applyingDownloadSearchRevision = _downloadSearchQueryRevision;
         _applyingDownloadQuery = new DownloadSearch.Query(DownloadSearchText);
-        _retainedThreadSelection = DownloadList(false).SelectedItems.OfType<ThreadRow>().ToArray();
+        _retainedThreadSelection = DownloadList(false).SelectedItems.OfType<ThreadRow>().Where(row => !row.IsHistorical).ToArray();
         _retainedBoardSelection = DownloadList(true).SelectedItems.OfType<BoardRow>().ToArray();
         _retainedThreadSet = new(_retainedThreadSelection);
         _retainedBoardSet = new(_retainedBoardSelection);

@@ -1,4 +1,6 @@
 using System;
+using System.Collections.ObjectModel;
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using MeowChan.Desktop;
@@ -10,6 +12,9 @@ public partial class MainWindow
 {
     private bool _startupPreviewShown;
     private bool _startupPreviewRetired;
+    private StartupPreviewSnapshot? _historicSource;
+    // Display rows for the normal Downloads table until the first authoritative frame replaces them.
+    internal ObservableCollection<ThreadRow> HistoricThreads { get; } = new();
     private void OnStartupPreviewChanged() => _sessionRefresh.RequestImmediate();
     // Raised off the UI thread by the host; only the archive read gate depends on it.
     private void OnCatalogReadableChanged() => Dispatcher.UIThread.Post(() => { if (!_isClosing) UpdateInteractionState(); });
@@ -23,24 +28,33 @@ public partial class MainWindow
         if (_restoreCompleted && !_sessionRowsApplying && _appliedSessionProjection?.View.State == DesktopSessionState.Ready)
             _startupPreviewRetired = true;
         bool show = !_startupPreviewRetired && !_isClosing && preview is { Rows.Count: > 0 }
-            && _selectedPage == WorkspacePage.Downloads
             && (state == DesktopSessionState.Starting
                 || (state == DesktopSessionState.Ready && (!_restoreCompleted || _sessionRowsApplying)));
+        DataGrid grid = this.FindControl<DataGrid>("ThreadsDataGrid")!;
         Border panel = this.FindControl<Border>("StartupPreviewPanel")!;
         panel.IsVisible = show;
         if (show)
         {
-            this.FindControl<Grid>("WorkspaceBody")!.IsVisible = false;
             this.FindControl<TextBlock>("StartupPreviewTitle")!.Text = Texts.T("shell.startupPreview");
             this.FindControl<TextBlock>("StartupPreviewDetails")!.Text = Texts.T("shell.startupPreviewDetails",
                 preview!.CapturedAtUtc.ToLocalTime(), preview.ThreadCount, preview.BoardCount, preview.Rows.Count);
-            ListBox rows = this.FindControl<ListBox>("StartupPreviewRows")!;
-            if (!ReferenceEquals(rows.ItemsSource, preview.Rows)) rows.ItemsSource = preview.Rows;
+            if (!ReferenceEquals(_historicSource, preview))
+            {
+                _historicSource = preview;
+                foreach (ThreadRow stale in HistoricThreads) stale.Dispose();
+                HistoricThreads.Clear();
+                int index = 0;
+                foreach (StartupPreviewRow cached in preview.Rows.Where(row => !row.IsBoard))
+                    HistoricThreads.Add(ThreadRow.CreateHistorical(cached, index++));
+            }
+            if (!ReferenceEquals(grid.ItemsSource, HistoricThreads)) grid.ItemsSource = HistoricThreads;
         }
         else if (_startupPreviewShown)
         {
-            this.FindControl<ListBox>("StartupPreviewRows")!.ItemsSource = null;
-            this.FindControl<Grid>("WorkspaceBody")!.IsVisible = _selectedPage == WorkspacePage.Downloads;
+            grid.ItemsSource = VisibleThreads;
+            foreach (ThreadRow stale in HistoricThreads) stale.Dispose();
+            HistoricThreads.Clear();
+            _historicSource = null;
         }
         _startupPreviewShown = show;
     }

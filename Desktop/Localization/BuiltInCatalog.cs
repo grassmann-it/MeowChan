@@ -36,6 +36,8 @@ internal static class BuiltInCatalog
         ("plugins.reselection.blocked.selection-available", "No new selection needed: the selected candidate is already available.", "Keine Neuauswahl nötig: Der ausgewählte Kandidat ist bereits verfügbar."),
         ("plugins.reselection.blocked.unknown", "Blocked: this selection cannot be safely confirmed. Refresh the review; no changes have been made by this row.", "Blockiert: Diese Auswahl kann nicht sicher bestätigt werden. Prüfung neu öffnen; diese Zeile hat nichts geändert."),
         ("help.reader.mediaActivation", "Selected post content: Enter or Space opens its first available image or video. Native controls and text selections keep their keys; explicit custom bindings take precedence.", "Ausgewählter Beitragsinhalt: Eingabe oder Leertaste öffnet das erste verfügbare Bild oder Video. Native Bedienelemente und Textauswahl behalten ihre Tasten; ausdrückliche eigene Belegungen haben Vorrang."),
+        ("shell.lastKnownStatus", "Last known", "Zuletzt bekannt"),
+        ("progress.mediaOf", "{0} / {1} media", "{0} / {1} Medien"),
         ("shell.startupPreview", "Previous session — not yet verified", "Letzte Sitzung — noch nicht geprüft"),
         ("shell.startupPreviewDetails", "Saved {0:g} · {1} threads · {2} boards · {3} preview rows. Preview only; actions become available after restoration.", "Gespeichert {0:g} · {1} Threads · {2} Boards · {3} Vorschauzeilen. Nur Vorschau; Aktionen werden nach der Wiederherstellung freigegeben."),
         ("shell.paused", "Paused · sources and transfers stopped", "Pausiert · Quellen und Transfers angehalten"),

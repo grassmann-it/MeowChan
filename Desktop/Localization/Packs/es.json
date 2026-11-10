@@ -210,6 +210,8 @@
     "clipboard.monitor.found": "URL encontradas en el portapapeles: {0}",
     "clipboard.monitor.accept": "Añadir URL (Enter)",
     "clipboard.monitor.dismiss": "Descartar",
+    "shell.lastKnownStatus": "Último estado conocido",
+    "progress.mediaOf": "{0} / {1} medios",
     "shell.startupPreview": "Sesión anterior — aún no verificada",
     "shell.startupPreviewDetails": "Guardada {0:g} · {1} hilos · {2} tablones · {3} filas en la vista previa. Solo vista previa; las acciones estarán disponibles tras la restauración.",
     "plugins.reselection.reviewTitle": "Revisar reparaciones incluidas y nuevas selecciones",

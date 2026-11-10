@@ -193,13 +193,22 @@ internal static class StartupPreviewChecks
         AssertEmptyAuthority(window);
         Require(Control<TextBlock>(window, "StartupPreviewTitle").Text == Texts.T("shell.startupPreview"), "Unverified label missing.");
         byte[] originalCache = File.ReadAllBytes(CachePath(window.SessionHost.ProfileDirectory));
-        ListBox rows = Control<ListBox>(window, "StartupPreviewRows");
-        Require(rows.Items.Cast<StartupPreviewRow>().Single() is { CompletedMedia: 12, KnownMedia: 25, Title: CachedTitle }, "Cached display data changed.");
-        await Program.WaitUntilAsync(() => rows.Bounds.Height > 0 && rows.GetVisualDescendants().OfType<TextBlock>()
+        // The cached session now fills the NORMAL Downloads table (same columns/layout), marked as last known.
+        DataGrid grid = Control<DataGrid>(window, "ThreadsDataGrid");
+        Require(ReferenceEquals(grid.ItemsSource, window.HistoricThreads) && Control<Grid>(window, "WorkspaceBody").IsVisible,
+            "The cached session is not shown in the normal Downloads table.");
+        ThreadRow cached = Require1(window.HistoricThreads);
+        Require(cached.IsHistorical && cached.CompletedMedia == 12 && cached.KnownMedia == 25 && cached.Title == CachedTitle
+            && cached.WatchId < 0 && cached.Status == Texts.T("shell.lastKnownStatus"), "Cached display data changed or claims live state.");
+        await Program.WaitUntilAsync(() => grid.Bounds.Height > 0 && grid.GetVisualDescendants().OfType<TextBlock>()
             .Any(text => text.IsEffectivelyVisible && text.Text == CachedTitle));
-        Require(rows.GetVisualDescendants().OfType<TextBlock>().Any(text => text.IsEffectivelyVisible && InlineText(text) == "12 / 25"), "Cached counts not rendered by the real DataTemplate.");
-        Require(!rows.GetVisualDescendants().OfType<Button>().Any(), "Display-only preview acquired an action control.");
-        rows.SelectedIndex = 0; // selecting a display DTO must never select/create an authoritative watch
+        Require(grid.GetVisualDescendants().OfType<TextBlock>().Any(text => text.IsEffectivelyVisible && text.Text == Texts.T("shell.lastKnownStatus")),
+            "Last-known marking not rendered by the real DataTemplate.");
+        Require(!grid.GetVisualDescendants().OfType<Button>().Any(button => button.IsEffectivelyVisible && button.Name != null && button.Name.Contains("Retry")),
+            "Display-only rows acquired an action control.");
+        grid.SelectedIndex = 0; // selecting a display row must never select/create an authoritative watch
+        await Program.WaitUntilAsync(() => grid.SelectedItem != null);
+        Require(window.SelectedThreadsForTests().Length == 0, "A historical row became a command target.");
         await RejectCommandsAsync(window.SessionHost);
         for (int pulse = 0; pulse < 3; pulse++) await DispatcherPulseAsync();
         Require(!barrier.Release.Task.IsCompleted && !barrier.Cancelled.Task.IsCompleted && store.Loads == 0,
@@ -358,7 +367,7 @@ internal static class StartupPreviewChecks
             await RejectCommandsAsync(host);
             AssertEmptyAuthority(window);
             Require(!Control<Border>(window, "StartupPreviewPanel").IsVisible
-                && Control<ListBox>(window, "StartupPreviewRows").Items.Count == 0, "Stopped shell retained preview presentation.");
+                && window.HistoricThreads.Count == 0, "Stopped shell retained preview presentation.");
             Require(before.SequenceEqual(File.ReadAllBytes(CachePath(profile))), "Failed/stopped startup overwrote the last good display cache.");
             using ProfileLease nextOwner = ProfileLease.Acquire(profile);
             Console.WriteLine("SMOKE startup " + name + ": preview hidden, real shell closed/Stopped, commands rejected, cache byte-identical, lease reacquired.");
@@ -460,7 +469,7 @@ internal static class StartupPreviewChecks
     private static void AssertRetired(MainWindow window)
     {
         Require(!Control<Border>(window, "StartupPreviewPanel").IsVisible
-            && Control<ListBox>(window, "StartupPreviewRows").Items.Count == 0
+            && window.HistoricThreads.Count == 0 && ReferenceEquals(Control<DataGrid>(window, "ThreadsDataGrid").ItemsSource, window.VisibleThreads)
             && Control<Grid>(window, "WorkspaceBody").IsVisible, "Completed startup preview reappeared during a later Ready refresh.");
     }
 
@@ -482,5 +491,10 @@ internal static class StartupPreviewChecks
         => (T?) (owner.GetType().GetField(field, Private) ?? throw new InvalidOperationException("Missing lifecycle observation: " + field)).GetValue(owner);
     private static void Refresh(MainWindow window) => (typeof(MainWindow).GetMethod("RefreshSession", Private)
         ?? throw new InvalidOperationException("Missing real shell refresh boundary.")).Invoke(window, null);
+    private static ThreadRow Require1(System.Collections.Generic.IReadOnlyList<ThreadRow> rows)
+    {
+        Require(rows.Count == 1, "Expected exactly one cached row, found " + rows.Count);
+        return rows[0];
+    }
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 }

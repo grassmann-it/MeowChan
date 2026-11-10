@@ -45,13 +45,13 @@ internal static class EarlyArchiveChecks
             "Early page choice enabled a session command.");
         Require(!C<Button>(window, "RulesNavigationButton").IsEnabled && !C<Button>(window, "PluginsNavigationButton").IsEnabled
             && !C<Button>(window, "SourcesNavigationButton").IsEnabled, "A page that needs plugins or the registry was offered early.");
-        Require(C<Border>(window, "StartupPreviewPanel").IsVisible, "The historical preview left the Downloads page before navigation.");
+        Require(C<Border>(window, "StartupPreviewPanel").IsVisible && window.HistoricThreads.Count == 1, "The historical rows are not on the Downloads page before navigation.");
 
         archive.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         ArchivePage page = window.ArchivePage;
         await Program.WaitUntilAsync(() => C<ContentControl>(window, "ArchivePageHost").IsVisible && !page.IsBusy && Rows(page) == 2);
-        Require(!C<Border>(window, "StartupPreviewPanel").IsVisible && !C<Grid>(window, "WorkspaceBody").IsVisible,
-            "The Downloads preview covered the archive page.");
+        Require(!C<Grid>(window, "WorkspaceBody").IsVisible && C<ContentControl>(window, "ArchivePageHost").IsVisible,
+            "The Downloads table covered the archive page.");
         Require(window.SessionHost.State == DesktopSessionState.Starting && sessionLoads() == 0, "Reading the archive advanced startup.");
 
         TextBox search = P<TextBox>(page, "ArchiveSearchText");

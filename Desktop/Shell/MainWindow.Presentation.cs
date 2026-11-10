@@ -357,9 +357,9 @@ public partial class MainWindow
         WorkspaceControl<TextBlock>("WorkspaceCounts").Text = summary;
         ToolTip.SetTip(WorkspaceControl<TextBlock>("WorkspaceCounts"), fullSummary);
         AutomationProperties.SetName(WorkspaceControl<TextBlock>("WorkspaceCounts"), fullSummary);
-        WorkspaceControl<TabItem>("ThreadsTab").Header = Texts.T("downloads.threadsCount", VisibleThreads.Count);
+        WorkspaceControl<TabItem>("ThreadsTab").Header = Texts.T("downloads.threadsCount", _startupPreviewShown ? HistoricThreads.Count : VisibleThreads.Count);
         WorkspaceControl<TabItem>("BoardsTab").Header = Texts.T("downloads.boardsCount", VisibleBoards.Count);
-        WorkspaceControl<TextBlock>("ThreadsEmptyState").IsVisible = VisibleThreads.Count == 0;
+        WorkspaceControl<TextBlock>("ThreadsEmptyState").IsVisible = VisibleThreads.Count == 0 && !_startupPreviewShown;
         WorkspaceControl<TextBlock>("BoardsEmptyState").IsVisible = VisibleBoards.Count == 0;
         WorkspaceControl<Button>("SettingsNavigationButton").IsEnabled = WorkspaceControl<MenuItem>("SettingsMenuItem").IsEnabled;
         WorkspaceControl<Button>("DownloadsNavigationButton").IsEnabled = WorkspaceControl<MenuItem>("SettingsMenuItem").IsEnabled;

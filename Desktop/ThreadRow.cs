@@ -19,6 +19,23 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
     private IReadOnlyList<LanguageInfo>? _presentationLanguages;
 
     public long WatchId { get; }
+    /// <summary>Display-only row from the last session's cache. Never in the handle maps, never a command target.</summary>
+    public bool IsHistorical { get; private set; }
+
+    internal static ThreadRow CreateHistorical(StartupPreviewRow cached, int index)
+    {
+        ThreadSnapshot snapshot = new(new ResourceId(cached.Source, cached.Board, string.Empty), string.Empty, cached.Title,
+            string.Empty, ThreadActivity.Pending, ThreadSourceState.Active, null, cached.KnownMedia, cached.CompletedMedia,
+            new Dictionary<string, FailureInfo>(), null, default);
+        ThreadRow row = new(new DesktopThreadEntry(-(long)index - 1, snapshot, cached.Source, cached.Board)) { IsHistorical = true };
+        // Honest placeholders: the cache holds no live state, so none is shown.
+        row.ThreadId = "—"; row.ThreadNumber = null;
+        row.Status = row.CompactStatus = Texts.T("shell.lastKnownStatus");
+        row.Progress = Texts.T("progress.mediaOf", cached.CompletedMedia, cached.KnownMedia);
+        row.Completion = cached.KnownMedia == 0 ? 0 : 100d * cached.CompletedMedia / cached.KnownMedia;
+        row.ErrorDetails = row.IssueDetails = row.ContextDetails = row.ExceptionHint = string.Empty;
+        return row;
+    }
     public ThreadSnapshot Snapshot { get; private set; }
     public string Url => Snapshot.Url;
     public string DownloadDirectory => Snapshot.DownloadDirectory;

@@ -210,6 +210,8 @@
     "clipboard.monitor.found": "Найдено URL в буфере обмена: {0}",
     "clipboard.monitor.accept": "Добавить URL (Enter)",
     "clipboard.monitor.dismiss": "Отклонить",
+    "shell.lastKnownStatus": "Последнее известное",
+    "progress.mediaOf": "{0} / {1} медиа",
     "shell.startupPreview": "Предыдущий сеанс — ещё не проверен",
     "shell.startupPreviewDetails": "Сохранён {0:g} · {1} тредов · {2} досок · {3} строк предварительного просмотра. Только предварительный просмотр; действия станут доступны после восстановления.",
     "plugins.reselection.reviewTitle": "Проверка комплектных исправлений и новых вариантов",
