@@ -192,6 +192,9 @@ internal static partial class ArchiveSql
         if (!MediaMergeOperationMatchesV2(connection, transaction, plan, NativeMediaImportOperationState.Prepared, full, safe))
             throw new InvalidDataException("The representation merge operation changed.");
         // Content, counts, receipt and terminal status are one caller-owned transaction.
+        if (!plan.ConflictLedger.IsDefaultOrEmpty)
+            InsertMediaConflicts(connection, transaction, new NativeMediaConflictProvenance(plan.OperationId,
+                plan.RequestSha256, plan.Representation!.FullSelection.Sha256), plan.ConflictLedger);
         using (SqliteCommand receipt = Command(connection, transaction, """
             INSERT INTO archive_media_merge_receipts(operation_id,request_sha256,plan_version,
                 new_posts,updated_posts,new_attachments,new_bindings,conflicts,

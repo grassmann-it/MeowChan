@@ -238,7 +238,7 @@ public sealed class NativeMediaImportTests
         await using ArchiveCatalog migrated = await ArchiveCatalog.OpenAsync(files.Profile, lease);
         using (SqliteConnection connection = ArchiveSql.OpenConnection(database, SqliteOpenMode.ReadOnly))
         {
-            Assert.Equal(11, ArchiveSql.GetPragma(connection, "user_version"));
+            Assert.Equal(12, ArchiveSql.GetPragma(connection, "user_version"));
             var fence = ArchiveSql.ReadImportFence(connection, null);
             Assert.Equal(before, new[] { fence.Instance, fence.Generation.ToString() });
         }

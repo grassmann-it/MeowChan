@@ -145,7 +145,7 @@ public sealed class LocalCollectionReaderTests
     }
 
     [Theory]
-    [InlineData("PRAGMA user_version=12")]
+    [InlineData("PRAGMA user_version=13")]
     [InlineData("ALTER TABLE archive_posts DROP COLUMN attachments_were_null; PRAGMA user_version=11")]
     [InlineData("PRAGMA application_id=123")]
     [InlineData("DROP TABLE local_import_receipts")]

@@ -71,6 +71,13 @@ public sealed class NativeV2MergeConflictInventoryTests
         Assert.DoesNotContain(merged.Active.SelectMany(x => x.DerivedRepresentations),
             x => x.SourceVersion.Sha256 == Hash(Alternative));
         Assert.Empty(merged.Full.AttachmentBindings);
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(f.Files.Profile);
+        (int total, List<PersistedMediaConflict> rows) = await reader.ReadMediaConflictsAsync(0, 100);
+        PersistedMediaConflict row = Assert.Single(rows);
+        Assert.Equal(1, total);
+        Assert.Equal(Hash(Alternative), row.Entry.Candidate.VariantSha256);
+        Assert.Equal(NativeMediaConflictVariantStatus.Inactive, row.Entry.Candidate.Status);
+        Assert.NotEqual(Hash(Alternative), row.Entry.Target.VariantSha256);
     }
 
     [Fact]
@@ -181,6 +188,15 @@ public sealed class NativeV2MergeConflictInventoryTests
         Assert.Equal(0, result.NewAttachments);
         Assert.Equal(0, result.NewBindings);
         Assert.Equal(plan.Conflicts, result.Conflicts);
+        // Every byte-level alternative of the plan is durable in the same commit; replays add nothing.
+        await using (ArchiveReader ledgerReader = await ArchiveReader.OpenAsync(f.Files.Profile))
+        {
+            (int ledgerTotal, List<PersistedMediaConflict> ledgerRows) = await ledgerReader.ReadMediaConflictsAsync(0, 100);
+            Assert.Equal(plan.ConflictLedger.Length, ledgerTotal);
+            Assert.Equal(plan.ConflictLedger.Select(e => e.Identity.IdentitySha256).OrderBy(x => x, StringComparer.Ordinal),
+                ledgerRows.Select(r => r.Entry.Identity.IdentitySha256));
+            Assert.All(ledgerRows, r => Assert.Equal(NativeMediaConflictResolutionStatus.Open, r.Entry.Resolution));
+        }
         Assert.Equal(evidence, result.EvidenceAdditions);
         Assert.Equal(derived, result.DerivedDescriptorAdditions);
         Assert.Equal(derived, result.ContainedDerivedAdditions);

@@ -133,7 +133,7 @@ public sealed class NativeMediaMergeSafetyTests
         Assert.Equal(committed with { IsReplay = true }, await migrated.ReadNativeMediaImportReceiptAsync(operation, request));
         Assert.Empty((await migrated.ReadNativeMediaMergeOperationsPageAsync()).Items);
         using SqliteConnection read = ArchiveSql.OpenConnection(db, SqliteOpenMode.ReadOnly);
-        Assert.Equal(11, ArchiveSql.GetPragma(read, "user_version"));
+        Assert.Equal(12, ArchiveSql.GetPragma(read, "user_version"));
     }
 
     // Direct synthetic storage owner via existing Core IVT, not public Registry startup.

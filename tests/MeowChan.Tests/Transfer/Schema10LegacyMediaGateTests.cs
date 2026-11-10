@@ -323,7 +323,7 @@ public sealed class Schema10LegacyMediaGateTests
         SqliteConnection connection = ArchiveSql.OpenConnection(catalog.DatabasePath, SqliteOpenMode.ReadOnly);
         try
         {
-            Assert.Equal(11, ArchiveSql.GetPragma(connection, "user_version"));
+            Assert.Equal(12, ArchiveSql.GetPragma(connection, "user_version"));
             Assert.Equal(0, ArchiveSql.GetPragma(connection, "ignore_check_constraints"));
             ArchiveSql.ValidateSchema(connection);
             return connection;
@@ -349,7 +349,7 @@ public sealed class Schema10LegacyMediaGateTests
         int attachments = 1, int safeMembers = 0, Guid? operation = null)
         => catalog.WriteAsync((connection, transaction) =>
         {
-            Assert.Equal(11, ArchiveSql.GetPragma(connection, "user_version", transaction));
+            Assert.Equal(12, ArchiveSql.GetPragma(connection, "user_version", transaction));
             Assert.Equal(0, ArchiveSql.GetPragma(connection, "ignore_check_constraints", transaction));
             Guid id = operation ?? Operation;
             string table = merge ? "archive_media_merge" : "archive_media_import";

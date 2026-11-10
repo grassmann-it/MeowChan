@@ -49,8 +49,10 @@ internal sealed class NativeMediaMergePlan
         ImmutableArray<CapturedPost> added, ImmutableArray<CapturedPost> updated,
         ImmutableArray<NativeMediaMergeAddedAttachment> attachments, NativeMediaCandidateSelection safeSelection,
         NativeMediaMergeCounts counts, Guid operation, string request, string parent,
-        NativeTransferPackageWriter.TransferPackageBudget exportBudget, DateTimeOffset? importedAtUtc = null)
+        NativeTransferPackageWriter.TransferPackageBudget exportBudget, DateTimeOffset? importedAtUtc = null,
+        ImmutableArray<NativeMediaConflictEntry> conflictLedger = default)
     {
+        ConflictLedger = conflictLedger.IsDefault ? ImmutableArray<NativeMediaConflictEntry>.Empty : conflictLedger;
         Owner = owner; Stage = materialization.Stage; Package = materialization.Package;
         Instance = instance; Generation = generation; Target = target; Roots = roots;
         AddedPosts = added; UpdatedPosts = updated; AddedAttachments = attachments;
@@ -96,6 +98,8 @@ internal sealed class NativeMediaMergePlan
     internal string SafeKeysJson => _legacySafeKeysJson
         ?? throw new InvalidOperationException("Versioned merges have no legacy safe keys.");
     internal int Conflicts { get; }
+    /// <summary>Byte-level alternatives recorded in the conflict ledger when this merge commits.</summary>
+    internal ImmutableArray<NativeMediaConflictEntry> ConflictLedger { get; } = ImmutableArray<NativeMediaConflictEntry>.Empty;
     internal Guid OperationId { get; }
     internal string RequestSha256 { get; }
     internal string OperationsParent { get; }

@@ -596,7 +596,7 @@ public sealed class Schema10MediaOperationsMigrationTests
         using (SqliteConnection connection = database.Open(SqliteOpenMode.ReadOnly))
         using (SqliteTransaction transaction = connection.BeginTransaction(deferred: true))
         {
-            Assert.Equal(11, ArchiveSql.GetPragma(connection, "user_version", transaction));
+            Assert.Equal(12, ArchiveSql.GetPragma(connection, "user_version", transaction));
             Assert.Equal(ArchiveSql.ApplicationId, ArchiveSql.GetPragma(connection, "application_id", transaction));
             ArchiveSql.ValidateSchema(connection, transaction);
             var actual = Schema9MediaOperationsFixture.ReadSnapshot(connection, transaction);

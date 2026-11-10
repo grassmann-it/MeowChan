@@ -153,7 +153,7 @@ public sealed class ArchiveCatalogAdmissionTests
         {
             Assert.Empty(Active(lease));
             using SqliteConnection connection = ArchiveSql.OpenConnection(catalog.DatabasePath, SqliteOpenMode.ReadOnly);
-            Assert.Equal(11, ArchiveSql.GetPragma(connection, "user_version"));
+            Assert.Equal(12, ArchiveSql.GetPragma(connection, "user_version"));
         }
         using ProfileAdmissionToken owner = lease.Admission.EnterStoreWriter();
         await using ArchiveCatalog reopened = await ArchiveCatalog.OpenAdmittedAsync(temp.Path, lease, owner);

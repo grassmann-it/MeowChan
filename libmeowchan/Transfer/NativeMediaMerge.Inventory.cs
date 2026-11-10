@@ -58,6 +58,7 @@ public sealed partial class ArchiveCatalog
             var added = ImmutableArray.CreateBuilder<CapturedPost>();
             var updated = ImmutableArray.CreateBuilder<CapturedPost>();
             var attachments = ImmutableArray.CreateBuilder<NativeMediaMergeAddedAttachment>();
+            var ledger = new Dictionary<string, NativeMediaConflictEntry>(StringComparer.Ordinal);
             int conflicts = thread.PageUrl != target.Summary.Url || thread.Title != target.Summary.Title
                 || thread.DecimalPostOrder != target.DecimalPostOrder ? 1 : 0;
 
@@ -165,9 +166,26 @@ public sealed partial class ArchiveCatalog
                 .ToLowerInvariant();
             NativeMediaMergePlan plan = new(this, materialization, read.instance, read.generation, target, roots,
                 added.ToImmutable(), updated.ToImmutable(), attachments.ToImmutable(), safe, counts,
-                operation, request, parent, budget, importedAt);
+                operation, request, parent, budget, importedAt, ledger.Values.OrderBy(e => e.Identity.IdentitySha256, StringComparer.Ordinal).ToImmutableArray());
             _issuedNativeMediaMergePlans.Add(plan, new object());
             return new(plan, NativeMediaMergeError.None);
+
+            // Only byte-level alternatives (a different original digest for one occurrence) can be kept,
+            // discarded or promoted later; other disagreements stay counted but have no variant to manage.
+            void RecordVariantConflict(MediaOccurrence occurrence, string? active, long activeBytes, string? candidate, long candidateBytes)
+            {
+                active = active?.ToLowerInvariant(); candidate = candidate?.ToLowerInvariant();
+                if (!IsLowerSha256(active) || !IsLowerSha256(candidate) || active == candidate) return;
+                string occurrenceDigest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\0',
+                    "native-media-conflict-occurrence-v1", occurrence.Resource.Source, occurrence.Resource.Board,
+                    occurrence.Resource.Thread, occurrence.PostId, occurrence.Position.ToString(CultureInfo.InvariantCulture),
+                    occurrence.OriginalRevisionKey ?? "")))).ToLowerInvariant();
+                NativeMediaConflictIdentity identity = new(occurrence.Resource, occurrenceDigest, active!, candidate!);
+                ledger.TryAdd(identity.IdentitySha256, new NativeMediaConflictEntry(identity,
+                    new(active!, NativeMediaConflictVariantStatus.Active, Math.Clamp(activeBytes, 0, 2L * 1024 * 1024 * 1024)),
+                    new(candidate!, NativeMediaConflictVariantStatus.Inactive, Math.Clamp(candidateBytes, 0, 2L * 1024 * 1024 * 1024))));
+            }
+            static bool IsLowerSha256(string? value) => value is { Length: 64 } && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
 
             bool SelectOccurrence(string postId, TransferAttachment incoming)
             {
@@ -177,21 +195,37 @@ public sealed partial class ArchiveCatalog
                 targetMembers.TryGetValue(occurrence, out var old);
                 if (old != null && (old.Attachment.Metadata with { IsDeleted = incoming.Metadata.IsDeleted } != incoming.Metadata
                     || observed.Contains(occurrence) && old.Attachment.OriginalByteVersion != incoming.OriginalByteVersion))
-                { conflicts++; return false; }
+                {
+                    if (old.Attachment.OriginalByteVersion is { } active && incoming.OriginalByteVersion is { } candidate)
+                        RecordVariantConflict(occurrence, active.Sha256, active.Length, candidate.Sha256, candidate.Length);
+                    conflicts++; return false;
+                }
                 // A newly supplied source tuple must agree with retained real originals,
                 // but measured SHA1 never enriches the nullable exact sender tuple.
                 if (old != null && incoming.OriginalByteVersion is { } version
                     && old.Originals.Any(o => !MediaIntegrityValidation.CompatibleEvidence(
                         new(version.Length, version.Md5, version.Sha256) { Sha1 = version.Sha1 },
                         new(o.Original!.Length, o.Original.Md5, o.Original.Sha256) { Sha1 = o.Original.Sha1 })))
-                { conflicts++; return false; }
+                {
+                    var rival = old.Originals.First(o => !MediaIntegrityValidation.CompatibleEvidence(
+                        new(version.Length, version.Md5, version.Sha256) { Sha1 = version.Sha1 },
+                        new(o.Original!.Length, o.Original.Md5, o.Original.Sha256) { Sha1 = o.Original.Sha1 }));
+                    RecordVariantConflict(occurrence, rival.Original!.Sha256, rival.Original.Length, version.Sha256, version.Length);
+                    conflicts++; return false;
+                }
                 if (incoming.Status == TransferContentStatus.Contained && old != null && !old.Originals.IsEmpty)
                 {
                     TransferMeasuredBlob measured = fullMembers[id].Descriptor.MeasuredPayload!;
                     if (old.Originals.Any(o => !MediaIntegrityValidation.MatchesMeasured(
                         new(o.Original!.Length, o.Original.Md5, o.Original.Sha256) { Sha1 = o.Original.Sha1 },
                         new(measured.Length, measured.Md5, measured.Sha256) { Sha1 = measured.Sha1 })))
-                    { conflicts++; return false; }
+                    {
+                        var rival = old.Originals.First(o => !MediaIntegrityValidation.MatchesMeasured(
+                            new(o.Original!.Length, o.Original.Md5, o.Original.Sha256) { Sha1 = o.Original.Sha1 },
+                            new(measured.Length, measured.Md5, measured.Sha256) { Sha1 = measured.Sha1 }));
+                        RecordVariantConflict(occurrence, rival.Original!.Sha256, rival.Original.Length, measured.Sha256, measured.Length);
+                        conflicts++; return false;
+                    }
                 }
                 if (!observed.Contains(occurrence)) selected.Add(id);
                 if (incoming.Status == TransferContentStatus.Contained && (old == null || old.Originals.IsEmpty))

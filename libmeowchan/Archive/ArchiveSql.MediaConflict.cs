@@ -53,7 +53,11 @@ internal static partial class ArchiveSql
         if (version != 11)
             throw new InvalidDataException("The media conflict ledger requires schema 11 as its migration source.");
         ValidateTargetSchema(connection, transaction, 11);
-        CreateMediaConflictSchema12(connection, transaction);
+        // Fixtures and interrupted tooling may leave a correctly shaped ledger in an older-stamped
+        // catalog; adopt it after validation instead of recreating (and never repair a wrong shape).
+        using (SqliteCommand exists = Command(connection, transaction,
+            "SELECT 1 FROM main.sqlite_master WHERE type='table' AND name='media_conflict'"))
+            if (exists.ExecuteScalar() == null) CreateMediaConflictSchema12(connection, transaction);
         cancellationToken.ThrowIfCancellationRequested();
         ValidateMediaConflictSchema12(connection, transaction);
     }
