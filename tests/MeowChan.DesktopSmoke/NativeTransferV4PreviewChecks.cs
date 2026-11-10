@@ -186,8 +186,8 @@ internal static class NativeTransferV4PreviewChecks
             string profileAfterImport = ProfileSnapshot(host);
             Require(profileAfterImport != profileBeforeImport, "A successful Apply did not change the isolated archive profile.");
 
-            // A valid multi-thread v4 package reaches inventory but is not admitted by the
-            // current host contract. Apply stays disabled and no profile write is allowed.
+            // A valid multi-thread v4 package with preview-only occurrences reaches inventory but cannot be
+            // owned by the materializer, so the whole set is unsupported (never partially imported). Apply stays disabled and no profile write is allowed.
             selected = fixture.Public;
             choosing = dialog.ChooseForTestsAsync();
             await choosing.WaitAsync(Deadline);
@@ -209,21 +209,21 @@ internal static class NativeTransferV4PreviewChecks
             RequireEmpty(fixture.Work);
             Require(ProfileSnapshot(host) == profileAfterImport, "Unsupported package changed the archive profile.");
 
-            // Private metadata is rejected before inventory is exposed; the message is
-            // specific and the previous completed inventory must not remain visible.
+            // A private package exposes only a content-free offer with its public inventory; Apply stays
+            // unsupported with a specific message until the explicit consent path exists. The previous
+            // completed inventory/result must not remain visible.
             selected = fixture.Private;
             choosing = dialog.ChooseForTestsAsync();
             await choosing.WaitAsync(Deadline);
             NativeTransferImportSnapshot privatePackage = session.Current;
             Require(privatePackage.State == NativeTransferImportState.Unsupported
                 && privatePackage.Error == NativeTransferImportError.PrivateMetadataUnsupported
-                && privatePackage.Inventory == null && privatePackage.Plan == null && privatePackage.Result == null
-                && !privatePackage.CleanupRetained,
-                "Private package was not specifically rejected without inventory.");
+                && privatePackage.Inventory is { PrivateOffer.Available: true } && privatePackage.Plan == null
+                && privatePackage.Result == null && !privatePackage.CleanupRetained,
+                "Private package was not specifically rejected with a content-free offer only.");
             Require(dialog.StateText.Text == Texts.T("transfer.import.unsupported")
                 && dialog.ErrorText.Text == Texts.T("transfer.import.error.private")
-                && dialog.SummaryText.Text == string.Empty
-                && Named(dialog, "NativeTransferImportDetails").Text == string.Empty
+                && !(dialog.SummaryText.Text ?? string.Empty).Contains(Texts.T("transfer.import.result", 1, 1, 0, 1, 0), StringComparison.Ordinal)
                 && !dialog.ApplyButton.IsEnabled && commits == 1 && sqlCommits == 1,
                 "Private rejection left stale inventory or a write-capable state.");
             CheckImportActions(dialog, applyEnabled: false);
@@ -352,7 +352,7 @@ internal static class NativeTransferV4PreviewChecks
     private static void CheckImportActions(NativeTransferImportDialog dialog, bool applyEnabled)
     {
         Button[] buttons = dialog.GetVisualDescendants().OfType<Button>()
-            .Where(button => !button.GetVisualAncestors().Any(a => a is WindowChromeBar or ScrollBar)).ToArray();
+            .Where(button => button.Name != "ClearButton" && !button.GetVisualAncestors().Any(a => a is WindowChromeBar or ScrollBar)).ToArray(); // ClearButton is the scope ComboBox template part, not a dialog action.
         Require(buttons.Length == 4 && buttons.Contains(dialog.ChooseButton) && buttons.Contains(dialog.CancelButton)
             && buttons.Contains(dialog.ApplyButton) && buttons.Contains(dialog.CloseButton),
             "Import dialog exposed a missing or extra action.");

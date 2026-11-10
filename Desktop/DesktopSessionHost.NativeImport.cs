@@ -67,7 +67,11 @@ internal sealed partial class DesktopSessionHost
             if (slice == null) return (null, NativeTransferImportError.UnsupportedPackage);
             try
             {
-                var prepared = await PrepareNativeImportAsync(slice, token).ConfigureAwait(false);
+                (NativeTransferPreparedImport? Plan, NativeTransferImportError Error) prepared;
+                // A thread the materializer cannot own (for example preview-only occurrences) makes the whole
+                // set unsupported; it is never silently skipped.
+                try { prepared = await PrepareNativeImportAsync(slice, token).ConfigureAwait(false); }
+                catch (System.IO.InvalidDataException) { return (null, NativeTransferImportError.UnsupportedPackage); }
                 if (prepared.Plan == null) return (null, prepared.Error);
                 NativeTransferImportPlanSummary one = prepared.Plan.Summary;
                 if (one.IsMerge) merged++; else newThreads++;

@@ -305,7 +305,9 @@ internal sealed class NativeTransferImportSession : IAsyncDisposable
                 if (slice == null) { error = NativeTransferImportError.UnsupportedPackage; state = NativeTransferImportState.Unsupported; break; }
                 try
                 {
-                    var prepared = await _host.PrepareNativeImportAsync(slice, cancellation.Token).ConfigureAwait(false);
+                    (NativeTransferPreparedImport? Plan, NativeTransferImportError Error) prepared;
+                    try { prepared = await _host.PrepareNativeImportAsync(slice, cancellation.Token).ConfigureAwait(false); }
+                    catch (InvalidDataException) { prepared = (null, NativeTransferImportError.UnsupportedPackage); }
                     if (prepared.Plan == null) { error = prepared.Error; state = NativeTransferImportState.Failed; break; }
                     var outcome = await _host.ApplyNativeImportAsync(prepared.Plan, cancellation.Token).ConfigureAwait(false);
                     NativeTransferImportResult one = outcome.Result;
