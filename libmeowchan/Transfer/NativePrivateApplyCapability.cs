@@ -184,7 +184,11 @@ internal sealed class NativePrivateApplyCapability : IDisposable
             || plan.Resource.Thread is not { Length: > 0 }
             || fences.IsDefault || fences.Length > 3) throw new InvalidDataException("The target fence is invalid.");
         using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        AppendText("meowchan-native-private-target-fence-v1");
+        // Expected-after fingerprints belong to RequestSha256. Keeping them out
+        // of this pre-plan target snapshot is required for the store marker
+        // dependency to remain acyclic: ContentPlan -> marker -> after-bytes ->
+        // Request. The exact after-image is still bound by NativePrivateApplyRequest.
+        AppendText("meowchan-native-private-target-fence-v2");
         AppendText(plan.OperationId.ToString("D")); AppendText(plan.Instance); AppendNumber(plan.Generation);
         AppendText(plan.Resource.Source); AppendText(plan.Resource.Board); AppendText(plan.Resource.Thread);
         AppendNumber(selection.ThreadFavorites ? 1 : 0); AppendNumber(selection.MediaFavorites ? 1 : 0);
@@ -193,7 +197,7 @@ internal sealed class NativePrivateApplyCapability : IDisposable
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (fence is null) throw new InvalidDataException("The target fence contains a null store fence.");
-            AppendNumber((int)fence.Kind); AppendImage(fence.Before); AppendImage(fence.ExpectedAfter);
+            AppendNumber((int)fence.Kind); AppendImage(fence.Before);
             AppendNumber(fence.BeforeBackup is null ? 0 : 1);
             if (fence.BeforeBackup is not null) AppendImage(fence.BeforeBackup);
         }
