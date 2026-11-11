@@ -80,9 +80,12 @@ internal sealed class MediaLibraryTileView : UserControl
     /// <summary>Set by the page: lists every occurrence of the tile's bytes.</summary>
     internal Action<MediaLibraryTile>? ShowOccurrences { get; set; }
 
+    /// <summary>Taller than an archive cell: preview, name, thread, footer and the favorite row of grouped tiles plus margins. The page's panel uses it as cell height.</summary>
+    internal const double TileHeight = 248;
+
     public MediaLibraryTileView()
     {
-        MaxWidth = 190; Height = 228;
+        MaxWidth = 190; Height = TileHeight;
         Grid preview = new() { Height = 125, MaxWidth = 170 };
         _selectedMark[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Accent");
         ((TextBlock)_selectedMark.Child!)[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Background");
