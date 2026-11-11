@@ -99,13 +99,49 @@
           "MeowChan.PluginSdk": "[1.0.2, )"
         }
       },
+      "meowchan.plugin.anonimageboards": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.2, )"
+        }
+      },
+      "meowchan.plugin.bbwchan": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.2, )"
+        }
+      },
+      "meowchan.plugin.capybarachan": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.2, )"
+        }
+      },
       "meowchan.plugin.dvach": {
         "type": "Project",
         "dependencies": {
           "MeowChan.PluginSdk": "[1.0.2, )"
         }
       },
+      "meowchan.plugin.eightchanmoe": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.2, )"
+        }
+      },
       "meowchan.plugin.endchan": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.2, )"
+        }
+      },
+      "meowchan.plugin.fchan": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.2, )"
+        }
+      },
+      "meowchan.plugin.gurocx": {
         "type": "Project",
         "dependencies": {
           "MeowChan.PluginSdk": "[1.0.2, )"
@@ -124,6 +160,12 @@
         }
       },
       "meowchan.plugin.leftypol": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.2, )"
+        }
+      },
+      "meowchan.plugin.sevenchan": {
         "type": "Project",
         "dependencies": {
           "MeowChan.PluginSdk": "[1.0.2, )"
