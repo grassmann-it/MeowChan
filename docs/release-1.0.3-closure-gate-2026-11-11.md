@@ -218,3 +218,12 @@ Gerätezeitzone: `DeviceTimeZoneResolvesToABundledIanaZoneAndNodaTimeIsDeployed`
 Diagnose (`timezone-diagnosis.log`): `MeowChan.deps.json` nennt `NodaTime/3.3.6`, `NodaTime.dll` in App-, Smoke-,
 Desktop- und Core-Bins hashgleich (`1421cc81…`), System-tz `Europe/Berlin` über `/etc/localtime`, keine
 installierten oder veralteten MeowChan-Pfade. „assembly not found“ damit weiterhin nicht reproduziert.
+
+### Recovery, Reexport und Offline auf `40eba83` (`/home/tomka/mc-evidence/recovery-40eba83-1794412954`)
+
+Reexport/Offline/Passive: Core 522/0/1, Desktop (inkl. Neustart) 91/0/6. Cancel/Recovery/Unterbrechung:
+Core 1019/0, Desktop 133/0. Echter SIGKILL (`MEOWCHAN_CRASH_RUN=1`): Import 8 Checkpoints + Kandidatenverzeichnis-
+Recovery 9/0 (1 Child-Helfer erwartungsgemäß übersprungen), Merge 8/0. Echter Platzmangel auf privatem 64-MiB-tmpfs
+(User-Namespace-Mount, kein Root): `DiskFull`- und Medienexporttests 17/0, nichts übersprungen.
+Archivfilter-Regressionen wurden in diesem Goal ergänzt (`5193d38` Escape→Pfeil-Reopen und Tastaturfälle,
+`d28283d` Klickübernahme, `c45a972` Fokus nach Tag-Entfernen) und laufen im Smoke oben 12/12 grün.
