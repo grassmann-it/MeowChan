@@ -403,7 +403,8 @@ internal sealed class NativeTransferImportDialog : Window
     private async Task OnOpenConflictsAsync()
     {
         if (_closed) return;
-        MediaConflictsDialog dialog = new(_session.ListMediaConflictsAsync, _session.DecideMediaConflictAsync);
+        MediaConflictsDialog dialog = new(_session.ListMediaConflictsAsync, _session.DecideMediaConflictAsync,
+            _session.PreviewMediaReclaimAsync, _session.ReclaimMediaAsync);
         if (ConflictsShowForTests is { } show) await show(dialog);
         else await dialog.ShowDialog(this);
     }

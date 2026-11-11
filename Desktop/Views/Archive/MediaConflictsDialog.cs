@@ -30,6 +30,10 @@ internal sealed class MediaConflictsDialog : Window
     private readonly StackPanel _rows = new() { Name = "MediaConflictsRows", Spacing = 8 };
     private readonly Button _more = new() { Name = "MediaConflictsMore" };
     private readonly Button _close = new() { Name = "MediaConflictsClose" };
+    private readonly Button _reclaim = new() { Name = "MediaConflictsReclaim" };
+    private readonly Func<CancellationToken, Task<MeowChan.Archive.MediaReclaimSummary>>? _previewReclaim;
+    private readonly Func<CancellationToken, Task<MeowChan.Archive.MediaReclaimSummary>>? _doReclaim;
+    private MeowChan.Archive.MediaReclaimSummary? _reclaimQuote;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly List<MediaConflictRow> _loaded = new();
     private string? _confirming;
@@ -38,8 +42,11 @@ internal sealed class MediaConflictsDialog : Window
     private bool _busy;
 
     internal MediaConflictsDialog(Func<int, int, CancellationToken, Task<MediaConflictPage>> list,
-        Func<string, MediaConflictUserAction, CancellationToken, Task<MediaConflictActionOutcome>> decide)
+        Func<string, MediaConflictUserAction, CancellationToken, Task<MediaConflictActionOutcome>> decide,
+        Func<CancellationToken, Task<MeowChan.Archive.MediaReclaimSummary>>? previewReclaim = null,
+        Func<CancellationToken, Task<MeowChan.Archive.MediaReclaimSummary>>? reclaim = null)
     {
+        _previewReclaim = previewReclaim; _doReclaim = reclaim;
         _list = list ?? throw new ArgumentNullException(nameof(list));
         _decide = decide ?? throw new ArgumentNullException(nameof(decide));
         Name = "MediaConflictsDialog";
@@ -55,9 +62,11 @@ internal sealed class MediaConflictsDialog : Window
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
         _more.Click += async (_, _) => await LoadAsync(append: true);
         _close.Click += (_, _) => Close();
+        _reclaim.Click += async (_, _) => await ReclaimAsync();
         StackPanel body = new() { Spacing = 12, Margin = new Thickness(16) };
         body.Children.Add(_heading); body.Children.Add(_status); body.Children.Add(_rows); body.Children.Add(_more);
         WrapPanel actions = new() { ItemSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
+        if (_previewReclaim != null && _doReclaim != null) actions.Children.Add(_reclaim);
         actions.Children.Add(_close);
         Border footer = new() { Child = actions, Margin = new Thickness(16, 0, 16, 16) };
         footer.Classes.Add("workspace-dialog-footer");
@@ -76,7 +85,7 @@ internal sealed class MediaConflictsDialog : Window
         {
             if (e.Key != Key.Escape) return;
             e.Handled = true;
-            if (_confirming != null || _confirmingPromote != null) { _confirming = null; _confirmingPromote = null; Render(); } else Close();
+            if (_confirming != null || _confirmingPromote != null || _reclaimQuote != null) { _confirming = null; _confirmingPromote = null; _reclaimQuote = null; Render(); } else Close();
         }, RoutingStrategies.Tunnel);
         Texts.Changed += OnLanguageChanged;
         Render();
@@ -124,8 +133,36 @@ internal sealed class MediaConflictsDialog : Window
         await LoadAsync(append: false);
     }
 
+    // Two steps: the first press measures what would be freed and names it, the second performs it.
+    private async Task ReclaimAsync()
+    {
+        if (_busy || _previewReclaim == null || _doReclaim == null) return;
+        _busy = true;
+        try
+        {
+            if (_reclaimQuote is null)
+            {
+                var quote = await _previewReclaim(_lifetime.Token);
+                if (quote.Bytes == 0) _status.Text = Texts.T("transfer.conflicts.reclaim.none");
+                else { _status.Text = string.Empty; _reclaimQuote = quote; }
+            }
+            else
+            {
+                var done = await _doReclaim(_lifetime.Token);
+                _reclaimQuote = null;
+                _status.Text = Texts.T("transfer.conflicts.reclaim.done", done.Bytes);
+            }
+        }
+        catch (OperationCanceledException) { return; }
+        catch (Exception) { _reclaimQuote = null; _status.Text = Texts.T("transfer.conflicts.reclaim.error"); }
+        finally { _busy = false; }
+        Render();
+    }
+
     private void Render()
     {
+        _reclaim.Content = _reclaimQuote is { } q
+            ? Texts.T("transfer.conflicts.reclaim.confirm", q.Bytes, q.Roots) : Texts.T("transfer.conflicts.reclaim");
         _heading.Text = Texts.T("transfer.conflicts.title");
         Title = _heading.Text;
         _close.Content = Texts.T("transfer.import.close");

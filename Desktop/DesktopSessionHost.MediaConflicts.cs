@@ -68,6 +68,22 @@ internal sealed partial class DesktopSessionHost
         };
     }
 
+    // Reclaiming frees whole unreferenced alternative roots of operations whose conflicts are all decided.
+    // It never touches ledger rows, active bytes, favorites, ratings or notes.
+    internal async Task<MeowChan.Archive.MediaReclaimSummary> PreviewMediaReclaimAsync(CancellationToken token)
+    {
+        EnsureReady();
+        var summary = await _content.Catalog.PreviewMediaReclaimAsync(token).ConfigureAwait(false);
+        return summary;
+    }
+
+    internal async Task<MeowChan.Archive.MediaReclaimSummary> ReclaimMediaAsync(CancellationToken token)
+    {
+        EnsureReady();
+        var summary = await _content.Catalog.ReclaimMediaAsync(new MeowChan.Storage.MediaStore(), token).ConfigureAwait(false);
+        return summary;
+    }
+
     private static MediaConflictUserStatus MapStatus(NativeMediaConflictResolutionStatus status) => status switch
     {
         NativeMediaConflictResolutionStatus.Kept => MediaConflictUserStatus.Kept,

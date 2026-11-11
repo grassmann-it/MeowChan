@@ -24,14 +24,20 @@ Windows-, macOS- und Hardwarebelege fehlen. Sie sind unter Linux nicht ersetzbar
 
 - **Windows/macOS/Hardware:** keine Belege; blockiert den Kandidaten.
 - **Paketprüfungen** (`check-desktop-package.py`, Linux-Distribution): nicht ausgeführt.
-- **Discard:** speichert nur die Entscheidung im Ledger. Nutzerentscheidung 11.11.:
-  Bytes dürfen per Cleanup nach Bestätigung gelöscht werden. Befund vor der
-  Umsetzung: die Alternative liegt im unveränderlichen Full-Root der Merge-Operation
-  (Safe-Root ist, was in Threads registriert wird). Freigabe ist daher nur pro ganzem
-  Operations-Full-Root möglich, wenn alle seine Konflikte entschieden sind und er in
-  keinem Thread referenziert wird. Offen: Wirkung auf Re-Merge-Idempotenz und
-  Operationsprüfung. Nicht implementiert; braucht eigenen Entwurf samt
-  Dateisystem-Fixtures.
+- **Discard / Platzfreigabe:** Discard speichert weiter nur die Entscheidung. Auf
+  Nutzerentscheidung (11.11.) gibt es zusätzlich den ausdrücklichen Cleanup „Platz
+  verworfener Alternativen freigeben“ im Konfliktdialog: erster Druck misst und nennt
+  die Größe, zweiter Druck löscht, Escape bricht ab. Freigegeben wird nur der ganze
+  Full-Root einer committed Merge-Operation, deren Konflikte alle entschieden sind
+  (mindestens einer verworfen, keiner offen/behalten), der in keinem Thread registriert
+  und nicht mit dem Safe-Root identisch ist. Ablauf: atomares Umbenennen nach
+  `.reclaim-<guid>`, dann Löschen; Reste werden beim nächsten Lauf aufgeräumt.
+  Ledger, Operationszeilen, aktive Wurzeln, Promote-Wurzeln bleiben unberührt; ein
+  fehlender Root gilt als „freigegeben“. Belege: Core `NativeV2MergeConflictInventoryTests`
+  (14 grün, inkl. Offen/Behalten gepinnt, Vorschau löscht nichts, Crash-Rest,
+  Wiederholung, Pfad-/Namensschutz), Desktop-Katalog-/Lokalisierungstests (487 grün),
+  Smoke `MEOWCHAN_NATIVE_TRANSFER_PREVIEW_ONLY` (Zweischritt, Escape). Nicht belegt:
+  echter Platzmangel/Absturz auf Dateisystemebene, Windows-Umbenennen mit offenen Handles.
 - **Guro.cx:** dokumentierter technischer Block (kein registrierbarer Source);
   **Anon Imageboards:** kein öffentlicher Quellvertrag, nur Plan und Fixtures zur
   Nichtverfügbarkeit. Beide gemäß Releaseplan als begründeter Nichtverfügbarkeitsfall.

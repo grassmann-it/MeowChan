@@ -73,6 +73,11 @@ internal sealed class NativeTransferImportSession : IAsyncDisposable
     internal Task<MediaConflictActionOutcome> DecideMediaConflictAsync(string id, MediaConflictUserAction action,
         CancellationToken token) => _host.DecideMediaConflictAsync(id, action, token);
 
+    internal Task<MeowChan.Archive.MediaReclaimSummary> PreviewMediaReclaimAsync(CancellationToken token)
+        => _host.PreviewMediaReclaimAsync(token);
+    internal Task<MeowChan.Archive.MediaReclaimSummary> ReclaimMediaAsync(CancellationToken token)
+        => _host.ReclaimMediaAsync(token);
+
     internal Func<CancellationToken, Task>? BeforeSourceOpenForTests { get; set; }
     internal Func<CancellationToken, Task>? AfterPreparationForTests { get; set; }
     internal Action<string>? BeforeDirectoryCleanupForTests { get; set; }

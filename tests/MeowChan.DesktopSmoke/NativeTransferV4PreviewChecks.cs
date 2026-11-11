@@ -401,7 +401,34 @@ internal static class NativeTransferV4PreviewChecks
         MediaConflictsDialog realDialog = real ?? throw new InvalidOperationException("The conflict dialog did not open.");
         Require(realDialog.RowsForTests.Children.Count == 0 && realDialog.StatusForTests.Text == Texts.T("transfer.conflicts.empty"),
             "An archive without conflicts did not show the empty conflict state.");
+        // Nothing is stored for discarded alternatives, so the real reclaim says so and deletes nothing.
+        Button realReclaim = realDialog.GetVisualDescendants().OfType<Button>().Single(x => x.Name == "MediaConflictsReclaim");
+        realReclaim.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await WaitUntilAsync(() => realDialog.StatusForTests.Text == Texts.T("transfer.conflicts.reclaim.none"));
         realDialog.Close();
+
+        // The two-step reclaim names the size first, Escape cancels, and only the second press performs it.
+        int reclaimed = 0;
+        MediaConflictsDialog reclaimFake = new(
+            (_, _, _) => Task.FromResult(new MediaConflictPage(0, [])),
+            (_, _, _) => Task.FromResult(MediaConflictActionOutcome.Applied),
+            _ => Task.FromResult(new MeowChan.Archive.MediaReclaimSummary(2, 4096)),
+            _ => { reclaimed++; return Task.FromResult(new MeowChan.Archive.MediaReclaimSummary(2, 4096)); });
+        reclaimFake.Show(importDialog);
+        await SettleAsync(reclaimFake);
+        Button two = reclaimFake.GetVisualDescendants().OfType<Button>().Single(x => x.Name == "MediaConflictsReclaim");
+        two.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await WaitUntilAsync(() => Equals(two.Content, Texts.T("transfer.conflicts.reclaim.confirm", 4096L, 2)));
+        Require(reclaimed == 0, "The reclaim preview already deleted bytes.");
+        reclaimFake.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+        await SettleAsync(reclaimFake);
+        Require(reclaimed == 0 && Equals(two.Content, Texts.T("transfer.conflicts.reclaim")), "Escape did not cancel the reclaim confirmation.");
+        two.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await WaitUntilAsync(() => Equals(two.Content, Texts.T("transfer.conflicts.reclaim.confirm", 4096L, 2)));
+        two.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await WaitUntilAsync(() => reclaimed == 1);
+        Require(reclaimed == 1, "The confirmed reclaim did not run exactly once.");
+        reclaimFake.Close();
 
         string a = new('a', 64), b = new('b', 64), active = new('d', 64);
         List<MediaConflictRow> store =

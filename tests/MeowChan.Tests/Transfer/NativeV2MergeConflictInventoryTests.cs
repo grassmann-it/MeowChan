@@ -165,6 +165,70 @@ public sealed class NativeV2MergeConflictInventoryTests
     }
 
     [Fact]
+    public async Task ReclaimFreesTheAlternativeRootOnlyAfterEveryConflictOfItsOperationIsDiscardedAndKeepsTheLedger()
+    {
+        await using NativeV2ImportFixture f = await CreateAsync();
+        TransferAttachment conflict = Attachment(derived: false) with
+        {
+            PayloadSha256 = Hash(Alternative),
+            OriginalByteVersion = new(Alternative.Length, Hash(Alternative), Md5(Alternative), null)
+        };
+        MergeObservation merged = await MergeAsync(f, Incoming([Post("15", conflict)], []),
+            [Alternative], evidence: 0, derived: 0, safe: false);
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(f.Files.Profile);
+        PersistedMediaConflict row = Assert.Single((await reader.ReadMediaConflictsAsync(0, 10)).Items);
+        string id = row.Entry.Identity.IdentitySha256;
+        string full = merged.Operation.Full.Directory!;
+        string parent = Path.GetDirectoryName(full)!;
+        IReadOnlyList<string> dirsBefore = Assert.IsType<ArchivedThreadView>(await reader.ReadThreadAsync(Id)).MediaDirectories;
+
+        // Open and Kept alternatives may still be promoted, so their root is pinned.
+        Assert.Equal(0, (await f.Catalog.PreviewMediaReclaimAsync()).Roots);
+        Assert.Equal(0, (await f.Catalog.ReclaimMediaAsync(f.Store)).Roots);
+        Assert.True(Directory.Exists(full));
+        await f.Catalog.DecideMediaConflictAsync(id, NativeMediaConflictResolutionStatus.Kept, At);
+        Assert.Equal(0, (await f.Catalog.ReclaimMediaAsync(f.Store)).Roots);
+        Assert.True(Directory.Exists(full));
+
+        await f.Catalog.DecideMediaConflictAsync(id, NativeMediaConflictResolutionStatus.Discarded, At);
+        MediaReclaimSummary quote = await f.Catalog.PreviewMediaReclaimAsync();
+        Assert.Equal(1, quote.Roots);
+        Assert.True(quote.Bytes >= Alternative.Length);
+        Assert.True(Directory.Exists(full)); // a preview deletes nothing
+        string leftover = Path.Combine(parent, ".reclaim-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(leftover); // a crash after the rename, before the delete
+        File.WriteAllText(Path.Combine(leftover, "x"), "x");
+
+        MediaReclaimSummary done = await f.Catalog.ReclaimMediaAsync(f.Store);
+        Assert.Equal(quote, done);
+        Assert.False(Directory.Exists(full));
+        Assert.False(Directory.Exists(leftover));
+        Assert.Empty(Directory.EnumerateDirectories(parent, ".reclaim-*"));
+
+        // The ledger, the slot's active roots and a repeat are unaffected.
+        PersistedMediaConflict after = Assert.Single((await reader.ReadMediaConflictsAsync(0, 10)).Items);
+        Assert.Equal(NativeMediaConflictResolutionStatus.Discarded, after.Entry.Resolution);
+        Assert.Equal(dirsBefore, Assert.IsType<ArchivedThreadView>(await reader.ReadThreadAsync(Id)).MediaDirectories);
+        Assert.Equal(new MediaReclaimSummary(0, 0), await f.Catalog.PreviewMediaReclaimAsync());
+        Assert.Equal(new MediaReclaimSummary(0, 0), await f.Catalog.ReclaimMediaAsync(f.Store));
+    }
+
+    [Fact]
+    public async Task ReclaimRefusesRootsThatAreNotCanonicalImmediateChildrenOrCandidateNames()
+    {
+        await using NativeV2ImportFixture f = await CreateAsync();
+        string parent = Path.Combine(f.Files.Profile, "reclaim-guard");
+        Directory.CreateDirectory(Path.Combine(parent, "not-a-candidate"));
+        await Assert.ThrowsAsync<InvalidDataException>(() => f.Store.ReclaimCandidateRootAsync(parent, Path.Combine(parent, "not-a-candidate")));
+        string name = ".meowchan-passive-" + Guid.NewGuid().ToString("N");
+        string elsewhere = Path.Combine(f.Files.Profile, "other", name);
+        Directory.CreateDirectory(elsewhere);
+        await Assert.ThrowsAsync<InvalidDataException>(() => f.Store.ReclaimCandidateRootAsync(parent, elsewhere));
+        Assert.True(Directory.Exists(elsewhere));
+        Assert.Equal(0, await f.Store.ReclaimCandidateRootAsync(parent, Path.Combine(parent, name))); // already gone
+    }
+
+    [Fact]
     public async Task CatalogPromoteIsRefusedWhenTheAlternativeHasNoStoredBytes()
     {
         await using NativeV2ImportFixture f = await CreateAsync();
