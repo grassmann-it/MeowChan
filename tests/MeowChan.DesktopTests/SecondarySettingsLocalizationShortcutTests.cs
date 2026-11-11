@@ -49,7 +49,7 @@ public sealed class SecondarySettingsLocalizationShortcutTests : IDisposable
         Assert.Contains("Texts.Changed += OnLanguageChanged", source);
         Assert.Contains("Texts.Changed -= OnLanguageChanged", source);
         Assert.Contains("private void OnLanguageChanged(object? sender, EventArgs e) => Localize();", source);
-        Assert.Contains("private void Changed() { IsDirty = true; RefreshList(); }", source);
+        Assert.Contains("private void Changed() { IsDirty = true; RefreshList(); DraftEdited?.Invoke(this, EventArgs.Empty); }", source);
         Assert.Contains("_validationFocusRequest++", source);
         Assert.Contains("StopCapture();", source);
         Assert.Contains("Draft = Draft.Set", source);

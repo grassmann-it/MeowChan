@@ -41,9 +41,9 @@ public sealed class LocalSearchCatalogContractTests : IDisposable
     [Fact]
     public void ThreeSearchCatalogsHaveDisjointKeysAndMatchingPlaceholderMultisets()
     {
-        Assert.Equal(new[] { 15, 20, 24 }, Catalogs.Select(catalog => catalog.Entries.Length).ToArray());
+        Assert.Equal(new[] { 16, 20, 24 }, Catalogs.Select(catalog => catalog.Entries.Length).ToArray());
         var allEntries = Catalogs.SelectMany(catalog => catalog.Entries).ToArray();
-        Assert.Equal(59, allEntries.Length);
+        Assert.Equal(60, allEntries.Length);
         Assert.Equal(allEntries.Length, allEntries.Select(entry => entry.Key).Distinct(StringComparer.Ordinal).Count());
 
         foreach (var catalog in Catalogs)
