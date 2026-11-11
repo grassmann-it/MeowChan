@@ -494,6 +494,57 @@ public sealed class ExamplePluginTests
         Assert.Single(Assert.IsType<ThreadSnapshot>(copy).Snapshot.Posts[0].Attachments!);
     }
 
+    [Fact]
+    public async Task SevenChanReadsUnquotedPostIdsAndCountsEachLinkedFileOnce()
+    {
+        Harness h = new("sevenchan", PluginFixture("SevenChan", "thread-unquoted-ids.html"), board: "x", thread: "300");
+        ThreadSnapshot thread = Assert.IsType<ThreadSnapshot>(await h.ReadThread());
+        Assert.Empty(SdkValidation.ValidateThreadResult(h.ThreadRequest, thread, h.Source));
+        Assert.Equal(new[] { "300", "301", "302" }, thread.Snapshot.Posts.Select(post => post.PostId));
+        Assert.Equal(new[] { 0L, 1L, 2L }, thread.Snapshot.Posts.Select(post => post.Ordinal));
+        // Name, download icon and thumbnail links of one file are a single attachment; off-site links are not media.
+        SourceAttachment first = Assert.Single(thread.Snapshot.Posts[0].Attachments!);
+        Assert.Equal("300-0", first.MediaId);
+        Assert.Equal("https://7chan.org/x/src/1000000000001.jpg", first.Url!.AbsoluteUri);
+        Assert.Equal("1000000000001.jpg", first.OriginalFileName);
+        Assert.Equal(".jpg", first.Extension);
+        Assert.Equal("301-0", Assert.Single(thread.Snapshot.Posts[1].Attachments!).MediaId);
+        Assert.Null(thread.Snapshot.Posts[2].Attachments);
+        Assert.Contains("post 3", thread.Snapshot.Posts[2].Text);
+        ThreadReadResult copy = SdkJson.Deserialize<ThreadReadResult>(SdkJson.Serialize<ThreadReadResult>(thread));
+        Assert.Empty(SdkValidation.ValidateThreadResult(h.ThreadRequest, copy, h.Source));
+    }
+
+    [Theory]
+    [InlineData("id=300x")][InlineData("id=")][InlineData("id=300\"")][InlineData("id=0300")]
+    public async Task SevenChanStillRejectsMalformedOrUnsafePostIds(string idAttribute)
+    {
+        string html = PluginFixture("SevenChan", "thread-unquoted-ids.html").Replace("id=300>", idAttribute + ">", StringComparison.Ordinal);
+        Harness h = new("sevenchan", html, board: "x", thread: "300");
+        Assert.Equal("invalid_payload", Assert.IsType<ThreadFailure>(await h.ReadThread()).Failure.Code);
+    }
+
+    [Fact]
+    public async Task SevenChanReadsThreadsLargerThanTheObservedReplyCounts()
+    {
+        string fixture = PluginFixture("SevenChan", "thread-unquoted-ids.html");
+        int open = fixture.IndexOf("<div class=\"reply\"  id=\"reply_301\">", StringComparison.Ordinal);
+        int end = fixture.IndexOf("<div class=\"reply\"  id=\"reply_302\">", StringComparison.Ordinal);
+        string reply = fixture[open..end];
+        System.Text.StringBuilder html = new(fixture[..open]);
+        for (int id = 1000; id < 1000 + 1500; id++)
+            html.Append(reply.Replace("301", id.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
+                .Replace("1000000000002", (2000000000000 + id).ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal));
+        html.Append(fixture[end..]);
+        Harness h = new("sevenchan", html.ToString(), board: "x", thread: "300");
+        System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
+        ThreadSnapshot thread = Assert.IsType<ThreadSnapshot>(await h.ReadThread());
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), "Parsing took " + watch.Elapsed);
+        Assert.Equal(1502, thread.Snapshot.Posts.Count);
+        Assert.Equal(1501, thread.Snapshot.Posts.Count(post => post.Attachments?.Count == 1));
+        Assert.Empty(SdkValidation.ValidateThreadResult(h.ThreadRequest, thread, h.Source));
+    }
+
     [Theory]
     [InlineData("bbwchan", "bbw", "123", "BbwChan", "thread.json", new[] { "123", "124", "125" }, new[] { "123", "124", "125" }, SourceTextFormat.PlainText, 2)]
     [InlineData("capybarachan", "site", "101", "CapybaraChan", "media-thread.json", new[] { "101", "102" }, new[] { "101", "102" }, SourceTextFormat.Html, 1)]

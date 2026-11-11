@@ -24,8 +24,9 @@ public sealed class SevenChanPlugin : ISourcePlugin
     private static readonly Regex CatalogAnchor = new Regex(
         @"<a\b(?=[^>]*\bclass\s*=\s*[""'][^""']*\bcattile\b[^""']*[""'])[^>]*\bhref\s*=\s*[""'](?<href>[^""']+)[""'][^>]*>(?<body>.*?)</a\s*>",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+    // Kusaba X prints the post id unquoted (<div class="post" id=677>); quoted ids stay accepted.
     private static readonly Regex PostOpen = new Regex(
-        @"<div\b(?=[^>]*\bclass\s*=\s*[""'][^""']*\bpost\b[^""']*[""'])[^>]*\bid\s*=\s*[""'](?<id>[0-9]+)[""'][^>]*>",
+        @"<div\b(?=[^>]*\bclass\s*=\s*[""'][^""']*\bpost\b[^""']*[""'])[^>]*\bid\s*=\s*(?:[""'](?<id>[0-9]+)[""']|(?<id>[0-9]+)(?=[\s/>]))[^>]*>",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
     private static readonly Regex Attribute = new Regex(
         @"\b(?<name>[A-Za-z][A-Za-z0-9:_-]*)\s*=\s*[""'](?<value>[^""']*)[""']",
@@ -205,6 +206,8 @@ public sealed class SevenChanPlugin : ISourcePlugin
     private static List<SourceAttachment> ParseAttachments(SourceThreadId thread, string postId, string html)
     {
         List<SourceAttachment> attachments = new List<SourceAttachment>();
+        // A file is linked several times (name, download icon, thumbnail); one original is one attachment.
+        HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (Match anchor in Anchors(html))
         {
             string href = AttributeValue(anchor.Groups["attrs"].Value, "href") ?? string.Empty;
@@ -213,6 +216,7 @@ public sealed class SevenChanPlugin : ISourcePlugin
                 || candidate.Query.Length != 0 || candidate.Fragment.Length != 0
                 || !candidate.AbsolutePath.StartsWith("/" + thread.BoardId + "/src/", StringComparison.Ordinal)
                 || !SafeMediaPath(candidate.AbsolutePath)) continue;
+            if (!seen.Add(candidate.AbsoluteUri)) continue;
             string fileName = candidate.AbsolutePath[(candidate.AbsolutePath.LastIndexOf('/') + 1)..];
             if (fileName.Length == 0) throw new InvalidDataException("An original media link has no file name.");
             string? displayName = StripTags(anchor.Groups["body"].Value).Trim();
