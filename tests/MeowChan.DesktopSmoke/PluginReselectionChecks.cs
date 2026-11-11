@@ -29,7 +29,9 @@ internal static class PluginReselectionChecks
         PluginManagementServices services = new(store, original.Compiler, original.Inventory, original.PluginDirectory,
             original.DescribeTestAsync, original.StartTestWorkerAsync, original.ProbeAsync);
         PluginsPage page = new(); page.Attach(services);
-        store.OwnerReady = () => owner.IsActive && CommandRouter.IsRoutingContextActive(page, page);
+        store.ModalReady = () => page.IsBusy && !CommandRouter.IsRoutingContextActive(page, page) &&
+            owner.OwnedWindows.Any(modal => modal.IsVisible && ReferenceEquals(modal.Owner, owner) &&
+                CommandRouter.IsRoutingContextActive(modal, modal));
         ContentControl host = owner.FindControl<ContentControl>("PluginsPageHost")!;
         object? previous = host.Content;
         string language = Texts.Language;
@@ -42,6 +44,7 @@ internal static class PluginReselectionChecks
             foreach (string currentLanguage in new[] { "en", "de" })
             {
                 Texts.SetLanguage(currentLanguage); await Settle();
+                store.ResetOffers();
                 int before = store.Calls;
                 Window modal = await OpenAsync(owner, page);
                 VerifyContents(modal, store);
@@ -98,20 +101,20 @@ internal static class PluginReselectionChecks
                     await ClickAsync(modal, input, Ack(NewConfirm(modal, store.Row.PluginId)));
                     await ClickAsync(modal, input, NewConfirm(modal, store.Row.PluginId));
                 }
-                await ClosedAsync(page, modal);
-                Require(store.Calls == before + 1 && ReferenceEquals(store.Chosen, store.Row) && store.ChosenRevision == RecordingStore.Revision,
+                await SavedAndCloseAsync(page, modal);
+                Require(store.Calls == before + 1 && ReferenceEquals(store.Chosen, store.Row) && store.ChosenRevision == store.Revision - 1,
                     "New confirmation did not deliver the exact frozen row and revision exactly once.");
                 Require(store.Chosen!.ConfigurationJson == RecordingStore.Configuration, "Exact configuration changed in transit.");
-                Require(store.OwnerReadyAtConfirmation, "New choice committed without owner reactivation and active routing context.");
+                Require(store.ModalReadyAtConfirmation, "New choice committed outside the active modal/lifetime routing context.");
 
                 // The old proven repair remains independently confirmable through its original API.
                 modal = await OpenAsync(owner, page);
                 using (MediaNativeInput input = new(modal))
                     await ClickAsync(modal, input, Buttons(modal).Single(b => AutomationProperties.GetName(b) == Texts.T("plugins.repair.confirmNamed", store.Repair.PluginId)));
-                await ClosedAsync(page, modal);
+                await SavedAndCloseAsync(page, modal);
                 Require(store.Calls == before + 2 && ReferenceEquals(store.ChosenRepair, store.Repair)
-                    && store.RepairRevision == RecordingStore.Revision, "Proven repair path lost its row/revision or called new-selection API.");
-                Require(store.OwnerReadyAtConfirmation, "Proven repair committed without owner reactivation.");
+                    && store.RepairRevision == store.Revision - 1, "Proven repair path lost its row/revision or called new-selection API.");
+                Require(store.ModalReadyAtConfirmation, "Proven repair committed outside its active modal/lifetime.");
                 store.OfferNewChoice = false;
                 modal = await OpenAsync(owner, page);
                 VerifyOrder(modal, newFirst: false);
@@ -151,15 +154,96 @@ internal static class PluginReselectionChecks
                     Program.CaptureWindow(modal, "smoke-reauthorization-modal-" + currentLanguage + ".png");
                     await ClickAsync(modal, input, consent);
                 }
-                await ClosedAsync(page, modal);
+                await SavedAndCloseAsync(page, modal);
                 Require(store.Calls == beforeReauthorization + 1 && ReferenceEquals(store.ChosenReauthorization, store.Reauthorization) &&
-                    store.ReauthorizationRevision == RecordingStore.Revision && store.OwnerReadyAtConfirmation,
+                    store.ReauthorizationRevision == store.Revision - 1 && store.ModalReadyAtConfirmation,
                     "Permission review did not submit the exact frozen row/revision to its own API exactly once.");
+                // The single-row route stays in this same modal but does NOT retain B's old check.
+                store.ResetOffers();
+                int beforeSingles = store.Calls;
+                modal = await OpenAsync(owner, page);
+                using (MediaNativeInput input = new(modal))
+                {
+                    Button first = ReauthorizeConfirm(modal, store.Reauthorization.PluginId);
+                    await ClickAsync(modal, input, Ack(first));
+                    await ClickAsync(modal, input, Ack(ReauthorizeConfirm(modal, store.SecondReauthorization.PluginId)));
+                    await ClickAsync(modal, input, first);
+                    await SavedAsync(page, modal);
+                    Require(store.Calls == beforeSingles + 1 && !ReauthorizeConfirm(modal, store.SecondReauthorization.PluginId).IsEnabled,
+                        "Single save silently submitted or retained the other row's old consent.");
+                    Button second = ReauthorizeConfirm(modal, store.SecondReauthorization.PluginId);
+                    await ClickAsync(modal, input, Ack(second));
+                    await ClickAsync(modal, input, second);
+                }
+                await SavedAndCloseAsync(page, modal);
+                Require(store.Calls == beforeSingles + 2, "Two single saves did not complete in the same open modal.");
+                store.ResetOffers();
+                int beforeBatch = store.Calls;
+                long batchRevision = store.Revision;
+                modal = await OpenAsync(owner, page);
+                using (MediaNativeInput input = new(modal))
+                {
+                    Button first = ReauthorizeConfirm(modal, store.Reauthorization.PluginId);
+                    Button second = ReauthorizeConfirm(modal, store.SecondReauthorization.PluginId);
+                    Button batch = ById(modal, "BundledApprovalSubmit");
+                    Require(!batch.IsEnabled && Ack(first).IsChecked == false && Ack(second).IsChecked == false,
+                        "Batch submit introduced blanket or remembered consent.");
+                    await ClickAsync(modal, input, Ack(first));
+                    await ClickAsync(modal, input, Ack(second));
+                    store.HoldWrite = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                    try
+                    {
+                        await ClickAsync(modal, input, batch);
+                        Require(store.Calls == beforeBatch + 1 && !batch.IsEnabled && !Ack(first).IsEffectivelyEnabled,
+                            "The in-flight write did not lock consent and submit controls.");
+                        batch.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        first.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        Require(store.Calls == beforeBatch + 1, "Double submit admitted a second in-flight write.");
+                    }
+                    finally { store.HoldWrite.TrySetResult(); store.HoldWrite = null; }
+                }
+                await SavedAndCloseAsync(page, modal);
+                Require(store.Calls == beforeBatch + 2 && store.Revision == batchRevision + 2 &&
+                    store.ReauthorizationRevisions.TakeLast(2).SequenceEqual(new[] { batchRevision, batchRevision + 1 }) &&
+                    store.ModalReadyAtConfirmation, "Batch did not follow its own monotonic return-revision chain in the same modal.");
+                // Closing, same-code catalog reload and navigation must stop the frozen remainder,
+                // while still observing the already-admitted task (not claiming rollback).
+                foreach (string boundary in new[] { "close", "catalog", "deactivate" })
+                {
+                    store.ResetOffers();
+                    int beforeStop = store.Calls;
+                    modal = await OpenAsync(owner, page);
+                    using (MediaNativeInput input = new(modal))
+                    {
+                        await ClickAsync(modal, input, Ack(ReauthorizeConfirm(modal, store.Reauthorization.PluginId)));
+                        await ClickAsync(modal, input, Ack(ReauthorizeConfirm(modal, store.SecondReauthorization.PluginId)));
+                        TaskCompletionSource hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                        store.HoldWrite = hold;
+                        try
+                        {
+                            await ClickAsync(modal, input, ById(modal, "BundledApprovalSubmit"));
+                            Require(store.Calls == beforeStop + 1, "Stop fixture did not hold exactly one admitted write.");
+                            if (boundary == "close") await ClickAsync(modal, input, Cancel(modal));
+                            else if (boundary == "catalog")
+                            {
+                                Texts.InitializeWithoutBundlesForTests();
+                                Require(Texts.Language == currentLanguage, "Catalog reload changed the language code in the epoch test.");
+                                await Settle();
+                            }
+                            else { page.Deactivate(); await Settle(); }
+                            Require(modal.IsVisible, "Modal completed before its in-flight write was observed.");
+                        }
+                        finally { hold.TrySetResult(); store.HoldWrite = null; }
+                    }
+                    await ClosedAsync(page, modal);
+                    Require(store.Calls == beforeStop + 1, "Invalidated modal admitted a remaining frozen action: " + boundary);
+                    if (boundary == "deactivate") await page.ActivateAsync();
+                }
                 Console.WriteLine("PLUGIN_REAUTHORIZATION " + JsonSerializer.Serialize(new { result = "pass", language = currentLanguage,
-                    explicitSourceAndScopedFilterRights = true, uncheckedUncheckEscape = true, exactRowRevision = true, ownerReactivated = true }));
+                    explicitSourceAndScopedFilterRights = true, uncheckedUncheckEscape = true, exactRowRevision = true, activeModalAdmission = true, batchOwnRevisionChain = true, singleConsentReset = true, inFlightCloseCatalogDeactivate = true }));
                 Console.WriteLine("PLUGIN_RESELECTION " + JsonSerializer.Serialize(new { result = "pass", language = currentLanguage,
                     backend = "private Xvfb/XTest; passive profile-store decorator", exactConfiguration = true,
-                    consentCancelEscapeBlockedLanguageDeactivate = true, provenRepair = true, legacyBlockedRows = 15, newChoicesFirst = true, ownerReactivated = true, forbiddenCalls = fixture.ForbiddenCalls }));
+                    consentCancelEscapeBlockedLanguageDeactivate = true, provenRepair = true, legacyBlockedRows = 15, newChoicesFirst = true, activeModalAdmission = true, forbiddenCalls = fixture.ForbiddenCalls }));
             }
             Require(fixture.ForbiddenCalls == 0, "Reselection UI invoked compiler, worker, describe or network services.");
         }
@@ -232,6 +316,22 @@ internal static class PluginReselectionChecks
             return point is { } p && p.Y >= 0 && p.Y + control.Bounds.Height <= window.ClientSize.Height && control.Bounds.Width > 0; });
         await input.ClickAsync(control); await Settle();
     }
+    private static Button ById(Window modal, string id) => Buttons(modal).Single(b => AutomationProperties.GetAutomationId(b) == id);
+    private static async Task SavedAsync(PluginsPage page, Window modal)
+    {
+        await Program.WaitUntilAsync(() => modal.IsVisible && ById(modal, "BundledApprovalReload").IsEnabled &&
+            modal.GetVisualDescendants().OfType<TextBlock>().Any(t => AutomationProperties.GetAutomationId(t) == "BundledApprovalStatus" &&
+                t.Text == Texts.T("plugins.approval.reviewAgain")));
+        Require(page.IsBusy && modal.IsVisible, "Saving prematurely closed the modal or ended the page operation.");
+        Require(modal.GetVisualDescendants().OfType<CheckBox>().All(ack => ack.IsChecked == false),
+            "A save retained unconsumed consent instead of requiring a new explicit check.");
+    }
+    private static async Task SavedAndCloseAsync(PluginsPage page, Window modal)
+    {
+        await SavedAsync(page, modal);
+        using (MediaNativeInput input = new(modal)) await ClickAsync(modal, input, Cancel(modal));
+        await ClosedAsync(page, modal);
+    }
     private static async Task ClosedAsync(PluginsPage page, Window modal)
     { await Program.WaitUntilAsync(() => !modal.IsVisible && !page.IsBusy); await Settle(); }
     private static async Task Settle() => await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -239,18 +339,23 @@ internal static class PluginReselectionChecks
 
     private sealed class RecordingStore(IPluginProfileStore inner) : IPluginProfileStore
     {
-        internal const long Revision = 71029;
+        internal long Revision { get; private set; } = 71029;
+        private readonly HashSet<string> saved = new(StringComparer.Ordinal);
+        internal void ResetOffers() => saved.Clear();
+        internal TaskCompletionSource? HoldWrite { get; set; }
+        internal List<long> ReauthorizationRevisions { get; } = new();
         internal const string Configuration = "{\n  \"revision\": \"settings ü exact\",\n  \"pluginSettings\": {\"label\": \" spaces  and \\\"quotes\\\" \"},\n  \"sourceSettings\": {\"pux-source\": {\"limit\": 17}},\n  \"filterSettings\": {},\n  \"reviewTail\": \"END exact configuration 漢字\"\n}";
         internal BundledCandidateReselection Row { get; } = new("new-explicit-choice", "old-id ü", "new-id ü", "delivered-slot", "/old location/ü.cs", "/new location/漢.cs", "old-execution", "new-execution", Configuration, null);
         internal BundledCandidateReselection Blocked { get; } = new("blocked-choice", "pinned-old", "pinned-new", "slot-blocked", "/old", "/new", "old", "new", "{\"blocked\":true}", "pinned");
         internal BundledCandidateRepair Repair { get; } = new("proven-repair", "proven-old", "proven-new", "proven-slot", "/proven/old", "/proven/new", "execution-old", "execution-new", true, null);
-        internal BundledCandidateRepair Reauthorization { get; } = CreateReauthorization();
-        private static BundledCandidateRepair CreateReauthorization()
+        internal BundledCandidateRepair Reauthorization { get; } = CreateReauthorization("reauthorize-plugin");
+        internal BundledCandidateRepair SecondReauthorization { get; } = CreateReauthorization("reauthorize-second");
+        private static BundledCandidateRepair CreateReauthorization(string pluginId)
         {
             string json = Encoding.UTF8.GetString(SdkJson.Serialize(new BundledRepairPermissions(
-                [new("reauthorize-plugin", "dimensions", new("filter-source", "board-exact", "rule-exact"), FilterDataAccess.OriginalImage, 9)],
+                [new(pluginId, "dimensions", new("filter-source", "board-exact", "rule-exact"), FilterDataAccess.OriginalImage, 9)],
                 ["source-with-md5-exception"])));
-            return new("reauthorize-plugin", "old-reauthorize", "new-reauthorize", "slot", "/old", "/new", "old-execution", "new-execution", true, "inherited-grants")
+            return new(pluginId, "old-reauthorize", "new-reauthorize", "slot", "/old", "/new", "old-execution", "new-execution", true, "inherited-grants")
             {
                 PermissionReviewJson = json,
                 PermissionFingerprint = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(json)))
@@ -259,11 +364,11 @@ internal static class PluginReselectionChecks
         internal BundledCandidateRepair? ChosenReauthorization { get; private set; }
         internal long ReauthorizationRevision { get; private set; }
         internal bool OfferNewChoice { get; set; } = true;
-        internal Func<bool>? OwnerReady { get; set; }
-        internal bool OwnerReadyAtConfirmation { get; private set; }
+        internal Func<bool>? ModalReady { get; set; }
+        internal bool ModalReadyAtConfirmation { get; private set; }
         internal IReadOnlyList<BundledCandidateRepair> RepairRows => Enumerable.Range(0, 15)
             .Select(i => Repair with { PluginId = "legacy-blocked-" + i, BlockedReason = "unproven-history" })
-            .Append(Repair).Append(Reauthorization).ToArray();
+            .Append(Repair).Append(Reauthorization).Append(SecondReauthorization).Where(row => !saved.Contains(row.PluginId)).ToArray();
         internal int Calls { get; private set; }
         internal BundledCandidateReselection? Chosen { get; private set; }
         internal long ChosenRevision { get; private set; }
@@ -271,15 +376,27 @@ internal static class PluginReselectionChecks
         internal long RepairRevision { get; private set; }
         public event Action<PluginLifecycleChange>? LifecycleChanged { add => inner.LifecycleChanged += value; remove => inner.LifecycleChanged -= value; }
         public event Action<PluginGrantChange>? GrantChanged { add => inner.GrantChanged += value; remove => inner.GrantChanged -= value; }
-        public Task<PluginProfileSnapshot> ReadAsync(CancellationToken cancellationToken = default) => inner.ReadAsync(cancellationToken);
+        public async Task<PluginProfileSnapshot> ReadAsync(CancellationToken cancellationToken = default) =>
+            (await inner.ReadAsync(cancellationToken)) with { Revision = Revision };
         public Task<BundledCandidateRepairPreview> PreviewBundledRepairsAsync(CancellationToken cancellationToken = default) => Task.FromResult(new BundledCandidateRepairPreview(Revision, RepairRows));
-        public Task<BundledCandidateReselectionPreview> PreviewBundledReselectionsAsync(CancellationToken cancellationToken = default) => Task.FromResult(new BundledCandidateReselectionPreview(Revision, new[] { OfferNewChoice ? Row : Row with { BlockedReason = "unproven-configuration" }, Blocked }));
+        public Task<BundledCandidateReselectionPreview> PreviewBundledReselectionsAsync(CancellationToken cancellationToken = default) => Task.FromResult(new BundledCandidateReselectionPreview(Revision, new[] { OfferNewChoice ? Row : Row with { BlockedReason = "unproven-configuration" }, Blocked }.Where(row => !saved.Contains(row.PluginId)).ToArray()));
         public Task<PluginProfileSnapshot> ConfirmBundledRepairAsync(BundledCandidateRepair repair, long expectedRevision, CancellationToken cancellationToken = default)
-        { cancellationToken.ThrowIfCancellationRequested(); OwnerReadyAtConfirmation = OwnerReady?.Invoke() == true; Calls++; ChosenRepair = repair; RepairRevision = expectedRevision; return ReadAsync(cancellationToken); }
+        { ChosenRepair = repair; RepairRevision = expectedRevision; return CommitAsync(repair.PluginId, expectedRevision, cancellationToken); }
         public Task<PluginProfileSnapshot> ReauthorizeBundledRepairAsync(BundledCandidateRepair repair, long expectedRevision, CancellationToken cancellationToken = default)
-        { cancellationToken.ThrowIfCancellationRequested(); OwnerReadyAtConfirmation = OwnerReady?.Invoke() == true; Calls++; ChosenReauthorization = repair; ReauthorizationRevision = expectedRevision; return ReadAsync(cancellationToken); }
+        { ChosenReauthorization = repair; ReauthorizationRevision = expectedRevision; ReauthorizationRevisions.Add(expectedRevision); return CommitAsync(repair.PluginId, expectedRevision, cancellationToken); }
         public Task<PluginProfileSnapshot> ConfirmBundledReselectionAsync(BundledCandidateReselection selection, long expectedRevision, CancellationToken cancellationToken = default)
-        { cancellationToken.ThrowIfCancellationRequested(); OwnerReadyAtConfirmation = OwnerReady?.Invoke() == true; Calls++; Chosen = selection; ChosenRevision = expectedRevision; return ReadAsync(cancellationToken); }
+        { Chosen = selection; ChosenRevision = expectedRevision; return CommitAsync(selection.PluginId, expectedRevision, cancellationToken); }
+        private async Task<PluginProfileSnapshot> CommitAsync(string pluginId, long expectedRevision, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            if (expectedRevision != Revision) throw new PluginProfileConflictException(expectedRevision, Revision);
+            ModalReadyAtConfirmation = ModalReady?.Invoke() == true;
+            Require(ModalReadyAtConfirmation, "A write was admitted without the active owned modal and page lifetime.");
+            Calls++;
+            if (HoldWrite is { } hold) await hold.Task;
+            saved.Add(pluginId); Revision++;
+            return await ReadAsync(token);
+        }
         private static Task<PluginProfileSnapshot> Forbidden() => throw new InvalidOperationException("Unexpected UI mutation API.");
         public Task<PluginProfileSnapshot> ObserveCandidateAsync(PluginCandidateObservation candidate, long expectedRevision, CancellationToken cancellationToken = default) => Forbidden();
         public Task<PluginProfileSnapshot> ApplyStartupAsync(IReadOnlyList<PluginCandidateObservation> candidates, long expectedRevision, CancellationToken cancellationToken = default) => Forbidden();

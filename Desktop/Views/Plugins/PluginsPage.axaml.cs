@@ -112,21 +112,27 @@ public partial class PluginsPage : UserControl
         else C<ComboBox>("PluginCategory").Focus();
     }
     private T C<T>(string name) where T : Control => this.FindControl<T>(name)!;
-    private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() =>
+    private void OnLanguageChanged(object? sender, EventArgs e)
     {
-        if (_ended) return;
-        CloseBundledRepairPreview();
-        // These transient host-owned surfaces materialize localized text. Do not leave
-        // a copied-status or discard confirmation in the previous language while the
-        // selected plugin/draft itself is retained.
-        C<TextBlock>("PluginTechnicalCopyStatus").Text = string.Empty;
-        CancelDiscardConfirmation();
-        // Texts.Changed also reloads catalogs without changing Texts.Language.
-        // The menu contains materialized labels/reasons, so its language-code
-        // guard alone cannot invalidate that old catalog snapshot.
-        ClosePluginActionMenu();
-        Localize(); RenderError(); RenderList(); RenderDetails(); RenderPluginProbeResult();
-    });
+        // Invalidate consent synchronously, including same-language catalog reloads.
+        Interlocked.Increment(ref _migrationCatalogEpoch);
+        _migrationApproval?.Stop();
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_ended) return;
+            CloseBundledRepairPreview();
+            // These transient host-owned surfaces materialize localized text. Do not leave
+            // a copied-status or discard confirmation in the previous language while the
+            // selected plugin/draft itself is retained.
+            C<TextBlock>("PluginTechnicalCopyStatus").Text = string.Empty;
+            CancelDiscardConfirmation();
+            // Texts.Changed also reloads catalogs without changing Texts.Language.
+            // The menu contains materialized labels/reasons, so its language-code
+            // guard alone cannot invalidate that old catalog snapshot.
+            ClosePluginActionMenu();
+            Localize(); RenderError(); RenderList(); RenderDetails(); RenderPluginProbeResult();
+        });
+    }
     private void Localize()
     {
         foreach ((string name, string key) in new[]
