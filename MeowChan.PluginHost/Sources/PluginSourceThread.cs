@@ -148,18 +148,24 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
                     // Original source identities remain byte-for-byte compatible with 0.9.
                     string mediaId = attachment.MediaId;
                     string extension = attachment.Extension ?? Path.GetExtension(attachment.Url.AbsolutePath);
-                    destination = StorageLayout.GetPluginMediaPath(OutputDirectory, Source.Name, Board.BoardCode, ThreadId, mediaId, extension, attachment.Variant);
-                    string? legacy = attachment.Variant != "original" ? null : Source.Name switch
+                    try { destination = StorageLayout.GetPluginMediaPath(OutputDirectory, Source.Name, Board.BoardCode, ThreadId, mediaId, extension, attachment.Variant); }
+                    // Host validation of one attachment is deterministic: skip and mark that item, never fail the snapshot.
+                    // Corrected metadata on a later poll is cleared by content selection (ThreadContentRuntime).
+                    catch (ArgumentException rejected) { ReportRejectedMedia(mediaId, attachment.Variant, null, "Rejected attachment metadata: " + rejected.Message); }
+                    if (destination != null)
                     {
-                        "4chan" => LegacyPath(attachment.OriginalFileName),
-                        "8kun" => LegacyPath(mediaId + extension),
-                        _ => null
-                    };
-                    string acquisitionKey = MediaRevisionKeys.CreateAcquisitionKey(resource, provider!);
-                    if (!references.TryGetValue(acquisitionKey, out List<AttachmentRevisionReference>? acquisitionReferences))
-                        references[acquisitionKey] = acquisitionReferences = new();
-                    acquisitionReferences.Add(new(resource, post.PostId, attachment.Position, attachmentRevisionKey!));
-                    candidates[MediaKey(mediaId, attachment.Variant)] = (attachment, destination, legacy, acquisitionKey);
+                        string? legacy = attachment.Variant != "original" ? null : Source.Name switch
+                        {
+                            "4chan" => LegacyPath(attachment.OriginalFileName),
+                            "8kun" => LegacyPath(mediaId + extension),
+                            _ => null
+                        };
+                        string acquisitionKey = MediaRevisionKeys.CreateAcquisitionKey(resource, provider!);
+                        if (!references.TryGetValue(acquisitionKey, out List<AttachmentRevisionReference>? acquisitionReferences))
+                            references[acquisitionKey] = acquisitionReferences = new();
+                        acquisitionReferences.Add(new(resource, post.PostId, attachment.Position, attachmentRevisionKey!));
+                        candidates[MediaKey(mediaId, attachment.Variant)] = (attachment, destination, legacy, acquisitionKey);
+                    }
                 }
                 attachments.Add(new CapturedAttachment(attachment.Position, attachment.MediaId, attachment.Variant,
                     attachment.Url?.AbsoluteUri, attachment.OriginalFileName, destination, attachment.ExpectedSize,
