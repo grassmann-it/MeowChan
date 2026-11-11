@@ -187,7 +187,7 @@ internal static class ReaderNavigationOverlayChecks
             "Reader navigation is not inset at the lower right above the page bar.");
         CheckCrossGeometry(window, page, pad);
         CheckPaginationGeometry(window, page, pageBar);
-        WrapPanel toolbar = page.FindControl<WrapPanel>("ReaderToolbar")!;
+        ActionToolBar toolbar = page.FindControl<ActionToolBar>("ReaderToolbar")!;
         CheckToolbarGeometry(window, page, toolbar);
         ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
         ScrollViewer scroll = posts.GetVisualDescendants().OfType<ScrollViewer>().First();
@@ -338,40 +338,43 @@ internal static class ReaderNavigationOverlayChecks
     // 99.99999999999994 DIP. Item intersections use the same subtraction.
     private static bool ClippedSizeAtLeast(double actual, double minimum) => actual >= minimum - GeometryEpsilonDip;
 
-    private static void CheckToolbarGeometry(MainWindow window, ArchivePage page, WrapPanel toolbar)
+    // Overflow candidates by usefulness: the trailing ones move into More first.
+    private static readonly string[] ReaderToolbarOverflowOrder = ["ReaderFindOpen", "ArchiveReaderFullscreen", "ArchiveHistoryBack", "ReaderFilenameSearchOpen", "ReaderHashSearchOpen", "ExportArchiveButton"];
+
+    private static void CheckToolbarGeometry(MainWindow window, ArchivePage page, ActionToolBar toolbar)
     {
         Rect area = Bounds(toolbar, window);
         Rect client = new(default(Point), window.ClientSize);
-        var buttons = toolbar.Children.OfType<Button>().Where(button => button.IsEffectivelyVisible)
+        Panel direct = toolbar.DirectHost ?? throw new InvalidOperationException("Reader toolbar has no direct action host.");
+        Panel? overflowHost = toolbar.OverflowHost;
+        var buttons = direct.Children.OfType<Button>().Where(button => button.IsEffectivelyVisible)
             .Select(button => (Button: button, Box: Bounds(button, window)))
-            .OrderBy(item => item.Box.Top).ThenBy(item => item.Box.Left).ToArray();
+            .OrderBy(item => item.Box.Left).ToArray();
+        string[] overflowed = overflowHost?.Children.OfType<Control>().Where(item => item.IsVisible).Select(item => item.Name ?? "").ToArray() ?? [];
+        string Describe() => "client width " + window.ClientSize.Width + ", toolbar width " + area.Width.ToString("0.#") + "; direct "
+            + string.Join(", ", buttons.Select(item => item.Button.Name + "@" + item.Box.Left.ToString("0") + "/" + item.Box.Top.ToString("0") + "=" + item.Box.Width.ToString("0.#")))
+            + "; overflow " + string.Join(", ", overflowed) + ".";
         Require(buttons.Length > 0, "Reader toolbar has no visible actions.");
-        var rows = new List<List<Rect>>();
         foreach (var item in buttons)
         {
             Rect box = item.Box;
-            Require(box.Width > 0 && Math.Abs(box.Height - 32) <= 1
+            Require(box.Width > 0 && Math.Abs(box.Height - 32) <= 1 && Math.Abs(box.Top - buttons[0].Box.Top) <= 1
                 && Contains(area, box) && Contains(client, box),
-                item.Button.Name + " is clipped or no longer a compact toolbar button.");
-            if (rows.Count == 0 || Math.Abs(rows[^1][0].Top - box.Top) > 1) rows.Add(new List<Rect>());
-            rows[^1].Add(box);
+                item.Button.Name + " is clipped, wraps or is no longer a compact toolbar button: " + Describe());
             if (item.Button.Content is Control content)
                 Require(Contains(box, Bounds(content, window)), item.Button.Name + " clips its visible icon or label.");
         }
-        Require(rows.Count <= 2 && (window.ClientSize.Width < 1304 || rows.Count == 1),
-            "Reader toolbar needs more than two narrow rows or wraps in the wide layout.");
-        foreach (List<Rect> row in rows)
-        {
-            row.Sort((left, right) => left.Left.CompareTo(right.Left));
-            for (int index = 1; index < row.Count; index++)
-                Require(Math.Abs(row[index].Left - row[index - 1].Right - 8) <= 1,
-                    "Visible reader toolbar actions lost their 8-DIP horizontal spacing.");
-        }
-        if (rows.Count == 2)
-            Require(Math.Abs(rows[1].Min(box => box.Top) - rows[0].Max(box => box.Bottom) - 6) <= 1,
-                "Wrapped reader toolbar rows lost their 6-DIP vertical spacing.");
-        Require(Math.Abs(area.Height - (rows.Count * 32 + (rows.Count - 1) * 6)) <= 1,
-            "Reader toolbar reserves unexplained vertical space.");
+        for (int index = 1; index < buttons.Length; index++)
+            Require(Math.Abs(buttons[index].Box.Left - buttons[index - 1].Box.Right - 8) <= 1,
+                "Visible reader toolbar actions lost their 8-DIP horizontal spacing: " + Describe());
+        Require(Math.Abs(area.Height - 32) <= 1, "Reader toolbar reserves unexplained vertical space: " + Describe());
+        // Only secondary actions may overflow, and always the least useful ones first.
+        Require(overflowed.All(ReaderToolbarOverflowOrder.Contains)
+            && overflowed.SequenceEqual(ReaderToolbarOverflowOrder.Where(overflowed.Contains))
+            && ReaderToolbarOverflowOrder.SkipWhile(name => !overflowed.Contains(name))
+                .All(name => overflowed.Contains(name) || page.FindControl<Button>(name)?.IsVisible != true),
+            "Reader toolbar moved a primary action into More or not the least useful ones first: " + Describe());
+        Require(overflowed.Length == 0 || toolbar.More?.IsEffectivelyVisible == true, "Overflowed reader actions are unreachable without More: " + Describe());
         for (int first = 0; first < buttons.Length; first++)
             for (int second = first + 1; second < buttons.Length; second++)
             {
@@ -380,11 +383,14 @@ internal static class ReaderNavigationOverlayChecks
             }
         Button history = page.FindControl<Button>("ArchiveHistoryBack")!;
         string expected = CommandCatalog.Label("reader.history-back");
+        bool historyInMore = overflowed.Contains(history.Name);
+        // Narrow readers keep history behind More; its label and command semantics move with it.
         TextBlock? label = history.GetVisualDescendants().OfType<TextBlock>()
-            .FirstOrDefault(text => text.IsEffectivelyVisible && text.Text == expected);
-        Require(history.IsEffectivelyVisible && history.IsEffectivelyEnabled && history.Focusable
-            && label != null && label.Bounds.Width > 0 && label.DesiredSize.Width <= label.Bounds.Width + 1
-            && Contains(Bounds(history, window), Bounds(label, window))
+            .FirstOrDefault(text => (historyInMore || text.IsEffectivelyVisible) && text.Text == expected);
+        Require(history.IsVisible && history.IsEffectivelyEnabled && history.Focusable && label != null
+            && (historyInMore ? overflowHost!.Children.Contains(history)
+                : history.IsEffectivelyVisible && label.Bounds.Width > 0 && label.DesiredSize.Width <= label.Bounds.Width + 1
+                    && Contains(Bounds(history, window), Bounds(label, window)))
             && AutomationProperties.GetName(history) == expected
             && ToolTip.GetTip(history) as string == CommandBindings.Tooltip("reader.history-back"),
             "Reader history lacks its visible, unclipped localized label or accessible command semantics.");
@@ -392,9 +398,9 @@ internal static class ReaderNavigationOverlayChecks
         {
             mode = window.SessionHost.Config.WorkspaceMode, language = Texts.Language,
             theme = Application.Current!.RequestedThemeVariant?.ToString(), client = window.ClientSize.ToString(),
-            scale = window.RenderScaling, bounds = area.ToString(), rows = rows.Count,
+            scale = window.RenderScaling, bounds = area.ToString(), overflow = overflowed,
             buttons = buttons.Select(item => new { name = item.Button.Name, bounds = item.Box.ToString() }).ToArray(),
-            historyLabel = label!.Text, historyLabelBounds = Bounds(label!, window).ToString()
+            historyLabel = label!.Text, historyInMore
         }));
     }
 

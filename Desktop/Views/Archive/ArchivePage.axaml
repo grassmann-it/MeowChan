@@ -218,25 +218,27 @@
                         <TextBlock x:Name="ArchiveReaderTitle" Grid.Column="1" Classes="section-title" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                         <Button x:Name="CapturePostsButton" Grid.Column="2" Click="OnCaptureClick" />
                     </Grid>
-                    <WrapPanel x:Name="ReaderToolbar" HorizontalAlignment="Left" ItemSpacing="8" LineSpacing="6">
-                        <WrapPanel.Styles><Style Selector="Button"><Setter Property="MinWidth" Value="38" /><Setter Property="Height" Value="32" /></Style></WrapPanel.Styles>
-                    <Button x:Name="ArchiveCloseReader" Tag="reader.close" Classes="localized" IsVisible="False" Click="OnCloseReaderClick" />
-                    <desktop:ArchiveThreadFavoriteButton x:Name="ArchiveCurrentThreadFavorite" />
-                    <Button x:Name="ReaderTagsOpen" Click="OnOpenThreadTags" />
-                    <Button x:Name="ArchiveOpenGallery" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
-                    <Button x:Name="ReaderFilenameSearchOpen" Click="OnFilenameSearchClick" />
-                    <Button x:Name="ReaderHashSearchOpen" Click="OnHashSearchClick" />
-                    <Button x:Name="ReaderFindOpen" Click="OnOpenThreadFind" />
-                    <Button x:Name="ArchiveReadPosts" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
-                    <Button x:Name="ArchiveGalleryReturn" Content="Back to gallery" IsVisible="False" Click="OnGalleryReturnClick" />
+                    <!-- Wide readers carry up to ten labelled actions; rarely used ones overflow into More instead of wrapping. -->
+                    <desktop:ActionToolBar x:Name="ReaderToolbar">
+                        <desktop:ActionToolBar.Styles><Style Selector=":is(Button)"><Setter Property="MinWidth" Value="38" /><Setter Property="Height" Value="32" /><Setter Property="Margin" Value="0,0,8,0" /></Style></desktop:ActionToolBar.Styles>
+                    <Button x:Name="ArchiveCloseReader" ursa:ToolBar.OverflowMode="Never" Tag="reader.close" Classes="localized" IsVisible="False" Click="OnCloseReaderClick" />
+                    <desktop:ArchiveThreadFavoriteButton x:Name="ArchiveCurrentThreadFavorite" ursa:ToolBar.OverflowMode="Never" />
+                    <Button x:Name="ReaderTagsOpen" ursa:ToolBar.OverflowMode="Never" Click="OnOpenThreadTags" />
+                    <Button x:Name="ArchiveOpenGallery" ursa:ToolBar.OverflowMode="Never" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
+                    <Button x:Name="ReaderFindOpen" ursa:ToolBar.OverflowMode="AsNeeded" Click="OnOpenThreadFind" />
+                    <Button x:Name="ArchiveReadPosts" ursa:ToolBar.OverflowMode="Never" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
+                    <Button x:Name="ArchiveGalleryReturn" ursa:ToolBar.OverflowMode="Never" Content="Back to gallery" IsVisible="False" Click="OnGalleryReturnClick" />
                     <!-- MEDIA103-NAV: shown instead of the gallery return while a "show in thread" from the Medien page can go back. -->
-                    <Button x:Name="ArchiveMediaReturn" Content="Back to media" IsVisible="False" Click="OnMediaReturnClick" />
-                    <Button x:Name="ArchiveReaderFullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
-                    <Button x:Name="ExportArchiveButton" Tag="archive.export" Classes="localized" Click="OnExportClick" />
+                    <Button x:Name="ArchiveMediaReturn" ursa:ToolBar.OverflowMode="Never" Content="Back to media" IsVisible="False" Click="OnMediaReturnClick" />
                     <!-- URSA-12: explicit skip preserves the displayed post on missing group targets. -->
-                    <Button x:Name="ReaderSkipUnavailableGroupMember" IsVisible="False" Click="OnSkipUnavailableGroupMember" />
-                    <Button x:Name="ArchiveHistoryBack" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
-                    </WrapPanel>
+                    <Button x:Name="ReaderSkipUnavailableGroupMember" ursa:ToolBar.OverflowMode="Never" IsVisible="False" Click="OnSkipUnavailableGroupMember" />
+                    <!-- Overflow candidates by usefulness (find in thread first, export last): later ones move into More first. -->
+                    <Button x:Name="ArchiveReaderFullscreen" ursa:ToolBar.OverflowMode="AsNeeded" Content="Full screen" Click="OnReaderFullscreenClick" />
+                    <Button x:Name="ArchiveHistoryBack" ursa:ToolBar.OverflowMode="AsNeeded" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
+                    <Button x:Name="ReaderFilenameSearchOpen" ursa:ToolBar.OverflowMode="AsNeeded" Click="OnFilenameSearchClick" />
+                    <Button x:Name="ReaderHashSearchOpen" ursa:ToolBar.OverflowMode="AsNeeded" Click="OnHashSearchClick" />
+                    <Button x:Name="ExportArchiveButton" ursa:ToolBar.OverflowMode="AsNeeded" Tag="archive.export" Classes="localized" Click="OnExportClick" />
+                    </desktop:ActionToolBar>
                     <TextBlock x:Name="ReaderGroupAvailabilityMessage" IsVisible="False" TextWrapping="Wrap" />
                     <StackPanel x:Name="ReaderFindBar" IsVisible="False" Spacing="4">
                         <WrapPanel ItemSpacing="6" LineSpacing="4">
