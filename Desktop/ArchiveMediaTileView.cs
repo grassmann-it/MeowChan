@@ -30,7 +30,19 @@ public sealed class ArchiveMediaTileView : UserControl
     private Rect _viewport;
     private readonly List<Visual> _visibilityAncestors = new();
     internal Func<ArchiveAssetRow, CancellationToken, Task<Bitmap?>> ThumbnailDecoder { get; set; }
-        = static (row, token) => ArchivePage.DecodeThumbnailAsync(row, token);
+        = static (row, token) => DecodeAsync(row, token, System.IO.Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1"));
+
+    // Saved-media tiles show the same local video poster as the reader's post
+    // attachments and the Medien page (cache keyed by the verified bytes); images
+    // keep the image decoder. Nothing is fetched or generated beyond the reader.
+    internal const int PosterWidth = 340, PosterHeight = 250;
+    internal bool HasThumbnail => _bitmap != null;
+    internal static bool UsesVideoPoster(ArchiveAssetRow row) =>
+        MeowChan.Gallery.SavedMediaTypes.Classify(row.Asset.OriginalFileName ?? row.Asset.Path) == MeowChan.Gallery.SavedMediaKind.Video;
+    internal static Task<Bitmap?> DecodeAsync(ArchiveAssetRow row, CancellationToken token, string posterCacheDirectory) =>
+        UsesVideoPoster(row)
+            ? VideoPosterCache.LoadAsync(row.Manifest, row.Asset, posterCacheDirectory, PosterWidth, PosterHeight, token)
+            : ArchivePage.DecodeThumbnailAsync(row, token);
 
     public ArchiveMediaTileView()
     {
