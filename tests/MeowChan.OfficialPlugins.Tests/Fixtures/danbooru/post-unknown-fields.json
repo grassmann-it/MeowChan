@@ -1,0 +1,14 @@
+{
+  "id": 6001,
+  "rating": "s",
+  "future_field": {"nested": [1, 2, {"deeper": true}], "text": "ignored"},
+  "pools": [1, 2, 3],
+  "variants": [{"type": "720x720", "url": "https://cdn.donmai.us/720x720/example.webp"}],
+  "media_asset": {"id": 1, "variants": []},
+  "has_children": false,
+  "tag_count_general": 4,
+  "up_score": 3,
+  "down_score": 0,
+  "file_ext": "gif",
+  "file_url": "https://cdn.donmai.us/original/66/00/example6001.gif"
+}

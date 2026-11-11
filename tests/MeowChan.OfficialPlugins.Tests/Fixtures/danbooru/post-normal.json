@@ -1,0 +1,23 @@
+{
+  "id": 2001,
+  "created_at": "2025-01-02T03:04:05.678-05:00",
+  "score": 25,
+  "source": "https://example.invalid/original/2001",
+  "md5": "0123456789abcdef0123456789abcdef",
+  "rating": "g",
+  "image_width": 2000,
+  "image_height": 1000,
+  "fav_count": 9,
+  "file_ext": "jpg",
+  "is_banned": false,
+  "is_deleted": false,
+  "tag_string_general": "landscape sky",
+  "tag_string_character": "",
+  "tag_string_copyright": "series_y",
+  "tag_string_artist": "artist_three",
+  "tag_string_meta": "absurdres",
+  "file_size": 987654,
+  "file_url": "https://cdn.donmai.us/original/01/23/0123456789abcdef0123456789abcdef.jpg",
+  "large_file_url": "https://cdn.donmai.us/sample/01/23/sample-0123456789abcdef0123456789abcdef.jpg",
+  "preview_file_url": "https://cdn.donmai.us/180x180/01/23/0123456789abcdef0123456789abcdef.jpg"
+}

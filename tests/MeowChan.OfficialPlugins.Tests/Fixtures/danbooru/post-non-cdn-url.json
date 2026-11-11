@@ -1,0 +1,8 @@
+{
+  "id": 7001,
+  "file_ext": "jpg",
+  "file_size": 1000,
+  "file_url": "https://images.example.invalid/original/7001.jpg",
+  "large_file_url": "http://cdn.donmai.us/sample/7001.jpg",
+  "preview_file_url": "https://cdn.donmai.us.example.invalid/180x180/7001.jpg"
+}

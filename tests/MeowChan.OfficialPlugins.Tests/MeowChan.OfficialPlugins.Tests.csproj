@@ -13,8 +13,10 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
     <ProjectReference Include="../../plugins/Official/FourChan/MeowChan.Plugin.FourChan.csproj" />
     <ProjectReference Include="../../plugins/Official/EightKun/MeowChan.Plugin.EightKun.csproj" />
+    <ProjectReference Include="../../plugins/Official/Danbooru/MeowChan.Plugin.Danbooru.csproj" />
     <ProjectReference Include="../../libmeowchan/libmeowchan.csproj" />
     <Using Include="Xunit" />
     <None Include="Fixtures/*.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures/danbooru/*.json;Fixtures/danbooru/*.html" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
