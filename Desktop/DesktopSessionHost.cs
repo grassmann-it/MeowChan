@@ -109,6 +109,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             _registry.RegisterProfileFinalWriteParticipant(_hostFinalWriteParticipant);
             _registry.ConfigureBoardAdmission(new MeowChan.Admission.BoardAdmissionStore(_profileLease.ProfileDirectory, _profileLease));
             _registry.StateChanged += OnRegistryChanged;
+            queue.MediaTagsCarriedOver += OnMediaTagsCarriedOver;
             Updates = updateSessionFactory?.Invoke(_profileLease.ProfileDirectory, Config)
                 ?? new UpdateSession(_profileLease.ProfileDirectory, Config);
         }
@@ -826,6 +827,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             await Observe(() => _content.DisposeAsync().AsTask(), ownsLifetime: true).ConfigureAwait(false);
             if (Plugins != null) await Observe(() => Plugins.DisposeAsync().AsTask(), ownsLifetime: true).ConfigureAwait(false);
             _registry.StateChanged -= OnRegistryChanged;
+            _downloadQueue.MediaTagsCarriedOver -= OnMediaTagsCarriedOver;
             _ownersQuiescent = quiescent;
             lock (_lifecycle) { if (quiescent) _state = DesktopSessionState.Stopped; }
         }

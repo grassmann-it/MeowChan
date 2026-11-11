@@ -226,6 +226,51 @@ public sealed class ProviderMd5DropArchiveTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task AQueueWriteToTheTagFileIsNeverOverwrittenByTheHostAndTheViewRefreshesWithoutARestart()
+    {
+        using TempProfile profile = new();
+        new Config { DownloadPath = Path.Combine(profile.Path, "media") }.SaveConfig(profile.Path);
+        (PrivateMediaTagTarget old, TagId tag, _, _) = await CrashedProfileAsync(profile.Path);
+        DesktopSessionHost host = new(profile.Path, Array.Empty<IImageBoard>());
+        try
+        {
+            await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(30));
+            await host.MediaTagReconcileForTests.WaitAsync(TimeSpan.FromSeconds(30));
+            PrivateTagStoreSnapshot viewed = host.GetPublishedPrivateTagSnapshot().Snapshot!;
+            PrivateMediaTagTarget current = viewed.MediaAssignments.Select(item => item.Target)
+                .Single(target => target.Reference.RevisionKey != old.Reference.RevisionKey);
+
+            // A writer that does not go through the host (the download queue) changes the file: define and assign a tag.
+            ProfileLease lease = host.ProfileLeaseForTests;
+            PrivateTagStore direct = new(profile.Path, lease);
+            TagId dog;
+            using (ProfileAdmissionToken admission = lease.Admission.EnterOrdinaryWriter())
+            {
+                dog = direct.DefineAdmitted("dog", admission).Tag;
+                direct.SetMediaAdmitted(dog, current, true, admission);
+            }
+            Assert.True(direct.ReadSnapshot().Revision > viewed.Revision);
+            // The published view is older until it is refreshed, and a host write built on it is refused, not applied over the new state.
+            Assert.Equal(viewed.Revision, host.GetPublishedPrivateTagSnapshot().Snapshot!.Revision);
+            await Assert.ThrowsAsync<PrivateTagStoreException>(() => host.SetMediaTagsAsync(tag, [current], false, viewed.Revision));
+
+            // A host write without an expected revision starts from the file, so the queue's write survives it.
+            PrivateTagCommit bird = await host.DefinePrivateTagAsync("bird");
+            Assert.Equal(dog, Assert.Single(bird.Snapshot.TagsOf(current), item => item.Id == dog).Id);
+            Assert.NotNull(bird.Snapshot.Find(dog));
+            Assert.Contains(tag, bird.Snapshot.TagsOf(current).Select(item => item.Id));
+
+            // And the other way round: a write the host did not see is shown after the refresh the queue triggers.
+            using (ProfileAdmissionToken admission = lease.Admission.EnterOrdinaryWriter())
+                direct.SetMediaAdmitted(bird.Tag, current, true, admission);
+            Assert.DoesNotContain(bird.Tag, host.GetPublishedPrivateTagSnapshot().Snapshot!.TagsOf(current).Select(item => item.Id));
+            await host.RefreshPublishedPrivateTagsAsync().WaitAsync(TimeSpan.FromSeconds(30));
+            Assert.Contains(bird.Tag, host.GetPublishedPrivateTagSnapshot().Snapshot!.TagsOf(current).Select(item => item.Id));
+        }
+        finally { await host.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(30)); }
+    }
+
+    [Fact]
     public async Task ATagHandOverLostToAStopIsCompletedByTheNextCaptureOfTheThread()
     {
         using TempProfile profile = new();
@@ -233,6 +278,8 @@ public sealed class ProviderMd5DropArchiveTests(ITestOutputHelper output)
         using (ProfileLease lease = ProfileLease.Acquire(profile.Path))
             Assert.Single(new PrivateTagStore(profile.Path, lease).ReadSnapshot().MediaAssignments);
         Env restarted = await Env.StartAsync(profile.Path, md5: false, media);
+        int announced = 0;
+        restarted.Queue.MediaTagsCarriedOver += () => Interlocked.Increment(ref announced);
         try
         {
             IThread thread = restarted.Registry.Threads.SingleOrDefault() ?? (await restarted.Registry.AddAsync(ThreadUrl)).Thread!;
@@ -241,6 +288,8 @@ public sealed class ProviderMd5DropArchiveTests(ITestOutputHelper output)
             await Task.Delay(300);
             await restarted.Queue.WaitForIdleAsync().WaitAsync(TimeSpan.FromSeconds(20));
             PrivateTagStoreSnapshot snapshot = new PrivateTagStore(profile.Path, restarted.Lease).ReadSnapshot();
+            // The queue told its host that it changed the tags, so a host can refresh its view.
+            Assert.True(Volatile.Read(ref announced) >= 1);
             output.WriteLine("media requests: " + media.Total + ", assignments: " + snapshot.MediaAssignments.Count);
             Assert.Equal(2, snapshot.MediaAssignments.Count);
             Assert.Equal(tag, Assert.Single(snapshot.TagsOf(snapshot.MediaAssignments.Select(item => item.Target)

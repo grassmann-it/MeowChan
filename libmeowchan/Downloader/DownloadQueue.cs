@@ -95,6 +95,13 @@ public partial class DownloadQueue
     }
     public event Action<string>? PersistenceFailed;
 
+    /// <summary>
+    /// Raised after the queue itself changed the profile's private media tags (a carry-over to a new revision
+    /// key). The tag file is always written read-modify-write under the profile lease, so no update is lost;
+    /// the event lets a host refresh the tag view it published earlier.
+    /// </summary>
+    internal event Action? MediaTagsCarriedOver;
+
     public int MaxParallelDownloads
     {
         get
@@ -1272,7 +1279,8 @@ public partial class DownloadQueue
         {
             ProfileLease? lease = ResolveExecutionProfileLease(item);
             if (lease == null) return;
-            if (committed != null) Tags.MediaTagKeyCarryOver.Apply(lease, admission, committed.TagHandovers, CancellationToken.None);
+            bool changed = committed != null && Tags.MediaTagKeyCarryOver.Apply(lease, admission, committed.TagHandovers, CancellationToken.None);
+            try { if (changed) MediaTagsCarriedOver?.Invoke(); } catch (Exception observer) { _logger.Debug(observer, "A media tag observer failed."); }
             ResourceId thread = item.AttachmentReferences[0].Resource;
             if (!_tagReconciledThreads.TryAdd(thread, 0)) return;
             Tags.PrivateTagStoreSnapshot tags = new Tags.PrivateTagStore(lease.ProfileDirectory, lease).ReadSnapshot();
@@ -1283,7 +1291,8 @@ public partial class DownloadQueue
             IReadOnlyList<Tags.MediaTagKeyHandover> pending = await Tags.MediaTagKeyCarryOver
                 .FindPendingForThreadAsync(thread, keys, (_, _) => Task.FromResult<IReadOnlyList<string>>(new[] { directory }), CancellationToken.None)
                 .ConfigureAwait(false);
-            Tags.MediaTagKeyCarryOver.Apply(lease, admission, pending, CancellationToken.None);
+            if (Tags.MediaTagKeyCarryOver.Apply(lease, admission, pending, CancellationToken.None))
+                try { MediaTagsCarriedOver?.Invoke(); } catch (Exception observer) { _logger.Debug(observer, "A media tag observer failed."); }
         }
         catch (Exception failure)
         {

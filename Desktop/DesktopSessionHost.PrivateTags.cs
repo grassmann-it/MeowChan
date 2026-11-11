@@ -100,6 +100,27 @@ internal sealed partial class DesktopSessionHost
         }
     }
 
+    /// <summary>
+    /// The download queue wrote a media-tag carry-over straight to the tag file (read-modify-write under the
+    /// lease, so it cannot overwrite or be overwritten by a host write). Refresh the published view from disk so
+    /// the UI shows the carried tags without a restart. A host write from an older view still fails safe: the
+    /// revision it expected is stale.
+    /// </summary>
+    private void OnMediaTagsCarriedOver() => _ = RefreshPublishedPrivateTagsAsync();
+
+    internal Task RefreshPublishedPrivateTagsAsync() => Task.Run(() =>
+    {
+        try
+        {
+            if (_disposed) return;
+            if (GetPrivateTagSnapshot().State == PrivateTagLoadState.Ready) SignalChanged();
+        }
+        catch (ObjectDisposedException) { /* Stopped meanwhile. */ }
+        catch (Exception error) { _logger.Debug(error, "Could not refresh the private tag view."); }
+    });
+
+    internal ProfileLease ProfileLeaseForTests => _profileLease;
+
     private Task? _mediaTagReconcile;
 
     /// <summary>The background reconcile started after Ready; tests await it, shutdown drains it.</summary>
