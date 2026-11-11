@@ -11,6 +11,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using MeowChan.Archive;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop;
@@ -48,19 +49,19 @@ internal sealed class InterruptedTransfersDialog : Window
         AutomationProperties.SetLiveSetting(_discard, AutomationLiveSetting.Polite);
         _discard.Click += (_, _) => OnDiscard();
         _keep.Click += (_, _) => Close();
-        StackPanel body = new() { Spacing = 12, Margin = new Thickness(16) };
-        body.Children.Add(_heading); body.Children.Add(_explanation); body.Children.Add(_rows);
+        // Header: title and what is at stake; body: the interrupted operations; footer: Discard/Keep.
+        StackPanel header = new() { Spacing = 12 };
+        header.Children.Add(_heading); header.Children.Add(_explanation);
+        StackPanel body = new() { Spacing = 12, Margin = new Thickness(16, 0, 16, 16) };
+        body.Children.Add(_rows);
         WrapPanel actions = new() { ItemSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         actions.Children.Add(_discard); actions.Children.Add(_keep);
         Border footer = new() { Child = actions, Margin = new Thickness(16, 0, 16, 16) };
         footer.Classes.Add("workspace-dialog-footer");
-        Grid layout = new() { RowDefinitions = new RowDefinitions("48,*,Auto") };
+        Grid layout = new() { RowDefinitions = new RowDefinitions("48,*") };
         layout.Children.Add(_chrome);
-        ScrollViewer scroll = new() { Content = body,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-        layout.Children.Add(scroll); Grid.SetRow(scroll, 1);
-        layout.Children.Add(footer); Grid.SetRow(footer, 2);
+        Grid frame = DialogFrame.Build(header, body, footer);
+        layout.Children.Add(frame); Grid.SetRow(frame, 1);
         Content = layout;
         Opened += (_, _) => { _chrome.Attach(this); _keep.Focus(); };
         Closed += (_, _) => { Texts.Changed -= OnLanguageChanged; _decision.TrySetResult(false); };

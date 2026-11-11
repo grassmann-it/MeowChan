@@ -11,6 +11,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Transfer;
 
@@ -89,16 +90,19 @@ internal sealed class NativeTransferImportDialog : Window
         _source.Classes.Add("workspace-meta");
         _state.Classes.Add("workspace-meta");
         _summary.Classes.Add("workspace-meta");
-        StackPanel body = new() { Spacing = 12, Margin = new Thickness(16) };
-        body.Children.Add(_heading);
-        body.Children.Add(_source);
+        // Header: title and chosen source; error strip: the local read/plan/apply error; body: the New/Merge
+        // scope (frozen once a file is chosen), inventory, plan/result and privacy notice; footer: the polite
+        // state line above the unchanged action order Choose/Cancel/Apply/Recheck/Conflicts/Close. The scope
+        // stays in the body so the minimum-size window still leaves the plan readable.
+        StackPanel header = new() { Spacing = 12 };
+        header.Children.Add(_heading);
+        header.Children.Add(_source);
+        StackPanel body = new() { Spacing = 12, Margin = new Thickness(16, 0, 16, 16) };
         body.Children.Add(_scopeLabel);
         body.Children.Add(_scope);
-        body.Children.Add(_state);
         body.Children.Add(_summary);
         body.Children.Add(_details);
         body.Children.Add(_notice);
-        body.Children.Add(_error);
 
         WrapPanel actions = new()
         {
@@ -112,21 +116,17 @@ internal sealed class NativeTransferImportDialog : Window
         actions.Children.Add(_recheck);
         actions.Children.Add(_conflicts);
         actions.Children.Add(_close);
-        Border footer = new() { Child = actions, Margin = new Thickness(16, 0, 16, 16) };
+        StackPanel footerContent = new() { Spacing = 8 };
+        footerContent.Children.Add(_state);
+        footerContent.Children.Add(actions);
+        Border footer = new() { Child = footerContent, Margin = new Thickness(16, 0, 16, 16) };
         footer.Classes.Add("workspace-dialog-footer");
 
-        Grid layout = new() { RowDefinitions = new RowDefinitions("48,*,Auto") };
+        Grid layout = new() { RowDefinitions = new RowDefinitions("48,*") };
         layout.Children.Add(_chrome);
-        ScrollViewer scroll = new()
-        {
-            Content = body,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled
-        };
-        layout.Children.Add(scroll);
-        Grid.SetRow(scroll, 1);
-        layout.Children.Add(footer);
-        Grid.SetRow(footer, 2);
+        Grid frame = DialogFrame.Build(header, body, footer, DialogFrame.ErrorStrip(_error));
+        layout.Children.Add(frame);
+        Grid.SetRow(frame, 1);
         Content = layout;
 
         Opened += (_, _) => _chrome.Attach(this);

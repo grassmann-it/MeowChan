@@ -10,6 +10,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop;
@@ -63,20 +64,21 @@ internal sealed class MediaConflictsDialog : Window
         _more.Click += async (_, _) => await LoadAsync(append: true);
         _close.Click += (_, _) => Close();
         _reclaim.Click += async (_, _) => await ReclaimAsync();
-        StackPanel body = new() { Spacing = 12, Margin = new Thickness(16) };
-        body.Children.Add(_heading); body.Children.Add(_status); body.Children.Add(_rows); body.Children.Add(_more);
+        // Header: title; body: the alternatives with their per-row Keep/Promote/Discard and More;
+        // footer: the polite status line (empty, done or failed) above Reclaim/Close.
+        StackPanel body = new() { Spacing = 12, Margin = new Thickness(16, 0, 16, 16) };
+        body.Children.Add(_rows); body.Children.Add(_more);
         WrapPanel actions = new() { ItemSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         if (_previewReclaim != null && _doReclaim != null) actions.Children.Add(_reclaim);
         actions.Children.Add(_close);
-        Border footer = new() { Child = actions, Margin = new Thickness(16, 0, 16, 16) };
+        StackPanel footerContent = new() { Spacing = 8 };
+        footerContent.Children.Add(_status); footerContent.Children.Add(actions);
+        Border footer = new() { Child = footerContent, Margin = new Thickness(16, 0, 16, 16) };
         footer.Classes.Add("workspace-dialog-footer");
-        Grid layout = new() { RowDefinitions = new RowDefinitions("48,*,Auto") };
+        Grid layout = new() { RowDefinitions = new RowDefinitions("48,*") };
         layout.Children.Add(_chrome);
-        ScrollViewer scroll = new() { Content = body,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-        layout.Children.Add(scroll); Grid.SetRow(scroll, 1);
-        layout.Children.Add(footer); Grid.SetRow(footer, 2);
+        Grid frame = DialogFrame.Build(_heading, body, footer);
+        layout.Children.Add(frame); Grid.SetRow(frame, 1);
         Content = layout;
         Title = Texts.T("transfer.conflicts.title");
         Opened += async (_, _) => { _chrome.Attach(this); await LoadAsync(append: false); };
