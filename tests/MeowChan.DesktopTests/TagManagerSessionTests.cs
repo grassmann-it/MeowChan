@@ -51,6 +51,30 @@ public sealed class TagManagerSessionTests
     }
 
     [Fact]
+    public void MediaCountIsDistinctFilesNotAssignmentsAcrossRevisionKeys()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        TagId cat = store.Define("cat").Tag;
+        string later = "att-v2:" + new string('b', 64);
+        store.SetMedia(cat, Media("1"), true);
+        Assert.Equal(1, Session(store).Rows.Single().Media);
+
+        // The same file after a hand-over to a later revision key: two assignments, one file.
+        using ProfileAdmissionToken admission = lease.Admission.EnterStoreWriter(default);
+        Assert.True(store.CarryMediaAssignmentsAdmitted([new MediaTagKeyHandover("att-v2:" + new string('a', 64),
+            new AttachmentRevisionReference(Thread("1"), "p", 0, later), new string('c', 64))], admission).Changed);
+        Assert.Equal(2, store.ReadSnapshot().MediaAssignments.Count);
+        Assert.Equal(1, Session(store).Rows.Single().Media);
+
+        // A second, different file with the same tag counts as the second.
+        store.SetMedia(cat, Media("2"), true);
+        Assert.Equal(2, Session(store).Rows.Single().Media);
+        Assert.Equal(2, store.ReadSnapshot().DistinctMediaCount(cat));
+    }
+
+    [Fact]
     public async Task CollisionAndInvalidNamesAreExplainedAndChangeNothing()
     {
         using TempDirectory temp = new();

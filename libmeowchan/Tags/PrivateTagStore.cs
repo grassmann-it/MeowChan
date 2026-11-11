@@ -71,6 +71,16 @@ internal sealed class PrivateTagStoreSnapshot
         return Tags.Where(item => ids.Contains(item.Id)).ToArray();
     }
 
+    /// <summary>
+    /// How many distinct files carry the tag. An earlier and a later revision key of the same file (a handed-over
+    /// assignment) count once; two different files, or the same bytes in two attachments, count twice.
+    /// </summary>
+    internal int DistinctMediaCount(TagId tag) => DistinctMediaCounts().GetValueOrDefault(tag);
+
+    /// <summary>Distinct files per tag in one pass; tags without media are absent.</summary>
+    internal IReadOnlyDictionary<TagId, int> DistinctMediaCounts() => MediaAssignments.GroupBy(item => (TagId)item.TagId)
+        .ToDictionary(group => group.Key, group => group.Select(item => item.Target.Identity).Distinct().Count());
+
     /// <summary>Tags assigned to exactly this media version, in vocabulary order. Thread tags are not included.</summary>
     internal IReadOnlyList<PrivateTagDefinition> TagsOf(PrivateMediaTagTarget target)
     {
@@ -222,14 +232,14 @@ internal sealed class PrivateTagStore
         return Mutate(admission, expectedRevision, token, model =>
         {
             RequireKnown(model, tag);
-            if (model.MediaSet.Contains(assignment) == assigned) return (false, tag);
-            if (assigned)
-            {
-                if (model.Media.Count >= MaximumMediaAssignments)
-                    throw new PrivateTagStoreException(PrivateTagStoreError.CapacityExceeded);
-                model.Media.Add(assignment);
-            }
-            else model.Media.Remove(assignment);
+            // Removing a tag removes it from the file, whatever revision key an assignment was stored under:
+            // an earlier key kept by a hand-over would otherwise bring the tag back at the next reconcile.
+            if (!assigned) return (model.Media.RemoveAll(item => item.TagId == assignment.TagId
+                && item.Target.Identity == assignment.Target.Identity) > 0, tag);
+            if (model.MediaSet.Contains(assignment)) return (false, tag);
+            if (model.Media.Count >= MaximumMediaAssignments)
+                throw new PrivateTagStoreException(PrivateTagStoreError.CapacityExceeded);
+            model.Media.Add(assignment);
             return (true, tag);
         });
     }
@@ -237,6 +247,7 @@ internal sealed class PrivateTagStore
     /// <summary>
     /// One tag on several exact media versions in one write: all of them or none. Each target is
     /// idempotent like <see cref="SetMedia"/>; a target that already has (or lacks) the tag changes nothing.
+    /// Removing works per file: assignments of the same file under any other revision key go too.
     /// An unknown tag, an invalid target or the capacity limit rejects the whole batch.
     /// </summary>
     internal PrivateTagCommit SetMediaBatch(TagId tag, IReadOnlyCollection<PrivateMediaTagTarget?> targets, bool assigned,
@@ -265,9 +276,9 @@ internal sealed class PrivateTagStore
             }
             else
             {
-                HashSet<PrivateMediaTagAssignment> present = wanted.Where(model.MediaSet.Contains).ToHashSet();
-                if (present.Count == 0) return (false, tag);
-                model.Media.RemoveAll(present.Contains);
+                // By file, not by exact key: see SetMedia.
+                HashSet<(PrivateMediaTagId, MediaIdentity)> gone = wanted.Select(item => (item.TagId, item.Target.Identity)).ToHashSet();
+                if (model.Media.RemoveAll(item => gone.Contains((item.TagId, item.Target.Identity))) == 0) return (false, tag);
             }
             return (true, tag);
         });

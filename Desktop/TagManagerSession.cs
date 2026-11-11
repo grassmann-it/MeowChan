@@ -60,7 +60,8 @@ internal sealed class TagManagerSession
     {
         if (snapshot == null) return Array.Empty<TagManagerRow>();
         Dictionary<TagId, int> threads = snapshot.ThreadAssignments.GroupBy(item => (TagId)item.TagId).ToDictionary(group => group.Key, group => group.Count());
-        Dictionary<TagId, int> media = snapshot.MediaAssignments.GroupBy(item => (TagId)item.TagId).ToDictionary(group => group.Key, group => group.Count());
+        // Distinct files, not assignments: a file whose tag was handed over to a new revision key counts once.
+        IReadOnlyDictionary<TagId, int> media = snapshot.DistinctMediaCounts();
         return snapshot.Tags.Select(tag => new TagManagerRow(tag.Id, tag.Name.Display,
             threads.GetValueOrDefault(tag.Id), media.GetValueOrDefault(tag.Id))).ToArray();
     }

@@ -511,4 +511,83 @@ public sealed class PrivateTagStoreTests
         Assert.Single(carried.Snapshot.TagsOf(Media(revisionKey: NewKey)));
         Assert.Empty(carried.Snapshot.TagsOf(Media(revisionKey: NewKey, sha256: Sha256B)));
     }
+
+    [Fact]
+    public void ADistinctFileCountsOnceAcrossRevisionKeysAndTwoFilesCountTwice()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        TagId cat = store.Define("cat").Tag;
+        using ProfileAdmissionToken admission = lease.Admission.EnterStoreWriter(default);
+        store.SetMedia(cat, Media(), true);
+        Assert.Equal(1, store.ReadSnapshot().DistinctMediaCount(cat));
+
+        // Before: one assignment, one file. After the hand-over: two assignments, still one file.
+        store.CarryMediaAssignmentsAdmitted([Handover()], admission);
+        PrivateTagStoreSnapshot carried = store.ReadSnapshot();
+        Assert.Equal(2, carried.MediaAssignments.Count);
+        Assert.Equal(1, carried.DistinctMediaCount(cat));
+
+        // A different file (other bytes, other attachment) with the same tag is a second file; so is the same bytes
+        // in another post or position, which is another attachment.
+        store.SetMedia(cat, Media(post: "101"), true);
+        Assert.Equal(2, store.ReadSnapshot().DistinctMediaCount(cat));
+        store.SetMedia(cat, Media(sha256: Sha256B), true);
+        store.SetMedia(cat, Media(position: 1), true);
+        Assert.Equal(4, store.ReadSnapshot().DistinctMediaCount(cat));
+        Assert.Equal(0, store.ReadSnapshot().DistinctMediaCount(new TagId(Guid.NewGuid())));
+    }
+
+    [Fact]
+    public void RemovingATagFromTheNewKeyRemovesItFromTheFileUnderEveryKeyAndItDoesNotComeBack()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        TagId cat = store.Define("cat").Tag, dog = store.Define("dog").Tag;
+        using ProfileAdmissionToken admission = lease.Admission.EnterStoreWriter(default);
+        PrivateMediaTagTarget current = Media(revisionKey: NewKey);
+        store.SetMedia(cat, Media(), true);
+        store.SetMedia(dog, Media(), true);
+        store.SetMedia(cat, Media(position: 1), true); // another file, same tag, must stay
+        store.CarryMediaAssignmentsAdmitted([Handover()], admission);
+        Assert.Equal(5, store.ReadSnapshot().MediaAssignments.Count);
+
+        PrivateTagCommit removed = store.SetMedia(cat, current, false);
+
+        Assert.True(removed.Changed);
+        // Gone for the file under both keys; the other tag and the other file are untouched.
+        Assert.Empty(removed.Snapshot.TagsOf(current).Where(tag => tag.Id == cat));
+        Assert.Empty(removed.Snapshot.TagsOf(Media()).Where(tag => tag.Id == cat));
+        Assert.Equal(dog, Assert.Single(removed.Snapshot.TagsOf(Media())).Id);
+        Assert.Equal(cat, Assert.Single(removed.Snapshot.TagsOf(Media(position: 1))).Id);
+        Assert.Equal(3, removed.Snapshot.MediaAssignments.Count);
+        Assert.Equal(1, removed.Snapshot.DistinctMediaCount(cat));
+        // Repeating the removal changes nothing, and a later hand-over has nothing left to bring back for cat.
+        Assert.False(store.SetMedia(cat, current, false).Changed);
+        store.CarryMediaAssignmentsAdmitted([Handover()], admission);
+        Assert.Empty(store.ReadSnapshot().TagsOf(current).Where(tag => tag.Id == cat));
+    }
+
+    [Fact]
+    public void ABatchRemovalAlsoRemovesTheOtherKeysOfTheSameFileAndOnlyThose()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        TagId cat = store.Define("cat").Tag;
+        using ProfileAdmissionToken admission = lease.Admission.EnterStoreWriter(default);
+        store.SetMedia(cat, Media(), true);
+        store.SetMedia(cat, Media(sha256: Sha256B), true); // same attachment, other bytes: another file
+        store.CarryMediaAssignmentsAdmitted([Handover()], admission);
+
+        // The old key alone is named by the batch; the file's assignment under the new key goes with it.
+        PrivateTagCommit removed = store.SetMediaBatch(cat, [Media()], false);
+
+        Assert.True(removed.Changed);
+        Assert.Empty(removed.Snapshot.TagsOf(Media(revisionKey: NewKey)));
+        Assert.Equal(cat, Assert.Single(removed.Snapshot.TagsOf(Media(sha256: Sha256B))).Id);
+        Assert.Equal(1, removed.Snapshot.MediaAssignments.Count);
+    }
 }
