@@ -29,6 +29,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeowChan.Plugin.EightKun", 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeowChan.Plugin.FourChan", "plugins/Official/FourChan/MeowChan.Plugin.FourChan.csproj", "{2F3345F5-2B14-5759-9D0C-67DBD4831D33}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeowChan.Plugin.Danbooru", "plugins/Official/Danbooru/MeowChan.Plugin.Danbooru.csproj", "{7B1C9D52-3E4A-5F60-8A17-D2C4E9B06A31}"
+EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeowChan.ExamplePlugins.Tests", "tests/MeowChan.ExamplePlugins.Tests/MeowChan.ExamplePlugins.Tests.csproj", "{09D288FB-4624-52EE-AF85-0C12D881974B}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeowChan.OfficialPlugins.Tests", "tests/MeowChan.OfficialPlugins.Tests/MeowChan.OfficialPlugins.Tests.csproj", "{C18C224B-46D1-5FA7-8698-90766FB1E2F9}"
@@ -195,6 +197,10 @@ Global
 		{2F3345F5-2B14-5759-9D0C-67DBD4831D33}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2F3345F5-2B14-5759-9D0C-67DBD4831D33}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2F3345F5-2B14-5759-9D0C-67DBD4831D33}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7B1C9D52-3E4A-5F60-8A17-D2C4E9B06A31}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7B1C9D52-3E4A-5F60-8A17-D2C4E9B06A31}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7B1C9D52-3E4A-5F60-8A17-D2C4E9B06A31}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7B1C9D52-3E4A-5F60-8A17-D2C4E9B06A31}.Release|Any CPU.Build.0 = Release|Any CPU
 		{42C8F28F-3A9C-53EB-A985-E77527871DAA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{42C8F28F-3A9C-53EB-A985-E77527871DAA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{42C8F28F-3A9C-53EB-A985-E77527871DAA}.Release|Any CPU.ActiveCfg = Release|Any CPU
