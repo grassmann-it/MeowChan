@@ -7,12 +7,12 @@
         <Style Selector="DataGridCell TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
         <Style Selector="DataGridColumnHeader TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
     </UserControl.Styles>
-    <Grid Margin="16" RowDefinitions="*,Auto" RowSpacing="8">
+    <Grid Margin="12" RowDefinitions="*,Auto" RowSpacing="8">
         <!-- Keep page content scrollable at the shell minimum, including with a retained error banner.
              The explicit grid height preserves its own bounded, virtualized row viewport. -->
         <ScrollViewer x:Name="DiagnosticsContentScroll" HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Spacing="12">
-                <StackPanel Classes="workspace-section-header">
+            <StackPanel Spacing="8">
+                <StackPanel x:Name="DiagnosticsPageHeader" Spacing="5">
                     <TextBlock Tag="nav.diagnostics" Classes="page-title localized" Text="Diagnostics" />
                     <TextBlock Tag="diagnostics.hint" Classes="muted localized" TextWrapping="Wrap" />
                 </StackPanel>
