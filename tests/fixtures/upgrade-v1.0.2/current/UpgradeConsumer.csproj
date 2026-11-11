@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Same intentional friend identity as the released generator; a separate process/output. -->
+    <AssemblyName>MeowChan.DesktopTests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../../../MeowChan.csproj" /></ItemGroup>
+</Project>
