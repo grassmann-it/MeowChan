@@ -55,7 +55,7 @@ internal static class Program
         // never run one helper and report another helper's acceptance wording.
         string[] focusedModes =
         [
-            "MEOWCHAN_DIAGNOSTIC_EVIDENCE_ONLY",
+            "MEOWCHAN_DIAGNOSTIC_EVIDENCE_ONLY", "MEOWCHAN_INTERRUPTED_STARTUP_ONLY",
             "MEOWCHAN_HTML_EXPORT_LABELS_ONLY", "MEOWCHAN_HTML_EXPORT_LANGUAGE_ONLY",
             "MEOWCHAN_SECONDARY_SETTINGS_LANGUAGE_ONLY", "MEOWCHAN_GALLERY_HIDDEN_FAVORITE_ONLY",
             "MEOWCHAN_NATIVE_TRANSFER_PREVIEW_ONLY", "MEOWCHAN_READER_GROUPS_BINDING_ONLY",
@@ -201,6 +201,7 @@ internal static class Program
                 || Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_MUTE_ONLY") == "1")
                 VideoGalleryChecks.SeedAsync(profile, Environment.GetEnvironmentVariable("MEOWCHAN_VIDEO_FIXTURE")
                     ?? throw new InvalidOperationException("Gallery audio/video fixture is required."), includeSecondVideo: true).GetAwaiter().GetResult();
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_INTERRUPTED_STARTUP_ONLY") == "1") InterruptedStartupChecks.Seed(profile);
             using ProfileLease? conflictingLease = _lockedProfileMode ? ProfileLease.Acquire(profile) : null;
             Avalonia.Logging.Logger.Sink = sink;
             Console.WriteLine("SMOKE isolated profile: " + profile);
@@ -424,6 +425,11 @@ internal static class Program
             if (Environment.GetEnvironmentVariable("MEOWCHAN_STARTUP_PREVIEW_ONLY") == "1")
             {
                 await StartupPreviewChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_INTERRUPTED_STARTUP_ONLY") == "1")
+            {
+                await InterruptedStartupChecks.RunAsync(mainWindow, condition => WaitUntilAsync(condition));
                 _checksPassed = true; mainWindow.Close(); return;
             }
             // StartAsync returns the session's existing startup task, including plugin bootstrap.
