@@ -67,7 +67,7 @@ public sealed partial class ArchiveCatalog
 
         // The occurrence digest identifies the slot; the sender's evidence in the Full root maps it to post/position.
         HashSet<(string Post, int Position)> slots = full.OriginalEvidence
-            .Where(e => OccurrenceDigest(e.Occurrence) == plan.Conflict.Entry.Identity.OccurrenceSha256)
+            .Where(e => OccurrenceMatches(e.Occurrence, plan.Conflict.Entry.Identity.OccurrenceSha256))
             .Select(e => (e.Occurrence.PostId, e.Occurrence.Position)).ToHashSet();
         List<MediaAttachmentBinding> replaced = new();
         foreach (string directory in plan.Roots)
@@ -116,9 +116,7 @@ public sealed partial class ArchiveCatalog
 
     private sealed record PromoteRead(MediaPromoteStatus Status, PromotePlan? Plan);
 
-    // Must match the digest the merge planner records in the ledger.
-    private static string OccurrenceDigest(MediaOccurrence occurrence) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-        string.Join('\0', "native-media-conflict-occurrence-v1", occurrence.Resource.Source, occurrence.Resource.Board,
-            occurrence.Resource.Thread, occurrence.PostId, occurrence.Position.ToString(CultureInfo.InvariantCulture),
-            occurrence.OriginalRevisionKey ?? "")))).ToLowerInvariant();
+    // Rows recorded before V2 carry the provider-tuple digest; both name the same slot.
+    private static bool OccurrenceMatches(MediaOccurrence occurrence, string recorded)
+        => NativeMediaConflictOccurrence.V2(occurrence) == recorded || NativeMediaConflictOccurrence.V1(occurrence) == recorded;
 }

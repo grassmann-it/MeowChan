@@ -46,7 +46,12 @@ Windows-, macOS- und Hardwarebelege fehlen. Sie sind unter Linux nicht ersetzbar
 - **UX103:** SF-03 (Enter auf Find-Tasten) und SF-05 (Primary+F nur in der großen
   Leseansicht, Befehl `reader.find`, umbelegbar) umgesetzt in `db28407`; UX103-E
   (Startkostenmessung) nicht begonnen.
-- **Ledger-Lücke:** Alternativen am selben Slot mit anderem Provider-Tupel sind nicht
-  gesondert behandelt.
+- **Ledger-Identität (11.11., Nutzerentscheidung „zusammenführen“):** neue Konflikte
+  tragen einen Slot-Digest `occurrence-v2` (Ressource, Post, Position) ohne Provider-
+  Tupel; gleiche Alternativen unter verschiedenen Tupeln sind eine Zeile. Bestehende
+  V1-Zeilen behalten ihre Identität und werden nicht migriert; ein V1-Eintrag (auch
+  entschieden) unterdrückt das erneute Anlegen als V2 (`LegacyIdentitySha256`), Promote
+  erkennt beide Digests. Kein Schema-Wechsel. Nicht zusammengeführt werden bereits
+  doppelt vorhandene V1-Zeilen. Beleg: Core-Filter `Transfer` 6242 grün, 2 neue Tests.
 - Crash-/Platzmangel-Recovery ist durch die vorhandenen Core-Tests abgedeckt; ein
   echter Platzmangel- oder Absturz-Lauf auf Dateisystemebene wurde nicht ausgeführt.

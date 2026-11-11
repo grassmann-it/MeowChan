@@ -137,6 +137,9 @@ internal sealed record NativeMediaConflictEntry
         Resolution = resolution;
     }
 
+    /// <summary>Identity this conflict had under the V1 occurrence digest (provider tuple included); a ledger row
+    /// already recorded under it, with any decision, suppresses recording this entry again.</summary>
+    internal string? LegacyIdentitySha256 { get; init; }
     internal NativeMediaConflictIdentity Identity { get; }
     internal NativeMediaConflictVariantProjection Target { get; }
     internal NativeMediaConflictVariantProjection Candidate { get; }

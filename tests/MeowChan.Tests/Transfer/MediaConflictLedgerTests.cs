@@ -69,6 +69,48 @@ public sealed class MediaConflictLedgerTests
     }
 
     [Fact]
+    public void SlotDigestIgnoresTheProviderTupleWhileTheLegacyDigestDoesNot()
+    {
+        MediaOccurrence a = new(Resource, "15", 0, "att-v2:" + H('1'));
+        MediaOccurrence b = a with { OriginalRevisionKey = "att-v2:" + H('2') };
+        Assert.Equal(NativeMediaConflictOccurrence.V2(a), NativeMediaConflictOccurrence.V2(b));
+        Assert.NotEqual(NativeMediaConflictOccurrence.V1(a), NativeMediaConflictOccurrence.V1(b));
+        Assert.NotEqual(NativeMediaConflictOccurrence.V2(a), NativeMediaConflictOccurrence.V2(a with { Position = 1 }));
+        Assert.NotEqual(NativeMediaConflictOccurrence.V2(a), NativeMediaConflictOccurrence.V1(a));
+    }
+
+    [Fact]
+    public async Task ADecidedLegacyRowSuppressesTheSlotLevelEntryAndSameSlotEntriesCollapse()
+    {
+        using Workspace files = new();
+        MediaOccurrence a = new(Resource, "15", 0, "att-v2:" + H('1'));
+        MediaOccurrence b = a with { OriginalRevisionKey = "att-v2:" + H('2') };
+        NativeMediaConflictEntry Entry(string occurrence, string? legacy) => new(
+            new NativeMediaConflictIdentity(Resource, occurrence, H('d'), H('e')),
+            new NativeMediaConflictVariantProjection(H('d'), NativeMediaConflictVariantStatus.Active, 10),
+            new NativeMediaConflictVariantProjection(H('e'), NativeMediaConflictVariantStatus.Inactive, 20))
+        { LegacyIdentitySha256 = legacy };
+        string Legacy(MediaOccurrence o) => new NativeMediaConflictIdentity(Resource, NativeMediaConflictOccurrence.V1(o), H('d'), H('e')).IdentitySha256;
+        NativeMediaConflictEntry oldRow = Entry(NativeMediaConflictOccurrence.V1(a), null);
+        NativeMediaConflictEntry newA = Entry(NativeMediaConflictOccurrence.V2(a), Legacy(a));
+        NativeMediaConflictEntry newB = Entry(NativeMediaConflictOccurrence.V2(b), Legacy(b));
+        Assert.Equal(newA.Identity.IdentitySha256, newB.Identity.IdentitySha256);
+        NativeMediaConflictProvenance provenance = new(Guid.NewGuid(), H('a'), H('b'));
+        using ProfileLease lease = ProfileLease.Acquire(files.Profile);
+        await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(files.Profile, lease);
+        lease.Admission.CompleteStartup();
+        using (ProfileAdmissionToken admission = await lease.Admission.EnterExclusiveAsync())
+            Assert.Equal((1, 0), await catalog.RecordMediaConflictsAdmittedAsync(admission, new(provenance, [oldRow])));
+        await catalog.DecideMediaConflictAsync(oldRow.Identity.IdentitySha256, NativeMediaConflictResolutionStatus.Discarded,
+            new(2026, 11, 11, 0, 0, 0, TimeSpan.Zero));
+        // The same conflict re-seen under the V2 digest is already known and stays discarded.
+        using (ProfileAdmissionToken admission = await lease.Admission.EnterExclusiveAsync())
+            Assert.Equal((0, 1), await catalog.RecordMediaConflictsAdmittedAsync(admission, new(provenance, [newA])));
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(files.Profile);
+        Assert.Equal(1, (await reader.ReadMediaConflictsAsync(0, 10)).Total);
+    }
+
+    [Fact]
     public async Task Version11CatalogMigratesToSchema12WithoutLosingRows()
     {
         using Workspace files = new();

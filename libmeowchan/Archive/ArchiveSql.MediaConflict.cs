@@ -89,9 +89,11 @@ internal static partial class ArchiveSql
                 INSERT OR IGNORE INTO media_conflict(identity_sha256,source_id,board_id,thread_id,occurrence_sha256,
                     active_sha256,candidate_sha256,active_bytes,candidate_bytes,operation_id,request_sha256,
                     resource_set_sha256,status,decided_at_utc)
-                VALUES($id,$source,$board,$thread,$occurrence,$active,$candidate,$activeBytes,$candidateBytes,
-                    $operation,$request,$set,1,NULL)
+                SELECT $id,$source,$board,$thread,$occurrence,$active,$candidate,$activeBytes,$candidateBytes,
+                    $operation,$request,$set,1,NULL
+                WHERE NOT EXISTS (SELECT 1 FROM media_conflict WHERE identity_sha256=$legacy)
                 """);
+            insert.Parameters.AddWithValue("$legacy", entry.LegacyIdentitySha256 ?? entry.Identity.IdentitySha256);
             insert.Parameters.AddWithValue("$id", entry.Identity.IdentitySha256);
             insert.Parameters.AddWithValue("$source", entry.Identity.Resource.Source);
             insert.Parameters.AddWithValue("$board", entry.Identity.Resource.Board);

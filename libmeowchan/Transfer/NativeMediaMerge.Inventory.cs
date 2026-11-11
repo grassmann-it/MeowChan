@@ -176,14 +176,12 @@ public sealed partial class ArchiveCatalog
             {
                 active = active?.ToLowerInvariant(); candidate = candidate?.ToLowerInvariant();
                 if (!IsLowerSha256(active) || !IsLowerSha256(candidate) || active == candidate) return;
-                string occurrenceDigest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\0',
-                    "native-media-conflict-occurrence-v1", occurrence.Resource.Source, occurrence.Resource.Board,
-                    occurrence.Resource.Thread, occurrence.PostId, occurrence.Position.ToString(CultureInfo.InvariantCulture),
-                    occurrence.OriginalRevisionKey ?? "")))).ToLowerInvariant();
-                NativeMediaConflictIdentity identity = new(occurrence.Resource, occurrenceDigest, active!, candidate!);
+                NativeMediaConflictIdentity identity = new(occurrence.Resource, NativeMediaConflictOccurrence.V2(occurrence), active!, candidate!);
+                NativeMediaConflictIdentity legacy = new(occurrence.Resource, NativeMediaConflictOccurrence.V1(occurrence), active!, candidate!);
                 ledger.TryAdd(identity.IdentitySha256, new NativeMediaConflictEntry(identity,
                     new(active!, NativeMediaConflictVariantStatus.Active, Math.Clamp(activeBytes, 0, 2L * 1024 * 1024 * 1024)),
-                    new(candidate!, NativeMediaConflictVariantStatus.Inactive, Math.Clamp(candidateBytes, 0, 2L * 1024 * 1024 * 1024))));
+                    new(candidate!, NativeMediaConflictVariantStatus.Inactive, Math.Clamp(candidateBytes, 0, 2L * 1024 * 1024 * 1024)))
+                { LegacyIdentitySha256 = legacy.IdentitySha256 });
             }
             static bool IsLowerSha256(string? value) => value is { Length: 64 } && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
 
