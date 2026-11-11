@@ -508,6 +508,11 @@ public sealed class ExamplePluginTests
         Assert.Equal("https://7chan.org/x/src/1000000000001.jpg", first.Url!.AbsoluteUri);
         Assert.Equal("1000000000001.jpg", first.OriginalFileName);
         Assert.Equal(".jpg", first.Extension);
+        // The rounded size printed after the file is an annotation, never an exact size.
+        Assert.Null(first.ExpectedSize);
+        Assert.Equal(new SourceSizeHint("355.92", "KB", SourceSizePrecision.Rounded), first.ProviderSizeHint);
+        Assert.Equal(new SourceSizeHint("208.13", "KB", SourceSizePrecision.Rounded),
+            Assert.Single(thread.Snapshot.Posts[1].Attachments!).ProviderSizeHint);
         Assert.Equal("301-0", Assert.Single(thread.Snapshot.Posts[1].Attachments!).MediaId);
         Assert.Null(thread.Snapshot.Posts[2].Attachments);
         Assert.Contains("post 3", thread.Snapshot.Posts[2].Text);
@@ -530,6 +535,11 @@ public sealed class ExamplePluginTests
         foreach (SourceAttachment file in thread.Snapshot.Posts.SelectMany(post => post.Attachments ?? []))
             Assert.Matches(@"^\.[A-Za-z0-9]{1,32}$", System.IO.Path.GetExtension(file.OriginalFileName!));
         Assert.Equal("1000000000003.jpg", Assert.Single(thread.Snapshot.Posts[1].Attachments!).OriginalFileName);
+        Assert.Equal(new[] { "5.75 MB", "40.63 KB", "1.50 MB" },
+            files.Select(file => file.ProviderSizeHint!.RawValue + " " + file.ProviderSizeHint.UnitLabel));
+        Assert.All(files, file => { Assert.Null(file.ExpectedSize); Assert.Equal(SourceSizePrecision.Rounded, file.ProviderSizeHint!.Precision); });
+        Assert.Equal(new SourceSizeHint("38.33", "KB", SourceSizePrecision.Rounded),
+            Assert.Single(thread.Snapshot.Posts[1].Attachments!).ProviderSizeHint);
     }
 
     [Theory]

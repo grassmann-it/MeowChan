@@ -220,6 +220,7 @@ public sealed class SevenChanPlugin : ISourcePlugin
                 && Uri.TryCreate(Origin, WebUtility.HtmlDecode(target).Trim(), out Uri? linked) && linked is not null)
                 downloadNames.TryAdd(linked.AbsoluteUri, WebUtility.HtmlDecode(download).Trim());
         }
+        Dictionary<string, SourceSizeHint> sizeHints = SizeHints(anchors, html);
         foreach (Match anchor in anchors)
         {
             string href = AttributeValue(anchor.Groups["attrs"].Value, "href") ?? string.Empty;
@@ -237,10 +238,48 @@ public sealed class SevenChanPlugin : ISourcePlugin
             attachments.Add(new SourceAttachment(attachments.Count,
                 postId + "-" + attachments.Count.ToString(CultureInfo.InvariantCulture),
                 Url: candidate, OriginalFileName: FileNameOf(extension, displayName, downloadName, fileName),
-                Extension: extension));
+                Extension: extension) { ProviderSizeHint = sizeHints.GetValueOrDefault(candidate.AbsoluteUri) });
             if (attachments.Count > 1024) throw new InvalidDataException("Too many attachments.");
         }
         return attachments;
+    }
+
+    // 7chan prints a rounded size, always in KiB/MiB/GiB steps: "(355.92KB, 2048x1536, a.jpg)" after a single file
+    // and "pdf (5.75MB)" as the text of the first link of a file in a multi-file post. It is an annotation, not an
+    // exact byte count, so it is reported as a rounded size hint and never as ExpectedSize.
+    private static readonly Regex DisplayedSize = new Regex(
+        @"\(\s*(?<value>[0-9]{1,12}(?:\.[0-9]{1,3})?)\s*(?<unit>[KMG]?B)\b", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex DashedSize = new Regex(@"(?<![\w.])-\s*" + DisplayedSize.ToString(),
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex TypeAndSizeLabel = new Regex(
+        @"^[A-Za-z0-9]{1,32}\s*\(\s*[0-9]{1,12}(?:\.[0-9]{1,3})?\s*[KMG]?B\s*\)$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private static Dictionary<string, SourceSizeHint> SizeHints(List<Match> anchors, string html)
+    {
+        Dictionary<string, SourceSizeHint> hints = new Dictionary<string, SourceSizeHint>(StringComparer.Ordinal);
+        void Add(string? href, string text, Regex pattern)
+        {
+            Match size = pattern.Match(text);
+            if (!size.Success || href is null
+                || !Uri.TryCreate(Origin, WebUtility.HtmlDecode(href).Trim(), out Uri? target) || target is null) return;
+            hints.TryAdd(target.AbsoluteUri,
+                new SourceSizeHint(size.Groups["value"].Value, size.Groups["unit"].Value, SourceSizePrecision.Rounded));
+        }
+        // Multi-file post: the text of the first link is the whole label.
+        foreach (Match anchor in anchors)
+        {
+            string label = StripTags(anchor.Groups["body"].Value).Trim();
+            if (TypeAndSizeLabel.IsMatch(label)) Add(AttributeValue(anchor.Groups["attrs"].Value, "href"), label, DisplayedSize);
+        }
+        // Single-file post: the file_size paragraph holds the file link and, after it, the size.
+        foreach (Match block in Regex.Matches(html,
+            @"<p\b(?=[^>]*\bclass\s*=\s*[""'][^""']*\bfile_size\b[^""']*[""'])[^>]*>(?<body>.*?)</p\s*>",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline))
+        {
+            Match? first = Anchors(block.Groups["body"].Value).FirstOrDefault();
+            if (first is not null) Add(AttributeValue(first.Groups["attrs"].Value, "href"), StripTags(block.Groups["body"].Value), DashedSize);
+        }
+        return hints;
     }
 
     private static IEnumerable<Match> Anchors(string html)

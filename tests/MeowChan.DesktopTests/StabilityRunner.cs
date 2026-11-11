@@ -336,7 +336,7 @@ internal static class StabilityRunner
             // and the host view shows whether it queued anything at all.
             await Task.Delay(TimeSpan.FromSeconds(10));
             board.HostView = CaptureHostView(host, threadUri.AbsoluteUri);
-            StabilityRules.OriginalChoice? wanted = StabilityRules.ChooseOriginal(view);
+            StabilityRules.OriginalChoice? wanted = StabilityRules.ChooseOriginal(view).Choice;
             board.Notes.Add("replay: the harness would arm " + (wanted == null ? "nothing" : StabilityAuditTransport.AuditUrl(wanted.Attachment.Url!)));
             transport.CloseSteps();
             board.Archive = "thread-only";
@@ -345,7 +345,12 @@ internal static class StabilityRunner
         }
 
         // 4. Original: the first image attachment within the cap, picked from what the production parser stored.
-        StabilityRules.OriginalChoice? choice = StabilityRules.ChooseOriginal(view);
+        StabilityRules.OriginalSelection selection = StabilityRules.ChooseOriginal(view);
+        StabilityRules.OriginalChoice? choice = selection.Choice;
+        board.OriginalsSkippedByDisplayedSize = selection.SkippedByDisplayedSize;
+        if (selection.SkippedByDisplayedSize > 0)
+            board.SelectionNote += "; original: skipped " + selection.SkippedByDisplayedSize + " image attachment" + (selection.SkippedByDisplayedSize == 1 ? "" : "s")
+                + " whose displayed size already exceeds the 2 MiB cap";
         if (choice == null)
         {
             transport.CloseSteps();

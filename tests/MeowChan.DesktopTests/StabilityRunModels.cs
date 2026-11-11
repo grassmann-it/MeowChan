@@ -43,6 +43,8 @@ internal sealed class StabilityBoardRun
     public string SelectionNote { get; set; } = "";
     /// <summary>Pinned/sticky catalog threads passed over before the chosen one.</summary>
     public int PinnedSkipped { get; set; }
+    /// <summary>Image attachments passed over because the source's displayed (rounded) size, with a rounding margin, exceeds the original cap.</summary>
+    public int OriginalsSkippedByDisplayedSize { get; set; }
     public int PostCount { get; set; }
     public List<StabilityRequestRecord> Requests { get; set; } = [];
     public List<StabilityRequestRecord> Refused { get; set; } = [];
@@ -128,13 +130,21 @@ internal static class StabilityRules
 
     internal sealed record OriginalChoice(CapturedPost Post, CapturedAttachment Attachment, string Extension);
 
+    /// <summary>The chosen original (or none) and how many image attachments were passed over because their displayed size already exceeds the cap.</summary>
+    internal sealed record OriginalSelection(OriginalChoice? Choice, int SkippedByDisplayedSize);
+
+    /// <summary>A displayed size is rounded (7chan prints "(355.92KB, ...)"); the estimate is this much above it so rounding cannot hide an oversize file.</summary>
+    internal const decimal DisplayedSizeMargin = 1.01m;
+
     /// <summary>
     /// The first image attachment, in thread order, whose size is not known to exceed the original cap.
-    /// A source that declares no exact size is still eligible when its hint (or the lack of one) does not rule it out;
-    /// the transport enforces the 2 MiB cap on the real body either way.
+    /// A source that declares no exact size is still eligible when its displayed (approximate) size, times
+    /// <see cref="DisplayedSizeMargin"/>, does not exceed the cap or when it shows none; the transport enforces the
+    /// 2 MiB cap on the real body either way.
     /// </summary>
-    internal static OriginalChoice? ChooseOriginal(ArchivedThreadView view, long capBytes = StabilityAuditTransport.MaximumOriginalBytes)
+    internal static OriginalSelection ChooseOriginal(ArchivedThreadView view, long capBytes = StabilityAuditTransport.MaximumOriginalBytes)
     {
+        int skipped = 0;
         for (int offset = 0; offset < Math.Max(1, view.PostCount); offset += 500)
             foreach (CapturedPost post in view.GetPosts(offset, 500))
                 foreach (CapturedAttachment attachment in (post.Attachments ?? []).OrderBy(row => row.Position))
@@ -146,10 +156,14 @@ internal static class StabilityRules
                     {
                         if (size <= 0 || size > capBytes) continue;
                     }
-                    else if (ApproximateBytes(attachment.ProviderSizeHint) is long approximate && approximate > capBytes) continue;
-                    return new(post, attachment, extension.ToLowerInvariant());
+                    else if (ApproximateBytes(attachment.ProviderSizeHint) is long approximate && approximate * DisplayedSizeMargin > capBytes)
+                    {
+                        skipped++;
+                        continue;
+                    }
+                    return new(new(post, attachment, extension.ToLowerInvariant()), skipped);
                 }
-        return null;
+        return new(null, skipped);
     }
 
     internal static string ExtensionOf(CapturedAttachment attachment)

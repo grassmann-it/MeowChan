@@ -17,7 +17,10 @@ For each chan named in the manifest, per board, in this order and nothing else:
    `details.selection` ("...; skipped 2 pinned threads") and kept in `details.pinnedThreadsSkipped`.
    If every candidate is pinned, the first one is used and the note says so.
 3. GET the thread (through the production watch, so the archive is written by production code).
-4. GET the first image attachment of at most 2 MiB (the original).
+4. GET the first image attachment of at most 2 MiB (the original). An attachment whose exact size exceeds the cap is
+   passed over; so is one whose displayed (rounded) size, `ProviderSizeHint` times 1.01, exceeds it (7chan shows
+   "(355.92KB, ...)"). Those skips are appended to `details.selection` ("...; original: skipped 2 image attachments whose
+   displayed size already exceeds the 2 MiB cap") and counted in `details.originalsSkippedByDisplayedSize`.
 
 A chan that lists boards by `boardsFromList` costs one more GET, the board list at `boardListUrl`.
 Caps: 8 MiB for metadata, 2 MiB for the original. Retries, HEAD, Range, thumbnails, a second

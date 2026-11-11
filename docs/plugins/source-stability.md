@@ -87,6 +87,11 @@ Each run needs the user's approval in chat for that chan and date before the fir
   unknown (an HTML catalog) the first entry with an image is taken. If every candidate is
   pinned, the first one is used. The run records the skipped pinned threads
   (`details.selection`, `details.pinnedThreadsSkipped`).
+- The original is the first image attachment within the 2 MiB cap. Where the source shows
+  only a rounded size (7chan: "355.92KB"), an attachment whose displayed size plus 1 % for
+  rounding already exceeds the cap is passed over before any request; the run records
+  how many (`details.selection`, `details.originalsSkippedByDisplayedSize`). A real body
+  that still exceeds the cap stops the chan as before.
 - Stop at the first unexpected response (challenge, login, 4xx/5xx). Record it; do not
   retry in the same run.
 - After download: archive check, reader/gallery opens the file, process exits; new

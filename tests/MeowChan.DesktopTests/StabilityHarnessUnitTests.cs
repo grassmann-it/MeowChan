@@ -524,6 +524,43 @@ public sealed class StabilityHarnessUnitTests
         Assert.Null(StabilityRules.ApproximateBytes(null));
     }
 
+    private static MeowChan.Archive.ArchivedThreadView ThreadOf(params MeowChan.Archive.CapturedAttachment[] attachments) => new(
+        new MeowChan.Archive.ArchiveThreadSummary(new("synthetic", "b", "1"), "", "", "", MeowChan.Interfaces.ThreadSourceState.Active, true,
+            DateTimeOffset.UnixEpoch, null, 1, 1),
+        [new MeowChan.Archive.CapturedPost("1", 0, MeowChan.Archive.PostFieldPresence.All, Attachments: attachments)], decimalPostOrder: true);
+
+    private static MeowChan.Archive.CapturedAttachment Shown(int position, string value, string unit, string extension = ".jpg") => new(position, "m" + position,
+        Url: "https://x.example/src/f" + position + extension) { ProviderSizeHint = new(value, unit, MeowChan.Storage.MediaSizePrecision.Rounded) };
+
+    [Fact]
+    public void AnOriginalWhoseDisplayedSizeAlreadyExceedsTheCapIsSkippedAndCounted()
+    {
+        // 2.74 MiB is over the 2 MiB cap; 1.99 MiB times the rounding margin (2.0099) is still over, 1.98 MiB (1.9998) is not.
+        StabilityRules.OriginalSelection picked = StabilityRules.ChooseOriginal(ThreadOf(
+            Shown(0, "2.74", "MB"), Shown(1, "2.00", "MB"), Shown(2, "1.99", "MB"), Shown(3, "1.98", "MB"), Shown(4, "10", "KB")));
+        Assert.Equal("m3", picked.Choice!.Attachment.MediaId);
+        Assert.Equal(3, picked.SkippedByDisplayedSize);
+    }
+
+    [Fact]
+    public void AnOriginalWithoutAnySizeInformationStaysEligibleAndNothingIsCountedAsSkipped()
+    {
+        StabilityRules.OriginalSelection picked = StabilityRules.ChooseOriginal(ThreadOf(
+            new MeowChan.Archive.CapturedAttachment(0, "plain", Url: "https://x.example/src/plain.png"),
+            Shown(1, "1", "KB")));
+        Assert.Equal("plain", picked.Choice!.Attachment.MediaId);
+        Assert.Equal(0, picked.SkippedByDisplayedSize);
+    }
+
+    [Fact]
+    public void AllOriginalsOverTheDisplayedCapLeaveNoChoiceAndKeepTheCount()
+    {
+        StabilityRules.OriginalSelection picked = StabilityRules.ChooseOriginal(ThreadOf(
+            Shown(0, "3.10", "MB"), Shown(1, "900", "KB", ".pdf"), Shown(2, "2.50", "MB", ".png")));
+        Assert.Null(picked.Choice);
+        Assert.Equal(2, picked.SkippedByDisplayedSize); // the pdf is not an image candidate at all
+    }
+
     [Fact]
     public void ExtensionsFollowTheUrlThenTheOriginalName()
     {
