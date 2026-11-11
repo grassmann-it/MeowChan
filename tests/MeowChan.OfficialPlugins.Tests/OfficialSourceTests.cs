@@ -203,6 +203,9 @@ public sealed class OfficialSourceTests
             DownloadQueue queue = new(1, 1L << 30);
             await using Registry registry = new([provider], queue, Path.Combine(profile, "media"), TimeSpan.FromHours(1), 60,
                 persistSession: false, contentRuntime: runtime);
+            // The registry owns startup admission: it moves the shared lease to Ready so that
+            // ordinary writers (rules, catalog capture) are admitted, exactly like production.
+            await registry.StartAsync(lease);
             IThread thread = (await registry.AddAsync(result.Snapshot.Url.AbsoluteUri)).Thread!;
             await thread.StopMonitoringAsync();
             await thread.checkThreadAsync(queue);
