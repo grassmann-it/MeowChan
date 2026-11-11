@@ -25,6 +25,11 @@ strict integrity check; this adapter grants no mismatch exception. Experimental
 maturity is informational. New-source default-off activation is handled by the
 shared delivery/activation integration, not by Describe.
 
+Stickers (`sticker` set, path `/stickers/{pack}/{name}`) are served outside the
+board's `src` tree and carry an empty `md5`. They become attachments on `.hk` with
+no checksum expectation; every other file still needs a valid MD5 and a board
+`src` path, and a stated sticker checksum is validated like any other.
+
 ## Evidence and limits
 
 The NW-00 preflight recorded one matching JPEG (25,475 bytes, API size24) and

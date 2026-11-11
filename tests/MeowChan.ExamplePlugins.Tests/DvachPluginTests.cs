@@ -86,6 +86,54 @@ public sealed class DvachPluginTests
         Assert.Equal(first.MediaId, next.MediaId); Assert.NotEqual(first.Url, next.Url);
     }
 
+    // A sticker is served from the shared /stickers/{pack}/ tree and has no checksum (md5:"").
+    private const string StickerThread = """
+        {"current_thread":123,"threads":[{"posts":[
+         {"board":"demo","num":123,"parent":0,"timestamp":1700000000,"comment":"post 1","endless":1,"sticky":1,"files":[
+          {"path":"/demo/src/123/opaque.png","name":"opaque.png","fullname":"a.png","md5":"d0b04abd386c83f00df0b06b6583d073","size":24}]},
+         {"board":"demo","num":124,"parent":123,"timestamp":1700000100,"comment":"post 2","files":[
+          {"displayname":"a","fullname":"a","height":480,"width":369,"install":"/makaba/stickers/show/pack0001","md5":"",
+           "name":"stk00001.png","pack":"pack0001","path":"/stickers/pack0001/stk00001.png","size":255,"sticker":"stk00001",
+           "thumbnail":"/stickers/pack0001/stk00001_thumb.png","tn_height":200,"tn_width":153,"type":100},
+          {"path":"/demo/src/124/opaque.webm","name":"opaque.webm","fullname":"b.webm","md5":"00000000000000000000000000000000"}]}]}]}
+        """;
+
+    [Fact]
+    public async Task StickerFilesWithoutChecksumAreKeptAsAttachmentsFromTheStickerTree()
+    {
+        var h = Harness(StickerThread); var result = Assert.IsType<ThreadSnapshot>(await h.ReadThread());
+        Assert.Empty(SdkValidation.ValidateThreadResult(h.ThreadRequest, result, h.Source));
+        Assert.Empty(SdkValidation.ValidateThreadResult(h.ThreadRequest, SdkJson.Deserialize<ThreadReadResult>(SdkJson.Serialize<ThreadReadResult>(result)), h.Source));
+        var files = result.Snapshot.Posts[1].Attachments!; Assert.Equal(new[] { "124-0", "124-1" }, files.Select(a => a.MediaId));
+        Assert.Equal("https://2ch.hk/stickers/pack0001/stk00001.png", files[0].Url!.AbsoluteUri); Assert.Equal(".png", files[0].Extension);
+        Assert.Null(files[0].ExpectedMd5); Assert.Null(files[0].ExpectedSize);
+        // Ordinary files next to a sticker keep their own strict checksum.
+        Assert.Equal(Convert.ToBase64String(new byte[16]), files[1].ExpectedMd5);
+    }
+
+    [Theory]
+    [InlineData("/stickers/pack0001/a/b.png")][InlineData("/stickers/a.png")][InlineData("/other/pack0001/a.png")]
+    [InlineData("/stickers/../a.png")][InlineData("/stickers/pack0001/%2e%2e")][InlineData("/stickers/pack0001/a%2fb.png")]
+    [InlineData("/stickers/pack0001/a.png?x=1")][InlineData("//evil.test/stickers/pack0001/a.png")]
+    public async Task StickerPathsStayInsideTheStickerTree(string path)
+    {
+        var root = JsonNode.Parse(StickerThread)!; root["threads"]![0]!["posts"]![1]!["files"]![0]!["path"] = path;
+        Assert.Equal("invalid_payload", Assert.IsType<ThreadFailure>(await Harness(root.ToJsonString()).ReadThread()).Failure.Code);
+    }
+
+    [Theory]
+    [InlineData("")][InlineData("not-hex")][InlineData("d0b04abd386c83f00df0b06b6583d07")]
+    public async Task OnlyStickersMayLackAChecksumOrdinaryFilesStillRequireOne(string md5)
+    {
+        var root = JsonNode.Parse(StickerThread)!; var files = root["threads"]![0]!["posts"]![1]!["files"]!;
+        files[1]!["md5"] = md5; // ordinary file
+        Assert.Equal("invalid_payload", Assert.IsType<ThreadFailure>(await Harness(root.ToJsonString()).ReadThread()).Failure.Code);
+        files[1]!["md5"] = "00000000000000000000000000000000"; files[0]!["md5"] = md5; // a stated sticker checksum is still validated
+        var result = await Harness(root.ToJsonString()).ReadThread();
+        if (md5.Length == 0) Assert.Null(Assert.IsType<ThreadSnapshot>(result).Snapshot.Posts[1].Attachments![0].ExpectedMd5);
+        else Assert.IsType<ThreadFailure>(result);
+    }
+
     [Fact]
     public async Task CatalogKeepsIdsUnicodeHtmlAndIncompleteCoverage()
     {

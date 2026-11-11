@@ -167,10 +167,14 @@ public sealed class DvachPlugin : ISourcePlugin
     private static SourceAttachment Attachment(SourceThreadId thread, JsonElement file, string postId, int position)
     {
         string path = Text(file, "path") ?? throw new JsonException("Missing original path.");
-        Uri original = OriginalUri(thread.BoardId, path);
+        // Stickers live in the shared /stickers/{pack}/ tree, not under a board, and carry no checksum (md5:"").
+        // Only a file that names itself a sticker in that exact tree gets this; every other file keeps the strict rules.
+        bool sticker = path.StartsWith("/stickers/", StringComparison.Ordinal) && Text(file, "sticker") is not null;
+        Uri original = sticker ? StickerUri(path) : OriginalUri(thread.BoardId, path);
         string extension = Extension(original);
         string? name = Text(file, "fullname") ?? Text(file, "displayname");
         string? md5 = Text(file, "md5");
+        if (sticker && md5?.Length == 0) md5 = null;
         if (md5 is not null)
         {
             if (md5.Length != 32 || md5.Any(character => !Uri.IsHexDigit(character))) throw new JsonException("Invalid Makaba MD5.");
@@ -202,6 +206,19 @@ public sealed class DvachPlugin : ISourcePlugin
             throw new JsonException("Original path escapes its board or source media directory.");
         Uri url = new Uri(Origin, path);
         if (url.Host != Host || url.AbsolutePath != path) throw new JsonException("Invalid normalized original path.");
+        return url;
+    }
+    private static Uri StickerUri(string path)
+    {
+        if (path.IndexOfAny(['\\', '?', '#']) >= 0) throw new JsonException("Invalid sticker path.");
+        string[] segments = path.Split('/');
+        if (segments.Length != 4 || segments[1] != "stickers"
+            || segments.Skip(1).Any(segment => segment.Length == 0 || segment is "." or ".."
+                || Uri.UnescapeDataString(segment).IndexOfAny(['/', '\\']) >= 0
+                || Uri.UnescapeDataString(segment) is "." or ".."))
+            throw new JsonException("Sticker path escapes its sticker media directory.");
+        Uri url = new Uri(Origin, path);
+        if (url.Host != Host || url.AbsolutePath != path) throw new JsonException("Invalid normalized sticker path.");
         return url;
     }
     private static string Extension(Uri original)
