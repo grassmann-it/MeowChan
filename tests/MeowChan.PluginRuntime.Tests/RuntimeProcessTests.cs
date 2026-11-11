@@ -24,7 +24,7 @@ public sealed class RuntimeProcessTests
         }
     }
     private static string Dotnet => Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "/usr/share/dotnet/dotnet";
-    private static PluginConfiguration Configuration => new("config1", new("1", []), new Dictionary<string, SettingsSnapshot> { ["fixture"] = new("1", []) });
+    private static PluginConfiguration Configuration => new("config1", new("1", []), new Dictionary<string, SettingsSnapshot> { ["fixture"] = new("1", []), ["fixture-booru"] = new("1", []) });
     private static PluginOperationContext Operation => new("fixture/b/1", 7);
     private static ThreadReadRequest Thread(string id = "1") => new(new("fixture", "b", id));
     private static PluginArtifact Artifact(IReadOnlyList<PluginArtifactResource>? resources = null, string? root = null)
@@ -52,6 +52,61 @@ public sealed class RuntimeProcessTests
         CatalogSnapshot catalog = Assert.IsType<CatalogSnapshot>(await worker.ReadCatalogAsync(new(new("fixture", "b")), Operation));
         Assert.Single(catalog.Snapshot.Threads);
         Assert.Empty(await worker.ValidateSettingsAsync(new(SettingScope.Plugin, new("1", []))));
+    }
+    [Fact]
+    public async Task BooruSearchRoundTripsThroughRealWorkerAndReturnsValidatedPage()
+    {
+        using Workspace workspace = new(); await using PluginWorkerManager manager = new();
+        await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
+        BooruSearchSnapshot snapshot = Assert.IsType<BooruSearchSnapshot>(await worker.SearchBooruPostsAsync(new("fixture-booru", "blue_sky rating:general", 1, 20), Operation));
+        Assert.Equal("blue_sky rating:general", snapshot.Page.Query); Assert.False(snapshot.Page.IsEnd);
+        Assert.Equal(["101", "102"], snapshot.Page.Posts.Select(post => post.Id.PostId));
+        Assert.All(snapshot.Page.Posts, post => Assert.Equal("fixture-booru", post.Id.SourceId));
+        Assert.Equal([BooruMediaRole.Original, BooruMediaRole.Preview], snapshot.Page.Posts[0].Media!.Select(media => media.Role));
+        Assert.Equal(4, snapshot.Page.Posts[0].Media![0].ExpectedSize);
+        Assert.Single(Assert.IsType<BooruSearchSnapshot>(await worker.SearchBooruPostsAsync(new("fixture-booru", "q", 2, 1), Operation)).Page.Posts);
+        Assert.True(Assert.IsType<BooruSearchSnapshot>(await worker.SearchBooruPostsAsync(new("fixture-booru", "empty", 3, 10), Operation)).Page.IsEnd);
+        Assert.IsType<BooruSearchDeferred>(await worker.SearchBooruPostsAsync(new("fixture-booru", "deferred", 1, 10), Operation));
+        Assert.IsType<SdkThreadSnapshot>(await worker.ReadThreadAsync(Thread(), Operation));
+    }
+    [Fact]
+    public async Task BooruPostReadRoundTripsAndNotFoundIsExplicit()
+    {
+        using Workspace workspace = new(); await using PluginWorkerManager manager = new();
+        await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
+        BooruPostSnapshot snapshot = Assert.IsType<BooruPostSnapshot>(await worker.ReadBooruPostAsync(new(new("fixture-booru", "42")), Operation));
+        Assert.Equal(new SourcePostId("fixture-booru", "42"), snapshot.Post.Id);
+        Assert.Equal("fixture_tag", Assert.Single(snapshot.Post.Tags!).Name);
+        BooruPostNotFound missing = Assert.IsType<BooruPostNotFound>(await worker.ReadBooruPostAsync(new(new("fixture-booru", "missing")), Operation));
+        Assert.Equal(404, missing.HttpStatusCode);
+    }
+    [Fact]
+    public async Task BooruResultsFromAnotherSourceAreRejectedByTheHostClient()
+    {
+        using Workspace workspace = new(); await using PluginWorkerManager manager = new();
+        await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
+        PluginWorkerException search = await Assert.ThrowsAsync<PluginWorkerException>(() => worker.SearchBooruPostsAsync(new("fixture-booru", "foreign", 1, 10), Operation));
+        Assert.Equal("validation", search.Code); Assert.DoesNotContain("foreign", search.Message);
+        PluginWorkerException post = await Assert.ThrowsAsync<PluginWorkerException>(() => worker.ReadBooruPostAsync(new(new("fixture-booru", "foreign")), Operation));
+        Assert.Equal("validation", post.Code);
+        Assert.IsType<BooruSearchSnapshot>(await worker.SearchBooruPostsAsync(new("fixture-booru", "q", 1, 10), Operation));
+    }
+    [Fact]
+    public async Task BooruCallsOnASourceWithoutPostSearchAreRefusedBeforeAnyWorkerCall()
+    {
+        using Workspace workspace = new(); await using PluginWorkerManager manager = new();
+        await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
+        string instance = worker.Identity.InstanceId;
+        PluginWorkerException search = await Assert.ThrowsAsync<PluginWorkerException>(() => worker.SearchBooruPostsAsync(new("fixture", "q", 1, 10), Operation));
+        Assert.Equal("capability", search.Code);
+        PluginWorkerException post = await Assert.ThrowsAsync<PluginWorkerException>(() => worker.ReadBooruPostAsync(new(new("fixture", "1")), Operation));
+        Assert.Equal("capability", post.Code);
+        Assert.Equal("capability", (await Assert.ThrowsAsync<PluginWorkerException>(() => worker.SearchBooruPostsAsync(new("undeclared", "q", 1, 10), Operation))).Code);
+        // An invalid request never reaches the worker either.
+        Assert.Equal("validation", (await Assert.ThrowsAsync<PluginWorkerException>(() => worker.SearchBooruPostsAsync(new("fixture-booru", "q", 0, 10), Operation))).Code);
+        Assert.Equal("validation", (await Assert.ThrowsAsync<PluginWorkerException>(() => worker.SearchBooruPostsAsync(new("fixture-booru", "a\u0001b", 1, 10), Operation))).Code);
+        Assert.Equal(instance, worker.Identity.InstanceId); Assert.Equal("ready", worker.Snapshot.State);
+        Assert.Single(Assert.IsType<CatalogSnapshot>(await worker.ReadCatalogAsync(new(new("fixture", "b")), Operation)).Snapshot.Threads);
     }
     [Fact]
     public async Task DescribeRequiresNoConfiguredSourceAndNoHostServices()

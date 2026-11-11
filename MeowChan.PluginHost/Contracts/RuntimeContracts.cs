@@ -53,6 +53,13 @@ public interface IPluginWorkerClient : IAsyncDisposable
         CancellationToken cancellationToken = default);
     Task<ImageFilterResult> EvaluateAsync(ImageFilterRequest request, PluginOperationContext operation,
         CancellationToken cancellationToken = default);
+    /// <summary>Requires the source's PostSearch capability; wrappers that do not forward it refuse the call.</summary>
+    Task<BooruSearchResult> SearchBooruPostsAsync(BooruSearchRequest request, PluginOperationContext operation,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("This worker client does not support booru post search.");
+    Task<BooruPostResult> ReadBooruPostAsync(BooruPostRequest request, PluginOperationContext operation,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("This worker client does not support booru post search.");
     Task RetryAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<FieldValidationError>> ValidateSettingsAsync(SettingsValidationRequest request,
         CancellationToken cancellationToken = default);

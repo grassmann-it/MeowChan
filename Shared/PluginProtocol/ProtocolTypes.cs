@@ -8,7 +8,7 @@ internal static class ProtocolVersion
 {
     public const int Major = 1;
     public const int MaximumFrameBytes = 16 * 1024 * 1024;
-    public static readonly string[] Operations = ["describe", "catalog", "thread", "filter", "settings", "http", "image", "cancel"];
+    public static readonly string[] Operations = ["describe", "catalog", "thread", "booru.search", "booru.post", "filter", "settings", "http", "image", "cancel"];
 }
 
 internal sealed record WireEnvelope(int Version, string Direction, string Operation, string RequestId,

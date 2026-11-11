@@ -74,6 +74,13 @@ internal sealed class WorkerServer
         }
     }
 
+    private IBooruSourcePlugin BooruPlugin()
+        => _plugin as IBooruSourcePlugin ?? throw new InvalidDataException("Unsupported mandatory operation: the plugin does not implement booru post search.");
+
+    private SourceDescription BooruSource(string sourceId)
+        => _description!.Sources.SingleOrDefault(source => source.SourceId == sourceId)
+            ?? throw new InvalidDataException("Request identifies an undeclared source.");
+
     private void CheckIdentity(WireEnvelope envelope)
     {
         if (envelope.WorkerInstance != _identity!.WorkerInstance || envelope.BuildRevision != _identity.BuildRevision
@@ -100,7 +107,8 @@ internal sealed class WorkerServer
                 _description = _plugin.Describe();
                 SdkValidation.ThrowIfInvalid(SdkValidation.ValidateDescription(_description));
                 if (initialize.ValidateConfiguration) SdkValidation.ThrowIfInvalid(SdkValidation.ValidateConfiguration(_description, initialize.Configuration));
-                if ((_description.Sources.Count > 0 && _plugin is not ISourcePlugin)
+                if ((_description.Sources.Any(source => !source.Capabilities.HasFlag(SourceCapabilities.PostSearch)) && _plugin is not ISourcePlugin)
+                    || (_description.Sources.Any(source => source.Capabilities.HasFlag(SourceCapabilities.PostSearch)) && _plugin is not IBooruSourcePlugin)
                     || (_description.Filters.Count > 0 && _plugin is not IImageFilterPlugin))
                     throw new InvalidDataException("Description capabilities do not match implemented interfaces.");
                 _configuration = initialize.Configuration;
@@ -125,6 +133,20 @@ internal sealed class WorkerServer
                     ThreadReadResult threadResult = await ((ISourcePlugin)_plugin).ReadThreadAsync(thread, context, token).ConfigureAwait(false);
                     token.ThrowIfCancellationRequested();
                     await ReplyAsync<ThreadReadResult>(envelope, threadResult).ConfigureAwait(false);
+                    break;
+                case "booru.search":
+                    BooruSearchRequest search = WireJson.Read<BooruSearchRequest>(envelope.Payload);
+                    SdkValidation.ThrowIfInvalid(SdkValidation.ValidateBooruSearchRequest(search, BooruSource(search.SourceId)));
+                    BooruSearchResult searchResult = await BooruPlugin().SearchPostsAsync(search, context, token).ConfigureAwait(false);
+                    token.ThrowIfCancellationRequested();
+                    await ReplyAsync<BooruSearchResult>(envelope, searchResult).ConfigureAwait(false);
+                    break;
+                case "booru.post":
+                    BooruPostRequest post = WireJson.Read<BooruPostRequest>(envelope.Payload);
+                    SdkValidation.ThrowIfInvalid(SdkValidation.ValidateBooruPostRequest(post, BooruSource(post.Post.SourceId)));
+                    BooruPostResult postResult = await BooruPlugin().ReadPostAsync(post, context, token).ConfigureAwait(false);
+                    token.ThrowIfCancellationRequested();
+                    await ReplyAsync<BooruPostResult>(envelope, postResult).ConfigureAwait(false);
                     break;
                 case "filter":
                     ImageFilterResult result = await ((IImageFilterPlugin)_plugin).EvaluateAsync(WireJson.Read<ImageFilterRequest>(envelope.Payload), context, token).ConfigureAwait(false);

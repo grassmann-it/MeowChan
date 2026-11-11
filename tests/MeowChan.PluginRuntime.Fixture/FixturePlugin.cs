@@ -2,14 +2,16 @@ using MeowChan.PluginSdk;
 
 namespace MeowChan.PluginRuntime.Fixture;
 
-public sealed class FixturePlugin : ISourcePlugin, IImageFilterPlugin, IPluginSettingsValidator
+public sealed class FixturePlugin : ISourcePlugin, IBooruSourcePlugin, IImageFilterPlugin, IPluginSettingsValidator
 {
     public Task<IReadOnlyList<FieldValidationError>> ValidateSettingsAsync(SettingsValidationRequest request, PluginCallContext context, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<FieldValidationError>>(request.SourceId == "malformed" ? [new(null!, "bad", "Bad result")] : []);
     public PluginDescription Describe() => new("fixture", "Fixture", "1.0.0", SdkContract.Version, "Controlled runtime fixture",
         [new("fixture", "Fixture", new("https://fixture.test/"), SourceCapabilities.ThreadRead | SourceCapabilities.BoardCatalog,
             [new(SourceResourceKind.Thread, "fixture.test", "/{board}/thread/{thread}", IsCanonical: true), new(SourceResourceKind.Board, "fixture.test", "/{board}", IsCanonical: true)],
-            [new("fixture.test", HttpHostPurpose.Metadata)], new("1", []))],
+            [new("fixture.test", HttpHostPurpose.Metadata)], new("1", [])),
+         new("fixture-booru", "Fixture booru", new("https://booru.fixture.test/"), SourceCapabilities.PostSearch | SourceCapabilities.OriginalMedia | SourceCapabilities.Previews, [],
+            [new("booru.fixture.test", HttpHostPurpose.Metadata), new("media.fixture.test", HttpHostPurpose.OriginalMedia | HttpHostPurpose.PreviewMedia)], new("1", []))],
         [new("bytes", "Bytes", "Reads actual staged bytes", FilterDataAccess.OriginalImage | FilterDataAccess.CandidateMetadata, new("1", []), ["image/png"])],
         new("1", []), []);
     public Task<CatalogReadResult> ReadCatalogAsync(CatalogReadRequest request, PluginCallContext context, CancellationToken cancellationToken = default) =>
@@ -49,6 +51,27 @@ public sealed class FixturePlugin : ISourcePlugin, IImageFilterPlugin, IPluginSe
         }
         return Snapshot(request, "post bytes");
     }
+    public Task<BooruSearchResult> SearchPostsAsync(BooruSearchRequest request, PluginCallContext context, CancellationToken cancellationToken = default)
+    {
+        switch (request.Query)
+        {
+            case "foreign": return Task.FromResult<BooruSearchResult>(new BooruSearchSnapshot(new(request.SourceId, request.Query, request.Page, [BooruPost(new("other", "1"))], true)));
+            case "empty": return Task.FromResult<BooruSearchResult>(new BooruSearchSnapshot(new(request.SourceId, request.Query, request.Page, [], true)));
+            case "deferred": return Task.FromResult<BooruSearchResult>(new BooruSearchDeferred(request.SourceId, DateTimeOffset.UtcNow.AddMinutes(1), "provider_cooldown", 429));
+        }
+        BooruPost[] posts = Enumerable.Range(1, 2).Select(index => BooruPost(new(request.SourceId, (request.Page * 100 + index).ToString()))).Take(request.Limit).ToArray();
+        return Task.FromResult<BooruSearchResult>(new BooruSearchSnapshot(new(request.SourceId, request.Query, request.Page, posts, request.Page >= 2)));
+    }
+    public Task<BooruPostResult> ReadPostAsync(BooruPostRequest request, PluginCallContext context, CancellationToken cancellationToken = default) => Task.FromResult<BooruPostResult>(request.Post.PostId switch
+    {
+        "missing" => new BooruPostNotFound(request.Post, 404),
+        "foreign" => new BooruPostSnapshot(BooruPost(new("other", request.Post.PostId))),
+        _ => new BooruPostSnapshot(BooruPost(request.Post))
+    });
+    private static BooruPost BooruPost(SourcePostId id) => new(id, BooruFieldPresence.CreatedAt | BooruFieldPresence.Rating | BooruFieldPresence.Tags | BooruFieldPresence.Media,
+        new("https://booru.fixture.test/posts/" + id.PostId), new DateTimeOffset(2026, 11, 11, 0, 0, 0, TimeSpan.Zero), BooruRating.General, "g",
+        Tags: [new("fixture_tag", BooruTagCategory.General)],
+        Media: [new(BooruMediaRole.Original, new("https://media.fixture.test/o/" + id.PostId + ".png"), ".png", 4, 2, 2), new(BooruMediaRole.Preview, new("https://media.fixture.test/p/" + id.PostId + ".jpg"))]);
     private static ThreadSnapshot Snapshot(ThreadReadRequest request, string text) => new(new(request.Thread,
         new("https://fixture.test/b/thread/" + request.Thread.ThreadId), "Title", SourceThreadState.Active,
         [new("1", 0, SourceFieldPresence.Text, Text: text, TextFormat: SourceTextFormat.PlainText)]));
