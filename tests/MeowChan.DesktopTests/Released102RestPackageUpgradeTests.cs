@@ -158,7 +158,12 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
             JsonElement export = Assert.Single(actual.GetProperty("Exports").EnumerateArray());
             JsonElement inspection = export.GetProperty("Inspection");
             Assert.NotEqual(JsonValueKind.Null, inspection.ValueKind);
-            AssertJson(thread.GetProperty("Export"), inspection.GetProperty("Metadata"), "released export metadata/files/generation");
+            // A released-1.0.2 marker predates press-time language, so its document has no
+            // Options.Language. Current code derives the documented default "en" on read. Compare
+            // with that single derived field normalized instead of rewriting the immutable export
+            // (exports are byte-verified originals, see VerifyOriginalBytes).
+            AssertJson(WithDerivedExportLanguage(thread.GetProperty("Export")), inspection.GetProperty("Metadata"),
+                "released export metadata/files/generation");
             Assert.Empty(inspection.GetProperty("ModifiedPaths").EnumerateArray());
             Assert.Empty(inspection.GetProperty("ExtraPaths").EnumerateArray());
             AssertJson(id, export.GetProperty("Entry").GetProperty("Thread"), "export history thread");
@@ -282,6 +287,22 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
         // Original exports are immutable output; databases, caches and session envelopes are not.
         foreach (JsonProperty file in old.GetProperty("Files").EnumerateObject().Where(file => file.Name.StartsWith("exports/", StringComparison.Ordinal)))
             Assert.Equal(file.Value.GetString(), Hash(ReadOrdinaryFile(SafePath(profile, file.Name))), ignoreCase: true);
+    }
+
+    /// <summary>Adds only the documented default language when a released marker predates it.</summary>
+    private static JsonElement WithDerivedExportLanguage(JsonElement released)
+    {
+        if (!released.TryGetProperty("Options", out JsonElement options) ||
+            options.ValueKind != JsonValueKind.Object ||
+            options.TryGetProperty("Language", out _))
+            return released;
+        Dictionary<string, JsonElement> extended = new();
+        foreach (JsonProperty property in options.EnumerateObject()) extended[property.Name] = property.Value;
+        extended["Language"] = JsonSerializer.SerializeToElement("en");
+        Dictionary<string, JsonElement> rewritten = new();
+        foreach (JsonProperty property in released.EnumerateObject())
+            rewritten[property.Name] = property.NameEquals("Options") ? JsonSerializer.SerializeToElement(extended) : property.Value;
+        return JsonSerializer.SerializeToElement(rewritten);
     }
 
     private static void AssertJson(JsonElement expected, JsonElement actual, string context) =>
