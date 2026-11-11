@@ -28,40 +28,7 @@ public sealed class NativeV2ImportCrashTests(ITestOutputHelper output)
     [InlineData(nameof(NativeMediaImportPhase.SqlCommitted))]
     public async Task KillingTheProcessAtAnImportCheckpointLeavesAnOpenableCatalogAndAnHonestGuard(string phase)
     {
-        string marker = Path.Combine(Path.GetTempPath(), "meowchan-crash-" + Guid.NewGuid().ToString("N"));
-        ProcessStartInfo start = new("dotnet")
-        {
-            ArgumentList = { "test", typeof(NativeV2ImportCrashTests).Assembly.Location, "--filter",
-                "FullyQualifiedName~" + nameof(NativeV2ImportCrashTests) + "." + nameof(ChildCommitsUntilTheCheckpointAndWaits) },
-            RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false
-        };
-        start.Environment["MEOWCHAN_CRASH_CHILD"] = phase;
-        start.Environment["MEOWCHAN_CRASH_MARKER"] = marker;
-        start.Environment.Remove("MEOWCHAN_CRASH_RUN");
-        using Process child = Process.Start(start)!;
-        _ = child.StandardOutput.ReadToEndAsync();
-        _ = child.StandardError.ReadToEndAsync();
-        string? root = null;
-        try
-        {
-            using CancellationTokenSource timeout = new(Deadline);
-            while (!File.Exists(marker))
-            {
-                Assert.False(child.HasExited, "The child ended before reaching " + phase);
-                await Task.Delay(50, timeout.Token);
-            }
-            string[] parts = File.ReadAllText(marker).Trim().Split('\n');
-            root = parts[1];
-            // SIGKILL exactly the test host that holds the checkpoint, then the launcher tree.
-            using Process host = Process.GetProcessById(int.Parse(parts[0]));
-            host.Kill();
-            await host.WaitForExitAsync().WaitAsync(Deadline);
-        }
-        finally
-        {
-            child.Kill(entireProcessTree: true);
-            await child.WaitForExitAsync().WaitAsync(Deadline);
-        }
+        string root = await KillAtCheckpointAsync(nameof(NativeV2ImportCrashTests) + "." + nameof(ChildCommitsUntilTheCheckpointAndWaits), phase);
         try
         {
             string profile = Path.Combine(root, "profile");
@@ -80,25 +47,67 @@ public sealed class NativeV2ImportCrashTests(ITestOutputHelper output)
         }
         finally
         {
-            File.Delete(marker);
-            if (root != null && Directory.Exists(root)) Directory.Delete(root, recursive: true);
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
+    }
+
+    /// <summary>Starts the named child test, SIGKILLs its test host at the checkpoint and returns the workspace root.</summary>
+    internal static async Task<string> KillAtCheckpointAsync(string childTest, string phase)
+    {
+        string marker = Path.Combine(Path.GetTempPath(), "meowchan-crash-" + Guid.NewGuid().ToString("N"));
+        ProcessStartInfo start = new("dotnet")
+        {
+            ArgumentList = { "test", typeof(NativeV2ImportCrashTests).Assembly.Location, "--filter", "FullyQualifiedName~" + childTest },
+            RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false
+        };
+        start.Environment["MEOWCHAN_CRASH_CHILD"] = phase;
+        start.Environment["MEOWCHAN_CRASH_MARKER"] = marker;
+        start.Environment.Remove("MEOWCHAN_CRASH_RUN");
+        using Process child = Process.Start(start)!;
+        _ = child.StandardOutput.ReadToEndAsync();
+        _ = child.StandardError.ReadToEndAsync();
+        try
+        {
+            using CancellationTokenSource timeout = new(Deadline);
+            while (!File.Exists(marker))
+            {
+                Assert.False(child.HasExited, "The child ended before reaching " + phase);
+                await Task.Delay(50, timeout.Token);
+            }
+            string[] parts = File.ReadAllText(marker).Trim().Split('\n');
+            // SIGKILL exactly the test host that holds the checkpoint, then the launcher tree.
+            using Process host = Process.GetProcessById(int.Parse(parts[0]));
+            host.Kill();
+            await host.WaitForExitAsync().WaitAsync(Deadline);
+            return parts[1];
+        }
+        finally
+        {
+            child.Kill(entireProcessTree: true);
+            await child.WaitForExitAsync().WaitAsync(Deadline);
+            File.Delete(marker);
+        }
+    }
+
+    /// <summary>Child side: publishes the PID and workspace root at the checkpoint, then holds forever.</summary>
+    internal static void HoldAtCheckpoint(string root)
+    {
+        string marker = Environment.GetEnvironmentVariable("MEOWCHAN_CRASH_MARKER")!;
+        File.WriteAllText(marker + ".tmp", Environment.ProcessId + "\n" + root);
+        File.Move(marker + ".tmp", marker);
+        Thread.Sleep(Timeout.Infinite);
     }
 
     [CrashChildFact]
     public async Task ChildCommitsUntilTheCheckpointAndWaits()
     {
         string target = Environment.GetEnvironmentVariable("MEOWCHAN_CRASH_CHILD")!;
-        string marker = Environment.GetEnvironmentVariable("MEOWCHAN_CRASH_MARKER")!;
         // Never disposed: the parent kills this process while the checkpoint holds.
         NativeV2ImportFixture f = await NativeV2ImportFixture.CreateAsync();
         ProfileAdmissionToken admission = await f.ExclusiveAsync();
         await f.CommitAsync(admission, checkpoint: phase =>
         {
-            if (phase.ToString() != target) return;
-            File.WriteAllText(marker + ".tmp", Environment.ProcessId + "\n" + f.Files.Root);
-            File.Move(marker + ".tmp", marker);
-            Thread.Sleep(Timeout.Infinite);
+            if (phase.ToString() == target) HoldAtCheckpoint(f.Files.Root);
         });
         throw new InvalidOperationException("The checkpoint " + target + " was not reached.");
     }

@@ -11,7 +11,7 @@ namespace MeowChan.Tests.Transfer;
 // Existing-resource merge coverage. The target is first created through the real passive
 // media-import producer and is intentionally NotFound, so these tests exercise the 404 path
 // without manufacturing SQL rows or media manifests.
-public sealed class NativeMediaMergeTests
+public sealed partial class NativeMediaMergeTests
 {
     [Fact]
     public async Task Existing404IdenticalMergeIsNoOpAndReplayable()
