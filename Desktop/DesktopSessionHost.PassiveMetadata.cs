@@ -32,6 +32,8 @@ internal sealed partial class DesktopSessionHost
             _logger.Warning(error, "The passive rating index is unavailable.");
         }
         GetThreadFavoriteSnapshot();
+        // Passive first view for the archive; a damaged index publishes Unavailable, never an empty list.
+        GetPrivateTagSnapshot();
     }
 
     private static bool MetadataReadError(Exception error)

@@ -118,7 +118,7 @@ public partial class ArchivePage : UserControl
 
     public ArchivePage()
     {
-        InitializeComponent(); InitializeThreadFind(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeThreadFavoriteCommands();
+        InitializeComponent(); InitializeThreadFind(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeThreadFavoriteCommands(); InitializePrivateTags();
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         Control<ListBox>("ArchivePosts").AutoScrollToSelectedItem = false;
         Control<ListBox>("ArchiveMediaTiles").AutoScrollToSelectedItem = false;
@@ -237,6 +237,7 @@ public partial class ArchivePage : UserControl
             }).ToArray();
             if (_ended || token.IsCancellationRequested || generation != _contentRequest) return false;
             ConfigureThreadFavoriteRows(rows);
+            ConfigurePrivateTagRows(rows);
             _updatingList = true;
             try
             {
@@ -549,6 +550,7 @@ public partial class ArchivePage : UserControl
         UpdateFeedbackVisuals();
         UpdateMediaRatingAction();
         UpdateThreadFavoriteActions();
+        UpdatePrivateTagActions();
         UpdateArchiveCleanupAction();
         UpdateTransferPreviewAction();
         UpdateArchiveSelectionActions();
@@ -929,6 +931,7 @@ public partial class ArchivePage : UserControl
                 return translated;
             }).ToArray();
             ConfigureThreadFavoriteRows(localized);
+            ConfigurePrivateTagRows(localized);
             _updatingList = true;
             try
             {
@@ -952,6 +955,7 @@ public partial class ArchivePage : UserControl
             if (control is Button button) button.Content = Texts.T(key);
         }
         LocalizeThreadFind();
+        LocalizePrivateTags();
         LocalizeExport();
         LocalizeSearch();
         UpdateArchiveEmptyState();

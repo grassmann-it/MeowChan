@@ -110,6 +110,7 @@
                                             <TextBlock Text="{Binding PreviewText}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Classes="workspace-meta" />
                                             <TextBlock Text="{Binding Identity}" ToolTip.Tip="{Binding Identity}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Classes="workspace-meta" />
                                             <TextBlock Text="{Binding Status}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Classes="workspace-meta" />
+                                            <TextBlock Text="{Binding TagsText}" ToolTip.Tip="{Binding TagsText}" IsVisible="{Binding HasTags}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Classes="workspace-meta" />
                                         </StackPanel>
                                     </Grid>
                                 </DataTemplate>
@@ -185,6 +186,7 @@
                         <WrapPanel.Styles><Style Selector="Button"><Setter Property="MinWidth" Value="38" /><Setter Property="Height" Value="32" /></Style></WrapPanel.Styles>
                     <Button x:Name="ArchiveCloseReader" Tag="reader.close" Classes="localized" IsVisible="False" Click="OnCloseReaderClick" />
                     <desktop:ArchiveThreadFavoriteButton x:Name="ArchiveCurrentThreadFavorite" />
+                    <Button x:Name="ReaderTagsOpen" Click="OnOpenThreadTags" />
                     <Button x:Name="ArchiveOpenGallery" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
                     <Button x:Name="ReaderFilenameSearchOpen" Click="OnFilenameSearchClick" />
                     <Button x:Name="ReaderFindOpen" Click="OnOpenThreadFind" />
@@ -207,6 +209,17 @@
                         </WrapPanel>
                         <TextBlock x:Name="ReaderFindStatus" TextWrapping="Wrap" />
                         <TextBlock x:Name="ReaderFindExcerpt" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <!-- Own thread tags: inline like reader find, always bound to the open thread. -->
+                    <StackPanel x:Name="ReaderTagBar" IsVisible="False" Spacing="4">
+                        <WrapPanel x:Name="ReaderTagChips" ItemSpacing="6" LineSpacing="4" />
+                        <WrapPanel x:Name="ReaderTagSuggestions" ItemSpacing="6" LineSpacing="4" IsVisible="False" />
+                        <WrapPanel ItemSpacing="6" LineSpacing="4">
+                            <TextBox x:Name="ReaderTagInput" Width="240" />
+                            <Button x:Name="ReaderTagAdd" Click="OnAddThreadTag" />
+                            <Button x:Name="ReaderTagClose" Click="OnCloseThreadTags" />
+                        </WrapPanel>
+                        <TextBlock x:Name="ReaderTagStatus" TextWrapping="Wrap" IsVisible="False" />
                     </StackPanel>
                     <WrapPanel x:Name="ReaderStatusLine" Orientation="Horizontal">
                         <TextBlock x:Name="ArchiveReaderStatus" Classes="muted" TextWrapping="Wrap" FontSize="12" VerticalAlignment="Center" Margin="0,0,16,0" />

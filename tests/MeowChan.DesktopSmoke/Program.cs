@@ -65,7 +65,7 @@ internal static class Program
             "MEOWCHAN_URLTEXT_PAGE_BOUNDARY_ONLY", "MEOWCHAN_READER_FIND_ONLY",
             "MEOWCHAN_FILENAME_SEARCH_ONLY", "MEOWCHAN_MEDIA_HASH_SEARCH_ONLY",
             "MEOWCHAN_FILENAME_SEARCH_HOST_ONLY", "MEOWCHAN_FILENAME_SEARCH_LARGE_READER_ONLY",
-            "MEOWCHAN_LOCAL_SEARCH_LANGUAGE_ONLY"
+            "MEOWCHAN_LOCAL_SEARCH_LANGUAGE_ONLY", "MEOWCHAN_PRIVATE_TAGS_ONLY"
         ];
         if (focusedModes.Any(name => Environment.GetEnvironmentVariable(name) == "1"))
         {
@@ -259,6 +259,8 @@ internal static class Program
                 ? "filename large reader: seven synthetic native host journeys, complete-reader/off-page results, selection and lifetime joins; managed input only"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_LOCAL_SEARCH_LANGUAGE_ONLY") == "1"
                 ? "local search language: EN/DE/ES/FR/RU retained drafts/results, actual native controls and 360-DIP action glyph layout; no OS typing, current-byte or cross-platform acceptance"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_PRIVATE_TAGS_ONLY") == "1"
+                ? "private tags: real host and store, actual reader tag bar, suggestions, list rows, restart and damaged index; managed input only, no Windows/macOS acceptance"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_READER_FIND_ONLY") == "1"
                 ? "reader find: actual offline404 native controls, whole-thread hits and managed routed keys; no OS keyboard or Windows/macOS acceptance"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_FILENAME_SEARCH_ONLY") == "1"
@@ -447,6 +449,11 @@ internal static class Program
             if (Environment.GetEnvironmentVariable("MEOWCHAN_LOCAL_SEARCH_LANGUAGE_ONLY") == "1")
             {
                 await LocalSearchLanguageRefreshChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_PRIVATE_TAGS_ONLY") == "1")
+            {
+                await PrivateTagBarChecks.RunAsync(mainWindow);
                 _checksPassed = true; mainWindow.Close(); return;
             }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_FIND_ONLY") == "1")

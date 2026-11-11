@@ -1955,6 +1955,24 @@
     "media.rating.error.save": "Impossible d’enregistrer l’évaluation.",
     "media.rating.error.remove": "Impossible de supprimer l’évaluation.",
     "media.rating.error.load": "Impossible de charger les évaluations.",
-    "media.rating.error.details": "Détails : "
+    "media.rating.error.details": "Détails : ",
+    "tags.open": "Étiquettes",
+    "tags.openCount": "Étiquettes ({0})",
+    "tags.openHint": "Afficher et modifier vos propres étiquettes pour ce fil. Les étiquettes restent locales dans ce profil.",
+    "tags.assigned": "Étiquettes personnelles de ce fil",
+    "tags.none": "Aucune étiquette personnelle pour l’instant.",
+    "tags.remove": "Retirer l’étiquette {0} de ce fil",
+    "tags.suggestions": "Suggestions d’après le titre et le premier message :",
+    "tags.addSuggestion": "Ajouter l’étiquette suggérée {0}",
+    "tags.input": "Nom de l’étiquette",
+    "tags.add": "Ajouter l’étiquette",
+    "tags.close": "Fermer les étiquettes",
+    "tags.rowLabel": "Étiquettes : {0}",
+    "tags.unavailable": "Les étiquettes personnelles n’ont pas pu être chargées. Rien n’a été modifié.",
+    "tags.notReady": "Les étiquettes pourront être modifiées dès que la session sera prête.",
+    "tags.error.invalidName": "Ce nom d’étiquette n’est pas autorisé. Utilisez 1 à 128 caractères, sans saut de ligne ni caractère de contrôle.",
+    "tags.error.capacity": "La limite d’étiquettes est atteinte. Rien n’a été modifié.",
+    "tags.error.stale": "Les étiquettes ont changé entre-temps. Rien n’a été modifié. Réessayez.",
+    "tags.error.other": "L’étiquette n’a pas pu être enregistrée. Rien n’a été modifié."
   }
 }

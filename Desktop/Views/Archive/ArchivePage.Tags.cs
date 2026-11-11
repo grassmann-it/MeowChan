@@ -1,0 +1,296 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.VisualTree;
+using MeowChan.Archive;
+using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Localization;
+using MeowChan.Tags;
+
+namespace MeowChan;
+
+// Own thread tags in the reader: one inline bar, like reader find. The bar always shows the
+// currently open thread; it has no modal state to drain and never selects or navigates.
+// Unlike reader find it stays open across thread changes until the user closes it.
+public partial class ArchivePage
+{
+    private Func<PrivateTagLoadSnapshot>? _loadPrivateTags;
+    private Func<string, CancellationToken, Task<PrivateTagCommit>>? _definePrivateTag;
+    private Func<TagId, ResourceId, bool, CancellationToken, Task<PrivateTagCommit>>? _setThreadTag;
+    private PrivateTagStoreSnapshot? _privateTags;
+    private Dictionary<ResourceId, string[]> _threadTagNames = new();
+    private bool _privateTagBusy;
+    private string? _privateTagMessage;
+    private ResourceId? _tagBarThread;
+    // The user's explicit choice. The bar hides while no thread is open and returns with the next one,
+    // so several threads can be tagged in a row; it never takes focus when it returns.
+    private bool _tagBarWanted;
+    private (ResourceId Thread, long Revision, IReadOnlyList<PrivateTagName> Names)? _tagSuggestions;
+    private (ResourceId Thread, long Revision, bool CanEdit, string? Message, string Language)? _tagBarRendered;
+    internal Task PrivateTagTask { get; private set; } = Task.CompletedTask;
+
+    internal void AttachPrivateTags(DesktopSessionHost host)
+    {
+        _loadPrivateTags = host.GetPublishedPrivateTagSnapshot;
+        _definePrivateTag = host.DefinePrivateTagAsync;
+        _setThreadTag = host.SetThreadTagAsync;
+        ReloadPrivateTags();
+    }
+
+    private void InitializePrivateTags()
+    {
+        // One local tunnel registration, before native Button.Enter click handling.
+        Control<StackPanel>("ReaderTagBar").AddHandler(KeyDownEvent, OnTagBarKeyDown, RoutingStrategies.Tunnel);
+        LocalizePrivateTags();
+    }
+
+    private bool IsTagBarSource(object? source) => source is Visual visual
+        && visual.GetSelfAndVisualAncestors().Contains(Control<StackPanel>("ReaderTagBar"));
+
+    private bool CanEditThreadTags => _available && !_ended && !_privateTagBusy && _privateTags != null
+        && _definePrivateTag != null && _setThreadTag != null && _thread != null;
+
+    // The published host view is a volatile read; it never touches the disk on the UI thread.
+    private void ReloadPrivateTags()
+    {
+        if (_ended || _loadPrivateTags == null) return;
+        PrivateTagLoadSnapshot loaded = _loadPrivateTags();
+        AdoptPrivateTags(loaded.State == PrivateTagLoadState.Ready ? loaded.Snapshot : null);
+    }
+
+    private void AdoptPrivateTags(PrivateTagStoreSnapshot? snapshot)
+    {
+        if (ReferenceEquals(snapshot, _privateTags)) return;
+        _privateTags = snapshot;
+        Dictionary<ResourceId, string[]> names = new();
+        if (snapshot != null)
+        {
+            // Vocabulary order, independent of the order in which a thread was tagged.
+            Dictionary<TagId, int> order = new();
+            for (int index = 0; index < snapshot.Tags.Count; index++) order[snapshot.Tags[index].Id] = index;
+            foreach (var group in snapshot.ThreadAssignments.GroupBy(item => item.Thread))
+                names[group.Key] = group.Select(item => order[item.TagId]).Order()
+                    .Select(index => snapshot.Tags[index].Name.Display).ToArray();
+        }
+        _threadTagNames = names;
+    }
+
+    // An older acknowledgement must not hide a newer committed state.
+    private void AdoptPrivateTagCommit(PrivateTagCommit commit)
+    {
+        if (_privateTags == null || commit.Snapshot.Revision >= _privateTags.Revision) AdoptPrivateTags(commit.Snapshot);
+    }
+
+    private void ConfigurePrivateTagRows(IEnumerable<ArchiveThreadRow> rows)
+    {
+        ReloadPrivateTags();
+        foreach (ArchiveThreadRow row in rows) row.SetTags(_threadTagNames.GetValueOrDefault(row.Summary.Id));
+    }
+
+    private void UpdatePrivateTagActions()
+    {
+        if (_ended) return;
+        if (_privateTags == null) ReloadPrivateTags();
+        Button open = Control<Button>("ReaderTagsOpen");
+        StackPanel bar = Control<StackPanel>("ReaderTagBar");
+        ResourceId? id = _thread?.Summary.Id;
+        int count = id == null ? 0 : _threadTagNames.GetValueOrDefault(id)?.Length ?? 0;
+        string label = count > 0 ? Texts.T("tags.openCount", count) : Texts.T("tags.open");
+        if (!Equals(open.Content, label)) open.Content = label;
+        open.IsEnabled = id != null && !IsReaderDialogOpen;
+        bool show = _tagBarWanted && id != null;
+        if (bar.IsVisible != show)
+        {
+            bar.IsVisible = show;
+            if (!show) _tagBarRendered = null;
+        }
+        if (show) RenderTagBar();
+    }
+
+    private void OnOpenThreadTags(object? sender, RoutedEventArgs e)
+    {
+        if (_ended || IsReaderDialogOpen || _thread == null) return;
+        if (_tagBarWanted) { CloseTagBar(); return; }
+        ReloadPrivateTags();
+        _tagBarWanted = true;
+        Control<StackPanel>("ReaderTagBar").IsVisible = true;
+        RenderTagBar();
+        // Opening is explicit, so it may take focus; later updates never do.
+        if (CanEditThreadTags) Control<TextBox>("ReaderTagInput").Focus();
+    }
+
+    private void OnCloseThreadTags(object? sender, RoutedEventArgs e) => CloseTagBar(focusOpen: true);
+
+    private void CloseTagBar(bool focusOpen = false)
+    {
+        _tagBarWanted = false;
+        Control<StackPanel>("ReaderTagBar").IsVisible = false;
+        _privateTagMessage = null;
+        _tagBarRendered = null;
+        if (focusOpen && Control<Button>("ReaderTagsOpen").IsEffectivelyVisible) Control<Button>("ReaderTagsOpen").Focus();
+    }
+
+    private void OnTagBarKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || _ended || ShortcutService.IsCapturing || IsReaderDialogOpen
+            || !Control<StackPanel>("ReaderTagBar").IsVisible || !IsTagBarSource(e.Source)
+            || e.KeyModifiers != KeyModifiers.None) return;
+        if (e.Key == Key.Escape) { e.Handled = true; CloseTagBar(focusOpen: true); }
+        // Enter adds only from the text field; buttons keep their native activation.
+        else if (e.Key == Key.Enter && e.Source is Visual source
+            && source.GetSelfAndVisualAncestors().Contains(Control<TextBox>("ReaderTagInput")))
+        { e.Handled = true; OnAddThreadTag(sender, new RoutedEventArgs()); }
+    }
+
+    private void OnAddThreadTag(object? sender, RoutedEventArgs e)
+    {
+        string name = Control<TextBox>("ReaderTagInput").Text ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(name)) return;
+        PrivateTagTask = AddThreadTagAsync(name, clearInput: true);
+    }
+
+    // Create-or-get, then assign. Both steps are idempotent, so a repeated click cannot duplicate.
+    private Task AddThreadTagAsync(string name, bool clearInput) => RunThreadTagOperationAsync(async (thread, token) =>
+    {
+        PrivateTagCommit defined = await _definePrivateTag!(name, token);
+        AdoptPrivateTagCommit(defined);
+        AdoptPrivateTagCommit(await _setThreadTag!(defined.Tag, thread, true, token));
+    }, clearInput);
+
+    private Task RemoveThreadTagAsync(TagId tag) => RunThreadTagOperationAsync(async (thread, token) =>
+        AdoptPrivateTagCommit(await _setThreadTag!(tag, thread, false, token)), clearInput: false);
+
+    private async Task RunThreadTagOperationAsync(Func<ResourceId, CancellationToken, Task> operation, bool clearInput)
+    {
+        if (!CanEditThreadTags) return;
+        ResourceId thread = _thread!.Summary.Id; // Frozen target: a later thread switch cannot redirect it.
+        bool focusInBar = IsTagBarSource(TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement());
+        _privateTagBusy = true;
+        _privateTagMessage = null;
+        UpdatePrivateTagActions();
+        try
+        {
+            await operation(thread, _lifetime.Token);
+            if (!_ended && clearInput && _tagBarThread == thread) Control<TextBox>("ReaderTagInput").Text = string.Empty;
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        catch (PrivateTagStoreException error)
+        {
+            _privateTagMessage = Texts.T(error.Error switch
+            {
+                PrivateTagStoreError.InvalidName => "tags.error.invalidName",
+                PrivateTagStoreError.CapacityExceeded => "tags.error.capacity",
+                PrivateTagStoreError.StaleRevision => "tags.error.stale",
+                _ => "tags.error.other"
+            });
+        }
+        catch (Exception error)
+        {
+            // Store and host messages are constant texts without names or paths.
+            _privateTagMessage = Texts.T("tags.error.other") + "\n" + error.Message;
+        }
+        finally
+        {
+            _privateTagBusy = false;
+            if (!_ended)
+            {
+                foreach (ArchiveThreadRow row in ArchiveVisibleRows) row.SetTags(_threadTagNames.GetValueOrDefault(row.Summary.Id));
+                UpdatePrivateTagActions();
+                // The acted-on chip is gone after a rebuild; keep keyboard users inside the bar.
+                if (focusInBar && Control<StackPanel>("ReaderTagBar").IsVisible && CanEditThreadTags)
+                    Control<TextBox>("ReaderTagInput").Focus();
+            }
+        }
+    }
+
+    private IReadOnlyList<PrivateTagName> ThreadTagSuggestions(ArchivedThreadView thread)
+    {
+        if (_tagSuggestions is { } cached && cached.Thread == thread.Summary.Id && cached.Revision == thread.Summary.Revision)
+            return cached.Names;
+        CapturedPost? first = thread.PostCount > 0 ? thread.GetPosts(0, 1).FirstOrDefault() : null;
+        IReadOnlyList<PrivateTagName> names = SlashTagSuggestions.Detect(thread.Summary.Title, first?.Subject,
+            first?.Html == null ? null : ArchiveText.PlainText(first.Html));
+        _tagSuggestions = (thread.Summary.Id, thread.Summary.Revision, names);
+        return names;
+    }
+
+    private void RenderTagBar()
+    {
+        ArchivedThreadView thread = _thread!;
+        ResourceId id = thread.Summary.Id;
+        if (_tagBarThread != id)
+        {
+            // A different thread: never carry a draft name or an old message across.
+            _tagBarThread = id;
+            _privateTagMessage = null;
+            Control<TextBox>("ReaderTagInput").Text = string.Empty;
+        }
+        bool canEdit = CanEditThreadTags;
+        var key = (id, _privateTags?.Revision ?? -1, canEdit, _privateTagMessage, Texts.Language);
+        if (_tagBarRendered == key) return;
+        _tagBarRendered = key;
+
+        WrapPanel chips = Control<WrapPanel>("ReaderTagChips");
+        AutomationProperties.SetName(chips, Texts.T("tags.assigned"));
+        chips.Children.Clear();
+        PrivateTagDefinition[] assigned = _privateTags?.TagsOf(id).ToArray() ?? Array.Empty<PrivateTagDefinition>();
+        foreach (PrivateTagDefinition tag in assigned)
+        {
+            TagId tagId = tag.Id;
+            // A TextBlock keeps underscores in names literal instead of access-key markers.
+            Button chip = new() { Content = new TextBlock { Text = tag.Name.Display + "  ✕" }, IsEnabled = canEdit };
+            string hint = Texts.T("tags.remove", tag.Name.Display);
+            AutomationProperties.SetName(chip, hint);
+            ToolTip.SetTip(chip, hint);
+            chip.Click += (_, _) => PrivateTagTask = RemoveThreadTagAsync(tagId);
+            chips.Children.Add(chip);
+        }
+        if (assigned.Length == 0)
+            chips.Children.Add(new TextBlock { Text = Texts.T("tags.none"), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
+
+        WrapPanel suggestions = Control<WrapPanel>("ReaderTagSuggestions");
+        suggestions.Children.Clear();
+        PrivateTagName[] open = ThreadTagSuggestions(thread).Where(name => assigned.All(tag => tag.Name != name)).ToArray();
+        suggestions.IsVisible = open.Length > 0 && _privateTags != null;
+        if (suggestions.IsVisible)
+        {
+            suggestions.Children.Add(new TextBlock { Text = Texts.T("tags.suggestions"), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
+            foreach (PrivateTagName name in open)
+            {
+                string display = name.Display;
+                Button suggestion = new() { Content = new TextBlock { Text = "+ " + display }, IsEnabled = canEdit };
+                string hint = Texts.T("tags.addSuggestion", display);
+                AutomationProperties.SetName(suggestion, hint);
+                ToolTip.SetTip(suggestion, hint);
+                suggestion.Click += (_, _) => PrivateTagTask = AddThreadTagAsync(display, clearInput: false);
+                suggestions.Children.Add(suggestion);
+            }
+        }
+
+        Control<TextBox>("ReaderTagInput").IsEnabled = canEdit;
+        Control<Button>("ReaderTagAdd").IsEnabled = canEdit;
+        TextBlock status = Control<TextBlock>("ReaderTagStatus");
+        status.Text = _privateTags == null ? Texts.T("tags.unavailable")
+            : _privateTagMessage ?? (!_available ? Texts.T("tags.notReady") : string.Empty);
+        status.IsVisible = status.Text.Length > 0;
+    }
+
+    private void LocalizePrivateTags()
+    {
+        ToolTip.SetTip(Control<Button>("ReaderTagsOpen"), Texts.T("tags.openHint"));
+        Control<TextBox>("ReaderTagInput").Watermark = Texts.T("tags.input");
+        AutomationProperties.SetName(Control<TextBox>("ReaderTagInput"), Texts.T("tags.input"));
+        Control<Button>("ReaderTagAdd").Content = Texts.T("tags.add");
+        Control<Button>("ReaderTagClose").Content = Texts.T("tags.close");
+        _tagBarRendered = null;
+        UpdatePrivateTagActions();
+    }
+}

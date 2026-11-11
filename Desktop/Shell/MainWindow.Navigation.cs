@@ -65,6 +65,7 @@ public partial class MainWindow
         _archivePage.AttachTransferImport(_session);
         _archivePage.AttachSavedSearches(_session);
         _archivePage.AttachThreadFavorites(_session);
+        _archivePage.AttachPrivateTags(_session);
         _archivePage.AttachArchiveCleanup(_session, () => _gallery == null && _galleryCleanupTask.IsCompletedSuccessfully
             ? Array.Empty<ResourceId>() : _galleryThreads.Concat(_galleryEntries.Select(entry => entry.Key.Thread)).Distinct().ToArray(),
             () => _gallery == null && _galleryCleanupTask.IsCompletedSuccessfully && !_largeReaderOpen && !_archiveDeletionOpen);

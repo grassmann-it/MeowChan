@@ -43,6 +43,11 @@ public partial class ArchivePage
             CloseThreadFind();
             return true;
         }
+        if (!_ended && Control<StackPanel>("ReaderTagBar").IsVisible && IsTagBarSource(source))
+        {
+            CloseTagBar(focusOpen: true);
+            return true;
+        }
         return false;
     }
     private void OnReaderFullscreenClick(object? sender, RoutedEventArgs e) { if (!IsFilenameSearchOpen) FullscreenRequested?.Invoke(); }
