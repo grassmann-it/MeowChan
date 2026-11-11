@@ -23,7 +23,8 @@ Nichts wird teilweise veröffentlicht, der Katalog öffnet immer, aber es gibt k
 Produktweg aus dem blockierten Zustand. Lösungsentwurf (bestätigtes Verwerfen, kein
 Schemawechsel): `docs/architecture/gesamtprogramm-2026-10-31/NATIVE-TRANSFER-INTERRUPTED-RESOLUTION.md`.
 Der Nutzer hat „erst Entwurf, Umsetzung nach Freigabe“ entschieden; die Freigabe steht aus.
-Merge-Operationen sind nicht real getestet.
+Merge real geprüft (`c0dfcd7`, 2×8/8): SIGKILL vor `SqlCommitted` lässt das 404-Ziel
+unverändert (2 Posts), blockiert aber den Start; nach dem Commit 3 Posts, Start frei.
 
 ### Blocker 2 — Plattformbelege (unter Linux nicht ersetzbar)
 
