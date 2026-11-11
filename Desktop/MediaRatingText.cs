@@ -5,8 +5,6 @@ namespace MeowChan.Desktop;
 
 internal static class MediaRatingText
 {
-    // Kept for prose without a catalog key; never pass provider payload here.
-    internal static string Get(string english, string german) => Texts.Language == "de" ? german : english;
     internal static string Catalog(string key, params object?[] arguments) => Texts.T(key, arguments);
     // Existing callers share the same catalog-backed presentation as the dialogs.
     internal static string Value(int? value) => LocalizedValue(value);

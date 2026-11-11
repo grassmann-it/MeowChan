@@ -98,7 +98,7 @@ public partial class ArchivePage
         _readerGroupFailed = target;
         string id = $"{target.Source}/{target.Board}/{target.Thread}";
         TextBlock message = Control<TextBlock>("ReaderGroupAvailabilityMessage");
-        message.Text = (Texts.Language == "de" ? "Gruppenmitglied lokal nicht verfügbar: " : "Group member unavailable locally: ") + id + "\n" + error;
+        message.Text = Texts.T("readerGroups.memberUnavailableLocally") + id + "\n" + error;
         message.IsVisible = true;
         Button skip = Control<Button>("ReaderSkipUnavailableGroupMember");
         CommandBindings.Apply(skip, "reader.skip-unavailable-group-member");

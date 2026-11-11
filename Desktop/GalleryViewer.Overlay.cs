@@ -14,6 +14,7 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
 namespace MeowChan.Desktop;
@@ -112,8 +113,8 @@ internal sealed partial class GalleryViewer
     }
 
     private static string EdgeIndicatorLabel(bool post) => post
-        ? GalleryViewerText.Get("Show post context", "Beitragskontext anzeigen")
-        : GalleryViewerText.Get("Show gallery controls", "Galerie-Steuerung anzeigen");
+        ? Texts.T("gallery.overlay.showContext")
+        : Texts.T("gallery.overlay.showControls");
 
     private bool HasSelectedPostText => _contextOpen && GalleryEdgeHover.HasSelection(_contextPanel);
     private bool HasSelectedControlsText => GalleryEdgeHover.HasSelection(_chrome) || GalleryEdgeHover.HasSelection(_infoOverlay)

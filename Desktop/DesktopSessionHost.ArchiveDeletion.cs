@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Archive;
+using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
@@ -183,8 +184,7 @@ internal sealed partial class DesktopSessionHost
                     catch (Exception exception) when (exception is not OutOfMemoryException)
                     {
                         ratingCleanupThreads = Array.AsReadOnly(deleted.ToArray());
-                        errors.Add(MediaRatingText.Get("The archive was deleted, but ratings were not cleaned up. Reimporting the same media identities may restore their ratings. ",
-                            "Das Archiv wurde gelöscht, aber Bewertungen wurden nicht bereinigt. Beim erneuten Import derselben Medienidentitäten können deren Bewertungen wieder erscheinen. ")
+                        errors.Add(Texts.T("media.rating.error.cleanupAfterDelete")
                             + string.Join(", ", deleted.Select(id => id.Source + "/" + id.Board + "/" + id.Thread)) + ": " + exception.Message);
                     }
                     try

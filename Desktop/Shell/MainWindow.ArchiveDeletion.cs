@@ -29,7 +29,6 @@ public partial class MainWindow
         {
             ArchivePermanentDeletionPlan plan = await _session.PrepareArchiveDeletionAsync(ids);
             if (_isClosing) return;
-            bool german = Texts.Language == "de";
             string title = CommandCatalog.Label("archive.delete-permanently");
             Window dialog = new()
             {
@@ -39,26 +38,22 @@ public partial class MainWindow
             TextBlock summary = new()
             {
                 TextWrapping = TextWrapping.Wrap,
-                Text = german
-                    ? $"{plan.Catalog.Threads.Count} Threads und {plan.Files.OwnedFileCount} lokale Dateien ({plan.Files.OwnedBytes:N0} Bytes) endgültig löschen?"
-                    : $"Permanently delete {plan.Catalog.Threads.Count} threads and {plan.Files.OwnedFileCount} local files ({plan.Files.OwnedBytes:N0} bytes)?"
+                Text = Texts.T("archive.delete.summary", plan.Catalog.Threads.Count, plan.Files.OwnedFileCount, plan.Files.OwnedBytes)
             };
             List<string> details = plan.Catalog.Threads.Select(thread =>
                 thread.Summary.Id.Source + " /" + thread.Summary.Id.Board + "/ " + thread.Summary.Id.Thread + " · " + thread.Summary.Title).ToList();
             details.Add("");
-            details.Add(german ? $"{plan.RatingCount} Medienbewertungen werden entfernt." : $"{plan.RatingCount} media ratings will be removed.");
-            details.Add(german
-                ? "Archivbeiträge, lokale Originale und Favoriten werden entfernt. Die Threads werden nicht erneut vom beobachteten Board hinzugefügt. Exporte und fremde Dateien bleiben erhalten."
-                : "Archived posts, local originals and favorites will be removed. Watched boards will not add these threads again. Exports and unrelated files remain available.");
+            details.Add(Texts.T("archive.delete.ratings", plan.RatingCount));
+            details.Add(Texts.T("archive.delete.effects"));
             details.Add(Texts.T("bookmarks.retained"));
             foreach (ArchiveDirectoryPlan directory in plan.Files.Directories)
             {
                 details.Add(""); details.Add(directory.Directory);
                 if (directory.Blocker != null) details.Add(directory.Blocker);
-                if (directory.Leftovers.Count > 0) details.Add((german ? "Bleiben erhalten: " : "Retained: ") + string.Join(", ", directory.Leftovers));
+                if (directory.Leftovers.Count > 0) details.Add(Texts.T("archive.delete.retained") + string.Join(", ", directory.Leftovers));
             }
             foreach (string shared in plan.Catalog.SharedMediaDirectories)
-                details.Add((german ? "Gemeinsam mit anderen Threads verwendet: " : "Shared with other threads: ") + shared);
+                details.Add(Texts.T("archive.delete.shared") + shared);
             TextBox detail = new()
             {
                 Name = "ArchivePermanentDeleteDetails", Text = string.Join(Environment.NewLine, details),
@@ -75,8 +70,7 @@ public partial class MainWindow
             delete.Classes.Add("danger");
             delete.IsEnabled = plan.Catalog.Threads.Count > 0 && !plan.Files.HasBlockers && plan.Catalog.SharedMediaDirectories.Count == 0;
             if (!delete.IsEnabled)
-                failure.Text = german ? "Diese Auswahl kann nicht vollständig gelöscht werden. Bitte Details prüfen oder die Auswahl einschränken."
-                    : "This selection cannot be fully deleted. Review the details or select fewer threads.";
+                failure.Text = Texts.T("archive.delete.blocked");
             Button ratingRetry = CommandBindings.CreateButton("media.rating.cleanup-retry", () => { });
             ratingRetry.Command = null; ratingRetry.IsVisible = false;
             IReadOnlyList<ResourceId>? ratingRetryIds = null; // Deliberately session/dialog-only, never persisted.
@@ -110,7 +104,7 @@ public partial class MainWindow
                     await _session.RetryMediaRatingCleanupAsync(frozen);
                     ratingRetryIds = null; ratingRetry.IsVisible = false;
                     failure.Text = string.Empty;
-                    status.Text = german ? "Bewertungen bereinigt. Es wurden keine weiteren Archivdateien gelöscht." : "Ratings cleaned up. No further archive files were deleted.";
+                    status.Text = Texts.T("archive.delete.ratingsCleaned");
                 }
                 catch (Exception error) { status.Text = string.Empty; failure.Text = error.Message; }
                 finally { executing = false; ratingRetry.IsEnabled = cancel.IsEnabled = true; }
@@ -126,7 +120,7 @@ public partial class MainWindow
                 if (executing) return;
                 executing = true; delete.IsEnabled = cancel.IsEnabled = false;
                 failure.Text = string.Empty;
-                status.Text = german ? "Lokale Daten werden gelöscht …" : "Deleting local data…";
+                status.Text = Texts.T("archive.delete.deleting");
                 try
                 {
                     if (_gallery != null) { CloseGallery(restoreOrigin: false); await GalleryCleanupTask; }
@@ -140,15 +134,13 @@ public partial class MainWindow
                         foreach (ArchiveDirectoryResult directory in result.Files.Directories)
                             if (directory.Leftovers.Count > 0)
                                 outcome.Add(directory.Directory + Environment.NewLine +
-                                    (german ? "Bleiben erhalten: " : "Retained: ") + string.Join(", ", directory.Leftovers));
+                                    Texts.T("archive.delete.retained") + string.Join(", ", directory.Leftovers));
                     outcome.Add(Texts.T("bookmarks.retained"));
                     detail.Text = string.Join(Environment.NewLine, outcome);
                     _postBookmarksDialog?.InvalidateAvailability();
-                    status.Text = german ? $"{result.DeletedThreads.Count} Threads gelöscht."
-                        : $"Deleted {result.DeletedThreads.Count} threads.";
+                    status.Text = Texts.T("archive.delete.deleted", result.DeletedThreads.Count);
                     if (result.Files != null)
-                        status.Text += german ? $" {result.Files.DeletedFileCount} lokale Dateien entfernt."
-                            : $" Removed {result.Files.DeletedFileCount} local files.";
+                        status.Text += " " + Texts.T("archive.delete.filesRemoved", result.Files.DeletedFileCount);
                     await ArchivePage.ActivateAsync();
                 }
                 catch (Exception error) when (error is not OutOfMemoryException)

@@ -71,11 +71,11 @@ internal static class GalleryImageDecoder
     {
         using SKManagedStream managed = new(stream, disposeManagedStream: false);
         using SKCodec? codec = SKCodec.Create(managed);
-        if (codec == null) throw new InvalidDataException(GalleryViewerText.Get("Unsupported or damaged image.", "Nicht unterstütztes oder beschädigtes Bild."));
+        if (codec == null) throw new InvalidDataException(Localization.Texts.T("gallery.image.error.unsupported"));
         GalleryImageInfo info = new(codec.Info.Width, codec.Info.Height, codec.EncodedFormat.ToString(),
             codec.EncodedFormat == SKEncodedImageFormat.Gif || codec.FrameCount > 1);
         if (info.Width <= 0 || info.Height <= 0 || info.Pixels > maximumPixels)
-            throw new InvalidDataException(GalleryViewerText.Get("Image exceeds the safe pixel limit.", "Das Bild überschreitet die sichere Pixelgrenze."));
+            throw new InvalidDataException(Localization.Texts.T("gallery.image.error.pixelLimit"));
         return info;
     }
 
@@ -87,8 +87,7 @@ internal static class GalleryImageDecoder
         try
         {
             DecodeStarted?.Invoke(request);
-            if (entry.Asset.Length > MaximumBytes) throw new InvalidDataException(GalleryViewerText.Get(
-                "Image exceeds the 64 MiB file limit.", "Das Bild überschreitet die Dateigrenze von 64 MiB."));
+            if (entry.Asset.Length > MaximumBytes) throw new InvalidDataException(Localization.Texts.T("gallery.image.error.fileLimit"));
             await using Stream stream = await entry.Manifest.OpenVerifiedReadAsync(entry.Asset.AssetId, cancellationToken).ConfigureAwait(false);
             GalleryImageInfo info;
             using (PerformanceDiagnostics.Measure("gallery.decoder.inspect", asset: entry.Asset.AssetId))
@@ -117,28 +116,23 @@ internal static class GalleryImageDecoder
     {
         using SKManagedStream managed = new(stream, disposeManagedStream: false);
         using SKCodec codec = SKCodec.Create(managed) ?? throw new InvalidDataException(
-            GalleryViewerText.Get("Unsupported or damaged image.", "Nicht unterstütztes oder beschädigtes Bild."));
+            Localization.Texts.T("gallery.image.error.unsupported"));
         SKSizeI supported = codec.GetScaledDimensions(Math.Min((float)target.Width / codec.Info.Width,
             (float)target.Height / codec.Info.Height));
         using SKBitmap decoded = SKBitmap.Decode(codec,
             new SKImageInfo(supported.Width, supported.Height, SKColorType.Bgra8888, SKAlphaType.Premul))
-            ?? throw new InvalidDataException(GalleryViewerText.Get("Unsupported or damaged image.", "Nicht unterstütztes oder beschädigtes Bild."));
+            ?? throw new InvalidDataException(Localization.Texts.T("gallery.image.error.unsupported"));
         if (decoded.Width == target.Width && decoded.Height == target.Height)
             return CopyPixels(decoded);
         using SKBitmap scaled = decoded.Resize(new SKImageInfo(target.Width, target.Height,
             SKColorType.Bgra8888, SKAlphaType.Premul), new SKSamplingOptions(SKCubicResampler.Mitchell))
-            ?? throw new InvalidDataException(GalleryViewerText.Get("Unsupported or damaged image.", "Nicht unterstütztes oder beschädigtes Bild."));
+            ?? throw new InvalidDataException(Localization.Texts.T("gallery.image.error.unsupported"));
         return CopyPixels(scaled);
     }
 
     private static Bitmap CopyPixels(SKBitmap bitmap) => new(PixelFormats.Bgra8888, AlphaFormat.Premul,
         bitmap.GetPixels(), new PixelSize(bitmap.Width, bitmap.Height), new Vector(96, 96), bitmap.RowBytes);
 
-}
-
-internal static class GalleryViewerText
-{
-    internal static string Get(string english, string german) => Localization.Texts.Language == "de" ? german : english;
 }
 
 /// <summary>Scale is physical display pixels per source pixel; pan is in device-independent units.</summary>

@@ -356,8 +356,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
             _status.Text = UnavailableText;
             // Cleanup retains ownership/admission exactly as before. The report is not
             // forwarded as a new medium's failure or used to reveal its transport.
-            CleanupDiagnostic?.Invoke(Text("The video backend has not finished cleanup; resources remain owned.",
-                "Das Videobackend hat das Aufräumen noch nicht beendet; Ressourcen bleiben gebunden."));
+            CleanupDiagnostic?.Invoke(Texts.T("gallery.video.cleanupPending"));
         });
         CommandBindings.BindExisting(_playPause, "video.play-pause");
         CommandBindings.BindExisting(_mute, "video.mute");
@@ -498,7 +497,6 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         else Dispatcher.UIThread.Post(Update);
     }
 
-    private static string Text(string en, string de) => GalleryViewerText.Get(en, de);
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
         if (!Dispatcher.UIThread.CheckAccess()) { Dispatcher.UIThread.Post(RefreshTransportPresentation); return; }
@@ -572,7 +570,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         RefreshTransportPresentation();
         _volumeIntent.Request(generation, (int)_volume.Value);
         EnableTransport(false); _length = 0; UpdateTime(0);
-        _status.Text = Text("Verifying local video…", "Lokales Video wird geprüft…");
+        _status.Text = Texts.T("gallery.video.verifying");
         await Task.Run(async () =>
         {
             using (PerformanceDiagnostics.Measure("video.operations.wait", request.Id, asset: entry.Asset.AssetId, revision: generation))
@@ -665,7 +663,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                         else if (_intent.CanRepeat(intent)) _ = RestartAfterEndAsync(intent, ownedPlayer);
                         else
                         {
-                            _status.Text = Text("Playback ended.", "Wiedergabe beendet.");
+                            _status.Text = Texts.T("gallery.video.ended");
                             if (!IsCurrent(generation)) return;
                             if (naturalEnd && !_timeline.HasGesture && !_timeline.HasPendingSeek)
                                 _intent.FinishNaturalEnd(intent);
@@ -692,7 +690,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 else
                 {
                     _playback.Player.Media = _playback.Media;
-                    Post(generation, () => { EnableTransport(true); _status.Text = Text("Ready to play.", "Bereit zur Wiedergabe."); });
+                    Post(generation, () => { EnableTransport(true); _status.Text = Texts.T("gallery.video.ready"); });
                 }
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -784,17 +782,14 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
             finally { _operations.Release(); }
         }).ConfigureAwait(true);
     }
-    private static string UnavailableText => Text("Media unavailable. Details are available in diagnostics.",
-        "Medium nicht verfügbar. Details stehen in der Diagnose.");
+    private static string UnavailableText => Texts.T("gallery.mediaUnavailable");
 
     private static string Diagnosis(Exception? exception)
     {
         string reason = exception is IOException or UnauthorizedAccessException
-            ? Text("The saved video could not be verified or read.", "Das gespeicherte Video konnte nicht geprüft oder gelesen werden.")
-            : Text("Video playback is unavailable or this file cannot be decoded.", "Videowiedergabe ist nicht verfügbar oder diese Datei kann nicht dekodiert werden.");
-        return OperatingSystem.IsLinux() ? reason + " " + Text(
-            "Linux requires LibVLC 3.0.20 or newer with WebM/Matroska, VP8/VP9, Vorbis/Opus and video/audio output plugins. Install your distribution's VLC runtime packages.",
-            "Linux benötigt LibVLC ab 3.0.20 mit WebM-/Matroska-, VP8-/VP9-, Vorbis-/Opus- und Video-/Audioausgabe-Plugins. Installiere die VLC-Laufzeitpakete deiner Distribution.") : reason;
+            ? Texts.T("gallery.video.error.read")
+            : Texts.T("gallery.video.error.decode");
+        return OperatingSystem.IsLinux() ? reason + " " + Texts.T("gallery.video.error.linuxRuntime") : reason;
     }
     private void UpdateTime(long position)
     {
@@ -1090,9 +1085,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     {
         _lifetime.FailCleanup(exception);
         if (!_failedCleanupRoot.IsAllocated) _failedCleanupRoot = GCHandle.Alloc(this);
-        Dispatcher.UIThread.Post(() => CleanupDiagnostic?.Invoke(Text(
-            "Video cleanup failed; resources remain retained and new playback is blocked.",
-            "Video-Aufräumen fehlgeschlagen; Ressourcen bleiben gebunden und neue Wiedergabe ist blockiert.")));
+        Dispatcher.UIThread.Post(() => CleanupDiagnostic?.Invoke(Texts.T("gallery.video.cleanupFailed")));
     }
 
     private async Task ReleaseEngineAsync()

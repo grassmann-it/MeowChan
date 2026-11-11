@@ -73,8 +73,7 @@ public partial class DiagnosticsPage
         menu.Items.Clear();
         DiagnosticEntry? frozen = lead ?? grid.SelectedItem as DiagnosticEntry;
         if (frozen == null || _ended) { menu.Close(); return; }
-        string unavailable = Texts.Language.StartsWith("de", StringComparison.OrdinalIgnoreCase)
-            ? "Für dieses Ziel derzeit nicht verfügbar." : "Currently unavailable for this target.";
+        string unavailable = Texts.T("menu.unavailable.target");
         void Add(string id, Action execute, bool available)
         {
             var item = CommandBindings.CreateMenuItem(id, execute, () => !_ended && _available && available,

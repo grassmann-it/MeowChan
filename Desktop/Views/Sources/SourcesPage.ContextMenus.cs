@@ -95,8 +95,7 @@ public partial class SourcesPage
         if (!Ready()) AddReason(menu, CommandCatalog.Label("watch.show-in-downloads"), reason);
     }
 
-    private static string UnavailableReason() => Texts.Language.StartsWith("de", StringComparison.OrdinalIgnoreCase)
-        ? "Für dieses Ziel derzeit nicht verfügbar." : "Currently unavailable for this target.";
+    private static string UnavailableReason() => Texts.T("menu.unavailable.target");
 
     private static void AddReason(ContextMenu menu, string label, string reason)
     {

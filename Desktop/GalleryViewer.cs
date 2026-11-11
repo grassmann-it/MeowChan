@@ -598,8 +598,7 @@ internal sealed partial class GalleryViewer : UserControl
         SetImageCommands(false); _exportOriginal.IsEnabled = false;
         _info = null; ClearBitmaps();
         StopSlideshow();
-        _status.Text = GalleryViewerText.Get("Media unavailable. Details are available in diagnostics.",
-            "Medium nicht verfügbar. Details stehen in der Diagnose.");
+        _status.Text = Texts.T("gallery.mediaUnavailable");
         _status.IsVisible = true;
         GalleryVideoPlayer? retiring = _video;
         Task cleanup = Task.WhenAll(RetireGifAsync(), retiring?.StopUnavailableAsync() ?? Task.CompletedTask);

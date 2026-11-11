@@ -42,7 +42,7 @@ internal sealed partial class GalleryViewer
     {
         string state = Texts.T(_favoriteSelected ? "viewer.favorite.saved" : "viewer.favorite.unsaved");
         string label = _favoritePending
-            ? state + " · " + GalleryViewerText.Get("Saving…", "Wird gespeichert …") : state;
+            ? state + " · " + Texts.T("gallery.saving") : state;
         foreach (Border badge in new[] { _favoriteIndicator, _nativeFavoriteIndicator })
         {
             var text = (TextBlock)badge.Child!;

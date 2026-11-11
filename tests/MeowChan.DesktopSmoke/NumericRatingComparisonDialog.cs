@@ -12,9 +12,11 @@ namespace MeowChan.DesktopSmoke;
 /// <summary>Test-only labelled numeric alternative. Same exact-key host callback as production; no alternate store.</summary>
 internal sealed class NumericRatingComparisonDialog : Window
 {
+    // Test-only prose without catalog keys; not product text.
+    private static string Get(string english, string german) => MeowChan.Desktop.Localization.Texts.Language == "de" ? german : english;
     private readonly ComboBox _choice;
     private readonly Button _clear, _close;
-    private readonly Button _retry = new() { Name = "NumericRatingRetry", Content = MediaRatingText.Get("Retry", "Wiederholen"), IsVisible = false };
+    private readonly Button _retry = new() { Name = "NumericRatingRetry", Content = Get("Retry", "Wiederholen"), IsVisible = false };
     private readonly TextBlock _error = new() { Name = "NumericRatingError", TextWrapping = TextWrapping.Wrap };
     private readonly Func<int?, Task> _commit;
     private int? _confirmed, _attempt;
@@ -22,23 +24,23 @@ internal sealed class NumericRatingComparisonDialog : Window
     internal NumericRatingComparisonDialog(FavoriteAssetKey key, int? initial, Func<int?, Task> commit)
     {
         _confirmed = initial; _commit = commit;
-        Title = MediaRatingText.Get("Test-only numeric rating comparison", "Numerische Bewertung – Testvergleich"); Width = 520; Height = 330;
+        Title = Get("Test-only numeric rating comparison", "Numerische Bewertung – Testvergleich"); Width = 520; Height = 330;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         _choice = new ComboBox { Name = "NumericRatingEditor", ItemsSource = Enumerable.Range(0, 6).Select(value => MediaRatingText.Value(value == 0 ? null : value)).ToArray(), SelectedIndex = initial ?? 0, MinWidth = 180 };
-        AutomationProperties.SetName(_choice, MediaRatingText.Get("Media rating numeric choice", "Medienbewertung als Zahl"));
-        AutomationProperties.SetHelpText(_choice, MediaRatingText.Get("Arrows choose; Enter saves. Escape closes without saving a keyboard choice.", "Pfeiltasten wählen; Enter speichert. Escape schließt ohne Übernahme einer Tastaturauswahl."));
+        AutomationProperties.SetName(_choice, Get("Media rating numeric choice", "Medienbewertung als Zahl"));
+        AutomationProperties.SetHelpText(_choice, Get("Arrows choose; Enter saves. Escape closes without saving a keyboard choice.", "Pfeiltasten wählen; Enter speichert. Escape schließt ohne Übernahme einer Tastaturauswahl."));
         AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive);
-        _clear = new Button { Name = "NumericRatingClear", Content = MediaRatingText.Get("Clear rating", "Bewertung entfernen"), IsEnabled = initial.HasValue };
-        _close = new Button { Name = "NumericRatingClose", Content = MediaRatingText.Get("Close", "Schließen") };
+        _clear = new Button { Name = "NumericRatingClear", Content = Get("Clear rating", "Bewertung entfernen"), IsEnabled = initial.HasValue };
+        _close = new Button { Name = "NumericRatingClose", Content = Get("Close", "Schließen") };
         _clear.Click += async (_, _) => await SaveAsync(null);
         _retry.Click += async (_, _) => await SaveAsync(_attempt);
         _close.Click += (_, _) => Close();
         StackPanel buttons = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
         buttons.Children.Add(_clear); buttons.Children.Add(_retry); buttons.Children.Add(_close);
         StackPanel body = new() { Margin = new Thickness(18), Spacing = 12 };
-        body.Children.Add(new TextBlock { Text = MediaRatingText.Get("Media rating (test-only numeric alternative)", "Medienbewertung (numerische Testalternative)") });
+        body.Children.Add(new TextBlock { Text = Get("Media rating (test-only numeric alternative)", "Medienbewertung (numerische Testalternative)") });
         body.Children.Add(new TextBlock { Text = MediaRatingText.Identity(key), TextWrapping = TextWrapping.Wrap });
-        body.Children.Add(_choice); body.Children.Add(new TextBlock { Text = MediaRatingText.Get("Arrows choose • Enter saves • Escape cancels draft", "Pfeile wählen • Enter speichert • Escape verwirft Auswahl") });
+        body.Children.Add(_choice); body.Children.Add(new TextBlock { Text = Get("Arrows choose • Enter saves • Escape cancels draft", "Pfeile wählen • Enter speichert • Escape verwirft Auswahl") });
         body.Children.Add(_error); body.Children.Add(buttons); Content = new ScrollViewer { Content = body };
         // Capture before ComboBox's own key processing: exact same draft/commit tasks as Rating.
         _choice.AddHandler(KeyDownEvent, async (_, e) =>

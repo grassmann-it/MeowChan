@@ -7,18 +7,14 @@ namespace MeowChan.Desktop;
 // Provenance belongs to one exact attachment binding, never to a globally shared asset ID.
 internal static class MediaProvenanceText
 {
-    private static string T(string en, string de) => Texts.Culture.TwoLetterISOLanguageName == "de" ? de : en;
     internal static string Summary(MediaAttachmentBinding? binding) => binding?.Acceptance.Kind switch
     {
-        MediaAcceptanceKind.ExplicitProviderMismatch => T("Saved with source permission; source size or checksum differs.",
-            "Mit Quellenfreigabe gespeichert; Anbietergröße oder Prüfsumme weicht ab."),
-        MediaAcceptanceKind.PassiveImport => T("Imported archive file; no local source permission is implied.",
-            "Importierte Archivdatei; daraus folgt keine lokale Quellenfreigabe."),
+        MediaAcceptanceKind.ExplicitProviderMismatch => Texts.T("media.provenance.providerMismatch"),
+        MediaAcceptanceKind.PassiveImport => Texts.T("media.provenance.passiveImport"),
         _ => string.Empty
     };
 
-    internal static string LocalSize(long length) => T("Saved file: ", "Gespeicherte Datei: ")
-        + length.ToString("N0", Texts.Culture) + " bytes";
+    internal static string LocalSize(long length) => Texts.T("media.provenance.localSize", length);
 
     internal static string Context(MediaAttachmentBinding? binding)
     {
@@ -27,10 +23,9 @@ internal static class MediaProvenanceText
         string text = Summary(binding);
         void Add(string line) => text += (text.Length == 0 ? "" : Environment.NewLine) + line;
         if (provider.ExpectedSize is long size)
-            Add(T("Source reported: ", "Anbieterangabe: ") + size.ToString("N0", Texts.Culture) + " bytes");
+            Add(Texts.T("media.provenance.sourceSize", size));
         if (provider.ProviderSizeHint is MediaProviderSizeHint hint)
-            Add(T("Source size hint (not exact bytes): ", "Größenhinweis des Anbieters (keine exakte Bytezahl): ")
-                + hint.RawValue + " " + hint.UnitLabel + " (" + hint.Precision + ")");
+            Add(Texts.T("media.provenance.sizeHint", hint.RawValue, hint.UnitLabel, hint.Precision));
         return text;
     }
 
@@ -39,12 +34,12 @@ internal static class MediaProvenanceText
         if (binding == null) return string.Empty;
         string text = Context(binding);
         void Add(string line) => text += (text.Length == 0 ? "" : Environment.NewLine) + line;
-        Add(T("Saved file MD5: ", "MD5 der gespeicherten Datei: ") + binding.Actual.Md5);
-        if (binding.Provider.ExpectedMd5 != null) Add(T("Source MD5: ", "Anbieter-MD5: ") + binding.Provider.ExpectedMd5);
-        if (binding.Actual.Sha1 != null) Add(T("Saved file SHA-1: ", "SHA-1 der gespeicherten Datei: ") + binding.Actual.Sha1);
-        if (binding.Provider.ExpectedSha1 != null) Add(T("Source SHA-1: ", "Anbieter-SHA-1: ") + binding.Provider.ExpectedSha1);
-        if (binding.Provider.ExpectedSha256 != null) Add(T("Source SHA-256: ", "Anbieter-SHA-256: ") + binding.Provider.ExpectedSha256);
-        if (binding.Provider.Url != null) Add(T("Source URL: ", "Anbieter-URL: ") + binding.Provider.Url);
+        Add(Texts.T("media.provenance.md5", binding.Actual.Md5));
+        if (binding.Provider.ExpectedMd5 != null) Add(Texts.T("media.provenance.sourceMd5", binding.Provider.ExpectedMd5));
+        if (binding.Actual.Sha1 != null) Add(Texts.T("media.provenance.sha1", binding.Actual.Sha1));
+        if (binding.Provider.ExpectedSha1 != null) Add(Texts.T("media.provenance.sourceSha1", binding.Provider.ExpectedSha1));
+        if (binding.Provider.ExpectedSha256 != null) Add(Texts.T("media.provenance.sourceSha256", binding.Provider.ExpectedSha256));
+        if (binding.Provider.Url != null) Add(Texts.T("media.provenance.sourceUrl", binding.Provider.Url));
         return text;
     }
 }

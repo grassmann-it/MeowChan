@@ -66,8 +66,7 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
     public bool IsHighPriority { get; private set; }
     public string PriorityBadge => IsHighPriority ? "↑" : string.Empty;
     public string PriorityDescription => IsHighPriority
-        ? (Texts.Language == "de" ? "Hohe Priorität · nächste ausführbare Dateien; laufende Downloads bleiben unverändert."
-            : "High priority · next runnable files; active downloads are unchanged.") : string.Empty;
+        ? Texts.T("priority.rowDescription") : string.Empty;
 
     // Authoritative host projection only; do not optimistically change on click.
     internal void ApplyUserPriority(bool high)

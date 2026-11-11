@@ -861,7 +861,7 @@ public partial class MainWindow
             WindowState == WindowState.FullScreen ? "fullscreen" : "windowed");
         WorkspaceControl<Button>("FullscreenButton").Classes.Set("selected", WindowState == WindowState.FullScreen);
         Avalonia.Automation.AutomationProperties.SetHelpText(WorkspaceControl<Button>("FullscreenButton"),
-            CommandBindings.Tooltip("window.fullscreen") + (WindowState == WindowState.FullScreen ? (MeowChan.Desktop.Localization.Texts.Language == "de" ? " · Ein" : " · On") : (MeowChan.Desktop.Localization.Texts.Language == "de" ? " · Aus" : " · Off")));
+            CommandBindings.Tooltip("window.fullscreen") + " · " + MeowChan.Desktop.Localization.Texts.T(WindowState == WindowState.FullScreen ? "window.fullscreen.on" : "window.fullscreen.off"));
         CommandBindings.Apply(WorkspaceControl<Button>("ShellHelpClose"), "window.close");
         foreach (var pair in new[] { ("ArchiveMenuItem", "navigation.archive"), ("MediaMenuItem", "navigation.media"), ("RulesMenuItem", "navigation.rules"),
             ("SourcesMenuItem", "navigation.sources"), ("DiagnosticsMenuItem", "navigation.diagnostics"),
