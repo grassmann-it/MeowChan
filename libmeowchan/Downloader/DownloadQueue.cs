@@ -39,6 +39,7 @@ public partial class DownloadQueue
     private readonly CancellationTokenSource _lifetime = new();
     private readonly DownloadTargetGate _targets;
     private Task? _targetPolling;
+    private int _targetPollingFailures;
     private TaskCompletionSource _targetChanged = CreateCompletionSource();
     private int _activeFilteredDownloads;
     private readonly SemaphoreSlim _pauseTransitions = new(1, 1);
@@ -71,6 +72,9 @@ public partial class DownloadQueue
     private IWorkStateStore? _workStore;
     private TaskCompletionSource _scheduleChanged = CreateCompletionSource();
     private Task? _scheduleTask;
+    // Consecutive unexpected loop faults without a completed pass; the loop is not restarted at the limit.
+    private int _scheduleFailures;
+    private const int MaxLoopFailures = 3;
     private TaskCompletionSource _idleCompletion = CreateCompletedSource();
     private TaskCompletionSource? _stopCompletion;
     private int _maxParallelDownloads;
@@ -195,7 +199,8 @@ public partial class DownloadQueue
             TaskCompletionSource old = _targetChanged;
             _targetChanged = CreateCompletionSource();
             old.TrySetResult();
-            if (_targetPolling == null && !_producerSuspended && _targets.NextCheckAt != null) _targetPolling = Task.Run(PollTargetsAsync);
+            if (_targetPolling == null && !_producerSuspended && _targetPollingFailures < MaxLoopFailures && _targets.NextCheckAt != null)
+                _targetPolling = Task.Run(() => SuperviseLoopAsync(PollTargetsAsync, schedule: false));
             if (_workStore != null) SignalScheduleLocked();
             ready = ReserveWorkersLocked();
         }
@@ -234,9 +239,36 @@ public partial class DownloadQueue
                     }
                     catch (ProducerSuspendedException) { }
                 }
+                lock (_stateLock) _targetPollingFailures = 0;
             }
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+    }
+
+    /// <summary>
+    /// Reports an unexpected background loop fault and clears its task so the next signal restarts it.
+    /// Repeated faults without a completed pass stop the loop visibly instead of restarting it in a circle.
+    /// </summary>
+    private async Task SuperviseLoopAsync(Func<Task> loop, bool schedule)
+    {
+        try { await loop().ConfigureAwait(false); }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested || _stopping) { }
+        catch (Exception failure)
+        {
+            bool stopped;
+            lock (_stateLock)
+            {
+                if (schedule) { _scheduleTask = null; stopped = ++_scheduleFailures >= MaxLoopFailures; }
+                else { _targetPolling = null; stopped = ++_targetPollingFailures >= MaxLoopFailures; }
+            }
+            string name = schedule ? "Automatic media retry scheduling" : "Storage target rechecking";
+            string warning = stopped
+                ? $"{name} stopped after {MaxLoopFailures} consecutive failures: {failure.Message}"
+                : $"{name} failed and restarts with the next change: {failure.Message}";
+            _logger.Error(failure, "{Warning}", warning);
+            RaisePersistenceFailed(warning);
+            _changes.Signal();
+        }
     }
 
     private async Task<bool> WaitForTargetAsync(DownloadItem item, CancellationToken cancellationToken)
@@ -525,8 +557,12 @@ public partial class DownloadQueue
         TaskCompletionSource old = _scheduleChanged;
         _scheduleChanged = CreateCompletionSource();
         old.TrySetResult();
-        if (_scheduleTask == null && !_stopping && !_producerSuspended) _scheduleTask = Task.Run(RunScheduleAsync);
+        if (_scheduleTask == null && !_stopping && !_producerSuspended && _scheduleFailures < MaxLoopFailures)
+            _scheduleTask = Task.Run(() => SuperviseLoopAsync(RunScheduleAsync, schedule: true));
     }
+
+    // Deterministic schedule fault injection for tests; never invoked under the queue state lock.
+    internal Action? BeforeSchedulePass { get; set; }
 
     private async Task RunScheduleAsync()
     {
@@ -534,6 +570,7 @@ public partial class DownloadQueue
         {
             try { await WaitForProducerAsync(_lifetime.Token).ConfigureAwait(false); }
             catch (OperationCanceledException) when (_lifetime.IsCancellationRequested || _stopping) { return; }
+            BeforeSchedulePass?.Invoke();
             Transition? pass = null;
             ScheduledWork? due = null;
             Task changed;
@@ -639,6 +676,7 @@ public partial class DownloadQueue
             }
             pass?.Dispose();
             pass = null;
+            lock (_stateLock) _scheduleFailures = 0;
             if (delay == null) await changed.ConfigureAwait(false);
             else
             {
@@ -1441,8 +1479,15 @@ public partial class DownloadQueue
         }
         string warning = $"Media work for {item.MediaIdentifier} could not be committed: {failure.Message}. Automatic retries are suspended.";
         _logger.Error(failure, "{Warning}", warning);
-        PersistenceFailed?.Invoke(warning);
+        RaisePersistenceFailed(warning);
         _changes.Signal();
+    }
+
+    // A throwing subscriber must not abort the worker, schedule or quarantine path that reports the failure.
+    private void RaisePersistenceFailed(string warning)
+    {
+        try { PersistenceFailed?.Invoke(warning); }
+        catch (Exception observer) { _logger.Error(observer, "Download queue failure observer failed"); }
     }
 
     private bool CanRunDurable(DownloadItem item, ProfileAdmissionToken? admission = null)
