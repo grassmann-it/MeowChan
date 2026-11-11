@@ -170,3 +170,24 @@ MEDIA_PAGE, GALLERY_MEDIA_TAGS, MEDIA_RATINGS, PRIVATE_TAGS, MEDIA_PANEL PASS) u
 Echter ENOSPC beim Medienexport (`bf6a87b`, auf goal `ff8200e`): tmpfs-Fixture `/tmp/mc-fs` (64 MiB) mit 0/64 KiB/400 KiB
 Restplatz, `MediaLibraryExportTests` 13/0 inkl. drei Platzmangelfällen (`/home/tomka/mc-evidence/media-export-enospc-1794399941`);
 ohne Fixture übersprungen, Core 9508/0/11. Blocker 2 unverändert.
+
+## Nachtrag 11.11.: frisches Gesamtgate und Folgefixes (goal `40eba83`)
+
+Frisches Gate auf `2e21d39` in eigenem Worktree mit Locked-Restore (`/home/tomka/mc-evidence/gate-2e21d39-1794400318`):
+Core 9508/0/11, Desktop 3121/0/11, PluginFilters 103/0, PluginHost.Configuration 192/0; PluginCompiler 20/0 und
+PluginRuntime 38/0 erst mit vorher gebauten Release-Voraussetzungen (PluginCompiler, PluginWorker,
+PluginRuntime.Fixture); Smokes suggestions, native-transfer-preview, interrupted-startup, MEDIA_PAGE,
+GALLERY_MEDIA_TAGS, MEDIA_RATINGS, PRIVATE_TAGS, MEDIA_PANEL, GALLERY_FIT, MEDIA_PERFORMANCE PASS. Zwei echte Befunde:
+- ExamplePlugins.Tests: NU1004 beim sauberen Locked-Restore, weil die sieben experimentellen Quellprojekte im
+  Release-Lock fehlten (`3c1e822`); danach 360/0.
+- Default- und Exact-IDs-Smoke rot (seit spätestens `2222915`): ein während des Herunterfahrens angenommener
+  Settings-Commit blieb ungeschrieben. Ursache: `Registry` nutzte den zugelassenen Speicherpfad nur für ein konkretes
+  `SessionStore`, Wrapper fielen auf das nach Shutdown-Beginn abgewiesene `SaveAsync` zurück (eingeführt `59def9d`).
+  Produktivpfad nicht betroffen; Fix über `IAdmittedSessionStore` (`f093cb1`). Dahinter verdeckt: veraltete
+  Sources-Kartenerwartung (`255c9b6`) und ein Timing-Rennen im Reader-Live-Smoke (`04c705e`).
+
+Abnahme des integrierten Stands `40eba83` (inkl. `ed72624` Medien-Rücksprung), frischer Build
+(`/home/tomka/mc-evidence/accept-settings-40eba83-1794410721`): Core 9513/0/11, Desktop 3121/0/11; Smokes Default,
+ARCHIVE_COMPARISON_EXACT_IDS, SETTINGS_LIFETIME, MEDIA_PAGE, UI_REFINEMENT PASS. Lastbedingte Einzelausreißer
+(MediaLibraryIndex-Performance, FIFO-Watchdogs, Plugin-Session-Start bei Load ~65) liefen gezielt wiederholt grün
+(`/home/tomka/mc-evidence/reader-race-1794410058`, `settings-*-rerun.log`). Blocker 2 unverändert.
