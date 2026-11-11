@@ -1,5 +1,10 @@
 # MeowChan 1.0.3 — Abschluss-Gate (11.11.2026)
 
+> **Aktualisierung 11.11.2026:** Der Nutzer hat **1.1.0** als nächstes Release
+> beschlossen. Dieses Dokument bewahrt historische 1.0.3-Gate-Belege auf den
+> jeweils genannten Commits; es ist keine Freigabe des erweiterten aktuellen
+> Umfangs. Siehe [aktueller 1.1.0-Status](release-1.1.0-status-2026-11-11.md).
+
 Branch `goal/gesamtprogramm-profile-a`, Gate-Head `aaea381`. Nichts veröffentlicht,
 gepusht, getaggt oder hochgeladen. Evidence ausschließlich unter `/tmp/mc-evidence`.
 
