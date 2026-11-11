@@ -71,6 +71,45 @@ public sealed class SmokeSelectorsTests
         Assert.StartsWith("scenario selectors are mutually exclusive, but 2 are set:", error);
     }
 
+    // Each pair only ever ran its first-read member; the other was silently ignored.
+    [Theory]
+    [InlineData("--reader-ux", "MEOWCHAN_GALLERY_CLOSE_ONLY MEOWCHAN_READER_GROUPS_ONLY", "--reader-ux")]
+    [InlineData("--reader-ux", "MEOWCHAN_READER_MEDIA_INPUT_ONLY MEOWCHAN_READER_NAVIGATION_ONLY", "--reader-ux")]
+    [InlineData("--download-session", "MEOWCHAN_SHELL_PREFERENCES_ONLY MEOWCHAN_SHUTDOWN_ORDER_ONLY", "--download-session")]
+    [InlineData("--download-session", "MEOWCHAN_GALLERY_FOCUS_ONLY MEOWCHAN_SHELL_PROJECTION_ONLY", "--download-session")]
+    [InlineData("", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY MEOWCHAN_GALLERY_EDGE_ONLY MEOWCHAN_OWNED_CONTROL_TRANSFERS_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY")]
+    [InlineData("", "MEOWCHAN_MEDIA_RATINGS_ONLY MEOWCHAN_RATINGS_LATE_ERROR_ONLY MEOWCHAN_RATINGS_PRESENTATION_ONLY", "MEOWCHAN_MEDIA_RATINGS_ONLY")]
+    [InlineData("", "MEOWCHAN_ARCHIVE_COMPARISON MEOWCHAN_ARCHIVE_COMPARISON_LOCALE_ONLY MEOWCHAN_ARCHIVE_COMPARISON_MATRIX_ONLY", "MEOWCHAN_ARCHIVE_COMPARISON")]
+    public void TwoAlternativeRunsUnderOneParentAreRejected(string mode, string selectors, string parent)
+    {
+        string[] names = selectors.Split(' ');
+        string? error = SmokeSelectors.Check(mode.Length == 0 ? [] : [mode], Variables(names.Select(name => (name, "1")).ToArray()), false, out _);
+        Assert.NotNull(error);
+        Assert.EndsWith(" are alternative runs of " + parent + "; only one can take effect, set one per run", error);
+    }
+
+    // Nested selectors that refine each other rather than replacing each other's run.
+    [Theory]
+    [InlineData("--reader-ux", "MEOWCHAN_READER_GROUPS_ONLY MEOWCHAN_READER_GROUPS_RESTORE_ONLY")]
+    [InlineData("--reader-ux", "MEOWCHAN_READER_SHORTCUT_CONTEXTS_ONLY MEOWCHAN_PAGINATION_FOCUS_ONLY")]
+    [InlineData("", "MEOWCHAN_SOURCE_INTEGRITY_GUI_ONLY MEOWCHAN_EXPERIMENTAL_ACTIVATION_GUI_ONLY MEOWCHAN_EXPERIMENTAL_ACTIVATION_STATUS_ONLY")]
+    [InlineData("", "MEOWCHAN_GALLERY_FIT_ONLY MEOWCHAN_GALLERY_FOCUS_ONLY")]
+    public void NestedSelectorsOutsideOneAlternativeGroupStayCombinable(string mode, string selectors)
+    {
+        Assert.Null(SmokeSelectors.Check(mode.Length == 0 ? [] : [mode],
+            Variables(selectors.Split(' ').Select(name => (name, "1")).ToArray()), false, out _));
+    }
+
+    [Fact]
+    public void EveryAlternativeGroupIsOneOfItsMembersRequirements()
+    {
+        Assert.All(SmokeScenarios.All.Where(entry => entry.Group != null), entry =>
+        {
+            Assert.Equal(SmokeScenarioKind.Nested, entry.Kind);
+            Assert.Contains(entry.Group!, entry.Requires);
+        });
+    }
+
     [Theory]
     [InlineData("true")]
     [InlineData("yes")]

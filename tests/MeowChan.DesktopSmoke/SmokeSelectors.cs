@@ -80,6 +80,12 @@ internal static class SmokeSelectors
             if (active.Contains(name) && !requires.Any(conditions.Contains))
                 return name + " has no effect without " + string.Join(" or ", requires)
                     + (args.Count == 0 ? " (got the normal scene)" : " (got " + args[0] + ")");
+        foreach (IGrouping<string, string> alternatives in SmokeScenarios.All
+            .Where(entry => entry.Group != null && active.Contains(entry.Selector))
+            .GroupBy(entry => entry.Group!, entry => entry.Selector))
+            if (alternatives.Count() > 1)
+                return string.Join(" and ", alternatives.Order(StringComparer.Ordinal)) + " are alternative runs of "
+                    + alternatives.Key + "; only one can take effect, set one per run";
 
         scenario = string.Concat(active.Prepend(mode).Select((part, index) => index == 0 ? part : "+" + part));
         string selector = roots.Length == 1 ? roots[0] : args.Count == 0 ? "" : args[0];

@@ -15,7 +15,12 @@ internal enum SmokeScenarioKind
 // One registered DesktopSmoke scenario. Pass builds the final SMOKE PASS claim from the
 // environment; a nested selector has none of its own (its parent's Pass reads it).
 internal sealed record SmokeScenario(string Id, SmokeScenarioKind Kind, string Selector,
-    Func<Func<string, string?>, string>? Pass, string[] Requires);
+    Func<Func<string, string?>, string>? Pass, string[] Requires)
+{
+    // Nested selectors sharing a Group are alternative runs of that parent: the first one read
+    // wins and the others would silently have no effect, so only one may be set per run.
+    internal string? Group { get; init; }
+}
 
 // The single registry of DesktopSmoke scenarios: the selector inventory (SmokeSelectors), the
 // usage text and the final PASS claim come from here, and SmokeScenarios.Runs.cs binds each
@@ -34,20 +39,20 @@ internal static partial class SmokeScenarios
         Mode("no-tray", "no tray: user close kept taskbar access, Exit closed the window"),
         Mode("tray-failure", "tray creation failure: startup succeeded, user close kept taskbar access, Exit closed the window"),
         Mode("download-session", "real session: URL admission, fixture media, assigned path, native close and restart restoration"),
-        Nested("shell-preferences", "MEOWCHAN_SHELL_PREFERENCES_ONLY", "--download-session"),
-        Nested("shell-projection", "MEOWCHAN_SHELL_PROJECTION_ONLY", "--download-session"),
-        Nested("shutdown-order", "MEOWCHAN_SHUTDOWN_ORDER_ONLY", "--download-session"),
+        Alternative("shell-preferences", "MEOWCHAN_SHELL_PREFERENCES_ONLY", "--download-session"),
+        Alternative("shell-projection", "MEOWCHAN_SHELL_PROJECTION_ONLY", "--download-session"),
+        Alternative("shutdown-order", "MEOWCHAN_SHUTDOWN_ORDER_ONLY", "--download-session"),
         Mode("tray-lifecycle", "16 rapid native window/tray lifetimes, normal close and profile lease reuse"),
         Mode("visual", "actual release showcase with original offline demo content, no watches or HTTP"),
         Mode("reader-ux", NormalPass),
-        Nested("gallery-close", "MEOWCHAN_GALLERY_CLOSE_ONLY", "--reader-ux"),
-        Nested("reader-media-input", "MEOWCHAN_READER_MEDIA_INPUT_ONLY", "--reader-ux"),
-        Nested("reader-shortcut-contexts", "MEOWCHAN_READER_SHORTCUT_CONTEXTS_ONLY", "--reader-ux"),
+        Alternative("gallery-close", "MEOWCHAN_GALLERY_CLOSE_ONLY", "--reader-ux"),
+        Alternative("reader-media-input", "MEOWCHAN_READER_MEDIA_INPUT_ONLY", "--reader-ux"),
+        Alternative("reader-shortcut-contexts", "MEOWCHAN_READER_SHORTCUT_CONTEXTS_ONLY", "--reader-ux"),
         Nested("pagination-focus", "MEOWCHAN_PAGINATION_FOCUS_ONLY", "MEOWCHAN_READER_SHORTCUT_CONTEXTS_ONLY"),
-        Nested("reader-groups", "MEOWCHAN_READER_GROUPS_ONLY", "--reader-ux"),
-        Nested("reader-returns", "MEOWCHAN_READER_RETURNS_ONLY", "--reader-ux"),
-        Nested("reader-stability", "MEOWCHAN_READER_STABILITY_ONLY", "--reader-ux"),
-        Nested("reader-navigation", "MEOWCHAN_READER_NAVIGATION_ONLY", "--reader-ux"),
+        Alternative("reader-groups", "MEOWCHAN_READER_GROUPS_ONLY", "--reader-ux"),
+        Alternative("reader-returns", "MEOWCHAN_READER_RETURNS_ONLY", "--reader-ux"),
+        Alternative("reader-stability", "MEOWCHAN_READER_STABILITY_ONLY", "--reader-ux"),
+        Alternative("reader-navigation", "MEOWCHAN_READER_NAVIGATION_ONLY", "--reader-ux"),
         Nested("reader-groups-restore", "MEOWCHAN_READER_GROUPS_RESTORE_ONLY", "--reader-ux", "MEOWCHAN_URSA_NATIVE_SUITE=groups"),
         Mode("selection", "native watch/archive multi-selection, focus-safe commands, batch export return, watch-only Delete and board admission modal"),
         Mode("tray-host", "private StatusNotifier host: independent tray settings, native registration/activation, hide/restore and host/watcher loss"),
@@ -104,10 +109,10 @@ internal static partial class SmokeScenarios
         Root("gallery-playback-features", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY", env => env("MEOWCHAN_GALLERY_EDGE_ONLY") == "1"
             ? "native edge-hover panels: slideshow pointer-focus hide, bottom transport/right post, no central-motion reveal or preference write"
             : "gallery playback features: saved choices, edge panels, real mixed-media sequence, replay and decode failure; recorded platform only"),
-        Nested("owned-control-transfers", "MEOWCHAN_OWNED_CONTROL_TRANSFERS_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
-        Nested("cross-root-migration", "MEOWCHAN_CROSS_ROOT_MIGRATION_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
-        Nested("native-overlay-visibility", "MEOWCHAN_NATIVE_OVERLAY_VISIBILITY_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
-        Nested("gallery-edge", "MEOWCHAN_GALLERY_EDGE_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
+        Alternative("owned-control-transfers", "MEOWCHAN_OWNED_CONTROL_TRANSFERS_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
+        Alternative("cross-root-migration", "MEOWCHAN_CROSS_ROOT_MIGRATION_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
+        Alternative("native-overlay-visibility", "MEOWCHAN_NATIVE_OVERLAY_VISIBILITY_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
+        Alternative("gallery-edge", "MEOWCHAN_GALLERY_EDGE_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
         Root("gallery-mute", "MEOWCHAN_GALLERY_MUTE_ONLY", "gallery mute persistence: real OS input and decoder with functional private audio; session intent across selection changes, not physical output acceptance"),
         Root("media-interaction", "MEOWCHAN_MEDIA_INTERACTION_ONLY", "media interaction: XTest pointer/key input on private Linux X11; decoder/slider sync, custom navigation, loop and retired gesture checks; NOT Windows acceptance"),
         Root("native-ime", "MEOWCHAN_NATIVE_IME_ONLY", "IME product checkpoints completed; real engine and UI acceptance require the independent native driver"),
@@ -126,17 +131,17 @@ internal static partial class SmokeScenarios
             : env("MEOWCHAN_RATINGS_PRESENTATION_ONLY") == "1"
             ? "ratings: 12-cell real presentation/focus/error matrix and unchanged durable values"
             : "ratings: real controls, exact identities, comparison, retry, detached shortcut, gallery freeze, manager focus and store reopen"),
-        Nested("ratings-late-error", "MEOWCHAN_RATINGS_LATE_ERROR_ONLY", "MEOWCHAN_MEDIA_RATINGS_ONLY"),
-        Nested("ratings-presentation", "MEOWCHAN_RATINGS_PRESENTATION_ONLY", "MEOWCHAN_MEDIA_RATINGS_ONLY"),
+        Alternative("ratings-late-error", "MEOWCHAN_RATINGS_LATE_ERROR_ONLY", "MEOWCHAN_MEDIA_RATINGS_ONLY"),
+        Alternative("ratings-presentation", "MEOWCHAN_RATINGS_PRESENTATION_ONLY", "MEOWCHAN_MEDIA_RATINGS_ONLY"),
         Root("section-comparison", "MEOWCHAN_SECTION_COMPARISON_ONLY"),
         Nested("section-presentation", "MEOWCHAN_SECTION_PRESENTATION_ONLY", "MEOWCHAN_SECTION_COMPARISON_ONLY"),
         Branch("template-comparison", "MEOWCHAN_TEMPLATE_COMPARISON"),
         Nested("template-comparison-presentation", "MEOWCHAN_TEMPLATE_COMPARISON_PRESENTATION_ONLY", "MEOWCHAN_TEMPLATE_COMPARISON"),
         Branch("archive-comparison", "MEOWCHAN_ARCHIVE_COMPARISON"),
-        Nested("archive-comparison-exact-ids", "MEOWCHAN_ARCHIVE_COMPARISON_EXACT_IDS_ONLY", "MEOWCHAN_ARCHIVE_COMPARISON"),
-        Nested("archive-comparison-locale", "MEOWCHAN_ARCHIVE_COMPARISON_LOCALE_ONLY", "MEOWCHAN_ARCHIVE_COMPARISON"),
-        Nested("archive-comparison-matrix", "MEOWCHAN_ARCHIVE_COMPARISON_MATRIX_ONLY", "MEOWCHAN_ARCHIVE_COMPARISON"),
-        Nested("archive-comparison-state", "MEOWCHAN_ARCHIVE_COMPARISON_STATE_ONLY", "MEOWCHAN_ARCHIVE_COMPARISON"),
+        Alternative("archive-comparison-exact-ids", "MEOWCHAN_ARCHIVE_COMPARISON_EXACT_IDS_ONLY", "MEOWCHAN_ARCHIVE_COMPARISON"),
+        Alternative("archive-comparison-locale", "MEOWCHAN_ARCHIVE_COMPARISON_LOCALE_ONLY", "MEOWCHAN_ARCHIVE_COMPARISON"),
+        Alternative("archive-comparison-matrix", "MEOWCHAN_ARCHIVE_COMPARISON_MATRIX_ONLY", "MEOWCHAN_ARCHIVE_COMPARISON"),
+        Alternative("archive-comparison-state", "MEOWCHAN_ARCHIVE_COMPARISON_STATE_ONLY", "MEOWCHAN_ARCHIVE_COMPARISON"),
         Root("saved-searches", "MEOWCHAN_SAVED_SEARCHES_ONLY"),
         Root("footer-navigation", "MEOWCHAN_FOOTER_NAVIGATION_ONLY"),
         Root("picker-lifetime", "MEOWCHAN_PICKER_LIFETIME_ONLY"),
@@ -151,8 +156,9 @@ internal static partial class SmokeScenarios
         Root("gallery-theme", "MEOWCHAN_GALLERY_THEME_ONLY"),
         Root("gallery-fit", "MEOWCHAN_GALLERY_FIT_ONLY"),
         // GalleryViewerChecks runs in these branches; FAVORITES returns before FOCUS is read.
+        // Under --download-session it replaces DownloadSessionChecks just as the shell alternatives do.
         Nested("gallery-focus", "MEOWCHAN_GALLERY_FOCUS_ONLY", "MEOWCHAN_GALLERY_FIT_ONLY", "MEOWCHAN_MEDIA_PERFORMANCE_ONLY",
-            "MEOWCHAN_GALLERY_THEME_ONLY", "--download-session"),
+            "MEOWCHAN_GALLERY_THEME_ONLY", "--download-session") with { Group = "--download-session" },
         Root("media-panel", "MEOWCHAN_MEDIA_PANEL_ONLY"),
         Root("diagnostic-feedback", "MEOWCHAN_DIAGNOSTIC_FEEDBACK_ONLY"),
         Root("page-refresh", "MEOWCHAN_PAGE_REFRESH_ONLY"),
@@ -189,4 +195,8 @@ internal static partial class SmokeScenarios
 
     private static SmokeScenario Nested(string id, string selector, params string[] requires) =>
         new(id, SmokeScenarioKind.Nested, selector, null, requires);
+
+    // A nested selector that picks one alternative run of its single parent.
+    private static SmokeScenario Alternative(string id, string selector, string parent) =>
+        Nested(id, selector, parent) with { Group = parent };
 }
