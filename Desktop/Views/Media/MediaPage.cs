@@ -142,6 +142,7 @@ public sealed partial class MediaPage : UserControl
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException) { } // A cache is optional.
             }
             Present();
+            StartAudioProbe(built);
         }
         catch (OperationCanceledException) when (building.IsCancellationRequested) { }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException

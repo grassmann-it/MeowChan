@@ -29,7 +29,22 @@ internal static class MediaPageChecks
         "iVBORw0KGgoAAAANSUhEUgAAABEAAAALCAIAAAAWQvFQAAAAF0lEQVR4nGO8oxHAQCJgIlXDqJ5hqQcAEJEBagzqPS4AAAAASUVORK5CYII=");
     // Files named dup-* share one content on purpose; every other file gets its own bytes (a trailing note after the PNG data),
     // because the page merges equal bytes into one tile.
-    private static byte[] BytesOf(string name) => name.EndsWith(".webm", StringComparison.Ordinal) ? VideoBytes : name.StartsWith("dup-", StringComparison.Ordinal) ? Png : [.. Png, .. System.Text.Encoding.UTF8.GetBytes(name)];
+    // snd-*, mute-* and odd-* are real MP4 bytes with sound, real MP4 bytes without, and bytes no probe can decide.
+    private static byte[] BytesOf(string name) => name.StartsWith("snd-", StringComparison.Ordinal) ? SoundMp4.Value
+        : name.StartsWith("mute-", StringComparison.Ordinal) ? SilentMp4.Value
+        : name.StartsWith("odd-", StringComparison.Ordinal) ? [.. VideoBytes, .. System.Text.Encoding.UTF8.GetBytes(name)]
+        : name.EndsWith(".webm", StringComparison.Ordinal) ? VideoBytes : name.StartsWith("dup-", StringComparison.Ordinal) ? Png : [.. Png, .. System.Text.Encoding.UTF8.GetBytes(name)];
+
+    private static readonly Lazy<byte[]> SoundMp4 = new(() => File.ReadAllBytes(FixturePath("tests/Fixtures/release102/playback-h264-audio.mp4")));
+    private static readonly Lazy<byte[]> SilentMp4 = new(() => File.ReadAllBytes(FixturePath("tests/Fixtures/release102/playback-h264-silent.mp4")));
+
+    private static string FixturePath(string relative)
+    {
+        foreach (string start in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+            for (DirectoryInfo? parent = new(start); parent != null; parent = parent.Parent)
+                if (File.Exists(Path.Combine(parent.FullName, relative))) return Path.Combine(parent.FullName, relative);
+        throw new FileNotFoundException("Required checked-in synthetic fixture is absent: " + relative);
+    }
 
     private static readonly ResourceId A = new("media-fixture", "g", "100");
     private static readonly ResourceId B = new("media-fixture", "g", "200");
@@ -53,6 +68,11 @@ internal static class MediaPageChecks
             new Config().SaveConfig(videoProfile);
             await SeedVideosAsync(videoProfile);
             await VideoJourneyAsync(owner, videoProfile);
+            string audioProfile = TemporaryWorkspacePaths.CreateDirectory("media-audio-native-");
+            new Config().SaveConfig(audioProfile);
+            await SeedAudioAsync(audioProfile);
+            await AudioJourneyAsync(owner, audioProfile);
+            Console.WriteLine("SMOKE media sound [en]: three videos (real MP4 with sound, real MP4 without, bytes no probe can decide) are probed in the background from their headers; 'with sound' shows exactly one, 'without sound' exactly one, the undecidable one is counted as not checked and never shown or called silent; a sound choice sets the type to videos and another type drops it; reset clears it; results are cached and a second page starts from the cache.");
             Console.WriteLine("SMOKE media videos [en]: a video tile shows the local reader poster (cache keyed by verified bytes), also when it is a grouped tile; nothing fetched.");
             Console.WriteLine("SMOKE media page [en]: index build, saved/missing toggle, three orders, verified thumbnail, gallery window, show in thread, cache reuse, own state on tiles (favorite, rating, media vs thread tags, unknown wording, tag edit reload, language switch), filters (thread and media tags all/any/exclude, favorites, rating, type, name, source, board, thread chip, reset, deleted tag refused), duplicates (same bytes in three threads: one tile, 'in 3 threads' hint, details with three occurrences and their own tags, jump into a thread, filter matches by one occurrence, gallery gets one entry per tile), selection (click, Ctrl+click, Shift+click, Ctrl+A, Esc, check mark on selected tiles, three tiles tagged and untagged with one occurrence of a duplicate deselected, gallery with exactly the selection, export of exactly their originals, selection kept or dropped by filters and order, actions disabled while building), export all (exactly the originals of the tiles the filter shows, independent of the selection; question above a lowered limit with confirm, cancel, Esc and dropped by a filter change; disabled with a reason without tiles and while building), navigation button in Simple and Tools menu in Barebones checked.");
         }
@@ -858,6 +878,90 @@ internal static class MediaPageChecks
                 ThreadSourceState.Archived, new DateTimeOffset(2026, 11, day++, 0, 0, 0, TimeSpan.Zero), directory,
                 [new CapturedPost(id.Thread, 0, PostFieldPresence.All, Html: "op", Attachments: [bound])]));
         }
+    }
+
+    // One thread each: a video with sound, one without, one that cannot be decided.
+    private static async Task SeedAudioAsync(string profile)
+    {
+        using ProfileLease lease = ProfileLease.Acquire(profile);
+        await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
+        int day = 1;
+        foreach ((string thread, string name) in new[] { ("900", "snd-900.mp4"), ("910", "mute-910.mp4"), ("920", "odd-920.mp4") })
+        {
+            ResourceId id = new("media-fixture", "g", thread);
+            string directory = Path.Combine(profile, "media", thread);
+            CapturedAttachment bound = await WriteAsync(directory, id, (name, "a" + thread, thread));
+            await catalog.CaptureAsync(new CapturedThreadSnapshot(id, "https://offline.invalid/" + thread, "Audio " + thread,
+                ThreadSourceState.Archived, new DateTimeOffset(2026, 11, day++, 0, 0, 0, TimeSpan.Zero), directory,
+                [new CapturedPost(thread, 0, PostFieldPresence.All, Html: "op", Attachments: [bound])]));
+        }
+    }
+
+    private static async Task AudioJourneyAsync(MainWindow owner, string profile)
+    {
+        string cache = Path.Combine(profile, "cache", MediaLibraryIndexCache.FileName);
+        string audioCache = Path.Combine(profile, "cache", MediaAudioCache.FileName);
+        await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
+        await host.StartAsync().WaitAsync(Deadline);
+        MediaPage page = new(host.OpenArchiveReaderAsync, cachePath: cache) { ReadUserData = () => UserData(host) };
+        Window window = new() { Width = 1400, Height = 900, Content = page, Title = "Synthetic media sound", ShowInTaskbar = false };
+        try
+        {
+            window.Show(owner);
+            page.IsAvailable = true;
+            await page.ActivateAsync().WaitAsync(Deadline);
+            Require(page.Tiles.Count == 3 && page.Tiles.All(tile => tile.Entry.Kind == SavedMediaKind.Video), "Audio fixture must give three video tiles.");
+            ComboBox sound = C<ComboBox>(page, "MediaSoundFilter"), kind = C<ComboBox>(page, "MediaKindFilter");
+            Button reset = C<Button>(page, "MediaFilterReset");
+            TextBlock note = C<TextBlock>(page, "MediaAudioNote");
+            string Shown() => string.Join(",", page.ShownEntries.Select(entry => entry.Name));
+
+            // The check runs by itself in the background; the undecidable video stays unknown (recorded as probed, but not as silent).
+            await UntilAsync(() => page.AudioResults.Count == 3 && !note.IsVisible);
+            MediaLibraryEntry Video(string name) => page.Snapshot!.Entries.Single(entry => entry.Name == name);
+            Require(page.AudioResults.Get(Video("snd-900.mp4")) == MediaAudio.HasSound && page.AudioResults.Get(Video("mute-910.mp4")) == MediaAudio.Silent
+                && page.AudioResults.Get(Video("odd-920.mp4")) == MediaAudio.Unknown && page.AudioResults.WasProbed(MediaAudioMap.KeyOf(Video("odd-920.mp4"))),
+                "The background check classified the three videos wrongly.");
+            await page.AudioScanTask.WaitAsync(Deadline); // the cache is saved when the scan ends
+            Require(File.Exists(audioCache) && MediaAudioCache.Load(audioCache)?.Count == 3, "The audio cache was not written.");
+            Require(page.ShownEntries.Count == 3 && !note.IsVisible, "Without a sound filter nothing changes and no hint shows.");
+
+            // Mit Ton: one video, the undecidable one is counted and not shown; the type follows to Videos.
+            sound.SelectedIndex = 1;
+            Require(Shown() == "snd-900.mp4" && kind.SelectedIndex == (int)MediaLibraryKindFilter.Video && reset.IsEnabled, "With sound must show only the sound video: " + Shown());
+            Require(note.IsVisible && note.Text == Texts.T("media.audio.unknown", 1) && page.UncheckedVideos == 1, "The undecidable video must be counted: " + note.Text);
+            Require(C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.filter.count", 1, 3), "Filtered count is wrong: " + C<TextBlock>(page, "MediaStatus").Text);
+            sound.SelectedIndex = 2;
+            Require(Shown() == "mute-910.mp4" && note.Text == Texts.T("media.audio.unknown", 1), "Without sound must show only the silent video, never the undecidable one: " + Shown());
+            Require(page.CurrentFilter().Sound == MediaLibrarySoundFilter.WithoutSound, "The filter does not describe the choice.");
+
+            // Another type drops the sound choice instead of contradicting it; "egal" widens back.
+            kind.SelectedIndex = (int)MediaLibraryKindFilter.Image;
+            Require(sound.SelectedIndex == 0 && page.ShownEntries.Count == 0 && !note.IsVisible, "Choosing another type must drop the sound choice.");
+            kind.SelectedIndex = 0;
+            sound.SelectedIndex = 1;
+            sound.SelectedIndex = 0;
+            Require(page.ShownEntries.Count == 3 && !note.IsVisible, "Sound 'egal' must show all three again.");
+            sound.SelectedIndex = 2;
+            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(sound.SelectedIndex == 0 && kind.SelectedIndex == 0 && page.ShownEntries.Count == 3 && !reset.IsEnabled, "Reset must clear the sound choice.");
+        }
+        finally { page.EndLifetime(); window.Close(); }
+
+        // A second page starts from the cache: nothing is probed again, the filter works at once.
+        MediaPage again = new(host.OpenArchiveReaderAsync, cachePath: cache);
+        Window second = new() { Width = 1000, Height = 700, Content = again, ShowInTaskbar = false };
+        try
+        {
+            second.Show(owner);
+            again.IsAvailable = true;
+            await again.ActivateAsync().WaitAsync(Deadline);
+            await again.AudioScanTask.WaitAsync(Deadline);
+            await UntilAsync(() => again.AudioResults.Count == 3);
+            C<ComboBox>(again, "MediaSoundFilter").SelectedIndex = 1;
+            Require(again.ShownEntries.Count == 1 && again.ShownEntries[0].Name == "snd-900.mp4", "The cached results must filter again.");
+        }
+        finally { again.EndLifetime(); second.Close(); }
     }
 
     private static async Task VideoJourneyAsync(MainWindow owner, string profile)
