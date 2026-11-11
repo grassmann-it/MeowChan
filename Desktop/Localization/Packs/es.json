@@ -850,7 +850,6 @@
     "transfer.import.scope": "Elegir el alcance (antes de seleccionar el paquete)",
     "transfer.import.scopeNew": "Crear como hilo nuevo",
     "transfer.import.scopeMerge": "Combinar con el hilo existente",
-
     "transfer.import.source": "Paquete seleccionado: {0}",
     "transfer.import.choosing": "Selección del paquete…",
     "transfer.import.reading": "Leyendo y preparando el paquete…",
@@ -2299,6 +2298,23 @@
     "window.fullscreen.on": "Activado",
     "window.fullscreen.off": "Desactivado",
     "readerGroups.memberUnavailableLocally": "Miembro del grupo no disponible localmente: ",
-    "menu.unavailable.target": "No disponible por ahora para este destino."
+    "menu.unavailable.target": "No disponible por ahora para este destino.",
+    "plugins.approval.checkStore": "El resultado del último escrito es incierto. No se intentaron más acciones. Compruebe el estado guardado; este diálogo no repetirá esa acción.",
+    "plugins.approval.failed": "Una acción falló. No se intentaron más acciones; las aprobaciones guardadas anteriormente permanecen. Recargue y revise de nuevo.",
+    "plugins.approval.needsReview": "La revisión cambió o es incoherente. Las acciones restantes no se guardaron. Recargue y revise explícitamente de nuevo.",
+    "plugins.approval.policy": "El guardado por lote incluye solo las reautorizaciones de permisos marcadas individualmente, en orden. Se detiene en el primer fallo; los guardados anteriores permanecen. Cerrar detiene más escrituras, no una escritura ya en curso. Ahora no se activa nada.",
+    "plugins.approval.receipt": "{0} · ejecución {1}: {2}",
+    "plugins.approval.refreshFailed": "No se pudo actualizar la revisión. Los comprobantes guardados siguen siendo válidos; no se habilita ninguna acción más hasta una recarga correcta.",
+    "plugins.approval.reload": "Recargar revisión",
+    "plugins.approval.reviewAgain": "Revisión actualizada. Se borraron todas las confirmaciones restantes; marque cada acción deseada de nuevo. Las aprobaciones guardadas solo valen para el próximo inicio de la aplicación.",
+    "plugins.approval.saving": "Se está guardando la selección congelada. Aún no se pueden enviar otros cambios.",
+    "plugins.approval.state.CheckStore": "Comprobar estado guardado — resultado incierto",
+    "plugins.approval.state.Failed": "Falló — ningún éxito confirmado",
+    "plugins.approval.state.NeedsReview": "Revisar de nuevo — no guardado",
+    "plugins.approval.state.NotExecuted": "No ejecutado",
+    "plugins.approval.state.Saved": "Guardado para el próximo inicio de la aplicación — no activado ahora",
+    "plugins.approval.stopped": "Las acciones restantes no se ejecutaron. Revise de nuevo antes de guardar.",
+    "plugins.approval.stopping": "Deteniendo tras la operación actual. Puede que aún guarde; las aprobaciones ya guardadas permanecen.",
+    "plugins.approval.submit": "Guardar {0} reparaciones autorizadas individualmente"
   }
 }

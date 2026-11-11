@@ -850,7 +850,6 @@
     "transfer.import.scope": "Portée de l’application (à choisir avant le paquet)",
     "transfer.import.scopeNew": "Créer comme nouveau fil",
     "transfer.import.scopeMerge": "Fusionner dans le fil existant",
-
     "transfer.import.source": "Paquet sélectionné : {0}",
     "transfer.import.choosing": "Sélection du paquet…",
     "transfer.import.reading": "Lecture et préparation du paquet…",
@@ -2299,6 +2298,23 @@
     "window.fullscreen.on": "Activé",
     "window.fullscreen.off": "Désactivé",
     "readerGroups.memberUnavailableLocally": "Membre du groupe indisponible en local : ",
-    "menu.unavailable.target": "Actuellement indisponible pour cette cible."
+    "menu.unavailable.target": "Actuellement indisponible pour cette cible.",
+    "plugins.approval.checkStore": "L'issue de la dernière écriture est incertaine. Aucune autre action n'a été tentée. Vérifiez l'état enregistré ; cette boîte de dialogue ne répétera pas cette action.",
+    "plugins.approval.failed": "Une action a échoué. Aucune autre action n'a été tentée ; les autorisations déjà enregistrées sont conservées. Rechargez et examinez à nouveau.",
+    "plugins.approval.needsReview": "L'examen a changé ou est incohérent. Les actions restantes n'ont pas été enregistrées. Rechargez et examinez explicitement à nouveau.",
+    "plugins.approval.policy": "L'enregistrement groupé ne comprend que les réautorisations de permissions cochées individuellement, dans l'ordre. Il s'arrête au premier échec ; les enregistrements précédents sont conservés. Fermer arrête les écritures suivantes, pas une écriture déjà en cours. Rien n'est activé maintenant.",
+    "plugins.approval.receipt": "{0} · exécution {1} : {2}",
+    "plugins.approval.refreshFailed": "L'examen n'a pas pu être actualisé. Les reçus enregistrés restent valides ; aucune autre action n'est activée avant un rechargement réussi.",
+    "plugins.approval.reload": "Recharger l'examen",
+    "plugins.approval.reviewAgain": "L'examen a été actualisé. Toutes les validations restantes ont été effacées ; cochez à nouveau chaque action souhaitée. Les autorisations enregistrées ne valent que pour le prochain démarrage de l'application.",
+    "plugins.approval.saving": "La sélection figée est en cours d'enregistrement. Aucune autre modification ne peut encore être envoyée.",
+    "plugins.approval.state.CheckStore": "Vérifier l'état enregistré — issue incertaine",
+    "plugins.approval.state.Failed": "Échec — aucun succès confirmé",
+    "plugins.approval.state.NeedsReview": "Examiner à nouveau — non enregistré",
+    "plugins.approval.state.NotExecuted": "Non exécuté",
+    "plugins.approval.state.Saved": "Enregistré pour le prochain démarrage — non activé maintenant",
+    "plugins.approval.stopped": "Les actions restantes n'ont pas été exécutées. Examinez à nouveau avant d'enregistrer.",
+    "plugins.approval.stopping": "Arrêt après l'opération en cours. Elle peut encore enregistrer ; les autorisations déjà enregistrées sont conservées.",
+    "plugins.approval.submit": "Enregistrer {0} réparations autorisées individuellement"
   }
 }
