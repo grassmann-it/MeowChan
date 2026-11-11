@@ -50,10 +50,12 @@ internal static class SourcesChecks
             Console.WriteLine("SMOKE productive source card: source=" + selectedSource.SourceId
                 + "; labels=" + string.Join(" | ", selectedText.Take(2))
                 + "; visual-text-count=" + selectedCard.GetVisualDescendants().OfType<TextBlock>().Count() + ".");
+            // Since b38a8b7 the card name carries the source-wording tier (e.g. "MeowChan · experimental"),
+            // whose exact bundled wording is pinned by BundledSourceWordingEvidenceTests.
+            SourceRow selectedRow = SourcesSnapshot.From(window.SessionHost.GetProviderDescriptors(), window.SessionHost.GetView(),
+                window.SessionHost.GetSourceMediaIntegrityPolicies()).Single(row => row.Id == selectedSource.SourceId);
             string selectedName = selectedSource.DisplayName
-                + (window.SessionHost.GetSourceMediaIntegrityPolicies()
-                    .SingleOrDefault(policy => policy.Snapshot.SourceId == selectedSource.SourceId)?.Maturity == SourceMaturity.Experimental
-                    ? " · " + Texts.T("sources.experimental") : string.Empty);
+                + (selectedRow.Classification is { } tier ? " · " + MeowChan.Desktop.Plugins.SourceWording.DescribeLabels(tier) : string.Empty);
             Require(selectedText.Length >= 2 && selectedText[0] == "● " + selectedName
                 && selectedText[1] == selectedSource.BaseUri.AbsoluteUri,
                 "The productive Sources details disagreed with the selected source card.");
