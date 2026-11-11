@@ -32,7 +32,7 @@ Abnahme des gesamten Releases.
   diesen Vollständigkeitsfall nicht abgedeckt.
 - **Echtes Upgrade von veröffentlichtem 1.0.2:** exakter Quellstand wurde offline
   exportiert, geprüft und gebaut. Der synthetische Generator scheitert derzeit
-  an der Settings-Admisson, bevor ein gültiges Ausgangsprofil vorliegt. Damit
+  an der Settings-Admission, bevor ein gültiges Ausgangsprofil vorliegt. Damit
   gibt es noch keinen Upgrade-/Zwei-Neustart-PASS. Kein echtes Nutzerprofil benutzt.
 - **Privater Transfer:** Consent-/UI-/Host-/Apply-/Merge-/Recovery-Kette und die
   Grenze neuer lokaler Medienidentitäten weiter klären und end-to-end belegen.
@@ -61,10 +61,26 @@ bleibt erhalten. Mehrere schwere Jobs sind inzwischen ausdrücklich erlaubt;
 Bereits beobachtet: Debug-Solution 0 Fehler/90 Warnungen; Core-Vollsuite
 9523 bestanden/0 fehlgeschlagen/11 übersprungen; Desktop-Vollsuite
 3262 bestanden/12 fehlgeschlagen/12 übersprungen; drei Python-/Medienvertragssuiten
-46 bestanden. Weitere Plugin-/GUI-Abnahmen laufen bzw. sind noch auszuwerten.
-Die vier GUI-Driver-Versuche scheiterten zunächst vor Ausführung an der noch nicht
-separat gebauten DesktopSmoke-Assembly; das ist kein Produktfehler und kein PASS.
-Der echte Apphost-Start im privaten Xvfb hat separat bestanden.
+46 bestanden. Alle acht Plugin-Suiten sind beendet: zusammen 1250 bestanden / 6 fehlgeschlagen.
+Die sechs Fehler entsprechen den von Claude bereits benannten SourceAdapter-
+Schemaerwartungen und OfficialPlugins-Admissionfällen. Desktop: neun der zwölf
+Fehler sind die fehlenden Übersetzungen, drei betreffen die testprozessweite
+Dispatcherbelegung; ein frischer isolierter Filterlauf besteht 6/6, behebt aber
+nicht den Vollsuite-Konflikt.
+
+Nach separat gebauter DesktopSmoke-Assembly haben frische private-Xvfb-Läufe von
+normal, reader-ux, MediaPage und DialogFrame sämtlich bestanden. Die ersten vier
+Driverfehler wegen fehlender Assembly bleiben als Versuchsbelege erhalten und
+werden nicht als Produktfehler gezählt. Echter Apphost-Start ebenfalls PASS.
+Der Release-API-Checker lehnt dagegen 46 Core- und 5 SDK-Unshipped-Einträge ab;
+die Prüfung wurde nicht durch Verschieben nach Shipped umgangen.
+
+Apphost-Logdatei liegt nachweislich im temporären HOME. Der globale Vorher-/Nachher-
+Metadatenvergleich des persönlichen Logordners ist jedoch nicht unverändert;
+eine bereits seit vor Testbeginn laufende persönliche MeowChan-Instanz ist weiter
+aktiv. Deshalb ist dieser Vergleich kein belastbarer Nachweis fehlender Testwrites
+und das umfassende Logisolationsgate bleibt unbewiesen. Die persönliche App wurde
+weder geschlossen noch verändert.
 
 Belege: `/home/tomka/mc-evidence/ux103-restpakete-20261111/acceptance-83174f54/`.
 Die älteren [1.0.3-Gate-Belege](release-1.0.3-closure-gate-2026-11-11.md) bleiben
