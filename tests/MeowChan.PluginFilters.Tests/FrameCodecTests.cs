@@ -1,5 +1,6 @@
 using System.Text.Json;
 using MeowChan.PluginProtocol;
+using MeowChan.PluginSdk;
 
 namespace MeowChan.PluginFilters.Tests;
 
@@ -27,6 +28,24 @@ public sealed class FrameCodecTests
         Assert.Equal("second", next.RequestId);
         Assert.Equal("b", WireJson.Read<string>(next.Payload));
         Assert.Null(await reader.ReadAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task NonAsciiAndMarkupMetadataInsideTheMetadataLimitFitsOneFrame()
+    {
+        // Five texts of 1 Mi Cyrillic and markup characters: under 8 MiB as UTF-8,
+        // but over 16 MiB once every character is escaped as \uXXXX.
+        string text = string.Concat(Enumerable.Repeat("Привет <b>&amp;</b> ", SdkLimits.MaximumTextLength / 20));
+        string[] posts = [text, text, text, text, text];
+        Assert.True(posts.Sum(System.Text.Encoding.UTF8.GetByteCount) < SdkLimits.MaximumMetadataBytes);
+        MemoryStream wire = new();
+        using (FrameCodec writer = new(Stream.Null, wire))
+            await writer.WriteAsync(Envelope("large", posts), CancellationToken.None);
+        Assert.True(wire.Length <= ProtocolVersion.MaximumFrameBytes + 4);
+
+        using FrameCodec reader = new(new MemoryStream(wire.ToArray()), Stream.Null);
+        WireEnvelope envelope = (await reader.ReadAsync(CancellationToken.None))!;
+        Assert.Equal(posts, WireJson.Read<string[]>(envelope.Payload));
     }
 
     private static WireEnvelope Envelope<T>(string requestId, T payload) => new(ProtocolVersion.Major, "response", "thread", requestId,

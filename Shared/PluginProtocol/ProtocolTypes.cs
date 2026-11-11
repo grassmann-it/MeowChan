@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using MeowChan.PluginSdk;
 
@@ -23,7 +24,15 @@ internal sealed record ImageReadRequest(string AssetToken, long Offset, int Coun
 
 internal static class WireJson
 {
-    public static readonly JsonSerializerOptions Options = SdkJson.CreateOptions();
+    // Frame size only: SdkJson bytes elsewhere are hashed and compared, so they keep the default escaping.
+    // Reading does not depend on the escape form; plugins are trusted code and frames are never HTML.
+    public static readonly JsonSerializerOptions Options = CreateOptions();
+    private static JsonSerializerOptions CreateOptions()
+    {
+        JsonSerializerOptions options = SdkJson.CreateOptions();
+        options.Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
+        return options;
+    }
     public static JsonElement Element<T>(T value) => JsonSerializer.SerializeToElement(value, Options);
     public static T Read<T>(JsonElement value) => value.Deserialize<T>(Options)
         ?? throw new JsonException("A protocol payload must not be null.");
