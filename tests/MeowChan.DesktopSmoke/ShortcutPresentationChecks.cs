@@ -105,13 +105,15 @@ internal static class ShortcutPresentationChecks
                     ?? throw new InvalidOperationException("The production shortcut editor content is missing.");
                 TextBox search = content.Children.OfType<TextBox>().Single();
                 ListBox actions = content.Children.OfType<ListBox>().Single();
-                await Program.WaitUntilAsync(() => window.SettingsEditor.CanOpenSectionNavigation
-                    && ReferenceEquals(CurrentEditor(), editor) && ReferenceEquals(TopLevel.GetTopLevel(editor), window)
-                    && window.SettingsEditor.GetVisualDescendants().Contains(editor)
-                    && Materialized(editor) && Materialized(search) && Materialized(actions));
+                // Each settings category is its own page (029b4cd): the shortcut editor only
+                // materializes after its category is selected, so select it before waiting.
+                await Program.WaitUntilAsync(() => window.SettingsEditor.CanOpenSectionNavigation);
                 window.SettingsEditor.OpenSectionNavigation();
                 Require(window.SettingsEditor.CanGoToSection("settings.shortcuts"), "The real shortcut section is unavailable.");
                 window.SettingsEditor.GoToSection("settings.shortcuts");
+                await Program.WaitUntilAsync(() => ReferenceEquals(CurrentEditor(), editor) && ReferenceEquals(TopLevel.GetTopLevel(editor), window)
+                    && window.SettingsEditor.GetVisualDescendants().Contains(editor)
+                    && Materialized(editor) && Materialized(search) && Materialized(actions));
                 await Program.WaitUntilAsync(() => editor.SectionHeading.IsFocused && Visible(window, editor.SectionHeading));
                 string searchLabel = L("Search action, context or shortcut", "Aktion, Bereich oder Kürzel suchen");
                 Require(search.PlaceholderText?.ToString() == searchLabel && AutomationProperties.GetName(search) == searchLabel,
@@ -159,7 +161,7 @@ internal static class ShortcutPresentationChecks
                     && editor.Draft.Raw.GetRawText() == conflictRaw && window.SettingsEditor.DownloadPath == rawPath,
                     "Conflict Save published a binding or lost the shortcut/path draft.");
                 TextBlock error = editor.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(text => text.IsEffectivelyVisible
-                    && text.Text?.Contains("Kollidierende Aktionen", StringComparison.Ordinal) == true)
+                    && text.Text?.Contains(L("Conflicting actions", "Kollidierende Aktionen"), StringComparison.Ordinal) == true)
                     ?? throw new InvalidOperationException("Conflict error is absent from the real editor.");
                 // BringIntoView changes offsets; a Loaded callback alone does not
                 // establish the final arranged viewport. Observe the existing gate
