@@ -42,6 +42,30 @@
       ],
       "reasoningEffort": "high",
       "contextMode": "native"
+    },
+    {
+      "name": "ux103-stepfun",
+      "routeIds": [
+        "stepfun-step-5-preview"
+      ],
+      "reasoningEffort": "high",
+      "contextMode": "native"
+    },
+    {
+      "name": "ux103-glm",
+      "routeIds": [
+        "route-866d9f0c47f3a68a28a0b1e211c4661d"
+      ],
+      "reasoningEffort": "high",
+      "contextMode": "native"
+    },
+    {
+      "name": "ux103-cmd-sonnet",
+      "routeIds": [
+        "route-6759a359fa0b5789dff2e7e871a5c4ee"
+      ],
+      "reasoningEffort": "high",
+      "contextMode": "native"
     }
   ],
   "costPolicy": "configured"
