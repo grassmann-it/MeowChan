@@ -1,0 +1,265 @@
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
+using MeowChan.Archive;
+using MeowChan.Downloader;
+using MeowChan.Favorites;
+using MeowChan.Gallery;
+using MeowChan.Interfaces;
+using MeowChan.Persistence;
+using MeowChan.PluginHost.Contracts;
+using MeowChan.PluginHost.Sources;
+using MeowChan.PluginSdk;
+using MeowChan.Ratings;
+using MeowChan.Storage;
+using MeowChan.Tags;
+using MeowChan.Testing;
+using Xunit.Abstractions;
+
+namespace MeowChan.DesktopTests;
+
+/// <summary>
+/// Investigation, 11.11.2026: what the production archive does when a source that used to report a provider MD5
+/// stops reporting it. The attachment revision key hashes ExpectedMd5, so dropping the field gives every
+/// attachment of an already archived thread a different key. This runs the real adapter, queue, media store,
+/// archive and gallery selection against a profile that was filled by the "old" metadata (MD5 present, like the
+/// 2ch plugin before) and then re-checked with the "new" metadata (no MD5, same URL, same bytes).
+/// No network: the worker and the media transport are in-memory.
+/// </summary>
+public sealed class ProviderMd5DropArchiveTests(ITestOutputHelper output)
+{
+    private static readonly byte[][] Files = [[1, 2, 3, 4, 5], [9, 8, 7, 6, 5, 4, 3]];
+    private const string ThreadUrl = "https://2ch.su/b/res/123.html";
+    private static readonly ResourceId Id = new("2ch", "b", "123");
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AReCheckWithoutTheProviderMd5RedownloadsIntoTheSameAssetsKeepsFavoritesAndRatingsButDetachesTagsFromTheirKey(bool restartBeforeTheRecheck)
+    {
+        using TempProfile profile = new();
+        MediaCounter media = new();
+        FavoriteAssetKey favoriteKey;
+        PrivateMediaTagTarget oldTarget;
+        TagId tag;
+        string mediaDirectory;
+
+        // Phase 1: the profile as the old plugin left it (MD5 reported).
+        Env first = await Env.StartAsync(profile.Path, md5: true, media);
+        Env second = first;
+        try
+        {
+            AdmissionResult admitted = await first.Registry.AddAsync(ThreadUrl);
+            Assert.Equal(AdmissionStatus.Added, admitted.Status);
+            await WaitAsync(() => admitted.Thread!.DownloadedMediaCount == 2);
+            await first.Queue.WaitForIdleAsync().WaitAsync(TimeSpan.FromSeconds(20));
+            Assert.Equal(2, media.Total);
+            mediaDirectory = admitted.Thread!.DownloadDirectory;
+
+            Observation before = await Observe(first, mediaDirectory);
+            output.WriteLine("BEFORE\n" + before.Describe());
+            Assert.Equal(2, before.AttachmentKeys.Count);
+            Assert.Equal(2, before.BindingKeys.Count);
+            Assert.All(before.Tiles, tile => Assert.False(tile.Unassigned));
+            GalleryEntry entry = before.Gallery.Single(item => item.Attachment!.Position == 0);
+            favoriteKey = FavoriteAssetKey.From(Id, entry.Asset);
+            new FavoriteStore(profile.Path, first.Lease).SetFavorite(new FavoriteEntry(favoriteKey, entry.Asset.Length, entry.Asset.OriginalFileName), true);
+            new MediaRatingStore(profile.Path, first.Lease).Set(favoriteKey, 4);
+            PrivateTagStore tags = new(profile.Path, first.Lease);
+            tag = tags.Define("keep me").Tag;
+            oldTarget = Assert.IsType<PrivateMediaTagTarget>(GalleryMediaTagTarget.Resolve(entry, out _));
+            tags.SetMedia(tag, oldTarget, true);
+            if (restartBeforeTheRecheck)
+            {
+                // Simulates closing the app and starting it again after the plugin was updated.
+                await first.DisposeAsync();
+                second = await Env.StartAsync(profile.Path, md5: false, media);
+            }
+            else first.Worker.Md5 = false;
+
+            // Phase 2: the same profile, the source now reports no MD5 (new plugin), same URL and bytes.
+            int requestsBefore = media.Total;
+            IThread thread = second.Registry.Threads.SingleOrDefault()
+                ?? (await second.Registry.AddAsync(ThreadUrl)).Thread!;
+            await thread.checkThreadAsync(second.Queue);
+            await second.Queue.WaitForIdleAsync().WaitAsync(TimeSpan.FromSeconds(20));
+            await Task.Delay(300);
+            await second.Queue.WaitForIdleAsync().WaitAsync(TimeSpan.FromSeconds(20));
+
+            Observation after = await Observe(second, mediaDirectory);
+            output.WriteLine("AFTER\n" + after.Describe());
+
+            // Re-download: the new key has no binding yet, so the host fetches each original once more.
+            Assert.Equal(requestsBefore + 2, media.Total);
+            // No duplicate asset or tile: identical bytes land in the same two assets, both still current.
+            Assert.Equal(before.Assets.Select(asset => asset.AssetId).Order(), after.Assets.Select(asset => asset.AssetId).Order());
+            Assert.All(after.Assets, asset => Assert.True(asset.IsCurrent));
+            Assert.Equal(2, after.Gallery.Count);
+            Assert.All(after.Gallery, shown => { Assert.False(shown.Unassigned); Assert.False(shown.Historical); Assert.NotNull(shown.AttachmentResolution); });
+            Assert.Equal(2, after.Tiles.Count);
+            Assert.All(after.Tiles, tile => { Assert.Equal(MediaLibraryPresence.Present, tile.Presence); Assert.False(tile.Unassigned); Assert.False(tile.Historical); });
+            // The archive row moves to the new keys (without MD5); the old bindings stay in the manifest, nothing is superseded.
+            Assert.All(after.AttachmentKeys, key => Assert.EndsWith(":md5=null", key));
+            Assert.Empty(after.AttachmentKeys.Select(key => key.Split(':')[1] + ":" + key.Split(':')[2]).Intersect(before.AttachmentKeys.Select(key => key.Split(':')[1] + ":" + key.Split(':')[2])));
+            Assert.Equal(4, after.BindingKeys.Count);
+            Assert.Subset(after.BindingKeys.ToHashSet(), before.BindingKeys.ToHashSet());
+
+            // Keyed by thread, media id, variant and bytes: favorite and rating survive.
+            Assert.True(new FavoriteStore(profile.Path, second.Lease).Contains(favoriteKey));
+            Assert.Equal(4, new MediaRatingStore(profile.Path, second.Lease).List().Single(item => item.Key == favoriteKey).Value);
+            // Keyed by the attachment revision key: the tag assignment still exists for the old key, but no
+            // gallery entry resolves to that key any more, so the tag is no longer shown or filterable.
+            PrivateTagStoreSnapshot tagSnapshot = new PrivateTagStore(profile.Path, second.Lease).ReadSnapshot();
+            Assert.Single(tagSnapshot.TagsOf(oldTarget));
+            foreach (GalleryEntry shown in after.Gallery)
+            {
+                PrivateMediaTagTarget current = Assert.IsType<PrivateMediaTagTarget>(GalleryMediaTagTarget.Resolve(shown, out _));
+                Assert.NotEqual(oldTarget.Reference.RevisionKey, current.Reference.RevisionKey);
+                Assert.Empty(tagSnapshot.TagsOf(current));
+            }
+        }
+        finally { await second.DisposeAsync(); }
+    }
+
+    private static async Task<Observation> Observe(Env env, string mediaDirectory)
+    {
+        await using ArchiveReader reader = await env.Content.OpenReaderAsync();
+        ArchivedThreadView view = (await reader.ReadThreadAsync(Id))!;
+        MediaAssetSnapshot assets = await MediaAssetReader.OpenAsync(mediaDirectory);
+        List<string> attachmentKeys = new();
+        foreach (CapturedPost post in view.GetPosts())
+            foreach (CapturedAttachment attachment in post.Attachments ?? Array.Empty<CapturedAttachment>())
+                attachmentKeys.Add(post.PostId + "/" + attachment.Position + ":" + attachment.AttachmentRevisionKey + ":md5=" + (attachment.ExpectedMd5 ?? "null"));
+        GalleryThreadResult gallery = GallerySelection.Build(view, [assets], allSavedVersions: false, includeOtherMedia: true);
+        MediaLibraryEntry[] tiles = MediaLibraryIndexBuilder.EntriesOf(view, [assets]).ToArray();
+        return new Observation(attachmentKeys, assets.AttachmentBindings.Keys.OrderBy(key => key, StringComparer.Ordinal).ToArray(),
+            assets.GetPage().ToArray(), gallery.Entries.ToArray(), tiles);
+    }
+
+    private sealed record Observation(IReadOnlyList<string> AttachmentKeys, IReadOnlyList<string> BindingKeys,
+        IReadOnlyList<MediaAssetReference> Assets, IReadOnlyList<GalleryEntry> Gallery, IReadOnlyList<MediaLibraryEntry> Tiles)
+    {
+        internal string Describe()
+        {
+            StringBuilder text = new();
+            text.AppendLine("archive attachments:");
+            foreach (string key in AttachmentKeys) text.AppendLine("  " + key);
+            text.AppendLine("manifest assets: " + Assets.Count + " (" + string.Join(", ", Assets.Select(asset => asset.AssetId[..8] + (asset.IsCurrent ? " current" : " retained"))) + ")");
+            text.AppendLine("manifest bindings: " + BindingKeys.Count);
+            foreach (string key in BindingKeys) text.AppendLine("  " + key);
+            text.AppendLine("gallery entries: " + Gallery.Count);
+            foreach (GalleryEntry entry in Gallery)
+                text.AppendLine($"  post={entry.Post?.PostId} pos={entry.Attachment?.Position} unassigned={entry.Unassigned} historical={entry.Historical} resolved={(entry.AttachmentResolution != null)} asset={entry.Asset.AssetId[..8]}");
+            text.AppendLine("media page tiles: " + Tiles.Count);
+            foreach (MediaLibraryEntry tile in Tiles)
+                text.AppendLine($"  post={tile.PostId} pos={tile.Position} presence={tile.Presence} unassigned={tile.Unassigned} historical={tile.Historical} asset={tile.AssetId?[..8]}");
+            return text.ToString();
+        }
+    }
+
+    private sealed class MediaCounter
+    {
+        private int _total;
+        internal int Total => Volatile.Read(ref _total);
+        internal void Hit() => Interlocked.Increment(ref _total);
+    }
+
+    private sealed class Env : IAsyncDisposable
+    {
+        internal required ProfileLease Lease { get; init; }
+        internal required ThreadContentRuntime Content { get; init; }
+        internal required Registry Registry { get; init; }
+        internal required DownloadQueue Queue { get; init; }
+        internal required PluginSourceImageBoard Source { get; init; }
+        internal required HttpClient Media { get; init; }
+        internal required Worker Worker { get; init; }
+
+        internal static async Task<Env> StartAsync(string profile, bool md5, MediaCounter counter)
+        {
+            ProfileLease lease = ProfileLease.Acquire(profile);
+            ThreadContentRuntime content = new(profile, lease);
+            await content.InitializeAsync();
+            PluginDescription description = Description();
+            Worker worker = new(description, md5);
+            HttpClient media = new(new Images(counter));
+            PluginSourceImageBoard source = new(description, "2ch", _ => Task.FromResult<IPluginWorkerClient>(worker), media);
+            DownloadQueue queue = new(2, 1048576);
+            Registry registry = new(new[] { source }, queue, Path.Combine(profile, "media"), TimeSpan.FromHours(1), 3600,
+                new SessionStore(profile, lease), true, contentRuntime: content, workStore: new WorkStateStore(profile, lease));
+            await registry.StartAsync(lease);
+            return new Env { Lease = lease, Content = content, Registry = registry, Queue = queue, Source = source, Media = media, Worker = worker };
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await Registry.DisposeAsync();
+            await Content.DisposeAsync();
+            Source.Dispose();
+            Media.Dispose();
+            Lease.Dispose();
+        }
+    }
+
+    private static PluginDescription Description() => new("meowchan.source.2ch", "2ch / Двач", "1.0.0", SdkContract.Version,
+        "Synthetic 2ch-shaped source for the revision-key investigation.", [Source()], Array.Empty<FilterDescription>(),
+        new SettingsSchema("1", Array.Empty<SettingDefinition>()),
+        [new InformationEntry("support", "Accepted links", InformationKind.Text, "Synthetic.")]);
+
+    private static SourceDescription Source() => new("2ch", "2ch / Двач", new Uri("https://2ch.su/"),
+        SourceCapabilities.ThreadRead | SourceCapabilities.BoardCatalog | SourceCapabilities.PostCapture | SourceCapabilities.OriginalMedia,
+        [new UrlRoute(SourceResourceKind.Board, "2ch.su", "/{board}/", IsCanonical: true),
+         new UrlRoute(SourceResourceKind.Board, "2ch.hk", "/{board}/"),
+         new UrlRoute(SourceResourceKind.Thread, "2ch.su", "/{board}/res/{thread}.html", IsCanonical: true, AllowTrailingSlash: false) { ThreadIdentifierKind = RouteIdentifierKind.Decimal },
+         new UrlRoute(SourceResourceKind.Thread, "2ch.hk", "/{board}/res/{thread}.html", AllowTrailingSlash: false) { ThreadIdentifierKind = RouteIdentifierKind.Decimal }],
+        [new HttpHostDeclaration("2ch.hk", HttpHostPurpose.Metadata | HttpHostPurpose.OriginalMedia),
+         new HttpHostDeclaration("2ch.su", HttpHostPurpose.OriginalMedia)],
+        new SettingsSchema("1", Array.Empty<SettingDefinition>()), PostOrderKind.DecimalPostId)
+    { Maturity = SourceMaturity.Experimental };
+
+    private sealed class Worker(PluginDescription description, bool initialMd5) : IPluginWorkerClient
+    {
+        public bool Md5 { get; set; } = initialMd5;
+        public PluginDescription Description { get; } = description;
+        public PluginWorkerIdentity Identity { get; } = new("test", "build", "config");
+        public PluginWorkerSnapshot Snapshot => new(Identity, "ready", null, null, null, Array.Empty<string>());
+
+        public Task<ThreadReadResult> ReadThreadAsync(ThreadReadRequest request, PluginOperationContext operation, CancellationToken cancellationToken = default)
+        {
+            SourceAttachment Attachment(int position) => new(position, "123-" + position, Url: new Uri("https://2ch.hk/b/src/123/f" + position + ".png"),
+                OriginalFileName: "file" + position + ".png", Extension: ".png", ExpectedSize: null,
+                ExpectedMd5: Md5 ? Convert.ToBase64String(MD5.HashData(Files[position])) : null)
+            { ProviderSizeHint = new SourceSizeHint("24", "Кб", SourceSizePrecision.Unspecified) };
+            return Task.FromResult<ThreadReadResult>(new PluginSdk.ThreadSnapshot(new SourceThreadSnapshot(request.Thread, new Uri(ThreadUrl),
+                "Synthetic", SourceThreadState.Active,
+                [new SourcePost("123", 0, SourceFieldPresence.Text | SourceFieldPresence.Attachments, Text: "<p>op</p>", TextFormat: SourceTextFormat.Html,
+                    Attachments: [Attachment(0), Attachment(1)])])));
+        }
+        public Task<CatalogReadResult> ReadCatalogAsync(CatalogReadRequest request, PluginOperationContext operation, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ImageFilterResult> EvaluateAsync(ImageFilterRequest request, PluginOperationContext operation, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<FieldValidationError>> ValidateSettingsAsync(SettingsValidationRequest request, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<FieldValidationError>>(Array.Empty<FieldValidationError>());
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        public Task RetryAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class Images(MediaCounter counter) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            counter.Hit();
+            int index = request.RequestUri!.AbsolutePath.EndsWith("f0.png", StringComparison.Ordinal) ? 0 : 1;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Files[index]), RequestMessage = request });
+        }
+    }
+
+    private static async Task WaitAsync(Func<bool> condition)
+    {
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(20));
+        while (!condition()) await Task.Delay(10, timeout.Token);
+    }
+
+    private sealed class TempProfile : IDisposable
+    {
+        internal string Path { get; } = TemporaryWorkspacePaths.CreateDirectory("meowchan-md5-drop-");
+        public void Dispose() { try { Directory.Delete(Path, true); } catch (Exception) { } }
+    }
+}
