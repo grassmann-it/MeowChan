@@ -55,6 +55,9 @@ Lokal geprüft am 11.11. (`/tmp/mc-evidence/package-linux-1794363581`, saubere `
   patchelf, squashfs) und eine passende Ubuntu-Basis; dieser Rechner ist Manjaro, Remote-CI ist
   ausgeschlossen. `check-video-native.py` auf dem rohen Publish verlangt erwartungsgemäß
   `linux-video-runtime.json`, das erst die Distributionspaketierung schreibt.
+- Eine lokale Ersatzpaketierung in Docker (Ubuntu-Image plus apt-Pakete) wäre technisch möglich.
+  Der Nutzer hat sie am 11.11. ausdrücklich abgelehnt: Paketierung und Plattformläufe macht er
+  selbst in GitHub Actions. Bis diese Läufe vorliegen, bleibt Blocker 2 offen.
 
 ## Belegt auf einem Head
 
