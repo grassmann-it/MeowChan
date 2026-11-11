@@ -1,30 +1,37 @@
 # MeowChan 1.0.3 — Abschluss-Gate (11.11.2026)
 
-Branch `goal/gesamtprogramm-profile-a`, Gate-Head `e70c69c`. Nichts veröffentlicht,
+Branch `goal/gesamtprogramm-profile-a`, Gate-Head `aaea381`. Nichts veröffentlicht,
 gepusht, getaggt oder hochgeladen. Evidence ausschließlich unter `/tmp/mc-evidence`.
 
 ## Ergebnis
 
-**Kein freigebbarer 1.0.3-Kandidat. Das Goal endet mit zwei dokumentierten echten Blockern.**
+**Kein freigebbarer 1.0.3-Kandidat. Ein echter Blocker bleibt: Plattformbelege (Blocker 2).**
+Blocker 1 (Recovery unterbrochener Transfers) ist seit `aaea381` lokal gelöst und belegt.
 
-### Blocker 1 — Recovery unterbrochener nativer Transfers (lokal lösbar, Freigabe offen)
+### Blocker 1 — Recovery unterbrochener nativer Transfers: **gelöst** (Nutzerfreigabe 11.11.)
 
-Releaseplan §2.1 verlangt für Cancel/Crash/Platzmangel einen ehrlichen Recoveryzustand
-und schließt einen Downgrade aus. Real gemessen:
+Befund vorher: echter Platzmangel (tmpfs) und SIGKILL vor `SqlCommitted` bei Import und Merge
+blockierten den Profilstart dauerhaft (`ef116e2`, `56e9a3c`, `c0dfcd7`).
 
-| Fall | Beleg | Ergebnis |
-| --- | --- | --- |
-| ENOSPC 0/4 KiB frei | `ef116e2`, tmpfs 64 MiB, 3×4/4 (`diskfull-2026-11-11`) | Fehler vor Claim; Plan committet nach Freigabe |
-| ENOSPC 64 KiB frei | dito | `ReconciliationRequired`, **Profilstart dauerhaft blockiert** |
-| SIGKILL vor `SqlCommitted` (7 Checkpoints) | `56e9a3c`, 2×8/8 (`crash-2026-11-11`) | **Profilstart dauerhaft blockiert** |
-| SIGKILL nach `SqlCommitted` | dito | Start frei, Bytes veröffentlicht |
+Umsetzung:
+- `24aec15` Core: `ReadInterruptedNativeMediaOperationsAsync` listet nur `Preparing`/`Prepared` ohne
+  Receipt mit kanonischem Operationsverzeichnis; `DiscardInterruptedNativeMediaOperationsAdmittedAsync`
+  (nur Startup-/Exclusive-Admission) parkt das ganze Verzeichnis als `.discard-*`, löscht es und
+  entfernt danach nur diese unfertige Zeile. Committed, Receiptfehler, nicht kanonische Pfade und
+  Ordinary-Admission werden abgelehnt; kein Schemawechsel.
+- `aaea381` Desktop: Beim Start Zweischritt-Dialog über der Shell (zweiter Druck nennt Anzahl und
+  Größe); Behalten/Escape/Schließen behalten den strengen Recoveryfehler. Texte EN/DE/ES/FR/RU.
 
-Nichts wird teilweise veröffentlicht, der Katalog öffnet immer, aber es gibt keinen
-Produktweg aus dem blockierten Zustand. Lösungsentwurf (bestätigtes Verwerfen, kein
-Schemawechsel): `docs/architecture/gesamtprogramm-2026-10-31/NATIVE-TRANSFER-INTERRUPTED-RESOLUTION.md`.
-Der Nutzer hat „erst Entwurf, Umsetzung nach Freigabe“ entschieden; die Freigabe steht aus.
-Merge real geprüft (`c0dfcd7`, 2×8/8): SIGKILL vor `SqlCommitted` lässt das 404-Ziel
-unverändert (2 Posts), blockiert aber den Start; nach dem Commit 3 Posts, Start frei.
+Belege auf Gate-Head `aaea381` (`/tmp/mc-evidence/final4-1794363138`):
+- echter Platzmangel 4/4: 64-KiB-Fall jetzt „blockiert → verworfen → Start frei → Neuimport committet“;
+- echter SIGKILL 16/16 (8 Import-, 8 Merge-Checkpoints): Import wie oben, Merge-Ziel unverändert;
+- `NativeInterruptedTransferDiscardTests` 7/7 (Committed unberührt, fremder Pfad bleibt, Ordinary
+  abgelehnt, Wiederholung idempotent); `InterruptedTransferStartupTests` 3/3 (Host: Verwerfen → Ready,
+  Behalten/keine Entscheidung → RecoveryFailed, Dateien erhalten);
+- Dialog-Smoke im privaten Xvfb PASS (Zweischritt, Escape bricht Bestätigung ab, Behalten/Escape → behalten).
+
+Nicht belegt: der vollständige Weg MainWindow → Dialog in einem echten App-Start mit beschädigtem
+Profil (Host-Hook und Dialog sind je einzeln geprüft); Windows-Umbenennen mit offenen Handles.
 
 ### Blocker 2 — Plattformbelege (unter Linux nicht ersetzbar)
 
@@ -34,7 +41,11 @@ das den Kandidaten unabhängig von Blocker 1.
 
 ## Belegt auf einem Head
 
-Gate-Lauf auf `4bc4d01` (`/tmp/mc-evidence/final3-latest`, frischer
+Neuer Gate-Lauf auf `aaea381` (`/tmp/mc-evidence/final4-1794363138`, frischer `--no-incremental`-Build):
+Core 9421 bestanden/0 fehlgeschlagen/10 übersprungen, Desktop 3098/0/11, Plugins 360/0/0,
+Platzmangel 4/4, SIGKILL 16/16, Dialog-Smoke PASS.
+
+Vorheriger Gate-Lauf auf `4bc4d01` (`/tmp/mc-evidence/final3-latest`, frischer
 `--no-restore --no-incremental`-Build, `dotnet test --no-build`):
 
 | Suite | Ergebnis |
@@ -101,7 +112,5 @@ GUI-Smokes im privaten Xvfb (nice 19):
 
 ## Was das Gate auflöst
 
-1. Freigabe des Recovery-Entwurfs → Umsetzung für Import und Merge, tmpfs-/SIGKILL-Läufe
-   müssen danach „Verwerfen → Start frei → Neuimport committet“ zeigen, dann neuer
-   Gate-Lauf auf einem Head.
+1. Erledigt (`aaea381`): Recovery unterbrochener Transfers.
 2. Windows-/macOS-/Hardwareläufe und Paketprüfung auf den Zielplattformen.

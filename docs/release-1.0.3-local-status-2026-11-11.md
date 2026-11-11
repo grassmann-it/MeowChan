@@ -72,10 +72,10 @@ Windows-, macOS- und Hardwarebelege fehlen. Sie sind unter Linux nicht ersetzbar
   doppelt vorhandene V1-Zeilen. Beleg: Core-Filter `Transfer` 6242 grün, 2 neue Tests.
 - **Platzmangel, echt (11.11., tmpfs 64 MiB, `ef116e2`, 3×4/4 grün):** bei 0/4 KiB frei
   schlägt der Import vor dem dauerhaften Claim fehl, derselbe Plan committet nach
-  Freigabe; bei 256 KiB committet er mit veröffentlichten Bytes. **Bei 64 KiB bleibt die
-  Operation `ReconciliationRequired` und die Startprüfung verweigert das Profil dauerhaft;
-  im Produkt gibt es keinen Ausweg.** Nichts wird teilweise veröffentlicht. Das ist ein
-  offener Recovery-Blocker im Sinne von Releaseplan §2.1 („kein Downgrade“). Entwurf für
+  Freigabe; bei 256 KiB committet er mit veröffentlichten Bytes. Bei 64 KiB bleibt die
+  Operation `ReconciliationRequired`; seit `aaea381` bietet der Start einen bestätigten
+  Verwerfen-Dialog, danach ist der Start frei und das Paket erneut importierbar. Nichts wird teilweise veröffentlicht. Blocker gelöst
+  (`24aec15`, `aaea381`), siehe `docs/release-1.0.3-closure-gate-2026-11-11.md`. Entwurf für
   ein bestätigtes Verwerfen: `docs/architecture/gesamtprogramm-2026-10-31/NATIVE-TRANSFER-INTERRUPTED-RESOLUTION.md`
   (lokal, git-ignoriert), wartet auf Freigabe.
 - **Absturz, echt (11.11., `NativeV2ImportCrashTests`, opt-in `MEOWCHAN_CRASH_RUN=1`, 2×8/8):**
