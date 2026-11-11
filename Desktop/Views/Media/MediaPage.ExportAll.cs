@@ -48,7 +48,10 @@ public sealed partial class MediaPage
 
     private void UpdateExportAll()
     {
-        string? reason = _building != null ? Texts.T("media.selection.reason.building") : _tiles.Count == 0 ? Texts.T("media.exportAll.reason.none") : null;
+        // While the sound check still runs, a sound filter re-presents the grid with every report, so "all matches" keeps changing.
+        string? reason = _building != null ? Texts.T("media.selection.reason.building")
+            : SoundFilterActive && _audioProgress != null ? Texts.T("media.exportAll.reason.probing")
+            : _tiles.Count == 0 ? Texts.T("media.exportAll.reason.none") : null;
         SetAction(_exportAll, reason == null && !_selectionBusy && !_lifetime.IsCancellationRequested && ExportOriginals != null,
             reason, ExportOriginals != null, "media.exportAll.hint");
     }
