@@ -173,13 +173,14 @@ public sealed class DvachPlugin : ISourcePlugin
         Uri original = sticker ? StickerUri(path) : OriginalUri(thread.BoardId, path);
         string extension = Extension(original);
         string? name = Text(file, "fullname") ?? Text(file, "displayname");
+        // The provider md5 (and its size) describe a different file than the bytes 2ch serves for current files
+        // (checked against live runs on 11.11.2026), so it is never an integrity expectation. A stated value is
+        // still validated, so a malformed payload fails; it is not passed on, so it is not hashed into the
+        // attachment revision either.
         string? md5 = Text(file, "md5");
         if (sticker && md5?.Length == 0) md5 = null;
-        if (md5 is not null)
-        {
-            if (md5.Length != 32 || md5.Any(character => !Uri.IsHexDigit(character))) throw new JsonException("Invalid Makaba MD5.");
-            md5 = Convert.ToBase64String(Convert.FromHexString(md5));
-        }
+        if (md5 is not null && (md5.Length != 32 || md5.Any(character => !Uri.IsHexDigit(character))))
+            throw new JsonException("Invalid Makaba MD5.");
         SourceSizeHint? sizeHint = null;
         if (file.TryGetProperty("size", out JsonElement size) && size.ValueKind != JsonValueKind.Null)
         {
@@ -190,7 +191,7 @@ public sealed class DvachPlugin : ISourcePlugin
             sizeHint = new SourceSizeHint(size.GetRawText(), "Кб", SourceSizePrecision.Unspecified);
         }
         return new SourceAttachment(position, postId + "-" + position.ToString(CultureInfo.InvariantCulture),
-            Url: original, OriginalFileName: name, Extension: extension, ExpectedSize: null, ExpectedMd5: md5)
+            Url: original, OriginalFileName: name, Extension: extension, ExpectedSize: null, ExpectedMd5: null)
             { ProviderSizeHint = sizeHint };
     }
 

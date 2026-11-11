@@ -51,7 +51,8 @@ granted or needed during the run. A source that needs one (today Kohlchan, Wizch
 Endchan, Leftypol) cannot become stable.
 
 A source that provides **neither a hash nor an exact size** for a file (7chan shows only a
-rounded size) can still count; the evidence then keeps `integrityBasis: "none"` and a note
+rounded size; 2ch reports an md5 and a size that, per three live runs on 11.11.2026, describe a different
+file than the bytes it serves, so its plugin passes neither) can still count; the evidence then keeps `integrityBasis: "none"` and a note
 (`original.integrityNote`). This applies only when the source provides nothing for that
 file: a provided size or hash that mismatches stays a failure. In that case the run must
 show: the HTTP `Content-Length` of the original, if present, equals the received bytes

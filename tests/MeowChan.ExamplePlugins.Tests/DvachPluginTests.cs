@@ -33,7 +33,7 @@ public sealed class DvachPluginTests
     }
 
     [Fact]
-    public async Task ParsesPostsSlotsHexMd5AndPreservesUnknownNullFiles()
+    public async Task ParsesPostsSlotsAndNeverPassesTheProviderMd5AsAnExpectationAndPreservesUnknownNullFiles()
     {
         var h = Harness(); var result = Assert.IsType<ThreadSnapshot>(await h.ReadThread());
         Assert.Empty(SdkValidation.ValidateThreadResult(h.ThreadRequest, result, h.Source));
@@ -46,7 +46,7 @@ public sealed class DvachPluginTests
         Assert.Equal(new[] { 0, 1 }, op.Attachments!.Select(a => a.Position));
         Assert.Equal(new[] { "123-0", "123-1" }, op.Attachments!.Select(a => a.MediaId));
         Assert.Equal("original image.png", op.Attachments[0].OriginalFileName);
-        Assert.Equal(Convert.ToBase64String(Convert.FromHexString("d0b04abd386c83f00df0b06b6583d073")), op.Attachments[0].ExpectedMd5);
+        Assert.All(op.Attachments, a => { Assert.Null(a.ExpectedMd5); Assert.Null(a.ExpectedSize); Assert.Null(a.ExpectedSha256); Assert.Null(a.ExpectedSha1); });
         Assert.Equal("https://2ch.hk/demo/src/123/opaque.png", op.Attachments[0].Url!.AbsoluteUri);
         Assert.Null(result.Snapshot.Posts[1].Attachments); Assert.False(result.Snapshot.Posts[1].Fields.HasFlag(SourceFieldPresence.Attachments));
         Assert.Empty(result.Snapshot.Posts[2].Attachments!); Assert.True(result.Snapshot.Posts[2].Fields.HasFlag(SourceFieldPresence.Attachments));
@@ -62,7 +62,7 @@ public sealed class DvachPluginTests
         var attachment = result.Snapshot.Posts[0].Attachments![0];
         Assert.Null(attachment.ExpectedSize);
         Assert.Equal(new SourceSizeHint(rawSize, "Кб", SourceSizePrecision.Unspecified), attachment.ProviderSizeHint);
-        Assert.Equal(Convert.ToBase64String(Convert.FromHexString("d0b04abd386c83f00df0b06b6583d073")), attachment.ExpectedMd5);
+        Assert.Null(attachment.ExpectedMd5);
         var copy = Assert.IsType<ThreadSnapshot>(SdkJson.Deserialize<ThreadReadResult>(SdkJson.Serialize<ThreadReadResult>(result)));
         Assert.Equal(attachment.ProviderSizeHint, copy.Snapshot.Posts[0].Attachments![0].ProviderSizeHint);
         Assert.Empty(SdkValidation.ValidateThreadResult(h.ThreadRequest, copy, h.Source));
@@ -107,8 +107,8 @@ public sealed class DvachPluginTests
         var files = result.Snapshot.Posts[1].Attachments!; Assert.Equal(new[] { "124-0", "124-1" }, files.Select(a => a.MediaId));
         Assert.Equal("https://2ch.hk/stickers/pack0001/stk00001.png", files[0].Url!.AbsoluteUri); Assert.Equal(".png", files[0].Extension);
         Assert.Null(files[0].ExpectedMd5); Assert.Null(files[0].ExpectedSize);
-        // Ordinary files next to a sticker keep their own strict checksum.
-        Assert.Equal(Convert.ToBase64String(new byte[16]), files[1].ExpectedMd5);
+        // Ordinary files next to a sticker carry no checksum expectation either.
+        Assert.Null(files[1].ExpectedMd5);
     }
 
     [Theory]
@@ -123,15 +123,34 @@ public sealed class DvachPluginTests
 
     [Theory]
     [InlineData("")][InlineData("not-hex")][InlineData("d0b04abd386c83f00df0b06b6583d07")]
-    public async Task OnlyStickersMayLackAChecksumOrdinaryFilesStillRequireOne(string md5)
+    public async Task OnlyStickersMayHaveAnEmptyChecksumAndAMalformedOneStillFailsEverywhere(string md5)
     {
         var root = JsonNode.Parse(StickerThread)!; var files = root["threads"]![0]!["posts"]![1]!["files"]!;
-        files[1]!["md5"] = md5; // ordinary file
+        files[1]!["md5"] = md5; // ordinary file: empty or malformed fails
         Assert.Equal("invalid_payload", Assert.IsType<ThreadFailure>(await Harness(root.ToJsonString()).ReadThread()).Failure.Code);
         files[1]!["md5"] = "00000000000000000000000000000000"; files[0]!["md5"] = md5; // a stated sticker checksum is still validated
         var result = await Harness(root.ToJsonString()).ReadThread();
         if (md5.Length == 0) Assert.Null(Assert.IsType<ThreadSnapshot>(result).Snapshot.Posts[1].Attachments![0].ExpectedMd5);
         else Assert.IsType<ThreadFailure>(result);
+    }
+
+    [Theory]
+    [InlineData("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz")][InlineData("d0b04abd386c83f00df0b06b6583d07")][InlineData("d0b04abd386c83f00df0b06b6583d073aa")]
+    public async Task AMalformedProviderMd5OnAnOrdinaryFileFailsTheObservationEvenThoughItIsNotCompared(string md5)
+    {
+        var root = JsonNode.Parse(Thread)!; root["threads"]![0]!["posts"]![0]!["files"]![0]!["md5"] = md5;
+        Assert.Equal("invalid_payload", Assert.IsType<ThreadFailure>(await Harness(root.ToJsonString()).ReadThread()).Failure.Code);
+    }
+
+    [Fact]
+    public async Task AttachmentsDoNotDependOnWhichMd5TheProviderReports()
+    {
+        var first = Assert.IsType<ThreadSnapshot>(await Harness().ReadThread()).Snapshot.Posts[0].Attachments!;
+        var root = JsonNode.Parse(Thread)!; var files = root["threads"]![0]!["posts"]![0]!["files"]!;
+        files[0]!["md5"] = "ffffffffffffffffffffffffffffffff"; files[1]!.AsObject().Remove("md5");
+        var next = Assert.IsType<ThreadSnapshot>(await Harness(root.ToJsonString()).ReadThread()).Snapshot.Posts[0].Attachments!;
+        // Same records, so the host derives the same attachment revision keys whatever checksum the provider states.
+        Assert.Equal(first, next);
     }
 
     [Fact]

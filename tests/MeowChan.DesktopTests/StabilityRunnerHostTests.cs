@@ -168,8 +168,19 @@ public sealed class StabilityRunnerHostTests(ITestOutputHelper output)
             Assert.Equal(4, online.NetworkSends);
             Assert.Equal(4, site.Requests.Count);
             Assert.Equal("pass", online.Boards.Single().Archive);
-            Assert.Equal("hash", online.Boards.Single().Original!.IntegrityBasis);
+            // 2ch reports no integrity expectation (its md5 and size describe another file than the one it serves):
+            // the evidence shows basis "none" backed by Content-Length, decode and the offline reopen.
+            StabilityOriginalRun original = online.Boards.Single().Original!;
+            Assert.Equal("none", original.IntegrityBasis);
+            Assert.Null(original.ExpectedBytes);
+            Assert.Null(original.HashMatched);
+            Assert.Equal(original.ReceivedBytes, original.ContentLength);
+            Assert.True(original.ContentLengthMatched);
+            Assert.True(original.Decoded);
+            Assert.True(original.IntegrityOk);
+            Assert.Contains(online.Boards.Single().Notes, note => note.StartsWith("integrity-basis-none: ", StringComparison.Ordinal));
             await StabilityRunner.RunOfflineAsync(online, Options());
+            Assert.Equal("pass", online.Boards.Single().OfflineAfterRestart);
             Assert.Equal("pass", StabilityEvidence.Outcome(online));
 
             MakabaUboachanWaveFixtures other = new();

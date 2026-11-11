@@ -37,9 +37,9 @@ internal sealed record NewSourceWaveLiveSelection(string SourceId, string Plugin
                 throw new ArgumentException("Selection URLs must be exact declared public HTTPS routes.");
         if (new[] { CatalogUrl, ThreadMetadataUrl }.Concat(OriginalHops).Distinct(StringComparer.Ordinal).Count() != 2 + OriginalHops.Length)
             throw new ArgumentException("Acquisition endpoints must be distinct.");
-        if (SourceId == "2ch" && (ProviderExpectedSize != null || ProviderSizeHint == null
+        if (SourceId == "2ch" && (ProviderExpectedSize != null || ProviderExpectedMd5Base64 != null || ProviderSizeHint == null
             || new Uri(OriginalHops[0]).Host != "2ch.hk" || new Uri(OriginalHops[1]).Host != "2ch.su"))
-            throw new ArgumentException("2ch selection must keep rounded size as a hint and bind both original redirect hops.");
+            throw new ArgumentException("2ch selection must keep rounded size as a hint, carry no md5 expectation and bind both original redirect hops.");
         if (SourceId == "uboachan" && ProviderExpectedSha1Base64 == null)
             throw new ArgumentException("Uboachan live acceptance explicitly requires a SHA-1 original.");
         if (SourceId == "sushichan" && ProviderExpectedMd5Base64 == null || SourceId == "zzzchan" && ProviderExpectedSha256 == null)

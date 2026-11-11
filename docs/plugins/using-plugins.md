@@ -72,7 +72,7 @@ notes and dated validation evidence for tested behavior.
 | Sources | Activation confirmation | Integrity behavior |
 | --- | --- | --- |
 | Kohlchan, Wizchan, Endchan, Leftypol | **Activate and allow differences** | Explicit profile/source permission can allow provider size/MD5 differences. Raw provider values and measured local values remain separate. |
-| 2ch / Двач, Uboachan, ZZZchan, SushiChan | **Activate source** | Exact provider hashes/sizes remain strict. There is no size/MD5 exception checkbox or automatic grant for these sources. 2ch's rounded size is retained as an annotation, never an exact byte expectation or a byte-limit substitute. |
+| 2ch / Двач, Uboachan, ZZZchan, SushiChan | **Activate source** | Exact provider hashes/sizes remain strict. There is no size/MD5 exception checkbox or automatic grant for these sources. 2ch is the one source here that reports no checksum expectation: its MD5 and size describe a different file than the one it serves (checked in live runs on 11.11.2026), so the MD5 is validated for format but not compared, and the size is kept only as a rounded annotation, never an exact byte expectation or a byte-limit substitute. After an update that dropped the 2ch MD5, the first re-check of an already archived 2ch thread downloads each original once more into the same files (no duplicate tile), and your tags on those media move to the new revision; favorites and ratings are unaffected. |
 
 Experimental describes the current support status. It grants no exception.
 For the four strict sources, confirming enables the source only. URLs continue

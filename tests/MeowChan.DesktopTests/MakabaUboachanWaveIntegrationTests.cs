@@ -78,10 +78,39 @@ public sealed class MakabaUboachanWaveIntegrationTests
         finally { await StopAsync(restored); }
     }
 
+    [Fact]
+    public async Task The2chProviderMd5IsNeverAnExpectationSoACorruptOneDoesNotRejectTheOriginal()
+    {
+        using TempDirectory profile = new();
+        Configure(profile.Path);
+        using MakabaUboachanWaveFixtures fixture = new() { CorruptExpectedHash = true };
+        DesktopSessionHost host = Create(profile.Path, fixture);
+        try
+        {
+            await StartAsync(host, fixture, fresh: true);
+            await ActivateStrictAsync(host, fixture, "2ch");
+            Assert.Equal(AdmissionStatus.Added, (await host.AddAsync(MakabaUboachanWaveFixtures.ThreadUrl("2ch"))).Status);
+            await host.SetPausedAsync(false);
+            await WaitAsync(() => Settled(host, "2ch", expectedFailure: false), host);
+            await using ArchiveReader reader = await host.OpenArchiveReaderAsync();
+            var view = Assert.IsType<ArchivedThreadView>(await reader.ReadThreadAsync(new("2ch", "demo", "123")));
+            MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(view.Summary.MediaDirectory);
+            Assert.Equal(2, manifest.Count);
+            foreach (CapturedAttachment attachment in view.GetPosts()[0].Attachments!)
+            {
+                Assert.Null(attachment.ExpectedMd5);
+                var resolved = Assert.IsType<ResolvedMediaAttachment>(MediaAttachmentResolver.Resolve(manifest, view.Summary.Id, "123", attachment));
+                Assert.Equal(MediaAcceptanceKind.Strict, resolved.Binding!.Acceptance.Kind);
+            }
+            Assert.Empty(host.Config.SourceMediaIntegrityPermissions);
+            Assert.Equal(0, fixture.Unexpected);
+        }
+        finally { await StopAsync(host); }
+    }
+
     [Theory]
-    [InlineData("2ch")]
     [InlineData("uboachan")]
-    public async Task ProviderMd5OrSha1MismatchNeverPublishesTheCorruptExpectation(string source)
+    public async Task ProviderSha1MismatchNeverPublishesTheCorruptExpectation(string source)
     {
         using TempDirectory profile = new();
         Configure(profile.Path);
@@ -96,7 +125,7 @@ public sealed class MakabaUboachanWaveIntegrationTests
             await WaitAsync(() => Settled(host, source, expectedFailure: true), host);
             MediaWork rejected = Assert.Single(host.GetThreadWorkSnapshots().Single().Media, item => item.MediaIdentifier == "123-1");
             Assert.NotNull(rejected.Failure);
-            Assert.Contains(source == "2ch" ? "MD5" : "SHA1", rejected.Failure, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("SHA1", rejected.Failure, StringComparison.OrdinalIgnoreCase);
             Assert.False(File.Exists(rejected.DestinationPath));
             await using ArchiveReader reader = await host.OpenArchiveReaderAsync();
             var view = Assert.IsType<ArchivedThreadView>(await reader.ReadThreadAsync(new(source, "demo", "123")));
@@ -224,7 +253,9 @@ public sealed class MakabaUboachanWaveIntegrationTests
                 Assert.Null(attachment.ExpectedSize);
                 Assert.Equal(new MediaProviderSizeHint(slot == 0 ? "24.50" : "0", "Кб", MediaSizePrecision.Unspecified), attachment.ProviderSizeHint);
                 Assert.Equal(attachment.ProviderSizeHint, binding.Provider.ProviderSizeHint);
-                Assert.Equal(Convert.ToBase64String(MD5.HashData(fixture.Originals[slot])), attachment.ExpectedMd5);
+                // The provider md5 describes another file than the one 2ch serves: reported by the source, never reported on.
+                Assert.Null(attachment.ExpectedMd5);
+                Assert.Null(binding.Provider.ExpectedMd5);
             }
             else if (slot == 0) { Assert.NotNull(attachment.ExpectedMd5); Assert.Null(attachment.ExpectedSha1); }
             else
