@@ -44,8 +44,20 @@ Windows-, macOS- und Hardwarebelege fehlen. Sie sind unter Linux nicht ersetzbar
 - **Experimental-Quellen:** standardmäßig deaktiviert und gebündelt; Livebelege fehlen
   (Live-Tests übersprungen), daher „nicht aktuell verifiziert“.
 - **UX103:** SF-03 (Enter auf Find-Tasten) und SF-05 (Primary+F nur in der großen
-  Leseansicht, Befehl `reader.find`, umbelegbar) umgesetzt in `db28407`; UX103-E
-  (Startkostenmessung) nicht begonnen.
+  Leseansicht, Befehl `reader.find`, umbelegbar) umgesetzt in `db28407`.
+- **UX103-E Startkosten (11.11.):** Messung unter `/tmp/mc-evidence/startup-measure-2026-11-11`.
+  Befund: Die Pluginphase startete bei jedem Start seriell einen Describe-Worker je
+  gebündeltem Kandidaten (23). `15e469d` verwendet die zuletzt validierte Beschreibung
+  wieder, wenn Kandidat und Ausführungsidentität (Revision, Assembly-/SDK-/Compiler-
+  Fingerprints, logische Ressourcen) unverändert sind; Aktivierung, Grants, Owner und
+  Provenienz laufen unverändert. A/B direkt hintereinander, warmes Profil, Last 9–16:
+  Wiederöffnen Pluginphase 6,65 → 1,28 s (0 Threads) bzw. 11,5 → 1,49 s (25 Threads),
+  Add-Freigabe 8,7 → 3,3 s bzw. 15,6 → 4,6 s; Erststart unverändert (~6,8 s Pluginphase).
+  Tests: Desktop-Filter `Plugin` 155 grün, 1 übersprungen. Nebenbefund: Das Mess-Harness
+  löschte das Profil nach jedem Lauf, frühere „reopen“-Werte (auch 10.11.) waren
+  Kaltstarts; nur in der Messkopie korrigiert. Erste Messrunde (Last 20–38) nicht als
+  Vergleich verwendbar. Nicht umgesetzt: Erststart-Describe (nur Parallelisierung möglich,
+  nicht gemessen) und der `MainWindow`-Konstruktor (unter Last 6–8 s, sonst ~2 s).
 - **Ledger-Identität (11.11., Nutzerentscheidung „zusammenführen“):** neue Konflikte
   tragen einen Slot-Digest `occurrence-v2` (Ressource, Post, Position) ohne Provider-
   Tupel; gleiche Alternativen unter verschiedenen Tupeln sind eine Zeile. Bestehende
