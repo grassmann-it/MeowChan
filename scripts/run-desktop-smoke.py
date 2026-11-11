@@ -28,6 +28,9 @@ ISOLATED_TOOLS = ("dbus-run-session", "xvfb-run", "Xvfb", "xauth", "openbox", "x
 SESSION_VARIABLES = ("DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS",
                      "DBUS_STARTER_ADDRESS", "DBUS_STARTER_BUS_TYPE", "SESSION_MANAGER", "AT_SPI_BUS_ADDRESS",
                      "XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP", "XDG_SESSION_ID", "DESKTOP_SESSION", "KDE_FULL_SESSION")
+# Mirrors SmokeSelectors.BranchSelectors: scenario selectors without the _ONLY suffix.
+BRANCH_SELECTORS = (("MEOWCHAN_TEMPLATE_COMPARISON", "1"), ("MEOWCHAN_ARCHIVE_COMPARISON", "1"),
+                    ("MEOWCHAN_MEDIA_FIT_BENCHMARK", "1"), ("MEOWCHAN_URSA_NATIVE_SUITE", "groups"))
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -44,12 +47,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--scale", choices=("1", "1.5", "2"))
     parser.add_argument("--window-manager", choices=("openbox", "kwin", "kwin-nested"), default="openbox",
                         help="Isolated Linux WM: Openbox, headless KWin, or KWin nested in private Xvfb; KWin apps use XWayland.")
+    parser.add_argument("--expect-scenario",
+                        help="Require this exact 'SMOKE SCENARIO:' id (one --mode only). By default the id is derived "
+                             "from the mode and the MEOWCHAN_*_ONLY selectors in the environment.")
     args = parser.parse_args(argv)
     if not math.isfinite(args.timeout) or args.timeout <= 0:
         parser.error("--timeout must be finite and positive")
     args.modes = tuple(dict.fromkeys(args.mode or STANDARD_MODES))
     if args.window_manager != "openbox" and not sys.platform.startswith("linux"):
         parser.error("--window-manager selects an isolated Linux session only")
+    if args.expect_scenario is not None and len(args.modes) != 1:
+        parser.error("--expect-scenario requires exactly one --mode")
     if STRESS_MODE in args.modes and len(args.modes) != 1:
         parser.error("tray-lifecycle must run separately with --mode tray-lifecycle")
     if "tray-host" in args.modes and (not sys.platform.startswith("linux") or args.native_display):
@@ -156,8 +164,29 @@ def survived_xvfb_teardown(exit_code: int, exit_file: Path, log_text: str) -> bo
         return False
 
 
+def derived_scenario(mode: str, environment: dict[str, str]) -> str:
+    """The id DesktopSmoke prints for this mode and selector environment (SmokeSelectors.Check)."""
+    tokens = [name for name, value in environment.items()
+              if name.startswith("MEOWCHAN_") and name.endswith("_ONLY") and value == "1"]
+    tokens += [name if value == "1" else name + "=" + value
+               for name, value in BRANCH_SELECTORS if environment.get(name) == value]
+    return "+".join([mode, *sorted(tokens)])
+
+
+def check_scenario(log_text: str, expected: str, explicit: bool) -> tuple[str | None, str | None]:
+    """Return (observed id, error). Without an explicit id an older assembly may lack the line."""
+    observed = re.findall(r"^SMOKE SCENARIO: (\S+)\s*$", log_text, re.MULTILINE)
+    if len(observed) > 1:
+        return observed[-1], f"Several SMOKE SCENARIO lines: {observed}"
+    if not observed:
+        return None, f"Missing SMOKE SCENARIO line; expected {expected}" if explicit else None
+    if observed[0] != expected:
+        return observed[0], f"Ran scenario {observed[0]}; expected {expected}"
+    return observed[0], None
+
+
 def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str, str],
-             isolated: bool, timeout: float) -> dict[str, object]:
+             isolated: bool, timeout: float, expected_scenario: str | None = None) -> dict[str, object]:
     destination = destination.resolve()
     destination.mkdir()
     command = ["dotnet", str(assembly)]
@@ -171,6 +200,7 @@ def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str
     exit_code = 1
     with tempfile.TemporaryDirectory(prefix="meowchan-smoke-cwd-") as working_directory:
         child_environment = prepare_environment(environment, isolated, Path(working_directory))
+        scenario = expected_scenario or derived_scenario(mode, child_environment)
         if not isolated:
             child_environment["MEOWCHAN_DESKTOP_SMOKE_NATIVE_ALLOWED"] = "1"
         if mode == "shell-load":
@@ -269,6 +299,9 @@ def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str
                     error = error or "Measurement reported a failure"
         except (OSError, ValueError) as exception:
             error = error or f"Missing/invalid shell-load evidence: {exception}"
+    observed_scenario, scenario_error = check_scenario(log_text, scenario, expected_scenario is not None)
+    if "SMOKE PASS:" in log_text:
+        error = error or scenario_error
     passed = exit_code == 0 and "SMOKE PASS:" in log_text and error is None
     print(f"Desktop harness {mode}: {'passed' if passed else 'FAILED'} (exit {exit_code}); {destination / 'output.log'}", flush=True)
     if not passed:
@@ -278,6 +311,7 @@ def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str
     return {"mode": mode, "status": "passed" if passed else "failed", "exit_code": exit_code,
             "timed_out": timed_out, "interrupted": interrupted, "error": error, "passed": passed,
             "xvfb_teardown_ignored": xvfb_teardown_ignored,
+            "expected_scenario": scenario, "scenario": observed_scenario,
             "watchdog": watchdog_result,
             "actual_render_scaling": scales[0] if len(scales) == 1 else None, "observed_render_scalings": scales}
 
@@ -316,7 +350,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Desktop harness {mode}: {reason}", flush=True)
             failed = True
             continue
-        result = run_mode(mode, assembly, output / mode, environment, isolated, args.timeout)
+        result = run_mode(mode, assembly, output / mode, environment, isolated, args.timeout, args.expect_scenario)
         results.append(result)
         failed = not result["passed"]
     common_scale = results[0]["actual_render_scaling"]

@@ -90,6 +90,16 @@ internal static class Program
             Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle|--visual|--reader-ux|--selection|--tray-host|--about-links|--board-admission|--reading-position|--accessibility-probe|--window-geometry|--video-contrast|--plugins|--archive-cleanup|--shell-load]");
             return 2;
         }
+        // Unknown, misspelled or misplaced selectors would otherwise silently run the normal scene.
+        string? selectorError = SmokeSelectors.Check(args, Environment.GetEnvironmentVariables()
+            .Cast<System.Collections.DictionaryEntry>()
+            .Select(entry => KeyValuePair.Create((string)entry.Key, entry.Value as string)),
+            OperatingSystem.IsWindows(), out string selectorScenario);
+        if (selectorError != null)
+        {
+            Console.Error.WriteLine("SMOKE CONFIGURATION ERROR: " + selectorError);
+            return 2;
+        }
 
         _readingPositionMode = args.Contains("--reading-position", StringComparer.Ordinal);
         _selectionMode = args.Contains("--selection", StringComparer.Ordinal);
@@ -378,6 +388,7 @@ internal static class Program
                 : _windowGeometryMode ? "isolated native interactive resize; each edge/corner after pointer release and settled correction"
                 : _videoContrastMode ? "real decoded video time, ended and corrupt-media error contrast in Light/Dark"
                 : "startup, rendered thread/board bindings, background update, normal close";
+            Console.WriteLine("SMOKE SCENARIO: " + selectorScenario);
             Console.WriteLine("SMOKE PASS: " + scenario + "; no binding errors.");
             return 0;
         }

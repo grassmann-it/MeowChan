@@ -216,6 +216,47 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
         self.assertFalse(result["passed"])
         self.assertFalse(result["xvfb_teardown_ignored"])
 
+    def test_scenario_id_is_derived_from_mode_and_selector_environment(self):
+        self.assertEqual("normal", runner.derived_scenario("normal", {"MEOWCHAN_VIDEO_FIXTURE": "x", "MEOWCHAN_X_ONLY": "0"}))
+        self.assertEqual("reader-ux+MEOWCHAN_GALLERY_CLOSE_ONLY",
+                         runner.derived_scenario("reader-ux", {"MEOWCHAN_GALLERY_CLOSE_ONLY": "1"}))
+        self.assertEqual("normal+MEOWCHAN_ARCHIVE_COMPARISON+MEOWCHAN_ARCHIVE_COMPARISON_EXACT_IDS_ONLY",
+                         runner.derived_scenario("normal", {"MEOWCHAN_ARCHIVE_COMPARISON_EXACT_IDS_ONLY": "1",
+                                                            "MEOWCHAN_ARCHIVE_COMPARISON": "1"}))
+        self.assertEqual("normal+MEOWCHAN_URSA_NATIVE_SUITE=groups",
+                         runner.derived_scenario("normal", {"MEOWCHAN_URSA_NATIVE_SUITE": "groups"}))
+        self.assertEqual("plugins", runner.derived_scenario("plugins", {"MEOWCHAN_URSA_NATIVE_SUITE": "plugins"}))
+
+    def run_with_log(self, log, environment, mode="normal", expected=None, name="scenario"):
+        def fake_process(*args, **kwargs):
+            kwargs["stdout"].write(log)
+            return mock.Mock(wait=mock.Mock(return_value=0))
+        with mock.patch.object(runner.subprocess, "Popen", side_effect=fake_process), \
+                mock.patch.object(runner, "stop_owned_processes"):
+            return runner.run_mode(mode, self.assembly, self.root / name, environment, False, 1, expected)
+
+    def test_pass_from_another_scenario_is_not_reported_as_passed(self):
+        selector = {"MEOWCHAN_READER_FIND_ONLY": "1"}
+        result = self.run_with_log("SMOKE SCENARIO: normal+MEOWCHAN_READER_FIND_ONLY\nSMOKE PASS: fixture\n", selector)
+        self.assertTrue(result["passed"])
+        self.assertEqual("normal+MEOWCHAN_READER_FIND_ONLY", result["scenario"])
+        result = self.run_with_log("SMOKE SCENARIO: normal\nSMOKE PASS: fixture\n", selector, name="fallthrough")
+        self.assertFalse(result["passed"])
+        self.assertIn("expected normal+MEOWCHAN_READER_FIND_ONLY", result["error"])
+
+    def test_explicit_scenario_is_exact_and_requires_the_line(self):
+        result = self.run_with_log("SMOKE SCENARIO: selection\nSMOKE PASS: fixture\n", {}, "selection", "selection")
+        self.assertTrue(result["passed"])
+        result = self.run_with_log("SMOKE PASS: fixture\n", {}, "selection", "selection", "missing")
+        self.assertFalse(result["passed"])
+        self.assertIn("Missing SMOKE SCENARIO", result["error"])
+        # Without --expect-scenario an assembly that predates the line keeps working.
+        self.assertTrue(self.run_with_log("SMOKE PASS: fixture\n", {}, name="older")["passed"])
+        with mock.patch.object(runner.sys, "platform", "linux"):
+            self.assertEqual("x", runner.parse_args(self.args + ["--mode", "normal", "--expect-scenario", "x"]).expect_scenario)
+            with self.assertRaises(SystemExit):
+                runner.parse_args(self.args + ["--expect-scenario", "normal"])
+
     @unittest.skipIf(os.name == "nt", "POSIX process-group fixture")
     def test_timeout_kills_only_the_owned_group_including_its_child(self):
         # A fake dotnet process forks a child that ignores TERM. No window or display is involved.
