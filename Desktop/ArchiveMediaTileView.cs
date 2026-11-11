@@ -39,6 +39,8 @@ public sealed class ArchiveMediaTileView : UserControl
     internal bool HasThumbnail => _bitmap != null;
     internal static bool UsesVideoPoster(ArchiveAssetRow row) =>
         MeowChan.Gallery.SavedMediaTypes.Classify(row.Asset.OriginalFileName ?? row.Asset.Path) == MeowChan.Gallery.SavedMediaKind.Video;
+    internal static string UnavailableKey(ArchiveAssetRow row) =>
+        UsesVideoPoster(row) ? "archive.tileVideoPosterUnavailable" : "archive.tilePreviewUnavailable";
     internal static Task<Bitmap?> DecodeAsync(ArchiveAssetRow row, CancellationToken token, string posterCacheDirectory) =>
         UsesVideoPoster(row)
             ? VideoPosterCache.LoadAsync(row.Manifest, row.Asset, posterCacheDirectory, PosterWidth, PosterHeight, token)
@@ -129,7 +131,8 @@ public sealed class ArchiveMediaTileView : UserControl
             if (request != _request || !_visible || !IsEffectivelyVisible || !ReferenceEquals(DataContext, row) || loading.IsCancellationRequested) { bitmap?.Dispose(); return; }
             _bitmap = bitmap;
             _image.Source = bitmap;
-            _message.Text = bitmap == null ? Texts.T("archive.previewUnavailable") : string.Empty;
+            // The tile has no path line below it, unlike the preview pane, so name only what is missing.
+            _message.Text = bitmap == null ? Texts.T(UnavailableKey(row)) : string.Empty;
             UpdateDescription();
         }
         catch (OperationCanceledException) { }

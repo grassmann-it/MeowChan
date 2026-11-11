@@ -225,6 +225,8 @@ internal static class ArchiveCatalog
         ("archive.size", "Size", "Größe"),
         ("archive.version", "Version (SHA-256)", "Stand (SHA-256)"),
         ("archive.previewUnavailable", "This file type has no built-in preview. Its local path is shown below.", "Für diesen Dateityp gibt es keine integrierte Vorschau. Der lokale Pfad steht unten."),
+        ("archive.tileVideoPosterUnavailable", "No still frame available for this video.", "Für dieses Video ist kein Standbild verfügbar."),
+        ("archive.tilePreviewUnavailable", "No preview for this file type.", "Keine Vorschau für diesen Dateityp."),
         ("archive.previewLoadFailed", "The preview could not be loaded.", "Die Vorschau konnte nicht geladen werden."),
         ("archive.invalidImage", "The saved file could not be decoded as an image.", "Die gespeicherte Datei konnte nicht als Bild gelesen werden."),
         ("archive.tooLarge", "This image is too large for the built-in preview.", "Dieses Bild ist zu groß für die integrierte Vorschau."),

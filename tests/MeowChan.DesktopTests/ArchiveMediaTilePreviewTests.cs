@@ -1,4 +1,5 @@
 using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
 using MeowChan.Storage;
 
 namespace MeowChan.DesktopTests;
@@ -25,4 +26,47 @@ public sealed class ArchiveMediaTilePreviewTests
     [InlineData(null, "creep_209717.webm", true)]
     public void VideosUseThePosterAndOtherFilesTheImageDecoder(string? original, string stored, bool poster) =>
         Assert.Equal(poster, ArchiveMediaTileView.UsesVideoPoster(Row(original, stored)));
+
+    // The tile has no path line, so its fallback must not point at one (UX103 tile text).
+    [Theory]
+    [InlineData("clip.webm", "0d614e68.webm", "archive.tileVideoPosterUnavailable")]
+    [InlineData("notes.pdf", "notes.pdf", "archive.tilePreviewUnavailable")]
+    public void MissingTilePreviewNamesOnlyWhatIsMissing(string? original, string stored, string key) =>
+        Assert.Equal(key, ArchiveMediaTileView.UnavailableKey(Row(original, stored)));
+}
+
+[Collection("Localization")]
+public sealed class ArchiveMediaTileTextTests : IDisposable
+{
+    private readonly string _previousLanguage = Texts.Language;
+
+    public ArchiveMediaTileTextTests() => Texts.Initialize();
+
+    public void Dispose()
+    {
+        Texts.Initialize();
+        Texts.SetLanguage(_previousLanguage);
+    }
+
+    [Theory]
+    [InlineData("en"), InlineData("de"), InlineData("es"), InlineData("fr"), InlineData("ru")]
+    public void TileFallbacksAreTranslatedAndDoNotMentionAPathBelow(string language)
+    {
+        Texts.SetLanguage(language);
+        string path = Texts.T("archive.previewUnavailable");
+        foreach (string key in new[] { "archive.tileVideoPosterUnavailable", "archive.tilePreviewUnavailable" })
+        {
+            string text = Texts.T(key);
+            Assert.False(string.IsNullOrWhiteSpace(text));
+            Assert.NotEqual(key, text);
+            Assert.NotEqual(path, text);
+        }
+        if (language != "en")
+        {
+            Texts.SetLanguage("en");
+            string english = Texts.T("archive.tileVideoPosterUnavailable");
+            Texts.SetLanguage(language);
+            Assert.NotEqual(english, Texts.T("archive.tileVideoPosterUnavailable"));
+        }
+    }
 }

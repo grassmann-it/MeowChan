@@ -921,6 +921,8 @@
     "archive.size": "Размер",
     "archive.version": "Версия (SHA-256)",
     "archive.previewUnavailable": "Для этого типа файла нет встроенного предпросмотра. Его локальный путь показан ниже.",
+    "archive.tileVideoPosterUnavailable": "Для этого видео нет стоп-кадра.",
+    "archive.tilePreviewUnavailable": "Для этого типа файла нет предпросмотра.",
     "archive.previewLoadFailed": "Не удалось загрузить предпросмотр.",
     "archive.invalidImage": "Сохранённый файл не удалось декодировать как изображение.",
     "archive.tooLarge": "Это изображение слишком велико для встроенного предпросмотра.",

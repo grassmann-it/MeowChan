@@ -921,6 +921,8 @@
     "archive.size": "Taille",
     "archive.version": "Version (SHA-256)",
     "archive.previewUnavailable": "Ce type de fichier n’a pas d’aperçu intégré. Son chemin local est indiqué ci-dessous.",
+    "archive.tileVideoPosterUnavailable": "Aucune image fixe disponible pour cette vidéo.",
+    "archive.tilePreviewUnavailable": "Aucun aperçu pour ce type de fichier.",
     "archive.previewLoadFailed": "Impossible de charger l’aperçu.",
     "archive.invalidImage": "Impossible de décoder le fichier enregistré comme image.",
     "archive.tooLarge": "Cette image est trop grande pour l’aperçu intégré.",
