@@ -50,6 +50,9 @@ internal static class StabilityEvidence
                     ["receivedBytes"] = board.Original.ReceivedBytes,
                     ["providerHash"] = board.Original.ProviderHash,
                     ["hashMatched"] = board.Original.HashMatched,
+                    ["receivedMd5"] = board.Original.ReceivedMd5,
+                    ["receivedMd5Base64"] = board.Original.ReceivedMd5Base64,
+                    ["providerSizeHint"] = board.Original.ProviderSizeHint,
                     ["sha256"] = board.Original.Sha256,
                     ["integrityBasis"] = board.Original.IntegrityBasis
                 },

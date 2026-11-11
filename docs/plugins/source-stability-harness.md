@@ -37,7 +37,8 @@ any later request that no armed step asked for, or that repeats the board's URLs
 (`leftover-watch-request`).
 
 Integrity is strict and no exception is ever granted: expected vs received bytes, every provider
-hash and the SHA-256 of the received bytes are recorded; a mismatch is an integrity failure and the
+hash and the SHA-256 of the received bytes are recorded, together with the MD5 of the received bytes (`original.receivedMd5` as hex,
+`receivedMd5Base64`) and the provider's size annotation (`original.providerSizeHint`), so a mismatch shows what the bytes really hash to; a mismatch is an integrity failure and the
 outcome is `fail`. A source that declares neither a size nor a hash cannot pass.
 
 Then the archive entry, the verified media file and the reader/gallery projection are checked in

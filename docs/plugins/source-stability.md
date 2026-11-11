@@ -120,7 +120,7 @@ names them with hashes.
       "board": "lounge",
       "thread": "12345",
       "requests": [{"url": "...", "status": 200, "bytes": 51234}],
-      "original": {"expectedBytes": 98765, "receivedBytes": 98765, "providerHash": "md5:...", "hashMatched": true, "sha256": "..."},
+      "original": {"expectedBytes": 98765, "receivedBytes": 98765, "providerHash": "md5:...", "hashMatched": true, "receivedMd5": "...", "sha256": "..."},
       "archive": "pass", "reader": "pass", "offlineAfterRestart": "pass"
     }
   ],

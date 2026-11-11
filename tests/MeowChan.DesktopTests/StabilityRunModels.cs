@@ -26,6 +26,12 @@ internal sealed class StabilityOriginalRun
     public bool? HashMatched { get; set; }
     public bool? SizeMatched { get; set; }
     public string? Sha256 { get; set; }
+    /// <summary>MD5 of the received body as lowercase hex, recorded whether or not the provider declared an MD5 (so a mismatch shows what the bytes actually hash to).</summary>
+    public string? ReceivedMd5 { get; set; }
+    /// <summary>The same MD5 as base64, the form the host stores provider MD5 values in.</summary>
+    public string? ReceivedMd5Base64 { get; set; }
+    /// <summary>The provider's non-authoritative size annotation (raw value, unit, precision); never part of the integrity verdict.</summary>
+    public string? ProviderSizeHint { get; set; }
     /// <summary>"size+hash", "size", "hash" or "none". "none" means the provider declared nothing to verify.</summary>
     public string IntegrityBasis { get; set; } = "none";
     public string? ProductionFailure { get; set; }
@@ -193,7 +199,9 @@ internal static class StabilityRules
         StabilityOriginalRun result = new()
         {
             MediaId = attachment.MediaId!, PostId = choice.Post.PostId, Position = attachment.Position, Url = StabilityAuditTransport.AuditUrl(attachment.Url!),
-            Extension = choice.Extension, ExpectedBytes = attachment.ExpectedSize, ReceivedBytes = digests.Length, Sha256 = digests.Sha256
+            Extension = choice.Extension, ExpectedBytes = attachment.ExpectedSize, ReceivedBytes = digests.Length, Sha256 = digests.Sha256,
+            ReceivedMd5 = digests.Md5Hex.ToLowerInvariant(), ReceivedMd5Base64 = Base64OfHex(digests.Md5Hex),
+            ProviderSizeHint = attachment.ProviderSizeHint is { } hint ? hint.RawValue + " " + hint.UnitLabel + " (" + hint.Precision + ")" : null
         };
         List<(string Name, string Expected, string Actual)> hashes = [];
         if (attachment.ExpectedSha256 is { Length: > 0 } sha256) hashes.Add(("sha256", sha256.ToLowerInvariant(), digests.Sha256));
@@ -261,6 +269,12 @@ internal static class StabilityRules
             foreach (JsonElement item in element.EnumerateArray())
                 if (Find(item, threadId) is { } nested) return nested;
         return null;
+    }
+
+    private static string? Base64OfHex(string hex)
+    {
+        try { return Convert.ToBase64String(Convert.FromHexString(hex)); }
+        catch (FormatException) { return null; }
     }
 
     /// <summary>Provider hashes are normalized by the host to base64; hex input is passed through.</summary>

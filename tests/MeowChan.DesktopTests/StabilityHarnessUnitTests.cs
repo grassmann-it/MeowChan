@@ -571,6 +571,32 @@ public sealed class StabilityHarnessUnitTests
     }
 
     [Fact]
+    public void TheMd5OfTheReceivedBytesIsRecordedEvenWhenTheProviderMd5DiffersOrIsMissing()
+    {
+        byte[] bytes = Encoding.ASCII.GetBytes("synthetic original");
+        string md5Hex = Convert.ToHexString(MD5.HashData(bytes)).ToLowerInvariant();
+        StabilityDigests digests = new(bytes.Length, Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(), md5Hex, Convert.ToHexString(SHA1.HashData(bytes)).ToLowerInvariant());
+        StabilityRules.OriginalChoice Choice(string? md5, MeowChan.Storage.MediaProviderSizeHint? hint = null) => new(new MeowChan.Archive.CapturedPost("1", 1, default),
+            new MeowChan.Archive.CapturedAttachment(0, "m", Url: "https://x.example/m.png", ExpectedMd5: md5) { ProviderSizeHint = hint }, ".png");
+
+        StabilityOriginalRun different = StabilityRules.Evaluate(Choice(Convert.ToBase64String(new byte[16]), new("358", "Кб")), digests);
+        Assert.False(different.HashMatched);
+        Assert.Equal(md5Hex, different.ReceivedMd5);
+        Assert.Equal(Convert.ToBase64String(MD5.HashData(bytes)), different.ReceivedMd5Base64);
+        Assert.Equal("358 Кб (Unspecified)", different.ProviderSizeHint);
+        Assert.Equal("md5:00000000000000000000000000000000", different.ProviderHash);
+
+        StabilityOriginalRun missing = StabilityRules.Evaluate(Choice(null), digests);
+        Assert.Null(missing.HashMatched);
+        Assert.Equal(md5Hex, missing.ReceivedMd5);
+        Assert.Null(missing.ProviderSizeHint);
+
+        // A provider MD5 in hex (any case) and in base64 compare equal to the same bytes.
+        Assert.True(StabilityRules.Evaluate(Choice(Convert.ToBase64String(MD5.HashData(bytes))), digests).HashMatched);
+        Assert.True(StabilityRules.Evaluate(Choice(md5Hex.ToUpperInvariant()), digests).HashMatched);
+    }
+
+    [Fact]
     public void EvaluationComparesEverythingTheProviderDeclared()
     {
         byte[] bytes = Encoding.ASCII.GetBytes("synthetic original");
