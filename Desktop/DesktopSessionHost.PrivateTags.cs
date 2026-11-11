@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using MeowChan.Archive;
 using MeowChan.Persistence;
+using MeowChan.Storage;
 using MeowChan.Tags;
 
 namespace MeowChan.Desktop;
@@ -96,6 +98,52 @@ internal sealed partial class DesktopSessionHost
             PrivateTagCommit commit = _privateTagStore.RemoveThreadsAdmitted(deleted, admission);
             Volatile.Write(ref _publishedPrivateTags, new(PrivateTagLoadState.Ready, commit.Snapshot, null));
         }
+    }
+
+    private Task? _mediaTagReconcile;
+
+    /// <summary>The background reconcile started after Ready; tests await it, shutdown drains it.</summary>
+    internal Task MediaTagReconcileForTests => _mediaTagReconcile ?? Task.CompletedTask;
+
+    /// <summary>
+    /// Starts the one-time background pass that completes media-tag hand-overs a stop between a media commit and
+    /// its tag write may have lost. It never delays start (it begins after Ready) and only reads the manifests of
+    /// threads that carry media tags.
+    /// </summary>
+    private void StartMediaTagReconcile()
+        => _mediaTagReconcile ??= Task.Run(() => ReconcileMediaTagKeysAsync(_startupCancellation.Token));
+
+    internal async Task ReconcileMediaTagKeysAsync(CancellationToken token)
+    {
+        try
+        {
+            using var measurement = MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.tags.reconcile", epoch: _epoch);
+            PrivateTagStoreSnapshot? tags = GetPrivateTagSnapshot().Snapshot;
+            if (tags == null || tags.MediaAssignments.Count == 0) return;
+            ArchiveReader? reader = null;
+            IReadOnlyList<MediaTagKeyHandover> pending;
+            try
+            {
+                try { reader = await OpenArchiveReaderAsync(token).ConfigureAwait(false); }
+                catch (FileNotFoundException) { /* A profile may keep tags without an archive catalog. */ }
+                pending = await MediaTagKeyCarryOver.FindPendingAsync(tags, async (thread, ct) =>
+                {
+                    List<string> directories = new();
+                    if (reader != null) directories.AddRange(await reader.GetMediaDirectoriesAsync(thread, ct).ConfigureAwait(false));
+                    try { directories.Add(StorageLayout.GetThreadDirectory(Config.DownloadPath, thread.Source, thread.Board, thread.Thread!)); }
+                    catch (ArgumentException) { /* Older provider identities may not use storage-safe segments. */ }
+                    return directories;
+                }, token).ConfigureAwait(false);
+            }
+            finally { if (reader != null) await reader.DisposeAsync().ConfigureAwait(false); }
+            if (pending.Count == 0) return;
+            await RunInteractiveWithAdmissionAsync("reconcile-media-tags", "profile",
+                admission => MutatePrivateTagsAsync(store => store.CarryMediaAssignmentsAdmitted(pending, admission, token), token),
+                captureAfter: false).ConfigureAwait(false);
+        }
+        catch (Exception error) when (error is OperationCanceledException or ObjectDisposedException
+            or DesktopSessionBusyException or InvalidOperationException) { /* Stopping or busy: the next start reconciles. */ }
+        catch (Exception error) { _logger.Warning(error, "Could not reconcile private media tags."); }
     }
 
     private async Task<PrivateTagCommit> MutatePrivateTagsAsync(Func<PrivateTagStore, PrivateTagCommit> change,

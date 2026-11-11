@@ -297,12 +297,16 @@ internal sealed class PrivateTagStore
         {
             List<PrivateMediaTagAssignment> fresh = new();
             HashSet<PrivateMediaTagAssignment> seen = new();
+            Dictionary<string, List<MediaTagKeyHandover>> byKey = new(StringComparer.Ordinal);
+            foreach (MediaTagKeyHandover handover in handovers)
+                (byKey.TryGetValue(handover.FromRevisionKey, out var list) ? list : byKey[handover.FromRevisionKey] = new()).Add(handover);
             foreach (PrivateMediaTagAssignment assignment in model.Media)
             {
                 PrivateMediaTagTarget old = assignment.Target;
-                foreach (MediaTagKeyHandover handover in handovers)
+                if (!byKey.TryGetValue(old.Reference.RevisionKey, out List<MediaTagKeyHandover>? candidates)) continue;
+                foreach (MediaTagKeyHandover handover in candidates)
                 {
-                    if (old.Reference.RevisionKey != handover.FromRevisionKey || old.Reference.Resource != handover.To.Resource
+                    if (old.Reference.Resource != handover.To.Resource
                         || old.Reference.PostId != handover.To.PostId || old.Reference.Position != handover.To.Position
                         || old.Sha256 != handover.Sha256) continue;
                     if (!PrivateMediaTagTarget.TryCreate(handover.To, old.MediaId, old.Variant, old.Role, old.Sha256,

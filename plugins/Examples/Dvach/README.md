@@ -41,8 +41,12 @@ reported metadata, so the first re-check of an already archived thread gives eac
 attachment a new key. Each original is downloaded **once more** on that first re-check
 (into the same asset, no duplicate tile, nothing superseded); favorites and ratings are
 keyed by bytes and are unaffected; private media tags are carried over to the new key by
-the host (`MediaTagKeyCarryOver`) when the bytes are identical. Threads that are no longer
-re-checked keep their old keys and stay readable unchanged.
+the host (`MediaTagKeyCarryOver`) when the bytes are identical. The old tag assignment is
+kept next to the new one, so the tag manager counts distinct files, not assignments, and
+removing a tag from a file removes it under every key of that file (it cannot come back).
+A stop between the media commit and the tag write is repaired by a background pass after
+the next start (tagged threads only) and by the next capture of the thread. Threads that
+are no longer re-checked keep their old keys and stay readable unchanged.
 
 Stickers (`sticker` set, path `/stickers/{pack}/{name}`) are served outside the
 board's `src` tree and carry an empty `md5`. They become attachments on `.hk` with

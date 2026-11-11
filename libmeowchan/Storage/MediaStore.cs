@@ -18,6 +18,12 @@ public sealed record MediaCommitResult(string Path, long Length, string Sha256, 
     public string? AssetId { get; init; }
     public string? AcquisitionRevisionKey { get; init; }
     public IReadOnlyList<string> AttachmentRevisionKeys { get; init; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Media-tag hand-overs from earlier keys of the same attachment and bytes to the keys this commit newly
+    /// bound; empty when nothing was newly bound. Computed from the manifest already in memory at commit time.
+    /// </summary>
+    internal IReadOnlyList<MeowChan.Tags.MediaTagKeyHandover> TagHandovers { get; init; } = Array.Empty<MeowChan.Tags.MediaTagKeyHandover>();
 }
 
 /// <summary>
@@ -347,10 +353,15 @@ public sealed partial class MediaStore
                     _moveFile(temporaryPath, publishedPath, false);
                 }
 
+                AttachmentRevisionReference[] fresh = System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Where(item.AttachmentReferences,
+                    reference => !manifestRead.Manifest.AttachmentBindings.ContainsKey(reference.RevisionKey)));
                 if (boundAssetId == null) AddManifestEntry(manifestRead.Manifest, item, publishedPath, digest, acceptanceLease?.Snapshot);
                 else AddBindings(manifestRead.Manifest, item, boundAssetId, digest, acceptanceLease?.Snapshot);
+                IReadOnlyList<MeowChan.Tags.MediaTagKeyHandover> handovers = fresh.Length == 0 || manifestRead.Manifest.AttachmentBindings.Count < 2
+                    ? Array.Empty<MeowChan.Tags.MediaTagKeyHandover>()
+                    : MeowChan.Tags.MediaTagKeyCarryOver.Handovers(manifestRead.Manifest.AttachmentBindings, fresh);
                 await SaveManifestAsync(directory, manifestRead, CancellationToken.None).ConfigureAwait(false);
-                return ToResult(item, publishedPath, digest, reused) with { AssetId = assetId };
+                return ToResult(item, publishedPath, digest, reused) with { AssetId = assetId, TagHandovers = handovers };
             }
             finally
             {

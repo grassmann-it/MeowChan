@@ -1255,21 +1255,35 @@ public partial class DownloadQueue
         }
     }
 
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<ResourceId, byte> _tagReconciledThreads = new();
+
     /// <summary>
     /// A re-check can give an attachment a new revision key (changed provider metadata). Once its new binding is
     /// committed, the private media tags of the earlier key for the same attachment and bytes carry over.
     /// This never fails or delays the download: a problem is logged and the tags simply stay where they were.
+    /// Hands the media tags over to the keys this commit newly bound (from the manifest the commit already held),
+    /// and once per thread and session completes any hand-over a stop between an earlier commit and its tag write
+    /// may have lost. Failure only logs: the next start reconciles again.
     /// </summary>
-    private async Task CarryMediaTagsAsync(DownloadItem item, ProfileAdmissionToken? admission)
+    private async Task CarryMediaTagsAsync(DownloadItem item, MediaCommitResult? committed, ProfileAdmissionToken? admission)
     {
         if (admission == null || item.AttachmentReferences.Count == 0) return;
         try
         {
             ProfileLease? lease = ResolveExecutionProfileLease(item);
             if (lease == null) return;
+            if (committed != null) Tags.MediaTagKeyCarryOver.Apply(lease, admission, committed.TagHandovers, CancellationToken.None);
+            ResourceId thread = item.AttachmentReferences[0].Resource;
+            if (!_tagReconciledThreads.TryAdd(thread, 0)) return;
+            Tags.PrivateTagStoreSnapshot tags = new Tags.PrivateTagStore(lease.ProfileDirectory, lease).ReadSnapshot();
+            HashSet<string> keys = tags.MediaAssignments.Where(a => a.Target.Reference.Resource == thread)
+                .Select(a => a.Target.Reference.RevisionKey).ToHashSet(StringComparer.Ordinal);
+            if (keys.Count == 0) return;
             string directory = Path.GetDirectoryName(Path.GetFullPath(item.DestinationPath))!;
-            await Tags.MediaTagKeyCarryOver.ApplyAsync(lease, admission, directory, item.AttachmentReferences, CancellationToken.None)
+            IReadOnlyList<Tags.MediaTagKeyHandover> pending = await Tags.MediaTagKeyCarryOver
+                .FindPendingForThreadAsync(thread, keys, (_, _) => Task.FromResult<IReadOnlyList<string>>(new[] { directory }), CancellationToken.None)
                 .ConfigureAwait(false);
+            Tags.MediaTagKeyCarryOver.Apply(lease, admission, pending, CancellationToken.None);
         }
         catch (Exception failure)
         {
@@ -1386,7 +1400,7 @@ public partial class DownloadQueue
                 {
                     Quarantine(job.Item, persistenceFailure);
                 }
-                await CarryMediaTagsAsync(job.Item, producerAdmission).ConfigureAwait(false);
+                await CarryMediaTagsAsync(job.Item, committed, producerAdmission).ConfigureAwait(false);
             }
             Cleanup cleanup = new Cleanup();
             List<QueuedDownload> ready;

@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using MeowChan.Archive;
+using MeowChan.Desktop;
 using MeowChan.Downloader;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
@@ -150,6 +151,102 @@ public sealed class ProviderMd5DropArchiveTests(ITestOutputHelper output)
             }
         }
         finally { await second.DisposeAsync(); }
+    }
+
+    /// <summary>
+    /// The profile after a stop between the media commit and the tag write: the new key is bound in the manifest and
+    /// the archive, but the tag file is as it was before the re-check (tags only on the old key).
+    /// </summary>
+    private async Task<(PrivateMediaTagTarget Old, TagId Tag, MediaCounter Media, string MediaDirectory)> CrashedProfileAsync(string profile)
+    {
+        MediaCounter media = new();
+        Env first = await Env.StartAsync(profile, md5: true, media);
+        try
+        {
+            AdmissionResult admitted = await first.Registry.AddAsync(ThreadUrl);
+            await WaitAsync(() => admitted.Thread!.DownloadedMediaCount == 2);
+            await first.Queue.WaitForIdleAsync().WaitAsync(TimeSpan.FromSeconds(20));
+            string mediaDirectory = admitted.Thread!.DownloadDirectory;
+            Observation before = await Observe(first, mediaDirectory);
+            PrivateTagStore tags = new(profile, first.Lease);
+            TagId tag = tags.Define("keep me").Tag;
+            PrivateMediaTagTarget old = Assert.IsType<PrivateMediaTagTarget>(GalleryMediaTagTarget.Resolve(
+                before.Gallery.Single(item => item.Attachment!.Position == 0), out _));
+            tags.SetMedia(tag, old, true);
+            Dictionary<string, byte[]> saved = Directory.GetFiles(profile, PrivateTagStore.FileName + "*")
+                .ToDictionary(path => path, File.ReadAllBytes);
+
+            first.Worker.Md5 = false;
+            await admitted.Thread.checkThreadAsync(first.Queue);
+            await first.Queue.WaitForIdleAsync().WaitAsync(TimeSpan.FromSeconds(20));
+            await Task.Delay(300);
+            await first.Queue.WaitForIdleAsync().WaitAsync(TimeSpan.FromSeconds(20));
+            Observation after = await Observe(first, mediaDirectory);
+            Assert.Equal(4, after.BindingKeys.Count);
+            Assert.Equal(2, new PrivateTagStore(profile, first.Lease).ReadSnapshot().MediaAssignments.Count);
+            await first.DisposeAsync();
+
+            // The stop: the media commit survived, the tag write did not.
+            foreach (string path in Directory.GetFiles(profile, PrivateTagStore.FileName + "*")) File.Delete(path);
+            foreach ((string path, byte[] bytes) in saved) File.WriteAllBytes(path, bytes);
+            return (old, tag, media, mediaDirectory);
+        }
+        catch { await first.DisposeAsync(); throw; }
+    }
+
+    [Fact]
+    public async Task ATagHandOverLostToAStopIsCompletedWhenTheDesktopHostStartsAndNeverDelaysItsStart()
+    {
+        using TempProfile profile = new();
+        new Config { DownloadPath = Path.Combine(profile.Path, "media") }.SaveConfig(profile.Path);
+        (PrivateMediaTagTarget old, TagId tag, _, _) = await CrashedProfileAsync(profile.Path);
+        using (ProfileLease lease = ProfileLease.Acquire(profile.Path))
+            Assert.Single(new PrivateTagStore(profile.Path, lease).ReadSnapshot().MediaAssignments);
+
+        DesktopSessionHost host = new(profile.Path, Array.Empty<IImageBoard>());
+        try
+        {
+            await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(30));
+            await host.MediaTagReconcileForTests.WaitAsync(TimeSpan.FromSeconds(30));
+            PrivateTagStoreSnapshot snapshot = host.GetPrivateTagSnapshot().Snapshot!;
+            // The tag is on the key the archive shows now, the old assignment stays, and the file counts once.
+            Assert.Equal(2, snapshot.MediaAssignments.Count);
+            PrivateMediaTagTarget current = snapshot.MediaAssignments.Select(item => item.Target)
+                .Single(target => target.Reference.RevisionKey != old.Reference.RevisionKey);
+            Assert.Equal(old.Sha256, current.Sha256);
+            Assert.Equal(tag, Assert.Single(snapshot.TagsOf(current)).Id);
+            Assert.Equal(1, snapshot.DistinctMediaCount(tag));
+
+            // Idempotent: a second pass finds nothing to write.
+            long revision = snapshot.Revision;
+            await host.ReconcileMediaTagKeysAsync(CancellationToken.None);
+            Assert.Equal(revision, host.GetPrivateTagSnapshot().Snapshot!.Revision);
+        }
+        finally { await host.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(30)); }
+    }
+
+    [Fact]
+    public async Task ATagHandOverLostToAStopIsCompletedByTheNextCaptureOfTheThread()
+    {
+        using TempProfile profile = new();
+        (PrivateMediaTagTarget old, TagId tag, MediaCounter media, _) = await CrashedProfileAsync(profile.Path);
+        using (ProfileLease lease = ProfileLease.Acquire(profile.Path))
+            Assert.Single(new PrivateTagStore(profile.Path, lease).ReadSnapshot().MediaAssignments);
+        Env restarted = await Env.StartAsync(profile.Path, md5: false, media);
+        try
+        {
+            IThread thread = restarted.Registry.Threads.SingleOrDefault() ?? (await restarted.Registry.AddAsync(ThreadUrl)).Thread!;
+            await thread.checkThreadAsync(restarted.Queue);
+            await restarted.Queue.WaitForIdleAsync().WaitAsync(TimeSpan.FromSeconds(20));
+            await Task.Delay(300);
+            await restarted.Queue.WaitForIdleAsync().WaitAsync(TimeSpan.FromSeconds(20));
+            PrivateTagStoreSnapshot snapshot = new PrivateTagStore(profile.Path, restarted.Lease).ReadSnapshot();
+            output.WriteLine("media requests: " + media.Total + ", assignments: " + snapshot.MediaAssignments.Count);
+            Assert.Equal(2, snapshot.MediaAssignments.Count);
+            Assert.Equal(tag, Assert.Single(snapshot.TagsOf(snapshot.MediaAssignments.Select(item => item.Target)
+                .Single(target => target.Reference.RevisionKey != old.Reference.RevisionKey))).Id);
+        }
+        finally { await restarted.DisposeAsync(); }
     }
 
     private static async Task<Observation> Observe(Env env, string mediaDirectory)

@@ -233,6 +233,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 await SaveViewPreferencesAsync(candidate => candidate.FirstRunSetupPending = true).ConfigureAwait(false);
             }
             if (State == DesktopSessionState.Ready) Updates.Start();
+            if (State == DesktopSessionState.Ready) StartMediaTagReconcile();
         }
         catch (Exception exception)
         {
@@ -747,6 +748,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         { try { await task.ConfigureAwait(false); } catch (Exception error) { errors.Add(error); } }
         await Drain(startupCanceled).ConfigureAwait(false);
         await Drain(restoration).ConfigureAwait(false);
+        await Drain(_mediaTagReconcile ?? Task.CompletedTask).ConfigureAwait(false);
         Task registryStopped = _registry.StopAsync();
         await Drain(Task.WhenAll(queueStopped, registryStopped)).ConfigureAwait(false);
         try { await Updates.DisposeAsync().ConfigureAwait(false); _updatesQuiescent = true; } catch (Exception error) { errors.Add(error); }
