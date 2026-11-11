@@ -14,6 +14,10 @@ opaque safe token, independent of original filename. Empty original names are
 allowed; filenames never determine media identity. Omitted fields do not delete
 captured history, and `locked`/`cyclical` do not end a thread.
 
+A removed file stays in the JSON as `ext:"deleted"` with an empty `tim`. It maps
+to a deletion marker in its slot (`IsDeleted`, no media id, URL or hash), never to
+a live attachment and never to a failure; later slots keep their positions.
+
 This source has proven MD5 and SHA-1 values in the same provider field in the
 same thread. Following approved NW-01, each valid 16-byte Base64 value maps to
 `ExpectedMd5`, and each 20-byte value to the additive `ExpectedSha1`. The original

@@ -166,6 +166,11 @@ public sealed class UboachanPlugin : ISourcePlugin
 
     private static SourceAttachment Attachment(SourceThreadId thread, JsonElement file, string postId, int position)
     {
+        // A removed file keeps its metadata but is marked ext:"deleted" with an empty token: it has no media to
+        // check or download, so it is a deletion marker in its slot, never a live attachment or a parse failure.
+        if (file.TryGetProperty("ext", out JsonElement marker) && marker.ValueKind == JsonValueKind.String
+            && marker.GetString() == "deleted")
+            return new SourceAttachment(position, null, IsDeleted: true);
         JsonElement timestamp = file.GetProperty("tim");
         if (timestamp.ValueKind is not JsonValueKind.String and not JsonValueKind.Number)
             throw new JsonException("Provider file token must be a string or number.");
