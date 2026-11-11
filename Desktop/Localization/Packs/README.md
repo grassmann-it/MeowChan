@@ -17,7 +17,7 @@ intentionally empty saved-search sentinels are omitted because schema v1 rejects
 empty translations; their English fallback stays empty. Tests compare each pack
 with the compiled English catalog and validate exact formatting contracts through
 the production loader. Key coverage is **not** language-quality or complete-UI QA.
-Future key additions require matching pack updates. Proper names and technical
+Future key additions require matching pack updates. The keys of `InlineTextCatalog` (formerly hard-coded English/German pairs in product code) were machine-translated into es/fr/ru and have had no human proofreading yet. Proper names and technical
 terms may legitimately match English.
 
 ## Select and customize
