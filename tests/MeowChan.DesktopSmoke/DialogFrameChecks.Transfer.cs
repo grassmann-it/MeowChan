@@ -125,9 +125,15 @@ internal static partial class DialogFrameChecks
             return new MediaConflictRow(id, new("4chan", "g", (100 + index).ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 active, id, 10, 20 + index, MediaConflictUserStatus.Open);
         }).ToArray();
+        int reloads = 0;
+        MediaConflictActionOutcome next = MediaConflictActionOutcome.Applied;
         MediaConflictsDialog dialog = new(
-            (offset, limit, _) => Task.FromResult(new MediaConflictPage(rows.Length, rows.Skip(offset).Take(limit).ToArray())),
-            (_, _, _) => Task.FromResult(MediaConflictActionOutcome.Applied),
+            (offset, limit, _) =>
+            {
+                reloads++;
+                return Task.FromResult(new MediaConflictPage(rows.Length, rows.Skip(offset).Take(limit).ToArray()));
+            },
+            (_, _, _) => Task.FromResult(next),
             _ => Task.FromResult(new MediaReclaimSummary(0, 0)),
             _ => throw new InvalidOperationException("media conflicts: nothing to reclaim was reclaimed."));
         dialog.Show(owner);
@@ -135,9 +141,29 @@ internal static partial class DialogFrameChecks
         {
             await TransferWaitAsync(() => dialog.IsVisible && dialog.RowsForTests.Children.Count == rows.Length);
             await VerifyFrameAsync(dialog, "media conflicts", "media-conflicts");
+            // A refused decision must survive the reload that follows it. Count the reloads so the
+            // assertion cannot pass on the status written before the list was read again.
+            next = MediaConflictActionOutcome.NotAllowed;
+            KeepOf(dialog, 0).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await TransferWaitAsync(() => dialog.StatusForTests.Text == Texts.T("transfer.conflicts.error.action"));
+            await TransferWaitAsync(() => reloads >= 2);
+            await Settle();
+            Require(dialog.StatusForTests.Text == Texts.T("transfer.conflicts.error.action"),
+                "media conflicts: the list reload erased a refused decision without an explanation.");
+            // An unavailable promotion keeps its own, more specific explanation across the reload.
+            next = MediaConflictActionOutcome.Unavailable;
+            KeepOf(dialog, 1).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await TransferWaitAsync(() => dialog.StatusForTests.Text == Texts.T("transfer.conflicts.error.promoteUnavailable"));
+            await TransferWaitAsync(() => reloads >= 3);
+            await Settle();
+            Require(dialog.StatusForTests.Text == Texts.T("transfer.conflicts.error.promoteUnavailable"),
+                "media conflicts: the reload erased the promotion-specific failure.");
+            // A recorded decision clears its own outcome again.
+            next = MediaConflictActionOutcome.Applied;
+            KeepOf(dialog, 2).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await TransferWaitAsync(() => reloads >= 4 && dialog.StatusForTests.Text == string.Empty);
+            Console.WriteLine("SMOKE media conflicts: a refused decision and an unavailable promotion stay visible across the list reload; a recorded decision clears only its own outcome.");
             // The polite status stays in the footer, above Reclaim/Close; the row actions stay in the body.
-            // (A refused row decision is cleared by the reload that follows it, so the reclaim "nothing to free"
-            // answer is the stable status to check.)
             Button reclaim = dialog.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "MediaConflictsReclaim");
             reclaim.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await TransferWaitAsync(() => dialog.StatusForTests.Text == Texts.T("transfer.conflicts.reclaim.none"));
@@ -148,6 +174,12 @@ internal static partial class DialogFrameChecks
             await TransferWaitAsync(() => !dialog.IsVisible);
         }
         finally { if (dialog.IsVisible) dialog.Close(); }
+    }
+
+    private static Button KeepOf(MediaConflictsDialog dialog, int row)
+    {
+        Control border = dialog.RowsForTests.Children.OfType<Control>().ElementAt(row);
+        return border.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "MediaConflictKeep");
     }
 
     private static async Task TransferAtMinimumAsync(Window dialog, string label, string capture)

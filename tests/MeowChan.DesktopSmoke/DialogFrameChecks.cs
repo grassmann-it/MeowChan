@@ -129,8 +129,9 @@ internal static partial class DialogFrameChecks
         string file = "ux103-p7-" + name + ".png";
         Window window = root as Window ?? TopLevel.GetTopLevel(root) as Window
             ?? throw new InvalidOperationException("No window for capture " + name);
-        Program.CaptureWindow(window, file);
-        File.Copy(Path.Combine(AppContext.BaseDirectory, file), Path.Combine(EvidenceDirectory, file), overwrite: true);
+        // Render straight into the evidence directory. Copying the just-written PNG back fails while
+        // this process still holds the encoded file open, which used to abort the whole group.
+        Program.CaptureWindow(window, file, EvidenceDirectory);
     }
 
     internal static async Task Settle()

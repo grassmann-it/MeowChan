@@ -37,6 +37,8 @@ internal sealed class MediaConflictsDialog : Window
     private MeowChan.Archive.MediaReclaimSummary? _reclaimQuote;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly List<MediaConflictRow> _loaded = new();
+    // A reload must never erase what the last decision or reclaim reported.
+    private readonly MediaConflictStatusBoard _statusBoard = new();
     private string? _confirming;
     private string? _confirmingPromote;
     private int _total;
@@ -110,10 +112,10 @@ internal sealed class MediaConflictsDialog : Window
             if (!append) _loaded.Clear();
             _loaded.AddRange(page.Rows);
             _total = page.Total;
-            _status.Text = string.Empty;
+            _statusBoard.ListRead(_loaded.Count);
         }
         catch (OperationCanceledException) { return; }
-        catch (Exception) { _status.Text = Texts.T("transfer.conflicts.error.read"); }
+        catch (Exception) { _statusBoard.ListReadFailed(); }
         finally { _busy = false; }
         Render();
     }
@@ -125,12 +127,13 @@ internal sealed class MediaConflictsDialog : Window
         try
         {
             MediaConflictActionOutcome outcome = await _decide(row.Id, action, _lifetime.Token);
-            _status.Text = outcome is MediaConflictActionOutcome.Applied or MediaConflictActionOutcome.AlreadyApplied
-                ? string.Empty : Texts.T(outcome == MediaConflictActionOutcome.Unavailable
-                    ? "transfer.conflicts.error.promoteUnavailable" : "transfer.conflicts.error.action");
+            _statusBoard.DecisionRecorded();
+            if (outcome is not (MediaConflictActionOutcome.Applied or MediaConflictActionOutcome.AlreadyApplied))
+                _statusBoard.DecisionFailed(MediaConflictStatus.Failure(outcome == MediaConflictActionOutcome.Unavailable
+                    ? "transfer.conflicts.error.promoteUnavailable" : "transfer.conflicts.error.action"));
         }
         catch (OperationCanceledException) { return; }
-        catch (Exception) { _status.Text = Texts.T("transfer.conflicts.error.action"); }
+        catch (Exception) { _statusBoard.DecisionFailed(MediaConflictStatus.Failure("transfer.conflicts.error.action")); }
         finally { _busy = false; _confirming = null; _confirmingPromote = null; }
         await LoadAsync(append: false);
     }
@@ -145,18 +148,18 @@ internal sealed class MediaConflictsDialog : Window
             if (_reclaimQuote is null)
             {
                 var quote = await _previewReclaim(_lifetime.Token);
-                if (quote.Bytes == 0) _status.Text = Texts.T("transfer.conflicts.reclaim.none");
-                else { _status.Text = string.Empty; _reclaimQuote = quote; }
+                if (quote.Bytes == 0) _statusBoard.Reclaim(MediaConflictStatus.Information("transfer.conflicts.reclaim.none"));
+                else { _statusBoard.DecisionRecorded(); _reclaimQuote = quote; }
             }
             else
             {
                 var done = await _doReclaim(_lifetime.Token);
                 _reclaimQuote = null;
-                _status.Text = Texts.T("transfer.conflicts.reclaim.done", done.Bytes);
+                _statusBoard.Reclaim(MediaConflictStatus.Information("transfer.conflicts.reclaim.done", done.Bytes));
             }
         }
         catch (OperationCanceledException) { return; }
-        catch (Exception) { _reclaimQuote = null; _status.Text = Texts.T("transfer.conflicts.reclaim.error"); }
+        catch (Exception) { _reclaimQuote = null; _statusBoard.Reclaim(MediaConflictStatus.Failure("transfer.conflicts.reclaim.error")); }
         finally { _busy = false; }
         Render();
     }
@@ -171,8 +174,8 @@ internal sealed class MediaConflictsDialog : Window
         _more.Content = Texts.T("transfer.conflicts.more", _loaded.Count, _total);
         _more.IsVisible = _loaded.Count < _total;
         _rows.Children.Clear();
-        if (_loaded.Count == 0 && string.IsNullOrEmpty(_status.Text)) _status.Text = Texts.T("transfer.conflicts.empty");
-        else if (_loaded.Count > 0 && _status.Text == Texts.T("transfer.conflicts.empty")) _status.Text = string.Empty;
+        // Resolve at render time so a language switch re-renders the pending outcome as well.
+        _status.Text = _statusBoard.Display.Resolve();
         foreach (MediaConflictRow row in _loaded) _rows.Children.Add(BuildRow(row));
     }
 

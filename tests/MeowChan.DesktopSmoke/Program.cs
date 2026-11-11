@@ -1323,10 +1323,10 @@ internal static class Program
         Console.WriteLine("SMOKE desktop fit: client dimensions and reported native frame fit the working area (1 physical pixel rounding tolerance); screenshots exclude native decorations.");
     }
 
-    internal static void CaptureWindow(Window window, string fileName)
+    internal static void CaptureWindow(Window window, string fileName, string? directory = null)
     {
         window.UpdateLayout();
-        string screenshotPath = Path.Combine(AppContext.BaseDirectory, fileName);
+        string screenshotPath = Path.Combine(directory ?? AppContext.BaseDirectory, fileName);
         double scale = window.RenderScaling;
         using RenderTargetBitmap screenshot = new RenderTargetBitmap(
             new PixelSize((int)Math.Ceiling(window.Bounds.Width * scale), (int)Math.Ceiling(window.Bounds.Height * scale)),
