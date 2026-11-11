@@ -96,7 +96,9 @@ internal static class FilenameSearchLargeReaderChecks
                     && hit.OriginalName == Needle + ".png"),
                 "Actual search omitted the current reader's off-page claim or returned an unexpected claim.");
             ListBox results = Named<ListBox>(dialog, "FilenameSearchResults");
-            Require(results.Items.Count == 4, "Actual native result list did not bind all four session hits.");
+            // The dialog renders session changes through a posted Refresh; give that turn a chance before judging.
+            try { await UntilAsync(() => results.Items.Count == 4); }
+            catch (TimeoutException) { Require(false, "Actual native result list did not bind all four session hits."); }
             int index = Enumerable.Range(0, hits.Length).Single(i => hits[i].Thread == Target && hits[i].Post == Post);
             ArchiveFilenameHit hit = hits[index];
             Require(hit.Post == Post && hit.Position == 3 && hit.Variant == "preview"
