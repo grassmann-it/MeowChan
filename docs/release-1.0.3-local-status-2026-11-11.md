@@ -77,4 +77,10 @@ Windows-, macOS- und Hardwarebelege fehlen. Sie sind unter Linux nicht ersetzbar
   im Produkt gibt es keinen Ausweg.** Nichts wird teilweise veröffentlicht. Das ist ein
   offener Recovery-Blocker im Sinne von Releaseplan §2.1 („kein Downgrade“). Entwurf für
   ein bestätigtes Verwerfen: `docs/architecture/gesamtprogramm-2026-10-31/NATIVE-TRANSFER-INTERRUPTED-RESOLUTION.md`
-  (lokal, git-ignoriert), wartet auf Freigabe. Echter Absturz (SIGKILL) nicht ausgeführt.
+  (lokal, git-ignoriert), wartet auf Freigabe.
+- **Absturz, echt (11.11., `NativeV2ImportCrashTests`, opt-in `MEOWCHAN_CRASH_RUN=1`, 2×8/8):**
+  SIGKILL des Testhosts an jedem der acht Import-Checkpoints. Der Katalog öffnet immer;
+  Kill nach `SqlCommitted` → Start frei, Bytes veröffentlicht. **Kill an jedem früheren
+  Checkpoint (`PreparingSaved` … `BeforeSqlCommit`) → Profilstart dauerhaft blockiert**,
+  derselbe Recovery-Blocker wie beim Platzmangel; jeder Absturz oder Stromausfall während
+  eines Imports macht das Profil also unbenutzbar. Merge-Operationen nicht getestet.
