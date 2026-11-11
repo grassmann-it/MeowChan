@@ -148,7 +148,8 @@ public partial class MainWindow
             _galleryIndex = Math.Max(0, start);
         }
         _galleryCancellation = new CancellationTokenSource();
-        _gallery = new GalleryViewer();
+        // A gallery opened from the Medien grid closes back to it (CloseGallery focuses the tile), so its close action says so.
+        _gallery = new GalleryViewer { ClosesToMedia = origin != null && ReferenceEquals(origin, _mediaPage?.Grid) };
         UpdateMediaReturn(); // the gallery owns the way back while it is open
         GalleryViewer diagnosticOwner = _gallery;
         _gallery.DiagnosticNotice += notice =>

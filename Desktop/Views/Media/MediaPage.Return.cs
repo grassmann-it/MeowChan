@@ -46,6 +46,9 @@ public sealed partial class MediaPage
         return ReferenceEquals(_returnRun, run) ? await RestoreAsync(point, run) : shown;
     }
 
+    /// <summary>Ends a pending second restore, e.g. when a gallery opened from this page now owns selection and focus.</summary>
+    internal void EndPendingReturn() => _returnRun = null;
+
     // Any own input on the page ends a pending second restore: the user has taken over.
     private void InstallReturnInterruption()
     {

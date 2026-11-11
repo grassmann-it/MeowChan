@@ -65,6 +65,8 @@ public partial class MainWindow
                 return;
             }
             // The grid is the origin: closing the gallery returns focus to the selected tile, not to the page shell.
+            // A still pending second restore of an earlier "Back to media" must not move selection and focus under the gallery.
+            _mediaPage?.EndPendingReturn();
             await OpenMediaGalleryAsync(entries, first.EntryKey, _mediaPage?.Grid);
         }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)

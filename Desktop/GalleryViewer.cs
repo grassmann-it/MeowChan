@@ -455,6 +455,7 @@ internal sealed partial class GalleryViewer : UserControl
             else if (button.Name != null && labels.TryGetValue(button.Name, out string? key))
             { button.Content = Texts.T(key); AutomationProperties.SetName(button, Texts.T(key)); }
         }
+        ApplyCloseLabel();
         UpdateHelpButtonTooltip();
         UpdateContext(); UpdateQuality(); UpdateFavorite(); UpdateContextButton(); UpdateHelp(); UpdateMediaFocusPresentation();
         RefreshPlaybackControls();
@@ -500,9 +501,38 @@ internal sealed partial class GalleryViewer : UserControl
         _ => null
     };
 
-    private void ApplyCompactLabel(Button button, string name)
+    // MEDIA103-NAV P1: a gallery the host opened from the Medien page closes back to it, so its close action says
+    // where it goes. Presentation only: the command (gallery.close), Escape and the key binding stay the same.
+    private bool _closesToMedia;
+    internal bool ClosesToMedia
     {
-        string? label = CompactLabelFor(name);
+        get => _closesToMedia;
+        set
+        {
+            if (_closesToMedia == value) return;
+            _closesToMedia = value;
+            ApplyCloseLabel();
+            UpdateHelp();
+        }
+    }
+
+    internal string CloseLabel => _closesToMedia ? Texts.T("command.gallery.close.media") : CommandCatalog.Label("gallery.close");
+
+    private void ApplyCloseLabel()
+    {
+        CommandBindings.Apply(_close, "gallery.close");
+        if (!_closesToMedia) { ApplyCompactLabel(_close, "GalleryClose"); return; }
+        string label = CloseLabel;
+        ApplyCompactLabel(_close, "GalleryClose", label);
+        string tip = CommandBindings.Tooltip("gallery.close", visibleLabel: label);
+        ToolTip.SetTip(_close, tip);
+        AutomationProperties.SetName(_close, label);
+        AutomationProperties.SetHelpText(_close, tip);
+    }
+
+    private void ApplyCompactLabel(Button button, string name, string? visibleLabel = null)
+    {
+        string? label = visibleLabel ?? CompactLabelFor(name);
         if (label == null || CommandId(name) is not { } id) return;
         StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
         Border icon = (Border)CommandBindings.Icon(id, 14);
@@ -704,8 +734,8 @@ internal sealed partial class GalleryViewer : UserControl
             : new[] { "gallery.previous", "gallery.next", "gallery.fit", "favorites.add", "favorites.remove", "gallery.context-toggle", "gallery.slideshow-toggle" };
         foreach (string id in ids.Concat(CommandCatalog.All.Where(command => command.IsImplemented
             && command.ExecutionContexts.Contains("gallery") && command.ShortcutDisplay != null).Select(command => command.Id)).Distinct())
-            _helpContent.Children.Add(new TextBlock { Text = CommandBindings.Tooltip(id), [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap });
-        _helpContent.Children.Add(new TextBlock { Text = Texts.T("viewer.help.escape"), Classes = { "workspace-help" } });
+            _helpContent.Children.Add(new TextBlock { Text = id == "gallery.close" ? CommandBindings.Tooltip(id, visibleLabel: CloseLabel) : CommandBindings.Tooltip(id), [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap });
+        _helpContent.Children.Add(new TextBlock { Text = Texts.T(_closesToMedia ? "viewer.help.escape.media" : "viewer.help.escape"), Classes = { "workspace-help" } });
         WrapPanel actions = new() { Classes = { "workspace-toolbar" } };
         if (!_helpExpanded) Command(actions, "GalleryHelpMore", Texts.T("viewer.help.more"), () => SetHelp(true, true));
         Command(actions, "GalleryHelpClose", Texts.T("action.close"), () => SetHelp(false));

@@ -42,6 +42,7 @@ internal static class R08dViewerCatalog
         ("viewer.help.video", "Space on video  Play or pause", "Leertaste auf Video  Abspielen oder pausieren"),
         ("viewer.help.fullscreen", "F11  Full screen", "F11  Vollbild"),
         ("viewer.help.escape", "Esc  Close help or context, leave full screen, then gallery", "Esc  Hilfe oder Kontext schließen, Vollbild verlassen, dann Galerie"),
+        ("viewer.help.escape.media", "Esc  Close help or context, leave full screen, then back to media", "Esc  Hilfe oder Kontext schließen, Vollbild verlassen, dann zu Medien"),
         ("viewer.help.more", "All shortcuts", "Alle Tastenkürzel"),
         ("viewer.menu.gallery", "Gallery", "Galerie"),
         ("viewer.menu.exportOriginal", "Export original…", "Original exportieren …"),

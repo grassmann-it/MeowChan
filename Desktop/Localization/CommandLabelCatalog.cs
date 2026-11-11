@@ -208,6 +208,8 @@ internal static class CommandLabelCatalog
     internal static readonly (string Key, string English, string German)[] PresentationEntries =
     {
         ("command.gallery.close.compact", "Close", "Schließen"),
+        // MEDIA103-NAV P1: the same gallery.close, when the gallery was opened from the Medien page and closes back to it.
+        ("command.gallery.close.media", "To media", "Zu Medien"),
         ("command.gallery.favorite.compact", "Favorite", "Favorit"),
         ("command.gallery.export-original.compact", "Export", "Export"),
     };
