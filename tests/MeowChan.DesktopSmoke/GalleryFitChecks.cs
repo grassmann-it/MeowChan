@@ -38,25 +38,40 @@ internal static class GalleryFitChecks
         GalleryViewer viewer = new();
         DecodeProbe probe = new();
         viewer.DecodeImageAsync = probe.DecodeAsync;
-        try
+        Image image = null!;
+        Grid viewport = null!;
+        // StopAsync is terminal (6251d86 removes the chrome and info footer from the tree and never
+        // restores them), so every fresh scenario needs a new viewer instead of reusing a stopped one.
+        async Task ReplaceViewerAsync()
         {
-            GalleryEntry large = await FixtureAsync(directory, "large", 6000, 4000, SKColors.DarkOrange);
-            GalleryEntry small = await FixtureAsync(directory, "small", 224, 255, SKColors.CornflowerBlue);
+            await viewer.StopAsync();
+            viewer = new GalleryViewer { DecodeImageAsync = probe.DecodeAsync };
             window.Content = viewer;
             await Program.WaitUntilAsync(() => viewer.GetGalleryVisualDescendants().Any(control => control is Image { Name: "GalleryImage" }));
             viewer.SetPosition("Fit integration", false, false);
             viewer.SetWarnings("Retained manifest warning");
-            Image image = Control<Image>(viewer, "GalleryImage");
-            Grid viewport = Control<Grid>(viewer, "GalleryViewport");
-            await ResizeAsync(viewer, 360, 260);
+            image = Control<Image>(viewer, "GalleryImage");
+            viewport = Control<Grid>(viewer, "GalleryViewport");
+        }
+        async Task ResetAsync(GalleryEntry entry)
+        {
+            await ReplaceViewerAsync(); await ResizeAsync(viewer, 760, 500);
+            await viewer.ShowAsync(entry, CancellationToken.None); await SettledAsync();
+        }
+        try
+        {
+            GalleryEntry large = await FixtureAsync(directory, "large", 6000, 4000, SKColors.DarkOrange);
+            GalleryEntry small = await FixtureAsync(directory, "small", 224, 255, SKColors.CornflowerBlue);
+            await ReplaceViewerAsync();
+            await ResizeAsync(viewer, 760, 500);
             await viewer.ShowAsync(large, CancellationToken.None);
             await SettledAsync();
             Require(image.Source is Bitmap, "Initial verified Fit did not publish an image.");
             AssertTarget(viewer, image, viewport, 6000, 4000);
             int beforeBurst = probe.Calls.Count;
-            await ResizeAsync(viewer, 440, 310); await Task.Delay(25);
-            await ResizeAsync(viewer, 540, 370); await Task.Delay(25);
-            await ResizeAsync(viewer, 740, 510);
+            await ResizeAsync(viewer, 800, 525); await Task.Delay(25);
+            await ResizeAsync(viewer, 850, 555); await Task.Delay(25);
+            await ResizeAsync(viewer, 950, 625);
             long finalResize = Stopwatch.GetTimestamp();
             await Program.WaitUntilAsync(() => probe.Calls.Count > beforeBurst && probe.Active == 0);
             await SettledAsync();
@@ -66,14 +81,14 @@ internal static class GalleryFitChecks
             AssertTarget(viewer, image, viewport, 6000, 4000);
             Bitmap retained = (Bitmap)image.Source!;
             int beforeShrink = probe.Calls.Count;
-            await ResizeAsync(viewer, 400, 280); await SettledAsync();
-            await ResizeAsync(viewer, 650, 450); await SettledAsync();
+            await ResizeAsync(viewer, 780, 510); await SettledAsync();
+            await ResizeAsync(viewer, 905, 595); await SettledAsync();
             Require(probe.Calls.Count == beforeShrink && ReferenceEquals(retained, image.Source),
                 "Shrink or growth covered by the retained Fit decoded again.");
             Require(probe.Calls.All(call => call.Request is GalleryDecodeRequest.Fit), "Automatic resize requested Original.");
 
             // Oversized control layout exercises the cap without resizing the native window.
-            await ResetAsync(viewer, large);
+            await ResetAsync(large);
             int capStart = probe.Calls.Count;
             await ResizeAsync(viewer, 7000, 5000);
             await Program.WaitUntilAsync(() => probe.Calls.Count == capStart + 1 && probe.Active == 0);
@@ -83,14 +98,14 @@ internal static class GalleryFitChecks
                 "Oversized viewport did not reach the 16 MP Fit cap.");
             int cappedCalls = probe.Calls.Count;
             await ResizeAsync(viewer, 7600, 5600); await SettledAsync();
-            await ResizeAsync(viewer, 360, 260); await SettledAsync();
+            await ResizeAsync(viewer, 760, 500); await SettledAsync();
             Require(probe.Calls.Count == cappedCalls && ReferenceEquals(capped, image.Source),
                 "Growth above the Fit cap or subsequent shrink decoded another buffer.");
             Require(probe.Calls.Skip(capStart).All(call => call.Request is GalleryDecodeRequest.Fit),
                 "Capped automatic Fit requested Original.");
 
             // Start with a context-reduced viewport so closing it really requires more pixels.
-            await viewer.StopAsync(); await ResizeAsync(viewer, 1100, 800);
+            await ReplaceViewerAsync(); await ResizeAsync(viewer, 1100, 800);
             Click(viewer, "GalleryToggleContext"); viewer.UpdateLayout();
             await Program.WaitUntilAsync(() => Control<Border>(viewer, "GalleryContext").IsVisible && viewport.Bounds.Width < 900);
             int contextStart = probe.Calls.Count;
@@ -112,13 +127,13 @@ internal static class GalleryFitChecks
                 "Automatic context layout requested Original.");
 
             // A noncancelable old Fit must stay the sole active operation; only the latest pending target runs.
-            await ResetAsync(viewer, large);
+            await ResetAsync(large);
             DecodeGate latestGate = probe.HoldNext();
-            await ResizeAsync(viewer, 500, 350); await latestGate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await ResizeAsync(viewer, 830, 545); await latestGate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
             object? oldImage = image.Source;
             int whileHeld = probe.Calls.Count;
-            await ResizeAsync(viewer, 600, 420);
-            await ResizeAsync(viewer, 740, 510);
+            await ResizeAsync(viewer, 880, 580);
+            await ResizeAsync(viewer, 950, 625);
             await SettledAsync();
             Require(probe.Calls.Count == whileHeld && ReferenceEquals(oldImage, image.Source),
                 "A pending Fit started concurrently or replaced the retained image before completion.");
@@ -133,9 +148,9 @@ internal static class GalleryFitChecks
             void TrackPublication(object? sender, AvaloniaPropertyChangedEventArgs args)
             { if (args.Property == Image.SourceProperty) publications.Add(image.Source); }
 
-            await ResetAsync(viewer, large);
+            await ResetAsync(large);
             DecodeGate switchGate = probe.HoldNext();
-            await ResizeAsync(viewer, 620, 430); await switchGate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await ResizeAsync(viewer, 890, 585); await switchGate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
             Task switchTask = viewer.ShowAsync(small, CancellationToken.None);
             switchGate.Release.TrySetResult();
             await switchTask.WaitAsync(TimeSpan.FromSeconds(5)); await SettledAsync();
@@ -147,20 +162,20 @@ internal static class GalleryFitChecks
             Require(Math.Abs(image.Width * window.RenderScaling - 224) < 0.01,
                 "Small Fit reuse lost physical-pixel 1:1 geometry.");
 
-            await ResetAsync(viewer, large);
+            await ResetAsync(large);
             DecodeGate zoomGate = probe.HoldNext();
-            await ResizeAsync(viewer, 620, 430); await zoomGate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await ResizeAsync(viewer, 890, 585); await zoomGate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
             Click(viewer, "GalleryActual"); zoomGate.Release.TrySetResult();
             await Program.WaitUntilAsync(() => image.Source is Bitmap original && original.PixelSize.Width == 6000);
             object? full = image.Source;
-            await ResizeAsync(viewer, 740, 510); await SettledAsync();
+            await ResizeAsync(viewer, 950, 625); await SettledAsync();
             Require(ReferenceEquals(full, image.Source) && viewer.CaptureState().ManualZoom,
                 "Delayed Fit or resize downgraded Original/manual zoom.");
             Click(viewer, "GalleryFit"); await SettledAsync();
             Require(ReferenceEquals(full, image.Source), "Returning to Fit discarded reusable Original pixels.");
 
             // Growing Fit past a slight manual zoom must preserve an Original already in flight.
-            await ResetAsync(viewer, large);
+            await ResetAsync(large);
             DecodeGate originalGate = probe.HoldNext();
             object? beforeOriginal = image.Source;
             Click(viewer, "GalleryPlus");
@@ -169,7 +184,7 @@ internal static class GalleryFitChecks
                 "A slight zoom did not start the controlled Original decode.");
             double slightZoom = viewer.CaptureState().PhysicalZoom;
             int originalCalls = probe.Calls.Count;
-            await ResizeAsync(viewer, 740, 510); await SettledAsync();
+            await ResizeAsync(viewer, 950, 625); await SettledAsync();
             Require(GalleryGeometry.Fit(6000, 4000, viewport.Bounds.Width, viewport.Bounds.Height, window.RenderScaling) > slightZoom,
                 "Resize fixture did not grow Fit above the previous slight manual zoom.");
             Require(!originalGate.Cancellation.IsCancellationRequested && probe.Calls.Count == originalCalls && ReferenceEquals(beforeOriginal, image.Source),
@@ -180,30 +195,38 @@ internal static class GalleryFitChecks
             Require(probe.Calls.Count == originalCalls && image.Source is Bitmap enlargedOriginal && enlargedOriginal.PixelSize.Width == 6000,
                 "Automatic Fit queued a replacement or downgraded the completed Original.");
 
-            // Failed upgrade keeps the visible buffer and is not retried by unchanged layout churn.
-            await ResetAsync(viewer, large);
-            object? beforeFailure = image.Source;
+            // A failed Fit decode is a neutral, recoverable media-unavailable state (f3ed52f): the image is
+            // cleared, the error goes to diagnostics, image commands stop, and unchanged layout churn does
+            // not retry. Showing the media again recovers it.
+            await ResetAsync(large);
+            List<GalleryDiagnosticNotice> notices = new();
+            Action<GalleryDiagnosticNotice> collect = notices.Add;
+            viewer.DiagnosticNotice += collect;
             probe.FailNext = true;
-            await ResizeAsync(viewer, 620, 430);
-            await Program.WaitUntilAsync(() => Control<TextBlock>(viewer, "GalleryStatus").Text?.Contains("controlled Fit failure") == true);
+            await ResizeAsync(viewer, 890, 585);
+            await Program.WaitUntilAsync(() => notices.Any(notice => notice.MediaUnavailable && notice.Message.Contains("controlled Fit failure")));
+            viewer.DiagnosticNotice -= collect;
             int failedCalls = probe.Calls.Count;
-            Require(ReferenceEquals(beforeFailure, image.Source), "A failed upgrade removed the last usable image.");
-            Require(Control<TextBlock>(viewer, "GalleryWarnings").Text == "Retained manifest warning",
-                "A failed upgrade discarded manifest warnings.");
+            Require(image.Source == null, "A failed Fit decode left a stale image visible.");
+            Require(!string.IsNullOrEmpty(Control<TextBlock>(viewer, "GalleryStatus").Text) && Control<TextBlock>(viewer, "GalleryStatus").IsEffectivelyVisible,
+                "A failed Fit decode did not show the media-unavailable status.");
+            Require(!Control<Button>(viewer, "GalleryFit").IsEnabled, "Image commands stayed enabled after a failed Fit decode.");
             viewer.InvalidateMeasure(); viewer.UpdateLayout(); await SettledAsync();
             Require(probe.Calls.Count == failedCalls, "An unchanged failed Fit target was retried automatically.");
-            Click(viewer, "GalleryFit");
-            await Program.WaitUntilAsync(() => probe.Calls.Count == failedCalls + 1 && probe.Active == 0);
-            Require(string.IsNullOrEmpty(Control<TextBlock>(viewer, "GalleryStatus").Text), "Explicit Fit retry did not clear the warning.");
+            await viewer.ShowAsync(large, CancellationToken.None);
+            await Program.WaitUntilAsync(() => probe.Calls.Count == failedCalls + 1 && probe.Active == 0); await SettledAsync();
+            Require(image.Source is Bitmap && string.IsNullOrEmpty(Control<TextBlock>(viewer, "GalleryStatus").Text)
+                && Control<Button>(viewer, "GalleryFit").IsEnabled, "Showing the media again did not recover from the failed Fit decode.");
+            AssertTarget(viewer, image, viewport, 6000, 4000);
 
-            await ResetAsync(viewer, large);
+            await ResetAsync(large);
             DecodeGate stopGate = probe.HoldNext();
-            await ResizeAsync(viewer, 620, 430); await stopGate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await ResizeAsync(viewer, 890, 585); await stopGate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
             await viewer.StopAsync(); stopGate.Release.TrySetResult();
             await Program.WaitUntilAsync(() => probe.Active == 0); await SettledAsync();
             Require(image.Source == null, "Closing published a delayed Fit after StopAsync.");
 
-            await ResizeAsync(viewer, 360, 260);
+            await ReplaceViewerAsync(); await ResizeAsync(viewer, 760, 500);
             DecodeGate cancellationGate = probe.HoldNext();
             using (CancellationTokenSource cancellation = new())
             {
@@ -218,17 +241,17 @@ internal static class GalleryFitChecks
             int perfStart = probe.Calls.Count;
             for (int cycle = 0; cycle < 6; cycle++)
             {
-                await ResetAsync(viewer, large);
+                await ResetAsync(large);
                 object? compact = image.Source;
                 PrintState($"cycle-{cycle}-compact", viewer, image, viewport, probe);
                 AssertTarget(viewer, image, viewport, 6000, 4000);
                 Stopwatch latency = Stopwatch.StartNew();
-                await ResizeAsync(viewer, 740, 510);
+                await ResizeAsync(viewer, 950, 625);
                 PrintState($"cycle-{cycle}-resized", viewer, image, viewport, probe);
                 try { await Program.WaitUntilAsync(() => !ReferenceEquals(compact, image.Source) && probe.Active == 0); }
                 catch { PrintState($"cycle-{cycle}-timeout", viewer, image, viewport, probe); throw; }
                 latencies.Add(latency.Elapsed.TotalMilliseconds);
-                await ResizeAsync(viewer, 360, 260); await SettledAsync();
+                await ResizeAsync(viewer, 760, 500); await SettledAsync();
                 if (cycle % 2 == 1)
                 {
                     GC.Collect(); GC.WaitForPendingFinalizers();
@@ -292,12 +315,9 @@ internal static class GalleryFitChecks
         }
     }
 
-    private static async Task ResetAsync(GalleryViewer viewer, GalleryEntry entry)
-    {
-        await viewer.StopAsync(); await ResizeAsync(viewer, 360, 260);
-        await viewer.ShowAsync(entry, CancellationToken.None); await SettledAsync();
-    }
-
+    // Sizes stay at or above the main window minimum (760x500). The gallery footer grew with
+    // rating, tag, slideshow and overlay tools and wraps into several rows; at the former 360x260
+    // it consumed the whole viewer, leaving a zero-height media area and no Fit target to verify.
     private static async Task ResizeAsync(GalleryViewer viewer, double width, double height)
     {
         viewer.Width = width; viewer.Height = height; viewer.UpdateLayout();
