@@ -25,7 +25,7 @@ namespace MeowChan;
 /// Archive-wide media grid. Reads the catalog and media manifests only; builds the derived media index
 /// in the background, shows a cached index right away, and never changes archive data.
 /// </summary>
-public sealed class MediaPage : UserControl
+public sealed partial class MediaPage : UserControl
 {
     private readonly Func<CancellationToken, Task<ArchiveReader>> _openReader;
     private readonly Func<string, CancellationToken, Task<MediaAssetSnapshot>> _openManifest;
@@ -49,6 +49,7 @@ public sealed class MediaPage : UserControl
     private bool _localizing;
     private bool _available;
     private int _seed = Environment.TickCount;
+    private int _unfiltered;
 
     /// <summary>Opens the gallery for a window of shown entries; the int is the chosen entry inside it.</summary>
     internal Func<IReadOnlyList<MediaLibraryEntry>, int, Task>? OpenGallery { get; set; }
@@ -68,9 +69,10 @@ public sealed class MediaPage : UserControl
         WrapPanel tools = new() { ItemSpacing = 8, LineSpacing = 6 };
         foreach (Control control in new Control[] { _sort, _shuffle, _missing, _refresh }) { control.VerticalAlignment = VerticalAlignment.Center; tools.Children.Add(control); }
         StackPanel header = new() { Spacing = 6, Margin = new Thickness(12, 12, 12, 6) };
-        header.Children.Add(_title); header.Children.Add(_subtitle); header.Children.Add(tools); header.Children.Add(_status);
+        header.Children.Add(_title); header.Children.Add(_subtitle); header.Children.Add(tools);
+        header.Children.Add(BuildFilterRow()); header.Children.Add(_filterChips); header.Children.Add(_filterError); header.Children.Add(_status);
         _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel());
-        _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync });
+        _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThreadFilter = FilterToThread });
         ScrollViewer.SetHorizontalScrollBarVisibility(_grid, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
         Panel body = new();
         body.Children.Add(_grid); body.Children.Add(_empty);
@@ -101,6 +103,7 @@ public sealed class MediaPage : UserControl
     /// <summary>Shows the cached index at once, then brings it up to date in the background.</summary>
     internal Task ActivateAsync()
     {
+        RefreshUserData();
         if (_building != null) return BuildTask;
         if (_snapshot == null && _cachePath != null && MediaLibraryIndexCache.Load(_cachePath) is { } cached)
         {
@@ -150,7 +153,9 @@ public sealed class MediaPage : UserControl
     private void Present()
     {
         MediaLibraryEntry? selected = (_grid.SelectedItem as MediaLibraryTileRow)?.Entry;
-        _shown = MediaLibraryView.Select(_snapshot?.Entries ?? Array.Empty<MediaLibraryEntry>(), Sort, _missing.IsChecked == true, _seed);
+        IReadOnlyList<MediaLibraryEntry> all = _snapshot?.Entries ?? Array.Empty<MediaLibraryEntry>();
+        _shown = MediaLibraryView.Select(ApplyFilter(all), Sort, _missing.IsChecked == true, _seed);
+        _unfiltered = _filterActive ? all.Count(entry => _missing.IsChecked == true || entry.Presence == MediaLibraryPresence.Present) : _shown.Count;
         MediaLibraryTileRow[] rows = _shown.Select((entry, index) => new MediaLibraryTileRow(entry, index)).ToArray();
         _grid.ItemsSource = rows;
         if (selected != null) _grid.SelectedItem = rows.FirstOrDefault(row => row.Entry == selected);
@@ -164,13 +169,15 @@ public sealed class MediaPage : UserControl
         int missing = _shown.Count(entry => entry.Presence == MediaLibraryPresence.Missing);
         List<string> parts = new();
         if (_progress is { } progress && progress.ThreadsTotal > 0) parts.Add(Texts.T("media.indexing", progress.ThreadsDone, progress.ThreadsTotal));
-        if (_snapshot != null) parts.Add(missing > 0 ? Texts.T("media.countMissing", _shown.Count, threads, missing) : Texts.T("media.count", _shown.Count, threads));
+        if (_snapshot != null) parts.Add(_filterActive && !_filterFailed ? Texts.T("media.filter.count", _shown.Count, _unfiltered)
+            : missing > 0 ? Texts.T("media.countMissing", _shown.Count, threads, missing) : Texts.T("media.count", _shown.Count, threads));
         if (_snapshot is { Complete: false } && _building == null) parts.Add(Texts.T("media.incomplete"));
         if (_failed) parts.Add(Texts.T("media.failed"));
         if (_snapshot == null && _building == null && !_failed && !_available) parts.Add(Texts.T("media.notReady"));
         _status.Text = string.Join(" · ", parts);
-        _empty.Text = Texts.T("media.empty");
-        _empty.IsVisible = _snapshot != null && _shown.Count == 0 && _building == null;
+        _empty.Text = Texts.T(_filterActive ? "media.filter.noMatch" : "media.empty");
+        // A refused filter explains itself above the grid; the grid stays empty.
+        _empty.IsVisible = _snapshot != null && _shown.Count == 0 && _building == null && !_filterFailed;
         _refresh.IsEnabled = !_lifetime.IsCancellationRequested;
     }
 
@@ -219,7 +226,9 @@ public sealed class MediaPage : UserControl
         open.Click += (_, _) => _ = OpenSelectedAsync();
         MenuItem thread = new() { Header = Texts.T("media.showInThread"), IsEnabled = row.Entry.PostId != null };
         thread.Click += (_, _) => _ = ShowSelectedInThreadAsync();
-        ContextMenu menu = new() { ItemsSource = new object[] { open, thread } };
+        MenuItem onlyThread = new() { Header = Texts.T("media.filter.onlyThread") };
+        onlyThread.Click += (_, _) => FilterToThread(row.Entry);
+        ContextMenu menu = new() { ItemsSource = new object[] { open, thread, onlyThread } };
         _grid.ContextMenu = menu;
         menu.Open(_grid);
         e.Handled = true;
@@ -244,6 +253,7 @@ public sealed class MediaPage : UserControl
         _missing.Content = Texts.T("media.showMissing");
         _refresh.Content = Texts.T("media.refresh");
         AutomationProperties.SetName(_grid, Texts.T("media.title"));
+        LocalizeFilters();
         if (_grid.ItemsSource != null) Present(); else UpdateStatus();
     }
 

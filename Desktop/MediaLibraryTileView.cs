@@ -34,6 +34,9 @@ internal sealed class MediaLibraryTileView : UserControl
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Center };
     private readonly TextBlock _name = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _thread = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 11 };
+    // The thread acts like a meta tag: its label filters the page to that thread.
+    private readonly Button _threadLink = new() { Name = "MediaTileThread", Padding = new Thickness(0), Classes = { "link" },
+        HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Left };
     private readonly TextBlock _detail = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 11 };
     private Bitmap? _bitmap;
     private CancellationTokenSource? _loading;
@@ -42,6 +45,8 @@ internal sealed class MediaLibraryTileView : UserControl
 
     /// <summary>Set by the page: loads a verified thumbnail for a saved entry, or null when none can be shown.</summary>
     internal Func<MediaLibraryEntry, CancellationToken, Task<Bitmap?>>? ThumbnailLoader { get; set; }
+    /// <summary>Set by the page: shows only the media of the tile's thread.</summary>
+    internal Action<MediaLibraryEntry>? ThreadFilter { get; set; }
 
     public MediaLibraryTileView()
     {
@@ -51,7 +56,9 @@ internal sealed class MediaLibraryTileView : UserControl
         Grid grid = new() { Margin = new Thickness(8), RowDefinitions = new RowDefinitions("125,Auto,Auto,Auto"), RowSpacing = 4 };
         grid.Children.Add(preview);
         grid.Children.Add(_name); Grid.SetRow(_name, 1);
-        grid.Children.Add(_thread); Grid.SetRow(_thread, 2);
+        _threadLink.Content = _thread;
+        _threadLink.Click += (_, e) => { e.Handled = true; if (DataContext is MediaLibraryTileRow row) ThreadFilter?.Invoke(row.Entry); };
+        grid.Children.Add(_threadLink); Grid.SetRow(_threadLink, 2);
         grid.Children.Add(_detail); Grid.SetRow(_detail, 3);
         foreach (TextBlock text in new[] { _thread, _detail }) text.Classes.Add("workspace-meta");
         Content = grid;
@@ -71,6 +78,9 @@ internal sealed class MediaLibraryTileView : UserControl
         MediaLibraryTileRow? row = DataContext as MediaLibraryTileRow;
         _name.Text = row?.Name;
         _thread.Text = row?.ThreadLabel;
+        string threadHint = row == null ? string.Empty : Texts.T("media.filter.threadHint", row.ThreadLabel);
+        ToolTip.SetTip(_threadLink, threadHint);
+        AutomationProperties.SetName(_threadLink, threadHint);
         _detail.Text = row?.Detail;
         _placeholder.Text = row?.Entry.Presence == MediaLibraryPresence.Missing ? Texts.T("media.tile.missing") : string.Empty;
         string description = row == null ? string.Empty : string.Join(Environment.NewLine, row.Name, row.ThreadLabel, row.Detail);

@@ -22,7 +22,7 @@ public partial class ArchivePage
         public bool CanExecute(object? parameter) => true;
         public void Execute(object? parameter) => action();
     }
-    private static ClosableTag CreateFilterTag(string label, Action remove)
+    internal static ClosableTag CreateFilterTag(string label, Action remove)
     {
         string accessible = Texts.T("archive.removeFilter", label);
         ClosableTag tag = new()

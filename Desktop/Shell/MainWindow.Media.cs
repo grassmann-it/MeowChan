@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
@@ -22,9 +23,23 @@ public partial class MainWindow
         _mediaPage = new MediaPage(_session.OpenArchiveReaderAsync, cachePath: Path.Combine(_session.ProfileDirectory, "cache", MediaLibraryIndexCache.FileName))
         {
             OpenGallery = OpenMediaLibraryGalleryAsync,
-            ShowInThread = ShowMediaLibraryEntryInThreadAsync
+            ShowInThread = ShowMediaLibraryEntryInThreadAsync,
+            ReadUserData = ReadMediaLibraryUserData
         };
         this.FindControl<ContentControl>("MediaPageHost")!.Content = _mediaPage;
+    }
+
+    // Passive in-memory views only; an unavailable store stays null so a filter needing it is refused.
+    private MediaLibraryUserData ReadMediaLibraryUserData()
+    {
+        PrivateTagLoadSnapshot tags = _session.GetPublishedPrivateTagSnapshot();
+        IReadOnlyList<Favorites.FavoriteEntry>? favorites;
+        try { favorites = _session.GetFavorites(); }
+        catch (InvalidDataException) { favorites = null; }
+        IReadOnlyList<Ratings.MediaRatingEntry>? ratings;
+        try { ratings = _session.GetMediaRatings(); }
+        catch (InvalidDataException) { ratings = null; }
+        return new MediaLibraryUserData(tags.State == PrivateTagLoadState.Ready ? tags.Snapshot : null, favorites, ratings);
     }
 
     private async Task OpenMediaLibraryGalleryAsync(IReadOnlyList<MediaLibraryEntry> window, int start)
