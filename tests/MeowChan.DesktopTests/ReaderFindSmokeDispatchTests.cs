@@ -43,25 +43,6 @@ public sealed class ReaderFindSmokeDispatchTests
         Assert.True(completionIndex > callIndex, "Reader-find dispatch must complete, close, and return after its helper");
     }
 
-    [Fact]
-    public void FinalScenarioWordingBelongsExclusivelyToReaderFindMode()
-    {
-        string program = Source("tests/MeowChan.DesktopSmoke/Program.cs");
-        // Other focused modes may precede reader-find in the final expression.
-        // Its wording must still belong exclusively to the exact reader branch.
-        string scenario = Between(program,
-            "string scenario = ",
-            "Console.WriteLine(\"SMOKE PASS: \" + scenario");
-        string readerClaim = Between(scenario,
-            "Environment.GetEnvironmentVariable(\"" + Mode + "\") == \"1\"",
-            "Environment.GetEnvironmentVariable(\"MEOWCHAN_URLTEXT_EXPORT_ONLY\") == \"1\"");
-
-        const string wording = "reader find: actual offline404 native controls, whole-thread hits and managed routed keys";
-        Assert.Contains(wording, readerClaim, StringComparison.Ordinal);
-        Assert.Equal(1, Count(program, wording, StringComparison.Ordinal));
-        Assert.Contains("no OS keyboard or Windows/macOS acceptance", readerClaim, StringComparison.Ordinal);
-    }
-
     private static string Source(string relative, [CallerFilePath] string path = "") =>
         File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, "../..", relative)));
 

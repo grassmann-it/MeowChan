@@ -158,6 +158,8 @@ public sealed class SmokeSelectorsTests
         Assert.Equal(expected, scenario);
     }
 
+    // Root selectors are dispatched through SmokeScenarios.Runs; every name a check still reads
+    // directly must be registered, and every nested selector must still be read by its parent's checks.
     [Fact]
     public void RegistryListsExactlyTheSelectorsTheSmokeDriverReads()
     {
@@ -166,7 +168,8 @@ public sealed class SmokeSelectorsTests
         foreach (string file in Directory.EnumerateFiles(root, "*.cs", SearchOption.TopDirectoryOnly))
             foreach (Match match in Regex.Matches(File.ReadAllText(file), "GetEnvironmentVariable\\(\"(MEOWCHAN_[A-Z0-9_]+_ONLY)\"\\)"))
                 read.Add(match.Groups[1].Value);
-        Assert.Equal(read, new SortedSet<string>(SmokeSelectors.KnownNames, StringComparer.Ordinal));
+        Assert.Empty(read.Except(SmokeSelectors.KnownNames, StringComparer.Ordinal));
+        Assert.Empty(SmokeSelectors.ChildRequirements.Select(child => child.Name).Except(read, StringComparer.Ordinal));
         Assert.Equal(SmokeSelectors.KnownNames.Count(), SmokeSelectors.KnownNames.Distinct(StringComparer.Ordinal).Count());
     }
 

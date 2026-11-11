@@ -1,0 +1,190 @@
+namespace MeowChan.DesktopSmoke;
+
+internal enum SmokeScenarioKind
+{
+    // A command-line scenario ("--name"); "normal" runs without one.
+    Mode,
+    // A top-level MEOWCHAN_*_ONLY selector: valid only in the plain run, one per run.
+    Root,
+    // A top-level selector without the _ONLY suffix (NAME or NAME=value); scripts/run-desktop-smoke.py mirrors these.
+    Branch,
+    // Read only inside a mode or another scenario's run; any one of Requires suffices.
+    Nested
+}
+
+// One registered DesktopSmoke scenario. Pass builds the final SMOKE PASS claim from the
+// environment; a nested selector has none of its own (its parent's Pass reads it).
+internal sealed record SmokeScenario(string Id, SmokeScenarioKind Kind, string Selector,
+    Func<Func<string, string?>, string>? Pass, string[] Requires);
+
+// The single registry of DesktopSmoke scenarios: the selector inventory (SmokeSelectors), the
+// usage text and the final PASS claim come from here.
+// Pure: no window, no profile; DesktopTests compile this file directly.
+internal static partial class SmokeScenarios
+{
+    internal const string NormalPass = "startup, rendered thread/board bindings, background update, normal close";
+
+    // Modes in their historical usage order; roots and branches in their former dispatch order.
+    internal static readonly SmokeScenario[] All =
+    [
+        Mode("normal", NormalPass),
+        Mode("locked-profile", "locked profile: readable error, Exit closed the window"),
+        Mode("no-tray", "no tray: user close kept taskbar access, Exit closed the window"),
+        Mode("tray-failure", "tray creation failure: startup succeeded, user close kept taskbar access, Exit closed the window"),
+        Mode("download-session", "real session: URL admission, fixture media, assigned path, native close and restart restoration"),
+        Nested("shell-preferences", "MEOWCHAN_SHELL_PREFERENCES_ONLY", "--download-session"),
+        Nested("shell-projection", "MEOWCHAN_SHELL_PROJECTION_ONLY", "--download-session"),
+        Nested("shutdown-order", "MEOWCHAN_SHUTDOWN_ORDER_ONLY", "--download-session"),
+        Mode("tray-lifecycle", "16 rapid native window/tray lifetimes, normal close and profile lease reuse"),
+        Mode("visual", "actual release showcase with original offline demo content, no watches or HTTP"),
+        Mode("reader-ux", NormalPass),
+        Nested("gallery-close", "MEOWCHAN_GALLERY_CLOSE_ONLY", "--reader-ux"),
+        Nested("reader-media-input", "MEOWCHAN_READER_MEDIA_INPUT_ONLY", "--reader-ux"),
+        Nested("reader-shortcut-contexts", "MEOWCHAN_READER_SHORTCUT_CONTEXTS_ONLY", "--reader-ux"),
+        Nested("pagination-focus", "MEOWCHAN_PAGINATION_FOCUS_ONLY", "MEOWCHAN_READER_SHORTCUT_CONTEXTS_ONLY"),
+        Nested("reader-groups", "MEOWCHAN_READER_GROUPS_ONLY", "--reader-ux"),
+        Nested("reader-returns", "MEOWCHAN_READER_RETURNS_ONLY", "--reader-ux"),
+        Nested("reader-stability", "MEOWCHAN_READER_STABILITY_ONLY", "--reader-ux"),
+        Nested("reader-navigation", "MEOWCHAN_READER_NAVIGATION_ONLY", "--reader-ux"),
+        Nested("reader-groups-restore", "MEOWCHAN_READER_GROUPS_RESTORE_ONLY", "--reader-ux", "MEOWCHAN_URSA_NATIVE_SUITE=groups"),
+        Mode("selection", "native watch/archive multi-selection, focus-safe commands, batch export return, watch-only Delete and board admission modal"),
+        Mode("tray-host", "private StatusNotifier host: independent tray settings, native registration/activation, hide/restore and host/watcher loss"),
+        Mode("about-links", "About project and PayPal links reached the selected private browser fixture with new-window requests, intact URLs and clean runtime paths"),
+        Mode("board-admission", "board admission: local rule clearing, multi-board validation, retry, cancel, EN/DE, themes and minimum dialog layout"),
+        Mode("reading-position", "local reading position, explicit process restart and settings semantics"),
+        Mode("accessibility-probe", "native accessibility fixture stages completed; external AT-SPI/Orca results are separate"),
+        Nested("accessibility-numeric", "MEOWCHAN_ACCESSIBILITY_NUMERIC_ONLY", "--accessibility-probe"),
+        Mode("window-geometry", "isolated native interactive resize; each edge/corner after pointer release and settled correction"),
+        Mode("video-contrast", "real decoded video time, ended and corrupt-media error contrast in Light/Dark"),
+        Mode("plugins", NormalPass),
+        Nested("plugin-reselection", "MEOWCHAN_PLUGIN_RESELECTION_ONLY", "--plugins"),
+        Mode("archive-cleanup", "archive cleanup: private preview, explicit confirmation, real deletion, durable invariants and controlled failures"),
+        Mode("shell-load", "shell load: bounded offline gallery/load fixture, separate process watchdog, correlated UI/commit/resource measurements"),
+        Root("startup-first-frame", "MEOWCHAN_STARTUP_FIRST_FRAME_ONLY", "startup first frame: isolated timing separations and post-startup managed navigation probes; no latency SLO or physical-presentation claim"),
+        Root("startup-preview", "MEOWCHAN_STARTUP_PREVIEW_ONLY"),
+        Root("interrupted-startup", "MEOWCHAN_INTERRUPTED_STARTUP_ONLY"),
+        Root("diagnostic-evidence", "MEOWCHAN_DIAGNOSTIC_EVIDENCE_ONLY", "diagnostic evidence: native controls with synthetic snapshots, passive facts/waiting/language refresh; managed input and copy delegate, no live network or OS clipboard/Windows/macOS acceptance"),
+        Root("filename-search-large-reader", "MEOWCHAN_FILENAME_SEARCH_LARGE_READER_ONLY", "filename large reader: seven synthetic native host journeys, complete-reader/off-page results, selection and lifetime joins; managed input only"),
+        Root("local-search-language", "MEOWCHAN_LOCAL_SEARCH_LANGUAGE_ONLY", "local search language: EN/DE/ES/FR/RU retained drafts/results, actual native controls and 360-DIP action glyph layout; no OS typing, current-byte or cross-platform acceptance"),
+        Root("media-page", "MEOWCHAN_MEDIA_PAGE_ONLY", "media page: real host, catalog, bound manifests, verified thumbnails and navigation; managed input only"),
+        Root("gallery-media-tags", "MEOWCHAN_GALLERY_MEDIA_TAGS_ONLY", "gallery media tags: real main window gallery, host and store, bound and unbound media; managed input only"),
+        Root("private-tags", "MEOWCHAN_PRIVATE_TAGS_ONLY", "private tags: real host and store, actual reader tag bar, suggestions, list rows, table tag column (modes, sorting, rename, unavailable), restart and damaged index; managed input only, no Windows/macOS acceptance"),
+        Root("reader-find", "MEOWCHAN_READER_FIND_ONLY", "reader find: actual offline404 native controls, whole-thread hits and managed routed keys; no OS keyboard or Windows/macOS acceptance"),
+        Root("filename-search", "MEOWCHAN_FILENAME_SEARCH_ONLY", "filename search standalone dialog: captured metadata paging, literal Unicode input and explicit selection; no product host navigation or current-byte/platform acceptance"),
+        Root("media-hash-search", "MEOWCHAN_MEDIA_HASH_SEARCH_ONLY", "SHA-256 search standalone dialog: one captured inventory, exact reference selection and native controls; no global-library search, rehash or product host navigation acceptance"),
+        Root("filename-search-host", "MEOWCHAN_FILENAME_SEARCH_HOST_ONLY", "filename search host: actual native page/modal, exact offscreen post navigation and causal lifetime drains; managed input, no OS keyboard, detached-reader/fullscreen or Windows/macOS acceptance"),
+        Root("urltext-export", "MEOWCHAN_URLTEXT_EXPORT_ONLY", "URLtext export: real dialog consent and create-only writer, synthetic summaries, injected chooser, ES/FR/RU; no OS picker or client interoperability acceptance"),
+        Root("urltext-page-boundary", "MEOWCHAN_URLTEXT_PAGE_BOUNDARY_ONLY", "URLtext page boundary: real native owner/page with synthetic summaries and causal lifecycle/modal guards; no OS picker or client interoperability acceptance"),
+        Root("gallery-volume-routed", "MEOWCHAN_GALLERY_VOLUME_ROUTED_ONLY", "gallery volume routed boundary: synthetic owner adapter, actual Avalonia Slider/TextBox events; no playback continuity or OS keyboard acceptance"),
+        Root("first-run-reopen", "MEOWCHAN_FIRST_RUN_REOPEN_ONLY", "First-run Settings reopen: actual constructors/path controls, abandoned unsaved draft and fresh disk/runtime cap; two synthetic profiles, managed UI, no native Windows/macOS acceptance"),
+        Root("dialog-frame", "MEOWCHAN_DIALOG_FRAME_ONLY", env => "dialog frame: fixed header/error strip/footer around a scrolling body per production dialog, group=" + (env("MEOWCHAN_DIALOG_FRAME_GROUP") ?? "all") + "; private fixtures, managed input, no Windows/macOS or screen-reader claim"),
+        Root("html-export-action-layout", "MEOWCHAN_HTML_EXPORT_ACTION_LAYOUT_ONLY", "HTML export dialog action labels: actual single/collection controls, 640/480 DIP, ES/FR/RU; managed input, no Windows/macOS or language-quality acceptance"),
+        Root("shortcut-issue-language", "MEOWCHAN_SHORTCUT_ISSUE_LANGUAGE_ONLY", "shortcut issue refresh: real Settings controls and retained validation in five languages; managed input, synthetic profile, no OS keyboard or language-quality acceptance"),
+        Root("export-status-language", "MEOWCHAN_EXPORT_STATUS_LANGUAGE_ONLY", "export status refresh: actual single/collection export, backup, failure and cancellation in five languages; offline synthetic profile, managed input, no native Windows/macOS acceptance"),
+        Root("reader-groups-binding", "MEOWCHAN_READER_GROUPS_BINDING_ONLY", "reader-group bindings: exact live labels for 3 row states in 5 languages on actual native UI thread; synthetic fixture only"),
+        Root("native-transfer-preview", "MEOWCHAN_NATIVE_TRANSFER_PREVIEW_ONLY", "native transfer inventory-only preview: synthetic package, dialog terminal ownership and late picker/close paths; managed input, no Apply or native Windows/macOS acceptance"),
+        Root("html-export-labels", "MEOWCHAN_HTML_EXPORT_LABELS_ONLY", "HTML export full labels: production inspector, results overflow and split/large reader layout; EN/DE/ES/FR/RU, recorded scale; managed input, no OCR or cross-platform claim"),
+        Root("gif-playback", "MEOWCHAN_GIF_PLAYBACK_ONLY", "GIF actual rendered animation: encoded loops/disposal, native pause/next, verified failures/retirement and Reader-associated playback; private source-built evidence only"),
+        Root("clipboard-monitor", "MEOWCHAN_CLIPBOARD_MONITOR_ONLY", "clipboard monitor: isolated synthetic clipboard, Save/Discard, passive offer, local button confirmation and lifecycle; managed input"),
+        Root("download-safety", "MEOWCHAN_DOWNLOAD_SAFETY_ONLY", "download resource limit: real Settings Save/Discard/rejection and fresh host, managed input; no HTTP/load claim"),
+        Root("board-language-refresh", "MEOWCHAN_BOARD_LANGUAGE_REFRESH_ONLY", "board admission command-help refresh: UI-thread live accessibility bindings and all seven mapping hints; private controls, no catalog fetch or apply"),
+        Root("rating-language-refresh", "MEOWCHAN_RATING_LANGUAGE_REFRESH_ONLY", "rating dialog/manager language refresh: private fixtures, rows/draft/selection/accessibility and provider-call counts; managed input"),
+        Root("html-export-language", "MEOWCHAN_HTML_EXPORT_LANGUAGE_ONLY", "HTML export language: actual single/collection Start actions, frozen press-time locale, persisted metadata and escaped source content; ES/FR/RU, managed input only"),
+        Root("secondary-settings-language", "MEOWCHAN_SECONDARY_SETTINGS_LANGUAGE_ONLY", env => "secondary Settings language cell=" + (env("MEOWCHAN_SECONDARY_SETTINGS_CELL") ?? "all") + "; real controls, synthetic profile, managed input, no whole-UI/native-platform/linguistic acceptance"),
+        Root("gallery-hidden-favorite", "MEOWCHAN_GALLERY_HIDDEN_FAVORITE_ONLY", "hidden favorite controls: exact-key delayed save/navigation and separate idempotent pick/unpick, private PNG and managed input only"),
+        Root("settings-language-refresh", "MEOWCHAN_SETTINGS_LANGUAGE_REFRESH_ONLY", "settings/first-run language refresh: rejected drafts, focus and live pending destination check; managed input, private fixtures"),
+        Root("first-run-settings", "MEOWCHAN_FIRST_RUN_SETTINGS_ONLY", "first-run Settings: real automatic fresh-profile setup to retained editor, persisted nondefaults, unrelated save, restart, Later/X; managed input"),
+        Root("first-run-setup", "MEOWCHAN_FIRST_RUN_SETUP_ONLY", "first-profile setup: EN/DE Light/Dark explicit accept/Later/X/errors/probe retirement; private fixtures, no package claim"),
+        Root("preference-startup", "MEOWCHAN_PREFERENCE_STARTUP_ONLY", "startup preferences: private held-restore/Ready/native column input/reopen, current source; platform limits explicit"),
+        Root("compact-diagnostics", "MEOWCHAN_COMPACT_DIAGNOSTICS_ONLY", "compact and diagnostics: all-mode projection, frozen scope/revalidation/context/acknowledgement; routed harness input"),
+        Root("gallery-error", "MEOWCHAN_GALLERY_ERROR_ONLY", "gallery diagnostics-only notices: central acknowledgement, no transport/focus/autohide side effects; true failure safe"),
+        Root("feedback", "MEOWCHAN_FEEDBACK_ONLY", "feedback: real rendered banner/toast dismissal, matching duplicates, queue, stale close and passive expiry"),
+        Root("gallery-playback-features", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY", env => env("MEOWCHAN_GALLERY_EDGE_ONLY") == "1"
+            ? "native edge-hover panels: slideshow pointer-focus hide, bottom transport/right post, no central-motion reveal or preference write"
+            : "gallery playback features: saved choices, edge panels, real mixed-media sequence, replay and decode failure; recorded platform only"),
+        Nested("owned-control-transfers", "MEOWCHAN_OWNED_CONTROL_TRANSFERS_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
+        Nested("cross-root-migration", "MEOWCHAN_CROSS_ROOT_MIGRATION_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
+        Nested("native-overlay-visibility", "MEOWCHAN_NATIVE_OVERLAY_VISIBILITY_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
+        Nested("gallery-edge", "MEOWCHAN_GALLERY_EDGE_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
+        Root("gallery-mute", "MEOWCHAN_GALLERY_MUTE_ONLY", "gallery mute persistence: real OS input and decoder with functional private audio; session intent across selection changes, not physical output acceptance"),
+        Root("media-interaction", "MEOWCHAN_MEDIA_INTERACTION_ONLY", "media interaction: XTest pointer/key input on private Linux X11; decoder/slider sync, custom navigation, loop and retired gesture checks; NOT Windows acceptance"),
+        Root("native-ime", "MEOWCHAN_NATIVE_IME_ONLY", "IME product checkpoints completed; real engine and UI acceptance require the independent native driver"),
+        Root("gallery-integrity-gui", "MEOWCHAN_GALLERY_INTEGRITY_GUI_ONLY", "gallery integrity: four EN/DE Light/Dark cells at actual scale, exact binding, summary/context/details and geometry"),
+        Root("smoke-alpha2-copy", "MEOWCHAN_SMOKE_ALPHA2_COPY_ONLY", "alpha2 copy: Sources granted/strict/null/inactive and Rules help at actual scale and minimum size"),
+        Root("source-filter-wave", "MEOWCHAN_SOURCE_FILTER_WAVE_ONLY"),
+        Root("archive-media-counts", "MEOWCHAN_ARCHIVE_MEDIA_COUNTS_ONLY"),
+        Root("source-integrity-gui", "MEOWCHAN_SOURCE_INTEGRITY_GUI_ONLY", "source integrity: focused Sources/Plugins consent and Experimental fixture at the requested actual scale"),
+        Nested("experimental-activation-gui", "MEOWCHAN_EXPERIMENTAL_ACTIVATION_GUI_ONLY", "MEOWCHAN_SOURCE_INTEGRITY_GUI_ONLY"),
+        Nested("experimental-activation-status", "MEOWCHAN_EXPERIMENTAL_ACTIVATION_STATUS_ONLY", "MEOWCHAN_EXPERIMENTAL_ACTIVATION_GUI_ONLY"),
+        Root("suggestions", "MEOWCHAN_SUGGESTIONS_ONLY"),
+        Branch("ursa-native-suite-groups", "MEOWCHAN_URSA_NATIVE_SUITE=groups"),
+        Branch("media-fit-benchmark", "MEOWCHAN_MEDIA_FIT_BENCHMARK"),
+        Root("media-ratings", "MEOWCHAN_MEDIA_RATINGS_ONLY", env => env("MEOWCHAN_RATINGS_LATE_ERROR_ONLY") == "1"
+            ? "ratings: targeted direct/menu late failures and detached tile refresh; exact keys and store reopen"
+            : env("MEOWCHAN_RATINGS_PRESENTATION_ONLY") == "1"
+            ? "ratings: 12-cell real presentation/focus/error matrix and unchanged durable values"
+            : "ratings: real controls, exact identities, comparison, retry, detached shortcut, gallery freeze, manager focus and store reopen"),
+        Nested("ratings-late-error", "MEOWCHAN_RATINGS_LATE_ERROR_ONLY", "MEOWCHAN_MEDIA_RATINGS_ONLY"),
+        Nested("ratings-presentation", "MEOWCHAN_RATINGS_PRESENTATION_ONLY", "MEOWCHAN_MEDIA_RATINGS_ONLY"),
+        Root("section-comparison", "MEOWCHAN_SECTION_COMPARISON_ONLY"),
+        Nested("section-presentation", "MEOWCHAN_SECTION_PRESENTATION_ONLY", "MEOWCHAN_SECTION_COMPARISON_ONLY"),
+        Branch("template-comparison", "MEOWCHAN_TEMPLATE_COMPARISON"),
+        Nested("template-comparison-presentation", "MEOWCHAN_TEMPLATE_COMPARISON_PRESENTATION_ONLY", "MEOWCHAN_TEMPLATE_COMPARISON"),
+        Branch("archive-comparison", "MEOWCHAN_ARCHIVE_COMPARISON"),
+        Nested("archive-comparison-exact-ids", "MEOWCHAN_ARCHIVE_COMPARISON_EXACT_IDS_ONLY", "MEOWCHAN_ARCHIVE_COMPARISON"),
+        Nested("archive-comparison-locale", "MEOWCHAN_ARCHIVE_COMPARISON_LOCALE_ONLY", "MEOWCHAN_ARCHIVE_COMPARISON"),
+        Nested("archive-comparison-matrix", "MEOWCHAN_ARCHIVE_COMPARISON_MATRIX_ONLY", "MEOWCHAN_ARCHIVE_COMPARISON"),
+        Nested("archive-comparison-state", "MEOWCHAN_ARCHIVE_COMPARISON_STATE_ONLY", "MEOWCHAN_ARCHIVE_COMPARISON"),
+        Root("saved-searches", "MEOWCHAN_SAVED_SEARCHES_ONLY"),
+        Root("footer-navigation", "MEOWCHAN_FOOTER_NAVIGATION_ONLY"),
+        Root("picker-lifetime", "MEOWCHAN_PICKER_LIFETIME_ONLY"),
+        Root("settings-category", "MEOWCHAN_SETTINGS_CATEGORY_ONLY"),
+        Root("settings-lifetime", "MEOWCHAN_SETTINGS_LIFETIME_ONLY"),
+        Root("path-input", "MEOWCHAN_PATH_INPUT_ONLY"),
+        Root("numeric-focus", "MEOWCHAN_NUMERIC_FOCUS_ONLY"),
+        Root("media-performance", "MEOWCHAN_MEDIA_PERFORMANCE_ONLY"),
+        Root("media-integration", "MEOWCHAN_MEDIA_INTEGRATION_ONLY"),
+        Root("text-selection", "MEOWCHAN_TEXT_SELECTION_ONLY"),
+        Root("gallery-favorites", "MEOWCHAN_GALLERY_FAVORITES_ONLY", "gallery favorites: hidden-controls saved/pending badge, explicit mark/unmark, exact-key navigation, failure/retry and actual shell failure owner"),
+        Root("gallery-theme", "MEOWCHAN_GALLERY_THEME_ONLY"),
+        Root("gallery-fit", "MEOWCHAN_GALLERY_FIT_ONLY"),
+        // GalleryViewerChecks runs in these branches; FAVORITES returns before FOCUS is read.
+        Nested("gallery-focus", "MEOWCHAN_GALLERY_FOCUS_ONLY", "MEOWCHAN_GALLERY_FIT_ONLY", "MEOWCHAN_MEDIA_PERFORMANCE_ONLY",
+            "MEOWCHAN_GALLERY_THEME_ONLY", "--download-session"),
+        Root("media-panel", "MEOWCHAN_MEDIA_PANEL_ONLY"),
+        Root("diagnostic-feedback", "MEOWCHAN_DIAGNOSTIC_FEEDBACK_ONLY"),
+        Root("page-refresh", "MEOWCHAN_PAGE_REFRESH_ONLY"),
+        Root("post-bookmark-transitions", "MEOWCHAN_POST_BOOKMARK_TRANSITIONS_ONLY"),
+        Root("post-bookmark-locale", "MEOWCHAN_POST_BOOKMARK_LOCALE_ONLY"),
+        Root("post-bookmark-comparison", "MEOWCHAN_POST_BOOKMARK_COMPARISON_ONLY"),
+        Root("post-bookmarks", "MEOWCHAN_POST_BOOKMARKS_ONLY"),
+        Root("command-contrast", "MEOWCHAN_COMMAND_CONTRAST_ONLY"),
+        Root("action-dynamic", "MEOWCHAN_ACTION_DYNAMIC_ONLY"),
+        Root("action-overflow", "MEOWCHAN_ACTION_OVERFLOW_ONLY"),
+        Root("download-search", "MEOWCHAN_DOWNLOAD_SEARCH_ONLY"),
+        Root("settings-footer", "MEOWCHAN_SETTINGS_FOOTER_ONLY"),
+        Root("ui-refinement", "MEOWCHAN_UI_REFINEMENT_ONLY"),
+        Root("plugin-menu-language", "MEOWCHAN_PLUGIN_MENU_LANGUAGE_ONLY", "plugin menu language: passive real menu reload, transient status/discard cancellation and raw draft retention"),
+        Root("plugin-settings-language", "MEOWCHAN_PLUGIN_SETTINGS_LANGUAGE_ONLY", "plugin settings language: UI-thread editor reconstruction, raw drafts and provider messages retained; no provider activation"),
+        Root("language-switch-footer", "MEOWCHAN_LANGUAGE_SWITCH_FOOTER_ONLY", "language switch footer: passive EN/ES/FR/RU/EN mode selector and command-label refresh; no URL/source activation"),
+        Root("preview-languages", "MEOWCHAN_PREVIEW_LANGUAGES_ONLY", "bundled ES/FR/RU preview packs: embedded load, settings commit/live switch, raw drafts and screenshots; no whole-UI/native linguistic claim"),
+        Root("window-chrome", "MEOWCHAN_WINDOW_CHROME_ONLY", "app chrome: isolated native geometry and right-edge pixels, own Settings/About captions, modal lifetime; platform/scales as recorded"),
+        Root("shortcut-presentation", "MEOWCHAN_SHORTCUT_PRESENTATION_ONLY"),
+        Root("poweruser", "MEOWCHAN_POWERUSER_ONLY")
+    ];
+
+    private static SmokeScenario Mode(string id, string pass) =>
+        new(id, SmokeScenarioKind.Mode, id == SmokeSelectors.NormalMode ? "" : "--" + id, _ => pass, []);
+
+    private static SmokeScenario Root(string id, string selector, string pass = NormalPass) => Root(id, selector, _ => pass);
+
+    private static SmokeScenario Root(string id, string selector, Func<Func<string, string?>, string> pass) =>
+        new(id, SmokeScenarioKind.Root, selector, pass, []);
+
+    // Branch selectors have never had a claim of their own and report the normal scene's.
+    private static SmokeScenario Branch(string id, string selector) =>
+        new(id, SmokeScenarioKind.Branch, selector, _ => NormalPass, []);
+
+    private static SmokeScenario Nested(string id, string selector, params string[] requires) =>
+        new(id, SmokeScenarioKind.Nested, selector, null, requires);
+}

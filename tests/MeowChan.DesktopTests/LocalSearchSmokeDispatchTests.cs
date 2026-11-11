@@ -25,11 +25,6 @@ public sealed class LocalSearchSmokeDispatchTests
         int end = source.IndexOf('}', dispatch);
         Assert.True(ready >= 0 && dispatch > ready && call > dispatch && close > call && end > close);
         Assert.Equal(1, Count(source, "await " + helper + ".RunAsync(mainWindow);"));
-        Assert.Equal(1, Count(source, claim));
-        int scenarioMode = source.IndexOf("Environment.GetEnvironmentVariable(\"" + mode + "\") == \"1\"", guard, StringComparison.Ordinal);
-        int scenarioClaim = source.IndexOf(claim, scenarioMode, StringComparison.Ordinal);
-        int nextMode = source.IndexOf(": Environment.GetEnvironmentVariable(", scenarioMode, StringComparison.Ordinal);
-        Assert.True(scenarioClaim > scenarioMode && nextMode > scenarioClaim);
         Assert.DoesNotContain("host navigation acceptance", source[dispatch..end]); // no claim in execution branch
     }
 
@@ -54,10 +49,6 @@ public sealed class LocalSearchSmokeDispatchTests
             && close > lifetime && end > close);
         Assert.Equal(1, Count(source, "await FilenameSearchHostNavigationChecks.RunAsync(mainWindow);"));
         Assert.Equal(1, Count(source, "await FilenameSearchHostLifetimeChecks.RunAsync(mainWindow);"));
-        int scenario = source.IndexOf("Environment.GetEnvironmentVariable(\"" + mode + "\") == \"1\"", guard, StringComparison.Ordinal);
-        int claim = source.IndexOf("filename search host: actual native page/modal,", scenario, StringComparison.Ordinal);
-        int next = source.IndexOf(": Environment.GetEnvironmentVariable(", scenario, StringComparison.Ordinal);
-        Assert.True(claim > scenario && next > claim);
         Assert.DoesNotContain("FilenameSearchChecks.RunAsync", source[dispatch..end]);
         Assert.DoesNotContain("MediaHashSearchChecks.RunAsync", source[dispatch..end]);
     }

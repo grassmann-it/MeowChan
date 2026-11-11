@@ -104,19 +104,21 @@ internal static class Program
             }
         }
         _savedSearchesOnly = Environment.GetEnvironmentVariable("MEOWCHAN_SAVED_SEARCHES_ONLY") == "1";
-        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle" or "--visual" or "--reader-ux" or "--selection" or "--tray-host" or "--about-links" or "--board-admission" or "--reading-position" or "--accessibility-probe" or "--window-geometry" or "--video-contrast" or "--plugins" or "--archive-cleanup" or "--shell-load")))
+        string[] modes = SmokeScenarios.All.Where(entry => entry.Kind == SmokeScenarioKind.Mode && entry.Selector.Length != 0)
+            .Select(entry => entry.Selector).ToArray();
+        if (args.Length > 1 || (args.Length == 1 && !modes.Contains(args[0], StringComparer.Ordinal)))
         {
-            Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle|--visual|--reader-ux|--selection|--tray-host|--about-links|--board-admission|--reading-position|--accessibility-probe|--window-geometry|--video-contrast|--plugins|--archive-cleanup|--shell-load]");
+            Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [" + string.Join("|", modes) + "]");
             return 2;
         }
         // Unknown, misspelled or misplaced selectors would otherwise silently run the normal scene.
         string? selectorError = SmokeSelectors.Check(args, Environment.GetEnvironmentVariables()
             .Cast<System.Collections.DictionaryEntry>()
             .Select(entry => KeyValuePair.Create((string)entry.Key, entry.Value as string)),
-            OperatingSystem.IsWindows(), out string selectorScenario);
-        if (selectorError != null)
+            OperatingSystem.IsWindows(), out string selectorScenario, out SmokeScenario? selected);
+        if (selectorError != null || selected == null)
         {
-            Console.Error.WriteLine("SMOKE CONFIGURATION ERROR: " + selectorError);
+            Console.Error.WriteLine("SMOKE CONFIGURATION ERROR: " + (selectorError ?? "no registered scenario for " + selectorScenario));
             return 2;
         }
 
@@ -297,131 +299,7 @@ internal static class Program
                     MediaRatingChecks.VerifyAfterClose(profile, reacquired);
             }
 
-            string scenario = _startupFirstFrameOnly
-                ? "startup first frame: isolated timing separations and post-startup managed navigation probes; no latency SLO or physical-presentation claim"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_DIALOG_FRAME_ONLY") == "1"
-                ? "dialog frame: fixed header/error strip/footer around a scrolling body per production dialog, group=" + (Environment.GetEnvironmentVariable("MEOWCHAN_DIALOG_FRAME_GROUP") ?? "all") + "; private fixtures, managed input, no Windows/macOS or screen-reader claim"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_DIAGNOSTIC_EVIDENCE_ONLY") == "1"
-                ? "diagnostic evidence: native controls with synthetic snapshots, passive facts/waiting/language refresh; managed input and copy delegate, no live network or OS clipboard/Windows/macOS acceptance"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_FILENAME_SEARCH_LARGE_READER_ONLY") == "1"
-                ? "filename large reader: seven synthetic native host journeys, complete-reader/off-page results, selection and lifetime joins; managed input only"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_LOCAL_SEARCH_LANGUAGE_ONLY") == "1"
-                ? "local search language: EN/DE/ES/FR/RU retained drafts/results, actual native controls and 360-DIP action glyph layout; no OS typing, current-byte or cross-platform acceptance"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_PAGE_ONLY") == "1"
-                ? "media page: real host, catalog, bound manifests, verified thumbnails and navigation; managed input only"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_MEDIA_TAGS_ONLY") == "1"
-                ? "gallery media tags: real main window gallery, host and store, bound and unbound media; managed input only"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_PRIVATE_TAGS_ONLY") == "1"
-                ? "private tags: real host and store, actual reader tag bar, suggestions, list rows, table tag column (modes, sorting, rename, unavailable), restart and damaged index; managed input only, no Windows/macOS acceptance"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_READER_FIND_ONLY") == "1"
-                ? "reader find: actual offline404 native controls, whole-thread hits and managed routed keys; no OS keyboard or Windows/macOS acceptance"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_FILENAME_SEARCH_ONLY") == "1"
-                ? "filename search standalone dialog: captured metadata paging, literal Unicode input and explicit selection; no product host navigation or current-byte/platform acceptance"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_HASH_SEARCH_ONLY") == "1"
-                ? "SHA-256 search standalone dialog: one captured inventory, exact reference selection and native controls; no global-library search, rehash or product host navigation acceptance"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_FILENAME_SEARCH_HOST_ONLY") == "1"
-                ? "filename search host: actual native page/modal, exact offscreen post navigation and causal lifetime drains; managed input, no OS keyboard, detached-reader/fullscreen or Windows/macOS acceptance"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_URLTEXT_EXPORT_ONLY") == "1"
-                ? "URLtext export: real dialog consent and create-only writer, synthetic summaries, injected chooser, ES/FR/RU; no OS picker or client interoperability acceptance"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_URLTEXT_PAGE_BOUNDARY_ONLY") == "1"
-                ? "URLtext page boundary: real native owner/page with synthetic summaries and causal lifecycle/modal guards; no OS picker or client interoperability acceptance"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_VOLUME_ROUTED_ONLY") == "1"
-                ? "gallery volume routed boundary: synthetic owner adapter, actual Avalonia Slider/TextBox events; no playback continuity or OS keyboard acceptance"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_FIRST_RUN_REOPEN_ONLY") == "1"
-                ? "First-run Settings reopen: actual constructors/path controls, abandoned unsaved draft and fresh disk/runtime cap; two synthetic profiles, managed UI, no native Windows/macOS acceptance"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_HTML_EXPORT_ACTION_LAYOUT_ONLY") == "1"
-                ? "HTML export dialog action labels: actual single/collection controls, 640/480 DIP, ES/FR/RU; managed input, no Windows/macOS or language-quality acceptance"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_SHORTCUT_ISSUE_LANGUAGE_ONLY") == "1"
-                ? "shortcut issue refresh: real Settings controls and retained validation in five languages; managed input, synthetic profile, no OS keyboard or language-quality acceptance"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_EXPORT_STATUS_LANGUAGE_ONLY") == "1"
-                ? "export status refresh: actual single/collection export, backup, failure and cancellation in five languages; offline synthetic profile, managed input, no native Windows/macOS acceptance"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_READER_GROUPS_BINDING_ONLY") == "1"
-                ? "reader-group bindings: exact live labels for 3 row states in 5 languages on actual native UI thread; synthetic fixture only"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_NATIVE_TRANSFER_PREVIEW_ONLY") == "1"
-                ? "native transfer inventory-only preview: synthetic package, dialog terminal ownership and late picker/close paths; managed input, no Apply or native Windows/macOS acceptance"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_HTML_EXPORT_LANGUAGE_ONLY") == "1"
-                ? "HTML export language: actual single/collection Start actions, frozen press-time locale, persisted metadata and escaped source content; ES/FR/RU, managed input only"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_SECONDARY_SETTINGS_LANGUAGE_ONLY") == "1"
-                ? "secondary Settings language cell=" + (Environment.GetEnvironmentVariable("MEOWCHAN_SECONDARY_SETTINGS_CELL") ?? "all") + "; real controls, synthetic profile, managed input, no whole-UI/native-platform/linguistic acceptance"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_HIDDEN_FAVORITE_ONLY") == "1"
-                ? "hidden favorite controls: exact-key delayed save/navigation and separate idempotent pick/unpick, private PNG and managed input only"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_HTML_EXPORT_LABELS_ONLY") == "1"
-                ? "HTML export full labels: production inspector, results overflow and split/large reader layout; EN/DE/ES/FR/RU, recorded scale; managed input, no OCR or cross-platform claim"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_MUTE_ONLY") == "1"
-                ? "gallery mute persistence: real OS input and decoder with functional private audio; session intent across selection changes, not physical output acceptance"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_DOWNLOAD_SAFETY_ONLY") == "1"
-                ? "download resource limit: real Settings Save/Discard/rejection and fresh host, managed input; no HTTP/load claim"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_CLIPBOARD_MONITOR_ONLY") == "1"
-                ? "clipboard monitor: isolated synthetic clipboard, Save/Discard, passive offer, local button confirmation and lifecycle; managed input"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_BOARD_LANGUAGE_REFRESH_ONLY") == "1"
-                ? "board admission command-help refresh: UI-thread live accessibility bindings and all seven mapping hints; private controls, no catalog fetch or apply"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_RATING_LANGUAGE_REFRESH_ONLY") == "1"
-                ? "rating dialog/manager language refresh: private fixtures, rows/draft/selection/accessibility and provider-call counts; managed input"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_SETTINGS_LANGUAGE_REFRESH_ONLY") == "1"
-                ? "settings/first-run language refresh: rejected drafts, focus and live pending destination check; managed input, private fixtures"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_MENU_LANGUAGE_ONLY") == "1"
-                ? "plugin menu language: passive real menu reload, transient status/discard cancellation and raw draft retention"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_SETTINGS_LANGUAGE_ONLY") == "1"
-                ? "plugin settings language: UI-thread editor reconstruction, raw drafts and provider messages retained; no provider activation"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_LANGUAGE_SWITCH_FOOTER_ONLY") == "1"
-                ? "language switch footer: passive EN/ES/FR/RU/EN mode selector and command-label refresh; no URL/source activation"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_PREVIEW_LANGUAGES_ONLY") == "1"
-                ? "bundled ES/FR/RU preview packs: embedded load, settings commit/live switch, raw drafts and screenshots; no whole-UI/native linguistic claim"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_WINDOW_CHROME_ONLY") == "1"
-                ? "app chrome: isolated native geometry and right-edge pixels, own Settings/About captions, modal lifetime; platform/scales as recorded"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_FAVORITES_ONLY") == "1"
-                ? "gallery favorites: hidden-controls saved/pending badge, explicit mark/unmark, exact-key navigation, failure/retry and actual shell failure owner"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_GIF_PLAYBACK_ONLY") == "1"
-                ? "GIF actual rendered animation: encoded loops/disposal, native pause/next, verified failures/retirement and Reader-associated playback; private source-built evidence only"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_FIRST_RUN_SETTINGS_ONLY") == "1"
-                ? "first-run Settings: real automatic fresh-profile setup to retained editor, persisted nondefaults, unrelated save, restart, Later/X; managed input"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_FIRST_RUN_SETUP_ONLY") == "1"
-                ? "first-profile setup: EN/DE Light/Dark explicit accept/Later/X/errors/probe retirement; private fixtures, no package claim"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_PREFERENCE_STARTUP_ONLY") == "1"
-                ? "startup preferences: private held-restore/Ready/native column input/reopen, current source; platform limits explicit"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_COMPACT_DIAGNOSTICS_ONLY") == "1"
-                ? "compact and diagnostics: all-mode projection, frozen scope/revalidation/context/acknowledgement; routed harness input"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_ERROR_ONLY") == "1"
-                ? "gallery diagnostics-only notices: central acknowledgement, no transport/focus/autohide side effects; true failure safe"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_FEEDBACK_ONLY") == "1"
-                ? "feedback: real rendered banner/toast dismissal, matching duplicates, queue, stale close and passive expiry"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY") == "1"
-                ? (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_EDGE_ONLY") == "1"
-                    ? "native edge-hover panels: slideshow pointer-focus hide, bottom transport/right post, no central-motion reveal or preference write"
-                    : "gallery playback features: saved choices, edge panels, real mixed-media sequence, replay and decode failure; recorded platform only")
-                : Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_INTERACTION_ONLY") == "1"
-                ? "media interaction: XTest pointer/key input on private Linux X11; decoder/slider sync, custom navigation, loop and retired gesture checks; NOT Windows acceptance"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_NATIVE_IME_ONLY") == "1"
-                ? "IME product checkpoints completed; real engine and UI acceptance require the independent native driver"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_SMOKE_ALPHA2_COPY_ONLY") == "1"
-                ? "alpha2 copy: Sources granted/strict/null/inactive and Rules help at actual scale and minimum size"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_INTEGRITY_GUI_ONLY") == "1"
-                ? "gallery integrity: four EN/DE Light/Dark cells at actual scale, exact binding, summary/context/details and geometry"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_SOURCE_INTEGRITY_GUI_ONLY") == "1"
-                ? "source integrity: focused Sources/Plugins consent and Experimental fixture at the requested actual scale"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_LATE_ERROR_ONLY") == "1"
-                ? "ratings: targeted direct/menu late failures and detached tile refresh; exact keys and store reopen"
-                : Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_RATINGS_ONLY") == "1"
-                ? Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_PRESENTATION_ONLY") == "1"
-                    ? "ratings: 12-cell real presentation/focus/error matrix and unchanged durable values"
-                    : "ratings: real controls, exact identities, comparison, retry, detached shortcut, gallery freeze, manager focus and store reopen"
-                : _archiveCleanupMode ? "archive cleanup: private preview, explicit confirmation, real deletion, durable invariants and controlled failures"
-                : _lockedProfileMode ? "locked profile: readable error, Exit closed the window"
-                : _noTrayMode ? "no tray: user close kept taskbar access, Exit closed the window"
-                : _trayFailureMode ? "tray creation failure: startup succeeded, user close kept taskbar access, Exit closed the window"
-                : _shellLoadMode ? "shell load: bounded offline gallery/load fixture, separate process watchdog, correlated UI/commit/resource measurements"
-                : _downloadSessionMode ? "real session: URL admission, fixture media, assigned path, native close and restart restoration"
-                : _trayHostMode ? "private StatusNotifier host: independent tray settings, native registration/activation, hide/restore and host/watcher loss"
-                : _trayLifecycleMode ? "16 rapid native window/tray lifetimes, normal close and profile lease reuse"
-                : _visualMode ? "actual release showcase with original offline demo content, no watches or HTTP"
-                : _selectionMode ? "native watch/archive multi-selection, focus-safe commands, batch export return, watch-only Delete and board admission modal"
-                : _accessibilityMode ? "native accessibility fixture stages completed; external AT-SPI/Orca results are separate"
-                : _boardAdmissionMode ? "board admission: local rule clearing, multi-board validation, retry, cancel, EN/DE, themes and minimum dialog layout"
-                : _readingPositionMode ? "local reading position, explicit process restart and settings semantics"
-                : _aboutLinksMode ? "About project and PayPal links reached the selected private browser fixture with new-window requests, intact URLs and clean runtime paths"
-                : _windowGeometryMode ? "isolated native interactive resize; each edge/corner after pointer release and settled correction"
-                : _videoContrastMode ? "real decoded video time, ended and corrupt-media error contrast in Light/Dark"
-                : "startup, rendered thread/board bindings, background update, normal close";
+            string scenario = selected.Pass!(Environment.GetEnvironmentVariable);
             startupTiming?.Finish(true);
             Console.WriteLine("SMOKE SCENARIO: " + selectorScenario);
             Console.WriteLine("SMOKE PASS: " + scenario + "; no binding errors.");
