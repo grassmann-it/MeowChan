@@ -25,6 +25,8 @@ internal sealed record MediaLibraryTileRow(MediaLibraryTile Tile, int Index)
     public string Detail => Entry.Presence == MediaLibraryPresence.Missing ? Texts.T("media.tile.missing")
         : Entry.Unassigned ? Texts.T("media.tile.unassigned")
         : Entry.Length is long length ? (length / 1_000_000d).ToString("0.###", Texts.Culture) + " MB" : string.Empty;
+    /// <summary>Favorite state over every saved occurrence of the bytes; only a grouped tile has one to report.</summary>
+    public string FavoriteLabel => Tile.IsGroup ? MediaLibraryStateText.Favorite(Tile.Favorite) : string.Empty;
     /// <summary>"in N threads" for equal bytes found elsewhere; empty for a single occurrence.</summary>
     public string Duplicates => !Tile.IsGroup ? string.Empty
         : Tile.ThreadCount > 1 ? Texts.T("media.tile.inThreads", Tile.ThreadCount)
@@ -55,6 +57,7 @@ internal sealed class MediaLibraryTileView : UserControl
     private readonly Border _selectedMark = new() { Name = "MediaTileSelected", IsVisible = false, Padding = new Thickness(5, 1), CornerRadius = new CornerRadius(8),
         HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 2, 0),
         Child = new TextBlock { Text = "✓", FontWeight = FontWeight.Bold, FontSize = 12 } };
+    private readonly TextBlock _favorite = new() { Name = "MediaTileFavorite", MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 11, IsVisible = false };
     private IDisposable? _selection;
     private Bitmap? _bitmap;
     /// <summary>True while the tile shows a verified thumbnail or video poster.</summary>
@@ -72,12 +75,12 @@ internal sealed class MediaLibraryTileView : UserControl
 
     public MediaLibraryTileView()
     {
-        MaxWidth = 190; Height = 210;
+        MaxWidth = 190; Height = 228;
         Grid preview = new() { Height = 125, MaxWidth = 170 };
         _selectedMark[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Accent");
         ((TextBlock)_selectedMark.Child!)[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Background");
         preview.Children.Add(_image); preview.Children.Add(_placeholder); preview.Children.Add(_selectedMark);
-        Grid grid = new() { Margin = new Thickness(8), RowDefinitions = new RowDefinitions("125,Auto,Auto,Auto"), RowSpacing = 4 };
+        Grid grid = new() { Margin = new Thickness(8), RowDefinitions = new RowDefinitions("125,Auto,Auto,Auto,Auto"), RowSpacing = 4 };
         grid.Children.Add(preview);
         grid.Children.Add(_name); Grid.SetRow(_name, 1);
         _threadLink.Content = _thread;
@@ -87,7 +90,8 @@ internal sealed class MediaLibraryTileView : UserControl
         _duplicatesLink.Click += (_, e) => { e.Handled = true; if (DataContext is MediaLibraryTileRow row) ShowOccurrences?.Invoke(row.Tile); };
         StackPanel footer = new() { Orientation = Orientation.Horizontal, Spacing = 6, Children = { _duplicatesLink, _detail } };
         grid.Children.Add(footer); Grid.SetRow(footer, 3);
-        foreach (TextBlock text in new[] { _thread, _detail, _duplicates }) text.Classes.Add("workspace-meta");
+        grid.Children.Add(_favorite); Grid.SetRow(_favorite, 4);
+        foreach (TextBlock text in new[] { _thread, _detail, _duplicates, _favorite }) text.Classes.Add("workspace-meta");
         Content = grid;
         DataContextChanged += (_, _) => { Reset(); Present(); if (_visible) _ = LoadAsync(); };
         EffectiveViewportChanged += (_, e) =>
@@ -131,11 +135,13 @@ internal sealed class MediaLibraryTileView : UserControl
         string duplicates = row?.Duplicates ?? string.Empty;
         _duplicates.Text = duplicates;
         _duplicatesLink.IsVisible = duplicates.Length > 0;
+        _favorite.Text = row?.FavoriteLabel;
+        _favorite.IsVisible = !string.IsNullOrEmpty(_favorite.Text);
         string duplicatesHint = row == null || duplicates.Length == 0 ? string.Empty : Texts.T("media.tile.duplicatesHint", row.Tile.Occurrences.Count);
         ToolTip.SetTip(_duplicatesLink, duplicatesHint);
         AutomationProperties.SetName(_duplicatesLink, duplicatesHint);
         _placeholder.Text = row?.Entry.Presence == MediaLibraryPresence.Missing ? Texts.T("media.tile.missing") : string.Empty;
-        string description = row == null ? string.Empty : string.Join(Environment.NewLine, new[] { row.Name, row.ThreadLabel, row.Duplicates, row.Detail }.Where(part => part.Length > 0));
+        string description = row == null ? string.Empty : string.Join(Environment.NewLine, new[] { row.Name, row.ThreadLabel, row.Duplicates, row.FavoriteLabel, row.Detail }.Where(part => part.Length > 0));
         ToolTip.SetTip(this, description);
         AutomationProperties.SetName(this, description);
     }

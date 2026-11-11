@@ -2135,6 +2135,10 @@
     "media.selection.tag.addLabel": "Añadir una etiqueta existente (entre paréntesis: apariciones marcadas que no la tienen):",
     "media.selection.tag.remove": "Quitar la etiqueta {0} de las {1} apariciones marcadas que la tienen",
     "media.selection.tag.add": "Añadir la etiqueta {0} a las {1} apariciones marcadas que no la tienen",
-    "media.selection.tag.noneChosen": "Marque primero al menos una aparición."
+    "media.selection.tag.noneChosen": "Marque primero al menos una aparición.",
+    "media.group.favorite.all": "Favorito: todos",
+    "media.group.favorite.some": "Favorito: algunos",
+    "media.group.favorite.none": "Favorito: ninguno",
+    "media.group.favorite.unknown": "Favorito: desconocido"
   }
 }

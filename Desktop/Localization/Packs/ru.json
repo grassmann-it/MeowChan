@@ -2135,6 +2135,10 @@
     "media.selection.tag.addLabel": "Добавить существующий тег (в скобках: отмеченные вхождения без него):",
     "media.selection.tag.remove": "Удалить тег {0} у отмеченных вхождений: {1}",
     "media.selection.tag.add": "Добавить тег {0} отмеченным вхождениям без него: {1}",
-    "media.selection.tag.noneChosen": "Сначала отметьте хотя бы одно вхождение."
+    "media.selection.tag.noneChosen": "Сначала отметьте хотя бы одно вхождение.",
+    "media.group.favorite.all": "Избранное: все",
+    "media.group.favorite.some": "Избранное: некоторые",
+    "media.group.favorite.none": "Избранное: нет",
+    "media.group.favorite.unknown": "Избранное: неизвестно"
   }
 }

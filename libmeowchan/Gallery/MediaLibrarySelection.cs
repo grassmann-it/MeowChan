@@ -10,15 +10,15 @@ using MeowChan.Tags;
 namespace MeowChan.Gallery;
 
 /// <summary>
-/// Identity of a tile across rebuilds: the content hash for saved files (the shown occurrence may change
+/// Identity of a tile across rebuilds: the bytes (hash and length) for saved files (the shown occurrence may change
 /// with the filter, the bytes do not), the entry itself for a captured but never saved attachment.
 /// </summary>
-internal readonly record struct MediaLibraryTileKey(string? Sha256, MediaLibraryEntry? Entry)
+internal readonly record struct MediaLibraryTileKey(string? Bytes, MediaLibraryEntry? Entry)
 {
     internal static MediaLibraryTileKey Of(MediaLibraryTile tile)
     {
         ArgumentNullException.ThrowIfNull(tile);
-        return MediaLibraryGrouping.HasHash(tile.Entry) ? new(tile.Entry.Sha256, null) : new(null, tile.Entry);
+        return MediaLibraryGrouping.ByteKey(tile.Entry) is { } key ? new(key, null) : new(null, tile.Entry);
     }
 }
 

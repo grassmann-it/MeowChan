@@ -161,7 +161,7 @@ public sealed partial class MediaPage : UserControl
         IReadOnlyList<MediaLibraryEntry> all = _snapshot?.Entries ?? Array.Empty<MediaLibraryEntry>();
         bool includeMissing = _missing.IsChecked == true;
         // Filter the occurrences first; a tile of equal bytes stays when any of its occurrences passed.
-        _tiles = MediaLibraryGrouping.Build(all, ApplyFilter(all), Sort, includeMissing, _seed);
+        _tiles = MediaLibraryGrouping.Build(all, ApplyFilter(all), Sort, includeMissing, _seed, _userData.IsFavorite);
         _shown = _tiles.Select(tile => tile.Entry).ToArray();
         _unfiltered = _filterActive ? MediaLibraryGrouping.CountTiles(all, includeMissing) : _shown.Count;
         MediaLibraryTileRow[] rows = _tiles.Select((tile, index) => new MediaLibraryTileRow(tile, index)).ToArray();

@@ -25,6 +25,8 @@ internal sealed class MediaOccurrencesWindow : Window
         TextBlock summary = new() { Name = "MediaOccurrencesSummary", TextWrapping = Avalonia.Media.TextWrapping.Wrap,
             Text = Texts.T("media.occurrences.summary", tile.Occurrences.Count, tile.ThreadCount) };
         summary.Classes.Add("workspace-meta");
+        TextBlock favorite = new() { Name = "MediaOccurrencesFavorite", Text = MediaLibraryStateText.Favorite(tile.Favorite), IsVisible = tile.IsGroup };
+        favorite.Classes.Add("workspace-meta");
         StackPanel rows = new() { Spacing = 8 };
         foreach (MediaLibraryEntry entry in tile.Occurrences)
         {
@@ -48,7 +50,7 @@ internal sealed class MediaOccurrencesWindow : Window
         close.Click += (_, _) => Close();
         ScrollViewer list = new() { Content = rows, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
         Grid layout = new() { Margin = new Thickness(16), RowDefinitions = new RowDefinitions("Auto,*,Auto"), RowSpacing = 12 };
-        layout.Children.Add(summary);
+        layout.Children.Add(new StackPanel { Spacing = 2, Children = { summary, favorite } });
         layout.Children.Add(list); Grid.SetRow(list, 1);
         layout.Children.Add(close); Grid.SetRow(close, 2);
         Content = layout;

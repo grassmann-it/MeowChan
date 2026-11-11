@@ -2135,6 +2135,10 @@
     "media.selection.tag.addLabel": "Ajouter un tag existant (entre parenthèses : occurrences cochées qui ne l’ont pas) :",
     "media.selection.tag.remove": "Retirer le tag {0} des {1} occurrences cochées qui l’ont",
     "media.selection.tag.add": "Ajouter le tag {0} aux {1} occurrences cochées qui ne l’ont pas",
-    "media.selection.tag.noneChosen": "Cochez d’abord au moins une occurrence."
+    "media.selection.tag.noneChosen": "Cochez d’abord au moins une occurrence.",
+    "media.group.favorite.all": "Favori : tous",
+    "media.group.favorite.some": "Favori : certains",
+    "media.group.favorite.none": "Favori : aucun",
+    "media.group.favorite.unknown": "Favori : inconnu"
   }
 }

@@ -97,6 +97,10 @@ internal static class MediaLibraryCatalog
         ("media.selection.tag.addLabel", "Add an existing tag (in brackets: ticked occurrences that lack it):", "Vorhandenen Tag hinzufügen (in Klammern: angehakte Fundstellen, die ihn noch nicht haben):"),
         ("media.selection.tag.remove", "Remove tag {0} from the {1} ticked occurrences that have it", "Tag {0} von den {1} angehakten Fundstellen entfernen, die ihn haben"),
         ("media.selection.tag.add", "Add tag {0} to the {1} ticked occurrences that lack it", "Tag {0} den {1} angehakten Fundstellen hinzufügen, die ihn noch nicht haben"),
-        ("media.selection.tag.noneChosen", "Tick at least one occurrence first.", "Hake zuerst mindestens eine Fundstelle an.")
+        ("media.selection.tag.noneChosen", "Tick at least one occurrence first.", "Hake zuerst mindestens eine Fundstelle an."),
+        ("media.group.favorite.all", "Favorite: all", "Favorit: alle"),
+        ("media.group.favorite.some", "Favorite: some", "Favorit: einige"),
+        ("media.group.favorite.none", "Favorite: none", "Favorit: keine"),
+        ("media.group.favorite.unknown", "Favorite: unknown", "Favorit: unbekannt")
     };
 }

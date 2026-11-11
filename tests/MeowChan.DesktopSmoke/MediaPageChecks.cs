@@ -294,6 +294,7 @@ internal static class MediaPageChecks
             Window details = page.OccurrencesWindow ?? throw new InvalidOperationException("The hint did not open the occurrences.");
             await UntilAsync(() => details.GetVisualDescendants().OfType<StackPanel>().Count(row => row.Name == "MediaOccurrence") == 3);
             Require(C<TextBlock>(details, "MediaOccurrencesSummary").Text == Texts.T("media.occurrences.summary", 3, 3), "Details summary is wrong.");
+            Require(C<TextBlock>(details, "MediaOccurrencesFavorite").Text == Texts.T("media.group.favorite.none"), "Details must state the favorite state of the bytes.");
             string TagsOfThread(string thread) => details.GetVisualDescendants().OfType<StackPanel>()
                 .Single(row => row.Name == "MediaOccurrence" && row.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Name == "MediaOccurrenceWhere" && text.Text!.Contains("Dup " + thread)))
                 .GetVisualDescendants().OfType<TextBlock>().Single(text => text.Name == "MediaOccurrenceTags").Text!;
@@ -318,6 +319,17 @@ internal static class MediaPageChecks
             Require(C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.filter.count", 1, 2), "Filtered count is wrong: " + C<TextBlock>(page, "MediaStatus").Text);
             Require(((await FindDuplicatesHintAsync(page)).Content as TextBlock)?.Text == Texts.T("media.tile.inThreads", 3), "The hint counts all occurrences, not only matching ones.");
             C<Button>(page, "MediaFilterReset").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+            // Favorite state of the group tile counts all three saved occurrences: unknown/none/some.
+            MediaLibraryTile shared = page.Tiles.Single(tile => tile.IsGroup);
+            Require(shared.Favorite == MediaLibraryFavoriteState.None, "No favorite yet must read none: " + shared.Favorite);
+            Require(await host.SetFavoriteAsync(new FavoriteEntry(MediaLibraryFilterEngine.AssetKey(in400)!, Png.Length, in400.Name), true).WaitAsync(Deadline), "Favorite was not stored.");
+            page.RefreshUserData();
+            Require(page.Tiles.Single(tile => tile.IsGroup).Favorite == MediaLibraryFavoriteState.Some, "One of three favorites must read some.");
+            await UntilAsync(() => page.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Name == "MediaTileFavorite" && text.IsVisible
+                && text.Text == Texts.T("media.group.favorite.some")));
+            Require(await host.SetFavoriteAsync(new FavoriteEntry(MediaLibraryFilterEngine.AssetKey(in400)!, Png.Length, in400.Name), false).WaitAsync(Deadline), "Favorite was not removed.");
+            page.RefreshUserData();
 
             // The gallery gets one entry per tile.
             ListBox grid = page.Grid;
