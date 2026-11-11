@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using MeowChan.Archive;
 using MeowChan.Storage;
@@ -50,7 +51,18 @@ internal sealed class StabilityBoardRun
     public string OfflineAfterRestart { get; set; } = "skipped";
     public List<string> Notes { get; set; } = [];
     public bool Attempted { get; set; }
+    /// <summary>Time the harness actually waited for the thread to reach the archive, and for the original, with their limits.</summary>
+    public long? CaptureWaitedMs { get; set; }
+    public long? CaptureLimitMs { get; set; }
+    public long? MediaWaitedMs { get; set; }
+    /// <summary>Position of the chosen thread in the catalog, its sticky/pinned flags as the source delivered them and its age.</summary>
+    public JsonObject? ThreadInfo { get; set; }
+    /// <summary>Set when a step failed: the host's own view of the thread (activity, last check failure, worker state and log tail).</summary>
+    public JsonObject? HostView { get; set; }
+    public bool WatchRemoved { get; set; }
 }
+
+internal sealed record StabilityFileRef(string Path, string Sha256);
 
 internal sealed class StabilityOfflineRun
 {
@@ -87,6 +99,8 @@ internal sealed class StabilityChanRun
     public string? ReceiptSha256 { get; set; }
     public StabilityOfflineRun? Offline { get; set; }
     public int RequiredBoards { get; set; } = 3;
+    /// <summary>Host and worker logs of the phases, relative to the evidence directory (outside Git).</summary>
+    public List<StabilityFileRef> Logs { get; set; } = [];
 }
 
 internal sealed class StabilityPhaseOne
@@ -178,6 +192,51 @@ internal static class StabilityRules
             (true, true) => "size+hash", (true, false) => "size", (false, true) => "hash", _ => "none"
         };
         return result;
+    }
+
+    private static readonly string[] FlagNames = ["sticky", "pinned", "pin", "locked", "closed", "cyclic", "cyclical", "bumplocked", "endless", "archived", "autosage"];
+    private static readonly string[] IdNames = ["no", "threadId", "num", "id", "postId", "thread"];
+
+    /// <summary>
+    /// Reads the flags the source delivered for one thread from a saved metadata body: the first JSON object whose id
+    /// property names the thread. Returns null for a body that is not JSON (an HTML catalog) or has no such object.
+    /// </summary>
+    internal static JsonObject? ThreadFlags(byte[]? body, string threadId)
+    {
+        if (body == null || body.Length == 0) return null;
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(body, new JsonDocumentOptions { MaxDepth = 32 });
+            JsonElement? found = Find(document.RootElement, threadId);
+            if (found == null) return null;
+            JsonObject flags = [];
+            foreach (JsonProperty property in found.Value.EnumerateObject())
+                if (FlagNames.Contains(property.Name, StringComparer.OrdinalIgnoreCase))
+                    flags[property.Name] = property.Value.ValueKind switch
+                    {
+                        JsonValueKind.True => true, JsonValueKind.False => false, JsonValueKind.Number => property.Value.GetDouble() != 0,
+                        _ => null
+                    };
+            return flags;
+        }
+        catch (JsonException) { return null; }
+    }
+
+    private static JsonElement? Find(JsonElement element, string threadId)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (string name in IdNames)
+                if (element.TryGetProperty(name, out JsonElement id)
+                    && (id.ValueKind == JsonValueKind.Number ? id.GetRawText() : id.ValueKind == JsonValueKind.String ? id.GetString() : null) == threadId)
+                    return element;
+            foreach (JsonProperty property in element.EnumerateObject())
+                if (Find(property.Value, threadId) is { } nested) return nested;
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+            foreach (JsonElement item in element.EnumerateArray())
+                if (Find(item, threadId) is { } nested) return nested;
+        return null;
     }
 
     /// <summary>Provider hashes are normalized by the host to base64; hex input is passed through.</summary>

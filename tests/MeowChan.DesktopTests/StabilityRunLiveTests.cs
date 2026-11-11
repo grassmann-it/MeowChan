@@ -32,8 +32,45 @@ public sealed class StabilityRunLiveTests(ITestOutputHelper output)
             case "plan": await PlanAsync(chans, work, evidence); break;
             case "online": await OnlineAsync(chans, work, evidence, manifestSha); break;
             case "offline": await OfflineAsync(chans, work, evidence, manifestSha); break;
-            default: throw new InvalidOperationException("MEOWCHAN_STABILITY_RUN_MODE must be plan, online or offline.");
+            case "replay": await ReplayAsync(chans, work, evidence); break;
+            default: throw new InvalidOperationException("MEOWCHAN_STABILITY_RUN_MODE must be plan, online, offline or replay.");
         }
+    }
+
+    /// <summary>The harness waits this long for a fetched thread to reach the archive (default 120 s).</summary>
+    private static TimeSpan CaptureWait() => Env("CAPTURE_SECONDS") is { } text && int.TryParse(text, out int seconds) && seconds is >= 10 and <= 900
+        ? TimeSpan.FromSeconds(seconds) : TimeSpan.FromSeconds(120);
+
+    private async Task ReplayAsync(IReadOnlyList<StabilityChanApproval> chans, string work, string evidence)
+    {
+        if (chans.Count != 1) throw new InvalidOperationException("A replay needs exactly one chan (MEOWCHAN_STABILITY_RUN_ONLY).");
+        string source = Path.GetFullPath(Require("REPLAY_DIR"));
+        StabilityChanApproval chan = chans[0];
+        if (Env("REPLAY_BOARD") is { } board)
+            chan = chan with { Boards = [new(board, null)], BoardsFromList = 0, BoardListUrl = null };
+        StabilityReplayHandler handler = StabilityReplayHandler.Load(source, chan.SourceId);
+        Directory.CreateDirectory(work);
+        Directory.CreateDirectory(evidence);
+        // The only network of a replay is the saved responses; there is no real client and no original is requested.
+        StabilityRunOptions options = new()
+        {
+            WorkDirectory = work, EvidenceDirectory = evidence, NetworkFactory = handler.Client, Phase = "replay", SkipOriginal = true,
+            RequiredBoards = Math.Max(1, chan.BoardCount), Capture = CaptureWait()
+        };
+        StabilityChanRun run = await StabilityRunner.RunOnlineAsync(chan, options);
+        StabilityRunner.TryDelete(work);
+        var boards = run.Boards.Select(row => new
+        {
+            row.Board, row.ThreadId, row.Archive, row.PostCount, row.CaptureWaitedMs, row.CaptureLimitMs, row.ThreadInfo, row.HostView, row.Notes
+        }).ToArray();
+        await File.WriteAllTextAsync(Path.Combine(evidence, "replay.json"), JsonSerializer.Serialize(new
+        {
+            schemaVersion = 1, replayedFrom = source, run.SourceId, savedResponses = handler.Saved, missing = handler.Missing,
+            requests = handler.Requests.ToArray(), run.Fatal, failures = run.Failures, boards
+        }, StabilityEvidence.Json));
+        foreach (var row in boards)
+            output.WriteLine($"STABILITY_REPLAY {run.SourceId} board={row.Board} thread={row.ThreadId} archive={row.Archive} posts={row.PostCount} waitedMs={row.CaptureWaitedMs}");
+        output.WriteLine($"STABILITY_REPLAY fatal={run.Fatal} failures={run.Failures.Count} missing={handler.Missing.Count}");
     }
 
     private async Task PlanAsync(IReadOnlyList<StabilityChanApproval> chans, string work, string evidence)
@@ -72,7 +109,7 @@ public sealed class StabilityRunLiveTests(ITestOutputHelper output)
         Assert.False(File.Exists(Path.Combine(evidence, "phase1.json")), "An online phase never reuses the evidence directory of an earlier one.");
         Directory.CreateDirectory(evidence);
         Directory.CreateDirectory(work);
-        StabilityRunOptions options = new() { WorkDirectory = work, EvidenceDirectory = evidence, NetworkFactory = factory };
+        StabilityRunOptions options = new() { WorkDirectory = work, EvidenceDirectory = evidence, NetworkFactory = factory, Capture = CaptureWait() };
         StabilityPhaseOne phase = new()
         {
             Network = network, ProcessId = Environment.ProcessId, NetworkNamespace = StabilityRunner.NetworkNamespace(), StartedUtc = DateTimeOffset.UtcNow,

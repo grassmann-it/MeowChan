@@ -22,10 +22,10 @@ public sealed class StabilityRunnerHostTests(ITestOutputHelper output)
         internal string Root { get; } = Path.Combine(AppContext.BaseDirectory, "stability-test-" + Guid.NewGuid().ToString("N")[..12]);
         internal StabilityStubSite Site { get; } = new();
         internal int NetworkClients;
-        internal StabilityRunOptions Options(int boards = 3) => new()
+        internal StabilityRunOptions Options(int boards = 3, TimeSpan? capture = null) => new()
         {
             WorkDirectory = Path.Combine(Root, "work"), EvidenceDirectory = Path.Combine(Root, "evidence"), RequiredBoards = boards,
-            NetworkFactory = () => { NetworkClients++; return Site.Client(); }
+            NetworkFactory = () => { NetworkClients++; return Site.Client(); }, Capture = capture ?? TimeSpan.FromSeconds(120)
         };
         internal StabilityRunOptions NoNetwork(int boards = 3) => new()
         {
@@ -76,6 +76,26 @@ public sealed class StabilityRunnerHostTests(ITestOutputHelper output)
         Assert.False(Directory.Exists(online.ProfileDirectory));
         Assert.All(online.Boards, board => Assert.Equal("pass", board.OfflineAfterRestart));
         Assert.Equal("pass", StabilityEvidence.Outcome(online));
+
+        // Production watches are stopped after every board, so nothing asks for anything again.
+        Assert.All(online.Boards, board => Assert.True(board.WatchRemoved, board.Board));
+        // Diagnostics: metadata bodies by hash, never the original; host and worker logs with hashes; time waited; thread info.
+        string[] bodies = Directory.GetFiles(Path.Combine(run.Root, "evidence", "bodies"));
+        Assert.Equal(online.Boards.SelectMany(board => board.Requests).Where(row => row.Step != "original").Select(row => row.Sha256).Distinct().Count(), bodies.Length);
+        foreach (StabilityBoardRun board in online.Boards)
+        {
+            Assert.All(board.Requests.Where(row => row.Step != "original"), row => Assert.True(File.Exists(Path.Combine(run.Root, "evidence", "bodies", row.Sha256 + ".body"))));
+            Assert.False(File.Exists(Path.Combine(run.Root, "evidence", "bodies", board.Original!.Sha256 + ".body")));
+            Assert.InRange(board.CaptureWaitedMs!.Value, 0, 120_000);
+            Assert.Equal(120_000, board.CaptureLimitMs);
+            Assert.Equal(sourceId == "lainchan", board.ThreadInfo!["sticky"]!.GetValue<bool>());
+            Assert.True(board.ThreadInfo["flagsKnown"]!.GetValue<bool>());
+            Assert.True(board.ThreadInfo["ageDays"]!.GetValue<double>() > 365);
+            Assert.Equal(sourceId == "lainchan" ? 1 : 0, board.ThreadInfo["catalogPosition"]!.GetValue<int>());
+        }
+        Assert.Contains(online.Logs, log => log.Path == $"logs/workers-online-{sourceId}.json");
+        Assert.Contains(online.Logs, log => log.Path == $"logs/workers-offline-{sourceId}.json");
+        Assert.All(online.Logs, log => Assert.Equal(StabilityRunner.Sha256(File.ReadAllBytes(Path.Combine(run.Root, "evidence", log.Path))), log.Sha256));
     }
 
     // ---- scenarios ----------------------------------------------------------------------------------------------------
@@ -88,9 +108,9 @@ public sealed class StabilityRunnerHostTests(ITestOutputHelper output)
 
     private static IEnumerable<StabilityRequestRecord> Sent(StabilityChanRun run) => run.Boards.SelectMany(board => board.Requests);
 
-    private async Task<StabilityChanRun> Online(Run run, StabilityChanApproval chan, int boards = 3)
+    private async Task<StabilityChanRun> Online(Run run, StabilityChanApproval chan, int boards = 3, TimeSpan? capture = null)
     {
-        StabilityChanRun result = await StabilityRunner.RunOnlineAsync(chan, run.Options(boards));
+        StabilityChanRun result = await StabilityRunner.RunOnlineAsync(chan, run.Options(boards, capture));
         output.WriteLine(JsonSerializer.Serialize(new { result.Fatal, result.Failures, boards = result.Boards.Select(row => new { row.Board, row.Archive, row.Notes, requests = row.Requests.Select(request => request.Step + " " + request.Url + " " + request.Status) }) }, StabilityEvidence.Json));
         return result;
     }
@@ -170,7 +190,7 @@ public sealed class StabilityRunnerHostTests(ITestOutputHelper output)
 
     [Theory]
     [InlineData("<html><head><title>Just a moment...</title></head><body>Checking your browser</body></html>", 200, "challenge-page")]
-    [InlineData("<html>Please complete the captcha</html>", 200, "challenge-page")]
+    [InlineData("<html><script src=\"/cdn-cgi/challenge-platform/h/b/orchestrate\"></script></html>", 200, "challenge-page")]
     [InlineData("busy", 429, "http-429")]
     [InlineData("<html>gateway</html>", 503, "http-503")]
     public async Task AnUnexpectedCatalogResponseStopsTheChanAfterOneRequestAndLaterBoardsAreNotRun(string body, int status, string mode)
@@ -385,5 +405,65 @@ public sealed class StabilityRunnerHostTests(ITestOutputHelper output)
         Assert.True(File.Exists(Path.Combine(run.Root, "evidence", "audit-lainchan.json")));
         Assert.Equal(StabilityRunner.Sha256(File.ReadAllBytes(Path.Combine(run.Root, "evidence", "audit-lainchan.json"))),
             root.GetProperty("receipts")[0].GetProperty("sha256").GetString());
+    }
+
+    // ---- diagnosability and replay -----------------------------------------------------------------------------------
+
+    private static HttpResponseMessage UnparseableThread() =>
+        StabilityStubSite.Response(null!, Encoding.UTF8.GetBytes("""{"posts":[{"no":123,"resto":"not-a-thread","tim":[1,2,3]}]}"""), "application/json");
+
+    private StabilityRunOptions Replaying(string root, string name, StabilityReplayHandler handler) => new()
+    {
+        WorkDirectory = Path.Combine(root, name + "-work"), EvidenceDirectory = Path.Combine(root, name), NetworkFactory = handler.Client,
+        Phase = "replay", SkipOriginal = true, RequiredBoards = 1, Capture = TimeSpan.FromSeconds(3)
+    };
+
+    [Fact]
+    public async Task AThreadThatNeverReachesTheArchiveIsRecordedWithTheHostViewAndTheSavedBodyAndCanBeReplayedWithoutNetwork()
+    {
+        using Run run = new();
+        run.Site.Override = (url, _) => url == "https://lainchan.org/demo/res/123.json" ? UnparseableThread() : null;
+        StabilityChanRun online = await Online(run, Chan("lainchan", ["demo"]), boards: 1, capture: TimeSpan.FromSeconds(3));
+        StabilityFailure failure = Assert.Single(online.Failures);
+        Assert.Equal(("demo", "thread", "thread-not-archived-in-time"), (failure.Board, failure.Step, failure.Mode));
+        StabilityBoardRun board = online.Boards.Single();
+        Assert.Equal(3000, board.CaptureLimitMs);
+        Assert.InRange(board.CaptureWaitedMs!.Value, 2900, 20_000);
+        Assert.NotNull(board.HostView);
+        Assert.Equal("Ready", board.HostView!["state"]!.GetValue<string>());
+        Assert.NotNull(board.HostView["workers"]);
+        Assert.NotEmpty(board.HostView["threads"]!.AsArray());
+        string evidence = Path.Combine(run.Root, "evidence");
+        Assert.True(File.Exists(Path.Combine(evidence, "bodies", board.Requests.Single(row => row.Step == "thread").Sha256 + ".body")));
+        Assert.Contains(online.Logs, log => log.Path.StartsWith("logs/workers-online-"));
+
+        // Replay: the saved bodies go through the production host and parser again; no site, no real network.
+        int before = run.Site.Requests.Count;
+        StabilityReplayHandler handler = StabilityReplayHandler.Load(evidence, "lainchan");
+        Assert.Empty(handler.Missing);
+        StabilityChanRun replayed = await StabilityRunner.RunOnlineAsync(Chan("lainchan", ["demo"]), Replaying(run.Root, "replay-1", handler));
+        Assert.Equal(before, run.Site.Requests.Count);
+        Assert.Equal("thread-not-archived-in-time", Assert.Single(replayed.Failures).Mode);
+        Assert.NotNull(replayed.Boards.Single().HostView);
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task AReplayOfASuccessfulRunParsesAndArchivesTheThreadFromTheSavedBodiesOnly()
+    {
+        using Run run = new();
+        StabilityChanRun online = await Online(run, Chan("lainchan", ["demo"]), boards: 1);
+        Assert.Empty(online.Failures);
+        int before = run.Site.Requests.Count;
+        StabilityReplayHandler handler = StabilityReplayHandler.Load(Path.Combine(run.Root, "evidence"), "lainchan");
+        StabilityChanRun replayed = await StabilityRunner.RunOnlineAsync(Chan("lainchan", ["demo"]), Replaying(run.Root, "replay-2", handler));
+        output.WriteLine(JsonSerializer.Serialize(replayed.Boards.Single().Notes));
+        Assert.Null(replayed.Fatal);
+        Assert.Empty(replayed.Failures);
+        StabilityBoardRun board = replayed.Boards.Single();
+        Assert.Equal("thread-only", board.Archive);
+        Assert.Equal(2, board.PostCount);
+        Assert.Equal(before, run.Site.Requests.Count);
+        Assert.Equal(["GET https://lainchan.org/demo/catalog.json", "GET https://lainchan.org/demo/res/123.json"], handler.Requests.ToArray());
     }
 }

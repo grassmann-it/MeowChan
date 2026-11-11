@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Plugins;
@@ -34,8 +35,50 @@ internal sealed class StabilityRunOptions
     public Func<HttpClient>? NetworkFactory { get; init; }
     public int RequiredBoards { get; init; } = 3;
     public TimeSpan HostStart { get; init; } = TimeSpan.FromSeconds(60);
-    public TimeSpan Capture { get; init; } = TimeSpan.FromSeconds(45);
+    /// <summary>How long the harness waits for a fetched thread to reach the archive. A 600 KB thread needed more than 45 s once.</summary>
+    public TimeSpan Capture { get; init; } = TimeSpan.FromSeconds(120);
     public TimeSpan Media { get; init; } = TimeSpan.FromSeconds(90);
+    /// <summary>Names the host log of this phase (online, offline, plan, replay).</summary>
+    public string Phase { get; init; } = "online";
+    /// <summary>Replay only: stop each board after the thread has been parsed and archived; the original was not saved.</summary>
+    public bool SkipOriginal { get; init; }
+}
+
+/// <summary>A plain-text host log in the evidence directory (outside Git). Serilog events of one phase of one chan.</summary>
+internal sealed class StabilityLog
+{
+    private readonly object _gate = new();
+    internal string Path { get; }
+    internal Serilog.ILogger Logger { get; }
+    private StabilityLog(string path)
+    {
+        Path = path;
+        Logger = new Serilog.LoggerConfiguration().MinimumLevel.Debug().WriteTo.Sink(new Sink(this)).CreateLogger();
+    }
+
+    internal static StabilityLog Create(StabilityRunOptions options, string phase, string sourceId)
+    {
+        string directory = System.IO.Path.Combine(options.EvidenceDirectory, "logs");
+        Directory.CreateDirectory(directory);
+        return new(System.IO.Path.Combine(directory, $"{phase}-{sourceId}.log"));
+    }
+
+    internal void Add(StabilityChanRun run, StabilityRunOptions options)
+    {
+        if (!File.Exists(Path)) return;
+        run.Logs.Add(new(System.IO.Path.GetRelativePath(options.EvidenceDirectory, Path).Replace('\\', '/'), StabilityRunner.Sha256(File.ReadAllBytes(Path))));
+    }
+
+    private sealed class Sink(StabilityLog owner) : Serilog.Core.ILogEventSink
+    {
+        public void Emit(Serilog.Events.LogEvent logEvent)
+        {
+            string line = $"{logEvent.Timestamp:O} [{logEvent.Level}] {logEvent.RenderMessage()}"
+                + (logEvent.Exception == null ? "" : Environment.NewLine + logEvent.Exception) + Environment.NewLine;
+            try { lock (owner._gate) File.AppendAllText(owner.Path, line); }
+            catch (IOException) { /* a missing diagnostic line must not change the run */ }
+        }
+    }
 }
 
 internal sealed record StabilityPlannedBoard(string Board, string? CatalogUrl, string? ThreadUrlShape, string? UserThread);
@@ -62,7 +105,7 @@ internal static class StabilityRunner
         StabilityChanRun scratch = new() { PluginId = chan.PluginId, SourceId = chan.SourceId };
         try
         {
-            host = await StartHostAsync(chan, profile, transport, scratch, options);
+            host = await StartHostAsync(chan, profile, transport, scratch, options, StabilityLog.Create(options, "plan", chan.SourceId).Logger);
             PluginSourceImageBoard adapter = Adapter(host, chan.SourceId);
             IPluginWorkerClient client = await StabilityWorkerAccess.GetAsync(adapter, CancellationToken.None);
             List<StabilityPlannedBoard> boards = [];
@@ -104,13 +147,27 @@ internal static class StabilityRunner
             PluginId = chan.PluginId, SourceId = chan.SourceId, Approval = chan.Approval, RequiredBoards = options.RequiredBoards,
             ProfileDirectory = Path.Combine(options.WorkDirectory, "profile-" + chan.SourceId)
         };
-        StabilityAuditTransport transport = new(new(chan.SourceId, [], []), options.NetworkFactory?.Invoke());
+        StabilityAuditTransport transport = new(new(chan.SourceId, [], []), options.NetworkFactory?.Invoke())
+        {
+            BodyDirectory = Path.Combine(options.EvidenceDirectory, "bodies")
+        };
+        StabilityLog log = StabilityLog.Create(options, options.Phase, chan.SourceId);
         DesktopSessionHost? host = null;
         List<StabilityFailure> own = [];
         DateTimeOffset started = DateTimeOffset.UtcNow;
+        int swept = -1;
+        HashSet<string> priorUrls = new(StringComparer.Ordinal);
+        // After a board's watch was removed, nothing may ask for anything again: no request outside an armed step and none for an earlier board's URLs.
+        void Sweep()
+        {
+            if (swept < 0) return;
+            foreach (StabilityRequestRecord row in FindLeftovers(transport.Rows, swept, priorUrls))
+                own.Add(new(run.Boards.LastOrDefault()?.Board, "leftover", "leftover-watch-request", null, row.Url, $"{row.Outcome} after the watch of {run.Boards.LastOrDefault()?.Board} was removed"));
+            swept = -1;
+        }
         try
         {
-            host = await StartHostAsync(chan, run.ProfileDirectory, transport, run, options);
+            host = await StartHostAsync(chan, run.ProfileDirectory, transport, run, options, log.Logger);
             PluginSourceImageBoard adapter = Adapter(host, chan.SourceId);
             IPluginWorkerClient client = await StabilityWorkerAccess.GetAsync(adapter, CancellationToken.None);
             await host.SaveRulesAsync([new MediaRule(MediaRuleScope.Global,
@@ -120,6 +177,7 @@ internal static class StabilityRunner
             foreach (StabilityBoardRequest request in boards)
             {
                 if (transport.StopMode != null || own.Any(row => row.Mode.StartsWith("fatal:", StringComparison.Ordinal))) break;
+                Sweep();
                 int firstSequence = transport.Rows.Count == 0 ? 1 : transport.Rows[^1].Sequence + 1;
                 StabilityBoardRun board = new() { Board = request.Board, Attempted = true, UserChosenThread = request.ThreadUrl != null };
                 run.Boards.Add(board);
@@ -135,6 +193,10 @@ internal static class StabilityRunner
                     try { await host.SetPausedAsync(true).WaitAsync(TimeSpan.FromSeconds(15)); } catch (Exception) { board.Notes.Add("pause-failed"); }
                     foreach (StabilityRequestRecord row in transport.Rows.Where(row => row.Sequence >= firstSequence))
                         (row.Sent ? board.Requests : board.Refused).Add(row);
+                    // The production watch of this board's thread must not outlive the board: a recheck of it would hit the next board's gate.
+                    await RemoveWatchesAsync(host, board);
+                    foreach (StabilityRequestRecord row in board.Requests.Concat(board.Refused)) priorUrls.Add(row.Url);
+                    swept = transport.Rows.Count == 0 ? 0 : transport.Rows[^1].Sequence;
                 }
             }
             foreach (string id in boards.Select(row => row.Board).Except(run.Boards.Select(row => row.Board)))
@@ -150,9 +212,12 @@ internal static class StabilityRunner
             transport.CancelPending();
             if (host != null)
             {
+                await WriteWorkerLogAsync(host, options, options.Phase, chan.SourceId, run);
                 try { await StopAsync(host); }
                 catch (Exception error) { run.Fatal ??= "host-stop: " + error.GetType().Name; }
             }
+            Sweep();
+            log.Add(run, options);
             IReadOnlyList<StabilityRequestRecord> rows = transport.Rows;
             run.NetworkSends = transport.ActualNetworkSends;
             run.WindowStart = rows.FirstOrDefault(row => row.Sent)?.AtUtc ?? started;
@@ -243,6 +308,7 @@ internal static class StabilityRunner
         }
         board.ThreadId = threadId;
         board.ThreadUrl = threadUri.AbsoluteUri;
+        board.ThreadInfo = CatalogInfo(threads, threadId, transport.Body(request.Board, StabilityStep.Catalog));
 
         // 3. Thread: one GET through the production watch (archive, media planning), again at the plugin-named URL.
         PluginOperationContext threadOperation = new(threadUri.AbsoluteUri, 0);
@@ -258,10 +324,26 @@ internal static class StabilityRunner
             return;
         }
         ResourceId resource = new(source, request.Board, threadId);
+        System.Diagnostics.Stopwatch waited = System.Diagnostics.Stopwatch.StartNew();
         ArchivedThreadView? view = await WaitForThreadAsync(host, resource, transport, options.Capture);
+        board.CaptureWaitedMs = (long)waited.Elapsed.TotalMilliseconds;
+        board.CaptureLimitMs = (long)options.Capture.TotalMilliseconds;
         if (transport.StopMode != null) return;
-        if (view == null) { Fatal(own, board, "thread", "thread-not-archived-in-time"); return; }
+        if (view == null)
+        {
+            board.HostView = CaptureHostView(host, threadUri.AbsoluteUri);
+            Fatal(own, board, "thread", "thread-not-archived-in-time");
+            return;
+        }
         board.PostCount = view.PostCount;
+        AddThreadInfo(board, view, transport.Body(request.Board, StabilityStep.Thread), threadId);
+        if (options.SkipOriginal)
+        {
+            transport.CloseSteps();
+            board.Archive = "thread-only";
+            board.Notes.Add("replay: the thread was parsed and archived; the original step is skipped");
+            return;
+        }
 
         // 4. Original: the first image attachment within the cap, picked from what the production parser stored.
         StabilityRules.OriginalChoice? choice = StabilityRules.ChooseOriginal(view);
@@ -280,11 +362,14 @@ internal static class StabilityRunner
             own.Add(new(request.Board, "original", "original-url-not-allowed", null, StabilityAuditTransport.AuditUrl(choice.Attachment.Url!), error.Code));
             return;
         }
+        waited.Restart();
         MediaWork? work = await WaitForMediaAsync(host, threadUri.AbsoluteUri, choice.Attachment.MediaId!, transport, options.Media);
+        board.MediaWaitedMs = (long)waited.Elapsed.TotalMilliseconds;
         if (transport.StopMode != null) return;
         StabilityDigests? digests = transport.OriginalDigests(request.Board);
         if (digests == null)
         {
+            board.HostView = CaptureHostView(host, threadUri.AbsoluteUri);
             board.Notes.Add("original-not-received");
             own.Add(new(request.Board, "original", "original-not-received", null, StabilityAuditTransport.AuditUrl(choice.Attachment.Url!), work?.Failure));
             return;
@@ -302,6 +387,7 @@ internal static class StabilityRunner
             own.Add(new(request.Board, "original", "no-provider-integrity-data", null, board.Original.Url, "neither a size nor a hash was declared"));
         if (work?.Status != MediaWorkStatus.Succeeded)
         {
+            board.HostView = CaptureHostView(host, threadUri.AbsoluteUri);
             board.Archive = "fail";
             board.Notes.Add("production-did-not-save-the-original: " + (work?.Failure ?? "no result in time"));
             return;
@@ -318,6 +404,149 @@ internal static class StabilityRunner
             own.Add(new(request.Board, "archive", "integrity-exception-in-binding", null, null, "the stored binding is not strict"));
             board.Notes.Add("integrity-exception-in-binding");
         }
+    }
+
+    /// <summary>Requests after a board's watch was removed that no armed step asked for, or that repeat an earlier board's URL.</summary>
+    internal static IReadOnlyList<StabilityRequestRecord> FindLeftovers(IReadOnlyList<StabilityRequestRecord> rows, int afterSequence, ISet<string> priorUrls)
+        => rows.Where(row => row.Sequence > afterSequence && row.Step != "plan" && (row.Step == "none" || priorUrls.Contains(row.Url))).ToList();
+
+    /// <summary>Where the chosen thread stood in the catalog and what the source said about it (sticky, pinned, locked).</summary>
+    private static JsonObject CatalogInfo(IReadOnlyList<SourceThreadReference> threads, string threadId, byte[]? catalogBody)
+    {
+        int index = threads.ToList().FindIndex(row => row.Id.ThreadId == threadId);
+        SourceThreadReference? reference = index < 0 ? null : threads[index];
+        JsonObject? flags = StabilityRules.ThreadFlags(catalogBody, threadId);
+        return new JsonObject
+        {
+            ["catalogPosition"] = index < 0 ? null : index,
+            ["catalogThreads"] = threads.Count,
+            ["catalogCreatedAt"] = reference?.CreatedAt is { } created ? StabilityEvidence.Timestamp(created) : null,
+            ["catalogReplyCount"] = reference?.ReplyCount,
+            ["catalogAttachmentCount"] = reference?.AttachmentCount,
+            ["catalogFlags"] = flags,
+            ["flagsKnown"] = flags != null,
+            ["sticky"] = Sticky(flags)
+        };
+    }
+
+    private static bool? Sticky(JsonObject? flags)
+    {
+        if (flags == null) return null;
+        bool? found = null;
+        foreach (string name in new[] { "sticky", "pinned", "pin" })
+            if (flags[name] is JsonValue value && value.TryGetValue(out bool flag)) found = (found ?? false) | flag;
+        return found;
+    }
+
+    private static void AddThreadInfo(StabilityBoardRun board, ArchivedThreadView view, byte[]? threadBody, string threadId)
+    {
+        JsonObject info = board.ThreadInfo ?? [];
+        JsonObject? flags = StabilityRules.ThreadFlags(threadBody, threadId);
+        info["threadFlags"] = flags;
+        if (flags != null)
+        {
+            info["flagsKnown"] = true;
+            if (Sticky(flags) is { } fromThread) info["sticky"] = (info["sticky"] as JsonValue)?.TryGetValue(out bool earlier) == true ? earlier | fromThread : fromThread;
+        }
+        DateTimeOffset? opened = null;
+        for (int offset = 0; offset < Math.Max(1, view.PostCount) && opened == null; offset += 500)
+            opened = view.GetPosts(offset, 500).Where(post => post.PostedAt.HasValue).OrderBy(post => post.Ordinal).Select(post => post.PostedAt).FirstOrDefault();
+        info["openingPostedAt"] = opened is { } at ? StabilityEvidence.Timestamp(at) : null;
+        info["ageDays"] = opened is { } age ? Math.Round((DateTimeOffset.UtcNow - age).TotalDays, 1) : null;
+        board.ThreadInfo = info;
+    }
+
+    /// <summary>The host's own view of the watched thread and the plugin workers, for a step that did not complete.</summary>
+    private static JsonObject CaptureHostView(DesktopSessionHost host, string threadUrl)
+    {
+        JsonObject result = [];
+        try
+        {
+            DesktopSessionView view = host.GetView();
+            result["state"] = view.State.ToString();
+            result["startupError"] = view.StartupError;
+            result["warnings"] = new JsonArray(view.Warnings.TakeLast(20).Select(text => (JsonNode)Trim(text, 400)).ToArray());
+            JsonArray threads = [];
+            foreach (DesktopThreadEntry entry in view.Threads)
+            {
+                ThreadSnapshot snapshot = entry.Snapshot;
+                ThreadWorkSnapshot? work = snapshot.Work ?? host.GetThreadWorkSnapshots().FirstOrDefault(row => row.Url == snapshot.Url);
+                threads.Add(new JsonObject
+                {
+                    ["url"] = StabilityAuditTransport.AuditUrl(snapshot.Url),
+                    ["isChosenThread"] = snapshot.Url == threadUrl,
+                    ["activity"] = snapshot.Activity.ToString(),
+                    ["sourceState"] = snapshot.SourceState.ToString(),
+                    ["lastCheckFailure"] = snapshot.LastCheckFailure == null ? null : new JsonObject
+                    {
+                        ["kind"] = snapshot.LastCheckFailure.Kind.ToString(), ["message"] = Trim(snapshot.LastCheckFailure.Message, 600),
+                        ["diagnosticCode"] = snapshot.LastCheckFailure.DiagnosticCode, ["httpStatus"] = (int?)snapshot.LastCheckFailure.HttpStatusCode
+                    },
+                    ["requestProgress"] = snapshot.RequestProgress == null ? null : new JsonObject
+                    {
+                        ["phase"] = snapshot.RequestProgress.Phase.ToString(), ["attempt"] = snapshot.RequestProgress.Attempt,
+                        ["delaySeconds"] = snapshot.RequestProgress.Delay?.TotalSeconds
+                    },
+                    ["knownMedia"] = snapshot.KnownMedia,
+                    ["completedMedia"] = snapshot.CompletedMedia,
+                    ["work"] = work == null ? null : new JsonObject
+                    {
+                        ["intent"] = work.Intent.ToString(), ["source"] = work.Source.ToString(), ["capturePending"] = work.CapturePending, ["media"] = work.Media.Count
+                    }
+                });
+            }
+            result["threads"] = threads;
+        }
+        catch (Exception error) when (error is not OperationCanceledException) { result["viewError"] = error.GetType().Name + ": " + Trim(error.Message, 300); }
+        result["workers"] = Workers(host, 30);
+        return result;
+    }
+
+    private static JsonArray Workers(DesktopSessionHost host, int logLines)
+    {
+        JsonArray workers = [];
+        try
+        {
+            foreach (PluginWorkerSnapshot worker in host.Plugins?.Runtime.GetSnapshots() ?? [])
+                workers.Add(new JsonObject
+                {
+                    ["state"] = worker.State, ["processId"] = worker.ProcessId, ["failureCode"] = worker.FailureCode,
+                    ["failureMessage"] = worker.FailureMessage is { } message ? Trim(message, 600) : null,
+                    ["logs"] = new JsonArray(worker.Logs.TakeLast(logLines).Select(line => (JsonNode)Trim(line, 500)).ToArray())
+                });
+        }
+        catch (Exception error) when (error is not OperationCanceledException) { workers.Add(new JsonObject { ["error"] = error.GetType().Name }); }
+        return workers;
+    }
+
+    private static string Trim(string text, int length) => text.Length <= length ? text : text[..length] + "...";
+
+    /// <summary>Full worker log of the phase, written before the host stops. Outside Git, referenced by SHA-256.</summary>
+    private static async Task WriteWorkerLogAsync(DesktopSessionHost host, StabilityRunOptions options, string phase, string sourceId, StabilityChanRun run)
+    {
+        try
+        {
+            string directory = Path.Combine(options.EvidenceDirectory, "logs");
+            Directory.CreateDirectory(directory);
+            string path = Path.Combine(directory, $"workers-{phase}-{sourceId}.json");
+            byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(new { schemaVersion = 1, phase, workers = Workers(host, 400) }, StabilityEvidence.Json);
+            await File.WriteAllBytesAsync(path, bytes);
+            run.Logs.Add(new($"logs/workers-{phase}-{sourceId}.json", Sha256(bytes)));
+        }
+        catch (Exception) { /* diagnostics only */ }
+    }
+
+    /// <summary>Stops the production watch of every thread of this board through the host's own removal path.</summary>
+    private static async Task RemoveWatchesAsync(DesktopSessionHost host, StabilityBoardRun board)
+    {
+        try
+        {
+            DesktopThreadEntry[] entries = host.GetView().Threads.ToArray();
+            foreach (DesktopThreadEntry entry in entries) await host.RemoveThreadAsync(entry.WatchId).WaitAsync(TimeSpan.FromSeconds(20));
+            board.WatchRemoved = entries.Length > 0;
+            if (entries.Length > 0 && host.GetView().Threads.Count != 0) board.Notes.Add("watch-still-listed-after-removal");
+        }
+        catch (Exception error) when (error is not OperationCanceledException) { board.Notes.Add("watch-removal-failed: " + error.GetType().Name); }
     }
 
     private static void Fatal(List<StabilityFailure> own, StabilityBoardRun board, string step, string mode)
@@ -437,12 +666,13 @@ internal static class StabilityRunner
             return;
         }
         StabilityAuditTransport transport = new(new(chan.SourceId, [], []), network: null) { RejectAll = true };
+        StabilityLog log = StabilityLog.Create(options, "offline", chan.SourceId);
         DesktopSessionHost? host = null;
         try
         {
             if (chan.Boards.Any(board => board.Archive == "pass"))
             {
-                host = CreateHost(profile, transport);
+                host = CreateHost(profile, transport, log.Logger);
                 await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(60));
                 if (host.State != DesktopSessionState.Ready) throw new StabilityFatalException("offline-host-not-ready", host.StartupError);
                 offline.HostStartedPaused = host.IsPaused;
@@ -468,8 +698,12 @@ internal static class StabilityRunner
         finally
         {
             if (host != null)
+            {
+                await WriteWorkerLogAsync(host, options, "offline", chan.SourceId, chan);
                 try { await StopAsync(host); }
                 catch (Exception error) { offline.Error ??= "offline-host-stop: " + error.GetType().Name; }
+            }
+            log.Add(chan, options);
             transport.Dispose();
             offline.ProfileDeleted = TryDelete(profile);
         }
@@ -477,12 +711,13 @@ internal static class StabilityRunner
 
     // ---- shared helpers -----------------------------------------------------------------------------------------------
 
-    internal static DesktopSessionHost CreateHost(string profile, StabilityAuditTransport transport) => new(profile, providers: null,
+    internal static DesktopSessionHost CreateHost(string profile, StabilityAuditTransport transport, Serilog.ILogger? logger = null) => new(profile, providers: null,
+        logger: logger,
         updateSessionFactory: (path, config) => new UpdateSession(path, config, new HttpClient(new RejectUpdates()), disableEnvironment: () => "1"),
         pluginTransportFactory: transport.Client);
 
     private static async Task<DesktopSessionHost> StartHostAsync(StabilityChanApproval chan, string profile, StabilityAuditTransport transport,
-        StabilityChanRun run, StabilityRunOptions options)
+        StabilityChanRun run, StabilityRunOptions options, Serilog.ILogger? logger)
     {
         Directory.CreateDirectory(profile);
         new Config
@@ -491,7 +726,7 @@ internal static class StabilityRunner
             AutomaticUpdateChecks = false, MinimizeToTray = false, CloseToTray = false,
             MaxParallelDownloads = 1, RecheckTimer = 3600, MinimumFreeSpaceGiB = 0
         }.SaveConfig(profile);
-        DesktopSessionHost host = CreateHost(profile, transport);
+        DesktopSessionHost host = CreateHost(profile, transport, logger);
         try
         {
             await host.StartAsync().WaitAsync(options.HostStart);

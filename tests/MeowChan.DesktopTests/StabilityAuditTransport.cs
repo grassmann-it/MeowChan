@@ -36,12 +36,14 @@ internal sealed class StabilityAuditTransport : HttpMessageHandler
     internal const int MaximumOriginalBytes = 2 * 1024 * 1024;
     internal const int MaximumMetadataBytes = 8 * 1024 * 1024;
     private static readonly TimeSpan ParkLimit = TimeSpan.FromSeconds(60);
+    // Strong signals only. Ordinary imageboard pages carry a captcha post form and a noscript notice, so words such as
+    // "captcha", "enable javascript" or "are you a robot" are not evidence of a challenge.
     private static readonly string[] ChallengeMarkers =
     [
-        "just a moment", "cf-browser-verification", "challenge-platform", "cf-chl", "attention required",
-        "checking your browser", "ddos-guard", "ddos guard", "powblock", "proof of work", "proof-of-work",
-        "enable javascript", "verify you are human", "are you a robot", "captcha"
+        "cf-browser-verification", "challenge-platform", "cf-chl", "ddos-guard", "powblock", "proof-of-work", "proof of work"
     ];
+    private static readonly System.Text.RegularExpressions.Regex ChallengeTitle = new(
+        @"<title[^>]*>\s*(just a moment|attention required)", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
     private sealed class Armed(StabilityStep step, string? board, string url)
     {
@@ -85,6 +87,12 @@ internal sealed class StabilityAuditTransport : HttpMessageHandler
 
     /// <summary>The offline phase: every request is refused and there is no network client to fall back to.</summary>
     internal bool RejectAll { get; init; }
+    /// <summary>
+    /// Where metadata response bodies (board list, catalog, thread; never media) are saved as &lt;sha256&gt;.body, outside Git.
+    /// A failing response (challenge page, 429) is saved too, so a run can be replayed without network.
+    /// </summary>
+    internal string? BodyDirectory { get; init; }
+    private readonly Dictionary<(string?, StabilityStep), byte[]> _bodies = new();
     internal int ActualNetworkSends => Volatile.Read(ref _sends);
     internal string? StopMode { get { lock (_gate) return _stop; } }
     internal IReadOnlyList<StabilityRequestRecord> Rows { get { lock (_gate) return _rows.ToArray(); } }
@@ -244,6 +252,7 @@ internal sealed class StabilityAuditTransport : HttpMessageHandler
             byte[] bytes = await LiveSourceAuditTransport.ReadBoundedAsync(response.Content, maximum, deadline.Token, count => received += count).ConfigureAwait(false);
             string hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
             (string outcome, string? failureMode, string? detail, string? redirect) = Classify(armed, uri, request, response, status.Value, contentType, bytes);
+            if (armed.Step != StabilityStep.Original) KeepBody(armed, bytes, hash);
             ByteArrayContent buffered = new(bytes);
             foreach (var header in response.Content.Headers) buffered.Headers.TryAddWithoutValidation(header.Key, header.Value);
             HttpContent old = response.Content;
@@ -283,6 +292,22 @@ internal sealed class StabilityAuditTransport : HttpMessageHandler
             throw;
         }
     }
+
+    private void KeepBody(Armed armed, byte[] bytes, string hash)
+    {
+        lock (_gate) _bodies[(armed.Board, armed.Step)] = bytes;
+        if (BodyDirectory == null || bytes.Length == 0) return;
+        try
+        {
+            Directory.CreateDirectory(BodyDirectory);
+            string path = Path.Combine(BodyDirectory, hash + ".body");
+            if (!File.Exists(path)) File.WriteAllBytes(path, bytes);
+        }
+        catch (Exception) { /* a missing diagnostic copy must not change what the run observed */ }
+    }
+
+    /// <summary>The last metadata body of a step, for the harness's own reading of sticky flags and age.</summary>
+    internal byte[]? Body(string? board, StabilityStep step) { lock (_gate) return _bodies.GetValueOrDefault((board, step)); }
 
     private (string Outcome, string? FailureMode, string? Detail, string? Redirect) Classify(Armed armed, Uri requestUri,
         HttpRequestMessage request, HttpResponseMessage response, int status, string? contentType, byte[] body)
@@ -358,7 +383,7 @@ internal sealed class StabilityAuditTransport : HttpMessageHandler
     private static bool LooksLikeChallenge(byte[] body)
     {
         string text = Encoding.UTF8.GetString(body, 0, Math.Min(body.Length, 65536)).ToLowerInvariant();
-        return ChallengeMarkers.Any(text.Contains);
+        return ChallengeMarkers.Any(text.Contains) || ChallengeTitle.IsMatch(text);
     }
 
     private static string StaticAgent(string value) => value.Length == 0 ? "(absent)"

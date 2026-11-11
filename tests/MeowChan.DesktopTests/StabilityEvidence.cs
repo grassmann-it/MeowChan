@@ -41,7 +41,8 @@ internal static class StabilityEvidence
                 ["thread"] = board.ThreadId,
                 ["requests"] = new JsonArray(board.Requests.Where(row => row.Sent).Select(row => (JsonNode)new JsonObject
                 {
-                    ["url"] = row.Url, ["status"] = row.Status, ["bytes"] = row.Bytes, ["step"] = row.Step
+                    ["url"] = row.Url, ["status"] = row.Status, ["bytes"] = row.Bytes, ["step"] = row.Step, ["sha256"] = row.Sha256,
+                    ["bodyFile"] = row.Step != "original" && row.Sha256 != null && row.Bytes > 0 ? "bodies/" + row.Sha256 + ".body" : null
                 }).ToArray()),
                 ["original"] = board.Original == null ? null : new JsonObject
                 {
@@ -68,7 +69,13 @@ internal static class StabilityEvidence
                     ["mediaId"] = board.Original?.MediaId,
                     ["extension"] = board.Original?.Extension,
                     ["productionFailure"] = board.Original?.ProductionFailure,
-                    ["notes"] = new JsonArray(board.Notes.Select(value => (JsonNode)value).ToArray())
+                    ["notes"] = new JsonArray(board.Notes.Select(value => (JsonNode)value).ToArray()),
+                    ["captureWaitedMs"] = board.CaptureWaitedMs,
+                    ["captureLimitMs"] = board.CaptureLimitMs,
+                    ["mediaWaitedMs"] = board.MediaWaitedMs,
+                    ["watchRemoved"] = board.WatchRemoved,
+                    ["thread"] = board.ThreadInfo?.DeepClone(),
+                    ["hostView"] = board.HostView?.DeepClone()
                 }
             });
         JsonArray failures = new(chan.Failures.Select(row => (JsonNode)new JsonObject
@@ -77,6 +84,7 @@ internal static class StabilityEvidence
         }).ToArray());
         JsonArray receipts = [];
         if (chan.ReceiptFile != null) receipts.Add(new JsonObject { ["path"] = chan.ReceiptFile, ["sha256"] = chan.ReceiptSha256 });
+        foreach (StabilityFileRef log in chan.Logs) receipts.Add(new JsonObject { ["path"] = log.Path, ["sha256"] = log.Sha256 });
         DateTimeOffset start = chan.WindowStart ?? phase.StartedUtc, end = chan.WindowEnd ?? phase.FinishedUtc;
         return new JsonObject
         {

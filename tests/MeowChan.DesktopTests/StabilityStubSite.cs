@@ -70,11 +70,11 @@ internal sealed class StabilityStubSite : HttpMessageHandler
     }
 
     private static string LainchanCatalog() =>
-        """[{"page":1,"threads":[{"no":100,"sub":"No image","com":"<p>text</p>","replies":0,"images":0},{"no":123,"sub":"Fixture catalog","com":"<p>Opening</p>","replies":1,"images":2}]}]""";
+        """[{"page":1,"threads":[{"no":100,"sub":"No image","com":"<p>text</p>","replies":0,"images":0},{"no":123,"sub":"Fixture catalog","com":"<p>Opening</p>","replies":1,"images":2,"sticky":1}]}]""";
 
     private string LainchanThread(string board) => JsonSerializer.Serialize(new { posts = new object[]
     {
-        new { no = 123, resto = 0, sub = "Stability stub", com = "<p>Synthetic opening</p>", time = 1700000000,
+        new { no = 123, resto = 0, sticky = 1, sub = "Stability stub", com = "<p>Synthetic opening</p>", time = 1700000000,
             tim = board + "-1000-0", ext = ".png", filename = "landscape", fsize = _originals[Original("lainchan.org", board, 0)].Length,
             md5 = Convert.ToBase64String(MD5.HashData(_originals[Original("lainchan.org", board, 0)])),
             extra_files = new[] { new { tim = board + "-1000-1", ext = ".png", filename = "portrait",
@@ -84,7 +84,7 @@ internal sealed class StabilityStubSite : HttpMessageHandler
     } });
 
     private static string LynxCatalog() =>
-        """[{"threadId":123,"subject":"Fixture catalog","markdown":"<p>Opening</p>","postCount":1,"fileCount":2,"page":1},{"threadId":99,"subject":"No files","markdown":"text","postCount":1,"fileCount":0,"page":1}]""";
+        """[{"threadId":123,"subject":"Fixture catalog","markdown":"<p>Opening</p>","postCount":1,"fileCount":2,"pinned":false,"page":1},{"threadId":99,"subject":"No files","markdown":"text","postCount":1,"fileCount":0,"page":1}]""";
 
     private string LynxThread(string host, string board) => JsonSerializer.Serialize(new
     {

@@ -11,6 +11,11 @@ network blocked (bubblewrap --unshare-net), and write one evidence file per chan
   dry run:  run-stability-live.py --manifest run.json
   live:     run-stability-live.py --manifest run.json --live
   self test (stub site, no network, two real processes): run-stability-live.py --selftest
+  replay:   run-stability-live.py --replay artifacts/stability/<run> --only 2ch [--board mu]
+
+A replay feeds the metadata bodies that an earlier run saved (evidence/bodies/<sha256>.body, referenced by the rows of
+evidence/audit-<chan>.json) through the production host and parser, in a process without network, to reproduce a failure.
+Every run also keeps the host and worker logs (evidence/logs) and, per failure, the host's view of the thread.
 
 The manifest names every approved chan, its boards and optional redirects; see docs/plugins/source-stability-harness.md.
 Profiles and downloaded media live in <run>/work and are deleted at the end, also after a failure.
@@ -124,6 +129,12 @@ def phase_environment(args, mode: str, manifest: Path, work: Path, evidence: Pat
         env[PREFIX + 'ONLY'] = args.only
     if report is not None:
         env[PREFIX + 'PACKAGE_REPORT'] = str(report)
+    if getattr(args, 'capture_seconds', None):
+        env[PREFIX + 'CAPTURE_SECONDS'] = str(args.capture_seconds)
+    if mode == 'replay':
+        env[PREFIX + 'REPLAY_DIR'] = str(args.replay_evidence)
+        if args.board:
+            env[PREFIX + 'REPLAY_BOARD'] = args.board
     if mode == 'online':
         if args.selftest:
             env[PREFIX + 'NETWORK'] = 'stub'
@@ -157,9 +168,10 @@ def check_trx(path: Path) -> None:
 
 
 def run_phase(args, mode: str, manifest: Path, work: Path, evidence: Path, contract: str, report: Path | None, log: Path) -> None:
-    block = mode == 'offline' and args.net_block != 'off' and args.bwrap is not None
-    if mode == 'offline' and args.net_block == 'require' and args.bwrap is None:
-        raise DriverError('The offline phase must run with the network blocked, but bwrap is not available', EXIT_USAGE)
+    blocked_mode = mode in ('offline', 'replay')
+    block = blocked_mode and args.net_block != 'off' and args.bwrap is not None
+    if blocked_mode and args.net_block == 'require' and args.bwrap is None:
+        raise DriverError(f'The {mode} phase must run with the network blocked, but bwrap is not available', EXIT_USAGE)
     trx_dir = evidence / 'trx'
     trx_dir.mkdir(parents=True, exist_ok=True)
     command = phase_command(args, mode, trx_dir, block)
@@ -247,6 +259,9 @@ def summarize(evidence: Path) -> tuple[list[dict], int]:
 def parse_args(argv):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--manifest', type=Path, help='Approved chans, boards and redirects (JSON)')
+    parser.add_argument('--replay', type=Path, metavar='RUN_DIR', help='Reproduce one chan of an earlier run from its saved metadata bodies; no network')
+    parser.add_argument('--board', help='With --replay: replay only this board')
+    parser.add_argument('--capture-seconds', type=int, help='How long to wait for a fetched thread to reach the archive (10 to 900, default 120)')
     parser.add_argument('--live', action='store_true', help='Send the planned requests. Without it the run is a dry run.')
     parser.add_argument('--selftest', action='store_true', help='Run both phases against the in-memory stub site; no network')
     parser.add_argument('--only', help='Comma-separated source IDs; can only narrow the manifest')
@@ -265,7 +280,13 @@ def parse_args(argv):
     args = parser.parse_args(argv)
     if args.live and args.selftest:
         parser.error('--live and --selftest are exclusive')
-    if not args.selftest and args.manifest is None:
+    if args.replay and (args.live or args.selftest):
+        parser.error('--replay sends nothing and excludes --live and --selftest')
+    if args.board and not args.replay:
+        parser.error('--board needs --replay')
+    if args.capture_seconds is not None and not 10 <= args.capture_seconds <= 900:
+        parser.error('--capture-seconds must be from 10 to 900')
+    if not args.selftest and not args.replay and args.manifest is None:
         parser.error('--manifest is required')
     if args.test_assembly is None:
         args.test_assembly = REPOSITORY / 'tests' / 'MeowChan.DesktopTests' / 'bin' / args.configuration / 'net10.0' / 'MeowChan.DesktopTests.dll'
@@ -284,8 +305,59 @@ def parse_args(argv):
     return args
 
 
+def replay(args) -> int:
+    """Runs the saved metadata of one chan through the production host in a process without network and prints what it saw."""
+    run_dir = args.replay.resolve()
+    source = run_dir / 'evidence' if (run_dir / 'evidence').is_dir() else run_dir
+    manifest_path = source / 'manifest.json'
+    if not manifest_path.is_file():
+        raise DriverError(f'{source} holds no manifest.json; it is not the evidence directory of a run', EXIT_USAGE)
+    chosen = select_only(load_manifest(manifest_path), args.only)
+    if len(chosen) != 1 or args.only is None:
+        raise DriverError('--replay needs --only with exactly one chan', EXIT_USAGE)
+    if not (source / f'audit-{chosen[0]}.json').is_file():
+        raise DriverError(f'{source} has no audit-{chosen[0]}.json', EXIT_USAGE)
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+    out = run_dir / f'replay-{stamp}'
+    evidence, work = out / 'evidence', out / 'work'
+    args.replay_evidence = source
+    try:
+        evidence.mkdir(parents=True, exist_ok=False)
+        work.mkdir()
+        report = verify_package(args, evidence)
+        run_phase(args, 'replay', manifest_path, work, evidence, '-', report, evidence / 'driver-phases.log')
+        document = json.loads((evidence / 'replay.json').read_text(encoding='utf-8'))
+        print(f"replay of {document['sourceId']} from {source}: {document['savedResponses']} saved responses, "
+              f"{len(document['requests'])} replayed requests, no network")
+        for row in document['missing']:
+            print('  not saved: ' + row)
+        for board in document['boards']:
+            print(f"  board {board['board']}: thread {board['threadId']} archive={board['archive']} posts={board['postCount']} "
+                  f"waited {board['captureWaitedMs']} ms of {board['captureLimitMs']} ms")
+            for thread in (board.get('hostView') or {}).get('threads', []):
+                print(f"    host: activity={thread['activity']} source={thread['sourceState']} lastCheckFailure={thread['lastCheckFailure']}")
+            for worker in (board.get('hostView') or {}).get('workers', []):
+                print(f"    worker: {worker['state']} {worker['failureCode']} {worker['failureMessage']}")
+        for failure in document['failures']:
+            print(f"  failure: {failure['board']}/{failure['step']}: {failure['mode']} {failure.get('detail') or ''}")
+        print('  fatal: ' + str(document['fatal']))
+        print('Replay output (outside Git):', out)
+        return EXIT_FAIL if document['failures'] or document['fatal'] else 0
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
 def main(argv=None) -> int:
     args = parse_args(argv)
+    if args.replay:
+        try:
+            return replay(args)
+        except DriverError as error:
+            print('ERROR: ' + str(error), file=sys.stderr)
+            return error.code
+        except subprocess.TimeoutExpired as error:
+            print('ERROR: a phase exceeded its timeout: ' + str(error), file=sys.stderr)
+            return EXIT_INFRA
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
     run_dir = args.artifacts_dir / ('stability-' + stamp + ('-selftest' if args.selftest else ''))
     evidence, work = run_dir / 'evidence', run_dir / 'work'
@@ -333,7 +405,12 @@ def main(argv=None) -> int:
             print(f"{row['sourceId']}: {row['outcome']}  {row['requests']} requests  {row['file']}"
                   + ('  failures: ' + '; '.join(row['failures']) if row['failures'] else '')
                   + ('  PROBLEMS: ' + '; '.join(row['problems']) if row['problems'] else ''))
-        print('Raw HTTP audits (outside Git):', evidence)
+        print('Raw HTTP audits and saved metadata bodies (outside Git):', evidence)
+        if args.selftest:
+            # The self test also proves the replay path: the saved bodies of the first chan go through the host again without network.
+            again = argparse.Namespace(**vars(args))
+            again.replay, again.only, again.board = run_dir, source_ids(manifest)[0], 'demo'
+            code = max(code, replay(again))
         return code
     except DriverError as error:
         print('ERROR: ' + str(error), file=sys.stderr)

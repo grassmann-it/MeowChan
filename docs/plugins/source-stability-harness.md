@@ -20,6 +20,14 @@ media file and every redirect that is not in `plannedRedirects` are refused befo
 recorded. The first unexpected response (challenge page, login, 4xx/5xx, wrong content type, empty
 body, size cap) stops that chan and is recorded in `failuresObserved`.
 
+A 200 page counts as a challenge only on strong signals: `cf-chl`, `challenge-platform`,
+`cf-browser-verification`, `ddos-guard`, `powblock`, `proof-of-work`, or a `<title>` of
+"Just a moment..." / "Attention Required". Words such as "captcha" or "enable JavaScript" appear on
+ordinary imageboard pages (post form, noscript notice) and do not stop a run. HTML catalogs (7chan) are
+accepted as HTML. After a board is done, its production thread watch is removed through the host and
+any later request that no armed step asked for, or that repeats the board's URLs, is a failure
+(`leftover-watch-request`).
+
 Integrity is strict and no exception is ever granted: expected vs received bytes, every provider
 hash and the SHA-256 of the received bytes are recorded; a mismatch is an integrity failure and the
 outcome is `fail`. A source that declares neither a size nor a hash cannot pass.
@@ -33,6 +41,22 @@ The plugin bundle is the delivered one from the test output (`plugins/*.plugin.j
 the package file name and SHA-256, the assembly SHA-256, the execution revision and the description
 fingerprint (`SourceWording.DescriptionFingerprint`) are in the evidence. `expectedAssemblySha256`
 in the manifest ends the chan before any request if the delivered assembly differs.
+
+## Diagnostics (outside Git)
+
+Under `artifacts/stability/<run>/evidence/`, referenced by SHA-256 from the evidence file's `receipts`
+and request entries:
+
+- `bodies/<sha256>.body`: every metadata response (board list, catalog, thread, also a failing one). Never media.
+- `logs/<phase>-<chan>.log`: the host's Serilog events; `logs/workers-<phase>-<chan>.json`: plugin worker state and log lines.
+- `audit-<chan>.json`: every request row (sent or refused) with status, bytes, SHA-256 and response headers.
+- Per board in the evidence `details`: `captureWaitedMs` / `captureLimitMs` (default wait 120 s, `--capture-seconds`),
+  `thread` (catalog position, sticky/pinned/locked flags as delivered, opening post time, age in days) and, when a step did not
+  complete, `hostView` (thread activity, last check failure, request progress, work state, worker state and log tail).
+
+`--replay <run-dir> --only <chan> [--board <b>]` serves the saved bodies of that run to the production host and parser in a
+process with no network (`bwrap --unshare-net`) and stops after the thread is archived. It prints the host's view and exits 1
+if the failure reproduces. Runs made before bodies were saved cannot be replayed.
 
 ## Manifest
 
@@ -85,6 +109,6 @@ file is never overwritten). The raw HTTP audits and the phase logs stay in
 ## Test entry
 
 `StabilityRunLiveTests.RunTheRequestedPhase` is skipped unless `MEOWCHAN_STABILITY_RUN_MANIFEST`
-is set. The driver sets `..._MODE` (plan, online, offline), `..._EVIDENCE`, `..._WORK`, `..._ONLY`
+is set. The driver sets `..._MODE` (plan, online, offline, replay), `..._EVIDENCE`, `..._WORK`, `..._ONLY`
 and, for the online phase of `--live` only, `..._NETWORK=live` plus `..._LIVE=1`. The older
 `LiveSourceAcceptanceTests` are unchanged.

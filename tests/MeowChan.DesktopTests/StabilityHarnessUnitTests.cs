@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace MeowChan.DesktopTests;
 
@@ -205,7 +206,9 @@ public sealed class StabilityHarnessUnitTests
     [Theory]
     [InlineData(200, "text/html", "<html><title>Just a moment...</title><div id=\"cf-chl-widget\"></div></html>", "challenge-page")]
     [InlineData(200, "text/html", "<!doctype html><title>DDoS-Guard</title>", "challenge-page")]
-    [InlineData(200, "text/html", "<html>Please solve this captcha</html>", "challenge-page")]
+    [InlineData(200, "text/html", "<html><head><TITLE>Attention Required! | Cloudflare</TITLE></head></html>", "challenge-page")]
+    [InlineData(200, "text/html", "<html><script src=\"/cdn-cgi/challenge-platform/h/b/orchestrate/chl_page/v1\"></script></html>", "challenge-page")]
+    [InlineData(200, "text/html", "<html><body><div id=\"powblock\">Solve the proof-of-work to continue</div></body></html>", "challenge-page")]
     [InlineData(429, "text/plain", "slow down", "http-429")]
     [InlineData(503, "text/html", "<html>busy</html>", "http-503")]
     [InlineData(403, "text/html", "no", "http-403")]
@@ -227,6 +230,116 @@ public sealed class StabilityHarnessUnitTests
         if (status == 429) Assert.Contains("retry-after", failure.Detail);
         Assert.Equal("chan-stopped:" + mode, await Refusal(client.GetAsync(Catalog)));
         Assert.Equal(1, network.Calls);
+    }
+
+    [Fact]
+    public async Task AnOrdinaryHtmlCatalogWithACaptchaFormAndANoscriptNoticePasses()
+    {
+        // 7chan-style: the catalog is HTML by contract and every ordinary page carries a captcha post form and a noscript notice.
+        string page = "<!doctype html><html><head><title>/x/ - Catalog</title></head><body><noscript>Please enable JavaScript to use all features. "
+            + "Are you a robot? No, you are not required to be.</noscript><form action=\"/post.php\"><label>Captcha</label><img src=\"/captcha.php\">"
+            + "<input name=\"captcha_response\"></form><div id=\"catalog\">" + new string('x', 83 * 1024) + "</div></body></html>";
+        var (transport, network, client) = Build(_ => Reply(Encoding.UTF8.GetBytes(page), "text/html"));
+        const string HtmlCatalog = "https://lainchan.org/x/catalog.html";
+        transport.Arm(StabilityStep.Catalog, "x", HtmlCatalog);
+        using HttpResponseMessage response = await client.GetAsync(HtmlCatalog);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(transport.StopMode);
+        Assert.Empty(transport.Failures);
+        Assert.Equal(page.Length, (await response.Content.ReadAsStringAsync()).Length);
+        Assert.Equal(1, network.Calls);
+    }
+
+    [Fact]
+    public async Task MetadataBodiesAreSavedByHashOutsideGitIncludingAFailingOneButNeverTheOriginal()
+    {
+        string directory = Path.Combine(AppContext.BaseDirectory, "stability-bodies-" + Guid.NewGuid().ToString("N")[..8]);
+        try
+        {
+            byte[] challenge = Encoding.UTF8.GetBytes("<html><title>Just a moment...</title></html>");
+            Scripted network = new(request => request.RequestUri!.AbsolutePath.EndsWith(".png") ? Reply([137, 80, 78, 71, 1], "image/png")
+                : request.RequestUri.AbsolutePath.EndsWith("catalog.json") ? Json("[1]") : Reply(challenge, "text/html"));
+            using StabilityAuditTransport transport = new(Policy, new HttpClient(network, disposeHandler: false)) { BodyDirectory = directory };
+            using HttpClient client = transport.Client();
+            transport.Arm(StabilityStep.Catalog, "sec", Catalog);
+            using (await client.GetAsync(Catalog)) { }
+            transport.Arm(StabilityStep.Thread, "sec", Thread);
+            using (await client.GetAsync(Thread)) { }
+            Assert.Equal("challenge-page", transport.StopMode);
+            string[] files = Directory.GetFiles(directory).Select(Path.GetFileName).Order().ToArray()!;
+            Assert.Equal(2, files.Length);
+            foreach (StabilityRequestRecord row in transport.Rows.Where(row => row.Sent))
+                Assert.Contains(row.Sha256 + ".body", files);
+            Assert.Equal(Convert.ToHexString(SHA256.HashData(challenge)).ToLowerInvariant() + ".body", files.Single(name => name != transport.Rows[0].Sha256 + ".body"));
+            Assert.Equal("[1]", Encoding.UTF8.GetString(transport.Body("sec", StabilityStep.Catalog)!));
+
+            string other = directory + "-original";
+            using StabilityAuditTransport media = new(Policy, new HttpClient(new Scripted(_ => Reply([137, 80, 78, 71, 1], "image/png")), disposeHandler: false)) { BodyDirectory = other };
+            media.Arm(StabilityStep.Original, "sec", Media);
+            using (await media.Client().GetAsync(Media)) { }
+            Assert.False(Directory.Exists(other), "media bytes are never written");
+        }
+        finally { try { Directory.Delete(directory, true); } catch (IOException) { } }
+    }
+
+    [Fact]
+    public void LeftoverRequestsAfterAWatchWasRemovedAreFound()
+    {
+        StabilityRequestRecord Row(int sequence, string step, string url) => new(sequence, "b", step, url, null, 0, null, null, "refused", false, DateTimeOffset.UtcNow);
+        HashSet<string> prior = ["https://x.example/a/res/1.json"];
+        StabilityRequestRecord[] rows =
+        [
+            Row(1, "thread", "https://x.example/a/res/1.json"), Row(2, "none", "https://x.example/other"), Row(3, "plan", "https://x.example/p"),
+            Row(4, "catalog", "https://x.example/b/catalog.json"), Row(5, "thread", "https://x.example/a/res/1.json")
+        ];
+        Assert.Equal([2, 5], StabilityRunner.FindLeftovers(rows, 1, prior).Select(row => row.Sequence));
+        Assert.Empty(StabilityRunner.FindLeftovers(rows, 5, prior));
+    }
+
+    [Fact]
+    public void ThreadFlagsAreReadFromCatalogAndThreadBodiesAndAreUnknownForHtml()
+    {
+        static JsonObject? Flags(string text, string id) => StabilityRules.ThreadFlags(Encoding.UTF8.GetBytes(text), id);
+        Assert.True((bool)Flags("""[{"page":1,"threads":[{"no":7,"sticky":1,"locked":0},{"no":8,"sticky":0}]}]""", "7")!["sticky"]!);
+        Assert.False((bool)Flags("""[{"page":1,"threads":[{"no":7,"sticky":1},{"no":8,"sticky":0}]}]""", "8")!["sticky"]!);
+        Assert.True((bool)Flags("""[{"threadId":55,"pinned":true,"locked":false}]""", "55")!["pinned"]!);
+        Assert.True((bool)Flags("""{"threads":[{"posts":[{"num":"9","sticky":1,"closed":0}]}]}""", "9")!["sticky"]!);
+        Assert.Empty(Flags("""[{"no":3}]""", "3")!);
+        Assert.Null(Flags("""[{"no":3}]""", "4"));
+        Assert.Null(Flags("<html><body>catalog</body></html>", "3"));
+        Assert.Null(StabilityRules.ThreadFlags(null, "3"));
+    }
+
+    [Fact]
+    public async Task TheReplayHandlerServesOnlySavedMetadataByUrlAndFailsOnEverythingElse()
+    {
+        string directory = Path.Combine(AppContext.BaseDirectory, "stability-replay-" + Guid.NewGuid().ToString("N")[..8]);
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(directory, "bodies"));
+            byte[] body = Encoding.UTF8.GetBytes("""[{"no":1}]""");
+            string hash = Convert.ToHexString(SHA256.HashData(body)).ToLowerInvariant();
+            File.WriteAllBytes(Path.Combine(directory, "bodies", hash + ".body"), body);
+            File.WriteAllText(Path.Combine(directory, "audit-lainchan.json"), JsonSerializer.Serialize(new
+            {
+                rows = new object[]
+                {
+                    new { sequence = 1, step = "catalog", url = Catalog, status = 200, bytes = body.Length, sha256 = hash, contentType = "application/json", sent = true },
+                    new { sequence = 2, step = "thread", url = Thread, status = 200, bytes = 5, sha256 = new string('a', 64), contentType = "application/json", sent = true },
+                    new { sequence = 3, step = "original", url = Media, status = 200, bytes = 5, sha256 = hash, contentType = "image/png", sent = true },
+                    new { sequence = 4, step = "none", url = "https://lainchan.org/zzz", status = (int?)null, bytes = 0, sha256 = (string?)null, contentType = (string?)null, sent = false }
+                }
+            }));
+            StabilityReplayHandler handler = StabilityReplayHandler.Load(directory, "lainchan");
+            Assert.Equal(1, handler.Saved);
+            Assert.Single(handler.Missing);
+            using HttpClient client = handler.Client();
+            Assert.Equal("""[{"no":1}]""", await client.GetStringAsync(Catalog));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => client.GetStringAsync(Thread));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => client.GetStringAsync(Media));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => client.GetStringAsync("https://kohlchan.net/"));
+        }
+        finally { try { Directory.Delete(directory, true); } catch (IOException) { } }
     }
 
     [Fact]

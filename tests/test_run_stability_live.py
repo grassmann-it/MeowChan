@@ -25,7 +25,9 @@ log = Path(os.environ['FAKE_DOTNET_LOG'])
 with log.open('a') as out:
     out.write(json.dumps({'mode': mode, 'args': sys.argv[1:], 'network': os.environ.get(P + 'NETWORK'),
                           'live': os.environ.get(P + 'LIVE'), 'wayland': os.environ.get('WAYLAND_DISPLAY'),
-                          'only': os.environ.get(P + 'ONLY'), 'pid': os.getpid()}) + '\n')
+                          'only': os.environ.get(P + 'ONLY'), 'pid': os.getpid(), 'replay_dir': os.environ.get(P + 'REPLAY_DIR'),
+                          'replay_board': os.environ.get(P + 'REPLAY_BOARD'), 'capture': os.environ.get(P + 'CAPTURE_SECONDS'),
+                          'unshare_net': '--unshare-net' in sys.argv}) + '\n')
 evidence = Path(os.environ[P + 'EVIDENCE']); work = Path(os.environ[P + 'WORK'])
 results = Path(next(a for a in sys.argv if a.startswith('/ResultsDirectory:')).split(':', 1)[1])
 logger = next(a for a in sys.argv if a.startswith('/Logger:'))
@@ -41,6 +43,11 @@ if mode == 'plan':
     (evidence / 'plan.txt').write_text('lainchan\n  GET https://lainchan.org/sec/catalog.json\nDry run: no request was sent.\n')
 elif mode == 'online':
     (evidence / 'phase1.json').write_text('{}')
+elif mode == 'replay':
+    failures = [{'board': 'sec', 'step': 'thread', 'mode': 'thread-not-archived-in-time', 'detail': None}] if os.environ.get('FAKE_REPLAY_FAIL') else []
+    (evidence / 'replay.json').write_text(json.dumps({'sourceId': 'lainchan', 'savedResponses': 2, 'missing': [], 'requests': ['GET a', 'GET b'],
+        'fatal': None, 'failures': failures, 'boards': [{'board': 'sec', 'threadId': '1', 'archive': 'thread-only', 'postCount': 2,
+        'captureWaitedMs': 10, 'captureLimitMs': 120000, 'hostView': None}]}))
 else:
     repo = Path(os.environ[P + 'REPO'])
     target = repo / 'plugins/Examples/Lainchan/Evidence/stability-20261111.json'
@@ -213,6 +220,52 @@ class DriverTests(unittest.TestCase):
         with self.assertRaises(DRIVER.DriverError):
             DRIVER.phase_environment(args, 'online', self.manifest, self.root, self.root, 'c', None)
         self.assertNotIn('MEOWCHAN_STABILITY_RUN_LIVE', DRIVER.phase_environment(args, 'plan', self.manifest, self.root, self.root, 'c', None))
+
+    def make_run_dir(self):
+        run = self.root / 'old-run'
+        (run / 'evidence').mkdir(parents=True)
+        (run / 'evidence' / 'manifest.json').write_text(self.manifest.read_text())
+        (run / 'evidence' / 'audit-lainchan.json').write_text('{"rows": []}')
+        return run
+
+    def test_replay_runs_only_the_replay_phase_without_any_network_switch(self):
+        run = self.make_run_dir()
+        code, out, err = self.run_driver('--replay', str(run), '--only', 'lainchan', '--board', 'sec', '--capture-seconds', '30', manifest=False)
+        self.assertEqual(0, code, err + out)
+        calls = self.calls()
+        self.assertEqual(['replay'], [call['mode'] for call in calls])
+        call = calls[0]
+        self.assertEqual((None, None), (call['network'], call['live']))
+        self.assertEqual(str(run / 'evidence'), call['replay_dir'])
+        self.assertEqual(('sec', '30', 'lainchan'), (call['replay_board'], call['capture'], call['only']))
+        self.assertIn('2 saved responses', out)
+        self.assertFalse(list(run.rglob('work')))
+        self.assertFalse(list((self.repo / 'plugins').rglob('*.json')), 'a replay never writes an evidence file')
+
+    def test_replay_blocks_the_network_when_bwrap_is_used(self):
+        args = DRIVER.argparse.Namespace(xvfb=None, bwrap='/usr/bin/bwrap', dotnet='dotnet', test_assembly=self.assembly)
+        self.assertIn('--unshare-net', DRIVER.phase_command(args, 'replay', self.root, True))
+
+    def test_replay_that_reproduces_a_failure_exits_one(self):
+        os.environ['FAKE_REPLAY_FAIL'] = '1'
+        self.addCleanup(os.environ.pop, 'FAKE_REPLAY_FAIL', None)
+        code, out, _ = self.run_driver('--replay', str(self.make_run_dir()), '--only', 'lainchan', manifest=False)
+        self.assertEqual(DRIVER.EXIT_FAIL, code)
+        self.assertIn('thread-not-archived-in-time', out)
+
+    def test_replay_needs_one_chan_a_run_directory_and_excludes_live(self):
+        run = self.make_run_dir()
+        self.assertEqual(DRIVER.EXIT_USAGE, self.run_driver('--replay', str(run), manifest=False)[0])
+        self.assertEqual(DRIVER.EXIT_USAGE, self.run_driver('--replay', str(run), '--only', 'lainchan,kohlchan', manifest=False)[0])
+        self.assertEqual(DRIVER.EXIT_USAGE, self.run_driver('--replay', str(self.root / 'missing'), '--only', 'lainchan', manifest=False)[0])
+        self.assertEqual(2, self.run_driver('--replay', str(run), '--only', 'lainchan', '--live', manifest=False)[0])
+        self.assertEqual(2, self.run_driver('--board', 'sec')[0])
+        self.assertEqual(2, self.run_driver('--capture-seconds', '5')[0])
+        self.assertEqual([], self.calls())
+
+    def test_capture_seconds_reach_the_online_phase(self):
+        self.assertEqual(0, self.run_driver('--live', '--capture-seconds', '240')[0])
+        self.assertEqual({'240'}, {call['capture'] for call in self.calls()})
 
     def test_validate_evidence_accepts_the_contract_shape(self):
         self.assertEqual([], DRIVER.validate_evidence(valid_evidence()))
