@@ -2083,6 +2083,13 @@
     "media.filter.kind.gif": "GIF",
     "media.filter.kind.video": "Видео",
     "media.filter.kind.other": "Другие файлы",
+    "media.filter.sound": "Звук",
+    "media.filter.anySound": "Звук: любой",
+    "media.filter.sound.with": "Со звуком",
+    "media.filter.sound.without": "Без звука",
+    "media.filter.sound.hint": "Только видео. Наличие звука определяется по заголовкам файла. Непроверенные видео не показываются.",
+    "media.audio.probing": "Проверка звука: {0} из {1}",
+    "media.audio.unknown": "Непроверенные видео: {0} (здесь не показаны)",
     "media.filter.source": "Источник",
     "media.filter.anySource": "Все источники",
     "media.filter.board": "Доска",
@@ -2153,6 +2160,15 @@
     "media.state.ratingValue": "{0} из 5",
     "media.state.noTags": "нет",
     "media.state.notTaggable": "для этого файла невозможно",
-    "media.state.tagCount": "тегов: {0}"
+    "media.state.tagCount": "тегов: {0}",
+    "media.exportAll": "Экспортировать все найденные…",
+    "media.exportAll.hint": "Скопировать оригиналы всех показанных сейчас плиток, по одному на плитку",
+    "media.exportAll.reason.none": "Плитки не показаны, поэтому экспортировать нечего.",
+    "media.exportAll.reason.probing": "Звук ещё проверяется, поэтому результаты ещё могут измениться.",
+    "media.exportAll.scope": "Все найденные",
+    "media.exportAll.preparing": "Подготовка {0} плиток к экспорту…",
+    "media.exportAll.confirm": "Будет скопировано оригиналов: {0} ({1}). Это может занять время. Экспортировать все?",
+    "media.exportAll.confirm.yes": "Всё равно экспортировать",
+    "media.exportAll.confirm.no": "Отмена"
   }
 }
