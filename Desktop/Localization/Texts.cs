@@ -27,6 +27,9 @@ public static class Texts
         IReadOnlyList<LanguageInfo> Languages, IReadOnlyList<string> Warnings, string Language);
 
     private const int MaximumPackBytes = 2_000_000;
+    // Defensive bound for any pack, bundled or user-supplied. The built-in catalog passed 1,950 keys in
+    // 1.0.3, so the former 2,000 would have rejected the bundled packs; file size stays bounded above.
+    private const int MaximumPackKeys = 4000;
     private static readonly object Gate = new object();
     private static State _state = CreateBuiltIns();
 
@@ -241,7 +244,7 @@ public static class Texts
         {
             if (!keys.Add(entry.Name))
                 throw new InvalidDataException("Duplicate translation: " + entry.Name);
-            if (keys.Count > 2000 || entry.Name.Length > 200)
+            if (keys.Count > MaximumPackKeys || entry.Name.Length > 200)
                 throw new InvalidDataException("Too many or excessively long translation keys.");
             if (entry.Value.ValueKind != JsonValueKind.String)
                 throw new InvalidDataException("Translation must be plain text: " + entry.Name);

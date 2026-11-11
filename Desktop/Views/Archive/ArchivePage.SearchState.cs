@@ -35,7 +35,7 @@ public partial class ArchivePage
         if (_busy || _ended || !CanRead) return false;
         try
         {
-            ArchiveSearchRequest request = ArchiveSearchRequest.Create(spec);
+            ArchiveSearchRequest request = CreateSearchRequest(spec);
             long revision = _draftRevision;
             // Publish no definition/draft on failure or after the dialog closes.
             return await LoadListAsync(NewListLoad(request, afterCommit: () =>
@@ -70,7 +70,7 @@ public partial class ArchivePage
             field == "state" ? spec.SourceStates.Where(item => item.ToString() != value) : spec.SourceStates,
             field == "capture" ? null : spec.CaptureEnabled, field == "posts" ? null : spec.HasPosts,
             spec.Sort, field == "work" ? MeowChan.Archive.ArchiveWorkFilter.All : spec.WorkFilter,
-            field == "date" ? null : spec.DateRange);
+            field == "date" ? null : spec.DateRange).WithTags(CopyTagFilter(spec.Tags, field, value));
     private static string BoardKey(ArchiveBoardConstraint board) =>
         (board.Source == null ? "*" : board.Source.Length + ":" + board.Source) + "/" + board.Board;
 }

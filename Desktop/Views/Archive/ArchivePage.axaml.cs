@@ -179,7 +179,13 @@ public partial class ArchivePage : UserControl
     {
         InvalidateFilenameSearch();
         if (_ended || !CanRead || _openReader == null || _busy || applicationToken.IsCancellationRequested) return false;
-        pending ??= NewListLoad(_appliedSearch ?? ArchiveSearchRequest.Create(new ArchiveSearchSpec()), _listOffset);
+        if (pending == null)
+        {
+            // A plain refresh re-reads tag membership, as it re-reads work status. If a filtered tag is
+            // gone, refuse visibly and keep the shown result instead of widening it.
+            try { pending = NewListLoad(RefreshTagMembership(_appliedSearch ?? ArchiveSearchRequest.Create(new ArchiveSearchSpec())), _listOffset); }
+            catch (InvalidOperationException exception) { ShowTagFilterError(exception.Message); return false; }
+        }
         // Work filters need the runtime. Without it every thread would be excluded and read as "0 results";
         // refuse locally instead, keeping the draft and the current result untouched.
         if (!_available && pending.Request.Spec.WorkFilter != MeowChan.Archive.ArchiveWorkFilter.All)
@@ -255,6 +261,7 @@ public partial class ArchivePage : UserControl
                 _listLoaded = true; _listReadWithoutRuntime = !_available;
                 _archiveMediaCountDatabasePath = reader.DatabasePath;
                 pending.AfterCommit?.Invoke();
+                ClearTagFilterError();
                 UpdateAppliedFilters(); UpdateArchiveEmptyState();
                 committed = true;
             }
@@ -551,6 +558,7 @@ public partial class ArchivePage : UserControl
         UpdateMediaRatingAction();
         UpdateThreadFavoriteActions();
         UpdatePrivateTagActions();
+        UpdateHashSearchAction();
         UpdateArchiveCleanupAction();
         UpdateTransferPreviewAction();
         UpdateArchiveSelectionActions();

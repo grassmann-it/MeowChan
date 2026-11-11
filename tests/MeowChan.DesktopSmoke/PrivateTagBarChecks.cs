@@ -48,6 +48,9 @@ internal static class PrivateTagBarChecks
             await JourneyAsync(owner, profile);
             Texts.SetLanguage("de");
             await RestartAndDamageAsync(owner, profile);
+            Texts.SetLanguage("en");
+            await FilterJourneyAsync(owner);
+            await ManagerJourneyAsync(owner);
         }
         finally
         {
@@ -227,6 +230,232 @@ internal static class PrivateTagBarChecks
         }
         File.WriteAllBytes(file, valid);
         Console.WriteLine("SMOKE private-tags restart [de]: persistence, German labels, damaged index read-only and preserved checked.");
+    }
+
+    private static async Task FilterJourneyAsync(MainWindow owner)
+    {
+        string profile = TemporaryWorkspacePaths.CreateDirectory("private-tag-filter-native-");
+        new Config().SaveConfig(profile);
+        ResourceId[] threads = Enumerable.Range(1, 4).Select(index => new ResourceId("4chan", "g", "300" + index)).ToArray();
+        using (ProfileLease lease = ProfileLease.Acquire(profile))
+        await using (ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease))
+            foreach (ResourceId id in threads)
+                await catalog.CaptureAsync(new CapturedThreadSnapshot(id, "https://boards.4chan.org/g/thread/" + id.Thread,
+                    "Filter fixture " + id.Thread, ThreadSourceState.NotFound, DateTimeOffset.UnixEpoch, profile,
+                    [new CapturedPost(id.Thread!, 0, PostFieldPresence.All, Html: "plain")]));
+        await using Fixture f = await OpenAsync(owner, profile, threads[0]);
+        TagId red = (await f.Host.DefinePrivateTagAsync("red")).Tag, blue = (await f.Host.DefinePrivateTagAsync("blue")).Tag;
+        await f.Host.DefinePrivateTagAsync("unused");
+        await f.Host.SetThreadTagAsync(red, threads[0], true); await f.Host.SetThreadTagAsync(red, threads[1], true);
+        await f.Host.SetThreadTagAsync(blue, threads[1], true); await f.Host.SetThreadTagAsync(blue, threads[2], true);
+
+        ArchivePage page = f.Page;
+        ComboBox choice = f.C<ComboBox>("ArchiveTagChoice"), mode = f.C<ComboBox>("ArchiveTagMode");
+        TextBlock error = f.C<TextBlock>("ArchiveSearchError");
+        string[] Rows() => f.C<ListBox>("ArchiveThreads").ItemsSource!.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id.Thread!).Order().ToArray();
+        string[] Choices() => choice.ItemsSource!.Cast<object>().Select(item => item.ToString()!).ToArray();
+        string[] Draft() => f.C<WrapPanel>("ArchiveDraftTags").Children.OfType<Ursa.Controls.ClosableTag>()
+            .Select(tag => ((TextBlock)tag.Content!).Text!).ToArray();
+        string[] Applied() => f.C<WrapPanel>("ArchiveAppliedFilters").Children.OfType<Ursa.Controls.ClosableTag>()
+            .Select(tag => ((TextBlock)tag.Content!).Text!).ToArray();
+        void Choose(string label) => choice.SelectedItem = choice.ItemsSource!.Cast<object>().Single(item => item.ToString() == label);
+        void RemoveDraft(string label) => f.C<WrapPanel>("ArchiveDraftTags").Children.OfType<Ursa.Controls.ClosableTag>()
+            .Single(tag => ((TextBlock)tag.Content!).Text == label).Command!.Execute(null);
+        async Task SearchAsync() { await page.ApplySearchAsync(); await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background); }
+
+        Require(await page.ApplySearchSpecAsync(new ArchiveSearchSpec(sort: ArchiveThreadSort.Title)), "Initial list failed.");
+        Require(Rows().SequenceEqual(new[] { "3001", "3002", "3003", "3004" }) && Applied().Length == 0, "Unfiltered list is wrong.");
+        Require(Choices().SequenceEqual(new[] { Texts.T("tags.filter.choose"), "red", "blue", "unused" }), "Tag choices are wrong: " + string.Join("|", Choices()));
+
+        // Include one tag.
+        Choose("red"); f.Click("ArchiveAddTagInclude");
+        Require(Draft().SequenceEqual(new[] { "Tag: red" }) && Choices().SequenceEqual(new[] { Texts.T("tags.filter.choose"), "blue", "unused" })
+            && choice.SelectedIndex == 0, "Include did not move the tag into the draft.");
+        Require(Rows().Length == 4, "Editing the draft must not search by itself.");
+        await SearchAsync();
+        Require(Rows().SequenceEqual(new[] { "3001", "3002" }) && Applied().SequenceEqual(new[] { "Tag: red" }), "Include filter result is wrong: " + string.Join(",", Rows()));
+        Require(page.AppliedSearchSpec!.SchemaVersion == 2 && page.AppliedSearchRequest!.TagMembership != null, "Applied request is not tag-bound.");
+
+        // Two included tags: all, then at least one.
+        Choose("blue"); f.Click("ArchiveAddTagInclude");
+        await SearchAsync();
+        Require(Rows().SequenceEqual(new[] { "3002" }), "All-of-two result is wrong: " + string.Join(",", Rows()));
+        mode.SelectedIndex = 1;
+        await SearchAsync();
+        Require(Rows().SequenceEqual(new[] { "3001", "3002", "3003" }) && Applied().Contains(Texts.T("tags.filter.anyChip")), "Any-of-two result is wrong: " + string.Join(",", Rows()));
+
+        // Exclude.
+        RemoveDraft("Tag: blue");
+        Choose("blue"); f.Click("ArchiveAddTagExclude");
+        Require(Draft().SequenceEqual(new[] { "Tag: red", "Without tag: blue" }), "Exclude draft is wrong.");
+        await SearchAsync();
+        Require(Rows().SequenceEqual(new[] { "3001" }) && Applied().SequenceEqual(new[] { "Tag: red", "Without tag: blue" }), "Exclude result is wrong: " + string.Join(",", Rows()));
+
+        // A chosen but not added tag is an unfinished entry: explained, nothing searched.
+        Choose("unused");
+        await SearchAsync();
+        Require(error.IsVisible && error.Text == Texts.T("tags.filter.pending") && Rows().SequenceEqual(new[] { "3001" }), "Pending tag choice was applied or ignored silently.");
+        Require(DataValidationErrors.GetHasErrors(choice), "Pending tag choice is not marked at its control.");
+        choice.SelectedIndex = 0;
+        Require(!DataValidationErrors.GetHasErrors(choice), "Clearing the choice did not clear its mark.");
+
+        // Gallery, export and reader navigation resolve the very same frozen request.
+        await using (ArchiveReader reader = await f.Host.OpenArchiveReaderAsync(CancellationToken.None))
+        {
+            ResourceId[] resolved = await ArchivePage.ResolveExportResultIdsAsync(reader, page.AppliedSearchRequest!, null, CancellationToken.None);
+            Require(resolved.Select(id => id.Thread!).SequenceEqual(new[] { "3001" }), "Result consumers do not see the filtered set.");
+        }
+
+        // Removing an applied chip searches again and updates the matching draft.
+        Require(await page.RemoveAppliedFilter("tagExclude", blue.Value.ToString("D")), "Chip removal failed.");
+        Require(Rows().SequenceEqual(new[] { "3001", "3002" }) && Draft().SequenceEqual(new[] { "Tag: red" }), "Chip removal result or draft is wrong.");
+
+        // A plain refresh re-reads membership: a newly tagged thread appears.
+        await f.Host.SetThreadTagAsync(red, threads[3], true);
+        Require(Rows().SequenceEqual(new[] { "3001", "3002" }), "Tagging must not silently reshuffle the shown list.");
+        await page.ActivateAsync();
+        Require(Rows().SequenceEqual(new[] { "3001", "3002", "3004" }), "Refresh did not pick up the new tag: " + string.Join(",", Rows()));
+
+        // The filtered tag is deleted: never widen. Refresh is refused with an explanation, the list stays.
+        long revision = f.Stored().Revision;
+        await f.Host.DeletePrivateTagAsync(red, revision);
+        await page.ActivateAsync();
+        Require(error.IsVisible && error.Text == Texts.T("tags.filter.error.unknown"), "Deleted tag was not reported: " + error.Text);
+        Require(Rows().SequenceEqual(new[] { "3001", "3002", "3004" }), "A deleted tag widened or emptied the list.");
+        Require(Applied().SequenceEqual(new[] { "Tag: " + Texts.T("tags.filter.deleted") }), "Deleted tag chip is not marked: " + string.Join("|", Applied()));
+        Require(!await page.ApplySearchSpecAsync(page.AppliedSearchSpec!), "A definition with a deleted tag must not run.");
+        Require(await page.RemoveAppliedFilter("tagInclude", red.Value.ToString("D")), "Removing the deleted tag chip failed.");
+        Require(Rows().Length == 4 && Applied().Length == 0 && !error.IsVisible && page.AppliedSearchSpec!.SchemaVersion == 1,
+            "Removing the deleted tag did not restore a plain search.");
+
+        // A stored definition (as from a saved search) applies and fills the draft.
+        ArchiveSearchSpec stored = new ArchiveSearchSpec(sort: ArchiveThreadSort.Title).WithTags(new ArchiveTagFilter(null, [blue.Value]));
+        Require(await page.ApplySearchSpecAsync(stored), "Stored tag definition did not apply.");
+        Require(Rows().SequenceEqual(new[] { "3001", "3004" }) && Draft().SequenceEqual(new[] { "Without tag: blue" }), "Stored definition result or draft is wrong.");
+        Capture(page, "filter");
+        f.C<Expander>("ArchiveFilters").IsExpanded = true;
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        mode.BringIntoView();
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        Capture(page, "filter-editor");
+        Console.WriteLine("SMOKE private-tags filter [en]: include, all/any, exclude, pending choice, shared frozen request, chip removal, refresh, deleted tag, stored definition checked.");
+    }
+
+    private static async Task ManagerJourneyAsync(MainWindow owner)
+    {
+        string profile = TemporaryWorkspacePaths.CreateDirectory("private-tag-manager-native-");
+        new Config().SaveConfig(profile);
+        ResourceId first = new("4chan", "g", "4001"), second = new("4chan", "g", "4002");
+        using (ProfileLease lease = ProfileLease.Acquire(profile))
+        await using (ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease))
+            foreach (ResourceId id in new[] { first, second })
+                await catalog.CaptureAsync(new CapturedThreadSnapshot(id, "https://boards.4chan.org/g/thread/" + id.Thread,
+                    "Manager fixture " + id.Thread, ThreadSourceState.NotFound, DateTimeOffset.UnixEpoch, profile,
+                    [new CapturedPost(id.Thread!, 0, PostFieldPresence.All, Html: "plain")]));
+        await using Fixture f = await OpenAsync(owner, profile, first);
+        TagId red = (await f.Host.DefinePrivateTagAsync("red")).Tag, blue = (await f.Host.DefinePrivateTagAsync("blue")).Tag;
+        await f.Host.DefinePrivateTagAsync("typo");
+        await f.Host.SetThreadTagAsync(red, first, true); await f.Host.SetThreadTagAsync(red, second, true);
+        await f.Host.SetThreadTagAsync(blue, second, true);
+        Assert(MeowChan.Tags.PrivateMediaTagTarget.TryCreate(new MeowChan.Storage.AttachmentRevisionReference(first, "4001", 0, "att-v2:" + new string('a', 64)),
+            "m", "original", MeowChan.Transfer.TransferMediaRole.Original, new string('c', 64), out var media, out _));
+        await f.Host.SetMediaTagAsync(red, media!, true);
+        ArchivePage page = f.Page;
+        Require(await page.ApplySearchSpecAsync(new ArchiveSearchSpec(sort: ArchiveThreadSort.Title)), "List load failed.");
+        await page.LoadThreadAsync(first).WaitAsync(Deadline);
+        await page.MediaLoadTask.WaitAsync(Deadline);
+        f.Click("ReaderTagsOpen");
+        Require(f.Chips().SequenceEqual(new[] { "red  \u2715" }), "Fixture tag is not shown.");
+
+        async Task<TagManagerDialog> OpenManagerAsync()
+        {
+            f.Click("ReaderTagManage");
+            await UntilAsync(() => page.TagManagerWindow?.IsVisible == true);
+            return page.TagManagerWindow!;
+        }
+        async Task IdleAsync(TagManagerDialog dialog)
+        {
+            await UntilAsync(() => !dialog.Session.Busy);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        }
+        string[] Listed(TagManagerDialog dialog) => dialog.List.ItemsSource!.Cast<TagManagerRow>()
+            .Select(row => row.Name + ":" + row.Threads + ":" + row.Media).ToArray();
+        void Select(TagManagerDialog dialog, string name) =>
+            dialog.List.SelectedItem = dialog.List.ItemsSource!.Cast<TagManagerRow>().Single(row => row.Name == name);
+
+        TagManagerDialog manager = await OpenManagerAsync();
+        Require(!f.C<Button>("ReaderTagManage").IsEffectivelyEnabled, "A second manager could be opened.");
+        Require(Listed(manager).SequenceEqual(new[] { "red:2:1", "blue:1:0", "typo:0:0" }), "Manager list is wrong: " + string.Join("|", Listed(manager)));
+        Require(!manager.RenameButton.IsEffectivelyEnabled && !manager.DeleteButton.IsEffectivelyEnabled, "Actions are enabled without a selection.");
+
+        // Rename, then a colliding rename.
+        Select(manager, "typo");
+        Require(manager.NameInput.Text == "typo" && manager.RenameButton.IsEffectivelyEnabled, "Selection did not fill the name field.");
+        manager.NameInput.Text = "fixed_name";
+        manager.RenameButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await IdleAsync(manager);
+        Require(Listed(manager)[2] == "fixed_name:0:0" && manager.Status.Text == Texts.T("tags.manage.renamed"), "Rename failed: " + manager.Status.Text);
+        Select(manager, "blue");
+        manager.NameInput.Text = "RED";
+        manager.RenameButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await IdleAsync(manager);
+        Require(Listed(manager)[1] == "blue:1:0" && manager.Status.Text == Texts.T("tags.manage.error.collision"), "Collision was not refused.");
+
+        // Delete asks first, names the uses, and "keep" is the focused default.
+        Select(manager, "red");
+        manager.DeleteButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Require(manager.ConfirmPanel.IsVisible && manager.KeepButton.IsFocused && manager.ConfirmText.Text == Texts.T("tags.manage.confirm", "red", 2, 1),
+            "Delete did not ask with counts and a safe default: " + manager.ConfirmText.Text);
+        Require(f.Stored().Find(red) != null, "Asking already deleted the tag.");
+        var escape = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape };
+        manager.KeepButton.RaiseEvent(escape);
+        Require(escape.Handled && !manager.ConfirmPanel.IsVisible && manager.IsVisible && f.Stored().Find(red) != null, "Escape on the question must keep the tag and the dialog.");
+        manager.DeleteButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        // Selecting another tag withdraws the question instead of redirecting it.
+        Select(manager, "blue");
+        Require(!manager.ConfirmPanel.IsVisible, "The delete question followed the selection to another tag.");
+        Select(manager, "red");
+        manager.DeleteButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Capture(manager, "manager-confirm");
+        manager.ConfirmDeleteButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await IdleAsync(manager);
+        Require(Listed(manager).SequenceEqual(new[] { "blue:1:0", "fixed_name:0:0" }) && manager.Status.Text == Texts.T("tags.manage.deleted"), "Delete failed: " + manager.Status.Text);
+        PrivateTagStoreSnapshot stored = f.Stored();
+        Require(stored.Find(red) == null && stored.TagsOf(first).Count == 0 && stored.MediaAssignments.Count == 0 && stored.TagsOf(second).Single().Id == blue,
+            "Deleting a tag left uses behind or touched another tag.");
+
+        // Closing brings the page up to date: chips, button count, list rows and filter choices.
+        var close = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape };
+        manager.List.RaiseEvent(close);
+        await page.TagManagerTask.WaitAsync(Deadline);
+        Require(page.TagManagerWindow == null && f.C<Button>("ReaderTagManage").IsEffectivelyEnabled, "Manager did not close cleanly.");
+        Require(f.Chips().Length == 0 && Equals(f.C<Button>("ReaderTagsOpen").Content, "Tags"), "Tag bar still shows the deleted tag.");
+        ArchiveThreadRow[] rows = f.C<ListBox>("ArchiveThreads").ItemsSource!.Cast<ArchiveThreadRow>().ToArray();
+        Require(!rows.Single(row => row.Summary.Id == first).HasTags && rows.Single(row => row.Summary.Id == second).TagsText == "Tags: blue", "List rows still show the deleted tag.");
+        string[] choices = f.C<ComboBox>("ArchiveTagChoice").ItemsSource!.Cast<object>().Select(item => item.ToString()!).ToArray();
+        Require(choices.SequenceEqual(new[] { Texts.T("tags.filter.choose"), "blue", "fixed_name" }), "Filter choices are stale: " + string.Join("|", choices));
+        // SHA-256 search is reachable from the reader, for exactly this thread's one media inventory.
+        Button hash = f.C<Button>("ReaderHashSearchOpen");
+        Require(hash.IsEffectivelyEnabled && Equals(hash.Content, Texts.T("reader.hashSearch.open")), "Hash search entry is missing or disabled.");
+        f.Click(hash);
+        await UntilAsync(() => page.MediaHashSearchWindow?.IsVisible == true);
+        Require(!hash.IsEffectivelyEnabled && !f.C<Button>("ReaderTagManage").IsEffectivelyEnabled, "A second dialog could be opened over the hash search.");
+        page.MediaHashSearchWindow!.Close();
+        await page.MediaHashSearchTask.WaitAsync(Deadline);
+        Require(page.MediaHashSearchWindow == null && hash.IsEffectivelyEnabled, "Hash search did not close cleanly.");
+        Console.WriteLine("SMOKE private-tags manager [en]: list with counts, rename, collision, delete question with safe default, Escape, withdrawn question, delete, page refresh checked.");
+    }
+
+    private static void Assert(bool condition) => Require(condition, "Fixture construction failed.");
+
+    private static async Task UntilAsync(Func<bool> condition)
+    {
+        DateTime deadline = DateTime.UtcNow + Deadline;
+        while (!condition())
+        {
+            if (DateTime.UtcNow >= deadline) throw new TimeoutException("Private tags UI event deadline.");
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        }
     }
 
     // Optional visual evidence: MEOWCHAN_PRIVATE_TAGS_SCREENSHOTS names an existing directory.

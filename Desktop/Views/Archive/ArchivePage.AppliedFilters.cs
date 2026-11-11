@@ -35,7 +35,8 @@ public partial class ArchivePage
         tag.KeyDown += (_, e) => { if (e.Key is Key.Enter or Key.Space) { e.Handled = true; remove(); } };
         return tag;
     }
-    internal static IReadOnlyList<(string Field, string? Value, string Label)> AppliedFilterLabels(ArchiveSearchSpec spec)
+    internal static IReadOnlyList<(string Field, string? Value, string Label)> AppliedFilterLabels(ArchiveSearchSpec spec,
+        Func<Guid, string?>? tagName = null)
     {
         List<(string, string?, string)> tags = new();
         if (!string.IsNullOrWhiteSpace(spec.Text)) tags.Add(("text", null, Texts.T("archive.textChip", spec.Text)));
@@ -47,13 +48,21 @@ public partial class ArchivePage
         if (spec.WorkFilter != MeowChan.Archive.ArchiveWorkFilter.All) tags.Add(("work", null, Texts.T(new[] { "gallery.allWork", "gallery.watching", "gallery.followup", "gallery.intervention", "gallery.completed", "gallery.stopped" }[WorkIndex(spec.WorkFilter)])));
         if (spec.DateRange is { } date) tags.Add(("date", null, Texts.T("archive.dateChip",
             date.StartDate?.ToString("d", Texts.Culture) ?? "…", date.EndDate?.ToString("d", Texts.Culture) ?? "…", date.TimeZoneId)));
+        if (spec.Tags is { } ownTags)
+        {
+            // A tag that no longer exists stays visible as such, so it can be removed deliberately.
+            string Name(Guid id) => tagName?.Invoke(id) ?? Texts.T("tags.filter.deleted");
+            tags.AddRange(ownTags.Include.Select(id => ("tagInclude", (string?)id.ToString("D"), Texts.T("tags.filter.includeChip", Name(id)))));
+            tags.AddRange(ownTags.Exclude.Select(id => ("tagExclude", (string?)id.ToString("D"), Texts.T("tags.filter.excludeChip", Name(id)))));
+            if (ownTags.Match == ArchiveTagMatch.Any) tags.Add(("tagMatch", null, Texts.T("tags.filter.anyChip")));
+        }
         return tags.AsReadOnly();
     }
     private void UpdateAppliedFilters()
     {
         WrapPanel panel = Control<WrapPanel>("ArchiveAppliedFilters"); panel.Children.Clear();
         if (_appliedSearch == null) return;
-        var tags = AppliedFilterLabels(_appliedSearch.Spec);
+        var tags = AppliedFilterLabels(_appliedSearch.Spec, TagFilterName);
         if (tags.Count > 0)
         {
             TextBlock label = new() { Text = Texts.T("archive.appliedFilters"), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
@@ -76,6 +85,7 @@ public partial class ArchivePage
         "posts" => ArchiveSearchSpec.FromExactIdentities(hasPosts: spec.HasPosts),
         "work" => ArchiveSearchSpec.FromExactIdentities(workFilter: spec.WorkFilter),
         "date" => ArchiveSearchSpec.FromExactIdentities(dateRange: spec.DateRange),
+        "tags" => ArchiveSearchSpec.FromExactIdentities().WithTags(spec.Tags),
         _ => throw new ArgumentOutOfRangeException(nameof(field))
     });
     private bool DraftFieldMatches(ArchiveSearchSpec spec, string field)
@@ -96,6 +106,7 @@ public partial class ArchivePage
                 "work" => ArchiveSearchSpec.FromExactIdentities(workFilter: WorkChoice(Control<ComboBox>("ArchiveWorkFilter").SelectedIndex)),
                 "date" => ArchiveSearchSpec.FromExactIdentities(dateRange: new ArchiveDateRange(Control<ArchiveDateEditor>("ArchiveStartDate").ParseRaw(false),
                     Control<ArchiveDateEditor>("ArchiveEndDate").ParseRaw(false), _draftTimeZone ?? "Etc/UTC")),
+                "tags" when !HasPendingTagChoice => ArchiveSearchSpec.FromExactIdentities().WithTags(ReadTagFilterDraft()),
                 _ => throw new InvalidOperationException()
             };
             return CanonicalField(spec, field) == CanonicalField(draft, field);
@@ -119,21 +130,26 @@ public partial class ArchivePage
                 try { Control<ArchiveDateEditor>("ArchiveStartDate").RawText = ""; Control<ArchiveDateEditor>("ArchiveEndDate").RawText = ""; }
                 finally { _writingDraft = false; }
                 UpdateTimeZoneLabel(); break;
+            case "tags": WriteTagFilterDraft(next.Tags); break;
         }
         DraftEdited(field);
         // A sourcechip removal must not revise an unrelated board draft/scope.
-        if (field is "source" or "board" or "state") RenderDraftSets();
+        if (field is "source" or "board" or "state" or "tags") RenderDraftSets();
     }
     internal async Task<bool> RemoveAppliedFilter(string field, string? value = null, int focusIndex = 0)
     {
         if (_busy || _ended || !CanRead || _appliedSearch == null) return false;
         ArchiveSearchSpec applied = _appliedSearch.Spec;
         ArchiveSearchSpec next = CopySearch(applied, field, value);
-        long revision = _editorRevisions.GetValueOrDefault(field);
-        bool matches = DraftFieldMatches(applied, field);
-        bool success = await LoadListAsync(NewListLoad(ArchiveSearchRequest.Create(next), afterCommit: () =>
+        string category = DraftCategory(field);
+        long revision = _editorRevisions.GetValueOrDefault(category);
+        bool matches = DraftFieldMatches(applied, category);
+        ArchiveSearchRequest request;
+        try { request = CreateSearchRequest(next); }
+        catch (InvalidOperationException exception) { ShowTagFilterError(exception.Message); return false; }
+        bool success = await LoadListAsync(NewListLoad(request, afterCommit: () =>
         {
-            if (matches && _editorRevisions.GetValueOrDefault(field) == revision) WriteSearchField(next, field);
+            if (matches && _editorRevisions.GetValueOrDefault(category) == revision) WriteSearchField(next, category);
         }));
         if (success)
         {

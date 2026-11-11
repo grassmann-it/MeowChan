@@ -18,7 +18,7 @@ public partial class ArchivePage
     internal static bool HasArchiveConstraints(ArchiveSearchSpec spec) =>
         !string.IsNullOrWhiteSpace(spec.Text) || spec.Sources.Count > 0 || spec.Boards.Count > 0
         || spec.SourceStates.Count > 0 || spec.CaptureEnabled != null || spec.HasPosts != null
-        || spec.WorkFilter != MeowChan.Archive.ArchiveWorkFilter.All || spec.DateRange != null;
+        || spec.WorkFilter != MeowChan.Archive.ArchiveWorkFilter.All || spec.DateRange != null || spec.Tags != null;
 
     private void UpdateArchiveEmptyState()
     {

@@ -33,6 +33,8 @@ public partial class SavedArchiveSearchesDialog : Window
     private Guid _target;
     private long _revision;
     private ArchiveSearchSpec? _definition;
+    // Tag filters store IDs; names come from the current tag index and may be gone.
+    private string? TagName(Guid id) => _host.GetPublishedPrivateTagSnapshot().Snapshot?.Find(new MeowChan.Tags.TagId(id))?.Name.Display;
     private string _initialName = "";
     private bool _working;
     private bool _closed;
@@ -55,7 +57,7 @@ public partial class SavedArchiveSearchesDialog : Window
         _router = new CommandRouter(this);
         List.ItemTemplate = new FuncDataTemplate<SavedArchiveSearch>((entry, _) =>
         {
-            string detail = entry == null ? "" : entry.Definition is { } spec ? SavedArchiveSearchDescription.Describe(spec) : Texts.T("savedSearch.unsupported") + " " + entry.UnsupportedReason;
+            string detail = entry == null ? "" : entry.Definition is { } spec ? SavedArchiveSearchDescription.Describe(spec, TagName) : Texts.T("savedSearch.unsupported") + " " + entry.UnsupportedReason;
             var label = new TextBlock { Text = entry?.Name, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
             var panel = new StackPanel { Margin = new Avalonia.Thickness(4, 8), Children = { label } };
             AutomationProperties.SetName(panel, entry?.Name + ". " + detail);
@@ -248,7 +250,7 @@ public partial class SavedArchiveSearchesDialog : Window
         Button("SavedSearchConfirm").Classes.Set("danger", _edit is EditKind.Delete or EditKind.Discard);
         Button("SavedSearchConfirm").Classes.Set("primary", _edit is not (EditKind.Delete or EditKind.Discard));
         this.FindControl<TextBlock>("SavedSearchPrompt")!.Text = Texts.T("savedSearch.prompt." + _edit, _initialName);
-        this.FindControl<TextBlock>("SavedSearchDefinition")!.Text = _edit == EditKind.Discard ? "" : _definition is { } spec ? SavedArchiveSearchDescription.Describe(spec) : "";
+        this.FindControl<TextBlock>("SavedSearchDefinition")!.Text = _edit == EditKind.Discard ? "" : _definition is { } spec ? SavedArchiveSearchDescription.Describe(spec, TagName) : "";
         ToolTip.SetTip(this.FindControl<TextBlock>("SavedSearchDefinition")!, this.FindControl<TextBlock>("SavedSearchDefinition")!.Text);
         Button("SavedSearchConfirm").Content = Texts.T("savedSearch.confirm." + _edit);
         RenderConflict();
@@ -265,7 +267,7 @@ public partial class SavedArchiveSearchesDialog : Window
             ? Texts.T("savedSearch.conflictList", _snapshot!.Searches.Count)
             : current == null ? Texts.T("savedSearch.conflictDeleted")
             : Texts.T("savedSearch.conflictCurrent", current.Name,
-                current.Definition is { } spec ? SavedArchiveSearchDescription.Describe(spec) : Texts.T("savedSearch.unsupported"));
+                current.Definition is { } spec ? SavedArchiveSearchDescription.Describe(spec, TagName) : Texts.T("savedSearch.unsupported"));
     }
     private void CancelEdit()
     {
@@ -370,7 +372,7 @@ public partial class SavedArchiveSearchesDialog : Window
         ArrangeWorkspace();
         this.FindControl<TextBlock>("SavedSearchSelectionName")!.Text = Selected?.Name ?? "";
         this.FindControl<TextBlock>("SavedSearchSelectionDefinition")!.Text = Selected is { } selected
-            ? selected.Definition is { } spec ? SavedArchiveSearchDescription.Describe(spec) : Texts.T("savedSearch.unsupported") + " " + selected.UnsupportedReason
+            ? selected.Definition is { } spec ? SavedArchiveSearchDescription.Describe(spec, TagName) : Texts.T("savedSearch.unsupported") + " " + selected.UnsupportedReason
             : "";
         foreach (string id in new[] { "SavedSearchCreate", "SavedSearchApply", "SavedSearchRename", "SavedSearchReplace", "SavedSearchDelete" })
         {

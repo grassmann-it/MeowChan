@@ -47,6 +47,15 @@
                                 <Button x:Name="ArchiveAddState" Grid.Column="1" Click="OnAddState" />
                             </Grid>
                             <WrapPanel x:Name="ArchiveDraftStates" ItemSpacing="6" LineSpacing="6" />
+                            <!-- Own tags: include, exclude, and how several included tags combine. -->
+                            <ComboBox x:Name="ArchiveTagChoice" HorizontalAlignment="Stretch" SelectedIndex="0" />
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                                <Button x:Name="ArchiveAddTagInclude" HorizontalAlignment="Stretch" Click="OnAddTagInclude" />
+                                <Button x:Name="ArchiveAddTagExclude" Grid.Column="1" HorizontalAlignment="Stretch" Click="OnAddTagExclude" />
+                            </Grid>
+                            <WrapPanel x:Name="ArchiveDraftTags" ItemSpacing="6" LineSpacing="6" />
+                            <ComboBox x:Name="ArchiveTagMode" HorizontalAlignment="Stretch" SelectedIndex="0" />
+                            <Button x:Name="ArchiveTagManage" HorizontalAlignment="Left" Click="OnManageTags" />
                             <ComboBox x:Name="ArchiveCaptureFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
                             <ComboBox x:Name="ArchivePostsFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
                             <ComboBox x:Name="ArchiveWorkFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
@@ -189,6 +198,7 @@
                     <Button x:Name="ReaderTagsOpen" Click="OnOpenThreadTags" />
                     <Button x:Name="ArchiveOpenGallery" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
                     <Button x:Name="ReaderFilenameSearchOpen" Click="OnFilenameSearchClick" />
+                    <Button x:Name="ReaderHashSearchOpen" Click="OnHashSearchClick" />
                     <Button x:Name="ReaderFindOpen" Click="OnOpenThreadFind" />
                     <Button x:Name="ArchiveReadPosts" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
                     <Button x:Name="ArchiveGalleryReturn" Content="Back to gallery" IsVisible="False" Click="OnGalleryReturnClick" />
@@ -217,6 +227,7 @@
                         <WrapPanel ItemSpacing="6" LineSpacing="4">
                             <TextBox x:Name="ReaderTagInput" Width="240" />
                             <Button x:Name="ReaderTagAdd" Click="OnAddThreadTag" />
+                            <Button x:Name="ReaderTagManage" Click="OnManageTags" />
                             <Button x:Name="ReaderTagClose" Click="OnCloseThreadTags" />
                         </WrapPanel>
                         <TextBlock x:Name="ReaderTagStatus" TextWrapping="Wrap" IsVisible="False" />

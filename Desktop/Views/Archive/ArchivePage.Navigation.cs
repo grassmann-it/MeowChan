@@ -91,7 +91,7 @@ public partial class ArchivePage
         long validation = ++_searchValidationGeneration;
         try
         {
-            ArchiveSearchRequest request = ArchiveSearchRequest.Create(ReadSearchDraft());
+            ArchiveSearchRequest request = CreateSearchRequest(ReadSearchDraft());
             SearchEditorError(string.Empty);
             _showReader = false; UpdateLayoutMode();
             await LoadListAsync(NewListLoad(request));

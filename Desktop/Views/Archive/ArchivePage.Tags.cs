@@ -42,6 +42,8 @@ public partial class ArchivePage
         _loadPrivateTags = host.GetPublishedPrivateTagSnapshot;
         _definePrivateTag = host.DefinePrivateTagAsync;
         _setThreadTag = host.SetThreadTagAsync;
+        _renamePrivateTag = host.RenamePrivateTagAsync;
+        _deletePrivateTag = host.DeletePrivateTagAsync;
         ReloadPrivateTags();
     }
 
@@ -81,6 +83,7 @@ public partial class ArchivePage
                     .Select(index => snapshot.Tags[index].Name.Display).ToArray();
         }
         _threadTagNames = names;
+        OnPrivateTagsChangedForFilter();
     }
 
     // An older acknowledgement must not hide a newer committed state.
@@ -99,6 +102,7 @@ public partial class ArchivePage
     {
         if (_ended) return;
         if (_privateTags == null) ReloadPrivateTags();
+        UpdateTagManagerActions();
         Button open = Control<Button>("ReaderTagsOpen");
         StackPanel bar = Control<StackPanel>("ReaderTagBar");
         ResourceId? id = _thread?.Summary.Id;

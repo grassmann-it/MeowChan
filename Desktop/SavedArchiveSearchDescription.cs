@@ -8,7 +8,7 @@ namespace MeowChan.Desktop;
 
 internal static class SavedArchiveSearchDescription
 {
-    internal static string Describe(ArchiveSearchSpec spec)
+    internal static string Describe(ArchiveSearchSpec spec, Func<Guid, string?>? tagName = null)
     {
         List<string> fields = new();
         void Add(string key, string value) => fields.Add(Texts.T(key) + ": " + value);
@@ -22,6 +22,13 @@ internal static class SavedArchiveSearchDescription
         Add("savedSearch.sort", Texts.T("savedSearch.sort." + spec.Sort));
         if (spec.DateRange is { } date)
             Add("savedSearch.date", (date.StartDate?.ToString("yyyy-MM-dd") ?? "…") + " – " + (date.EndDate?.ToString("yyyy-MM-dd") ?? "…") + " · " + date.TimeZoneId);
+        if (spec.Tags is { } tags)
+        {
+            // References are IDs; a tag that no longer exists is named as deleted, never left out.
+            string Names(IEnumerable<Guid> ids) => string.Join(", ", ids.Select(id => tagName?.Invoke(id) ?? Texts.T("tags.filter.deleted")));
+            if (tags.Include.Count > 0) Add(tags.Match == ArchiveTagMatch.Any ? "tags.filter.describeAny" : "tags.filter.describeAll", Names(tags.Include));
+            if (tags.Exclude.Count > 0) Add("tags.filter.describeExclude", Names(tags.Exclude));
+        }
         return string.Join(" · ", fields);
     }
 }
