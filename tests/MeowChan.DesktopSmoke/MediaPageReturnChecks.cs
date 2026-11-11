@@ -230,7 +230,7 @@ internal static partial class MediaPageChecks
     }
 
     // Scrolls the tile's row to the top through the panel's own offset and waits until a pointer would reach the tile.
-    // ListBox.ScrollIntoView is not used: after a refill it can pick a kept focused container whose bounds are stale.
+    // RestoreAnchor puts the row at the top; ListBox.ScrollIntoView only scrolls as far as needed (after a refill it works too, see MediaTileRefillChecks).
     private static async Task ShowTileAsync(MediaPage page, int index)
     {
         MediaTilePanel panel = page.Grid.GetVisualDescendants().OfType<MediaTilePanel>().Single();

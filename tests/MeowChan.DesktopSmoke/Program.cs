@@ -837,6 +837,7 @@ internal static class Program
             if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_PANEL_ONLY") == "1")
             {
                 await MediaTilePanelChecks.RunAsync(mainWindow);
+                await MediaTileRefillChecks.RunAsync(mainWindow);
                 _checksPassed = true;
                 mainWindow.Close();
                 return;
