@@ -42,7 +42,7 @@ internal static partial class DialogFrameChecks
         await VerifyFrameAsync(dialog, "shell archive delete", "shell-archive-delete");
         string blocker = Texts.Language == "de" ? "kann nicht vollständig gelöscht werden" : "cannot be fully deleted";
         await VerifyErrorStripAsync(dialog, "shell archive delete blocker", blocker);
-        await AtMinimumAsync(dialog, "shell archive delete minimum", "shell-archive-delete-min");
+        await ShellAtMinimumAsync(dialog, "shell archive delete minimum", "shell-archive-delete-min");
         PressEscape(dialog);
         await Program.WaitUntilAsync(() => Dialog() == null);
         await running.WaitAsync(TimeSpan.FromSeconds(10));
@@ -61,7 +61,7 @@ internal static partial class DialogFrameChecks
         if (running.IsCompleted) await running;
         Window dialog = Dialog() ?? throw new InvalidOperationException("Gallery details dialog did not open.");
         await VerifyFrameAsync(dialog, "shell gallery details", "shell-gallery-details");
-        await AtMinimumAsync(dialog, "shell gallery details minimum", "shell-gallery-details-min");
+        await ShellAtMinimumAsync(dialog, "shell gallery details minimum", "shell-gallery-details-min");
         PressEscape(dialog);
         await Program.WaitUntilAsync(() => Dialog() == null);
         await running.WaitAsync(TimeSpan.FromSeconds(10));
@@ -87,7 +87,7 @@ internal static partial class DialogFrameChecks
             Capture(about, "shell-about-error");
             about.FindControl<TabControl>("AboutTabs")!.SelectedIndex = 2;
             await VerifyFrameAsync(about, "shell about licenses", "shell-about-licenses");
-            await AtMinimumAsync(about, "shell about minimum", "shell-about-min");
+            await ShellAtMinimumAsync(about, "shell about minimum", "shell-about-min");
             PressEscape(about);
             await Program.WaitUntilAsync(() => closed);
             await showing;
@@ -117,7 +117,7 @@ internal static partial class DialogFrameChecks
                 Require(attempts == 1 && window.IsVisible, "Injected setup save failure did not stay in the dialog.");
                 await VerifyErrorStripAsync(window, "shell first run save error", Texts.T("setup.saveUnconfirmed"));
                 Capture(window, "shell-first-run-error");
-                await AtMinimumAsync(window, "shell first run minimum", "shell-first-run-min");
+                await ShellAtMinimumAsync(window, "shell first run minimum", "shell-first-run-min");
                 window.FindControl<Button>("SetupLaterButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 FirstRunSetupRunResult result = await showing.WaitAsync(TimeSpan.FromSeconds(10));
                 Require(result.Outcome == FirstRunSetupOutcome.Deferred, "Later after a failed save claimed completion.");
@@ -139,14 +139,14 @@ internal static partial class DialogFrameChecks
         {
             await Program.WaitUntilAsync(() => window.IsVisible);
             await VerifyFrameAsync(window, "shell startup error", "shell-startup-error");
-            await AtMinimumAsync(window, "shell startup error minimum", "shell-startup-error-min");
+            await ShellAtMinimumAsync(window, "shell startup error minimum", "shell-startup-error-min");
             PressEscape(window);
             await Program.WaitUntilAsync(() => closed);
         }
         finally { if (!closed) window.Close(); }
     }
 
-    private static async Task AtMinimumAsync(Window window, string label, string capture)
+    private static async Task ShellAtMinimumAsync(Window window, string label, string capture)
     {
         double width = window.Width, height = window.Height;
         window.Width = window.MinWidth;

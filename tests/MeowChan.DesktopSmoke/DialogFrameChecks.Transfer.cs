@@ -48,7 +48,7 @@ internal static partial class DialogFrameChecks
             Require(!dialog.ApplyButton.IsEnabled, "transfer import: Apply enabled for an unreadable package.");
             await VerifyErrorStripAsync(dialog, "transfer import error", dialog.ErrorText.Text);
             Capture(dialog, "transfer-import-error");
-            await AtMinimumAsync(dialog, "transfer import minimum", "transfer-import-min");
+            await TransferAtMinimumAsync(dialog, "transfer import minimum", "transfer-import-min");
             dialog.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
             await shown.WaitAsync(TransferDeadline);
         }
@@ -74,7 +74,7 @@ internal static partial class DialogFrameChecks
             await TransferWaitAsync(() => !string.IsNullOrEmpty(dialog.ErrorText.Text));
             await VerifyErrorStripAsync(dialog, "transfer preview error", dialog.ErrorText.Text);
             Capture(dialog, "transfer-preview-error");
-            await AtMinimumAsync(dialog, "transfer preview minimum", "transfer-preview-min");
+            await TransferAtMinimumAsync(dialog, "transfer preview minimum", "transfer-preview-min");
             dialog.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
             await shown.WaitAsync(TransferDeadline);
         }
@@ -103,7 +103,7 @@ internal static partial class DialogFrameChecks
             Button discard = dialog.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "InterruptedTransfersDiscard");
             discard.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await TransferWaitAsync(() => Equals(discard.Content, Texts.T("transfer.interrupted.confirm", operations.Length, 2048L * operations.Length)));
-            await AtMinimumAsync(dialog, "interrupted transfers confirm minimum", "interrupted-transfers-min");
+            await TransferAtMinimumAsync(dialog, "interrupted transfers confirm minimum", "interrupted-transfers-min");
             Require(!dialog.Decision.IsCompleted, "interrupted transfers: the first press already decided.");
             // Escape first only withdraws the confirmation, the second Escape keeps everything.
             dialog.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
@@ -143,14 +143,14 @@ internal static partial class DialogFrameChecks
             await TransferWaitAsync(() => dialog.StatusForTests.Text == Texts.T("transfer.conflicts.reclaim.none"));
             Control footer = Part<Control>(dialog, MeowChan.Desktop.Controls.DialogFrame.FooterName, "media conflicts");
             Require(dialog.StatusForTests.GetVisualAncestors().Contains(footer), "media conflicts: status is not in the footer.");
-            await AtMinimumAsync(dialog, "media conflicts minimum", "media-conflicts-min");
+            await TransferAtMinimumAsync(dialog, "media conflicts minimum", "media-conflicts-min");
             dialog.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
             await TransferWaitAsync(() => !dialog.IsVisible);
         }
         finally { if (dialog.IsVisible) dialog.Close(); }
     }
 
-    private static async Task AtMinimumAsync(Window dialog, string label, string capture)
+    private static async Task TransferAtMinimumAsync(Window dialog, string label, string capture)
     {
         double width = dialog.Width, height = dialog.Height;
         dialog.Width = dialog.MinWidth;

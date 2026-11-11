@@ -61,7 +61,7 @@ internal static partial class DialogFrameChecks
             Require(Find<Control>(dialog, "DialogFrameErrorStrip") is { IsVisible: false }, "post-bookmarks: error strip shown without an error.");
             await VerifyFrameAsync(dialog, "post-bookmarks overview", "collections-post-bookmarks");
             PostBookmarksDialog overview = dialog;
-            await AtMinimumAsync(overview, () => VerifyFrameAsync(overview, "post-bookmarks overview minimum", "collections-post-bookmarks-min"));
+            await CollectionsAtMinimumAsync(overview, () => VerifyFrameAsync(overview, "post-bookmarks overview minimum", "collections-post-bookmarks-min"));
 
             // Real validation failure: the draft stays, Status keeps its text, the strip shows it.
             note.Text = "invalid \u0001 draft";
@@ -96,7 +96,7 @@ internal static partial class DialogFrameChecks
             Require(!dialog.FindControl<ListBox>("Bookmarks")!.IsVisible, "post-bookmarks editor: list visible.");
             await VerifyFrameAsync(dialog, "post-bookmarks editor", "collections-post-bookmark-editor");
             PostBookmarksDialog editor = dialog;
-            await AtMinimumAsync(editor, () => VerifyFrameAsync(editor, "post-bookmarks editor minimum"));
+            await CollectionsAtMinimumAsync(editor, () => VerifyFrameAsync(editor, "post-bookmarks editor minimum"));
         }
         finally { dialog?.CloseForProfileEnd(); }
     }
@@ -115,13 +115,13 @@ internal static partial class DialogFrameChecks
             list.SelectedIndex = 0;
             await VerifyFrameAsync(dialog, "saved searches list", "collections-saved-searches");
             SavedArchiveSearchesDialog manager = dialog;
-            await AtMinimumAsync(manager, () => VerifyFrameAsync(manager, "saved searches list minimum", "collections-saved-searches-min"));
+            await CollectionsAtMinimumAsync(manager, () => VerifyFrameAsync(manager, "saved searches list minimum", "collections-saved-searches-min"));
 
             Button rename = dialog.FindControl<Button>("SavedSearchRename")!;
             rename.Command!.Execute(null);
             await Program.WaitUntilAsync(() => dialog.FindControl<StackPanel>("SavedSearchEditor")!.IsVisible);
             await VerifyFrameAsync(dialog, "saved searches editor", "collections-saved-searches-editor");
-            await AtMinimumAsync(manager, () => VerifyFrameAsync(manager, "saved searches editor minimum"));
+            await CollectionsAtMinimumAsync(manager, () => VerifyFrameAsync(manager, "saved searches editor minimum"));
             var cancel = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape };
             dialog.RaiseEvent(cancel);
             await Program.WaitUntilAsync(() => !dialog.FindControl<StackPanel>("SavedSearchEditor")!.IsVisible);
@@ -140,7 +140,7 @@ internal static partial class DialogFrameChecks
             await VerifyErrorStripAsync(dialog, "saved searches unreadable store", statusText);
             Capture(dialog, "collections-saved-searches-error");
             SavedArchiveSearchesDialog failed = dialog;
-            await AtMinimumAsync(failed, () => VerifyErrorStripAsync(failed, "saved searches unreadable store minimum", statusText));
+            await CollectionsAtMinimumAsync(failed, () => VerifyErrorStripAsync(failed, "saved searches unreadable store minimum", statusText));
             dialog.FindControl<Button>("SavedSearchClose")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await closed; dialog = null;
         }
@@ -184,7 +184,7 @@ internal static partial class DialogFrameChecks
             manager.List.SelectedItem = manager.List.ItemsSource!.Cast<TagManagerRow>().Single(row => row.Name == "red");
             await VerifyFrameAsync(manager, "tag manager", "collections-tag-manager");
             TagManagerDialog shown = manager;
-            await AtMinimumAsync(shown, () => VerifyFrameAsync(shown, "tag manager minimum", "collections-tag-manager-min"));
+            await CollectionsAtMinimumAsync(shown, () => VerifyFrameAsync(shown, "tag manager minimum", "collections-tag-manager-min"));
 
             // Name collision is a real refused change: the strip shows it, Status keeps the text.
             manager.NameInput.Text = "blue";
@@ -218,7 +218,7 @@ internal static partial class DialogFrameChecks
             Require(Find<Control>(media, "DialogFrameErrorStrip") is { IsVisible: false }, "media tags: error strip shown without an error.");
             await VerifyFrameAsync(media, "media tags", "collections-media-tags");
             MediaTagDialog shown = media;
-            await AtMinimumAsync(shown, () => VerifyFrameAsync(shown, "media tags minimum", "collections-media-tags-min"));
+            await CollectionsAtMinimumAsync(shown, () => VerifyFrameAsync(shown, "media tags minimum", "collections-media-tags-min"));
 
             media.Input.Text = "bad\tname";
             media.AddButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -226,7 +226,7 @@ internal static partial class DialogFrameChecks
             await VerifyErrorStripAsync(media, "media tags invalid name", Texts.T("tags.error.invalidName"));
             Require(media.Input.Text == "bad\tname", "media tags: refused draft was not kept.");
             Capture(media, "collections-media-tags-error");
-            await AtMinimumAsync(shown, () => VerifyErrorStripAsync(shown, "media tags invalid name minimum", Texts.T("tags.error.invalidName")));
+            await CollectionsAtMinimumAsync(shown, () => VerifyErrorStripAsync(shown, "media tags invalid name minimum", Texts.T("tags.error.invalidName")));
 
             var escape = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape };
             media.Input.RaiseEvent(escape);
@@ -238,7 +238,7 @@ internal static partial class DialogFrameChecks
     }
 
     /// <summary>Runs <paramref name="check"/> with the dialog at its minimum size, then restores the size.</summary>
-    private static async Task AtMinimumAsync(Window dialog, Func<Task> check)
+    private static async Task CollectionsAtMinimumAsync(Window dialog, Func<Task> check)
     {
         double width = dialog.Width, height = dialog.Height;
         dialog.Width = dialog.MinWidth; dialog.Height = dialog.MinHeight;
