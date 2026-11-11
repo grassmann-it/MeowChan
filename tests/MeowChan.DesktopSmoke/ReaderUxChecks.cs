@@ -626,7 +626,11 @@ internal static class ReaderUxChecks
                     footer = footerBox.ToString(), pagination = pageBox.ToString(), label = labelBox.ToString(),
                     range = label.Text, list = listBox.ToString(), hint = hint.Bounds.ToString(), hint.IsVisible,
                     listFooterHeight = listPane.RowDefinitions[2].ActualHeight,
-                    readerFooterHeight = readerPane.RowDefinitions[2].ActualHeight
+                    readerFooterHeight = readerPane.RowDefinitions[2].ActualHeight,
+                    statusStripHeight = page.FindControl<Grid>("ArchiveRoot")!.RowDefinitions[2].ActualHeight,
+                    blankBelowFooter = Bounds(page).Bottom - footerBox.Bottom,
+                    blankBelowReader = Bounds(page).Bottom - right.Bottom,
+                    footerInline = page.FindControl<ArchiveFooterLayout>("ArchiveResultsRange")!.IsInline
                 }));
                 Require(results.IsEffectivelyVisible && reader.IsEffectivelyVisible
                     && Math.Abs(left.Bottom - right.Bottom) <= 1,
@@ -639,8 +643,37 @@ internal static class ReaderUxChecks
                     && Contains(footerBox, pageBox) && Contains(footerBox, labelBox)
                     && Contains(new Rect(default(Point), window.ClientSize), footerBox)
                     && left.Bottom + 4 <= footerBox.Top && listBox.Bottom <= left.Bottom
-                    && left.Bottom - listBox.Bottom <= 3 && pageBox.Bottom <= labelBox.Top,
+                    && left.Bottom - listBox.Bottom <= 3,
                     "Archive pagination/range is clipped, inside its result border, or leaves unused list space.");
+                // ARCH-DENSE-01: one line when pager and range fit, otherwise range below pager; never overlapping.
+                ArchiveFooterLayout range = page.FindControl<ArchiveFooterLayout>("ArchiveResultsRange")!;
+                bool besidePager = pageBox.Right + ArchiveFooterLayout.InlineGap - 1 <= labelBox.Left
+                    && labelBox.Top >= pageBox.Top - 1 && labelBox.Bottom <= pageBox.Bottom + 1;
+                Require(range.IsInline ? besidePager : pageBox.Bottom <= labelBox.Top,
+                    "Archive pager and range label overlap or do not match the chosen footer arrangement.");
+                Require(layout != "List" || range.IsInline,
+                    "Archive pager and range label still use two lines although both fit the default list pane.");
+                // The idle status strip keeps exactly one stable text line, so loading
+                // feedback cannot move the results and pager while paging.
+                Grid statusLine = page.FindControl<Grid>("ArchiveStatusLine")!;
+                double idleStatus = statusLine.Bounds.Height;
+                Require(page.FindControl<Ursa.Controls.Banner>("ArchiveErrorBanner")!.IsVisible
+                    || page.FindControl<StackPanel>("ArchiveStatusStrip")!.Bounds.Height <= idleStatus + 1,
+                    "Archive status strip reserves more than one idle line.");
+                Require(idleStatus is > 8 and <= 32, "Archive idle status line lost its stable single-line height.");
+                MethodInfo operationMessage = typeof(ArchivePage).GetMethod("OperationMessage", BindingFlags.Instance | BindingFlags.NonPublic)!;
+                double resultsBottom = left.Bottom;
+                string previousMessage = page.FindControl<TextBlock>("ArchiveMessage")!.Text ?? string.Empty;
+                operationMessage.Invoke(page, new object?[] { "action", Texts.T("archive.loading"), false });
+                window.UpdateLayout();
+                Require(page.FindControl<TextBlock>("ArchiveMessage")!.IsEffectivelyVisible
+                    && Math.Abs(statusLine.Bounds.Height - idleStatus) <= 1 && Math.Abs(Bounds(results).Bottom - resultsBottom) <= 1,
+                    "A short archive status message moved the result surface or was not shown.");
+                operationMessage.Invoke(page, new object?[] { "action", previousMessage, false });
+                window.UpdateLayout();
+                Require(page.FindControl<TextBlock>("ArchiveMessage")!.IsVisible == !string.IsNullOrWhiteSpace(previousMessage)
+                    && Math.Abs(Bounds(results).Bottom - resultsBottom) <= 1,
+                    "Restoring the archive status message left a blank status item or moved the results.");
                 Require(page.FindControl<WrapPanel>("ReaderStatusLine")!.IsEffectivelyVisible,
                     "Embedded archive lost its reader status line.");
                 Ursa.Controls.PaginationButton next = pagination.GetVisualDescendants().OfType<Ursa.Controls.PaginationButton>()

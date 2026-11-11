@@ -899,6 +899,9 @@ public partial class ArchivePage : UserControl
             ? (_archiveLayout == "Table" ? Math.Max(_archiveColumnMode == "Advanced" ? 900 : 650, _archiveSplitWidth) : _archiveSplitWidth) : 0);
         split.ColumnDefinitions[1].Width = new GridLength(beside ? 6 : 0);
         split.ColumnSpacing = beside ? 6 : 0;
+        // The shared footer row aligns both pane edges only side by side. Stacked,
+        // a hidden list footer must not reserve blank height below the reader.
+        Grid.SetIsSharedSizeScope(split, beside);
         Grid.SetColumn(Control<Grid>("ArchiveListPane"), beside ? 0 : 2);
         Control<GridSplitter>("ArchiveSplitter").IsVisible = beside;
         Control<Grid>("ArchiveReaderPane").IsVisible = _largeReader || !narrow || _showReader;

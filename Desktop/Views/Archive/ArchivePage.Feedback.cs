@@ -35,6 +35,17 @@ public partial class ArchivePage
         if (_ended) return;
         Control<TextBlock>("ArchiveErrorText").Text = string.Join(Environment.NewLine, _operationErrors.Values);
         Control<Ursa.Controls.Banner>("ArchiveErrorBanner").IsVisible = _operationErrors.Count != 0;
+        RefreshStatusLine();
+    }
+    // Text first, then visibility, like the other archive live regions. Empty
+    // channels leave the shared line so no spacing or blank wrap is reserved.
+    private void RefreshStatusLine()
+    {
+        foreach (string name in new[] { "ArchiveContentLoadingText", "ArchiveMessage", "ArchiveMediaLoadingText" })
+        {
+            TextBlock text = Control<TextBlock>(name);
+            text.IsVisible = !string.IsNullOrWhiteSpace(text.Text);
+        }
     }
     private void UpdateFeedbackVisuals()
     {
@@ -42,6 +53,7 @@ public partial class ArchivePage
         Control<Ursa.Controls.LoadingIcon>("ArchiveMediaLoading").IsLoading = Control<Ursa.Controls.LoadingIcon>("ArchiveMediaLoading").IsVisible = _mediaLoading && !_ended;
         Control<TextBlock>("ArchiveContentLoadingText").Text = _busy && !_ended ? Texts.T("archive.loading") : string.Empty;
         Control<TextBlock>("ArchiveMediaLoadingText").Text = _mediaLoading ? Texts.T("archive.loadingMedia") : string.Empty;
+        RefreshStatusLine();
     }
     internal Action<string> CaptureActionErrorReporter()
     {

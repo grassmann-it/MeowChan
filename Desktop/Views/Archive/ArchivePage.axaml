@@ -170,10 +170,13 @@
                     </Grid>
                 </Border>
                 <StackPanel x:Name="ArchiveResultsFooter" Grid.Row="2" Spacing="4" Margin="8,0" VerticalAlignment="Top">
-                    <ursa:Pagination x:Name="ArchiveResultsPagination" PageSize="50" ShowPageSizeSelector="False" ShowQuickJump="False" CurrentPageChanged="OnResultsPageChanged" HorizontalAlignment="Center">
-                        <ursa:Pagination.Styles><Style Selector="ursa|PaginationButton"><Setter Property="MinWidth" Value="24" /><Setter Property="Width" Value="24" /><Setter Property="Padding" Value="2" /></Style></ursa:Pagination.Styles>
-                    </ursa:Pagination>
-                    <TextBlock x:Name="ArchiveThreadPage" Classes="workspace-meta" HorizontalAlignment="Center" />
+                    <!-- ARCH-DENSE-01: pager and range share one line when both fit. -->
+                    <desktop:ArchiveFooterLayout x:Name="ArchiveResultsRange">
+                        <ursa:Pagination x:Name="ArchiveResultsPagination" PageSize="50" ShowPageSizeSelector="False" ShowQuickJump="False" CurrentPageChanged="OnResultsPageChanged">
+                            <ursa:Pagination.Styles><Style Selector="ursa|PaginationButton"><Setter Property="MinWidth" Value="24" /><Setter Property="Width" Value="24" /><Setter Property="Padding" Value="2" /></Style></ursa:Pagination.Styles>
+                        </ursa:Pagination>
+                        <TextBlock x:Name="ArchiveThreadPage" Classes="workspace-meta" />
+                    </desktop:ArchiveFooterLayout>
                     <TextBlock x:Name="ArchiveSelectionSummary" Classes="workspace-meta" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" IsVisible="False" AutomationProperties.LiveSetting="Polite" />
                     <Button x:Name="PreviousThreadsButton" IsVisible="False" Click="OnPreviousThreads" />
                     <Button x:Name="NextThreadsButton" IsVisible="False" Click="OnNextThreads" />
@@ -400,16 +403,20 @@
                 <TextBlock x:Name="ArchivePartialHint" Grid.Row="2" Tag="archive.partial" Classes="muted localized" FontSize="12" TextWrapping="Wrap" />
             </Grid>
         </Grid>
-        <StackPanel Grid.Row="2" Spacing="6">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <ursa:LoadingIcon x:Name="ArchiveContentLoading" Width="16" Height="16" Focusable="False" IsVisible="False" />
-                <TextBlock x:Name="ArchiveContentLoadingText" Classes="muted" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
-                <TextBlock x:Name="ArchiveMessage" Classes="muted" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <ursa:LoadingIcon x:Name="ArchiveMediaLoading" Width="16" Height="16" Focusable="False" IsVisible="False" />
-                <TextBlock x:Name="ArchiveMediaLoadingText" Classes="muted" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
-            </StackPanel>
+        <StackPanel x:Name="ArchiveStatusStrip" Grid.Row="2" Spacing="6">
+            <!-- ARCH-DENSE-01: one stable status line instead of two always-reserved rows.
+                 The empty strut keeps exactly one muted text line while idle, so loading
+                 feedback does not move the results and pager; longer feedback wraps. -->
+            <Grid x:Name="ArchiveStatusLine">
+                <TextBlock Classes="muted" Width="0" IsHitTestVisible="False" Focusable="False" AutomationProperties.AccessibilityView="Raw" />
+                <WrapPanel ItemSpacing="8" LineSpacing="4" VerticalAlignment="Center">
+                    <ursa:LoadingIcon x:Name="ArchiveContentLoading" Width="16" Height="16" Focusable="False" IsVisible="False" VerticalAlignment="Center" />
+                    <TextBlock x:Name="ArchiveContentLoadingText" Classes="muted" TextWrapping="Wrap" IsVisible="False" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+                    <TextBlock x:Name="ArchiveMessage" Classes="muted" TextWrapping="Wrap" IsVisible="False" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+                    <ursa:LoadingIcon x:Name="ArchiveMediaLoading" Width="16" Height="16" Focusable="False" IsVisible="False" VerticalAlignment="Center" />
+                    <TextBlock x:Name="ArchiveMediaLoadingText" Classes="muted" TextWrapping="Wrap" IsVisible="False" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+                </WrapPanel>
+            </Grid>
             <ursa:Banner x:Name="ArchiveErrorBanner" Type="Error" CanClose="False" IsVisible="False" HorizontalContentAlignment="Stretch">
                 <ScrollViewer MaxHeight="104" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="ArchiveErrorText" TextWrapping="Wrap" Classes="error" AutomationProperties.LiveSetting="Assertive" /></ScrollViewer>
             </ursa:Banner>

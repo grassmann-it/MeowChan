@@ -10,6 +10,7 @@ using Avalonia.Automation;
 using Avalonia.VisualTree;
 using Avalonia.Threading;
 using System.Linq;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -147,6 +148,8 @@ public partial class ArchivePage
             pagination.PageSize = PageSize;
             pagination.CurrentPage = _listTotal > 0 ? _listOffset / PageSize + 1 : null;
             pagination.IsVisible = _listLoaded && ResultsPageCount(_listTotal) > 1;
+            // A new result total may choose a one-line footer again; paging within it keeps the layout.
+            Control<ArchiveFooterLayout>("ArchiveResultsRange").LayoutKey = _listTotal;
             pagination.IsEnabled = ready;
             foreach (PaginationButton button in pagination.GetVisualDescendants().OfType<PaginationButton>())
             {

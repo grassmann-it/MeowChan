@@ -210,6 +210,14 @@ internal static class ArchivePageChecks
                 await Program.WaitUntilAsync(() => window.GetVisualDescendants().OfType<ArchiveAttachmentView>()
                     .Any(view => view.Thumbnail.Source is Bitmap));
                 Program.CaptureWindow(window, $"smoke-archive-{mode.ToLowerInvariant()}-{language}-minimum.png");
+                // ARCH-DENSE-01: a stacked reader keeps only its own footer row, not the hidden list pager.
+                Grid readerPane = page.FindControl<Grid>("ArchiveReaderPane")!;
+                TextBlock partialHint = page.FindControl<TextBlock>("ArchivePartialHint")!;
+                double ownFooter = partialHint.IsVisible ? partialHint.Bounds.Height : 0;
+                Console.WriteLine($"SMOKE archive stacked footer {mode}/{language}: listVisible={page.FindControl<Grid>("ArchiveListPane")!.IsVisible}, readerFooter={readerPane.RowDefinitions[2].ActualHeight}, hint={ownFooter}, statusStrip={page.FindControl<Grid>("ArchiveRoot")!.RowDefinitions[2].ActualHeight}");
+                Require(page.FindControl<Grid>("ArchiveListPane")!.IsVisible
+                    || readerPane.RowDefinitions[2].ActualHeight <= ownFooter + readerPane.RowSpacing + 1,
+                    "The stacked archive reader still reserves the hidden list footer height.");
             }
         }
         Texts.SetLanguage("en");
