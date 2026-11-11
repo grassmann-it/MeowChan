@@ -35,8 +35,19 @@ public interface ISessionStore
     Task SaveAsync(SessionSnapshot snapshot, CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// A session store that can persist under an already admitted command or producer reservation.
+/// Wrappers around <see cref="SessionStore"/> must forward to this seam: a plain
+/// <see cref="ISessionStore.SaveAsync"/> re-enters admission and is refused once shutdown has begun,
+/// which would drop a settings commit that shutdown had already accepted and is waiting for.
+/// </summary>
+internal interface IAdmittedSessionStore : ISessionStore
+{
+    Task SaveAdmittedAsync(SessionSnapshot snapshot, ProfileAdmissionToken admission, CancellationToken cancellationToken = default);
+}
+
 /// <summary>Loads and atomically stores session snapshots while an explicit profile lease is held.</summary>
-public sealed class SessionStore : ISessionStore
+public sealed class SessionStore : ISessionStore, IAdmittedSessionStore
 {
     private readonly string _filePath;
     private readonly ProfileLease _lease;
@@ -61,6 +72,9 @@ public sealed class SessionStore : ISessionStore
         using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
         await SaveAdmittedAsync(captured, admission, cancellationToken).ConfigureAwait(false);
     }
+
+    Task IAdmittedSessionStore.SaveAdmittedAsync(SessionSnapshot snapshot, ProfileAdmissionToken admission, CancellationToken cancellationToken)
+        => SaveAdmittedAsync(snapshot, admission, cancellationToken);
 
     internal ProfileLease ProfileLease => _lease;
 

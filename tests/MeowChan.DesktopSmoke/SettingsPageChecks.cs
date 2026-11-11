@@ -262,6 +262,7 @@ internal static class SettingsPageChecks
 
     internal static async Task RunLateSaveFailureAsync(MainWindow owner)
     {
+        await CheckPendingSaveAsync(owner);
         await CheckPendingSaveAsync(owner, failShutdownSave: true);
         Console.WriteLine("SMOKE settings late save failure: shutdown released the profile, retained the last committed settings and emitted no ended-editor events.");
     }
@@ -429,12 +430,12 @@ internal static class SettingsPageChecks
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 
-    private sealed class GateStore : ISessionStore
+    private sealed class GateStore : IAdmittedSessionStore
     {
-        private readonly ISessionStore _inner;
+        private readonly SessionStore _inner;
         private TaskCompletionSource? _pending;
         public int Calls { get; private set; }
-        internal GateStore(ISessionStore inner) => _inner = inner;
+        internal GateStore(SessionStore inner) => _inner = inner;
         internal TaskCompletionSource Arm() => _pending = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         public Task<SessionLoadResult> LoadAsync(CancellationToken cancellationToken = default) => _inner.LoadAsync(cancellationToken);
         public async Task SaveAsync(SessionSnapshot snapshot, CancellationToken cancellationToken = default)
@@ -444,6 +445,15 @@ internal static class SettingsPageChecks
             _pending = null;
             if (pending != null) await pending.Task.WaitAsync(cancellationToken);
             await _inner.SaveAsync(snapshot, cancellationToken);
+        }
+        // Production saves under the command's admission; forward it so shutdown can finish an accepted commit.
+        public async Task SaveAdmittedAsync(SessionSnapshot snapshot, ProfileAdmissionToken admission, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            TaskCompletionSource? pending = _pending;
+            _pending = null;
+            if (pending != null) await pending.Task.WaitAsync(cancellationToken);
+            await _inner.SaveAdmittedAsync(snapshot, admission, cancellationToken);
         }
     }
 }
