@@ -29,6 +29,7 @@ internal static class UpdateGuiChecks
         MainWindow window = new(host);
         AboutWindow? about = null;
         window.Show(owner);
+        Exception? failureBeforeCleanup = null;
         try
         {
             await Program.WaitUntilAsync(() => host.State == DesktopSessionState.Ready && window.IsVisible);
@@ -155,13 +156,17 @@ internal static class UpdateGuiChecks
             about = null;
             Console.WriteLine("SMOKE Updates: fixture Help/About/status integration, EN/DE × Dark/Light × B/S/A, minimum sizes, exact browser handoff, settings draft/save/discard, skip, manual errors and distribution override passed.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            about?.Close();
-            window.Close();
-            await Program.WaitUntilAsync(() => !window.IsVisible);
-            Texts.SetLanguage(owner.SessionHost.Config.Language);
-            Application.Current!.RequestedThemeVariant = owner.SessionHost.Config.Theme == "Light" ? ThemeVariant.Light : ThemeVariant.Dark;
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                about?.Close();
+                window.Close();
+                await Program.WaitUntilAsync(() => !window.IsVisible);
+                Texts.SetLanguage(owner.SessionHost.Config.Language);
+                Application.Current!.RequestedThemeVariant = owner.SessionHost.Config.Theme == "Light" ? ThemeVariant.Light : ThemeVariant.Dark;
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in UpdateGuiChecks: " + exception));
         }
     }
 

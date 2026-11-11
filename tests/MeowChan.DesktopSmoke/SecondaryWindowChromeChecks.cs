@@ -65,6 +65,7 @@ internal static class SecondaryWindowChromeChecks
         int closeAttempts = 0;
         settings.Closed += (_, _) => closed = true;
         settings.Closing += (_, _) => closeAttempts++;
+        Exception? failureBeforeCleanup = null;
         try
         {
             Task dialog = settings.ShowDialog(owner);
@@ -90,11 +91,15 @@ internal static class SecondaryWindowChromeChecks
             await WaitActiveAsync(owner, "unforced-owner-return");
             Console.WriteLine("SMOKE Settings caption: native pointer min/max/restore/double-click/close; pending-picker close cancelled; later close and Closed observed. Save-in-flight not exercised.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            pending.TrySetResult(Array.Empty<IStorageFolder>());
-            await Program.WaitUntilAsync(() => !settings.Editor.IsBusy);
-            if (!closed) settings.Close();
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                pending.TrySetResult(Array.Empty<IStorageFolder>());
+                await Program.WaitUntilAsync(() => !settings.Editor.IsBusy);
+                if (!closed) settings.Close();
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SecondaryWindowChromeChecks: " + exception));
         }
     }
 

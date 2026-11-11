@@ -45,6 +45,7 @@ internal static class SettingsPickerLifetimeChecks
         Task dialog = window.ShowDialog(owner);
         List<string?> changes = new();
         PropertyChangedEventHandler observer = (_, args) => changes.Add(args.PropertyName);
+        Exception? failureBeforeCleanup = null;
         try
         {
             await Program.WaitUntilAsync(() => window.IsVisible);
@@ -66,13 +67,17 @@ internal static class SettingsPickerLifetimeChecks
                 "Retired picker cancellation/failure notified, showed an error, or changed path/config/file state.");
             Console.WriteLine($"SMOKE picker lifetime {(failed ? "late-failure" : "late-cancel")}: changes=0; raw/config/file unchanged; busy=false.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            window.Editor.PropertyChanged -= observer;
-            pending.TrySetResult(Array.Empty<IStorageFolder>());
-            await Program.WaitUntilAsync(() => !window.Editor.IsBusy);
-            if (window.IsVisible) window.Close();
-            await dialog.WaitAsync(TimeSpan.FromSeconds(5));
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                window.Editor.PropertyChanged -= observer;
+                pending.TrySetResult(Array.Empty<IStorageFolder>());
+                await Program.WaitUntilAsync(() => !window.Editor.IsBusy);
+                if (window.IsVisible) window.Close();
+                await dialog.WaitAsync(TimeSpan.FromSeconds(5));
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SettingsPickerLifetimeChecks: " + exception));
         }
     }
 

@@ -20,6 +20,7 @@ internal static class ArchiveMenuLayoutChecks
         string originalLanguage = Texts.Language;
         double originalWidth = window.Width;
         List<string> failures = new();
+        Exception? failureBeforeCleanup = null;
         try
         {
             // Keep both layouts in list-only mode. Switching from a wide card
@@ -80,14 +81,18 @@ internal static class ArchiveMenuLayoutChecks
                 }
             }
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            window.Width = originalWidth;
-            Application.Current.RequestedThemeVariant = originalTheme;
-            Texts.SetLanguage(originalLanguage);
-            SmokeActionClick.Execute(page.FindControl<Button>("ArchiveLayoutTable")!);
-            await Program.WaitUntilAsync(() => !page.IsBusy && table.IsEffectivelyVisible
-                && window.SessionHost.Config.GetLayoutProfile(window.SessionHost.Config.WorkspaceMode).ArchiveThreadLayout == "Table");
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                window.Width = originalWidth;
+                Application.Current.RequestedThemeVariant = originalTheme;
+                Texts.SetLanguage(originalLanguage);
+                SmokeActionClick.Execute(page.FindControl<Button>("ArchiveLayoutTable")!);
+                await Program.WaitUntilAsync(() => !page.IsBusy && table.IsEffectivelyVisible
+                    && window.SessionHost.Config.GetLayoutProfile(window.SessionHost.Config.WorkspaceMode).ArchiveThreadLayout == "Table");
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ArchiveMenuLayoutChecks: " + exception));
         }
         if (failures.Count > 0) throw new InvalidOperationException("Archive menu bounds failed: " + string.Join(", ", failures));
     }

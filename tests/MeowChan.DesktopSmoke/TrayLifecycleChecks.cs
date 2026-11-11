@@ -23,6 +23,7 @@ internal static class TrayLifecycleChecks
             for (int iteration = 0; iteration < 16; iteration++)
             {
                 MainWindow window = new MainWindow(new DesktopSessionHost(profile, Array.Empty<IImageBoard>()));
+                Exception? failureBeforeCleanup = null;
                 try
                 {
                     window.Show(owner);
@@ -36,13 +37,17 @@ internal static class TrayLifecycleChecks
                         throw new InvalidOperationException("Rapid close leaked an application tray icon.");
                     using ProfileLease lease = ProfileLease.Acquire(profile);
                 }
+                catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
                 finally
                 {
-                    if (window.IsVisible)
+                    await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
                     {
-                        window.Close();
-                        await Program.WaitUntilAsync(() => !window.IsVisible);
-                    }
+                        if (window.IsVisible)
+                        {
+                            window.Close();
+                            await Program.WaitUntilAsync(() => !window.IsVisible);
+                        }
+                    }, exception => Console.Error.WriteLine("SMOKE cleanup failed in TrayLifecycleChecks: " + exception));
                 }
             }
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);

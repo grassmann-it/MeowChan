@@ -112,6 +112,7 @@ internal static class PowerUserCommandChecks
     private static async Task CheckNativeButtonActivationAsync(MainWindow window, Button pause)
     {
         Config original = window.SessionHost.Config.Clone();
+        Exception? failureBeforeCleanup = null;
         try
         {
             Config candidate = original.Clone();
@@ -146,11 +147,15 @@ internal static class PowerUserCommandChecks
                 await Program.WaitUntilAsync(() => pause.IsEnabled && window.SessionHost.IsPaused == paused);
             }
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            long revision = ShortcutService.Revision;
-            await window.SessionHost.ApplySettingsAsync(original);
-            await Program.WaitUntilAsync(() => ShortcutService.Revision > revision);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                long revision = ShortcutService.Revision;
+                await window.SessionHost.ApplySettingsAsync(original);
+                await Program.WaitUntilAsync(() => ShortcutService.Revision > revision);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in PowerUserCommandChecks: " + exception));
         }
     }
 

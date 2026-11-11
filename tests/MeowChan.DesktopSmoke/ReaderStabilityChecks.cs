@@ -40,15 +40,20 @@ internal static class ReaderStabilityChecks
     {
         double width = window.Width, height = window.Height;
         PixelPoint position = window.Position;
+        Exception? failureBeforeCleanup = null;
         try { await RunCoreAsync(window); }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            // Keep the following fullscreen/close scenario in its own native
-            // geometry, particularly when 2× makes our wide fixture oversized.
-            window.Width = width; window.Height = height;
-            window.Position = position;
-            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
-            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                // Keep the following fullscreen/close scenario in its own native
+                // geometry, particularly when 2× makes our wide fixture oversized.
+                window.Width = width; window.Height = height;
+                window.Position = position;
+                await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
+                await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderStabilityChecks: " + exception));
         }
     }
 

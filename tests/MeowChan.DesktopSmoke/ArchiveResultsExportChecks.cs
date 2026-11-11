@@ -146,6 +146,7 @@ internal static class ArchiveResultsExportChecks
             Window dialog = owner.OwnedWindows.Single(window => window.GetVisualDescendants()
                 .OfType<Button>().Any(button => button.Name == "OriginalExportClose"));
             Button close = dialog.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "OriginalExportClose");
+            Exception? failureBeforeCleanup = null;
             try
             {
             Console.WriteLine("SMOKE original-export idle: language=" + language + "; content=" + close.Content + "; automation=" + AutomationProperties.GetName(close) + "; tooltip=" + ToolTip.GetTip(close));
@@ -173,16 +174,19 @@ internal static class ArchiveResultsExportChecks
             close.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
             await shown;
             }
-            catch (Exception exception) { Console.WriteLine("SMOKE original-export assertion: " + exception); throw; }
+            catch (Exception exception) { failureBeforeCleanup = exception; Console.WriteLine("SMOKE original-export assertion: " + exception); throw; }
             finally
             {
-                if (dialog.IsVisible)
+                await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
                 {
-                    close.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                    await Program.WaitUntilAsync(() => Equals(close.Content, Texts.T("action.close")));
-                    dialog.Close();
-                }
-                await shown;
+                    if (dialog.IsVisible)
+                    {
+                        close.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        await Program.WaitUntilAsync(() => Equals(close.Content, Texts.T("action.close")));
+                        dialog.Close();
+                    }
+                    await shown;
+                }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ArchiveResultsExportChecks: " + exception));
             }
         }
         Texts.SetLanguage("en");

@@ -29,6 +29,7 @@ internal static class PostBookmarkGalleryReturnChecks
         PostBookmarkKey key = new(thread, "9100");
         string? captureFixture = null;
         using ManualResetEventSlim initialDecode = new(false);
+        Exception? failureBeforeCleanup = null;
         try
         {
             new Config { DownloadsPaused = true, SaveUrlsOnExit = false,
@@ -122,19 +123,23 @@ internal static class PostBookmarkGalleryReturnChecks
                 "Closing the restored bookmark reader lost its overview selection or note.");
             Console.WriteLine($"SMOKE bookmark shell return: overview A → reader A top={originTop:F2} → gallery A/B → reader A exact anchor → same overview passed.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            GalleryImageDecoder.DecodeStarted = null;
-            initialDecode.Set();
-            if (shell != null)
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
-                shell.Close();
-                await Program.WaitUntilAsync(() => !shell.IsVisible);
-                await shell.GalleryCleanupTask;
-            }
-            else if (session != null) await session.DisposeAsync();
-            try { Directory.Delete(profile, recursive: true); } catch (IOException) { }
-            owner.Activate();
+                GalleryImageDecoder.DecodeStarted = null;
+                initialDecode.Set();
+                if (shell != null)
+                {
+                    shell.Close();
+                    await Program.WaitUntilAsync(() => !shell.IsVisible);
+                    await shell.GalleryCleanupTask;
+                }
+                else if (session != null) await session.DisposeAsync();
+                try { Directory.Delete(profile, recursive: true); } catch (IOException) { }
+                owner.Activate();
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in PostBookmarkGalleryReturnChecks: " + exception));
         }
     }
 

@@ -201,6 +201,7 @@ internal static class NativeFeatureCheckpoint
         bool dirty = editor.IsDirty;
         string raw = editor.Draft.Raw.GetRawText();
         string? searchText = search.Text;
+        Exception? failureBeforeCleanup = null;
         try
         {
             search.BringIntoView();
@@ -228,11 +229,15 @@ internal static class NativeFeatureCheckpoint
             Console.WriteLine("NATIVE SHORTCUT CONTEXT PASS " + Texts.Language
                 + ": actualScale=" + window.RenderScaling + "; real Ctrl+Shift+P suppressed in text and active on normal control; native Tab/Shift+Tab exact return. Isolated pause restored separately.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            // Cleanup uses the Host API, not another claimed native input event.
-            if (window.SessionHost.IsPaused != paused) await window.SessionHost.SetPausedAsync(paused);
-            await Program.WaitUntilAsync(() => !window.SessionHost.IsPauseTransitioning && pause.IsEffectivelyEnabled);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                // Cleanup uses the Host API, not another claimed native input event.
+                if (window.SessionHost.IsPaused != paused) await window.SessionHost.SetPausedAsync(paused);
+                await Program.WaitUntilAsync(() => !window.SessionHost.IsPauseTransitioning && pause.IsEffectivelyEnabled);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in NativeFeatureCheckpoint: " + exception));
         }
     }
 

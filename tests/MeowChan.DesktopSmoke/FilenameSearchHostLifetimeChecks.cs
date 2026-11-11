@@ -334,6 +334,7 @@ internal static class FilenameSearchHostLifetimeChecks
         Task? run = null;
         FilenameSearchDialog? dialog = null;
         WindowState before = owner.WindowState;
+        Exception? failureBeforeCleanup = null;
         try
         {
             Require(owner.IsEnabled && !owner.OwnedWindows.Any(window => window.IsVisible)
@@ -388,24 +389,33 @@ internal static class FilenameSearchHostLifetimeChecks
             Console.WriteLine("SMOKE filename-host-lifetime FNH-P2-01 root-shell: actual ArchiveNavigationButton -> existing root ArchivePage; native Close + held actual Show return; enabled owner/no visible OwnedWindow; actual FullscreenButton and direct ToggleFullscreen preserve WindowState; fullscreen-source="
                 + FullscreenAdmissionBasisSha256);
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            release.TrySetResult(true);
-            try
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
-                if (dialog is { IsVisible: true }) dialog.Close();
-                if (run != null) await run.WaitAsync(Deadline); // Includes the REAL host finally/Terminate join.
-                if (nativeShow != null) await nativeShow.WaitAsync(Deadline);
-            }
-            finally
-            {
-                page.FilenameSearchShowForTests = previousShow;
-                // Restore only AFTER the negative assertions and real host join; never use state assignment as their oracle.
-                if (owner.WindowState != before) owner.WindowState = before;
-                Dispatch(D<Button>(owner, "DownloadsNavigationButton"));
-                await UntilAsync(() => owner.SelectedPage == MainWindow.WorkspacePage.Downloads
-                    && D<Grid>(owner, "WorkspaceBody").IsVisible && !page.IsEffectivelyVisible);
-            }
+                release.TrySetResult(true);
+                Exception? innerFailureBeforeCleanup = null;
+                try
+                {
+                    if (dialog is { IsVisible: true }) dialog.Close();
+                    if (run != null) await run.WaitAsync(Deadline); // Includes the REAL host finally/Terminate join.
+                    if (nativeShow != null) await nativeShow.WaitAsync(Deadline);
+                }
+                catch (Exception thrown) { innerFailureBeforeCleanup = thrown; throw; }
+                finally
+                {
+                    await SmokeCleanup.RunAsync(innerFailureBeforeCleanup, async () =>
+                    {
+                        page.FilenameSearchShowForTests = previousShow;
+                        // Restore only AFTER the negative assertions and real host join; never use state assignment as their oracle.
+                        if (owner.WindowState != before) owner.WindowState = before;
+                        Dispatch(D<Button>(owner, "DownloadsNavigationButton"));
+                        await UntilAsync(() => owner.SelectedPage == MainWindow.WorkspacePage.Downloads
+                            && D<Grid>(owner, "WorkspaceBody").IsVisible && !page.IsEffectivelyVisible);
+                    }, exception => Console.Error.WriteLine("SMOKE cleanup failed in FilenameSearchHostLifetimeChecks: " + exception));
+                }
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in FilenameSearchHostLifetimeChecks: " + exception));
         }
         Require(!page.IsFilenameSearchOpen && !page.IsReaderDialogOpen && page.FilenameSearchWindow == null,
             "Root shell cleanup did not join and release the actual filename reservation.");

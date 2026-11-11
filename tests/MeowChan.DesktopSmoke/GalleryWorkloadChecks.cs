@@ -19,6 +19,7 @@ internal static class GalleryWorkloadChecks
         GalleryViewer viewer = new();
         Window host = new() { Width = 1100, Height = 700, Content = viewer, Title = "PF05 gallery workload" };
         string language = Texts.Language;
+        Exception? failureBeforeCleanup = null;
         try
         {
             host.Show(owner);
@@ -147,20 +148,24 @@ internal static class GalleryWorkloadChecks
             await viewer.StopAsync();
             await CheckThumbnailOwnershipAsync(host, saved);
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            await viewer.StopAsync();
-            host.Close();
-            Texts.SetLanguage(language);
-            await owner.ArchivePage.ReaderLocalizationTask;
-            // Closing an owned native window does not synchronously reactivate its owner.
-            // Drain language/layout work before handing later shell commands back to it.
-            await SettleAsync();
-            owner.Activate();
-            await Program.WaitUntilAsync(() => !host.IsVisible && owner.IsActive);
-            await SettleAsync();
-            Require(owner.IsActive && Texts.Language == language,
-                "The workload fixture did not restore its owner's native activation/language. " + DescribeFocus(owner));
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                await viewer.StopAsync();
+                host.Close();
+                Texts.SetLanguage(language);
+                await owner.ArchivePage.ReaderLocalizationTask;
+                // Closing an owned native window does not synchronously reactivate its owner.
+                // Drain language/layout work before handing later shell commands back to it.
+                await SettleAsync();
+                owner.Activate();
+                await Program.WaitUntilAsync(() => !host.IsVisible && owner.IsActive);
+                await SettleAsync();
+                Require(owner.IsActive && Texts.Language == language,
+                    "The workload fixture did not restore its owner's native activation/language. " + DescribeFocus(owner));
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in GalleryWorkloadChecks: " + exception));
         }
     }
 

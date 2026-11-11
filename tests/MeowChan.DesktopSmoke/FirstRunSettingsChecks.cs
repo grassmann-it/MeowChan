@@ -48,6 +48,7 @@ internal static class FirstRunSettingsChecks
         DesktopSessionHost? host = null;
         MainWindow? shell = null;
         bool? savedUnrelated = null;
+        Exception? failureBeforeCleanup = null;
         try
         {
             host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>());
@@ -148,18 +149,22 @@ internal static class FirstRunSettingsChecks
             Require(!shell.OwnedWindows.OfType<FirstRunSetupWindow>().Any(), "Completed profile offered setup again.");
             await CheckEditorAsync(shell, host.Config);
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            if (shell != null)
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
-                foreach (FirstRunSetupWindow modal in shell.OwnedWindows.OfType<FirstRunSetupWindow>().ToArray())
+                if (shell != null)
                 {
-                    await Program.WaitUntilAsync(() => !modal.IsWorking);
-                    modal.Close();
+                    foreach (FirstRunSetupWindow modal in shell.OwnedWindows.OfType<FirstRunSetupWindow>().ToArray())
+                    {
+                        await Program.WaitUntilAsync(() => !modal.IsWorking);
+                        modal.Close();
+                    }
+                    await CloseAsync(shell);
                 }
-                await CloseAsync(shell);
-            }
-            if (host != null) await host.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(15));
+                if (host != null) await host.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(15));
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in FirstRunSettingsChecks: " + exception));
         }
     }
 

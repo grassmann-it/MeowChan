@@ -327,6 +327,7 @@ internal static class ReaderThreadFindChecks
         }
         DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
         MainWindow? shell = null;
+        Exception? failureBeforeCleanup = null;
         try
         {
             shell = new MainWindow(host);
@@ -487,15 +488,19 @@ internal static class ReaderThreadFindChecks
                     "Routed find key moved the wrong direction/wrapped twice/clicked/closed instead.");
             }
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            if (shell != null)
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
-                shell.Close();
-                await UntilAsync(() => !shell.IsVisible);
-                await shell.GalleryCleanupTask.WaitAsync(Deadline);
-            }
-            await host.DisposeAsync();
+                if (shell != null)
+                {
+                    shell.Close();
+                    await UntilAsync(() => !shell.IsVisible);
+                    await shell.GalleryCleanupTask.WaitAsync(Deadline);
+                }
+                await host.DisposeAsync();
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderThreadFindChecks: " + exception));
         }
     }
 

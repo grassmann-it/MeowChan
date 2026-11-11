@@ -31,6 +31,7 @@ internal static class ReaderNavigationOverlayChecks
         Button history = page.FindControl<Button>("ArchiveHistoryBack")!;
         bool historyCreated = false;
         bool mediaTiles = page.MediaTilesPreference;
+        Exception? failureBeforeCleanup = null;
         try
         {
             Require(!history.IsVisible, "Reader navigation fixture expected the preceding history check to leave no entries.");
@@ -132,24 +133,28 @@ internal static class ReaderNavigationOverlayChecks
             });
             page.FindControl<Button>("ArchiveExportClose")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            tabs.SelectedIndex = 0;
-            Texts.SetLanguage(language);
-            Application.Current.RequestedThemeVariant = theme;
-            await PresentationChecks.SwitchModeAsync(window, mode);
-            window.Width = width; window.Height = height;
-            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
-            page.MediaTilesPreference = mediaTiles;
-            if (historyCreated)
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
-                history.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                await Program.WaitUntilAsync(() => !history.IsVisible
-                    && (page.FindControl<ListBox>("ArchivePosts")!.SelectedItem as ArchivePostRow)?.Id == "1000");
-                await page.MediaLoadTask;
-            }
-            await page.FocusPostAsync("1000");
-            window.UpdateLayout();
+                tabs.SelectedIndex = 0;
+                Texts.SetLanguage(language);
+                Application.Current.RequestedThemeVariant = theme;
+                await PresentationChecks.SwitchModeAsync(window, mode);
+                window.Width = width; window.Height = height;
+                await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
+                page.MediaTilesPreference = mediaTiles;
+                if (historyCreated)
+                {
+                    history.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    await Program.WaitUntilAsync(() => !history.IsVisible
+                        && (page.FindControl<ListBox>("ArchivePosts")!.SelectedItem as ArchivePostRow)?.Id == "1000");
+                    await page.MediaLoadTask;
+                }
+                await page.FocusPostAsync("1000");
+                window.UpdateLayout();
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderNavigationOverlayChecks: " + exception));
         }
         Console.WriteLine("SMOKE reader navigation overlay: 24 EN/DE, Dark/Light, large and B/S/A minimum geometries plus both adaptive threshold edges and 12 explicit secondary-tab states; full-height overlaid narrow viewport, scrollable last-post clearance, scrollbar/pagebar spacing, controlled toolbar wrapping with visible history label, centered arrow cross and adjacent centered pagination, four accessible commands, retained secondary tabs and dialog hit-test passed.");
     }

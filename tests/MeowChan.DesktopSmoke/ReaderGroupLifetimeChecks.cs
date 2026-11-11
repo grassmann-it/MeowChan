@@ -28,6 +28,7 @@ internal static class ReaderGroupLifetimeChecks
         TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         int opens = 0;
         ResourceId oldId = new("local", "lifetime", "1"), newId = oldId with { Thread = "2" };
+        Exception? failureBeforeCleanup = null;
         try
         {
             using ProfileLease lease = ProfileLease.Acquire(profile);
@@ -79,20 +80,24 @@ internal static class ReaderGroupLifetimeChecks
                 "A canceled initial group read overwrote the new return request or reopened a stale manager.");
             Console.WriteLine("SMOKE reader groups I02: delayed initial read → real Close → manager → newer reader → retired completion leaves newer reader and return request intact.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            release.TrySetResult();
-            if (retiredRead != null) await retiredRead.WaitAsync(TimeSpan.FromSeconds(10));
-            closeReader.Invoke(owner, [false]);
-            if (dialogField.GetValue(owner) is ReaderGroupsDialog manager)
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
-                await Program.WaitUntilAsync(() => manager.CanExecute("reader-groups.create"));
-                manager.Close();
-                await Program.WaitUntilAsync(() => dialogField.GetValue(owner) == null);
-            }
-            page?.EndLifetime();
-            pageField.SetValue(owner, previousPage);
-            try { Directory.Delete(profile, true); } catch (IOException) { }
+                release.TrySetResult();
+                if (retiredRead != null) await retiredRead.WaitAsync(TimeSpan.FromSeconds(10));
+                closeReader.Invoke(owner, [false]);
+                if (dialogField.GetValue(owner) is ReaderGroupsDialog manager)
+                {
+                    await Program.WaitUntilAsync(() => manager.CanExecute("reader-groups.create"));
+                    manager.Close();
+                    await Program.WaitUntilAsync(() => dialogField.GetValue(owner) == null);
+                }
+                page?.EndLifetime();
+                pageField.SetValue(owner, previousPage);
+                try { Directory.Delete(profile, true); } catch (IOException) { }
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderGroupLifetimeChecks: " + exception));
         }
         await RunGalleryOriginRestoreAsync(owner);
     }

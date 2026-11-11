@@ -164,6 +164,7 @@ internal static class ReadingPositionChecks
     {
         string mode = window.SessionHost.Config.WorkspaceMode, language = Texts.Language;
         double width = window.Width, height = window.Height;
+        Exception? failureBeforeCleanup = null;
         try
         {
             foreach (string targetLanguage in new[] { "en", "de" })
@@ -182,14 +183,18 @@ internal static class ReadingPositionChecks
                 }
             }
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            await FooterNavigationChecks.PersistLanguageAsync(window, language);
-            await PresentationChecks.SwitchModeAsync(window, mode);
-            window.Width = width; window.Height = height;
-            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
-            Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
-            await Program.WaitUntilAsync(() => !window.ArchivePage.IsBusy);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                await FooterNavigationChecks.PersistLanguageAsync(window, language);
+                await PresentationChecks.SwitchModeAsync(window, mode);
+                window.Width = width; window.Height = height;
+                await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+                Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+                await Program.WaitUntilAsync(() => !window.ArchivePage.IsBusy);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReadingPositionChecks: " + exception));
         }
     }
 

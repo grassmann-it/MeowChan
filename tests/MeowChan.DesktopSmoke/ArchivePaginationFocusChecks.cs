@@ -22,6 +22,7 @@ internal static class ArchivePaginationFocusChecks
         ArchivePage? page = null;
         Window? host = null;
         TaskCompletionSource? release = null, entered = null;
+        Exception? failureBeforeCleanup = null;
         try
         {
             using ProfileLease lease = ProfileLease.Acquire(directory);
@@ -117,14 +118,18 @@ internal static class ArchivePaginationFocusChecks
             await Case("pointer-hold-retain-origin", Pagination.PART_NextButton, 2, moveFocus: false, holdPointer: true);
             await Case("programmatic-no-focus-request", Pagination.PART_PreviousButton, 1, moveFocus: false, programmatic: true);
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            release?.TrySetCanceled();
-            page?.EndLifetime();
-            host?.Close();
-            owner.Activate();
-            await Program.WaitUntilAsync(() => owner.IsActive);
-            try { Directory.Delete(directory, true); } catch (IOException) { }
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                release?.TrySetCanceled();
+                page?.EndLifetime();
+                host?.Close();
+                owner.Activate();
+                await Program.WaitUntilAsync(() => owner.IsActive);
+                try { Directory.Delete(directory, true); } catch (IOException) { }
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ArchivePaginationFocusChecks: " + exception));
         }
     }
 

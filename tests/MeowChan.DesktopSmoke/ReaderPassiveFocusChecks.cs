@@ -23,6 +23,7 @@ internal static class ReaderPassiveFocusChecks
         string language = Texts.Language, layout = page.ArchiveLayoutPreference;
         double width = owner.Width, height = owner.Height;
         WindowState state = owner.WindowState;
+        Exception? failureBeforeCleanup = null;
         try
         {
             // Exercise the actual shell's archive split, including its real search and toolbar.
@@ -125,6 +126,7 @@ internal static class ReaderPassiveFocusChecks
                 {
                     if (e.Source is Visual target && target.GetVisualAncestors().Contains(posts)) latePostFocus++;
                 }
+                Exception? innerFailureBeforeCleanup = null;
                 try
                 {
                     await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -162,37 +164,45 @@ internal static class ReaderPassiveFocusChecks
                     Require(latePostFocus == 0 && (expected == null || expected.IsKeyboardFocusWithin),
                         cover + ": held restoration focused the underlying reader. " + Describe(owner));
                 }
+                catch (Exception thrown) { innerFailureBeforeCleanup = thrown; throw; }
                 finally
                 {
-                    release.TrySetResult();
-                    await restoration.WaitAsync(TimeSpan.FromSeconds(10));
-                    owner.RemoveHandler(InputElement.GotFocusEvent, Focused);
-                    page.BeforePassiveReaderFocusAsync = null;
-                    if (cover == "gallery" && owner.FindControl<ContentControl>("GalleryHost")!.Content is GalleryViewer viewer)
+                    await SmokeCleanup.RunAsync(innerFailureBeforeCleanup, async () =>
                     {
-                        if (galleryContext.HasValue && viewer.CaptureState().ContextOpen != galleryContext.Value)
-                            Click(GalleryButton(viewer, "GalleryToggleContext"));
-                        Click(GalleryButton(viewer, "GalleryClose"));
-                    }
-                    child?.Close();
-                    owner.Activate();
-                    await Program.WaitUntilAsync(() => owner.IsActive && !page.IsObscuredByGallery);
-                    await SettleAsync();
+                        release.TrySetResult();
+                        await restoration.WaitAsync(TimeSpan.FromSeconds(10));
+                        owner.RemoveHandler(InputElement.GotFocusEvent, Focused);
+                        page.BeforePassiveReaderFocusAsync = null;
+                        if (cover == "gallery" && owner.FindControl<ContentControl>("GalleryHost")!.Content is GalleryViewer viewer)
+                        {
+                            if (galleryContext.HasValue && viewer.CaptureState().ContextOpen != galleryContext.Value)
+                                Click(GalleryButton(viewer, "GalleryToggleContext"));
+                            Click(GalleryButton(viewer, "GalleryClose"));
+                        }
+                        child?.Close();
+                        owner.Activate();
+                        await Program.WaitUntilAsync(() => owner.IsActive && !page.IsObscuredByGallery);
+                        await SettleAsync();
+                    }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderPassiveFocusChecks: " + exception));
                 }
             }
             await CheckLiveAsync(owner);
             Console.WriteLine("SMOKE passive reader focus: PASS; actual-shell same-action external/internal intent; surviving toolbar; replacement anchor; missing-anchor fallback; held gallery/owned window; coverage roundtrip; whole live reload.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            page.BeforePassiveReaderFocusAsync = null;
-            Texts.SetLanguage(language);
-            await page.ReaderLocalizationTask;
-            page.ArchiveLayoutPreference = layout;
-            owner.Width = width; owner.Height = height; owner.WindowState = state;
-            owner.Activate();
-            await Program.WaitUntilAsync(() => owner.IsActive);
-            await SettleAsync();
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                page.BeforePassiveReaderFocusAsync = null;
+                Texts.SetLanguage(language);
+                await page.ReaderLocalizationTask;
+                page.ArchiveLayoutPreference = layout;
+                owner.Width = width; owner.Height = height; owner.WindowState = state;
+                owner.Activate();
+                await Program.WaitUntilAsync(() => owner.IsActive);
+                await SettleAsync();
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderPassiveFocusChecks: " + exception));
         }
     }
 
@@ -222,6 +232,7 @@ internal static class ReaderPassiveFocusChecks
         Window? host = null;
         TaskCompletionSource? release = null;
         Task update = Task.CompletedTask;
+        Exception? failureBeforeCleanup = null;
         try
         {
             using ProfileLease lease = ProfileLease.Acquire(directory);
@@ -307,16 +318,20 @@ internal static class ReaderPassiveFocusChecks
                 await page.MediaLoadTask;
             }
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            release?.TrySetResult();
-            page?.EndLifetime();
-            await update.WaitAsync(TimeSpan.FromSeconds(10));
-            host?.Close();
-            owner.Activate();
-            await Program.WaitUntilAsync(() => owner.IsActive);
-            await SettleAsync();
-            Directory.Delete(directory, recursive: true);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                release?.TrySetResult();
+                page?.EndLifetime();
+                await update.WaitAsync(TimeSpan.FromSeconds(10));
+                host?.Close();
+                owner.Activate();
+                await Program.WaitUntilAsync(() => owner.IsActive);
+                await SettleAsync();
+                Directory.Delete(directory, recursive: true);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderPassiveFocusChecks: " + exception));
         }
     }
 

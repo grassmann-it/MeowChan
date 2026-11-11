@@ -153,6 +153,7 @@ internal static class LanguageSwitchFooterChecks
         menu.ShowAt(tools);
         await Program.WaitUntilAsync(() => menu.IsOpen && menu.Items.OfType<MenuItem>()
             .Any(item => item.IsEffectivelyVisible && item.Bounds.Width > 0));
+        Exception? failureBeforeCleanup = null;
         try
         {
             foreach (MenuItem item in menu.Items.OfType<MenuItem>())
@@ -165,10 +166,14 @@ internal static class LanguageSwitchFooterChecks
                     $"Tools item {tag} kept a stale command label for {Texts.Language}.");
             }
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            menu.Hide();
-            await Program.WaitUntilAsync(() => !menu.IsOpen);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                menu.Hide();
+                await Program.WaitUntilAsync(() => !menu.IsOpen);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in LanguageSwitchFooterChecks: " + exception));
         }
     }
 

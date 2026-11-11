@@ -216,6 +216,7 @@ internal static class ExperimentalActivationChecks
                 { cell, actualScale = modal.RenderScaling, warningMinimum = modal.Bounds.ToString(), syntheticPartialSave = true, explicitRetryCalls = calls }));
             }
         }
+        Exception? failureBeforeCleanup = null;
         try
         {
             await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(45));
@@ -373,18 +374,22 @@ internal static class ExperimentalActivationChecks
             Console.WriteLine("EXPERIMENTAL_ACTIVATION_GUI PASS: real URL controls, disabled no-work warning/cancel/Escape, explicit Host consent, deterministic worker metadata/media, mixed batch and strict later URL; EN/DE Dark/Light warning and synthetic partial/retry presentation at actual scale " + expectedScale
                 + ". Routed actions are synthetic; no physical/native input or live-source acceptance is claimed.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            if (File.Exists(retainedSettings))
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
-                if (Directory.Exists(settings)) Directory.Delete(settings);
-                File.Move(retainedSettings, settings);
-            }
-            pending?.TrySetResult(new(ExperimentalSourceActivationStatus.GrantFailed, null, null, "Fixture cleanup"));
-            foreach (var modal in Dialogs().ToArray()) modal.Close();
-            window.Close();
-            await Program.WaitUntilAsync(() => host.State == DesktopSessionState.Stopped);
-            Texts.SetLanguage(original.Language); Application.Current.RequestedThemeVariant = originalTheme;
+                if (File.Exists(retainedSettings))
+                {
+                    if (Directory.Exists(settings)) Directory.Delete(settings);
+                    File.Move(retainedSettings, settings);
+                }
+                pending?.TrySetResult(new(ExperimentalSourceActivationStatus.GrantFailed, null, null, "Fixture cleanup"));
+                foreach (var modal in Dialogs().ToArray()) modal.Close();
+                window.Close();
+                await Program.WaitUntilAsync(() => host.State == DesktopSessionState.Stopped);
+                Texts.SetLanguage(original.Language); Application.Current.RequestedThemeVariant = originalTheme;
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ExperimentalActivationChecks: " + exception));
         }
     }
 
@@ -668,6 +673,7 @@ internal static class ExperimentalActivationChecks
         MainWindow window = new(host);
         window.Show(owner);
         string settings = Path.Combine(profile, "settings.json"), retainedSettings = settings + ".edge-retained";
+        Exception? failureBeforeCleanup = null;
         try
         {
             await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(45));
@@ -940,17 +946,21 @@ internal static class ExperimentalActivationChecks
                 "Late confirmation after real shutdown changed durable consent or redirected into the other session.");
             Console.WriteLine("EXPERIMENTAL_OPEN_DIALOG_EDGES PASS: real selected-build invalidation, foreign-Host target rejection, existing strict Watch during partial consent and real StopAsync before late confirm; no in-place owner/session replacement or native-focus acceptance is claimed.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            if (File.Exists(retainedSettings))
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
-                if (Directory.Exists(settings)) Directory.Delete(settings);
-                File.Move(retainedSettings, settings);
-            }
-            foreach (var modal in Dialogs().ToArray()) modal.Close();
-            window.Close();
-            await host.StopAsync().WaitAsync(TimeSpan.FromSeconds(45));
-            await Program.WaitUntilAsync(() => !window.IsVisible);
+                if (File.Exists(retainedSettings))
+                {
+                    if (Directory.Exists(settings)) Directory.Delete(settings);
+                    File.Move(retainedSettings, settings);
+                }
+                foreach (var modal in Dialogs().ToArray()) modal.Close();
+                window.Close();
+                await host.StopAsync().WaitAsync(TimeSpan.FromSeconds(45));
+                await Program.WaitUntilAsync(() => !window.IsVisible);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ExperimentalActivationChecks: " + exception));
         }
     }
 

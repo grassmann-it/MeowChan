@@ -58,6 +58,7 @@ internal static class GalleryFitChecks
             await ReplaceViewerAsync(); await ResizeAsync(viewer, 760, 500);
             await viewer.ShowAsync(entry, CancellationToken.None); await SettledAsync();
         }
+        Exception? failureBeforeCleanup = null;
         try
         {
             GalleryEntry large = await FixtureAsync(directory, "large", 6000, 4000, SKColors.DarkOrange);
@@ -271,12 +272,16 @@ internal static class GalleryFitChecks
             }));
             Console.WriteLine("SMOKE gallery-fit: physical targets, trailing latest resize, retained shrink, single worker, switch/zoom/stop/cancel races, small original reuse, failure/retry and real decode memory cycles passed.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            probe.ReleaseAll(); await viewer.StopAsync();
-            await Program.WaitUntilAsync(() => probe.Active == 0);
-            window.Content = previousContent;
-            Directory.Delete(directory, true);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                probe.ReleaseAll(); await viewer.StopAsync();
+                await Program.WaitUntilAsync(() => probe.Active == 0);
+                window.Content = previousContent;
+                Directory.Delete(directory, true);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in GalleryFitChecks: " + exception));
         }
     }
 

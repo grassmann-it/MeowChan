@@ -24,6 +24,7 @@ internal static partial class MediaPageChecks
         await SeedAsync(profile);
         DesktopSessionHost session = new(profile, Array.Empty<IImageBoard>());
         MainWindow shell = new(session) { Width = 1400, Height = 900 };
+        Exception? failureBeforeCleanup = null;
         try
         {
             shell.Show(owner);
@@ -184,13 +185,17 @@ internal static partial class MediaPageChecks
             Require(page.Grid.SelectedItem is MediaLibraryTileRow { Entry.PostId: "100" }, "The tile selection was lost by closing the gallery.");
             Console.WriteLine("SMOKE media page host [en]: real main window -> Medien page -> tile -> Edit media tags (real dialog, two tags, tile shows them after refresh, focus on grid); changed and unbound file refused with a notice and nothing written; gallery from the page -> favorite and rating changed there -> close -> tile shows both, focus on grid.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            foreach (Window child in shell.OwnedWindows.Where(window => window.IsVisible).ToArray()) child.Close();
-            shell.Close();
-            await UntilAsync(() => !shell.IsVisible);
-            await shell.GalleryCleanupTask;
-            owner.Activate();
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                foreach (Window child in shell.OwnedWindows.Where(window => window.IsVisible).ToArray()) child.Close();
+                shell.Close();
+                await UntilAsync(() => !shell.IsVisible);
+                await shell.GalleryCleanupTask;
+                owner.Activate();
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in MediaPageHostChecks: " + exception));
         }
     }
 

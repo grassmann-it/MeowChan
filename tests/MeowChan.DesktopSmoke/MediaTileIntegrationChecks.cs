@@ -258,6 +258,7 @@ internal static class MediaTileIntegrationChecks
                 wrongBitmapPublished = true;
         };
         foreach (Image image in images) image.PropertyChanged += observe;
+        Exception? failureBeforeCleanup = null;
         try
         {
             for (int index = 0; index < views.Length; index++)
@@ -303,18 +304,22 @@ internal static class MediaTileIntegrationChecks
                 "A canceled queued thumbnail entered decoding or exceeded the two-job bound.");
             Console.WriteLine("SMOKE media-tile late decode: rebound, hidden and canceled queued tiles rejected stale bitmaps; maximum two active decodes PASS");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            release.TrySetResult();
-            for (int index = 0; index < views.Length; index++)
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
-                images[index].PropertyChanged -= observe;
-                views[index].ThumbnailDecoder = decoders[index];
-                views[index].ClearValue(StyledElement.DataContextProperty);
-                views[index].IsVisible = true;
-            }
-            await Program.WaitUntilAsync(() => Volatile.Read(ref active) == 0);
-            await Settle(fixture);
+                release.TrySetResult();
+                for (int index = 0; index < views.Length; index++)
+                {
+                    images[index].PropertyChanged -= observe;
+                    views[index].ThumbnailDecoder = decoders[index];
+                    views[index].ClearValue(StyledElement.DataContextProperty);
+                    views[index].IsVisible = true;
+                }
+                await Program.WaitUntilAsync(() => Volatile.Read(ref active) == 0);
+                await Settle(fixture);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in MediaTileIntegrationChecks: " + exception));
         }
     }
 

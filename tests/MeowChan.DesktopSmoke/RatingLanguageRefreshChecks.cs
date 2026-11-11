@@ -55,6 +55,7 @@ internal static class RatingLanguageRefreshChecks
             return release.Task;
         });
         Task result = dialog.ShowDialog(owner);
+        Exception? failureBeforeCleanup = null;
         try
         {
             await WaitUntilAsync(() => dialog.IsVisible);
@@ -116,12 +117,16 @@ internal static class RatingLanguageRefreshChecks
                     language + ": failed-save refresh committed/retried or altered restored value/focus.");
             }
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            release.TrySetResult();
-            await WaitUntilAsync(() => !IsBusy(dialog));
-            if (dialog.IsVisible) dialog.Close();
-            await result.WaitAsync(Deadline);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                release.TrySetResult();
+                await WaitUntilAsync(() => !IsBusy(dialog));
+                if (dialog.IsVisible) dialog.Close();
+                await result.WaitAsync(Deadline);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in RatingLanguageRefreshChecks: " + exception));
         }
     }
 

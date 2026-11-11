@@ -29,6 +29,7 @@ internal static partial class MediaPageChecks
         await SeedReturnAsync(profile);
         DesktopSessionHost session = new(profile, Array.Empty<IImageBoard>());
         MainWindow shell = new(session) { Width = 1400, Height = 900 };
+        Exception? failureBeforeCleanup = null;
         try
         {
             shell.Show(owner);
@@ -219,13 +220,17 @@ internal static partial class MediaPageChecks
                 "A jump overtaken by leaving the archive must not come back or keep a return point.");
             Console.WriteLine("SMOKE media return [en]: real main window -> Medien sorted newest, name filter, scrolled -> T on a tile -> exact thread and post -> 'Back to media' shown, gallery return hidden -> Alt+Left kept by the archive search field -> Alt+Left on the post -> same order, filter, selection, focus and view (anchor " + anchor + " -> " + back + "); duplicate: occurrences list opens the second thread -> button -> the one byte tile selected; gone tile (favorite removed in the archive) -> note, filter kept, nothing selected; file without post: T and menu do nothing; gallery: T -> thread -> back to gallery -> close -> Medien tile focused; leaving the archive during a jump ends it.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            foreach (Window child in shell.OwnedWindows.Where(window => window.IsVisible).ToArray()) child.Close();
-            shell.Close();
-            await UntilAsync(() => !shell.IsVisible);
-            await shell.GalleryCleanupTask;
-            owner.Activate();
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                foreach (Window child in shell.OwnedWindows.Where(window => window.IsVisible).ToArray()) child.Close();
+                shell.Close();
+                await UntilAsync(() => !shell.IsVisible);
+                await shell.GalleryCleanupTask;
+                owner.Activate();
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in MediaPageReturnChecks: " + exception));
         }
     }
 

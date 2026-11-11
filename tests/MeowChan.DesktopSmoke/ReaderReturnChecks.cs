@@ -108,15 +108,20 @@ internal static class ReaderReturnChecks
     {
         double width = window.Width, height = window.Height;
         PixelPoint position = window.Position;
+        Exception? failureBeforeCleanup = null;
         try { await CheckCloseFocusCoreAsync(window); }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            // The wide focus fixture must not become the following gallery
-            // fullscreen check's normal origin on a smaller scaled desktop.
-            window.Width = width; window.Height = height;
-            window.Position = position;
-            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
-            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                // The wide focus fixture must not become the following gallery
+                // fullscreen check's normal origin on a smaller scaled desktop.
+                window.Width = width; window.Height = height;
+                window.Position = position;
+                await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
+                await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderReturnChecks: " + exception));
         }
     }
 

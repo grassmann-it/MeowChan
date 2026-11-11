@@ -467,6 +467,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         GalleryEntryKey expected = new(new(id, snapshot.Directory, resolved.Asset.AssetId), "501", 0);
         await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
         MainWindow shell = new(host); shell.Show(owner); shell.Activate();
+        Exception? failureBeforeCleanup = null;
         try
         {
             await host.StartAsync().WaitAsync(Deadline);
@@ -570,11 +571,15 @@ internal static partial class GalleryPlaybackFeatureChecks
             }
             finally { page.FindControl<Grid>("ArchiveReaderPane")!.RemoveHandler(InputElement.PointerPressedEvent, Pointer); }
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            SmokeActionClick.Execute(shell.FindControl<MenuItem>("ExitMenuItem")!);
-            await UntilAsync(() => !shell.IsVisible, "Private GIF shell did not finish actual shutdown.");
-            ShortcutService.Publish(owner.SessionHost.Config.ShortcutBindings);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                SmokeActionClick.Execute(shell.FindControl<MenuItem>("ExitMenuItem")!);
+                await UntilAsync(() => !shell.IsVisible, "Private GIF shell did not finish actual shutdown.");
+                ShortcutService.Publish(owner.SessionHost.Config.ShortcutBindings);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in GifPlaybackChecks: " + exception));
         }
     }
 }

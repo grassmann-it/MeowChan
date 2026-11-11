@@ -152,6 +152,7 @@ internal static class SettingsLanguageRefreshChecks
         SettingsWindow window = new(config, _ => { applies++; return Task.CompletedTask; });
         window.Editor.DestinationValidator = validator;
         Task dialog = window.ShowDialog(owner);
+        Exception? failureBeforeCleanup = null;
         try
         {
             await Program.WaitUntilAsync(() => window.IsVisible);
@@ -209,13 +210,17 @@ internal static class SettingsLanguageRefreshChecks
             Console.WriteLine($"SMOKE settings pending fixture released within budget; observed completion after {pendingBudget.Elapsed.TotalMilliseconds:F0} ms (five-second product timeout; twenty-second cleanup failsafe).");
             Console.WriteLine("SMOKE settings language pending check: one gated fixture probe survives three language changes; released result is applied to UI and remains localized on two more changes, never committed.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            release.Set();
-            if (entered.Task.IsCompleted) await finished.Task.WaitAsync(Deadline);
-            await Program.WaitUntilAsync(() => !window.Editor.IsBusy);
-            if (window.IsVisible) window.Close();
-            await dialog.WaitAsync(Deadline);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                release.Set();
+                if (entered.Task.IsCompleted) await finished.Task.WaitAsync(Deadline);
+                await Program.WaitUntilAsync(() => !window.Editor.IsBusy);
+                if (window.IsVisible) window.Close();
+                await dialog.WaitAsync(Deadline);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SettingsLanguageRefreshChecks: " + exception));
         }
     }
 

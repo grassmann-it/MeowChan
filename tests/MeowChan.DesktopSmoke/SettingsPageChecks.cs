@@ -37,6 +37,7 @@ internal static class SettingsPageChecks
         string file = Path.Combine(Config.GetConfigDirectory(), "settings.json");
         string original = File.ReadAllText(file);
         string draftPath = Path.Combine(Config.GetConfigDirectory(), "draft-downloads");
+        Exception? failureBeforeCleanup = null;
         try
         {
             urls.Text = "https://unsupported.invalid/retained-page-input";
@@ -131,18 +132,22 @@ internal static class SettingsPageChecks
             Require(!window.SettingsPageVisible && urls.IsFocused && urls.Text == "https://unsupported.invalid/retained-page-input",
                 "The URL shortcut failed to navigate and retain the pending input.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            Navigate(window, true);
-            editor.CancelChanges();
-            editor.RecheckTimer = initial.RecheckTimer;
-            editor.SelectedTheme = editor.ThemeChoices.Single(choice => choice.Value == initial.Theme);
-            editor.SelectedWorkspaceMode = editor.WorkspaceChoices.Single(choice => choice.Value == initial.WorkspaceMode);
-            Click(editor.FindControl<Button>("SaveSettingsButton")!);
-            await Program.WaitUntilAsync(() => !editor.IsBusy && editor.IsAvailable);
-            Require(!editor.HasError, "Restoring the page fixture failed.");
-            Navigate(window, false);
-            urls.Text = initialUrls;
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                Navigate(window, true);
+                editor.CancelChanges();
+                editor.RecheckTimer = initial.RecheckTimer;
+                editor.SelectedTheme = editor.ThemeChoices.Single(choice => choice.Value == initial.Theme);
+                editor.SelectedWorkspaceMode = editor.WorkspaceChoices.Single(choice => choice.Value == initial.WorkspaceMode);
+                Click(editor.FindControl<Button>("SaveSettingsButton")!);
+                await Program.WaitUntilAsync(() => !editor.IsBusy && editor.IsAvailable);
+                Require(!editor.HasError, "Restoring the page fixture failed.");
+                Navigate(window, false);
+                urls.Text = initialUrls;
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SettingsPageChecks: " + exception));
         }
     }
 
@@ -277,6 +282,7 @@ internal static class SettingsPageChecks
         MainWindow window = new MainWindow(host);
         window.Show(owner);
         TaskCompletionSource? pending = null;
+        Exception? failureBeforeCleanup = null;
         try
         {
             await Program.WaitUntilAsync(() => window.FindControl<Button>("AddUrlButton")!.IsEnabled);
@@ -349,11 +355,15 @@ internal static class SettingsPageChecks
                 "Shutdown changed the ended editor or did not preserve the accepted save outcome.");
             using ProfileLease lease = ProfileLease.Acquire(profile);
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            pending?.TrySetResult();
-            if (window.IsVisible) { window.Close(); await Program.WaitUntilAsync(() => !window.IsVisible); }
-            Directory.Delete(profile, true);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                pending?.TrySetResult();
+                if (window.IsVisible) { window.Close(); await Program.WaitUntilAsync(() => !window.IsVisible); }
+                Directory.Delete(profile, true);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SettingsPageChecks: " + exception));
         }
     }
 
@@ -369,6 +379,7 @@ internal static class SettingsPageChecks
         DesktopSessionHost host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>());
         MainWindow window = new MainWindow(host);
         window.Show(owner);
+        Exception? failureBeforeCleanup = null;
         try
         {
             await Program.WaitUntilAsync(() => window.FindControl<Button>("AddUrlButton")!.IsEnabled);
@@ -394,11 +405,15 @@ internal static class SettingsPageChecks
             Require(!lateUpdate && editor.DownloadPath == path, "A late picker result modified the ended editor.");
             using ProfileLease lease = ProfileLease.Acquire(profile);
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            pending.TrySetResult(Array.Empty<Avalonia.Platform.Storage.IStorageFolder>());
-            if (window.IsVisible) { window.Close(); await Program.WaitUntilAsync(() => !window.IsVisible); }
-            Directory.Delete(profile, true);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                pending.TrySetResult(Array.Empty<Avalonia.Platform.Storage.IStorageFolder>());
+                if (window.IsVisible) { window.Close(); await Program.WaitUntilAsync(() => !window.IsVisible); }
+                Directory.Delete(profile, true);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SettingsPageChecks: " + exception));
         }
     }
 

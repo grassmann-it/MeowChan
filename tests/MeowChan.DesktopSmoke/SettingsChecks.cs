@@ -368,6 +368,7 @@ internal static class SettingsChecks
             candidate.SaveConfig();
         });
         Task dialog = window.ShowDialog(owner);
+        Exception? failureBeforeCleanup = null;
         try
         {
             await WaitUntilAsync(() => window.IsVisible && window.Bounds.Width > 0);
@@ -438,14 +439,18 @@ internal static class SettingsChecks
                 && saved.Theme == "Light" && saved.WorkspaceMode == "Simple" && saved.Language == "de" && saved.CompactDensity,
                 "Successful settings apply did not persist all appearance preferences.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            pending.TrySetCanceled();
-            if (window.IsVisible)
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
-                await WaitUntilAsync(() => !window.Editor.IsBusy);
-                window.Close();
-            }
+                pending.TrySetCanceled();
+                if (window.IsVisible)
+                {
+                    await WaitUntilAsync(() => !window.Editor.IsBusy);
+                    window.Close();
+                }
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SettingsChecks: " + exception));
         }
     }
 
@@ -568,6 +573,7 @@ internal static class SettingsChecks
         parent.Show(owner);
         SettingsWindow window = new SettingsWindow(config, candidate => pending.Task);
         Task dialog = window.ShowDialog(parent);
+        Exception? failureBeforeCleanup = null;
         try
         {
             await WaitUntilAsync(() => window.IsVisible);
@@ -581,14 +587,18 @@ internal static class SettingsChecks
             await WaitUntilAsync(() => !window.Editor.IsBusy);
             Require(config.RecheckTimer == 60, "An apply failure after owner close changed live settings.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            pending.TrySetCanceled();
-            await WaitUntilAsync(() => !window.Editor.IsBusy);
-            if (window.IsVisible)
-                window.Close();
-            if (parent.IsVisible)
-                parent.Close();
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                pending.TrySetCanceled();
+                await WaitUntilAsync(() => !window.Editor.IsBusy);
+                if (window.IsVisible)
+                    window.Close();
+                if (parent.IsVisible)
+                    parent.Close();
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SettingsChecks: " + exception));
         }
     }
 
@@ -609,6 +619,7 @@ internal static class SettingsChecks
                 wrongThread = true;
         };
         TaskCompletionSource<IReadOnlyList<IStorageFolder>> pending = new TaskCompletionSource<IReadOnlyList<IStorageFolder>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Exception? failureBeforeCleanup = null;
         try
         {
             await WaitUntilAsync(() => window.IsVisible);
@@ -660,14 +671,18 @@ internal static class SettingsChecks
             window.Close();
             await dialog.WaitAsync(TimeSpan.FromSeconds(5));
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            pending.TrySetCanceled();
-            if (window.IsVisible)
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
-                await WaitUntilAsync(() => !window.Editor.IsBusy);
-                window.Close();
-            }
+                pending.TrySetCanceled();
+                if (window.IsVisible)
+                {
+                    await WaitUntilAsync(() => !window.Editor.IsBusy);
+                    window.Close();
+                }
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SettingsChecks: " + exception));
         }
     }
 

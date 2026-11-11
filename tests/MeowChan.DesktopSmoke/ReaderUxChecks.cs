@@ -409,6 +409,7 @@ internal static class ReaderUxChecks
     private static async Task CheckArchiveThreadFavoritesAsync(MainWindow window, ArchivePage page)
     {
         string originalLayout = page.ArchiveLayoutPreference;
+        Exception? failureBeforeCleanup = null;
         try
         {
             foreach (string layout in new[] { "List", "Table" })
@@ -491,10 +492,14 @@ internal static class ReaderUxChecks
                 await page.ActivateAsync();
             }
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            SmokeActionClick.Execute(page.FindControl<Button>("ArchiveLayout" + originalLayout)!);
-            await Program.WaitUntilAsync(() => page.ArchiveLayoutPreference == originalLayout);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                SmokeActionClick.Execute(page.FindControl<Button>("ArchiveLayout" + originalLayout)!);
+                await Program.WaitUntilAsync(() => page.ArchiveLayoutPreference == originalLayout);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderUxChecks: " + exception));
         }
         Console.WriteLine("SMOKE thread favorites: list/table stars and captured context lead passed.");
     }
@@ -509,6 +514,7 @@ internal static class ReaderUxChecks
         Button star = page.FindControl<ArchiveThreadFavoriteButton>("ArchiveCurrentThreadFavorite")!;
         bool Marked() => window.SessionHost.GetThreadFavorites().Contains(id);
         Require(!Marked(), "Thread-favorite reader fixture must start unmarked.");
+        Exception? failureBeforeCleanup = null;
         try
         {
             foreach (string language in new[] { "de", "en" })
@@ -546,13 +552,17 @@ internal static class ReaderUxChecks
                 && bookmarksBefore.Bookmarks.SequenceEqual(bookmarksAfter.Bookmarks),
                 "Thread starring changed media favorites or post bookmarks.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            long restoreRevision = MeowChan.Desktop.Commands.ShortcutService.Revision;
-            await window.SessionHost.ApplySettingsAsync(original);
-            await Program.WaitUntilAsync(() => MeowChan.Desktop.Commands.ShortcutService.Revision > restoreRevision);
-            Texts.SetLanguage(originalLanguage);
-            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                long restoreRevision = MeowChan.Desktop.Commands.ShortcutService.Revision;
+                await window.SessionHost.ApplySettingsAsync(original);
+                await Program.WaitUntilAsync(() => MeowChan.Desktop.Commands.ShortcutService.Revision > restoreRevision);
+                Texts.SetLanguage(originalLanguage);
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderUxChecks: " + exception));
         }
         Console.WriteLine("SMOKE thread favorites: reader commit/unmark, EN/DE, toolbar custom shortcut and independent media/bookmarks passed.");
     }
@@ -828,6 +838,7 @@ internal static class ReaderUxChecks
     {
         double width = window.Width, height = window.Height;
         string mode = window.SessionHost.Config.WorkspaceMode;
+        Exception? failureBeforeCleanup = null;
         try
         {
             await PresentationChecks.SwitchModeAsync(window, "Barebones");
@@ -837,11 +848,15 @@ internal static class ReaderUxChecks
             Program.CaptureWindow(window, "smoke-gallery-caption-small.png");
             await WindowChromeChecks.RunAsync(window);
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            await PresentationChecks.SwitchModeAsync(window, mode);
-            window.Width = width; window.Height = height;
-            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                await PresentationChecks.SwitchModeAsync(window, mode);
+                window.Width = width; window.Height = height;
+                await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderUxChecks: " + exception));
         }
         await CheckOverlayChromeAsync(window, overlay);
     }

@@ -26,6 +26,7 @@ internal static partial class MediaPageChecks
         await SeedReturnAsync(profile);
         DesktopSessionHost session = new(profile, Array.Empty<IImageBoard>());
         MainWindow shell = new(session) { Width = 1400, Height = 900 };
+        Exception? failureBeforeCleanup = null;
         try
         {
             shell.Show(owner);
@@ -178,13 +179,17 @@ internal static partial class MediaPageChecks
             await DirectGalleryOpenGuardAsync(shell, page);
             Console.WriteLine("SMOKE media gallery return [en]: real main window -> (a) Medien tile -> gallery whose close action is 'To media' (name, tooltip with Esc, visible label, help entry and Escape line; 'Zu Medien' after a switch to German) -> T -> thread with only 'Back to gallery', Alt+Left kept in the archive -> back to the same gallery -> Escape -> the same Medien tile focused and selected, no return state left, focus stable; (b) Medien tile -> T -> 'Back to media' -> gallery from the reader ('Close gallery') hides it -> T -> only 'Back to gallery' -> back -> close -> archive reader with 'Back to media' again -> the same Medien tile.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            foreach (Window child in shell.OwnedWindows.Where(window => window.IsVisible).ToArray()) child.Close();
-            shell.Close();
-            await UntilAsync(() => !shell.IsVisible);
-            await shell.GalleryCleanupTask;
-            owner.Activate();
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                foreach (Window child in shell.OwnedWindows.Where(window => window.IsVisible).ToArray()) child.Close();
+                shell.Close();
+                await UntilAsync(() => !shell.IsVisible);
+                await shell.GalleryCleanupTask;
+                owner.Activate();
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in MediaGalleryReturnChecks: " + exception));
         }
     }
 }

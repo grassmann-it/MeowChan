@@ -135,6 +135,7 @@ internal static class GalleryMediaTagChecks
         }
         DesktopSessionHost session = new(profile, Array.Empty<IImageBoard>());
         MainWindow shell = new(session) { Width = 1300, Height = 900 };
+        Exception? failureBeforeCleanup = null;
         try
         {
             shell.Show(owner);
@@ -221,13 +222,17 @@ internal static class GalleryMediaTagChecks
             page.ArchiveMediaMenu.Close();
             Console.WriteLine("SMOKE archive media tags [en]: inline image -> real tag dialog -> host/store; thread tags unchanged; table and tile menus reopen the same media tags; unbound file disabled with explanation; no gallery opened.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            foreach (Window child in shell.OwnedWindows.Where(child => child.IsVisible).ToArray()) child.Close();
-            shell.Close();
-            await UntilAsync(() => !shell.IsVisible);
-            await shell.GalleryCleanupTask.WaitAsync(Deadline);
-            owner.Activate();
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                foreach (Window child in shell.OwnedWindows.Where(child => child.IsVisible).ToArray()) child.Close();
+                shell.Close();
+                await UntilAsync(() => !shell.IsVisible);
+                await shell.GalleryCleanupTask.WaitAsync(Deadline);
+                owner.Activate();
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in GalleryMediaTagChecks: " + exception));
         }
     }
 

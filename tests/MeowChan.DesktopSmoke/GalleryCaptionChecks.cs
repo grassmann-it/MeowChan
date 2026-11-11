@@ -26,6 +26,7 @@ internal static class GalleryCaptionChecks
         string language = Texts.Language;
         bool contextOpen = viewer.CaptureState().ContextOpen;
         string warnings = Find<TextBlock>(viewer, "GalleryWarnings").Text ?? string.Empty;
+        Exception? failureBeforeCleanup = null;
         try
         {
             // Exercise the media component's 640-DIP contract without changing
@@ -75,17 +76,21 @@ internal static class GalleryCaptionChecks
                 throw new InvalidOperationException("Gallery tools disappeared while the pointer was idle.");
             Check(window, viewer, video, "Dark", 851, false, "tools-idle-visible");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            viewer.SetWarnings(warnings);
-            SetContext(viewer, contextOpen);
-            Application.Current.RequestedThemeVariant = theme;
-            Texts.SetLanguage(language);
-            window.Width = width; window.Height = height;
-            window.MinWidth = minimumWidth;
-            viewer.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.LeftShift });
-            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
-            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                viewer.SetWarnings(warnings);
+                SetContext(viewer, contextOpen);
+                Application.Current.RequestedThemeVariant = theme;
+                Texts.SetLanguage(language);
+                window.Width = width; window.Height = height;
+                window.MinWidth = minimumWidth;
+                viewer.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.LeftShift });
+                await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
+                await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in GalleryCaptionChecks: " + exception));
         }
         Console.WriteLine($"SMOKE gallery caption: {(video ? "real video, EN/DE,640/849/850/851" : "decoded image,849/850/851")},D/L,context open/closed,wrapped status,persistent tools below media passed.");
     }
