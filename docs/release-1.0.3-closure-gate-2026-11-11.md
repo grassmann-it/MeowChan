@@ -150,3 +150,21 @@ GUI-Smokes im privaten Xvfb (nice 19):
 1. Erledigt (`aaea381`): Recovery unterbrochener Transfers.
 2. Nutzerentscheidung 11.11.: Paketierung und Plattformläufe übernimmt der Nutzer am Ende per GitHub
    Actions (Codex). Dort zu prüfen: Windows-/macOS-/Hardwareläufe sowie Linux-Distributionspaketierung und `check-video-native.py` auf der Ubuntu-CI-Basis bzw. den Zielplattformen.
+
+## Nachtrag 11.11.: Medienseite (OR-01 bis OR-05) auf goal
+
+Lokal integriert bis `b73eff4`, frisch gebaut, nichts gepusht:
+- OR-01 Medienindex/-seite (`f911c8f`, `2222915`), frische Abnahme Core 9433/0/10, Desktop 3098/0/11, Smoke PASS;
+  dabei Clean-Checkout-Kompilierfehler im DesktopSmoke behoben (`1dcfb3c`).
+- OR-03 Filter (`ed5d975`), OR-04 Bytegruppen (`1bb08b2`), OR-05 Auswahl/Tag/Galerie/Export (`252c02f`),
+  Tonfilter und „Alle Treffer exportieren“ (`08c6688`, `c467977`, `879b59d`) aus der Parallelsitzung.
+- Port (`d8f8c02`): Video-Poster auf Medienkacheln (`f76c9cf`), Favoritenstatus alle/einige/keine/unbekannt und
+  Byteschlüssel SHA-256+Länge (`82cc517`), OR-02 eigener Zustand/Tagbearbeitung (`bec4a0b`), Exporttests (`e7351a9`).
+- Kachelhöhe 248 px ohne Überlappung (`49c5bd0`); echte Hauptfenster-Smokes für Tagdialog und Galerie-Schließen
+  samt Fokus-Fix, Export-Abbruch/Platzmangel (synthetisch) (`66dcf88`); Galerie-Fit-Smoke an aktuellen Viewer
+  angepasst (`b73eff4`, vorher seit spätestens `2222915` rot).
+
+Belege: `/home/tomka/mc-evidence/hostpaths-on-goal2-1794398890` (Core 9508/0/10, Desktop 3121/0/11, Smokes
+MEDIA_PAGE, GALLERY_MEDIA_TAGS, MEDIA_RATINGS, PRIVATE_TAGS, MEDIA_PANEL PASS) und
+`/home/tomka/mc-evidence/galleryfit-on-goal-1794399663` (Gallery 452/0, GALLERY_FIT, MEDIA_PERFORMANCE PASS).
+Nicht belegt: echter ENOSPC beim Medienexport (nur synthetisch). Blocker 2 unverändert.
