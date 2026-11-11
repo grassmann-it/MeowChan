@@ -167,4 +167,6 @@ Lokal integriert bis `b73eff4`, frisch gebaut, nichts gepusht:
 Belege: `/home/tomka/mc-evidence/hostpaths-on-goal2-1794398890` (Core 9508/0/10, Desktop 3121/0/11, Smokes
 MEDIA_PAGE, GALLERY_MEDIA_TAGS, MEDIA_RATINGS, PRIVATE_TAGS, MEDIA_PANEL PASS) und
 `/home/tomka/mc-evidence/galleryfit-on-goal-1794399663` (Gallery 452/0, GALLERY_FIT, MEDIA_PERFORMANCE PASS).
-Nicht belegt: echter ENOSPC beim Medienexport (nur synthetisch). Blocker 2 unverändert.
+Echter ENOSPC beim Medienexport (`bf6a87b`, auf goal `ff8200e`): tmpfs-Fixture `/tmp/mc-fs` (64 MiB) mit 0/64 KiB/400 KiB
+Restplatz, `MediaLibraryExportTests` 13/0 inkl. drei Platzmangelfällen (`/home/tomka/mc-evidence/media-export-enospc-1794399941`);
+ohne Fixture übersprungen, Core 9508/0/11. Blocker 2 unverändert.
