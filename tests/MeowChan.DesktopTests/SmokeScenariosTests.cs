@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using MeowChan.DesktopSmoke;
 
 namespace MeowChan.DesktopTests;
@@ -68,16 +70,66 @@ public sealed class SmokeScenariosTests
                 .Select(entry => entry.Selector));
     }
 
-    [Theory]
-    [InlineData("reader-find", "reader find: actual offline404 native controls, whole-thread hits and managed routed keys; no OS keyboard or Windows/macOS acceptance")]
-    [InlineData("filename-search", "filename search standalone dialog:")]
-    [InlineData("media-hash-search", "SHA-256 search standalone dialog:")]
-    [InlineData("filename-search-host", "filename search host: actual native page/modal,")]
-    public void FocusedSearchScenariosOwnTheirClaim(string id, string claim)
+    // The driver also refuses to start when they disagree (SmokeScenarios.CheckRuns); this catches it without a window.
+    [Fact]
+    public void RunsBindExactlyTheRootAndBranchIds()
     {
-        Assert.StartsWith(claim, Assert.Single(SmokeScenarios.All, scenario => scenario.Id == id).Pass!(_ => null), StringComparison.Ordinal);
-        Assert.Single(SmokeScenarios.All, scenario => scenario.Pass?.Invoke(_ => null).StartsWith(claim, StringComparison.Ordinal) == true);
+        string[] bound = Regex.Matches(RunsSource(), "^        \\[\"([a-z0-9-]+)\"\\] = new\\(SmokeStage\\.", RegexOptions.Multiline)
+            .Select(match => match.Groups[1].Value).ToArray();
+        Assert.Equal(bound.Length, bound.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(SmokeScenarios.All.Where(entry => entry.Kind is SmokeScenarioKind.Root or SmokeScenarioKind.Branch)
+            .Select(entry => entry.Id).Order(StringComparer.Ordinal), bound.Order(StringComparer.Ordinal));
     }
+
+    // Replaces the former Program.cs source guards for reader find and the local search modes.
+    [Theory]
+    [InlineData("reader-find", "MEOWCHAN_READER_FIND_ONLY", "mainWindow => ReaderThreadFindChecks.RunAsync(mainWindow)",
+        "reader find: actual offline404 native controls, whole-thread hits and managed routed keys; no OS keyboard or Windows/macOS acceptance")]
+    [InlineData("filename-search", "MEOWCHAN_FILENAME_SEARCH_ONLY", "mainWindow => FilenameSearchChecks.RunAsync(mainWindow)",
+        "filename search standalone dialog:")]
+    [InlineData("media-hash-search", "MEOWCHAN_MEDIA_HASH_SEARCH_ONLY", "mainWindow => MediaHashSearchChecks.RunAsync(mainWindow)",
+        "SHA-256 search standalone dialog:")]
+    public void FocusedSearchScenariosRunOnlyTheirHelperAndOwnTheirClaim(string id, string selector, string run, string claim)
+    {
+        SmokeScenario entry = Assert.Single(SmokeScenarios.All, scenario => scenario.Id == id);
+        Assert.Equal((SmokeScenarioKind.Root, selector), (entry.Kind, entry.Selector));
+        Assert.StartsWith(claim, entry.Pass!(_ => null), StringComparison.Ordinal);
+        Assert.Single(SmokeScenarios.All, scenario => scenario.Pass?.Invoke(_ => null).StartsWith(claim, StringComparison.Ordinal) == true);
+        string binding = Binding(id);
+        Assert.Equal("new(SmokeStage.Ready, " + run + ")", binding);
+        string call = run[(run.IndexOf("=> ", StringComparison.Ordinal) + 3)..];
+        Assert.Equal(1, Regex.Matches(RunsSource(), Regex.Escape(call)).Count);
+    }
+
+    [Fact]
+    public void FilenameSearchHostAwaitsBothHostHelpersInOrder()
+    {
+        string binding = Binding("filename-search-host");
+        int navigation = binding.IndexOf("await FilenameSearchHostNavigationChecks.RunAsync(mainWindow);", StringComparison.Ordinal);
+        int lifetime = binding.IndexOf("await FilenameSearchHostLifetimeChecks.RunAsync(mainWindow);", StringComparison.Ordinal);
+        Assert.True(navigation > 0 && lifetime > navigation, binding);
+        Assert.DoesNotContain("FilenameSearchChecks.RunAsync", binding, StringComparison.Ordinal);
+        Assert.DoesNotContain("MediaHashSearchChecks.RunAsync", binding, StringComparison.Ordinal);
+        Assert.StartsWith("filename search host: actual native page/modal,",
+            Assert.Single(SmokeScenarios.All, entry => entry.Id == "filename-search-host").Pass!(_ => null), StringComparison.Ordinal);
+    }
+
+    // Its measurement covers the first frame, so the run must start before the harness waits for visibility.
+    [Fact]
+    public void StartupFirstFrameRunsBeforeTheVisibilityWaitWithItsOwnClaim()
+    {
+        Assert.StartsWith("new(SmokeStage.BeforeVisible, mainWindow => StartupFirstFrameChecks.RunAsync(mainWindow))",
+            Binding("startup-first-frame"), StringComparison.Ordinal);
+        Assert.Equal("startup first frame: isolated timing separations and post-startup managed navigation probes; no latency SLO or physical-presentation claim",
+            Assert.Single(SmokeScenarios.All, entry => entry.Id == "startup-first-frame").Pass!(_ => null));
+        string program = ProgramSource();
+        int early = program.IndexOf("await RunSelectedAsync(SmokeStage.BeforeVisible,", StringComparison.Ordinal);
+        int visible = program.IndexOf("await WaitUntilAsync(() => window.IsVisible", StringComparison.Ordinal);
+        Assert.True(early > 0 && visible > early, "BeforeVisible must run before the visibility wait.");
+    }
+
+    private static string ProgramSource([CallerFilePath] string path = "") =>
+        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, "../MeowChan.DesktopSmoke/Program.cs")));
 
     [Fact]
     public void FormerlyFocusedSelectorsStillRejectAnySecondSelectorOrMode()
@@ -126,6 +178,20 @@ public sealed class SmokeScenariosTests
         Assert.Contains("group=all;", frame.Pass!(Env()), StringComparison.Ordinal);
         Assert.Contains("group=search;", frame.Pass!(name => name == "MEOWCHAN_DIALOG_FRAME_GROUP" ? "search" : null), StringComparison.Ordinal);
     }
+
+    private static string Binding(string id)
+    {
+        string source = RunsSource();
+        string start = "        [\"" + id + "\"] = ";
+        int from = source.IndexOf(start, StringComparison.Ordinal);
+        Assert.True(from >= 0, "No run bound for " + id);
+        from += start.Length;
+        int to = source.IndexOf("\n        [\"", from, StringComparison.Ordinal);
+        return source[from..(to < 0 ? source.Length : to)].Trim().TrimEnd(',');
+    }
+
+    private static string RunsSource([CallerFilePath] string path = "") =>
+        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, "../MeowChan.DesktopSmoke/SmokeScenarios.Runs.cs")));
 
     private static KeyValuePair<string, string?>[] Variables(params (string Name, string Value)[] variables) =>
         variables.Select(variable => KeyValuePair.Create(variable.Name, (string?)variable.Value)).ToArray();

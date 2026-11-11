@@ -45,7 +45,8 @@ internal static class Program
     private static bool _pluginsMode;
     private static bool _archiveCleanupMode;
     private static bool _shellLoadMode;
-    private static bool _startupFirstFrameOnly;
+    // The selected Root/Branch scenario's run; null for the command-line modes and the normal scene.
+    private static SmokeRun? _run;
 
     [STAThread]
     private static int Main(string[] args)
@@ -67,41 +68,15 @@ internal static class Program
             Console.WriteLine("Startup timing and selector contracts passed (no GUI).");
             return 0;
         }
-        _startupFirstFrameOnly = Environment.GetEnvironmentVariable("MEOWCHAN_STARTUP_FIRST_FRAME_ONLY") == "1";
         Environment.SetEnvironmentVariable("MEOWCHAN_DISABLE_UPDATE_CHECK", "1");
-        // These focused journeys have their own final PASS claims. Reject an
-        // ambiguous request BEFORE creating a profile/window: branch priority must
-        // never run one helper and report another helper's acceptance wording.
-        string[] focusedModes =
-        [
-            "MEOWCHAN_DIAGNOSTIC_EVIDENCE_ONLY", "MEOWCHAN_INTERRUPTED_STARTUP_ONLY",
-            "MEOWCHAN_HTML_EXPORT_LABELS_ONLY", "MEOWCHAN_HTML_EXPORT_LANGUAGE_ONLY",
-            "MEOWCHAN_SECONDARY_SETTINGS_LANGUAGE_ONLY", "MEOWCHAN_GALLERY_HIDDEN_FAVORITE_ONLY",
-            "MEOWCHAN_NATIVE_TRANSFER_PREVIEW_ONLY", "MEOWCHAN_READER_GROUPS_BINDING_ONLY",
-            "MEOWCHAN_SHORTCUT_ISSUE_LANGUAGE_ONLY", "MEOWCHAN_EXPORT_STATUS_LANGUAGE_ONLY",
-            "MEOWCHAN_HTML_EXPORT_ACTION_LAYOUT_ONLY", "MEOWCHAN_FIRST_RUN_REOPEN_ONLY",
-            "MEOWCHAN_GALLERY_VOLUME_ROUTED_ONLY", "MEOWCHAN_URLTEXT_EXPORT_ONLY",
-            "MEOWCHAN_URLTEXT_PAGE_BOUNDARY_ONLY", "MEOWCHAN_READER_FIND_ONLY",
-            "MEOWCHAN_FILENAME_SEARCH_ONLY", "MEOWCHAN_MEDIA_HASH_SEARCH_ONLY",
-            "MEOWCHAN_FILENAME_SEARCH_HOST_ONLY", "MEOWCHAN_FILENAME_SEARCH_LARGE_READER_ONLY",
-            "MEOWCHAN_LOCAL_SEARCH_LANGUAGE_ONLY", "MEOWCHAN_PRIVATE_TAGS_ONLY", "MEOWCHAN_GALLERY_MEDIA_TAGS_ONLY", "MEOWCHAN_MEDIA_PAGE_ONLY",
-            "MEOWCHAN_DIALOG_FRAME_ONLY", "MEOWCHAN_STARTUP_FIRST_FRAME_ONLY"
-        ];
-        if (focusedModes.Any(name => Environment.GetEnvironmentVariable(name) == "1"))
+        // A run with an unknown, broken or second scenario must fail BEFORE a profile or window
+        // exists: SmokeSelectors.Check below rejects every selector combination with more than one
+        // owner, so a run never reports another helper's acceptance wording.
+        string? registryError = SmokeScenarios.CheckRuns();
+        if (registryError != null)
         {
-            StringComparison modeNameComparison = OperatingSystem.IsWindows()
-                ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-            string[] enabledModes = Environment.GetEnvironmentVariables()
-                .Cast<System.Collections.DictionaryEntry>()
-                .Where(entry => entry.Key is string name && name.StartsWith("MEOWCHAN_", modeNameComparison)
-                    && name.EndsWith("_ONLY", modeNameComparison) && entry.Value is string value && value == "1")
-                .Select(entry => (string)entry.Key).Order(StringComparer.Ordinal).ToArray();
-            if (enabledModes.Length != 1 || args.Length != 0)
-            {
-                Console.Error.WriteLine("SMOKE CONFIGURATION ERROR: focused UI journeys require exactly one *_ONLY mode and no command-line scenario: "
-                    + string.Join(", ", enabledModes));
-                return 2;
-            }
+            Console.Error.WriteLine("SMOKE CONFIGURATION ERROR: " + registryError);
+            return 2;
         }
         _savedSearchesOnly = Environment.GetEnvironmentVariable("MEOWCHAN_SAVED_SEARCHES_ONLY") == "1";
         string[] modes = SmokeScenarios.All.Where(entry => entry.Kind == SmokeScenarioKind.Mode && entry.Selector.Length != 0)
@@ -121,15 +96,14 @@ internal static class Program
             Console.Error.WriteLine("SMOKE CONFIGURATION ERROR: " + (selectorError ?? "no registered scenario for " + selectorScenario));
             return 2;
         }
+        _run = SmokeScenarios.Runs.GetValueOrDefault(selected.Id);
 
-        if (_startupFirstFrameOnly && (!OperatingSystem.IsLinux()
-            || Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") != "1"))
+        if (_run?.Precondition?.Invoke() is string unavailable)
         {
-            Console.Error.WriteLine("SMOKE CONFIGURATION ERROR: startup measurement requires the private Linux Xvfb runner.");
+            Console.Error.WriteLine("SMOKE CONFIGURATION ERROR: " + unavailable);
             return 2;
         }
-        using StartupFirstFrameMeasurement? startupTiming = _startupFirstFrameOnly
-            ? new StartupFirstFrameMeasurement(entryTimestamp, entryUtc) : null;
+        using StartupFirstFrameMeasurement? startupTiming = _run?.Measure?.Invoke(entryTimestamp, entryUtc);
 
         _readingPositionMode = args.Contains("--reading-position", StringComparer.Ordinal);
         _selectionMode = args.Contains("--selection", StringComparer.Ordinal);
@@ -207,14 +181,10 @@ internal static class Program
                 config.Theme = Environment.GetEnvironmentVariable("MEOWCHAN_SAVED_SEARCH_THEME") ?? "Dark";
                 config.DownloadsPaused = true; config.SaveUrlsOnExit = false;
             }
-            if (_galleryCloseOnly || Environment.GetEnvironmentVariable("MEOWCHAN_LANGUAGE_SWITCH_FOOTER_ONLY") == "1")
+            if (_galleryCloseOnly)
                 config.WorkspaceMode = "Advanced";
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_RATINGS_ONLY") == "1")
-                config.WorkspaceMode = Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_MODE") ?? "Advanced";
+            _run?.Configure?.Invoke(config);
             if ((!_readingPositionMode && !_savedSearchesOnly) || !File.Exists(Path.Combine(profile, "settings.json"))) config.SaveConfig();
-            if (_startupFirstFrameOnly) StartupFirstFrameChecks.Prepare(profile);
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_STARTUP_PREVIEW_ONLY") == "1")
-                StartupPreviewChecks.Prepare(profile);
             // Marker files are data too: initialize an owned empty profile first.
             if (_readingPositionMode && Environment.GetEnvironmentVariable("MEOWCHAN_READING_TEST_PROFILE") is { Length: > 0 })
                 File.WriteAllText(Path.Combine(profile, ".reading-smoke-profile"), "Disposable reading-position test profile");
@@ -226,8 +196,6 @@ internal static class Program
                 ReaderUxChecks.SeedAsync(profile).GetAwaiter().GetResult();
                 File.WriteAllText(Path.Combine(profile, "reading-fixture-ready"), "ready");
             }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_RATINGS_ONLY") == "1")
-                MediaRatingFixture.SeedAsync(profile).GetAwaiter().GetResult();
             if (_shellLoadMode) ShellLoadFixture.PrepareAsync(profile).GetAwaiter().GetResult();
             if (_visualMode) ShowcaseData.SeedAsync(profile).GetAwaiter().GetResult();
             if (_videoContrastMode) VideoContrastChecks.SeedAsync(profile).GetAwaiter().GetResult();
@@ -239,16 +207,11 @@ internal static class Program
                 if (Environment.GetEnvironmentVariable("MEOWCHAN_VIDEO_FIXTURE") is { Length: > 0 } fixture)
                     VideoGalleryChecks.SeedAsync(profile, fixture).GetAwaiter().GetResult();
             }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_INTERACTION_ONLY") == "1"
-                || Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_MUTE_ONLY") == "1")
-                VideoGalleryChecks.SeedAsync(profile, Environment.GetEnvironmentVariable("MEOWCHAN_VIDEO_FIXTURE")
-                    ?? throw new InvalidOperationException("Gallery audio/video fixture is required."), includeSecondVideo: true).GetAwaiter().GetResult();
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_INTERRUPTED_STARTUP_ONLY") == "1") InterruptedStartupChecks.Seed(profile);
+            if (_run?.Seed != null) _run.Seed(profile).GetAwaiter().GetResult();
             using ProfileLease? conflictingLease = _lockedProfileMode ? ProfileLease.Acquire(profile) : null;
             Avalonia.Logging.Logger.Sink = sink;
             Console.WriteLine("SMOKE isolated profile: " + profile);
-            AppBuilder appBuilder = (_startupFirstFrameOnly ? AppBuilder.Configure<StartupFirstFrameSmokeApp>()
-                : Environment.GetEnvironmentVariable("MEOWCHAN_STARTUP_PREVIEW_ONLY") == "1" ? AppBuilder.Configure<StartupPreviewSmokeApp>()
+            AppBuilder appBuilder = (_run?.App != null ? _run.App()
                 : _downloadSessionMode ? AppBuilder.Configure<DownloadSessionSmokeApp>()
                 : _shellLoadMode ? AppBuilder.Configure<ShellLoadSmokeApp>()
                 : _visualMode ? AppBuilder.Configure<ShowcaseSmokeApp>() : AppBuilder.Configure<App>())
@@ -257,7 +220,7 @@ internal static class Program
             if (xvfbEnvironment)
             {
                 Console.WriteLine("SMOKE isolated environment: " + (Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_KWIN") == "1" ? "headless KWin/XWayland" : "Xvfb/Openbox")
-                    + "; X11 software rendering; tray fixture=" + (_startupFirstFrameOnly ? "native Avalonia, no supplied host"
+                    + "; X11 software rendering; tray fixture=" + (_run?.NativeTray == true ? "native Avalonia, no supplied host"
                         : _trayHostMode ? "private StatusNotifier watcher/host" : "no native tray"));
                 appBuilder.With(new X11PlatformOptions
                 {
@@ -269,7 +232,7 @@ internal static class Program
                 {
                     if (!_lockedProfileMode)
                         ClipboardChecks.Install();
-                    if ((xvfbEnvironment && !_trayHostMode && !_startupFirstFrameOnly) || _noTrayMode || _trayFailureMode)
+                    if ((xvfbEnvironment && !_trayHostMode && _run?.NativeTray != true) || _noTrayMode || _trayFailureMode)
                     {
                         IWindowingPlatform platform = AvaloniaLocator.Current.GetRequiredService<IWindowingPlatform>();
                         AvaloniaLocator.CurrentMutable.Bind<IWindowingPlatform>()
@@ -295,8 +258,7 @@ internal static class Program
             {
                 using ProfileLease reacquired = ProfileLease.Acquire(profile);
                 Console.WriteLine("SMOKE profile lease released after normal close.");
-                if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_RATINGS_ONLY") == "1")
-                    MediaRatingChecks.VerifyAfterClose(profile, reacquired);
+                _run?.AfterClose?.Invoke(profile, reacquired);
             }
 
             string scenario = selected.Pass!(Environment.GetEnvironmentVariable);
@@ -333,12 +295,12 @@ internal static class Program
                 _closed = true;
                 Console.WriteLine("SMOKE MainWindow.Closed observed.");
             };
-            if (_startupFirstFrameOnly)
+            // Before the harness's own visibility wait: a run measuring startup itself must not start late.
+            if (_run?.Stage == SmokeStage.BeforeVisible)
             {
-                MainWindow timingWindow = window as MainWindow
-                    ?? throw new InvalidOperationException("Startup measurement did not create MainWindow.");
-                await StartupFirstFrameChecks.RunAsync(timingWindow);
-                _checksPassed = true; timingWindow.Close(); return;
+                await RunSelectedAsync(SmokeStage.BeforeVisible, window as MainWindow
+                    ?? throw new InvalidOperationException("Startup measurement did not create MainWindow."));
+                return;
             }
             await WaitUntilAsync(() => window.IsVisible && window.Bounds.Width > 0);
             Console.WriteLine("SMOKE render scaling: actual=" + window.RenderScaling.ToString("0.###", CultureInfo.InvariantCulture)
@@ -358,16 +320,7 @@ internal static class Program
             }
 
             MainWindow mainWindow = window as MainWindow ?? throw new InvalidOperationException("MainWindow was not created.");
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_STARTUP_PREVIEW_ONLY") == "1")
-            {
-                await StartupPreviewChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_INTERRUPTED_STARTUP_ONLY") == "1")
-            {
-                await InterruptedStartupChecks.RunAsync(mainWindow, condition => WaitUntilAsync(condition));
-                _checksPassed = true; mainWindow.Close(); return;
-            }
+            if (await RunSelectedAsync(SmokeStage.BeforeSession, mainWindow)) return;
             // StartAsync returns the session's existing startup task, including plugin bootstrap.
             // Only the subsequent command-state propagation belongs to the five-second UI poll.
             Console.WriteLine("SMOKE awaiting desktop session startup; state=" + mainWindow.SessionHost.State + ".");
@@ -380,544 +333,17 @@ internal static class Program
             if (mainWindow.UrlList.Count != 0 || mainWindow.BoardsList.Count != 0)
                 throw new InvalidOperationException("The isolated session did not start empty.");
             Console.WriteLine("SMOKE MainWindow visible with empty isolated session.");
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_DIAGNOSTIC_EVIDENCE_ONLY") == "1")
-            {
-                await DiagnosticEvidenceChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_FILENAME_SEARCH_LARGE_READER_ONLY") == "1")
-            {
-                await FilenameSearchLargeReaderChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_LOCAL_SEARCH_LANGUAGE_ONLY") == "1")
-            {
-                await LocalSearchLanguageRefreshChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_PAGE_ONLY") == "1")
-            {
-                await MediaMenuCompositionChecks.RunAsync(mainWindow);
-                await MediaPageChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_MEDIA_TAGS_ONLY") == "1")
-            {
-                await GalleryMediaTagChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_PRIVATE_TAGS_ONLY") == "1")
-            {
-                await PrivateTagBarChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_FIND_ONLY") == "1")
-            {
-                await ReaderThreadFindChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_FILENAME_SEARCH_ONLY") == "1")
-            {
-                await FilenameSearchChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_HASH_SEARCH_ONLY") == "1")
-            {
-                await MediaHashSearchChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_FILENAME_SEARCH_HOST_ONLY") == "1")
-            {
-                await FilenameSearchHostNavigationChecks.RunAsync(mainWindow);
-                await FilenameSearchHostLifetimeChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_URLTEXT_EXPORT_ONLY") == "1")
-            {
-                await UrlTextExportWorkflowChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_URLTEXT_PAGE_BOUNDARY_ONLY") == "1")
-            {
-                await UrlTextExportPageBoundaryChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_VOLUME_ROUTED_ONLY") == "1")
-            {
-                await GalleryVolumeNativeEditingChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_FIRST_RUN_REOPEN_ONLY") == "1")
-            {
-                await FirstRunSettingsReopenChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_DIALOG_FRAME_ONLY") == "1")
-            {
-                await DialogFrameChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_HTML_EXPORT_ACTION_LAYOUT_ONLY") == "1")
-            {
-                await HtmlExportActionLayoutChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_SHORTCUT_ISSUE_LANGUAGE_ONLY") == "1")
-            {
-                await ShortcutIssueLanguageRefreshChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_EXPORT_STATUS_LANGUAGE_ONLY") == "1")
-            {
-                await ArchiveExportStatusLanguageRefreshChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_GROUPS_BINDING_ONLY") == "1")
-            {
-                await ReaderGroupsBindingLanguageChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_NATIVE_TRANSFER_PREVIEW_ONLY") == "1")
-            {
-                await NativeTransferPreviewLifecycleChecks.RunAsync(mainWindow);
-                await NativeTransferV4PreviewChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_HTML_EXPORT_LABELS_ONLY") == "1")
-            {
-                await HtmlExportButtonLabelChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_GIF_PLAYBACK_ONLY") == "1")
-            {
-                await GifPlaybackChecks.RunAsync(mainWindow);
-                await GifOwnershipChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_CLIPBOARD_MONITOR_ONLY") == "1")
-            {
-                await ClipboardMonitorChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_DOWNLOAD_SAFETY_ONLY") == "1")
-            {
-                await DownloadSafetyLimitChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_BOARD_LANGUAGE_REFRESH_ONLY") == "1")
-            {
-                await BoardAdmissionLanguageRefreshChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_RATING_LANGUAGE_REFRESH_ONLY") == "1")
-            {
-                await RatingLanguageRefreshChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_HTML_EXPORT_LANGUAGE_ONLY") == "1")
-            {
-                await HtmlExportLanguageChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_SECONDARY_SETTINGS_LANGUAGE_ONLY") == "1")
-            {
-                string cell = Environment.GetEnvironmentVariable("MEOWCHAN_SECONDARY_SETTINGS_CELL") ?? "all";
-                switch (cell)
-                {
-                    case "gallery": await SecondarySettingsLanguageRefreshChecks.RunGalleryPlaybackAsync(mainWindow); break;
-                    case "frame": await SecondarySettingsLanguageRefreshChecks.RunShortcutFrameAsync(mainWindow); break;
-                    case "capture": await SecondarySettingsLanguageRefreshChecks.RunShortcutCaptureAsync(mainWindow); break;
-                    case "all": await SecondarySettingsLanguageRefreshChecks.RunAsync(mainWindow); break;
-                    default: throw new InvalidOperationException("Unknown secondary Settings language cell: " + cell);
-                }
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_HIDDEN_FAVORITE_ONLY") == "1")
-            {
-                await GalleryHiddenFavoriteChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_SETTINGS_LANGUAGE_REFRESH_ONLY") == "1")
-            {
-                await SettingsLanguageRefreshChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_FIRST_RUN_SETTINGS_ONLY") == "1")
-            {
-                await FirstRunSettingsChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_FIRST_RUN_SETUP_ONLY") == "1")
-            {
-                await FirstRunSetupChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_PREFERENCE_STARTUP_ONLY") == "1")
-            {
-                await PreferenceStartupChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_COMPACT_DIAGNOSTICS_ONLY") == "1")
-            {
-                await DownloadCompactStatusChecks.RunAsync(mainWindow);
-                await DiagnosticsScopedRetryChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_ERROR_ONLY") == "1")
-            {
-                await GalleryErrorInteractionChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_FEEDBACK_ONLY") == "1")
-            {
-                await FeedbackChecks.CheckDismissalAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY") == "1")
-            {
-                await GalleryPlaybackFeatureChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_MUTE_ONLY") == "1")
-            {
-                await GalleryMutePersistenceChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_INTERACTION_ONLY") == "1")
-            {
-                await MediaInteractionChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_NATIVE_IME_ONLY") == "1")
-            {
-                await NativeImeChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_INTEGRITY_GUI_ONLY") == "1")
-            {
-                await GalleryIntegrityChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_SMOKE_ALPHA2_COPY_ONLY") == "1")
-            {
-                await Alpha2CopyChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_SOURCE_FILTER_WAVE_ONLY") == "1")
-            {
-                await SourceFilterWaveChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_ARCHIVE_MEDIA_COUNTS_ONLY") == "1")
-            {
-                await ArchiveMediaCountsChecks.RunAsync(mainWindow);
-                await RunOptionalCheckAsync("ArchiveUpdateCoalescingChecks", mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_SOURCE_INTEGRITY_GUI_ONLY") == "1")
-            {
-                await SourceIntegrityChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
+            if (await RunSelectedAsync(SmokeStage.Ready, mainWindow)) return;
             if (_archiveCleanupMode)
             {
                 await ArchiveCleanupChecks.RunAsync(mainWindow);
                 _checksPassed = true; mainWindow.Close(); return;
             }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_SUGGESTIONS_ONLY") == "1")
-            {
-                await SuggestionsPresentationChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_URSA_NATIVE_SUITE") == "groups")
-            {
-                await ReaderGroupChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_FIT_BENCHMARK") == "1")
-            {
-                GalleryImageDecoder.DecodeStarted = request => Console.WriteLine("MEDIA_DECODE " + request.GetType().Name);
-                try { await GalleryFitBenchmark.RunAsync(mainWindow); }
-                finally { GalleryImageDecoder.DecodeStarted = null; }
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_RATINGS_ONLY") == "1")
-            {
-                await MediaRatingChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_SECTION_COMPARISON_ONLY") == "1")
-            {
-                await SectionComparisonChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
             CommandRefreshChecks.Run();
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_TEMPLATE_COMPARISON") == "1")
-            {
-                await TemplateComparisonChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_ARCHIVE_COMPARISON") == "1")
-            {
-                await ArchiveComparisonChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (_savedSearchesOnly)
-            {
-                await SavedArchiveSearchChecks.RunAsync(mainWindow, Config.GetConfigDirectory());
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_FOOTER_NAVIGATION_ONLY") == "1")
-            {
-                await FooterNavigationChecks.RunAsync(mainWindow);
-                await BrandNavigationChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_PICKER_LIFETIME_ONLY") == "1")
-            {
-                await SettingsPickerLifetimeChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_SETTINGS_CATEGORY_ONLY") == "1")
-            {
-                await SettingsCategoryChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_SETTINGS_LIFETIME_ONLY") == "1")
-            {
-                await SettingsPageChecks.RunLateSaveFailureAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_PATH_INPUT_ONLY") == "1")
-            {
-                await SettingsPathInputChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_NUMERIC_FOCUS_ONLY") == "1")
-            {
-                await SettingsAccessibilityChecks.RunAsync(mainWindow);
-                await SettingsChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_PERFORMANCE_ONLY") == "1")
-            {
-                string language = Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_TEST_LANGUAGE") ?? "en";
-                string theme = Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_TEST_THEME") ?? "Light";
-                MeowChan.Desktop.Localization.Texts.SetLanguage(language);
-                Application.Current!.RequestedThemeVariant = theme.Equals("dark", StringComparison.OrdinalIgnoreCase)
-                    ? Avalonia.Styling.ThemeVariant.Dark : Avalonia.Styling.ThemeVariant.Light;
-                await MediaTilePanelChecks.RunAsync(mainWindow);
-                await MediaTileIntegrationChecks.RunAsync(mainWindow);
-                await GalleryFitChecks.RunAsync(mainWindow);
-                await GalleryViewerChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_INTEGRATION_ONLY") == "1")
-            {
-                await MediaTileIntegrationChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_TEXT_SELECTION_ONLY") == "1")
-            {
-                await TextSelectionChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_FAVORITES_ONLY") == "1")
-            {
-                await GalleryViewerChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_THEME_ONLY") == "1")
-            {
-                await GalleryViewerChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_FIT_ONLY") == "1")
-            {
-                await GalleryFitChecks.RunAsync(mainWindow);
-                await GalleryViewerChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_PANEL_ONLY") == "1")
-            {
-                await MediaTilePanelChecks.RunAsync(mainWindow);
-                await MediaTileRefillChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_DIAGNOSTIC_FEEDBACK_ONLY") == "1")
-            {
-                await DiagnosticsFeedbackChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_PAGE_REFRESH_ONLY") == "1")
-            {
-                await DiagnosticsChecks.RunAsync(mainWindow);
-                await SourcesChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_POST_BOOKMARK_TRANSITIONS_ONLY") == "1")
-            {
-                await PostBookmarkTransitionChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_POST_BOOKMARK_LOCALE_ONLY") == "1")
-            {
-                await PostBookmarkLocaleChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_POST_BOOKMARK_COMPARISON_ONLY") == "1")
-            {
-                await PostBookmarkComparisonChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_POST_BOOKMARKS_ONLY") == "1")
-            {
-                await PostBookmarkChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_COMMAND_CONTRAST_ONLY") == "1")
-            {
-                await CommandButtonContrastChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_ACTION_DYNAMIC_ONLY") == "1")
-            {
-                await ActionToolBarDynamicChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_ACTION_OVERFLOW_ONLY") == "1")
-            {
-                await ActionToolBarPresentationChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_DOWNLOAD_SEARCH_ONLY") == "1")
-            {
-                await DownloadSearchChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_SETTINGS_FOOTER_ONLY") == "1")
-            {
-                await SettingsPageChecks.RunFooterOverlapDiagnosticAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_UI_REFINEMENT_ONLY") == "1")
-            {
-                await ReaderLiveChecks.RunAsync(mainWindow);
-                await ReaderRepliesChecks.RunAsync(mainWindow);
-                await SettingsPageChecks.RunAsync(mainWindow);
-                await DiagnosticsChecks.RunAsync(mainWindow);
-                await SourcesChecks.RunAsync(mainWindow);
-                await RulesPageChecks.RunAsync(mainWindow);
-                await SettingsChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_MENU_LANGUAGE_ONLY") == "1")
-            {
-                await PluginMenuLanguageSwitchChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_SETTINGS_LANGUAGE_ONLY") == "1")
-            {
-                PluginSettingsLanguageSwitchChecks.Run();
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_LANGUAGE_SWITCH_FOOTER_ONLY") == "1")
-            {
-                await LanguageSwitchFooterChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_PREVIEW_LANGUAGES_ONLY") == "1")
-            {
-                await PreviewLanguagePackChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_WINDOW_CHROME_ONLY") == "1")
-            {
-                await WindowChromeChecks.RunAsync(mainWindow);
-                await SecondaryWindowChromeChecks.RunAsync(mainWindow);
-                _checksPassed = true; mainWindow.Close(); return;
-            }
+            if (await RunSelectedAsync(SmokeStage.AfterCommandRefresh, mainWindow)) return;
             if (_windowGeometryMode)
             {
                 await NativeWindowMinimumChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_SHORTCUT_PRESENTATION_ONLY") == "1")
-            {
-                await ShortcutPresentationChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
-                return;
-            }
-            if (Environment.GetEnvironmentVariable("MEOWCHAN_POWERUSER_ONLY") == "1")
-            {
-                await PowerUserCommandChecks.RunAsync(mainWindow);
-                await ShortcutRebindingChecks.RunAsync(mainWindow);
-                await RulesPageChecks.RunAsync(mainWindow);
                 _checksPassed = true;
                 mainWindow.Close();
                 return;
@@ -1221,6 +647,16 @@ internal static class Program
         }
     }
 
+    // Runs the selected Root/Branch scenario when this is its stage; true when it ran and closed the window.
+    private static async Task<bool> RunSelectedAsync(SmokeStage stage, MainWindow mainWindow)
+    {
+        if (_run == null || _run.Stage != stage) return false;
+        await _run.Run(mainWindow);
+        _checksPassed = true;
+        mainWindow.Close();
+        return true;
+    }
+
     private static bool VisibleText(Window window, string text) => window.GetVisualDescendants()
         .OfType<TextBlock>().Any(block => block.IsEffectivelyVisible && block.Text == text);
 
@@ -1290,7 +726,7 @@ internal static class Program
 
     // Optional package smoke helpers are discovered at runtime so this exact Program.cs also compiles on
     // the release-HEAD measurement variant, where their candidate-only product internals do not exist.
-    private static async Task RunOptionalCheckAsync(string name, params object[] parameters)
+    internal static async Task RunOptionalCheckAsync(string name, params object[] parameters)
     {
         Type helper = typeof(Program).Assembly.GetType("MeowChan.DesktopSmoke." + name)
             ?? throw new InvalidOperationException("The requested smoke helper is unavailable in this source variant: " + name);

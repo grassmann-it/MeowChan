@@ -18,7 +18,9 @@ internal sealed record SmokeScenario(string Id, SmokeScenarioKind Kind, string S
     Func<Func<string, string?>, string>? Pass, string[] Requires);
 
 // The single registry of DesktopSmoke scenarios: the selector inventory (SmokeSelectors), the
-// usage text and the final PASS claim come from here.
+// usage text and the final PASS claim come from here, and SmokeScenarios.Runs.cs binds each
+// Root/Branch id to its run. Adding a check: one entry here plus its run under the same id;
+// the smoke driver refuses to start (exit 2) when the two disagree.
 // Pure: no window, no profile; DesktopTests compile this file directly.
 internal static partial class SmokeScenarios
 {
