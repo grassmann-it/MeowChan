@@ -254,3 +254,12 @@ mit allen drei Identitäten). Archivfilter-Smoke damit 13/13 (`/home/tomka/mc-ev
   gezielt wiederholt 8/8 grün (`test-desktop-3rerun.log`). Natives Galerie-Vollbild im privaten virtuellen KWin
   (`scripts/run-gallery-close-kwin.py`) normal und maximiert PASS: echter `FullScreen`-Zustand, Rückkehr in den
   Ausgangszustand, Schließen-Klick zugestellt.
+
+### Nachtrag: Medienauswahl-Robustheit (`b265056`, Nutzerfreigabe in der Robustness-Session)
+
+Ein einzelner Anhang mit vom Host abgelehnten Metadaten (z. B. Endung „.75MB)“ aus „foo.jpg (1.75MB)“, 7chan pr/res/6:
+88 bekannte, 0 eingeplante Medien) kippt nicht mehr die Auswahl des ganzen Threads; der Eintrag wird als `InvalidData`
+übersprungen, der Rest normal eingeplant. Nur Core (`ThreadContentRuntime.cs`, `BaseThread.cs`, `ThreadContentAdmissionTests`).
+Belege der Session (`/home/tomka/mc-evidence/robustness-media-selection/b265056`): Desktop-Filter DownloadSession/ThreadContent/Media
+258/0, MEDIA_PAGE- und Default-Smoke PASS, ThreadContentAdmissionTests 45/0; auf gleichem Produktcode Core 9514/0/11,
+reader-ux PASS. Nicht geprüft: der echte 7chan-Thread in der laufenden App.
