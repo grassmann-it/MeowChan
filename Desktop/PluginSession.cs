@@ -142,6 +142,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
             .Concat(local.Candidates).ToArray();
         // Probes overlap in bounded lanes; observations, provenance and activation keep inventory order.
         SemaphoreSlim lanes = new(StartupProbeLanes, StartupProbeLanes);
+        using IPluginBundleImportBatch imports = ((IPluginBundleInstaller)CompilationService).BeginImportBatch();
         PluginCandidateObservation[] probed = await Task.WhenAll(ordered.Select(async candidate =>
         {
             await lanes.WaitAsync(token).ConfigureAwait(false);
@@ -151,12 +152,13 @@ internal sealed partial class PluginSession : IAsyncDisposable
                     plugin.Candidates.Any(item => item.CandidateId == candidate.CandidateId));
                 return await PluginStartupDiagnostics.ObserveAsync(candidate, previousOwner,
                     ct => candidate.Kind == PluginCandidateKind.PrebuiltManifest
-                        ? ((IPluginBundleInstaller)CompilationService).ImportBundleAsync(candidate.Path, ct)
+                        ? imports.ImportBundleAsync(candidate.Path, ct)
                         : CompilationService.BuildAsync(candidate.Path, cancellationToken: ct),
                     (artifact, ct) => DescribeStartupAsync(previous, candidate.CandidateId, artifact, ct), _logger, token).ConfigureAwait(false);
             }
             finally { lanes.Release(); }
         })).ConfigureAwait(false);
+        imports.Dispose(); // The shared toolchain result serves this probe pass only.
         for (int index = 0; index < ordered.Length; index++)
         {
             token.ThrowIfCancellationRequested();

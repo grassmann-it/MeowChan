@@ -95,6 +95,31 @@ internal static class CompilerWire
         }
         catch (NotSupportedException exception) { throw new IOException($"Only regular seekable files can be read: {path}", exception); }
     }
+
+    /// <summary>Same bounds, open rules and failures as <see cref="ReadBoundedAsync"/>, but hashes while reading
+    /// instead of buffering the whole file. The hash covers exactly the bytes a bounded read would return.</summary>
+    internal static async Task<(long Length, string Sha256)> HashBoundedAsync(string path, int maximum, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        using SafeFileHandle handle = OpenRead(path);
+        try
+        {
+            if (RandomAccess.GetLength(handle) > maximum) throw new InvalidDataException($"File exceeds {maximum} bytes: {path}");
+            using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            byte[] buffer = new byte[262144];
+            long length = 0;
+            int count;
+            while ((count = await RandomAccess.ReadAsync(handle, buffer, length, cancellationToken).ConfigureAwait(false)) != 0)
+            {
+                length += count;
+                if (length > maximum) throw new InvalidDataException($"File exceeds {maximum} bytes: {path}");
+                hash.AppendData(buffer, 0, count);
+            }
+            return (length, Convert.ToHexStringLower(hash.GetHashAndReset()));
+        }
+        catch (NotSupportedException exception) { throw new IOException($"Only regular seekable files can be read: {path}", exception); }
+    }
+
     internal static async Task<ToolchainManifest> ReadToolchainAsync(string directory, CancellationToken cancellationToken)
     {
         byte[] json = await ReadBoundedAsync(ResolvePath(directory, "toolchain.json"), MaximumResponseBytes, cancellationToken);
@@ -111,9 +136,9 @@ internal static class CompilerWire
         foreach (ToolchainFile file in manifest.Files)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            byte[] bytes = await ReadBoundedAsync(ResolvePath(directory, file.Path), 64 * 1024 * 1024, cancellationToken);
-            total += bytes.Length;
-            if (total > 256 * 1024 * 1024 || Hash(bytes) != file.Sha256)
+            (long length, string sha256) = await HashBoundedAsync(ResolvePath(directory, file.Path), 64 * 1024 * 1024, cancellationToken);
+            total += length;
+            if (total > 256 * 1024 * 1024 || sha256 != file.Sha256)
                 throw new InvalidDataException($"Compiler toolchain integrity check failed: {file.Path}");
         }
         if (FileSetHash(manifest.Files.Where(f => f.Role == "compiler")) != manifest.CompilerFingerprint ||

@@ -10,4 +10,13 @@ public sealed record PluginBundleManifest(int SchemaVersion, string AssemblyRela
 public interface IPluginBundleInstaller
 {
     Task<PluginBuildResult> ImportBundleAsync(string manifestPath, CancellationToken cancellationToken = default);
+
+    /// <summary>One pass over many bundles (host startup). Imports through the batch verify the delivered toolchain once
+    /// instead of once per bundle; every bundle and cached copy is still verified byte for byte on its own.</summary>
+    IPluginBundleImportBatch BeginImportBatch();
+}
+
+public interface IPluginBundleImportBatch : IDisposable
+{
+    Task<PluginBuildResult> ImportBundleAsync(string manifestPath, CancellationToken cancellationToken = default);
 }
