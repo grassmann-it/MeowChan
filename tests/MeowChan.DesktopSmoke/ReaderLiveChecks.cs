@@ -54,7 +54,9 @@ internal static class ReaderLiveChecks
                 && (posts.SelectedItem as ArchivePostRow)?.Id == "7000", "New capture changed the frozen reader without consent.");
             Program.CaptureWindow(window, "smoke-reader-new-posts.png");
             show.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await Program.WaitUntilAsync(() => page.CurrentThread?.PostCount == 4 && (posts.SelectedItem as ArchivePostRow)?.Id == "7002");
+            // FocusPostAsync selects the row in its first layout pass but publishes the position only once the offset settled.
+            await Program.WaitUntilAsync(() => page.CurrentThread?.PostCount == 4 && (posts.SelectedItem as ArchivePostRow)?.Id == "7002"
+                && consciousMoves > 0);
             Require(!show.IsVisible, "Manual update retained a stale notice.");
             Require(consciousMoves > 0, "Manual new-post action did not publish a conscious reading position.");
             consciousMoves = 0; // Equivalent to discarding all pre-forget captures.

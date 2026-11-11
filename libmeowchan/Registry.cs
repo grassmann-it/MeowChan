@@ -903,8 +903,8 @@ public sealed partial class Registry : IAsyncDisposable
         => _persistSession && _sessionStore != null ? SaveStoreSessionAsync(CopySnapshot(snapshot), admission) : Task.CompletedTask;
 
     private Task SaveStoreSessionAsync(SessionSnapshot snapshot, ProfileAdmissionToken? admission)
-        => _sessionStore is SessionStore sqlite && admission != null
-            ? sqlite.SaveAdmittedAsync(snapshot, admission) : _sessionStore!.SaveAsync(snapshot);
+        => _sessionStore is IAdmittedSessionStore admitted && admission != null
+            ? admitted.SaveAdmittedAsync(snapshot, admission) : _sessionStore!.SaveAsync(snapshot);
 
     private void EnsureRestoredForPersistence()
     {
