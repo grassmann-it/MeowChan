@@ -31,6 +31,10 @@ public partial class ArchivePage
     internal Action? GalleryReturn { get; set; }
     internal void ShowGalleryReturn(bool visible) => Control<Button>("ArchiveGalleryReturn").IsVisible = visible;
     private void OnGalleryReturnClick(object? sender, RoutedEventArgs e) => GalleryReturn?.Invoke();
+    /// <summary>Back to the Medien page after its "show in thread"; the shell owns the return point and shows the button.</summary>
+    internal Action? MediaReturn { get; set; }
+    internal void ShowMediaReturn(bool visible) => Control<Button>("ArchiveMediaReturn").IsVisible = visible;
+    private void OnMediaReturnClick(object? sender, RoutedEventArgs e) => MediaReturn?.Invoke();
     internal void ShowGalleryError(string message) => Message(message, true);
 
     private ArchiveAssetRow? SelectedMediaRow() => (_mediaTiles

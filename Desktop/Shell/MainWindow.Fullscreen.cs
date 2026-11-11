@@ -783,6 +783,7 @@ public partial class MainWindow
         if (CommandBindings.Matches(e, "viewer.shortcut-help") && (_gallery == null || _gallerySuspended))
         { e.Handled = true; ShowShellHelp(); return; }
         if (_archivePage?.IsReaderDialogOpen == true) return;
+        if (TryRouteMediaReturn(e)) return;
         // Native video -> image retirement can clear focus before the next key.
         // A Window-source arrow would otherwise reach Avalonia's directional focus
         // navigation before our bubble fallback, focusing unrelated shell chrome.

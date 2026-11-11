@@ -15,6 +15,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Storage;
@@ -95,6 +96,7 @@ public sealed partial class MediaPage : UserControl
         _grid.KeyDown += OnGridKeyDown;
         _grid.SelectionChanged += (_, _) => { if (_restoring) return; ShowSelectionNote(null); UpdateSelectionBar(); };
         _grid.ContextRequested += OnContextRequested;
+        InstallReturnInterruption();
         Texts.Changed += OnLanguageChanged;
         Localize();
     }
@@ -251,6 +253,13 @@ public sealed partial class MediaPage : UserControl
     private async void OnGridKeyDown(object? sender, KeyEventArgs e)
     {
         if (OnSelectionKey(e)) return;
+        // The gallery's own "show in thread" command (T by default): one tile with a post; otherwise it does nothing.
+        if (CommandBindings.Matches(e, "gallery.show-in-thread"))
+        {
+            e.Handled = true;
+            if (SelectedTiles.Count == 1) await ShowSelectedInThreadAsync();
+            return;
+        }
         if (e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None || SelectedRow == null) return;
         e.Handled = true;
         // Several selected tiles open together; one opens around itself.
@@ -270,7 +279,8 @@ public sealed partial class MediaPage : UserControl
         bool single = SelectedTiles.Count == 1; // The per-tile entries act on one tile only.
         MenuItem open = new() { Header = Texts.T("media.open"), IsEnabled = single && row.Entry.Presence == MediaLibraryPresence.Present };
         open.Click += (_, _) => _ = OpenSelectedAsync();
-        MenuItem thread = new() { Header = Texts.T("media.showInThread"), IsEnabled = single && row.Entry.PostId != null };
+        MenuItem thread = new() { Header = Texts.T("media.showInThread"), IsEnabled = single && row.Entry.PostId != null,
+            InputGesture = CommandBindings.Gesture("gallery.show-in-thread") };
         thread.Click += (_, _) => _ = ShowSelectedInThreadAsync();
         MenuItem onlyThread = new() { Header = Texts.T("media.filter.onlyThread"), IsEnabled = single };
         onlyThread.Click += (_, _) => FilterToThread(row.Entry);

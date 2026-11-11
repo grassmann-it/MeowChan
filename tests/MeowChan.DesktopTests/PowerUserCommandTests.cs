@@ -26,7 +26,15 @@ public sealed class PowerUserCommandTests
     public void ContextGesturesKeepDistinctActionsAndScopes()
     {
         Assert.Equal("P", CommandCatalog.Get("gallery.context-toggle").Shortcut);
-        Assert.Null(CommandCatalog.Get("gallery.show-in-thread").Shortcut);
+        // P stays the context toggle (V-06); the jump into the thread has its own key since MEDIA103-NAV (user decision 11.11.2026).
+        Assert.Equal("T", CommandCatalog.Get("gallery.show-in-thread").Shortcut);
+        Assert.True(CommandBindings.Matches(new KeyEventArgs { Key = Key.T }, "gallery.show-in-thread"));
+        Assert.False(CommandBindings.Matches(new KeyEventArgs { Key = Key.P }, "gallery.show-in-thread"));
+        Assert.Equal(CommandScope.Reader, CommandCatalog.Get("media.return").Scope);
+        Assert.Equal("Alt+Left", CommandCatalog.ShortcutDisplay("media.return", false));
+        Assert.True(CommandBindings.Matches(new KeyEventArgs { Key = Key.Left, KeyModifiers = KeyModifiers.Alt }, "media.return"));
+        Assert.False(CommandBindings.Matches(new KeyEventArgs { Key = Key.Left }, "media.return"));
+        Assert.NotEqual(CommandCatalog.Get("media.return").Shortcut, CommandCatalog.Get("reader.history-back").Shortcut);
         Assert.Equal(CommandScope.Downloads, CommandCatalog.Get("input.focus-download-search").Scope);
         Assert.Equal(CommandScope.Archive, CommandCatalog.Get("archive.previous-page").Scope);
         Assert.Equal(CommandScope.Archive, CommandCatalog.Get("archive.next-page").Scope);

@@ -18,7 +18,14 @@ internal readonly record struct MediaLibraryTileKey(string? Bytes, MediaLibraryE
     internal static MediaLibraryTileKey Of(MediaLibraryTile tile)
     {
         ArgumentNullException.ThrowIfNull(tile);
-        return MediaLibraryGrouping.ByteKey(tile.Entry) is { } key ? new(key, null) : new(null, tile.Entry);
+        return Of(tile.Entry);
+    }
+
+    /// <summary>The key of the tile an occurrence belongs to: any occurrence of equal bytes gives the key of their one tile.</summary>
+    internal static MediaLibraryTileKey Of(MediaLibraryEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return MediaLibraryGrouping.ByteKey(entry) is { } key ? new(key, null) : new(null, entry);
     }
 }
 
