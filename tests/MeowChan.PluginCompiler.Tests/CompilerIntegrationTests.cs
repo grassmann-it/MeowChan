@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json.Nodes;
 using MeowChan.PluginHost.Compilation;
 using MeowChan.PluginHost.Installation;
+using MeowChan.TestSupport;
 
 [assembly: CollectionBehavior(DisableTestParallelization = true)]
 namespace MeowChan.PluginCompiler.Tests;
@@ -19,8 +20,8 @@ public sealed class CompilerIntegrationTests : IDisposable
     public CompilerIntegrationTests()
     {
         Directory.CreateDirectory(_root);
-        _bundle = Environment.GetEnvironmentVariable("MEOWCHAN_COMPILER_TEST_BUNDLE") ?? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "../../../../../MeowChan.PluginCompiler/bin/Release/net10.0"));
+        _bundle = Environment.GetEnvironmentVariable("MEOWCHAN_COMPILER_TEST_BUNDLE") ??
+            BuiltTestBinaries.AppHostDirectory("MeowChan.PluginCompiler");
         Assert.True(File.Exists(Executable), "A built/published bundled compiler apphost is required: " + Executable);
     }
     private PluginCompilationService Service(string? executable = null, TimeSpan? timeout = null, string? bundle = null) =>

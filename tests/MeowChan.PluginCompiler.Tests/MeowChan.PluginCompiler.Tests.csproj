@@ -10,6 +10,7 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
     <ProjectReference Include="../../MeowChan.PluginHost/MeowChan.PluginHost.csproj" />
     <ProjectReference Include="../../MeowChan.PluginCompiler/MeowChan.PluginCompiler.csproj" ReferenceOutputAssembly="false" />
+    <Compile Include="../Shared/BuiltTestBinaries.cs" Link="BuiltTestBinaries.cs" />
     <Using Include="Xunit" />
   </ItemGroup>
 </Project>

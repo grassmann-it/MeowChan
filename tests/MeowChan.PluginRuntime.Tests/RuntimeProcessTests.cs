@@ -7,6 +7,7 @@ using MeowChan.PluginHost.Http;
 using MeowChan.PluginHost.Runtime;
 using MeowChan.PluginRuntime.Fixture;
 using MeowChan.PluginSdk;
+using MeowChan.TestSupport;
 using SdkThreadSnapshot = MeowChan.PluginSdk.ThreadSnapshot;
 
 namespace MeowChan.PluginRuntime.Tests;
@@ -33,8 +34,8 @@ public sealed class RuntimeProcessTests
     }
     private static PluginWorkerLaunch Launch(string workspace, string? fault = null)
     {
-        string worker = Path.Combine(Root, "MeowChan.PluginWorker/bin/Release/net10.0/MeowChan.PluginWorker.dll");
-        string fixture = Path.Combine(Root, "tests/MeowChan.PluginRuntime.Fixture/bin/Release/net10.0/MeowChan.PluginRuntime.Fixture.dll");
+        string worker = BuiltTestBinaries.WorkerAssembly();
+        string fixture = BuiltTestBinaries.AssemblyOf(Path.Combine("tests", "MeowChan.PluginRuntime.Fixture"));
         return new(Dotnet, fault == null ? [worker] : [fixture, fault], workspace);
     }
     [Fact]
