@@ -72,11 +72,13 @@ public sealed partial class MediaPage : UserControl
         _openManifest = openManifest ?? MediaAssetReader.OpenAsync;
         _cachePath = cachePath;
         Name = "MediaPage";
-        WrapPanel tools = new() { ItemSpacing = 8, LineSpacing = 6 };
-        foreach (Control control in new Control[] { _sort, _shuffle, _missing, _refresh, _exportAll }) { control.VerticalAlignment = VerticalAlignment.Center; tools.Children.Add(control); }
-        StackPanel header = new() { Spacing = 6, Margin = new Thickness(12, 12, 12, 6) };
+        WrapPanel tools = new() { ItemSpacing = 6, LineSpacing = 4 };
+        foreach (Control control in new Control[] { _filters, _sort, _shuffle, _missing, _refresh, _exportAll }) { control.VerticalAlignment = VerticalAlignment.Center; tools.Children.Add(control); }
+        StackPanel header = new() { Spacing = 4, Margin = new Thickness(12, 8, 12, 4) };
         header.Children.Add(_title); header.Children.Add(_subtitle); header.Children.Add(tools);
-        header.Children.Add(BuildFilterRow()); header.Children.Add(_filterChips); header.Children.Add(_filterError); header.Children.Add(_status); header.Children.Add(BuildExportAllAsk()); header.Children.Add(BuildSelectionBar());
+        // The filter fields open as a surface over the grid (MediaPage.FilterSurface.cs); what is applied stays in the header.
+        Border filterSurface = BuildFilterSurface(BuildFilterRow());
+        header.Children.Add(_filterChips); header.Children.Add(_filterError); header.Children.Add(_status); header.Children.Add(BuildExportAllAsk()); header.Children.Add(BuildSelectionBar());
         _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { ItemHeight = MediaLibraryTileView.TileHeight });
         _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThreadFilter = FilterToThread, ShowOccurrences = ShowOccurrences });
         ScrollViewer.SetHorizontalScrollBarVisibility(_grid, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
@@ -84,8 +86,9 @@ public sealed partial class MediaPage : UserControl
         body.Children.Add(_grid); body.Children.Add(_empty);
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
         layout.Children.Add(header);
-        Border surface = new() { Child = body, Margin = new Thickness(12, 0, 12, 12), Classes = { "panel" } };
+        Border surface = new() { Name = "MediaGridSurface", Child = body, Margin = new Thickness(12, 0, 12, 8), Classes = { "panel" } };
         layout.Children.Add(surface); Avalonia.Controls.Grid.SetRow(surface, 1);
+        layout.Children.Add(filterSurface); Avalonia.Controls.Grid.SetRow(filterSurface, 1);
         Content = layout;
 
         _sort.SelectionChanged += (_, _) => { if (!_localizing) Present(); };
@@ -201,6 +204,7 @@ public sealed partial class MediaPage : UserControl
         // A refused filter explains itself above the grid; the grid stays empty.
         _empty.IsVisible = _snapshot != null && _shown.Count == 0 && _building == null && !_filterFailed;
         _refresh.IsEnabled = !_lifetime.IsCancellationRequested;
+        UpdateFilterToggle();
         UpdateSelectionBar();
     }
 
@@ -322,6 +326,7 @@ public sealed partial class MediaPage : UserControl
         _refresh.Content = Texts.T("media.refresh");
         AutomationProperties.SetName(_grid, Texts.T("media.title"));
         LocalizeFilters();
+        LocalizeFilterSurface();
         LocalizeSelection();
         if (_grid.ItemsSource != null) Present(); else UpdateStatus();
     }

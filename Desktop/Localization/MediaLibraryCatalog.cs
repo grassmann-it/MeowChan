@@ -7,6 +7,8 @@ internal static class MediaLibraryCatalog
     {
         ("nav.media", "Media", "Medien"),
         ("media.title", "Media", "Medien"),
+        ("media.filters", "Filters", "Filter"),
+        ("media.filters.active", "Filters · active", "Filter · aktiv"),
         ("media.subtitle", "All saved media of all archived threads in one place.", "Alle gespeicherten Medien aller archivierten Threads an einem Ort."),
         ("media.sort", "Order", "Reihenfolge"),
         ("media.sort.thread", "By thread", "Nach Thread"),

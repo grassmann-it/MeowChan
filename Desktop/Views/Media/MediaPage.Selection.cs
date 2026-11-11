@@ -44,14 +44,14 @@ public sealed partial class MediaPage
     {
         AutomationProperties.SetLiveSetting(_selectionText, AutomationLiveSetting.Polite);
         AutomationProperties.SetLiveSetting(_selectionNote, AutomationLiveSetting.Polite);
-        WrapPanel bar = new() { ItemSpacing = 8, LineSpacing = 6 };
+        WrapPanel bar = new() { ItemSpacing = 6, LineSpacing = 4 };
         foreach (Control control in new Control[] { _selectionText, _selTag, _selGallery, _selExport, _selClear })
         { control.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center; bar.Children.Add(control); }
         _selTag.Click += async (_, _) => await TagSelectionAsync();
         _selGallery.Click += async (_, _) => await OpenSelectionGalleryAsync();
         _selExport.Click += async (_, _) => await ExportSelectionAsync();
         _selClear.Click += (_, _) => ClearSelection();
-        return new StackPanel { Spacing = 4, Children = { bar, _selectionNote } };
+        return new StackPanel { Spacing = 2, Children = { bar, _selectionNote } };
     }
 
     private void LocalizeSelection()

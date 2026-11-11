@@ -2050,6 +2050,8 @@
     "nav.media": "Médias",
     "command.navigation.media": "Médias",
     "media.title": "Médias",
+    "media.filters": "Filtres",
+    "media.filters.active": "Filtres · actifs",
     "media.subtitle": "Tous les médias enregistrés de tous les fils archivés, au même endroit.",
     "media.sort": "Ordre",
     "media.sort.thread": "Par fil",

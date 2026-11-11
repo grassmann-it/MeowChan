@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -60,6 +61,7 @@ internal static partial class MediaPageChecks
             await SeedAsync(profile);
             await PageJourneyAsync(owner, profile);
             await FilterJourneyAsync(owner, profile);
+            await FilterSurfaceAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-filter-surface-"));
             await OwnStateJourneyAsync(owner, profile);
             await DuplicateJourneyAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-duplicates-"));
             await SelectionJourneyAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-selection-"));
@@ -730,7 +732,9 @@ internal static partial class MediaPageChecks
             item = page.GetVisualDescendants().OfType<ListBoxItem>().FirstOrDefault(candidate => candidate.DataContext is MediaLibraryTileRow row && row.Index == index);
             if (item is { IsEffectivelyVisible: true } && item.Bounds.Width > 0
                 && item.TranslatePoint(new Point(item.Bounds.Width / 2, 55), window) is { } at
-                && window.InputHitTest(at) is InputElement found && found.GetSelfAndVisualAncestors().Contains(item))
+                && window.InputHitTest(at) is InputElement found && found.GetSelfAndVisualAncestors().Contains(item)
+                // A container still moving to its row reports a stale position; the point must land on the preview, not on a link below it.
+                && item.IsArrangeValid && !found.GetSelfAndVisualAncestors().TakeWhile(visual => visual != item).OfType<Button>().Any())
             { point = at; hit = found; break; }
             if (DateTime.UtcNow >= deadline) throw new TimeoutException("Tile " + index + " never became hit-testable.");
             await Task.Delay(20);
@@ -1026,8 +1030,11 @@ internal static partial class MediaPageChecks
         return first!;
     }
 
+    // The filter fields live in a surface that is hidden until opened; before its first open its scroll viewer has no
+    // template yet, so they are found through the logical tree.
     private static T C<T>(Control root, string name) where T : Control =>
         root.GetVisualDescendants().OfType<T>().FirstOrDefault(control => control.Name == name)
+        ?? root.GetLogicalDescendants().OfType<T>().FirstOrDefault(control => control.Name == name)
         ?? throw new InvalidOperationException("Missing control " + name);
 
     private static async Task UntilAsync(Func<bool> condition)

@@ -2050,6 +2050,8 @@
     "nav.media": "Медиа",
     "command.navigation.media": "Медиа",
     "media.title": "Медиа",
+    "media.filters": "Фильтры",
+    "media.filters.active": "Фильтры · активны",
     "media.subtitle": "Все сохранённые медиа всех архивных тредов в одном месте.",
     "media.sort": "Порядок",
     "media.sort.thread": "По тредам",

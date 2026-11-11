@@ -2050,6 +2050,8 @@
     "nav.media": "Medios",
     "command.navigation.media": "Medios",
     "media.title": "Medios",
+    "media.filters": "Filtros",
+    "media.filters.active": "Filtros · activos",
     "media.subtitle": "Todos los medios guardados de todos los hilos archivados en un solo lugar.",
     "media.sort": "Orden",
     "media.sort.thread": "Por hilo",

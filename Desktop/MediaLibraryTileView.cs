@@ -47,7 +47,7 @@ internal sealed record MediaLibraryTileRow(MediaLibraryTile Tile, int Index, Fun
 internal sealed class MediaLibraryTileView : UserControl
 {
     private static readonly SemaphoreSlim ThumbnailGate = new(2, 2);
-    private readonly Image _image = new() { Stretch = Stretch.Uniform, MaxWidth = 170, MaxHeight = 125 };
+    private readonly Image _image = new() { Stretch = Stretch.Uniform, MaxWidth = 174, MaxHeight = 120 };
     private readonly TextBlock _placeholder = new() { TextWrapping = TextWrapping.Wrap, FontSize = 11,
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Center };
     private readonly TextBlock _name = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
@@ -81,16 +81,16 @@ internal sealed class MediaLibraryTileView : UserControl
     internal Action<MediaLibraryTile>? ShowOccurrences { get; set; }
 
     /// <summary>Taller than an archive cell: preview, name, thread, footer and the favorite row of grouped tiles plus margins. The page's panel uses it as cell height.</summary>
-    internal const double TileHeight = 248;
+    internal const double TileHeight = 226;
 
     public MediaLibraryTileView()
     {
         MaxWidth = 190; Height = TileHeight;
-        Grid preview = new() { Height = 125, MaxWidth = 170 };
+        Grid preview = new() { Height = 120, MaxWidth = 174 };
         _selectedMark[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Accent");
         ((TextBlock)_selectedMark.Child!)[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Background");
         preview.Children.Add(_image); preview.Children.Add(_placeholder); preview.Children.Add(_selectedMark);
-        Grid grid = new() { Margin = new Thickness(8), RowDefinitions = new RowDefinitions("125,Auto,Auto,Auto,Auto"), RowSpacing = 4 };
+        Grid grid = new() { Margin = new Thickness(6, 6, 6, 4), RowDefinitions = new RowDefinitions("120,Auto,Auto,Auto,Auto"), RowSpacing = 3 };
         grid.Children.Add(preview);
         grid.Children.Add(_name); Grid.SetRow(_name, 1);
         _threadLink.Content = _thread;
