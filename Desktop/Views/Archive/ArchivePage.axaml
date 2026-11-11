@@ -13,7 +13,9 @@
                 <Button x:Name="RefreshArchiveButton" Tag="archive.refresh" Classes="localized" Click="OnRefreshClick" />
             </WrapPanel>
         </Grid>
-        <Grid x:Name="ArchiveSplit" Grid.Row="1" ColumnDefinitions="270,6,*" ColumnSpacing="6">
+        <!-- ARCH-DENSE-01: while no error banner is shown the split also spans the empty
+             status row, so both boxes end at the page margin. -->
+        <Grid x:Name="ArchiveSplit" Grid.Row="1" Grid.RowSpan="2" ColumnDefinitions="270,6,*" ColumnSpacing="6">
             <Grid x:Name="ArchiveListPane" RowSpacing="6">
                 <Grid.RowDefinitions>
                     <!-- Collapsed search tools use only their content height;
@@ -436,21 +438,30 @@
                     </Grid>
                 </Border>
             </Grid>
+            <!-- ARCH-DENSE-01 (user decision 11.11.2026): loading and status messages reserve
+                 no layout height. They float at the bottom left of the reader column (or of the
+                 stacked list), above that column's docked footer, only while there is something
+                 to show; hidden, the overlay is not hit-tested at all. Shown, it takes the pointer
+                 only over its own small box, for the full-text tooltip; hovering keeps a message,
+                 a click dismisses it, and messages expire on their own (ArchivePage.Feedback). -->
+            <Border x:Name="ArchiveStatusOverlay" Grid.Column="2" Classes="raised" Padding="8,4" Margin="8" MaxWidth="560"
+                    HorizontalAlignment="Left" VerticalAlignment="Bottom" ZIndex="2"
+                    IsVisible="False" Focusable="False">
+                <Grid x:Name="ArchiveStatusLine">
+                    <WrapPanel ItemSpacing="8" LineSpacing="4" VerticalAlignment="Center">
+                        <ursa:LoadingIcon x:Name="ArchiveContentLoading" Width="16" Height="16" Focusable="False" IsVisible="False" VerticalAlignment="Center" />
+                        <TextBlock x:Name="ArchiveContentLoadingText" Classes="muted" TextWrapping="Wrap" IsVisible="False" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+                        <TextBlock x:Name="ArchiveMessage" Classes="muted" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" IsVisible="False" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+                        <ursa:LoadingIcon x:Name="ArchiveMediaLoading" Width="16" Height="16" Focusable="False" IsVisible="False" VerticalAlignment="Center" />
+                        <TextBlock x:Name="ArchiveMediaLoadingText" Classes="muted" TextWrapping="Wrap" IsVisible="False" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+                    </WrapPanel>
+                </Grid>
+            </Border>
         </Grid>
-        <StackPanel x:Name="ArchiveStatusStrip" Grid.Row="2" Spacing="6">
-            <!-- ARCH-DENSE-01: one stable status line instead of two always-reserved rows.
-                 The empty strut keeps exactly one muted text line while idle, so loading
-                 feedback does not move the results and pager; longer feedback wraps. -->
-            <Grid x:Name="ArchiveStatusLine">
-                <TextBlock Classes="muted" Width="0" IsHitTestVisible="False" Focusable="False" AutomationProperties.AccessibilityView="Raw" />
-                <WrapPanel ItemSpacing="8" LineSpacing="4" VerticalAlignment="Center">
-                    <ursa:LoadingIcon x:Name="ArchiveContentLoading" Width="16" Height="16" Focusable="False" IsVisible="False" VerticalAlignment="Center" />
-                    <TextBlock x:Name="ArchiveContentLoadingText" Classes="muted" TextWrapping="Wrap" IsVisible="False" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
-                    <TextBlock x:Name="ArchiveMessage" Classes="muted" TextWrapping="Wrap" IsVisible="False" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
-                    <ursa:LoadingIcon x:Name="ArchiveMediaLoading" Width="16" Height="16" Focusable="False" IsVisible="False" VerticalAlignment="Center" />
-                    <TextBlock x:Name="ArchiveMediaLoadingText" Classes="muted" TextWrapping="Wrap" IsVisible="False" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
-                </WrapPanel>
-            </Grid>
+        <!-- ARCH-DENSE-01: the error banner stays in layout flow (it can be long and is
+             important); its row takes space only while an error is shown. Status and
+             loading messages are an overlay inside ArchiveSplit instead. -->
+        <StackPanel x:Name="ArchiveStatusStrip" Grid.Row="2" Spacing="6" IsVisible="False">
             <ursa:Banner x:Name="ArchiveErrorBanner" Type="Error" CanClose="False" IsVisible="False" HorizontalContentAlignment="Stretch">
                 <ScrollViewer MaxHeight="104" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="ArchiveErrorText" TextWrapping="Wrap" Classes="error" AutomationProperties.LiveSetting="Assertive" /></ScrollViewer>
             </ursa:Banner>

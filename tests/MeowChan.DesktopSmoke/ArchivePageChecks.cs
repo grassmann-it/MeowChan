@@ -1,5 +1,7 @@
+using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
@@ -210,11 +212,18 @@ internal static class ArchivePageChecks
                 await Program.WaitUntilAsync(() => window.GetVisualDescendants().OfType<ArchiveAttachmentView>()
                     .Any(view => view.Thumbnail.Source is Bitmap));
                 Program.CaptureWindow(window, $"smoke-archive-{mode.ToLowerInvariant()}-{language}-minimum.png");
-                // ARCH-DENSE-01: the reader pane ends with its content border; no footer row is left below it.
+                // ARCH-DENSE-01: the reader pane ends with its content border; no footer row is left below it,
+                // and without an error the status row reserves nothing (messages are an overlay).
                 Grid readerPane = page.FindControl<Grid>("ArchiveReaderPane")!;
-                Console.WriteLine($"SMOKE archive stacked footer {mode}/{language}: listVisible={page.FindControl<Grid>("ArchiveListPane")!.IsVisible}, readerRows={readerPane.RowDefinitions.Count}, statusStrip={page.FindControl<Grid>("ArchiveRoot")!.RowDefinitions[2].ActualHeight}");
-                Require(readerPane.RowDefinitions.Count == 2 && page.FindControl<TextBlock>("ArchivePartialHint") == null,
-                    "The stacked archive reader still reserves a footer row below its content.");
+                Grid root = page.FindControl<Grid>("ArchiveRoot")!;
+                Border readerContent = page.FindControl<Border>("ArchiveReaderContent")!;
+                double blankBelowReader = page.Bounds.Height - (readerContent.TranslatePoint(default, page)!.Value.Y + readerContent.Bounds.Height);
+                bool errorShown = page.FindControl<Ursa.Controls.Banner>("ArchiveErrorBanner")!.IsVisible;
+                Console.WriteLine($"SMOKE archive stacked footer {mode}/{language}: listVisible={page.FindControl<Grid>("ArchiveListPane")!.IsVisible}, readerRows={readerPane.RowDefinitions.Count}, statusStrip={root.RowDefinitions[2].ActualHeight}, blankBelowReader={blankBelowReader}, errorShown={errorShown}");
+                Require(readerPane.RowDefinitions.Count == 2 && page.FindControl<TextBlock>("ArchivePartialHint") == null
+                    && (errorShown || blankBelowReader <= root.Margin.Bottom + 1),
+                    "The stacked archive reader still reserves a footer or status row below its content.");
+                if (mode == "Barebones" && language == "en") await CheckNarrowStatusOverlayAsync(window, page, id);
             }
         }
         Texts.SetLanguage("en");
@@ -259,6 +268,75 @@ internal static class ArchivePageChecks
             "Reset retained a restrictive work filter.");
     }
 
+    // ARCH-DENSE-01 (user decision 11.11.2026): in the narrow, compact layout the status overlay
+    // floats inside the stacked reader or list above its docked pager, and once empty or expired
+    // it is gone, so the list beneath takes the pointer again.
+    private static async Task CheckNarrowStatusOverlayAsync(MainWindow window, ArchivePage page, ResourceId id)
+    {
+        MethodInfo operationMessage = typeof(ArchivePage).GetMethod("OperationMessage", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        MethodInfo expireMessage = typeof(ArchivePage).GetMethod("ExpireStatusMessage", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        Border overlay = page.FindControl<Border>("ArchiveStatusOverlay")!;
+        TextBlock message = page.FindControl<TextBlock>("ArchiveMessage")!;
+        Rect Bounds(Control control) => new(control.TranslatePoint(default, window)
+            ?? throw new InvalidOperationException(control.Name + " is detached."), control.Bounds.Size);
+        bool Inside(Rect outer, Rect inner) => inner.Left >= outer.Left - 1 && inner.Top >= outer.Top - 1
+            && inner.Right <= outer.Right + 1 && inner.Bottom <= outer.Bottom + 1;
+        bool Hits(Point point, Visual target) => window.InputHitTest(point) is Visual hit && hit.GetSelfAndVisualAncestors().Contains(target);
+        async Task RequireHitAsync(Func<bool> condition, Point point, string failure)
+        {
+            try { await Program.WaitUntilAsync(() => { window.UpdateLayout(); return condition(); }); }
+            catch (Exception error) when (error is not OutOfMemoryException)
+            {
+                Visual? hit = window.InputHitTest(point) as Visual;
+                throw new InvalidOperationException(failure + $" overlayVisible={overlay.IsVisible}, point={point}, hit="
+                    + (hit == null ? "none" : string.Join(" < ", hit.GetSelfAndVisualAncestors().Take(8).Select(v => v.GetType().Name + (v is Control { Name: { } n } ? "#" + n : "")))) + ".", error);
+            }
+        }
+        void Show(string text)
+        {
+            operationMessage.Invoke(page, new object?[] { "action", text, false });
+            window.UpdateLayout(); window.UpdateLayout();
+        }
+        string text = Texts.T("archive.loading");
+        Border readerContent = page.FindControl<Border>("ArchiveReaderContent")!;
+        Require(readerContent.IsEffectivelyVisible && !page.FindControl<GridSplitter>("ArchiveSplitter")!.IsVisible
+            && !page.FindControl<Grid>("ArchiveListPane")!.IsVisible, "The narrow status overlay check requires the stacked reader.");
+        Show(text);
+        Rect box = Bounds(overlay), reader = Bounds(readerContent);
+        Grid postPager = page.FindControl<Grid>("ArchivePostNavigation")!;
+        Console.WriteLine($"SMOKE archive narrow status overlay reader: overlay={box}, reader={reader}, postPager={(postPager.IsEffectivelyVisible ? Bounds(postPager).ToString() : "hidden")}, page={Bounds(page)}");
+        Require(overlay.IsEffectivelyVisible && message.IsEffectivelyVisible && Inside(reader, box)
+            && (!postPager.IsEffectivelyVisible || box.Bottom <= Bounds(postPager).Top + 1),
+            $"The narrow archive status overlay is not shown inside the stacked reader above its post pager: overlay={box}, reader={reader}.");
+        Program.CaptureWindow(window, "smoke-archive-status-overlay-narrow-reader.png");
+        expireMessage.Invoke(page, Array.Empty<object?>());
+        window.UpdateLayout();
+        Require(!overlay.IsVisible, "The expired narrow status overlay is still shown.");
+        await RequireHitAsync(() => Hits(box.Center, readerContent), box.Center, "The expired narrow status overlay still takes the pointer from the reader.");
+
+        Click(page.FindControl<Button>("ArchiveBackButton")!);
+        await Program.WaitUntilAsync(() => { window.UpdateLayout(); return page.FindControl<Grid>("ArchiveListPane")!.IsEffectivelyVisible; });
+        Control list = page.FindControl<ListBox>("ArchiveThreads")!.IsEffectivelyVisible
+            ? page.FindControl<ListBox>("ArchiveThreads")! : page.FindControl<DataGrid>("ArchiveThreadTable")!;
+        Border results = page.FindControl<Border>("ArchiveResultsSurface")!, bar = page.FindControl<Border>("ArchiveResultsBar")!;
+        Rect listBox = Bounds(list);
+        Point lastRow = new(listBox.Left + 40, listBox.Bottom - 12);
+        await RequireHitAsync(() => !overlay.IsVisible && Hits(lastRow, list), lastRow, "The empty narrow status overlay is shown or takes the pointer from the list.");
+        Show(text);
+        box = Bounds(overlay);
+        Rect resultBox = Bounds(results), barBox = Bounds(bar);
+        Console.WriteLine($"SMOKE archive narrow status overlay list: overlay={box}, results={resultBox}, pager={barBox}, list={listBox}, lastRowProbe={lastRow}");
+        Require(overlay.IsEffectivelyVisible && Inside(resultBox, box) && box.Bottom <= barBox.Top + 1 && !box.Intersects(barBox),
+            $"The narrow archive status overlay is not shown inside the stacked list above its docked pager: overlay={box}, results={resultBox}, pager={barBox}.");
+        Program.CaptureWindow(window, "smoke-archive-status-overlay-narrow-list.png");
+        Show(string.Empty);
+        Require(!overlay.IsVisible, "The emptied narrow status overlay is still shown.");
+        await RequireHitAsync(() => Hits(box.Center, list) && Hits(lastRow, list), box.Center,
+            "The emptied narrow status overlay still intercepts pointer input on the list.");
+        Program.CaptureWindow(window, "smoke-archive-status-overlay-narrow-list-empty.png");
+        await page.LoadThreadAsync(id);
+        await Program.WaitUntilAsync(() => { window.UpdateLayout(); return !page.IsBusy && readerContent.IsEffectivelyVisible; });
+    }
     private static async Task CheckSlowMediaAsync(MainWindow window, ResourceId id)
     {
         ContentControl host = window.FindControl<ContentControl>("ArchivePageHost")!;

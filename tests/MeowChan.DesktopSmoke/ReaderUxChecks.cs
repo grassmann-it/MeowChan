@@ -659,27 +659,96 @@ internal static class ReaderUxChecks
                     "Archive pager and range label overlap or do not match the chosen footer arrangement.");
                 Require(layout != "List" || range.IsInline,
                     "Archive pager and range label still use two lines although both fit the default list pane.");
-                // The idle status strip keeps exactly one stable text line, so loading
-                // feedback cannot move the results and pager while paging.
-                Grid statusLine = page.FindControl<Grid>("ArchiveStatusLine")!;
-                double idleStatus = statusLine.Bounds.Height;
+                // ARCH-DENSE-01 (user decision 11.11.2026): status and loading messages are an
+                // overlay; without an error the status row reserves nothing and both boxes end
+                // at the page margin. Showing a message must not move list, pager or reader.
+                Grid root = page.FindControl<Grid>("ArchiveRoot")!;
+                double rootMargin = root.Margin.Bottom;
                 Require(page.FindControl<Ursa.Controls.Banner>("ArchiveErrorBanner")!.IsVisible
-                    || page.FindControl<StackPanel>("ArchiveStatusStrip")!.Bounds.Height <= idleStatus + 1,
-                    "Archive status strip reserves more than one idle line.");
-                Require(idleStatus is > 8 and <= 32, "Archive idle status line lost its stable single-line height.");
+                    // The split spans the empty status row, so measure the visible edges, not the row.
+                    || (Bounds(page).Bottom - left.Bottom <= rootMargin + 1
+                        && Bounds(page).Bottom - right.Bottom <= rootMargin + 1),
+                    "Archive status row still reserves idle height below the result and reader boxes: "
+                    + $"statusRow={root.RowDefinitions[2].ActualHeight}, belowResults={Bounds(page).Bottom - left.Bottom}, belowReader={Bounds(page).Bottom - right.Bottom}, margin={rootMargin}.");
                 MethodInfo operationMessage = typeof(ArchivePage).GetMethod("OperationMessage", BindingFlags.Instance | BindingFlags.NonPublic)!;
-                double resultsBottom = left.Bottom;
-                string previousMessage = page.FindControl<TextBlock>("ArchiveMessage")!.Text ?? string.Empty;
-                operationMessage.Invoke(page, new object?[] { "action", Texts.T("archive.loading"), false });
+                MethodInfo expireMessage = typeof(ArchivePage).GetMethod("ExpireStatusMessage", BindingFlags.Instance | BindingFlags.NonPublic)!;
+                static bool Same(Rect a, Rect b) => Math.Abs(a.X - b.X) <= 0.5 && Math.Abs(a.Y - b.Y) <= 0.5
+                    && Math.Abs(a.Width - b.Width) <= 0.5 && Math.Abs(a.Height - b.Height) <= 0.5;
+                Border overlay = page.FindControl<Border>("ArchiveStatusOverlay")!;
+                TextBlock message = page.FindControl<TextBlock>("ArchiveMessage")!;
+                static string DescribeHit(Visual? hit) => hit == null ? "none"
+                    : string.Join(" < ", hit.GetSelfAndVisualAncestors().Take(8).Select(v => v.GetType().Name + (v is Control { Name: { } n } ? "#" + n : "")));
+                bool HitsOverlay(Point point) => window.InputHitTest(point) is Visual hit && hit.GetSelfAndVisualAncestors().Contains(overlay);
+                bool HitsReader(Point point) => window.InputHitTest(point) is Visual hit && hit.GetSelfAndVisualAncestors().Contains(reader);
+                // Hit testing follows the rendered scene, so pointer facts settle after the next frame.
+                async Task RequireHitAsync(Func<bool> condition, Point point, string failure)
+                {
+                    try { await Program.WaitUntilAsync(() => { window.UpdateLayout(); return condition(); }); }
+                    catch (Exception error) when (error is not OutOfMemoryException)
+                    {
+                        throw new InvalidOperationException(failure + $" overlayVisible={overlay.IsVisible}, overlay={Bounds(overlay)}, point={point}, "
+                            + $"channels={string.Join("|", overlay.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsVisible).Select(t => t.Name + "=" + t.Text))}, "
+                            + $"hit={DescribeHit(window.InputHitTest(point) as Visual)}.", error);
+                    }
+                }
+                string previousMessage = message.Text ?? string.Empty;
+                // Empty: the overlay is not shown and the content beneath takes the pointer.
+                operationMessage.Invoke(page, new object?[] { "action", string.Empty, false });
+                // Saved-media loading is its own channel; it ends with its load, then the overlay goes.
+                await Program.WaitUntilAsync(() => { window.UpdateLayout(); return !overlay.IsVisible; });
+                Point probe = new(right.Left + 24, right.Bottom - 20);
+                await RequireHitAsync(() => !overlay.IsVisible && HitsReader(probe), probe,
+                    "The empty archive status overlay is shown or takes the pointer from the reader beneath it.");
+                string shown = Texts.T("archive.loading");
+                operationMessage.Invoke(page, new object?[] { "action", shown, false });
                 window.UpdateLayout();
-                Require(page.FindControl<TextBlock>("ArchiveMessage")!.IsEffectivelyVisible
-                    && Math.Abs(statusLine.Bounds.Height - idleStatus) <= 1 && Math.Abs(Bounds(results).Bottom - resultsBottom) <= 1,
-                    "A short archive status message moved the result surface or was not shown.");
+                Rect overlayBox = Bounds(overlay);
+                Control? readerFooter = new Control[] { page.FindControl<Grid>("ArchivePostNavigation")!, page.FindControl<StackPanel>("ArchiveMediaFooter")!,
+                    page.FindControl<Grid>("ArchiveReferencesNavigation")! }.FirstOrDefault(candidate => candidate.IsEffectivelyVisible && candidate.Bounds.Height > 0);
+                Avalonia.Automation.Peers.AutomationPeer messagePeer = Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(message);
+                Console.WriteLine("SMOKE embedded archive status overlay: " + JsonSerializer.Serialize(new
+                {
+                    layout, language = Texts.Language, theme = window.ActualThemeVariant.ToString(), overlay = overlayBox.ToString(),
+                    pager = Bounds(bar).ToString(), reader = right.ToString(), readerFooter = readerFooter == null ? null : Bounds(readerFooter).ToString(),
+                    tip = ToolTip.GetTip(overlay), live = Avalonia.Automation.AutomationProperties.GetLiveSetting(message).ToString(),
+                    peerName = messagePeer.GetName(), offscreen = messagePeer.IsOffscreen(),
+                    duration = ArchivePage.StatusMessageDuration(shown).TotalSeconds
+                }));
+                Require(message.IsEffectivelyVisible && overlay.IsEffectivelyVisible && message.Text == shown && !overlay.Focusable
+                    && Same(Bounds(results), left) && Same(Bounds(reader), right) && Same(Bounds(bar), barBox)
+                    && Contains(right, overlayBox) && !overlayBox.Intersects(barBox)
+                    && (readerFooter == null || overlayBox.Bottom <= Bounds(readerFooter).Top + 1),
+                    "A short archive status message moved the boxes or pager, was not shown over the reader, or covers a docked footer: "
+                    + $"overlay={overlayBox}, reader={right}, pager={barBox}, readerFooter={(readerFooter == null ? "none" : Bounds(readerFooter).ToString())}.");
+                Require(Avalonia.Automation.AutomationProperties.GetLiveSetting(message) == Avalonia.Automation.AutomationLiveSetting.Polite
+                    && messagePeer.GetName() == shown && !messagePeer.IsOffscreen() && Equals(ToolTip.GetTip(overlay), shown),
+                    "The archive status overlay message is not announced as a live region or lacks its full-text tooltip.");
+                // Shown, the box takes the pointer only over itself (for its tooltip).
+                Point beside = new(overlayBox.Right + 4, overlayBox.Center.Y);
+                await RequireHitAsync(() => HitsOverlay(overlayBox.Center), overlayBox.Center,
+                    "The visible archive status overlay is not hit-testable for its tooltip.");
+                await RequireHitAsync(() => !HitsOverlay(beside) && HitsReader(beside), beside,
+                    "The visible archive status overlay takes the pointer outside its own box.");
+                TimeSpan duration = ArchivePage.StatusMessageDuration(shown);
+                Require(duration >= TimeSpan.FromSeconds(5) && duration <= TimeSpan.FromSeconds(15)
+                    && ArchivePage.StatusMessageDuration(new string('x', 400)) == TimeSpan.FromSeconds(15),
+                    "Archive status messages do not stay between five and fifteen seconds.");
+                Program.CaptureWindow(window, $"smoke-archive-status-overlay-{(layout == "List" ? "list" : "table")}-{code}-{window.ActualThemeVariant.ToString().ToLowerInvariant()}.png");
+                // Expired: the text stays readable for automation, but the overlay is gone and passes the pointer on.
+                expireMessage.Invoke(page, Array.Empty<object?>());
+                window.UpdateLayout();
+                Require(message.Text == shown && !message.IsVisible && !overlay.IsVisible
+                    && Same(Bounds(results), left) && Same(Bounds(reader), right),
+                    "An expired archive status message is still shown, lost its text, or moved the boxes.");
+                await RequireHitAsync(() => !HitsOverlay(overlayBox.Center) && HitsReader(overlayBox.Center), overlayBox.Center,
+                    "An expired archive status message still takes the pointer from the reader beneath it.");
+                if (layout == "List" && code == "en")
+                    Program.CaptureWindow(window, $"smoke-archive-status-overlay-hidden-{code}-{window.ActualThemeVariant.ToString().ToLowerInvariant()}.png");
                 operationMessage.Invoke(page, new object?[] { "action", previousMessage, false });
                 window.UpdateLayout();
-                Require(page.FindControl<TextBlock>("ArchiveMessage")!.IsVisible == !string.IsNullOrWhiteSpace(previousMessage)
-                    && Math.Abs(Bounds(results).Bottom - resultsBottom) <= 1,
-                    "Restoring the archive status message left a blank status item or moved the results.");
+                Require(message.IsVisible == !string.IsNullOrWhiteSpace(previousMessage)
+                    && Same(Bounds(results), left) && Same(Bounds(reader), right),
+                    "Restoring the archive status message left a blank status item or moved the boxes.");
                 Require(page.FindControl<WrapPanel>("ReaderStatusLine")!.IsEffectivelyVisible,
                     "Embedded archive lost its reader status line.");
                 Ursa.Controls.PaginationButton next = pagination.GetVisualDescendants().OfType<Ursa.Controls.PaginationButton>()
