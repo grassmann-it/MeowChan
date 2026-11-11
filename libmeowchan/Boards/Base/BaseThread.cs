@@ -43,6 +43,7 @@ public abstract class BaseThread : IThread, ICheckRequestSource
     private readonly Dictionary<(string MediaId, string Variant), HashSet<string>> _verifiedDestinations = new();
     private readonly Dictionary<string, Dictionary<string, FailureInfo>> _destinationFailures = new Dictionary<string, Dictionary<string, FailureInfo>>(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _mediaFailures = new Dictionary<string, string>(StringComparer.Ordinal);
+    private readonly Dictionary<(string MediaId, string Variant), string> _rejectedMedia = new();
     private ThreadSourceState _sourceState = ThreadSourceState.Active;
     private RequestPolicyProgress? _requestProgress;
     // Raw source metadata and display-only OP excerpt have separate provenance.
@@ -863,6 +864,39 @@ public abstract class BaseThread : IThread, ICheckRequestSource
             _activity = ThreadActivity.Error;
         }
         NotifyMediaStateChanged(mediaChanged, true, statusChanged);
+    }
+
+    /// <summary>Marks one attachment whose metadata the host rejected; nothing was downloaded, so no completion is invalidated.</summary>
+    internal void ReportRejectedMedia(string mediaIdentifier, string variant, string? destinationPath, string message)
+    {
+        string destinationKey = string.IsNullOrWhiteSpace(destinationPath) ? string.Empty : destinationPath;
+        bool statusChanged;
+        lock (_stateLock)
+        {
+            if (_rejectedMedia.TryGetValue((mediaIdentifier, variant), out string? previous) && previous != destinationKey
+                && _destinationFailures.TryGetValue(mediaIdentifier, out Dictionary<string, FailureInfo>? stale)) stale.Remove(previous);
+            _rejectedMedia[(mediaIdentifier, variant)] = destinationKey;
+            if (!_destinationFailures.TryGetValue(mediaIdentifier, out Dictionary<string, FailureInfo>? failures))
+                _destinationFailures.Add(mediaIdentifier, failures = new Dictionary<string, FailureInfo>(DestinationComparer));
+            FailureInfo failure = new(FailureKind.InvalidData, message);
+            if (failures.TryGetValue(destinationKey, out FailureInfo? existing) && existing == failure && _activity == ThreadActivity.Error) return;
+            failures[destinationKey] = failure;
+            RefreshMediaFailureLocked(mediaIdentifier);
+            statusChanged = _activity != ThreadActivity.Error;
+            _activity = ThreadActivity.Error;
+        }
+        NotifyMediaStateChanged(false, true, statusChanged);
+    }
+
+    /// <summary>Corrected metadata supersedes an earlier rejection; the caller recomputes Activity.</summary>
+    internal void ClearRejectedMedia(string mediaIdentifier, string variant)
+    {
+        lock (_stateLock)
+        {
+            if (!_rejectedMedia.Remove((mediaIdentifier, variant), out string? destinationKey)) return;
+            if (_destinationFailures.TryGetValue(mediaIdentifier, out Dictionary<string, FailureInfo>? failures) && failures.Remove(destinationKey))
+                RefreshMediaFailureLocked(mediaIdentifier);
+        }
     }
 
     // The empty key represents an old completion/failure without a known destination.

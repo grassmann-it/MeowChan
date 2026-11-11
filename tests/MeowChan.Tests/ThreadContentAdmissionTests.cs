@@ -204,6 +204,47 @@ public sealed class ThreadContentAdmissionTests
     }
 
     [Fact]
+    public async Task RejectedAttachmentMetadataSkipsOnlyThatItemAndMarksItWithoutSelectionFailure()
+    {
+        await using Fixture f = await Fixture.OpenAsync();
+        f.Lease.Admission.CompleteStartup();
+        DownloadQueue queue = new(1, 1L << 30);
+        try
+        {
+            await queue.SetPausedAsync(true);
+            DownloadItem[] good = [f.Candidate("1", "a.png"), f.Candidate("2", "b.png"), f.Candidate("4", "d.png")];
+            DownloadItem bad = f.Candidate("3", "bad.jpg (1.75MB)"); // Path.GetExtension => ".75MB)"
+            await f.Thread.EnqueueManyAsync(queue, [good[0], good[1], bad, good[2]]);
+            Assert.Equal(3, queue.GetCapacitySnapshot().Pending);
+            Assert.Equal(["1", "2", "4"], (await f.Runtime.Catalog.GetDecisionsAsync(Id)).Select(d => d.Metadata.Key.MediaId).Order());
+            KeyValuePair<string, string> failure = Assert.Single(f.Thread.MediaFailures);
+            Assert.Equal("3", failure.Key);
+            Assert.StartsWith("Rejected attachment metadata: ", failure.Value);
+            Assert.Contains("extension", failure.Value);
+            FailureInfo info = f.Thread.GetSnapshot(default).MediaFailures["3"];
+            Assert.Equal(FailureKind.InvalidData, info.Kind);
+            Assert.Equal(ThreadActivity.Error, f.Thread.Activity);
+            Assert.Null(f.Context.Snapshot.SelectionFailure);
+            Assert.False(f.Context.NeedsRetry);
+
+            // Deterministic rejection: repeating it neither retries nor grows the failure.
+            await f.Thread.EnqueueManyAsync(queue, [bad]);
+            Assert.Equal(failure.Value, Assert.Single(f.Thread.MediaFailures).Value);
+            Assert.Null(f.Context.Snapshot.SelectionFailure);
+            Assert.DoesNotContain(await f.Runtime.Catalog.GetDecisionsAsync(Id), d => d.Metadata.Key.MediaId == "3");
+
+            // Corrected metadata on a later poll selects the item and clears its failure.
+            await f.Thread.EnqueueManyAsync(queue, [f.Candidate("3", "bad.jpg")]);
+            Assert.Empty(f.Thread.MediaFailures);
+            Assert.Contains(await f.Runtime.Catalog.GetDecisionsAsync(Id), d => d.Metadata.Key.MediaId == "3"
+                && d.Selection.Outcome == MediaSelectionOutcome.Selected);
+            Assert.Equal(4, queue.GetCapacitySnapshot().Pending);
+            Assert.NotEqual(ThreadActivity.Error, f.Thread.Activity);
+        }
+        finally { await queue.StopAllAsync().WaitAsync(Deadline); }
+    }
+
+    [Fact]
     public async Task ExactMonitorGenerationDrainsAndStaleCancelledCallbacksNeverReadmitOrUseSuccessor()
     {
         await using Fixture f = await Fixture.OpenAsync();
@@ -565,6 +606,8 @@ public sealed class ThreadContentAdmissionTests
         internal CapturedThreadSnapshot Observation(string title) => new(Id, Thread.Url, title,
             ThreadSourceState.Active, DateTimeOffset.UtcNow, Directory,
             [new CapturedPost("123", 0, PostFieldPresence.Html, Html: "synthetic post")]);
+        internal DownloadItem Candidate(string id, string name) => new(new Uri($"https://stub.test/media/{id}.png"),
+            Path.Combine(Directory, "media", $"{id}.png"), _source, Thread, id, originalFileName: name);
         internal DownloadItem Candidate() => new(new Uri("https://stub.test/media/777.png"),
             Path.Combine(Directory, "media", "777.png"), _source, Thread, "777", originalFileName: "777.png");
         internal Task PrepareAsync(string op) => op == "capture"
@@ -633,6 +676,8 @@ public sealed class ThreadContentAdmissionTests
                 ct, (ContentCancellationScope)scope);
         internal Task ObserveAsync(CapturedThreadSnapshot? snapshot, CancellationToken ct = default) => CaptureContentAsync(snapshot, ct);
         internal Task SourceAsync(ThreadSourceState source, CancellationToken ct) => CaptureSourceStateAsync(source, ct);
+        internal Task EnqueueManyAsync(DownloadQueue queue, IEnumerable<DownloadItem> items, CancellationToken ct = default)
+            => EnqueueKnownMediaAsync(queue, items.ToDictionary(item => item.MediaIdentifier), ct);
         internal Task SelectAndEnqueueAsync(DownloadQueue queue, DownloadItem item, CancellationToken ct)
             => EnqueueKnownMediaAsync(queue, new Dictionary<string, DownloadItem> { [item.MediaIdentifier] = item }, ct);
     }
