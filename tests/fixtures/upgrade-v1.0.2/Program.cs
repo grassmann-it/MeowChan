@@ -31,13 +31,15 @@ using Timer watchdog = new(_ => { Console.Error.WriteLine("SYNTHETIC GENERATION 
 string profile = Path.GetFullPath(args[0]);
 if (Directory.Exists(profile) || File.Exists(profile) || new FileInfo(profile).LinkTarget != null) throw new InvalidOperationException("Generator requires a new profile path.");
 Directory.CreateDirectory(profile);
-Directory.CreateDirectory(Path.Combine(profile, "exports"));
+// Released Config admits this first ordinary save only while the new profile is empty.
+// Do not create exports/media or acquire a host/lease before settings exist.
 new Config { DownloadPath = Path.Combine(profile, "media"), DownloadsPaused = true,
     AutomaticUpdateChecks = false, VideoVolume = 31, VideoStartMuted = true, GalleryContextOpen = true,
     SaveUrlsOnExit = true, MaxParallelDownloads = 2,
     RecheckTimer = 3600, CompactDensity = true,
     ArchiveThreadLayout = "Table", ArchiveSplitWidth = 431, WindowWidth = 1123,
     LastExportDirectory = Path.Combine(profile, "exports") }.SaveConfig(profile);
+Directory.CreateDirectory(Path.Combine(profile, "exports"));
 using Fixture transport = new();
 using HttpClient client = new(transport);
 List<object> threads = new();
