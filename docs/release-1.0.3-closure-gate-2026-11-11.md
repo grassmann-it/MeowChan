@@ -236,3 +236,16 @@ Archivfilter-Regressionen wurden in diesem Goal ergänzt (`5193d38` Escape→Pfe
 Neu ergänzt (Mehrfachauswahl): Smoke-Fall `multiple-accepted-candidates-collect-in-draft-then-one-search`
 (zwei Quellen und ein Board nacheinander per Tastatur übernommen, kein Suchstart bis zur expliziten Suche, eine Suche
 mit allen drei Identitäten). Archivfilter-Smoke damit 13/13 (`/home/tomka/mc-evidence/archive-multi-1794413413`).
+
+### Nachtrag: Reader-Leiste und vorbestehend rote Smokes (goal nach `ab4db42`)
+
+- Reader-UX-Smoke war seit spätestens `3c1e822` rot („Reader toolbar needs more than two narrow rows“). Nutzerentscheidung:
+  Überlaufmenü, nach Nutzen sortiert. `0e39b18`/`2a91b83`: `ReaderToolbar` ist eine einzeilige `ActionToolBar`; immer sichtbar
+  Schließen, Favorit, Tags, Galerie, Lesen, Rücksprünge, Überspringen; ins „Mehr“ zuerst Export, dann Hash-, Dateinamensuche,
+  Leseposition, Vollbild, zuletzt „Im Thread suchen“ (Strg+F). Zusätzlich 42 Binding-Warnungen im Reader-Gruppen-Dialog behoben.
+- Dateinamensuche-Smoke (`MEOWCHAN_FILENAME_SEARCH_LARGE_READER_ONLY`) war ebenso seit `3c1e822` rot: Zählung vor dem
+  geposteten Refresh; Smoke wartet jetzt darauf.
+- Abnahme (`/home/tomka/mc-evidence/accept-toolbar-1794415784`, `toolbar-rerun-1794416586`, `filename-fix-1794417156`):
+  Desktop 3129 + Vertragsfix (ReaderGroups 41/0); Smokes reader-ux (Xvfb, `MEOWCHAN_GALLERY_CLOSE_SKIP_FULLSCREEN=1`),
+  Default, UI_REFINEMENT, MEDIA_PAGE, Archivfilter 13/13, READER_FIND, HTML_EXPORT_ACTION_LAYOUT, READER_GROUPS_BINDING,
+  FILENAME_SEARCH_LARGE_READER 2/2 PASS. Nicht hier geprüft: natives Galerie-Vollbild (nur KWin-Runner).
