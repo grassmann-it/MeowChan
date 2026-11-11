@@ -111,6 +111,7 @@ Gezielte `dotnet test --no-build`-Filter auf Head `3c516f8`, Bins aus den frisch
 | Desktop passive GP-39 | 14 / 0 / 0 |
 | Registry-Startup / Profiladmission / W26-W27-Admission / Startup-Recoveryguard | 202 / 0 / 0 |
 | Additiver 404-Merge mit neueren Downloads (`NativeV2MergeRoundtripTests`, 404-Roundtrip) | 5 / 0 / 0 |
+| Gerätezeitzone / „assembly not found“ (`DeviceTimeZone…`-Regressionen aus `b14f4b1`, `ArchiveSearchSpecTests`) | 15 / 0 / 0 |
 | Desktop Importzustände Reading/Ready/Applying/Completed/Failed/Canceled/RecoveryRequired (`NativeTransferImportHostTests`, `…LifetimeTests`) | 22 / 0 / 0 |
 
 GUI-Smokes im privaten Xvfb (nice 19):
