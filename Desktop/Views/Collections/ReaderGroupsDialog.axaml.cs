@@ -201,10 +201,8 @@ public partial class ReaderGroupsDialog : Window
     internal static TextBlock RowText(DisplayRow? row)
     {
         TextBlock text = new() { TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(4, 8) };
-        // Bind through the item container's DataContext: templates are also built without an item,
-        // and an explicit null Source logs a binding error for every such realization.
-        if (row != null) text.DataContext = row;
-        text.Bind(TextBlock.TextProperty, new Binding(nameof(DisplayRow.Display)));
+        // Templates are also built without an item; a null Source would log a binding error each time.
+        if (row != null) text.Bind(TextBlock.TextProperty, new Binding(nameof(DisplayRow.Display)) { Source = row });
         return text;
     }
     private void LanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() =>
