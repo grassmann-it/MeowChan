@@ -24,7 +24,10 @@ public partial class MainWindow
         {
             OpenGallery = OpenMediaLibraryGalleryAsync,
             ShowInThread = ShowMediaLibraryEntryInThreadAsync,
-            ReadUserData = ReadMediaLibraryUserData
+            ReadUserData = ReadMediaLibraryUserData,
+            TagServices = new(_session.GetPublishedPrivateTagSnapshot, _session.DefinePrivateTagAsync,
+                (tag, targets, assigned, expectedRevision, token) => _session.SetMediaTagsAsync(tag, targets, assigned, expectedRevision, token)),
+            ExportOriginals = ExportMediaLibraryOriginalsAsync
         };
         this.FindControl<ContentControl>("MediaPageHost")!.Content = _mediaPage;
     }
@@ -65,6 +68,10 @@ public partial class MainWindow
             if (!_isClosing) ShowNotification(Texts.T("notification.error"), Texts.T("media.galleryFailed"), NotificationType.Error, operation: "media.gallery");
         }
     }
+
+    // The same export dialog as the gallery and the favorites: verified originals, no overwriting, per-file results.
+    private Task ExportMediaLibraryOriginalsAsync(IReadOnlyList<Favorites.FavoriteExportAsset> assets, int unavailable)
+        => _isClosing ? Task.CompletedTask : ArchivePage.OpenOriginalExportAsync(assets, _mediaPage, unavailable, Texts.T("media.selection.exportScope"));
 
     private async Task ShowMediaLibraryEntryInThreadAsync(MediaLibraryEntry entry)
     {

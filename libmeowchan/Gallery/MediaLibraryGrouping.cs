@@ -62,5 +62,5 @@ internal static class MediaLibraryGrouping
     }
 
     // Only saved files carry a measured hash; a missing attachment is never grouped with anything.
-    private static bool HasHash(MediaLibraryEntry entry) => entry.Presence == MediaLibraryPresence.Present && !string.IsNullOrEmpty(entry.Sha256);
+    internal static bool HasHash(MediaLibraryEntry entry) => entry.Presence == MediaLibraryPresence.Present && !string.IsNullOrEmpty(entry.Sha256);
 }

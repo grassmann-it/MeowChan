@@ -235,6 +235,45 @@ internal sealed class PrivateTagStore
     }
 
     /// <summary>
+    /// One tag on several exact media versions in one write: all of them or none. Each target is
+    /// idempotent like <see cref="SetMedia"/>; a target that already has (or lacks) the tag changes nothing.
+    /// An unknown tag, an invalid target or the capacity limit rejects the whole batch.
+    /// </summary>
+    internal PrivateTagCommit SetMediaBatch(TagId tag, IReadOnlyCollection<PrivateMediaTagTarget?> targets, bool assigned,
+        long? expectedRevision = null, CancellationToken token = default)
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(token);
+        return SetMediaBatchAdmitted(tag, targets, assigned, admission, expectedRevision, token);
+    }
+
+    internal PrivateTagCommit SetMediaBatchAdmitted(TagId tag, IReadOnlyCollection<PrivateMediaTagTarget?> targets, bool assigned,
+        ProfileAdmissionToken admission, long? expectedRevision = null, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(targets);
+        if (targets.Any(target => !IsTarget(target))) throw new PrivateTagStoreException(PrivateTagStoreError.InvalidTarget);
+        List<PrivateMediaTagAssignment> wanted = targets.Select(target => new PrivateMediaTagAssignment(tag, target!)).Distinct().ToList();
+        return Mutate(admission, expectedRevision, token, model =>
+        {
+            RequireKnown(model, tag);
+            if (assigned)
+            {
+                List<PrivateMediaTagAssignment> fresh = wanted.Where(item => !model.MediaSet.Contains(item)).ToList();
+                if (fresh.Count == 0) return (false, tag);
+                if (model.Media.Count + fresh.Count > MaximumMediaAssignments)
+                    throw new PrivateTagStoreException(PrivateTagStoreError.CapacityExceeded);
+                model.Media.AddRange(fresh);
+            }
+            else
+            {
+                HashSet<PrivateMediaTagAssignment> present = wanted.Where(model.MediaSet.Contains).ToHashSet();
+                if (present.Count == 0) return (false, tag);
+                model.Media.RemoveAll(present.Contains);
+            }
+            return (true, tag);
+        });
+    }
+
+    /// <summary>
     /// Deletes one tag together with every thread and media assignment that uses it, in one write.
     /// An unknown tag is rejected rather than treated as already deleted.
     /// </summary>

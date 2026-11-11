@@ -71,6 +71,15 @@ internal sealed partial class DesktopSessionHost
             tag.Value.ToString("N") + " " + target?.Reference.RevisionKey + " " + target?.Role,
             admission => MutatePrivateTagsAsync(store => store.SetMediaAdmitted(tag, target, assigned, admission, null, token), token));
 
+    /// <summary>
+    /// One tag on several exact media versions as a single admitted write: all or none. With an expected
+    /// revision the write is refused (stale) if the tags changed since the caller looked.
+    /// </summary>
+    internal Task<PrivateTagCommit> SetMediaTagsAsync(TagId tag, IReadOnlyList<PrivateMediaTagTarget> targets, bool assigned,
+        long? expectedRevision = null, CancellationToken token = default)
+        => RunInteractiveWithAdmissionAsync(nameof(SetMediaTagsAsync), tag.Value.ToString("N") + " " + targets?.Count + " media",
+            admission => MutatePrivateTagsAsync(store => store.SetMediaBatchAdmitted(tag, targets!, assigned, admission, expectedRevision, token), token));
+
     /// <summary>Deletes a tag and all of its assignments, bound to the revision the caller confirmed against.</summary>
     internal Task<PrivateTagCommit> DeletePrivateTagAsync(TagId tag, long expectedRevision,
         CancellationToken token = default)

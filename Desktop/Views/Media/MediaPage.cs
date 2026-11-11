@@ -39,7 +39,7 @@ public sealed partial class MediaPage : UserControl
     private readonly CheckBox _missing = new() { Name = "MediaShowMissing" };
     private readonly Button _refresh = new() { Name = "MediaRefresh" };
     private readonly TextBlock _status = new() { Name = "MediaStatus", TextWrapping = Avalonia.Media.TextWrapping.Wrap };
-    private readonly ListBox _grid = new() { Name = "MediaGrid", SelectionMode = SelectionMode.Single };
+    private readonly ListBox _grid = new() { Name = "MediaGrid", SelectionMode = SelectionMode.Multiple };
     private readonly TextBlock _empty = new() { Name = "MediaEmpty", TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(8, 40, 8, 8), IsVisible = false, Classes = { "muted" } };
     private MediaLibrarySnapshot? _snapshot;
     private IReadOnlyList<MediaLibraryEntry> _shown = Array.Empty<MediaLibraryEntry>();
@@ -73,7 +73,7 @@ public sealed partial class MediaPage : UserControl
         foreach (Control control in new Control[] { _sort, _shuffle, _missing, _refresh }) { control.VerticalAlignment = VerticalAlignment.Center; tools.Children.Add(control); }
         StackPanel header = new() { Spacing = 6, Margin = new Thickness(12, 12, 12, 6) };
         header.Children.Add(_title); header.Children.Add(_subtitle); header.Children.Add(tools);
-        header.Children.Add(BuildFilterRow()); header.Children.Add(_filterChips); header.Children.Add(_filterError); header.Children.Add(_status);
+        header.Children.Add(BuildFilterRow()); header.Children.Add(_filterChips); header.Children.Add(_filterError); header.Children.Add(_status); header.Children.Add(BuildSelectionBar());
         _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel());
         _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThreadFilter = FilterToThread, ShowOccurrences = ShowOccurrences });
         ScrollViewer.SetHorizontalScrollBarVisibility(_grid, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
@@ -91,6 +91,7 @@ public sealed partial class MediaPage : UserControl
         _refresh.Click += (_, _) => BuildTask = BuildAsync(force: true);
         _grid.DoubleTapped += (_, _) => _ = OpenSelectedAsync();
         _grid.KeyDown += OnGridKeyDown;
+        _grid.SelectionChanged += (_, _) => { if (_restoring) return; ShowSelectionNote(null); UpdateSelectionBar(); };
         _grid.ContextRequested += OnContextRequested;
         Texts.Changed += OnLanguageChanged;
         Localize();
@@ -155,7 +156,8 @@ public sealed partial class MediaPage : UserControl
 
     private void Present()
     {
-        MediaLibraryEntry? selected = (_grid.SelectedItem as MediaLibraryTileRow)?.Entry;
+        // Selected tiles that are still shown stay selected; the others drop out (see MediaPage.Selection.cs).
+        MediaLibraryTileKey[] selected = SelectedTiles.Select(MediaLibraryTileKey.Of).ToArray();
         IReadOnlyList<MediaLibraryEntry> all = _snapshot?.Entries ?? Array.Empty<MediaLibraryEntry>();
         bool includeMissing = _missing.IsChecked == true;
         // Filter the occurrences first; a tile of equal bytes stays when any of its occurrences passed.
@@ -163,8 +165,13 @@ public sealed partial class MediaPage : UserControl
         _shown = _tiles.Select(tile => tile.Entry).ToArray();
         _unfiltered = _filterActive ? MediaLibraryGrouping.CountTiles(all, includeMissing) : _shown.Count;
         MediaLibraryTileRow[] rows = _tiles.Select((tile, index) => new MediaLibraryTileRow(tile, index)).ToArray();
-        _grid.ItemsSource = rows;
-        if (selected != null) _grid.SelectedItem = rows.FirstOrDefault(row => row.Entry == selected);
+        _restoring = true;
+        try
+        {
+            _grid.ItemsSource = rows;
+            foreach (int index in MediaLibrarySelection.Restore(selected, _tiles)) _grid.Selection.Select(index);
+        }
+        finally { _restoring = false; }
         _shuffle.IsVisible = Sort == MediaLibrarySort.Random;
         UpdateStatus();
     }
@@ -185,6 +192,7 @@ public sealed partial class MediaPage : UserControl
         // A refused filter explains itself above the grid; the grid stays empty.
         _empty.IsVisible = _snapshot != null && _shown.Count == 0 && _building == null && !_filterFailed;
         _refresh.IsEnabled = !_lifetime.IsCancellationRequested;
+        UpdateSelectionBar();
     }
 
     private async Task<Bitmap?> LoadThumbnailAsync(MediaLibraryEntry entry, CancellationToken token)
@@ -220,23 +228,33 @@ public sealed partial class MediaPage : UserControl
 
     private async void OnGridKeyDown(object? sender, KeyEventArgs e)
     {
+        if (OnSelectionKey(e)) return;
         if (e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None || SelectedRow == null) return;
         e.Handled = true;
-        await OpenSelectedAsync();
+        // Several selected tiles open together; one opens around itself.
+        if (SelectedTiles.Count > 1) await OpenSelectionGalleryAsync(); else await OpenSelectedAsync();
     }
 
     private void OnContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (SelectedRow is not { } row) return;
-        MenuItem open = new() { Header = Texts.T("media.open"), IsEnabled = row.Entry.Presence == MediaLibraryPresence.Present };
+        bool single = SelectedTiles.Count == 1; // The per-tile entries act on one tile only.
+        MenuItem open = new() { Header = Texts.T("media.open"), IsEnabled = single && row.Entry.Presence == MediaLibraryPresence.Present };
         open.Click += (_, _) => _ = OpenSelectedAsync();
-        MenuItem thread = new() { Header = Texts.T("media.showInThread"), IsEnabled = row.Entry.PostId != null };
+        MenuItem thread = new() { Header = Texts.T("media.showInThread"), IsEnabled = single && row.Entry.PostId != null };
         thread.Click += (_, _) => _ = ShowSelectedInThreadAsync();
-        MenuItem onlyThread = new() { Header = Texts.T("media.filter.onlyThread") };
+        MenuItem onlyThread = new() { Header = Texts.T("media.filter.onlyThread"), IsEnabled = single };
         onlyThread.Click += (_, _) => FilterToThread(row.Entry);
-        MenuItem occurrences = new() { Header = Texts.T("media.occurrences"), IsEnabled = row.Tile.IsGroup };
+        MenuItem occurrences = new() { Header = Texts.T("media.occurrences"), IsEnabled = single && row.Tile.IsGroup };
         occurrences.Click += (_, _) => ShowOccurrences(row.Tile);
-        ContextMenu menu = new() { ItemsSource = new object[] { open, thread, onlyThread, occurrences } };
+        List<object> items = new() { open, thread, onlyThread, occurrences, new Separator() };
+        foreach ((Button action, string key) in new[] { (_selTag, "media.selection.tag"), (_selGallery, "media.selection.gallery"), (_selExport, "media.selection.export") })
+        {
+            MenuItem item = new() { Header = Texts.T(key), IsEnabled = action.IsEnabled };
+            item.Click += (_, _) => action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            items.Add(item);
+        }
+        ContextMenu menu = new() { ItemsSource = items };
         _grid.ContextMenu = menu;
         menu.Open(_grid);
         e.Handled = true;
@@ -262,6 +280,7 @@ public sealed partial class MediaPage : UserControl
         _refresh.Content = Texts.T("media.refresh");
         AutomationProperties.SetName(_grid, Texts.T("media.title"));
         LocalizeFilters();
+        LocalizeSelection();
         if (_grid.ItemsSource != null) Present(); else UpdateStatus();
     }
 
@@ -272,5 +291,6 @@ public sealed partial class MediaPage : UserControl
         _building?.Cancel();
         Texts.Changed -= OnLanguageChanged;
         _occurrences?.Close();
+        _selectionTag?.CloseForLifetime();
     }
 }

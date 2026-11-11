@@ -6,8 +6,10 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.VisualTree;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
@@ -49,6 +51,11 @@ internal sealed class MediaLibraryTileView : UserControl
     private readonly TextBlock _duplicates = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 11 };
     private readonly Button _duplicatesLink = new() { Name = "MediaTileDuplicates", Padding = new Thickness(0), Classes = { "link" }, IsVisible = false,
         HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Left };
+    // Selected tiles carry a check mark besides the list's highlight, so the state does not depend on color alone.
+    private readonly Border _selectedMark = new() { Name = "MediaTileSelected", IsVisible = false, Padding = new Thickness(5, 1), CornerRadius = new CornerRadius(8),
+        HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 2, 0),
+        Child = new TextBlock { Text = "✓", FontWeight = FontWeight.Bold, FontSize = 12 } };
+    private IDisposable? _selection;
     private Bitmap? _bitmap;
     private CancellationTokenSource? _loading;
     private int _request;
@@ -65,7 +72,9 @@ internal sealed class MediaLibraryTileView : UserControl
     {
         MaxWidth = 190; Height = 210;
         Grid preview = new() { Height = 125, MaxWidth = 170 };
-        preview.Children.Add(_image); preview.Children.Add(_placeholder);
+        _selectedMark[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Accent");
+        ((TextBlock)_selectedMark.Child!)[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Background");
+        preview.Children.Add(_image); preview.Children.Add(_placeholder); preview.Children.Add(_selectedMark);
         Grid grid = new() { Margin = new Thickness(8), RowDefinitions = new RowDefinitions("125,Auto,Auto,Auto"), RowSpacing = 4 };
         grid.Children.Add(preview);
         grid.Children.Add(_name); Grid.SetRow(_name, 1);
@@ -86,7 +95,26 @@ internal sealed class MediaLibraryTileView : UserControl
             _visible = visible;
             if (visible) _ = LoadAsync(); else Reset();
         };
-        DetachedFromVisualTree += (_, _) => { _visible = false; Reset(); };
+        AttachedToVisualTree += (_, _) =>
+        {
+            _selection?.Dispose();
+            ListBoxItem? item = this.FindAncestorOfType<ListBoxItem>();
+            _selection = item?.GetObservable(ListBoxItem.IsSelectedProperty).Subscribe(new SelectionObserver(this));
+        };
+        DetachedFromVisualTree += (_, _) => { _visible = false; Reset(); _selection?.Dispose(); _selection = null; _selectedMark.IsVisible = false; };
+    }
+
+    private void ShowSelected(bool selected)
+    {
+        _selectedMark.IsVisible = selected;
+        ToolTip.SetTip(_selectedMark, selected ? Texts.T("media.tile.selected") : null);
+    }
+
+    private sealed class SelectionObserver(MediaLibraryTileView view) : IObserver<bool>
+    {
+        public void OnNext(bool value) => view.ShowSelected(value);
+        public void OnError(Exception error) { }
+        public void OnCompleted() { }
     }
 
     private void Present()

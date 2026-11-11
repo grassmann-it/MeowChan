@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -45,8 +46,9 @@ internal static class MediaPageChecks
             await PageJourneyAsync(owner, profile);
             await FilterJourneyAsync(owner, profile);
             await DuplicateJourneyAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-duplicates-"));
+            await SelectionJourneyAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-selection-"));
             await NavigationAsync(owner);
-            Console.WriteLine("SMOKE media page [en]: index build, saved/missing toggle, three orders, verified thumbnail, gallery window, show in thread, cache reuse, filters (thread and media tags all/any/exclude, favorites, rating, type, name, source, board, thread chip, reset, deleted tag refused), duplicates (same bytes in three threads: one tile, 'in 3 threads' hint, details with three occurrences and their own tags, jump into a thread, filter matches by one occurrence, gallery gets one entry per tile), navigation button in Simple and Tools menu in Barebones checked.");
+            Console.WriteLine("SMOKE media page [en]: index build, saved/missing toggle, three orders, verified thumbnail, gallery window, show in thread, cache reuse, filters (thread and media tags all/any/exclude, favorites, rating, type, name, source, board, thread chip, reset, deleted tag refused), duplicates (same bytes in three threads: one tile, 'in 3 threads' hint, details with three occurrences and their own tags, jump into a thread, filter matches by one occurrence, gallery gets one entry per tile), selection (click, Ctrl+click, Shift+click, Ctrl+A, Esc, check mark on selected tiles, three tiles tagged and untagged with one occurrence of a duplicate deselected, gallery with exactly the selection, export of exactly their originals, selection kept or dropped by filters and order, actions disabled while building), navigation button in Simple and Tools menu in Barebones checked.");
         }
         finally { Texts.SetLanguage(language); }
     }
@@ -319,6 +321,239 @@ internal static class MediaPageChecks
             Require(opened.Count == 1 && opened[0].Window.Count == 2, "Gallery window must hold one entry per tile.");
         }
         finally { page.EndLifetime(); window.Close(); }
+    }
+
+    // Multi-select: real pointer and key input on the grid, real tag store, the real exporter into a throwaway folder.
+    private static async Task SelectionJourneyAsync(MainWindow owner, string profile)
+    {
+        new Config().SaveConfig(profile);
+        await SeedSelectionAsync(profile);
+        string exportDirectory = TemporaryWorkspacePaths.CreateDirectory("media-page-selection-export-");
+        await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
+        await host.StartAsync().WaitAsync(Deadline);
+        List<(IReadOnlyList<MediaLibraryEntry> Window, int Start)> opened = new();
+        List<(FavoriteExportAsset[] Assets, int Unavailable, FavoriteExportResult Result)> exported = new();
+        TaskCompletionSource hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        bool holding = false;
+        MediaPage page = new(host.OpenArchiveReaderAsync, async (directory, token) =>
+        {
+            if (holding) await hold.Task.WaitAsync(token); // lets the test look at the page while the index is being rebuilt
+            return await MediaAssetReader.OpenAsync(directory, token);
+        })
+        {
+            ReadUserData = () => UserData(host),
+            OpenGallery = (window, start) => { opened.Add((window, start)); return Task.CompletedTask; },
+            TagServices = new(host.GetPublishedPrivateTagSnapshot, host.DefinePrivateTagAsync,
+                (tag, targets, assigned, revision, token) => host.SetMediaTagsAsync(tag, targets, assigned, revision, token)),
+            ExportOriginals = async (assets, unavailable) =>
+                exported.Add((assets.ToArray(), unavailable, await FavoriteOriginalExporter.ExportAsync(assets, exportDirectory)))
+        };
+        Window window = new() { Width = 1400, Height = 900, Content = page, Title = "Synthetic media selection", ShowInTaskbar = false };
+        try
+        {
+            window.Show(owner);
+            page.IsAvailable = true;
+            await page.ActivateAsync().WaitAsync(Deadline);
+            Require(page.Snapshot is { Complete: true } && page.Snapshot.Entries.Count == 5, "Selection fixture must index five occurrences.");
+            // By thread, newest capture first: sel-z (900), the pair dup (shown by 800), sel-b (610), sel-a (600).
+            string[] order = ["sel-z.png", "dup-800.png", "sel-b.png", "sel-a.png"];
+            Require(page.Tiles.Select(tile => tile.Entry.Name).SequenceEqual(order), "Tile order is wrong: " + string.Join(",", page.Tiles.Select(tile => tile.Entry.Name)));
+            Require(page.Tiles[1].IsGroup && page.Tiles[1].Occurrences.Count == 2, "The pair of equal files must be one tile with two occurrences.");
+
+            ListBox grid = page.Grid;
+            Button tag = C<Button>(page, "MediaSelectionTag"), gallery = C<Button>(page, "MediaSelectionGallery"),
+                export = C<Button>(page, "MediaSelectionExport"), clear = C<Button>(page, "MediaSelectionClear");
+            TextBlock bar = C<TextBlock>(page, "MediaSelectionStatus");
+            string[] Selected() => page.SelectedTiles.Select(tile => tile.Entry.Name!).ToArray();
+            // The tile's check mark; false while the tile has no container yet.
+            bool Marked(int index) => page.GetVisualDescendants().OfType<ListBoxItem>().FirstOrDefault(item => item.DataContext is MediaLibraryTileRow row && row.Index == index)
+                ?.GetVisualDescendants().OfType<Border>().FirstOrDefault(border => border.Name == "MediaTileSelected")?.IsVisible == true;
+
+            // Nothing selected: every action is disabled and says why.
+            Require(bar.Text == Texts.T("media.selection.none") && !tag.IsEnabled && !gallery.IsEnabled && !export.IsEnabled && !clear.IsEnabled,
+                "Without a selection the actions must be disabled.");
+            Require(ToolTip.GetTip(tag) as string == Texts.T("media.selection.reason.none"), "A disabled action must give its reason.");
+
+            // Plain click selects one, Shift+click a range, Escape clears, Ctrl+A takes every shown tile.
+            await ClickTileAsync(page, window, 0);
+            Require(Selected().SequenceEqual(["sel-z.png"]) && bar.Text == Texts.T("media.selection.count", 1), "A plain click must select one tile: " + string.Join(",", Selected()));
+            await ClickTileAsync(page, window, 2, KeyModifiers.Shift);
+            Require(Selected().SequenceEqual(order[..3]) && bar.Text == Texts.T("media.selection.count", 3), "Shift+click must select the range: " + string.Join(",", Selected()));
+            await UntilAsync(() => Marked(0) && Marked(1) && Marked(2) && !Marked(3));
+            grid.Focus();
+            grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+            Require(Selected().Length == 0 && bar.Text == Texts.T("media.selection.none") && !gallery.IsEnabled, "Escape must clear the selection.");
+            await UntilAsync(() => !Marked(0) && !Marked(1));
+            grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.A, KeyModifiers = KeyModifiers.Control });
+            Require(Selected().SequenceEqual(order) && bar.Text == Texts.T("media.selection.count", 4), "Ctrl+A must select every shown tile.");
+            ClickRaise(clear);
+            Require(Selected().Length == 0, "Clear selection did not clear.");
+
+            // Ctrl+click adds and removes single tiles: the pair, sel-b and sel-a end up selected, sel-z does not.
+            await ClickTileAsync(page, window, 1);
+            await ClickTileAsync(page, window, 2, KeyModifiers.Control);
+            await ClickTileAsync(page, window, 3, KeyModifiers.Control);
+            await ClickTileAsync(page, window, 2, KeyModifiers.Control);
+            Require(Selected().SequenceEqual(["dup-800.png", "sel-a.png"]), "Ctrl+click must toggle a tile off: " + string.Join(",", Selected()));
+            await ClickTileAsync(page, window, 2, KeyModifiers.Control);
+            string[] chosen = ["dup-800.png", "sel-b.png", "sel-a.png"];
+            Require(Selected().SequenceEqual(chosen) && bar.Text == Texts.T("media.selection.count", 3) && tag.IsEnabled && gallery.IsEnabled && export.IsEnabled,
+                "Three selected tiles must enable all actions: " + string.Join(",", Selected()));
+
+            // Auswahl als Galerie: exactly the three shown files in page order, nothing else.
+            ClickRaise(gallery);
+            await UntilAsync(() => opened.Count == 1);
+            Require(opened[0].Window.Select(entry => entry.Name).SequenceEqual(chosen) && opened[0].Start == 0
+                && opened[0].Window[0] == page.Tiles[1].Entry, "The gallery must hold exactly the selected tiles, one file each: " + string.Join(",", opened[0].Window.Select(entry => entry.Name)));
+
+            // Gemeinsam taggen: the pair lists both occurrences, all are ticked, one is deselected.
+            MediaLibraryEntry pairIn700 = page.Tiles[1].Occurrences.Single(entry => entry.Thread.Thread == "700");
+            MediaLibraryEntry pairIn800 = page.Tiles[1].Occurrences.Single(entry => entry.Thread.Thread == "800");
+            ClickRaise(tag);
+            await UntilAsync(() => page.SelectionTagWindow != null);
+            MediaSelectionTagDialog dialog = (MediaSelectionTagDialog)page.SelectionTagWindow!;
+            await UntilAsync(() => dialog.OccurrenceBoxes.Count == 4);
+            Require(dialog.OccurrenceBoxes.All(box => box.IsChecked == true) && dialog.Session.Chosen.Count == 4, "Every occurrence must be ticked by default.");
+            CheckBox box700 = dialog.OccurrenceBoxes.Single(box => ((box.Content as TextBlock)?.Text ?? string.Empty).Contains("dup-700.png"));
+            box700.IsChecked = false;
+            await UntilAsync(() => dialog.Session.Chosen.Count == 3 && dialog.Session.Chosen.All(candidate => candidate.Entry != pairIn700));
+            dialog.Input.Text = "picked";
+            ClickRaise(dialog.AddButton);
+            await UntilAsync(() => host.GetPublishedPrivateTagSnapshot().Snapshot?.MediaAssignments.Count == 3);
+            PrivateTagStoreSnapshot stored = host.GetPublishedPrivateTagSnapshot().Snapshot!;
+            PrivateMediaTagTarget? TargetOf(MediaLibraryEntry entry) => MediaLibraryFilterEngine.TagTarget(entry);
+            string[] NamesOn(MediaLibraryEntry entry) => host.GetPublishedPrivateTagSnapshot().Snapshot!.TagsOf(TargetOf(entry)!).Select(item => item.Name.Display).ToArray();
+            MediaLibraryEntry Single(string name) => page.Snapshot!.Entries.Single(entry => entry.Name == name);
+            Require(NamesOn(pairIn800).SequenceEqual(["picked"]) && NamesOn(Single("sel-b.png")).SequenceEqual(["picked"]) && NamesOn(Single("sel-a.png")).SequenceEqual(["picked"]),
+                "The tag must be on the three chosen occurrences.");
+            Require(NamesOn(pairIn700).Length == 0 && NamesOn(Single("sel-z.png")).Length == 0, "The deselected occurrence and the unselected tile must stay untagged.");
+            Require(stored.ThreadAssignments.Count == 0, "Media tags must not tag threads.");
+            await UntilAsync(() => dialog.RemovablePanel.Children.OfType<Button>().Count() == 1 && dialog.Status.Text == string.Empty);
+
+            // The deselected occurrence gets the tag on its own; removing it again from the chosen ones leaves that one alone.
+            PrivateTagCommit picked = await host.DefinePrivateTagAsync("picked").WaitAsync(Deadline);
+            await host.SetMediaTagAsync(picked.Tag, TargetOf(pairIn700)!, true).WaitAsync(Deadline);
+            dialog.Session.Reload(); // The modal dialog has no other writer; the test is one.
+            await UntilAsync(() => dialog.Session.Snapshot!.MediaAssignments.Count == 4);
+            Button chip = dialog.RemovablePanel.Children.OfType<Button>().Single();
+            Require(((chip.Content as TextBlock)?.Text ?? string.Empty).Contains("(3)"), "The tag must be offered for removal on the three chosen files only.");
+            ClickRaise(chip);
+            await UntilAsync(() => host.GetPublishedPrivateTagSnapshot().Snapshot?.MediaAssignments.Count == 1);
+            Require(NamesOn(pairIn700).SequenceEqual(["picked"]) && NamesOn(pairIn800).Length == 0 && NamesOn(Single("sel-b.png")).Length == 0 && NamesOn(Single("sel-a.png")).Length == 0,
+                "Removing must reach only the chosen occurrences that had the tag.");
+
+            // A tag that is deleted while the dialog is open: a new name still works; the leftover button of a deleted tag is refused.
+            PrivateTagLoadSnapshot before = host.GetPublishedPrivateTagSnapshot();
+            await host.DeletePrivateTagAsync(picked.Tag, before.Snapshot!.Revision).WaitAsync(Deadline);
+            dialog.Input.Text = "later";
+            ClickRaise(dialog.AddButton);
+            await UntilAsync(() => host.GetPublishedPrivateTagSnapshot().Snapshot?.MediaAssignments.Count == 3 && dialog.Status.Text == string.Empty);
+            Require(NamesOn(pairIn800).SequenceEqual(["later"]), "A new name after a deleted tag must still tag the chosen occurrences.");
+            PrivateTagLoadSnapshot afterAdd = host.GetPublishedPrivateTagSnapshot();
+            await host.DeletePrivateTagAsync(afterAdd.Snapshot!.Tags.Single().Id, afterAdd.Snapshot.Revision).WaitAsync(Deadline);
+            dialog.Session.Reload();
+            await dialog.Session.AddExistingAsync(afterAdd.Snapshot.Tags.Single().Id);
+            await UntilAsync(() => dialog.Status.Text == Texts.T("tags.manage.error.gone") || dialog.Status.Text == Texts.T("tags.error.stale"));
+            Require(host.GetPublishedPrivateTagSnapshot().Snapshot!.MediaAssignments.Count == 0, "A refused batch must not leave a partial write.");
+            dialog.Close();
+            await UntilAsync(() => page.SelectionTagWindow == null);
+            Require(Selected().SequenceEqual(chosen), "Closing the tag dialog must keep the selection.");
+
+            // Originale exportieren: the three originals, once each, from the shown occurrence of the pair only.
+            ClickRaise(export);
+            await UntilAsync(() => exported.Count == 1);
+            (FavoriteExportAsset[] assets, int unavailable, FavoriteExportResult result) = exported[0];
+            Require(assets.Length == 3 && unavailable == 0 && result.Copied == 3, "Export must offer and copy exactly three originals.");
+            Require(assets.Select(asset => asset.OriginalFileName).SequenceEqual(chosen), "Export order or names are wrong: " + string.Join(",", assets.Select(asset => asset.OriginalFileName)));
+            Require(assets[0].Key.Thread.Thread == "800", "The pair must be exported from the occurrence the tile shows.");
+            string[] files = Directory.GetFiles(exportDirectory, "*", SearchOption.AllDirectories);
+            Require(files.Length == 3, "Exactly three files must be copied, found " + files.Length);
+            Require(files.Select(path => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)))).Order()
+                .SequenceEqual(chosen.Select(name => Convert.ToHexString(SHA256.HashData(BytesOf(name)))).Order()), "The copied bytes are not the selected originals.");
+            Require(files.All(path => !path.Contains(Path.DirectorySeparatorChar + "700" + Path.DirectorySeparatorChar)) && files.All(path => !Path.GetFileName(path).StartsWith("sel-z", StringComparison.Ordinal)),
+                "A duplicate or an unselected file was exported.");
+
+            // Filters, order and shuffling keep selected tiles that are still shown and drop the others for good.
+            TextBox name = C<TextBox>(page, "MediaNameFilter");
+            name.Text = "sel-";
+            await UntilAsync(() => page.Tiles.Count == 3);
+            Require(Selected().SequenceEqual(["sel-b.png", "sel-a.png"]) && bar.Text == Texts.T("media.selection.count", 2), "A filter must drop the hidden pair from the selection: " + string.Join(",", Selected()));
+            C<ComboBox>(page, "MediaSort").SelectedIndex = 1;
+            Require(Selected().Length == 2, "Another order must keep the shown selected tiles.");
+            C<ComboBox>(page, "MediaSort").SelectedIndex = 2;
+            ClickRaise(C<Button>(page, "MediaShuffle"));
+            Require(Selected().Order().SequenceEqual(["sel-a.png", "sel-b.png"]), "Shuffling must keep the shown selected tiles.");
+            C<ComboBox>(page, "MediaSort").SelectedIndex = 0;
+            ClickRaise(C<Button>(page, "MediaFilterReset"));
+            await UntilAsync(() => page.Tiles.Count == 4);
+            Require(Selected().SequenceEqual(["sel-b.png", "sel-a.png"]), "A tile that dropped out must not come back selected: " + string.Join(",", Selected()));
+            await UntilAsync(() => !Marked(0) && !Marked(1) && Marked(2) && Marked(3));
+
+            // While the index is rebuilt the selection stays, the actions wait and say so.
+            holding = true;
+            ClickRaise(C<Button>(page, "MediaRefresh"));
+            await UntilAsync(() => !tag.IsEnabled && !gallery.IsEnabled && !export.IsEnabled);
+            Require(ToolTip.GetTip(export) as string == Texts.T("media.selection.reason.building") && bar.Text!.Contains(Texts.T("media.selection.reason.building"))
+                && Selected().Length == 2, "Actions must be disabled with a reason while the index is rebuilt.");
+            holding = false;
+            hold.SetResult();
+            await page.BuildTask.WaitAsync(Deadline);
+            Require(tag.IsEnabled && gallery.IsEnabled && export.IsEnabled && Selected().Order().SequenceEqual(["sel-a.png", "sel-b.png"]),
+                "After the rebuild the selection must be intact and the actions available again.");
+        }
+        finally
+        {
+            hold.TrySetResult();
+            page.EndLifetime();
+            window.Close();
+            try { Directory.Delete(exportDirectory, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    private static void ClickRaise(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+    // A real pointer click on a tile's preview area, with optional Ctrl/Shift. Waits until the tile is hit-testable, i.e. laid out and drawn.
+    private static async Task ClickTileAsync(MediaPage page, Window window, int index, KeyModifiers modifiers = KeyModifiers.None)
+    {
+        ListBoxItem? item = null;
+        InputElement? hit = null;
+        Point point = default;
+        DateTime deadline = DateTime.UtcNow + Deadline;
+        while (true)
+        {
+            item = page.GetVisualDescendants().OfType<ListBoxItem>().FirstOrDefault(candidate => candidate.DataContext is MediaLibraryTileRow row && row.Index == index);
+            if (item is { IsEffectivelyVisible: true } && item.Bounds.Width > 0
+                && item.TranslatePoint(new Point(item.Bounds.Width / 2, 55), window) is { } at
+                && window.InputHitTest(at) is InputElement found && found.GetSelfAndVisualAncestors().Contains(item))
+            { point = at; hit = found; break; }
+            if (DateTime.UtcNow >= deadline) throw new TimeoutException("Tile " + index + " never became hit-testable.");
+            await Task.Delay(20);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Render);
+        }
+        using Pointer pointer = new(Pointer.GetNextFreeId(), PointerType.Mouse, true);
+        hit!.RaiseEvent(new PointerPressedEventArgs(hit, pointer, window, point, 0,
+            new PointerPointProperties(RawInputModifiers.LeftMouseButton, PointerUpdateKind.LeftButtonPressed), modifiers));
+        hit.RaiseEvent(new PointerReleasedEventArgs(hit, pointer, window, point, 1,
+            new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonReleased), modifiers, MouseButton.Left));
+        pointer.Capture(null);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+    }
+
+    // Five threads, one bound file each: two single files, a pair of equal bytes in two threads, and a fourth tile that is never selected.
+    private static async Task SeedSelectionAsync(string profile)
+    {
+        (string Id, string File, int Day)[] threads = [("600", "sel-a.png", 3), ("610", "sel-b.png", 4), ("700", "dup-700.png", 5), ("800", "dup-800.png", 6), ("900", "sel-z.png", 7)];
+        using ProfileLease lease = ProfileLease.Acquire(profile);
+        await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
+        foreach ((string id, string file, int day) in threads)
+        {
+            string directory = Path.Combine(profile, "media", id);
+            ResourceId resource = new("media-fixture", "g", id);
+            CapturedAttachment bound = await WriteAsync(directory, resource, (file, "s" + id, id));
+            await catalog.CaptureAsync(new CapturedThreadSnapshot(resource, "https://offline.invalid/" + id, "Sel " + id,
+                ThreadSourceState.Archived, new DateTimeOffset(2026, 11, day, 0, 0, 0, TimeSpan.Zero), directory,
+                [new CapturedPost(id, 0, PostFieldPresence.All, Html: "op", Attachments: [bound])]));
+        }
     }
 
     private static async Task<Button> FindDuplicatesHintAsync(MediaPage page)
