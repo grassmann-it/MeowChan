@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using Avalonia.Threading;
@@ -9,12 +9,26 @@ using Serilog.Core;
 
 namespace MeowChan.DesktopTests;
 
-// Presenter and the UI dispatcher are process-wide: these cases must not run in parallel with each other.
-[Collection(nameof(UnhandledErrorsTests))]
+// Presenter and the UI dispatcher are process-wide: Avalonia's UIThread belongs to whichever
+// test initializes it first, and xunit reorders and parallelizes classes. The three dispatcher
+// cases therefore each run in their own fresh vstest process, following the MediaStoreTests
+// lease-probe pattern: a dedicated child fact, never the same test name re-filtered.
 public sealed class UnhandledErrorsTests
 {
+    private const string ProbeVariable = "MEOWCHAN_UNHANDLED_ERRORS_PROBE";
+
     [Fact]
-    public void AsyncVoidHandlerFailureIsLoggedShownAndTheAppKeepsRunning()
+    public void AsyncVoidHandlerFailureIsLoggedShownAndTheAppKeepsRunning() =>
+        RunInIsolatedProcessAsync(nameof(ProbeAsyncVoidHandlerFailureIsLoggedShownAndTheAppKeepsRunning));
+
+    [Fact]
+    public void ProbeAsyncVoidHandlerFailureIsLoggedShownAndTheAppKeepsRunning()
+    {
+        if (Environment.GetEnvironmentVariable(ProbeVariable) != nameof(ProbeAsyncVoidHandlerFailureIsLoggedShownAndTheAppKeepsRunning)) return;
+        AsyncVoidHandlerFailureIsLoggedShownAndTheAppKeepsRunningCore();
+    }
+
+    private static void AsyncVoidHandlerFailureIsLoggedShownAndTheAppKeepsRunningCore()
     {
         string root = TemporaryWorkspacePaths.CreateDirectory("meowchan-unhandled-");
         List<Exception> shown = new();
@@ -48,7 +62,17 @@ public sealed class UnhandledErrorsTests
     }
 
     [Fact]
-    public void SmokeModeDoesNotSwallowAndEndsWithNonZeroExitCode()
+    public void SmokeModeDoesNotSwallowAndEndsWithNonZeroExitCode() =>
+        RunInIsolatedProcessAsync(nameof(ProbeSmokeModeDoesNotSwallowAndEndsWithNonZeroExitCode));
+
+    [Fact]
+    public void ProbeSmokeModeDoesNotSwallowAndEndsWithNonZeroExitCode()
+    {
+        if (Environment.GetEnvironmentVariable(ProbeVariable) != nameof(ProbeSmokeModeDoesNotSwallowAndEndsWithNonZeroExitCode)) return;
+        SmokeModeDoesNotSwallowAndEndsWithNonZeroExitCodeCore();
+    }
+
+    private static void SmokeModeDoesNotSwallowAndEndsWithNonZeroExitCodeCore()
     {
         List<Exception> shown = new();
         int? exit = null;
@@ -67,7 +91,17 @@ public sealed class UnhandledErrorsTests
     }
 
     [Fact]
-    public void LocalRecoveryLogsAndShowsButNeverOutOfMemory()
+    public void LocalRecoveryLogsAndShowsButNeverOutOfMemory() =>
+        RunInIsolatedProcessAsync(nameof(ProbeLocalRecoveryLogsAndShowsButNeverOutOfMemory));
+
+    [Fact]
+    public void ProbeLocalRecoveryLogsAndShowsButNeverOutOfMemory()
+    {
+        if (Environment.GetEnvironmentVariable(ProbeVariable) != nameof(ProbeLocalRecoveryLogsAndShowsButNeverOutOfMemory)) return;
+        LocalRecoveryLogsAndShowsButNeverOutOfMemoryCore();
+    }
+
+    private static void LocalRecoveryLogsAndShowsButNeverOutOfMemoryCore()
     {
         List<Exception> shown = new();
         UnhandledErrors errors = new(Logger.None, failHard: false, _ => throw new InvalidOperationException("no exit expected"));
@@ -128,24 +162,54 @@ public sealed class UnhandledErrorsTests
         throw new InvalidOperationException("handler broke");
     }
 
-    // The UI dispatcher belongs to the thread that first used it, and xunit moves tests between threads.
-    // One dedicated thread runs every dispatcher body of this class.
-    private static readonly BlockingCollection<Action> UiWork = StartUiThread();
-
-    private static BlockingCollection<Action> StartUiThread()
+    /// <summary>
+    /// Runs one dispatcher case in a fresh vstest process so that no other test can have
+    /// initialized the process-wide Avalonia UIThread first. The child runs the already-built
+    /// assembly; nothing is built or restored here. The parent asserts on exit code and captured
+    /// output, and kills the whole tree on timeout.
+    /// </summary>
+    private static void RunInIsolatedProcessAsync(string probe)
     {
-        BlockingCollection<Action> work = new();
-        Thread thread = new(() => { foreach (Action action in work.GetConsumingEnumerable()) action(); })
-        { IsBackground = true, Name = nameof(UnhandledErrorsTests) };
-        thread.Start();
-        return work;
+        ProcessStartInfo start = new(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet")
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        start.ArgumentList.Add("vstest");
+        start.ArgumentList.Add(typeof(UnhandledErrorsTests).Assembly.Location);
+        start.ArgumentList.Add($"--TestCaseFilter:FullyQualifiedName={typeof(UnhandledErrorsTests).FullName}.{probe}");
+        start.Environment[ProbeVariable] = probe;
+        using Process child = Process.Start(start) ?? throw new InvalidOperationException("Could not start the isolated dispatcher test.");
+        Task<string> output = child.StandardOutput.ReadToEndAsync(), errors = child.StandardError.ReadToEndAsync();
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(90));
+        try
+        {
+            if (!child.WaitForExit(90_000))
+            {
+                child.Kill(entireProcessTree: true);
+                child.WaitForExit();
+                Assert.Fail($"Isolated dispatcher test {probe} timed out and its process tree was killed.\n{output.Result}\n{errors.Result}");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            child.Kill(entireProcessTree: true);
+            child.WaitForExit();
+            throw;
+        }
+        Assert.True(child.ExitCode == 0, $"Isolated dispatcher test {probe} failed.\n{output.Result}\n{errors.Result}");
     }
 
+    /// <summary>
+    /// The Avalonia UIThread belongs to the thread that first touches it. Inside the isolated
+    /// child process nothing else has, so a dedicated thread owns it for the duration of the body.
+    /// </summary>
     private static void RunOnDispatcher(UnhandledErrors errors, Action body)
     {
         ExceptionDispatchInfo? failure = null;
         using ManualResetEventSlim done = new();
-        UiWork.Add(() =>
+        Thread thread = new(() =>
         {
             SynchronizationContext? previous = SynchronizationContext.Current;
             Action<Exception>? presenter = UnhandledErrors.Presenter;
@@ -164,8 +228,10 @@ public sealed class UnhandledErrorsTests
                 UnhandledErrors.Presenter = presenter;
                 done.Set();
             }
-        });
-        Assert.True(done.Wait(TimeSpan.FromSeconds(30)), "The dispatcher body did not finish.");
+        })
+        { IsBackground = true, Name = "UnhandledErrorsTests.Dispatcher" };
+        thread.Start();
+        Assert.True(done.Wait(TimeSpan.FromSeconds(60)), "The dispatcher body did not finish.");
         failure?.Throw();
     }
 
