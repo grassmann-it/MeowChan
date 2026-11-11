@@ -51,14 +51,6 @@
       "contextMode": "native"
     },
     {
-      "name": "ux103-api-astra",
-      "routeIds": [
-        "route-846240ca844d8ed7045cfcc8c95088a9"
-      ],
-      "contextMode": "native",
-      "reasoningEffort": "high"
-    },
-    {
       "name": "ux103-abo-astra",
       "routeIds": [
         "route-4a77563646f99022600e90ec4559a485"
