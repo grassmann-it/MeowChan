@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using MeowChan.PluginSdk;
 
 namespace MeowChan.DesktopTests;
 
@@ -308,6 +309,49 @@ public sealed class StabilityHarnessUnitTests
         Assert.Null(Flags("""[{"no":3}]""", "4"));
         Assert.Null(Flags("<html><body>catalog</body></html>", "3"));
         Assert.Null(StabilityRules.ThreadFlags(null, "3"));
+    }
+
+    private static SourceThreadReference Ref(string id, int? files) => new(new("src", "b", id), new Uri("https://x.example/b/res/" + id + ".html"), AttachmentCount: files);
+
+    [Fact]
+    public void PinnedThreadsAreSkippedWhenChoosingTheThreadAndTheSkipIsRecorded()
+    {
+        byte[] catalog = Encoding.UTF8.GetBytes("""[{"page":1,"threads":[{"no":1,"sticky":1},{"no":2,"sticky":0},{"no":3,"sticky":1},{"no":4,"sticky":0},{"no":5}]}]""");
+        SourceThreadReference[] threads = [Ref("1", 2), Ref("2", 0), Ref("3", 1), Ref("4", 3), Ref("5", 1)];
+        StabilityRunner.ThreadChoice choice = StabilityRunner.ChooseThread(threads, catalog);
+        Assert.Equal("4", choice.Chosen!.Id.ThreadId);
+        Assert.Equal(2, choice.PinnedSkipped);
+        Assert.Equal("first catalog entry with at least one attachment; skipped 2 pinned threads", choice.Note);
+        // One skipped thread is singular; none skipped keeps the plain note.
+        Assert.Equal("first catalog entry with at least one attachment; skipped 1 pinned thread", StabilityRunner.ChooseThread(threads[..2].Append(Ref("4", 3)).ToArray(), catalog).Note);
+        StabilityRunner.ThreadChoice plain = StabilityRunner.ChooseThread([Ref("2", 0), Ref("4", 3), Ref("5", 1)], catalog);
+        Assert.Equal("4", plain.Chosen!.Id.ThreadId);
+        Assert.Equal(("first catalog entry with at least one attachment", 0), (plain.Note, plain.PinnedSkipped));
+        // A pinned thread without an attachment is not a candidate, so it is not counted as skipped.
+        Assert.Equal(0, StabilityRunner.ChooseThread([Ref("1", 0), Ref("2", 1)], catalog).PinnedSkipped);
+    }
+
+    [Fact]
+    public void ThreadChoiceKeepsTheCurrentRuleWhenFlagsAreUnknownOrEverythingIsPinned()
+    {
+        SourceThreadReference[] threads = [Ref("1", 0), Ref("2", 4), Ref("3", 1)];
+        foreach (byte[]? body in new byte[]?[] { null, Encoding.UTF8.GetBytes("<html><a href=\"/b/res/2.html\">sticky</a></html>"), Encoding.UTF8.GetBytes("""[{"no":2}]""") })
+        {
+            StabilityRunner.ThreadChoice choice = StabilityRunner.ChooseThread(threads, body);
+            Assert.Equal("2", choice.Chosen!.Id.ThreadId);
+            Assert.Equal(("first catalog entry with at least one attachment", 0), (choice.Note, choice.PinnedSkipped));
+        }
+        byte[] allPinned = Encoding.UTF8.GetBytes("""[{"no":2,"pinned":true},{"no":3,"sticky":1}]""");
+        StabilityRunner.ThreadChoice fallback = StabilityRunner.ChooseThread(threads, allPinned);
+        Assert.Equal("2", fallback.Chosen!.Id.ThreadId);
+        Assert.Contains("every candidate is pinned", fallback.Note);
+        Assert.Equal(0, fallback.PinnedSkipped);
+        // Catalogs without attachment counts use the first entry, still skipping a pinned one.
+        StabilityRunner.ThreadChoice noCounts = StabilityRunner.ChooseThread([Ref("1", null), Ref("2", null)], Encoding.UTF8.GetBytes("""[{"no":1,"sticky":1},{"no":2}]"""));
+        Assert.Equal("2", noCounts.Chosen!.Id.ThreadId);
+        Assert.Equal("the catalog reports no attachment counts; first catalog entry used; skipped 1 pinned thread", noCounts.Note);
+        Assert.Null(StabilityRunner.ChooseThread([], null).Chosen);
+        Assert.Null(StabilityRunner.ChooseThread([Ref("1", 0)], null).Chosen);
     }
 
     [Fact]

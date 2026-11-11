@@ -80,7 +80,13 @@ Each run needs the user's approval in chat for that chan and date before the fir
   two runs = 18 GETs per chan. A planned redirect (for example 2ch `.hk` → `.su`) is
   listed in the run plan before the run.
 - Pick a thread with at least one image attachment; prefer the board's first catalog
-  entry that has one, so the choice is not cherry-picked.
+  entry that has one and that the source does not mark pinned/sticky, so the choice is
+  not cherry-picked. A pinned thread is skipped because it is often an endless
+  megathread, not a representative or small thread (a 2ch pinned thread was 637 KB).
+  The skip applies only where the catalog delivers the flag (JSON catalogs); where it is
+  unknown (an HTML catalog) the first entry with an image is taken. If every candidate is
+  pinned, the first one is used. The run records the skipped pinned threads
+  (`details.selection`, `details.pinnedThreadsSkipped`).
 - Stop at the first unexpected response (challenge, login, 4xx/5xx). Record it; do not
   retry in the same run.
 - After download: archive check, reader/gallery opens the file, process exits; new

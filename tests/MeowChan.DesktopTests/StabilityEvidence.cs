@@ -61,6 +61,7 @@ internal static class StabilityEvidence
                     ["userChosenThread"] = board.UserChosenThread,
                     ["catalogThreads"] = board.CatalogThreadCount,
                     ["selection"] = board.SelectionNote,
+                    ["pinnedThreadsSkipped"] = board.PinnedSkipped,
                     ["gallery"] = board.Gallery,
                     ["postCount"] = board.PostCount,
                     ["refusedRequests"] = board.Refused.Count,

@@ -286,17 +286,10 @@ internal static class StabilityRunner
         }
         else
         {
-            SourceThreadReference? chosen;
-            if (threads.Any(row => row.AttachmentCount.HasValue))
-            {
-                chosen = threads.FirstOrDefault(row => row.AttachmentCount > 0);
-                board.SelectionNote = "first catalog entry with at least one attachment";
-            }
-            else
-            {
-                chosen = threads.FirstOrDefault();
-                board.SelectionNote = "the catalog reports no attachment counts; first catalog entry used";
-            }
+            ThreadChoice picked = ChooseThread(threads, transport.Body(request.Board, StabilityStep.Catalog));
+            SourceThreadReference? chosen = picked.Chosen;
+            board.SelectionNote = picked.Note;
+            board.PinnedSkipped = picked.PinnedSkipped;
             if (chosen == null)
             {
                 board.Notes.Add(threads.Count == 0 ? "empty-catalog" : "no-catalog-thread-with-attachment");
@@ -410,6 +403,36 @@ internal static class StabilityRunner
     internal static IReadOnlyList<StabilityRequestRecord> FindLeftovers(IReadOnlyList<StabilityRequestRecord> rows, int afterSequence, ISet<string> priorUrls)
         => rows.Where(row => row.Sequence > afterSequence && row.Step != "plan" && (row.Step == "none" || priorUrls.Contains(row.Url))).ToList();
 
+    /// <summary>The thread the run takes from a catalog, how it was chosen and how many pinned threads were passed over.</summary>
+    internal sealed record ThreadChoice(SourceThreadReference? Chosen, string Note, int PinnedSkipped);
+
+    /// <summary>
+    /// The first catalog entry with at least one attachment that the source does not mark pinned/sticky: a pinned
+    /// "endless" thread is neither representative nor small. Flags come from the saved catalog JSON; where they are unknown
+    /// (an HTML catalog) the first entry with an attachment is taken. When every candidate is pinned the first one is used.
+    /// </summary>
+    internal static ThreadChoice ChooseThread(IReadOnlyList<SourceThreadReference> threads, byte[]? catalogBody)
+    {
+        bool counts = threads.Any(row => row.AttachmentCount.HasValue);
+        string rule = counts ? "first catalog entry with at least one attachment" : "the catalog reports no attachment counts; first catalog entry used";
+        JsonDocument? document = StabilityRules.Parse(catalogBody);
+        try
+        {
+            List<SourceThreadReference> pinned = [];
+            foreach (SourceThreadReference row in threads)
+            {
+                if (counts && !(row.AttachmentCount > 0)) continue;
+                JsonObject? flags = document == null ? null : StabilityRules.ThreadFlags(document.RootElement, row.Id.ThreadId);
+                if (Sticky(flags) != true)
+                    return new(row, pinned.Count == 0 ? rule : rule + "; skipped " + pinned.Count + " pinned thread" + (pinned.Count == 1 ? "" : "s"), pinned.Count);
+                pinned.Add(row);
+            }
+            return pinned.Count == 0 ? new(null, rule, 0)
+                : new(pinned[0], rule + "; every candidate is pinned, the first pinned thread is used", 0);
+        }
+        finally { document?.Dispose(); }
+    }
+
     /// <summary>Where the chosen thread stood in the catalog and what the source said about it (sticky, pinned, locked).</summary>
     private static JsonObject CatalogInfo(IReadOnlyList<SourceThreadReference> threads, string threadId, byte[]? catalogBody)
     {
@@ -429,7 +452,7 @@ internal static class StabilityRunner
         };
     }
 
-    private static bool? Sticky(JsonObject? flags)
+    internal static bool? Sticky(JsonObject? flags)
     {
         if (flags == null) return null;
         bool? found = null;

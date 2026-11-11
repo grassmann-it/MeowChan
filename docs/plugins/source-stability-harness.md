@@ -9,8 +9,13 @@ For each chan named in the manifest, per board, in this order and nothing else:
 
 1. GET the catalog (the URL is computed by the plugin's own code with no network).
 2. Pick the thread in the run: the user's thread URL, or the first catalog entry that has
-   at least one attachment (a catalog without attachment counts, such as Kohlchan, uses its
-   first entry; this is recorded in `details.selection`).
+   at least one attachment and is not marked pinned/sticky by the source (a catalog without
+   attachment counts, such as Kohlchan, uses its first unpinned entry; this is recorded in
+   `details.selection`). Pinned flags (`sticky`, `pinned`, `pin`) are read from the saved
+   catalog JSON; where they are unknown (an HTML catalog such as 7chan) the first entry with an
+   attachment is taken as before. The number of pinned threads passed over is appended to
+   `details.selection` ("...; skipped 2 pinned threads") and kept in `details.pinnedThreadsSkipped`.
+   If every candidate is pinned, the first one is used and the note says so.
 3. GET the thread (through the production watch, so the archive is written by production code).
 4. GET the first image attachment of at most 2 MiB (the original).
 

@@ -41,6 +41,8 @@ internal sealed class StabilityBoardRun
     public bool UserChosenThread { get; set; }
     public int CatalogThreadCount { get; set; }
     public string SelectionNote { get; set; } = "";
+    /// <summary>Pinned/sticky catalog threads passed over before the chosen one.</summary>
+    public int PinnedSkipped { get; set; }
     public int PostCount { get; set; }
     public List<StabilityRequestRecord> Requests { get; set; } = [];
     public List<StabilityRequestRecord> Refused { get; set; } = [];
@@ -203,23 +205,31 @@ internal static class StabilityRules
     /// </summary>
     internal static JsonObject? ThreadFlags(byte[]? body, string threadId)
     {
+        using JsonDocument? document = Parse(body);
+        return document == null ? null : ThreadFlags(document.RootElement, threadId);
+    }
+
+    /// <summary>The saved body as JSON, or null for an empty body or one that is not JSON (an HTML catalog).</summary>
+    internal static JsonDocument? Parse(byte[]? body)
+    {
         if (body == null || body.Length == 0) return null;
-        try
-        {
-            using JsonDocument document = JsonDocument.Parse(body, new JsonDocumentOptions { MaxDepth = 32 });
-            JsonElement? found = Find(document.RootElement, threadId);
-            if (found == null) return null;
-            JsonObject flags = [];
-            foreach (JsonProperty property in found.Value.EnumerateObject())
-                if (FlagNames.Contains(property.Name, StringComparer.OrdinalIgnoreCase))
-                    flags[property.Name] = property.Value.ValueKind switch
-                    {
-                        JsonValueKind.True => true, JsonValueKind.False => false, JsonValueKind.Number => property.Value.GetDouble() != 0,
-                        _ => null
-                    };
-            return flags;
-        }
+        try { return JsonDocument.Parse(body, new JsonDocumentOptions { MaxDepth = 32 }); }
         catch (JsonException) { return null; }
+    }
+
+    internal static JsonObject? ThreadFlags(JsonElement root, string threadId)
+    {
+        JsonElement? found = Find(root, threadId);
+        if (found == null) return null;
+        JsonObject flags = [];
+        foreach (JsonProperty property in found.Value.EnumerateObject())
+            if (FlagNames.Contains(property.Name, StringComparer.OrdinalIgnoreCase))
+                flags[property.Name] = property.Value.ValueKind switch
+                {
+                    JsonValueKind.True => true, JsonValueKind.False => false, JsonValueKind.Number => property.Value.GetDouble() != 0,
+                    _ => null
+                };
+        return flags;
     }
 
     private static JsonElement? Find(JsonElement element, string threadId)
