@@ -30,9 +30,13 @@ internal static class VideoPosterCache
     {
         byte[]? png = await GetPngAsync(manifest, asset, cacheDirectory, token).ConfigureAwait(false);
         if (png == null) return null;
-        return await Task.Run(() =>
+        return await DecodeBitmapAsync(png, asset.AssetId, maximumWidth, maximumHeight, token).ConfigureAwait(false);
+    }
+
+    internal static Task<Bitmap?> DecodeBitmapAsync(byte[] png, string assetId, int maximumWidth, int maximumHeight, CancellationToken token) =>
+        Task.Run(() =>
         {
-            using var measurement = PerformanceDiagnostics.Measure("gallery.poster.bitmap-decode", asset: asset.AssetId);
+            using var measurement = PerformanceDiagnostics.Measure("gallery.poster.bitmap-decode", asset: assetId);
             token.ThrowIfCancellationRequested();
             using MemoryStream stream = new(png, writable: false);
             using SKCodec? codec = SKCodec.Create(stream);
@@ -43,8 +47,7 @@ internal static class VideoPosterCache
             Bitmap bitmap = Bitmap.DecodeToWidth(stream, Math.Max(1, (int)(codec.Info.Width * ratio)));
             if (token.IsCancellationRequested) { bitmap.Dispose(); token.ThrowIfCancellationRequested(); }
             return bitmap;
-        }, token).ConfigureAwait(false);
-    }
+        }, token);
 
     // Kept independent of Avalonia initialization so native decoder/cache acceptance can run without any display.
     internal static async Task<byte[]?> GetPngAsync(MediaAssetSnapshot manifest, MediaAssetReference asset,
@@ -57,8 +60,10 @@ internal static class VideoPosterCache
             || asset.Sha256.Any(character => !char.IsAsciiHexDigit(character))) return null;
         string directory = Path.GetFullPath(cacheDirectory);
         string path = Path.Combine(directory, asset.Sha256.ToLowerInvariant() + ".png");
+        // A failure belongs to one saved file: another occurrence of the same bytes may still verify and decode.
+        string failureKey = path + "|" + Path.GetFullPath(asset.Path);
         lock (FailuresLock)
-            if (Failures.TryGetValue(path, out DateTime retryAt) && retryAt > DateTime.UtcNow) return null;
+            if (Failures.TryGetValue(failureKey, out DateTime retryAt) && retryAt > DateTime.UtcNow) return null;
         if (Interlocked.Increment(ref _pending) > 8) { Interlocked.Decrement(ref _pending); return null; }
         long request = PerformanceDiagnostics.NextId();
         PerformanceDiagnostics.Record("gallery.poster", "accepted", request, asset: asset.AssetId);
@@ -125,7 +130,7 @@ internal static class VideoPosterCache
                 lock (FailuresLock)
                 {
                     if (Failures.Count >= 256) Failures.Remove(Failures.MinBy(pair => pair.Value).Key);
-                    Failures[path] = DateTime.UtcNow.AddSeconds(30);
+                    Failures[failureKey] = DateTime.UtcNow.AddSeconds(30);
                 }
                 return null;
             }

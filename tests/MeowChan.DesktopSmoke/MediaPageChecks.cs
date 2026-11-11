@@ -29,7 +29,7 @@ internal static class MediaPageChecks
         "iVBORw0KGgoAAAANSUhEUgAAABEAAAALCAIAAAAWQvFQAAAAF0lEQVR4nGO8oxHAQCJgIlXDqJ5hqQcAEJEBagzqPS4AAAAASUVORK5CYII=");
     // Files named dup-* share one content on purpose; every other file gets its own bytes (a trailing note after the PNG data),
     // because the page merges equal bytes into one tile.
-    private static byte[] BytesOf(string name) => name.StartsWith("dup-", StringComparison.Ordinal) ? Png : [.. Png, .. System.Text.Encoding.UTF8.GetBytes(name)];
+    private static byte[] BytesOf(string name) => name.EndsWith(".webm", StringComparison.Ordinal) ? VideoBytes : name.StartsWith("dup-", StringComparison.Ordinal) ? Png : [.. Png, .. System.Text.Encoding.UTF8.GetBytes(name)];
 
     private static readonly ResourceId A = new("media-fixture", "g", "100");
     private static readonly ResourceId B = new("media-fixture", "g", "200");
@@ -48,6 +48,11 @@ internal static class MediaPageChecks
             await DuplicateJourneyAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-duplicates-"));
             await SelectionJourneyAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-selection-"));
             await NavigationAsync(owner);
+            string videoProfile = TemporaryWorkspacePaths.CreateDirectory("media-video-native-");
+            new Config().SaveConfig(videoProfile);
+            await SeedVideosAsync(videoProfile);
+            await VideoJourneyAsync(owner, videoProfile);
+            Console.WriteLine("SMOKE media videos [en]: a video tile shows the local reader poster (cache keyed by verified bytes), also when it is a grouped tile; nothing fetched.");
             Console.WriteLine("SMOKE media page [en]: index build, saved/missing toggle, three orders, verified thumbnail, gallery window, show in thread, cache reuse, filters (thread and media tags all/any/exclude, favorites, rating, type, name, source, board, thread chip, reset, deleted tag refused), duplicates (same bytes in three threads: one tile, 'in 3 threads' hint, details with three occurrences and their own tags, jump into a thread, filter matches by one occurrence, gallery gets one entry per tile), selection (click, Ctrl+click, Shift+click, Ctrl+A, Esc, check mark on selected tiles, three tiles tagged and untagged with one occurrence of a duplicate deselected, gallery with exactly the selection, export of exactly their originals, selection kept or dropped by filters and order, actions disabled while building), navigation button in Simple and Tools menu in Barebones checked.");
         }
         finally { Texts.SetLanguage(language); }
@@ -657,6 +662,45 @@ internal static class MediaPageChecks
                 ThreadSourceState.Archived, new DateTimeOffset(2026, 11, 3 + index, 0, 0, 0, TimeSpan.Zero), directory,
                 [new CapturedPost(id, 0, PostFieldPresence.All, Html: "op", Attachments: [bound])]));
         }
+    }
+
+    private static readonly byte[] VideoBytes = [0x1A, 0x45, 0xDF, 0xA3, 1, 2, 3, 4, 5, 6, 7, 8];
+
+    // Two threads hold the same video bytes (one byte group). Only the poster the reader would have generated exists.
+    private static async Task SeedVideosAsync(string profile)
+    {
+        using ProfileLease lease = ProfileLease.Acquire(profile);
+        await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
+        int day = 1;
+        foreach (ResourceId id in new[] { new ResourceId("media-fixture", "g", "600"), new ResourceId("media-fixture", "g", "700") })
+        {
+            string directory = Path.Combine(profile, "media", id.Thread);
+            CapturedAttachment bound = await WriteAsync(directory, id, ("clip-" + id.Thread + ".webm", "v" + id.Thread, id.Thread));
+            await catalog.CaptureAsync(new CapturedThreadSnapshot(id, "https://offline.invalid/" + id.Thread, "Video " + id.Thread,
+                ThreadSourceState.Archived, new DateTimeOffset(2026, 11, day++, 0, 0, 0, TimeSpan.Zero), directory,
+                [new CapturedPost(id.Thread, 0, PostFieldPresence.All, Html: "op", Attachments: [bound])]));
+        }
+    }
+
+    private static async Task VideoJourneyAsync(MainWindow owner, string profile)
+    {
+        string posters = Path.Combine(profile, "cache", "video-posters-v1");
+        Directory.CreateDirectory(posters);
+        await File.WriteAllBytesAsync(Path.Combine(posters, Convert.ToHexString(SHA256.HashData(VideoBytes)).ToLowerInvariant() + ".png"), Png);
+        await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
+        await host.StartAsync().WaitAsync(Deadline);
+        MediaPage page = new(host.OpenArchiveReaderAsync) { ReadUserData = () => UserData(host), PosterCacheDirectory = posters };
+        Window window = new() { Width = 1100, Height = 800, Content = page, Title = "Synthetic media videos", ShowInTaskbar = false };
+        try
+        {
+            window.Show(owner);
+            page.IsAvailable = true;
+            await page.ActivateAsync().WaitAsync(Deadline);
+            Require(page.Tiles.Count == 1 && page.Tiles[0].Occurrences.Count == 2 && page.Tiles[0].Entry.Kind == SavedMediaKind.Video,
+                "Two identical videos must make one video tile: " + page.Tiles.Count);
+            await UntilAsync(() => page.GetVisualDescendants().OfType<MediaLibraryTileView>().Any(view => view.HasThumbnail));
+        }
+        finally { page.EndLifetime(); window.Close(); }
     }
 
     /// <summary>Writes real PNG files and a manifest that binds them like a capture does; returns the first bound attachment.</summary>

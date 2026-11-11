@@ -195,20 +195,20 @@ public sealed partial class MediaPage : UserControl
         UpdateSelectionBar();
     }
 
-    private async Task<Bitmap?> LoadThumbnailAsync(MediaLibraryEntry entry, CancellationToken token)
+    internal string PosterCacheDirectory { get; set; } = System.IO.Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1");
+
+    private Task<Bitmap?> LoadThumbnailAsync(MediaLibraryTile tile, CancellationToken token) =>
+        MediaTileThumbnails.LoadAsync(tile, OpenManifestAsync, PosterCacheDirectory, token);
+
+    private Task<MediaAssetSnapshot> OpenManifestAsync(string directory, CancellationToken token)
     {
-        if (entry.Directory == null || entry.AssetId == null) return null;
         Task<MediaAssetSnapshot> manifestTask;
         lock (_manifests)
         {
-            if (!_manifests.TryGetValue(entry.Directory, out manifestTask!))
-                _manifests[entry.Directory] = manifestTask = _openManifest(entry.Directory, _lifetime.Token);
+            if (!_manifests.TryGetValue(directory, out manifestTask!))
+                _manifests[directory] = manifestTask = _openManifest(directory, _lifetime.Token);
         }
-        MediaAssetSnapshot manifest = await manifestTask.WaitAsync(token).ConfigureAwait(false);
-        MediaAssetReference? asset = manifest.FindById(entry.AssetId);
-        // The index is derived data: only bytes that still match it are shown.
-        if (asset == null || !string.Equals(asset.Sha256, entry.Sha256, StringComparison.OrdinalIgnoreCase)) return null;
-        return await ArchivePage.DecodeThumbnailAsync(new ArchiveAssetRow(manifest, asset), token).ConfigureAwait(false);
+        return manifestTask.WaitAsync(token);
     }
 
     private MediaLibraryTileRow? SelectedRow => _grid.SelectedItem as MediaLibraryTileRow;

@@ -32,7 +32,7 @@ internal sealed record MediaLibraryTileRow(MediaLibraryTile Tile, int Index)
 }
 
 /// <summary>
-/// One tile: verified thumbnail for saved images, a placeholder otherwise. Thumbnails load only while
+/// One tile: verified thumbnail for saved images and the local poster of saved videos, a placeholder otherwise. Thumbnails load only while
 /// visible and never fetch anything from the network.
 /// </summary>
 internal sealed class MediaLibraryTileView : UserControl
@@ -57,12 +57,14 @@ internal sealed class MediaLibraryTileView : UserControl
         Child = new TextBlock { Text = "✓", FontWeight = FontWeight.Bold, FontSize = 12 } };
     private IDisposable? _selection;
     private Bitmap? _bitmap;
+    /// <summary>True while the tile shows a verified thumbnail or video poster.</summary>
+    internal bool HasThumbnail => _image.Source != null;
     private CancellationTokenSource? _loading;
     private int _request;
     private bool _visible;
 
-    /// <summary>Set by the page: loads a verified thumbnail for a saved entry, or null when none can be shown.</summary>
-    internal Func<MediaLibraryEntry, CancellationToken, Task<Bitmap?>>? ThumbnailLoader { get; set; }
+    /// <summary>Set by the page: loads a verified thumbnail (image, or the local video poster) for a tile, or null when none can be shown.</summary>
+    internal Func<MediaLibraryTile, CancellationToken, Task<Bitmap?>>? ThumbnailLoader { get; set; }
     /// <summary>Set by the page: shows only the media of the tile's thread.</summary>
     internal Action<MediaLibraryEntry>? ThreadFilter { get; set; }
     /// <summary>Set by the page: lists every occurrence of the tile's bytes.</summary>
@@ -150,7 +152,7 @@ internal sealed class MediaLibraryTileView : UserControl
         {
             await ThumbnailGate.WaitAsync(loading.Token);
             Bitmap? bitmap;
-            try { bitmap = await Task.Run(() => loader(row.Entry, loading.Token), loading.Token); }
+            try { bitmap = await Task.Run(() => loader(row.Tile, loading.Token), loading.Token); }
             finally { ThumbnailGate.Release(); }
             if (request != _request || !_visible || !ReferenceEquals(DataContext, row)) { bitmap?.Dispose(); return; }
             _bitmap = bitmap;
