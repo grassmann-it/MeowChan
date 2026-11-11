@@ -14,8 +14,13 @@
     </Window.Styles>
     <Grid RowDefinitions="48,*" Background="{DynamicResource Workspace.Background}">
         <desktop:WindowChromeBar x:Name="AppCaption" />
-        <Grid Grid.Row="1" RowDefinitions="Auto,*,Auto">
-        <Grid ColumnDefinitions="72,*" ColumnSpacing="16" Margin="16,16,16,12">
+        <!-- UX103 P7 dialog frame: fixed header, local error strip, body, fixed footer. Each tab
+             keeps its own scrolling (licenses list/text side by side), so the body region itself does
+             not scroll vertically; that avoids a second scroll around the tabs. No inner Tab cycle:
+             the window cycle keeps the caption buttons reachable. -->
+        <Grid Grid.Row="1" RowDefinitions="Auto,Auto,*,Auto">
+        <Border x:Name="DialogFrameHeader" Padding="16,16,16,12">
+        <Grid ColumnDefinitions="72,*" ColumnSpacing="16">
             <Image x:Name="CatLogo" Width="72" Height="72" Source="avares://MeowChan/Assets/meowchan.png" Stretch="Uniform"/>
             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
                 <TextBlock FontSize="26" FontWeight="SemiBold"><Run Text="Meow" Foreground="{DynamicResource Workspace.Text}"/><Run Text="Chan" Foreground="{DynamicResource Workspace.Accent}"/></TextBlock>
@@ -25,7 +30,17 @@
                 </WrapPanel>
             </StackPanel>
         </Grid>
-        <TabControl x:Name="AboutTabs" Grid.Row="1" Margin="16,0">
+        </Border>
+        <Border x:Name="DialogFrameErrorStrip" Grid.Row="1" Padding="16,0,16,8"
+                IsVisible="{Binding #LinkErrorText.Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <Border Classes="workspace-error">
+                <ScrollViewer MaxHeight="120" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <SelectableTextBlock x:Name="LinkErrorText" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive"/>
+                </ScrollViewer>
+            </Border>
+        </Border>
+        <ScrollViewer x:Name="DialogFrameBody" Grid.Row="2" VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Disabled">
+        <TabControl x:Name="AboutTabs" Margin="16,0,16,12">
             <TabItem x:Name="AboutTab">
                 <ScrollViewer x:Name="AboutScrollViewer" VerticalScrollBarVisibility="Auto">
                     <StackPanel Spacing="16" Margin="12">
@@ -95,11 +110,9 @@
                 </Grid>
             </TabItem>
         </TabControl>
-        <Border Grid.Row="2" Classes="workspace-dialog-footer" Margin="0,12,0,0">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                <SelectableTextBlock x:Name="LinkErrorText" VerticalAlignment="Center" Classes="workspace-error" AutomationProperties.LiveSetting="Assertive"/>
-                <Button x:Name="CloseButton" Grid.Column="1" MinWidth="96" IsCancel="True" Click="OnCloseButtonClick"/>
-            </Grid>
+        </ScrollViewer>
+        <Border x:Name="DialogFrameFooter" Grid.Row="3" Classes="workspace-dialog-footer">
+            <Button x:Name="CloseButton" HorizontalAlignment="Right" MinWidth="96" IsCancel="True" Click="OnCloseButtonClick"/>
         </Border>
         </Grid>
     </Grid>

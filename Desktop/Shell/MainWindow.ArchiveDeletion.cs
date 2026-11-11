@@ -10,6 +10,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -64,25 +65,37 @@ public partial class MainWindow
                 IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap
             };
             TextBlock status = new() { TextWrapping = TextWrapping.Wrap };
+            Avalonia.Automation.AutomationProperties.SetLiveSetting(status, Avalonia.Automation.AutomationLiveSetting.Polite);
+            // Blockers and failures stay local and above the body; progress and results remain in the footer.
+            TextBlock failure = new() { TextWrapping = TextWrapping.Wrap };
             Button cancel = new() { Name = "ArchivePermanentDeleteCancel", Content = Texts.T("action.cancel") };
             Button delete = CommandBindings.CreateButton("archive.delete-permanently", () => { });
             delete.Name = "ArchivePermanentDeleteConfirm";
             delete.Command = null;
-            delete.Background = new SolidColorBrush(Color.Parse("#B83535"));
-            delete.Foreground = Brushes.White;
+            delete.Classes.Add("danger");
             delete.IsEnabled = plan.Catalog.Threads.Count > 0 && !plan.Files.HasBlockers && plan.Catalog.SharedMediaDirectories.Count == 0;
             if (!delete.IsEnabled)
-                status.Text = german ? "Diese Auswahl kann nicht vollständig gelöscht werden. Bitte Details prüfen oder die Auswahl einschränken."
+                failure.Text = german ? "Diese Auswahl kann nicht vollständig gelöscht werden. Bitte Details prüfen oder die Auswahl einschränken."
                     : "This selection cannot be fully deleted. Review the details or select fewer threads.";
-            StackPanel buttons = new() { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
             Button ratingRetry = CommandBindings.CreateButton("media.rating.cleanup-retry", () => { });
             ratingRetry.Command = null; ratingRetry.IsVisible = false;
             IReadOnlyList<ResourceId>? ratingRetryIds = null; // Deliberately session/dialog-only, never persisted.
-            buttons.Children.Add(ratingRetry); buttons.Children.Add(cancel); buttons.Children.Add(delete);
-            Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto"), RowSpacing = 12, Margin = new Thickness(20) };
-            layout.Children.Add(summary); layout.Children.Add(detail); Grid.SetRow(detail, 1);
-            layout.Children.Add(status); Grid.SetRow(status, 2);
-            layout.Children.Add(buttons); Grid.SetRow(buttons, 3); dialog.Content = layout;
+            // Risk flow: Cancel stays on its own at the start, the destructive action sits apart at the end.
+            StackPanel risky = new() { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
+            risky.Children.Add(ratingRetry); risky.Children.Add(delete);
+            Grid actions = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 24 };
+            actions.Children.Add(cancel); actions.Children.Add(risky); Grid.SetColumn(risky, 2);
+            status.IsVisible = !string.IsNullOrEmpty(status.Text);
+            status.PropertyChanged += (_, e) => { if (e.Property == TextBlock.TextProperty) status.IsVisible = !string.IsNullOrEmpty(status.Text); };
+            StackPanel footer = new() { Spacing = 8 };
+            footer.Children.Add(status); footer.Children.Add(actions);
+            TextBlock heading = new() { Text = title, TextWrapping = TextWrapping.Wrap };
+            heading.Classes.Add("section-title");
+            StackPanel header = new() { Spacing = 8 };
+            header.Children.Add(heading); header.Children.Add(summary);
+            detail.Margin = new Thickness(16, 4, 16, 16);
+            detail.VerticalAlignment = VerticalAlignment.Top;
+            dialog.Content = DialogFrame.Build(header, detail, footer, DialogFrame.ErrorStrip(failure));
             bool executing = false;
             cancel.Click += (_, _) => dialog.Close();
             dialog.Closing += (_, e) => { if (executing) e.Cancel = true; };
@@ -96,9 +109,10 @@ public partial class MainWindow
                 {
                     await _session.RetryMediaRatingCleanupAsync(frozen);
                     ratingRetryIds = null; ratingRetry.IsVisible = false;
+                    failure.Text = string.Empty;
                     status.Text = german ? "Bewertungen bereinigt. Es wurden keine weiteren Archivdateien gelöscht." : "Ratings cleaned up. No further archive files were deleted.";
                 }
-                catch (Exception error) { status.Text = error.Message; }
+                catch (Exception error) { status.Text = string.Empty; failure.Text = error.Message; }
                 finally { executing = false; ratingRetry.IsEnabled = cancel.IsEnabled = true; }
             }
             ratingRetry.Click += async (_, _) => await RetryRatingsAsync();
@@ -111,6 +125,7 @@ public partial class MainWindow
             {
                 if (executing) return;
                 executing = true; delete.IsEnabled = cancel.IsEnabled = false;
+                failure.Text = string.Empty;
                 status.Text = german ? "Lokale Daten werden gelöscht …" : "Deleting local data…";
                 try
                 {
@@ -138,7 +153,8 @@ public partial class MainWindow
                 }
                 catch (Exception error) when (error is not OutOfMemoryException)
                 {
-                    status.Text = error.Message;
+                    status.Text = string.Empty;
+                    failure.Text = error.Message;
                     localError(error.Message);
                     ShowNotification(Texts.T("notification.error"), error.Message, NotificationType.Error, context: string.Join(",", ids.Select(id => id.ToString())), operation: "archive.delete");
                 }

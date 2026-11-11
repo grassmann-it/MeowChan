@@ -5,6 +5,7 @@ using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using System;
 using System.IO;
@@ -32,8 +33,7 @@ public sealed class StartupErrorWindow : Window
 
         _heading = new TextBlock
         {
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(16, 16, 16, 12)
+            TextWrapping = TextWrapping.Wrap
         };
         _heading.Classes.Add("page-title");
         SelectableTextBlock detail = new SelectableTextBlock
@@ -42,16 +42,12 @@ public sealed class StartupErrorWindow : Window
             TextWrapping = TextWrapping.Wrap
         };
         detail.Classes.Add("workspace-error");
-        ScrollViewer scroll = new ScrollViewer
-        {
-            Content = detail,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
-        };
+        // The failure is the window's whole subject, so it is the scrolling body rather than
+        // a capped local strip; heading and exit stay fixed around it.
         Border errorPanel = new Border
         {
-            Margin = new Thickness(16, 0, 16, 16),
-            Child = scroll
+            Margin = new Thickness(16, 4, 16, 16),
+            Child = detail
         };
         errorPanel.Classes.Add("workspace-section");
         _exitButton = new Button
@@ -63,16 +59,7 @@ public sealed class StartupErrorWindow : Window
         _exitButton.Click += (_, _) => Close();
         Border footer = new() { Child = _exitButton };
         footer.Classes.Add("workspace-dialog-footer");
-        Grid layout = new Grid
-        {
-            RowDefinitions = new RowDefinitions("Auto,*,Auto")
-        };
-        layout.Children.Add(_heading);
-        Grid.SetRow(errorPanel, 1);
-        layout.Children.Add(errorPanel);
-        Grid.SetRow(footer, 2);
-        layout.Children.Add(footer);
-        Content = layout;
+        Content = DialogFrame.Build(_heading, errorPanel, footer);
 
         // Texts has built-in English before Initialize, including for profile startup failures.
         ApplyTexts();

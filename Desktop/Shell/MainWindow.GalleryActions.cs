@@ -11,6 +11,7 @@ using Avalonia.Media;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
@@ -107,8 +108,8 @@ public partial class MainWindow
         var origin = FocusManager?.GetFocusedElement() as Control;
         Window dialog = new()
         {
-            Title = CommandCatalog.Label("thread.details"), Width = 600, Height = 360, MinWidth = 340,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner
+            Name = "GalleryDetailsDialog", Title = CommandCatalog.Label("thread.details"), Width = 600, Height = 360,
+            MinWidth = 340, MinHeight = 240, WindowStartupLocation = WindowStartupLocation.CenterOwner
         };
         SelectableTextBlock text = new()
         {
@@ -120,11 +121,12 @@ public partial class MainWindow
                 + MediaProvenanceText.Details(entry.AttachmentResolution?.Binding) + Environment.NewLine
                 + (entry.Post?.PostId ?? Texts.T("gallery.noPost"))
         };
+        text.Margin = new Thickness(16, 4, 16, 16);
         Button close = CommandBindings.CreateButton("window.close", () => dialog.Close());
         close.HorizontalAlignment = HorizontalAlignment.Right;
-        Grid layout = new() { RowDefinitions = new RowDefinitions("*,Auto"), RowSpacing = 16, Margin = new Thickness(20) };
-        layout.Children.Add(new ScrollViewer { Content = text });
-        layout.Children.Add(close); Grid.SetRow(close, 1); dialog.Content = layout;
+        TextBlock heading = new() { Text = dialog.Title, TextWrapping = TextWrapping.Wrap };
+        heading.Classes.Add("section-title");
+        dialog.Content = DialogFrame.Build(heading, text, close);
         dialog.KeyDown += (_, key) => { if (key.Key == Key.Escape) { key.Handled = true; dialog.Close(); } };
         await dialog.ShowDialog(this);
         if (origin?.IsEffectivelyVisible == true) origin.Focus();

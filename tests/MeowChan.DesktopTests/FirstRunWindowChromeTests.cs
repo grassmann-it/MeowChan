@@ -28,9 +28,11 @@ public sealed class FirstRunWindowChromeTests
 
         XElement content = root.Elements().Single(e => e.Name.LocalName == "Grid" &&
             (string?)e.Attribute(x + "Name") == null);
-        Assert.Equal("Auto,*,Auto", (string?)content.Attribute("RowDefinitions"));
-        Assert.Equal("20", (string?)content.Attribute("Margin"));
-        Assert.Equal("12", (string?)content.Attribute("RowSpacing"));
+        // UX103 P7 dialog frame: header, error strip, scrolling body, full-width footer.
+        // The 20 px content inset moved from the frame grid onto header and body.
+        Assert.Equal("Auto,Auto,*,Auto", (string?)content.Attribute("RowDefinitions"));
+        Assert.Null(content.Attribute("Margin"));
+        Assert.Equal("20,16,20,8", (string?)content.Elements().Single(e => (string?)e.Attribute(x + "Name") == "DialogFrameHeader").Attribute("Padding"));
     }
 
     [Fact]
