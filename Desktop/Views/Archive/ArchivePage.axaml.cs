@@ -125,6 +125,7 @@ public partial class ArchivePage : UserControl
         InitializeReaderInteraction(); InitializeReaderUpdates(); InitializeReadingPositionInput(); InitializePostBookmarks();
         InitializePaginationFocus();
         InitializeArchivePresentation();
+        InitializeFilterSurface();
         InitializeArchiveMediaCounts();
     }
     internal ArchivePage(Func<CancellationToken, Task<ArchiveReader>> openReader,

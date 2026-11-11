@@ -27,48 +27,15 @@
                         <TextBox x:Name="ArchiveSearchText" MaxLength="512" KeyDown="OnSearchKeyDown" />
                         <Button x:Name="SearchArchiveButton" Grid.Column="1" Tag="archive.search" Classes="localized" Click="OnSearchClick" />
                     </Grid>
+                    <!-- P2: the expander stays the filter toggle (command, IsExpanded, draft marker);
+                         its fields open as ArchiveFilterSurface over the results instead of
+                         pushing them down inside this capped search area. -->
                     <Expander x:Name="ArchiveFilters" Grid.Row="1" HorizontalAlignment="Stretch">
-                        <StackPanel Spacing="8">
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                                <desktop:IdentitySuggestionBox x:Name="ArchiveSourceFilter" KeyDown="OnSearchKeyDown" />
-                                <Button x:Name="ArchiveAddSource" Grid.Column="1" Click="OnAddSource" />
-                            </Grid>
-                            <WrapPanel x:Name="ArchiveDraftSources" ItemSpacing="6" LineSpacing="6" />
-                            <ComboBox x:Name="ArchiveBoardScope" HorizontalAlignment="Stretch"  />
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                                <desktop:IdentitySuggestionBox x:Name="ArchiveBoardFilter" KeyDown="OnSearchKeyDown" />
-                                <Button x:Name="ArchiveAddBoard" Grid.Column="1" Click="OnAddBoard" />
-                            </Grid>
-                            <WrapPanel x:Name="ArchiveDraftBoards" ItemSpacing="6" LineSpacing="6" />
-                            <TextBlock x:Name="ArchiveSuggestionsHint" TextWrapping="Wrap" Classes="muted" FontSize="11" />
-                            <Button x:Name="ArchiveRetrySuggestions" HorizontalAlignment="Left" IsVisible="False" />
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                                <ComboBox x:Name="ArchiveStateFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
-                                <Button x:Name="ArchiveAddState" Grid.Column="1" Click="OnAddState" />
-                            </Grid>
-                            <WrapPanel x:Name="ArchiveDraftStates" ItemSpacing="6" LineSpacing="6" />
-                            <!-- Own tags: include, exclude, and how several included tags combine. -->
-                            <ComboBox x:Name="ArchiveTagChoice" HorizontalAlignment="Stretch" SelectedIndex="0" />
-                            <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
-                                <Button x:Name="ArchiveAddTagInclude" HorizontalAlignment="Stretch" Click="OnAddTagInclude" />
-                                <Button x:Name="ArchiveAddTagExclude" Grid.Column="1" HorizontalAlignment="Stretch" Click="OnAddTagExclude" />
-                            </Grid>
-                            <WrapPanel x:Name="ArchiveDraftTags" ItemSpacing="6" LineSpacing="6" />
-                            <ComboBox x:Name="ArchiveTagMode" HorizontalAlignment="Stretch" SelectedIndex="0" />
-                            <Button x:Name="ArchiveTagManage" HorizontalAlignment="Left" Click="OnManageTags" />
-                            <ComboBox x:Name="ArchiveCaptureFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
-                            <ComboBox x:Name="ArchivePostsFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
-                            <ComboBox x:Name="ArchiveWorkFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
-                            <ComboBox x:Name="ArchiveSort" HorizontalAlignment="Stretch" SelectedIndex="0" />
-                            <TextBlock x:Name="ArchiveDateTitle" TextWrapping="Wrap" />
-                            <TextBlock x:Name="ArchiveDateFromLabel" />
-                            <desktop:ArchiveDateEditor x:Name="ArchiveStartDate" />
-                            <TextBlock x:Name="ArchiveDateToLabel" />
-                            <desktop:ArchiveDateEditor x:Name="ArchiveEndDate" />
-                            <TextBlock x:Name="ArchiveDateZone" TextWrapping="Wrap" Classes="muted" />
-                            <Button x:Name="ArchiveUseDeviceZone" Click="OnUseDeviceZone" HorizontalAlignment="Left" />
-                            <TextBlock x:Name="ArchiveDateHint" TextWrapping="Wrap" Classes="muted" FontSize="11" />
-                        </StackPanel>
+                        <Expander.Styles>
+                            <Style Selector="Expander /template/ :is(Control)#ExpanderContent, Expander /template/ :is(Control)#PART_ContentPresenter, Expander /template/ :is(Control)#ExpanderContentLayoutContainer">
+                                <Setter Property="MaxHeight" Value="0" />
+                            </Style>
+                        </Expander.Styles>
                     </Expander>
                     <WrapPanel x:Name="ArchiveAppliedFilters" Grid.Row="2" ItemSpacing="6" LineSpacing="6" />
                     <StackPanel Grid.Row="3" Spacing="6">
@@ -88,6 +55,62 @@
                         <Button x:Name="ArchiveSavedSearches" Click="OnSavedSearchesClick" />
                     </desktop:ActionToolBar>
                 </Grid></ScrollViewer>
+                <!-- P2: local filter surface anchored over the result list. Same controls and
+                     names as before; Search applies via the existing path, Escape closes. -->
+                <Border x:Name="ArchiveFilterSurface" Grid.Row="1" Grid.RowSpan="2" ZIndex="10" Classes="raised" Padding="10"
+                        VerticalAlignment="Top" IsVisible="{Binding #ArchiveFilters.IsExpanded}"
+                        KeyboardNavigation.TabNavigation="Cycle" KeyDown="OnFilterSurfaceKeyDown">
+                    <!-- The toggle directly above names the surface; no repeated title. -->
+                    <Grid RowDefinitions="*,Auto" RowSpacing="8">
+                        <ScrollViewer x:Name="ArchiveFilterSurfaceScroll" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel x:Name="ArchiveFilterFields" Spacing="8" Margin="0,0,12,0">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                    <desktop:IdentitySuggestionBox x:Name="ArchiveSourceFilter" KeyDown="OnSearchKeyDown" />
+                                    <Button x:Name="ArchiveAddSource" Grid.Column="1" Click="OnAddSource" />
+                                </Grid>
+                                <WrapPanel x:Name="ArchiveDraftSources" ItemSpacing="6" LineSpacing="6" />
+                                <ComboBox x:Name="ArchiveBoardScope" HorizontalAlignment="Stretch"  />
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                    <desktop:IdentitySuggestionBox x:Name="ArchiveBoardFilter" KeyDown="OnSearchKeyDown" />
+                                    <Button x:Name="ArchiveAddBoard" Grid.Column="1" Click="OnAddBoard" />
+                                </Grid>
+                                <WrapPanel x:Name="ArchiveDraftBoards" ItemSpacing="6" LineSpacing="6" />
+                                <TextBlock x:Name="ArchiveSuggestionsHint" TextWrapping="Wrap" Classes="muted" FontSize="11" />
+                                <Button x:Name="ArchiveRetrySuggestions" HorizontalAlignment="Left" IsVisible="False" />
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                    <ComboBox x:Name="ArchiveStateFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
+                                    <Button x:Name="ArchiveAddState" Grid.Column="1" Click="OnAddState" />
+                                </Grid>
+                                <WrapPanel x:Name="ArchiveDraftStates" ItemSpacing="6" LineSpacing="6" />
+                                <!-- Own tags: include, exclude, and how several included tags combine. -->
+                                <ComboBox x:Name="ArchiveTagChoice" HorizontalAlignment="Stretch" SelectedIndex="0" />
+                                <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                                    <Button x:Name="ArchiveAddTagInclude" HorizontalAlignment="Stretch" Click="OnAddTagInclude" />
+                                    <Button x:Name="ArchiveAddTagExclude" Grid.Column="1" HorizontalAlignment="Stretch" Click="OnAddTagExclude" />
+                                </Grid>
+                                <WrapPanel x:Name="ArchiveDraftTags" ItemSpacing="6" LineSpacing="6" />
+                                <ComboBox x:Name="ArchiveTagMode" HorizontalAlignment="Stretch" SelectedIndex="0" />
+                                <Button x:Name="ArchiveTagManage" HorizontalAlignment="Left" Click="OnManageTags" />
+                                <ComboBox x:Name="ArchiveCaptureFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
+                                <ComboBox x:Name="ArchivePostsFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
+                                <ComboBox x:Name="ArchiveWorkFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
+                                <ComboBox x:Name="ArchiveSort" HorizontalAlignment="Stretch" SelectedIndex="0" />
+                                <TextBlock x:Name="ArchiveDateTitle" TextWrapping="Wrap" />
+                                <TextBlock x:Name="ArchiveDateFromLabel" />
+                                <desktop:ArchiveDateEditor x:Name="ArchiveStartDate" />
+                                <TextBlock x:Name="ArchiveDateToLabel" />
+                                <desktop:ArchiveDateEditor x:Name="ArchiveEndDate" />
+                                <TextBlock x:Name="ArchiveDateZone" TextWrapping="Wrap" Classes="muted" />
+                                <Button x:Name="ArchiveUseDeviceZone" Click="OnUseDeviceZone" HorizontalAlignment="Left" />
+                                <TextBlock x:Name="ArchiveDateHint" TextWrapping="Wrap" Classes="muted" FontSize="11" />
+                            </StackPanel>
+                        </ScrollViewer>
+                        <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="8">
+                            <Button x:Name="ArchiveFilterApply" Tag="archive.search" Classes="localized" Click="OnFilterApplyClick" />
+                            <Button x:Name="ArchiveFilterClose" Grid.Column="1" Tag="action.close" Classes="localized" Click="OnFilterCloseClick" />
+                        </Grid>
+                    </Grid>
+                </Border>
                 <Border x:Name="ArchiveResultsSurface" Grid.Row="1" Classes="panel">
                     <Grid>
                         <ListBox x:Name="ArchiveThreads" SelectionMode="Multiple" SelectionChanged="OnThreadSelected" DoubleTapped="OnThreadDoubleTapped" ScrollViewer.HorizontalScrollBarVisibility="Disabled">

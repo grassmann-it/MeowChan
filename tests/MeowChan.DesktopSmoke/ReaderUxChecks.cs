@@ -133,6 +133,7 @@ internal static class ReaderUxChecks
         page.FindControl<ListBox>("ArchiveThreads")!.SelectedIndex = 0;
         await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id == Hero);
         await CheckEmbeddedArchiveFooterAsync(window, page);
+        await ArchiveFilterSurfaceChecks.RunAsync(window);
         Click(page.FindControl<Button>("ArchiveReadPosts")!);
         ContentControl reader = window.FindControl<ContentControl>("ReaderHost")!;
         await Program.WaitUntilAsync(() => reader.IsVisible && !page.IsBusy && SelectedPost(page) == "1000");
