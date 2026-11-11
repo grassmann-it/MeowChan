@@ -500,12 +500,12 @@ public partial class MainWindow
 
     private void UpdateGalleryFullscreenPresentation()
     {
-        ContentControl host = WorkspaceControl<ContentControl>("GalleryHost");
+        ContentControl host = GalleryHost;
         bool immersive = WindowState == WindowState.FullScreen
             && _gallery != null && !_gallerySuspended && host.IsVisible;
         // The shell caption is client content, so native fullscreen cannot hide it.
         // Span its existing row without changing the underlying page/reader layout.
-        WorkspaceControl<Border>("WorkspaceTitleBarFrame").IsVisible = !immersive;
+        WorkspaceTitleBarFrame.IsVisible = !immersive;
         Grid.SetRow(host, immersive ? 0 : 1);
         Grid.SetRowSpan(host, immersive ? 4 : 3);
         RefreshReadingResumePresentation();
@@ -547,7 +547,7 @@ public partial class MainWindow
         // ReaderHost. Keeping the covered reader in the tree must not leave its
         // disabled-button masks above the gallery, intercepting native clicks.
         // Include late-created adorners without touching gallery/notification UI.
-        Control reader = WorkspaceControl<ContentControl>("ReaderHost");
+        Control reader = ReaderHost;
         _galleryReaderAdorners.Update(reader, _archivePage,
             this.GetVisualDescendants().OfType<AdornerLayer>().SelectMany(layer => layer.Children));
     }

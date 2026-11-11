@@ -42,12 +42,12 @@ public partial class MainWindow
         })
             CommandBindings.Apply(WorkspaceControl<MenuItem>(name), action);
 
-        if (WorkspaceControl<Button>("ToolsNavigationButton").Flyout is MenuFlyout tools)
+        if (ToolsNavigationButton.Flyout is MenuFlyout tools)
             foreach (MenuItem item in tools.Items.OfType<MenuItem>())
                 if (item.Tag is string key && key.StartsWith("nav.", StringComparison.Ordinal))
                     CommandBindings.Apply(item, "navigation." + key[4..]);
 
-        Button brand = WorkspaceControl<Button>("BrandAboutButton");
+        Button brand = BrandAboutButton;
         string about = CommandCatalog.Label("navigation.about");
         ToolTip.SetTip(brand, about);
         AutomationProperties.SetName(brand, about);

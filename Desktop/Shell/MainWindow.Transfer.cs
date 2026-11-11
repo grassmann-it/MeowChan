@@ -30,7 +30,7 @@ public partial class MainWindow
         long now = Stopwatch.GetTimestamp();
         _downloadRate.Sample(_session.ReceivedMediaBytes, Stopwatch.GetElapsedTime(_speedTimestamp, now));
         _speedTimestamp = now;
-        WorkspaceControl<DownloadSpeedGraph>("TransferSpeedGraph").SetSamples(_downloadRate.Samples);
+        TransferSpeedGraph.SetSamples(_downloadRate.Samples);
         RefreshSpeedLabel();
     }
 
@@ -40,10 +40,10 @@ public partial class MainWindow
         string value = rate >= 1048576 ? (rate / 1048576).ToString("0.0", Texts.Culture) + " MiB/s"
             : rate >= 1024 ? (rate / 1024).ToString("0", Texts.Culture) + " KiB/s"
             : rate.ToString("0", Texts.Culture) + " B/s";
-        WorkspaceControl<TextBlock>("TransferSpeedLabel").Text = "↓ " + value;
+        TransferSpeedLabel.Text = "↓ " + value;
         string description = Texts.T("shell.transferSpeed", value);
-        ToolTip.SetTip(WorkspaceControl<Grid>("TransferSpeed"), description);
-        AutomationProperties.SetName(WorkspaceControl<Grid>("TransferSpeed"), description);
+        ToolTip.SetTip(TransferSpeed, description);
+        AutomationProperties.SetName(TransferSpeed, description);
     }
 
     private bool? _lastDarkThemeIcon;
@@ -54,11 +54,11 @@ public partial class MainWindow
         if (_lastDarkThemeIcon != dark)
         {
             _lastDarkThemeIcon = dark;
-            WorkspaceControl<Button>("ThemeToggleButton").Content = MeowChan.Desktop.Commands.CommandBindings.Icon("appearance.theme", 16,
+            ThemeToggleButton.Content = MeowChan.Desktop.Commands.CommandBindings.Icon("appearance.theme", 16,
                 dark ? "choose_light" : "choose_dark");
         }
         string label = Texts.T(dark ? "shell.switchToLight" : "shell.switchToDark");
-        Button button = WorkspaceControl<Button>("ThemeToggleButton");
+        Button button = ThemeToggleButton;
         AutomationProperties.SetName(button, label);
         ToolTip.SetTip(button, label);
     }

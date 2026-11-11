@@ -44,7 +44,7 @@ public partial class MainWindow
         if (!CanFocusDownloadSearch) return;
         _downloadSearchOpen = true;
         RefreshDownloadSearchPresentation();
-        TextBox input = WorkspaceControl<TextBox>("DownloadSearchInput");
+        TextBox input = DownloadSearchInput;
         input.Focus();
         input.SelectAll();
     }
@@ -54,12 +54,12 @@ public partial class MainWindow
     {
         _downloadSearchOpen = false;
         RefreshDownloadSearchPresentation();
-        WorkspaceControl<Button>("DownloadSearchButton").Focus();
+        DownloadSearchButton.Focus();
     }
     private void OnDownloadSearchClear(object? sender, RoutedEventArgs e)
     {
-        WorkspaceControl<TextBox>("DownloadSearchInput").Text = string.Empty;
-        if (_downloadSearchOpen) WorkspaceControl<TextBox>("DownloadSearchInput").Focus();
+        DownloadSearchInput.Text = string.Empty;
+        if (_downloadSearchOpen) DownloadSearchInput.Focus();
     }
     private void OnDownloadSearchChanged(object? sender, TextChangedEventArgs e)
     {
@@ -154,11 +154,11 @@ public partial class MainWindow
     {
         if (!_workspaceInitialized) return;
         bool active = !string.IsNullOrWhiteSpace(DownloadSearchText);
-        WorkspaceControl<Grid>("DownloadSearchBar").IsVisible = _downloadSearchOpen || active;
-        WorkspaceControl<TextBox>("DownloadSearchInput").IsVisible = _downloadSearchOpen;
-        WorkspaceControl<Button>("DownloadSearchClose").IsVisible = _downloadSearchOpen;
-        WorkspaceControl<Button>("DownloadSearchClear").IsVisible = active;
-        TextBlock summary = WorkspaceControl<TextBlock>("DownloadSearchSummary");
+        DownloadSearchBar.IsVisible = _downloadSearchOpen || active;
+        DownloadSearchInput.IsVisible = _downloadSearchOpen;
+        DownloadSearchClose.IsVisible = _downloadSearchOpen;
+        DownloadSearchClear.IsVisible = active;
+        TextBlock summary = DownloadSearchSummary;
         Grid.SetColumn(summary, _downloadSearchOpen ? 1 : 0);
         Grid.SetColumnSpan(summary, _downloadSearchOpen ? 1 : 2);
         summary.MaxWidth = _downloadSearchOpen ? 120 : double.PositiveInfinity;
@@ -166,12 +166,12 @@ public partial class MainWindow
             : Texts.T("downloads.searchCount", VisibleResultCount);
         ToolTip.SetTip(summary, summary.Text);
         AutomationProperties.SetName(summary, summary.Text);
-        bool boards = WorkspaceControl<TabControl>("DownloadsTabs").SelectedIndex == 1;
-        WorkspaceControl<Grid>("ThreadsResultPanel").IsVisible = !boards;
-        WorkspaceControl<Grid>("BoardsResultPanel").IsVisible = boards;
-        WorkspaceControl<TextBlock>("ThreadsEmptyState").Text = Texts.T(active ? "downloads.searchEmpty" : "downloads.empty");
-        WorkspaceControl<TextBlock>("BoardsEmptyState").Text = Texts.T(active ? "downloads.searchEmpty" : "downloads.boardsEmpty");
-        TextBox input = WorkspaceControl<TextBox>("DownloadSearchInput");
+        bool boards = DownloadsTabs.SelectedIndex == 1;
+        ThreadsResultPanel.IsVisible = !boards;
+        BoardsResultPanel.IsVisible = boards;
+        ThreadsEmptyState.Text = Texts.T(active ? "downloads.searchEmpty" : "downloads.empty");
+        BoardsEmptyState.Text = Texts.T(active ? "downloads.searchEmpty" : "downloads.boardsEmpty");
+        TextBox input = DownloadSearchInput;
         input.PlaceholderText = Texts.T("downloads.searchPlaceholder");
         AutomationProperties.SetName(input, Texts.T("downloads.searchPlaceholder"));
     }

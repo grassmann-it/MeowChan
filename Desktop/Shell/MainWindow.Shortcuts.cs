@@ -67,7 +67,7 @@ public partial class MainWindow
         LegacyCommandAdapters.Register(this);
         RefreshShellCommands();
         // Rebuild an already visible help panel from the same committed snapshot.
-        if (WorkspaceControl<Border>("ShellHelpOverlay").IsVisible)
+        if (ShellHelpOverlay.IsVisible)
         { DismissShellHelp(); ShowShellHelp(); }
     }
     private bool HasBlockingPageDecision() =>
@@ -77,7 +77,7 @@ public partial class MainWindow
     {
         if (e.Handled || ShortcutService.IsCapturing || !IsEnabled || _isClosing || HasVisibleShellDialog()
             || HasBlockingPageDecision() || _archivePage?.IsReaderDialogOpen == true
-            || WorkspaceControl<Border>("ShellHelpOverlay").IsVisible || (_gallery?.IsOverlayOpen ?? false)) return false;
+            || ShellHelpOverlay.IsVisible || (_gallery?.IsOverlayOpen ?? false)) return false;
         if (!CommandRouter.IsRoutingContextActive(this, e.Source)) return false;
         if (_shortcutRouter?.Route(e) == true) return true;
         // Gallery's tunnel handler owns its native-control and effective-gesture

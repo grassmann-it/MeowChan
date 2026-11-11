@@ -11,19 +11,19 @@ public partial class MainWindow
 {
     private void SetupInspectorLocalActions()
     {
-        CommandBindings.Apply(WorkspaceControl<Button>("InspectorReadPosts"), "thread.read", iconWithLabel: true);
-        CommandBindings.Apply(WorkspaceControl<Button>("InspectorGallery"), "gallery.open", iconWithLabel: true);
-        CommandBindings.Apply(WorkspaceControl<Button>("InspectorHtmlExport"), "export.open-html-dialog", iconWithLabel: true);
+        CommandBindings.Apply(InspectorReadPosts, "thread.read", iconWithLabel: true);
+        CommandBindings.Apply(InspectorGallery, "gallery.open", iconWithLabel: true);
+        CommandBindings.Apply(InspectorHtmlExport, "export.open-html-dialog", iconWithLabel: true);
     }
 
     private void RefreshInspectorLocalActions()
     {
         bool thread = GetWorkspaceSelection() is Desktop.ThreadRow;
-        WorkspaceControl<WrapPanel>("InspectorLocalActions").IsVisible = thread;
+        InspectorLocalActions.IsVisible = thread;
         bool ready = thread && _restoreCompleted && !WorkspaceCommandBusy && !_selectionCommandRunning;
-        WorkspaceControl<Button>("InspectorReadPosts").IsEnabled = ready && SelectedThreads().Length == 1;
-        WorkspaceControl<Button>("InspectorGallery").IsEnabled = ready;
-        WorkspaceControl<Button>("InspectorHtmlExport").IsEnabled = ready;
+        InspectorReadPosts.IsEnabled = ready && SelectedThreads().Length == 1;
+        InspectorGallery.IsEnabled = ready;
+        InspectorHtmlExport.IsEnabled = ready;
     }
 
     private async void OnInspectorReadPosts(object? sender, RoutedEventArgs e)

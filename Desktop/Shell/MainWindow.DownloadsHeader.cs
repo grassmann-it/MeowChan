@@ -18,13 +18,13 @@ public partial class MainWindow
 
     private void InitializeDownloadsHeader()
     {
-        WorkspaceControl<Button>("DownloadsColumnsButton").Command = new DelegateCommand(
-            () => OnDownloadsColumnsClick(WorkspaceControl<Button>("DownloadsColumnsButton"), new RoutedEventArgs()),
+        DownloadsColumnsButton.Command = new DelegateCommand(
+            () => OnDownloadsColumnsClick(DownloadsColumnsButton, new RoutedEventArgs()),
             () => !_isClosing);
-        WorkspaceControl<Button>("CopyAllUrlsButton").Command = new DelegateCommand(
+        CopyAllUrlsButton.Command = new DelegateCommand(
             async () => await CopyUrlsAsync(UrlList.Select(row => row.Url).Concat(BoardsList.Select(row => row.Url))),
             () => !_isClosing && (UrlList.Count > 0 || BoardsList.Count > 0));
-        ComboBox modes = WorkspaceControl<ComboBox>("WorkspaceModeComboBox");
+        ComboBox modes = WorkspaceModeComboBox;
         RefreshWorkspaceModeSelectionPresentation(modes);
         modes.DropDownOpened += (_, _) => RefreshWorkspaceModeDescriptions();
         modes.DropDownClosed += (_, _) => RefreshWorkspaceModeDescriptions();
@@ -45,7 +45,7 @@ public partial class MainWindow
 
     private void RefreshWorkspaceModeDescriptions()
     {
-        ComboBox modes = WorkspaceControl<ComboBox>("WorkspaceModeComboBox");
+        ComboBox modes = WorkspaceModeComboBox;
         bool open = modes.IsDropDownOpen;
         foreach ((string name, string mode) in new[] { ("BarebonesModeItem", "barebones"), ("SimpleModeItem", "simple"), ("AdvancedModeItem", "advanced") })
         {
@@ -79,7 +79,7 @@ public partial class MainWindow
             ToolBar.SetOverflowMode(button, mode);
             CommandBindings.Refresh(button);
         }
-        ActionToolBar toolbar = WorkspaceControl<ActionToolBar>("WorkspaceListActions");
+        ActionToolBar toolbar = WorkspaceListActions;
         AutomationProperties.SetName(toolbar, Texts.T("downloads.title"));
         toolbar.RefreshOverflowLabel();
         toolbar.InvalidateMeasure();

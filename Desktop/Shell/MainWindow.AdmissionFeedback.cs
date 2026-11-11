@@ -35,7 +35,7 @@ public partial class MainWindow
         // The rejected URLs and complete source list belong to the scrollable report.
         string repair = cause
             + (example == null ? string.Empty : Environment.NewLine + Texts.T(sessionExample ? "admission.repairExample" : "admission.repairFormat", example));
-        SelectableTextBlock message = WorkspaceControl<SelectableTextBlock>("AdmissionRepairText");
+        SelectableTextBlock message = AdmissionRepairText;
         message.Text = repair;
         AutomationProperties.SetName(message, first.Url + " · " + repair);
         AutomationProperties.SetLiveSetting(message, AutomationLiveSetting.Polite);

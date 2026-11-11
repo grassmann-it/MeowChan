@@ -106,9 +106,9 @@ public partial class MainWindow
         Resized += OnFullscreenRestoreResized;
         PropertyChanged += OnFullscreenStateChanged;
         Screens.Changed += OnShellScreensChanged;
-        WorkspaceControl<Button>("FullscreenButton").Click += (_, _) => ToggleFullscreen();
-        WorkspaceControl<Button>("ShellHelpClose").Click += (_, _) => DismissShellHelp();
-        WorkspaceControl<MenuItem>("ShortcutHelpMenuItem").Click += (_, _) => ShowShellHelp();
+        FullscreenButton.Click += (_, _) => ToggleFullscreen();
+        ShellHelpClose.Click += (_, _) => DismissShellHelp();
+        ShortcutHelpMenuItem.Click += (_, _) => ShowShellHelp();
         RefreshShellCommands();
     }
 
@@ -649,7 +649,7 @@ public partial class MainWindow
 
     private bool DismissShellHelp()
     {
-        Border help = WorkspaceControl<Border>("ShellHelpOverlay");
+        Border help = ShellHelpOverlay;
         if (!help.IsVisible) return false;
         help.IsVisible = false;
         if (_helpOrigin is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true } origin
@@ -664,7 +664,7 @@ public partial class MainWindow
 
     private void ShowShellHelp()
     {
-        Border help = WorkspaceControl<Border>("ShellHelpOverlay");
+        Border help = ShellHelpOverlay;
         if (help.IsVisible) { DismissShellHelp(); return; }
         _helpOrigin = FocusManager?.GetFocusedElement() as Control;
         var ids = new List<string> { "navigation.downloads", "navigation.archive", "navigation.rules", "navigation.sources", "navigation.diagnostics",
@@ -679,7 +679,7 @@ public partial class MainWindow
         else if (_selectedPage == WorkspacePage.Downloads && _restoreCompleted && !WorkspaceCommandBusy)
         {
             ids.InsertRange(0, new[] { "input.focus-download-search", "selection.select-all", "menu.context-open", "watch.import-clipboard" });
-            bool boards = WorkspaceControl<TabControl>("DownloadsTabs").SelectedIndex == 1;
+            bool boards = DownloadsTabs.SelectedIndex == 1;
             DownloadMenuTarget? target = CaptureDownloadMenu(boards);
             if (target != null)
             {
@@ -710,7 +710,7 @@ public partial class MainWindow
             && (command.ExecutionContexts.Contains(activeContext) || command.ExecutionContexts.Contains("shell"))
             && (activeContext != "downloads" || !downloadSelectionCommands.Contains(command.Id))
             && command.ShortcutDisplay != null).Select(command => command.Id));
-        WorkspaceControl<TextBlock>("ShellHelpTitle").Text = Texts.T("shortcuts.title");
+        ShellHelpTitle.Text = Texts.T("shortcuts.title");
         // The command registry supplies the visible help and its scoped gestures.
         // Keep this named text surface for the existing automation consumers.
         string[] effectiveIds = ids.Distinct().Where(id => CommandCatalog.TryGet(id, out _)
@@ -726,11 +726,11 @@ public partial class MainWindow
         }
         if (_largeReaderOpen && _archivePage?.ReaderShowsPosts == true)
             sections.Insert(0, Texts.T("help.reader.mediaActivation"));
-        WorkspaceControl<TextBlock>("ShellHelpText").Text = string.Join(Environment.NewLine + Environment.NewLine, sections)
+        ShellHelpText.Text = string.Join(Environment.NewLine + Environment.NewLine, sections)
             + Environment.NewLine + Environment.NewLine + Texts.T("help.escape");
         help.MaxHeight = Math.Max(180, ClientSize.Height - 40);
         help.IsVisible = true;
-        WorkspaceControl<Button>("ShellHelpClose").Focus();
+        ShellHelpClose.Focus();
     }
 
     private bool DismissShellMenu()
@@ -766,11 +766,11 @@ public partial class MainWindow
             if (WindowState == WindowState.FullScreen) { e.Handled = true; LeaveFullscreen(); return; }
             if (_gallery != null && !_gallerySuspended) { e.Handled = true; CloseGallery(); return; }
             if (_largeReaderOpen) { e.Handled = true; CloseLargeReader(); return; }
-            if (_selectedPage == WorkspacePage.Downloads && WorkspaceControl<Border>("WorkspaceInspector").IsVisible)
+            if (_selectedPage == WorkspacePage.Downloads && WorkspaceInspector.IsVisible)
             {
                 e.Handled = true;
                 OnDetailsToggleClick(sender, e);
-                DownloadList(WorkspaceControl<TabControl>("DownloadsTabs").SelectedIndex == 1).Focus();
+                DownloadList(DownloadsTabs.SelectedIndex == 1).Focus();
             }
             return;
         }
@@ -790,7 +790,7 @@ public partial class MainWindow
         // Enter the same gallery policy from this existing tunnel handler, ONLY
         // for genuine unfocused host input; focused controls/popups retain ownership.
         if (_gallery is { IsOverlayOpen: false } activeGallery && !_gallerySuspended
-            && !WorkspaceControl<Border>("ShellHelpOverlay").IsVisible
+            && !ShellHelpOverlay.IsVisible
             && activeGallery.RouteUnfocusedHostShortcut(e)) return;
         if (CanExecuteShellPowerCommand(e.Source, e.Key))
         {
@@ -809,7 +809,7 @@ public partial class MainWindow
             }
             if (CommandBindings.Matches(e, "session.pause"))
             {
-                if (_restoreCompleted && !_session.IsPauseTransitioning && WorkspaceControl<Button>("PauseButton").IsEnabled)
+                if (_restoreCompleted && !_session.IsPauseTransitioning && PauseButton.IsEnabled)
                 {
                     e.Handled = true;
                     OnPauseClick(sender, e);
@@ -828,7 +828,7 @@ public partial class MainWindow
             e.Handled = true;
             if (_gallery != null) CloseGallery(restoreOrigin: false);
             if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);
-            if (NavigateWorkspace(WorkspacePage.Downloads)) WorkspaceControl<TextBox>("UrlInput").Focus();
+            if (NavigateWorkspace(WorkspacePage.Downloads)) UrlInput.Focus();
         }
         else if (CommandBindings.Matches(e, "navigation.settings"))
         {
@@ -843,7 +843,7 @@ public partial class MainWindow
 
     internal bool CanExecuteShellPowerCommand(object? source, Key key) => _workspaceInitialized && _restoreCompleted
         && !_isClosing && IsEnabled && !WorkspaceCommandBusy && !HasVisibleShellDialog() && !HasBlockingPageDecision()
-        && !CommandRouter.IsNativeInput(source, key) && !WorkspaceControl<Border>("ShellHelpOverlay").IsVisible
+        && !CommandRouter.IsNativeInput(source, key) && !ShellHelpOverlay.IsVisible
         && _archivePage?.IsReaderDialogOpen != true && !(_gallery?.IsOverlayOpen ?? false)
         && !this.GetLogicalDescendants().OfType<Control>().Any(control => control.ContextMenu?.IsOpen == true
             || control is Button { Flyout.IsOpen: true } || control is MenuItem { IsSubMenuOpen: true }
@@ -856,19 +856,19 @@ public partial class MainWindow
     {
         RefreshReaderGroupsEntry(); // URSA-12 shared localization/availability refresh.
         if (!_workspaceInitialized) return;
-        CommandBindings.Apply(WorkspaceControl<Button>("FullscreenButton"), "window.fullscreen", iconOnly: true);
-        WorkspaceControl<Button>("FullscreenButton").Content = CommandBindings.Icon("window.fullscreen", 16,
+        CommandBindings.Apply(FullscreenButton, "window.fullscreen", iconOnly: true);
+        FullscreenButton.Content = CommandBindings.Icon("window.fullscreen", 16,
             WindowState == WindowState.FullScreen ? "fullscreen" : "windowed");
-        WorkspaceControl<Button>("FullscreenButton").Classes.Set("selected", WindowState == WindowState.FullScreen);
-        Avalonia.Automation.AutomationProperties.SetHelpText(WorkspaceControl<Button>("FullscreenButton"),
+        FullscreenButton.Classes.Set("selected", WindowState == WindowState.FullScreen);
+        Avalonia.Automation.AutomationProperties.SetHelpText(FullscreenButton,
             CommandBindings.Tooltip("window.fullscreen") + " · " + MeowChan.Desktop.Localization.Texts.T(WindowState == WindowState.FullScreen ? "window.fullscreen.on" : "window.fullscreen.off"));
-        CommandBindings.Apply(WorkspaceControl<Button>("ShellHelpClose"), "window.close");
+        CommandBindings.Apply(ShellHelpClose, "window.close");
         foreach (var pair in new[] { ("ArchiveMenuItem", "navigation.archive"), ("MediaMenuItem", "navigation.media"), ("RulesMenuItem", "navigation.rules"),
             ("SourcesMenuItem", "navigation.sources"), ("DiagnosticsMenuItem", "navigation.diagnostics"),
             ("SettingsMenuItem", "navigation.settings"), ("AboutMenuItem", "navigation.about"),
             ("ShortcutHelpMenuItem", "viewer.shortcut-help"), ("ExitMenuItem", "app.quit") })
             CommandBindings.Apply(WorkspaceControl<MenuItem>(pair.Item1), pair.Item2);
-        if (WorkspaceControl<Button>("ToolsNavigationButton").Flyout is MenuFlyout tools)
+        if (ToolsNavigationButton.Flyout is MenuFlyout tools)
             foreach (MenuItem item in tools.Items.OfType<MenuItem>())
             {
                 string? id = (item.Tag as string) switch { "nav.archive" => "navigation.archive", "nav.media" => "navigation.media", "nav.rules" => "navigation.rules",

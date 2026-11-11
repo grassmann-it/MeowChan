@@ -16,13 +16,13 @@ public partial class MainWindow
     private void LocalizeDownloadsColumnsButton()
     {
         if (!_workspaceInitialized) return;
-        CommandBindings.Apply(WorkspaceControl<Button>("DownloadsColumnsButton"), "table.choose-columns", iconWithLabel: true);
+        CommandBindings.Apply(DownloadsColumnsButton, "table.choose-columns", iconWithLabel: true);
     }
 
     private void OnDownloadsColumnsClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button button) return;
-        string gridName = WorkspaceControl<TabControl>("DownloadsTabs").SelectedIndex == 1
+        string gridName = DownloadsTabs.SelectedIndex == 1
             ? "BoardsDataGrid" : "ThreadsDataGrid";
         DataGrid grid = WorkspaceControl<DataGrid>(gridName);
         string mode = _config.WorkspaceMode;

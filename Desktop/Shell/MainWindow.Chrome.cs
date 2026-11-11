@@ -86,14 +86,14 @@ public partial class MainWindow
     private void UpdateWindowControls()
     {
         bool maximized = WindowState == WindowState.Maximized;
-        Button minimize = WorkspaceControl<Button>("WindowMinimizeButton");
-        Button maximize = WorkspaceControl<Button>("WindowMaximizeButton");
+        Button minimize = WindowMinimizeButton;
+        Button maximize = WindowMaximizeButton;
         minimize.IsEnabled = CanMinimize;
         maximize.IsEnabled = WindowChromePolicy.CanToggleMaximize(WindowState, CanMaximize, CanResize);
-        WorkspaceControl<Path>("WindowMaximizeIcon").Data = maximized ? RestoreGeometry : MaximizeGeometry;
+        WindowMaximizeIcon.Data = maximized ? RestoreGeometry : MaximizeGeometry;
         SetWindowControlLabel(minimize, "window.minimize");
         SetWindowControlLabel(maximize, WindowChromePolicy.MaximizeLabel(WindowState));
-        SetWindowControlLabel(WorkspaceControl<Button>("WindowCloseButton"), "action.close");
+        SetWindowControlLabel(WindowCloseButton, "action.close");
     }
 
     private static void SetWindowControlLabel(Button button, string key) => WindowChromeBar.SetLabel(button, key);
