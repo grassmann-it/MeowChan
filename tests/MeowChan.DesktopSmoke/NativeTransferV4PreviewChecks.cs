@@ -430,6 +430,40 @@ internal static class NativeTransferV4PreviewChecks
         Require(reclaimed == 1, "The confirmed reclaim did not run exactly once.");
         reclaimFake.Close();
 
+        // Startup recovery: discarding an interrupted transfer needs two presses; Escape cancels the
+        // confirmation, and Keep, Escape or closing answer "keep".
+        MeowChan.Archive.InterruptedNativeMediaOperation[] interrupted =
+            [new(false, Guid.NewGuid(), new string('a', 64), new("4chan", "b", "7001"),
+                MeowChan.Transfer.NativeMediaImportOperationState.Prepared, DateTimeOffset.UtcNow, 2048)];
+        InterruptedTransfersDialog confirmDialog = new(interrupted);
+        confirmDialog.Show(importDialog);
+        await SettleAsync(confirmDialog);
+        Button discard = confirmDialog.GetVisualDescendants().OfType<Button>().Single(x => x.Name == "InterruptedTransfersDiscard");
+        Require(Equals(discard.Content, Texts.T("transfer.interrupted.discard")), "The interrupted-transfer action is not labeled.");
+        discard.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await WaitUntilAsync(() => Equals(discard.Content, Texts.T("transfer.interrupted.confirm", 1, 2048L)));
+        Require(!confirmDialog.Decision.IsCompleted, "The first press already decided.");
+        confirmDialog.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+        await SettleAsync(confirmDialog);
+        Require(confirmDialog.IsVisible && !confirmDialog.Decision.IsCompleted && Equals(discard.Content, Texts.T("transfer.interrupted.discard")),
+            "Escape did not only cancel the discard confirmation.");
+        discard.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await WaitUntilAsync(() => Equals(discard.Content, Texts.T("transfer.interrupted.confirm", 1, 2048L)));
+        discard.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Require(await confirmDialog.Decision.WaitAsync(TimeSpan.FromSeconds(5)), "The confirmed discard did not answer true.");
+        foreach (string way in new[] { "keep", "escape" })
+        {
+            InterruptedTransfersDialog keepDialog = new(interrupted);
+            keepDialog.Show(importDialog);
+            await SettleAsync(keepDialog);
+            if (way == "keep")
+                keepDialog.GetVisualDescendants().OfType<Button>().Single(x => x.Name == "InterruptedTransfersKeep")
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            else keepDialog.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+            Require(!await keepDialog.Decision.WaitAsync(TimeSpan.FromSeconds(5)), "Keep/Escape (" + way + ") did not answer false.");
+        }
+        Console.WriteLine("SMOKE interrupted transfers dialog: two-step discard, Escape cancels confirmation, Keep/Escape keep.");
+
         string a = new('a', 64), b = new('b', 64), active = new('d', 64);
         List<MediaConflictRow> store =
         [

@@ -144,10 +144,26 @@ public partial class MainWindow : Window
         }
     }
 
+    private readonly TaskCompletionSource _mainWindowOpened = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    // The startup recovery decision is modal over the shell, so it waits until the shell is shown.
+    private async Task<bool> DecideInterruptedTransfersAsync(IReadOnlyList<MeowChan.Archive.InterruptedNativeMediaOperation> operations)
+    {
+        await _mainWindowOpened.Task;
+        if (_isClosing) return false;
+        InterruptedTransfersDialog dialog = new(operations);
+        InterruptedTransfersDialogForTests = dialog;
+        _ = dialog.ShowDialog(this);
+        return await dialog.Decision;
+    }
+
+    internal InterruptedTransfersDialog? InterruptedTransfersDialogForTests { get; private set; }
+
     private void OnMainWindowOpened(object? sender, EventArgs e)
     {
         Opened -= OnMainWindowOpened;
         _hasOpened = true;
+        _mainWindowOpened.TrySetResult();
         RefreshClipboardMonitor();
         TryOfferFirstRunSetup();
         RestoreWindowPreferences();
@@ -380,6 +396,8 @@ public partial class MainWindow : Window
 
     private async Task RestoreSessionAsync()
     {
+        _session.InterruptedTransferDecision = (operations, token) => Dispatcher.UIThread.InvokeAsync(
+            () => DecideInterruptedTransfersAsync(operations)).WaitAsync(token);
         await _session.StartAsync();
         await Dispatcher.UIThread.InvokeAsync(() =>
         {

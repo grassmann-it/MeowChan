@@ -153,6 +153,25 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     internal Action<bool>? AfterStartupFinalWriteCleanupClaimForTests { get; set; }
     internal Action? AfterFinalWriteSealForTests { get; set; }
 
+    /// <summary>
+    /// UI decision for native transfers that stopped before their commit; true discards them. Without a
+    /// decision (or on false) startup keeps failing with the recovery error, as before.
+    /// </summary>
+    internal Func<IReadOnlyList<MeowChan.Archive.InterruptedNativeMediaOperation>, CancellationToken, Task<bool>>? InterruptedTransferDecision { get; set; }
+
+    // Still under the startup admission and before the recovery guard: no producer exists yet.
+    private async Task ResolveInterruptedTransfersAsync(CancellationToken token)
+    {
+        if (InterruptedTransferDecision is not { } decide) return;
+        IReadOnlyList<MeowChan.Archive.InterruptedNativeMediaOperation> interrupted =
+            await _content.Catalog.ReadInterruptedNativeMediaOperationsAsync(token).ConfigureAwait(false);
+        if (interrupted.Count == 0 || !await decide(interrupted, token).ConfigureAwait(false)) return;
+        int discarded = await _content.Catalog.DiscardInterruptedNativeMediaOperationsAdmittedAsync(_profileStartupAdmission
+            ?? throw new InvalidOperationException("No profile startup admission."), token).ConfigureAwait(false);
+        _logger.Warning("Discarded {Count} interrupted native transfer operation(s) on user confirmation: {Operations}",
+            discarded, string.Join(", ", interrupted.Select(item => (item.Merge ? "merge " : "import ") + item.OperationId.ToString("D"))));
+    }
+
     private async Task StartCoreAsync(TaskCompletionSource completion)
     {
         try
@@ -167,6 +186,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                     ?? throw new InvalidOperationException("No profile startup admission."), _startupCancellation.Token).ConfigureAwait(false);
             // Startup ownership is still held. An interrupted transfer must not be
             // bypassed by restarting the ordinary producer/queue epoch.
+            await ResolveInterruptedTransfersAsync(_startupCancellation.Token).ConfigureAwait(false);
             await _content.Catalog.EnsureNativeMediaRecoveryClearAsync(_startupCancellation.Token).ConfigureAwait(false);
             PublishCatalogReadable();
             if (AfterCatalogReadableForTests is { } readableHold) await readableHold(_startupCancellation.Token).ConfigureAwait(false);
