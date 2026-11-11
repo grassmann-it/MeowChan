@@ -79,6 +79,10 @@ public partial class ArchivePage
         AutomationProperties.SetName(remove, Texts.T("viewer.favorite.remove"));
         SelectableTextBlock status = new() { Name = "FavoritesStatus", TextWrapping = TextWrapping.Wrap, Focusable = true };
         AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Assertive);
+        TextBlock error = new() { Name = "FavoritesError", TextWrapping = TextWrapping.Wrap };
+        // One message at a time, as before: failures in the local strip, notices in the footer.
+        void Notice(string text) { status.Text = text; error.Text = string.Empty; }
+        void Fail(string text) { status.Text = string.Empty; error.Text = text; }
         Button export = CommandBindings.CreateButton("favorites.export-originals", () => { });
         export.Name = "FavoritesExportOriginals";
         Button close = new() { Content = Texts.T("action.close") };
@@ -91,18 +95,23 @@ public partial class ArchivePage
         WrapPanel selectionActions = new() { ItemSpacing = 8, LineSpacing = 8 };
         selectionActions.Children.Add(view); selectionActions.Children.Add(remove);
         actions.Children.Add(export); actions.Children.Add(close);
-        Border footer = new() { Child = actions, Margin = new Thickness(-16, 0, -16, -16) };
-        footer.Classes.Add("workspace-dialog-footer");
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto,Auto,Auto"), RowSpacing = 12, Margin = new Thickness(16) };
-        layout.Children.Add(filters);
-        layout.Children.Add(summary); Grid.SetRow(summary, 1);
+        StackPanel header = new() { Spacing = 12 };
+        header.Children.Add(filters); header.Children.Add(summary);
+        Grid content = new() { RowDefinitions = new RowDefinitions("*,Auto"), RowSpacing = 12, Margin = new Thickness(16, 0, 16, 12) };
         Grid results = new();
         results.Children.Add(list); results.Children.Add(emptyState);
-        layout.Children.Add(results); Grid.SetRow(results, 2);
-        layout.Children.Add(selectionActions); Grid.SetRow(selectionActions, 3);
-        ScrollViewer notice = new() { Content = status, MaxHeight = 96, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-        layout.Children.Add(notice); Grid.SetRow(notice, 4);
-        layout.Children.Add(footer); Grid.SetRow(footer, 5);
+        content.Children.Add(results);
+        content.Children.Add(selectionActions); Grid.SetRow(selectionActions, 1);
+        StackPanel footerContent = new() { Spacing = 12 };
+        footerContent.Children.Add(new ScrollViewer { Content = status, MaxHeight = 96, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled });
+        footerContent.Children.Add(actions);
+        Border footer = new() { Child = footerContent };
+        footer.Classes.Add("workspace-dialog-footer");
+        // Scope and search stay fixed; the list keeps its own virtualized scrolling and fills the body
+        // until the body reaches its minimum height, after which the whole body scrolls.
+        Grid layout = MeowChan.Desktop.Controls.DialogFrame.Build(header, content, footer, MeowChan.Desktop.Controls.DialogFrame.ErrorStrip(error));
+        ScrollViewer bodyScroll = layout.Children.OfType<ScrollViewer>().Single();
+        bodyScroll.SizeChanged += (_, args) => content.Height = Math.Max(180, args.NewSize.Height - content.Margin.Bottom);
         dialog.Content = layout;
         close.Click += (_, _) => dialog.Close();
         clearSearch.Click += (_, _) => { search.Text = string.Empty; search.Focus(); };
@@ -154,7 +163,7 @@ public partial class ArchivePage
             AutomationProperties.SetHelpText(export, exportHint);
             clearSearch.IsEnabled = !actionRunning;
             export.IsEnabled = !scopeLoading && !actionRunning && visible.Length > 0;
-            if (selected?.Missing == true) status.Text = Texts.T("viewer.favorites.unavailable", 1);
+            if (selected?.Missing == true) Notice(Texts.T("viewer.favorites.unavailable", 1));
         }
         list.SelectionChanged += (_, _) => RefreshActions();
         async Task LoadScopeAsync()
@@ -164,7 +173,7 @@ public partial class ArchivePage
             {
                 scopeLoading = true;
                 Render();
-                status.Text = Texts.T("viewer.favorites.loading");
+                Notice(Texts.T("viewer.favorites.loading"));
                 FavoriteScope choice = (FavoriteScope)Math.Clamp(scope.SelectedIndex, 0, 3);
                 HashSet<ResourceId>? threadIds = choice switch
                 {
@@ -179,12 +188,12 @@ public partial class ArchivePage
                 if (request != generation || loading.IsCancellationRequested) return;
                 scoped = next;
                 missing = resolved.Missing.Select(entry => entry.Key).ToHashSet();
-                status.Text = missing.Count == 0 ? string.Empty : Texts.T("viewer.favorites.unavailable", missing.Count);
+                Notice(missing.Count == 0 ? string.Empty : Texts.T("viewer.favorites.unavailable", missing.Count));
                 scopeLoading = false;
                 Render();
             }
             catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
-            catch (Exception ex) { if (request == generation) { status.Text = ex.Message; scopeLoading = false; Render(); } }
+            catch (Exception ex) { if (request == generation) { Fail(ex.Message); scopeLoading = false; Render(); } }
         }
         scope.SelectionChanged += async (_, _) => await LoadScopeAsync();
         search.PropertyChanged += (_, args) => { if (args.Property == TextBox.TextProperty) Render(); };
@@ -201,7 +210,7 @@ public partial class ArchivePage
                 await OpenOriginalExportAsync(resolved.Available, export, resolved.Missing.Count, label);
             }
             catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
-            catch (Exception ex) { status.Text = ex.Message; }
+            catch (Exception ex) { Fail(ex.Message); }
             finally { actionRunning = false; RefreshActions(); }
         };
         remove.Click += async (_, _) =>
@@ -209,7 +218,7 @@ public partial class ArchivePage
             if (scopeLoading || actionRunning || list.SelectedItem is not FavoriteOverviewRow selected || RemoveFavoriteAsync == null) return;
             int index = list.SelectedIndex;
             actionRunning = true; RefreshActions();
-            status.Text = string.Empty;
+            Notice(string.Empty);
             try
             {
                 await RemoveFavoriteAsync(selected.Entry);
@@ -217,7 +226,7 @@ public partial class ArchivePage
                 if (list.ItemCount > 0) list.SelectedIndex = Math.Min(index, list.ItemCount - 1);
                 selection = (list.SelectedItem as FavoriteOverviewRow)?.Entry.Key;
             }
-            catch (Exception error) { status.Text = error.Message; }
+            catch (Exception failure) { Fail(failure.Message); }
             finally { actionRunning = false; RefreshActions(); }
         };
         view.Click += async (_, _) =>
@@ -239,13 +248,13 @@ public partial class ArchivePage
                 if (galleryStart == null)
                 {
                     missing.Add(selected.Entry.Key); Render();
-                    status.Text = Texts.T("viewer.favorites.unavailable", 1);
+                    Notice(Texts.T("viewer.favorites.unavailable", 1));
                     return;
                 }
                 dialog.Close();
             }
             catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
-            catch (Exception error) { status.Text = error.Message; }
+            catch (Exception failure) { Fail(failure.Message); }
             finally { actionRunning = false; RefreshActions(); }
         };
         Render();
@@ -278,12 +287,16 @@ public partial class ArchivePage
         FavoriteExportAsset[] assets = frozenAssets.DistinctBy(asset => asset.Key).ToArray();
         Window dialog = new()
         {
-            Title = Texts.T("viewer.export.title"), Width = 600, Height = 300, MinWidth = 420,
+            Title = Texts.T("viewer.export.title"), Width = 600, Height = 300, MinWidth = 420, MinHeight = 280,
             WindowStartupLocation = WindowStartupLocation.CenterOwner
         };
         TextBlock scope = new() { Text = Texts.T("viewer.export.scope", scopeLabel ?? Texts.T("viewer.export.single"), assets.Length + missingCount), TextWrapping = TextWrapping.Wrap };
         TextBox destination = new() { Name = "OriginalExportDestination", IsReadOnly = true, PlaceholderText = Texts.T("viewer.export.destination") };
         TextBlock status = new() { TextWrapping = TextWrapping.Wrap };
+        TextBlock error = new() { Name = "OriginalExportError", TextWrapping = TextWrapping.Wrap };
+        // One message at a time, as before: failures in the local strip, notices in the footer.
+        void Notice(string text) { status.Text = text; error.Text = string.Empty; }
+        void Fail(string text) { status.Text = string.Empty; error.Text = text; }
         if (assets.Length == 0)
             status.Text = missingCount > 0 ? Texts.T("viewer.favorites.unavailable", missingCount) : Texts.T("viewer.export.empty");
         Button browse = CommandBindings.CreateButton("export.browse-parent", () => { });
@@ -301,14 +314,14 @@ public partial class ArchivePage
         actions.Children.Add(cancel); actions.Children.Add(openFolder); actions.Children.Add(start);
         TextBlock title = new() { Text = dialog.Title, TextWrapping = TextWrapping.Wrap }; title.Classes.Add("page-title");
         scope.Classes.Add("section-title");
-        StackPanel header = new() { Spacing = 8, Margin = new Thickness(16, 16, 16, 0) };
+        StackPanel header = new() { Spacing = 8 };
         header.Children.Add(title); header.Children.Add(scope);
         TextBlock hint = new() { Text = Texts.T("export.originalHint"), TextWrapping = TextWrapping.Wrap };
         hint.Classes.Add("workspace-help");
         TextBlock targetLabel = new() { Text = Texts.T("export.target") }; targetLabel.Classes.Add("section-title");
         TextBlock unavailable = new() { Text = Texts.T("viewer.favorites.unavailable", missingCount), TextWrapping = TextWrapping.Wrap, IsVisible = missingCount > 0 };
         unavailable.Classes.Add("workspace-warning");
-        StackPanel content = new() { Spacing = 12, Margin = new Thickness(16, 0) };
+        StackPanel content = new() { Spacing = 12, Margin = new Thickness(16, 0, 16, 12) };
         content.Children.Add(hint); content.Children.Add(unavailable); content.Children.Add(targetLabel);
         content.Children.Add(destination); content.Children.Add(browse);
         AutomationProperties.SetLabeledBy(destination, targetLabel);
@@ -317,12 +330,7 @@ public partial class ArchivePage
         footerContent.Children.Add(new ScrollViewer { Content = status, MaxHeight = 140, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled });
         footerContent.Children.Add(actions);
         Border footer = new() { Child = footerContent }; footer.Classes.Add("workspace-dialog-footer");
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto"), RowSpacing = 12 };
-        layout.Children.Add(header);
-        ScrollViewer scroll = new() { Content = content, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-        layout.Children.Add(scroll); Grid.SetRow(scroll, 1);
-        layout.Children.Add(footer); Grid.SetRow(footer, 2);
-        dialog.Content = layout;
+        dialog.Content = MeowChan.Desktop.Controls.DialogFrame.Build(header, content, footer, MeowChan.Desktop.Controls.DialogFrame.ErrorStrip(error));
         CancellationTokenSource run = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         bool running = false;
         dialog.Closing += (_, args) =>
@@ -348,12 +356,12 @@ public partial class ArchivePage
                 if (OpenExportFolder != null) await OpenExportFolder(path);
                 else _openFolder?.Invoke(path);
             }
-            catch (Exception ex) { status.Text = Texts.T("export.openFailed", ex.Message); }
+            catch (Exception ex) { Fail(Texts.T("export.openFailed", ex.Message)); }
         };
         browse.Click += async (_, _) =>
         {
             IStorageProvider? storage = owner.StorageProvider;
-            if (storage == null || !storage.CanPickFolder) { status.Text = Texts.T("settings.pickerUnavailable"); return; }
+            if (storage == null || !storage.CanPickFolder) { Fail(Texts.T("settings.pickerUnavailable")); return; }
             IReadOnlyList<IStorageFolder> folders = await storage.OpenFolderPickerAsync(new FolderPickerOpenOptions
             { Title = Texts.T("viewer.export.destination"), AllowMultiple = false });
             try
@@ -361,7 +369,7 @@ public partial class ArchivePage
                 if (run.IsCancellationRequested) return;
                 if (folders.Count == 0) return;
                 string? path = folders[0].TryGetLocalPath();
-                if (path == null) { status.Text = Texts.T("settings.pickerLocalOnly"); return; }
+                if (path == null) { Fail(Texts.T("settings.pickerLocalOnly")); return; }
                 await RememberExportDirectoryAsync(path);
                 destination.Text = path;
                 start.IsEnabled = assets.Length > 0;
@@ -374,15 +382,15 @@ public partial class ArchivePage
             if (running || string.IsNullOrWhiteSpace(destination.Text)) return;
             running = true; start.IsEnabled = browse.IsEnabled = openFolder.IsEnabled = false;
             CommandBindings.Apply(cancel, "export.cancel");
-            status.Text = Texts.T("viewer.export.running");
+            Notice(Texts.T("viewer.export.running"));
             try
             {
                 FavoriteExportResult result = await FavoriteOriginalExporter.ExportAsync(assets, destination.Text, run.Token);
-                status.Text = Texts.T("viewer.export.result", result.Copied, result.AlreadyExists,
-                    result.Missing + missingCount, result.Failed, result.Cancelled);
+                Notice(Texts.T("viewer.export.result", result.Copied, result.AlreadyExists,
+                    result.Missing + missingCount, result.Failed, result.Cancelled));
             }
-            catch (OperationCanceledException) when (run.IsCancellationRequested) { status.Text = Texts.T("viewer.export.cancelled"); }
-            catch (Exception ex) { status.Text = ex.Message; }
+            catch (OperationCanceledException) when (run.IsCancellationRequested) { Notice(Texts.T("viewer.export.cancelled")); }
+            catch (Exception ex) { Fail(ex.Message); }
             finally
             {
                 running = false;

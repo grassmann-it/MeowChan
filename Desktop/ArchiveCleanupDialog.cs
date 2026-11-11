@@ -134,6 +134,7 @@ internal sealed class ArchiveCleanupDialog : Window
             catch (Exception error) { _error.Text = T("Could not open the storage folder.", "Speicherordner konnte nicht geöffnet werden.") + "\n" + error.Message; }
         };
         Named(_hint, "Hint");
+        // Fixed header: task, protection rules and archive scope stay in view while the inventory scrolls.
         StackPanel header = new() { Spacing = 12 };
         header.Children.Add(_heading); header.Children.Add(_hint); header.Children.Add(_scope);
         _inventoryControls.Children.Add(_candidatesHeading);
@@ -141,7 +142,6 @@ internal sealed class ArchiveCleanupDialog : Window
         _inventoryControls.Children.Add(_filter);
         WrapPanel choose = new() { ItemSpacing = 8, LineSpacing = 8 };
         choose.Children.Add(_selectShown); choose.Children.Add(_clear); _inventoryControls.Children.Add(choose);
-        header.Children.Add(_inventoryControls);
         StackPanel detailsContent = new() { Spacing = 8 };
         detailsContent.Children.Add(_details); detailsContent.Children.Add(_folder);
         _detailsSection.Content = detailsContent;
@@ -153,7 +153,7 @@ internal sealed class ArchiveCleanupDialog : Window
         // Visibility follows the confirmation itself, without a blank warning surface in the preview.
         _confirmation.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) warning.IsVisible = _confirmation.IsVisible; };
         warning.IsVisible = false; bottom.Children.Add(warning);
-        _outcome.Children.Add(_status); _outcome.Children.Add(_error);
+        _outcome.Children.Add(_status);
         WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         actions.Classes.Add("workspace-actions");
         foreach (Button button in new[] { _refresh, _close, _cancel, _back, _review, _confirm }) actions.Children.Add(button);
@@ -161,15 +161,12 @@ internal sealed class ArchiveCleanupDialog : Window
         footerContent.Children.Add(new ScrollViewer { Content = _outcome, MaxHeight = 200, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
         footerContent.Children.Add(actions);
         Border footer = new() { Child = footerContent }; footer.Classes.Add("workspace-dialog-footer");
-        // Inventory/loss details scroll independently; the next safe action stays in the fixed footer.
-        Grid body = new() { Margin = new Thickness(16), RowDefinitions = new RowDefinitions("Auto,Auto,Auto"), RowSpacing = 16 };
-        body.Children.Add(header); body.Children.Add(_list); Grid.SetRow(_list, 1);
+        // Inventory, details and loss summary scroll; the next safe action stays in the fixed footer.
+        Grid body = new() { Margin = new Thickness(16, 0, 16, 16), RowDefinitions = new RowDefinitions("Auto,Auto,Auto"), RowSpacing = 16 };
+        body.Children.Add(_inventoryControls); body.Children.Add(_list); Grid.SetRow(_list, 1);
         body.Children.Add(bottom); Grid.SetRow(bottom, 2);
         _list.MinHeight = 100; _list.Height = 240;
-        Grid layout = new() { RowDefinitions = new RowDefinitions("*,Auto") };
-        layout.Children.Add(new ScrollViewer { Content = body, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
-        layout.Children.Add(footer); Grid.SetRow(footer, 1); Content = layout;
-        KeyboardNavigation.SetTabNavigation(layout, KeyboardNavigationMode.Cycle);
+        Content = MeowChan.Desktop.Controls.DialogFrame.Build(header, body, footer, MeowChan.Desktop.Controls.DialogFrame.ErrorStrip(_error));
         names.Complete();
         Localize();
         KeyDown += (_, e) =>

@@ -104,27 +104,22 @@ public partial class ArchivePage
         Ursa.Controls.Banner errorBanner = ExportName(new Ursa.Controls.Banner { Type = Avalonia.Controls.Notifications.NotificationType.Error,
             CanClose = false, IsVisible = false, HorizontalContentAlignment = HorizontalAlignment.Stretch,
             Content = new ScrollViewer { Content = error, MaxHeight = 120, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } }, "ArchiveExportErrorBanner");
-        Grid body = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto"), RowSpacing = 10 };
         TextBlock fixedScope = ExportName(new TextBlock { FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap }, "ArchiveExportFixedScope");
         StackPanel header = new() { Spacing = 8 };
         header.Children.Add(title); header.Children.Add(compactScope); header.Children.Add(fixedScope);
-        body.Children.Add(header);
-        ScrollViewer scroll = new() { Content = content, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        Grid.SetRow(scroll, 1); body.Children.Add(scroll);
         WrapPanel actions = new() { HorizontalAlignment = HorizontalAlignment.Right, ItemSpacing = 8, LineSpacing = 6 };
         Button close = ExportName(new Button(), "ArchiveExportClose"); close.Click += OnExportClose;
         Button open = ExportName(new Button(), "ArchiveExportOpen"); open.Click += OnExportOpen;
         Button start = ExportName(new Button(), "ArchiveExportStart"); start.Click += OnExportStart;
         close.Classes.Add("subtle"); start.Classes.Add("primary"); actions.Classes.Add("workspace-actions");
         actions.Children.Add(close); actions.Children.Add(open); actions.Children.Add(start);
-        StackPanel outcome = new() { Spacing = 8 };
-        outcome.Children.Add(statusLine); outcome.Children.Add(errorBanner);
         StackPanel footerContent = new() { Spacing = 12 };
-        footerContent.Children.Add(new ScrollViewer { Content = outcome, MaxHeight = 140, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
+        footerContent.Children.Add(new ScrollViewer { Content = statusLine, MaxHeight = 140, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
         footerContent.Children.Add(actions);
         Border footer = new() { Child = footerContent }; footer.Classes.Add("workspace-dialog-footer");
-        Grid.SetRow(footer, 2); body.Children.Add(footer);
-        header.Margin = new Thickness(16, 16, 16, 0); scroll.Margin = new Thickness(16, 0);
+        content.Margin = new Thickness(16, 0, 16, 12);
+        // Fixed scope header, local error strip above the scrolling options, actions and status in the footer.
+        Grid body = MeowChan.Desktop.Controls.DialogFrame.Build(header, content, footer, errorBanner);
         _exportCard = new Border { Child = body, MaxWidth = 680, Margin = new Thickness(16), HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Center };
         NameScope.SetNameScope(_exportCard, _exportNames);
         _exportNames.Complete();

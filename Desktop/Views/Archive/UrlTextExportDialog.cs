@@ -94,6 +94,7 @@ internal sealed class UrlTextExportDialog : Window
     private readonly Button _save = new() { Name = "UrlTextExportSave" };
     private readonly Button _close = new() { Name = "UrlTextExportClose" };
     private readonly TextBlock _status = new() { Name = "UrlTextExportStatus", TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _error = new() { Name = "UrlTextExportError", TextWrapping = TextWrapping.Wrap };
     private bool _terminated;
     private Task? _termination;
     internal UrlTextExportOperation Operation => _operation;
@@ -115,27 +116,21 @@ internal sealed class UrlTextExportDialog : Window
         _heading.Classes.Add("section-title");
         _status.Classes.Add("workspace-meta");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
-        var body = new StackPanel { Spacing = 12, Margin = new Thickness(16) };
-        body.Children.Add(_heading);
-        body.Children.Add(_labels);
-        body.Children.Add(_status);
         var buttons = new WrapPanel
         {
             ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right
         };
         buttons.Children.Add(_save); buttons.Children.Add(_close);
-        var footer = new Border { Child = buttons, Margin = new Thickness(16, 0, 16, 16) };
+        var footerContent = new StackPanel { Spacing = 12 };
+        footerContent.Children.Add(_status); footerContent.Children.Add(buttons);
+        var footer = new Border { Child = footerContent };
         footer.Classes.Add("workspace-dialog-footer");
-        var layout = new Grid { RowDefinitions = new RowDefinitions("48,*,Auto") };
+        _labels.Margin = new Thickness(16, 0, 16, 16);
+        // Heading fixed, consent labels scroll, failures in the local strip, actions and status in the footer.
+        var frame = MeowChan.Desktop.Controls.DialogFrame.Build(_heading, _labels, footer, MeowChan.Desktop.Controls.DialogFrame.ErrorStrip(_error));
+        var layout = new Grid { RowDefinitions = new RowDefinitions("48,*") };
         layout.Children.Add(_chrome);
-        var scroll = new ScrollViewer
-        {
-            Content = body,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled
-        };
-        layout.Children.Add(scroll); Grid.SetRow(scroll, 1);
-        layout.Children.Add(footer); Grid.SetRow(footer, 2);
+        layout.Children.Add(frame); Grid.SetRow(frame, 1);
         Content = layout;
         Opened += OnOpened;
         _save.Click += OnSave;
@@ -172,7 +167,11 @@ internal sealed class UrlTextExportDialog : Window
         _close.Content = Texts.T(_operation.Started ? "urltext.export.close" : "urltext.export.cancel");
         AutomationProperties.SetName(_save, (string)_save.Content!);
         AutomationProperties.SetName(_close, (string)_close.Content!);
-        _status.Text = Texts.T(_operation.StatusKey);
+        // Failures go to the local error strip; progress and outcomes stay in the footer status.
+        bool failed = _operation.StatusKey.StartsWith("urltext.export.error.", StringComparison.Ordinal);
+        string message = Texts.T(_operation.StatusKey);
+        _status.Text = failed ? string.Empty : message;
+        _error.Text = failed ? message : string.Empty;
     }
     private async void OnSave(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => await _operation.ConfirmAsync();
     private void OnClose(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => Close();
