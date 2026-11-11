@@ -170,3 +170,60 @@ MEDIA_PAGE, GALLERY_MEDIA_TAGS, MEDIA_RATINGS, PRIVATE_TAGS, MEDIA_PANEL PASS) u
 Echter ENOSPC beim Medienexport (`bf6a87b`, auf goal `ff8200e`): tmpfs-Fixture `/tmp/mc-fs` (64 MiB) mit 0/64 KiB/400 KiB
 Restplatz, `MediaLibraryExportTests` 13/0 inkl. drei Platzmangelfällen (`/home/tomka/mc-evidence/media-export-enospc-1794399941`);
 ohne Fixture übersprungen, Core 9508/0/11. Blocker 2 unverändert.
+
+## Nachtrag 11.11.: frisches Gesamtgate und Folgefixes (goal `40eba83`)
+
+Frisches Gate auf `2e21d39` in eigenem Worktree mit Locked-Restore (`/home/tomka/mc-evidence/gate-2e21d39-1794400318`):
+Core 9508/0/11, Desktop 3121/0/11, PluginFilters 103/0, PluginHost.Configuration 192/0; PluginCompiler 20/0 und
+PluginRuntime 38/0 erst mit vorher gebauten Release-Voraussetzungen (PluginCompiler, PluginWorker,
+PluginRuntime.Fixture); Smokes suggestions, native-transfer-preview, interrupted-startup, MEDIA_PAGE,
+GALLERY_MEDIA_TAGS, MEDIA_RATINGS, PRIVATE_TAGS, MEDIA_PANEL, GALLERY_FIT, MEDIA_PERFORMANCE PASS. Zwei echte Befunde:
+- ExamplePlugins.Tests: NU1004 beim sauberen Locked-Restore, weil die sieben experimentellen Quellprojekte im
+  Release-Lock fehlten (`3c1e822`); danach 360/0.
+- Default- und Exact-IDs-Smoke rot (seit spätestens `2222915`): ein während des Herunterfahrens angenommener
+  Settings-Commit blieb ungeschrieben. Ursache: `Registry` nutzte den zugelassenen Speicherpfad nur für ein konkretes
+  `SessionStore`, Wrapper fielen auf das nach Shutdown-Beginn abgewiesene `SaveAsync` zurück (eingeführt `59def9d`).
+  Produktivpfad nicht betroffen; Fix über `IAdmittedSessionStore` (`f093cb1`). Dahinter verdeckt: veraltete
+  Sources-Kartenerwartung (`255c9b6`) und ein Timing-Rennen im Reader-Live-Smoke (`04c705e`).
+
+Abnahme des integrierten Stands `40eba83` (inkl. `ed72624` Medien-Rücksprung), frischer Build
+(`/home/tomka/mc-evidence/accept-settings-40eba83-1794410721`): Core 9513/0/11, Desktop 3121/0/11; Smokes Default,
+SETTINGS_LIFETIME, MEDIA_PAGE, UI_REFINEMENT PASS. Korrektur: Die dort und im Gate `2e21d39` als „exact-ids“
+geführten Läufe setzten nur `MEOWCHAN_ARCHIVE_COMPARISON_EXACT_IDS_ONLY` ohne `MEOWCHAN_ARCHIVE_COMPARISON=1` und
+waren damit ein zweiter Default-Smoke. Der echte Archivfilter-Lauf auf `40eba83`
+(`/home/tomka/mc-evidence/archive-filter-40eba83-1794412314`, `scenarios.txt`) besteht 12/12, u. a.
+`keyboard-multi-navigation-then-enter`, `escape-then-navigation-reopens-list`, `board-candidate-add-then-explicit-search`,
+`stale-async-suggestions-never-resurface`, `explicit-scope-change-revokes-previous-board-qualification`,
+`new-free-input-trims-without-normalizing-existing-identities`. Lastbedingte Einzelausreißer
+(MediaLibraryIndex-Performance, FIFO-Watchdogs, Plugin-Session-Start bei Load ~65) liefen gezielt wiederholt grün
+(`/home/tomka/mc-evidence/reader-race-1794410058`, `settings-*-rerun.log`). Blocker 2 unverändert.
+
+Abschlussstand des Goals auf `goal`: Alle verbindlichen 1.0.3-Anforderungen sind lokal integriert und durch die
+Volltests auf `40eba83` sowie die Bereichs-, Einzel- und Smokebelege oben gedeckt. Der verbleibende echte
+Blocker ist Blocker 2 (Windows-/macOS-/Hardwareläufe, Linux-Distributionspaketierung): unter diesem Manjaro-Rechner
+nicht herstellbar, Remote-CI durch den Auftrag ausgeschlossen, Ersatz per Docker vom Nutzer abgelehnt; die Läufe
+übernimmt der Nutzer in GitHub Actions. Bis dahin kein freigegebener 1.0.3-Kandidat.
+
+### Bereichsläufe auf `40eba83` (`/home/tomka/mc-evidence/areas-40eba83-1794412407`)
+
+Gezielte `dotnet test --no-build`-Filter auf den frischen Bins der Abnahme oben:
+Transfer/v2-Merge/Private Apply/Consent/Konflikte Core 6276/0/9; Importdialog/Konflikt Desktop 117/0;
+Bestandsschutz Favoriten/Bookmarks/Bewertungen/Notizen 892/0; Registry/Startup/Admission 783/0;
+FirstRun/Settings 277/0; Galerie/Video/Playback/Mute 592/0/1; HTML-/Export 176/0/3; Lokalisierung 432/0;
+Kontextmenü/Clipboard 154/0; passive GP-39 14/0; Archivfilter/Vorschläge 35/0; Quellenwording/Experimental
+Desktop 105/0; Beispiel-/Experimental-Plugins frisch Locked-Restore 360/0 mit Treffern für alle sieben Quellen
+(anonimageboards, bbwchan, capybarachan, eightchanmoe, fchan, gurocx, sevenchan).
+Gerätezeitzone: `DeviceTimeZoneResolvesToABundledIanaZoneAndNodaTimeIsDeployed` und
+`DeviceTimeZoneFailureNamesTheFactsInsteadOfAGenericAssemblyMessage` bestanden (Datumsbereich/Zeitzone 15/0).
+Diagnose (`timezone-diagnosis.log`): `MeowChan.deps.json` nennt `NodaTime/3.3.6`, `NodaTime.dll` in App-, Smoke-,
+Desktop- und Core-Bins hashgleich (`1421cc81…`), System-tz `Europe/Berlin` über `/etc/localtime`, keine
+installierten oder veralteten MeowChan-Pfade. „assembly not found“ damit weiterhin nicht reproduziert.
+
+### Recovery, Reexport und Offline auf `40eba83` (`/home/tomka/mc-evidence/recovery-40eba83-1794412954`)
+
+Reexport/Offline/Passive: Core 522/0/1, Desktop (inkl. Neustart) 91/0/6. Cancel/Recovery/Unterbrechung:
+Core 1019/0, Desktop 133/0. Echter SIGKILL (`MEOWCHAN_CRASH_RUN=1`): Import 8 Checkpoints + Kandidatenverzeichnis-
+Recovery 9/0 (1 Child-Helfer erwartungsgemäß übersprungen), Merge 8/0. Echter Platzmangel auf privatem 64-MiB-tmpfs
+(User-Namespace-Mount, kein Root): `DiskFull`- und Medienexporttests 17/0, nichts übersprungen.
+Archivfilter-Regressionen wurden in diesem Goal ergänzt (`5193d38` Escape→Pfeil-Reopen und Tastaturfälle,
+`d28283d` Klickübernahme, `c45a972` Fokus nach Tag-Entfernen) und laufen im Smoke oben 12/12 grün.
