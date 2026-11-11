@@ -146,7 +146,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
                 ct => candidate.Kind == PluginCandidateKind.PrebuiltManifest
                     ? ((IPluginBundleInstaller)CompilationService).ImportBundleAsync(candidate.Path, ct)
                     : CompilationService.BuildAsync(candidate.Path, cancellationToken: ct),
-                DescribeTestAsync, _logger, token).ConfigureAwait(false);
+                (artifact, ct) => DescribeStartupAsync(previous, candidate.CandidateId, artifact, ct), _logger, token).ConfigureAwait(false);
             if (shippedIds.Contains(candidate.CandidateId) && observation is { Problem: null, Artifact: not null, Description: not null })
             {
                 try
@@ -230,6 +230,15 @@ internal sealed partial class PluginSession : IAsyncDisposable
         PluginDescription Wrapper(PluginSourceImageBoard source) => new(source.Name, source.NiceName, "1.0.0", SdkContract.Version,
             "routing", new[] { source.Description }, Array.Empty<FilterDescription>(), new SettingsSchema("1", Array.Empty<SettingDefinition>()), Array.Empty<InformationEntry>());
         return SdkValidation.ValidateDescriptions(new[] { Wrapper(left), Wrapper(right) }).Any(issue => issue.Code == "route_conflict");
+    }
+
+    private Task<PluginDescription> DescribeStartupAsync(PluginProfileSnapshot previous, string candidateId,
+        PluginArtifact artifact, CancellationToken cancellationToken)
+    {
+        if (PluginStartupDiagnostics.ReusableDescription(previous, candidateId, artifact) is not { } known)
+            return DescribeTestAsync(artifact, cancellationToken);
+        _logger.Debug("Plugin startup description reused candidate {PluginStartupCandidateId}", candidateId);
+        return Task.FromResult(known);
     }
 
     internal Task<PluginDescription> DescribeTestAsync(PluginArtifact artifact, CancellationToken cancellationToken = default) =>

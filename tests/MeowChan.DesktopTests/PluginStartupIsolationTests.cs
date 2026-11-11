@@ -252,6 +252,39 @@ public sealed class PluginStartupIsolationTests
     }
 
     private static object? Value(LogEvent item, string key) => Assert.IsType<ScalarValue>(item.Properties[key]).Value;
+    [Fact]
+    public async Task StartupReusesAValidatedDescriptionOnlyForTheSameCandidateAndExecutableIdentity()
+    {
+        using TempDirectory directory = new();
+        var original = Candidate("reuse", "r1");
+        var state = await new PluginProfileStore(directory.Path).ApplyStartupAsync([original], 0);
+        PluginArtifact artifact = original.Artifact!;
+        // Another physical cache root of the same executable identity reuses the description.
+        PluginDescription? reused = PluginStartupDiagnostics.ReusableDescription(state, original.CandidateId,
+            artifact with { AssemblyPath = "/elsewhere/r1.dll" });
+        Assert.NotNull(reused);
+        Assert.Equal(SdkJson.Serialize(original.Description!), SdkJson.Serialize(reused));
+        Assert.Null(PluginStartupDiagnostics.ReusableDescription(state, "other.cs", artifact));
+        Assert.Null(PluginStartupDiagnostics.ReusableDescription(state, original.CandidateId, artifact with { ExecutionRevision = "r2" }));
+        Assert.Null(PluginStartupDiagnostics.ReusableDescription(state, original.CandidateId, artifact with { AssemblySha256 = new string('b', 64) }));
+        Assert.Null(PluginStartupDiagnostics.ReusableDescription(state, original.CandidateId, artifact with { SdkFingerprint = "sdk2" }));
+        Assert.Null(PluginStartupDiagnostics.ReusableDescription(state, original.CandidateId, artifact with { CompilerFingerprint = "compiler2" }));
+        Assert.Null(PluginStartupDiagnostics.ReusableDescription(state, original.CandidateId,
+            artifact with { Resources = [new("extra", "extra.bin", new string('c', 64))] }));
+    }
+
+    [Fact]
+    public async Task AFailedOrMissingPriorCandidateIsDescribedAgain()
+    {
+        using TempDirectory directory = new();
+        var original = Candidate("retry", "r1");
+        var store = new PluginProfileStore(directory.Path);
+        var failed = await store.ApplyStartupAsync([original with { Artifact = null, Description = null, Problem = "worker failed" }], 0);
+        Assert.Null(PluginStartupDiagnostics.ReusableDescription(failed, original.CandidateId, original.Artifact!));
+        var empty = await new PluginProfileStore(Path.Combine(directory.Path, "empty")).ReadAsync();
+        Assert.Null(PluginStartupDiagnostics.ReusableDescription(empty, original.CandidateId, original.Artifact!));
+    }
+
     private sealed class Capture : ILogEventSink
     {
         internal ConcurrentQueue<LogEvent> Events { get; } = new();

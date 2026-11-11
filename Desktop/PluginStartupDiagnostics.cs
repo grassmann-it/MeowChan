@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -6,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.PluginHost.Activation;
 using MeowChan.PluginHost.Compilation;
+using MeowChan.PluginHost.Configuration;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginHost.Installation;
 using MeowChan.PluginSdk;
@@ -57,6 +59,31 @@ internal static class PluginStartupDiagnostics
                 null, null, problem, candidate.Path);
         }
     }
+
+    /// <summary>
+    /// The last validated description of the same candidate when its executable identity is unchanged.
+    /// Describe only reproduces what that identity declares, so startup need not start one worker per candidate.
+    /// Physical cache paths may differ; assembly, SDK, compiler and logical resources may not.
+    /// </summary>
+    internal static PluginDescription? ReusableDescription(PluginProfileSnapshot previous, string candidateId, PluginArtifact artifact)
+    {
+        PluginCandidateSnapshot? known = previous.Plugins.SelectMany(plugin => plugin.Candidates)
+            .FirstOrDefault(candidate => candidate.CandidateId == candidateId);
+        if (known is not { IsPresent: true, Problem: null, Artifact: { } prior, Description: { } description }
+            || description.PluginId != known.PluginId || !SameExecutable(prior, artifact)) return null;
+        return SdkValidation.ValidateDescription(description).Count == 0 ? description : null;
+    }
+
+    private static bool SameExecutable(PluginArtifact left, PluginArtifact right) =>
+        left.ExecutionRevision == right.ExecutionRevision && left.CompilationFingerprint == right.CompilationFingerprint
+        && left.AssemblySha256 == right.AssemblySha256 && left.SdkFingerprint == right.SdkFingerprint
+        && left.CompilerFingerprint == right.CompilerFingerprint && left.Resources is not null && right.Resources is not null
+        && LogicalResources(left).SequenceEqual(LogicalResources(right));
+
+    private static IEnumerable<(string, string?, string, string)> LogicalResources(PluginArtifact artifact) =>
+        artifact.Resources.Select(r => (r.Name, r.Rid, r.RelativePath, r.Sha256))
+            .OrderBy(r => r.Item1, StringComparer.Ordinal).ThenBy(r => r.Item2, StringComparer.Ordinal)
+            .ThenBy(r => r.Item3, StringComparer.Ordinal).ThenBy(r => r.Item4, StringComparer.Ordinal);
 
     internal static void LogActivationProblem(ILogger logger, PluginActivationSnapshot activation)
     {
