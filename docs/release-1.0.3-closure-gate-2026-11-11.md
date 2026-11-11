@@ -188,6 +188,18 @@ GALLERY_MEDIA_TAGS, MEDIA_RATINGS, PRIVATE_TAGS, MEDIA_PANEL, GALLERY_FIT, MEDIA
 
 Abnahme des integrierten Stands `40eba83` (inkl. `ed72624` Medien-Rücksprung), frischer Build
 (`/home/tomka/mc-evidence/accept-settings-40eba83-1794410721`): Core 9513/0/11, Desktop 3121/0/11; Smokes Default,
-ARCHIVE_COMPARISON_EXACT_IDS, SETTINGS_LIFETIME, MEDIA_PAGE, UI_REFINEMENT PASS. Lastbedingte Einzelausreißer
+SETTINGS_LIFETIME, MEDIA_PAGE, UI_REFINEMENT PASS. Korrektur: Die dort und im Gate `2e21d39` als „exact-ids“
+geführten Läufe setzten nur `MEOWCHAN_ARCHIVE_COMPARISON_EXACT_IDS_ONLY` ohne `MEOWCHAN_ARCHIVE_COMPARISON=1` und
+waren damit ein zweiter Default-Smoke. Der echte Archivfilter-Lauf auf `40eba83`
+(`/home/tomka/mc-evidence/archive-filter-40eba83-1794412314`, `scenarios.txt`) besteht 12/12, u. a.
+`keyboard-multi-navigation-then-enter`, `escape-then-navigation-reopens-list`, `board-candidate-add-then-explicit-search`,
+`stale-async-suggestions-never-resurface`, `explicit-scope-change-revokes-previous-board-qualification`,
+`new-free-input-trims-without-normalizing-existing-identities`. Lastbedingte Einzelausreißer
 (MediaLibraryIndex-Performance, FIFO-Watchdogs, Plugin-Session-Start bei Load ~65) liefen gezielt wiederholt grün
 (`/home/tomka/mc-evidence/reader-race-1794410058`, `settings-*-rerun.log`). Blocker 2 unverändert.
+
+Abschlussstand des Goals auf `goal`: Alle verbindlichen 1.0.3-Anforderungen sind lokal integriert und durch die
+Volltests auf `40eba83` sowie die Bereichs-, Einzel- und Smokebelege oben gedeckt. Der verbleibende echte
+Blocker ist Blocker 2 (Windows-/macOS-/Hardwareläufe, Linux-Distributionspaketierung): unter diesem Manjaro-Rechner
+nicht herstellbar, Remote-CI durch den Auftrag ausgeschlossen, Ersatz per Docker vom Nutzer abgelehnt; die Läufe
+übernimmt der Nutzer in GitHub Actions. Bis dahin kein freigegebener 1.0.3-Kandidat.
