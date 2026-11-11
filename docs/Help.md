@@ -189,6 +189,13 @@ These shortcuts apply when the relevant list has focus. Ctrl means Command on ma
 | Ctrl+A | Select all entries in the focused Downloads list, or all entries on the current Archive results page |
 | Alt+PageUp / Alt+PageDown | Previous / next Archive results page, only with focus in the results list |
 
+On the Media page, T (or **Show in thread** in the tile's menu) opens the selected
+tile's post in the Archive; in the gallery, T does the same for the shown file.
+After a jump from the Media page the Archive shows **Back to media**; it and
+Alt+Left (Option+Left on macOS) return to the same Media view with its filters,
+order, selection and scroll position. A tile that is no longer shown there is
+named in a note, not replaced by another one. A file without a post offers no jump.
+
 Text fields and embedded controls retain their own keys. Across the workspace,
 Ctrl+L focuses URL input, Ctrl+, opens Settings, and Ctrl+F focuses the local
 Downloads search or Archive search on the active page. Ctrl+1 through Ctrl+5 open

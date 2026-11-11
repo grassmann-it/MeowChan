@@ -65,6 +65,7 @@ internal static partial class MediaPageChecks
             await SelectionJourneyAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-selection-"));
             await NavigationAsync(owner);
             await HostPathsAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-host-"));
+            await ReturnPathAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-return-"));
             string videoProfile = TemporaryWorkspacePaths.CreateDirectory("media-video-native-");
             new Config().SaveConfig(videoProfile);
             await SeedVideosAsync(videoProfile);

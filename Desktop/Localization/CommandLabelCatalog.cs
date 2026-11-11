@@ -95,6 +95,7 @@ internal static class CommandLabelCatalog
         ("command.reader.open-quote", "Show quoted post", "Zitierten Beitrag anzeigen"),
         ("command.reader.show-replies", "Show replies", "Antworten anzeigen"),
         ("command.gallery.return", "Back to gallery", "Zurück zur Galerie"),
+        ("command.media.return", "Back to media", "Zurück zu Medien"),
         ("command.gallery.close", "Close gallery", "Galerie schließen"),
         ("command.gallery.previous", "Previous media", "Voriges Medium"),
         ("command.gallery.next", "Next media", "Nächstes Medium"),

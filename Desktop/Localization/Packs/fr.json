@@ -1839,6 +1839,8 @@
     "command.reader.open-quote": "Afficher la publication citée",
     "command.reader.show-replies": "Afficher les réponses",
     "command.gallery.return": "Retourner à la galerie",
+    "command.media.return": "Retour aux médias",
+    "media.return.missing": "« {0} » n’est plus affiché dans cette vue. Les filtres et l’ordre sont inchangés.",
     "command.gallery.close": "Fermer la galerie",
     "command.gallery.previous": "Média précédent",
     "command.gallery.next": "Média suivant",

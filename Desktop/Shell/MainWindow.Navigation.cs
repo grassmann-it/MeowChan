@@ -200,6 +200,7 @@ public partial class MainWindow
                 && !(EarlyPageChoice && IsEarlyPage(page)))
             || WorkspaceCommandBusy) return false;
         if (page != WorkspacePage.Archive) _archivePage?.CancelPendingGalleryOpen();
+        if (page != WorkspacePage.Archive) ForgetMediaReturn(); // the way back belongs to the archive the Medien page opened
         ++_readingResumeNavigationRevision;
         if (page != WorkspacePage.Plugins) _pluginsPage?.Deactivate();
         if (_selectedPage == WorkspacePage.Rules && page != WorkspacePage.Rules) _rulesPage?.DeactivateRuleDecisions();

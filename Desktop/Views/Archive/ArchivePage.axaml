@@ -229,6 +229,8 @@
                     <Button x:Name="ReaderFindOpen" Click="OnOpenThreadFind" />
                     <Button x:Name="ArchiveReadPosts" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
                     <Button x:Name="ArchiveGalleryReturn" Content="Back to gallery" IsVisible="False" Click="OnGalleryReturnClick" />
+                    <!-- MEDIA103-NAV: shown instead of the gallery return while a "show in thread" from the Medien page can go back. -->
+                    <Button x:Name="ArchiveMediaReturn" Content="Back to media" IsVisible="False" Click="OnMediaReturnClick" />
                     <Button x:Name="ArchiveReaderFullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
                     <Button x:Name="ExportArchiveButton" Tag="archive.export" Classes="localized" Click="OnExportClick" />
                     <!-- URSA-12: explicit skip preserves the displayed post on missing group targets. -->

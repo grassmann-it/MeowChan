@@ -125,6 +125,7 @@ internal static class MediaLibraryCatalog
         ("media.exportAll", "Export all matches…", "Alle Treffer exportieren …"),
         ("media.exportAll.hint", "Copy the originals of every tile shown now, one per tile", "Die Originale aller jetzt gezeigten Kacheln kopieren, eines je Kachel"),
         ("media.exportAll.reason.none", "No tiles are shown, so there is nothing to export.", "Es sind keine Kacheln zu sehen, also gibt es nichts zu exportieren."),
+        ("media.return.missing", "“{0}” is no longer shown in this view. Filters and order are unchanged.", "„{0}“ ist in dieser Ansicht nicht mehr zu sehen. Filter und Sortierung sind unverändert."),
         ("media.exportAll.reason.probing", "Sound is still being checked, so the matches can still change.", "Der Ton wird noch geprüft, die Treffer können sich also noch ändern."),
         ("media.exportAll.scope", "All matches", "Alle Treffer"),
         ("media.exportAll.preparing", "Preparing {0} tiles for export…", "{0} Kacheln werden für den Export vorbereitet …"),
