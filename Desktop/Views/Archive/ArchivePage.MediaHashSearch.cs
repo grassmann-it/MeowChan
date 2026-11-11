@@ -68,7 +68,7 @@ public partial class ArchivePage
 
     private void UpdateHashSearchAction()
     {
-        Button button = Control<Button>("ReaderHashSearchOpen");
+        Button button = ReaderHashSearchOpen;
         string label = Texts.T("reader.hashSearch.open");
         if (!Equals(button.Content, label)) button.Content = label;
         ToolTip.SetTip(button, Texts.T(HashSearchDirectories.Length > 1 ? "reader.hashSearch.multiple" : "reader.hashSearch.hint"));

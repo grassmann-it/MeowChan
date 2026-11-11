@@ -29,17 +29,17 @@ public partial class ArchivePage
         _gallerySelectionCancellation?.Cancel();
     }
     internal Action? GalleryReturn { get; set; }
-    internal void ShowGalleryReturn(bool visible) => Control<Button>("ArchiveGalleryReturn").IsVisible = visible;
+    internal void ShowGalleryReturn(bool visible) => ArchiveGalleryReturn.IsVisible = visible;
     private void OnGalleryReturnClick(object? sender, RoutedEventArgs e) => GalleryReturn?.Invoke();
     /// <summary>Back to the Medien page after its "show in thread"; the shell owns the return point and shows the button.</summary>
     internal Action? MediaReturn { get; set; }
-    internal void ShowMediaReturn(bool visible) => Control<Button>("ArchiveMediaReturn").IsVisible = visible;
+    internal void ShowMediaReturn(bool visible) => ArchiveMediaReturn.IsVisible = visible;
     private void OnMediaReturnClick(object? sender, RoutedEventArgs e) => MediaReturn?.Invoke();
     internal void ShowGalleryError(string message) => Message(message, true);
 
     private ArchiveAssetRow? SelectedMediaRow() => (_mediaTiles
-        ? Control<ListBox>("ArchiveMediaTiles").SelectedItem
-        : Control<DataGrid>("ArchiveMediaGrid").SelectedItem) as ArchiveAssetRow;
+        ? ArchiveMediaTiles.SelectedItem
+        : ArchiveMediaGrid.SelectedItem) as ArchiveAssetRow;
 
     private static GalleryEntry[] BuildVisibleGalleryEntries(ArchivedThreadView thread,
         ArchiveAssetRow[] assets, ArchiveAssetRow[] visible)
@@ -92,7 +92,7 @@ public partial class ArchivePage
         ArchiveAssetRow[] assets = _assets.ToArray();
         bool reader = _showReader;
         int offset = _postOffset;
-        int tab = Control<TabControl>("ArchiveContentTabs").SelectedIndex;
+        int tab = ArchiveContentTabs.SelectedIndex;
         ReaderAnchor? readerAnchor = reader && tab == 0 ? CaptureReaderAnchor() : null;
         ArchiveSearchSpec query = _query;
         ArchiveSearchRequest? appliedSearch = _appliedSearch;
@@ -101,23 +101,23 @@ public partial class ArchivePage
         int listOffset = _listOffset, listTotal = _listTotal, workFilter = _workFilter;
         int mediaSort = _mediaSort;
         bool allVersions = _allVersions;
-        var listRows = (Control<ListBox>("ArchiveThreads").ItemsSource as IEnumerable<ArchiveThreadRow>)?.ToArray() ?? Array.Empty<ArchiveThreadRow>();
+        var listRows = (ArchiveThreads.ItemsSource as IEnumerable<ArchiveThreadRow>)?.ToArray() ?? Array.Empty<ArchiveThreadRow>();
         ResourceId[] listSelection = FrozenArchiveSelection();
         ResourceId? listLead = _archiveLeadId;
         ArchiveAssetRow? mediaSelection = SelectedMediaRow();
         MediaPosition? mediaPosition = CaptureMediaPosition();
-        string? postSelection = (Control<ListBox>("ArchivePosts").SelectedItem as ArchivePostRow)?.Id;
+        string? postSelection = (ArchivePosts.SelectedItem as ArchivePostRow)?.Id;
         InlineReplyState[] inlineReplies = CaptureInlineReplyState();
         var history = _history.ToArray();
         ReaderAnchor? backlinkOrigin = _backlinkOriginAnchor;
         ArchivePostId? backlinkPost = _backlinkPost;
         int referenceOffset = _referenceOffset;
         int referenceTotal = _referenceTotal;
-        ArchiveQuoteRow[] references = (Control<ListBox>("ArchiveReferences").ItemsSource as IEnumerable<ArchiveQuoteRow>)?.ToArray()
+        ArchiveQuoteRow[] references = (ArchiveReferences.ItemsSource as IEnumerable<ArchiveQuoteRow>)?.ToArray()
             ?? Array.Empty<ArchiveQuoteRow>();
-        object? referenceSelection = Control<ListBox>("ArchiveReferences").SelectedItem;
-        string? referenceTitle = Control<TextBlock>("ArchiveReferencesTitle").Text;
-        string? referencePage = Control<TextBlock>("ArchiveReferencesPage").Text;
+        object? referenceSelection = ArchiveReferences.SelectedItem;
+        string? referenceTitle = ArchiveReferencesTitle.Text;
+        string? referencePage = ArchiveReferencesPage.Text;
         var scroll = this.GetVisualDescendants().OfType<ScrollViewer>()
             .Select(view => (View: view, Offset: view.Offset)).ToArray();
         return () =>
@@ -138,12 +138,12 @@ public partial class ArchivePage
             _backlinkPost = backlinkPost;
             _referenceOffset = referenceOffset;
             _referenceTotal = referenceTotal;
-            Control<ListBox>("ArchiveReferences").ItemsSource = references;
-            Control<ListBox>("ArchiveReferences").SelectedItem = referenceSelection;
-            Control<TextBlock>("ArchiveReferencesTitle").Text = referenceTitle;
-            Control<TextBlock>("ArchiveReferencesPage").Text = referencePage;
-            Control<Button>("PreviousReferences").IsEnabled = backlinkPost != null && referenceOffset > 0;
-            Control<Button>("NextReferences").IsEnabled = backlinkPost != null && referenceOffset + PageSize < referenceTotal;
+            ArchiveReferences.ItemsSource = references;
+            ArchiveReferences.SelectedItem = referenceSelection;
+            ArchiveReferencesTitle.Text = referenceTitle;
+            ArchiveReferencesPage.Text = referencePage;
+            PreviousReferences.IsEnabled = backlinkPost != null && referenceOffset > 0;
+            NextReferences.IsEnabled = backlinkPost != null && referenceOffset + PageSize < referenceTotal;
             CloseThreadFind();
             _thread = thread; _selectedThread = selected; _assets = assets;
             ReaderSnapshotLoaded();
@@ -152,8 +152,8 @@ public partial class ArchivePage
             _updatingList = true;
             try
             {
-                Control<ListBox>("ArchiveThreads").ItemsSource = listRows;
-                Control<DataGrid>("ArchiveThreadTable").ItemsSource = listRows;
+                ArchiveThreads.ItemsSource = listRows;
+                ArchiveThreadTable.ItemsSource = listRows;
                 _archiveSelectionIds.Clear();
                 foreach (ResourceId id in listSelection) _archiveSelectionIds.Add(id);
                 _archiveLeadId = listLead;
@@ -162,11 +162,11 @@ public partial class ArchivePage
             finally { _updatingList = false; }
             RenderThread(); UpdateLayoutMode();
             RestoreInlineReplyState(inlineReplies);
-            Control<TabControl>("ArchiveContentTabs").SelectedIndex = tab;
-            Control<DataGrid>("ArchiveMediaGrid").SelectedItem = mediaSelection;
-            Control<ListBox>("ArchiveMediaTiles").SelectedItem = mediaSelection;
-            if (Control<ListBox>("ArchivePosts").ItemsSource is IEnumerable<ArchivePostRow> posts)
-                Control<ListBox>("ArchivePosts").SelectedItem = posts.FirstOrDefault(post => post.Id == postSelection);
+            ArchiveContentTabs.SelectedIndex = tab;
+            ArchiveMediaGrid.SelectedItem = mediaSelection;
+            ArchiveMediaTiles.SelectedItem = mediaSelection;
+            if (ArchivePosts.ItemsSource is IEnumerable<ArchivePostRow> posts)
+                ArchivePosts.SelectedItem = posts.FirstOrDefault(post => post.Id == postSelection);
             foreach (var item in scroll) item.View.Offset = item.Offset;
             RestoreMediaPosition(mediaPosition);
             if (readerAnchor != null) _ = RestoreReaderAnchorAsync(readerAnchor, restoreReaderFocus);
@@ -250,7 +250,7 @@ public partial class ArchivePage
     private Control ThreadOrigin(ArchiveThreadRow row) =>
         this.GetVisualDescendants().OfType<Control>().FirstOrDefault(control => (control is DataGridRow or ListBoxItem)
             && control.DataContext is ArchiveThreadRow found && found.Summary.Id == row.Summary.Id)
-        ?? Control<DataGrid>("ArchiveThreadTable");
+        ?? ArchiveThreadTable;
 
     private async void OnCurrentGalleryClick(object? sender, RoutedEventArgs e)
     {
@@ -293,7 +293,7 @@ public partial class ArchivePage
         if (_selectedThread == null || FrozenArchiveSelection().Length != 1) return;
         OpenReaderRequested?.Invoke(sender as Control);
         await LoadThreadAsync(_selectedThread);
-        Control<TabControl>("ArchiveContentTabs").SelectedIndex = 0;
+        ArchiveContentTabs.SelectedIndex = 0;
         ReaderPositionChanged(deliberate: true);
     }
 
@@ -301,10 +301,10 @@ public partial class ArchivePage
     {
         MediaPosition? position = CaptureMediaPosition();
         _mediaTiles = !_mediaTiles;
-        Control<DataGrid>("ArchiveMediaGrid").IsVisible = !_mediaTiles;
-        Control<ListBox>("ArchiveMediaTiles").IsVisible = _mediaTiles;
-        Control<Button>("ArchiveMediaMode").Content = Desktop.Localization.Texts.T(_mediaTiles ? "gallery.list" : "gallery.tiles");
-        Control<Button>("ArchiveMediaColumnsButton").IsVisible = !_mediaTiles;
+        ArchiveMediaGrid.IsVisible = !_mediaTiles;
+        ArchiveMediaTiles.IsVisible = _mediaTiles;
+        ArchiveMediaMode.Content = Desktop.Localization.Texts.T(_mediaTiles ? "gallery.list" : "gallery.tiles");
+        ArchiveMediaColumnsButton.IsVisible = !_mediaTiles;
         RestoreMediaPosition(position);
         try { if (SaveMediaTiles != null) await SaveMediaTiles(_mediaTiles); }
         catch (Exception exception)
@@ -317,14 +317,14 @@ public partial class ArchivePage
     private void OnVersionScopeChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_localizingMediaChoices || (!IsInitialized && !_largeReader)) return;
-        _allVersions = Control<ComboBox>("ArchiveVersionScope").SelectedIndex == 1;
+        _allVersions = ArchiveVersionScope.SelectedIndex == 1;
         RenderMedia();
     }
 
     private void OnMediaSortChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_localizingMediaChoices || (!IsInitialized && !_largeReader)) return;
-        _mediaSort = Math.Max(0, Control<ComboBox>("ArchiveMediaSort").SelectedIndex);
+        _mediaSort = Math.Max(0, ArchiveMediaSort.SelectedIndex);
         RenderMedia();
     }
 
@@ -338,14 +338,14 @@ public partial class ArchivePage
         if (index < 0) return;
         int offset = index / PageSize * PageSize;
         // Moving within a page keeps realized controls, pending previews and their geometry.
-        if (offset != _postOffset || Control<ListBox>("ArchivePosts").ItemsSource is not IEnumerable<ArchivePostRow> current
+        if (offset != _postOffset || ArchivePosts.ItemsSource is not IEnumerable<ArchivePostRow> current
             || !current.Any(post => post.Id == postId))
         {
             _postOffset = offset;
             RenderThread();
         }
-        Control<TabControl>("ArchiveContentTabs").SelectedIndex = 0;
-        ListBox list = Control<ListBox>("ArchivePosts");
+        ArchiveContentTabs.SelectedIndex = 0;
+        ListBox list = ArchivePosts;
         if (list.ItemsSource is System.Collections.Generic.IEnumerable<ArchivePostRow> posts)
         {
             list.SelectedItem = posts.FirstOrDefault(post => post.Id == postId);

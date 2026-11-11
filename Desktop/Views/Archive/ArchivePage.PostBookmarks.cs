@@ -16,11 +16,11 @@ namespace MeowChan;
 
 public partial class ArchivePage
 {
-    internal Control BookmarkCommandOwner => Control<Grid>("ArchiveReaderPane");
+    internal Control BookmarkCommandOwner => ArchiveReaderPane;
     internal Func<PostBookmarkKey, Control?, Task>? EditPostBookmark { get; set; }
     internal Action? OpenPostBookmarks { get; set; }
     internal PostBookmarkKey? FocusedBookmarkPost => _thread != null && ReaderShowsPosts
-        && Control<ListBox>("ArchivePosts").SelectedItem is ArchivePostRow row
+        && ArchivePosts.SelectedItem is ArchivePostRow row
         && _thread.FindPostIndex(row.Id) >= 0 ? new(_thread.Summary.Id, row.Id) : null;
 
     private void InitializePostBookmarks()
@@ -28,9 +28,9 @@ public partial class ArchivePage
         Button manager = CommandBindings.CreateButton("post-bookmarks.open-manager", () => { if (!IsFilenameSearchOpen) OpenPostBookmarks?.Invoke(); },
             () => !_ended && !IsFilenameSearchOpen && _available && OpenPostBookmarks != null, iconWithLabel: true);
         manager.Name = "ArchivePostBookmarks";
-        Control<ActionToolBar>("ArchiveResultActions").Items.Add(manager);
+        ArchiveResultActions.Items.Add(manager);
         // Installed on the pane itself: the same handler survives reader detach/reattach.
-        Control<Grid>("ArchiveReaderPane").AddHandler(ContextRequestedEvent, OnPostBookmarkContext,
+        ArchiveReaderPane.AddHandler(ContextRequestedEvent, OnPostBookmarkContext,
             RoutingStrategies.Bubble);
     }
 
@@ -40,7 +40,7 @@ public partial class ArchivePage
         Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (ancestors.OfType<ArchiveAttachmentView>().Any()) return; // Existing media menu carries the same action.
         ArchivePostRow? row = ancestors.Select(node => node.DataContext).OfType<ArchivePostRow>().FirstOrDefault();
-        if (row == null && !e.TryGetPosition(this, out _)) row = Control<ListBox>("ArchivePosts").SelectedItem as ArchivePostRow;
+        if (row == null && !e.TryGetPosition(this, out _)) row = ArchivePosts.SelectedItem as ArchivePostRow;
         if (row == null || _thread.FindPostIndex(row.Id) < 0) return;
         var frozen = new PostBookmarkKey(_thread.Summary.Id, row.Id);
         ContextMenu menu = new();

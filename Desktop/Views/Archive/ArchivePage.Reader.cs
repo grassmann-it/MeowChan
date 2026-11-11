@@ -25,7 +25,7 @@ namespace MeowChan;
 public partial class ArchivePage
 {
     internal Action? FullscreenRequested { get; set; }
-    internal bool IsReaderDialogOpen => IsFilenameSearchOpen || _urlTextExportBusy || Control<Border>("ArchiveExportDialog").IsVisible || _cleanupDialog != null;
+    internal bool IsReaderDialogOpen => IsFilenameSearchOpen || _urlTextExportBusy || ArchiveExportDialog.IsVisible || _cleanupDialog != null;
     internal bool TryDismissOverlay(object? source = null)
     {
         if (IsFilenameSearchOpen) { InvalidateFilenameSearch(); return true; }
@@ -38,12 +38,12 @@ public partial class ArchivePage
         }
         // Shell tunnel reaches this before local handlers. Keep modal priority above
         // this strictly source-scoped dismissal; never treat Find as a global Escape.
-        if (!_ended && Control<StackPanel>("ReaderFindBar").IsVisible && IsThreadFindSource(source))
+        if (!_ended && ReaderFindBar.IsVisible && IsThreadFindSource(source))
         {
             CloseThreadFind();
             return true;
         }
-        if (!_ended && Control<StackPanel>("ReaderTagBar").IsVisible && IsTagBarSource(source))
+        if (!_ended && ReaderTagBar.IsVisible && IsTagBarSource(source))
         {
             CloseTagBar(focusOpen: true);
             return true;
@@ -55,7 +55,7 @@ public partial class ArchivePage
     internal double ReadingFontSizePreference
     {
         get => _readingFontSizePreference;
-        set { _readingFontSizePreference = value; Control<ListBox>("ArchivePosts").FontSize = value; }
+        set { _readingFontSizePreference = value; ArchivePosts.FontSize = value; }
     }
     private bool _largeReader;
     private readonly ReaderPostTailSpace _readerPostTailSpace = new();
@@ -194,13 +194,13 @@ public partial class ArchivePage
     }
     private void InitializeReaderInteraction()
     {
-        foreach (Control media in new Control[] { Control<ListBox>("ArchiveMediaTiles"), Control<DataGrid>("ArchiveMediaGrid") })
+        foreach (Control media in new Control[] { ArchiveMediaTiles, ArchiveMediaGrid })
         {
             CommandBindings.BindExisting(media, "media.open");
             media.AddHandler(KeyDownEvent, OnMediaKeyDown, RoutingStrategies.Tunnel);
         }
-        Control<Grid>("ReaderContentSurface").LayoutUpdated += (_, _) => UpdateReaderNavigationLayout();
-        ListBox posts = Control<ListBox>("ArchivePosts");
+        ReaderContentSurface.LayoutUpdated += (_, _) => UpdateReaderNavigationLayout();
+        ListBox posts = ArchivePosts;
         posts.ContainerPrepared += (_, e) => UpdateReaderPostTailSpace();
         posts.ContainerIndexChanged += (_, e) => UpdateReaderPostTailSpace();
         posts.ContainerClearing += (_, e) => _readerPostTailSpace.Release(e.Container);
@@ -211,7 +211,7 @@ public partial class ArchivePage
             if (posts.SelectedItem is ArchivePostRow selected) _readerPostId = selected.Id;
             UpdateReaderNavigation();
         };
-        Grid pane = Control<Grid>("ArchiveReaderPane");
+        Grid pane = ArchiveReaderPane;
         pane.AttachedToVisualTree += (_, _) => ObserveReaderMediaKeys(pane);
         pane.DetachedFromVisualTree += (_, _) => { CloseThreadFind(); StopObservingReaderMediaKeys(); };
         pane.PropertyChanged += (_, e) =>
@@ -219,11 +219,11 @@ public partial class ArchivePage
             if (e.Property == Visual.IsVisibleProperty || e.Property == InputElement.IsEnabledProperty)
                 CancelReaderMediaActivation();
         };
-        Control<Border>("ArchiveExportDialog").PropertyChanged += (_, e) =>
+        ArchiveExportDialog.PropertyChanged += (_, e) =>
         {
             if (e.Property == Visual.IsVisibleProperty) CancelReaderMediaActivation();
         };
-        Control<TabControl>("ArchiveContentTabs").SelectionChanged += (_, _) => CancelReaderMediaActivation();
+        ArchiveContentTabs.SelectionChanged += (_, _) => CancelReaderMediaActivation();
         posts.AddHandler(KeyDownEvent, (_, e) => TryRouteArchiveMediaShortcut(posts, e), RoutingStrategies.Bubble);
         posts.AddHandler(PointerWheelChangedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
         posts.AddHandler(PointerPressedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -232,7 +232,7 @@ public partial class ArchivePage
             if (e.Key is Key.PageDown or Key.PageUp or Key.Home or Key.End or Key.Space) ++_readerInteractionRevision;
         }, RoutingStrategies.Tunnel, handledEventsToo: true);
     }
-    internal bool ReaderShowsPosts => _showReader && Control<TabControl>("ArchiveContentTabs").SelectedIndex == 0;
+    internal bool ReaderShowsPosts => _showReader && ArchiveContentTabs.SelectedIndex == 0;
     internal Action<Control?>? OpenReaderRequested { get; set; }
     internal Action? CloseReaderRequested { get; set; }
     private void OnCloseReaderClick(object? sender, RoutedEventArgs e) { if (IsFilenameSearchOpen) return; CloseThreadFind(); CloseReaderRequested?.Invoke(); }
@@ -241,10 +241,10 @@ public partial class ArchivePage
     {
         InvalidateFilenameSearch();
         ++_readerFocusRequest;
-        Grid pane = Control<Grid>("ArchiveReaderPane");
-        Control<Grid>("ArchiveSplit").Children.Remove(pane);
-        Border export = Control<Border>("ArchiveExportDialog");
-        Control<Grid>("ArchiveRoot").Children.Remove(export);
+        Grid pane = ArchiveReaderPane;
+        ArchiveSplit.Children.Remove(pane);
+        Border export = ArchiveExportDialog;
+        ArchiveRoot.Children.Remove(export);
         pane.Children.Add(export);
         _largeReader = true;
         // A disposable override preserves the original value source (including
@@ -255,9 +255,9 @@ public partial class ArchivePage
         pane.AddHandler(KeyDownEvent, OnReaderKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         pane.AddHandler(ContextRequestedEvent, OnArchiveMediaContextRequested, RoutingStrategies.Tunnel);
         pane.Margin = new Thickness(20);
-        Control<Button>("ArchiveCloseReader").IsVisible = true;
-        Control<Button>("ArchiveReadPosts").IsVisible = false;
-        Control<ListBox>("ArchivePosts").MaxWidth = 1120;
+        ArchiveCloseReader.IsVisible = true;
+        ArchiveReadPosts.IsVisible = false;
+        ArchivePosts.MaxWidth = 1120;
         UpdateReaderNavigation();
         UpdateLayoutMode();
         if (_thread != null) RenderThread();
@@ -274,19 +274,19 @@ public partial class ArchivePage
         _readerTabScope?.Dispose();
         _readerTabScope = null;
         pane.ClearValue(ReaderPostLayout.LargeReaderProperty);
-        Border export = Control<Border>("ArchiveExportDialog");
+        Border export = ArchiveExportDialog;
         ((Grid)pane).Children.Remove(export);
-        Control<Grid>("ArchiveRoot").Children.Add(export);
+        ArchiveRoot.Children.Add(export);
         ++_readerScopeRequest;
         _readerThreads = Array.Empty<ResourceId>();
         pane.RemoveHandler(KeyDownEvent, OnReaderKeyDown);
         pane.RemoveHandler(ContextRequestedEvent, OnArchiveMediaContextRequested);
         pane.Margin = default;
-        Control<Button>("ArchiveCloseReader").IsVisible = false;
-        Control<Button>("ArchiveReadPosts").IsVisible = true;
-        Control<ListBox>("ArchivePosts").MaxWidth = double.PositiveInfinity;
+        ArchiveCloseReader.IsVisible = false;
+        ArchiveReadPosts.IsVisible = true;
+        ArchivePosts.MaxWidth = double.PositiveInfinity;
         UpdateReaderNavigation();
-        Control<Grid>("ArchiveSplit").Children.Add(pane);
+        ArchiveSplit.Children.Add(pane);
         UpdateLayoutMode();
         if (_thread != null) RenderThread();
     }
@@ -306,7 +306,7 @@ public partial class ArchivePage
         _readerPostId = postId;
         ShowPost(postId);
         UpdateReaderNavigation();
-        ListBox posts = Control<ListBox>("ArchivePosts");
+        ListBox posts = ArchivePosts;
         bool IsCurrent() => !_ended && focusRequest == _readerFocusRequest && request == _contentRequest
             && _thread?.Summary.Id == threadId
             && (!interactionRevision.HasValue || interactionRevision == _readerInteractionRevision);
@@ -379,7 +379,7 @@ public partial class ArchivePage
         get
         {
             if (_thread == null) return -1;
-            string? selected = (Control<ListBox>("ArchivePosts").SelectedItem as ArchivePostRow)?.Id;
+            string? selected = (ArchivePosts.SelectedItem as ArchivePostRow)?.Id;
             int retained = _readerPostId == null ? -1 : _thread.FindPostIndex(_readerPostId);
             return _thread.FindPostIndex(selected
                 ?? (retained >= _postOffset && retained < _postOffset + PageSize ? _readerPostId : null)
@@ -394,21 +394,21 @@ public partial class ArchivePage
         if (!IsInitialized && !_largeReader) return;
         int post = ReaderPostIndex;
         int thread = ReaderThreadIndex;
-        Control<Button>("ReaderPreviousPost").IsEnabled = !_busy && !IsFilenameSearchOpen && post > 0;
-        Control<Button>("ReaderNextPost").IsEnabled = !_busy && !IsFilenameSearchOpen && post >= 0 && post + 1 < (_thread?.PostCount ?? 0);
-        Control<Button>("ReaderPreviousThread").IsEnabled = !_busy && !IsFilenameSearchOpen && thread > 0 && (!_readerGroupScope || ReaderGroupTargetIndex(-1) >= 0);
-        Control<Button>("ReaderNextThread").IsEnabled = !_busy && !IsFilenameSearchOpen && thread >= 0 && thread + 1 < _readerThreads.Count
+        ReaderPreviousPost.IsEnabled = !_busy && !IsFilenameSearchOpen && post > 0;
+        ReaderNextPost.IsEnabled = !_busy && !IsFilenameSearchOpen && post >= 0 && post + 1 < (_thread?.PostCount ?? 0);
+        ReaderPreviousThread.IsEnabled = !_busy && !IsFilenameSearchOpen && thread > 0 && (!_readerGroupScope || ReaderGroupTargetIndex(-1) >= 0);
+        ReaderNextThread.IsEnabled = !_busy && !IsFilenameSearchOpen && thread >= 0 && thread + 1 < _readerThreads.Count
             && (!_readerGroupScope || ReaderGroupTargetIndex(1) < _readerThreads.Count);
-        Control<WrapPanel>("ReaderNavigation").IsVisible = _largeReader;
+        ReaderNavigation.IsVisible = _largeReader;
         UpdateReaderNavigationLayout();
     }
 
     private void UpdateReaderNavigationLayout()
     {
-        TabControl tabs = Control<TabControl>("ArchiveContentTabs");
-        Control<WrapPanel>("ReaderStatusLine").IsVisible = !_largeReader || tabs.SelectedIndex == 0;
-        Grid surface = Control<Grid>("ReaderContentSurface");
-        ListBox posts = Control<ListBox>("ArchivePosts");
+        TabControl tabs = ArchiveContentTabs;
+        ReaderStatusLine.IsVisible = !_largeReader || tabs.SelectedIndex == 0;
+        Grid surface = ReaderContentSurface;
+        ListBox posts = ArchivePosts;
         ReaderNavigationLayout layout = ReaderNavigationLayout.Resolve(_largeReader, surface.Bounds.Width, posts.MaxWidth);
         posts.Margin = layout.PostMargin;
         _readerPostTailInset = layout.TailInset;
@@ -418,14 +418,14 @@ public partial class ArchivePage
         // or force another line of media filters in a narrow window.
         tabs.Margin = default;
         Thickness secondaryLane = _largeReader ? new Thickness(0, 0, ReaderNavigationLayout.SideReserve, 0) : default;
-        Control<Grid>("ArchiveMediaSurface").Margin = secondaryLane;
-        Control<ListBox>("ArchiveReferences").Margin = secondaryLane;
+        ArchiveMediaSurface.Margin = secondaryLane;
+        ArchiveReferences.Margin = secondaryLane;
         if (!_largeReader) return;
         Control footer = tabs.SelectedIndex switch
         {
-            1 => Control<StackPanel>("ArchiveMediaFooter"),
-            2 => Control<Grid>("ArchiveReferencesNavigation"),
-            _ => Control<Grid>("ArchivePostNavigation")
+            1 => ArchiveMediaFooter,
+            2 => ArchiveReferencesNavigation,
+            _ => ArchivePostNavigation
         };
         double bottom = 16;
         if (footer.IsEffectivelyVisible && footer.TranslatePoint(default, surface) is Point position)
@@ -436,12 +436,12 @@ public partial class ArchivePage
         if (tabs.SelectedIndex == 0 && posts.IsEffectivelyVisible && posts.Bounds.Width > 0
             && posts.TranslatePoint(default, surface) is Point postPosition)
             right = layout.RightInset(surface.Bounds.Width, postPosition.X + posts.Bounds.Width);
-        Control<WrapPanel>("ReaderNavigation").Margin = new Thickness(0, 0, right, bottom);
+        ReaderNavigation.Margin = new Thickness(0, 0, right, bottom);
     }
 
     private void UpdateReaderPostTailSpace()
     {
-        ListBox posts = Control<ListBox>("ArchivePosts");
+        ListBox posts = ArchivePosts;
         Control? tail = posts.ItemCount > 0 ? posts.ContainerFromIndex(posts.ItemCount - 1) : null;
         _readerPostTailSpace.Update(tail, _readerPostTailInset);
     }
@@ -566,8 +566,8 @@ public partial class ArchivePage
 
     private bool ReaderMediaContextIsCurrent(Control source, ArchivePostRow post)
     {
-        ListBox posts = Control<ListBox>("ArchivePosts");
-        Control pane = Control<Grid>("ArchiveReaderPane");
+        ListBox posts = ArchivePosts;
+        Control pane = ArchiveReaderPane;
         return !_ended && !_lifetime.IsCancellationRequested && !_busy && _available && _largeReader
             && ReaderShowsPosts && !_obscuredByGallery && !ArchiveAttachmentView.GetLoadingSuspended(this)
             && !IsReaderDialogOpen && !ShortcutService.IsCapturing && OpenGallery != null
@@ -587,7 +587,7 @@ public partial class ArchivePage
     private bool TryActivateReaderMedia(KeyEventArgs e)
     {
         if (e.Handled || e.Source is not Control source || !IsReaderMediaGesture(e, ShortcutService.Current)
-            || Control<ListBox>("ArchivePosts").SelectedItem is not ArchivePostRow post
+            || ArchivePosts.SelectedItem is not ArchivePostRow post
             || !ReaderMediaContextIsCurrent(source, post)) return false;
         if (_readerMediaActivationCancellation != null || _readerMediaHeldKeys.Contains(e.Key))
         {
@@ -674,7 +674,7 @@ public partial class ArchivePage
         if (source is not Visual visual) return false;
         foreach (Visual node in visual.GetSelfAndVisualAncestors())
         {
-            if (ReferenceEquals(node, Control<ListBox>("ArchivePosts")))
+            if (ReferenceEquals(node, ArchivePosts))
                 return key is Key.Home or Key.End or Key.PageUp or Key.PageDown;
             if (node is TabControl && ReferenceEquals(node, visual)) return true;
             if (node is TabItem or TabStrip or DataGrid or DataGridColumnHeader or Slider or ScrollBar
@@ -704,7 +704,7 @@ public partial class ArchivePage
             _readerPostId = null;
             string? first = _thread?.GetPosts(0, 1).FirstOrDefault()?.PostId;
             if (first != null) await FocusPostAsync(first);
-            else Control<Button>("ArchiveCloseReader").Focus();
+            else ArchiveCloseReader.Focus();
         }
         else if (_thread != null)
         {
@@ -719,11 +719,11 @@ public partial class ArchivePage
 
     private Func<Task>? CaptureReaderCountLayoutCorrection()
     {
-        Grid pane = Control<Grid>("ArchiveReaderPane");
+        Grid pane = ArchiveReaderPane;
         bool Presented() => pane.IsEffectivelyVisible && pane.IsEffectivelyEnabled
             && TopLevel.GetTopLevel(pane) is Window { IsVisible: true };
         if (!MayRefreshReaderNow || !Presented() || _thread == null) return null;
-        ListBox posts = Control<ListBox>("ArchivePosts");
+        ListBox posts = ArchivePosts;
         if (posts.SelectedItem is not ArchivePostRow row || posts.ContainerFromItem(row) is not Control container)
             return null;
         ScrollViewer? scroll = posts.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
@@ -763,7 +763,7 @@ public partial class ArchivePage
     private ReaderAnchor? CaptureReaderAnchor()
     {
         if (_thread == null) return null;
-        ListBox list = Control<ListBox>("ArchivePosts");
+        ListBox list = ArchivePosts;
         string? selected = (list.SelectedItem as ArchivePostRow)?.Id;
         var visible = list.GetVisualDescendants().OfType<ListBoxItem>()
             .Select(item => (Item: item, Top: item.TranslatePoint(default, list)?.Y ?? double.NaN))
@@ -789,7 +789,7 @@ public partial class ArchivePage
         int request = _contentRequest;
         int interactionRevision = _readerInteractionRevision;
         int focusRequest = _readerFocusRequest + 1;
-        ListBox list = Control<ListBox>("ArchivePosts");
+        ListBox list = ArchivePosts;
         // RenderThread replaced the virtualizing panel. Realize its new index
         // space from the origin before ScrollIntoView uses the retained target;
         // the predecessor's offset can otherwise leave negative item positions

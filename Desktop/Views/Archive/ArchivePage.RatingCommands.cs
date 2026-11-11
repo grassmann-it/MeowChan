@@ -17,7 +17,7 @@ public partial class ArchivePage
     private CommandRouter? _ratingCommands;
     private GalleryEntry? FocusedRatingEntry()
     {
-        Control pane = Control<Grid>("ArchiveReaderPane");
+        Control pane = ArchiveReaderPane;
         if (_thread == null || _selectedThread != _thread.Summary.Id || TopLevel.GetTopLevel(pane)?.FocusManager?.GetFocusedElement() is not Control focus) return null;
         Control[] parents = focus.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (!parents.Contains(pane)) return null;
@@ -36,7 +36,7 @@ public partial class ArchivePage
     private void InitializeRatingCommands()
     {
         // The same pane owns focus and input before and after MainWindow detaches it.
-        Control pane = Control<Grid>("ArchiveReaderPane");
+        Control pane = ArchiveReaderPane;
         pane.AttachedToVisualTree += (_, _) =>
         {
             _ratingCommands?.Dispose(); _ratingCommands = new(pane);

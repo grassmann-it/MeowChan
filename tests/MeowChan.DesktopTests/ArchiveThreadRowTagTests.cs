@@ -64,7 +64,7 @@ public sealed class ArchiveThreadRowTagTests : IDisposable
         Assert.Contains("Text=\"{Binding TagsText}\"", xaml);
         string reader = Source("Desktop/Views/Archive/ArchivePage.Reader.cs");
         // Escape is scoped to a source inside the bar, exactly like reader find.
-        Assert.Contains("Control<StackPanel>(\"ReaderTagBar\").IsVisible && IsTagBarSource(source)", reader);
+        Assert.Contains("ReaderTagBar.IsVisible && IsTagBarSource(source)", reader);
         string tags = Source("Desktop/Views/Archive/ArchivePage.Tags.cs");
         Assert.Contains("ResourceId thread = _thread!.Summary.Id; // Frozen target", tags);
         Assert.DoesNotContain("ShowDialog", tags);

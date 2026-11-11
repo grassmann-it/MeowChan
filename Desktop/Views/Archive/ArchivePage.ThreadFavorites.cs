@@ -26,13 +26,13 @@ public partial class ArchivePage
 
     private void InitializeThreadFavoriteCommands()
     {
-        foreach (Control surface in new Control[] { Control<ListBox>("ArchiveThreads"),
-            Control<DataGrid>("ArchiveThreadTable"), Control<ListBox>("ArchivePosts") })
+        foreach (Control surface in new Control[] { ArchiveThreads,
+            ArchiveThreadTable, ArchivePosts })
             surface.AddHandler(KeyDownEvent, OnThreadFavoriteKeyDown, RoutingStrategies.Tunnel);
         // This pane keeps ownership when it moves between the archive and large reader.
         // Route its command from toolbar focus as well as post-list focus, preserving
         // the shared router's native editor, selector and Enter/Space exclusions.
-        Control pane = Control<Grid>("ArchiveReaderPane");
+        Control pane = ArchiveReaderPane;
         pane.AttachedToVisualTree += (_, _) =>
         {
             _threadFavoriteCommands?.Dispose();
@@ -51,7 +51,7 @@ public partial class ArchivePage
     {
         if (e.Handled || _ended || sender is not Control surface || IsReaderDialogOpen
             || !MainWindow.IsListCommandSource(e.Source, surface) || !MatchesArchiveCommand(e, "thread.favorite-toggle")) return;
-        bool posts = ReferenceEquals(surface, Control<ListBox>("ArchivePosts"));
+        bool posts = ReferenceEquals(surface, ArchivePosts);
         ResourceId? id = posts ? ReaderShowsPosts ? _thread?.Summary.Id : null
             : _largeReader ? null : ArchiveLead?.Summary.Id;
         if (id == null || !CanToggleThreadFavorite(id)) return;

@@ -33,14 +33,14 @@ public partial class ArchivePage
     private bool IsPendingMediaSelectionEcho(object? sender)
     {
         if (_pendingMediaSelectionRequest != _mediaPositionRequest) return false;
-        object? selected = sender is DataGrid ? Control<DataGrid>("ArchiveMediaGrid").SelectedItem : Control<ListBox>("ArchiveMediaTiles").SelectedItem;
+        object? selected = sender is DataGrid ? ArchiveMediaGrid.SelectedItem : ArchiveMediaTiles.SelectedItem;
         MediaIdentity? key = selected is ArchiveAssetRow row ? MediaKey(_shownMediaThread, row) : null;
         return key == _pendingMediaSelection;
     }
 
     private void InitializeMediaPositionInput()
     {
-        foreach (Control control in new Control[] { Control<ListBox>("ArchiveMediaTiles"), Control<DataGrid>("ArchiveMediaGrid") })
+        foreach (Control control in new Control[] { ArchiveMediaTiles, ArchiveMediaGrid })
         {
             control.AddHandler(InputElement.PointerWheelChangedEvent, OnMediaPositionInput, RoutingStrategies.Tunnel, handledEventsToo: true);
             control.AddHandler(InputElement.PointerPressedEvent, OnMediaPositionInput, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -67,7 +67,7 @@ public partial class ArchivePage
     private static MediaIdentity MediaKey(ResourceId? thread, ArchiveAssetRow row)
         => new(thread, CanonicalMediaDirectory(row.Manifest.Directory), row.Asset.AssetId);
 
-    private MediaTilePanel? TilePanel() => Control<ListBox>("ArchiveMediaTiles")
+    private MediaTilePanel? TilePanel() => ArchiveMediaTiles
         .GetVisualDescendants().OfType<MediaTilePanel>().FirstOrDefault();
 
     private static double MediaHeaderHeight(DataGrid grid)
@@ -93,7 +93,7 @@ public partial class ArchivePage
         }
         else if (!_mediaTiles)
         {
-            DataGrid grid = Control<DataGrid>("ArchiveMediaGrid");
+            DataGrid grid = ArchiveMediaGrid;
             var first = grid.GetVisualDescendants().OfType<DataGridRow>()
                 .Where(row => row.IsVisible && row.DataContext is ArchiveAssetRow)
                 .Select(row => (Row: row, Point: row.TranslatePoint(default, grid)))
@@ -129,8 +129,8 @@ public partial class ArchivePage
         try
         {
             object? selection = selectedIndex >= 0 ? _shownMedia[selectedIndex] : null;
-            Control<DataGrid>("ArchiveMediaGrid").SelectedItem = selection;
-            Control<ListBox>("ArchiveMediaTiles").SelectedItem = selection;
+            ArchiveMediaGrid.SelectedItem = selection;
+            ArchiveMediaTiles.SelectedItem = selection;
         }
         finally { _rebindingMedia = false; }
         Dispatcher.UIThread.Post(() =>
@@ -142,7 +142,7 @@ public partial class ArchivePage
                 if (_mediaTiles) TilePanel()?.RestoreAnchor(target, -Math.Min(retainedOffset, MediaTilePanel.CellHeight - 1));
                 else
                 {
-                    DataGrid grid = Control<DataGrid>("ArchiveMediaGrid");
+                    DataGrid grid = ArchiveMediaGrid;
                     grid.ScrollIntoView(_shownMedia[target], null);
                     grid.UpdateLayout();
                     Dispatcher.UIThread.Post(() =>

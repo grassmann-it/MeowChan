@@ -17,13 +17,13 @@ public partial class ArchivePage
     {
         if (_selectedThread != key.Thread || !IsEffectivelyVisible) return false;
         if (!VisibleAssets().Any(row => FavoriteAssetKey.From(key.Thread, row.Asset) == key))
-        { Control<ComboBox>("ArchiveRatingFilter").Focus(); return true; }
+        { ArchiveRatingFilter.Focus(); return true; }
         if (origin?.IsEffectivelyVisible == true)
         {
             ArchiveAssetRow? row = origin.GetSelfAndVisualAncestors().OfType<Control>().Select(control => control.DataContext).OfType<ArchiveAssetRow>().FirstOrDefault();
             if (row == null || FavoriteAssetKey.From(key.Thread, row.Asset) == key) { origin.Focus(); return true; }
         }
-        (_mediaTiles ? (Control)Control<ListBox>("ArchiveMediaTiles") : Control<DataGrid>("ArchiveMediaGrid")).Focus();
+        (_mediaTiles ? (Control)ArchiveMediaTiles : ArchiveMediaGrid).Focus();
         return true;
     }
     private int _mediaRatingFilter;
@@ -39,22 +39,22 @@ public partial class ArchivePage
             row.RatingUnavailable = _mediaRatingError != null;
         }
         if (_mediaRatingError != null) foreach (ArchiveAssetRow row in _assets) row.RatingUnavailable = true;
-        ComboBox filter = Control<ComboBox>("ArchiveRatingFilter");
+        ComboBox filter = ArchiveRatingFilter;
         filter.IsEnabled = _mediaRatingError == null && GetMediaRating != null;
-        Control<TextBlock>("ArchiveRatingStatus").Text = _mediaRatingError;
-        Control<TextBlock>("ArchiveRatingStatus").IsVisible = _mediaRatingError != null;
+        ArchiveRatingStatus.Text = _mediaRatingError;
+        ArchiveRatingStatus.IsVisible = _mediaRatingError != null;
     }
     internal void RefreshMediaRatings()
     {
         if (_ended) return;
-        ArchiveAssetRow? selected = (Control<DataGrid>("ArchiveMediaGrid").SelectedItem ?? Control<ListBox>("ArchiveMediaTiles").SelectedItem) as ArchiveAssetRow;
+        ArchiveAssetRow? selected = (ArchiveMediaGrid.SelectedItem ?? ArchiveMediaTiles.SelectedItem) as ArchiveAssetRow;
         RenderMedia();
         if (selected != null && !VisibleAssets().Contains(selected))
         {
-            Control<DataGrid>("ArchiveMediaGrid").SelectedItem = null;
-            Control<ListBox>("ArchiveMediaTiles").SelectedItem = null;
+            ArchiveMediaGrid.SelectedItem = null;
+            ArchiveMediaTiles.SelectedItem = null;
             Message(MediaRatingText.LocalizedFilterNoLongerMatches);
-            Control<ComboBox>("ArchiveRatingFilter").Focus();
+            ArchiveRatingFilter.Focus();
         }
         foreach (ArchiveMediaTileView tile in this.GetVisualDescendants().OfType<ArchiveMediaTileView>()) tile.RefreshRating();
     }
@@ -80,12 +80,12 @@ public partial class ArchivePage
     }
     private void LocalizeMediaRatings()
     {
-        MeowChan.Desktop.Commands.CommandBindings.Apply(Control<Button>("ArchiveEditRatingButton"), "media.rating.edit");
-        ComboBox filter = Control<ComboBox>("ArchiveRatingFilter");
+        MeowChan.Desktop.Commands.CommandBindings.Apply(ArchiveEditRatingButton, "media.rating.edit");
+        ComboBox filter = ArchiveRatingFilter;
         filter.ItemsSource = new[] { MediaRatingText.LocalizedFilterAll, MediaRatingText.LocalizedValue(null) }
             .Concat(Enumerable.Range(1, 5).Select(value => MediaRatingText.LocalizedFilterAtLeast(value))).ToArray();
         filter.SelectedIndex = _mediaRatingFilter;
         Avalonia.Automation.AutomationProperties.SetName(filter, MediaRatingText.LocalizedFilterLabel);
-        Control<DataGrid>("ArchiveMediaGrid").Columns[3].Header = MediaRatingText.LocalizedLabel;
+        ArchiveMediaGrid.Columns[3].Header = MediaRatingText.LocalizedLabel;
     }
 }

@@ -29,8 +29,8 @@ public partial class ArchivePage
     {
         _readerGroupCancellation?.Cancel();
         _readerGroupScope = true; _readerGroupSkipped.Clear(); _readerGroupFailed = null; _readerGroupFailedDirection = 0;
-        Control<TextBlock>("ReaderGroupAvailabilityMessage").IsVisible = false;
-        Control<Button>("ReaderSkipUnavailableGroupMember").IsVisible = false;
+        ReaderGroupAvailabilityMessage.IsVisible = false;
+        ReaderSkipUnavailableGroupMember.IsVisible = false;
         SetReaderScope(ids);
     }
     internal void EndReaderGroupScope()
@@ -38,8 +38,8 @@ public partial class ArchivePage
         _readerGroupCancellation?.Cancel();
         if (_readerGroupLoading) { _busy = false; _readerGroupLoading = false; }
         _readerGroupScope = false; _readerGroupSkipped.Clear(); _readerGroupFailed = null; _readerGroupFailedDirection = 0;
-        Control<TextBlock>("ReaderGroupAvailabilityMessage").IsVisible = false;
-        Control<Button>("ReaderSkipUnavailableGroupMember").IsVisible = false;
+        ReaderGroupAvailabilityMessage.IsVisible = false;
+        ReaderSkipUnavailableGroupMember.IsVisible = false;
     }
     private void InvalidatePendingReaderGroupRead()
     {
@@ -77,8 +77,8 @@ public partial class ArchivePage
             await LoadThreadAsync(target, preparedThread: view);
             if (_ended || request != _readerScopeRequest) return false;
             _readerGroupFailed = null;
-            Control<TextBlock>("ReaderGroupAvailabilityMessage").IsVisible = false;
-            Control<Button>("ReaderSkipUnavailableGroupMember").IsVisible = false;
+            ReaderGroupAvailabilityMessage.IsVisible = false;
+            ReaderSkipUnavailableGroupMember.IsVisible = false;
             return _thread?.Summary.Id == target;
         }
         catch (OperationCanceledException) when (loading.IsCancellationRequested) { return false; }
@@ -97,10 +97,10 @@ public partial class ArchivePage
     {
         _readerGroupFailed = target;
         string id = $"{target.Source}/{target.Board}/{target.Thread}";
-        TextBlock message = Control<TextBlock>("ReaderGroupAvailabilityMessage");
+        TextBlock message = ReaderGroupAvailabilityMessage;
         message.Text = Texts.T("readerGroups.memberUnavailableLocally") + id + "\n" + error;
         message.IsVisible = true;
-        Button skip = Control<Button>("ReaderSkipUnavailableGroupMember");
+        Button skip = ReaderSkipUnavailableGroupMember;
         CommandBindings.Apply(skip, "reader.skip-unavailable-group-member");
         skip.IsVisible = _readerGroupFailedDirection != 0;
         skip.IsEnabled = true;
@@ -111,7 +111,7 @@ public partial class ArchivePage
     {
         if (!CanSkipUnavailableGroupMember) return;
         _readerGroupSkipped.Add(_readerGroupFailed!); _readerGroupFailed = null;
-        Control<Button>("ReaderSkipUnavailableGroupMember").IsVisible = false;
+        ReaderSkipUnavailableGroupMember.IsVisible = false;
         await NavigateReaderAsync(0, _readerGroupFailedDirection);
         UpdateReaderNavigation();
     }

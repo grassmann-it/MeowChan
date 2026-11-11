@@ -43,7 +43,7 @@ public partial class ArchivePage
             row.ToggleFavoriteAsync = () => ToggleArchiveMediaFavoriteAsync(entry);
             row.FavoriteError = () => _favoriteErrors.GetValueOrDefault(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset));
         }
-        if (Control<ListBox>("ArchivePosts").ItemsSource is System.Collections.IEnumerable posts)
+        if (ArchivePosts.ItemsSource is System.Collections.IEnumerable posts)
             foreach (ArchivePostRow post in posts.OfType<ArchivePostRow>())
                 foreach (ArchiveAttachmentRow row in post.Attachments)
                 {
@@ -76,7 +76,7 @@ public partial class ArchivePage
 
     internal void RefreshArchiveFavoriteControls()
     {
-        Control reader = Control<Grid>("ArchiveReaderPane");
+        Control reader = ArchiveReaderPane;
         foreach (ArchiveAttachmentView view in reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()) view.RefreshFavorite();
         foreach (ArchiveMediaTileView view in reader.GetVisualDescendants().OfType<ArchiveMediaTileView>()) view.RefreshFavorite();
     }
@@ -213,7 +213,7 @@ public partial class ArchivePage
         {
             if (target?.Post == null) return;
             if (_thread?.Summary.Id != threadId) await LoadThreadAsync(threadId);
-            Control<TabControl>("ArchiveContentTabs").SelectedIndex = 0;
+            ArchiveContentTabs.SelectedIndex = 0;
             await FocusPostAsync(target.Post.PostId);
         }, target?.Post != null, Texts.T("gallery.noPost"));
         Add("media.details", () =>

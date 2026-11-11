@@ -192,7 +192,7 @@ public sealed class ReaderThreadFindUiTests
         Assert.True(body.IndexOf("_urlTextExportBusy", StringComparison.Ordinal) < body.IndexOf("IsThreadFindSource(source)", StringComparison.Ordinal));
         Assert.True(body.IndexOf("_cleanupDialog.RequestClose()", StringComparison.Ordinal) < body.IndexOf("IsThreadFindSource(source)", StringComparison.Ordinal));
         Assert.True(body.IndexOf("OnExportClose", StringComparison.Ordinal) < body.IndexOf("IsThreadFindSource(source)", StringComparison.Ordinal));
-        Assert.Contains("Control<StackPanel>(\"ReaderFindBar\").IsVisible && IsThreadFindSource(source)", body);
+        Assert.Contains("ReaderFindBar.IsVisible && IsThreadFindSource(source)", body);
         Assert.DoesNotContain(".Focus(", body);
     }
 
