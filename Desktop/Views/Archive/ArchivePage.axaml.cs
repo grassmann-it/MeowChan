@@ -888,7 +888,6 @@ public partial class ArchivePage : UserControl
         ArchiveRoot.Margin = new Thickness(compact ? 8 : 12);
         ArchiveRoot.RowSpacing = compact ? 6 : 8;
         ArchiveSubtitle.IsVisible = Bounds.Height >= 650;
-        ArchivePartialHint.IsVisible = !compact;
         ToolTip.SetTip(ArchiveReaderStatus, Texts.T("archive.partial"));
         Grid split = ArchiveSplit;
         // Keep the wide split stable before the first selection. Reflowing the list

@@ -13,14 +13,13 @@
                 <Button x:Name="RefreshArchiveButton" Tag="archive.refresh" Classes="localized" Click="OnRefreshClick" />
             </WrapPanel>
         </Grid>
-        <Grid x:Name="ArchiveSplit" Grid.Row="1" ColumnDefinitions="270,6,*" ColumnSpacing="6" Grid.IsSharedSizeScope="True">
+        <Grid x:Name="ArchiveSplit" Grid.Row="1" ColumnDefinitions="270,6,*" ColumnSpacing="6">
             <Grid x:Name="ArchiveListPane" RowSpacing="6">
                 <Grid.RowDefinitions>
                     <!-- Collapsed search tools use only their content height;
                          expanded tools scroll at the cap instead of pushing results down. -->
                     <RowDefinition Height="Auto" MaxHeight="260" />
                     <RowDefinition Height="2*" />
-                    <RowDefinition Height="Auto" SharedSizeGroup="ArchiveFooter" />
                 </Grid.RowDefinitions>
                 <ScrollViewer x:Name="ArchiveSearchPanelScroll" MaxHeight="260" HorizontalScrollBarVisibility="Disabled"><Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="6">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
@@ -57,7 +56,7 @@
                 </Grid></ScrollViewer>
                 <!-- P2: local filter surface anchored over the result list. Same controls and
                      names as before; Search applies via the existing path, Escape closes. -->
-                <Border x:Name="ArchiveFilterSurface" Grid.Row="1" Grid.RowSpan="2" ZIndex="10" Classes="raised" Padding="10"
+                <Border x:Name="ArchiveFilterSurface" Grid.Row="1" ZIndex="10" Classes="raised" Padding="10"
                         VerticalAlignment="Top" IsVisible="{Binding #ArchiveFilters.IsExpanded}"
                         KeyboardNavigation.TabNavigation="Cycle" KeyDown="OnFilterSurfaceKeyDown">
                     <!-- The toggle directly above names the surface; no repeated title. -->
@@ -214,7 +213,6 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" SharedSizeGroup="ArchiveFooter" />
                 </Grid.RowDefinitions>
                 <StackPanel Spacing="3">
                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
@@ -439,7 +437,6 @@
                         </WrapPanel>
                     </Grid>
                 </Border>
-                <TextBlock x:Name="ArchivePartialHint" Grid.Row="2" Tag="archive.partial" Classes="muted localized" FontSize="12" TextWrapping="Wrap" />
             </Grid>
         </Grid>
         <StackPanel x:Name="ArchiveStatusStrip" Grid.Row="2" Spacing="6">

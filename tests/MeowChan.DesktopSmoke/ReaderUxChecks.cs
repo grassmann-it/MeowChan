@@ -614,7 +614,6 @@ internal static class ReaderUxChecks
                     throw;
                 }
                 TextBlock label = page.FindControl<TextBlock>("ArchiveThreadPage")!;
-                TextBlock hint = page.FindControl<TextBlock>("ArchivePartialHint")!;
                 Grid listPane = page.FindControl<Grid>("ArchiveListPane")!;
                 Grid readerPane = page.FindControl<Grid>("ArchiveReaderPane")!;
                 Control activeList = layout == "Table" ? page.FindControl<DataGrid>("ArchiveThreadTable")!
@@ -626,9 +625,8 @@ internal static class ReaderUxChecks
                     layout, language = Texts.Language, theme = window.ActualThemeVariant.ToString(), scale = window.RenderScaling,
                     client = window.ClientSize.ToString(), results = left.ToString(), reader = right.ToString(),
                     footer = footerBox.ToString(), pagination = pageBox.ToString(), label = labelBox.ToString(),
-                    range = label.Text, list = listBox.ToString(), hint = hint.Bounds.ToString(), hint.IsVisible,
-                    listFooterHeight = listPane.RowDefinitions[2].ActualHeight,
-                    readerFooterHeight = readerPane.RowDefinitions[2].ActualHeight,
+                    range = label.Text, list = listBox.ToString(),
+                    listRows = listPane.RowDefinitions.Count, readerRows = readerPane.RowDefinitions.Count,
                     statusStripHeight = page.FindControl<Grid>("ArchiveRoot")!.RowDefinitions[2].ActualHeight,
                     blankBelowFooter = Bounds(page).Bottom - footerBox.Bottom,
                     blankBelowResults = Bounds(page).Bottom - left.Bottom,
@@ -639,13 +637,13 @@ internal static class ReaderUxChecks
                     && Math.Abs(left.Bottom - right.Bottom) <= 1,
                     "Embedded archive result and reader borders do not share their lower edge.");
                 // ARCH-DENSE-01 slice 2: the pager is a docked bar inside the result border,
-                // below the list and never over it; the outside footer row keeps only the reader hint.
+                // below the list and never over it; neither pane keeps a footer row below its border.
                 Border bar = page.FindControl<Border>("ArchiveResultsBar")!;
                 Rect barBox = Bounds(bar);
                 Require(ReferenceEquals(footer.Parent, bar) && Grid.GetRow(bar) == 1
                     && bar.GetVisualAncestors().Contains(results)
-                    && Math.Abs(listPane.RowDefinitions[2].ActualHeight - readerPane.RowDefinitions[2].ActualHeight) <= 1,
-                    "Archive pagination is not docked in its result border, or the footer rows diverge.");
+                    && listPane.RowDefinitions.Count == 2 && readerPane.RowDefinitions.Count == 2,
+                    "Archive pagination is not docked in its result border, or a pane keeps a footer row.");
                 Require(footer.IsEffectivelyVisible && pagination.IsEffectivelyVisible && label.IsEffectivelyVisible
                     && !string.IsNullOrWhiteSpace(label.Text) && label.DesiredSize.Width <= label.Bounds.Width + 1
                     && Contains(footerBox, pageBox) && Contains(footerBox, labelBox)
