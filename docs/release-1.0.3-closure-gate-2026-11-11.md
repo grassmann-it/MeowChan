@@ -249,3 +249,8 @@ mit allen drei Identitäten). Archivfilter-Smoke damit 13/13 (`/home/tomka/mc-ev
   Desktop 3129 + Vertragsfix (ReaderGroups 41/0); Smokes reader-ux (Xvfb, `MEOWCHAN_GALLERY_CLOSE_SKIP_FULLSCREEN=1`),
   Default, UI_REFINEMENT, MEDIA_PAGE, Archivfilter 13/13, READER_FIND, HTML_EXPORT_ACTION_LAYOUT, READER_GROUPS_BINDING,
   FILENAME_SEARCH_LARGE_READER 2/2 PASS. Nicht hier geprüft: natives Galerie-Vollbild (nur KWin-Runner).
+- Nachprüfung auf `9c18f28` (`/home/tomka/mc-evidence/final-9c18f28-1794417371`): Desktop-Volllauf 3127/3/11 bei Load ~70
+  (18 min statt 4); die drei Fehlschläge (Projektions-Burst, Plugin-Shutdown, Makaba-Offline-Restore, alle Zeitlimits)
+  gezielt wiederholt 8/8 grün (`test-desktop-3rerun.log`). Natives Galerie-Vollbild im privaten virtuellen KWin
+  (`scripts/run-gallery-close-kwin.py`) normal und maximiert PASS: echter `FullScreen`-Zustand, Rückkehr in den
+  Ausgangszustand, Schließen-Klick zugestellt.
