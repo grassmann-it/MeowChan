@@ -30,8 +30,8 @@ public partial class ArchivePage
     internal Action<ResourceId>? SelectionDetailsRequested { get; set; }
     internal Action<ResourceId, string>? SelectionLeadAction { get; set; }
 
-    private ArchiveThreadRow[] ArchiveVisibleRows => Control<DataGrid>("ArchiveThreadTable").ItemsSource?.Cast<ArchiveThreadRow>().ToArray() ?? Array.Empty<ArchiveThreadRow>();
-    private Control ArchiveSelectionList => _threadTable ? Control<DataGrid>("ArchiveThreadTable") : Control<ListBox>("ArchiveThreads");
+    private ArchiveThreadRow[] ArchiveVisibleRows => ArchiveThreadTable.ItemsSource?.Cast<ArchiveThreadRow>().ToArray() ?? Array.Empty<ArchiveThreadRow>();
+    private Control ArchiveSelectionList => _threadTable ? ArchiveThreadTable : ArchiveThreads;
     private ArchiveThreadRow? ArchiveLead
     {
         get
@@ -55,7 +55,7 @@ public partial class ArchivePage
 
     private void InitializeArchiveSelection()
     {
-        foreach (Control list in new Control[] { Control<ListBox>("ArchiveThreads"), Control<DataGrid>("ArchiveThreadTable") })
+        foreach (Control list in new Control[] { ArchiveThreads, ArchiveThreadTable })
         {
             list.AddHandler(KeyDownEvent, OnArchiveListKeyDown, RoutingStrategies.Tunnel);
             list.AddHandler(PointerPressedEvent, OnArchiveListPointerPressed, RoutingStrategies.Tunnel);
@@ -80,8 +80,8 @@ public partial class ArchivePage
         _updatingList = true;
         try
         {
-            ListBox cards = Control<ListBox>("ArchiveThreads");
-            DataGrid table = Control<DataGrid>("ArchiveThreadTable");
+            ListBox cards = ArchiveThreads;
+            DataGrid table = ArchiveThreadTable;
             if (!ReferenceEquals(source, cards)) cards.SelectedItems!.Clear();
             if (!ReferenceEquals(source, table))
             {
@@ -105,10 +105,10 @@ public partial class ArchivePage
     {
         if (_updatingList || IsFilenameSearchOpen || _ended || !CanRead) return;
         IEnumerable<ArchiveThreadRow> selected = sender is DataGrid table ? table.SelectedItems.Cast<ArchiveThreadRow>()
-            : (sender as ListBox ?? Control<ListBox>("ArchiveThreads")).SelectedItems!.Cast<ArchiveThreadRow>();
+            : (sender as ListBox ?? ArchiveThreads).SelectedItems!.Cast<ArchiveThreadRow>();
         _archiveSelectionIds.Clear();
         foreach (ArchiveThreadRow row in selected) _archiveSelectionIds.Add(row.Summary.Id);
-        ArchiveThreadRow? current = sender is DataGrid grid ? grid.CollectionView?.CurrentItem as ArchiveThreadRow : (sender as ListBox ?? Control<ListBox>("ArchiveThreads")).SelectedItem as ArchiveThreadRow;
+        ArchiveThreadRow? current = sender is DataGrid grid ? grid.CollectionView?.CurrentItem as ArchiveThreadRow : (sender as ListBox ?? ArchiveThreads).SelectedItem as ArchiveThreadRow;
         _archiveLeadId = ResolveArchiveLeadId(ArchiveVisibleRows.Select(row => row.Summary.Id),
             _archiveSelectionIds, _archiveLeadId, current?.Summary.Id);
         _history.Clear();
@@ -234,12 +234,12 @@ public partial class ArchivePage
     {
         if (IsFilenameSearchOpen) return;
         if (sender is not Control list || e.Handled || !MainWindow.IsListCommandSource(e.Source, list)
-            || _ended || !_available || _largeReader || Control<Border>("ArchiveExportDialog").IsVisible) return;
+            || _ended || !_available || _largeReader || ArchiveExportDialog.IsVisible) return;
         if (MatchesArchiveCommand(e, "menu.context-open"))
         { e.Handled = true; OpenArchiveKeyboardMenu(list); return; }
         if (e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift) { e.Handled = true; return; }
         if (MatchesArchiveCommand(e, "input.focus-search"))
-        { e.Handled = true; Control<TextBox>("ArchiveSearchText").Focus(); return; }
+        { e.Handled = true; ArchiveSearchText.Focus(); return; }
         // The list owns these navigation gestures. The generic command guard
         // deliberately leaves navigation keys to native lists, so resolve here
         // after the list-source/editor shielding above.

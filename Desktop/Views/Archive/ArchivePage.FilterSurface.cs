@@ -16,16 +16,16 @@ public partial class ArchivePage
 {
     private void InitializeFilterSurface()
     {
-        Expander filters = Control<Expander>("ArchiveFilters");
+        Expander filters = ArchiveFilters;
         filters.PropertyChanged += (_, e) =>
         {
             if (e.Property == Expander.IsExpandedProperty) OnFilterSurfaceToggled(e.GetNewValue<bool>());
         };
     }
 
-    internal bool IsFilterSurfaceOpen => Control<Expander>("ArchiveFilters").IsExpanded;
+    internal bool IsFilterSurfaceOpen => ArchiveFilters.IsExpanded;
 
-    private ToggleButton? FilterSurfaceToggle => Control<Expander>("ArchiveFilters")
+    private ToggleButton? FilterSurfaceToggle => ArchiveFilters
         .GetVisualDescendants().OfType<ToggleButton>().FirstOrDefault();
 
     private bool FocusWithin(Control owner) => TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is Visual focused
@@ -34,7 +34,7 @@ public partial class ArchivePage
     private void OnFilterSurfaceToggled(bool open)
     {
         if (_ended) return;
-        Border surface = Control<Border>("ArchiveFilterSurface");
+        Border surface = ArchiveFilterSurface;
         if (!open)
         {
             // Hiding the surface must not strand keyboard focus on an invisible field.
@@ -43,7 +43,7 @@ public partial class ArchivePage
         }
         // Only a deliberate open from the toggle moves focus in; programmatic opens
         // (invalid draft reveal, commands) keep their own focus target.
-        if (!FocusWithin(Control<Expander>("ArchiveFilters"))) return;
+        if (!FocusWithin(ArchiveFilters)) return;
         Dispatcher.UIThread.Post(() =>
         {
             if (_ended || !IsFilterSurfaceOpen || !surface.IsEffectivelyVisible) return;
@@ -55,8 +55,8 @@ public partial class ArchivePage
 
     internal void CloseFilterSurface(bool restoreFocus)
     {
-        bool focused = FocusWithin(Control<Border>("ArchiveFilterSurface"));
-        Control<Expander>("ArchiveFilters").IsExpanded = false;
+        bool focused = FocusWithin(ArchiveFilterSurface);
+        ArchiveFilters.IsExpanded = false;
         if (restoreFocus || focused) FilterSurfaceToggle?.Focus(NavigationMethod.Tab);
     }
 

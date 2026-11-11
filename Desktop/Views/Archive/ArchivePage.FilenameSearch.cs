@@ -46,7 +46,7 @@ public partial class ArchivePage
             ToolTip.SetTip(button, FilenameSearchCatalog.T("filename.search.scope"));
             button.IsEnabled = CanOpenFilenameSearch;
         }
-        foreach (object? item in Control<MeowChan.Desktop.ActionToolBar>("ArchiveResultActions").Items)
+        foreach (object? item in ArchiveResultActions.Items)
             if (item is Button { Name: "ArchivePostBookmarks" } manager)
                 MeowChan.Desktop.Commands.CommandBindings.Refresh(manager);
     }
@@ -57,7 +57,7 @@ public partial class ArchivePage
     internal Task OpenFilenameSearchAsync(Control? origin = null)
     {
         if (!CanOpenFilenameSearch) return Task.CompletedTask;
-        Control surface = _largeReader ? Control<Grid>("ArchiveReaderPane") : this;
+        Control surface = _largeReader ? ArchiveReaderPane : this;
         Window? window = (origin == null ? null : TopLevel.GetTopLevel(origin) as Window)
             ?? TopLevel.GetTopLevel(surface) as Window;
         if (window is not { IsVisible: true } || window.OwnedWindows.Any(child => child.IsVisible)

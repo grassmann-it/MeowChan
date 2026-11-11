@@ -89,7 +89,7 @@ public partial class ArchivePage
         {
             CancellationToken lookup = _exportLookupCancellation?.Token ?? _lifetime.Token;
             var entries = await Task.Run(() => CollectionExportHistory.ListVerifiedAsync(members, lookup));
-            if (_ended || request != _exportRequest || !Control<Border>("ArchiveExportDialog").IsVisible) return;
+            if (_ended || request != _exportRequest || !ArchiveExportDialog.IsVisible) return;
             PreviousCollectionExport[] choices = entries.OrderBy(item => item.Inspection == null)
                 .Select(item => new PreviousCollectionExport(item.Entry.Destination, item.Entry.ExportedAt, item.Inspection)).ToArray();
             ComboBox history = Control<ComboBox>("ArchiveExportHistory");

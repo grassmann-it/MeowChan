@@ -21,7 +21,7 @@ public partial class ArchivePage
     internal Func<ArchiveUrlTextExportPlan, string, CancellationToken, Task<UrlTextExportFileWriteResult>>? UrlTextWriteForTests { get; set; }
 
     private bool UrlTextOtherModalOpen => IsFilenameSearchOpen || IsArchiveCleanupOpen
-        || Control<Border>("ArchiveExportDialog").IsVisible || _exportRunning
+        || ArchiveExportDialog.IsVisible || _exportRunning
         || _transferPreviewOpening || _transferPreviewDialog != null;
     private bool CanOpenUrlTextExport => !_ended && !_busy && _available
         && !_urlTextExportBusy && _openReader != null && !UrlTextOtherModalOpen;

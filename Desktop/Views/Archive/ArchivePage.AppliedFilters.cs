@@ -60,7 +60,7 @@ public partial class ArchivePage
     }
     private void UpdateAppliedFilters()
     {
-        WrapPanel panel = Control<WrapPanel>("ArchiveAppliedFilters"); panel.Children.Clear();
+        WrapPanel panel = ArchiveAppliedFilters; panel.Children.Clear();
         if (_appliedSearch == null) return;
         var tags = AppliedFilterLabels(_appliedSearch.Spec, TagFilterName);
         if (tags.Count > 0)
@@ -97,15 +97,15 @@ public partial class ArchivePage
         {
             ArchiveSearchSpec draft = field switch
             {
-                "text" => ArchiveSearchSpec.FromExactIdentities(text: Control<TextBox>("ArchiveSearchText").Text ?? ""),
+                "text" => ArchiveSearchSpec.FromExactIdentities(text: ArchiveSearchText.Text ?? ""),
                 "source" when string.IsNullOrWhiteSpace(IdentityText("ArchiveSourceFilter")) => ArchiveSearchSpec.FromExactIdentities(sources: _draftSources),
                 "board" when string.IsNullOrWhiteSpace(IdentityText("ArchiveBoardFilter")) => ArchiveSearchSpec.FromExactIdentities(boards: _draftBoards),
-                "state" when Control<ComboBox>("ArchiveStateFilter").SelectedIndex <= 0 => ArchiveSearchSpec.FromExactIdentities(sourceStates: _draftStates),
+                "state" when ArchiveStateFilter.SelectedIndex <= 0 => ArchiveSearchSpec.FromExactIdentities(sourceStates: _draftStates),
                 "capture" => ArchiveSearchSpec.FromExactIdentities(captureEnabled: Choice("ArchiveCaptureFilter")),
                 "posts" => ArchiveSearchSpec.FromExactIdentities(hasPosts: Choice("ArchivePostsFilter")),
-                "work" => ArchiveSearchSpec.FromExactIdentities(workFilter: WorkChoice(Control<ComboBox>("ArchiveWorkFilter").SelectedIndex)),
-                "date" => ArchiveSearchSpec.FromExactIdentities(dateRange: new ArchiveDateRange(Control<ArchiveDateEditor>("ArchiveStartDate").ParseRaw(false),
-                    Control<ArchiveDateEditor>("ArchiveEndDate").ParseRaw(false), _draftTimeZone ?? "Etc/UTC")),
+                "work" => ArchiveSearchSpec.FromExactIdentities(workFilter: WorkChoice(ArchiveWorkFilter.SelectedIndex)),
+                "date" => ArchiveSearchSpec.FromExactIdentities(dateRange: new ArchiveDateRange(ArchiveStartDate.ParseRaw(false),
+                    ArchiveEndDate.ParseRaw(false), _draftTimeZone ?? "Etc/UTC")),
                 "tags" when !HasPendingTagChoice => ArchiveSearchSpec.FromExactIdentities().WithTags(ReadTagFilterDraft()),
                 _ => throw new InvalidOperationException()
             };
@@ -117,17 +117,17 @@ public partial class ArchivePage
     {
         switch (field)
         {
-            case "text": Control<TextBox>("ArchiveSearchText").Text = next.Text; break;
+            case "text": ArchiveSearchText.Text = next.Text; break;
             case "source": _draftSources.Clear(); _draftSources.AddRange(next.Sources); break;
             case "board": _draftBoards.Clear(); _draftBoards.AddRange(next.Boards); break;
             case "state": _draftStates.Clear(); _draftStates.AddRange(next.SourceStates); break;
-            case "capture": Control<ComboBox>("ArchiveCaptureFilter").SelectedIndex = next.CaptureEnabled switch { true => 1, false => 2, _ => 0 }; break;
-            case "posts": Control<ComboBox>("ArchivePostsFilter").SelectedIndex = next.HasPosts switch { true => 1, false => 2, _ => 0 }; break;
-            case "work": Control<ComboBox>("ArchiveWorkFilter").SelectedIndex = WorkIndex(next.WorkFilter); break;
+            case "capture": ArchiveCaptureFilter.SelectedIndex = next.CaptureEnabled switch { true => 1, false => 2, _ => 0 }; break;
+            case "posts": ArchivePostsFilter.SelectedIndex = next.HasPosts switch { true => 1, false => 2, _ => 0 }; break;
+            case "work": ArchiveWorkFilter.SelectedIndex = WorkIndex(next.WorkFilter); break;
             case "date":
                 _draftTimeZone = null;
                 _writingDraft = true;
-                try { Control<ArchiveDateEditor>("ArchiveStartDate").RawText = ""; Control<ArchiveDateEditor>("ArchiveEndDate").RawText = ""; }
+                try { ArchiveStartDate.RawText = ""; ArchiveEndDate.RawText = ""; }
                 finally { _writingDraft = false; }
                 UpdateTimeZoneLabel(); break;
             case "tags": WriteTagFilterDraft(next.Tags); break;
@@ -153,9 +153,9 @@ public partial class ArchivePage
         }));
         if (success)
         {
-            var tags = Control<WrapPanel>("ArchiveAppliedFilters").Children.OfType<ClosableTag>().ToArray();
+            var tags = ArchiveAppliedFilters.Children.OfType<ClosableTag>().ToArray();
             if (tags.Length > 0) tags[Math.Clamp(focusIndex, 0, tags.Length - 1)].Focus();
-            else Control<TextBox>("ArchiveSearchText").Focus();
+            else ArchiveSearchText.Focus();
         }
         return success;
     }

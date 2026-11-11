@@ -40,7 +40,7 @@ public partial class ArchivePage
             string id = "archive.saved-searches." + suffix;
             _savedSearchRegistrations.Add(_savedSearchRouter.Register(new CommandRegistration(id, this,
                 () => !_ended && !_savedSearchDialogOpen && !_largeReader && IsEffectivelyVisible
-                    && Control<Grid>("ArchiveListPane").IsEffectivelyVisible && Control<Grid>("ArchiveListPane").IsKeyboardFocusWithin,
+                    && ArchiveListPane.IsEffectivelyVisible && ArchiveListPane.IsKeyboardFocusWithin,
                 canExecute, execute, Priority: 100)));
         }
         Register("open-manager", () => _ = OpenSavedSearchesAsync(false), CanOpenSavedSearches);
@@ -79,7 +79,7 @@ public partial class ArchivePage
             await dialog.ShowDialog(owner);
             if (!_ended)
             {
-                if (dialog.Applied) { if (_threadTable) Control<DataGrid>("ArchiveThreadTable").Focus(); else Control<ListBox>("ArchiveThreads").Focus(); }
+                if (dialog.Applied) { if (_threadTable) ArchiveThreadTable.Focus(); else ArchiveThreads.Focus(); }
                 else restore.Focus();
             }
         }

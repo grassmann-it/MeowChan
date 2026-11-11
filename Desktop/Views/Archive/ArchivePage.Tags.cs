@@ -50,14 +50,14 @@ public partial class ArchivePage
     private void InitializePrivateTags()
     {
         // One local tunnel registration, before native Button.Enter click handling.
-        Control<StackPanel>("ReaderTagBar").AddHandler(KeyDownEvent, OnTagBarKeyDown, RoutingStrategies.Tunnel);
+        ReaderTagBar.AddHandler(KeyDownEvent, OnTagBarKeyDown, RoutingStrategies.Tunnel);
         // The tag column sorts by the sorted tag names, threads without tags last.
-        Control<DataGrid>("ArchiveThreadTable").Columns[Array.IndexOf(ThreadColumnKeys, "tags")].CustomSortComparer = ArchiveThreadRow.TagColumnComparer.Instance;
+        ArchiveThreadTable.Columns[Array.IndexOf(ThreadColumnKeys, "tags")].CustomSortComparer = ArchiveThreadRow.TagColumnComparer.Instance;
         LocalizePrivateTags();
     }
 
     private bool IsTagBarSource(object? source) => source is Visual visual
-        && visual.GetSelfAndVisualAncestors().Contains(Control<StackPanel>("ReaderTagBar"));
+        && visual.GetSelfAndVisualAncestors().Contains(ReaderTagBar);
 
     private bool CanEditThreadTags => _available && !_ended && !_privateTagBusy && _privateTags != null
         && _definePrivateTag != null && _setThreadTag != null && _thread != null;
@@ -115,8 +115,8 @@ public partial class ArchivePage
         // A volatile read of the published view; a store that became unreadable must not keep showing its tags.
         ReloadPrivateTags();
         UpdateTagManagerActions();
-        Button open = Control<Button>("ReaderTagsOpen");
-        StackPanel bar = Control<StackPanel>("ReaderTagBar");
+        Button open = ReaderTagsOpen;
+        StackPanel bar = ReaderTagBar;
         ResourceId? id = _thread?.Summary.Id;
         int count = id == null ? 0 : _threadTagNames.GetValueOrDefault(id)?.Length ?? 0;
         string label = count > 0 ? Texts.T("tags.openCount", count) : Texts.T("tags.open");
@@ -137,10 +137,10 @@ public partial class ArchivePage
         if (_tagBarWanted) { CloseTagBar(); return; }
         ReloadPrivateTags();
         _tagBarWanted = true;
-        Control<StackPanel>("ReaderTagBar").IsVisible = true;
+        ReaderTagBar.IsVisible = true;
         RenderTagBar();
         // Opening is explicit, so it may take focus; later updates never do.
-        if (CanEditThreadTags) Control<TextBox>("ReaderTagInput").Focus();
+        if (CanEditThreadTags) ReaderTagInput.Focus();
     }
 
     private void OnCloseThreadTags(object? sender, RoutedEventArgs e) => CloseTagBar(focusOpen: true);
@@ -148,27 +148,27 @@ public partial class ArchivePage
     private void CloseTagBar(bool focusOpen = false)
     {
         _tagBarWanted = false;
-        Control<StackPanel>("ReaderTagBar").IsVisible = false;
+        ReaderTagBar.IsVisible = false;
         _privateTagMessage = null;
         _tagBarRendered = null;
-        if (focusOpen && Control<Button>("ReaderTagsOpen").IsEffectivelyVisible) Control<Button>("ReaderTagsOpen").Focus();
+        if (focusOpen && ReaderTagsOpen.IsEffectivelyVisible) ReaderTagsOpen.Focus();
     }
 
     private void OnTagBarKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled || _ended || ShortcutService.IsCapturing || IsReaderDialogOpen
-            || !Control<StackPanel>("ReaderTagBar").IsVisible || !IsTagBarSource(e.Source)
+            || !ReaderTagBar.IsVisible || !IsTagBarSource(e.Source)
             || e.KeyModifiers != KeyModifiers.None) return;
         if (e.Key == Key.Escape) { e.Handled = true; CloseTagBar(focusOpen: true); }
         // Enter adds only from the text field; buttons keep their native activation.
         else if (e.Key == Key.Enter && e.Source is Visual source
-            && source.GetSelfAndVisualAncestors().Contains(Control<TextBox>("ReaderTagInput")))
+            && source.GetSelfAndVisualAncestors().Contains(ReaderTagInput))
         { e.Handled = true; OnAddThreadTag(sender, new RoutedEventArgs()); }
     }
 
     private void OnAddThreadTag(object? sender, RoutedEventArgs e)
     {
-        string name = Control<TextBox>("ReaderTagInput").Text ?? string.Empty;
+        string name = ReaderTagInput.Text ?? string.Empty;
         if (string.IsNullOrWhiteSpace(name)) return;
         PrivateTagTask = AddThreadTagAsync(name, clearInput: true);
     }
@@ -195,7 +195,7 @@ public partial class ArchivePage
         try
         {
             await operation(thread, _lifetime.Token);
-            if (!_ended && clearInput && _tagBarThread == thread) Control<TextBox>("ReaderTagInput").Text = string.Empty;
+            if (!_ended && clearInput && _tagBarThread == thread) ReaderTagInput.Text = string.Empty;
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         catch (PrivateTagStoreException error)
@@ -220,8 +220,8 @@ public partial class ArchivePage
             {
                 UpdatePrivateTagActions();
                 // The acted-on chip is gone after a rebuild; keep keyboard users inside the bar.
-                if (focusInBar && Control<StackPanel>("ReaderTagBar").IsVisible && CanEditThreadTags)
-                    Control<TextBox>("ReaderTagInput").Focus();
+                if (focusInBar && ReaderTagBar.IsVisible && CanEditThreadTags)
+                    ReaderTagInput.Focus();
             }
         }
     }
@@ -246,14 +246,14 @@ public partial class ArchivePage
             // A different thread: never carry a draft name or an old message across.
             _tagBarThread = id;
             _privateTagMessage = null;
-            Control<TextBox>("ReaderTagInput").Text = string.Empty;
+            ReaderTagInput.Text = string.Empty;
         }
         bool canEdit = CanEditThreadTags;
         var key = (id, _privateTags?.Revision ?? -1, canEdit, _privateTagMessage, Texts.Language);
         if (_tagBarRendered == key) return;
         _tagBarRendered = key;
 
-        WrapPanel chips = Control<WrapPanel>("ReaderTagChips");
+        WrapPanel chips = ReaderTagChips;
         AutomationProperties.SetName(chips, Texts.T("tags.assigned"));
         chips.Children.Clear();
         PrivateTagDefinition[] assigned = _privateTags?.TagsOf(id).ToArray() ?? Array.Empty<PrivateTagDefinition>();
@@ -271,7 +271,7 @@ public partial class ArchivePage
         if (assigned.Length == 0)
             chips.Children.Add(new TextBlock { Text = Texts.T("tags.none"), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
 
-        WrapPanel suggestions = Control<WrapPanel>("ReaderTagSuggestions");
+        WrapPanel suggestions = ReaderTagSuggestions;
         suggestions.Children.Clear();
         PrivateTagName[] open = ThreadTagSuggestions(thread).Where(name => assigned.All(tag => tag.Name != name)).ToArray();
         suggestions.IsVisible = open.Length > 0 && _privateTags != null;
@@ -290,9 +290,9 @@ public partial class ArchivePage
             }
         }
 
-        Control<TextBox>("ReaderTagInput").IsEnabled = canEdit;
-        Control<Button>("ReaderTagAdd").IsEnabled = canEdit;
-        TextBlock status = Control<TextBlock>("ReaderTagStatus");
+        ReaderTagInput.IsEnabled = canEdit;
+        ReaderTagAdd.IsEnabled = canEdit;
+        TextBlock status = ReaderTagStatus;
         status.Text = _privateTags == null ? Texts.T("tags.unavailable")
             : _privateTagMessage ?? (!_available ? Texts.T("tags.notReady") : string.Empty);
         status.IsVisible = status.Text.Length > 0;
@@ -300,11 +300,11 @@ public partial class ArchivePage
 
     private void LocalizePrivateTags()
     {
-        ToolTip.SetTip(Control<Button>("ReaderTagsOpen"), Texts.T("tags.openHint"));
-        Control<TextBox>("ReaderTagInput").Watermark = Texts.T("tags.input");
-        AutomationProperties.SetName(Control<TextBox>("ReaderTagInput"), Texts.T("tags.input"));
-        Control<Button>("ReaderTagAdd").Content = Texts.T("tags.add");
-        Control<Button>("ReaderTagClose").Content = Texts.T("tags.close");
+        ToolTip.SetTip(ReaderTagsOpen, Texts.T("tags.openHint"));
+        ReaderTagInput.Watermark = Texts.T("tags.input");
+        AutomationProperties.SetName(ReaderTagInput, Texts.T("tags.input"));
+        ReaderTagAdd.Content = Texts.T("tags.add");
+        ReaderTagClose.Content = Texts.T("tags.close");
         _tagBarRendered = null;
         UpdatePrivateTagActions();
     }

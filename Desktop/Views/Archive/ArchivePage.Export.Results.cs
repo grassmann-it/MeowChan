@@ -19,7 +19,7 @@ public partial class ArchivePage
 
     private void UpdateResultsExportAction(bool ready)
     {
-        Button button = Control<Button>("ArchiveResultsExport");
+        Button button = ArchiveResultsExport;
         button.IsEnabled = CanExportResults;
         ApplyResultsExportLabel(button, _listTotal);
     }
@@ -55,7 +55,7 @@ public partial class ArchivePage
     {
         if (_ended || IsFilenameSearchOpen || _urlTextExportBusy || !_available || _busy || _openReader == null || _appliedSearch == null) return;
         EnsureExportDialog();
-        if (Control<Border>("ArchiveExportDialog").IsVisible)
+        if (ArchiveExportDialog.IsVisible)
         { Control<Button>("ArchiveExportClose").Focus(); return; }
 
         // Freeze applied inputs before yielding. Work membership is evaluated now,
@@ -86,7 +86,7 @@ public partial class ArchivePage
             await using ArchiveReader reader = await _openReader(cancellation.Token);
             ResourceId[] members = await ResolveExportResultIdsAsync(reader, query, eligibleUrls, cancellation.Token);
             if (_ended || cancellation.IsCancellationRequested || request != _exportRequest
-                || !Control<Border>("ArchiveExportDialog").IsVisible) return;
+                || !ArchiveExportDialog.IsVisible) return;
             if (members.Length == 0)
             { ExportStatus(ArchiveExportStatusText.Localized("export.resultsEmpty")); return; }
             // The existing exporter snapshots each target's content after Start.

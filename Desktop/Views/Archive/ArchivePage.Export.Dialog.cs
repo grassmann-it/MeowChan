@@ -22,11 +22,11 @@ public partial class ArchivePage
         _exportNames.Find<T>(name) ?? ControlExtensions.FindControl<T>(this, name);
     private void ShowExportDialog()
     {
-        Control<Border>("ArchiveExportDialog").IsVisible = true;
+        ArchiveExportDialog.IsVisible = true;
         ResizeExportDialog();
         if (_exportCard != null) MeowChan.Desktop.Commands.LegacyCommandAdapters.Register(_exportCard);
         if (_exportTopLevel != null) return;
-        TopLevel? top = _exportTopLevel = TopLevel.GetTopLevel(Control<Border>("ArchiveExportDialog")) ?? TopLevel.GetTopLevel(this);
+        TopLevel? top = _exportTopLevel = TopLevel.GetTopLevel(ArchiveExportDialog) ?? TopLevel.GetTopLevel(this);
         top?.AddHandler(PointerPressedEvent, ExportModalPointer, RoutingStrategies.Tunnel);
         top?.AddHandler(KeyDownEvent, ExportModalKey, RoutingStrategies.Tunnel);
     }
@@ -126,7 +126,7 @@ public partial class ArchivePage
         _exportCard.Classes.Add("panel");
         KeyboardNavigation.SetTabNavigation(_exportCard, KeyboardNavigationMode.Cycle);
         _exportCard.AddHandler(KeyDownEvent, OnExportKeyDown, RoutingStrategies.Tunnel);
-        Border overlay = Control<Border>("ArchiveExportDialog");
+        Border overlay = ArchiveExportDialog;
         overlay.Child = _exportCard;
         // The reader and its overlay may be hosted outside this (hidden) page.
         overlay.SizeChanged += (_, _) => ResizeExportDialog();
@@ -135,7 +135,7 @@ public partial class ArchivePage
     private void ResizeExportDialog()
     {
         if (_exportCard == null) return;
-        Border overlay = Control<Border>("ArchiveExportDialog");
+        Border overlay = ArchiveExportDialog;
         double available = overlay.Bounds.Height;
         if (available <= 0) available = (overlay.Parent as Control)?.Bounds.Height ?? 0;
         if (available <= 0) available = TopLevel.GetTopLevel(overlay)?.ClientSize.Height ?? 0;

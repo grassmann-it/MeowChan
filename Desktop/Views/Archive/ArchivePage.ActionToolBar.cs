@@ -15,7 +15,7 @@ public partial class ArchivePage
 {
     private bool ResultActionsReady => _available && !_busy && !_ended && !IsFilenameSearchOpen;
     private bool CanExportResults => ResultActionsReady && !_urlTextExportBusy && _openReader != null && _listTotal > 0
-        && !Control<Border>("ArchiveExportDialog").IsVisible;
+        && !ArchiveExportDialog.IsVisible;
 
     private void InitializeArchiveResultActions()
     {
@@ -38,7 +38,7 @@ public partial class ArchivePage
     // or mode changes, without reopening the popup or executing any action.
     internal Control? GalleryOriginFocusTarget(Control? origin)
     {
-        ActionToolBar toolbar = Control<ActionToolBar>("ArchiveResultActions");
+        ActionToolBar toolbar = ArchiveResultActions;
         if (origin == null || !toolbar.Items.Contains(origin)) return origin;
         TopLevel? root = TopLevel.GetTopLevel(toolbar);
         if (root != null && origin.IsEffectivelyVisible
@@ -51,7 +51,7 @@ public partial class ArchivePage
 
     private void RefreshArchiveResultActions()
     {
-        ActionToolBar toolbar = Control<ActionToolBar>("ArchiveResultActions");
+        ActionToolBar toolbar = ArchiveResultActions;
         foreach (object? item in toolbar.Items)
         {
             if (item is not Button button) continue;

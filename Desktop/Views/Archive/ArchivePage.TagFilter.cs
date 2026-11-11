@@ -24,8 +24,8 @@ public partial class ArchivePage
         foreach (string name in new[] { "ArchiveTagChoice", "ArchiveTagMode" })
             Control<ComboBox>(name).SelectionChanged += (_, _) => { if (!_localizingSearchOptions) DraftEdited("tags"); };
         // The "unfinished entry" mark belongs to a chosen tag; it goes away as soon as the choice does.
-        Control<ComboBox>("ArchiveTagChoice").SelectionChanged += (_, _) =>
-        { if (!HasPendingTagChoice) DataValidationErrors.ClearErrors(Control<ComboBox>("ArchiveTagChoice")); };
+        ArchiveTagChoice.SelectionChanged += (_, _) =>
+        { if (!HasPendingTagChoice) DataValidationErrors.ClearErrors(ArchiveTagChoice); };
     }
 
     private string? TagFilterName(Guid id) => _privateTags?.Find(new TagId(id))?.Name.Display;
@@ -69,7 +69,7 @@ public partial class ArchivePage
     private void ClearTagFilterError()
     {
         if (_shownTagFilterError == null) return;
-        if (Control<TextBlock>("ArchiveSearchError").Text == _shownTagFilterError) SearchEditorError(string.Empty);
+        if (ArchiveSearchError.Text == _shownTagFilterError) SearchEditorError(string.Empty);
         _shownTagFilterError = null;
     }
 
@@ -78,7 +78,7 @@ public partial class ArchivePage
 
     private void AddDraftTag(bool include)
     {
-        if (Control<ComboBox>("ArchiveTagChoice").SelectedItem is not TagChoice { Id: Guid id }) return;
+        if (ArchiveTagChoice.SelectedItem is not TagChoice { Id: Guid id }) return;
         try
         {
             _ = new ArchiveTagFilter(include ? _draftIncludeTags.Append(id) : _draftIncludeTags,
@@ -86,37 +86,37 @@ public partial class ArchivePage
         }
         catch (ArgumentException exception) { SearchEditorError(exception.Message); return; }
         (include ? _draftIncludeTags : _draftExcludeTags).Add(id);
-        DataValidationErrors.ClearErrors(Control<ComboBox>("ArchiveTagChoice"));
+        DataValidationErrors.ClearErrors(ArchiveTagChoice);
         SearchEditorError(string.Empty);
         DraftEdited("tags");
         RenderDraftSets();
     }
 
     private ArchiveTagFilter? ReadTagFilterDraft() => ArchiveTagFilter.OrNull(_draftIncludeTags, _draftExcludeTags,
-        Control<ComboBox>("ArchiveTagMode").SelectedIndex == 1 ? ArchiveTagMatch.Any : ArchiveTagMatch.All);
+        ArchiveTagMode.SelectedIndex == 1 ? ArchiveTagMatch.Any : ArchiveTagMatch.All);
 
-    private bool HasPendingTagChoice => Control<ComboBox>("ArchiveTagChoice").SelectedItem is TagChoice { Id: not null };
+    private bool HasPendingTagChoice => ArchiveTagChoice.SelectedItem is TagChoice { Id: not null };
 
     private void WriteTagFilterDraft(ArchiveTagFilter? tags)
     {
         _draftIncludeTags.Clear(); _draftExcludeTags.Clear();
         if (tags != null) { _draftIncludeTags.AddRange(tags.Include); _draftExcludeTags.AddRange(tags.Exclude); }
-        Control<ComboBox>("ArchiveTagMode").SelectedIndex = tags?.Match == ArchiveTagMatch.Any ? 1 : 0;
-        Control<ComboBox>("ArchiveTagChoice").SelectedIndex = 0;
+        ArchiveTagMode.SelectedIndex = tags?.Match == ArchiveTagMatch.Any ? 1 : 0;
+        ArchiveTagChoice.SelectedIndex = 0;
     }
 
     private Action CaptureTagFilterDraft()
     {
         Guid[] include = _draftIncludeTags.ToArray(), exclude = _draftExcludeTags.ToArray();
-        int match = Control<ComboBox>("ArchiveTagMode").SelectedIndex;
-        Guid? pending = (Control<ComboBox>("ArchiveTagChoice").SelectedItem as TagChoice)?.Id;
+        int match = ArchiveTagMode.SelectedIndex;
+        Guid? pending = (ArchiveTagChoice.SelectedItem as TagChoice)?.Id;
         return () =>
         {
             _draftIncludeTags.Clear(); _draftIncludeTags.AddRange(include);
             _draftExcludeTags.Clear(); _draftExcludeTags.AddRange(exclude);
-            Control<ComboBox>("ArchiveTagMode").SelectedIndex = match;
+            ArchiveTagMode.SelectedIndex = match;
             RenderDraftTagFilter();
-            ComboBox combo = Control<ComboBox>("ArchiveTagChoice");
+            ComboBox combo = ArchiveTagChoice;
             if (pending != null && combo.ItemsSource is IEnumerable<TagChoice> options)
                 combo.SelectedItem = options.FirstOrDefault(option => option.Id == pending) ?? options.First();
         };
@@ -129,7 +129,7 @@ public partial class ArchivePage
             { _draftIncludeTags.Remove(id); DraftEdited("tags"); RenderDraftSets(); })))
             .Concat(_draftExcludeTags.Select(id => (Texts.T("tags.filter.excludeChip", TagFilterLabel(id)), (Action)(() =>
             { _draftExcludeTags.Remove(id); DraftEdited("tags"); RenderDraftSets(); })))));
-        ComboBox combo = Control<ComboBox>("ArchiveTagChoice");
+        ComboBox combo = ArchiveTagChoice;
         PrivateTagStoreSnapshot? tags = _privateTags;
         HashSet<Guid> used = _draftIncludeTags.Concat(_draftExcludeTags).ToHashSet();
         // A tag already in the draft is not offered again, so include and exclude cannot overlap.
@@ -145,20 +145,20 @@ public partial class ArchivePage
             combo.SelectedItem = options.FirstOrDefault(option => selected != null && option.Id == selected) ?? options[0];
         }
         finally { _localizingSearchOptions = false; }
-        Control<Button>("ArchiveAddTagInclude").IsEnabled = Control<Button>("ArchiveAddTagExclude").IsEnabled = options.Length > 1;
+        ArchiveAddTagInclude.IsEnabled = ArchiveAddTagExclude.IsEnabled = options.Length > 1;
     }
 
     private void LocalizeTagFilterEditor()
     {
         SetOptions("ArchiveTagMode", "tags.filter.matchAll", "tags.filter.matchAny");
-        Control<Button>("ArchiveAddTagInclude").Content = Texts.T("tags.filter.include");
-        Control<Button>("ArchiveAddTagExclude").Content = Texts.T("tags.filter.exclude");
-        ToolTip.SetTip(Control<Button>("ArchiveAddTagInclude"), Texts.T("tags.filter.includeHint"));
-        ToolTip.SetTip(Control<Button>("ArchiveAddTagExclude"), Texts.T("tags.filter.excludeHint"));
-        AutomationProperties.SetName(Control<Button>("ArchiveAddTagInclude"), Texts.T("tags.filter.includeHint"));
-        AutomationProperties.SetName(Control<Button>("ArchiveAddTagExclude"), Texts.T("tags.filter.excludeHint"));
-        AutomationProperties.SetName(Control<ComboBox>("ArchiveTagChoice"), Texts.T("tags.filter.label"));
-        AutomationProperties.SetName(Control<ComboBox>("ArchiveTagMode"), Texts.T("tags.filter.matchLabel"));
+        ArchiveAddTagInclude.Content = Texts.T("tags.filter.include");
+        ArchiveAddTagExclude.Content = Texts.T("tags.filter.exclude");
+        ToolTip.SetTip(ArchiveAddTagInclude, Texts.T("tags.filter.includeHint"));
+        ToolTip.SetTip(ArchiveAddTagExclude, Texts.T("tags.filter.excludeHint"));
+        AutomationProperties.SetName(ArchiveAddTagInclude, Texts.T("tags.filter.includeHint"));
+        AutomationProperties.SetName(ArchiveAddTagExclude, Texts.T("tags.filter.excludeHint"));
+        AutomationProperties.SetName(ArchiveTagChoice, Texts.T("tags.filter.label"));
+        AutomationProperties.SetName(ArchiveTagMode, Texts.T("tags.filter.matchLabel"));
     }
 
     // Names can change (rename) and tags can appear or disappear while the page is open.

@@ -27,7 +27,7 @@ public partial class ArchivePage
         {
             _cleanupRouter = new(this);
             _cleanupRouter.Register(new("archive.cleanup", this,
-                () => !_ended && IsEffectivelyVisible && Control<Button>("ArchiveCleanupOpen").IsEffectivelyVisible,
+                () => !_ended && IsEffectivelyVisible && ArchiveCleanupOpen.IsEffectivelyVisible,
                 CanOpenArchiveCleanup, () => _ = OpenArchiveCleanupAsync(), Priority: 100));
             AddHandler(KeyDownEvent, RouteArchiveCleanupCommand, RoutingStrategies.Bubble);
         }
@@ -49,7 +49,7 @@ public partial class ArchivePage
         // Even a retained detail pane can hold decoded media or a pending read.
         if (_thread != null) ids.Add(_thread.Summary.Id);
         if (_exportThread != null && (_exportRunning || _exportLoading || _exportPicking
-            || Control<Border>("ArchiveExportDialog").IsVisible))
+            || ArchiveExportDialog.IsVisible))
         {
             ids.Add(_exportThread);
             if (_exportMembers != null) ids.UnionWith(_exportMembers);
@@ -60,7 +60,7 @@ public partial class ArchivePage
     internal async Task OpenArchiveCleanupAsync()
     {
         if (!CanOpenArchiveCleanup() || _cleanupHost == null || TopLevel.GetTopLevel(this) is not Window owner) return;
-        Control origin = Control<Button>("ArchiveCleanupOpen");
+        Control origin = ArchiveCleanupOpen;
         var dialog = new ArchiveCleanupDialog(_cleanupHost, OpenArchiveCleanupThreads, _openFolder, _lifetime.Token)
         {
             Width = Math.Max(360, Math.Min(820, owner.ClientSize.Width - 32)),
@@ -80,7 +80,7 @@ public partial class ArchivePage
             {
                 UpdateArchiveCleanupAction();
                 if (origin.IsEffectivelyVisible && origin.IsEffectivelyEnabled) origin.Focus();
-                else Control<ListBox>("ArchiveThreads").Focus();
+                else ArchiveThreads.Focus();
             }
         }
     }

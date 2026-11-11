@@ -42,7 +42,7 @@ public partial class ArchivePage
     private async Task OpenFavoritesOverviewAsync(FavoriteOverviewState? restore)
     {
         if (_ended || GetFavorites == null || ResolveFavoriteAssets == null
-            || (TopLevel.GetTopLevel(Control<Grid>("ArchiveReaderPane")) ?? TopLevel.GetTopLevel(this)) is not Window owner) return;
+            || (TopLevel.GetTopLevel(ArchiveReaderPane) ?? TopLevel.GetTopLevel(this)) is not Window owner) return;
         FavoriteEntry[] all = GetFavorites().ToArray();
         ResourceId? currentThread = _selectedThread;
         ResourceId[] selectedThreads = FrozenArchiveSelection();
@@ -281,7 +281,7 @@ public partial class ArchivePage
     internal async Task OpenOriginalExportAsync(IReadOnlyList<FavoriteExportAsset> frozenAssets, Control? origin = null,
         int missingCount = 0, string? scopeLabel = null)
     {
-        Window? owner = TopLevel.GetTopLevel(origin ?? Control<Grid>("ArchiveReaderPane")) as Window
+        Window? owner = TopLevel.GetTopLevel(origin ?? ArchiveReaderPane) as Window
             ?? TopLevel.GetTopLevel(this) as Window;
         if (owner == null) return;
         FavoriteExportAsset[] assets = frozenAssets.DistinctBy(asset => asset.Key).ToArray();

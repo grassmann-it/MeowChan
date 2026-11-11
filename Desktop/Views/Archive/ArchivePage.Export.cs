@@ -51,7 +51,7 @@ public partial class ArchivePage
     {
         if (_ended || IsFilenameSearchOpen || _urlTextExportBusy || IsArchiveCleanupOpen || _openReader == null) return;
         EnsureExportDialog();
-        if (Control<Border>("ArchiveExportDialog").IsVisible && !resolvedResults) { Control<Button>("ArchiveExportClose").Focus(); return; }
+        if (ArchiveExportDialog.IsVisible && !resolvedResults) { Control<Button>("ArchiveExportClose").Focus(); return; }
         int request = ++_exportRequest;
         _exportThread = id; _exportOrigin = origin; LastExport = null;
         _exportAllResults = allResults; _exportResolving = false;
@@ -92,7 +92,7 @@ public partial class ArchivePage
             if (!_ended)
             {
                 UpdateExportActions();
-                if (request == _exportRequest && Control<Border>("ArchiveExportDialog").IsVisible)
+                if (request == _exportRequest && ArchiveExportDialog.IsVisible)
                     Control<TextBox>("ArchiveExportDestination").Focus();
             }
         }
@@ -105,7 +105,7 @@ public partial class ArchivePage
         {
             CancellationToken lookup = _exportLookupCancellation?.Token ?? _lifetime.Token;
             var entries = await Task.Run(() => ExportHistory.ListVerifiedAsync(id, lookup));
-            if (_ended || request != _exportRequest || !Control<Border>("ArchiveExportDialog").IsVisible) return;
+            if (_ended || request != _exportRequest || !ArchiveExportDialog.IsVisible) return;
             PreviousExport[] choices = entries.OrderBy(item => item.Inspection == null).Select(item => new PreviousExport(item.Entry.Destination, item.Entry.ExportedAt, item.Inspection)).ToArray();
             Control<ComboBox>("ArchiveExportHistory").ItemsSource = choices;
             int selected = Array.FindIndex(choices, item => item.Destination == selectedDestination);
@@ -295,7 +295,7 @@ public partial class ArchivePage
             return;
         }
         _exportLookupCancellation?.Cancel();
-        ++_exportRequest; _exportLoading = false; _exportResolving = false; Control<Border>("ArchiveExportDialog").IsVisible = false;
+        ++_exportRequest; _exportLoading = false; _exportResolving = false; ArchiveExportDialog.IsVisible = false;
         EndExportDialog();
         UpdateActions();
         Action? closed = _exportClosed; _exportClosed = null;

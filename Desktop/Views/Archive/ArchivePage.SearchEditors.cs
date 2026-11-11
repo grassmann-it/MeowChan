@@ -49,17 +49,17 @@ public partial class ArchivePage
     }
     private void InitializeSearchEditors()
     {
-        GetBoardSuggestionSource = () => (Control<ComboBox>("ArchiveBoardScope").SelectedItem as BoardScope)?.Source;
-        Control<TextBox>("ArchiveSearchText").PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty) DraftEdited("text"); };
+        GetBoardSuggestionSource = () => (ArchiveBoardScope.SelectedItem as BoardScope)?.Source;
+        ArchiveSearchText.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty) DraftEdited("text"); };
         foreach (var entry in new[] { ("ArchiveSourceFilter", "source"), ("ArchiveBoardFilter", "board") })
             Control<Control>(entry.Item1).PropertyChanged += (_, e) => { if (e.Property.Name == "Text") DraftEdited(entry.Item2); };
         foreach (var entry in new[] { ("ArchiveStateFilter", "state"), ("ArchiveCaptureFilter", "capture"),
             ("ArchivePostsFilter", "posts"), ("ArchiveWorkFilter", "work"), ("ArchiveSort", "sort") })
             Control<ComboBox>(entry.Item1).SelectionChanged += (_, _) => { if (!_localizingSearchOptions) DraftEdited(entry.Item2); };
-        Control<ComboBox>("ArchiveBoardScope").SelectionChanged += (_, _) => { if (_updatingBoardScopes) return; _boardScopeChosen = true; DraftEdited("board"); InvalidateBoardSuggestions(); };
+        ArchiveBoardScope.SelectionChanged += (_, _) => { if (_updatingBoardScopes) return; _boardScopeChosen = true; DraftEdited("board"); InvalidateBoardSuggestions(); };
         InitializeTagFilterEditor();
-        Control<ArchiveDateEditor>("ArchiveStartDate").Edited += () => DateEdited();
-        Control<ArchiveDateEditor>("ArchiveEndDate").Edited += () => DateEdited();
+        ArchiveStartDate.Edited += () => DateEdited();
+        ArchiveEndDate.Edited += () => DateEdited();
     }
     private void DateEdited()
     {
@@ -76,12 +76,12 @@ public partial class ArchivePage
         try { _draftTimeZone = DeviceTimeZone(); DraftEdited("date"); UpdateTimeZoneLabel(); SearchEditorError(""); }
         catch (Exception exception) { SearchEditorError(exception.Message); }
     }
-    private void UpdateTimeZoneLabel() => Control<TextBlock>("ArchiveDateZone").Text =
+    private void UpdateTimeZoneLabel() => ArchiveDateZone.Text =
         Texts.T("archive.dateZone", _draftTimeZone ?? Texts.T("archive.zoneOnUse"));
     private void SearchEditorError(string message)
     {
-        Control<TextBlock>("ArchiveSearchError").Text = message;
-        Control<TextBlock>("ArchiveSearchError").IsVisible = message.Length > 0;
+        ArchiveSearchError.Text = message;
+        ArchiveSearchError.IsVisible = message.Length > 0;
     }
     private static Control ValidationFocusTarget(Control editor) => editor is ArchiveDateEditor
         ? editor.GetLogicalDescendants().OfType<TextBox>().FirstOrDefault(text => !text.IsReadOnly) ?? editor
@@ -89,11 +89,11 @@ public partial class ArchivePage
     private void RevealSearchValidationError(long generation)
     {
         if (TopLevel.GetTopLevel(this) is not Window owner) return;
-        Control editor = _invalidSearchEditor ?? Control<TextBlock>("ArchiveSearchError");
+        Control editor = _invalidSearchEditor ?? ArchiveSearchError;
         long revision = _draftRevision;
         ArchiveSearchRequest? applied = _appliedSearch;
         var origin = owner.FocusManager?.GetFocusedElement();
-        if (_invalidSearchEditor != null) Control<Expander>("ArchiveFilters").IsExpanded = true;
+        if (_invalidSearchEditor != null) ArchiveFilters.IsExpanded = true;
         else editor.Focusable = true;
         bool Current() => !_ended && !_lifetime.IsCancellationRequested && CanRead && !_busy && IsEffectivelyVisible && owner.IsActive
             && generation == _searchValidationGeneration && revision == _draftRevision && ReferenceEquals(applied, _appliedSearch)
@@ -133,7 +133,7 @@ public partial class ArchivePage
         bool accepted = candidate != null && StringComparer.Ordinal.Equals(candidate.Value, raw);
         string board = accepted ? candidate!.Value : raw.Trim();
         if (board.Length == 0) return;
-        string? source = (Control<ComboBox>("ArchiveBoardScope").SelectedItem as BoardScope)?.Source;
+        string? source = (ArchiveBoardScope.SelectedItem as BoardScope)?.Source;
         // W04's explicit accepted candidates carry their actual source. Merely
         // highlighting a suggestion must not qualify freely typed board text.
         if (accepted && candidate!.Source != null) source = candidate.Source;
@@ -147,10 +147,10 @@ public partial class ArchivePage
     }
     private void OnAddState(object? sender, RoutedEventArgs e)
     {
-        ThreadSourceState? state = Control<ComboBox>("ArchiveStateFilter").SelectedIndex switch
+        ThreadSourceState? state = ArchiveStateFilter.SelectedIndex switch
         { 1 => ThreadSourceState.Active, 2 => ThreadSourceState.Archived, 3 => ThreadSourceState.NotFound, _ => null };
         if (state.HasValue && !_draftStates.Contains(state.Value)) _draftStates.Add(state.Value);
-        Control<ComboBox>("ArchiveStateFilter").SelectedIndex = 0; DraftEdited("state"); RenderDraftSets();
+        ArchiveStateFilter.SelectedIndex = 0; DraftEdited("state"); RenderDraftSets();
     }
     private void RenderDraftSets()
     {
@@ -161,7 +161,7 @@ public partial class ArchivePage
         { _draftBoards.Remove(board); DraftEdited("board"); RenderDraftSets(); }))));
         RenderDraftTags("ArchiveDraftStates", "ArchiveStateFilter", _draftStates.Select(state => (StateLabel(state), (Action)(() =>
         { _draftStates.Remove(state); DraftEdited("state"); RenderDraftSets(); }))));
-        ComboBox scopes = Control<ComboBox>("ArchiveBoardScope");
+        ComboBox scopes = ArchiveBoardScope;
         BoardScope? previousScope = scopes.SelectedItem as BoardScope;
         string? previous = previousScope?.Source;
         BoardScope[] options = new[] { new BoardScope(null, Texts.T("archive.allSourceBoards")) }
@@ -242,40 +242,40 @@ public partial class ArchivePage
             string error = Texts.T("archive.invertedDates");
             if (validateFields)
             {
-                _invalidSearchEditor = Control<ArchiveDateEditor>("ArchiveEndDate");
+                _invalidSearchEditor = ArchiveEndDate;
                 DataValidationErrors.SetErrors(ValidationFocusTarget(_invalidSearchEditor), new object[] { error });
             }
             throw new FormatException(error);
         }
         if (validateFields)
         {
-            DataValidationErrors.ClearErrors(Control<ArchiveDateEditor>("ArchiveEndDate"));
-            DataValidationErrors.ClearErrors(ValidationFocusTarget(Control<ArchiveDateEditor>("ArchiveEndDate")));
+            DataValidationErrors.ClearErrors(ArchiveEndDate);
+            DataValidationErrors.ClearErrors(ValidationFocusTarget(ArchiveEndDate));
         }
         ArchiveDateRange? date = start == null && end == null ? null : new ArchiveDateRange(start, end,
             _draftTimeZone ?? throw new InvalidOperationException(Texts.T("archive.zoneUnavailable", TimeZoneInfo.Local.Id)));
-        return ArchiveSearchSpec.FromExactIdentities(Control<TextBox>("ArchiveSearchText").Text ?? "", _draftSources, _draftBoards, _draftStates,
+        return ArchiveSearchSpec.FromExactIdentities(ArchiveSearchText.Text ?? "", _draftSources, _draftBoards, _draftStates,
             Choice("ArchiveCaptureFilter"), Choice("ArchivePostsFilter"),
-            (ArchiveThreadSort)Math.Max(0, Control<ComboBox>("ArchiveSort").SelectedIndex),
-            WorkChoice(Control<ComboBox>("ArchiveWorkFilter").SelectedIndex), date).WithTags(ReadTagFilterDraft());
+            (ArchiveThreadSort)Math.Max(0, ArchiveSort.SelectedIndex),
+            WorkChoice(ArchiveWorkFilter.SelectedIndex), date).WithTags(ReadTagFilterDraft());
     }
     private void WriteSearchDraft(ArchiveSearchSpec spec)
     {
         _writingDraft = true;
         try
         {
-            Control<TextBox>("ArchiveSearchText").Text = spec.Text;
+            ArchiveSearchText.Text = spec.Text;
             _draftSources.Clear(); _draftSources.AddRange(spec.Sources); SetIdentityText("ArchiveSourceFilter", "");
             _draftBoards.Clear(); _draftBoards.AddRange(spec.Boards); SetIdentityText("ArchiveBoardFilter", "");
             _draftStates.Clear(); _draftStates.AddRange(spec.SourceStates);
-            Control<ComboBox>("ArchiveStateFilter").SelectedIndex = 0;
-            Control<ComboBox>("ArchiveCaptureFilter").SelectedIndex = spec.CaptureEnabled switch { true => 1, false => 2, _ => 0 };
-            Control<ComboBox>("ArchivePostsFilter").SelectedIndex = spec.HasPosts switch { true => 1, false => 2, _ => 0 };
-            Control<ComboBox>("ArchiveWorkFilter").SelectedIndex = WorkIndex(spec.WorkFilter);
-            Control<ComboBox>("ArchiveSort").SelectedIndex = (int)spec.Sort;
+            ArchiveStateFilter.SelectedIndex = 0;
+            ArchiveCaptureFilter.SelectedIndex = spec.CaptureEnabled switch { true => 1, false => 2, _ => 0 };
+            ArchivePostsFilter.SelectedIndex = spec.HasPosts switch { true => 1, false => 2, _ => 0 };
+            ArchiveWorkFilter.SelectedIndex = WorkIndex(spec.WorkFilter);
+            ArchiveSort.SelectedIndex = (int)spec.Sort;
             _draftTimeZone = spec.DateRange?.TimeZoneId;
-            Control<ArchiveDateEditor>("ArchiveStartDate").RawText = spec.DateRange?.StartDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
-            Control<ArchiveDateEditor>("ArchiveEndDate").RawText = spec.DateRange?.EndDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
+            ArchiveStartDate.RawText = spec.DateRange?.StartDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
+            ArchiveEndDate.RawText = spec.DateRange?.EndDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
             WriteTagFilterDraft(spec.Tags);
             foreach (string field in new[] { "text", "source", "board", "state", "capture", "posts", "sort", "work", "date", "tags" }) DraftEdited(field);
             RenderDraftSets(); UpdateTimeZoneLabel(); SearchEditorError("");
@@ -285,15 +285,15 @@ public partial class ArchivePage
     }
     private Action CaptureSearchDraft()
     {
-        string text = Control<TextBox>("ArchiveSearchText").Text ?? "";
+        string text = ArchiveSearchText.Text ?? "";
         string source = IdentityText("ArchiveSourceFilter"), board = IdentityText("ArchiveBoardFilter");
         string[] sources = _draftSources.ToArray(); ArchiveBoardConstraint[] boards = _draftBoards.ToArray();
         ThreadSourceState[] states = _draftStates.ToArray();
         string? zone = _draftTimeZone;
-        string start = Control<ArchiveDateEditor>("ArchiveStartDate").RawText, end = Control<ArchiveDateEditor>("ArchiveEndDate").RawText;
+        string start = ArchiveStartDate.RawText, end = ArchiveEndDate.RawText;
         string[] names = { "ArchiveStateFilter", "ArchiveCaptureFilter", "ArchivePostsFilter", "ArchiveWorkFilter", "ArchiveSort" };
         int[] indices = names.Select(name => Control<ComboBox>(name).SelectedIndex).ToArray();
-        BoardScope? scope = Control<ComboBox>("ArchiveBoardScope").SelectedItem as BoardScope;
+        BoardScope? scope = ArchiveBoardScope.SelectedItem as BoardScope;
         bool scopeChosen = _boardScopeChosen;
         Action restoreTags = CaptureTagFilterDraft();
         return () =>
@@ -301,14 +301,14 @@ public partial class ArchivePage
             _writingDraft = true;
             try
             {
-                Control<TextBox>("ArchiveSearchText").Text = text;
+                ArchiveSearchText.Text = text;
                 _draftSources.Clear(); _draftSources.AddRange(sources); _draftBoards.Clear(); _draftBoards.AddRange(boards);
                 _draftStates.Clear(); _draftStates.AddRange(states); SetIdentityText("ArchiveSourceFilter", source); SetIdentityText("ArchiveBoardFilter", board);
                 for (int i = 0; i < names.Length; ++i) Control<ComboBox>(names[i]).SelectedIndex = indices[i];
                 _draftTimeZone = zone; _boardScopeChosen = scopeChosen;
-                Control<ArchiveDateEditor>("ArchiveStartDate").RawText = start; Control<ArchiveDateEditor>("ArchiveEndDate").RawText = end;
+                ArchiveStartDate.RawText = start; ArchiveEndDate.RawText = end;
                 RenderDraftSets();
-                ComboBox combo = Control<ComboBox>("ArchiveBoardScope");
+                ComboBox combo = ArchiveBoardScope;
                 if (combo.ItemsSource is IEnumerable<BoardScope> options) combo.SelectedItem = options.FirstOrDefault(item => item.Source == scope?.Source);
                 UpdateTimeZoneLabel();
                 restoreTags();
@@ -330,15 +330,15 @@ public partial class ArchivePage
     private void LocalizeSearchEditors()
     {
         foreach (string name in new[] { "ArchiveAddSource", "ArchiveAddBoard", "ArchiveAddState" }) Control<Button>(name).Content = Texts.T("archive.addFilter");
-        AutomationProperties.SetName(Control<ComboBox>("ArchiveBoardScope"), Texts.T("archive.boardSourceScope"));
-        Control<TextBlock>("ArchiveDateTitle").Text = Texts.T("archive.dateBasis");
-        Control<TextBlock>("ArchiveDateHint").Text = Texts.T("archive.dateHint");
-        Control<ArchiveDateEditor>("ArchiveStartDate").SetLabel(Texts.T("archive.dateFrom"));
-        Control<ArchiveDateEditor>("ArchiveEndDate").SetLabel(Texts.T("archive.dateTo"));
-        Control<TextBlock>("ArchiveDateFromLabel").Text = Texts.T("archive.dateFrom");
-        Control<TextBlock>("ArchiveDateToLabel").Text = Texts.T("archive.dateTo");
-        Control<Button>("ArchiveUseDeviceZone").Content = Texts.T("archive.useDeviceZone");
-        Control<Button>("ArchiveRetrySearch").Content = Texts.T("action.retry");
+        AutomationProperties.SetName(ArchiveBoardScope, Texts.T("archive.boardSourceScope"));
+        ArchiveDateTitle.Text = Texts.T("archive.dateBasis");
+        ArchiveDateHint.Text = Texts.T("archive.dateHint");
+        ArchiveStartDate.SetLabel(Texts.T("archive.dateFrom"));
+        ArchiveEndDate.SetLabel(Texts.T("archive.dateTo"));
+        ArchiveDateFromLabel.Text = Texts.T("archive.dateFrom");
+        ArchiveDateToLabel.Text = Texts.T("archive.dateTo");
+        ArchiveUseDeviceZone.Content = Texts.T("archive.useDeviceZone");
+        ArchiveRetrySearch.Content = Texts.T("action.retry");
         LocalizeTagFilterEditor();
         RenderDraftSets(); UpdateTimeZoneLabel();
     }

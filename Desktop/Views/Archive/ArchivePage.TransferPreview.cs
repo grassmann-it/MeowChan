@@ -59,7 +59,7 @@ public partial class ArchivePage
 
     private void UpdateTransferPreviewAction()
     {
-        Button button = Control<Button>("ArchiveTransferPreview");
+        Button button = ArchiveTransferPreview;
         CommandBindings.Apply(button, "archive.transfer-preview", iconWithLabel: true);
         button.IsEnabled = CanOpenTransferPreview;
     }
@@ -79,7 +79,7 @@ public partial class ArchivePage
 
     private async Task OpenTransferImportAsync(Window owner)
     {
-        Control origin = Control<Button>("ArchiveTransferPreview");
+        Control origin = ArchiveTransferPreview;
         NativeTransferImportSession? session = null;
         NativeTransferImportDialog? dialog = null;
         string? workDirectory = null;
@@ -147,7 +147,7 @@ public partial class ArchivePage
 
     private async Task OpenPreviewOnlyAsync(Window owner)
     {
-        Control origin = Control<Button>("ArchiveTransferPreview");
+        Control origin = ArchiveTransferPreview;
         NativeTransferPreviewSession? session = null;
         NativeTransferPreviewDialog? dialog = null;
         string? workDirectory = null;
