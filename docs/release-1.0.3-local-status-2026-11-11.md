@@ -1,8 +1,12 @@
 # MeowChan 1.0.3 — lokaler Abnahmestand (11.11.2026)
 
-Stand: Branch `goal/gesamtprogramm-profile-a`, Head `db28407`. Die unten genannten Läufe liefen auf `7e7b729` (Core auf `4d21da9`);
-danach kamen nur SF-03/SF-05 (`db28407`) hinzu, belegt durch 390 gefilterte
-Desktop-Tests und den Reader-Find-Smoke, nicht durch einen neuen Vollauf. Nichts ist veröffentlicht, gepusht oder getaggt.
+Stand: Branch `goal/gesamtprogramm-profile-a`. Finale Vollläufe auf einem Head
+`4bc4d01` (frischer `--no-restore --no-incremental`-Build, `dotnet test --no-build`,
+`/tmp/mc-evidence/final3-latest`): Core 9399 bestanden/0 fehlgeschlagen/5 übersprungen,
+Desktop 3079/0/11, Beispiel-/Experimental-Plugins 360/0. Danach nur `9948b8f`
+(Startup-Probes in zwei Spuren, Desktop-Filter `Plugin` 155 grün) und `ef116e2`
+(Opt-in-Platzmangeltest, ohne Variable übersprungen). Nichts ist veröffentlicht,
+gepusht oder getaggt.
 
 **Ergebnis: kein freigebbarer 1.0.3-Kandidat.** Die lokal prüfbaren Pakete sind
 belegt; der Kandidat bleibt nach `START-GOAL-1.0.3.md` blockiert, solange die
@@ -53,11 +57,12 @@ Windows-, macOS- und Hardwarebelege fehlen. Sie sind unter Linux nicht ersetzbar
   Provenienz laufen unverändert. A/B direkt hintereinander, warmes Profil, Last 9–16:
   Wiederöffnen Pluginphase 6,65 → 1,28 s (0 Threads) bzw. 11,5 → 1,49 s (25 Threads),
   Add-Freigabe 8,7 → 3,3 s bzw. 15,6 → 4,6 s; Erststart unverändert (~6,8 s Pluginphase).
-  Tests: Desktop-Filter `Plugin` 155 grün, 1 übersprungen. Nebenbefund: Das Mess-Harness
+  Tests: Desktop-Filter `Plugin` 155 grün, 1 übersprungen. Erststart: `9948b8f` probt
+  in zwei Spuren, Pluginphase in 3 abwechselnden Paaren 14,3/9,4/10,3 → 6,5/6,9/5,2 s
+  (Last 16–28). Nebenbefund: Das Mess-Harness
   löschte das Profil nach jedem Lauf, frühere „reopen“-Werte (auch 10.11.) waren
   Kaltstarts; nur in der Messkopie korrigiert. Erste Messrunde (Last 20–38) nicht als
-  Vergleich verwendbar. Nicht umgesetzt: Erststart-Describe (nur Parallelisierung möglich,
-  nicht gemessen) und der `MainWindow`-Konstruktor (unter Last 6–8 s, sonst ~2 s).
+  Vergleich verwendbar. Nicht umgesetzt: der `MainWindow`-Konstruktor (unter Last 6–8 s, sonst ~2 s).
 - **Ledger-Identität (11.11., Nutzerentscheidung „zusammenführen“):** neue Konflikte
   tragen einen Slot-Digest `occurrence-v2` (Ressource, Post, Position) ohne Provider-
   Tupel; gleiche Alternativen unter verschiedenen Tupeln sind eine Zeile. Bestehende
@@ -65,5 +70,11 @@ Windows-, macOS- und Hardwarebelege fehlen. Sie sind unter Linux nicht ersetzbar
   entschieden) unterdrückt das erneute Anlegen als V2 (`LegacyIdentitySha256`), Promote
   erkennt beide Digests. Kein Schema-Wechsel. Nicht zusammengeführt werden bereits
   doppelt vorhandene V1-Zeilen. Beleg: Core-Filter `Transfer` 6242 grün, 2 neue Tests.
-- Crash-/Platzmangel-Recovery ist durch die vorhandenen Core-Tests abgedeckt; ein
-  echter Platzmangel- oder Absturz-Lauf auf Dateisystemebene wurde nicht ausgeführt.
+- **Platzmangel, echt (11.11., tmpfs 64 MiB, `ef116e2`, 3×4/4 grün):** bei 0/4 KiB frei
+  schlägt der Import vor dem dauerhaften Claim fehl, derselbe Plan committet nach
+  Freigabe; bei 256 KiB committet er mit veröffentlichten Bytes. **Bei 64 KiB bleibt die
+  Operation `ReconciliationRequired` und die Startprüfung verweigert das Profil dauerhaft;
+  im Produkt gibt es keinen Ausweg.** Nichts wird teilweise veröffentlicht. Das ist ein
+  offener Recovery-Blocker im Sinne von Releaseplan §2.1 („kein Downgrade“). Entwurf für
+  ein bestätigtes Verwerfen: `docs/architecture/gesamtprogramm-2026-10-31/NATIVE-TRANSFER-INTERRUPTED-RESOLUTION.md`
+  (lokal, git-ignoriert), wartet auf Freigabe. Echter Absturz (SIGKILL) nicht ausgeführt.
