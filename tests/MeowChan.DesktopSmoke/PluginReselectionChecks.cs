@@ -211,8 +211,10 @@ internal static class PluginReselectionChecks
         StackPanel repairs = modal.GetVisualDescendants().OfType<StackPanel>()
             .Single(p => AutomationProperties.GetAutomationId(p) == "BundledProvenRepairs");
         modal.UpdateLayout();
-        Point selectionOrigin = selections.TranslatePoint(default, modal)!.Value;
-        Point repairOrigin = repairs.TranslatePoint(default, modal)!.Value;
+        // UX103 P7: the fixed title sits above the scrolling rows, so the scroll origin is the frame body.
+        ScrollViewer body = modal.GetVisualDescendants().OfType<ScrollViewer>().Single(s => s.Name == "DialogFrameBody");
+        Point selectionOrigin = selections.TranslatePoint(default, body)!.Value;
+        Point repairOrigin = repairs.TranslatePoint(default, body)!.Value;
         Require(newFirst ? selectionOrigin.Y < repairOrigin.Y : repairOrigin.Y < selectionOrigin.Y,
             "The usable section was buried below the legacy repair rows.");
         Require((newFirst ? selectionOrigin.Y : repairOrigin.Y) >= 0 && (newFirst ? selectionOrigin.Y : repairOrigin.Y) < 40,

@@ -68,11 +68,13 @@ internal static class ExperimentalActivationChecks
                 });
                 Task<ExperimentalActivationDecision?> result = modal.ShowDialog<ExperimentalActivationDecision?>(window);
                 modal.Width = modal.MinWidth; modal.Height = modal.MinHeight;
-                TextBlock warningStatus = C<TextBlock>(modal, "ActivationStatus");
+                // UX103 P7: the warning text scrolls in the dialog frame body; the failure has its
+                // own error strip outside it, hidden until a failure exists.
+                ScrollViewer warningBody = C<ScrollViewer>(modal, "DialogFrameBody");
                 void ObserveMinimumLayout(string stage)
                 {
-                    ScrollViewer? scroll = warningStatus.GetVisualAncestors().OfType<ScrollViewer>().FirstOrDefault();
-                    var presenter = warningStatus.GetVisualAncestors().OfType<Avalonia.Controls.Presenters.ScrollContentPresenter>().FirstOrDefault();
+                    ScrollViewer? scroll = warningBody;
+                    var presenter = warningBody.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.ScrollContentPresenter>().FirstOrDefault();
                     Console.WriteLine("EXPERIMENTAL_WARNING_MINIMUM_LAYOUT " + JsonSerializer.Serialize(new
                     {
                         stage, cell, requestedWidth = modal.MinWidth, requestedHeight = modal.MinHeight,
@@ -92,8 +94,8 @@ internal static class ExperimentalActivationChecks
                     // and its Click must wait for native client size and matching layout.
                     await Program.WaitUntilAsync(() =>
                     {
-                        var warningScroll = warningStatus.GetVisualAncestors().OfType<ScrollViewer>().FirstOrDefault();
-                        var warningPresenter = warningStatus.GetVisualAncestors().OfType<Avalonia.Controls.Presenters.ScrollContentPresenter>().FirstOrDefault();
+                        var warningScroll = warningBody;
+                        var warningPresenter = warningBody.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.ScrollContentPresenter>().FirstOrDefault();
                         return modal.IsVisible && C<Button>(modal, "ActivationConfirm").IsEnabled
                         && warningScroll != null && warningPresenter != null
                         && Math.Abs(modal.ClientSize.Width - modal.MinWidth) <= 1
@@ -122,7 +124,9 @@ internal static class ExperimentalActivationChecks
                 await Program.WaitUntilAsync(() => C<TextBlock>(modal, "ActivationStatus").IsEffectivelyVisible
                     && C<Button>(modal, "ActivationConfirm").IsEnabled);
                 TextBlock partialStatus = C<TextBlock>(modal, "ActivationStatus");
-                ScrollViewer statusViewport = partialStatus.GetVisualAncestors().OfType<ScrollViewer>().First();
+                // UX103 P7: the error strip's own viewport was never templated while hidden, so
+                // take it from the logical tree; its presenter is read after natural layout below.
+                ScrollViewer statusViewport = (ScrollViewer)partialStatus.Parent!;
                 void ObservePartialLayout(string stage) => Console.WriteLine("EXPERIMENTAL_PARTIAL_LAYOUT " + JsonSerializer.Serialize(new
                 {
                     stage, cell, statusText = partialStatus.Text, statusBounds = partialStatus.Bounds.ToString(),
@@ -165,9 +169,22 @@ internal static class ExperimentalActivationChecks
                         && InWindow(modal, statusPresenter) && statusPresenter.IsMeasureValid && statusPresenter.IsArrangeValid
                         && partialStatus.IsMeasureValid && partialStatus.IsArrangeValid
                         && rect.Width > 0 && rect.Height > 0 && rect.X >= -1 && rect.Y >= -1
-                        && rect.Right <= statusPresenter.Bounds.Width + 1 && rect.Bottom <= statusPresenter.Bounds.Height + 1;
+                        && rect.Right <= statusPresenter.Bounds.Width + 1
+                        // UX103 P7: the failure lives in the fixed error strip, which scrolls on its own
+                        // (bounded height) instead of pushing the actions away. The whole text must be
+                        // inside the strip's scroll extent; its end is proven reachable below.
+                        && (rect.Bottom <= statusPresenter.Bounds.Height + 1
+                            || rect.Height <= statusViewport.Extent.Height + 1 && statusViewport.Extent.Height > statusViewport.Viewport.Height);
                 }
-                try { await Program.WaitUntilAsync(FullStatusVisible); }
+                try
+                {
+                    await Program.WaitUntilAsync(FullStatusVisible);
+                    Vector start = statusViewport.Offset;
+                    statusViewport.Offset = new Vector(start.X, Math.Max(0, statusViewport.Extent.Height - statusViewport.Viewport.Height));
+                    await Program.WaitUntilAsync(() => statusPresenter.IsArrangeValid && StatusRect().Bottom <= statusPresenter.Bounds.Height + 1);
+                    statusViewport.Offset = start;
+                    await Program.WaitUntilAsync(FullStatusVisible);
+                }
                 finally
                 {
                     Rect rect = StatusRect();

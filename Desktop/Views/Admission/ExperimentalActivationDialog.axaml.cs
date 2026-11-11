@@ -89,9 +89,13 @@ public partial class ExperimentalActivationDialog : Window
         C<Button>("ActivationCancel").IsEnabled = !_busy;
         C<Ursa.Controls.LoadingIcon>("ActivationBusy").IsLoading = _busy;
         C<Ursa.Controls.LoadingIcon>("ActivationBusy").IsVisible = _busy;
-        string? status = FailureMessage();
-        C<Border>("ActivationStatusPanel").IsVisible = _busy || status != null;
-        C<TextBlock>("ActivationStatus").Text = _busy ? Texts.T(_original.RequestsMismatchPermission ? "activation.saving" : "activation.strictSaving") : status;
+        // Busy progress stays a polite footer status; the failure owns the local error strip.
+        // As before, a running retry replaces the previous failure instead of showing both.
+        C<Grid>("ActivationBusyPanel").IsVisible = _busy;
+        C<TextBlock>("ActivationBusyStatus").Text = _busy ? Texts.T(_original.RequestsMismatchPermission ? "activation.saving" : "activation.strictSaving") : null;
+        string? status = _busy ? null : FailureMessage();
+        C<Border>("DialogFrameErrorStrip").IsVisible = C<Border>("ActivationStatusPanel").IsVisible = status != null;
+        C<TextBlock>("ActivationStatus").Text = status;
     }
 
     internal string? AdmissionError => FailureMessage();

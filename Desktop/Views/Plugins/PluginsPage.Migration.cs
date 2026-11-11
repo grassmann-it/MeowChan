@@ -10,6 +10,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.PluginHost.Configuration;
 using MeowChan.PluginSdk;
@@ -186,9 +187,13 @@ public partial class PluginsPage
             Button cancel = new() { Content = Texts.T("plugins.repair.cancel"), HorizontalAlignment = HorizontalAlignment.Right };
             AutomationProperties.SetName(cancel, Texts.T("plugins.repair.cancel"));
             cancel.Click += (_, _) => window.Close();
-            Grid layout = new() { RowDefinitions = new RowDefinitions("*,Auto"), Margin = new Thickness(16), RowSpacing = 12 };
-            layout.Children.Add(new ScrollViewer { Content = rows, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled });
-            Grid.SetRow(cancel, 1); layout.Children.Add(cancel); window.Content = layout;
+            // Layout only: fixed title, scrolling rows, fixed Cancel. The error strip is an empty
+            // slot; this modal has no local error path and failures still surface on the page.
+            TextBlock heading = new() { Text = window.Title, TextWrapping = TextWrapping.Wrap };
+            heading.Classes.Add("page-title");
+            Border body = new() { Child = rows };
+            body.Classes.Add("workspace-dialog-body");
+            window.Content = DialogFrame.Build(heading, body, cancel, DialogFrame.ErrorStrip(new TextBlock()));
             window.KeyDown += (_, args) => { if (args.Key == Key.Escape) { window.Close(); args.Handled = true; } };
             window.Opened += (_, _) => cancel.Focus();
             object? chosen = await window.ShowDialog<object?>(owner);

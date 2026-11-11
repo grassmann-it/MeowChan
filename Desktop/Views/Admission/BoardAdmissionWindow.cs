@@ -15,6 +15,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Admission;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -87,12 +88,14 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
         _preview = preview;
         Title = Texts.T("wizard.title"); Width = 980; Height = 720; MinWidth = 640; MinHeight = 600;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        var shell = new Grid { Margin = new Thickness(20), RowDefinitions = new RowDefinitions("Auto,*,Auto"), RowSpacing = 12 };
+        // Shared dialog frame: title and task stay fixed, the rules help and board tabs scroll,
+        // the batch summary and joint actions stay fixed. Catalog failures stay tab-local next
+        // to their Retry, so the frame's error strip is an empty slot.
         var intro = new StackPanel { Spacing = 8 };
-        intro.Children.Add(Localized(new TextBlock { Classes = { "page-title" } }, c => c.Text = Texts.T("wizard.title")));
+        intro.Children.Add(Localized(new TextBlock { Classes = { "page-title" }, TextWrapping = TextWrapping.Wrap }, c => c.Text = Texts.T("wizard.title")));
         intro.Children.Add(Localized(Help(string.Empty), c => c.Text = Texts.T("wizard.intro")));
-        intro.Children.Add(Localized(new Expander { Content = Localized(Help(string.Empty), c => c.Text = Texts.T("wizard.semantics")) }, c => c.Header = Texts.T("wizard.rulesHelp")));
-        shell.Children.Add(intro);
+        var body = new StackPanel { Spacing = 12 };
+        body.Children.Add(Localized(new Expander { Content = Localized(Help(string.Empty), c => c.Text = Texts.T("wizard.semantics")) }, c => c.Header = Texts.T("wizard.rulesHelp")));
         var tabs = new TabControl { Name = "BoardAdmissionTabs" };
         var items = new List<TabItem>();
         foreach (string url in urls.Distinct(StringComparer.Ordinal))
@@ -139,11 +142,11 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
             previewPanel.Children.Add(previewHeader); previewPanel.Children.Add(list);
             var content = new StackPanel { Spacing = 16, Margin = new Thickness(0, 12, 0, 0) };
             content.Children.Add(header); content.Children.Add(previewPanel);
-            items.Add(new TabItem { Header = new Uri(url).Host + new Uri(url).AbsolutePath,
-                Content = new ScrollViewer { Content = content, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } });
+            // The frame body is the single vertical scroll for the active board.
+            items.Add(new TabItem { Header = new Uri(url).Host + new Uri(url).AbsolutePath, Content = content });
             foreach (var rule in draft.Initial.Rules) AddRule(draft, rule);
         }
-        tabs.ItemsSource = items; Grid.SetRow(tabs, 1); shell.Children.Add(tabs);
+        tabs.ItemsSource = items; body.Children.Add(tabs);
         var footer = new StackPanel { Spacing = 8 };
         footer.Children.Add(_total);
         footer.Children.Add(Localized(Help(string.Empty), c => c.Text = Texts.T("wizard.applyHint")));
@@ -167,7 +170,9 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
         });
         _apply.Classes.Add("primary"); _apply.Click += (_, _) => Accept();
         buttons.Children.Add(cancel); buttons.Children.Add(_apply);
-        footer.Children.Add(buttons); Grid.SetRow(footer, 2); shell.Children.Add(footer); Content = shell;
+        footer.Children.Add(buttons);
+        Content = DialogFrame.Build(intro, new Border { Child = body, Classes = { "workspace-dialog-body" } }, footer,
+            DialogFrame.ErrorStrip(new TextBlock()));
         Opened += async (_, _) => { foreach (var draft in _drafts) { if (_closing) break; await LoadAsync(draft); } };
         Texts.Changed += OnTextsChanged;
         ApplyTexts();
