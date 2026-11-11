@@ -203,3 +203,18 @@ Volltests auf `40eba83` sowie die Bereichs-, Einzel- und Smokebelege oben gedeck
 Blocker ist Blocker 2 (Windows-/macOS-/Hardwareläufe, Linux-Distributionspaketierung): unter diesem Manjaro-Rechner
 nicht herstellbar, Remote-CI durch den Auftrag ausgeschlossen, Ersatz per Docker vom Nutzer abgelehnt; die Läufe
 übernimmt der Nutzer in GitHub Actions. Bis dahin kein freigegebener 1.0.3-Kandidat.
+
+### Bereichsläufe auf `40eba83` (`/home/tomka/mc-evidence/areas-40eba83-1794412407`)
+
+Gezielte `dotnet test --no-build`-Filter auf den frischen Bins der Abnahme oben:
+Transfer/v2-Merge/Private Apply/Consent/Konflikte Core 6276/0/9; Importdialog/Konflikt Desktop 117/0;
+Bestandsschutz Favoriten/Bookmarks/Bewertungen/Notizen 892/0; Registry/Startup/Admission 783/0;
+FirstRun/Settings 277/0; Galerie/Video/Playback/Mute 592/0/1; HTML-/Export 176/0/3; Lokalisierung 432/0;
+Kontextmenü/Clipboard 154/0; passive GP-39 14/0; Archivfilter/Vorschläge 35/0; Quellenwording/Experimental
+Desktop 105/0; Beispiel-/Experimental-Plugins frisch Locked-Restore 360/0 mit Treffern für alle sieben Quellen
+(anonimageboards, bbwchan, capybarachan, eightchanmoe, fchan, gurocx, sevenchan).
+Gerätezeitzone: `DeviceTimeZoneResolvesToABundledIanaZoneAndNodaTimeIsDeployed` und
+`DeviceTimeZoneFailureNamesTheFactsInsteadOfAGenericAssemblyMessage` bestanden (Datumsbereich/Zeitzone 15/0).
+Diagnose (`timezone-diagnosis.log`): `MeowChan.deps.json` nennt `NodaTime/3.3.6`, `NodaTime.dll` in App-, Smoke-,
+Desktop- und Core-Bins hashgleich (`1421cc81…`), System-tz `Europe/Berlin` über `/etc/localtime`, keine
+installierten oder veralteten MeowChan-Pfade. „assembly not found“ damit weiterhin nicht reproduziert.
