@@ -121,7 +121,10 @@ internal sealed class NativeV2ImportFixture : IAsyncDisposable
         => new(new CapturedPost(id, 1, PostFieldPresence.All, At, "", "", "synthetic post", false,
             attachments.Select(a => a.Metadata).ToArray()), attachments.ToImmutableArray());
 
-    internal static async Task<NativeTransferImportStage> StageAsync(Workspace files,
+    internal static Task<NativeTransferImportStage> StageAsync(Workspace files,
+        NativeTransferCatalog content, params byte[][] payloads) => StageAsync(files.StageRoot, content, payloads);
+
+    internal static async Task<NativeTransferImportStage> StageAsync(string stageRoot,
         NativeTransferCatalog content, params byte[][] payloads)
     {
         using MemoryStream package = new();
@@ -131,12 +134,34 @@ internal sealed class NativeV2ImportFixture : IAsyncDisposable
         Assert.True(written.IsComplete, written.ToString());
         Assert.True(written.Package!.IsChanV4);
         package.Position = 0;
-        NativeTransferStageResult staged = await NativeTransferImportStage.CreateAsync(package, files.StageRoot);
+        NativeTransferStageResult staged = await NativeTransferImportStage.CreateAsync(package, stageRoot);
         Assert.Equal(NativeTransferStageError.None, staged.Error);
         NativeTransferImportStage stage = Assert.IsType<NativeTransferImportStage>(staged.Stage);
         Assert.True(stage.Package.IsChanV4);
         Assert.Null(stage.Package.PrivateMetadata);
         return stage;
+    }
+
+    // A restart after an interrupted import: the guard blocks, a confirmed discard clears it, the package re-imports.
+    internal static async Task AssertDiscardClearsStartupAndReimportCommitsAsync(string profile, string stageRoot)
+    {
+        using ProfileLease lease = ProfileLease.Acquire(profile);
+        await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
+        await Assert.ThrowsAsync<InvalidDataException>(() => catalog.EnsureNativeMediaRecoveryClearAsync());
+        IReadOnlyList<InterruptedNativeMediaOperation> interrupted = await catalog.ReadInterruptedNativeMediaOperationsAsync();
+        Assert.NotEmpty(interrupted);
+        using (ProfileAdmissionToken startup = lease.Admission.EnterStartupWriter())
+            Assert.Equal(interrupted.Count, await catalog.DiscardInterruptedNativeMediaOperationsAdmittedAsync(startup));
+        await catalog.EnsureNativeMediaRecoveryClearAsync();
+        Assert.Empty(await catalog.ReadInterruptedNativeMediaOperationsAsync());
+        Assert.False(Directory.Exists(Path.Combine(profile, "import-media-operations", interrupted[0].OperationId.ToString("N"))));
+        await using NativeTransferImportStage stage = await StageAsync(stageRoot, Content(), Original, Preview);
+        NativeMediaImportPlan plan = Assert.IsType<NativeMediaImportPlan>((await catalog.PrepareNativeMediaImportAsync(stage)).Plan);
+        lease.Admission.CompleteStartup();
+        using ProfileAdmissionToken admission = await lease.Admission.EnterExclusiveAsync();
+        var outcome = await catalog.CommitNativeMediaImportAdmittedAsync(admission, plan, new MediaStore());
+        Assert.Equal(NativeMediaImportCommitStatus.Committed, outcome.Result.Status);
+        Assert.Contains(Hash(Original), PayloadFiles(profile).Values);
     }
 
     internal static string Hash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();

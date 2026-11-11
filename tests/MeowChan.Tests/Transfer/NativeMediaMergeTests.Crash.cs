@@ -36,8 +36,15 @@ public sealed partial class NativeMediaMergeTests(ITestOutputHelper output)
             await using ArchiveReader reader = await ArchiveReader.OpenAsync(profile);
             ArchivedThreadView target = Assert.IsType<ArchivedThreadView>(await reader.ReadThreadAsync(Id));
             output.WriteLine($"phase={phase} guard={guard} targetPosts={target.PostCount}");
-            if (phase == nameof(NativeMediaImportPhase.SqlCommitted)) Assert.Equal("clear", guard);
-            else Assert.StartsWith("blocked", guard);
+            if (phase == nameof(NativeMediaImportPhase.SqlCommitted)) { Assert.Equal("clear", guard); return; }
+            Assert.StartsWith("blocked", guard);
+            // A confirmed discard clears startup and leaves the 404 target exactly as it was.
+            using (ProfileAdmissionToken startup = lease.Admission.EnterStartupWriter())
+                Assert.Equal(1, await catalog.DiscardInterruptedNativeMediaOperationsAdmittedAsync(startup));
+            await catalog.EnsureNativeMediaRecoveryClearAsync();
+            ArchivedThreadView kept = Assert.IsType<ArchivedThreadView>(await reader.ReadThreadAsync(Id));
+            Assert.Equal(target.PostCount, kept.PostCount);
+            Assert.Equal(target.MediaDirectories, kept.MediaDirectories);
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
     }

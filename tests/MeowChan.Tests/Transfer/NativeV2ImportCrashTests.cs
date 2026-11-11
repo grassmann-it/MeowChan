@@ -32,18 +32,20 @@ public sealed class NativeV2ImportCrashTests(ITestOutputHelper output)
         try
         {
             string profile = Path.Combine(root, "profile");
-            using ProfileLease lease = ProfileLease.Acquire(profile);
-            await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
             bool published = NativeV2ImportFixture.PayloadFiles(profile).ContainsValue(NativeV2ImportFixture.Hash(NativeV2ImportFixture.Original));
             string guard;
-            try { await catalog.EnsureNativeMediaRecoveryClearAsync(); guard = "clear"; }
-            catch (InvalidDataException error) { guard = "blocked: " + error.Message; }
+            using (ProfileLease lease = ProfileLease.Acquire(profile))
+            await using (ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease))
+            {
+                try { await catalog.EnsureNativeMediaRecoveryClearAsync(); guard = "clear"; }
+                catch (InvalidDataException error) { guard = "blocked: " + error.Message; }
+            }
             output.WriteLine($"phase={phase} guard={guard} payloadOnDisk={published}");
             // A committed SQL transaction survives the kill and lets startup continue.
-            if (phase == nameof(NativeMediaImportPhase.SqlCommitted)) { Assert.Equal("clear", guard); Assert.True(published); }
-            // Any earlier kill leaves a durable Preparing/Prepared row that keeps blocking startup:
-            // the open recovery gap (no resume or discard path exists yet).
-            else Assert.StartsWith("blocked", guard);
+            if (phase == nameof(NativeMediaImportPhase.SqlCommitted)) { Assert.Equal("clear", guard); Assert.True(published); return; }
+            // Any earlier kill leaves a durable Preparing/Prepared row that blocks startup until discarded.
+            Assert.StartsWith("blocked", guard);
+            await NativeV2ImportFixture.AssertDiscardClearsStartupAndReimportCommitsAsync(profile, Path.Combine(root, "stage"));
         }
         finally
         {

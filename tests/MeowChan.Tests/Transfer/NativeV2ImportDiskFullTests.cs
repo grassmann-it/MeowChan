@@ -19,7 +19,7 @@ public sealed class NativeV2ImportDiskFullTests(ITestOutputHelper output)
     [InlineData(4 * 1024)]
     [InlineData(64 * 1024)]
     [InlineData(256 * 1024)]
-    public async Task AFullDiskNeverPublishesPartialContentAndReportsWhetherTheSamePlanCanComplete(long freeBytes)
+    public async Task AFullDiskNeverPublishesPartialContentAndEveryOutcomeEndsInAUsableProfile(long freeBytes)
     {
         await using NativeV2ImportFixture f = await NativeV2ImportFixture.CreateAsync();
         string filler = Path.Combine(f.Files.Root, "filler.bin");
@@ -51,15 +51,19 @@ public sealed class NativeV2ImportDiskFullTests(ITestOutputHelper output)
             AssertPublished(f);
         }
 
-        // Restart on the same profile with space available: the catalog opens; an interrupted
-        // durable operation keeps blocking startup (no automatic resume or discard exists).
+        // Restart on the same profile with space available: the catalog opens. An interrupted durable
+        // operation blocks startup until it is discarded; then the same package imports again.
         string profile = f.Files.Profile;
         await f.CloseOwnerAsync();
+        if (durable)
+        {
+            await NativeV2ImportFixture.AssertDiscardClearsStartupAndReimportCommitsAsync(profile, f.Files.StageRoot);
+            output.WriteLine("restart: blocked -> discarded -> clear -> re-import committed");
+            return;
+        }
         using ProfileLease lease = ProfileLease.Acquire(profile);
         await using ArchiveCatalog reopened = await ArchiveCatalog.OpenAsync(profile, lease);
-        if (!durable) { await reopened.EnsureNativeMediaRecoveryClearAsync(); return; }
-        InvalidDataException blocked = await Assert.ThrowsAsync<InvalidDataException>(() => reopened.EnsureNativeMediaRecoveryClearAsync());
-        output.WriteLine("restart guard: " + blocked.Message);
+        await reopened.EnsureNativeMediaRecoveryClearAsync();
     }
 
     private static void AssertPublished(NativeV2ImportFixture f) =>
