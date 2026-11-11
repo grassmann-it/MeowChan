@@ -192,6 +192,80 @@ public static class SdkValidation
         return checks.Issues;
     }
 
+    public static IReadOnlyList<ValidationIssue> ValidateBooruSearchRequest(BooruSearchRequest request,
+        SourceDescription source)
+    {
+        Checks checks = new Checks();
+        checks.BooruSearchRequest(request, source);
+        return checks.Issues;
+    }
+
+    public static IReadOnlyList<ValidationIssue> ValidateBooruSearchResult(BooruSearchRequest request,
+        BooruSearchResult result, SourceDescription source)
+    {
+        Checks checks = new Checks();
+        checks.BooruSearchRequest(request, source);
+        if (request is null || source is null) return checks.Issues;
+        switch (result)
+        {
+            case BooruSearchSnapshot snapshot:
+                checks.BooruSearchPage(snapshot.Page, request, source, "result.page");
+                break;
+            case BooruSearchDeferred deferred:
+                checks.SameSource(deferred.SourceId, request.SourceId, "result.sourceId");
+                checks.Deferred(deferred.RetryAt, deferred.ReasonCode, deferred.HttpStatusCode, "result");
+                break;
+            case BooruSearchFailure failure:
+                checks.SameSource(failure.SourceId, request.SourceId, "result.sourceId");
+                checks.Failure(failure.Failure, "result.failure");
+                break;
+            default:
+                checks.Add("result", "wrong_result_kind", "A known booru search result is required.");
+                break;
+        }
+        return checks.Issues;
+    }
+
+    public static IReadOnlyList<ValidationIssue> ValidateBooruPostRequest(BooruPostRequest request,
+        SourceDescription source)
+    {
+        Checks checks = new Checks();
+        checks.BooruPostRequest(request, source);
+        return checks.Issues;
+    }
+
+    public static IReadOnlyList<ValidationIssue> ValidateBooruPostResult(BooruPostRequest request,
+        BooruPostResult result, SourceDescription source)
+    {
+        Checks checks = new Checks();
+        checks.BooruPostRequest(request, source);
+        if (request is null || source is null) return checks.Issues;
+        switch (result)
+        {
+            case BooruPostSnapshot snapshot:
+                checks.BooruPost(snapshot.Post, source, "result.post");
+                if (snapshot.Post?.Id != request.Post) checks.Add("result.post.id", "wrong_resource", "Snapshot does not identify the requested post.");
+                break;
+            case BooruPostNotFound notFound:
+                checks.ExpectedBooruPost(notFound.Post, request.Post, "result.post");
+                if (notFound.HttpStatusCode is not null and not 404 and not 410)
+                    checks.Add("result.httpStatusCode", "not_terminal", "Only a verified 404/410 may be transported as HTTP post absence.");
+                break;
+            case BooruPostDeferred deferred:
+                checks.ExpectedBooruPost(deferred.Post, request.Post, "result.post");
+                checks.Deferred(deferred.RetryAt, deferred.ReasonCode, deferred.HttpStatusCode, "result");
+                break;
+            case BooruPostFailure failure:
+                checks.ExpectedBooruPost(failure.Post, request.Post, "result.post");
+                checks.Failure(failure.Failure, "result.failure");
+                break;
+            default:
+                checks.Add("result", "wrong_result_kind", "A known booru post result is required.");
+                break;
+        }
+        return checks.Issues;
+    }
+
     public static IReadOnlyList<ValidationIssue> ValidateHttpRequest(HostHttpRequest request, SourceDescription source)
     {
         Checks checks = new Checks();
@@ -514,7 +588,7 @@ public static class SdkValidation
             Identity(description.PluginId, path + ".pluginId");
             Text(description.Name, path + ".name", 256, required: true);
             Identity(description.PluginVersion, path + ".pluginVersion");
-            if (!SdkContract.IsSupported(description.SdkVersion)) Add(path + ".sdkVersion", "incompatible_sdk", $"This host requires SDK {SdkContract.Version}.");
+            if (!SdkContract.IsSupported(description.SdkVersion)) Add(path + ".sdkVersion", "incompatible_sdk", $"This host supports SDK 1.0.0 and {SdkContract.Version}.");
             Text(description.Description, path + ".description", 16384, required: true);
             Text(description.Author, path + ".author", 256);
             if (description.AuthorUrl is not null) WebUri(description.AuthorUrl, path + ".authorUrl");
@@ -532,6 +606,9 @@ public static class SdkValidation
                 Filter(filter, itemPath);
                 if (filter is not null && !filterKeys.Add(filter.Key)) Add(itemPath + ".key", "duplicate_filter", "Filter key is duplicated.");
             }, 128);
+            if (SdkContract.IsSupported(description.SdkVersion) && description.SdkVersion != SdkContract.Version
+                && description.Sources?.Any(source => source is not null && source.Capabilities.HasFlag(SourceCapabilities.PostSearch)) == true)
+                Add(path + ".sdkVersion", "incompatible_sdk", $"Post search requires SDK {SdkContract.Version}.");
             bool hasCapability = description.Sources?.Count > 0 || description.Filters?.Count > 0;
             if (!hasCapability && description.DeclarationStatus != PluginDeclarationStatus.Blocked)
                 Add(path, "missing_capability", "A plugin must declare a source or filter capability unless it is explicitly blocked.");
@@ -563,9 +640,21 @@ public static class SdkValidation
             Text(source.Name, path + ".name", 256, required: true);
             WebUri(source.BaseUri, path + ".baseUri");
             const SourceCapabilities known = SourceCapabilities.ThreadRead | SourceCapabilities.BoardCatalog
-                | SourceCapabilities.PostCapture | SourceCapabilities.OriginalMedia | SourceCapabilities.Previews;
+                | SourceCapabilities.PostCapture | SourceCapabilities.OriginalMedia | SourceCapabilities.Previews
+                | SourceCapabilities.PostSearch;
             if (source.Capabilities == SourceCapabilities.None || (source.Capabilities & ~known) != 0)
                 Add(path + ".capabilities", "unknown_capability", "Declare supported source capabilities.");
+            bool postSearch = source.Capabilities.HasFlag(SourceCapabilities.PostSearch);
+            if (postSearch)
+            {
+                const SourceCapabilities boardWorld = SourceCapabilities.ThreadRead | SourceCapabilities.BoardCatalog | SourceCapabilities.PostCapture;
+                if ((source.Capabilities & boardWorld) != 0)
+                    Add(path + ".capabilities", "mixed_capability", "Post search is never combined with thread, catalog or capture capabilities in one source.");
+                if (source.Routes?.Count > 0)
+                    Add(path + ".routes", "unexpected_route", "A post-search source has no board or thread routes.");
+                if (!(source.HttpHosts?.Any(host => host is not null && host.Purpose.HasFlag(HttpHostPurpose.Metadata)) ?? false))
+                    Add(path + ".httpHosts", "missing_metadata_host", "Post search requires at least one metadata host.");
+            }
             EnumValue(source.PostOrder, path + ".postOrder");
             EnumValue(source.Maturity, path + ".maturity");
             Schema(source.Settings, path + ".settings", SettingScope.Source);
@@ -817,18 +906,8 @@ public static class SdkValidation
             Text(attachment.OriginalFileName, path + ".originalFileName", 4096);
             Text(attachment.MimeType, path + ".mimeType", 256);
             if (attachment.ExpectedSize < 0) Add(path + ".expectedSize", "invalid_size", "Expected size must be nonnegative.");
-            if (attachment.Extension is not null)
-            {
-                string extension = attachment.Extension;
-                if (extension.Length is < 2 or > 33 || extension[0] != '.' || extension.Skip(1).Any(character => !char.IsAsciiLetterOrDigit(character)))
-                    Add(path + ".extension", "invalid_extension", "Extension is one dot followed by 1–32 ASCII letters/digits, never a path.");
-            }
-            if (attachment.ExpectedMd5 is not null)
-            {
-                Span<byte> bytes = stackalloc byte[16];
-                if (!Convert.TryFromBase64String(attachment.ExpectedMd5, bytes, out int written) || written != 16)
-                    Add(path + ".expectedMd5", "invalid_hash", "MD5 must be base64 of 16 bytes.");
-            }
+            Extension(attachment.Extension, path + ".extension");
+            Md5(attachment.ExpectedMd5, path + ".expectedMd5");
             Sha256(attachment.ExpectedSha256, path + ".expectedSha256");
             if (attachment.ExpectedSha1 is not null)
             {
@@ -847,6 +926,148 @@ public static class SdkValidation
                 EnumValue(hint.Precision, path + ".providerSizeHint.precision");
             }
         }
+
+        private void Extension(string? extension, string path)
+        {
+            if (extension is null) return;
+            if (extension.Length is < 2 or > 33 || extension[0] != '.' || extension.Skip(1).Any(character => !char.IsAsciiLetterOrDigit(character)))
+                Add(path, "invalid_extension", "Extension is one dot followed by 1–32 ASCII letters/digits, never a path.");
+        }
+
+        private void Md5(string? value, string path)
+        {
+            if (value is null) return;
+            Span<byte> bytes = stackalloc byte[16];
+            if (!Convert.TryFromBase64String(value, bytes, out int written) || written != 16)
+                Add(path, "invalid_hash", "MD5 must be base64 of 16 bytes.");
+        }
+
+        internal void BooruSearchRequest(BooruSearchRequest? request, SourceDescription? source)
+        {
+            if (request is null || source is null) { Add("request", "missing", "Request and source description are required."); return; }
+            Identity(request.SourceId, "request.sourceId");
+            SameSource(request.SourceId, source.SourceId, "request.sourceId");
+            RequirePostSearch(source, "request.sourceId");
+            if (request.Query is null) Add("request.query", "missing", "A query is required, including an empty query.");
+            else if (System.Text.Encoding.UTF8.GetByteCount(request.Query) > 1024 || request.Query.Any(char.IsControl))
+                Add("request.query", "invalid_query", "Query must be at most 1024 UTF-8 bytes and contain no control characters.");
+            if (request.Page is < 1 or > 1000) Add("request.page", "invalid_page", "Page must be between 1 and 1000.");
+            if (request.Limit is < 1 or > 100) Add("request.limit", "invalid_limit", "Limit must be between 1 and 100.");
+        }
+
+        internal void BooruPostRequest(BooruPostRequest? request, SourceDescription? source)
+        {
+            if (request is null || source is null) { Add("request", "missing", "Request and source description are required."); return; }
+            BooruPostId(request.Post, "request.post");
+            SameSource(request.Post?.SourceId, source.SourceId, "request.post.sourceId");
+            RequirePostSearch(source, "request.post.sourceId");
+        }
+
+        private void RequirePostSearch(SourceDescription source, string path)
+        {
+            if (!source.Capabilities.HasFlag(SourceCapabilities.PostSearch))
+                Add(path, "missing_capability", "The source does not declare post search.");
+        }
+
+        internal void BooruPostId(SourcePostId? id, string path)
+        {
+            if (id is null) { Add(path, "missing", "Post identity is required."); return; }
+            Identity(id.SourceId, path + ".sourceId");
+            if (string.IsNullOrEmpty(id.PostId) || id.PostId.Length > SdkLimits.MaximumIdentifierLength
+                || id.PostId.Any(character => char.IsControl(character) || char.IsWhiteSpace(character)))
+                Add(path + ".postId", "invalid_identity", "Post identity must be nonempty, bounded and contain no whitespace or control characters.");
+        }
+
+        internal void ExpectedBooruPost(SourcePostId? actual, SourcePostId? expected, string path)
+        {
+            BooruPostId(actual, path);
+            if (actual != expected) Add(path, "wrong_resource", "Result identifies another post.");
+        }
+
+        internal void BooruSearchPage(BooruSearchPage? page, BooruSearchRequest request, SourceDescription source, string path)
+        {
+            if (page is null) { Add(path, "missing", "Search page is required."); return; }
+            if (page.SourceId != request.SourceId) Add(path + ".sourceId", "wrong_resource", "Page identifies another source.");
+            if (page.Query != request.Query) Add(path + ".query", "wrong_resource", "Page does not echo the requested query.");
+            if (page.Page != request.Page) Add(path + ".page", "wrong_resource", "Page does not echo the requested page number.");
+            HashSet<string> ids = new HashSet<string>(StringComparer.Ordinal);
+            List(page.Posts, path + ".posts", (post, itemPath) =>
+            {
+                BooruPost(post, source, itemPath);
+                if (post?.Id is null) return;
+                SameSource(post.Id.SourceId, request.SourceId, itemPath + ".id.sourceId");
+                if (post.Id.PostId is not null && !ids.Add(post.Id.PostId)) Add(itemPath + ".id.postId", "duplicate_post", "Post identity is duplicated within the page.");
+            }, Math.Clamp(request.Limit, 0, 100));
+        }
+
+        internal void BooruPost(BooruPost? post, SourceDescription source, string path)
+        {
+            if (post is null) { Add(path, "missing", "Post is required."); return; }
+            BooruPostId(post.Id, path + ".id");
+            if ((post.Fields & ~BooruFieldPresence.All) != 0) Add(path + ".fields", "unknown_presence", "Unknown field-presence flag.");
+            if ((!post.Fields.HasFlag(BooruFieldPresence.CreatedAt) && post.CreatedAt is not null)
+                || (!post.Fields.HasFlag(BooruFieldPresence.Rating) && (post.Rating != BooruRating.Unknown || post.RawRating is not null))
+                || (!post.Fields.HasFlag(BooruFieldPresence.Score) && post.Score is not null)
+                || (!post.Fields.HasFlag(BooruFieldPresence.FavoriteCount) && post.FavoriteCount is not null)
+                || (!post.Fields.HasFlag(BooruFieldPresence.Tags) && post.Tags is not null)
+                || (!post.Fields.HasFlag(BooruFieldPresence.Media) && post.Media is not null)
+                || (!post.Fields.HasFlag(BooruFieldPresence.SourceClaim) && post.SourceClaim is not null)
+                || (!post.Fields.HasFlag(BooruFieldPresence.IsDeleted) && post.IsDeleted)
+                || (!post.Fields.HasFlag(BooruFieldPresence.IsBanned) && post.IsBanned))
+                Add(path + ".fields", "presence_mismatch", "A supplied value requires its presence flag.");
+            if (post.PostUrl is not null)
+            {
+                HttpsUri(post.PostUrl, path + ".postUrl");
+                if (post.PostUrl.IsAbsoluteUri && !DeclaresHost(source, post.PostUrl, HttpHostPurpose.Metadata))
+                    Add(path + ".postUrl", "host_not_allowed", "Post URL must use a declared metadata host.");
+            }
+            EnumValue(post.Rating, path + ".rating");
+            Text(post.RawRating, path + ".rawRating", 16);
+            Text(post.SourceClaim, path + ".sourceClaim", 4096);
+            if (post.FavoriteCount < 0) Add(path + ".favoriteCount", "invalid_count", "Favorite count must be nonnegative.");
+            if (post.Fields.HasFlag(BooruFieldPresence.Tags))
+                List(post.Tags, path + ".tags", (tag, tagPath) =>
+                {
+                    if (tag is null) { Add(tagPath, "missing", "Tag is required."); return; }
+                    if (string.IsNullOrEmpty(tag.Name) || System.Text.Encoding.UTF8.GetByteCount(tag.Name) > 256
+                        || tag.Name.Any(character => char.IsControl(character) || char.IsWhiteSpace(character)))
+                        Add(tagPath + ".name", "invalid_tag", "Tag name must be nonempty, at most 256 UTF-8 bytes and contain no whitespace or control characters.");
+                    EnumValue(tag.Category, tagPath + ".category");
+                }, 4096);
+            if (post.Fields.HasFlag(BooruFieldPresence.Media))
+            {
+                HashSet<BooruMediaRole> roles = new HashSet<BooruMediaRole>();
+                List(post.Media, path + ".media", (variant, variantPath) =>
+                {
+                    if (variant is null) { Add(variantPath, "missing", "Media variant is required."); return; }
+                    EnumValue(variant.Role, variantPath + ".role");
+                    if (!roles.Add(variant.Role)) Add(variantPath + ".role", "duplicate_role", "Each media role may appear at most once.");
+                    if (variant.Url is not null)
+                    {
+                        HttpsUri(variant.Url, variantPath + ".url");
+                        HttpHostPurpose purpose = variant.Role == BooruMediaRole.Original ? HttpHostPurpose.OriginalMedia : HttpHostPurpose.PreviewMedia;
+                        if (variant.Url.IsAbsoluteUri && !DeclaresHost(source, variant.Url, purpose))
+                            Add(variantPath + ".url", "host_not_allowed", "Media URL must use a host declared for its role's media purpose.");
+                    }
+                    Extension(variant.Extension, variantPath + ".extension");
+                    if (variant.ExpectedSize < 0) Add(variantPath + ".expectedSize", "invalid_size", "Expected size must be nonnegative.");
+                    if (variant.Width <= 0) Add(variantPath + ".width", "invalid_dimension", "Width must be positive.");
+                    if (variant.Height <= 0) Add(variantPath + ".height", "invalid_dimension", "Height must be positive.");
+                    Md5(variant.ExpectedMd5, variantPath + ".expectedMd5");
+                }, 3);
+            }
+        }
+
+        private void HttpsUri(Uri? uri, string path)
+        {
+            WebUri(uri, path);
+            if (uri is not null && uri.IsAbsoluteUri && uri.Scheme != "https")
+                Add(path, "invalid_url", "An absolute HTTPS URL without credentials is required.");
+        }
+
+        private static bool DeclaresHost(SourceDescription source, Uri uri, HttpHostPurpose purpose)
+            => source.HttpHosts?.Any(host => host is not null && host.Purpose.HasFlag(purpose)
+                && string.Equals(host.Host, uri.IdnHost, StringComparison.OrdinalIgnoreCase)) ?? false;
 
         internal void CatalogSnapshot(SourceCatalogSnapshot? snapshot, SourceDescription source, string path)
         {

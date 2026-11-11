@@ -1,1 +1,170 @@
 #nullable enable
+*REMOVED*const MeowChan.PluginSdk.SdkContract.Version = "1.0.0" -> string!
+const MeowChan.PluginSdk.SdkContract.Version = "1.1.0" -> string!
+MeowChan.PluginSdk.BooruFieldPresence
+MeowChan.PluginSdk.BooruFieldPresence.All = MeowChan.PluginSdk.BooruFieldPresence.CreatedAt | MeowChan.PluginSdk.BooruFieldPresence.Rating | MeowChan.PluginSdk.BooruFieldPresence.Score | MeowChan.PluginSdk.BooruFieldPresence.FavoriteCount | MeowChan.PluginSdk.BooruFieldPresence.Tags | MeowChan.PluginSdk.BooruFieldPresence.Media | MeowChan.PluginSdk.BooruFieldPresence.SourceClaim | MeowChan.PluginSdk.BooruFieldPresence.IsDeleted | MeowChan.PluginSdk.BooruFieldPresence.IsBanned -> MeowChan.PluginSdk.BooruFieldPresence
+MeowChan.PluginSdk.BooruFieldPresence.CreatedAt = 1 -> MeowChan.PluginSdk.BooruFieldPresence
+MeowChan.PluginSdk.BooruFieldPresence.FavoriteCount = 8 -> MeowChan.PluginSdk.BooruFieldPresence
+MeowChan.PluginSdk.BooruFieldPresence.IsBanned = 256 -> MeowChan.PluginSdk.BooruFieldPresence
+MeowChan.PluginSdk.BooruFieldPresence.IsDeleted = 128 -> MeowChan.PluginSdk.BooruFieldPresence
+MeowChan.PluginSdk.BooruFieldPresence.Media = 32 -> MeowChan.PluginSdk.BooruFieldPresence
+MeowChan.PluginSdk.BooruFieldPresence.None = 0 -> MeowChan.PluginSdk.BooruFieldPresence
+MeowChan.PluginSdk.BooruFieldPresence.Rating = 2 -> MeowChan.PluginSdk.BooruFieldPresence
+MeowChan.PluginSdk.BooruFieldPresence.Score = 4 -> MeowChan.PluginSdk.BooruFieldPresence
+MeowChan.PluginSdk.BooruFieldPresence.SourceClaim = 64 -> MeowChan.PluginSdk.BooruFieldPresence
+MeowChan.PluginSdk.BooruFieldPresence.Tags = 16 -> MeowChan.PluginSdk.BooruFieldPresence
+MeowChan.PluginSdk.BooruMediaRole
+MeowChan.PluginSdk.BooruMediaRole.Original = 0 -> MeowChan.PluginSdk.BooruMediaRole
+MeowChan.PluginSdk.BooruMediaRole.Preview = 2 -> MeowChan.PluginSdk.BooruMediaRole
+MeowChan.PluginSdk.BooruMediaRole.Sample = 1 -> MeowChan.PluginSdk.BooruMediaRole
+MeowChan.PluginSdk.BooruMediaVariant
+MeowChan.PluginSdk.BooruMediaVariant.BooruMediaVariant(MeowChan.PluginSdk.BooruMediaRole Role, System.Uri? Url, string? Extension = null, long? ExpectedSize = null, int? Width = null, int? Height = null, string? ExpectedMd5 = null) -> void
+MeowChan.PluginSdk.BooruMediaVariant.ExpectedMd5.get -> string?
+MeowChan.PluginSdk.BooruMediaVariant.ExpectedMd5.init -> void
+MeowChan.PluginSdk.BooruMediaVariant.ExpectedSize.get -> long?
+MeowChan.PluginSdk.BooruMediaVariant.ExpectedSize.init -> void
+MeowChan.PluginSdk.BooruMediaVariant.Extension.get -> string?
+MeowChan.PluginSdk.BooruMediaVariant.Extension.init -> void
+MeowChan.PluginSdk.BooruMediaVariant.Height.get -> int?
+MeowChan.PluginSdk.BooruMediaVariant.Height.init -> void
+MeowChan.PluginSdk.BooruMediaVariant.Role.get -> MeowChan.PluginSdk.BooruMediaRole
+MeowChan.PluginSdk.BooruMediaVariant.Role.init -> void
+MeowChan.PluginSdk.BooruMediaVariant.Url.get -> System.Uri?
+MeowChan.PluginSdk.BooruMediaVariant.Url.init -> void
+MeowChan.PluginSdk.BooruMediaVariant.Width.get -> int?
+MeowChan.PluginSdk.BooruMediaVariant.Width.init -> void
+MeowChan.PluginSdk.BooruPost
+MeowChan.PluginSdk.BooruPost.BooruPost(MeowChan.PluginSdk.SourcePostId! Id, MeowChan.PluginSdk.BooruFieldPresence Fields, System.Uri? PostUrl = null, System.DateTimeOffset? CreatedAt = null, MeowChan.PluginSdk.BooruRating Rating = MeowChan.PluginSdk.BooruRating.Unknown, string? RawRating = null, int? Score = null, int? FavoriteCount = null, System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.BooruTag!>? Tags = null, System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.BooruMediaVariant!>? Media = null, string? SourceClaim = null, bool IsDeleted = false, bool IsBanned = false) -> void
+MeowChan.PluginSdk.BooruPost.CreatedAt.get -> System.DateTimeOffset?
+MeowChan.PluginSdk.BooruPost.CreatedAt.init -> void
+MeowChan.PluginSdk.BooruPost.FavoriteCount.get -> int?
+MeowChan.PluginSdk.BooruPost.FavoriteCount.init -> void
+MeowChan.PluginSdk.BooruPost.Fields.get -> MeowChan.PluginSdk.BooruFieldPresence
+MeowChan.PluginSdk.BooruPost.Fields.init -> void
+MeowChan.PluginSdk.BooruPost.Id.get -> MeowChan.PluginSdk.SourcePostId!
+MeowChan.PluginSdk.BooruPost.Id.init -> void
+MeowChan.PluginSdk.BooruPost.IsBanned.get -> bool
+MeowChan.PluginSdk.BooruPost.IsBanned.init -> void
+MeowChan.PluginSdk.BooruPost.IsDeleted.get -> bool
+MeowChan.PluginSdk.BooruPost.IsDeleted.init -> void
+MeowChan.PluginSdk.BooruPost.Media.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.BooruMediaVariant!>?
+MeowChan.PluginSdk.BooruPost.Media.init -> void
+MeowChan.PluginSdk.BooruPost.PostUrl.get -> System.Uri?
+MeowChan.PluginSdk.BooruPost.PostUrl.init -> void
+MeowChan.PluginSdk.BooruPost.Rating.get -> MeowChan.PluginSdk.BooruRating
+MeowChan.PluginSdk.BooruPost.Rating.init -> void
+MeowChan.PluginSdk.BooruPost.RawRating.get -> string?
+MeowChan.PluginSdk.BooruPost.RawRating.init -> void
+MeowChan.PluginSdk.BooruPost.Score.get -> int?
+MeowChan.PluginSdk.BooruPost.Score.init -> void
+MeowChan.PluginSdk.BooruPost.SourceClaim.get -> string?
+MeowChan.PluginSdk.BooruPost.SourceClaim.init -> void
+MeowChan.PluginSdk.BooruPost.Tags.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.BooruTag!>?
+MeowChan.PluginSdk.BooruPost.Tags.init -> void
+MeowChan.PluginSdk.BooruPostDeferred
+MeowChan.PluginSdk.BooruPostDeferred.BooruPostDeferred(MeowChan.PluginSdk.SourcePostId! Post, System.DateTimeOffset RetryAt, string! ReasonCode, int? HttpStatusCode = null) -> void
+MeowChan.PluginSdk.BooruPostDeferred.HttpStatusCode.get -> int?
+MeowChan.PluginSdk.BooruPostDeferred.HttpStatusCode.init -> void
+MeowChan.PluginSdk.BooruPostDeferred.Post.get -> MeowChan.PluginSdk.SourcePostId!
+MeowChan.PluginSdk.BooruPostDeferred.Post.init -> void
+MeowChan.PluginSdk.BooruPostDeferred.ReasonCode.get -> string!
+MeowChan.PluginSdk.BooruPostDeferred.ReasonCode.init -> void
+MeowChan.PluginSdk.BooruPostDeferred.RetryAt.get -> System.DateTimeOffset
+MeowChan.PluginSdk.BooruPostDeferred.RetryAt.init -> void
+MeowChan.PluginSdk.BooruPostFailure
+MeowChan.PluginSdk.BooruPostFailure.BooruPostFailure(MeowChan.PluginSdk.SourcePostId! Post, MeowChan.PluginSdk.FailureDetail! Failure) -> void
+MeowChan.PluginSdk.BooruPostFailure.Failure.get -> MeowChan.PluginSdk.FailureDetail!
+MeowChan.PluginSdk.BooruPostFailure.Failure.init -> void
+MeowChan.PluginSdk.BooruPostFailure.Post.get -> MeowChan.PluginSdk.SourcePostId!
+MeowChan.PluginSdk.BooruPostFailure.Post.init -> void
+MeowChan.PluginSdk.BooruPostNotFound
+MeowChan.PluginSdk.BooruPostNotFound.BooruPostNotFound(MeowChan.PluginSdk.SourcePostId! Post, int? HttpStatusCode = null) -> void
+MeowChan.PluginSdk.BooruPostNotFound.HttpStatusCode.get -> int?
+MeowChan.PluginSdk.BooruPostNotFound.HttpStatusCode.init -> void
+MeowChan.PluginSdk.BooruPostNotFound.Post.get -> MeowChan.PluginSdk.SourcePostId!
+MeowChan.PluginSdk.BooruPostNotFound.Post.init -> void
+MeowChan.PluginSdk.BooruPostRequest
+MeowChan.PluginSdk.BooruPostRequest.BooruPostRequest(MeowChan.PluginSdk.SourcePostId! Post) -> void
+MeowChan.PluginSdk.BooruPostRequest.Post.get -> MeowChan.PluginSdk.SourcePostId!
+MeowChan.PluginSdk.BooruPostRequest.Post.init -> void
+MeowChan.PluginSdk.BooruPostResult
+MeowChan.PluginSdk.BooruPostSnapshot
+MeowChan.PluginSdk.BooruPostSnapshot.BooruPostSnapshot(MeowChan.PluginSdk.BooruPost! Post) -> void
+MeowChan.PluginSdk.BooruPostSnapshot.Post.get -> MeowChan.PluginSdk.BooruPost!
+MeowChan.PluginSdk.BooruPostSnapshot.Post.init -> void
+MeowChan.PluginSdk.BooruRating
+MeowChan.PluginSdk.BooruRating.Explicit = 4 -> MeowChan.PluginSdk.BooruRating
+MeowChan.PluginSdk.BooruRating.General = 1 -> MeowChan.PluginSdk.BooruRating
+MeowChan.PluginSdk.BooruRating.Questionable = 3 -> MeowChan.PluginSdk.BooruRating
+MeowChan.PluginSdk.BooruRating.Sensitive = 2 -> MeowChan.PluginSdk.BooruRating
+MeowChan.PluginSdk.BooruRating.Unknown = 0 -> MeowChan.PluginSdk.BooruRating
+MeowChan.PluginSdk.BooruSearchDeferred
+MeowChan.PluginSdk.BooruSearchDeferred.BooruSearchDeferred(string! SourceId, System.DateTimeOffset RetryAt, string! ReasonCode, int? HttpStatusCode = null) -> void
+MeowChan.PluginSdk.BooruSearchDeferred.HttpStatusCode.get -> int?
+MeowChan.PluginSdk.BooruSearchDeferred.HttpStatusCode.init -> void
+MeowChan.PluginSdk.BooruSearchDeferred.ReasonCode.get -> string!
+MeowChan.PluginSdk.BooruSearchDeferred.ReasonCode.init -> void
+MeowChan.PluginSdk.BooruSearchDeferred.RetryAt.get -> System.DateTimeOffset
+MeowChan.PluginSdk.BooruSearchDeferred.RetryAt.init -> void
+MeowChan.PluginSdk.BooruSearchDeferred.SourceId.get -> string!
+MeowChan.PluginSdk.BooruSearchDeferred.SourceId.init -> void
+MeowChan.PluginSdk.BooruSearchFailure
+MeowChan.PluginSdk.BooruSearchFailure.BooruSearchFailure(string! SourceId, MeowChan.PluginSdk.FailureDetail! Failure) -> void
+MeowChan.PluginSdk.BooruSearchFailure.Failure.get -> MeowChan.PluginSdk.FailureDetail!
+MeowChan.PluginSdk.BooruSearchFailure.Failure.init -> void
+MeowChan.PluginSdk.BooruSearchFailure.SourceId.get -> string!
+MeowChan.PluginSdk.BooruSearchFailure.SourceId.init -> void
+MeowChan.PluginSdk.BooruSearchPage
+MeowChan.PluginSdk.BooruSearchPage.BooruSearchPage(string! SourceId, string! Query, int Page, System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.BooruPost!>! Posts, bool IsEnd) -> void
+MeowChan.PluginSdk.BooruSearchPage.IsEnd.get -> bool
+MeowChan.PluginSdk.BooruSearchPage.IsEnd.init -> void
+MeowChan.PluginSdk.BooruSearchPage.Page.get -> int
+MeowChan.PluginSdk.BooruSearchPage.Page.init -> void
+MeowChan.PluginSdk.BooruSearchPage.Posts.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.BooruPost!>!
+MeowChan.PluginSdk.BooruSearchPage.Posts.init -> void
+MeowChan.PluginSdk.BooruSearchPage.Query.get -> string!
+MeowChan.PluginSdk.BooruSearchPage.Query.init -> void
+MeowChan.PluginSdk.BooruSearchPage.SourceId.get -> string!
+MeowChan.PluginSdk.BooruSearchPage.SourceId.init -> void
+MeowChan.PluginSdk.BooruSearchRequest
+MeowChan.PluginSdk.BooruSearchRequest.BooruSearchRequest(string! SourceId, string! Query, int Page, int Limit) -> void
+MeowChan.PluginSdk.BooruSearchRequest.Limit.get -> int
+MeowChan.PluginSdk.BooruSearchRequest.Limit.init -> void
+MeowChan.PluginSdk.BooruSearchRequest.Page.get -> int
+MeowChan.PluginSdk.BooruSearchRequest.Page.init -> void
+MeowChan.PluginSdk.BooruSearchRequest.Query.get -> string!
+MeowChan.PluginSdk.BooruSearchRequest.Query.init -> void
+MeowChan.PluginSdk.BooruSearchRequest.SourceId.get -> string!
+MeowChan.PluginSdk.BooruSearchRequest.SourceId.init -> void
+MeowChan.PluginSdk.BooruSearchResult
+MeowChan.PluginSdk.BooruSearchSnapshot
+MeowChan.PluginSdk.BooruSearchSnapshot.BooruSearchSnapshot(MeowChan.PluginSdk.BooruSearchPage! Page) -> void
+MeowChan.PluginSdk.BooruSearchSnapshot.Page.get -> MeowChan.PluginSdk.BooruSearchPage!
+MeowChan.PluginSdk.BooruSearchSnapshot.Page.init -> void
+MeowChan.PluginSdk.BooruTag
+MeowChan.PluginSdk.BooruTag.BooruTag(string! Name, MeowChan.PluginSdk.BooruTagCategory Category) -> void
+MeowChan.PluginSdk.BooruTag.Category.get -> MeowChan.PluginSdk.BooruTagCategory
+MeowChan.PluginSdk.BooruTag.Category.init -> void
+MeowChan.PluginSdk.BooruTag.Name.get -> string!
+MeowChan.PluginSdk.BooruTag.Name.init -> void
+MeowChan.PluginSdk.BooruTagCategory
+MeowChan.PluginSdk.BooruTagCategory.Artist = 2 -> MeowChan.PluginSdk.BooruTagCategory
+MeowChan.PluginSdk.BooruTagCategory.Character = 4 -> MeowChan.PluginSdk.BooruTagCategory
+MeowChan.PluginSdk.BooruTagCategory.Copyright = 3 -> MeowChan.PluginSdk.BooruTagCategory
+MeowChan.PluginSdk.BooruTagCategory.General = 1 -> MeowChan.PluginSdk.BooruTagCategory
+MeowChan.PluginSdk.BooruTagCategory.Meta = 5 -> MeowChan.PluginSdk.BooruTagCategory
+MeowChan.PluginSdk.BooruTagCategory.Unknown = 0 -> MeowChan.PluginSdk.BooruTagCategory
+MeowChan.PluginSdk.IBooruSourcePlugin
+MeowChan.PluginSdk.IBooruSourcePlugin.ReadPostAsync(MeowChan.PluginSdk.BooruPostRequest! request, MeowChan.PluginSdk.PluginCallContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.PluginSdk.BooruPostResult!>!
+MeowChan.PluginSdk.IBooruSourcePlugin.SearchPostsAsync(MeowChan.PluginSdk.BooruSearchRequest! request, MeowChan.PluginSdk.PluginCallContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.PluginSdk.BooruSearchResult!>!
+MeowChan.PluginSdk.SourceCapabilities.PostSearch = 32 -> MeowChan.PluginSdk.SourceCapabilities
+MeowChan.PluginSdk.SourcePostId
+MeowChan.PluginSdk.SourcePostId.PostId.get -> string!
+MeowChan.PluginSdk.SourcePostId.PostId.init -> void
+MeowChan.PluginSdk.SourcePostId.SourceId.get -> string!
+MeowChan.PluginSdk.SourcePostId.SourceId.init -> void
+MeowChan.PluginSdk.SourcePostId.SourcePostId(string! SourceId, string! PostId) -> void
+static MeowChan.PluginSdk.SdkValidation.ValidateBooruPostRequest(MeowChan.PluginSdk.BooruPostRequest! request, MeowChan.PluginSdk.SourceDescription! source) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
+static MeowChan.PluginSdk.SdkValidation.ValidateBooruPostResult(MeowChan.PluginSdk.BooruPostRequest! request, MeowChan.PluginSdk.BooruPostResult! result, MeowChan.PluginSdk.SourceDescription! source) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
+static MeowChan.PluginSdk.SdkValidation.ValidateBooruSearchRequest(MeowChan.PluginSdk.BooruSearchRequest! request, MeowChan.PluginSdk.SourceDescription! source) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
+static MeowChan.PluginSdk.SdkValidation.ValidateBooruSearchResult(MeowChan.PluginSdk.BooruSearchRequest! request, MeowChan.PluginSdk.BooruSearchResult! result, MeowChan.PluginSdk.SourceDescription! source) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!

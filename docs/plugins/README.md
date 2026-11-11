@@ -18,9 +18,9 @@ candidate and the delivered compiler, with no developer SDK required.
 - [Validate a plugin and interpret failures](validation.md)
 - [Six-source live results, 2026-10-24](live-sources-2026-10-24.md) — three full acquisition/offline passes; three original-size mismatches
 
-The SDK targets **.NET 10**, with contract version **1.0.0**. `libmeowchan`,
+The SDK targets **.NET 10**, with contract version **1.1.0** (hosts accept 1.0.0 and 1.1.0). `libmeowchan`,
 `MeowChan.PluginSdk` and the optional host APIs are **not stable in 1.x**; minor
-releases may change public APIs. A plugin must declare the exact SDK version
+releases may change public APIs. A plugin must declare an SDK version
 supported by its host. See [SDK contracts](../../MeowChan.PluginSdk/README.md)
 and release notes under **Breaking (Library/SDK)** when upgrading.
 

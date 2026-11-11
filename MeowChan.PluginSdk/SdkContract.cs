@@ -3,10 +3,14 @@ namespace MeowChan.PluginSdk;
 /// <summary>The SDK version is independent of the product and private worker protocol.</summary>
 public static class SdkContract
 {
-    public const string Version = "1.0.0";
+    public const string Version = "1.1.0";
 
-    /// <summary>No cross-version binary compatibility is promised in 1.x.</summary>
-    public static bool IsSupported(string? version) => string.Equals(version, Version, StringComparison.Ordinal);
+    /// <summary>
+    /// 1.1.0 only adds the booru post-search contract to 1.0.0. The host accepts exactly 1.0.0 and
+    /// 1.1.0 by ordinal comparison; no other cross-version compatibility is promised in 1.x.
+    /// </summary>
+    public static bool IsSupported(string? version)
+        => string.Equals(version, "1.0.0", StringComparison.Ordinal) || string.Equals(version, Version, StringComparison.Ordinal);
 }
 
 /// <summary>Contract defaults; the host may apply stricter limits to a particular operation.</summary>

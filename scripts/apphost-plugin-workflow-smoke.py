@@ -336,7 +336,7 @@ def validate_metrics(metrics, phase, profile, working, scale, closure):
             or proof.get('cachedBuild') is not True
             or any(not isinstance(proof.get(key), str) or not re.fullmatch('[0-9a-fA-F]{64}', proof[key])
                    for key in ('executionRevision', 'assemblySha256'))
-            or phase == 'download' and (proof.get('pluginId') != 'meowchan.source.lainchan' or proof.get('sdkVersion') != '1.0.0'
+            or phase == 'download' and (proof.get('pluginId') != 'meowchan.source.lainchan' or proof.get('sdkVersion') != '1.1.0'
                                        or proof.get('uncachedBuild') is not True or proof.get('describedInWorker') is not True)):
         raise ValueError('Compiled plugin source proof differs from delivered source')
     return validate_assembly_bindings(metrics, closure)

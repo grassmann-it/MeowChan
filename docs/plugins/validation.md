@@ -28,7 +28,7 @@ package has been published. A project-reference build alone does not establish
 that the packaged SDK contains everything an independent author needs.
 The example uses the current `1.0.0-alpha.2` package version; when checking another
 candidate, use its exact package version in both commands. The separate SDK
-protocol contract remains `1.0.0`.
+contract version is `1.1.0`.
 
 ## Source and filter validation
 

@@ -2,9 +2,11 @@
 
 Public .NET 10 source and image-filter contracts for MeowChan. The SDK is not
 stable in 1.x; minor releases may change its public API. The SDK version is
-independent of the product and the private worker protocol. This first contract
-requires the exact declared SDK version (`1.0.0`). Source-build fingerprints
-must include the SDK and reference hashes.
+independent of the product and the private worker protocol. The current SDK
+version is `1.1.0`; the host accepts exactly the declared versions `1.0.0` and
+`1.1.0`, 1.1.0 only adds booru post search, and no other cross-version
+compatibility is promised. Source-build fingerprints must include the SDK and
+reference hashes.
 
 A drop-in assembly has exactly one public, concrete `IPlugin` implementation
 with a public parameterless constructor. `Describe()` returns passive data and
@@ -50,6 +52,36 @@ Thread results distinguish `Snapshot`, `Unchanged`, `NotFound`, `Deferred` and
 `Failure`. An archived snapshot contains the final available posts; absence can
 have no snapshot. Unchanged requires an accepted baseline. 403, malformed JSON,
 timeout and worker failure are not thread-end signals.
+
+## Booru post search (SDK 1.1.0)
+
+`IBooruSourcePlugin` searches booru posts and reads one post. A source declares
+`SourceCapabilities.PostSearch` with SDK `1.1.0`, at least one `Metadata` host
+and no board/thread routes. It is never combined with `ThreadRead`,
+`BoardCatalog` or `PostCapture`; booru posts are their own objects and never
+fake boards or threads.
+
+- Identity: `SourcePostId(SourceId, PostId)` is opaque and provider-defined; the
+  same `PostId` on two sources stays two posts.
+- Query: `BooruSearchRequest.Query` is the already host-validated provider query
+  and never contains private tags. `Page` is 1-based (1..1000), `Limit` 1..100.
+  A page echoes source, query and page, holds at most `Limit` posts with unique
+  ids of the requested source, and `IsEnd` only says the provider reported no
+  further page, not that the site was fully observed.
+- Claims: ratings, scores, counts, tags, sizes, dimensions and MD5 (base64 of 16
+  bytes) are provider claims. `Rating` is the provider's, never the user's.
+  `SourceClaim` is the provider's free-text "source" and stays inert text.
+  Tags keep the exact provider spelling (at most 4096 per post).
+- Media roles: `Original`, `Sample` and `Preview` are never interchangeable and
+  each appears at most once. A null `Url` means not offered or restricted. URLs
+  are absolute https on a declared host: `OriginalMedia` for `Original`,
+  `PreviewMedia` for `Sample` and `Preview`.
+- Presence: `BooruFieldPresence` separates an absent field from a null or empty
+  value; a supplied value without its flag is invalid.
+- Results: `Snapshot`, `Deferred` and `Failure` (plus `NotFound` for a single
+  post, only for verified 404/410) are explicit; none implies an empty page.
+- Limits: metadata goes through `IHostHttp` only. Plugins add no retry loops and
+  download no media; the host owns pacing, retries and the media queue.
 
 Filters receive the staged original's actual size/SHA-256, media/candidate
 identity, revisions and an invocation-bound asset token. `IImageAssetReader`

@@ -10,7 +10,9 @@ public enum SourceCapabilities
     BoardCatalog = 2,
     PostCapture = 4,
     OriginalMedia = 8,
-    Previews = 16
+    Previews = 16,
+    /// <summary>Booru post search (SDK 1.1.0). Never combined with the board/thread/capture capabilities.</summary>
+    PostSearch = 32
 }
 
 [Flags]

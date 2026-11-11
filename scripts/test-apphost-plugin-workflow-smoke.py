@@ -28,7 +28,7 @@ class PluginWorkflowRunnerTests(unittest.TestCase):
                     revisions={plugin_id: str(i) for i, plugin_id in enumerate(sorted(runner.PLUGIN_IDS))}, processId=123,
                     requests=sorted(runner.REQUESTS) if phase == 'download' else [],
                     sourceCompilation=dict(source='plugins/sources/Lainchan.cs', pluginId='meowchan.source.lainchan',
-                                           sdkVersion='1.0.0', sourceSha256='a' * 64, executionRevision='b' * 64,
+                                           sdkVersion='1.1.0', sourceSha256='a' * 64, executionRevision='b' * 64,
                                            assemblySha256='c' * 64, uncachedBuild=True, describedInWorker=True, cachedBuild=True))
 
     def validate(self, metrics):

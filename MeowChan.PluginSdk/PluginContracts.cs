@@ -18,6 +18,19 @@ public interface ISourcePlugin : IPlugin
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Booru post search, independent of boards and threads. Metadata only through IHostHttp: no retry
+/// loops and no media download. A source with PostSearch needs SDK 1.1.0 and this interface.
+/// </summary>
+public interface IBooruSourcePlugin : IPlugin
+{
+    Task<BooruSearchResult> SearchPostsAsync(BooruSearchRequest request, PluginCallContext context,
+        CancellationToken cancellationToken = default);
+
+    Task<BooruPostResult> ReadPostAsync(BooruPostRequest request, PluginCallContext context,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IImageFilterPlugin : IPlugin
 {
     Task<ImageFilterResult> EvaluateAsync(ImageFilterRequest request, PluginCallContext context,
