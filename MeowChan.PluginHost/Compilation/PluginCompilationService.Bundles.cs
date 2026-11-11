@@ -7,9 +7,32 @@ namespace MeowChan.PluginHost.Compilation;
 public sealed partial class PluginCompilationService : IPluginBundleInstaller
 {
     public Task<PluginBuildResult> ImportBundleAsync(string manifestPath, CancellationToken cancellationToken = default) =>
-        ScheduleOperation(token => ImportBundleCoreAsync(manifestPath, token), manifestPath, cancellationToken);
+        ScheduleOperation(token => ImportBundleCoreAsync(manifestPath, null, token), manifestPath, cancellationToken);
 
-    private async Task<PluginBuildResult> ImportBundleCoreAsync(string manifestPath, CancellationToken cancellationToken)
+    public IPluginBundleImportBatch BeginImportBatch() => new ImportBatch(this);
+
+    /// <summary>Carries the one full toolchain verification of a pass. It lives and dies with the batch: a later pass,
+    /// restart or service always verifies the toolchain again, and a failed verification is never kept.</summary>
+    private sealed class ImportBatch(PluginCompilationService owner) : IPluginBundleImportBatch
+    {
+        private ToolchainManifest? _toolchain;
+        private bool _disposed;
+        internal ToolchainManifest? Toolchain { get => Volatile.Read(ref _toolchain); set => Volatile.Write(ref _toolchain, value); }
+
+        public Task<PluginBuildResult> ImportBundleAsync(string manifestPath, CancellationToken cancellationToken = default)
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed), this);
+            return owner.ScheduleOperation(token => owner.ImportBundleCoreAsync(manifestPath, this, token), manifestPath, cancellationToken);
+        }
+
+        public void Dispose()
+        {
+            Volatile.Write(ref _disposed, true);
+            Toolchain = null;
+        }
+    }
+
+    private async Task<PluginBuildResult> ImportBundleCoreAsync(string manifestPath, ImportBatch? batch, CancellationToken cancellationToken)
     {
         string? stage = null;
         bool acquired = false;
@@ -24,7 +47,10 @@ public sealed partial class PluginCompilationService : IPluginBundleInstaller
                 !CompilerWire.IsHash(bundle.CompilerFingerprint) || bundle.Resources is null || bundle.Resources.Count > 128 ||
                 bundle.Resources.Any(r => r is null || !CompilerWire.IsHash(r.Sha256)))
                 throw new InvalidDataException("Unsupported or incomplete plugin bundle manifest.");
-            ToolchainManifest toolchain = await CompilerWire.ReadToolchainAsync(_options.ToolchainDirectory, cancellationToken).ConfigureAwait(false);
+            // The gate serializes imports, so the first one of a batch verifies every toolchain file and the rest reuse that result.
+            ToolchainManifest toolchain = batch?.Toolchain
+                ?? await CompilerWire.ReadToolchainAsync(_options.ToolchainDirectory, cancellationToken).ConfigureAwait(false);
+            if (batch is not null) batch.Toolchain = toolchain;
             if (bundle.SdkFingerprint != toolchain.SdkFingerprint) throw new InvalidDataException("The prebuilt bundle does not match the delivered SDK fingerprint.");
             byte[] assembly = await CompilerWire.ReadBoundedAsync(CompilerWire.ResolvePath(root, bundle.AssemblyRelativePath), 32 * 1024 * 1024, cancellationToken).ConfigureAwait(false);
             if (CompilerWire.Hash(assembly) != bundle.AssemblySha256) throw new InvalidDataException("The prebuilt assembly hash does not match its manifest.");

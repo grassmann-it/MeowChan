@@ -243,6 +243,143 @@ public sealed class CompilerIntegrationTests : IDisposable
         Assert.NotNull(await importer.FindArtifactAsync(imported.Artifact.ExecutionRevision));
     }
 
+    private sealed record PrebuiltFixture(string ManifestPath, string AssemblyPath, string ResourcePath, PluginBundleManifest Manifest);
+
+    private async Task<PrebuiltFixture> PrebuiltBundleAsync(string name, string source = ValidSource, PluginCompilationService? compiler = null)
+    {
+        PluginBuildResult built = await (compiler ?? Service()).BuildAsync(await SourceAsync(source));
+        Success(built);
+        string package = Path.Combine(_root, name); Directory.CreateDirectory(package);
+        string assembly = Path.Combine(package, "official.dll");
+        File.Copy(built.Artifact!.AssemblyPath, assembly);
+        string resource = Path.Combine(package, "resource.dat");
+        byte[] data = [1, 4, 9]; await File.WriteAllBytesAsync(resource, data);
+        PluginBundleManifest manifest = new(1, "official.dll", built.Artifact.AssemblySha256, built.Artifact.SdkFingerprint,
+            built.Artifact.CompilerFingerprint, [new("table", "resource.dat", Hash(data))]);
+        string manifestPath = Path.Combine(package, "official.plugin.json");
+        await File.WriteAllTextAsync(manifestPath, System.Text.Json.JsonSerializer.Serialize(manifest));
+        return new(manifestPath, assembly, resource, manifest);
+    }
+
+    private static string Other(string hash) => (hash[0] == 'a' ? "b" : "a") + hash[1..];
+
+    /// <summary>Every byte the importer relies on: a changed copy is never the verified bundle, a restored copy is again.</summary>
+    private static async Task AssertEveryBundleByteIsVerifiedAsync(PrebuiltFixture bundle, Func<string, Task<PluginBuildResult>> import)
+    {
+        Assert.True((await import(bundle.ManifestPath)).CacheHit);
+        string manifestText = await File.ReadAllTextAsync(bundle.ManifestPath);
+        (string File, byte[] Bytes)[] sources = [(bundle.AssemblyPath, await File.ReadAllBytesAsync(bundle.AssemblyPath)),
+            (bundle.ResourcePath, await File.ReadAllBytesAsync(bundle.ResourcePath))];
+        foreach ((string file, byte[] original) in sources)
+        {
+            // Same name and size, one flipped byte, and a restored modification time: only the bytes can decide.
+            DateTime stamp = File.GetLastWriteTimeUtc(file);
+            byte[] changed = (byte[])original.Clone(); changed[^1] ^= 1;
+            await File.WriteAllBytesAsync(file, changed); File.SetLastWriteTimeUtc(file, stamp);
+            PluginBuildResult rejected = await import(bundle.ManifestPath);
+            Assert.Equal(PluginBuildStatus.IntegrityError, rejected.Status);
+            Assert.Null(rejected.Artifact);
+            await File.WriteAllBytesAsync(file, original); File.SetLastWriteTimeUtc(file, stamp);
+            Assert.True((await import(bundle.ManifestPath)).CacheHit);
+        }
+        string[] claims = [bundle.Manifest.AssemblySha256, bundle.Manifest.Resources[0].Sha256, bundle.Manifest.SdkFingerprint];
+        foreach (string claim in claims)
+        {
+            // A manifest that claims other bytes (or another SDK) than the files it ships is not the delivered bundle.
+            await File.WriteAllTextAsync(bundle.ManifestPath, manifestText.Replace(claim, Other(claim)));
+            Assert.Equal(PluginBuildStatus.IntegrityError, (await import(bundle.ManifestPath)).Status);
+            await File.WriteAllTextAsync(bundle.ManifestPath, manifestText);
+            Assert.True((await import(bundle.ManifestPath)).CacheHit);
+        }
+    }
+
+    private static async Task AssertCachedCopyIsVerifiedAsync(PrebuiltFixture bundle, PluginBuildResult imported, Func<string, Task<PluginBuildResult>> import)
+    {
+        // The cached copy is verified on every cache hit; a damaged copy is reported, not repaired or trusted.
+        foreach (string file in new[] { imported.Artifact!.AssemblyPath, Path.Combine(imported.Artifact.ResourceRootPath!, "resource.dat") })
+        {
+            byte[] original = await File.ReadAllBytesAsync(file);
+            byte[] changed = (byte[])original.Clone(); changed[0] ^= 1;
+            await File.WriteAllBytesAsync(file, changed);
+            PluginBuildResult damaged = await import(bundle.ManifestPath);
+            Assert.Equal(PluginBuildStatus.IntegrityError, damaged.Status);
+            Assert.Contains(damaged.Diagnostics, d => d.Code == "MCCACHE");
+            await File.WriteAllBytesAsync(file, original);
+            Assert.True((await import(bundle.ManifestPath)).CacheHit);
+        }
+    }
+
+    [Fact]
+    public async Task UnchangedBundleIsACacheHitAndNoChangedByteIsTreatedAsVerified()
+    {
+        PrebuiltFixture bundle = await PrebuiltBundleAsync("verified bundle");
+        PluginCompilationService importer = Service(executable: Path.Combine(_root, "compiler need not exist"));
+        PluginBuildResult first = await importer.ImportBundleAsync(bundle.ManifestPath);
+        Success(first);
+        Assert.False(first.CacheHit);
+        await AssertEveryBundleByteIsVerifiedAsync(bundle, path => importer.ImportBundleAsync(path));
+        await AssertCachedCopyIsVerifiedAsync(bundle, first, path => importer.ImportBundleAsync(path));
+    }
+
+    [Fact]
+    public async Task BatchImportsKeepVerifyingEveryBundleAndItsCachedCopy()
+    {
+        PluginCompilationService compiler = Service();
+        PrebuiltFixture bundle = await PrebuiltBundleAsync("batch bundle", compiler: compiler);
+        PrebuiltFixture other = await PrebuiltBundleAsync("batch bundle two", ValidSource.Replace("=> 1", "=> 2"), compiler);
+        PluginCompilationService importer = Service(executable: Path.Combine(_root, "compiler need not exist"));
+        using (IPluginBundleImportBatch batch = ((IPluginBundleInstaller)importer).BeginImportBatch())
+        {
+            PluginBuildResult first = await batch.ImportBundleAsync(bundle.ManifestPath);
+            Success(first);
+            Assert.False(first.CacheHit);
+            PluginBuildResult second = await batch.ImportBundleAsync(other.ManifestPath);
+            Success(second);
+            Assert.NotEqual(first.Artifact!.ExecutionRevision, second.Artifact!.ExecutionRevision);
+            // The batch shares the toolchain result only: bundle bytes and cached copies are checked on every import.
+            await AssertEveryBundleByteIsVerifiedAsync(bundle, path => batch.ImportBundleAsync(path));
+            await AssertCachedCopyIsVerifiedAsync(bundle, first, path => batch.ImportBundleAsync(path));
+            Assert.True((await batch.ImportBundleAsync(other.ManifestPath)).CacheHit);
+        }
+        Assert.True((await importer.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
+        IPluginBundleImportBatch disposed = ((IPluginBundleInstaller)importer).BeginImportBatch();
+        disposed.Dispose();
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => disposed.ImportBundleAsync(bundle.ManifestPath));
+    }
+
+    [Fact]
+    public async Task BatchVerifiesTheToolchainOncePerPassAndNeverKeepsFailureOrSuccessBeyondIt()
+    {
+        PrebuiltFixture bundle = await PrebuiltBundleAsync("toolchain bundle");
+        string copy = Path.Combine(_root, "delivered toolchain");
+        CopyDirectory(_bundle, copy);
+        PluginCompilationService importer = Service(bundle: copy);
+        IPluginBundleInstaller installer = importer;
+        // Appending bytes preserves a valid managed PE, like a damaged but loadable reference.
+        string reference = Path.Combine(copy, "references", "System.Runtime.dll");
+        byte[] original = await File.ReadAllBytesAsync(reference);
+        async Task DamageAsync() { await using FileStream stream = new(reference, FileMode.Append); await stream.WriteAsync(new byte[] { 42 }); }
+        using (IPluginBundleImportBatch pass = installer.BeginImportBatch())
+        {
+            Success(await pass.ImportBundleAsync(bundle.ManifestPath));
+            // This pass already verified every toolchain file; the unchanged-in-pass result is reused (the saved work).
+            await DamageAsync();
+            Assert.True((await pass.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
+        }
+        // A new pass and a plain import always verify the whole toolchain again.
+        using (IPluginBundleImportBatch next = installer.BeginImportBatch())
+        {
+            PluginBuildResult damaged = await next.ImportBundleAsync(bundle.ManifestPath);
+            Assert.Equal(PluginBuildStatus.IntegrityError, damaged.Status);
+            Assert.Contains(damaged.Diagnostics, d => d.Message.Contains("toolchain integrity", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal(PluginBuildStatus.IntegrityError, (await installer.ImportBundleAsync(bundle.ManifestPath)).Status);
+            // A failed verification is not remembered: once the file is restored the same pass succeeds.
+            await File.WriteAllBytesAsync(reference, original);
+            Assert.True((await next.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
+        }
+        Assert.True((await installer.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
+    }
+
     [Fact]
     public async Task CompilerExitBeforeReadingLargeRequestRetainsCrashDiagnostics()
     {
