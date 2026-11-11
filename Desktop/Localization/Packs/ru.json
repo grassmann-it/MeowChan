@@ -2139,6 +2139,19 @@
     "media.group.favorite.all": "Избранное: все",
     "media.group.favorite.some": "Избранное: некоторые",
     "media.group.favorite.none": "Избранное: нет",
-    "media.group.favorite.unknown": "Избранное: неизвестно"
+    "media.group.favorite.unknown": "Избранное: неизвестно",
+    "media.tags.edit": "Изменить теги медиа…",
+    "media.state.favorite": "Избранное: {0}",
+    "media.state.rating": "Твоя оценка: {0}",
+    "media.state.mediaTags": "Теги медиа: {0}",
+    "media.state.threadTags": "Теги треда: {0}",
+    "media.state.yes": "да",
+    "media.state.no": "нет",
+    "media.state.unknown": "неизвестно",
+    "media.state.unrated": "без оценки",
+    "media.state.ratingValue": "{0} из 5",
+    "media.state.noTags": "нет",
+    "media.state.notTaggable": "для этого файла невозможно",
+    "media.state.tagCount": "тегов: {0}"
   }
 }

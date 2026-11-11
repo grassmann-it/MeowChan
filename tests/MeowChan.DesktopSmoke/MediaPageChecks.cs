@@ -45,6 +45,7 @@ internal static class MediaPageChecks
             await SeedAsync(profile);
             await PageJourneyAsync(owner, profile);
             await FilterJourneyAsync(owner, profile);
+            await OwnStateJourneyAsync(owner, profile);
             await DuplicateJourneyAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-duplicates-"));
             await SelectionJourneyAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-selection-"));
             await NavigationAsync(owner);
@@ -53,7 +54,7 @@ internal static class MediaPageChecks
             await SeedVideosAsync(videoProfile);
             await VideoJourneyAsync(owner, videoProfile);
             Console.WriteLine("SMOKE media videos [en]: a video tile shows the local reader poster (cache keyed by verified bytes), also when it is a grouped tile; nothing fetched.");
-            Console.WriteLine("SMOKE media page [en]: index build, saved/missing toggle, three orders, verified thumbnail, gallery window, show in thread, cache reuse, filters (thread and media tags all/any/exclude, favorites, rating, type, name, source, board, thread chip, reset, deleted tag refused), duplicates (same bytes in three threads: one tile, 'in 3 threads' hint, details with three occurrences and their own tags, jump into a thread, filter matches by one occurrence, gallery gets one entry per tile), selection (click, Ctrl+click, Shift+click, Ctrl+A, Esc, check mark on selected tiles, three tiles tagged and untagged with one occurrence of a duplicate deselected, gallery with exactly the selection, export of exactly their originals, selection kept or dropped by filters and order, actions disabled while building), navigation button in Simple and Tools menu in Barebones checked.");
+            Console.WriteLine("SMOKE media page [en]: index build, saved/missing toggle, three orders, verified thumbnail, gallery window, show in thread, cache reuse, own state on tiles (favorite, rating, media vs thread tags, unknown wording, tag edit reload, language switch), filters (thread and media tags all/any/exclude, favorites, rating, type, name, source, board, thread chip, reset, deleted tag refused), duplicates (same bytes in three threads: one tile, 'in 3 threads' hint, details with three occurrences and their own tags, jump into a thread, filter matches by one occurrence, gallery gets one entry per tile), selection (click, Ctrl+click, Shift+click, Ctrl+A, Esc, check mark on selected tiles, three tiles tagged and untagged with one occurrence of a duplicate deselected, gallery with exactly the selection, export of exactly their originals, selection kept or dropped by filters and order, actions disabled while building), navigation button in Simple and Tools menu in Barebones checked.");
         }
         finally { Texts.SetLanguage(language); }
     }
@@ -246,6 +247,89 @@ internal static class MediaPageChecks
     }
 
     // The same bytes in three threads are one tile; tags stay with each occurrence; a filter matches by one occurrence.
+    // OR-02: continues on the stores the filter journey filled (thread tag on A, media tag on B's file, favorite on A's file,
+    // rating on B's file). The tiles must show exactly that, keep the facts apart and follow tag changes and the language.
+    private static async Task OwnStateJourneyAsync(MainWindow owner, string profile)
+    {
+        TagId extra;
+        {
+            await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
+            await host.StartAsync().WaitAsync(Deadline);
+            // The filter journey deleted its media tag; give the second file a fresh one.
+            MediaLibraryEntry fixtureTwo = (await MediaLibraryIndexBuilder.BuildAsync(host.OpenArchiveReaderAsync, MediaAssetReader.OpenAsync)).Entries.Single(entry => entry.PostId == "200");
+            PrivateTagCommit keep = await host.DefinePrivateTagAsync("keep").WaitAsync(Deadline);
+            await host.SetMediaTagAsync(keep.Tag, MediaLibraryFilterEngine.TagTarget(fixtureTwo)!, true).WaitAsync(Deadline);
+            List<MediaLibraryEntry> edited = new();
+            MediaPage page = new(host.OpenArchiveReaderAsync) { ReadUserData = () => UserData(host), EditTags = entry => { edited.Add(entry); return Task.CompletedTask; } };
+            Window window = new() { Width = 1400, Height = 900, Content = page, Title = "Synthetic media state", ShowInTaskbar = false };
+            try
+            {
+                window.Show(owner);
+                page.IsAvailable = true;
+                await page.ActivateAsync().WaitAsync(Deadline);
+                MediaLibraryEntry one = page.ShownEntries.Single(entry => entry.PostId == "100");
+                MediaLibraryEntry two = page.ShownEntries.Single(entry => entry.PostId == "200");
+                MediaLibraryEntry loose = page.ShownEntries.Single(entry => entry.Unassigned);
+                MediaLibraryTileRow Row(MediaLibraryEntry entry) => ((MediaLibraryTileRow[])page.Grid.ItemsSource!).Single(row => row.Entry == entry);
+
+                MediaLibraryEntryState s1 = Row(one).State!, s2 = Row(two).State!, s3 = Row(loose).State!;
+                Require(s1.Favorite == MediaLibraryFlag.Yes && s1.UserRating == null && s1.RatingKnown, "Favorite without a rating must stay a favorite without a rating.");
+                Require(s1.MediaTags.Count == 0 && s1.ThreadTags.SequenceEqual(new[] { "rpt" }), "A thread tag must show as a thread tag only.");
+                Require(s2.Favorite == MediaLibraryFlag.No && s2.UserRating == 4 && s2.MediaTags.SequenceEqual(new[] { "keep" }) && s2.ThreadTags.Count == 0,
+                    "Rating and media tag of the second file are wrong.");
+                Require(s3.TagsKnown && !s3.CanEditMediaTags && s3.ThreadTags.SequenceEqual(new[] { "rpt" }), "A file without a post cannot carry media tags.");
+                Require(Row(one).DetailWithState.Contains('★') && Row(two).DetailWithState.Contains("4/5"), "The tile line must show favorite and rating.");
+
+                // The tile carries the same text as a tooltip and as its automation name.
+                MediaLibraryTileView tile = null!;
+                await UntilAsync(() => (tile = page.GetVisualDescendants().OfType<MediaLibraryTileView>().FirstOrDefault(view => view.DataContext is MediaLibraryTileRow row && row.Entry == two)!) != null);
+                Require(ToolTip.GetTip(tile) is string tip && tip.Contains(Texts.T("media.state.rating", Texts.T("media.state.ratingValue", 4)))
+                    && tip.Contains(Texts.T("media.state.mediaTags", "keep")), "Tile tooltip lacks the own state.");
+
+                // Language switch re-words the same facts.
+                Texts.SetLanguage("de");
+                await UntilAsync(() => page.GetVisualDescendants().OfType<MediaLibraryTileView>().Any(view => view.DataContext is MediaLibraryTileRow row && row.Entry == two
+                    && ToolTip.GetTip(view) is string de && de.Contains("Deine Bewertung: 4 von 5")));
+                Texts.SetLanguage("en");
+                await UntilAsync(() => page.GetVisualDescendants().OfType<MediaLibraryTileView>().Any(view => view.DataContext is MediaLibraryTileRow row && row.Entry == two
+                    && ToolTip.GetTip(view) is string en && en.Contains("Your rating: 4 of 5")));
+
+                // The tag command is offered for a bound file only.
+                page.Grid.SelectedItem = Row(loose);
+                await page.EditSelectedTagsAsync();
+                Require(edited.Count == 0, "A file without a post must not open the tag editor.");
+                page.Grid.SelectedItem = Row(two);
+                await page.EditSelectedTagsAsync();
+                Require(edited.SequenceEqual(new[] { two }), "The tag editor got the wrong file.");
+
+                // A tag change through the host command shows at once after a refresh of the own data.
+                extra = (await host.DefinePrivateTagAsync("extra").WaitAsync(Deadline)).Tag;
+                await host.SetMediaTagAsync(extra, MediaLibraryFilterEngine.TagTarget(two)!, true).WaitAsync(Deadline);
+                page.RefreshUserData();
+                Require(Row(two).State!.MediaTags.OrderBy(name => name, StringComparer.Ordinal).SequenceEqual(new[] { "extra", "keep" }), "The tag change did not show.");
+                Require(page.Grid.SelectedItem is MediaLibraryTileRow { Entry: var selected } && selected == two, "Refreshing own data lost the selection.");
+            }
+            finally { page.EndLifetime(); window.Close(); Texts.SetLanguage("en"); }
+        }
+
+        // Reload: a fresh host and page read the same tag, favorite and rating from disk.
+        await using DesktopSessionHost reloaded = new(profile, Array.Empty<IImageBoard>());
+        await reloaded.StartAsync().WaitAsync(Deadline);
+        MediaPage again = new(reloaded.OpenArchiveReaderAsync) { ReadUserData = () => UserData(reloaded) };
+        Window second = new() { Width = 1000, Height = 800, Content = again, ShowInTaskbar = false };
+        try
+        {
+            second.Show(owner);
+            again.IsAvailable = true;
+            await again.ActivateAsync().WaitAsync(Deadline);
+            MediaLibraryEntry two = again.ShownEntries.Single(entry => entry.PostId == "200");
+            MediaLibraryEntryState state = ((MediaLibraryTileRow[])again.Grid.ItemsSource!).Single(row => row.Entry == two).State!;
+            Require(state.MediaTags.OrderBy(name => name, StringComparer.Ordinal).SequenceEqual(new[] { "extra", "keep" }) && state.UserRating == 4
+                && state.Favorite == MediaLibraryFlag.No, "Reload shows a different state.");
+        }
+        finally { again.EndLifetime(); second.Close(); }
+    }
+
     private static async Task DuplicateJourneyAsync(MainWindow owner, string profile)
     {
         new Config().SaveConfig(profile);

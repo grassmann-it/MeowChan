@@ -2139,6 +2139,19 @@
     "media.group.favorite.all": "Favorito: todos",
     "media.group.favorite.some": "Favorito: algunos",
     "media.group.favorite.none": "Favorito: ninguno",
-    "media.group.favorite.unknown": "Favorito: desconocido"
+    "media.group.favorite.unknown": "Favorito: desconocido",
+    "media.tags.edit": "Editar etiquetas del medio…",
+    "media.state.favorite": "Favorito: {0}",
+    "media.state.rating": "Tu valoración: {0}",
+    "media.state.mediaTags": "Etiquetas del medio: {0}",
+    "media.state.threadTags": "Etiquetas del hilo: {0}",
+    "media.state.yes": "sí",
+    "media.state.no": "no",
+    "media.state.unknown": "desconocido",
+    "media.state.unrated": "sin valorar",
+    "media.state.ratingValue": "{0} de 5",
+    "media.state.noTags": "ninguna",
+    "media.state.notTaggable": "no es posible para este archivo",
+    "media.state.tagCount": "{0} etiquetas"
   }
 }

@@ -55,6 +55,8 @@ public sealed partial class MediaPage : UserControl
     /// <summary>Opens the gallery for a window of shown entries; the int is the chosen entry inside it.</summary>
     internal Func<IReadOnlyList<MediaLibraryEntry>, int, Task>? OpenGallery { get; set; }
     internal Func<MediaLibraryEntry, Task>? ShowInThread { get; set; }
+    /// <summary>Edits the own media tags of one entry through the host's tag commands.</summary>
+    internal Func<MediaLibraryEntry, Task>? EditTags { get; set; }
     internal Task BuildTask { get; private set; } = Task.CompletedTask;
     /// <summary>One entry per tile: the occurrence each tile shows. Gallery windows are made from this list.</summary>
     internal IReadOnlyList<MediaLibraryEntry> ShownEntries => _shown;
@@ -164,7 +166,10 @@ public sealed partial class MediaPage : UserControl
         _tiles = MediaLibraryGrouping.Build(all, ApplyFilter(all), Sort, includeMissing, _seed, _userData.IsFavorite);
         _shown = _tiles.Select(tile => tile.Entry).ToArray();
         _unfiltered = _filterActive ? MediaLibraryGrouping.CountTiles(all, includeMissing) : _shown.Count;
-        MediaLibraryTileRow[] rows = _tiles.Select((tile, index) => new MediaLibraryTileRow(tile, index)).ToArray();
+        // Own state is read from the data this presentation was built with, so a row never mixes two reads.
+        MediaLibraryUserData userData = _userData;
+        Func<MediaLibraryEntry, MediaLibraryEntryState> state = entry => MediaLibraryEntryState.Of(entry, userData);
+        MediaLibraryTileRow[] rows = _tiles.Select((tile, index) => new MediaLibraryTileRow(tile, index, state)).ToArray();
         _restoring = true;
         try
         {
@@ -221,6 +226,11 @@ public sealed partial class MediaPage : UserControl
         await OpenGallery(window, start);
     }
 
+    internal async Task EditSelectedTagsAsync()
+    {
+        if (SelectedTiles.Count == 1 && SelectedRow is { State.CanEditMediaTags: true } row && EditTags != null) await EditTags(row.Entry);
+    }
+
     internal async Task ShowSelectedInThreadAsync()
     {
         if (SelectedRow is { Entry.PostId: not null } row && ShowInThread != null) await ShowInThread(row.Entry);
@@ -245,9 +255,11 @@ public sealed partial class MediaPage : UserControl
         thread.Click += (_, _) => _ = ShowSelectedInThreadAsync();
         MenuItem onlyThread = new() { Header = Texts.T("media.filter.onlyThread"), IsEnabled = single };
         onlyThread.Click += (_, _) => FilterToThread(row.Entry);
+        MenuItem tags = new() { Header = Texts.T("media.tags.edit"), IsEnabled = single && row.State?.CanEditMediaTags == true && EditTags != null };
+        tags.Click += (_, _) => _ = EditSelectedTagsAsync();
         MenuItem occurrences = new() { Header = Texts.T("media.occurrences"), IsEnabled = single && row.Tile.IsGroup };
         occurrences.Click += (_, _) => ShowOccurrences(row.Tile);
-        List<object> items = new() { open, thread, onlyThread, occurrences, new Separator() };
+        List<object> items = new() { open, tags, thread, onlyThread, occurrences, new Separator() };
         foreach ((Button action, string key) in new[] { (_selTag, "media.selection.tag"), (_selGallery, "media.selection.gallery"), (_selExport, "media.selection.export") })
         {
             MenuItem item = new() { Header = Texts.T(key), IsEnabled = action.IsEnabled };

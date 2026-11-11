@@ -8,6 +8,7 @@ using Avalonia.Controls.Notifications;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
+using MeowChan.Tags;
 
 namespace MeowChan;
 
@@ -24,6 +25,7 @@ public partial class MainWindow
         {
             OpenGallery = OpenMediaLibraryGalleryAsync,
             ShowInThread = ShowMediaLibraryEntryInThreadAsync,
+            EditTags = EditMediaLibraryTagsAsync,
             ReadUserData = ReadMediaLibraryUserData,
             TagServices = new(_session.GetPublishedPrivateTagSnapshot, _session.DefinePrivateTagAsync,
                 (tag, targets, assigned, expectedRevision, token) => _session.SetMediaTagsAsync(tag, targets, assigned, expectedRevision, token)),
@@ -61,11 +63,64 @@ public partial class MainWindow
                 ShowNotification(Texts.T("notification.error"), Texts.T("media.galleryFailed"), NotificationType.Warning, operation: "media.gallery");
                 return;
             }
-            await OpenMediaGalleryAsync(entries, first.EntryKey, _mediaPage);
+            // The grid is the origin: closing the gallery returns focus to the selected tile, not to the page shell.
+            await OpenMediaGalleryAsync(entries, first.EntryKey, _mediaPage?.Grid);
         }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
         {
             if (!_isClosing) ShowNotification(Texts.T("notification.error"), Texts.T("media.galleryFailed"), NotificationType.Error, operation: "media.gallery");
+        }
+    }
+
+    // The gallery is an overlay in this window, so closing it does not reactivate the window: favorite, rating and
+    // tag changes made there are picked up here. Unchanged stores are a cheap no-op.
+    private void RefreshMediaPageUserData()
+    {
+        if (!_isClosing) _mediaPage?.RefreshUserData();
+    }
+
+    private bool _mediaTagDialogOpen;
+    internal MediaTagDialog? MediaPageTagWindow { get; private set; }
+
+    // Own media tags from the media page use the gallery's own target rules: the entry is resolved back to the
+    // gallery entry first, so a file that changed since indexing is refused instead of tagged under old bytes.
+    private async Task EditMediaLibraryTagsAsync(MediaLibraryEntry entry)
+    {
+        if (_isClosing || _mediaTagDialogOpen) return;
+        _mediaTagDialogOpen = true;
+        Control? origin = FocusManager?.GetFocusedElement() as Control;
+        try
+        {
+            IReadOnlyList<GalleryEntry> resolved = await MediaLibraryGallery.ResolveAsync(new[] { entry }, _session.OpenArchiveReaderAsync,
+                Storage.MediaAssetReader.OpenAsync);
+            GalleryEntry? match = resolved.FirstOrDefault();
+            PrivateMediaTagTarget? target = GalleryMediaTagTarget.Resolve(match, out GalleryMediaTagUnavailable reason);
+            if (_isClosing) return;
+            if (match == null || target == null)
+            {
+                ShowNotification(Texts.T("notification.error"), Texts.T(match == null ? "media.galleryFailed"
+                    : reason == GalleryMediaTagUnavailable.NoPostVersion ? "tags.media.unbound" : "tags.media.unsupported"),
+                    NotificationType.Warning, operation: "media.tags");
+                return;
+            }
+            MediaTagSession session = new(target, _session.GetPublishedPrivateTagSnapshot, _session.DefinePrivateTagAsync, _session.SetMediaTagAsync);
+            MediaTagDialog dialog = new(session, match.Asset.OriginalFileName ?? Path.GetFileName(match.Asset.Path));
+            MediaPageTagWindow = dialog;
+            await dialog.ShowDialog(this);
+        }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
+        {
+            if (!_isClosing) ShowNotification(Texts.T("notification.error"), Texts.T("media.galleryFailed"), NotificationType.Error, operation: "media.tags");
+        }
+        finally
+        {
+            MediaPageTagWindow = null;
+            _mediaTagDialogOpen = false;
+            if (!_isClosing)
+            {
+                _mediaPage?.RefreshUserData();
+                if (origin?.IsEffectivelyVisible == true) origin.Focus();
+            }
         }
     }
 

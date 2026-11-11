@@ -16,8 +16,13 @@ using MeowChan.Gallery;
 namespace MeowChan.Desktop;
 
 /// <summary>Bindable row of the media page grid.</summary>
-internal sealed record MediaLibraryTileRow(MediaLibraryTile Tile, int Index)
+internal sealed record MediaLibraryTileRow(MediaLibraryTile Tile, int Index, Func<MediaLibraryEntry, MediaLibraryEntryState>? StateOf = null)
 {
+    private MediaLibraryEntryState? _state;
+    /// <summary>The profile's own state of the shown occurrence, read lazily: only tiles that are actually shown look it up.</summary>
+    public MediaLibraryEntryState? State => StateOf == null || Entry.Presence != MediaLibraryPresence.Present ? null : _state ??= StateOf(Entry);
+    public string StateDescription => State is { } state ? MediaLibraryStateText.Description(state) : string.Empty;
+
     /// <summary>The occurrence the tile shows; gallery, thumbnail and "show in thread" use it.</summary>
     public MediaLibraryEntry Entry => Tile.Entry;
     public string Name => Entry.Name ?? Entry.MediaId ?? string.Empty;
@@ -25,6 +30,8 @@ internal sealed record MediaLibraryTileRow(MediaLibraryTile Tile, int Index)
     public string Detail => Entry.Presence == MediaLibraryPresence.Missing ? Texts.T("media.tile.missing")
         : Entry.Unassigned ? Texts.T("media.tile.unassigned")
         : Entry.Length is long length ? (length / 1_000_000d).ToString("0.###", Texts.Culture) + " MB" : string.Empty;
+    public string DetailWithState => State is { } state && MediaLibraryStateText.Compact(state, Tile.IsGroup) is { Length: > 0 } compact
+        ? (Detail.Length == 0 ? compact : Detail + " · " + compact) : Detail;
     /// <summary>Favorite state over every saved occurrence of the bytes; only a grouped tile has one to report.</summary>
     public string FavoriteLabel => Tile.IsGroup ? MediaLibraryStateText.Favorite(Tile.Favorite) : string.Empty;
     /// <summary>"in N threads" for equal bytes found elsewhere; empty for a single occurrence.</summary>
@@ -131,7 +138,7 @@ internal sealed class MediaLibraryTileView : UserControl
         string threadHint = row == null ? string.Empty : Texts.T("media.filter.threadHint", row.ThreadLabel);
         ToolTip.SetTip(_threadLink, threadHint);
         AutomationProperties.SetName(_threadLink, threadHint);
-        _detail.Text = row?.Detail;
+        _detail.Text = row?.DetailWithState;
         string duplicates = row?.Duplicates ?? string.Empty;
         _duplicates.Text = duplicates;
         _duplicatesLink.IsVisible = duplicates.Length > 0;
@@ -141,7 +148,7 @@ internal sealed class MediaLibraryTileView : UserControl
         ToolTip.SetTip(_duplicatesLink, duplicatesHint);
         AutomationProperties.SetName(_duplicatesLink, duplicatesHint);
         _placeholder.Text = row?.Entry.Presence == MediaLibraryPresence.Missing ? Texts.T("media.tile.missing") : string.Empty;
-        string description = row == null ? string.Empty : string.Join(Environment.NewLine, new[] { row.Name, row.ThreadLabel, row.Duplicates, row.FavoriteLabel, row.Detail }.Where(part => part.Length > 0));
+        string description = row == null ? string.Empty : string.Join(Environment.NewLine, new[] { row.Name, row.ThreadLabel, row.Duplicates, row.FavoriteLabel, row.Detail, row.StateDescription }.Where(part => part.Length > 0));
         ToolTip.SetTip(this, description);
         AutomationProperties.SetName(this, description);
     }

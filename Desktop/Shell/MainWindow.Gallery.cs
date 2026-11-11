@@ -487,6 +487,7 @@ public partial class MainWindow
         else if (restoreOrigin) (_archivePage == null ? _galleryOrigin : _archivePage.GalleryOriginFocusTarget(_galleryOrigin))?.Focus();
         _galleryOrigin = null;
         _galleryResolvingRequest = -1;
+        RefreshMediaPageUserData();
         if (restoreOrigin && !_isClosing) completed?.Invoke();
     }
 

@@ -109,6 +109,8 @@ internal sealed class MediaLibraryUserData
 
     internal static MediaLibraryUserData Unavailable { get; } = new(null, null, null);
 
+    internal bool FavoritesAvailable => _favorites != null;
+    internal bool RatingsAvailable => _ratings != null;
     internal PrivateTagStoreSnapshot? TagSnapshot { get; }
     internal IReadOnlyList<FavoriteEntry>? FavoriteSource { get; }
     internal IReadOnlyList<MediaRatingEntry>? RatingSource { get; }

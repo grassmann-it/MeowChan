@@ -101,6 +101,19 @@ internal static class MediaLibraryCatalog
         ("media.group.favorite.all", "Favorite: all", "Favorit: alle"),
         ("media.group.favorite.some", "Favorite: some", "Favorit: einige"),
         ("media.group.favorite.none", "Favorite: none", "Favorit: keine"),
-        ("media.group.favorite.unknown", "Favorite: unknown", "Favorit: unbekannt")
+        ("media.group.favorite.unknown", "Favorite: unknown", "Favorit: unbekannt"),
+        ("media.tags.edit", "Edit media tags…", "Medientags bearbeiten …"),
+        ("media.state.favorite", "Favorite: {0}", "Favorit: {0}"),
+        ("media.state.rating", "Your rating: {0}", "Deine Bewertung: {0}"),
+        ("media.state.mediaTags", "Media tags: {0}", "Medientags: {0}"),
+        ("media.state.threadTags", "Thread tags: {0}", "Thread-Tags: {0}"),
+        ("media.state.yes", "yes", "ja"),
+        ("media.state.no", "no", "nein"),
+        ("media.state.unknown", "unknown", "unbekannt"),
+        ("media.state.unrated", "not rated", "nicht bewertet"),
+        ("media.state.ratingValue", "{0} of 5", "{0} von 5"),
+        ("media.state.noTags", "none", "keine"),
+        ("media.state.notTaggable", "not possible for this file", "für diese Datei nicht möglich"),
+        ("media.state.tagCount", "{0} tags", "{0} Tags")
     };
 }

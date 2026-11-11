@@ -65,7 +65,7 @@ public sealed class MediaLibraryIndexTests
             ThreadSourceState.Archived, new DateTimeOffset(2026, 11, 1, 0, 0, 0, TimeSpan.Zero), directory, posts));
     }
 
-    private static Task<MediaLibrarySnapshot> BuildAsync(string profile, MediaLibrarySnapshot? previous = null,
+    internal static Task<MediaLibrarySnapshot> BuildAsync(string profile, MediaLibrarySnapshot? previous = null,
         List<MediaLibraryProgress>? progress = null, CancellationToken token = default) =>
         MediaLibraryIndexBuilder.BuildAsync(t => ArchiveReader.OpenAsync(profile, t), MediaAssetReader.OpenAsync, previous,
             progress == null ? null : new SyncProgress(progress), token);
@@ -75,10 +75,10 @@ public sealed class MediaLibraryIndexTests
         public void Report(MediaLibraryProgress value) => items.Add(value);
     }
 
-    private static readonly ResourceId A = new("src", "g", "100");
-    private static readonly ResourceId B = new("src", "g", "200");
+    internal static readonly ResourceId A = new("src", "g", "100");
+    internal static readonly ResourceId B = new("src", "g", "200");
 
-    private static async Task SeedAsync(string profile)
+    internal static async Task SeedAsync(string profile)
     {
         string a = Path.Combine(profile, "media", "a"), b = Path.Combine(profile, "media", "b");
         // A: one saved post file, one captured but never saved, one saved file without a post.

@@ -2139,6 +2139,19 @@
     "media.group.favorite.all": "Favori : tous",
     "media.group.favorite.some": "Favori : certains",
     "media.group.favorite.none": "Favori : aucun",
-    "media.group.favorite.unknown": "Favori : inconnu"
+    "media.group.favorite.unknown": "Favori : inconnu",
+    "media.tags.edit": "Modifier les étiquettes du média…",
+    "media.state.favorite": "Favori : {0}",
+    "media.state.rating": "Ta note : {0}",
+    "media.state.mediaTags": "Étiquettes du média : {0}",
+    "media.state.threadTags": "Étiquettes du fil : {0}",
+    "media.state.yes": "oui",
+    "media.state.no": "non",
+    "media.state.unknown": "inconnu",
+    "media.state.unrated": "sans note",
+    "media.state.ratingValue": "{0} sur 5",
+    "media.state.noTags": "aucune",
+    "media.state.notTaggable": "impossible pour ce fichier",
+    "media.state.tagCount": "{0} étiquettes"
   }
 }
