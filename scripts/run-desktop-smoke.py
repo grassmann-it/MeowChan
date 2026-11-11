@@ -142,6 +142,20 @@ def sample_timeout(process: subprocess.Popen, destination: Path) -> None:
             log.write(f"Could not collect timeout sample: {exception}\n")
 
 
+XVFB_TEARDOWN_KILL = re.compile(r"xvfb-run: line [0-9]+: kill: \([0-9]+\) - No such process")
+
+
+def survived_xvfb_teardown(exit_code: int, exit_file: Path, log_text: str) -> bool:
+    """xvfb-run runs under set -e: when its Xvfb is already gone, the final kill fails and xvfb-run exits 1
+    instead of passing on the harness status. Only that exact case maps back to the harness's own 0."""
+    if exit_code != 1 or not XVFB_TEARDOWN_KILL.search(log_text):
+        return False
+    try:
+        return exit_file.read_text(encoding="utf-8").strip() == "0"
+    except OSError:
+        return False
+
+
 def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str, str],
              isolated: bool, timeout: float) -> dict[str, object]:
     destination = destination.resolve()
@@ -197,6 +211,7 @@ def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str
                     command = ["xvfb-run", "--auto-servernum", "--server-args=-screen 0 3200x2000x24 -nolisten tcp", *command]
             else:
                 manager = Path(__file__).with_name("with-isolated-window-manager.py").resolve()
+                child_environment["MEOWCHAN_SMOKE_HARNESS_EXIT_FILE"] = str(destination / "harness-exit-code")
                 command = ["xvfb-run", "--auto-servernum",
                            "--server-args=-screen 0 3200x2000x24 -nolisten tcp",
                            sys.executable, str(manager), "--", *command]
@@ -225,6 +240,10 @@ def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str
                     except (OSError, subprocess.TimeoutExpired) as exception:
                         error = f"Process cleanup failed: {exception}"
     log_text = (destination / "output.log").read_text(encoding="utf-8", errors="replace")
+    xvfb_teardown_ignored = not timed_out and not interrupted and survived_xvfb_teardown(
+        exit_code, destination / "harness-exit-code", log_text)
+    if xvfb_teardown_ignored:
+        exit_code = 0
     for image in (image for pattern in ("smoke-*.png", "v0.9.0-*.png") for image in assembly.parent.glob(pattern)):
         if previous.get(image) != image.stat().st_mtime_ns:
             shutil.copy2(image, destination / image.name)
@@ -258,6 +277,7 @@ def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str
         print("\n".join(log_text.splitlines()[-20:]), flush=True)
     return {"mode": mode, "status": "passed" if passed else "failed", "exit_code": exit_code,
             "timed_out": timed_out, "interrupted": interrupted, "error": error, "passed": passed,
+            "xvfb_teardown_ignored": xvfb_teardown_ignored,
             "watchdog": watchdog_result,
             "actual_render_scaling": scales[0] if len(scales) == 1 else None, "observed_render_scalings": scales}
 

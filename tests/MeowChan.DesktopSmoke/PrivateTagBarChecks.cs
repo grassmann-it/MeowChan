@@ -1,7 +1,9 @@
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Archive;
 using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
 using MeowChan.Desktop;
@@ -95,6 +97,37 @@ internal static class PrivateTagBarChecks
         }
     }
 
+    // The Tags column of the thread table, read from the cells the user sees (Advanced columns, Table layout).
+    private static async Task ShowTableAsync(Fixture f)
+    {
+        f.Page.ArchiveColumnVisibilityPreference = new Dictionary<string, bool>();
+        f.Page.ArchiveColumnModePreference = "Advanced";
+        f.Page.ArchiveLayoutPreference = "Table";
+        f.Page.UpdateLayout();
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+    }
+
+    // Visible cells only: the grid keeps recycled, hidden rows around, and a hidden column has no visible cell.
+    // Visibility is judged inside the table; an open reader may cover the table without touching its cells.
+    private static string[] TagCells(Fixture f, ArchiveThreadRow row) => f.C<DataGrid>("ArchiveThreadTable").GetVisualDescendants()
+        .OfType<TextBlock>().Where(block => block.DataContext == row && AutomationProperties.GetAutomationId(block) == "ArchiveThreadTagCell"
+            && block.IsVisible && block.GetVisualAncestors().TakeWhile(ancestor => ancestor is not DataGrid).All(ancestor => ancestor.IsVisible))
+        .Select(block => block.Text ?? string.Empty).ToArray();
+
+    private static string TagCell(Fixture f, ArchiveThreadRow row) => TagCells(f, row) is [var text] ? text
+        : throw new InvalidOperationException("Expected one visible tag cell for thread " + row.Summary.Id.Thread + ", found "
+            + TagCells(f, row).Length + ": " + string.Join("|", TagCells(f, row)));
+
+    private static async Task SortedAsync(Fixture f, DataGridColumn column, System.ComponentModel.ListSortDirection direction, params string[] expected)
+    {
+        column.Sort(direction);
+        try { await UntilAsync(() => TableOrder(f).SequenceEqual(expected)); }
+        catch (TimeoutException) { throw new InvalidOperationException("Tag column " + direction + " order is wrong: " + string.Join(",", TableOrder(f))); }
+    }
+
+    private static string[] TableOrder(Fixture f) => f.C<DataGrid>("ArchiveThreadTable").CollectionView!
+        .Cast<ArchiveThreadRow>().Select(row => row.Summary.Id.Thread!).ToArray();
+
     private static async Task<Fixture> OpenAsync(MainWindow owner, string profile, ResourceId thread)
     {
         DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
@@ -178,6 +211,18 @@ internal static class PrivateTagBarChecks
         ArchiveThreadRow[] rows = f.C<ListBox>("ArchiveThreads").ItemsSource!.Cast<ArchiveThreadRow>().ToArray();
         ArchiveThreadRow taggedRow = rows.Single(row => row.Summary.Id == Tagged), plainRow = rows.Single(row => row.Summary.Id == Plain);
         Require(taggedRow.HasTags && taggedRow.TagsText == "Tags: my_tag" && !plainRow.HasTags, "List rows do not show thread tags.");
+        // The table column shows the same tags: Advanced shows it, Simple and Barebones leave it to the chooser.
+        await ShowTableAsync(f);
+        DataGrid table = f.C<DataGrid>("ArchiveThreadTable");
+        DataGridColumn tagColumn = table.Columns[7];
+        Require(tagColumn.IsVisible && Equals(tagColumn.Header, "Tags") && TagCell(f, taggedRow) == "my_tag" && TagCell(f, plainRow) == "",
+            "The table's tag column does not show the thread tags: " + string.Join("|", TagCells(f, taggedRow)));
+        f.Page.ArchiveColumnModePreference = "Simple";
+        Require(!tagColumn.IsVisible, "The tag column must be chooser-only in Simple.");
+        f.Page.ArchiveColumnModePreference = "Barebones";
+        Require(!tagColumn.IsVisible, "The tag column must be absent in Barebones.");
+        f.Page.ArchiveColumnModePreference = "Advanced";
+        Require(tagColumn.IsVisible, "Advanced did not show the tag column again.");
         // List rows follow changes made in the bar of the reopened thread.
         await f.Page.LoadThreadAsync(Tagged).WaitAsync(Deadline);
         await f.Page.MediaLoadTask.WaitAsync(Deadline);
@@ -186,6 +231,10 @@ internal static class PrivateTagBarChecks
         f.Click(f.Suggestions()[1]);
         await f.SettleAsync();
         Require(taggedRow.TagsText == "Tags: my_tag, /sdg/" && !plainRow.HasTags, "List row did not follow the bar: " + taggedRow.TagsText);
+        // The column follows the bar in place: same row object, no list reload, selection untouched.
+        Require(TagCell(f, taggedRow) == "/sdg/, my_tag" && TagCell(f, plainRow) == "", "Table cell did not follow the bar: " + TagCell(f, taggedRow));
+        Require(ReferenceEquals(table.ItemsSource, f.C<ListBox>("ArchiveThreads").ItemsSource), "Adding a tag replaced the shown list.");
+        Capture(f.Page, "table-column");
 
         // Another thread: the bar follows it and carries neither draft nor message over.
         input.Text = "draft for the old thread";
@@ -229,7 +278,31 @@ internal static class PrivateTagBarChecks
             Require(File.ReadAllText(file) == "{bad", "Damaged index was overwritten.");
         }
         File.WriteAllBytes(file, valid);
-        Console.WriteLine("SMOKE private-tags restart [de]: persistence, German labels, damaged index read-only and preserved checked.");
+        await using (Fixture f = await OpenAsync(owner, profile, Tagged))
+        {
+            // A store that stops being readable must not keep presenting its last tags as current, and must come back.
+            Require(await f.Page.ApplySearchSpecAsync(new ArchiveSearchSpec()), "List load failed.");
+            await ShowTableAsync(f);
+            ArchiveThreadRow[] rows = f.C<ListBox>("ArchiveThreads").ItemsSource!.Cast<ArchiveThreadRow>().ToArray();
+            ArchiveThreadRow taggedRow = rows.Single(row => row.Summary.Id == Tagged), plainRow = rows.Single(row => row.Summary.Id == Plain);
+            Require(TagCell(f, taggedRow) == "/sdg/, my_tag" && TagCell(f, plainRow) == "", "Restart: table tag column is wrong: " + TagCell(f, taggedRow));
+            File.WriteAllText(file, "{bad");
+            Require(f.Host.GetPrivateTagSnapshot().State == PrivateTagLoadState.Unavailable, "Damaged index was not detected.");
+            await f.Page.LoadThreadAsync(Tagged).WaitAsync(Deadline);
+            await f.Page.MediaLoadTask.WaitAsync(Deadline);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            Require(TagCell(f, taggedRow) == "\u2014" && TagCell(f, plainRow) == "\u2014" && !taggedRow.HasTags,
+                "Unreadable tag store still shows tags or an empty cell: " + TagCell(f, taggedRow));
+            Capture(f.Page, "table-column-unavailable");
+            File.WriteAllBytes(file, valid);
+            Require(f.Host.GetPrivateTagSnapshot().State == PrivateTagLoadState.Ready, "Restored index was not read.");
+            await f.Page.LoadThreadAsync(Tagged).WaitAsync(Deadline);
+            await f.Page.MediaLoadTask.WaitAsync(Deadline);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            Require(TagCell(f, taggedRow) == "/sdg/, my_tag" && TagCell(f, plainRow) == "", "Tag column did not recover: " + TagCell(f, taggedRow));
+        }
+        File.WriteAllBytes(file, valid);
+        Console.WriteLine("SMOKE private-tags restart [de]: persistence, German labels, damaged index read-only and preserved, tag column dash and recovery checked.");
     }
 
     private static async Task FilterJourneyAsync(MainWindow owner)
@@ -266,6 +339,14 @@ internal static class PrivateTagBarChecks
         Require(await page.ApplySearchSpecAsync(new ArchiveSearchSpec(sort: ArchiveThreadSort.Title)), "Initial list failed.");
         Require(Rows().SequenceEqual(new[] { "3001", "3002", "3003", "3004" }) && Applied().Length == 0, "Unfiltered list is wrong.");
         Require(Choices().SequenceEqual(new[] { Texts.T("tags.filter.choose"), "red", "blue", "unused" }), "Tag choices are wrong: " + string.Join("|", Choices()));
+
+        // Sorting the table by its tag column: by sorted names (elementwise), threads without tags last, header toggles direction.
+        await ShowTableAsync(f);
+        DataGridColumn tagColumn = f.C<DataGrid>("ArchiveThreadTable").Columns[7];
+        Require(TableOrder(f).SequenceEqual(new[] { "3001", "3002", "3003", "3004" }), "Table order before sorting is wrong.");
+        await SortedAsync(f, tagColumn, System.ComponentModel.ListSortDirection.Ascending, "3003", "3002", "3001", "3004");
+        await SortedAsync(f, tagColumn, System.ComponentModel.ListSortDirection.Descending, "3004", "3001", "3002", "3003");
+        f.C<DataGrid>("ArchiveThreadTable").CollectionView!.SortDescriptions.Clear();
 
         // Include one tag.
         Choose("red"); f.Click("ArchiveAddTagInclude");
@@ -362,6 +443,10 @@ internal static class PrivateTagBarChecks
         await f.Host.SetMediaTagAsync(red, media!, true);
         ArchivePage page = f.Page;
         Require(await page.ApplySearchSpecAsync(new ArchiveSearchSpec(sort: ArchiveThreadSort.Title)), "List load failed.");
+        ArchiveThreadRow[] tableRows = f.C<ListBox>("ArchiveThreads").ItemsSource!.Cast<ArchiveThreadRow>().ToArray();
+        ArchiveThreadRow firstRow = tableRows.Single(row => row.Summary.Id == first), secondRow = tableRows.Single(row => row.Summary.Id == second);
+        await ShowTableAsync(f);
+        Require(TagCell(f, firstRow) == "red" && TagCell(f, secondRow) == "blue, red", "Manager fixture: table tags are wrong: " + TagCell(f, secondRow));
         await page.LoadThreadAsync(first).WaitAsync(Deadline);
         await page.MediaLoadTask.WaitAsync(Deadline);
         f.Click("ReaderTagsOpen");
@@ -434,6 +519,19 @@ internal static class PrivateTagBarChecks
         Require(!rows.Single(row => row.Summary.Id == first).HasTags && rows.Single(row => row.Summary.Id == second).TagsText == "Tags: blue", "List rows still show the deleted tag.");
         string[] choices = f.C<ComboBox>("ArchiveTagChoice").ItemsSource!.Cast<object>().Select(item => item.ToString()!).ToArray();
         Require(choices.SequenceEqual(new[] { Texts.T("tags.filter.choose"), "blue", "fixed_name" }), "Filter choices are stale: " + string.Join("|", choices));
+        // The table column shows the deletion and then a rename, in the same rows, once the manager closes.
+        Require(TagCell(f, firstRow) == "" && TagCell(f, secondRow) == "blue", "Table column still shows the deleted tag: " + TagCell(f, secondRow));
+        manager = await OpenManagerAsync();
+        Select(manager, "blue");
+        manager.NameInput.Text = "navy";
+        manager.RenameButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await IdleAsync(manager);
+        manager.List.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+        await page.TagManagerTask.WaitAsync(Deadline);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        Require(TagCell(f, secondRow) == "navy" && secondRow.TagsText == "Tags: navy" && TagCell(f, firstRow) == "", "Table column did not follow the rename: " + TagCell(f, secondRow));
+        Require(ReferenceEquals(f.C<DataGrid>("ArchiveThreadTable").ItemsSource, f.C<ListBox>("ArchiveThreads").ItemsSource)
+            && f.C<ListBox>("ArchiveThreads").ItemsSource!.Cast<ArchiveThreadRow>().Contains(secondRow), "Rename reloaded the list.");
         // SHA-256 search is reachable from the reader, for exactly this thread's one media inventory.
         Button hash = f.C<Button>("ReaderHashSearchOpen");
         Require(hash.IsEffectivelyEnabled && Equals(hash.Content, Texts.T("reader.hashSearch.open")), "Hash search entry is missing or disabled.");

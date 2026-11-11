@@ -1729,6 +1729,7 @@
     "archive.columns.source": "Источник",
     "archive.columns.work": "Работа",
     "archive.columns.lastCapture": "Последний захват",
+    "archive.columns.tags": "Теги",
     "archive.columns.name": "Имя файла",
     "archive.columns.size": "Размер",
     "archive.columns.rating": "Оценка",

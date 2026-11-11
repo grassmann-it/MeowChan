@@ -19,6 +19,7 @@ internal static class ArchiveColumnsCatalog
         ("archive.columns.source", "Source", "Quelle"),
         ("archive.columns.work", "Work", "Arbeit"),
         ("archive.columns.lastCapture", "Last capture", "Letzte Erfassung"),
+        ("archive.columns.tags", "Tags", "Tags"),
         ("archive.columns.name", "File name", "Dateiname"),
         ("archive.columns.size", "Size", "Größe"),
         ("archive.columns.rating", "Rating", "Bewertung"),

@@ -30,13 +30,15 @@ public sealed class ArchiveThreadRowTagTests : IDisposable
         row.SetTags(["/rpt/", "my_tag"]);
         Assert.True(row.HasTags);
         Assert.Equal("Tags: /rpt/, my_tag", row.TagsText);
-        Assert.Equal(new[] { nameof(ArchiveThreadRow.TagsText), nameof(ArchiveThreadRow.HasTags) }, changed);
+        // The list line and the table column notify together, once per real change.
+        Assert.Equal(new[] { nameof(ArchiveThreadRow.TagsText), nameof(ArchiveThreadRow.HasTags),
+            nameof(ArchiveThreadRow.TagColumnText), nameof(ArchiveThreadRow.TagColumnTip) }, changed);
 
         row.SetTags(["/rpt/", "my_tag"]);
-        Assert.Equal(2, changed.Count);
+        Assert.Equal(4, changed.Count);
         row.SetTags(null);
         Assert.False(row.HasTags);
-        Assert.Equal(4, changed.Count);
+        Assert.Equal(8, changed.Count);
     }
 
     [Theory]

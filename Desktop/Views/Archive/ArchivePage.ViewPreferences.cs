@@ -12,9 +12,9 @@ namespace MeowChan;
 
 public partial class ArchivePage
 {
-    private static readonly string[] ThreadColumnKeys = ["identity", "title", "posts", "media", "source", "work", "lastCapture"];
+    private static readonly string[] ThreadColumnKeys = ["identity", "title", "posts", "media", "source", "work", "lastCapture", "tags"];
     private static readonly string[] MediaColumnKeys = ["name", "size", "version", "rating"];
-    private static readonly double[] ThreadDefaultWidths = [150, 0, 65, 80, 90, 110, 145];
+    private static readonly double[] ThreadDefaultWidths = [150, 0, 65, 80, 90, 110, 145, 170];
     private static readonly double[] MediaDefaultWidths = [0, 85, 125, 130];
     private Dictionary<string, double> _archiveColumnWidths = new(StringComparer.Ordinal);
     private Dictionary<string, bool> _archiveColumnVisibility = new(StringComparer.Ordinal);
@@ -65,24 +65,39 @@ public partial class ArchivePage
 
     private static string[] ColumnKeys(DataGrid grid) => grid.Name == "ArchiveMediaGrid" ? MediaColumnKeys : ThreadColumnKeys;
     private static string ColumnPreferenceKey(DataGrid grid, string column) => grid.Name + "." + column;
-    private bool DefaultVisible(DataGrid grid, string key) => grid.Name == "ArchiveMediaGrid"
-        ? _archiveColumnMode != "Barebones" || key is "name" or "size"
-        : _archiveColumnMode switch
+    private bool DefaultVisible(DataGrid grid, string key) => DefaultColumnVisible(grid.Name!, _archiveColumnMode, key);
+
+    // Tags is appended as the last key: saved numeric widths and column orders of older versions stay valid.
+    internal static bool DefaultColumnVisible(string gridName, string mode, string key) => gridName == "ArchiveMediaGrid"
+        ? mode != "Barebones" || key is "name" or "size"
+        : mode switch
         {
             "Barebones" => key is "identity" or "title" or "posts" or "media",
-            "Simple" => key is not "work" and not "lastCapture",
+            "Simple" => key is not "work" and not "lastCapture" and not "tags",
             _ => true
         };
 
-    private bool ColumnVisible(DataGrid grid, string key)
+    private bool ColumnVisible(DataGrid grid, string key) => ResolveColumnVisible(grid.Name!, _archiveColumnMode, _archiveColumnVisibility, key);
+
+    // A saved choice wins; a column the saved preferences never heard of follows the mode default.
+    internal static bool ResolveColumnVisible(string gridName, string mode, IReadOnlyDictionary<string, bool> saved, string key)
     {
         if (key == "name") return true;
-        bool visible = _archiveColumnVisibility.TryGetValue(ColumnPreferenceKey(grid, key), out bool saved)
-            ? saved : DefaultVisible(grid, key);
+        bool visible = saved.TryGetValue(gridName + "." + key, out bool chosen) ? chosen : DefaultColumnVisible(gridName, mode, key);
         if (key == "identity" && !visible &&
-            _archiveColumnVisibility.TryGetValue(ColumnPreferenceKey(grid, "title"), out bool title) && !title)
+            saved.TryGetValue(gridName + ".title", out bool title) && !title)
             return true;
         return visible;
+    }
+
+    // Saved positions win; a column without one (older preferences) keeps its natural place after them.
+    internal static int[] ResolveColumnOrder(string gridName, string[] keys, IReadOnlyDictionary<string, int> saved)
+    {
+        if (!keys.Any(key => saved.ContainsKey(gridName + "." + key))) return Enumerable.Range(0, keys.Length).ToArray();
+        return Enumerable.Range(0, keys.Length)
+            .OrderBy(index => saved.TryGetValue(gridName + "." + keys[index], out int position)
+                && position >= 0 && position < keys.Length ? position : index)
+            .ThenBy(index => index).ToArray();
     }
 
     private void ApplyArchiveColumns()
@@ -108,17 +123,9 @@ public partial class ArchivePage
                         : new DataGridLength(defaultWidth);
                 }
             }
-            if (keys.Any(key => _archiveColumnOrder.ContainsKey(ColumnPreferenceKey(grid, key))))
-            {
-                int[] order = Enumerable.Range(0, keys.Length)
-                    .OrderBy(index => _archiveColumnOrder.TryGetValue(ColumnPreferenceKey(grid, keys[index]), out int position)
-                        && position >= 0 && position < keys.Length ? position : index)
-                    .ThenBy(index => index).ToArray();
-                for (int position = 0; position < order.Length; position++)
-                    grid.Columns[order[position]].DisplayIndex = position;
-            }
-            else for (int index = 0; index < keys.Length; index++)
-                grid.Columns[index].DisplayIndex = index;
+            int[] order = ResolveColumnOrder(grid.Name!, keys, _archiveColumnOrder);
+            for (int position = 0; position < order.Length; position++)
+                grid.Columns[order[position]].DisplayIndex = position;
         }
     }
 

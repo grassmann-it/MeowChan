@@ -1729,6 +1729,7 @@
     "archive.columns.source": "Source",
     "archive.columns.work": "Travail",
     "archive.columns.lastCapture": "Dernière capture",
+    "archive.columns.tags": "Étiquettes",
     "archive.columns.name": "Nom de fichier",
     "archive.columns.size": "Taille",
     "archive.columns.rating": "Évaluation",

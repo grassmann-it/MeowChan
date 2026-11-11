@@ -55,7 +55,6 @@ public partial class ArchivePage
             {
                 // Renames and deletions happened in the host; show them everywhere on this page.
                 ReloadPrivateTags();
-                foreach (ArchiveThreadRow row in ArchiveVisibleRows) row.SetTags(_threadTagNames.GetValueOrDefault(row.Summary.Id));
                 UpdatePrivateTagActions(); UpdateHashSearchAction();
                 if (origin is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true }) origin.Focus();
             }
