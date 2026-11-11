@@ -302,6 +302,7 @@ internal sealed partial class GalleryViewer : UserControl
         media.Children.Add(_ratingButton);
         _exportOriginal = Command(media, "GalleryExportOriginal", Texts.T("viewer.menu.exportOriginal"), () =>
         { if (_entry != null) ExportOriginalRequested?.Invoke(_entry); });
+        CreateTagsButton(media);
         Command(view, "GalleryFullscreen", Texts.T("viewer.fullscreen"), () => FullscreenRequested?.Invoke());
         _helpButton = Command(view, "GalleryHelp", Texts.T("viewer.help"), () => SetHelp(!_helpOpen));
         _readPosts = Command(view, "GalleryReadPosts", Texts.T("gallery.read"), () => { PauseSlideshow(); ReadPostsRequested?.Invoke(); });
@@ -434,6 +435,7 @@ internal sealed partial class GalleryViewer : UserControl
         CommandBindings.Apply(_ratingButton, "media.rating.edit");
         SetRating(_ratingValue, _ratingError, _ratingAvailable);
         if (IsFavoriteConfirmOpen) UpdateFavoriteConfirmText();
+        UpdateTagsButton();
         var labels = new Dictionary<string, string>
         {
             ["GalleryClose"] = "gallery.viewer0", ["GalleryPrevious"] = "gallery.viewer1",
@@ -854,6 +856,7 @@ internal sealed partial class GalleryViewer : UserControl
         if (_entry?.Key != entry.Key) SetFavoriteError(null);
         _entry = entry; _manualZoom = _actualZoom = false; _panX = _panY = 0;
         _exportOriginal.IsEnabled = true;
+        ResetMediaTags(); // A new medium's tags are unknown until the owner reports them.
         _favoriteKnown = _favoritePending = _favoriteSelected = false;
         UpdateFavorite();
         _ratingValue = null; _ratingError = null; _ratingAvailable = false;

@@ -64,6 +64,20 @@ internal static class TagBarCatalog
         ("reader.hashSearch.open", "Search by SHA-256", "Nach SHA-256 suchen"),
         ("reader.hashSearch.hint", "Search the saved media of this thread for an exact SHA-256. Nothing is opened or downloaded.", "Die gespeicherten Medien dieses Threads nach einem exakten SHA-256 durchsuchen. Es wird nichts geöffnet oder heruntergeladen."),
         ("reader.hashSearch.multiple", "This thread has several media folders. The SHA-256 search covers one folder at a time and is not available here yet.", "Dieser Thread hat mehrere Medienordner. Die SHA-256-Suche deckt jeweils einen Ordner ab und ist hier noch nicht verfügbar."),
-        ("reader.hashSearch.failed", "The media inventory of this thread could not be opened.", "Das Medieninventar dieses Threads konnte nicht geöffnet werden.")
+        ("reader.hashSearch.failed", "The media inventory of this thread could not be opened.", "Das Medieninventar dieses Threads konnte nicht geöffnet werden."),
+        ("tags.media.button", "Tags", "Tags"),
+        ("tags.media.buttonCount", "Tags ({0})", "Tags ({0})"),
+        ("tags.media.hint", "Add own tags to exactly this media file.", "Diesem Medium eigene Tags geben."),
+        ("tags.media.unbound", "This file is not linked to a captured post version and cannot be tagged.", "Diese Datei ist keiner erfassten Beitragsfassung zugeordnet und kann nicht getaggt werden."),
+        ("tags.media.unsupported", "This file cannot be tagged.", "Diese Datei kann nicht getaggt werden."),
+        ("tags.media.title", "Media tags", "Medientags"),
+        ("tags.media.heading", "Tags for {0}", "Tags für {0}"),
+        ("tags.media.scope", "Tags apply to exactly this version of the file. The thread and other copies are not tagged.", "Tags gelten genau für diese Fassung der Datei. Der Thread und andere Kopien werden nicht getaggt."),
+        ("tags.media.assigned", "On this media file", "An diesem Medium"),
+        ("tags.media.none", "No own tags yet.", "Noch keine eigenen Tags."),
+        ("tags.media.available", "Add an existing tag:", "Vorhandenen Tag hinzufügen:"),
+        ("tags.media.remove", "Remove tag {0} from this media file", "Tag {0} von diesem Medium entfernen"),
+        ("tags.media.addExisting", "Add tag {0} to this media file", "Tag {0} diesem Medium hinzufügen"),
+        ("tags.media.close", "Close", "Schließen")
     };
 }

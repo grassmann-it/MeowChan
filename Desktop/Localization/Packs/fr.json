@@ -2020,6 +2020,20 @@
     "reader.hashSearch.open": "Rechercher par SHA-256",
     "reader.hashSearch.hint": "Rechercher un SHA-256 exact dans les médias enregistrés de ce fil. Rien n’est ouvert ni téléchargé.",
     "reader.hashSearch.multiple": "Ce fil comporte plusieurs dossiers de médias. La recherche SHA-256 porte sur un seul dossier à la fois et n’est pas encore disponible ici.",
-    "reader.hashSearch.failed": "L’inventaire des médias de ce fil n’a pas pu être ouvert."
+    "reader.hashSearch.failed": "L’inventaire des médias de ce fil n’a pas pu être ouvert.",
+    "tags.media.button": "Étiquettes",
+    "tags.media.buttonCount": "Étiquettes ({0})",
+    "tags.media.hint": "Ajouter des étiquettes personnelles à ce fichier précis.",
+    "tags.media.unbound": "Ce fichier n’est lié à aucune version de message capturée et ne peut pas être étiqueté.",
+    "tags.media.unsupported": "Ce fichier ne peut pas être étiqueté.",
+    "tags.media.title": "Étiquettes du média",
+    "tags.media.heading": "Étiquettes de {0}",
+    "tags.media.scope": "Les étiquettes s’appliquent exactement à cette version du fichier. Le fil et les autres copies ne sont pas étiquetés.",
+    "tags.media.assigned": "Sur ce fichier",
+    "tags.media.none": "Aucune étiquette personnelle pour l’instant.",
+    "tags.media.available": "Ajouter une étiquette existante :",
+    "tags.media.remove": "Retirer l’étiquette {0} de ce fichier",
+    "tags.media.addExisting": "Ajouter l’étiquette {0} à ce fichier",
+    "tags.media.close": "Fermer"
   }
 }

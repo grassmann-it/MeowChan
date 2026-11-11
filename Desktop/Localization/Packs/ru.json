@@ -2020,6 +2020,20 @@
     "reader.hashSearch.open": "Поиск по SHA-256",
     "reader.hashSearch.hint": "Искать точный SHA-256 среди сохранённых медиа этого треда. Ничего не открывается и не загружается.",
     "reader.hashSearch.multiple": "У этого треда несколько папок с медиа. Поиск по SHA-256 охватывает одну папку за раз и здесь пока недоступен.",
-    "reader.hashSearch.failed": "Не удалось открыть перечень медиа этого треда."
+    "reader.hashSearch.failed": "Не удалось открыть перечень медиа этого треда.",
+    "tags.media.button": "Теги",
+    "tags.media.buttonCount": "Теги ({0})",
+    "tags.media.hint": "Добавить собственные теги именно к этому файлу.",
+    "tags.media.unbound": "Этот файл не связан с сохранённой версией поста, и его нельзя пометить тегом.",
+    "tags.media.unsupported": "Этот файл нельзя пометить тегом.",
+    "tags.media.title": "Теги медиа",
+    "tags.media.heading": "Теги для {0}",
+    "tags.media.scope": "Теги относятся именно к этой версии файла. Тред и другие копии не помечаются.",
+    "tags.media.assigned": "У этого файла",
+    "tags.media.none": "Собственных тегов пока нет.",
+    "tags.media.available": "Добавить существующий тег:",
+    "tags.media.remove": "Убрать тег {0} с этого файла",
+    "tags.media.addExisting": "Добавить тег {0} к этому файлу",
+    "tags.media.close": "Закрыть"
   }
 }

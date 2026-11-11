@@ -2020,6 +2020,20 @@
     "reader.hashSearch.open": "Buscar por SHA-256",
     "reader.hashSearch.hint": "Buscar un SHA-256 exacto en los medios guardados de este hilo. No se abre ni se descarga nada.",
     "reader.hashSearch.multiple": "Este hilo tiene varias carpetas de medios. La búsqueda SHA-256 abarca una carpeta a la vez y aún no está disponible aquí.",
-    "reader.hashSearch.failed": "No se pudo abrir el inventario de medios de este hilo."
+    "reader.hashSearch.failed": "No se pudo abrir el inventario de medios de este hilo.",
+    "tags.media.button": "Etiquetas",
+    "tags.media.buttonCount": "Etiquetas ({0})",
+    "tags.media.hint": "Añadir etiquetas propias exactamente a este archivo multimedia.",
+    "tags.media.unbound": "Este archivo no está vinculado a una versión de publicación capturada y no se puede etiquetar.",
+    "tags.media.unsupported": "Este archivo no se puede etiquetar.",
+    "tags.media.title": "Etiquetas de medios",
+    "tags.media.heading": "Etiquetas de {0}",
+    "tags.media.scope": "Las etiquetas se aplican exactamente a esta versión del archivo. El hilo y otras copias no se etiquetan.",
+    "tags.media.assigned": "En este archivo multimedia",
+    "tags.media.none": "Aún no hay etiquetas propias.",
+    "tags.media.available": "Añadir una etiqueta existente:",
+    "tags.media.remove": "Quitar la etiqueta {0} de este archivo multimedia",
+    "tags.media.addExisting": "Añadir la etiqueta {0} a este archivo multimedia",
+    "tags.media.close": "Cerrar"
   }
 }

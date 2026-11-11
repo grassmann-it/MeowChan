@@ -36,6 +36,7 @@ public partial class MainWindow
             if (directory != null) OpenDirectory(directory);
         };
         _gallery.DetailsRequested += entry => _ = RunGalleryActionAsync(() => ShowGalleryDetailsAsync(entry), entry.Key.ToString());
+        _gallery.TagsRequested += entry => _ = RunGalleryActionAsync(() => EditGalleryMediaTagsAsync(entry), entry.Key.ToString());
     }
 
     private async Task RunGalleryActionAsync(Func<Task> command, string? context = null)
@@ -89,6 +90,7 @@ public partial class MainWindow
     private void RefreshGalleryFavorite()
     {
         RefreshGalleryRating();
+        RefreshGalleryMediaTags();
         _archivePage?.RefreshArchiveFavoriteControls();
         if (_gallery != null && _galleryIndex >= 0 && _galleryIndex < _galleryEntries.Count)
         {
