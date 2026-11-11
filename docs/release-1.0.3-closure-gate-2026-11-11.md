@@ -128,6 +128,20 @@ GUI-Smokes im privaten Xvfb (nice 19):
   `new-free-input-trims-without-normalizing-existing-identities`. Eingabe:
   in-process materialisierte Controls und Popup-Tastaturereignisse, nicht OS-Eingabe.
 
+## Einzelnachweise je Anforderung (11.11.)
+
+- Archivfilter, je Anforderung benannt (`/tmp/mc-evidence/archive-filter-requirements-1794364177.txt`): Up/Down + Mehrfachnavigation + Enter
+  (`keyboard-multi-navigation-then-enter`), Escape → erneute Navigation (`escape-then-navigation-reopens-list`),
+  Board-Kandidat → Add → Search (`board-candidate-add-then-explicit-search`), stale Vorschläge
+  (`stale-async-suggestions-never-resurface` + Tests `SupersededInputAndProfileEndCannotPublishLateSnapshot`,
+  `LateScopedSourceResponseCannotReplaceNewerExactSource`, `CandidateScopeAndFreeTextRemainDistinctIncludingStaleSelection`),
+  Scopewechsel, freie Eingabe, Board-Source-Kopplung: jeweils `pass`.
+- Gerätezeitzone, Diagnoseprotokoll (`/tmp/mc-evidence/timezone-diag-1794364164/diagnosis.log`): `MeowChan.deps.json`
+  nennt `NodaTime/3.3.6`; `NodaTime.dll` in App-, Smoke- und Test-Bins hashgleich; im Single-File-Publish
+  eingebettet; System-tz `Europe/Berlin` über `/etc/localtime` → tzdb; keine installierten/stale MeowChan-Pfade.
+  Regressionen `DeviceTimeZoneResolvesToABundledIanaZoneAndNodaTimeIsDeployed`,
+  `DeviceTimeZoneFailureNamesTheFactsInsteadOfAGenericAssemblyMessage` bestanden. Meldung nicht reproduziert.
+
 ## Was das Gate auflöst
 
 1. Erledigt (`aaea381`): Recovery unterbrochener Transfers.
