@@ -44,6 +44,13 @@ internal static class MediaLibraryCatalog
         ("media.filter.kind.gif", "GIFs", "GIFs"),
         ("media.filter.kind.video", "Videos", "Videos"),
         ("media.filter.kind.other", "Other files", "Andere Dateien"),
+        ("media.filter.sound", "Sound", "Ton"),
+        ("media.filter.anySound", "Sound: any", "Ton: egal"),
+        ("media.filter.sound.with", "With sound", "Mit Ton"),
+        ("media.filter.sound.without", "Without sound", "Ohne Ton"),
+        ("media.filter.sound.hint", "Videos only. Whether a video has sound is read from the file headers. Videos not checked yet are not shown.", "Nur Videos. Ob ein Video Ton hat, wird aus den Dateikopfdaten gelesen. Noch ungeprüfte Videos werden nicht gezeigt."),
+        ("media.audio.probing", "Checking sound: {0} of {1}", "Ton wird geprüft: {0} von {1}"),
+        ("media.audio.unknown", "Videos not checked: {0} (not shown here)", "Ungeprüfte Videos: {0} (hier nicht gezeigt)"),
         ("media.filter.source", "Source", "Quelle"),
         ("media.filter.anySource", "All sources", "Alle Quellen"),
         ("media.filter.board", "Board", "Board"),
@@ -114,6 +121,15 @@ internal static class MediaLibraryCatalog
         ("media.state.ratingValue", "{0} of 5", "{0} von 5"),
         ("media.state.noTags", "none", "keine"),
         ("media.state.notTaggable", "not possible for this file", "für diese Datei nicht möglich"),
-        ("media.state.tagCount", "{0} tags", "{0} Tags")
+        ("media.state.tagCount", "{0} tags", "{0} Tags"),
+        ("media.exportAll", "Export all matches…", "Alle Treffer exportieren …"),
+        ("media.exportAll.hint", "Copy the originals of every tile shown now, one per tile", "Die Originale aller jetzt gezeigten Kacheln kopieren, eines je Kachel"),
+        ("media.exportAll.reason.none", "No tiles are shown, so there is nothing to export.", "Es sind keine Kacheln zu sehen, also gibt es nichts zu exportieren."),
+        ("media.exportAll.reason.probing", "Sound is still being checked, so the matches can still change.", "Der Ton wird noch geprüft, die Treffer können sich also noch ändern."),
+        ("media.exportAll.scope", "All matches", "Alle Treffer"),
+        ("media.exportAll.preparing", "Preparing {0} tiles for export…", "{0} Kacheln werden für den Export vorbereitet …"),
+        ("media.exportAll.confirm", "{0} originals ({1}) are about to be copied. This can take a while. Export all of them?", "{0} Originale ({1}) sollen kopiert werden. Das kann dauern. Alle exportieren?"),
+        ("media.exportAll.confirm.yes", "Export anyway", "Trotzdem exportieren"),
+        ("media.exportAll.confirm.no", "Cancel", "Abbrechen")
     };
 }

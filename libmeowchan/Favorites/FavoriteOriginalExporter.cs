@@ -33,8 +33,23 @@ public sealed record FavoriteExportResult(IReadOnlyList<FavoriteExportItem> Item
 /// <summary>Copies verified originals into stable source/board/thread folders without replacing existing files.</summary>
 public static class FavoriteOriginalExporter
 {
-    public static async Task<FavoriteExportResult> ExportAsync(IReadOnlyList<FavoriteExportAsset> assets,
+    /// <summary>Test-only seams: wrap the output stream of one file (to simulate a full disk or a cancel mid-copy) and observe each finished item.</summary>
+    internal sealed class Hooks
+    {
+        internal Func<FavoriteExportAsset, Stream, Stream>? WrapOutput { get; init; }
+        internal Action<FavoriteExportItem>? AfterItem { get; init; }
+    }
+
+    public static Task<FavoriteExportResult> ExportAsync(IReadOnlyList<FavoriteExportAsset> assets,
         string destinationDirectory, CancellationToken cancellationToken = default)
+        => ExportCoreAsync(assets, destinationDirectory, null, cancellationToken);
+
+    internal static Task<FavoriteExportResult> ExportWithHooksAsync(IReadOnlyList<FavoriteExportAsset> assets,
+        string destinationDirectory, Hooks hooks, CancellationToken cancellationToken = default)
+        => ExportCoreAsync(assets, destinationDirectory, hooks, cancellationToken);
+
+    private static async Task<FavoriteExportResult> ExportCoreAsync(IReadOnlyList<FavoriteExportAsset> assets,
+        string destinationDirectory, Hooks? hooks, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(assets);
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationDirectory);
@@ -52,7 +67,7 @@ public static class FavoriteOriginalExporter
             }
             try
             {
-                string? path = await CopyOneAsync(item, root, cancellationToken).ConfigureAwait(false);
+                string? path = await CopyOneAsync(item, root, hooks, cancellationToken).ConfigureAwait(false);
                 results.Add(new FavoriteExportItem(item.Key,
                     path != null && path.StartsWith("!", StringComparison.Ordinal)
                         ? FavoriteExportStatus.AlreadyExists : FavoriteExportStatus.Copied,
@@ -64,6 +79,7 @@ public static class FavoriteOriginalExporter
             { results.Add(new FavoriteExportItem(item.Key, FavoriteExportStatus.Missing, null, ex.Message)); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
             { results.Add(new FavoriteExportItem(item.Key, FavoriteExportStatus.Failed, null, ex.Message)); }
+            hooks?.AfterItem?.Invoke(results[^1]);
         }
         return new FavoriteExportResult(results);
     }
@@ -83,7 +99,7 @@ public static class FavoriteOriginalExporter
             throw new ArgumentException("The export identity does not match its frozen manifest.", nameof(item));
     }
 
-    private static async Task<string> CopyOneAsync(FavoriteExportAsset item, string root, CancellationToken token)
+    private static async Task<string> CopyOneAsync(FavoriteExportAsset item, string root, Hooks? hooks, CancellationToken token)
     {
         string directory = EnsureSafeDirectory(root, item.Key.Thread.Source, item.Key.Thread.Board,
             item.Key.Thread.Thread!);
@@ -92,12 +108,13 @@ public static class FavoriteOriginalExporter
         try
         {
             await using (Stream source = await item.Manifest.OpenVerifiedReadAsync(item.AssetId, token).ConfigureAwait(false))
-            await using (FileStream output = new(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+            await using (FileStream file = new(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None,
                 81920, FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
+                Stream output = hooks?.WrapOutput?.Invoke(item, file) ?? file;
                 await source.CopyToAsync(output, token).ConfigureAwait(false);
                 await output.FlushAsync(token).ConfigureAwait(false);
-                output.Flush(flushToDisk: true);
+                file.Flush(flushToDisk: true);
             }
             await using (FileStream check = new(temporary, FileMode.Open, FileAccess.Read, FileShare.Read,
                 81920, FileOptions.Asynchronous | FileOptions.SequentialScan))

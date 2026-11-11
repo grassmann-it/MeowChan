@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
@@ -119,14 +120,16 @@ public partial class MainWindow
             if (!_isClosing)
             {
                 _mediaPage?.RefreshUserData();
-                if (origin?.IsEffectivelyVisible == true) origin.Focus();
+                // A refresh with new tags rebuilds the tiles; the focused tile container is then detached (still 'visible') and the grid takes the focus.
+                if (origin is { IsEffectivelyVisible: true } && origin.IsAttachedToVisualTree()) origin.Focus();
+                else if (_mediaPage?.IsEffectivelyVisible == true) _mediaPage.FocusGrid();
             }
         }
     }
 
     // The same export dialog as the gallery and the favorites: verified originals, no overwriting, per-file results.
-    private Task ExportMediaLibraryOriginalsAsync(IReadOnlyList<Favorites.FavoriteExportAsset> assets, int unavailable)
-        => _isClosing ? Task.CompletedTask : ArchivePage.OpenOriginalExportAsync(assets, _mediaPage, unavailable, Texts.T("media.selection.exportScope"));
+    private Task ExportMediaLibraryOriginalsAsync(IReadOnlyList<Favorites.FavoriteExportAsset> assets, int unavailable, string scope)
+        => _isClosing ? Task.CompletedTask : ArchivePage.OpenOriginalExportAsync(assets, _mediaPage, unavailable, scope);
 
     private async Task ShowMediaLibraryEntryInThreadAsync(MediaLibraryEntry entry)
     {

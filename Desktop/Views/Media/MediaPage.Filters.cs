@@ -52,15 +52,26 @@ public sealed partial class MediaPage
     private Control BuildFilterRow()
     {
         WrapPanel row = new() { ItemSpacing = 8, LineSpacing = 6 };
-        foreach (Control control in new Control[] { _nameFilter, _kindFilter, _sourceFilter, _boardFilter, _favoritesOnly, _minRating,
-            _tagChoice, _tagInclude, _tagExclude, _tagMode, _filterReset })
+        foreach (Control control in new Control[] { _nameFilter, _kindFilter, _soundFilter, _sourceFilter, _boardFilter, _favoritesOnly, _minRating,
+            _tagChoice, _tagInclude, _tagExclude, _tagMode, _filterReset, _audioNote })
         { control.VerticalAlignment = VerticalAlignment.Center; row.Children.Add(control); }
         AutomationProperties.SetLiveSetting(_filterError, AutomationLiveSetting.Assertive);
         _filterReset.IsEnabled = false;
         _tagInclude.IsEnabled = _tagExclude.IsEnabled = false;
         _nameFilter.TextChanged += (_, _) => FilterEdited();
-        foreach (ComboBox combo in new[] { _kindFilter, _boardFilter, _minRating, _tagMode })
+        foreach (ComboBox combo in new[] { _boardFilter, _minRating, _tagMode })
             combo.SelectionChanged += (_, _) => FilterEdited();
+        // A sound choice implies videos: it sets the type to Videos, and choosing another type drops the sound choice.
+        _kindFilter.SelectionChanged += (_, _) =>
+        {
+            if (!_localizing && SoundFilterActive && _kindFilter.SelectedIndex != (int)MediaLibraryKindFilter.Video) SetSelection(_soundFilter, 0);
+            FilterEdited();
+        };
+        _soundFilter.SelectionChanged += (_, _) =>
+        {
+            if (!_localizing && SoundFilterActive) SetSelection(_kindFilter, (int)MediaLibraryKindFilter.Video);
+            FilterEdited();
+        };
         _sourceFilter.SelectionChanged += (_, _) => { if (_localizing) return; RenderBoardOptions(); FilterEdited(); };
         _favoritesOnly.IsCheckedChanged += (_, _) => FilterEdited();
         _tagChoice.SelectionChanged += (_, _) => UpdateTagButtons();
@@ -116,7 +127,8 @@ public sealed partial class MediaPage
             ArchiveTagFilter.OrNull(_includeTags, _excludeTags, _tagMode.SelectedIndex == 1 ? ArchiveTagMatch.Any : ArchiveTagMatch.All),
             (MediaLibraryKindFilter)Math.Clamp(_kindFilter.SelectedIndex, 0, (int)MediaLibraryKindFilter.Other),
             _favoritesOnly.IsChecked == true, _minRating.SelectedIndex > 0 ? _minRating.SelectedIndex : null,
-            source, board?.Board, _nameFilter.Text, _threadFilter?.Thread);
+            source, board?.Board, _nameFilter.Text, _threadFilter?.Thread,
+            (MediaLibrarySoundFilter)Math.Clamp(_soundFilter.SelectedIndex, 0, (int)MediaLibrarySoundFilter.WithoutSound));
     }
 
     /// <summary>Entries that pass the filter; empty with an explanation when the filter cannot be applied.</summary>
@@ -125,11 +137,14 @@ public sealed partial class MediaPage
         if (!ReferenceEquals(_optionsFor, _snapshot)) RenderSourceOptions();
         string? error = null;
         IReadOnlyList<MediaLibraryEntry> passing;
+        _audioUnknown = 0;
         try
         {
             MediaLibraryFilter filter = CurrentFilter();
             _filterActive = !filter.IsEmpty;
-            passing = MediaLibraryFilterEngine.Apply(entries, filter, _userData);
+            MediaLibraryFilterResult result = MediaLibraryFilterEngine.Evaluate(entries, filter, _userData, _audio);
+            passing = result.Passing;
+            _audioUnknown = result.UnknownSoundVideos;
         }
         catch (MediaLibraryFilterException exception)
         {
@@ -152,6 +167,7 @@ public sealed partial class MediaPage
         _filterError.Text = error;
         _filterError.IsVisible = error != null;
         _filterReset.IsEnabled = _filterActive;
+        UpdateAudioNote();
         return passing;
     }
 
@@ -170,6 +186,7 @@ public sealed partial class MediaPage
         {
             _nameFilter.Text = string.Empty;
             _kindFilter.SelectedIndex = 0;
+            _soundFilter.SelectedIndex = 0;
             _sourceFilter.SelectedIndex = 0;
             RenderBoardOptions();
             _boardFilter.SelectedIndex = 0;
@@ -296,6 +313,7 @@ public sealed partial class MediaPage
         {
             SetKeys(_kindFilter, "media.filter.anyKind", "media.filter.kind.image", "media.filter.kind.gif", "media.filter.kind.video", "media.filter.kind.other");
             SetTexts(_minRating, new[] { Texts.T("media.filter.anyRating") }.Concat(Enumerable.Range(1, 5).Select(value => Texts.T("media.filter.minRating", value))).ToArray());
+            SetKeys(_soundFilter, "media.filter.anySound", "media.filter.sound.with", "media.filter.sound.without");
             SetKeys(_tagMode, "tags.filter.matchAll", "tags.filter.matchAny");
         }
         finally { _localizing = localizing; }
@@ -304,11 +322,12 @@ public sealed partial class MediaPage
         _tagInclude.Content = Texts.T("tags.filter.include");
         _tagExclude.Content = Texts.T("tags.filter.exclude");
         _filterReset.Content = Texts.T("media.filter.reset");
+        ToolTip.SetTip(_soundFilter, Texts.T("media.filter.sound.hint"));
         ToolTip.SetTip(_tagInclude, Texts.T("media.filter.includeHint"));
         ToolTip.SetTip(_tagExclude, Texts.T("media.filter.excludeHint"));
         foreach ((Control control, string key) in new (Control, string)[]
         {
-            (_nameFilter, "media.filter.name"), (_kindFilter, "media.filter.kind"), (_sourceFilter, "media.filter.source"),
+            (_nameFilter, "media.filter.name"), (_kindFilter, "media.filter.kind"), (_soundFilter, "media.filter.sound"), (_sourceFilter, "media.filter.source"),
             (_boardFilter, "media.filter.board"), (_minRating, "media.filter.rating"), (_tagChoice, "tags.filter.label"),
             (_tagMode, "tags.filter.matchLabel"), (_tagInclude, "media.filter.includeHint"), (_tagExclude, "media.filter.excludeHint"),
             (_filterChips, "media.filter.active")
@@ -316,6 +335,15 @@ public sealed partial class MediaPage
         RenderSourceOptions();
         RenderTagOptions();
         RenderFilterChips();
+    }
+
+    // Sets another filter combo without that combo's own change reaction.
+    private void SetSelection(ComboBox combo, int index)
+    {
+        bool localizing = _localizing;
+        _localizing = true;
+        try { combo.SelectedIndex = index; }
+        finally { _localizing = localizing; }
     }
 
     private static void SetKeys(ComboBox combo, params string[] keys) => SetTexts(combo, keys.Select(key => Texts.T(key)).ToArray());

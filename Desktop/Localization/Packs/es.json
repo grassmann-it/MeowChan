@@ -2083,6 +2083,13 @@
     "media.filter.kind.gif": "GIF",
     "media.filter.kind.video": "Vídeos",
     "media.filter.kind.other": "Otros archivos",
+    "media.filter.sound": "Sonido",
+    "media.filter.anySound": "Sonido: cualquiera",
+    "media.filter.sound.with": "Con sonido",
+    "media.filter.sound.without": "Sin sonido",
+    "media.filter.sound.hint": "Solo vídeos. El sonido se lee de las cabeceras del archivo. Los vídeos aún sin comprobar no se muestran.",
+    "media.audio.probing": "Comprobando el sonido: {0} de {1}",
+    "media.audio.unknown": "Vídeos sin comprobar: {0} (no se muestran aquí)",
     "media.filter.source": "Fuente",
     "media.filter.anySource": "Todas las fuentes",
     "media.filter.board": "Tablón",
@@ -2153,6 +2160,15 @@
     "media.state.ratingValue": "{0} de 5",
     "media.state.noTags": "ninguna",
     "media.state.notTaggable": "no es posible para este archivo",
-    "media.state.tagCount": "{0} etiquetas"
+    "media.state.tagCount": "{0} etiquetas",
+    "media.exportAll": "Exportar todos los resultados…",
+    "media.exportAll.hint": "Copiar los originales de todas las miniaturas visibles ahora, uno por miniatura",
+    "media.exportAll.reason.none": "No hay miniaturas visibles, así que no hay nada que exportar.",
+    "media.exportAll.reason.probing": "Todavía se está comprobando el sonido, así que los resultados aún pueden cambiar.",
+    "media.exportAll.scope": "Todos los resultados",
+    "media.exportAll.preparing": "Preparando {0} miniaturas para exportar…",
+    "media.exportAll.confirm": "Se van a copiar {0} originales ({1}). Puede tardar un poco. ¿Exportarlos todos?",
+    "media.exportAll.confirm.yes": "Exportar de todos modos",
+    "media.exportAll.confirm.no": "Cancelar"
   }
 }

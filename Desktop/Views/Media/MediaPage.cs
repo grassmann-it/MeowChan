@@ -72,10 +72,10 @@ public sealed partial class MediaPage : UserControl
         _cachePath = cachePath;
         Name = "MediaPage";
         WrapPanel tools = new() { ItemSpacing = 8, LineSpacing = 6 };
-        foreach (Control control in new Control[] { _sort, _shuffle, _missing, _refresh }) { control.VerticalAlignment = VerticalAlignment.Center; tools.Children.Add(control); }
+        foreach (Control control in new Control[] { _sort, _shuffle, _missing, _refresh, _exportAll }) { control.VerticalAlignment = VerticalAlignment.Center; tools.Children.Add(control); }
         StackPanel header = new() { Spacing = 6, Margin = new Thickness(12, 12, 12, 6) };
         header.Children.Add(_title); header.Children.Add(_subtitle); header.Children.Add(tools);
-        header.Children.Add(BuildFilterRow()); header.Children.Add(_filterChips); header.Children.Add(_filterError); header.Children.Add(_status); header.Children.Add(BuildSelectionBar());
+        header.Children.Add(BuildFilterRow()); header.Children.Add(_filterChips); header.Children.Add(_filterError); header.Children.Add(_status); header.Children.Add(BuildExportAllAsk()); header.Children.Add(BuildSelectionBar());
         _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { ItemHeight = MediaLibraryTileView.TileHeight });
         _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThreadFilter = FilterToThread, ShowOccurrences = ShowOccurrences });
         ScrollViewer.SetHorizontalScrollBarVisibility(_grid, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
@@ -142,6 +142,7 @@ public sealed partial class MediaPage : UserControl
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException) { } // A cache is optional.
             }
             Present();
+            StartAudioProbe(built);
         }
         catch (OperationCanceledException) when (building.IsCancellationRequested) { }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException
@@ -158,6 +159,7 @@ public sealed partial class MediaPage : UserControl
 
     private void Present()
     {
+        DismissExportAllAsk(); // A pending "export all" question was about tiles that may no longer be shown.
         // Selected tiles that are still shown stay selected; the others drop out (see MediaPage.Selection.cs).
         MediaLibraryTileKey[] selected = SelectedTiles.Select(MediaLibraryTileKey.Of).ToArray();
         IReadOnlyList<MediaLibraryEntry> all = _snapshot?.Entries ?? Array.Empty<MediaLibraryEntry>();
@@ -226,6 +228,16 @@ public sealed partial class MediaPage : UserControl
         await OpenGallery(window, start);
     }
 
+    /// <summary>Puts the keyboard focus back on the grid (its selected tile, else the first) once the tiles are laid out; the list itself is not focusable.</summary>
+    internal void FocusGrid() => Dispatcher.UIThread.Post(() =>
+    {
+        if (_lifetime.IsCancellationRequested || !_grid.IsEffectivelyVisible) return;
+        int index = SelectedRow?.Index ?? (_grid.ItemCount > 0 ? 0 : -1);
+        if (index < 0) return;
+        _grid.ScrollIntoView(index);
+        (_grid.ContainerFromIndex(index) as Control ?? _grid).Focus();
+    }, DispatcherPriority.Loaded);
+
     internal async Task EditSelectedTagsAsync()
     {
         if (SelectedTiles.Count == 1 && SelectedRow is { State.CanEditMediaTags: true } row && EditTags != null) await EditTags(row.Entry);
@@ -247,7 +259,14 @@ public sealed partial class MediaPage : UserControl
 
     private void OnContextRequested(object? sender, ContextRequestedEventArgs e)
     {
-        if (SelectedRow is not { } row) return;
+        if (SelectedRow is not { } row)
+        {
+            // Nothing selected: the menu of the grid itself offers the page-wide action only.
+            _grid.ContextMenu = new ContextMenu { ItemsSource = new object[] { ExportAllMenuItem() } };
+            _grid.ContextMenu.Open(_grid);
+            e.Handled = true;
+            return;
+        }
         bool single = SelectedTiles.Count == 1; // The per-tile entries act on one tile only.
         MenuItem open = new() { Header = Texts.T("media.open"), IsEnabled = single && row.Entry.Presence == MediaLibraryPresence.Present };
         open.Click += (_, _) => _ = OpenSelectedAsync();
@@ -266,6 +285,7 @@ public sealed partial class MediaPage : UserControl
             item.Click += (_, _) => action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             items.Add(item);
         }
+        items.Add(ExportAllMenuItem());
         ContextMenu menu = new() { ItemsSource = items };
         _grid.ContextMenu = menu;
         menu.Open(_grid);

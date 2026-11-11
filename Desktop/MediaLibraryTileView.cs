@@ -98,7 +98,13 @@ internal sealed class MediaLibraryTileView : UserControl
         grid.Children.Add(_threadLink); Grid.SetRow(_threadLink, 2);
         _duplicatesLink.Content = _duplicates;
         _duplicatesLink.Click += (_, e) => { e.Handled = true; if (DataContext is MediaLibraryTileRow row) ShowOccurrences?.Invoke(row.Tile); };
-        StackPanel footer = new() { Orientation = Orientation.Horizontal, Spacing = 6, Children = { _duplicatesLink, _detail } };
+        // The hint is a link button: with the theme's minimum height and border it centers its text lower than the plain size
+        // text beside it. Without them both sit on one baseline; a hint too long for the width puts the size on a clean second line,
+        // which needs the room the thread link's minimum height would otherwise take.
+        _duplicatesLink.MinHeight = 0; _duplicatesLink.BorderThickness = new Thickness(0);
+        _threadLink.MinHeight = 0;
+        foreach (Control part in new Control[] { _duplicatesLink, _detail }) part.VerticalAlignment = VerticalAlignment.Center;
+        WrapPanel footer = new() { ItemSpacing = 6, LineSpacing = 0, Children = { _duplicatesLink, _detail } };
         grid.Children.Add(footer); Grid.SetRow(footer, 3);
         grid.Children.Add(_favorite); Grid.SetRow(_favorite, 4);
         foreach (TextBlock text in new[] { _thread, _detail, _duplicates, _favorite }) text.Classes.Add("workspace-meta");

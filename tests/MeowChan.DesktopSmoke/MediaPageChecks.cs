@@ -22,14 +22,29 @@ namespace MeowChan.DesktopSmoke;
 
 // Root dispatch only: MEOWCHAN_MEDIA_PAGE_ONLY. Real host, catalog, bound manifests, verified PNG
 // thumbnails and the real navigation button. Managed input only; no Windows/macOS acceptance.
-internal static class MediaPageChecks
+internal static partial class MediaPageChecks
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(30);
     private static readonly byte[] Png = Convert.FromBase64String(
         "iVBORw0KGgoAAAANSUhEUgAAABEAAAALCAIAAAAWQvFQAAAAF0lEQVR4nGO8oxHAQCJgIlXDqJ5hqQcAEJEBagzqPS4AAAAASUVORK5CYII=");
     // Files named dup-* share one content on purpose; every other file gets its own bytes (a trailing note after the PNG data),
     // because the page merges equal bytes into one tile.
-    private static byte[] BytesOf(string name) => name.EndsWith(".webm", StringComparison.Ordinal) ? VideoBytes : name.StartsWith("dup-", StringComparison.Ordinal) ? Png : [.. Png, .. System.Text.Encoding.UTF8.GetBytes(name)];
+    // snd-*, mute-* and odd-* are real MP4 bytes with sound, real MP4 bytes without, and bytes no probe can decide.
+    private static byte[] BytesOf(string name) => name.StartsWith("snd-", StringComparison.Ordinal) ? SoundMp4.Value
+        : name.StartsWith("mute-", StringComparison.Ordinal) ? SilentMp4.Value
+        : name.StartsWith("odd-", StringComparison.Ordinal) ? [.. VideoBytes, .. System.Text.Encoding.UTF8.GetBytes(name)]
+        : name.EndsWith(".webm", StringComparison.Ordinal) ? VideoBytes : name.StartsWith("dup-", StringComparison.Ordinal) ? Png : [.. Png, .. System.Text.Encoding.UTF8.GetBytes(name)];
+
+    private static readonly Lazy<byte[]> SoundMp4 = new(() => File.ReadAllBytes(FixturePath("tests/Fixtures/release102/playback-h264-audio.mp4")));
+    private static readonly Lazy<byte[]> SilentMp4 = new(() => File.ReadAllBytes(FixturePath("tests/Fixtures/release102/playback-h264-silent.mp4")));
+
+    private static string FixturePath(string relative)
+    {
+        foreach (string start in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+            for (DirectoryInfo? parent = new(start); parent != null; parent = parent.Parent)
+                if (File.Exists(Path.Combine(parent.FullName, relative))) return Path.Combine(parent.FullName, relative);
+        throw new FileNotFoundException("Required checked-in synthetic fixture is absent: " + relative);
+    }
 
     private static readonly ResourceId A = new("media-fixture", "g", "100");
     private static readonly ResourceId B = new("media-fixture", "g", "200");
@@ -49,12 +64,18 @@ internal static class MediaPageChecks
             await DuplicateJourneyAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-duplicates-"));
             await SelectionJourneyAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-selection-"));
             await NavigationAsync(owner);
+            await HostPathsAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-host-"));
             string videoProfile = TemporaryWorkspacePaths.CreateDirectory("media-video-native-");
             new Config().SaveConfig(videoProfile);
             await SeedVideosAsync(videoProfile);
             await VideoJourneyAsync(owner, videoProfile);
+            string audioProfile = TemporaryWorkspacePaths.CreateDirectory("media-audio-native-");
+            new Config().SaveConfig(audioProfile);
+            await SeedAudioAsync(audioProfile);
+            await AudioJourneyAsync(owner, audioProfile);
+            Console.WriteLine("SMOKE media sound [en]: three videos (real MP4 with sound, real MP4 without, bytes no probe can decide) are probed in the background from their headers; 'with sound' shows exactly one, 'without sound' exactly one, the undecidable one is counted as not checked and never shown or called silent; a sound choice sets the type to videos and another type drops it; reset clears it; results are cached and a second page starts from the cache.");
             Console.WriteLine("SMOKE media videos [en]: a video tile shows the local reader poster (cache keyed by verified bytes), also when it is a grouped tile; nothing fetched.");
-            Console.WriteLine("SMOKE media page [en]: index build, saved/missing toggle, three orders, verified thumbnail, gallery window, show in thread, cache reuse, own state on tiles (favorite, rating, media vs thread tags, unknown wording, tag edit reload, language switch), filters (thread and media tags all/any/exclude, favorites, rating, type, name, source, board, thread chip, reset, deleted tag refused), duplicates (same bytes in three threads: one tile, 'in 3 threads' hint, details with three occurrences and their own tags, jump into a thread, filter matches by one occurrence, gallery gets one entry per tile), selection (click, Ctrl+click, Shift+click, Ctrl+A, Esc, check mark on selected tiles, three tiles tagged and untagged with one occurrence of a duplicate deselected, gallery with exactly the selection, export of exactly their originals, selection kept or dropped by filters and order, actions disabled while building), navigation button in Simple and Tools menu in Barebones checked.");
+            Console.WriteLine("SMOKE media page [en]: index build, saved/missing toggle, three orders, verified thumbnail, gallery window, show in thread, cache reuse, own state on tiles (favorite, rating, media vs thread tags, unknown wording, tag edit reload, language switch), filters (thread and media tags all/any/exclude, favorites, rating, type, name, source, board, thread chip, reset, deleted tag refused), duplicates (same bytes in three threads: one tile, 'in 3 threads' hint, details with three occurrences and their own tags, jump into a thread, filter matches by one occurrence, gallery gets one entry per tile), selection (click, Ctrl+click, Shift+click, Ctrl+A, Esc, check mark on selected tiles, three tiles tagged and untagged with one occurrence of a duplicate deselected, gallery with exactly the selection, export of exactly their originals, selection kept or dropped by filters and order, actions disabled while building), export all (exactly the originals of the tiles the filter shows, independent of the selection; question above a lowered limit with confirm, cancel, Esc and dropped by a filter change; disabled with a reason without tiles and while building), navigation button in Simple and Tools menu in Barebones checked.");
         }
         finally { Texts.SetLanguage(language); }
     }
@@ -442,6 +463,9 @@ internal static class MediaPageChecks
         await host.StartAsync().WaitAsync(Deadline);
         List<(IReadOnlyList<MediaLibraryEntry> Window, int Start)> opened = new();
         List<(FavoriteExportAsset[] Assets, int Unavailable, FavoriteExportResult Result)> exported = new();
+        List<string> scopes = new();
+        string exportTarget = exportDirectory; // The "export all" steps below copy into folders of their own.
+        List<string> extraDirectories = new();
         TaskCompletionSource hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
         bool holding = false;
         MediaPage page = new(host.OpenArchiveReaderAsync, async (directory, token) =>
@@ -454,8 +478,11 @@ internal static class MediaPageChecks
             OpenGallery = (window, start) => { opened.Add((window, start)); return Task.CompletedTask; },
             TagServices = new(host.GetPublishedPrivateTagSnapshot, host.DefinePrivateTagAsync,
                 (tag, targets, assigned, revision, token) => host.SetMediaTagsAsync(tag, targets, assigned, revision, token)),
-            ExportOriginals = async (assets, unavailable) =>
-                exported.Add((assets.ToArray(), unavailable, await FavoriteOriginalExporter.ExportAsync(assets, exportDirectory)))
+            ExportOriginals = async (assets, unavailable, scope) =>
+            {
+                scopes.Add(scope);
+                exported.Add((assets.ToArray(), unavailable, await FavoriteOriginalExporter.ExportAsync(assets, exportTarget)));
+            }
         };
         Window window = new() { Width = 1400, Height = 900, Content = page, Title = "Synthetic media selection", ShowInTaskbar = false };
         try
@@ -609,13 +636,81 @@ internal static class MediaPageChecks
             await page.BuildTask.WaitAsync(Deadline);
             Require(tag.IsEnabled && gallery.IsEnabled && export.IsEnabled && Selected().Order().SequenceEqual(["sel-a.png", "sel-b.png"]),
                 "After the rebuild the selection must be intact and the actions available again.");
+
+            // Alle Treffer exportieren: exactly the tiles the active filter shows, whatever is selected; hidden tiles stay out.
+            Button exportAll = C<Button>(page, "MediaExportAll");
+            string NewTarget() { string made = TemporaryWorkspacePaths.CreateDirectory("media-page-export-all-"); extraDirectories.Add(made); return made; }
+            Require(exportAll.IsEnabled && exportAll.Content as string == Texts.T("media.exportAll") && ToolTip.GetTip(exportAll) as string == Texts.T("media.exportAll.hint"),
+                "Export all must be available while tiles are shown.");
+            name.Text = "sel-";
+            await UntilAsync(() => page.Tiles.Count == 3);
+            string allTarget = exportTarget = NewTarget();
+            int done = exported.Count;
+            ClickRaise(exportAll);
+            await UntilAsync(() => exported.Count == done + 1);
+            (FavoriteExportAsset[] allAssets, int allUnavailable, FavoriteExportResult allResult) = exported[^1];
+            string[] shownByFilter = ["sel-z.png", "sel-b.png", "sel-a.png"];
+            Require(allAssets.Select(asset => asset.OriginalFileName).SequenceEqual(shownByFilter) && allUnavailable == 0 && allResult.Copied == 3 && scopes[^1] == Texts.T("media.exportAll.scope"),
+                "Export all must offer exactly the three shown originals, not only the selection: " + string.Join(",", allAssets.Select(asset => asset.OriginalFileName)));
+            string[] allFiles = Directory.GetFiles(allTarget, "*", SearchOption.AllDirectories);
+            Require(allFiles.Length == 3 && allFiles.Select(path => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)))).Order()
+                .SequenceEqual(shownByFilter.Select(file => Convert.ToHexString(SHA256.HashData(BytesOf(file)))).Order()), "The copied files are not the shown originals.");
+            Require(Selected().Length == 2 && !page.ExportAllAsking, "Export all must leave the selection alone and not ask below the limits.");
+
+            // Above the limit the page asks first, with count and size, and exports only after "Trotzdem exportieren".
+            page.ExportAllConfirmAbove = (2, long.MaxValue);
+            done = exported.Count;
+            ClickRaise(exportAll);
+            await UntilAsync(() => page.ExportAllAsking);
+            TextBlock ask = C<TextBlock>(page, "MediaExportAllConfirmText");
+            Require(ask.Text!.Contains('3') && ask.Text.Contains(" MB") && exported.Count == done, "The question must name the count and the size and start nothing: " + ask.Text);
+            ClickRaise(C<Button>(page, "MediaExportAllConfirmNo"));
+            Require(!page.ExportAllAsking && exported.Count == done, "Cancel must close the question without exporting.");
+            ClickRaise(exportAll);
+            await UntilAsync(() => page.ExportAllAsking);
+            grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+            Require(!page.ExportAllAsking && exported.Count == done && Selected().Length == 2, "Escape must close the question and keep the selection.");
+            ClickRaise(exportAll);
+            await UntilAsync(() => page.ExportAllAsking);
+            exportTarget = NewTarget();
+            ClickRaise(C<Button>(page, "MediaExportAllConfirmYes"));
+            await UntilAsync(() => exported.Count == done + 1);
+            Require(!page.ExportAllAsking && exported[^1].Assets.Length == 3 && exported[^1].Result.Copied == 3, "Confirming must export the three shown originals.");
+            // A filter change while the question is open drops it: the frozen tiles are not the shown ones any more.
+            ClickRaise(exportAll);
+            await UntilAsync(() => page.ExportAllAsking);
+            name.Text = "sel-a";
+            await UntilAsync(() => page.Tiles.Count == 1);
+            Require(!page.ExportAllAsking && exported.Count == done + 1, "A filter change must drop the pending question.");
+            page.ExportAllConfirmAbove = (500, 2L * 1024 * 1024 * 1024);
+            exportTarget = NewTarget();
+            ClickRaise(exportAll);
+            await UntilAsync(() => exported.Count == done + 2);
+            Require(exported[^1].Assets.Select(asset => asset.OriginalFileName).SequenceEqual(["sel-a.png"]) && !page.ExportAllAsking, "One shown tile must export directly.");
+
+            // Disabled with a reason when nothing is shown and while the index is built.
+            name.Text = "no-such-file";
+            await UntilAsync(() => page.Tiles.Count == 0);
+            Require(!exportAll.IsEnabled && ToolTip.GetTip(exportAll) as string == Texts.T("media.exportAll.reason.none"), "Export all must say why it is disabled without tiles.");
+            ClickRaise(C<Button>(page, "MediaFilterReset"));
+            await UntilAsync(() => page.Tiles.Count == 4 && exportAll.IsEnabled);
+            holding = true;
+            hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            ClickRaise(C<Button>(page, "MediaRefresh"));
+            await UntilAsync(() => !exportAll.IsEnabled);
+            Require(ToolTip.GetTip(exportAll) as string == Texts.T("media.selection.reason.building"), "Export all must say that the index is being built.");
+            holding = false;
+            hold.SetResult();
+            await page.BuildTask.WaitAsync(Deadline);
+            Require(exportAll.IsEnabled, "Export all must be available again after the rebuild.");
         }
         finally
         {
             hold.TrySetResult();
             page.EndLifetime();
             window.Close();
-            try { Directory.Delete(exportDirectory, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            foreach (string folder in extraDirectories.Append(exportDirectory))
+                try { Directory.Delete(folder, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
     }
 
@@ -784,6 +879,90 @@ internal static class MediaPageChecks
                 ThreadSourceState.Archived, new DateTimeOffset(2026, 11, day++, 0, 0, 0, TimeSpan.Zero), directory,
                 [new CapturedPost(id.Thread, 0, PostFieldPresence.All, Html: "op", Attachments: [bound])]));
         }
+    }
+
+    // One thread each: a video with sound, one without, one that cannot be decided.
+    private static async Task SeedAudioAsync(string profile)
+    {
+        using ProfileLease lease = ProfileLease.Acquire(profile);
+        await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
+        int day = 1;
+        foreach ((string thread, string name) in new[] { ("900", "snd-900.mp4"), ("910", "mute-910.mp4"), ("920", "odd-920.mp4") })
+        {
+            ResourceId id = new("media-fixture", "g", thread);
+            string directory = Path.Combine(profile, "media", thread);
+            CapturedAttachment bound = await WriteAsync(directory, id, (name, "a" + thread, thread));
+            await catalog.CaptureAsync(new CapturedThreadSnapshot(id, "https://offline.invalid/" + thread, "Audio " + thread,
+                ThreadSourceState.Archived, new DateTimeOffset(2026, 11, day++, 0, 0, 0, TimeSpan.Zero), directory,
+                [new CapturedPost(thread, 0, PostFieldPresence.All, Html: "op", Attachments: [bound])]));
+        }
+    }
+
+    private static async Task AudioJourneyAsync(MainWindow owner, string profile)
+    {
+        string cache = Path.Combine(profile, "cache", MediaLibraryIndexCache.FileName);
+        string audioCache = Path.Combine(profile, "cache", MediaAudioCache.FileName);
+        await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
+        await host.StartAsync().WaitAsync(Deadline);
+        MediaPage page = new(host.OpenArchiveReaderAsync, cachePath: cache) { ReadUserData = () => UserData(host) };
+        Window window = new() { Width = 1400, Height = 900, Content = page, Title = "Synthetic media sound", ShowInTaskbar = false };
+        try
+        {
+            window.Show(owner);
+            page.IsAvailable = true;
+            await page.ActivateAsync().WaitAsync(Deadline);
+            Require(page.Tiles.Count == 3 && page.Tiles.All(tile => tile.Entry.Kind == SavedMediaKind.Video), "Audio fixture must give three video tiles.");
+            ComboBox sound = C<ComboBox>(page, "MediaSoundFilter"), kind = C<ComboBox>(page, "MediaKindFilter");
+            Button reset = C<Button>(page, "MediaFilterReset");
+            TextBlock note = C<TextBlock>(page, "MediaAudioNote");
+            string Shown() => string.Join(",", page.ShownEntries.Select(entry => entry.Name));
+
+            // The check runs by itself in the background; the undecidable video stays unknown (recorded as probed, but not as silent).
+            await UntilAsync(() => page.AudioResults.Count == 3 && !note.IsVisible);
+            MediaLibraryEntry Video(string name) => page.Snapshot!.Entries.Single(entry => entry.Name == name);
+            Require(page.AudioResults.Get(Video("snd-900.mp4")) == MediaAudio.HasSound && page.AudioResults.Get(Video("mute-910.mp4")) == MediaAudio.Silent
+                && page.AudioResults.Get(Video("odd-920.mp4")) == MediaAudio.Unknown && page.AudioResults.WasProbed(MediaAudioMap.KeyOf(Video("odd-920.mp4"))),
+                "The background check classified the three videos wrongly.");
+            await page.AudioScanTask.WaitAsync(Deadline); // the cache is saved when the scan ends
+            Require(File.Exists(audioCache) && MediaAudioCache.Load(audioCache)?.Count == 3, "The audio cache was not written.");
+            Require(page.ShownEntries.Count == 3 && !note.IsVisible, "Without a sound filter nothing changes and no hint shows.");
+
+            // Mit Ton: one video, the undecidable one is counted and not shown; the type follows to Videos.
+            sound.SelectedIndex = 1;
+            Require(Shown() == "snd-900.mp4" && kind.SelectedIndex == (int)MediaLibraryKindFilter.Video && reset.IsEnabled, "With sound must show only the sound video: " + Shown());
+            Require(note.IsVisible && note.Text == Texts.T("media.audio.unknown", 1) && page.UncheckedVideos == 1, "The undecidable video must be counted: " + note.Text);
+            Require(C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.filter.count", 1, 3), "Filtered count is wrong: " + C<TextBlock>(page, "MediaStatus").Text);
+            sound.SelectedIndex = 2;
+            Require(Shown() == "mute-910.mp4" && note.Text == Texts.T("media.audio.unknown", 1), "Without sound must show only the silent video, never the undecidable one: " + Shown());
+            Require(page.CurrentFilter().Sound == MediaLibrarySoundFilter.WithoutSound, "The filter does not describe the choice.");
+
+            // Another type drops the sound choice instead of contradicting it; "egal" widens back.
+            kind.SelectedIndex = (int)MediaLibraryKindFilter.Image;
+            Require(sound.SelectedIndex == 0 && page.ShownEntries.Count == 0 && !note.IsVisible, "Choosing another type must drop the sound choice.");
+            kind.SelectedIndex = 0;
+            sound.SelectedIndex = 1;
+            sound.SelectedIndex = 0;
+            Require(page.ShownEntries.Count == 3 && !note.IsVisible, "Sound 'egal' must show all three again.");
+            sound.SelectedIndex = 2;
+            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(sound.SelectedIndex == 0 && kind.SelectedIndex == 0 && page.ShownEntries.Count == 3 && !reset.IsEnabled, "Reset must clear the sound choice.");
+        }
+        finally { page.EndLifetime(); window.Close(); }
+
+        // A second page starts from the cache: nothing is probed again, the filter works at once.
+        MediaPage again = new(host.OpenArchiveReaderAsync, cachePath: cache);
+        Window second = new() { Width = 1000, Height = 700, Content = again, ShowInTaskbar = false };
+        try
+        {
+            second.Show(owner);
+            again.IsAvailable = true;
+            await again.ActivateAsync().WaitAsync(Deadline);
+            await again.AudioScanTask.WaitAsync(Deadline);
+            await UntilAsync(() => again.AudioResults.Count == 3);
+            C<ComboBox>(again, "MediaSoundFilter").SelectedIndex = 1;
+            Require(again.ShownEntries.Count == 1 && again.ShownEntries[0].Name == "snd-900.mp4", "The cached results must filter again.");
+        }
+        finally { again.EndLifetime(); second.Close(); }
     }
 
     private static async Task VideoJourneyAsync(MainWindow owner, string profile)

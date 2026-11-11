@@ -13,6 +13,9 @@ namespace MeowChan.Gallery;
 /// <summary>Media type choice of the media page. GIF is an image whose file name ends in .gif.</summary>
 internal enum MediaLibraryKindFilter { Any, Image, Gif, Video, Other }
 
+/// <summary>Sound property of a video. A sound choice implies videos only; images and GIFs have no sound property.</summary>
+internal enum MediaLibrarySoundFilter { Any, WithSound, WithoutSound }
+
 /// <summary>
 /// Filter of the media page. Immutable; an empty filter shows everything. Tags work like the archive
 /// tag filter, with one difference: a media occurrence carries its own media tags plus the tags of
@@ -24,10 +27,13 @@ internal sealed record MediaLibraryFilter
 
     internal MediaLibraryFilter(ArchiveTagFilter? tags = null, MediaLibraryKindFilter kind = MediaLibraryKindFilter.Any,
         bool favoritesOnly = false, int? minimumRating = null, string? source = null, string? board = null,
-        string? nameContains = null, ResourceId? thread = null)
+        string? nameContains = null, ResourceId? thread = null, MediaLibrarySoundFilter sound = MediaLibrarySoundFilter.Any)
     {
         if (!Enum.IsDefined(kind)) throw new ArgumentOutOfRangeException(nameof(kind));
         if (minimumRating is < 1 or > 5) throw new ArgumentOutOfRangeException(nameof(minimumRating), "Ratings are whole values from 1 to 5.");
+        if (!Enum.IsDefined(sound)) throw new ArgumentOutOfRangeException(nameof(sound));
+        if (sound != MediaLibrarySoundFilter.Any && kind is not (MediaLibraryKindFilter.Any or MediaLibraryKindFilter.Video))
+            throw new ArgumentException("A sound filter concerns videos only.", nameof(sound));
         if (board != null && source == null) throw new ArgumentException("A board filter needs its source.", nameof(board));
         string? name = string.IsNullOrWhiteSpace(nameContains) ? null : nameContains.Trim();
         if (name is { Length: > MaximumNameLength }) throw new ArgumentException("The file name text is too long.", nameof(nameContains));
@@ -39,6 +45,7 @@ internal sealed record MediaLibraryFilter
         Board = string.IsNullOrEmpty(board) ? null : board;
         NameContains = name;
         Thread = thread;
+        Sound = sound;
     }
 
     internal static MediaLibraryFilter None { get; } = new();
@@ -52,9 +59,11 @@ internal sealed record MediaLibraryFilter
     internal string? NameContains { get; }
     /// <summary>The thread as a meta tag: only media of exactly this thread.</summary>
     internal ResourceId? Thread { get; }
+    /// <summary>With or without sound; videos whose sound is not known are shown for neither choice.</summary>
+    internal MediaLibrarySoundFilter Sound { get; }
 
     internal bool IsEmpty => Tags == null && Kind == MediaLibraryKindFilter.Any && !FavoritesOnly && MinimumRating == null
-        && Source == null && Board == null && NameContains == null && Thread == null;
+        && Source == null && Board == null && NameContains == null && Thread == null && Sound == MediaLibrarySoundFilter.Any;
 }
 
 /// <summary>Why a filter could not be applied. The page then shows nothing instead of a wider list.</summary>
@@ -143,6 +152,12 @@ internal sealed class MediaLibraryUserData
     }
 }
 
+/// <summary>
+/// Entries that passed a filter, and how many videos could not be judged for a sound filter because their
+/// sound is not known (not probed yet, or the headers did not tell). Those videos are in neither answer.
+/// </summary>
+internal sealed record MediaLibraryFilterResult(IReadOnlyList<MediaLibraryEntry> Passing, int UnknownSoundVideos);
+
 /// <summary>Pure filter step of the media page; runs before sorting. No IO.</summary>
 internal static class MediaLibraryFilterEngine
 {
@@ -151,14 +166,30 @@ internal static class MediaLibraryFilterEngine
     /// evaluated (store unavailable, tag deleted): dropping that part would silently show more.
     /// </summary>
     internal static IReadOnlyList<MediaLibraryEntry> Apply(IEnumerable<MediaLibraryEntry> entries, MediaLibraryFilter filter,
-        MediaLibraryUserData data)
+        MediaLibraryUserData data, MediaAudioMap? audio = null) => Evaluate(entries, filter, data, audio).Passing;
+
+    /// <summary>
+    /// Like <see cref="Apply"/>, and counts the videos (distinct bytes) that pass every other part of the filter but
+    /// whose sound is unknown, so the page can say how many it could not judge instead of counting them as silent.
+    /// A video that is not saved has no file to look at and is neither shown nor counted for a sound filter.
+    /// </summary>
+    internal static MediaLibraryFilterResult Evaluate(IEnumerable<MediaLibraryEntry> entries, MediaLibraryFilter filter,
+        MediaLibraryUserData data, MediaAudioMap? audio = null)
     {
         ArgumentNullException.ThrowIfNull(entries);
         ArgumentNullException.ThrowIfNull(filter);
         ArgumentNullException.ThrowIfNull(data);
-        if (filter.IsEmpty) return entries as IReadOnlyList<MediaLibraryEntry> ?? entries.ToArray();
+        if (filter.IsEmpty) return new(entries as IReadOnlyList<MediaLibraryEntry> ?? entries.ToArray(), 0);
         Validate(filter, data);
-        return entries.Where(entry => Matches(entry, filter, data)).ToArray();
+        List<MediaLibraryEntry> passing = new();
+        HashSet<string> unknown = new(StringComparer.Ordinal);
+        foreach (MediaLibraryEntry entry in entries)
+            switch (Verdict(entry, filter, data, audio))
+            {
+                case Judgement.Pass: passing.Add(entry); break;
+                case Judgement.SoundUnknown: unknown.Add(MediaAudioMap.KeyOf(entry)!); break;
+            }
+        return new(passing, unknown.Count);
     }
 
     /// <summary>Checks that every store the filter needs is available and every tag still exists.</summary>
@@ -173,6 +204,22 @@ internal static class MediaLibraryFilterEngine
         }
         if (filter.FavoritesOnly && data.FavoriteSource == null) throw new MediaLibraryFilterException(MediaLibraryFilterError.FavoritesUnavailable);
         if (filter.MinimumRating != null && data.RatingSource == null) throw new MediaLibraryFilterException(MediaLibraryFilterError.RatingsUnavailable);
+    }
+
+    private enum Judgement { Fail, Pass, SoundUnknown }
+
+    private static Judgement Verdict(MediaLibraryEntry entry, MediaLibraryFilter filter, MediaLibraryUserData data, MediaAudioMap? audio)
+    {
+        if (!Matches(entry, filter, data)) return Judgement.Fail;
+        if (filter.Sound == MediaLibrarySoundFilter.Any) return Judgement.Pass;
+        // Sound is a property of saved videos only; the type check is part of "implies videos".
+        if (KindOf(entry) != MediaLibraryKindFilter.Video || !MediaLibraryAudioScanner.IsProbeable(entry)) return Judgement.Fail;
+        return (audio?.Get(entry) ?? MediaAudio.Unknown) switch
+        {
+            MediaAudio.HasSound => filter.Sound == MediaLibrarySoundFilter.WithSound ? Judgement.Pass : Judgement.Fail,
+            MediaAudio.Silent => filter.Sound == MediaLibrarySoundFilter.WithoutSound ? Judgement.Pass : Judgement.Fail,
+            _ => Judgement.SoundUnknown
+        };
     }
 
     private static bool Matches(MediaLibraryEntry entry, MediaLibraryFilter filter, MediaLibraryUserData data)
