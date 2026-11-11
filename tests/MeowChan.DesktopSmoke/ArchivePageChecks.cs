@@ -360,7 +360,7 @@ internal static class ArchivePageChecks
             page.ArchiveColumnModePreference = "Barebones";
             Require(threads.Columns[0].IsVisible && threads.Columns[1].IsVisible && threads.Columns[2].IsVisible
                 && threads.Columns[3].IsVisible && !threads.Columns[4].IsVisible && !threads.Columns[5].IsVisible
-                && !threads.Columns[6].IsVisible && media.Columns[0].IsVisible && !media.Columns[2].IsVisible,
+                && !threads.Columns[6].IsVisible && !threads.Columns[7].IsVisible && media.Columns[0].IsVisible && !media.Columns[2].IsVisible,
                 "Barebones archive table did not use compact, identifying default columns.");
             page.ArchiveColumnVisibilityPreference = new Dictionary<string, bool>
             {
@@ -372,8 +372,16 @@ internal static class ArchivePageChecks
             Require(threads.Columns[0].IsVisible && media.Columns[0].IsVisible && threads.Columns[5].IsVisible,
                 "Archive column preferences hid every identifier or ignored a custom selection.");
             page.ArchiveColumnModePreference = "Advanced";
-            Require(threads.Columns[5].IsVisible && threads.Columns[6].IsVisible && media.Columns[2].IsVisible,
+            Require(threads.Columns[5].IsVisible && threads.Columns[6].IsVisible && threads.Columns[7].IsVisible && media.Columns[2].IsVisible,
                 "Advanced archive defaults did not restore richer columns.");
+            // Tags is chooser-only in Simple: hidden by default, shown once chosen.
+            page.ArchiveColumnVisibilityPreference = new Dictionary<string, bool>();
+            page.ArchiveColumnModePreference = "Simple";
+            Require(!threads.Columns[7].IsVisible, "The tag column must be hidden by default in Simple.");
+            page.ArchiveColumnVisibilityPreference = new Dictionary<string, bool> { ["ArchiveThreadTable.tags"] = true };
+            Require(threads.Columns[7].IsVisible, "The tag column could not be chosen in Simple.");
+            page.ArchiveColumnVisibilityPreference = new Dictionary<string, bool>();
+            page.ArchiveColumnModePreference = "Advanced";
             page.ArchiveColumnOrderPreference = new Dictionary<string, int>
             {
                 ["ArchiveThreadTable.title"] = 0,
@@ -391,7 +399,7 @@ internal static class ArchivePageChecks
             ContextMenu menu = editor.ContextMenu
                 ?? throw new InvalidOperationException("The thread Columns command did not create its menu.");
             Require(menu.IsOpen, "The thread Columns command did not open its menu.");
-            Require(menu.Items.OfType<MenuItem>().Count() == 8 &&
+            Require(menu.Items.OfType<MenuItem>().Count() == 9 &&
                 menu.Items.OfType<MenuItem>().First().ToggleType == MenuItemToggleType.CheckBox,
                 "The thread Columns editor lacks keyboard-friendly checked items and reset.");
             MenuItem reset = menu.Items.OfType<MenuItem>().Last();

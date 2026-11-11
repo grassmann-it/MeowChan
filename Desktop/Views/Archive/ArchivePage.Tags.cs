@@ -51,6 +51,8 @@ public partial class ArchivePage
     {
         // One local tunnel registration, before native Button.Enter click handling.
         Control<StackPanel>("ReaderTagBar").AddHandler(KeyDownEvent, OnTagBarKeyDown, RoutingStrategies.Tunnel);
+        // The tag column sorts by the sorted tag names, threads without tags last.
+        Control<DataGrid>("ArchiveThreadTable").Columns[Array.IndexOf(ThreadColumnKeys, "tags")].CustomSortComparer = ArchiveThreadRow.TagColumnComparer.Instance;
         LocalizePrivateTags();
     }
 
@@ -83,7 +85,16 @@ public partial class ArchivePage
                     .Select(index => snapshot.Tags[index].Name.Display).ToArray();
         }
         _threadTagNames = names;
+        // Every change of the published tag view reaches the shown rows (list line and table column) in place:
+        // no list reload, so selection and scroll position stay. An unreadable store clears them.
+        RefreshThreadTagRows(ArchiveVisibleRows);
         OnPrivateTagsChangedForFilter();
+    }
+
+    private void RefreshThreadTagRows(IEnumerable<ArchiveThreadRow> rows)
+    {
+        bool available = _privateTags != null;
+        foreach (ArchiveThreadRow row in rows) row.SetTags(_threadTagNames.GetValueOrDefault(row.Summary.Id), available);
     }
 
     // An older acknowledgement must not hide a newer committed state.
@@ -95,13 +106,14 @@ public partial class ArchivePage
     private void ConfigurePrivateTagRows(IEnumerable<ArchiveThreadRow> rows)
     {
         ReloadPrivateTags();
-        foreach (ArchiveThreadRow row in rows) row.SetTags(_threadTagNames.GetValueOrDefault(row.Summary.Id));
+        RefreshThreadTagRows(rows);
     }
 
     private void UpdatePrivateTagActions()
     {
         if (_ended) return;
-        if (_privateTags == null) ReloadPrivateTags();
+        // A volatile read of the published view; a store that became unreadable must not keep showing its tags.
+        ReloadPrivateTags();
         UpdateTagManagerActions();
         Button open = Control<Button>("ReaderTagsOpen");
         StackPanel bar = Control<StackPanel>("ReaderTagBar");
@@ -206,7 +218,6 @@ public partial class ArchivePage
             _privateTagBusy = false;
             if (!_ended)
             {
-                foreach (ArchiveThreadRow row in ArchiveVisibleRows) row.SetTags(_threadTagNames.GetValueOrDefault(row.Summary.Id));
                 UpdatePrivateTagActions();
                 // The acted-on chip is gone after a rebuild; keep keyboard users inside the bar.
                 if (focusInBar && Control<StackPanel>("ReaderTagBar").IsVisible && CanEditThreadTags)
