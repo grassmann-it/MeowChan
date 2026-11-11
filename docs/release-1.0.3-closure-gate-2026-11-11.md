@@ -233,3 +233,6 @@ Recovery 9/0 (1 Child-Helfer erwartungsgemäß übersprungen), Merge 8/0. Echter
 (User-Namespace-Mount, kein Root): `DiskFull`- und Medienexporttests 17/0, nichts übersprungen.
 Archivfilter-Regressionen wurden in diesem Goal ergänzt (`5193d38` Escape→Pfeil-Reopen und Tastaturfälle,
 `d28283d` Klickübernahme, `c45a972` Fokus nach Tag-Entfernen) und laufen im Smoke oben 12/12 grün.
+Neu ergänzt (Mehrfachauswahl): Smoke-Fall `multiple-accepted-candidates-collect-in-draft-then-one-search`
+(zwei Quellen und ein Board nacheinander per Tastatur übernommen, kein Suchstart bis zur expliziten Suche, eine Suche
+mit allen drei Identitäten). Archivfilter-Smoke damit 13/13 (`/home/tomka/mc-evidence/archive-multi-1794413413`).

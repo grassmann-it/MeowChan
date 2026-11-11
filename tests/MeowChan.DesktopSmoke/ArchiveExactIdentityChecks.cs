@@ -353,6 +353,31 @@ internal static class ArchiveExactIdentityChecks
                 Membership(("A", "x"));
                 Require(page.AppliedSearchSpec!.Boards.SequenceEqual([new ArchiveBoardConstraint("A", "x")]), "Search did not receive the qualified board.");
             });
+            await Case("multiple-accepted-candidates-collect-in-draft-then-one-search", async () =>
+            {
+                await Apply(Definition([], []));
+                ArchiveSearchSpec? applied = page.AppliedSearchSpec; string[] rows = Rows().Select(row => row.Summary.Id.Source + "|" + row.Summary.Id.Board).ToArray();
+                var (field, input) = await OpenList("ArchiveSourceFilter", 2);
+                await PressKey(input, Avalonia.Input.Key.Down); await PressKey(input, Avalonia.Input.Key.Enter);
+                Require(page.TryReadSelectedIdentity("ArchiveSourceFilter") is { Value: " A " }, "First highlighted source was not accepted.");
+                Add("ArchiveAddSource");
+                (field, input) = await OpenList("ArchiveSourceFilter", 2);
+                await PressKey(input, Avalonia.Input.Key.Down); await PressKey(input, Avalonia.Input.Key.Down); await PressKey(input, Avalonia.Input.Key.Enter);
+                Require(page.TryReadSelectedIdentity("ArchiveSourceFilter") is { Value: "A" }, "Second highlighted source was not accepted.");
+                Add("ArchiveAddSource");
+                NoSearchHappened(applied, rows, "two source accepts");
+                Scope("A");
+                (field, input) = await OpenList("ArchiveBoardFilter", 2);
+                await PressKey(input, Avalonia.Input.Key.Down); await PressKey(input, Avalonia.Input.Key.Down); await PressKey(input, Avalonia.Input.Key.Enter);
+                Add("ArchiveAddBoard");
+                NoSearchHappened(applied, rows, "board accept after sources");
+                Require(page.HasUnappliedSearchDraft, "Accepted candidates did not collect in the unapplied draft.");
+                await page.ApplySearchAsync();
+                Require(page.AppliedSearchSpec!.Sources.OrderBy(x => x, StringComparer.Ordinal).SequenceEqual([" A ", "A"])
+                    && page.AppliedSearchSpec.Boards.SequenceEqual([new ArchiveBoardConstraint("A", "x")]),
+                    "One explicit search did not receive every accepted candidate: " + ArchiveSearchSpecJson.Serialize(page.AppliedSearchSpec));
+                Membership(("A", "x"));
+            });
             await Case("stale-async-suggestions-never-resurface", async () =>
             {
                 var (field, input) = await OpenList("ArchiveSourceFilter", 2);
