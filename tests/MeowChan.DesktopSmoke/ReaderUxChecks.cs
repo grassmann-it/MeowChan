@@ -631,22 +631,28 @@ internal static class ReaderUxChecks
                     readerFooterHeight = readerPane.RowDefinitions[2].ActualHeight,
                     statusStripHeight = page.FindControl<Grid>("ArchiveRoot")!.RowDefinitions[2].ActualHeight,
                     blankBelowFooter = Bounds(page).Bottom - footerBox.Bottom,
+                    blankBelowResults = Bounds(page).Bottom - left.Bottom,
                     blankBelowReader = Bounds(page).Bottom - right.Bottom,
                     footerInline = page.FindControl<ArchiveFooterLayout>("ArchiveResultsRange")!.IsInline
                 }));
                 Require(results.IsEffectivelyVisible && reader.IsEffectivelyVisible
                     && Math.Abs(left.Bottom - right.Bottom) <= 1,
                     "Embedded archive result and reader borders do not share their lower edge.");
-                Require(ReferenceEquals(footer.Parent, listPane) && Grid.GetRow(footer) == 2
+                // ARCH-DENSE-01 slice 2: the pager is a docked bar inside the result border,
+                // below the list and never over it; the outside footer row keeps only the reader hint.
+                Border bar = page.FindControl<Border>("ArchiveResultsBar")!;
+                Rect barBox = Bounds(bar);
+                Require(ReferenceEquals(footer.Parent, bar) && Grid.GetRow(bar) == 1
+                    && bar.GetVisualAncestors().Contains(results)
                     && Math.Abs(listPane.RowDefinitions[2].ActualHeight - readerPane.RowDefinitions[2].ActualHeight) <= 1,
-                    "Archive pagination and reader hint do not share their outside footer row.");
+                    "Archive pagination is not docked in its result border, or the footer rows diverge.");
                 Require(footer.IsEffectivelyVisible && pagination.IsEffectivelyVisible && label.IsEffectivelyVisible
                     && !string.IsNullOrWhiteSpace(label.Text) && label.DesiredSize.Width <= label.Bounds.Width + 1
                     && Contains(footerBox, pageBox) && Contains(footerBox, labelBox)
-                    && Contains(new Rect(default(Point), window.ClientSize), footerBox)
-                    && left.Bottom + 4 <= footerBox.Top && listBox.Bottom <= left.Bottom
-                    && left.Bottom - listBox.Bottom <= 3,
-                    "Archive pagination/range is clipped, inside its result border, or leaves unused list space.");
+                    && Contains(left, barBox) && Contains(new Rect(default(Point), window.ClientSize), footerBox)
+                    && listBox.Bottom <= barBox.Top + 1 && barBox.Top - listBox.Bottom <= 3
+                    && left.Bottom - barBox.Bottom <= 3,
+                    "Archive pagination/range is clipped, covers the list, or leaves unused space in the result border.");
                 // ARCH-DENSE-01: one line when pager and range fit, otherwise range below pager; never overlapping.
                 ArchiveFooterLayout range = page.FindControl<ArchiveFooterLayout>("ArchiveResultsRange")!;
                 bool besidePager = pageBox.Right + ArchiveFooterLayout.InlineGap - 1 <= labelBox.Left
