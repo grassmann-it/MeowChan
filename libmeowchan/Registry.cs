@@ -333,7 +333,12 @@ public sealed partial class Registry : IAsyncDisposable
             Dictionary<string, string> canonicalUrls = new Dictionary<string, string>(StringComparer.Ordinal);
             HashSet<string> threads = NormalizeRestoredUrls(loaded.Snapshot.ThreadUrls, true, resources, canonicalUrls, warnings);
             HashSet<string> boards = NormalizeRestoredUrls(loaded.Snapshot.BoardUrls, false, resources, canonicalUrls, warnings);
-            IReadOnlyList<WorkResource> durable = _workStore?.LoadResources() ?? Array.Empty<WorkResource>();
+            WorkResourceLoad journal = _workStore == null ? new WorkResourceLoad(Array.Empty<WorkResource>(), Array.Empty<UnreadableWorkRow>())
+                : WorkStateAccess.For(_workStore).LoadReadableResources();
+            IReadOnlyList<WorkResource> durable = journal.Resources;
+            HashSet<string> unreadable = journal.Unreadable.Select(row => row.Url).ToHashSet(StringComparer.Ordinal);
+            foreach (UnreadableWorkRow row in journal.Unreadable)
+                warnings.Add($"Could not read durable watch '{row.Url}' ({row.Reason}); it was not restored and its journal entry was retained.");
             Dictionary<string, WorkResource> byUrl = durable.ToDictionary(item => item.Url, StringComparer.Ordinal);
             foreach (WorkResource saved in durable)
             {
@@ -361,6 +366,10 @@ public sealed partial class Registry : IAsyncDisposable
                         boards.Remove(resource.Url);
                     }
                 }
+                // An unreadable intent is unknown, not absent: never admit or re-create it at
+                // generation 1. Its saved projection entry is kept for a later repair.
+                foreach (Resource resource in resources.Values.ToArray())
+                    if (unreadable.Contains(resource.Url)) resources.Remove(resource.Key);
                 if (!_persistSession) { resources.Clear(); threads.Clear(); boards.Clear(); }
             }
             HashSet<string> suppressedUrls = new HashSet<string>(StringComparer.Ordinal);
@@ -440,7 +449,7 @@ public sealed partial class Registry : IAsyncDisposable
                 { warnings.Add($"Session projection could not be saved: {exception.Message}"); }
             }
             _session = normalized;
-            RefreshWorkCache();
+            RefreshWorkCache(warnings);
             _restored = true;
             _restoreRequired = false;
             foreach (Resource resource in resources.Values)

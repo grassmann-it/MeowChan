@@ -70,6 +70,10 @@ internal sealed class WorkStateAccess
         return _store.LoadResources().SingleOrDefault(resource => resource.Url == url);
     }
 
+    // Only restore and the presentation cache tolerate unreadable rows. Foreign stores keep their strict API.
+    internal WorkResourceLoad LoadReadableResources() => _store is WorkStateStore sqlite ? sqlite.LoadReadableResources()
+        : new WorkResourceLoad(_store.LoadResources(), Array.Empty<UnreadableWorkRow>());
+
     internal MediaWork? FindMedia(MediaWorkKey key)
     {
         Interlocked.Increment(ref _mediaPoints);

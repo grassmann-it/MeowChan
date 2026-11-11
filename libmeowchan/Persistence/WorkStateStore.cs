@@ -125,7 +125,19 @@ public sealed class WorkStateStore : IWorkStateStore, IConditionalWorkStateStore
             return true;
         });
 
-    public IReadOnlyList<WorkResource> LoadResources() => _lease.RunExclusive(() =>
+    public IReadOnlyList<WorkResource> LoadResources() => _lease.RunExclusive(() => LoadResourcesCore(unreadable: null));
+
+    // Restore and the presentation cache read every row they can and report the others by key.
+    // Unreadable rows stay in place: LoadResources, point reads and archive cleanup keep
+    // rejecting them, so a row of unknown state is never treated as absent or overwritten.
+    internal WorkResourceLoad LoadReadableResources() => _lease.RunExclusive(() =>
+    {
+        List<UnreadableWorkRow> unreadable = new();
+        IReadOnlyList<WorkResource> resources = LoadResourcesCore(unreadable);
+        return new WorkResourceLoad(resources, unreadable);
+    });
+
+    private IReadOnlyList<WorkResource> LoadResourcesCore(List<UnreadableWorkRow>? unreadable)
     {
         Interlocked.Increment(ref _resourceBatchReads);
         using SqliteConnection db = OpenReadOnly();
@@ -135,14 +147,25 @@ public sealed class WorkStateStore : IWorkStateStore, IConditionalWorkStateStore
         List<WorkResource> result = new();
         while (reader.Read())
         {
-            WorkResource resource = Read<WorkResource>(reader.GetString(1));
-            if (resource.Url != reader.GetString(0)) throw new InvalidDataException("Work resource key differs from its payload.");
+            string url = reader.GetString(0);
+            WorkResource resource;
+            try
+            {
+                resource = Read<WorkResource>(reader.GetString(1));
+                if (resource.Url != url) throw new InvalidDataException("Work resource key differs from its payload.");
+            }
+            catch (Exception exception) when (unreadable != null && exception is InvalidDataException or JsonException)
+            {
+                unreadable.Add(new UnreadableWorkRow(url, exception.Message));
+                continue;
+            }
             Interlocked.Increment(ref _materializedRows);
             result.Add(resource);
         }
         PerformanceDiagnostics.Record("work.sql", "resource-batch", value: result.Count);
-        return (IReadOnlyList<WorkResource>)result;
-    });
+        if (unreadable is { Count: > 0 }) PerformanceDiagnostics.Record("work.sql", "resource-unreadable", value: unreadable.Count);
+        return result;
+    }
 
     public IReadOnlyList<MediaWork> LoadMedia(string url, long generation) => _lease.RunExclusive(() =>
     {
@@ -421,11 +444,20 @@ public sealed class WorkStateStore : IWorkStateStore, IConditionalWorkStateStore
         }
     }
 
+    // PRAGMA user_version marks the journal layout. 0 is every journal written before the marker;
+    // its layout is still detected by columns below. A newer marker fails before any change, so
+    // this build never rewrites a layout it does not know. Builds before the marker ignore it.
+    private const long SchemaVersion = 1;
+
     private static void Initialize(SqliteConnection db)
     {
         using SqliteTransaction transaction = db.BeginTransaction();
         using SqliteCommand command = db.CreateCommand();
         command.Transaction = transaction;
+        command.CommandText = "PRAGMA user_version";
+        long version = (long)command.ExecuteScalar()!;
+        if (version > SchemaVersion)
+            throw new InvalidDataException($"The work journal uses schema version {version}; this version supports up to {SchemaVersion}.");
         command.CommandText = "CREATE TABLE IF NOT EXISTS work_resources(url TEXT PRIMARY KEY,payload TEXT NOT NULL); " +
             "CREATE TABLE IF NOT EXISTS work_media(resource_url TEXT NOT NULL,generation INTEGER NOT NULL,media_id TEXT NOT NULL," +
             "variant TEXT NOT NULL DEFAULT 'original',target TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(resource_url,generation,media_id,variant,target));";
@@ -444,6 +476,12 @@ public sealed class WorkStateStore : IWorkStateStore, IConditionalWorkStateStore
                 "INSERT INTO work_media(resource_url,generation,media_id,variant,target,payload) " +
                 "SELECT resource_url,generation,media_id,'original',target,payload FROM work_media_legacy; " +
                 "DROP TABLE work_media_legacy;";
+            command.ExecuteNonQuery();
+        }
+        if (version < SchemaVersion)
+        {
+            // Stamped in the same transaction as any layout migration above.
+            command.CommandText = "PRAGMA user_version=" + SchemaVersion;
             command.ExecuteNonQuery();
         }
         transaction.Commit();
@@ -512,6 +550,9 @@ public sealed class WorkStateStore : IWorkStateStore, IConditionalWorkStateStore
                 throw new InvalidDataException("Invalid durable attachment reference.");
     }
 }
+
+internal sealed record UnreadableWorkRow(string Url, string Reason);
+internal sealed record WorkResourceLoad(IReadOnlyList<WorkResource> Resources, IReadOnlyList<UnreadableWorkRow> Unreadable);
 
 internal readonly record struct WorkStoreQueryCounts(long ResourcePointReads, long MediaPointReads,
     long ResourceBatchReads, long MediaBatchReads, long MaterializedRows);
