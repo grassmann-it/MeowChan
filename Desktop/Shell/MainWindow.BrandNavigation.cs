@@ -19,6 +19,7 @@ public partial class MainWindow
         {
             ("DownloadsNavigationButton", "navigation.downloads"),
             ("ArchiveNavigationButton", "navigation.archive"),
+            ("MediaNavigationButton", "navigation.media"),
             ("RulesNavigationButton", "navigation.rules"),
             ("SourcesNavigationButton", "navigation.sources"),
             ("DiagnosticsNavigationButton", "navigation.diagnostics"),
@@ -31,6 +32,7 @@ public partial class MainWindow
         foreach (var (name, action) in new[]
         {
             ("ArchiveMenuItem", "navigation.archive"),
+            ("MediaMenuItem", "navigation.media"),
             ("RulesMenuItem", "navigation.rules"),
             ("SourcesMenuItem", "navigation.sources"),
             ("PluginsMenuItem", "navigation.plugins"),

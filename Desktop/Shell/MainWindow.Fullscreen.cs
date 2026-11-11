@@ -796,7 +796,7 @@ public partial class MainWindow
             foreach ((string id, WorkspacePage page) in new[]
             {
                 ("navigation.downloads", WorkspacePage.Downloads), ("navigation.archive", WorkspacePage.Archive),
-                ("navigation.rules", WorkspacePage.Rules), ("navigation.sources", WorkspacePage.Sources),
+                ("navigation.media", WorkspacePage.Media), ("navigation.rules", WorkspacePage.Rules), ("navigation.sources", WorkspacePage.Sources),
                 ("navigation.diagnostics", WorkspacePage.Diagnostics)
             })
             {
@@ -862,7 +862,7 @@ public partial class MainWindow
         Avalonia.Automation.AutomationProperties.SetHelpText(WorkspaceControl<Button>("FullscreenButton"),
             CommandBindings.Tooltip("window.fullscreen") + (WindowState == WindowState.FullScreen ? (MeowChan.Desktop.Localization.Texts.Language == "de" ? " · Ein" : " · On") : (MeowChan.Desktop.Localization.Texts.Language == "de" ? " · Aus" : " · Off")));
         CommandBindings.Apply(WorkspaceControl<Button>("ShellHelpClose"), "window.close");
-        foreach (var pair in new[] { ("ArchiveMenuItem", "navigation.archive"), ("RulesMenuItem", "navigation.rules"),
+        foreach (var pair in new[] { ("ArchiveMenuItem", "navigation.archive"), ("MediaMenuItem", "navigation.media"), ("RulesMenuItem", "navigation.rules"),
             ("SourcesMenuItem", "navigation.sources"), ("DiagnosticsMenuItem", "navigation.diagnostics"),
             ("SettingsMenuItem", "navigation.settings"), ("AboutMenuItem", "navigation.about"),
             ("ShortcutHelpMenuItem", "viewer.shortcut-help"), ("ExitMenuItem", "app.quit") })
@@ -870,7 +870,7 @@ public partial class MainWindow
         if (WorkspaceControl<Button>("ToolsNavigationButton").Flyout is MenuFlyout tools)
             foreach (MenuItem item in tools.Items.OfType<MenuItem>())
             {
-                string? id = (item.Tag as string) switch { "nav.archive" => "navigation.archive", "nav.rules" => "navigation.rules",
+                string? id = (item.Tag as string) switch { "nav.archive" => "navigation.archive", "nav.media" => "navigation.media", "nav.rules" => "navigation.rules",
                     "nav.sources" => "navigation.sources", "nav.diagnostics" => "navigation.diagnostics", _ => null };
                 if (id != null) CommandBindings.Apply(item, id);
             }

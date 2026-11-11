@@ -43,6 +43,7 @@
                     <Menu Grid.Column="3" VerticalAlignment="Center">
                         <MenuItem x:Name="WorkspaceMenuItem" Header="⋯">
                             <MenuItem x:Name="ArchiveMenuItem" Tag="nav.archive" Classes="localized" Header="Archive" Click="OnArchiveNavigationClick" />
+                            <MenuItem x:Name="MediaMenuItem" Tag="nav.media" Classes="localized" Header="Media" Click="OnMediaNavigationClick" />
                             <!-- URSA-12 shared shell hunk: group manager entry in every workspace mode. -->
                             <MenuItem x:Name="ReaderGroupsMenuItem" Header="Reader groups" />
                             <MenuItem x:Name="RulesMenuItem" Tag="nav.rules" Classes="localized" Header="Rules" Click="OnRulesNavigationClick" />
@@ -383,6 +384,7 @@
         <ContentControl Grid.Row="2" x:Name="DiagnosticsPageHost" IsVisible="False" />
         <ContentControl Grid.Row="2" x:Name="RulesPageHost" IsVisible="False" />
         <ContentControl Grid.Row="2" x:Name="ArchivePageHost" IsVisible="False" />
+        <ContentControl Grid.Row="2" x:Name="MediaPageHost" IsVisible="False" />
         <ContentControl Grid.Row="2" x:Name="SourcesPageHost" IsVisible="False" />
         <ContentControl Grid.Row="2" x:Name="PluginsPageHost" IsVisible="False" />
         </Grid>
@@ -402,6 +404,7 @@
                     </StackPanel>
                 </Button>
                 <Button x:Name="ArchiveNavigationButton" Classes="nav localized" Tag="nav.archive" Content="Archive" Click="OnArchiveNavigationClick" />
+                <Button x:Name="MediaNavigationButton" Classes="nav localized" Tag="nav.media" Content="Media" Click="OnMediaNavigationClick" />
                 <Button x:Name="RulesNavigationButton" Classes="nav localized" Tag="nav.rules" Content="Rules" Click="OnRulesNavigationClick" />
                 <Button x:Name="SourcesNavigationButton" Classes="nav localized" Tag="nav.sources" Content="Sources" Click="OnSourcesNavigationClick" />
                 <Button x:Name="DiagnosticsNavigationButton" Classes="nav" Click="OnDiagnosticsNavigationClick">
@@ -415,6 +418,7 @@
                     <Button.Flyout>
                         <MenuFlyout>
                             <MenuItem Tag="nav.archive" Classes="localized" Header="Archive" Click="OnArchiveNavigationClick" />
+                            <MenuItem Tag="nav.media" Classes="localized" Header="Media" Click="OnMediaNavigationClick" />
                             <MenuItem Tag="nav.rules" Classes="localized" Header="Rules" Click="OnRulesNavigationClick" />
                             <MenuItem Tag="nav.plugins" Classes="localized" Header="Plugins" Click="OnPluginsNavigationClick" />
                             <MenuItem Tag="nav.sources" Classes="localized" Header="Sources" Click="OnSourcesNavigationClick" />

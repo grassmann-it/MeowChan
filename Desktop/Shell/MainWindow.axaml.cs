@@ -229,12 +229,16 @@ public partial class MainWindow : Window
         this.FindControl<Button>("DownloadsNavigationButton")!.IsEnabled = earlyPages;
         this.FindControl<Button>("SettingsNavigationButton")!.IsEnabled = earlyPages;
         this.FindControl<Button>("ArchiveNavigationButton")!.IsEnabled = earlyPages;
+        // Media reads the catalog and media folders like Archive, but its index build waits for a ready session.
+        this.FindControl<Button>("MediaNavigationButton")!.IsEnabled = navigationReady;
+        if (_mediaPage != null) _mediaPage.IsAvailable = ready;
         this.FindControl<Button>("RulesNavigationButton")!.IsEnabled = navigationReady;
         this.FindControl<Button>("SourcesNavigationButton")!.IsEnabled = navigationReady;
         this.FindControl<Button>("PluginsNavigationButton")!.IsEnabled = navigationReady;
         RefreshReadingResumeState();
         this.FindControl<MenuItem>("SourcesMenuItem")!.IsEnabled = navigationReady;
         this.FindControl<MenuItem>("ArchiveMenuItem")!.IsEnabled = earlyPages;
+        this.FindControl<MenuItem>("MediaMenuItem")!.IsEnabled = navigationReady;
         RefreshReaderGroupsEntry(); // URSA-12 shared session-readiness refresh.
         this.FindControl<MenuItem>("RulesMenuItem")!.IsEnabled = navigationReady;
         bool diagnosticsReady = !WorkspaceCommandBusy

@@ -33,6 +33,7 @@ internal static class CommandLabelCatalog
         ("command.media.rating.set-5", "Rating: 5 of 5", "Bewertung: 5 von 5"),
         ("command.navigation.downloads", "Downloads", "Downloads"),
         ("command.navigation.archive", "Archive", "Archiv"),
+        ("command.navigation.media", "Media", "Medien"),
         ("command.navigation.rules", "Rules", "Regeln"),
         ("command.navigation.sources", "Sources", "Quellen"),
         ("command.navigation.diagnostics", "Diagnostics", "Diagnose"),

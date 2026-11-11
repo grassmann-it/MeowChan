@@ -15,7 +15,7 @@ namespace MeowChan;
 
 public partial class MainWindow
 {
-    internal enum WorkspacePage { Downloads, Archive, Rules, Sources, Diagnostics, Settings, Plugins }
+    internal enum WorkspacePage { Downloads, Archive, Rules, Sources, Diagnostics, Settings, Plugins, Media }
     private SettingsEditor? _settingsEditor;
     private DiagnosticsPage? _diagnosticsPage;
     private RulesPage? _rulesPage;
@@ -159,6 +159,7 @@ public partial class MainWindow
         _archivePage.OpenMediaGallery = (entries, start, origin) => OpenMediaGalleryAsync(entries, start, origin);
         _archivePage.OpenResultsGallery = (query, workFilter, origin) => OpenSearchGalleryAsync(query, workFilter, origin);
         this.FindControl<ContentControl>("ArchivePageHost")!.Content = _archivePage;
+        InitializeMediaPage();
         InitializeReadingResume();
         InitializePostBookmarks();
         _sourcesPage = new SourcesPage(OpenDiagnosticWatch, source =>
@@ -208,6 +209,7 @@ public partial class MainWindow
         this.FindControl<ContentControl>("DiagnosticsPageHost")!.IsVisible = page == WorkspacePage.Diagnostics;
         this.FindControl<ContentControl>("RulesPageHost")!.IsVisible = page == WorkspacePage.Rules;
         this.FindControl<ContentControl>("ArchivePageHost")!.IsVisible = page == WorkspacePage.Archive;
+        this.FindControl<ContentControl>("MediaPageHost")!.IsVisible = page == WorkspacePage.Media;
         this.FindControl<ContentControl>("SourcesPageHost")!.IsVisible = page == WorkspacePage.Sources;
         this.FindControl<ContentControl>("PluginsPageHost")!.IsVisible = page == WorkspacePage.Plugins;
         this.FindControl<Button>("DownloadsNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Downloads);
@@ -215,6 +217,7 @@ public partial class MainWindow
         this.FindControl<Button>("DiagnosticsNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Diagnostics);
         this.FindControl<Button>("RulesNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Rules);
         this.FindControl<Button>("ArchiveNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Archive);
+        this.FindControl<Button>("MediaNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Media);
         this.FindControl<Button>("SourcesNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Sources);
         this.FindControl<Button>("PluginsNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Plugins);
         RefreshStartupPreview(); // The historical preview belongs to the Downloads page only.
@@ -234,6 +237,7 @@ public partial class MainWindow
         }
         if (page == WorkspacePage.Rules) { _rulesPage?.RefreshConfirmedRules(); _ = _rulesPage?.RefreshPluginFiltersAsync(); }
         if (page == WorkspacePage.Archive && activateArchive) _ = _archivePage?.ActivateAsync();
+        if (page == WorkspacePage.Media) _ = _mediaPage?.ActivateAsync();
         return true;
     }
 
@@ -255,6 +259,7 @@ public partial class MainWindow
             var destinations = new[]
             {
                 (Page: WorkspacePage.Archive, Button: this.FindControl<Button>("ArchiveNavigationButton")!, Tag: "nav.archive"),
+                (Page: WorkspacePage.Media, Button: this.FindControl<Button>("MediaNavigationButton")!, Tag: "nav.media"),
                 (Page: WorkspacePage.Rules, Button: this.FindControl<Button>("RulesNavigationButton")!, Tag: "nav.rules"),
                 (Page: WorkspacePage.Plugins, Button: this.FindControl<Button>("PluginsNavigationButton")!, Tag: "nav.plugins"),
                 (Page: WorkspacePage.Sources, Button: this.FindControl<Button>("SourcesNavigationButton")!, Tag: "nav.sources"),
@@ -268,7 +273,8 @@ public partial class MainWindow
                     item.Tag as string == destination.Tag && (ReferenceEquals(item, focusedBefore)
                         || item.IsKeyboardFocusWithin))).Select(destination => destination.Button).FirstOrDefault()
                 : null;
-            bool[] direct = destinations.Select(destination => destination.Page == WorkspacePage.Archive
+            // Media sits with Archive: both are ordinary reading pages outside Barebones.
+            bool[] direct = destinations.Select(destination => destination.Page is WorkspacePage.Archive or WorkspacePage.Media
                 ? _config.WorkspaceMode != "Barebones" : advanced).ToArray();
 
             // Measure the localized labels instead of guessing a breakpoint. Hidden
@@ -311,8 +317,8 @@ public partial class MainWindow
                     + destinationWidths.Where((_, index) => direct[index]).Sum()
                     + (overflow ? toolsWidth : 0) + Math.Max(0, count - 1) * panel.Spacing;
             }
-            // Preserve Archive longest; remove the rarer destinations first.
-            foreach (int index in new[] { 4, 3, 2, 1, 0 })
+            // Preserve Archive longest, then Media; remove the rarer destinations first.
+            foreach (int index in new[] { 5, 4, 3, 2, 1, 0 })
             {
                 if (RequiredWidth() <= available) break;
                 direct[index] = false;
@@ -419,6 +425,12 @@ public partial class MainWindow
         NavigateWorkspace(WorkspacePage.Diagnostics);
     }
 
+    private void OnMediaNavigationClick(object? sender, RoutedEventArgs e)
+    {
+        this.FindControl<Button>("ToolsNavigationButton")!.Flyout?.Hide();
+        NavigateWorkspace(WorkspacePage.Media);
+    }
+
     private void OnArchiveNavigationClick(object? sender, RoutedEventArgs e)
     {
         this.FindControl<Button>("ToolsNavigationButton")!.Flyout?.Hide();
@@ -449,6 +461,7 @@ public partial class MainWindow
         _diagnosticsPage?.EndLifetime();
         if (_sourcesPage != null) { _sourcesPage.BusyChanged -= OnSettingsBusyChanged; _sourcesPage.EndLifetime(); }
         _archivePage?.EndLifetime();
+        _mediaPage?.EndLifetime();
         if (_rulesPage != null) { _rulesPage.BusyChanged -= OnSettingsBusyChanged; _rulesPage.EndLifetime(); }
         if (_settingsEditor == null) return;
         _settingsEditor.BusyChanged -= OnSettingsBusyChanged;

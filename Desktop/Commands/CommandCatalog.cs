@@ -42,6 +42,7 @@ public static class CommandCatalog
         new("navigation.downloads", "command.navigation.downloads", "Downloads", "Downloads", "download", "Primary+1", CommandScope.Sources | CommandScope.Application, new[] { "footer", "sources" }),
         new("navigation.continue-reading", "resume.action", "Continue reading", "Weiterlesen", "book-open", null, CommandScope.Application, new[] { "header", "app-menu", "workspace-keyboard" }),
         new("navigation.archive", "command.navigation.archive", "Archive", "Archiv", "archive", "Primary+2", CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
+        new("navigation.media", "command.navigation.media", "Media", "Medien", "grid", null, CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         new("navigation.rules", "command.navigation.rules", "Rules", "Regeln", "sliders", "Primary+3", CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         new("navigation.sources", "command.navigation.sources", "Sources", "Quellen", "globe", "Primary+4", CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         new("navigation.diagnostics", "command.navigation.diagnostics", "Diagnostics", "Diagnose", "activity", "Primary+5", CommandScope.Sources | CommandScope.Application, new[] { "footer", "app-menu", "tools-menu", "sources" }),
@@ -295,7 +296,7 @@ public static class CommandCatalog
             "input.focus-download-search" => Texts.T("command.scope.input.focus-download-search"),
             "input.focus-search" => Texts.T("command.scope.input.focus-search"),
             "export.open-all-results-html-dialog" => Texts.T("command.scope.export.open-all-results-html-dialog"),
-            "navigation.downloads" or "navigation.archive" or "navigation.rules" or "navigation.sources" or "navigation.diagnostics" or "session.pause"
+            "navigation.downloads" or "navigation.archive" or "navigation.media" or "navigation.rules" or "navigation.sources" or "navigation.diagnostics" or "session.pause"
                 => Texts.T("command.scope.navigation.generic"),
             _ => null
         };

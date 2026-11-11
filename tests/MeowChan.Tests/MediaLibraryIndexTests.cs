@@ -260,4 +260,30 @@ public sealed class MediaLibraryIndexTests
         Assert.Equal(built.Entries.Count, warm.Entries.Count);
         Assert.True(watch.Elapsed < cold, "Reusing every thread was not faster than reading them: " + watch.Elapsed + " vs " + cold);
     }
+
+    [Fact]
+    public async Task IndexEntriesResolveBackToTheSameGalleryEntriesAndChangedFilesAreLeftOut()
+    {
+        using TempDirectory temp = new();
+        await SeedAsync(temp.Path);
+        MediaLibrarySnapshot snapshot = await BuildAsync(temp.Path);
+        MediaLibraryEntry[] shown = MediaLibraryView.Select(snapshot.Entries, MediaLibrarySort.ByThread, includeMissing: true).ToArray();
+
+        IReadOnlyList<GalleryEntry> entries = await MediaLibraryGallery.ResolveAsync(shown, t => ArchiveReader.OpenAsync(temp.Path, t), MediaAssetReader.OpenAsync);
+
+        // Missing entries have no file; the three saved ones come back in page order with their post binding.
+        Assert.Equal(3, entries.Count);
+        MediaLibraryEntry[] present = shown.Where(entry => entry.Presence == MediaLibraryPresence.Present).ToArray();
+        Assert.Equal(present.Select(entry => (entry.Thread, entry.AssetId, entry.PostId)),
+            entries.Select(entry => (entry.Key.Thread, (string?)entry.Key.AssetId, entry.Post?.PostId)));
+        GalleryEntry bound = entries.Single(entry => entry.Key.Thread == A && entry.Post?.PostId == "100");
+        Assert.NotNull(bound.AttachmentResolution?.Binding);
+        Assert.True(entries.Single(entry => entry.Key.Thread == A && entry.Post == null).Unassigned);
+
+        // B's file is replaced on disk after indexing: its stale entry is not resolved to the new bytes.
+        await WriteManifestAsync(Path.Combine(temp.Path, "media", "b"), B, new File_("copy.png", "x1", Other, "200"));
+        IReadOnlyList<GalleryEntry> after = await MediaLibraryGallery.ResolveAsync(shown, t => ArchiveReader.OpenAsync(temp.Path, t), MediaAssetReader.OpenAsync);
+        Assert.DoesNotContain(after, entry => entry.Key.Thread == B);
+        Assert.Equal(2, after.Count);
+    }
 }
