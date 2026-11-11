@@ -149,6 +149,7 @@ public partial class MainWindow
         }
         _galleryCancellation = new CancellationTokenSource();
         _gallery = new GalleryViewer();
+        UpdateMediaReturn(); // the gallery owns the way back while it is open
         GalleryViewer diagnosticOwner = _gallery;
         _gallery.DiagnosticNotice += notice =>
         {
@@ -430,6 +431,7 @@ public partial class MainWindow
         UpdateGalleryFullscreenPresentation();
         ArchivePage.GalleryReturn = ReturnToGallery;
         ArchivePage.ShowGalleryReturn(true);
+        UpdateMediaReturn();
     }
 
     private void ReturnToGallery()
@@ -492,6 +494,7 @@ public partial class MainWindow
         // The media grid itself cannot take focus; its selected tile does, once the refreshed tiles are laid out.
         if (restoreOrigin && !_isClosing && closedOrigin != null && ReferenceEquals(closedOrigin, _mediaPage?.Grid)) _mediaPage.FocusGrid();
         if (restoreOrigin && !_isClosing) completed?.Invoke();
+        UpdateMediaReturn();
     }
 
     private void UpdateGalleryFullscreenPresentation()

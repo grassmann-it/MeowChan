@@ -986,6 +986,7 @@ public partial class ArchivePage : UserControl
         CommandBindings.Apply(Control<Button>("ArchiveOpenGallery"), "gallery.open", iconWithLabel: true);
         CommandBindings.Apply(Control<Button>("ArchiveReadPosts"), "reader.expand", iconWithLabel: true);
         CommandBindings.Apply(Control<Button>("ArchiveGalleryReturn"), "gallery.return", iconOnly: true);
+        CommandBindings.Apply(Control<Button>("ArchiveMediaReturn"), "media.return", iconWithLabel: true);
         CommandBindings.Apply(Control<Button>("ExportArchiveButton"), "export.open-html-dialog", iconWithLabel: true);
         CommandBindings.Apply(Control<Button>("ReaderPreviousThread"), "reader.previous-thread", iconOnly: true);
         CommandBindings.Apply(Control<Button>("ReaderPreviousPost"), "reader.previous-post", iconOnly: true);

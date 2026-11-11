@@ -130,11 +130,4 @@ public partial class MainWindow
     // The same export dialog as the gallery and the favorites: verified originals, no overwriting, per-file results.
     private Task ExportMediaLibraryOriginalsAsync(IReadOnlyList<Favorites.FavoriteExportAsset> assets, int unavailable, string scope)
         => _isClosing ? Task.CompletedTask : ArchivePage.OpenOriginalExportAsync(assets, _mediaPage, unavailable, scope);
-
-    private async Task ShowMediaLibraryEntryInThreadAsync(MediaLibraryEntry entry)
-    {
-        if (_isClosing || entry.PostId == null || !NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
-        await ArchivePage.LoadThreadAsync(entry.Thread);
-        await ArchivePage.FocusPostAsync(entry.PostId);
-    }
 }

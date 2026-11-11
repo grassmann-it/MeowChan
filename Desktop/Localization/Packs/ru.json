@@ -1839,6 +1839,8 @@
     "command.reader.open-quote": "Показать цитируемое сообщение",
     "command.reader.show-replies": "Показать ответы",
     "command.gallery.return": "Вернуться в галерею",
+    "command.media.return": "Назад к медиа",
+    "media.return.missing": "«{0}» больше не отображается в этом представлении. Фильтры и порядок не изменились.",
     "command.gallery.close": "Закрыть галерею",
     "command.gallery.previous": "Предыдущий медиафайл",
     "command.gallery.next": "Следующий медиафайл",
