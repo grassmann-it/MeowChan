@@ -55,6 +55,7 @@ public partial class SavedArchiveSearchesDialog : Window
     {
         InitializeComponent(); _host = host; _page = page; _initialDefinition = initialDefinition;
         _router = new CommandRouter(this);
+        AutomationProperties.SetLiveSetting(this.FindControl<TextBlock>("SavedSearchError")!, AutomationLiveSetting.Assertive);
         List.ItemTemplate = new FuncDataTemplate<SavedArchiveSearch>((entry, _) =>
         {
             string detail = entry == null ? "" : entry.Definition is { } spec ? SavedArchiveSearchDescription.Describe(spec, TagName) : Texts.T("savedSearch.unsupported") + " " + entry.UnsupportedReason;
@@ -197,9 +198,7 @@ public partial class SavedArchiveSearchesDialog : Window
     }
     private void ArrangeWorkspace()
     {
-        Grid layout = (Grid)Content!;
-        layout.RowDefinitions[1].Height = _edit == EditKind.None ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-        layout.RowDefinitions[3].Height = _edit == EditKind.None ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        // Workspace and editor share the scrolling frame body; Refresh shows exactly one of them.
         bool stacked = ClientSize.Width < 580;
         Grid workspace = this.FindControl<Grid>("SavedSearchWorkspace")!;
         workspace.ColumnDefinitions = new(stacked ? "*" : "220,*");
@@ -302,7 +301,7 @@ public partial class SavedArchiveSearchesDialog : Window
                 if (definition == null) return;
                 bool applied = await _page.ApplySearchSpecAsync(definition, _lifetime.Token);
                 if (_closed || _lifetime.IsCancellationRequested || !Ready) return;
-                if (!applied) { _edit = EditKind.None; RenderEditor(); Status(Texts.T("savedSearch.applyFailed")); return; }
+                if (!applied) { _edit = EditKind.None; RenderEditor(); Status(Texts.T("savedSearch.applyFailed"), error: true); return; }
                 Applied = true; _closingAccepted = true; Close(); return;
             }
             SavedArchiveSearchSnapshot result = kind switch
@@ -323,12 +322,12 @@ public partial class SavedArchiveSearchesDialog : Window
         catch (SavedSearchRevisionException error)
         {
             if (_closed) return;
-            _snapshot = error.Current; Render(target); _conflict = true; RenderEditor(); Status(Texts.T("savedSearch.conflict"));
+            _snapshot = error.Current; Render(target); _conflict = true; RenderEditor(); Status(Texts.T("savedSearch.conflict"), error: true);
             // Preserve frozen target/name/definition. Retry is explicitly against the reviewed revision.
             _revision = error.Current.Revision;
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        catch (Exception error) { if (!_closed) Status(Texts.T("savedSearch.error", error.Message)); }
+        catch (Exception error) { if (!_closed) Status(Texts.T("savedSearch.error", error.Message), error: true); }
         finally
         {
             if (!_closed)
@@ -352,10 +351,11 @@ public partial class SavedArchiveSearchesDialog : Window
         {
             SavedArchiveSearchSnapshot result = await _host.LoadSavedArchiveSearchesAsync(_lifetime.Token);
             if (_closed || !Ready) return;
-            _snapshot = result; Render(selected); Status(result.Error == null ? Texts.T("savedSearch.hint") : Texts.T("savedSearch.readonly", result.Error));
+            _snapshot = result; Render(selected);
+            Status(result.Error == null ? Texts.T("savedSearch.hint") : Texts.T("savedSearch.readonly", result.Error), error: result.Error != null);
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        catch (Exception error) { if (!_closed) Status(Texts.T("savedSearch.error", error.Message)); }
+        catch (Exception error) { if (!_closed) Status(Texts.T("savedSearch.error", error.Message), error: true); }
         finally { if (!_closed) { _working = false; Refresh(); } }
     }
     private void Render(Guid? selected = null, int previous = -1)
@@ -389,7 +389,15 @@ public partial class SavedArchiveSearchesDialog : Window
         Button("SavedSearchConfirm").IsEnabled = idle && _edit != EditKind.None && !TargetDeletedByConflict && (_edit == EditKind.Apply || _edit == EditKind.Discard || _snapshot?.CanWrite == true || _edit == EditKind.Recover && _snapshot?.State == SavedSearchStoreState.RecoveryAvailable);
         Button("SavedSearchCancelEdit").Content = Texts.T(_working ? "savedSearch.cancelOperation" : _edit == EditKind.Discard ? "savedSearch.keepEditing" : "savedSearch.cancel");
     }
-    private void Status(string text) => this.FindControl<TextBlock>("SavedSearchStatus")!.Text = text;
+    // Failures go to the local error strip between header and body; SavedSearchStatus keeps the
+    // same text for its existing readers, other outcomes stay in the footer status line.
+    private void Status(string text, bool error = false)
+    {
+        this.FindControl<TextBlock>("SavedSearchStatus")!.Text = text;
+        this.FindControl<TextBlock>("SavedSearchError")!.Text = error ? text : "";
+        this.FindControl<Border>("DialogFrameErrorStrip")!.IsVisible = error;
+        this.FindControl<ScrollViewer>("SavedSearchStatusHost")!.IsVisible = !error;
+    }
     private void OnPageStateChanged() => Dispatcher.UIThread.Post(() => { if (!_closed) Refresh(); });
     private void OnHostStateChanged() => Dispatcher.UIThread.Post(() => { if (!_closed) { if (!Ready) { CloseForLifetime(); } else Refresh(); } });
     private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() => { if (!_closed) { Localize(); Render(Selected?.Id); if (_edit != EditKind.None) RenderEditor(); } });

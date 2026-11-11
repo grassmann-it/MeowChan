@@ -1,48 +1,64 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="MeowChan.SavedArchiveSearchesDialog" Width="650" Height="510" MinWidth="360" MinHeight="330"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
-    <Grid Margin="16" RowDefinitions="Auto,*,Auto,*,Auto" RowSpacing="12">
-        <TextBlock x:Name="SavedSearchHint" TextWrapping="Wrap" />
-        <Grid x:Name="SavedSearchWorkspace" Grid.Row="1" ColumnDefinitions="220,*" ColumnSpacing="12" RowSpacing="12">
-            <ListBox x:Name="SavedSearchList" Focusable="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
-            <ScrollViewer x:Name="SavedSearchSelection" Grid.Column="1" HorizontalScrollBarVisibility="Disabled">
-                <StackPanel Spacing="8">
-                    <TextBlock x:Name="SavedSearchSelectionName" Classes="section-title" TextWrapping="Wrap" />
-                    <TextBlock x:Name="SavedSearchSelectionDefinition" Classes="workspace-meta" TextWrapping="Wrap" />
+    <!-- UX103 P7 dialog frame: fixed header, local error strip, scrolling body, fixed footer. -->
+    <Grid RowDefinitions="Auto,Auto,*,Auto" KeyboardNavigation.TabNavigation="Cycle">
+        <Border x:Name="DialogFrameHeader" Padding="16,16,16,8">
+            <TextBlock x:Name="SavedSearchHint" TextWrapping="Wrap" />
+        </Border>
+        <Border x:Name="DialogFrameErrorStrip" Grid.Row="1" Padding="16,0,16,8" IsVisible="False">
+            <Border Classes="workspace-error">
+                <ScrollViewer MaxHeight="120" HorizontalScrollBarVisibility="Disabled">
+                    <TextBlock x:Name="SavedSearchError" Classes="workspace-error" TextWrapping="Wrap" />
+                </ScrollViewer>
+            </Border>
+        </Border>
+        <ScrollViewer x:Name="DialogFrameBody" Grid.Row="2" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <Grid x:Name="SavedSearchBody" Margin="16,0,16,8" RowDefinitions="Auto,Auto">
+                <Grid x:Name="SavedSearchWorkspace" ColumnDefinitions="220,*" ColumnSpacing="12" RowSpacing="12">
+                    <ListBox x:Name="SavedSearchList" Focusable="True" MinHeight="120" MaxHeight="280" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+                    <ScrollViewer x:Name="SavedSearchSelection" Grid.Column="1" MaxHeight="280" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Spacing="8">
+                            <TextBlock x:Name="SavedSearchSelectionName" Classes="section-title" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SavedSearchSelectionDefinition" Classes="workspace-meta" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+                <ScrollViewer x:Name="SavedSearchEditorScroll" Grid.Row="1" IsVisible="False" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="SavedSearchEditor" Spacing="8" IsVisible="False">
+                    <TextBlock x:Name="SavedSearchPrompt" Classes="section-title" TextWrapping="Wrap" />
+                    <TextBox x:Name="SavedSearchName" />
+                    <ScrollViewer MaxHeight="160" HorizontalScrollBarVisibility="Disabled">
+                        <TextBlock x:Name="SavedSearchDefinition" Classes="workspace-meta" TextWrapping="Wrap" />
+                    </ScrollViewer>
+                    <StackPanel x:Name="SavedSearchConflictPanel" Spacing="4" IsVisible="False">
+                        <TextBlock x:Name="SavedSearchConflictTitle" Classes="section-title" TextWrapping="Wrap" />
+                        <TextBlock x:Name="SavedSearchConflictCurrent" Classes="workspace-meta" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <WrapPanel ItemSpacing="8" LineSpacing="8">
+                        <Button x:Name="SavedSearchConfirm" Classes="primary" />
+                        <Button x:Name="SavedSearchCancelEdit" />
+                    </WrapPanel>
                 </StackPanel>
-            </ScrollViewer>
-        </Grid>
-        <ScrollViewer Grid.Row="2" MaxHeight="96" HorizontalScrollBarVisibility="Disabled">
-            <TextBlock x:Name="SavedSearchStatus" TextWrapping="Wrap" />
+                </ScrollViewer>
+            </Grid>
         </ScrollViewer>
-        <ScrollViewer x:Name="SavedSearchEditorScroll" Grid.Row="3" IsVisible="False" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel x:Name="SavedSearchEditor" Spacing="8" IsVisible="False">
-            <TextBlock x:Name="SavedSearchPrompt" Classes="section-title" TextWrapping="Wrap" />
-            <TextBox x:Name="SavedSearchName" />
-            <ScrollViewer MaxHeight="160" HorizontalScrollBarVisibility="Disabled">
-                <TextBlock x:Name="SavedSearchDefinition" Classes="workspace-meta" TextWrapping="Wrap" />
-            </ScrollViewer>
-            <StackPanel x:Name="SavedSearchConflictPanel" Spacing="4" IsVisible="False">
-                <TextBlock x:Name="SavedSearchConflictTitle" Classes="section-title" TextWrapping="Wrap" />
-                <TextBlock x:Name="SavedSearchConflictCurrent" Classes="workspace-meta" TextWrapping="Wrap" />
+        <Border x:Name="DialogFrameFooter" Grid.Row="3" Classes="workspace-dialog-footer">
+            <StackPanel Spacing="8">
+                <ScrollViewer x:Name="SavedSearchStatusHost" MaxHeight="96" HorizontalScrollBarVisibility="Disabled">
+                    <TextBlock x:Name="SavedSearchStatus" TextWrapping="Wrap" />
+                </ScrollViewer>
+                <WrapPanel ItemSpacing="8" LineSpacing="8">
+                    <Button x:Name="SavedSearchCreate" />
+                    <Button x:Name="SavedSearchApply" Classes="primary" />
+                    <Button x:Name="SavedSearchRename" />
+                    <Button x:Name="SavedSearchReplace" />
+                    <Button x:Name="SavedSearchDelete" Classes="danger" />
+                    <Button x:Name="SavedSearchReload" />
+                    <Button x:Name="SavedSearchRecover" IsVisible="False" />
+                    <Button x:Name="SavedSearchClose" />
+                </WrapPanel>
             </StackPanel>
-            <WrapPanel ItemSpacing="8" LineSpacing="8">
-                <Button x:Name="SavedSearchConfirm" Classes="primary" />
-                <Button x:Name="SavedSearchCancelEdit" />
-            </WrapPanel>
-        </StackPanel>
-        </ScrollViewer>
-        <Border Grid.Row="4" Classes="workspace-dialog-footer" Margin="-16,0,-16,-16">
-            <WrapPanel ItemSpacing="8" LineSpacing="8">
-                <Button x:Name="SavedSearchCreate" />
-                <Button x:Name="SavedSearchApply" Classes="primary" />
-                <Button x:Name="SavedSearchRename" />
-                <Button x:Name="SavedSearchReplace" />
-                <Button x:Name="SavedSearchDelete" Classes="danger" />
-                <Button x:Name="SavedSearchReload" />
-                <Button x:Name="SavedSearchRecover" IsVisible="False" />
-                <Button x:Name="SavedSearchClose" />
-            </WrapPanel>
         </Border>
     </Grid>
 </Window>

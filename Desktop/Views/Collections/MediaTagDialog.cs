@@ -10,6 +10,7 @@ using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Threading;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Tags;
 
@@ -54,21 +55,23 @@ internal sealed class MediaTagDialog : Window
         ExtendClientAreaToDecorationsHint = true; ExtendClientAreaTitleBarHeightHint = 48;
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
-        AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
 
         var input = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
         input.Children.Add(_input); input.Children.Add(_add); Grid.SetColumn(_add, 1);
-        var body = new StackPanel { Spacing = 10, Margin = new Thickness(16) };
-        foreach (Control control in new Control[] { _heading, _scope, _assignedLabel, _assigned, _availableLabel, _available, input, _status })
+        // UX103 P7 frame: medium and scope on top, the (error-only) status in the local strip,
+        // chips and input in the scrolling body, Close in the fixed footer.
+        var header = new StackPanel { Spacing = 6 };
+        header.Children.Add(_heading); header.Children.Add(_scope);
+        var body = new StackPanel { Spacing = 10, Margin = new Thickness(16, 0, 16, 8) };
+        foreach (Control control in new Control[] { _assignedLabel, _assigned, _availableLabel, _available, input })
             body.Children.Add(control);
-        var footer = new WrapPanel { Margin = new Thickness(16, 0, 16, 16), HorizontalAlignment = HorizontalAlignment.Right };
+        var footer = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
         footer.Children.Add(_close);
-        var layout = new Grid { RowDefinitions = new RowDefinitions("48,*,Auto") };
+        // Every status of this dialog is a failure (unavailable index or refused change).
+        var frame = DialogFrame.Build(header, body, footer, DialogFrame.ErrorStrip(_status));
+        var layout = new Grid { RowDefinitions = new RowDefinitions("48,*") };
         layout.Children.Add(_chrome);
-        var scroll = new ScrollViewer { Content = body,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-        layout.Children.Add(scroll); Grid.SetRow(scroll, 1);
-        layout.Children.Add(footer); Grid.SetRow(footer, 2);
+        layout.Children.Add(frame); Grid.SetRow(frame, 1);
         Content = layout;
 
         _add.Click += OnAdd; _close.Click += OnClose;

@@ -1,27 +1,43 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="MeowChan.PostBookmarksDialog" Width="680" Height="620" MinWidth="360" MinHeight="380"
         WindowStartupLocation="CenterOwner">
-    <Grid Margin="16" RowDefinitions="Auto,*,Auto,Auto,2*,Auto,Auto" RowSpacing="8">
-        <TextBlock x:Name="Intro" Classes="section-title" TextWrapping="Wrap" />
-        <ListBox x:Name="Bookmarks" Grid.Row="1" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
-        <StackPanel Grid.Row="2" Spacing="8">
-            <TextBlock x:Name="Target" Classes="workspace-meta" TextWrapping="Wrap" />
-            <WrapPanel ItemSpacing="8" LineSpacing="8">
-                <Button x:Name="OpenTarget" />
-                <Button x:Name="Remove" Classes="danger" />
-            </WrapPanel>
-        </StackPanel>
-        <TextBlock x:Name="NoteLabel" Grid.Row="3" Classes="section-title" TextWrapping="Wrap" />
-        <TextBox x:Name="Note" Grid.Row="4" AcceptsReturn="True" TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto" />
-        <ScrollViewer Grid.Row="5" MaxHeight="96" HorizontalScrollBarVisibility="Disabled">
-            <TextBlock x:Name="Status" TextWrapping="Wrap" Focusable="True" />
+    <!-- UX103 P7 dialog frame: fixed header, local error strip, scrolling body, fixed footer. -->
+    <Grid RowDefinitions="Auto,Auto,*,Auto" KeyboardNavigation.TabNavigation="Cycle">
+        <Border x:Name="DialogFrameHeader" Padding="16,16,16,8">
+            <TextBlock x:Name="Intro" Classes="section-title" TextWrapping="Wrap" />
+        </Border>
+        <Border x:Name="DialogFrameErrorStrip" Grid.Row="1" Padding="16,0,16,8" IsVisible="False">
+            <Border Classes="workspace-error">
+                <ScrollViewer MaxHeight="120" HorizontalScrollBarVisibility="Disabled">
+                    <TextBlock x:Name="StatusError" Classes="workspace-error" TextWrapping="Wrap" />
+                </ScrollViewer>
+            </Border>
+        </Border>
+        <ScrollViewer x:Name="DialogFrameBody" Grid.Row="2" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="16,0,16,8" Spacing="8">
+                <ListBox x:Name="Bookmarks" MinHeight="120" MaxHeight="260" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+                <StackPanel Spacing="8">
+                    <TextBlock x:Name="Target" Classes="workspace-meta" TextWrapping="Wrap" />
+                    <WrapPanel ItemSpacing="8" LineSpacing="8">
+                        <Button x:Name="OpenTarget" />
+                        <Button x:Name="Remove" Classes="danger" />
+                    </WrapPanel>
+                </StackPanel>
+                <TextBlock x:Name="NoteLabel" Classes="section-title" TextWrapping="Wrap" />
+                <TextBox x:Name="Note" MinHeight="96" MaxHeight="240" AcceptsReturn="True" TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto" />
+            </StackPanel>
         </ScrollViewer>
-        <Border Grid.Row="6" Classes="workspace-dialog-footer" Margin="-16,0,-16,-16">
-            <WrapPanel HorizontalAlignment="Right" ItemSpacing="8" LineSpacing="8">
-                <Button x:Name="Reload" />
-                <Button x:Name="Save" Classes="primary" />
-                <Button x:Name="Cancel" />
-            </WrapPanel>
+        <Border x:Name="DialogFrameFooter" Grid.Row="3" Classes="workspace-dialog-footer">
+            <StackPanel Spacing="8">
+                <ScrollViewer x:Name="StatusHost" MaxHeight="96" HorizontalScrollBarVisibility="Disabled">
+                    <TextBlock x:Name="Status" TextWrapping="Wrap" Focusable="True" />
+                </ScrollViewer>
+                <WrapPanel HorizontalAlignment="Right" ItemSpacing="8" LineSpacing="8">
+                    <Button x:Name="Reload" />
+                    <Button x:Name="Save" Classes="primary" />
+                    <Button x:Name="Cancel" />
+                </WrapPanel>
+            </StackPanel>
         </Border>
     </Grid>
 </Window>

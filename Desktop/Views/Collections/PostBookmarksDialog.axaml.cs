@@ -67,6 +67,7 @@ internal partial class PostBookmarksDialog : Window
         AutomationProperties.SetName(NoteInput, Texts.T("bookmarks.note"));
         AutomationProperties.SetName(List, Title);
         AutomationProperties.SetLiveSetting(StatusText, AutomationLiveSetting.Polite);
+        AutomationProperties.SetLiveSetting(this.FindControl<TextBlock>("StatusError")!, AutomationLiveSetting.Assertive);
         List.ItemTemplate = new FuncDataTemplate<PostBookmark>((entry, _) => entry == null ? new TextBlock() : CreateRow(entry));
         List.SelectionChanged += async (_, _) =>
         {
@@ -220,7 +221,18 @@ internal partial class PostBookmarksDialog : Window
     }
     private void SetStatus(string? key, params object?[] arguments)
     { _actionError = false; _statusKey = key; _statusArguments = arguments; RenderStatus(); }
-    private void RenderStatus() => StatusText.Text = _statusKey == null ? "" : Texts.T(_statusKey, _statusArguments);
+    // States that need the user's action are shown in the local error strip between header and body;
+    // Status keeps the same text for its existing readers, other states stay in the footer status line.
+    private static readonly HashSet<string> ErrorStatusKeys =
+        ["bookmarks.failed", "bookmarks.conflict", "bookmarks.invalidNote", "bookmarks.removedDraft"];
+    private void RenderStatus()
+    {
+        StatusText.Text = _statusKey == null ? "" : Texts.T(_statusKey, _statusArguments);
+        bool error = _statusKey != null && ErrorStatusKeys.Contains(_statusKey);
+        this.FindControl<TextBlock>("StatusError")!.Text = error ? StatusText.Text : "";
+        this.FindControl<Border>("DialogFrameErrorStrip")!.IsVisible = error;
+        this.FindControl<ScrollViewer>("StatusHost")!.IsVisible = !error && StatusText.Text.Length > 0;
+    }
     private string ErrorDetails(Exception error) => System.IO.Path.Combine(_owner.ProfileDirectory, "post-bookmarks.json") + "\n" + error.Message;
     private void ShowError(Exception error)
     { SetStatus("bookmarks.failed", ErrorDetails(error)); _actionError = true; }
@@ -239,7 +251,6 @@ internal partial class PostBookmarksDialog : Window
         _key = edit; _postEditor = edit != null;
         List.IsVisible = !_postEditor;
         B("OpenTarget").IsVisible = !_postEditor;
-        if (_postEditor && Content is Grid layout) layout.RowDefinitions[1].Height = new GridLength(0);
         this.FindControl<TextBlock>("Intro")!.Text = Texts.T(_postEditor ? "bookmarks.edit" : "bookmarks.select");
         await ReloadAsync(false);
         if (!_lifetime.IsCancellationRequested && _postEditor) NoteInput.Focus();
@@ -426,11 +437,10 @@ internal partial class PostBookmarksDialog : Window
             accept.Classes.Add("danger");
             WrapPanel buttons = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right,
                 Children = { cancel, accept } };
-            Border footer = new() { Child = buttons, Margin = new Thickness(-16, 0, -16, -16) };
-            footer.Classes.Add("workspace-dialog-footer");
-            Grid layout = new() { Margin = new Thickness(16), RowDefinitions = new("Auto,Auto"), RowSpacing = 12 };
-            layout.Children.Add(new TextBlock { Text = explanation, TextWrapping = TextWrapping.Wrap });
-            layout.Children.Add(footer); Grid.SetRow(footer, 1); confirm.Content = layout;
+            TextBlock heading = new() { Text = Title, TextWrapping = TextWrapping.Wrap };
+            heading.Classes.Add("section-title");
+            TextBlock body = new() { Text = explanation, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(16, 0, 16, 12) };
+            confirm.Content = MeowChan.Desktop.Controls.DialogFrame.Build(heading, body, buttons);
             cancel.Click += (_, _) => confirm.Close(false); accept.Click += (_, _) => confirm.Close(true);
             confirm.Opened += (_, _) => cancel.Focus();
             confirm.KeyDown += (_, e) => { if (!e.Handled && e.Key == Key.Escape) { e.Handled = true; confirm.Close(false); } };

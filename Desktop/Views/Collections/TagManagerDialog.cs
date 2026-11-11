@@ -11,6 +11,7 @@ using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Threading;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Tags;
 
@@ -34,6 +35,7 @@ internal sealed class TagManagerDialog : Window
     private readonly Button _confirmDelete = new() { Name = "TagManagerConfirmDelete" };
     private readonly Button _keep = new() { Name = "TagManagerKeep" };
     private readonly TextBlock _status = new() { Name = "TagManagerStatus", TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _error = new() { Name = "TagManagerError", TextWrapping = TextWrapping.Wrap };
     private readonly Button _close = new() { Name = "TagManagerClose" };
     private TagId? _confirming;
     private bool _refreshing;
@@ -72,19 +74,20 @@ internal sealed class TagManagerDialog : Window
         var confirmActions = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
         confirmActions.Children.Add(_keep); confirmActions.Children.Add(_confirmDelete);
         _confirm.Children.Add(_confirmText); _confirm.Children.Add(confirmActions);
-        var bottom = new StackPanel { Spacing = 8, Margin = new Thickness(16) };
-        bottom.Children.Add(edit); bottom.Children.Add(_delete); bottom.Children.Add(_confirm); bottom.Children.Add(_status);
+        // UX103 P7 frame: intro on top, failures in the local strip, list and editing in the scrolling
+        // body, outcome status and Close in the fixed footer.
+        _list.MinHeight = 120; _list.MaxHeight = 280;
+        var body = new StackPanel { Spacing = 8, Margin = new Thickness(16, 0, 16, 8) };
+        body.Children.Add(_list); body.Children.Add(edit); body.Children.Add(_delete); body.Children.Add(_confirm);
         _delete.HorizontalAlignment = HorizontalAlignment.Left;
-        var footer = new WrapPanel { Margin = new Thickness(16, 0, 16, 16), HorizontalAlignment = HorizontalAlignment.Right };
-        footer.Children.Add(_close);
-        var top = new StackPanel { Margin = new Thickness(16, 8, 16, 8) };
-        top.Children.Add(_intro);
-        var layout = new Grid { RowDefinitions = new RowDefinitions("48,Auto,*,Auto,Auto") };
+        var close = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
+        close.Children.Add(_close);
+        var footer = new StackPanel { Spacing = 8 };
+        footer.Children.Add(_status); footer.Children.Add(close);
+        var frame = DialogFrame.Build(_intro, body, footer, DialogFrame.ErrorStrip(_error));
+        var layout = new Grid { RowDefinitions = new RowDefinitions("48,*") };
         layout.Children.Add(_chrome);
-        layout.Children.Add(top); Grid.SetRow(top, 1);
-        _list.Margin = new Thickness(16, 0); layout.Children.Add(_list); Grid.SetRow(_list, 2);
-        layout.Children.Add(bottom); Grid.SetRow(bottom, 3);
-        layout.Children.Add(footer); Grid.SetRow(footer, 4);
+        layout.Children.Add(frame); Grid.SetRow(frame, 1);
         Content = layout;
 
         _list.SelectionChanged += OnSelection;
@@ -200,7 +203,10 @@ internal sealed class TagManagerDialog : Window
         _status.Text = _session.Snapshot == null ? Texts.T("tags.unavailable")
             : _session.MessageKey != null ? Texts.T(_session.MessageKey)
             : _session.Rows.Count == 0 ? Texts.T("tags.none") : string.Empty;
-        _status.IsVisible = _status.Text.Length > 0;
+        // Status keeps the outcome text for its readers; failures are shown in the local error strip.
+        bool error = _session.Snapshot == null || _session.MessageKey != null && _session.MessageIsError;
+        _error.Text = error ? _status.Text : string.Empty;
+        _status.IsVisible = !error && _status.Text.Length > 0;
     }
 
     private void OnClosed(object? sender, EventArgs e)
