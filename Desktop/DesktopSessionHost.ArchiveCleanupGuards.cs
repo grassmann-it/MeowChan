@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using MeowChan.Favorites;
 using MeowChan.Persistence;
 using MeowChan.Ratings;
+using MeowChan.Tags;
 
 namespace MeowChan.Desktop;
 
@@ -52,6 +53,12 @@ internal sealed partial class DesktopSessionHost
                 throw new InvalidDataException(groups.Error ?? "Reader groups require recovery.");
             foreach (ResourceId id in groups.Snapshot.Groups.SelectMany(group => group.Members))
                 Protect(id, ArchiveCleanupReason.ReaderGroup);
+            // Own tags protect like every other deliberate private mark, for the thread and for its media.
+            PrivateTagStoreSnapshot tags = new PrivateTagStore(ProfileDirectory, _profileLease).ReadSnapshot();
+            foreach (PrivateThreadTagAssignment assignment in tags.ThreadAssignments)
+                Protect(assignment.Thread, ArchiveCleanupReason.PrivateTag);
+            foreach (PrivateMediaTagAssignment assignment in tags.MediaAssignments)
+                Protect(assignment.Target.Reference.Resource, ArchiveCleanupReason.PrivateTag);
             byte[]? positionBytes = ReadCleanupOptionalFile("reading-position.json", 16384, token);
             if (positionBytes != null)
             {
@@ -99,6 +106,7 @@ internal sealed partial class DesktopSessionHost
             ("media-ratings.json", "Version", "Entries", 8_000_000, true),
             ("post-bookmarks.json", "schemaVersion", "bookmarks", 32 * 1024 * 1024, false),
             ("reader-groups.json", "schemaVersion", "groups", 16 * 1024 * 1024, true),
+            (PrivateTagStore.FileName, "Version", "Tags", PrivateTagStore.MaximumBytes, true),
             ("reading-position.json", "", "", 16384, false)
         };
         List<string> proofs = new();

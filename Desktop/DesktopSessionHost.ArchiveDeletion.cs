@@ -204,6 +204,10 @@ internal sealed partial class DesktopSessionHost
                     }
                     catch (Exception exception) when (exception is not OperationCanceledException)
                     { errors.Add($"The archive was deleted, but favorites could not be updated: {exception.Message}"); }
+                    // Own tags of a permanently deleted thread go with it, like favorites and ratings.
+                    try { CleanupPrivateTags(deleted, admission); }
+                    catch (Exception exception) when (exception is not OperationCanceledException)
+                    { errors.Add($"The archive was deleted, but tags could not be updated: {exception.Message}"); }
                 }
                 SignalChanged();
                 return new ArchivePermanentDeletionResult(Array.AsReadOnly(deleted.ToArray()),

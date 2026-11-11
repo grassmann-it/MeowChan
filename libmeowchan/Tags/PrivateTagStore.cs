@@ -86,8 +86,8 @@ internal sealed record PrivateTagCommit(bool Changed, TagId Tag, PrivateTagStore
 /// <summary>
 /// Profile-owned persistence for own tags (contract: private-tag-store-v1). One JSON document,
 /// rewritten atomically with a backup, guarded by the profile lease and store-writer admission.
-/// Invalid or newer documents are never overwritten. No global delete or merge of tags, no
-/// transfer, no source tags and no archive-existence checks live here.
+/// Invalid or newer documents are never overwritten. No merge of tags, no transfer, no source
+/// tags and no archive-existence checks live here.
 /// </summary>
 internal sealed class PrivateTagStore
 {
@@ -231,6 +231,60 @@ internal sealed class PrivateTagStore
             }
             else model.Media.Remove(assignment);
             return (true, tag);
+        });
+    }
+
+    /// <summary>
+    /// Deletes one tag together with every thread and media assignment that uses it, in one write.
+    /// An unknown tag is rejected rather than treated as already deleted.
+    /// </summary>
+    internal PrivateTagCommit Delete(TagId tag, long? expectedRevision = null, CancellationToken token = default)
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(token);
+        return DeleteAdmitted(tag, admission, expectedRevision, token);
+    }
+
+    internal PrivateTagCommit DeleteAdmitted(TagId tag, ProfileAdmissionToken admission,
+        long? expectedRevision = null, CancellationToken token = default)
+        => Mutate(admission, expectedRevision, token, model =>
+        {
+            RequireKnown(model, tag);
+            // The vocabulary type has no delete; rebuild it from the surviving definitions in order.
+            PrivateTagCatalog rebuilt = new();
+            foreach (PrivateTagDefinition item in model.Catalog.Definitions)
+            {
+                if (item.Id == tag) continue;
+                if (!rebuilt.TryDefine(item.Id, item.Name, rebuilt.Revision, out PrivateTagCatalog next, out _))
+                    throw new InvalidDataException(Invalid);
+                rebuilt = next;
+            }
+            model.Catalog = rebuilt;
+            model.Threads.RemoveAll(item => (TagId)item.TagId == tag);
+            model.Media.RemoveAll(item => (TagId)item.TagId == tag);
+            return (true, tag);
+        });
+
+    /// <summary>
+    /// Drops every thread assignment and every media assignment that belongs to the given threads.
+    /// Tags themselves stay in the vocabulary. Used after a thread was permanently deleted.
+    /// The returned commit carries no tag.
+    /// </summary>
+    internal PrivateTagCommit RemoveThreads(IReadOnlyCollection<ResourceId> threads, CancellationToken token = default)
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(token);
+        return RemoveThreadsAdmitted(threads, admission, token);
+    }
+
+    internal PrivateTagCommit RemoveThreadsAdmitted(IReadOnlyCollection<ResourceId> threads,
+        ProfileAdmissionToken admission, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(threads);
+        HashSet<ResourceId> selected = threads.Where(thread => thread is not null).ToHashSet();
+        return Mutate(admission, null, token, model =>
+        {
+            int removed = model.Threads.RemoveAll(item => selected.Contains(item.Thread))
+                + model.Media.RemoveAll(item => selected.Contains(item.Target.Reference.Resource));
+            return (removed > 0, default);
         });
     }
 

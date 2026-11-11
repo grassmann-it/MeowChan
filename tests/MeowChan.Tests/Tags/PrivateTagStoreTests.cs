@@ -384,4 +384,69 @@ public sealed class PrivateTagStoreTests
             catch (OperationCanceledException) { }
         }
     }
+
+    [Fact]
+    public void DeletingATagRemovesItAndAllItsAssignmentsButNothingElse()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        TagId first = store.Define("first").Tag;
+        TagId doomed = store.Define("doomed").Tag;
+        TagId last = store.Define("last").Tag;
+        store.SetThread(doomed, Thread, true);
+        store.SetThread(last, Thread, true);
+        store.SetMedia(doomed, Media(), true);
+        PrivateTagCommit before = store.SetMedia(first, Media(), true);
+        byte[] bytes = File.ReadAllBytes(Path.Combine(temp.Path, FileName));
+
+        Assert.Equal(PrivateTagStoreError.StaleRevision, Rejected(() => store.Delete(doomed, before.Snapshot.Revision - 1)));
+        Assert.Equal(PrivateTagStoreError.UnknownTag, Rejected(() => store.Delete(new TagId(Guid.NewGuid()))));
+        Assert.Equal(bytes, File.ReadAllBytes(Path.Combine(temp.Path, FileName)));
+
+        PrivateTagCommit deleted = store.Delete(doomed, before.Snapshot.Revision);
+
+        Assert.True(deleted.Changed);
+        Assert.Equal(before.Snapshot.Revision + 1, deleted.Snapshot.Revision);
+        PrivateTagStoreSnapshot reread = store.ReadSnapshot();
+        Assert.Equal(deleted.Snapshot.Fingerprint, reread.Fingerprint);
+        Assert.Equal(new[] { first, last }, reread.Tags.Select(tag => tag.Id));
+        Assert.Equal(last, Assert.Single(reread.TagsOf(Thread)).Id);
+        Assert.Equal(first, Assert.Single(reread.TagsOf(Media())).Id);
+        // Deleting twice is a rejection, not a silent success; the name is free for a new tag.
+        Assert.Equal(PrivateTagStoreError.UnknownTag, Rejected(() => store.Delete(doomed)));
+        PrivateTagCommit recreated = store.Define("DOOMED");
+        Assert.True(recreated.Changed);
+        Assert.NotEqual(doomed, recreated.Tag);
+        Assert.Empty(recreated.Snapshot.TagsOf(Thread).Where(tag => tag.Id == recreated.Tag));
+    }
+
+    [Fact]
+    public void RemovingThreadsDropsTheirThreadAndMediaAssignmentsAndKeepsTheVocabulary()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        ResourceId kept = Thread with { Thread = "43" };
+        TagId cat = store.Define("cat").Tag;
+        TagId dog = store.Define("dog").Tag;
+        store.SetThread(cat, Thread, true);
+        store.SetThread(cat, kept, true);
+        store.SetMedia(dog, Media(), true);
+        store.SetMedia(dog, Media(kept), true);
+
+        PrivateTagCommit removed = store.RemoveThreads([Thread, Thread with { Source = "unrelated" }]);
+
+        Assert.True(removed.Changed);
+        Assert.Equal(new[] { cat, dog }, removed.Snapshot.Tags.Select(tag => tag.Id));
+        Assert.Empty(removed.Snapshot.TagsOf(Thread));
+        Assert.Empty(removed.Snapshot.TagsOf(Media()));
+        Assert.Equal(cat, Assert.Single(removed.Snapshot.TagsOf(kept)).Id);
+        Assert.Equal(dog, Assert.Single(removed.Snapshot.TagsOf(Media(kept))).Id);
+        byte[] bytes = File.ReadAllBytes(Path.Combine(temp.Path, FileName));
+        PrivateTagCommit again = store.RemoveThreads([Thread]);
+        Assert.False(again.Changed);
+        Assert.False(store.RemoveThreads(Array.Empty<ResourceId>()).Changed);
+        Assert.Equal(bytes, File.ReadAllBytes(Path.Combine(temp.Path, FileName)));
+    }
 }

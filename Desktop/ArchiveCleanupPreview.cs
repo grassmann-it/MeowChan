@@ -10,7 +10,9 @@ internal enum ArchiveCleanupReason
 {
     ThreadFavorite, MediaFavorite, MediaRating, PostBookmark, ReaderGroup, ReadingPosition, OpenView,
     ActiveWatch, PendingWork, SharedDirectory, MediaUnknown, ProtectionUnknown, WorkUnknown,
-    MoreThanTwoAssets, EvidenceChanged, CatalogChanged
+    MoreThanTwoAssets, EvidenceChanged, CatalogChanged,
+    // Appended so existing numeric values and their ordering stay unchanged.
+    PrivateTag
 }
 
 internal sealed record ArchiveCleanupStorageAnchor(ResourceId Thread, string Directory,

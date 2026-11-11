@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -69,6 +70,24 @@ internal sealed partial class DesktopSessionHost
         => RunInteractiveWithAdmissionAsync(nameof(SetMediaTagAsync),
             tag.Value.ToString("N") + " " + target?.Reference.RevisionKey + " " + target?.Role,
             admission => MutatePrivateTagsAsync(store => store.SetMediaAdmitted(tag, target, assigned, admission, null, token), token));
+
+    /// <summary>Deletes a tag and all of its assignments, bound to the revision the caller confirmed against.</summary>
+    internal Task<PrivateTagCommit> DeletePrivateTagAsync(TagId tag, long expectedRevision,
+        CancellationToken token = default)
+        => RunInteractiveWithAdmissionAsync(nameof(DeletePrivateTagAsync), tag.Value.ToString("N"),
+            admission => MutatePrivateTagsAsync(store => store.DeleteAdmitted(tag, admission, expectedRevision, token), token));
+
+    // Called by the deletion owner while _commands is held, only for actually deleted IDs.
+    // The catalog deletions are already committed, so this is not cancelable.
+    private void CleanupPrivateTags(IReadOnlyCollection<ResourceId> deleted, ProfileAdmissionToken admission)
+    {
+        lock (_privateTagsSync)
+        {
+            _privateTagStore ??= new(_profileLease.ProfileDirectory, _profileLease);
+            PrivateTagCommit commit = _privateTagStore.RemoveThreadsAdmitted(deleted, admission);
+            Volatile.Write(ref _publishedPrivateTags, new(PrivateTagLoadState.Ready, commit.Snapshot, null));
+        }
+    }
 
     private async Task<PrivateTagCommit> MutatePrivateTagsAsync(Func<PrivateTagStore, PrivateTagCommit> change,
         CancellationToken token)

@@ -24,6 +24,7 @@ internal static class ArchiveCleanupText
         ArchiveCleanupReason.MediaRating => Get("Rated media (including older versions)", "Bewertetes Medium (auch ältere Fassungen)"),
         ArchiveCleanupReason.PostBookmark => Get("Post bookmark or note", "Beitragslesezeichen oder Notiz"),
         ArchiveCleanupReason.ReaderGroup => Get("Reader group member", "Mitglied einer Readergruppe"),
+        ArchiveCleanupReason.PrivateTag => Get("Own tag on the thread or its media", "Eigener Tag am Thread oder an seinen Medien"),
         ArchiveCleanupReason.ReadingPosition => Get("Saved reading position", "Gespeicherte Lesestelle"),
         ArchiveCleanupReason.OpenView => Get("Open in a reader, gallery or export", "In Reader, Galerie oder Export geöffnet"),
         ArchiveCleanupReason.ActiveWatch => Get("Active or paused watch", "Aktiver oder pausierter Auftrag"),

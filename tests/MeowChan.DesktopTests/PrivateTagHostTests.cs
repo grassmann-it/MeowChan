@@ -134,4 +134,32 @@ public sealed class PrivateTagHostTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => host.SetMediaTagAsync(cat, Media(), true));
         Assert.False(File.Exists(Path.Combine(temp.Path, FileName + ".bak")));
     }
+
+    [Fact]
+    public async Task DeletingATagNeedsTheConfirmedRevisionAndRemovesItsAssignments()
+    {
+        using TempDirectory temp = new();
+        await using DesktopSessionHost host = new(temp.Path, Array.Empty<IImageBoard>());
+        await host.StartAsync();
+        TagId keep = (await host.DefinePrivateTagAsync("keep")).Tag;
+        TagId doomed = (await host.DefinePrivateTagAsync("doomed")).Tag;
+        await host.SetThreadTagAsync(keep, Thread, true);
+        await host.SetThreadTagAsync(doomed, Thread, true);
+        PrivateTagCommit confirmed = await host.SetMediaTagAsync(doomed, Media(), true);
+
+        await host.SetThreadTagAsync(keep, Thread with { Thread = "43" }, true);
+        PrivateTagStoreException stale = await Assert.ThrowsAsync<PrivateTagStoreException>(
+            () => host.DeletePrivateTagAsync(doomed, confirmed.Snapshot.Revision));
+        Assert.Equal(PrivateTagStoreError.StaleRevision, stale.Error);
+        Assert.NotNull(host.GetPrivateTagSnapshot().Snapshot!.Find(doomed));
+
+        long current = host.GetPrivateTagSnapshot().Snapshot!.Revision;
+        PrivateTagCommit deleted = await host.DeletePrivateTagAsync(doomed, current);
+
+        Assert.True(deleted.Changed);
+        Assert.Null(deleted.Snapshot.Find(doomed));
+        Assert.Equal(keep, Assert.Single(deleted.Snapshot.TagsOf(Thread)).Id);
+        Assert.Empty(deleted.Snapshot.MediaAssignments);
+        Assert.Equal(deleted.Snapshot.Fingerprint, host.GetPublishedPrivateTagSnapshot().Snapshot!.Fingerprint);
+    }
 }
