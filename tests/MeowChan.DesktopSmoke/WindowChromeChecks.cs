@@ -53,6 +53,7 @@ internal static class WindowChromeChecks
         WindowState original = window.WindowState;
         Size originalBounds = window.Bounds.Size;
         Button maximize = window.FindControl<Button>("WindowMaximizeButton")!;
+        Exception? sequenceFailure = null;
         try
         {
             window.WindowState = WindowState.Normal;
@@ -91,34 +92,33 @@ internal static class WindowChromeChecks
             await Program.WaitUntilAsync(() => window.WindowState == WindowState.Minimized);
             Require(window.IsVisible && window.ShowInTaskbar, "The minimize caption stranded the window.");
         }
-        catch
+        catch (Exception exception)
         {
+            sequenceFailure = exception;
             Console.WriteLine($"SMOKE caption sequence failure: original={original}/{originalBounds}; actual={window.WindowState}/{window.Bounds.Size}; requested={window.Width}x{window.Height}; frame={window.FrameSize}; area={window.Screens.ScreenFromWindow(window)?.WorkingArea}.");
-            Program.CaptureWindow(window, "smoke-caption-sequence-failure.png");
+            SmokeCleanup.Diagnose(() => Program.CaptureWindow(window, "smoke-caption-sequence-failure.png"));
             throw;
         }
         finally
         {
-            window.WindowState = original;
-            // Preserve this fixture's input geometry even when a check fails.
-            if (original == WindowState.Normal)
+            await SmokeCleanup.RunAsync(sequenceFailure, async () =>
             {
-                window.Width = originalBounds.Width;
-                window.Height = originalBounds.Height;
-            }
-            window.Activate();
-            try
-            {
+                window.WindowState = original;
+                // Preserve this fixture's input geometry even when a check fails.
+                if (original == WindowState.Normal)
+                {
+                    window.Width = originalBounds.Width;
+                    window.Height = originalBounds.Height;
+                }
+                window.Activate();
                 await Program.WaitUntilAsync(() => window.WindowState == original
                     && (original != WindowState.Normal || (Math.Abs(window.Bounds.Width - originalBounds.Width) <= 1
                         && Math.Abs(window.Bounds.Height - originalBounds.Height) <= 1)));
-            }
-            catch
+            }, cleanupFailure =>
             {
-                Console.WriteLine($"SMOKE caption restore failure: original={original}/{originalBounds}; actual={window.WindowState}/{window.Bounds.Size}; requested={window.Width}x{window.Height}.");
-                Program.CaptureWindow(window, "smoke-caption-restore-failure.png");
-                throw;
-            }
+                Console.WriteLine($"SMOKE caption restore failure (primary preserved={sequenceFailure != null}): original={original}/{originalBounds}; actual={window.WindowState}/{window.Bounds.Size}; requested={window.Width}x{window.Height}. {cleanupFailure}");
+                SmokeCleanup.Diagnose(() => Program.CaptureWindow(window, "smoke-caption-restore-failure.png"));
+            });
         }
         window.Width = entryBounds.Width;
         window.Height = entryBounds.Height;

@@ -28,6 +28,8 @@ internal static class ActionToolBarFocusChecks
             Content = new StackPanel { Children = { toolbar, outside } }
         };
         fixture.Show(owner);
+        Exception? checkFailure = null;
+        string stage = "initial overflow";
         try
         {
             await Program.WaitUntilAsync(() => toolbar.More != null && toolbar.OverflowHost?.Children.Contains(gallery) == true);
@@ -36,6 +38,7 @@ internal static class ActionToolBarFocusChecks
             Require(gallery.Focus(NavigationMethod.Tab), "Could not focus the original overflow action.");
             Require(ReferenceEquals(fixture.FocusManager?.GetFocusedElement(), gallery), "Overflow action did not own actual focus.");
 
+            stage = "overflow to direct";
             toolbar.Width = 360;
             fixture.UpdateLayout();
             await Program.WaitUntilAsync(() => toolbar.OverflowHost!.Children.Contains(always)
@@ -49,11 +52,13 @@ internal static class ActionToolBarFocusChecks
             gallery.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Enter });
             Require(executions == 1, "Enter after overflow-to-direct must execute the same command exactly once.");
 
+            stage = "direct to overflow";
             toolbar.Width = 120;
             fixture.UpdateLayout();
             await Program.WaitUntilAsync(() => toolbar.OverflowHost!.Children.Contains(gallery)
                 && ReferenceEquals(fixture.FocusManager?.GetFocusedElement(), toolbar.More));
             Require(ReferenceEquals(gallery.Command, command), "Shrink replaced the command.");
+            stage = "reopen overflow and Escape";
             toolbar.More.IsChecked = true;
             await Program.WaitUntilAsync(() => ReferenceEquals(fixture.FocusManager?.GetFocusedElement(), gallery));
             toolbar.OverflowHost!.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
@@ -61,6 +66,7 @@ internal static class ActionToolBarFocusChecks
                 && ReferenceEquals(fixture.FocusManager?.GetFocusedElement(), toolbar.More));
             Require(executions == 1, "Shrink/open/Escape executed an action.");
 
+            stage = "explicit competing focus wins";
             // A user focus move after synchronous reparenting wins over the queued repair.
             toolbar.More.IsChecked = true;
             await Program.WaitUntilAsync(() => ReferenceEquals(fixture.FocusManager?.GetFocusedElement(), gallery));
@@ -73,7 +79,21 @@ internal static class ActionToolBarFocusChecks
             Require(ReferenceEquals(toolbar.Items[1], gallery) && ReferenceEquals(gallery.Command, command)
                 && toolbar.OverflowHost!.Children.Contains(always), "Return path lost identity or remaining Always overflow.");
         }
-        finally { fixture.Close(); }
+        catch (Exception exception)
+        {
+            checkFailure = exception;
+            Console.Error.WriteLine($"SMOKE toolbar focus failure at {stage}: {exception}");
+            SmokeCleanup.Diagnose(() => Program.CaptureWindow(fixture, "smoke-toolbar-focus-failure.png"));
+            throw;
+        }
+        finally
+        {
+            await SmokeCleanup.RunAsync(checkFailure, () =>
+            {
+                fixture.Close();
+                return Task.CompletedTask;
+            }, exception => Console.Error.WriteLine("SMOKE toolbar fixture close failed: " + exception));
+        }
     }
 
     private static void Require(bool condition, string message)
