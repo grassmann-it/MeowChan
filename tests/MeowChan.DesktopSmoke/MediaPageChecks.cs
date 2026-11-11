@@ -26,6 +26,10 @@ internal static class MediaPageChecks
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(30);
     private static readonly byte[] Png = Convert.FromBase64String(
         "iVBORw0KGgoAAAANSUhEUgAAABEAAAALCAIAAAAWQvFQAAAAF0lEQVR4nGO8oxHAQCJgIlXDqJ5hqQcAEJEBagzqPS4AAAAASUVORK5CYII=");
+    // Files named dup-* share one content on purpose; every other file gets its own bytes (a trailing note after the PNG data),
+    // because the page merges equal bytes into one tile.
+    private static byte[] BytesOf(string name) => name.StartsWith("dup-", StringComparison.Ordinal) ? Png : [.. Png, .. System.Text.Encoding.UTF8.GetBytes(name)];
+
     private static readonly ResourceId A = new("media-fixture", "g", "100");
     private static readonly ResourceId B = new("media-fixture", "g", "200");
 
@@ -40,8 +44,9 @@ internal static class MediaPageChecks
             await SeedAsync(profile);
             await PageJourneyAsync(owner, profile);
             await FilterJourneyAsync(owner, profile);
+            await DuplicateJourneyAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-duplicates-"));
             await NavigationAsync(owner);
-            Console.WriteLine("SMOKE media page [en]: index build, saved/missing toggle, three orders, verified thumbnail, gallery window, show in thread, cache reuse, filters (thread and media tags all/any/exclude, favorites, rating, type, name, source, board, thread chip, reset, deleted tag refused), navigation button in Simple and Tools menu in Barebones checked.");
+            Console.WriteLine("SMOKE media page [en]: index build, saved/missing toggle, three orders, verified thumbnail, gallery window, show in thread, cache reuse, filters (thread and media tags all/any/exclude, favorites, rating, type, name, source, board, thread chip, reset, deleted tag refused), duplicates (same bytes in three threads: one tile, 'in 3 threads' hint, details with three occurrences and their own tags, jump into a thread, filter matches by one occurrence, gallery gets one entry per tile), navigation button in Simple and Tools menu in Barebones checked.");
         }
         finally { Texts.SetLanguage(language); }
     }
@@ -144,7 +149,7 @@ internal static class MediaPageChecks
             PrivateTagCommit cute = await host.DefinePrivateTagAsync("cute").WaitAsync(Deadline);
             await host.SetThreadTagAsync(rpt.Tag, A, true).WaitAsync(Deadline);
             await host.SetMediaTagAsync(cute.Tag, MediaLibraryFilterEngine.TagTarget(two)!, true).WaitAsync(Deadline);
-            Require(await host.SetFavoriteAsync(new FavoriteEntry(MediaLibraryFilterEngine.AssetKey(one)!, Png.Length, one.Name), true).WaitAsync(Deadline),
+            Require(await host.SetFavoriteAsync(new FavoriteEntry(MediaLibraryFilterEngine.AssetKey(one)!, one.Length!.Value, one.Name), true).WaitAsync(Deadline),
                 "Favorite was not stored.");
             await host.SetMediaRatingAsync(MediaLibraryFilterEngine.AssetKey(two)!, 4).WaitAsync(Deadline);
             page.RefreshUserData();
@@ -233,6 +238,96 @@ internal static class MediaPageChecks
         finally { page.EndLifetime(); window.Close(); }
     }
 
+    // The same bytes in three threads are one tile; tags stay with each occurrence; a filter matches by one occurrence.
+    private static async Task DuplicateJourneyAsync(MainWindow owner, string profile)
+    {
+        new Config().SaveConfig(profile);
+        await SeedDuplicatesAsync(profile);
+        await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
+        await host.StartAsync().WaitAsync(Deadline);
+        List<(IReadOnlyList<MediaLibraryEntry> Window, int Start)> opened = new();
+        List<MediaLibraryEntry> threads = new();
+        MediaPage page = new(host.OpenArchiveReaderAsync)
+        {
+            ReadUserData = () => UserData(host),
+            OpenGallery = (window, start) => { opened.Add((window, start)); return Task.CompletedTask; },
+            ShowInThread = entry => { threads.Add(entry); return Task.CompletedTask; }
+        };
+        Window window = new() { Width = 1400, Height = 900, Content = page, Title = "Synthetic media duplicates", ShowInTaskbar = false };
+        try
+        {
+            window.Show(owner);
+            page.IsAvailable = true;
+            await page.ActivateAsync().WaitAsync(Deadline);
+            Require(page.Snapshot is { Complete: true } && page.Snapshot.Entries.Count == 4, "Duplicate fixture must index four occurrences.");
+            Require(page.Tiles.Count == 2 && page.ShownEntries.Count == 2, "Three equal files and one other must give two tiles, got " + page.Tiles.Count);
+            MediaLibraryTile group = page.Tiles.Single(tile => tile.IsGroup);
+            Require(group.Occurrences.Count == 3 && group.ThreadCount == 3 && group.Occurrences.Select(entry => entry.Thread.Thread).Order().SequenceEqual(new[] { "300", "400", "500" }),
+                "The group must know its three occurrences in three threads.");
+            Require(C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.count", 2, 3), "Status counts tiles: " + C<TextBlock>(page, "MediaStatus").Text);
+
+            // Tags per occurrence: a media tag on the file in 400, a thread tag on 500, nothing in 300.
+            MediaLibraryEntry in300 = group.Occurrences.Single(entry => entry.Thread.Thread == "300");
+            MediaLibraryEntry in400 = group.Occurrences.Single(entry => entry.Thread.Thread == "400");
+            MediaLibraryEntry in500 = group.Occurrences.Single(entry => entry.Thread.Thread == "500");
+            PrivateTagCommit rpt = await host.DefinePrivateTagAsync("rpt").WaitAsync(Deadline);
+            PrivateTagCommit cute = await host.DefinePrivateTagAsync("cute").WaitAsync(Deadline);
+            await host.SetMediaTagAsync(cute.Tag, MediaLibraryFilterEngine.TagTarget(in400)!, true).WaitAsync(Deadline);
+            await host.SetThreadTagAsync(rpt.Tag, in500.Thread, true).WaitAsync(Deadline);
+            page.RefreshUserData();
+            Require(page.Tiles.Count == 2, "Tagging must not split or merge tiles.");
+
+            // The tile says where else the bytes are; the single file says nothing.
+            Button hint = await FindDuplicatesHintAsync(page);
+            Require(((hint.Content as TextBlock)?.Text) == Texts.T("media.tile.inThreads", 3), "Hint must read 'in 3 threads'.");
+            Require(page.GetVisualDescendants().OfType<Button>().Count(button => button.Name == "MediaTileDuplicates" && button.IsVisible) == 1,
+                "Only the group tile may carry the hint.");
+
+            hint.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Window details = page.OccurrencesWindow ?? throw new InvalidOperationException("The hint did not open the occurrences.");
+            await UntilAsync(() => details.GetVisualDescendants().OfType<StackPanel>().Count(row => row.Name == "MediaOccurrence") == 3);
+            Require(C<TextBlock>(details, "MediaOccurrencesSummary").Text == Texts.T("media.occurrences.summary", 3, 3), "Details summary is wrong.");
+            string TagsOfThread(string thread) => details.GetVisualDescendants().OfType<StackPanel>()
+                .Single(row => row.Name == "MediaOccurrence" && row.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Name == "MediaOccurrenceWhere" && text.Text!.Contains("Dup " + thread)))
+                .GetVisualDescendants().OfType<TextBlock>().Single(text => text.Name == "MediaOccurrenceTags").Text!;
+            Require(TagsOfThread("300") == Texts.T("media.occurrence.noTags"), "Occurrence 300 must have no tags: " + TagsOfThread("300"));
+            Require(TagsOfThread("400") == Texts.T("media.occurrence.tags", "cute"), "Occurrence 400 must carry only its own media tag: " + TagsOfThread("400"));
+            Require(TagsOfThread("500") == Texts.T("media.occurrence.tags", "rpt"), "Occurrence 500 must carry only its thread tag: " + TagsOfThread("500"));
+
+            // Show in thread per occurrence reuses the archive jump and leaves the list.
+            Button show = details.GetVisualDescendants().OfType<StackPanel>()
+                .Single(row => row.Name == "MediaOccurrence" && row.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Name == "MediaOccurrenceWhere" && text.Text!.Contains("Dup 400")))
+                .GetVisualDescendants().OfType<Button>().Single(button => button.Name == "MediaOccurrenceShow");
+            show.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await UntilAsync(() => threads.Count == 1 && page.OccurrencesWindow == null);
+            Require(threads[0].Thread == in400.Thread && threads[0].PostId == in400.PostId, "Show in thread jumped to the wrong occurrence.");
+
+            // A filter matches a group by one occurrence; the tile still lists all of them.
+            ComboBox choice = C<ComboBox>(page, "MediaTagChoice");
+            choice.SelectedItem = choice.Items.Cast<object>().Single(item => item.ToString() == "cute");
+            C<Button>(page, "MediaTagInclude").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(page.Tiles.Count == 1 && page.Tiles[0].Occurrences.Count == 3 && page.Tiles[0].ThreadCount == 3 && page.Tiles[0].Entry == in400,
+                "A media tag on one occurrence must keep the whole group, shown by the matching occurrence.");
+            Require(C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.filter.count", 1, 2), "Filtered count is wrong: " + C<TextBlock>(page, "MediaStatus").Text);
+            Require(((await FindDuplicatesHintAsync(page)).Content as TextBlock)?.Text == Texts.T("media.tile.inThreads", 3), "The hint counts all occurrences, not only matching ones.");
+            C<Button>(page, "MediaFilterReset").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+            // The gallery gets one entry per tile.
+            ListBox grid = page.Grid;
+            grid.SelectedIndex = 0;
+            await page.OpenSelectedAsync();
+            Require(opened.Count == 1 && opened[0].Window.Count == 2, "Gallery window must hold one entry per tile.");
+        }
+        finally { page.EndLifetime(); window.Close(); }
+    }
+
+    private static async Task<Button> FindDuplicatesHintAsync(MediaPage page)
+    {
+        Button? hint = null;
+        await UntilAsync(() => (hint = page.GetVisualDescendants().OfType<Button>().FirstOrDefault(button => button.Name == "MediaTileDuplicates" && button.IsVisible)) != null);
+        return hint!;
+    }
+
     // Same composition as the main window: passive views, unavailable stores stay null.
     private static MediaLibraryUserData UserData(DesktopSessionHost host)
     {
@@ -310,17 +405,38 @@ internal static class MediaPageChecks
             [new CapturedPost("200", 0, PostFieldPresence.All, Html: "op", Attachments: [boundB])]));
     }
 
+    // Three threads hold the very same bytes under different names; thread 300 also holds one other file.
+    private static async Task SeedDuplicatesAsync(string profile)
+    {
+        string[] threads = ["300", "400", "500"];
+        using ProfileLease lease = ProfileLease.Acquire(profile);
+        await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
+        for (int index = 0; index < threads.Length; index++)
+        {
+            string id = threads[index], directory = Path.Combine(profile, "media", id);
+            ResourceId resource = new("media-fixture", "g", id);
+            CapturedAttachment bound = id == "300"
+                ? await WriteAsync(directory, resource, ("dup-300.png", "d300", "300"), ("solo.png", "s300", null))
+                : await WriteAsync(directory, resource, ("dup-" + id + ".png", "d" + id, id));
+            await catalog.CaptureAsync(new CapturedThreadSnapshot(resource, "https://offline.invalid/" + id, "Dup " + id,
+                ThreadSourceState.Archived, new DateTimeOffset(2026, 11, 3 + index, 0, 0, 0, TimeSpan.Zero), directory,
+                [new CapturedPost(id, 0, PostFieldPresence.All, Html: "op", Attachments: [bound])]));
+        }
+    }
+
     /// <summary>Writes real PNG files and a manifest that binds them like a capture does; returns the first bound attachment.</summary>
     private static async Task<CapturedAttachment> WriteAsync(string directory, ResourceId resource, params (string Name, string MediaId, string? Post)[] files)
     {
         Directory.CreateDirectory(directory);
-        string md5 = Convert.ToBase64String(MD5.HashData(Png)), sha = Convert.ToHexString(SHA256.HashData(Png)).ToLowerInvariant();
+        static string Md5Of(string name) => Convert.ToBase64String(MD5.HashData(BytesOf(name)));
+        static string ShaOf(string name) => Convert.ToHexString(SHA256.HashData(BytesOf(name))).ToLowerInvariant();
         Dictionary<string, object> entries = new(), assets = new();
         foreach (var file in files)
         {
-            await File.WriteAllBytesAsync(Path.Combine(directory, file.Name), Png);
+            byte[] bytes = BytesOf(file.Name);
+            await File.WriteAllBytesAsync(Path.Combine(directory, file.Name), bytes);
             entries[file.Name] = new { MediaIdentifier = file.MediaId, Variant = "original", SourceUrl = "https://offline.invalid/" + file.Name,
-                FileName = file.Name, OriginalFileName = file.Name, Length = Png.Length, Md5 = md5, Sha256 = sha };
+                FileName = file.Name, OriginalFileName = file.Name, Length = bytes.Length, Md5 = Md5Of(file.Name), Sha256 = ShaOf(file.Name) };
         }
         string path = Path.Combine(directory, ".meowchan-manifest.json");
         await File.WriteAllTextAsync(path, JsonSerializer.Serialize(new { Version = 1, Entries = entries }));
@@ -332,9 +448,11 @@ internal static class MediaPageChecks
             MediaAssetReference asset = plain.GetPage().Single(item => item.RequestedFileName == file.Name);
             assets[asset.AssetId] = new { RequestedFileName = file.Name, Entry = entries[file.Name] };
             if (file.Post == null) continue;
+            string md5 = Md5Of(file.Name), sha = ShaOf(file.Name);
+            int length = BytesOf(file.Name).Length;
             CapturedAttachment attachment = new CapturedAttachment(0, file.MediaId, "original", "https://offline.invalid/" + file.Name, file.Name,
-                ExpectedSize: Png.Length, ExpectedMd5: md5) { ExpectedSha256 = sha };
-            MediaProviderMetadata provider = new(file.MediaId, "original", attachment.Url!, file.Name, Png.Length, md5, sha);
+                ExpectedSize: length, ExpectedMd5: md5) { ExpectedSha256 = sha };
+            MediaProviderMetadata provider = new(file.MediaId, "original", attachment.Url!, file.Name, length, md5, sha);
             string key = MediaRevisionKeys.CreateAttachmentKey(resource, file.Post, 0, provider);
             bindings[key] = new(new(resource, file.Post, 0, key), MediaRevisionKeys.CreateAcquisitionKey(resource, provider),
                 asset.AssetId, provider, new(asset.Length, asset.Md5, asset.Sha256), new(MediaAcceptanceKind.Strict, false, false, DateTimeOffset.UnixEpoch));

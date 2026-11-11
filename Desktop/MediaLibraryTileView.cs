@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
@@ -13,13 +14,19 @@ using MeowChan.Gallery;
 namespace MeowChan.Desktop;
 
 /// <summary>Bindable row of the media page grid.</summary>
-internal sealed record MediaLibraryTileRow(MediaLibraryEntry Entry, int Index)
+internal sealed record MediaLibraryTileRow(MediaLibraryTile Tile, int Index)
 {
+    /// <summary>The occurrence the tile shows; gallery, thumbnail and "show in thread" use it.</summary>
+    public MediaLibraryEntry Entry => Tile.Entry;
     public string Name => Entry.Name ?? Entry.MediaId ?? string.Empty;
     public string ThreadLabel => Texts.T("media.tile.thread", string.IsNullOrWhiteSpace(Entry.ThreadTitle) ? "#" + Entry.Thread.Thread : Entry.ThreadTitle);
     public string Detail => Entry.Presence == MediaLibraryPresence.Missing ? Texts.T("media.tile.missing")
         : Entry.Unassigned ? Texts.T("media.tile.unassigned")
         : Entry.Length is long length ? (length / 1_000_000d).ToString("0.###", Texts.Culture) + " MB" : string.Empty;
+    /// <summary>"in N threads" for equal bytes found elsewhere; empty for a single occurrence.</summary>
+    public string Duplicates => !Tile.IsGroup ? string.Empty
+        : Tile.ThreadCount > 1 ? Texts.T("media.tile.inThreads", Tile.ThreadCount)
+        : Texts.T("media.tile.sameThread", Tile.Occurrences.Count);
 }
 
 /// <summary>
@@ -38,6 +45,10 @@ internal sealed class MediaLibraryTileView : UserControl
     private readonly Button _threadLink = new() { Name = "MediaTileThread", Padding = new Thickness(0), Classes = { "link" },
         HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Left };
     private readonly TextBlock _detail = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 11 };
+    // Equal bytes in several places: the hint opens the list of all occurrences.
+    private readonly TextBlock _duplicates = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 11 };
+    private readonly Button _duplicatesLink = new() { Name = "MediaTileDuplicates", Padding = new Thickness(0), Classes = { "link" }, IsVisible = false,
+        HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Left };
     private Bitmap? _bitmap;
     private CancellationTokenSource? _loading;
     private int _request;
@@ -47,6 +58,8 @@ internal sealed class MediaLibraryTileView : UserControl
     internal Func<MediaLibraryEntry, CancellationToken, Task<Bitmap?>>? ThumbnailLoader { get; set; }
     /// <summary>Set by the page: shows only the media of the tile's thread.</summary>
     internal Action<MediaLibraryEntry>? ThreadFilter { get; set; }
+    /// <summary>Set by the page: lists every occurrence of the tile's bytes.</summary>
+    internal Action<MediaLibraryTile>? ShowOccurrences { get; set; }
 
     public MediaLibraryTileView()
     {
@@ -59,8 +72,11 @@ internal sealed class MediaLibraryTileView : UserControl
         _threadLink.Content = _thread;
         _threadLink.Click += (_, e) => { e.Handled = true; if (DataContext is MediaLibraryTileRow row) ThreadFilter?.Invoke(row.Entry); };
         grid.Children.Add(_threadLink); Grid.SetRow(_threadLink, 2);
-        grid.Children.Add(_detail); Grid.SetRow(_detail, 3);
-        foreach (TextBlock text in new[] { _thread, _detail }) text.Classes.Add("workspace-meta");
+        _duplicatesLink.Content = _duplicates;
+        _duplicatesLink.Click += (_, e) => { e.Handled = true; if (DataContext is MediaLibraryTileRow row) ShowOccurrences?.Invoke(row.Tile); };
+        StackPanel footer = new() { Orientation = Orientation.Horizontal, Spacing = 6, Children = { _duplicatesLink, _detail } };
+        grid.Children.Add(footer); Grid.SetRow(footer, 3);
+        foreach (TextBlock text in new[] { _thread, _detail, _duplicates }) text.Classes.Add("workspace-meta");
         Content = grid;
         DataContextChanged += (_, _) => { Reset(); Present(); if (_visible) _ = LoadAsync(); };
         EffectiveViewportChanged += (_, e) =>
@@ -82,8 +98,14 @@ internal sealed class MediaLibraryTileView : UserControl
         ToolTip.SetTip(_threadLink, threadHint);
         AutomationProperties.SetName(_threadLink, threadHint);
         _detail.Text = row?.Detail;
+        string duplicates = row?.Duplicates ?? string.Empty;
+        _duplicates.Text = duplicates;
+        _duplicatesLink.IsVisible = duplicates.Length > 0;
+        string duplicatesHint = row == null || duplicates.Length == 0 ? string.Empty : Texts.T("media.tile.duplicatesHint", row.Tile.Occurrences.Count);
+        ToolTip.SetTip(_duplicatesLink, duplicatesHint);
+        AutomationProperties.SetName(_duplicatesLink, duplicatesHint);
         _placeholder.Text = row?.Entry.Presence == MediaLibraryPresence.Missing ? Texts.T("media.tile.missing") : string.Empty;
-        string description = row == null ? string.Empty : string.Join(Environment.NewLine, row.Name, row.ThreadLabel, row.Detail);
+        string description = row == null ? string.Empty : string.Join(Environment.NewLine, new[] { row.Name, row.ThreadLabel, row.Duplicates, row.Detail }.Where(part => part.Length > 0));
         ToolTip.SetTip(this, description);
         AutomationProperties.SetName(this, description);
     }
