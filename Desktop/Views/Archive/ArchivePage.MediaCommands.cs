@@ -12,6 +12,7 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
+using MeowChan.Tags;
 
 namespace MeowChan;
 
@@ -20,6 +21,7 @@ public partial class ArchivePage
     internal ContextMenu? ArchiveMediaMenu { get; private set; }
     internal Func<GalleryEntry, bool>? IsArchiveFavorite { get; set; }
     internal Func<GalleryEntry, Task>? ToggleArchiveFavoriteAsync { get; set; }
+    internal Func<GalleryEntry, Task>? EditArchiveMediaTagsAsync { get; set; }
     private readonly Dictionary<FavoriteAssetKey, string> _favoriteErrors = new();
     internal void ClearFavoriteError(FavoriteAssetKey key)
     {
@@ -111,7 +113,7 @@ public partial class ArchivePage
     private bool TryRouteArchiveMediaShortcut(Control owner, KeyEventArgs e)
     {
         if (e.Handled || CommandRouter.IsNativeInput(e.Source, e.Key) || IsReaderDialogOpen) return false;
-        string[] ids = { "favorites.toggle", "media.export-original", "media.show-in-folder", "media.details", "gallery.show-in-thread" };
+        string[] ids = { "favorites.toggle", "media.tags.edit", "media.export-original", "media.show-in-folder", "media.details", "gallery.show-in-thread" };
         if (!ids.Any(id => CommandBindings.Matches(e, id))) return false;
         if (_ended || !_available || _busy || _thread == null || _selectedThread == null) { e.Handled = true; return true; }
         var ancestors = (e.Source as Avalonia.Visual)?.GetSelfAndVisualAncestors().OfType<Control>().ToArray() ?? Array.Empty<Control>();
@@ -190,6 +192,14 @@ public partial class ArchivePage
         {
             if (target != null && EditMediaRatingAsync != null) await EditMediaRatingAsync(target);
         }, saved && EditMediaRatingAsync != null && _mediaRatingError == null, _mediaRatingError ?? missing);
+        // Use the same exact bound media version as the gallery. A loose/legacy
+        // file must not silently fall back to tagging its thread or another copy.
+        bool taggable = GalleryMediaTagTarget.Resolve(target, out GalleryMediaTagUnavailable tagReason) != null;
+        Add("media.tags.edit", async () =>
+        {
+            if (target != null && EditArchiveMediaTagsAsync != null) await EditArchiveMediaTagsAsync(target);
+        }, taggable && EditArchiveMediaTagsAsync != null, Texts.T(tagReason == GalleryMediaTagUnavailable.NoPostVersion
+            ? "tags.media.unbound" : "tags.media.unsupported"));
         Add("media.export-original", async () =>
         {
             if (target != null) await OpenOriginalExportAsync(new[] { FavoriteExportAsset.From(threadId, target.Manifest, target.Asset) }, origin);

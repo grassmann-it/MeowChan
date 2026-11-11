@@ -24,6 +24,7 @@ public static class CommandCatalog
         new("reader-groups.move-down", "command.reader-groups.move-down", "Move thread down", "Thread nach unten", "file-text", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
         new("reader-groups.save", "command.reader-groups.save", "Save group", "Gruppe speichern", "file-text", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
         new("reader-groups.read", "command.reader-groups.read", "Read group", "Gruppe lesen", "file-text", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
+        new("media.tags.edit", "media.tags.edit", "Edit media tags…", "Medientags bearbeiten …", "edit-2", null, CommandScope.Media | CommandScope.Reader, new[] { "media-context-menu", "reader-attachment-menu" }),
         new("media.rating.edit", "command.media.rating.edit", "Edit rating…", "Bewertung bearbeiten …", "star", null, CommandScope.Media | CommandScope.Reader | CommandScope.Gallery, new[] { "media-rating" }),
         new("media.rating.clear", "command.media.rating.clear", "Remove rating", "Bewertung entfernen", "star", null, CommandScope.Media | CommandScope.Gallery | CommandScope.Dialog, new[] { "media-rating" }),
         new("media.rating.manage", "command.media.rating.manage", "Manage saved ratings…", "Gespeicherte Bewertungen verwalten …", "star", null, CommandScope.Diagnostics, new[] { "diagnostics" }),
