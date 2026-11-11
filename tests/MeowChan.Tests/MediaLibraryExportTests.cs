@@ -214,4 +214,121 @@ public sealed class MediaLibraryExportTests
         Assert.Equal((0, 1), (again.Copied, again.AlreadyExists));
         Assert.Single(Files(destination));
     }
+
+    // An output stream that takes the first half of a write and then runs a fault, like a device that fills up or a cancel that arrives mid-copy.
+    private sealed class HalfThenFaultStream(Stream inner, Action fault) : Stream
+    {
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() => inner.Flush();
+        public override Task FlushAsync(CancellationToken cancellationToken) => inner.FlushAsync(cancellationToken);
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            await inner.WriteAsync(buffer[..(buffer.Length / 2)], cancellationToken);
+            await inner.FlushAsync(cancellationToken);
+            fault();
+        }
+    }
+
+    private sealed class DiskFullException : IOException
+    {
+        // ENOSPC on Unix, ERROR_DISK_FULL as HRESULT on Windows.
+        public DiskFullException() : base("No space left on device") => HResult = OperatingSystem.IsWindows() ? unchecked((int)0x80070070) : 28;
+    }
+
+    private static async Task<(Saved[] Saved, FavoriteExportAsset[] Assets, string Destination, string Archive)> ThreeAsync(TempDirectory directory, StubImageBoard board)
+    {
+        Saved[] saved =
+        [
+            await Commit(directory.Path, board, [1, 2, 3, 4], "a", "100", new("stub", "g", "100"), "1"),
+            await Commit(directory.Path, board, [5, 6, 7, 8], "b", "200", new("stub", "g", "200"), "2"),
+            await Commit(directory.Path, board, [9, 10, 11, 12], "c", "300", new("stub", "g", "300"), "3")
+        ];
+        MediaLibraryExportPlan plan = await MediaLibraryExport.BuildAsync(TilesOf(saved.Select(item => item.Entry).ToArray()), MediaAssetReader.OpenAsync);
+        Assert.Equal(3, plan.Assets.Count);
+        return (saved, plan.Assets.ToArray(), Path.Combine(directory.Path, "out"), Path.Combine(directory.Path, "media"));
+    }
+
+    [Fact]
+    public async Task CancelAfterTheFirstOfThreeFilesKeepsOnlyTheFirstAndReportsTheRestCancelled()
+    {
+        using TempDirectory directory = new();
+        using StubImageBoard board = new();
+        (Saved[] saved, FavoriteExportAsset[] assets, string destination, string archive) = await ThreeAsync(directory, board);
+        string[] archiveBefore = Snapshot(archive);
+        using CancellationTokenSource cancel = new();
+
+        FavoriteExportResult result = await FavoriteOriginalExporter.ExportWithHooksAsync(assets, destination,
+            new() { AfterItem = item => { if (item.Status == FavoriteExportStatus.Copied) cancel.Cancel(); } }, cancel.Token);
+
+        Assert.Equal([FavoriteExportStatus.Copied, FavoriteExportStatus.Cancelled, FavoriteExportStatus.Cancelled], result.Items.Select(item => item.Status));
+        Assert.Equal((1, 2), (result.Copied, result.Cancelled));
+        Assert.NotEqual(result.Items.Count, result.Copied + result.AlreadyExists); // never reported as complete
+        string only = Assert.Single(Files(destination)); // no pending temporary file either
+        Assert.Equal(saved[0].Bytes, File.ReadAllBytes(only));
+        Assert.Equal(result.Items[0].Path, only);
+        Assert.Equal(archiveBefore, Snapshot(archive));
+    }
+
+    [Fact]
+    public async Task CancelInTheMiddleOfTheSecondFileLeavesNoPartialFile()
+    {
+        using TempDirectory directory = new();
+        using StubImageBoard board = new();
+        (Saved[] saved, FavoriteExportAsset[] assets, string destination, string archive) = await ThreeAsync(directory, board);
+        string[] archiveBefore = Snapshot(archive);
+        using CancellationTokenSource cancel = new();
+        int second = 0, partialAtCancel = 0;
+
+        // Half of the second file is on disk when the cancel arrives.
+        FavoriteExportResult result = await FavoriteOriginalExporter.ExportWithHooksAsync(assets, destination, new()
+        {
+            WrapOutput = (item, file) => ++second == 2
+                ? new HalfThenFaultStream(file, () => { partialAtCancel = Files(destination).Count(path => Path.GetFileName(path).StartsWith(".favorite-pending-")); cancel.Cancel(); cancel.Token.ThrowIfCancellationRequested(); })
+                : file
+        }, cancel.Token);
+
+        Assert.Equal(1, partialAtCancel); // the half-written temporary file really existed when the cancel came
+        Assert.Equal([FavoriteExportStatus.Copied, FavoriteExportStatus.Cancelled, FavoriteExportStatus.Cancelled], result.Items.Select(item => item.Status));
+        string only = Assert.Single(Files(destination));
+        Assert.Equal(saved[0].Bytes, File.ReadAllBytes(only));
+        Assert.Equal(archiveBefore, Snapshot(archive));
+    }
+
+    [Fact]
+    public async Task ADiskThatFillsUpOnTheSecondFileFailsItAndTheRestWithoutPartialFilesOrArchiveChanges()
+    {
+        using TempDirectory directory = new();
+        using StubImageBoard board = new();
+        (Saved[] saved, FavoriteExportAsset[] assets, string destination, string archive) = await ThreeAsync(directory, board);
+        string[] archiveBefore = Snapshot(archive);
+        int count = 0, partialAtFault = 0;
+
+        // From the second file on the device is full: half of the bytes are written, then every write fails with the disk-full error.
+        FavoriteExportResult result = await FavoriteOriginalExporter.ExportWithHooksAsync(assets, destination, new()
+        {
+            WrapOutput = (item, file) => ++count >= 2 ? new HalfThenFaultStream(file, () => { partialAtFault += Files(destination).Count(path => Path.GetFileName(path).StartsWith(".favorite-pending-")); throw new DiskFullException(); }) : file
+        });
+
+        Assert.Equal([FavoriteExportStatus.Copied, FavoriteExportStatus.Failed, FavoriteExportStatus.Failed], result.Items.Select(item => item.Status));
+        Assert.Equal(2, partialAtFault); // a half-written temporary file existed at each failure
+        Assert.All(result.Items.Skip(1), item => { Assert.Contains("No space left", item.Error); Assert.Null(item.Path); });
+        Assert.Equal((1, 2), (result.Copied, result.Failed));
+        Assert.NotEqual(result.Items.Count, result.Copied + result.AlreadyExists); // incomplete, not success
+        string only = Assert.Single(Files(destination)); // no partial second file, no pending temporary
+        Assert.Equal(saved[0].Bytes, File.ReadAllBytes(only));
+        Assert.Equal(archiveBefore, Snapshot(archive));
+
+        // Once there is room again the same export completes the missing files and keeps the first.
+        FavoriteExportResult retry = await FavoriteOriginalExporter.ExportAsync(assets, destination);
+        Assert.Equal((2, 1), (retry.Copied, retry.AlreadyExists));
+        Assert.Equal(3, Files(destination).Length);
+    }
 }
