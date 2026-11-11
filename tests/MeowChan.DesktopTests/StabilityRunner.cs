@@ -332,6 +332,12 @@ internal static class StabilityRunner
         AddThreadInfo(board, view, transport.Body(request.Board, StabilityStep.Thread), threadId);
         if (options.SkipOriginal)
         {
+            // Let the production watch plan its downloads: media it asks for is refused by the transport and shows in the audit,
+            // and the host view shows whether it queued anything at all.
+            await Task.Delay(TimeSpan.FromSeconds(10));
+            board.HostView = CaptureHostView(host, threadUri.AbsoluteUri);
+            StabilityRules.OriginalChoice? wanted = StabilityRules.ChooseOriginal(view);
+            board.Notes.Add("replay: the harness would arm " + (wanted == null ? "nothing" : StabilityAuditTransport.AuditUrl(wanted.Attachment.Url!)));
             transport.CloseSteps();
             board.Archive = "thread-only";
             board.Notes.Add("replay: the thread was parsed and archived; the original step is skipped");
@@ -480,6 +486,8 @@ internal static class StabilityRunner
     }
 
     /// <summary>The host's own view of the watched thread and the plugin workers, for a step that did not complete.</summary>
+    private static string? FailureText(FailureInfo? failure) => failure == null ? null : failure.Kind + ": " + Trim(failure.Message, 400);
+
     private static JsonObject CaptureHostView(DesktopSessionHost host, string threadUrl)
     {
         JsonObject result = [];
@@ -510,6 +518,8 @@ internal static class StabilityRunner
                         ["phase"] = snapshot.RequestProgress.Phase.ToString(), ["attempt"] = snapshot.RequestProgress.Attempt,
                         ["delaySeconds"] = snapshot.RequestProgress.Delay?.TotalSeconds
                     },
+                    ["contentCaptureFailure"] = FailureText(snapshot.Content?.CaptureFailure),
+                    ["contentSelectionFailure"] = FailureText(snapshot.Content?.SelectionFailure),
                     ["knownMedia"] = snapshot.KnownMedia,
                     ["completedMedia"] = snapshot.CompletedMedia,
                     ["work"] = work == null ? null : new JsonObject

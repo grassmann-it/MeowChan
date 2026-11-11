@@ -9,3 +9,8 @@ observations, not an availability guarantee.
 (unquoted `id=300`, a sticky marker, replies wrapped in `div.reply`, and each
 file linked three times: name, download icon and thumbnail). All text, names and
 file names are neutral placeholders; no live post content is stored.
+
+`thread-multifile.html` reproduces the multi-file post of a live board whose first
+link per file reads `pdf (5.75MB)` (type and size, not a file name) and whose poster
+file name is only in the download icon's `download` attribute. File names are
+neutral placeholders.

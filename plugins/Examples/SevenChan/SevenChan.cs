@@ -208,7 +208,19 @@ public sealed class SevenChanPlugin : ISourcePlugin
         List<SourceAttachment> attachments = new List<SourceAttachment>();
         // A file is linked several times (name, download icon, thumbnail); one original is one attachment.
         HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (Match anchor in Anchors(html))
+        List<Match> anchors = Anchors(html).ToList();
+        // The poster's file name is only printed in the download icon's attribute; the first link of a file in a
+        // multi-file post reads "pdf (5.75MB)" (type and size), which is not a file name.
+        Dictionary<string, string> downloadNames = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (Match anchor in anchors)
+        {
+            string? download = AttributeValue(anchor.Groups["attrs"].Value, "download");
+            string? target = AttributeValue(anchor.Groups["attrs"].Value, "href");
+            if (!string.IsNullOrWhiteSpace(download) && target is not null
+                && Uri.TryCreate(Origin, WebUtility.HtmlDecode(target).Trim(), out Uri? linked) && linked is not null)
+                downloadNames.TryAdd(linked.AbsoluteUri, WebUtility.HtmlDecode(download).Trim());
+        }
+        foreach (Match anchor in anchors)
         {
             string href = AttributeValue(anchor.Groups["attrs"].Value, "href") ?? string.Empty;
             if (!Uri.TryCreate(Origin, WebUtility.HtmlDecode(href).Trim(), out Uri? candidate)
@@ -219,11 +231,13 @@ public sealed class SevenChanPlugin : ISourcePlugin
             if (!seen.Add(candidate.AbsoluteUri)) continue;
             string fileName = candidate.AbsolutePath[(candidate.AbsolutePath.LastIndexOf('/') + 1)..];
             if (fileName.Length == 0) throw new InvalidDataException("An original media link has no file name.");
+            string? extension = Extension(fileName);
             string? displayName = StripTags(anchor.Groups["body"].Value).Trim();
+            downloadNames.TryGetValue(candidate.AbsoluteUri, out string? downloadName);
             attachments.Add(new SourceAttachment(attachments.Count,
                 postId + "-" + attachments.Count.ToString(CultureInfo.InvariantCulture),
-                Url: candidate, OriginalFileName: string.IsNullOrEmpty(displayName) ? fileName : displayName,
-                Extension: Extension(fileName)));
+                Url: candidate, OriginalFileName: FileNameOf(extension, displayName, downloadName, fileName),
+                Extension: extension));
             if (attachments.Count > 1024) throw new InvalidDataException("Too many attachments.");
         }
         return attachments;
@@ -305,7 +319,24 @@ public sealed class SevenChanPlugin : ISourcePlugin
     private static string? Extension(string name)
     {
         int dot = name.LastIndexOf('.');
-        return dot > 0 && dot < name.Length - 1 ? name[dot..] : null;
+        string? extension = dot > 0 && dot < name.Length - 1 ? name[dot..] : null;
+        return extension is not null && Regex.IsMatch(extension, @"^\.[A-Za-z0-9]{1,32}$", RegexOptions.CultureInvariant)
+            ? extension : null;
+    }
+
+    // The first name that ends in the extension of the linked file: the link text (a plain file name for a single
+    // file), the download attribute, then the link's own file name. "pdf (5.75MB)" ends in ".75MB)" and is skipped.
+    private static string FileNameOf(string? extension, string? displayName, string? downloadName, string urlFileName)
+    {
+        foreach (string? candidate in new[] { displayName, downloadName })
+            if (!string.IsNullOrEmpty(candidate) && candidate.Length <= 255
+                && candidate.IndexOfAny(['/', '\\', '\0', '\r', '\n']) < 0
+                && (extension is null
+                    ? Extension(candidate) is null
+                    : candidate.EndsWith(extension, StringComparison.OrdinalIgnoreCase) && candidate.Length > extension.Length))
+                return candidate;
+        string decoded = Uri.UnescapeDataString(urlFileName);
+        return decoded.IndexOfAny(['/', '\\', '\0', '\r', '\n']) < 0 && decoded.Length <= 255 ? decoded : urlFileName;
     }
 
     private static Uri ThreadUri(string board, string thread)

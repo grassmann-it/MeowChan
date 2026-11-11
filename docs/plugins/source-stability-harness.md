@@ -57,11 +57,12 @@ and request entries:
 - `audit-<chan>.json`: every request row (sent or refused) with status, bytes, SHA-256 and response headers.
 - Per board in the evidence `details`: `captureWaitedMs` / `captureLimitMs` (default wait 120 s, `--capture-seconds`),
   `thread` (catalog position, sticky/pinned/locked flags as delivered, opening post time, age in days) and, when a step did not
-  complete, `hostView` (thread activity, last check failure, request progress, work state, worker state and log tail).
+  complete, `hostView` (thread activity, last check failure, the content capture/selection failure, request progress, work state, worker state and log tail).
 
 `--replay <run-dir> --only <chan> [--board <b>]` serves the saved bodies of that run to the production host and parser in a
-process with no network (`bwrap --unshare-net`) and stops after the thread is archived. It prints the host's view and exits 1
-if the failure reproduces. Runs made before bodies were saved cannot be replayed.
+process with no network (`bwrap --unshare-net`) and stops after the thread is archived. It waits 10 s so the production watch can
+plan its downloads (media it asks for is refused and shows in the replay's audit), prints the host's view and the original the
+harness would arm, and exits 1 if the failure reproduces. Runs made before bodies were saved cannot be replayed.
 
 ## Manifest
 

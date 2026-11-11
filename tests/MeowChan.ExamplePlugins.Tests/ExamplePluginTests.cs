@@ -515,6 +515,23 @@ public sealed class ExamplePluginTests
         Assert.Empty(SdkValidation.ValidateThreadResult(h.ThreadRequest, copy, h.Source));
     }
 
+    [Fact]
+    public async Task SevenChanNamesMultiFilePostFilesByTheirExtensionNotTheTypeAndSizeLabel()
+    {
+        Harness h = new("sevenchan", PluginFixture("SevenChan", "thread-multifile.html"), board: "x", thread: "400");
+        ThreadSnapshot thread = Assert.IsType<ThreadSnapshot>(await h.ReadThread());
+        Assert.Empty(SdkValidation.ValidateThreadResult(h.ThreadRequest, thread, h.Source));
+        IReadOnlyList<SourceAttachment> files = thread.Snapshot.Posts[0].Attachments!;
+        Assert.Equal(new[] { "Sample 'Book' One.pdf", "Sample Notes (2006).txt", "Sample_Without_Download_Name.pdf" },
+            files.Select(file => file.OriginalFileName));
+        Assert.Equal(new[] { ".pdf", ".txt", ".pdf" }, files.Select(file => file.Extension));
+        Assert.Equal("https://7chan.org/x/src/Sample_Notes_%282006%29.txt", files[1].Url!.AbsoluteUri);
+        // The host derives the stored extension from this name and refuses the whole thread's media selection when it is not 1-32 letters or digits.
+        foreach (SourceAttachment file in thread.Snapshot.Posts.SelectMany(post => post.Attachments ?? []))
+            Assert.Matches(@"^\.[A-Za-z0-9]{1,32}$", System.IO.Path.GetExtension(file.OriginalFileName!));
+        Assert.Equal("1000000000003.jpg", Assert.Single(thread.Snapshot.Posts[1].Attachments!).OriginalFileName);
+    }
+
     [Theory]
     [InlineData("id=300x")][InlineData("id=")][InlineData("id=300\"")][InlineData("id=0300")]
     public async Task SevenChanStillRejectsMalformedOrUnsafePostIds(string idAttribute)
