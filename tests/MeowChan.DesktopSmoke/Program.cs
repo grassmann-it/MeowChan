@@ -65,7 +65,8 @@ internal static class Program
             "MEOWCHAN_URLTEXT_PAGE_BOUNDARY_ONLY", "MEOWCHAN_READER_FIND_ONLY",
             "MEOWCHAN_FILENAME_SEARCH_ONLY", "MEOWCHAN_MEDIA_HASH_SEARCH_ONLY",
             "MEOWCHAN_FILENAME_SEARCH_HOST_ONLY", "MEOWCHAN_FILENAME_SEARCH_LARGE_READER_ONLY",
-            "MEOWCHAN_LOCAL_SEARCH_LANGUAGE_ONLY", "MEOWCHAN_PRIVATE_TAGS_ONLY", "MEOWCHAN_GALLERY_MEDIA_TAGS_ONLY", "MEOWCHAN_MEDIA_PAGE_ONLY"
+            "MEOWCHAN_LOCAL_SEARCH_LANGUAGE_ONLY", "MEOWCHAN_PRIVATE_TAGS_ONLY", "MEOWCHAN_GALLERY_MEDIA_TAGS_ONLY", "MEOWCHAN_MEDIA_PAGE_ONLY",
+            "MEOWCHAN_DIALOG_FRAME_ONLY"
         ];
         if (focusedModes.Any(name => Environment.GetEnvironmentVariable(name) == "1"))
         {
@@ -254,7 +255,9 @@ internal static class Program
                     MediaRatingChecks.VerifyAfterClose(profile, reacquired);
             }
 
-            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_DIAGNOSTIC_EVIDENCE_ONLY") == "1"
+            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_DIALOG_FRAME_ONLY") == "1"
+                ? "dialog frame: fixed header/error strip/footer around a scrolling body per production dialog, group=" + (Environment.GetEnvironmentVariable("MEOWCHAN_DIALOG_FRAME_GROUP") ?? "all") + "; private fixtures, managed input, no Windows/macOS or screen-reader claim"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_DIAGNOSTIC_EVIDENCE_ONLY") == "1"
                 ? "diagnostic evidence: native controls with synthetic snapshots, passive facts/waiting/language refresh; managed input and copy delegate, no live network or OS clipboard/Windows/macOS acceptance"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_FILENAME_SEARCH_LARGE_READER_ONLY") == "1"
                 ? "filename large reader: seven synthetic native host journeys, complete-reader/off-page results, selection and lifetime joins; managed input only"
@@ -515,6 +518,11 @@ internal static class Program
             if (Environment.GetEnvironmentVariable("MEOWCHAN_FIRST_RUN_REOPEN_ONLY") == "1")
             {
                 await FirstRunSettingsReopenChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_DIALOG_FRAME_ONLY") == "1")
+            {
+                await DialogFrameChecks.RunAsync(mainWindow);
                 _checksPassed = true; mainWindow.Close(); return;
             }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_HTML_EXPORT_ACTION_LAYOUT_ONLY") == "1")
