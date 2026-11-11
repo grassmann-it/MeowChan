@@ -30,8 +30,12 @@ Belege auf Gate-Head `aaea381` (`/tmp/mc-evidence/final4-1794363138`):
   Behalten/keine Entscheidung → RecoveryFailed, Dateien erhalten);
 - Dialog-Smoke im privaten Xvfb PASS (Zweischritt, Escape bricht Bestätigung ab, Behalten/Escape → behalten).
 
-Nicht belegt: der vollständige Weg MainWindow → Dialog in einem echten App-Start mit beschädigtem
-Profil (Host-Hook und Dialog sind je einzeln geprüft); Windows-Umbenennen mit offenen Handles.
+- Echter App-Start (`MEOWCHAN_INTERRUPTED_STARTUP_ONLY`, privates Xvfb, `/tmp/mc-evidence/discard-2026-11-11/smoke-interrupted.log`):
+  Profil mit unterbrochenem Import → Shell zeigt den Dialog, Start wartet in `Starting` → zweistufiges
+  Verwerfen → `Ready`, Operationsverzeichnis entfernt, Log „Discarded 1 interrupted native transfer
+  operation(s)“; SMOKE PASS.
+
+Nicht belegt: Windows-Umbenennen mit offenen Handles (nur im Windows-Lauf prüfbar).
 
 ### Blocker 2 — Plattformbelege (unter Linux nicht ersetzbar)
 
