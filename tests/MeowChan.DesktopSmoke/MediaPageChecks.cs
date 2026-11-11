@@ -22,7 +22,7 @@ namespace MeowChan.DesktopSmoke;
 
 // Root dispatch only: MEOWCHAN_MEDIA_PAGE_ONLY. Real host, catalog, bound manifests, verified PNG
 // thumbnails and the real navigation button. Managed input only; no Windows/macOS acceptance.
-internal static class MediaPageChecks
+internal static partial class MediaPageChecks
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(30);
     private static readonly byte[] Png = Convert.FromBase64String(
@@ -49,6 +49,7 @@ internal static class MediaPageChecks
             await DuplicateJourneyAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-duplicates-"));
             await SelectionJourneyAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-selection-"));
             await NavigationAsync(owner);
+            await HostPathsAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-host-"));
             string videoProfile = TemporaryWorkspacePaths.CreateDirectory("media-video-native-");
             new Config().SaveConfig(videoProfile);
             await SeedVideosAsync(videoProfile);

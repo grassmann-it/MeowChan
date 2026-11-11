@@ -485,9 +485,12 @@ public partial class MainWindow
             (_archivePage == null ? _galleryOrigin : _archivePage.GalleryOriginFocusTarget(_galleryOrigin))?.Focus();
         }
         else if (restoreOrigin) (_archivePage == null ? _galleryOrigin : _archivePage.GalleryOriginFocusTarget(_galleryOrigin))?.Focus();
+        Control? closedOrigin = _galleryOrigin;
         _galleryOrigin = null;
         _galleryResolvingRequest = -1;
         RefreshMediaPageUserData();
+        // The media grid itself cannot take focus; its selected tile does, once the refreshed tiles are laid out.
+        if (restoreOrigin && !_isClosing && closedOrigin != null && ReferenceEquals(closedOrigin, _mediaPage?.Grid)) _mediaPage.FocusGrid();
         if (restoreOrigin && !_isClosing) completed?.Invoke();
     }
 

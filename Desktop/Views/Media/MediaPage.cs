@@ -226,6 +226,16 @@ public sealed partial class MediaPage : UserControl
         await OpenGallery(window, start);
     }
 
+    /// <summary>Puts the keyboard focus back on the grid (its selected tile, else the first) once the tiles are laid out; the list itself is not focusable.</summary>
+    internal void FocusGrid() => Dispatcher.UIThread.Post(() =>
+    {
+        if (_lifetime.IsCancellationRequested || !_grid.IsEffectivelyVisible) return;
+        int index = SelectedRow?.Index ?? (_grid.ItemCount > 0 ? 0 : -1);
+        if (index < 0) return;
+        _grid.ScrollIntoView(index);
+        (_grid.ContainerFromIndex(index) as Control ?? _grid).Focus();
+    }, DispatcherPriority.Loaded);
+
     internal async Task EditSelectedTagsAsync()
     {
         if (SelectedTiles.Count == 1 && SelectedRow is { State.CanEditMediaTags: true } row && EditTags != null) await EditTags(row.Entry);
