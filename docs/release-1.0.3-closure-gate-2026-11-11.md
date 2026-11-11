@@ -5,7 +5,7 @@ gepusht, getaggt oder hochgeladen. Evidence ausschließlich unter `/tmp/mc-evide
 
 ## Ergebnis
 
-**Kein freigebbarer 1.0.3-Kandidat. Ein echter Blocker bleibt: Plattformbelege (Blocker 2).**
+**Kein freigebbarer 1.0.3-Kandidat. Ein echter, lokal nicht lösbarer Blocker bleibt: Plattformbelege (Blocker 2).**
 Blocker 1 (Recovery unterbrochener Transfers) ist seit `aaea381` lokal gelöst und belegt.
 
 ### Blocker 1 — Recovery unterbrochener nativer Transfers: **gelöst** (Nutzerfreigabe 11.11.)
@@ -35,9 +35,22 @@ Profil (Host-Hook und Dialog sind je einzeln geprüft); Windows-Umbenennen mit o
 
 ### Blocker 2 — Plattformbelege (unter Linux nicht ersetzbar)
 
-Keine Windows-, macOS- oder Hardwarebelege; die Linux-Paketprüfung
-(`check-desktop-package.py`) wurde nicht ausgeführt. Nach `START-GOAL-1.0.3.md` blockiert
-das den Kandidaten unabhängig von Blocker 1.
+Keine Windows-, macOS- oder Hardwarebelege. Nach `START-GOAL-1.0.3.md` blockiert das den Kandidaten.
+
+Lokal geprüft am 11.11. (`/tmp/mc-evidence/package-linux-1794363581`, saubere `git archive`-Kopie):
+- **Gefundene und behobene Regression:** Der Release-Restore mit den CI-Parametern
+  (`-p:RuntimeIdentifier=linux-x64 -p:Configuration=Release --locked-mode -p:SelfContained=true
+  -p:PublishSingleFile=true`) scheiterte mit `NU1004` an den sieben experimentellen Quellen aus
+  `851ae88` (fehlende bzw. unvollständige Locks je Zielplattform); `v1.0.2` restored mit demselben
+  Befehl sauber. Behoben in `fd294b8` und `a804293` (Locks wie beim gleich gebauten Dvach-Plugin).
+- Danach auf `a804293`: Restore Exit 0, `dotnet publish` linux-x64 self-contained single-file Exit 0
+  (298 MiB), `check-desktop-package.py` **PASS**, `package-plugins.py --verify` **PASS**,
+  Paketierungs-Vertragstests `test_linux*` 41/41, `test_desktop_package` 10/10, `test_apphost*runner` 55/55.
+- Nicht lokal möglich: die Linux-Distributionspaketierung (`package-linux.py`) und damit
+  `check-video-native.py` brauchen die Ubuntu-Paketquellen der CI, `sudo apt-get install` (LibVLC,
+  patchelf, squashfs) und eine passende Ubuntu-Basis; dieser Rechner ist Manjaro, Remote-CI ist
+  ausgeschlossen. `check-video-native.py` auf dem rohen Publish verlangt erwartungsgemäß
+  `linux-video-runtime.json`, das erst die Distributionspaketierung schreibt.
 
 ## Belegt auf einem Head
 
@@ -113,4 +126,4 @@ GUI-Smokes im privaten Xvfb (nice 19):
 ## Was das Gate auflöst
 
 1. Erledigt (`aaea381`): Recovery unterbrochener Transfers.
-2. Windows-/macOS-/Hardwareläufe und Paketprüfung auf den Zielplattformen.
+2. Windows-/macOS-/Hardwareläufe sowie Linux-Distributionspaketierung und `check-video-native.py` auf der Ubuntu-CI-Basis bzw. den Zielplattformen.
