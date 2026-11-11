@@ -6,6 +6,12 @@ gepusht, getaggt oder hochgeladen. Evidence ausschließlich unter `/tmp/mc-evide
 ## Ergebnis
 
 **Kein freigebbarer 1.0.3-Kandidat. Ein echter, lokal nicht lösbarer Blocker bleibt: Plattformbelege (Blocker 2).**
+
+Stand `40eba83`/`e257079`: Der verbindliche 1.0.3-Umfang ist lokal integriert und belegt (Abschnitte unten).
+Blocker 2 ist innerhalb dieses Goals nicht erfüllbar, nicht bloß vertagt: Windows-, macOS- und Hardwareläufe
+brauchen Zielmaschinen, die hier fehlen (nur Manjaro-Linux); die Distributionspaketierung braucht Ubuntu-CI mit
+`sudo apt-get`; das Goal verbietet Push, Upload und Remote-CI; ein Docker-Ersatz wurde vom Nutzer am 11.11.
+abgelehnt. Auflösung nur außerhalb dieses Goals durch die GitHub-Actions-Läufe des Nutzers.
 Blocker 1 (Recovery unterbrochener Transfers) ist seit `aaea381` lokal gelöst und belegt.
 
 ### Blocker 1 — Recovery unterbrochener nativer Transfers: **gelöst** (Nutzerfreigabe 11.11.)
