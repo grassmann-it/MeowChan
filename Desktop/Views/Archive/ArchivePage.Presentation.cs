@@ -19,7 +19,7 @@ public partial class ArchivePage
         // Use the existing side-effect-free draft comparison. Pending/invalid raw
         // fields remain drafts; this projection never validates or applies them.
         bool draft = _appliedSearch != null && HasUnappliedSearchDraft;
-        Expander filters = Control<Expander>("ArchiveFilters");
+        Expander filters = ArchiveFilters;
         _archiveFilterHeader.Text = Texts.T("archive.filters")
             + (draft ? " · " + Texts.T("archive.unappliedShort") : string.Empty);
         filters.Header = _archiveFilterHeader;
@@ -30,7 +30,7 @@ public partial class ArchivePage
 
     private void RefreshArchiveSelectionContext()
     {
-        TextBlock summary = Control<TextBlock>("ArchiveSelectionSummary");
+        TextBlock summary = ArchiveSelectionSummary;
         int count = FrozenArchiveSelection().Length;
         ArchiveThreadRow? lead = ArchiveLead;
         summary.IsVisible = count > 0;

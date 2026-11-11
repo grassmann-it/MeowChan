@@ -23,9 +23,9 @@ public partial class ArchivePage
     private void UpdateArchiveEmptyState()
     {
         bool constrained = HasArchiveConstraints(_query);
-        Control<StackPanel>("ArchiveEmptyState").IsVisible = _listLoaded && _listTotal == 0;
-        Control<TextBlock>("ArchiveEmpty").Text = Texts.T(constrained ? "archive.noResults" : "archive.empty");
-        Button reset = Control<Button>("ArchiveResetFilters");
+        ArchiveEmptyState.IsVisible = _listLoaded && _listTotal == 0;
+        ArchiveEmpty.Text = Texts.T(constrained ? "archive.noResults" : "archive.empty");
+        Button reset = ArchiveResetFilters;
         reset.Content = Texts.T("archive.resetFilters");
         reset.IsVisible = constrained;
     }
@@ -37,6 +37,6 @@ public partial class ArchivePage
         WriteSearchDraft(reset);
         _showReader = false; UpdateLayoutMode();
         await LoadListAsync(NewListLoad(ArchiveSearchRequest.Create(reset)));
-        Control<TextBox>("ArchiveSearchText").Focus();
+        ArchiveSearchText.Focus();
     }
 }

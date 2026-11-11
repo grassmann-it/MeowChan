@@ -102,7 +102,7 @@ public partial class ArchivePage
 
     private void ApplyArchiveColumns()
     {
-        foreach (DataGrid grid in new[] { Control<DataGrid>("ArchiveThreadTable"), Control<DataGrid>("ArchiveMediaGrid") })
+        foreach (DataGrid grid in new[] { ArchiveThreadTable, ArchiveMediaGrid })
         {
             string[] keys = ColumnKeys(grid);
             for (int index = 0; index < keys.Length; index++)
@@ -131,12 +131,12 @@ public partial class ArchivePage
 
     private void LocalizeArchiveColumns()
     {
-        CommandBindings.Apply(Control<Button>("ArchiveThreadColumnsButton"), "table.choose-columns", iconWithLabel: true);
-        CommandBindings.Apply(Control<Button>("ArchiveMediaColumnsButton"), "table.choose-columns", iconWithLabel: true);
-        DataGrid threads = Control<DataGrid>("ArchiveThreadTable");
+        CommandBindings.Apply(ArchiveThreadColumnsButton, "table.choose-columns", iconWithLabel: true);
+        CommandBindings.Apply(ArchiveMediaColumnsButton, "table.choose-columns", iconWithLabel: true);
+        DataGrid threads = ArchiveThreadTable;
         for (int i = 0; i < ThreadColumnKeys.Length; i++)
             threads.Columns[i].Header = Texts.T("archive.columns." + ThreadColumnKeys[i]);
-        DataGrid media = Control<DataGrid>("ArchiveMediaGrid");
+        DataGrid media = ArchiveMediaGrid;
         for (int i = 0; i < MediaColumnKeys.Length; i++)
             media.Columns[i].Header = MediaColumnKeys[i] == "rating" ? MeowChan.Desktop.MediaRatingText.Label : Texts.T("archive.columns." + MediaColumnKeys[i]);
     }
@@ -145,7 +145,7 @@ public partial class ArchivePage
     {
         if (sender is not Button button) return;
         DataGrid grid = button.Name == "ArchiveMediaColumnsButton"
-            ? Control<DataGrid>("ArchiveMediaGrid") : Control<DataGrid>("ArchiveThreadTable");
+            ? ArchiveMediaGrid : ArchiveThreadTable;
         ContextMenu menu = new();
         string[] keys = ColumnKeys(grid);
         foreach (string key in keys)

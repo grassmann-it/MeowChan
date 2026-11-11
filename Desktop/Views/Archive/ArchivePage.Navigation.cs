@@ -22,7 +22,7 @@ public partial class ArchivePage
         IReadOnlyList<InlineReplyState> Replies);
 
     private InlineReplyState[] CaptureInlineReplyState() =>
-        (Control<ListBox>("ArchivePosts").ItemsSource as IEnumerable<ArchivePostRow>)?
+        (ArchivePosts.ItemsSource as IEnumerable<ArchivePostRow>)?
             .Where(row => row.RepliesExpanded || row.RepliesLoaded || row.HasRepliesError)
             .Select(row => new InlineReplyState(row.Id, row.RepliesExpanded, row.RepliesLoaded,
                 row.BacklinkCount, row.RepliesOffset, Array.AsReadOnly(row.Replies.ToArray()), row.RepliesError))
@@ -30,7 +30,7 @@ public partial class ArchivePage
 
     private void RestoreInlineReplyState(IReadOnlyList<InlineReplyState> states)
     {
-        if (Control<ListBox>("ArchivePosts").ItemsSource is not IEnumerable<ArchivePostRow> rows) return;
+        if (ArchivePosts.ItemsSource is not IEnumerable<ArchivePostRow> rows) return;
         Dictionary<string, InlineReplyState> byId = states.ToDictionary(state => state.PostId, StringComparer.Ordinal);
         foreach (ArchivePostRow row in rows)
         {
@@ -54,10 +54,10 @@ public partial class ArchivePage
     private void LocalizeSearch()
     {
         UpdateSuggestionHint();
-        Control<TextBox>("ArchiveSearchText").PlaceholderText = Texts.T("archive.searchHint");
-        Control<IdentitySuggestionBox>("ArchiveSourceFilter").PlaceholderText = Texts.T("archive.sourceFilter");
-        Control<IdentitySuggestionBox>("ArchiveBoardFilter").PlaceholderText = Texts.T("archive.boardFilter");
-        Control<Expander>("ArchiveFilters").Header = Texts.T("archive.filters");
+        ArchiveSearchText.PlaceholderText = Texts.T("archive.searchHint");
+        ArchiveSourceFilter.PlaceholderText = Texts.T("archive.sourceFilter");
+        ArchiveBoardFilter.PlaceholderText = Texts.T("archive.boardFilter");
+        ArchiveFilters.Header = Texts.T("archive.filters");
         SetOptions("ArchiveStateFilter", "archive.allStates", "archive.sourceActive", "archive.sourceArchived", "archive.sourceMissing");
         SetOptions("ArchiveCaptureFilter", "archive.allCapture", "archive.captureEnabled", "archive.captureDisabled");
         SetOptions("ArchivePostsFilter", "archive.allContent", "archive.withPosts", "archive.withoutPosts");
@@ -107,10 +107,10 @@ public partial class ArchivePage
         ++_referenceRequest;
         _referenceCancellation?.Cancel();
         _backlinkPost = null;
-        Control<ListBox>("ArchiveReferences").ItemsSource = null;
-        Control<TextBlock>("ArchiveReferencesTitle").Text = string.Empty;
-        Control<Button>("PreviousReferences").IsEnabled = false;
-        Control<Button>("NextReferences").IsEnabled = false;
+        ArchiveReferences.ItemsSource = null;
+        ArchiveReferencesTitle.Text = string.Empty;
+        PreviousReferences.IsEnabled = false;
+        NextReferences.IsEnabled = false;
     }
     private async void OnQuoteClick(object? sender, RoutedEventArgs e)
     {
@@ -119,7 +119,7 @@ public partial class ArchivePage
     internal async Task NavigateQuoteAsync(ArchiveQuoteRow row)
     {
         if (_ended || IsFilenameSearchOpen || _busy || !CanRead || _openReader == null) return;
-        ReaderAnchor? originAnchor = row.Backlink && Control<TabControl>("ArchiveContentTabs").SelectedIndex == 2
+        ReaderAnchor? originAnchor = row.Backlink && ArchiveContentTabs.SelectedIndex == 2
             ? _backlinkOriginAnchor ?? CaptureReaderAnchor() : CaptureReaderAnchor();
         CancelReferences();
         int request = _referenceRequest;
@@ -167,8 +167,8 @@ public partial class ArchivePage
         _showReader = true;
         RenderThread();
         UpdateLayoutMode();
-        Control<TabControl>("ArchiveContentTabs").SelectedIndex = 0;
-        ListBox posts = Control<ListBox>("ArchivePosts");
+        ArchiveContentTabs.SelectedIndex = 0;
+        ListBox posts = ArchivePosts;
         if (posts.ItemsSource is IEnumerable<ArchivePostRow> rows && postId != null)
         {
             posts.SelectedItem = rows.FirstOrDefault(post => post.Id == postId);
@@ -207,19 +207,19 @@ public partial class ArchivePage
         _referenceCancellation = loading;
         ClearOperationError("reference");
         ArchivePostId post = _backlinkPost;
-        Control<TabControl>("ArchiveContentTabs").SelectedIndex = 2;
-        Control<TextBlock>("ArchiveReferencesTitle").Text = Texts.T("archive.loading");
+        ArchiveContentTabs.SelectedIndex = 2;
+        ArchiveReferencesTitle.Text = Texts.T("archive.loading");
         try
         {
             await using ArchiveReader reader = await _openReader(loading.Token);
             ArchiveQuotePage result = await reader.GetBacklinksAsync(post, _referenceOffset, PageSize, loading.Token);
             if (_ended || request != _referenceRequest) return;
             _referenceTotal = result.TotalCount;
-            Control<ListBox>("ArchiveReferences").ItemsSource = result.Items.Select(quote => new ArchiveQuoteRow(quote, true)).ToArray();
-            Control<TextBlock>("ArchiveReferencesTitle").Text = Texts.T(result.TotalCount == 0 ? "archive.noBacklinks" : "archive.backlinks", post.PostId);
-            Control<TextBlock>("ArchiveReferencesPage").Text = PageLabel(_referenceOffset, _referenceTotal);
-            Control<Button>("PreviousReferences").IsEnabled = _referenceOffset > 0;
-            Control<Button>("NextReferences").IsEnabled = _referenceOffset + PageSize < _referenceTotal;
+            ArchiveReferences.ItemsSource = result.Items.Select(quote => new ArchiveQuoteRow(quote, true)).ToArray();
+            ArchiveReferencesTitle.Text = Texts.T(result.TotalCount == 0 ? "archive.noBacklinks" : "archive.backlinks", post.PostId);
+            ArchiveReferencesPage.Text = PageLabel(_referenceOffset, _referenceTotal);
+            PreviousReferences.IsEnabled = _referenceOffset > 0;
+            NextReferences.IsEnabled = _referenceOffset + PageSize < _referenceTotal;
         }
         catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
         catch (Exception exception) { if (!_ended && request == _referenceRequest) OperationMessage("reference", exception.Message, true); }

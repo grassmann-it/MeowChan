@@ -27,14 +27,14 @@ public partial class ArchivePage
         if (_ended) return;
         if (error && !string.IsNullOrWhiteSpace(text)) _operationErrors[operation] = text;
         else if (operation == "media") _operationErrors.Remove(operation);
-        else Control<TextBlock>("ArchiveMessage").Text = text;
+        else ArchiveMessage.Text = text;
         RenderOperationErrors();
     }
     private void RenderOperationErrors()
     {
         if (_ended) return;
-        Control<TextBlock>("ArchiveErrorText").Text = string.Join(Environment.NewLine, _operationErrors.Values);
-        Control<Ursa.Controls.Banner>("ArchiveErrorBanner").IsVisible = _operationErrors.Count != 0;
+        ArchiveErrorText.Text = string.Join(Environment.NewLine, _operationErrors.Values);
+        ArchiveErrorBanner.IsVisible = _operationErrors.Count != 0;
         RefreshStatusLine();
     }
     // Text first, then visibility, like the other archive live regions. Empty
@@ -49,10 +49,10 @@ public partial class ArchivePage
     }
     private void UpdateFeedbackVisuals()
     {
-        Control<Ursa.Controls.LoadingIcon>("ArchiveContentLoading").IsLoading = Control<Ursa.Controls.LoadingIcon>("ArchiveContentLoading").IsVisible = _busy && !_ended;
-        Control<Ursa.Controls.LoadingIcon>("ArchiveMediaLoading").IsLoading = Control<Ursa.Controls.LoadingIcon>("ArchiveMediaLoading").IsVisible = _mediaLoading && !_ended;
-        Control<TextBlock>("ArchiveContentLoadingText").Text = _busy && !_ended ? Texts.T("archive.loading") : string.Empty;
-        Control<TextBlock>("ArchiveMediaLoadingText").Text = _mediaLoading ? Texts.T("archive.loadingMedia") : string.Empty;
+        ArchiveContentLoading.IsLoading = ArchiveContentLoading.IsVisible = _busy && !_ended;
+        ArchiveMediaLoading.IsLoading = ArchiveMediaLoading.IsVisible = _mediaLoading && !_ended;
+        ArchiveContentLoadingText.Text = _busy && !_ended ? Texts.T("archive.loading") : string.Empty;
+        ArchiveMediaLoadingText.Text = _mediaLoading ? Texts.T("archive.loadingMedia") : string.Empty;
         RefreshStatusLine();
     }
     internal Action<string> CaptureActionErrorReporter()

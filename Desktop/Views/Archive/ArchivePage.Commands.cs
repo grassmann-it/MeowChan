@@ -104,7 +104,7 @@ public partial class ArchivePage
         StopArchiveMenuRefresh(menu);
         // The table's current selection is authoritative when its menu opens.
         // Freeze these IDs before building commands, including an empty selection.
-        DataGrid table = Control<DataGrid>("ArchiveThreadTable");
+        DataGrid table = ArchiveThreadTable;
         if (ReferenceEquals(menu, table.ContextMenu))
         {
             ArchiveThreadRow[] selected = table.SelectedItems.OfType<ArchiveThreadRow>().ToArray();

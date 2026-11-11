@@ -29,7 +29,7 @@ public partial class ArchivePage
         _pendingReadingInputEpoch = null;
         if (epoch == _readingInputEpoch && CanCaptureReadingPosition)
         {
-            Control<ListBox>("ArchivePosts").UpdateLayout();
+            ArchivePosts.UpdateLayout();
             ReaderPositionChanged(true);
         }
     }
@@ -61,10 +61,10 @@ public partial class ArchivePage
 
     private void InitializeReadingPositionInput()
     {
-        StackPanel header = Control<Grid>("ArchiveReaderPane").Children.OfType<StackPanel>().First();
+        StackPanel header = ArchiveReaderPane.Children.OfType<StackPanel>().First();
         header.Children.Add(_readingPositionStatus);
         AutomationProperties.SetLiveSetting(_readingPositionStatus, AutomationLiveSetting.Polite);
-        ListBox posts = Control<ListBox>("ArchivePosts");
+        ListBox posts = ArchivePosts;
         // Only input on an explicitly opened reader counts. Layout, previews,
         // list selection and background refresh never create a persisted entry.
         void CaptureAfterInput() => QueueReadingPositionCapture(DispatcherPriority.Background);

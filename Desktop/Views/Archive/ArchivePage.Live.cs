@@ -38,9 +38,9 @@ public partial class ArchivePage
 
     private void LocalizeReaderUpdates()
     {
-        Control<CheckBox>("ReaderFollowLive").Content = CommandCatalog.Label("watch.follow-live");
-        ToolTip.SetTip(Control<CheckBox>("ReaderFollowLive"), Texts.T("reader.liveHint"));
-        Control<Button>("ReaderShowNewPosts").Content = CommandCatalog.Label("reader.show-new-posts");
+        ReaderFollowLive.Content = CommandCatalog.Label("watch.follow-live");
+        ToolTip.SetTip(ReaderFollowLive, Texts.T("reader.liveHint"));
+        ReaderShowNewPosts.Content = CommandCatalog.Label("reader.show-new-posts");
         UpdateReaderUpdateControls();
     }
 
@@ -50,7 +50,7 @@ public partial class ArchivePage
         if (_liveReaderId != id)
         {
             _followReader = false;
-            Control<CheckBox>("ReaderFollowLive").IsChecked = false;
+            ReaderFollowLive.IsChecked = false;
             _liveReaderId = id;
         }
         _pendingReaderUpdate = null;
@@ -64,12 +64,12 @@ public partial class ArchivePage
     private void UpdateReaderUpdateControls()
     {
         ArchiveThreadSummary? summary = _latestReaderSummary;
-        CheckBox follow = Control<CheckBox>("ReaderFollowLive");
+        CheckBox follow = ReaderFollowLive;
         follow.IsEnabled = !_busy && MayFollow(summary);
         if (!MayFollow(summary)) { _followReader = false; follow.IsChecked = false; }
-        Control<Button>("ReaderShowNewPosts").IsVisible = _pendingReaderUpdate != null;
-        Control<Button>("ReaderShowNewPosts").IsEnabled = !_busy;
-        TextBlock notice = Control<TextBlock>("ReaderNewPostsNotice");
+        ReaderShowNewPosts.IsVisible = _pendingReaderUpdate != null;
+        ReaderShowNewPosts.IsEnabled = !_busy;
+        TextBlock notice = ReaderNewPostsNotice;
         notice.IsVisible = _pendingReaderUpdate != null;
         int added = (_pendingReaderUpdate?.PostCount ?? 0) - (_thread?.PostCount ?? 0);
         notice.Text = _pendingReaderUpdate == null ? string.Empty
@@ -129,11 +129,11 @@ public partial class ArchivePage
                         if (summary == null)
                         {
                             _pendingReaderUpdate = null; _followReader = false;
-                            Control<CheckBox>("ReaderFollowLive").IsChecked = false;
+                            ReaderFollowLive.IsChecked = false;
                         }
                         else if (summary.Revision > _thread!.Summary.Revision && summary.PostCount > _thread.PostCount)
                             _pendingReaderUpdate = summary;
-                        if (!MayFollow(summary)) { _followReader = false; Control<CheckBox>("ReaderFollowLive").IsChecked = false; }
+                        if (!MayFollow(summary)) { _followReader = false; ReaderFollowLive.IsChecked = false; }
                         UpdateReaderUpdateControls();
                         if (_followReader && _pendingReaderUpdate != null && interaction == _readerInteractionRevision && MayRefreshReaderNow)
                             await ShowReaderUpdatesAsync(deliberate: false);
@@ -155,7 +155,7 @@ public partial class ArchivePage
 
     private async void OnReaderFollowLiveChanged(object? sender, RoutedEventArgs e)
     {
-        bool enabled = Control<CheckBox>("ReaderFollowLive").IsChecked == true;
+        bool enabled = ReaderFollowLive.IsChecked == true;
         _followReader = enabled && MayFollow(_latestReaderSummary);
         if (_followReader) await CheckReaderUpdatesAsync();
     }
