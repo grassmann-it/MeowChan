@@ -455,6 +455,7 @@
     "settings.unavailableLanguage": "{0} (резервный английский)",
     "settings.languagePacks": "Дополнительные языковые пакеты JSON можно поместить в папку LanguagePacks профиля. Отсутствующие переводы отображаются на английском.",
     "notification.error": "Ошибка",
+    "error.unexpected": "Произошла непредвиденная ошибка: {0} MeowChan продолжает работать, но последнее действие может быть не завершено. Подробности — в файле журнала.",
     "notification.settings": "Настройки",
     "notification.session": "Сеанс",
     "notification.languages": "Языковые пакеты",

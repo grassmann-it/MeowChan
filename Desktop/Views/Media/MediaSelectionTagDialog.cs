@@ -104,7 +104,11 @@ internal sealed class MediaSelectionTagDialog : Window
     private void OnSessionUpdated() => Dispatcher.UIThread.Post(Refresh);
     private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(Refresh);
 
-    private async void OnAdd(object? sender, RoutedEventArgs e) => await AddTypedAsync();
+    private async void OnAdd(object? sender, RoutedEventArgs e)
+    {
+        try { await AddTypedAsync(); }
+        catch (Exception error) when (UnhandledErrors.TryRecover(error, "media.selection.tags.add")) { /* Logged and shown. */ }
+    }
 
     private async System.Threading.Tasks.Task AddTypedAsync()
     {
@@ -119,7 +123,8 @@ internal sealed class MediaSelectionTagDialog : Window
     {
         if (e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None) return;
         e.Handled = true;
-        await AddTypedAsync();
+        try { await AddTypedAsync(); }
+        catch (Exception error) when (UnhandledErrors.TryRecover(error, "media.selection.tags.add")) { /* Logged and shown. */ }
     }
 
     private void OnClose(object? sender, RoutedEventArgs e) => Close();

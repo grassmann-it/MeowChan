@@ -455,6 +455,7 @@
     "settings.unavailableLanguage": "{0} (repli en anglais)",
     "settings.languagePacks": "Des packs de langue JSON supplémentaires peuvent être placés dans le dossier LanguagePacks du profil. Les traductions manquantes utilisent l’anglais.",
     "notification.error": "Erreur",
+    "error.unexpected": "Une erreur inattendue s’est produite : {0} MeowChan continue de fonctionner, mais la dernière action est peut-être incomplète. Les détails figurent dans le fichier journal.",
     "notification.settings": "Paramètres",
     "notification.session": "Session",
     "notification.languages": "Packs de langue",

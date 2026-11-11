@@ -257,17 +257,21 @@ public sealed partial class MediaPage : UserControl
     private async void OnGridKeyDown(object? sender, KeyEventArgs e)
     {
         if (OnSelectionKey(e)) return;
-        // The gallery's own "show in thread" command (T by default): one tile with a post; otherwise it does nothing.
-        if (CommandBindings.Matches(e, "gallery.show-in-thread"))
+        try
         {
+            // The gallery's own "show in thread" command (T by default): one tile with a post; otherwise it does nothing.
+            if (CommandBindings.Matches(e, "gallery.show-in-thread"))
+            {
+                e.Handled = true;
+                if (SelectedTiles.Count == 1) await ShowSelectedInThreadAsync();
+                return;
+            }
+            if (e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None || SelectedRow == null) return;
             e.Handled = true;
-            if (SelectedTiles.Count == 1) await ShowSelectedInThreadAsync();
-            return;
+            // Several selected tiles open together; one opens around itself.
+            if (SelectedTiles.Count > 1) await OpenSelectionGalleryAsync(); else await OpenSelectedAsync();
         }
-        if (e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None || SelectedRow == null) return;
-        e.Handled = true;
-        // Several selected tiles open together; one opens around itself.
-        if (SelectedTiles.Count > 1) await OpenSelectionGalleryAsync(); else await OpenSelectedAsync();
+        catch (Exception error) when (UnhandledErrors.TryRecover(error, "media.grid.key")) { /* Logged and shown. */ }
     }
 
     private void OnContextRequested(object? sender, ContextRequestedEventArgs e)

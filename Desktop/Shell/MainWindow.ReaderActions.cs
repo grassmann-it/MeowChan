@@ -1,6 +1,8 @@
+using System;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 
 namespace MeowChan;
@@ -35,7 +37,8 @@ public partial class MainWindow
     {
         DownloadMenuTarget? target = CaptureDownloadMenu(false);
         if (target == null || WorkspaceCommandBusy || _selectionCommandRunning) return;
-        await OpenGalleryAsync(target.Lead, origin: sender as Control);
+        try { await OpenGalleryAsync(target.Lead, origin: sender as Control); }
+        catch (Exception error) when (UnhandledErrors.TryRecover(error, "inspector.gallery")) { /* Logged and shown. */ }
     }
 
     private async void OnInspectorHtmlExport(object? sender, RoutedEventArgs e)

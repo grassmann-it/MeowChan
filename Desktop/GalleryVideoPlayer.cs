@@ -467,8 +467,17 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
             _ownerWindow = null;
             if (IsDisposed) DetachTransport();
             else SetExternalTransportHost(null);
-            Texts.Changed -= OnLanguageChanged; ShortcutService.Changed -= RefreshTransportPresentation; await StopAsync();
+            Texts.Changed -= OnLanguageChanged; ShortcutService.Changed -= RefreshTransportPresentation; await StopAfterDetachAsync(StopAsync);
         };
+    }
+
+    // Nothing awaits a detach handler, so a failed stop would escape as an unhandled UI-thread exception. A failed
+    // native cleanup is already retained and reported by the lifetime (CleanupDiagnostic); closing must still finish.
+    internal static async Task StopAfterDetachAsync(Func<Task> stop)
+    {
+        try { await stop(); }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        { Serilog.Log.Warning(error, "Video stop after leaving the visual tree failed; cleanup ownership stays retained."); }
     }
 
     private void EndPointerSeek() { _seekPointer = null; _timeline.EndGesture(pointer: true); RenderTime(); }

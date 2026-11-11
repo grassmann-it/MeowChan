@@ -65,7 +65,13 @@ public partial class App : Application
                     Log.Error("Video runtime startup check failed: {Kind}: {Diagnostic}", video.Kind, video.Diagnostic);
                     ShowStartupFailure(desktop, Texts.T(video.MessageKey));
                 }
-                else desktop.MainWindow = CreateMainWindow();
+                else
+                {
+                    MainWindow main = CreateMainWindow();
+                    desktop.MainWindow = main;
+                    UnhandledErrors.Presenter = main.ShowUnexpectedError;
+                    main.Closed += (_, _) => UnhandledErrors.Presenter = null;
+                }
             }
             catch (Exception exception)
             {
