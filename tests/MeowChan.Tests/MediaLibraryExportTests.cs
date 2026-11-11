@@ -331,4 +331,63 @@ public sealed class MediaLibraryExportTests
         Assert.Equal((2, 1), (retry.Copied, retry.AlreadyExists));
         Assert.Equal(3, Files(destination).Length);
     }
+
+    // Real ENOSPC on the fixture filesystem (MEOWCHAN_FS_FIXTURE_ROOT, TMPDIR inside it): archive and destination
+    // share the full device. Whatever fits is byte-identical, the rest fails, nothing partial stays, and once
+    // space returns the same export completes.
+    [MeowChan.Tests.Transfer.DiskFullFixtureTheory]
+    [InlineData(0)]
+    [InlineData(64 * 1024)]
+    [InlineData(400 * 1024)]
+    public async Task ARealFullDiskFailsWhatDoesNotFitWithoutPartialFilesAndTheRetryCompletes(long freeBytes)
+    {
+        using TempDirectory directory = new();
+        using StubImageBoard board = new();
+        byte[][] payloads = Enumerable.Range(0, 3).Select(index => RandomNumberGenerator.GetBytes(256 * 1024)).ToArray();
+        Saved[] saved =
+        [
+            await Commit(directory.Path, board, payloads[0], "a", "100", new("stub", "g", "100"), "1"),
+            await Commit(directory.Path, board, payloads[1], "b", "200", new("stub", "g", "200"), "2"),
+            await Commit(directory.Path, board, payloads[2], "c", "300", new("stub", "g", "300"), "3")
+        ];
+        string destination = Path.Combine(directory.Path, "out"), archive = Path.Combine(directory.Path, "media");
+        Directory.CreateDirectory(destination);
+        string[] archiveBefore = Snapshot(archive);
+        MediaLibraryExportPlan plan = await MediaLibraryExport.BuildAsync(TilesOf(saved.Select(item => item.Entry).ToArray()), MediaAssetReader.OpenAsync);
+        string filler = Path.Combine(directory.Path, "filler.bin");
+        FavoriteExportResult result;
+        try
+        {
+            FillLeaving(filler, freeBytes);
+            result = await FavoriteOriginalExporter.ExportAsync(plan.Assets, destination);
+        }
+        finally { File.Delete(filler); }
+
+        Assert.All(result.Items, item => Assert.Contains(item.Status, new[] { FavoriteExportStatus.Copied, FavoriteExportStatus.Failed }));
+        Assert.True(result.Failed > 0, "The fixture must actually run out of space.");
+        Assert.NotEqual(result.Items.Count, result.Copied + result.AlreadyExists); // incomplete, never success
+        Assert.All(result.Items.Where(item => item.Status == FavoriteExportStatus.Failed), item => { Assert.NotNull(item.Error); Assert.Null(item.Path); });
+        // Only whole, byte-identical originals: no partial file and no pending temporary.
+        Assert.Equal(result.Copied, Files(destination).Length);
+        Assert.All(Files(destination), path => Assert.Contains(Sha(File.ReadAllBytes(path)), saved.Select(item => item.Sha)));
+        Assert.Equal(archiveBefore, Snapshot(archive));
+
+        FavoriteExportResult retry = await FavoriteOriginalExporter.ExportAsync(plan.Assets, destination);
+        Assert.Equal((3 - result.Copied, result.Copied), (retry.Copied, retry.AlreadyExists));
+        Assert.Equal(saved.Select(item => item.Sha).Order(), Files(destination).Select(path => Sha(File.ReadAllBytes(path))).Order());
+    }
+
+    private static void FillLeaving(string path, long freeBytes)
+    {
+        DriveInfo drive = new(Path.GetDirectoryName(path)!);
+        byte[] chunk = new byte[1024 * 1024];
+        using FileStream stream = new(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1, FileOptions.WriteThrough);
+        try
+        {
+            for (int size = chunk.Length; size >= 4096; size /= 2)
+                while (drive.AvailableFreeSpace - size >= freeBytes) stream.Write(chunk, 0, size);
+            stream.Flush(true);
+        }
+        catch (IOException) { /* Already full: the strictest level. */ }
+    }
 }
