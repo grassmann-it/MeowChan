@@ -183,6 +183,39 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
         self.assertFalse(result["passed"])
         self.assertIn("Process cleanup failed", result["error"])
 
+    def test_xvfb_teardown_status_maps_back_only_to_a_recorded_harness_success(self):
+        teardown = "SMOKE PASS: fixture\n/usr/bin/xvfb-run: line 185: kill: (944380) - No such process\n"
+        exit_file = self.root / "harness-exit-code"
+        self.assertFalse(runner.survived_xvfb_teardown(1, exit_file, teardown))
+        exit_file.write_text("0", encoding="utf-8")
+        self.assertTrue(runner.survived_xvfb_teardown(1, exit_file, teardown))
+        self.assertFalse(runner.survived_xvfb_teardown(2, exit_file, teardown))
+        self.assertFalse(runner.survived_xvfb_teardown(1, exit_file, "SMOKE PASS: fixture\n"))
+        exit_file.write_text("1", encoding="utf-8")
+        self.assertFalse(runner.survived_xvfb_teardown(1, exit_file, teardown))
+
+    def test_isolated_run_passes_when_only_the_xvfb_teardown_failed(self):
+        def fake_process(*args, **kwargs):
+            Path(kwargs["env"]["MEOWCHAN_SMOKE_HARNESS_EXIT_FILE"]).write_text("0", encoding="utf-8")
+            kwargs["stdout"].write("SMOKE PASS: fixture\n/usr/bin/xvfb-run: line 185: kill: (1) - No such process\n")
+            return mock.Mock(wait=mock.Mock(return_value=1))
+        with mock.patch.object(runner.subprocess, "Popen", side_effect=fake_process), \
+                mock.patch.object(runner, "stop_owned_processes"):
+            result = runner.run_mode("normal", self.assembly, self.output, {}, True, 1)
+        self.assertTrue(result["passed"])
+        self.assertTrue(result["xvfb_teardown_ignored"])
+        self.assertEqual(0, result["exit_code"])
+
+        def failing_harness(*args, **kwargs):
+            Path(kwargs["env"]["MEOWCHAN_SMOKE_HARNESS_EXIT_FILE"]).write_text("1", encoding="utf-8")
+            kwargs["stdout"].write("/usr/bin/xvfb-run: line 185: kill: (1) - No such process\n")
+            return mock.Mock(wait=mock.Mock(return_value=1))
+        with mock.patch.object(runner.subprocess, "Popen", side_effect=failing_harness), \
+                mock.patch.object(runner, "stop_owned_processes"):
+            result = runner.run_mode("normal", self.assembly, self.root / "failing", {}, True, 1)
+        self.assertFalse(result["passed"])
+        self.assertFalse(result["xvfb_teardown_ignored"])
+
     @unittest.skipIf(os.name == "nt", "POSIX process-group fixture")
     def test_timeout_kills_only_the_owned_group_including_its_child(self):
         # A fake dotnet process forks a child that ignores TERM. No window or display is involved.

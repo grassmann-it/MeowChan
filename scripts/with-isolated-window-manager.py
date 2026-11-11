@@ -40,7 +40,13 @@ def main() -> int:
                 raise TimeoutError("The isolated window manager did not become ready: " + last_probe)
             time.sleep(min(0.05, max(0, deadline - time.monotonic())))
         print("SMOKE isolated desktop ready: private Xvfb + Openbox + DBus; display=" + os.environ["DISPLAY"], flush=True)
-        return subprocess.call(sys.argv[2:])
+        code = subprocess.call(sys.argv[2:])
+        # xvfb-run may replace this status with its own when Xvfb is already gone at teardown;
+        # the runner reads the harness's own status from this file.
+        exit_file = os.environ.get("MEOWCHAN_SMOKE_HARNESS_EXIT_FILE")
+        if exit_file:
+            Path(exit_file).write_text(str(code), encoding="utf-8")
+        return code
     finally:
         if manager.poll() is None:
             manager.terminate()
