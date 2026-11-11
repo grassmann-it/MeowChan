@@ -63,6 +63,38 @@ Nach `4bc4d01` nur: `9948b8f` (Startup-Probes in zwei Spuren; Desktop-Filter `Pl
   6,65 → 1,28 s) und `9948b8f` (Erststart ~halbiert).
 - Weitere Belege und Grenzen: `docs/release-1.0.3-local-status-2026-11-11.md`.
 
+## Bereichsläufe mit eigenem Log (11.11., `/tmp/mc-evidence/scope-areas-1794361495`)
+
+Gezielte `dotnet test --no-build`-Filter auf Head `3c516f8`, Bins aus den frischen Builds oben:
+
+| Bereich | Ergebnis |
+| --- | --- |
+| v4-/v2-Apply, nativer Medienimport | 359 bestanden, 0 fehlgeschlagen, 4 übersprungen (opt-in Platzmangel/Absturz) |
+| Private Consent / Private Apply / private Metadaten | 1134 / 0 / 1 |
+| 404-Merge, Medienmerge | 123 / 0 / 0 |
+| Konfliktalternativen (Ledger, Domain, Inventar) | 26 / 0 / 0 |
+| Reexport, Offline, passive Medien | 149 / 0 / 1 |
+| Bestandsschutz (Favoriten, Bookmarks, Bewertungen, Notizen) | 884 / 0 / 0 |
+| Sieben experimentelle Quellen + Metadaten | 234 / 0 / 0 |
+| Desktop Importdialog / Konfliktdialog | 31 / 0 / 0 |
+| Desktop FirstRun / Settings | 277 / 0 / 0 |
+| Desktop Galerie / Video / Playback / Mute | 585 / 0 / 1 |
+| Desktop HTML-/Export | 176 / 0 / 3 |
+| Desktop Lokalisierung ES/FR/RU | 615 / 0 / 0 |
+| Desktop Kontextmenü / Clipboard | 154 / 0 / 0 |
+| Desktop Archivfilter / Vorschläge | 32 / 0 / 0 |
+| Desktop passive GP-39 | 14 / 0 / 0 |
+
+GUI-Smokes im privaten Xvfb (nice 19):
+- `MEOWCHAN_NATIVE_TRANSFER_PREVIEW_ONLY`: Importdialog-Lebenszyklus PASS.
+- `MEOWCHAN_SUGGESTIONS_ONLY`: Vorschlagsdarstellung PASS, 4 echte Popup-Aufnahmen.
+- `MEOWCHAN_ARCHIVE_COMPARISON_EXACT_IDS_ONLY`: alle Szenarien `pass`, u. a.
+  `keyboard-multi-navigation-then-enter`, `escape-then-navigation-reopens-list`,
+  `board-candidate-add-then-explicit-search`, `stale-async-suggestions-never-resurface`,
+  `explicit-scope-change-revokes-previous-board-qualification`,
+  `new-free-input-trims-without-normalizing-existing-identities`. Eingabe:
+  in-process materialisierte Controls und Popup-Tastaturereignisse, nicht OS-Eingabe.
+
 ## Was das Gate auflöst
 
 1. Freigabe des Recovery-Entwurfs → Umsetzung für Import und Merge, tmpfs-/SIGKILL-Läufe
