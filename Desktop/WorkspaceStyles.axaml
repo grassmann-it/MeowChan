@@ -13,6 +13,8 @@
                     <SolidColorBrush x:Key="Workspace.Accent">#6AA7FF</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentSurface">#25344A</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ReaderActiveSurface">#152233</SolidColorBrush>
+                    <!-- Decorative reader rule only; do not change the shared palette or row height. -->
+                    <x:Double x:Key="Workspace.ReaderPostSeparatorHeight">1</x:Double>
                     <SolidColorBrush x:Key="Workspace.Hover">#30363E</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.OnAccent">#121416</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentHover">#8ABBFF</SolidColorBrush>
@@ -56,6 +58,7 @@
                     <SolidColorBrush x:Key="Workspace.Accent">#934408</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentSurface">#E7D4BE</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ReaderActiveSurface">#E8E0D5</SolidColorBrush>
+                    <x:Double x:Key="Workspace.ReaderPostSeparatorHeight">0</x:Double>
                     <SolidColorBrush x:Key="Workspace.Hover">#D2CABE</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.OnAccent">#FFFFFF</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentHover">#783507</SolidColorBrush>
