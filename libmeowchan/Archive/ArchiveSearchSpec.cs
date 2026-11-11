@@ -58,6 +58,24 @@ public sealed class ArchiveSearchSpec : IEquatable<ArchiveSearchSpec>
         DateRange = dateRange is { StartDate: null, EndDate: null } ? null : dateRange;
     }
 
+    // Copy with a different tag filter. Every other member is already validated and canonical.
+    private ArchiveSearchSpec(ArchiveSearchSpec other, ArchiveTagFilter? tags)
+    {
+        Text = other.Text; Sources = other.Sources; Boards = other.Boards; SourceStates = other.SourceStates;
+        CaptureEnabled = other.CaptureEnabled; HasPosts = other.HasPosts; Sort = other.Sort;
+        WorkFilter = other.WorkFilter; DateRange = other.DateRange;
+        Tags = tags;
+        // Definitions without tags keep schema 1 byte for byte; a tag filter is the only schema 2 content.
+        SchemaVersion = tags == null ? 1 : 2;
+    }
+
+    /// <summary>
+    /// The same definition with this own-tag filter (null removes it). Like the work filter, tag
+    /// membership is profile data evaluated outside SQL; a request must be bound to a tag snapshot.
+    /// </summary>
+    internal ArchiveSearchSpec WithTags(ArchiveTagFilter? tags) => Equals(Tags, tags) ? this : new(this, tags);
+
+    internal ArchiveTagFilter? Tags { get; }
     public int SchemaVersion { get; }
     public string Text { get; }
     public IReadOnlyList<string> Sources { get; }
@@ -96,12 +114,12 @@ public sealed class ArchiveSearchSpec : IEquatable<ArchiveSearchSpec>
     public bool Equals(ArchiveSearchSpec? other) => other != null && SchemaVersion == other.SchemaVersion && Text == other.Text
         && Sources.SequenceEqual(other.Sources) && Boards.SequenceEqual(other.Boards) && SourceStates.SequenceEqual(other.SourceStates)
         && CaptureEnabled == other.CaptureEnabled && HasPosts == other.HasPosts && Sort == other.Sort
-        && WorkFilter == other.WorkFilter && Equals(DateRange, other.DateRange);
+        && WorkFilter == other.WorkFilter && Equals(DateRange, other.DateRange) && Equals(Tags, other.Tags);
     public override bool Equals(object? obj) => obj is ArchiveSearchSpec other && Equals(other);
     public override int GetHashCode()
     {
         HashCode hash = new();
-        hash.Add(SchemaVersion); hash.Add(Text); hash.Add(CaptureEnabled); hash.Add(HasPosts); hash.Add(Sort); hash.Add(WorkFilter); hash.Add(DateRange);
+        hash.Add(SchemaVersion); hash.Add(Text); hash.Add(CaptureEnabled); hash.Add(HasPosts); hash.Add(Sort); hash.Add(WorkFilter); hash.Add(DateRange); hash.Add(Tags);
         foreach (string source in Sources) hash.Add(source);
         foreach (ArchiveBoardConstraint board in Boards) hash.Add(board);
         foreach (ThreadSourceState state in SourceStates) hash.Add(state);

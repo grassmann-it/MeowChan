@@ -65,6 +65,14 @@ public sealed partial class ArchiveReader : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(request);
         ArchiveValidation.ValidatePage(offset, limit);
+        if (request.TagMembership is { } tags)
+            // Tag membership lives outside SQL: count and page come from one filtered snapshot.
+            return ReadAsync((connection, transaction) =>
+            {
+                ArchiveThreadSummary[] matches = ArchiveSql.SearchSummaries(connection, transaction, request, cancellationToken)
+                    .Where(summary => tags.Matches(summary.Id)).ToArray();
+                return new ArchiveThreadPage(Array.AsReadOnly(matches.Skip(offset).Take(limit).ToArray()), matches.Length, offset);
+            }, cancellationToken);
         return ReadAsync((connection, transaction) => ArchiveSql.SearchPage(connection, transaction, request, offset, limit, cancellationToken), cancellationToken);
     }
 
@@ -73,6 +81,9 @@ public sealed partial class ArchiveReader : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (request.TagMembership is { } tags)
+            return ReadAsync((connection, transaction) => (IReadOnlyList<ResourceId>)Array.AsReadOnly(
+                ArchiveSql.SearchIds(connection, transaction, request, cancellationToken).Where(tags.Matches).ToArray()), cancellationToken);
         return ReadAsync((connection, transaction) => ArchiveSql.SearchIds(connection, transaction, request, cancellationToken), cancellationToken);
     }
 
@@ -81,6 +92,10 @@ public sealed partial class ArchiveReader : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (request.TagMembership is { } tags)
+            return ReadAsync((connection, transaction) => (IReadOnlyList<ArchiveThreadSummary>)Array.AsReadOnly(
+                ArchiveSql.SearchSummaries(connection, transaction, request, cancellationToken)
+                    .Where(summary => tags.Matches(summary.Id)).ToArray()), cancellationToken);
         return ReadAsync((connection, transaction) => ArchiveSql.SearchSummaries(connection, transaction, request, cancellationToken), cancellationToken);
     }
 

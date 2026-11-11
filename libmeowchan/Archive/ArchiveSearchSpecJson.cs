@@ -7,12 +7,28 @@ using MeowChan.Interfaces;
 
 namespace MeowChan.Archive;
 
-/// <summary>The strict portable v1 wire contract, shared by saved searches and query consumers.</summary>
+/// <summary>
+/// The strict portable wire contract, shared by saved searches and query consumers. Schema 1 is
+/// unchanged; schema 2 is schema 1 plus a mandatory own-tag filter and is written only when one exists.
+/// </summary>
 public static class ArchiveSearchSpecJson
 {
     public static string Serialize(ArchiveSearchSpec spec)
     {
         ArgumentNullException.ThrowIfNull(spec);
+        if (spec.Tags is { } tags)
+        {
+            // Same members and order as schema 1, followed by the tag filter.
+            System.Text.Json.Nodes.JsonNode node = System.Text.Json.Nodes.JsonNode.Parse(Serialize(spec.WithTags(null)))!;
+            node["schemaVersion"] = 2;
+            node["tags"] = new System.Text.Json.Nodes.JsonObject
+            {
+                ["match"] = tags.Match == ArchiveTagMatch.Any ? "any" : "all",
+                ["include"] = new System.Text.Json.Nodes.JsonArray(tags.Include.Select(id => (System.Text.Json.Nodes.JsonNode)id.ToString("D")).ToArray()),
+                ["exclude"] = new System.Text.Json.Nodes.JsonArray(tags.Exclude.Select(id => (System.Text.Json.Nodes.JsonNode)id.ToString("D")).ToArray())
+            };
+            return node.ToJsonString();
+        }
         return JsonSerializer.Serialize(new
         {
             schemaVersion = spec.SchemaVersion,
@@ -39,7 +55,27 @@ public static class ArchiveSearchSpecJson
         ArgumentNullException.ThrowIfNull(json);
         using JsonDocument document = JsonDocument.Parse(json);
         JsonElement root = document.RootElement;
-        Fields(root, "schemaVersion", "text", "sources", "boards", "sourceStates", "captureEnabled", "hasPosts", "sort", "workFilter", "dateRange");
+        if (root.ValueKind != JsonValueKind.Object) throw new JsonException("A search definition object is required.");
+        int version = root.TryGetProperty("schemaVersion", out JsonElement schema) && schema.ValueKind == JsonValueKind.Number
+            && schema.TryGetInt32(out int parsed) ? parsed : 0;
+        ArchiveTagFilter? tagFilter = null;
+        if (version == 2)
+        {
+            Fields(root, "schemaVersion", "text", "sources", "boards", "sourceStates", "captureEnabled", "hasPosts", "sort", "workFilter", "dateRange", "tags");
+            JsonElement tags = root.GetProperty("tags");
+            Fields(tags, "match", "include", "exclude");
+            try
+            {
+                tagFilter = new ArchiveTagFilter(TagIds(tags.GetProperty("include")), TagIds(tags.GetProperty("exclude")),
+                    Text(tags.GetProperty("match")) switch
+                    {
+                        "all" => ArchiveTagMatch.All, "any" => ArchiveTagMatch.Any,
+                        _ => throw new JsonException("Unsupported tag match.")
+                    });
+            }
+            catch (ArgumentException error) { throw new JsonException("Invalid tag filter: " + error.Message); }
+        }
+        else Fields(root, "schemaVersion", "text", "sources", "boards", "sourceStates", "captureEnabled", "hasPosts", "sort", "workFilter", "dateRange");
         ArchiveDateRange? dateRange = null;
         JsonElement date = root.GetProperty("dateRange");
         if (date.ValueKind != JsonValueKind.Null)
@@ -69,7 +105,20 @@ public static class ArchiveSearchSpecJson
                 "all" => ArchiveWorkFilter.All, "watching" => ArchiveWorkFilter.Watching, "followup" => ArchiveWorkFilter.Followup,
                 "intervention" => ArchiveWorkFilter.Intervention, "completed" => ArchiveWorkFilter.Completed,
                 "stopped" => ArchiveWorkFilter.Stopped, _ => throw new JsonException("Unsupported work filter.")
-            }, dateRange, root.GetProperty("schemaVersion").GetInt32());
+            }, dateRange, version == 2 ? 1 : root.GetProperty("schemaVersion").GetInt32()).WithTags(tagFilter);
+    }
+
+    private static Guid[] TagIds(JsonElement array)
+    {
+        if (array.ValueKind != JsonValueKind.Array) throw new JsonException("A tag list is required.");
+        return array.EnumerateArray().Select(item =>
+        {
+            string text = Text(item);
+            // Exactly the lowercase hyphenated form this contract writes.
+            if (!Guid.TryParseExact(text, "D", out Guid id) || !string.Equals(id.ToString("D"), text, StringComparison.Ordinal))
+                throw new JsonException("A tag reference must be a canonical identifier.");
+            return id;
+        }).ToArray();
     }
 
     private static void Fields(JsonElement element, params string[] names)

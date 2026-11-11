@@ -29,17 +29,51 @@ public sealed record ResolvedDateWindow(DateTimeOffset? StartInclusive, DateTime
 /// <summary>An executable immutable request. Reuse this instance for page, retry and export.</summary>
 public sealed class ArchiveSearchRequest
 {
-    private ArchiveSearchRequest(ArchiveSearchSpec spec, ResolvedDateWindow? dateWindow)
+    private ArchiveSearchRequest(ArchiveSearchSpec spec, ResolvedDateWindow? dateWindow,
+        MeowChan.Tags.ThreadTagMembership? tagMembership = null)
     {
         Spec = spec;
         DateWindow = dateWindow;
+        TagMembership = tagMembership;
     }
     public ArchiveSearchSpec Spec { get; }
     public ResolvedDateWindow? DateWindow { get; }
-    public static ArchiveSearchRequest Create(ArchiveSearchSpec spec)
+
+    /// <summary>
+    /// Frozen own-tag membership; non-null exactly when the definition has a tag filter. Every
+    /// reader query made with this request applies it, so no consumer can widen the result.
+    /// </summary>
+    internal MeowChan.Tags.ThreadTagMembership? TagMembership { get; }
+
+    /// <summary>A definition with a tag filter cannot be executed without a tag snapshot.</summary>
+    public static ArchiveSearchRequest Create(ArchiveSearchSpec spec) => Create(spec, null);
+
+    /// <summary>
+    /// Binds a tag filter to this snapshot. Throws <see cref="ArchiveTagFilterException"/> when the
+    /// index is unavailable or a referenced tag no longer exists; the filter is never dropped.
+    /// </summary>
+    internal static ArchiveSearchRequest Create(ArchiveSearchSpec spec, MeowChan.Tags.PrivateTagStoreSnapshot? tags)
     {
         ArgumentNullException.ThrowIfNull(spec);
-        return new ArchiveSearchRequest(spec, ArchiveDateResolver.Resolve(spec.DateRange));
+        return new ArchiveSearchRequest(spec, ArchiveDateResolver.Resolve(spec.DateRange), Bind(spec, tags));
+    }
+
+    /// <summary>
+    /// The same request against a newer tag snapshot, keeping the frozen date window. Returns this
+    /// instance when nothing tag-related changed, so refreshes keep request identity.
+    /// </summary>
+    internal ArchiveSearchRequest WithTagSnapshot(MeowChan.Tags.PrivateTagStoreSnapshot? tags)
+    {
+        if (Spec.Tags == null || tags != null && TagMembership?.Revision == tags.Revision) return this;
+        return new ArchiveSearchRequest(Spec, DateWindow, Bind(Spec, tags));
+    }
+
+    private static MeowChan.Tags.ThreadTagMembership? Bind(ArchiveSearchSpec spec, MeowChan.Tags.PrivateTagStoreSnapshot? tags)
+    {
+        if (spec.Tags == null) return null;
+        if (tags == null) throw new ArchiveTagFilterException(ArchiveTagFilterError.TagsUnavailable);
+        return MeowChan.Tags.ThreadTagMembership.TryCreate(spec.Tags, tags, out MeowChan.Tags.ThreadTagMembership? membership)
+            ? membership : throw new ArchiveTagFilterException(ArchiveTagFilterError.UnknownTag);
     }
 }
 
