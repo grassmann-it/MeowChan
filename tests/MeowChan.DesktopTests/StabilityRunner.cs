@@ -17,6 +17,7 @@ using MeowChan.PluginHost.Sources;
 using MeowChan.PluginSdk;
 using MeowChan.Rules;
 using MeowChan.Storage;
+using SkiaSharp;
 
 namespace MeowChan.DesktopTests;
 
@@ -334,7 +335,7 @@ internal static class StabilityRunner
         {
             // Let the production watch plan its downloads: media it asks for is refused by the transport and shows in the audit,
             // and the host view shows whether it queued anything at all.
-            await Task.Delay(TimeSpan.FromSeconds(10));
+            await SettleAsync(host, threadUri.AbsoluteUri, TimeSpan.FromSeconds(10));
             board.HostView = CaptureHostView(host, threadUri.AbsoluteUri);
             StabilityRules.OriginalChoice? wanted = StabilityRules.ChooseOriginal(view).Choice;
             board.Notes.Add("replay: the harness would arm " + (wanted == null ? "nothing" : StabilityAuditTransport.AuditUrl(wanted.Attachment.Url!)));
@@ -387,10 +388,14 @@ internal static class StabilityRunner
                 + (board.Original.HashMatched == false ? " hash differs" : "");
             own.Add(new(request.Board, "original", mode, null, board.Original.Url, detail.Trim()));
         }
-        else if (board.Original.IntegrityBasis == "none")
-            own.Add(new(request.Board, "original", "no-provider-integrity-data", null, board.Original.Url, "neither a size nor a hash was declared"));
+        if (board.Original.ContentLengthMatched == false)
+            own.Add(new(request.Board, "original", "content-length-mismatch", null, board.Original.Url,
+                $"Content-Length {board.Original.ContentLength} received {board.Original.ReceivedBytes}"));
         if (work?.Status != MediaWorkStatus.Succeeded)
         {
+            if (board.Original.IntegrityBasis == "none" && board.Original.ContentLengthMatched != false)
+                own.Add(new(request.Board, "original", "no-provider-integrity-data", null, board.Original.Url,
+                    "neither a size nor a hash was declared, and the original was not saved, so the checks that replace them could not run"));
             board.HostView = CaptureHostView(host, threadUri.AbsoluteUri);
             board.Archive = "fail";
             board.Notes.Add("production-did-not-save-the-original: " + (work?.Failure ?? "no result in time"));
@@ -403,6 +408,13 @@ internal static class StabilityRunner
         board.Reader = verification.Reader;
         board.Gallery = verification.Gallery;
         board.Notes.AddRange(verification.Notes);
+        if (board.Original.IntegrityBasis == "none")
+        {
+            // No provider hash and no exact size: the source can still count when the transport length, the decode and the offline reopen agree.
+            board.Notes.Add("integrity-basis-none: " + board.Original.IntegrityNote);
+            if (board.Original.ContentLengthMatched != false && board.Original.Decoded != true)
+                own.Add(new(request.Board, "original", "no-provider-integrity-data", null, board.Original.Url, board.Original.IntegrityNote));
+        }
         if (verification.ExceptionBinding)
         {
             own.Add(new(request.Board, "archive", "integrity-exception-in-binding", null, null, "the stored binding is not strict"));
@@ -491,6 +503,18 @@ internal static class StabilityRunner
     }
 
     /// <summary>The host's own view of the watched thread and the plugin workers, for a step that did not complete.</summary>
+    /// <summary>Waits until the watch has left the checking states (it queued downloads or failed), at most <paramref name="limit"/>.</summary>
+    private static async Task SettleAsync(DesktopSessionHost host, string threadUrl, TimeSpan limit)
+    {
+        System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
+        while (watch.Elapsed < limit)
+        {
+            ThreadSnapshot? snapshot = host.GetView().Threads.Select(entry => entry.Snapshot).FirstOrDefault(row => row.Url == threadUrl);
+            if (snapshot != null && snapshot.Activity is not (MeowChan.Interfaces.ThreadActivity.Pending or MeowChan.Interfaces.ThreadActivity.Checking)) return;
+            await Task.Delay(100);
+        }
+    }
+
     private static string? FailureText(FailureInfo? failure) => failure == null ? null : failure.Kind + ": " + Trim(failure.Message, 400);
 
     private static JsonObject CaptureHostView(DesktopSessionHost host, string threadUrl)
@@ -895,6 +919,20 @@ internal static class StabilityWorkerAccess
 
 internal sealed record StabilityVerification(string Archive, string Reader, string Gallery, bool ExceptionBinding, IReadOnlyList<string> Notes)
 {
+    /// <summary>Decodes the saved original through the gallery's codec (header check and pixel limit) and then fully.</summary>
+    internal static (bool Decoded, string Detail) Decode(byte[] bytes)
+    {
+        try
+        {
+            using MemoryStream stream = new(bytes);
+            GalleryImageInfo info = GalleryImageDecoder.Inspect(stream);
+            using SKBitmap? bitmap = SKBitmap.Decode(bytes);
+            return bitmap == null || bitmap.Width != info.Width || bitmap.Height != info.Height
+                ? (false, "the codec read the header but not the pixels") : (true, $"{info.Format} {info.Width}x{info.Height}");
+        }
+        catch (Exception error) when (error is not OperationCanceledException) { return (false, error.GetType().Name + ": " + error.Message); }
+    }
+
     /// <summary>
     /// Archive: the thread is archived and the original is a verified, readable asset with the received bytes.
     /// Reader: the archived thread still has its posts and the attachment resolves to that asset through a strict binding.
@@ -922,6 +960,7 @@ internal sealed record StabilityVerification(string Archive, string Reader, stri
                 using MemoryStream bytes = new();
                 await verified.CopyToAsync(bytes);
                 string hash = StabilityRunner.Sha256(bytes.ToArray());
+                (original.Decoded, original.DecodeDetail) = Decode(bytes.ToArray());
                 if (!string.Equals(saved.Sha256, original.Sha256, StringComparison.OrdinalIgnoreCase)) notes.Add("asset-hash-differs-from-received-bytes");
                 else if (hash != original.Sha256) notes.Add("verified-read-differs-from-received-bytes");
                 else if (bytes.Length != original.ReceivedBytes) notes.Add("verified-read-length-differs");

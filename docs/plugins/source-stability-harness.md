@@ -39,7 +39,10 @@ any later request that no armed step asked for, or that repeats the board's URLs
 Integrity is strict and no exception is ever granted: expected vs received bytes, every provider
 hash and the SHA-256 of the received bytes are recorded, together with the MD5 of the received bytes (`original.receivedMd5` as hex,
 `receivedMd5Base64`) and the provider's size annotation (`original.providerSizeHint`), so a mismatch shows what the bytes really hash to; a mismatch is an integrity failure and the
-outcome is `fail`. A source that declares neither a size nor a hash cannot pass.
+outcome is `fail`. A source that declares neither a size nor a hash (`integrityBasis: "none"`) passes only when the
+original's Content-Length, if declared, equals the received bytes, the saved file decodes through the gallery's codec, and
+the offline reopen works; the evidence records `contentLength`, `contentLengthMatched`, `decoded` and an `integrityNote`.
+A Content-Length mismatch, a file that does not decode (`no-provider-integrity-data`) or any provided size or hash that differs fails.
 
 Then the archive entry, the verified media file and the reader/gallery projection are checked in
 the same host. The driver then starts a second OS process (network namespace unshared with

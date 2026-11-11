@@ -54,7 +54,12 @@ internal static class StabilityEvidence
                     ["receivedMd5Base64"] = board.Original.ReceivedMd5Base64,
                     ["providerSizeHint"] = board.Original.ProviderSizeHint,
                     ["sha256"] = board.Original.Sha256,
-                    ["integrityBasis"] = board.Original.IntegrityBasis
+                    ["integrityBasis"] = board.Original.IntegrityBasis,
+                    ["contentLength"] = board.Original.ContentLength,
+                    ["contentLengthMatched"] = board.Original.ContentLengthMatched,
+                    ["decoded"] = board.Original.Decoded,
+                    ["decodeDetail"] = board.Original.DecodeDetail,
+                    ["integrityNote"] = board.Original.IntegrityNote
                 },
                 ["archive"] = board.Archive,
                 ["reader"] = board.Reader,

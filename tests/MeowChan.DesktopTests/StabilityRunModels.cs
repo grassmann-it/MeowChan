@@ -35,8 +35,27 @@ internal sealed class StabilityOriginalRun
     /// <summary>"size+hash", "size", "hash" or "none". "none" means the provider declared nothing to verify.</summary>
     public string IntegrityBasis { get; set; } = "none";
     public string? ProductionFailure { get; set; }
+    /// <summary>The Content-Length the original's response declared; null when it declared none (recorded, not an error).</summary>
+    public long? ContentLength { get; set; }
+    /// <summary>True when the declared Content-Length equals the received bytes, false when it differs, null when none was declared.</summary>
+    public bool? ContentLengthMatched { get; set; }
+    /// <summary>True when the saved original decodes as an image through the gallery's codec; null until the verification ran.</summary>
+    public bool? Decoded { get; set; }
+    /// <summary>Format and size of the decoded image, or why it did not decode.</summary>
+    public string? DecodeDetail { get; set; }
 
-    internal bool IntegrityOk => Sha256 != null && IntegrityBasis != "none" && SizeMatched != false && HashMatched != false;
+    /// <summary>
+    /// A provided size or hash must match, and a declared Content-Length must equal the received bytes. When the source
+    /// provides neither a hash nor an exact size ("none") the file must additionally decode; the basis stays "none" in the evidence.
+    /// </summary>
+    internal bool IntegrityOk => Sha256 != null && SizeMatched != false && HashMatched != false && ContentLengthMatched != false
+        && (IntegrityBasis != "none" || Decoded == true);
+
+    /// <summary>Why a source without provider integrity data counted (or not), for the evidence; null for every other basis.</summary>
+    internal string? IntegrityNote => IntegrityBasis != "none" ? null
+        : "the source provides neither a hash nor an exact size; "
+        + (ContentLength is long length ? $"Content-Length {length} " + (ContentLengthMatched == true ? "equals" : "differs from") + $" the {ReceivedBytes} received bytes" : "the response declared no Content-Length")
+        + "; " + (Decoded == true ? "the file decodes (" + DecodeDetail + ")" : "the file did not decode" + (DecodeDetail == null ? "" : " (" + DecodeDetail + ")"));
 }
 
 internal sealed class StabilityBoardRun
@@ -201,6 +220,7 @@ internal static class StabilityRules
             MediaId = attachment.MediaId!, PostId = choice.Post.PostId, Position = attachment.Position, Url = StabilityAuditTransport.AuditUrl(attachment.Url!),
             Extension = choice.Extension, ExpectedBytes = attachment.ExpectedSize, ReceivedBytes = digests.Length, Sha256 = digests.Sha256,
             ReceivedMd5 = digests.Md5Hex.ToLowerInvariant(), ReceivedMd5Base64 = Base64OfHex(digests.Md5Hex),
+            ContentLength = digests.ContentLength, ContentLengthMatched = digests.ContentLength is long declared ? declared == digests.Length : null,
             ProviderSizeHint = attachment.ProviderSizeHint is { } hint ? hint.RawValue + " " + hint.UnitLabel + " (" + hint.Precision + ")" : null
         };
         List<(string Name, string Expected, string Actual)> hashes = [];

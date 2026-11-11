@@ -50,6 +50,15 @@ size byte for byte and every hash the provider supplies. No integrity exception
 granted or needed during the run. A source that needs one (today Kohlchan, Wizchan,
 Endchan, Leftypol) cannot become stable.
 
+A source that provides **neither a hash nor an exact size** for a file (7chan shows only a
+rounded size) can still count; the evidence then keeps `integrityBasis: "none"` and a note
+(`original.integrityNote`). This applies only when the source provides nothing for that
+file: a provided size or hash that mismatches stays a failure. In that case the run must
+show: the HTTP `Content-Length` of the original, if present, equals the received bytes
+(`contentLength`, `contentLengthMatched`; a response without Content-Length is recorded
+as such, a differing one fails); the saved file decodes through the gallery's image codec
+(`decoded`); and the thread and file reopen offline after the process restart.
+
 **S3 · Real delivery.** The run uses the bundle from the built package
 (`scripts/package-plugins.py`), not a source build. Offline is checked after a **real
 OS process restart** with network blocked, not with a fresh host in the same process

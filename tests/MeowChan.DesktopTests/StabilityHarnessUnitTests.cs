@@ -596,6 +596,79 @@ public sealed class StabilityHarnessUnitTests
         Assert.True(StabilityRules.Evaluate(Choice(md5Hex.ToUpperInvariant()), digests).HashMatched);
     }
 
+    private static (StabilityRules.OriginalChoice Choice, byte[] Bytes) NoProviderData(string? md5 = null, long? size = null)
+    {
+        byte[] bytes = StabilityStubSite.Png(4, 4);
+        return (new(new MeowChan.Archive.CapturedPost("1", 1, default),
+            new MeowChan.Archive.CapturedAttachment(0, "m", Url: "https://x.example/m.png", ExpectedSize: size, ExpectedMd5: md5), ".png"), bytes);
+    }
+
+    private static StabilityDigests DigestsOf(byte[] bytes, long? contentLength) => new(bytes.Length, Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(),
+        Convert.ToHexString(MD5.HashData(bytes)).ToLowerInvariant(), Convert.ToHexString(SHA1.HashData(bytes)).ToLowerInvariant(), contentLength);
+
+    [Fact]
+    public void ASourceWithoutHashOrSizeCountsWhenTheContentLengthMatchesAndTheFileDecodes()
+    {
+        (StabilityRules.OriginalChoice choice, byte[] bytes) = NoProviderData();
+        StabilityOriginalRun run = StabilityRules.Evaluate(choice, DigestsOf(bytes, bytes.Length));
+        Assert.Equal("none", run.IntegrityBasis);
+        Assert.True(run.ContentLengthMatched);
+        Assert.False(run.IntegrityOk, "not before the decode check ran");
+        (run.Decoded, run.DecodeDetail) = StabilityVerification.Decode(bytes);
+        Assert.True(run.Decoded);
+        Assert.True(run.IntegrityOk);
+        Assert.Equal("none", run.IntegrityBasis);
+        Assert.Contains("neither a hash nor an exact size", run.IntegrityNote);
+        Assert.Contains($"Content-Length {bytes.Length} equals", run.IntegrityNote);
+        Assert.Contains("the file decodes (", run.IntegrityNote);
+
+        // No Content-Length at all is recorded, not an error.
+        StabilityOriginalRun undeclared = StabilityRules.Evaluate(choice, DigestsOf(bytes, null));
+        undeclared.Decoded = true;
+        Assert.Null(undeclared.ContentLengthMatched);
+        Assert.True(undeclared.IntegrityOk);
+        Assert.Contains("declared no Content-Length", undeclared.IntegrityNote);
+    }
+
+    [Fact]
+    public void ASourceWithoutHashOrSizeFailsOnAContentLengthMismatchOrAFileThatDoesNotDecode()
+    {
+        (StabilityRules.OriginalChoice choice, byte[] bytes) = NoProviderData();
+        StabilityOriginalRun wrongLength = StabilityRules.Evaluate(choice, DigestsOf(bytes, bytes.Length + 7));
+        wrongLength.Decoded = true;
+        Assert.False(wrongLength.ContentLengthMatched);
+        Assert.False(wrongLength.IntegrityOk);
+        Assert.Contains("differs from", wrongLength.IntegrityNote);
+
+        StabilityOriginalRun garbage = StabilityRules.Evaluate(choice, DigestsOf(bytes, bytes.Length));
+        (garbage.Decoded, garbage.DecodeDetail) = StabilityVerification.Decode(Encoding.ASCII.GetBytes("<html>not an image</html>"));
+        Assert.False(garbage.Decoded);
+        Assert.False(garbage.IntegrityOk);
+        Assert.Contains("did not decode", garbage.IntegrityNote);
+    }
+
+    [Fact]
+    public void AProvidedValueThatMismatchesStillFailsEvenWhenLengthAndDecodeAreFine()
+    {
+        (StabilityRules.OriginalChoice hashChoice, byte[] bytes) = NoProviderData(md5: Convert.ToBase64String(new byte[16]));
+        StabilityOriginalRun wrongHash = StabilityRules.Evaluate(hashChoice, DigestsOf(bytes, bytes.Length));
+        wrongHash.Decoded = true;
+        Assert.Equal("hash", wrongHash.IntegrityBasis);
+        Assert.False(wrongHash.HashMatched);
+        Assert.False(wrongHash.IntegrityOk);
+        Assert.Null(wrongHash.IntegrityNote);
+
+        (StabilityRules.OriginalChoice sizeChoice, _) = NoProviderData(size: bytes.Length + 1);
+        StabilityOriginalRun wrongSize = StabilityRules.Evaluate(sizeChoice, DigestsOf(bytes, bytes.Length));
+        wrongSize.Decoded = true;
+        Assert.False(wrongSize.SizeMatched);
+        Assert.False(wrongSize.IntegrityOk);
+
+        // A provided value that matches never needs the decode check.
+        (StabilityRules.OriginalChoice goodChoice, _) = NoProviderData(size: bytes.Length);
+        Assert.True(StabilityRules.Evaluate(goodChoice, DigestsOf(bytes, bytes.Length)).IntegrityOk);
+    }
+
     [Fact]
     public void EvaluationComparesEverythingTheProviderDeclared()
     {
@@ -620,7 +693,7 @@ public sealed class StabilityHarnessUnitTests
 
         StabilityOriginalRun nothing = StabilityRules.Evaluate(Choice(null, null), digests);
         Assert.Equal("none", nothing.IntegrityBasis);
-        Assert.False(nothing.IntegrityOk, "a source that declares nothing cannot count as verified");
+        Assert.False(nothing.IntegrityOk, "a source that declares nothing counts only after the Content-Length and decode checks ran");
     }
 
     // ---- evidence -----------------------------------------------------------------------------------------------------

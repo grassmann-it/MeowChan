@@ -17,7 +17,8 @@ internal sealed record StabilityRequestRecord(int Sequence, string? Board, strin
 /// <summary>A response or condition that stopped the chan for this run.</summary>
 internal sealed record StabilityFailure(string? Board, string Step, string Mode, int? Status, string? Url, string? Detail);
 
-internal sealed record StabilityDigests(long Length, string Sha256, string Md5Hex, string Sha1Hex);
+/// <summary>The received body and, for an original, the Content-Length the response declared (null when it declared none).</summary>
+internal sealed record StabilityDigests(long Length, string Sha256, string Md5Hex, string Sha1Hex, long? ContentLength = null);
 
 /// <summary>What the transport may let through for one chan: its declared hosts and the user's planned redirects.</summary>
 internal sealed record StabilityChanPolicy(string SourceId, IReadOnlyCollection<string> AllowedHosts,
@@ -246,6 +247,7 @@ internal sealed class StabilityAuditTransport : HttpMessageHandler
             response = await _network.SendAsync(outbound, HttpCompletionOption.ResponseHeadersRead, deadline.Token).ConfigureAwait(false);
             status = (int)response.StatusCode;
             contentType = response.Content.Headers.ContentType?.ToString();
+            long? declaredLength = response.Content.Headers.ContentLength;
             headers = SafeResponseHeaders(response);
             agent = StaticAgent(response.RequestMessage?.Headers.UserAgent.ToString() ?? "");
             if (response.RequestMessage?.RequestUri != outbound.RequestUri) throw new LiveHarnessLimitException("unexpected-final-uri");
@@ -273,7 +275,7 @@ internal sealed class StabilityAuditTransport : HttpMessageHandler
                     if (armed.Step == StabilityStep.Thread) _awaitOriginalBoard = armed.Board;
                     if (armed.Step == StabilityStep.Original && armed.Board != null)
                         _digests[armed.Board] = new(bytes.Length, hash, Convert.ToHexString(MD5.HashData(bytes)).ToLowerInvariant(),
-                            Convert.ToHexString(SHA1.HashData(bytes)).ToLowerInvariant());
+                            Convert.ToHexString(SHA1.HashData(bytes)).ToLowerInvariant(), declaredLength);
                 }
             }
             return response;

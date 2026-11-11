@@ -364,6 +364,68 @@ public sealed class StabilityRunnerHostTests(ITestOutputHelper output)
         Assert.Contains("GET https://capybarachan.org/boards.json", StabilityRunLiveTests.RenderPlan([listed]));
     }
 
+    private const string NoIntegrityThread = """{"posts":[{"no":123,"resto":0,"sub":"Stability stub","com":"<p>Synthetic opening</p>","time":1700000000,"tim":"demo-1000-0","ext":".png","filename":"landscape"},{"no":124,"resto":123,"com":"<p>Synthetic reply</p>"}]}""";
+
+    [Fact]
+    public async Task ASourceThatProvidesNeitherHashNorSizeCountsWhenLengthDecodeAndOfflineReopenAgree()
+    {
+        using Run run = new();
+        run.Site.Override = (url, request) => url == "https://lainchan.org/demo/res/123.json"
+            ? StabilityStubSite.Response(request, Encoding.UTF8.GetBytes(NoIntegrityThread), "application/json") : null;
+        StabilityChanRun online = await Online(run, Chan("lainchan", ["demo"]), boards: 1);
+        Assert.Null(online.Fatal);
+        Assert.Empty(online.Failures);
+        StabilityBoardRun board = online.Boards.Single();
+        Assert.Equal("none", board.Original!.IntegrityBasis);
+        Assert.Null(board.Original.ExpectedBytes);
+        Assert.Null(board.Original.HashMatched);
+        Assert.Equal(board.Original.ReceivedBytes, board.Original.ContentLength);
+        Assert.True(board.Original.ContentLengthMatched);
+        Assert.True(board.Original.Decoded);
+        Assert.True(board.Original.IntegrityOk);
+        Assert.Contains(board.Notes, note => note.StartsWith("integrity-basis-none: ", StringComparison.Ordinal));
+        await StabilityRunner.RunOfflineAsync(online, run.NoNetwork());
+        Assert.Equal("pass", board.OfflineAfterRestart);
+        Assert.Equal("pass", StabilityEvidence.Outcome(online));
+
+        StabilityPhaseOne phase = new() { Network = "stub", ProcessId = 1, StartedUtc = DateTimeOffset.UtcNow, FinishedUtc = DateTimeOffset.UtcNow, Configuration = "Debug", PackageRoot = AppContext.BaseDirectory };
+        phase.Chans.Add(online);
+        using JsonDocument document = JsonDocument.Parse(StabilityEvidence.Compose(online, phase, Contract).ToJsonString(StabilityEvidence.Json));
+        Assert.Empty(StabilityEvidence.ValidateShape(document.RootElement));
+        JsonElement original = document.RootElement.GetProperty("boards")[0].GetProperty("original");
+        Assert.Equal("none", original.GetProperty("integrityBasis").GetString());
+        Assert.True(original.GetProperty("decoded").GetBoolean());
+        Assert.True(original.GetProperty("contentLengthMatched").GetBoolean());
+        Assert.Contains("neither a hash nor an exact size", original.GetProperty("integrityNote").GetString());
+        Assert.Equal("pass", document.RootElement.GetProperty("outcome").GetString());
+    }
+
+    [Fact]
+    public async Task ASourceWithoutHashOrSizeFailsWhenTheContentLengthDiffersOrTheBodyIsNotAnImage()
+    {
+        string original = StabilityStubSite.Original("lainchan.org", "demo", 0);
+        foreach (bool wrongLength in new[] { true, false })
+        {
+            using Run run = new();
+            run.Site.Override = (url, request) =>
+            {
+                if (url == "https://lainchan.org/demo/res/123.json")
+                    return StabilityStubSite.Response(request, Encoding.UTF8.GetBytes(NoIntegrityThread), "application/json");
+                if (url != original) return null;
+                byte[] bytes = wrongLength ? run.Site.OriginalBytes("lainchan.org", "demo", 0) : Encoding.ASCII.GetBytes("this is not an image at all");
+                HttpResponseMessage response = StabilityStubSite.Response(request, bytes, "image/png");
+                if (wrongLength) response.Content.Headers.ContentLength = bytes.Length + 11;
+                return response;
+            };
+            StabilityChanRun online = await Online(run, Chan("lainchan", ["demo"]), boards: 1);
+            StabilityFailure failure = Assert.Single(online.Failures);
+            Assert.Equal(("demo", "original"), (failure.Board, failure.Step));
+            Assert.Equal(wrongLength ? "content-length-mismatch" : "no-provider-integrity-data", failure.Mode);
+            Assert.False(online.Boards.Single().Original!.IntegrityOk);
+            Assert.Equal("fail", StabilityEvidence.Outcome(online));
+        }
+    }
+
     [Fact]
     public async Task EvidenceMatchesTheContractShapeAndCarriesNoMediaBytes()
     {
