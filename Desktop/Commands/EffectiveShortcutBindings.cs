@@ -236,6 +236,8 @@ public sealed class EffectiveShortcutBindings
         if (id == "media.rating.clear" || id.StartsWith("media.rating.set-", StringComparison.Ordinal))
             return new[] { "media", "reader", "gallery", "dialog:media-rating" };
         if (id.StartsWith("navigation.") || id is "session.pause" or "window.fullscreen" or "input.focus-url" or "viewer.shortcut-help") return new[] { "shell" };
+        // The large reader owns thread find; the archive search box is not reachable from it.
+        if (id == "reader.find") return new[] { "large-reader" };
         if (id == "input.focus-search") return new[] { "archive", "reader", "about" };
         if (id == "thread.read") return new[] { "archive", "downloads" };
         if (c.Contexts.Any(x => x.StartsWith("reader-groups"))) return new[] { "dialog:reader-groups" };

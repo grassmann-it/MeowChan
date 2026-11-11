@@ -364,10 +364,11 @@ internal static class ReaderThreadFindChecks
                 // reverse movement from accidental forward clicks even at wrap.
                 await SendAsync(C<TextBox>("ReaderFindQuery"), Key.Enter);
                 CheckHit(1);
-                Control[] sources = [C<TextBox>("ReaderFindQuery"), .. buttons];
+                Control[] sources = [C<TextBox>("ReaderFindQuery"), buttons[1], buttons[0]];
                 foreach (Control source in sources)
                 {
-                    foreach (int selected in new[] { 2, 3, 1 })
+                    // SF-03: Enter on the focused Previous button runs "previous", not "next".
+                    foreach (int selected in ReferenceEquals(source, buttons[0]) ? new[] { 3, 2, 1 } : new[] { 2, 3, 1 })
                     {
                         await SendAsync(source, Key.Enter);
                         CheckHit(selected);
@@ -378,8 +379,18 @@ internal static class ReaderThreadFindChecks
                         CheckHit(selected);
                     }
                 }
-                Require(unexpectedClicks == 0 && routedAtShell == 25,
+                Require(unexpectedClicks == 0 && routedAtShell == 19,
                     "Find Enter gestures clicked a button or did not traverse the real Window tunnel.");
+                // SF-03: Enter on the focused Close button closes the bar.
+                await SendAsync(buttons[2], Key.Enter);
+                Require(!C<StackPanel>("ReaderFindBar").IsVisible, "Enter on the focused Close button did not close the find bar.");
+                // SF-05: Primary+F opens thread find from a focused reader control.
+                await SendAsync(C<Button>("ReaderFindOpen"), Key.F,
+                    OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control);
+                Require(C<StackPanel>("ReaderFindBar").IsVisible && C<TextBox>("ReaderFindQuery").IsFocused,
+                    "Primary+F did not open thread find in the reader.");
+                await page.ThreadFindTask.WaitAsync(Deadline);
+                await OpenFindAsync();
                 Console.WriteLine($"SMOKE reader-find shell-enter [{language}]: Query/Previous/Next/Close; 3-hit forward/reverse wrap; zero additional Click/Close; real Window tunnel checked. Managed events only.");
 
                 // Each Escape variant gets a fresh shell. No private fullscreen-

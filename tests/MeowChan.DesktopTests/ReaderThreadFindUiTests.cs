@@ -67,6 +67,25 @@ public sealed class ReaderThreadFindUiTests
     }
 
     [Fact]
+    public void ReaderFindIsARebindableReaderOnlyCommandWithPrimaryF()
+    {
+        var command = MeowChan.Desktop.Commands.CommandCatalog.All.Single(c => c.Id == "reader.find");
+        Assert.Equal("Primary+F", command.Shortcut);
+        Assert.Equal(MeowChan.Desktop.Commands.CommandScope.Reader, command.Scope);
+        Assert.DoesNotContain("Primary+F", Source("Desktop/Views/Archive/ArchivePage.ThreadFind.cs"));
+        Assert.Contains("CommandBindings.Matches(e, \"reader.find\")", Source("Desktop/Views/Archive/ArchivePage.Reader.cs"));
+    }
+
+    [Fact]
+    public void EnterOnFocusedFindButtonsRunsTheLabeledAction()
+    {
+        string find = Source("Desktop/Views/Archive/ArchivePage.ThreadFind.cs");
+        Assert.Contains("case \"ReaderFindPrevious\": MoveThreadFind(false)", find);
+        Assert.Contains("case \"ReaderFindClose\": CloseThreadFind()", find);
+        Assert.Contains("case \"ReaderFindRetry\"", find);
+    }
+
+    [Fact]
     public void LifecycleHooksInvalidateAndBuiltInsRegisterBothLanguages()
     {
         foreach (string file in new[] { "ArchivePage.axaml.cs", "ArchivePage.Reader.cs",

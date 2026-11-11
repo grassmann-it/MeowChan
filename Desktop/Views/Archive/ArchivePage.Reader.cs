@@ -457,6 +457,13 @@ public partial class ArchivePage
     {
         if (IsThreadFindSource(e.Source)) return;
         if (e.Handled || ShortcutService.IsCapturing || !_largeReader || IsReaderDialogOpen) return;
+        // Thread find is a Reader-only command (never a global find): it needs an open thread.
+        if (_thread != null && CommandBindings.Matches(e, "reader.find"))
+        {
+            e.Handled = true;
+            OnOpenThreadFind(null, e);
+            return;
+        }
         if (e.Source is Visual source)
         {
             if (source.GetSelfAndVisualAncestors().Any(control => control is TextBox or ComboBox or NumericUpDown or MenuItem or Slider or ScrollBar)) return;

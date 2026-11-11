@@ -89,6 +89,7 @@ internal static class CommandLabelCatalog
         ("command.reader.previous-thread", "Previous thread", "Voriger Thread"),
         ("command.reader.next-thread", "Next thread", "Nächster Thread"),
         ("command.reader.previous-post", "Previous post", "Voriger Beitrag"),
+        ("command.reader.find", "Find in thread", "Im Thread suchen"),
         ("command.reader.next-post", "Next post", "Nächster Beitrag"),
         ("command.reader.open-quote", "Show quoted post", "Zitierten Beitrag anzeigen"),
         ("command.reader.show-replies", "Show replies", "Antworten anzeigen"),

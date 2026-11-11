@@ -125,6 +125,7 @@ public static class CommandCatalog
         new("reader.previous-thread", "command.reader.previous-thread", "Previous thread", "Voriger Thread", "arrow-left", "Left", CommandScope.Reader, new[] { "large-reader-navigation" }),
         new("reader.next-thread", "command.reader.next-thread", "Next thread", "Nächster Thread", "arrow-right", "Right", CommandScope.Reader, new[] { "large-reader-navigation" }),
         new("reader.previous-post", "command.reader.previous-post", "Previous post", "Voriger Beitrag", "arrow-up", "Up", CommandScope.Reader, new[] { "large-reader-navigation" }),
+        new("reader.find", "command.reader.find", "Find in thread", "Im Thread suchen", "search", "Primary+F", CommandScope.Reader, new[] { "reader-find" }),
         new("reader.next-post", "command.reader.next-post", "Next post", "Nächster Beitrag", "arrow-down", "Down", CommandScope.Reader, new[] { "large-reader-navigation" }),
         new("reader.open-quote", "command.reader.open-quote", "Show quoted post", "Zitierten Beitrag anzeigen", "corner-up-left", null, CommandScope.Reader | CommandScope.Gallery, new[] { "reader-post-quote", "reader-reference-list", "gallery-post-context" }),
         new("reader.show-replies", "command.reader.show-replies", "Show replies", "Antworten anzeigen", "message-square", null, CommandScope.Reader, new[] { "reader-post" }),

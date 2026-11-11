@@ -144,8 +144,22 @@ public partial class ArchivePage
         if (gesture == 0) return; // Space, Tab, modified Enter/Escape retain native ownership.
         e.Handled = true;
         if (gesture == 2) CloseThreadFind();
+        else if (gesture == 1 && FocusedFindButton(e.Source) is { } button)
+        {
+            // Enter on a focused find button runs that button's labeled action, not "next hit".
+            switch (button.Name)
+            {
+                case "ReaderFindPrevious": MoveThreadFind(false); break;
+                case "ReaderFindClose": CloseThreadFind(); break;
+                case "ReaderFindRetry": OnRetryThreadFind(button, e); break;
+                default: MoveThreadFind(true); break;
+            }
+        }
         else MoveThreadFind(gesture == 1);
     }
+
+    private static Button? FocusedFindButton(object? source) => (source as Avalonia.Visual)?
+        .GetSelfAndVisualAncestors().OfType<Button>().FirstOrDefault(b => b.Name?.StartsWith("ReaderFind", StringComparison.Ordinal) == true);
 
     private void LocalizeThreadFind()
     {

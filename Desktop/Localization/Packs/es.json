@@ -1821,6 +1821,7 @@
     "command.reader.previous-thread": "Hilo anterior",
     "command.reader.next-thread": "Hilo siguiente",
     "command.reader.previous-post": "Publicación anterior",
+    "command.reader.find": "Buscar en el hilo",
     "command.reader.next-post": "Publicación siguiente",
     "command.reader.open-quote": "Mostrar publicación citada",
     "command.reader.show-replies": "Mostrar respuestas",
