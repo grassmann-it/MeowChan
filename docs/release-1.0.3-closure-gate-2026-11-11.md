@@ -127,4 +127,5 @@ GUI-Smokes im privaten Xvfb (nice 19):
 ## Was das Gate auflöst
 
 1. Erledigt (`aaea381`): Recovery unterbrochener Transfers.
-2. Windows-/macOS-/Hardwareläufe sowie Linux-Distributionspaketierung und `check-video-native.py` auf der Ubuntu-CI-Basis bzw. den Zielplattformen.
+2. Nutzerentscheidung 11.11.: Paketierung und Plattformläufe übernimmt der Nutzer am Ende per GitHub
+   Actions (Codex). Dort zu prüfen: Windows-/macOS-/Hardwareläufe sowie Linux-Distributionspaketierung und `check-video-native.py` auf der Ubuntu-CI-Basis bzw. den Zielplattformen.
