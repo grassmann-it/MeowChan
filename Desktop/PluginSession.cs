@@ -82,6 +82,8 @@ internal sealed partial class PluginSession : IAsyncDisposable
         Runtime = new PluginWorkerManager(new PluginWorkerOptions
         {
             MaximumProductionWorkers = config.PluginMaximumProductionWorkers,
+            // Startup describes use the test-worker admission; the runtime contract allows two.
+            MaximumTestWorkers = StartupProbeLanes,
             IdleTimeout = TimeSpan.FromMinutes(config.PluginWorkerIdleMinutes),
             SourceHeapLimitBytes = (long)config.PluginSourceHeapMiB * 1024 * 1024,
             FilterHeapLimitBytes = (long)config.PluginFilterHeapMiB * 1024 * 1024,
@@ -136,17 +138,30 @@ internal sealed partial class PluginSession : IAsyncDisposable
         List<DeliveredCandidateProvenance> delivered = new();
         HashSet<string> shippedIds = shipped.Candidates.Where(item => item.Kind == PluginCandidateKind.PrebuiltManifest)
             .Select(item => item.CandidateId).ToHashSet(StringComparer.Ordinal);
-        foreach (PluginInstallationCandidate candidate in shipped.Candidates.Where(item => item.Kind == PluginCandidateKind.PrebuiltManifest)
-            .Concat(local.Candidates))
+        PluginInstallationCandidate[] ordered = shipped.Candidates.Where(item => item.Kind == PluginCandidateKind.PrebuiltManifest)
+            .Concat(local.Candidates).ToArray();
+        // Probes overlap in bounded lanes; observations, provenance and activation keep inventory order.
+        SemaphoreSlim lanes = new(StartupProbeLanes, StartupProbeLanes);
+        PluginCandidateObservation[] probed = await Task.WhenAll(ordered.Select(async candidate =>
+        {
+            await lanes.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                PluginActivationSnapshot? previousOwner = previous.Plugins.FirstOrDefault(plugin =>
+                    plugin.Candidates.Any(item => item.CandidateId == candidate.CandidateId));
+                return await PluginStartupDiagnostics.ObserveAsync(candidate, previousOwner,
+                    ct => candidate.Kind == PluginCandidateKind.PrebuiltManifest
+                        ? ((IPluginBundleInstaller)CompilationService).ImportBundleAsync(candidate.Path, ct)
+                        : CompilationService.BuildAsync(candidate.Path, cancellationToken: ct),
+                    (artifact, ct) => DescribeStartupAsync(previous, candidate.CandidateId, artifact, ct), _logger, token).ConfigureAwait(false);
+            }
+            finally { lanes.Release(); }
+        })).ConfigureAwait(false);
+        for (int index = 0; index < ordered.Length; index++)
         {
             token.ThrowIfCancellationRequested();
-            PluginActivationSnapshot? previousOwner = previous.Plugins.FirstOrDefault(plugin =>
-                plugin.Candidates.Any(item => item.CandidateId == candidate.CandidateId));
-            PluginCandidateObservation observation = await PluginStartupDiagnostics.ObserveAsync(candidate, previousOwner,
-                ct => candidate.Kind == PluginCandidateKind.PrebuiltManifest
-                    ? ((IPluginBundleInstaller)CompilationService).ImportBundleAsync(candidate.Path, ct)
-                    : CompilationService.BuildAsync(candidate.Path, cancellationToken: ct),
-                (artifact, ct) => DescribeStartupAsync(previous, candidate.CandidateId, artifact, ct), _logger, token).ConfigureAwait(false);
+            PluginInstallationCandidate candidate = ordered[index];
+            PluginCandidateObservation observation = probed[index];
             if (shippedIds.Contains(candidate.CandidateId) && observation is { Problem: null, Artifact: not null, Description: not null })
             {
                 try
@@ -231,6 +246,9 @@ internal sealed partial class PluginSession : IAsyncDisposable
             "routing", new[] { source.Description }, Array.Empty<FilterDescription>(), new SettingsSchema("1", Array.Empty<SettingDefinition>()), Array.Empty<InformationEntry>());
         return SdkValidation.ValidateDescriptions(new[] { Wrapper(left), Wrapper(right) }).Any(issue => issue.Code == "route_conflict");
     }
+
+    // Measured 11.11.2026: two lanes roughly halve the first-start describe phase; more were not measured.
+    private const int StartupProbeLanes = 2;
 
     private Task<PluginDescription> DescribeStartupAsync(PluginProfileSnapshot previous, string candidateId,
         PluginArtifact artifact, CancellationToken cancellationToken)
