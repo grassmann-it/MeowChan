@@ -113,8 +113,42 @@ internal static class MediaLibraryTagging
 /// <summary>Originals to export for a selection, and how many tiles could not be offered.</summary>
 internal sealed record MediaLibraryExportPlan(IReadOnlyList<FavoriteExportAsset> Assets, int Unavailable);
 
+/// <summary>
+/// What an export of tiles would copy by the index alone: tiles with an original to offer, their total bytes, and
+/// the tiles that have none. No disk is read, so the page can ask before it starts anything large.
+/// </summary>
+internal readonly record struct MediaLibraryExportSize(int Files, long Bytes, int NotOffered)
+{
+    /// <summary>Above this many files "export all" asks first.</summary>
+    internal const int ConfirmAboveFiles = 500;
+    /// <summary>Above this many bytes (2 GiB) "export all" asks first.</summary>
+    internal const long ConfirmAboveBytes = 2L * 1024 * 1024 * 1024;
+
+    /// <summary>True when more than <paramref name="maxFiles"/> files or more than <paramref name="maxBytes"/> bytes would be copied.</summary>
+    internal bool Exceeds(int maxFiles = ConfirmAboveFiles, long maxBytes = ConfirmAboveBytes) => Files > maxFiles || Bytes > maxBytes;
+}
+
 internal static class MediaLibraryExport
 {
+    // The index facts BuildAsync needs before it opens a manifest; the same test decides count and plan, so they cannot drift.
+    private static bool HasOriginal(MediaLibraryEntry entry) => entry.Presence == MediaLibraryPresence.Present && entry.Directory != null
+        && entry.AssetId != null && entry.MediaId != null && entry.Variant == "original";
+
+    /// <summary>Count and bytes of the originals the tiles would offer, from the index only.</summary>
+    internal static MediaLibraryExportSize Measure(IEnumerable<MediaLibraryTile> tiles)
+    {
+        ArgumentNullException.ThrowIfNull(tiles);
+        int files = 0, notOffered = 0;
+        long bytes = 0;
+        foreach (MediaLibraryTile tile in tiles)
+        {
+            if (!HasOriginal(tile.Entry)) { notOffered++; continue; }
+            files++;
+            bytes += tile.Entry.Length ?? 0;
+        }
+        return new MediaLibraryExportSize(files, bytes, notOffered);
+    }
+
     /// <summary>
     /// One original per tile: the occurrence the tile shows, read from its manifest. A tile that is not saved,
     /// has no original variant, or whose bytes no longer match the index counts as unavailable instead of
@@ -132,8 +166,7 @@ internal static class MediaLibraryExport
         {
             cancellationToken.ThrowIfCancellationRequested();
             MediaLibraryEntry entry = tile.Entry;
-            if (entry.Presence != MediaLibraryPresence.Present || entry.Directory == null || entry.AssetId == null
-                || entry.MediaId == null || entry.Variant != "original") { unavailable++; continue; }
+            if (!HasOriginal(entry)) { unavailable++; continue; }
             if (!manifests.TryGetValue(entry.Directory, out MediaAssetSnapshot? manifest))
             {
                 try { manifest = await openManifest(entry.Directory, cancellationToken).ConfigureAwait(false); }

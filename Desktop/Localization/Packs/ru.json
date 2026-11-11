@@ -2153,6 +2153,14 @@
     "media.state.ratingValue": "{0} из 5",
     "media.state.noTags": "нет",
     "media.state.notTaggable": "для этого файла невозможно",
-    "media.state.tagCount": "тегов: {0}"
+    "media.state.tagCount": "тегов: {0}",
+    "media.exportAll": "Экспортировать все найденные…",
+    "media.exportAll.hint": "Скопировать оригиналы всех показанных сейчас плиток, по одному на плитку",
+    "media.exportAll.reason.none": "Плитки не показаны, поэтому экспортировать нечего.",
+    "media.exportAll.scope": "Все найденные",
+    "media.exportAll.preparing": "Подготовка {0} плиток к экспорту…",
+    "media.exportAll.confirm": "Будет скопировано оригиналов: {0} ({1}). Это может занять время. Экспортировать все?",
+    "media.exportAll.confirm.yes": "Всё равно экспортировать",
+    "media.exportAll.confirm.no": "Отмена"
   }
 }

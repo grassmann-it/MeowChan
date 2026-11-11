@@ -2153,6 +2153,14 @@
     "media.state.ratingValue": "{0} de 5",
     "media.state.noTags": "ninguna",
     "media.state.notTaggable": "no es posible para este archivo",
-    "media.state.tagCount": "{0} etiquetas"
+    "media.state.tagCount": "{0} etiquetas",
+    "media.exportAll": "Exportar todos los resultados…",
+    "media.exportAll.hint": "Copiar los originales de todas las miniaturas visibles ahora, uno por miniatura",
+    "media.exportAll.reason.none": "No hay miniaturas visibles, así que no hay nada que exportar.",
+    "media.exportAll.scope": "Todos los resultados",
+    "media.exportAll.preparing": "Preparando {0} miniaturas para exportar…",
+    "media.exportAll.confirm": "Se van a copiar {0} originales ({1}). Puede tardar un poco. ¿Exportarlos todos?",
+    "media.exportAll.confirm.yes": "Exportar de todos modos",
+    "media.exportAll.confirm.no": "Cancelar"
   }
 }

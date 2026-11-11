@@ -1,0 +1,100 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.Layout;
+using MeowChan.Desktop.Localization;
+using MeowChan.Gallery;
+
+namespace MeowChan;
+
+// "Alle Treffer exportieren": the originals of every tile the active filter shows right now, through the same export plan and
+// dialog as the selection. Count and size come from the index alone; above a limit the page asks first, inline and without
+// blocking. The tiles are frozen when the user clicks: a filter change in between drops a pending question instead of
+// exporting tiles that are no longer shown.
+public sealed partial class MediaPage
+{
+    private readonly Button _exportAll = new() { Name = "MediaExportAll" };
+    private readonly TextBlock _exportAllText = new() { Name = "MediaExportAllConfirmText", TextWrapping = Avalonia.Media.TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+    private readonly Button _exportAllYes = new() { Name = "MediaExportAllConfirmYes" };
+    private readonly Button _exportAllNo = new() { Name = "MediaExportAllConfirmNo" };
+    private readonly WrapPanel _exportAllAsk = new() { Name = "MediaExportAllConfirm", ItemSpacing = 8, LineSpacing = 6, IsVisible = false };
+    private IReadOnlyList<MediaLibraryTile>? _exportAllPending;
+
+    /// <summary>Count and bytes above which "export all" asks first. Tests lower it; the page never changes it.</summary>
+    internal (int Files, long Bytes) ExportAllConfirmAbove { get; set; } = (MediaLibraryExportSize.ConfirmAboveFiles, MediaLibraryExportSize.ConfirmAboveBytes);
+    internal bool ExportAllAsking => _exportAllAsk.IsVisible;
+
+    private Control BuildExportAllAsk()
+    {
+        AutomationProperties.SetLiveSetting(_exportAllText, AutomationLiveSetting.Polite);
+        _exportAllYes.Classes.Add("primary");
+        foreach (Control control in new Control[] { _exportAllText, _exportAllYes, _exportAllNo }) _exportAllAsk.Children.Add(control);
+        _exportAll.Click += async (_, _) => await ExportAllAsync();
+        _exportAllYes.Click += async (_, _) => await ConfirmExportAllAsync();
+        _exportAllNo.Click += (_, _) => DismissExportAllAsk();
+        return _exportAllAsk;
+    }
+
+    private void LocalizeExportAll()
+    {
+        _exportAll.Content = Texts.T("media.exportAll");
+        _exportAllYes.Content = Texts.T("media.exportAll.confirm.yes");
+        _exportAllNo.Content = Texts.T("media.exportAll.confirm.no");
+        if (_exportAllPending != null) _exportAllText.Text = AskText(MediaLibraryExport.Measure(_exportAllPending));
+    }
+
+    private void UpdateExportAll()
+    {
+        string? reason = _building != null ? Texts.T("media.selection.reason.building") : _tiles.Count == 0 ? Texts.T("media.exportAll.reason.none") : null;
+        SetAction(_exportAll, reason == null && !_selectionBusy && !_lifetime.IsCancellationRequested && ExportOriginals != null,
+            reason, ExportOriginals != null, "media.exportAll.hint");
+    }
+
+    private MenuItem ExportAllMenuItem()
+    {
+        MenuItem item = new() { Header = Texts.T("media.exportAll"), IsEnabled = _exportAll.IsEnabled };
+        item.Click += (_, _) => _exportAll.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        return item;
+    }
+
+    private static string AskText(MediaLibraryExportSize size) => Texts.T("media.exportAll.confirm", size.Files.ToString("N0", Texts.Culture), FormatBytes(size.Bytes));
+
+    // The tile detail shows decimal megabytes; larger totals read better in gigabytes.
+    private static string FormatBytes(long bytes) => bytes >= 1_000_000_000L
+        ? (bytes / 1_000_000_000d).ToString("0.#", Texts.Culture) + " GB"
+        : (bytes / 1_000_000d).ToString("0.#", Texts.Culture) + " MB";
+
+    private void DismissExportAllAsk()
+    {
+        _exportAllPending = null;
+        _exportAllAsk.IsVisible = false;
+    }
+
+    /// <summary>Exports the originals of every shown tile, one per tile. Asks first above <see cref="ExportAllConfirmAbove"/>.</summary>
+    internal async Task ExportAllAsync()
+    {
+        if (!_exportAll.IsEnabled || ExportOriginals == null) return;
+        IReadOnlyList<MediaLibraryTile> tiles = _tiles; // Replaced, never changed in place: a frozen view of what is shown now.
+        MediaLibraryExportSize size = MediaLibraryExport.Measure(tiles);
+        if (size.Exceeds(ExportAllConfirmAbove.Files, ExportAllConfirmAbove.Bytes))
+        {
+            _exportAllPending = tiles;
+            _exportAllText.Text = AskText(size);
+            _exportAllAsk.IsVisible = true;
+            _exportAllYes.Focus();
+            return;
+        }
+        await ExportTilesAsync(tiles, Texts.T("media.exportAll.scope"), preparing: tiles.Count);
+    }
+
+    private async Task ConfirmExportAllAsync()
+    {
+        IReadOnlyList<MediaLibraryTile>? tiles = _exportAllPending;
+        DismissExportAllAsk();
+        if (tiles == null || _selectionBusy || !_exportAll.IsEnabled || ExportOriginals == null) return;
+        await ExportTilesAsync(tiles, Texts.T("media.exportAll.scope"), preparing: tiles.Count);
+    }
+}

@@ -114,6 +114,14 @@ internal static class MediaLibraryCatalog
         ("media.state.ratingValue", "{0} of 5", "{0} von 5"),
         ("media.state.noTags", "none", "keine"),
         ("media.state.notTaggable", "not possible for this file", "für diese Datei nicht möglich"),
-        ("media.state.tagCount", "{0} tags", "{0} Tags")
+        ("media.state.tagCount", "{0} tags", "{0} Tags"),
+        ("media.exportAll", "Export all matches…", "Alle Treffer exportieren …"),
+        ("media.exportAll.hint", "Copy the originals of every tile shown now, one per tile", "Die Originale aller jetzt gezeigten Kacheln kopieren, eines je Kachel"),
+        ("media.exportAll.reason.none", "No tiles are shown, so there is nothing to export.", "Es sind keine Kacheln zu sehen, also gibt es nichts zu exportieren."),
+        ("media.exportAll.scope", "All matches", "Alle Treffer"),
+        ("media.exportAll.preparing", "Preparing {0} tiles for export…", "{0} Kacheln werden für den Export vorbereitet …"),
+        ("media.exportAll.confirm", "{0} originals ({1}) are about to be copied. This can take a while. Export all of them?", "{0} Originale ({1}) sollen kopiert werden. Das kann dauern. Alle exportieren?"),
+        ("media.exportAll.confirm.yes", "Export anyway", "Trotzdem exportieren"),
+        ("media.exportAll.confirm.no", "Cancel", "Abbrechen")
     };
 }

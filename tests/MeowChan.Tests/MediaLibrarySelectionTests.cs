@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using MeowChan.Archive;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
@@ -188,5 +189,70 @@ public sealed class MediaLibrarySelectionTests
 
         Assert.Equal(new[] { ok.Thread }, plan.Assets.Select(asset => asset.Key.Thread));
         Assert.Equal(4, plan.Unavailable); // not saved, preview only, changed bytes, unreadable folder
+    }
+
+    // "Export all": the page hands every shown tile to the same plan the selection uses.
+    [Fact]
+    public async Task ExportAllOffersExactlyTheShownTilesOfTheFilterAndLeavesHiddenOnesOut()
+    {
+        MediaLibraryEntry a = Entry("a", "1", 'a', 4), b = Entry("b", "1", 'b', 3), dupX = Entry("c", "1", 'e', 2), dupY = Entry("d", "1", 'e', 1),
+            hidden = Entry("h", "1", 'h', 5), gone = Entry("g", "1", 'd', missing: true), preview = Entry("p", "1", '1', variant: "preview");
+        MediaLibraryEntry[] all = [a, b, dupX, dupY, hidden, gone, preview];
+        // The filter lets everything through except "hidden" and a; the duplicate tile stays through either of its occurrences.
+        IReadOnlyList<MediaLibraryTile> shown = Tiles(all, passing: [b, dupY, gone, preview]);
+        Dictionary<string, MediaAssetSnapshot> manifests = all.Where(entry => entry.Directory != null).ToDictionary(entry => entry.Directory!, entry => Manifest(entry.Directory!, entry));
+        List<string> opened = new();
+
+        MediaLibraryExportSize size = MediaLibraryExport.Measure(shown);
+        MediaLibraryExportPlan plan = await MediaLibraryExport.BuildAsync(shown, (directory, _) => { opened.Add(directory); return Task.FromResult(manifests[directory]); });
+
+        Assert.Equal(new MediaLibraryExportSize(2, 6, 2), size); // b and the pair; the unsaved and the preview-only tile have nothing to offer
+        Assert.Equal(size.Files, plan.Assets.Count);
+        Assert.Equal(size.NotOffered, plan.Unavailable);
+        Assert.Equal(new[] { Hash('b'), Hash('e') }, plan.Assets.Select(asset => asset.Key.Sha256).Order());
+        Assert.Equal(1, plan.Assets.Count(asset => asset.Key.Sha256 == Hash('e'))); // one per tile, never one per duplicate
+        Assert.DoesNotContain(hidden.Directory!, opened);
+        Assert.DoesNotContain(a.Directory!, opened);
+        Assert.DoesNotContain(plan.Assets, asset => asset.Key.Sha256 == Hash('h') || asset.Key.Sha256 == Hash('a'));
+    }
+
+    [Fact]
+    public void ExportAllMeasuresFromTheIndexAloneAndAsksAboveFiveHundredFilesOrTwoGibibytes()
+    {
+        MediaLibraryEntry Sized(int n, long length) => Entry("t" + n, "1", 'a') with { Sha256 = n.ToString("x").PadLeft(64, '0'), Length = length };
+        IReadOnlyList<MediaLibraryTile> TilesOf(int count, long each) => Tiles(Enumerable.Range(0, count).Select(n => Sized(n, each)).ToArray());
+
+        Assert.False(MediaLibraryExport.Measure(TilesOf(500, 1)).Exceeds()); // 500 files exactly: no question
+        Assert.True(MediaLibraryExport.Measure(TilesOf(501, 1)).Exceeds());
+        long twoGiB = 2L * 1024 * 1024 * 1024;
+        Assert.False(MediaLibraryExport.Measure(TilesOf(2, twoGiB / 2)).Exceeds()); // 2 GiB exactly: no question
+        Assert.True(MediaLibraryExport.Measure(TilesOf(2, twoGiB / 2 + 1)).Exceeds());
+        Assert.Equal(new MediaLibraryExportSize(3, 3 * twoGiB, 0), MediaLibraryExport.Measure(TilesOf(3, twoGiB))); // sums as long
+        Assert.True(new MediaLibraryExportSize(3, 10, 0).Exceeds(maxFiles: 2)); // a lowered limit, as the smoke test uses it
+        Assert.True(new MediaLibraryExportSize(3, 10, 0).Exceeds(maxBytes: 9));
+        Assert.False(new MediaLibraryExportSize(3, 10, 0).Exceeds(maxFiles: 3, maxBytes: 10));
+        Assert.Equal(new MediaLibraryExportSize(0, 0, 0), MediaLibraryExport.Measure([]));
+    }
+
+    [Fact]
+    public async Task ExportPlanForTenThousandTilesBuildsWithinBounds()
+    {
+        const int threads = 200, perThread = 50;
+        MediaLibraryEntry[] all = Enumerable.Range(0, threads * perThread).Select(n =>
+            Entry("t" + n / perThread, (n % perThread + 1).ToString(), 'a') with { Sha256 = n.ToString("x").PadLeft(64, '0') }).ToArray();
+        IReadOnlyList<MediaLibraryTile> shown = Tiles(all);
+        Dictionary<string, MediaAssetSnapshot> manifests = all.GroupBy(entry => entry.Directory!).ToDictionary(group => group.Key, group => Manifest(group.Key, group.ToArray()));
+        Assert.Equal(threads * perThread, shown.Count);
+
+        Stopwatch watch = Stopwatch.StartNew();
+        MediaLibraryExportSize size = MediaLibraryExport.Measure(shown);
+        MediaLibraryExportPlan plan = await MediaLibraryExport.BuildAsync(shown, (directory, _) => Task.FromResult(manifests[directory]));
+        watch.Stop();
+
+        Assert.Equal(threads * perThread, size.Files);
+        Assert.Equal(threads * perThread * 3L, size.Bytes);
+        Assert.Equal(threads * perThread, plan.Assets.Count);
+        Assert.Equal(0, plan.Unavailable);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(2), "Measuring and planning 10 000 tiles took " + watch.Elapsed);
     }
 }

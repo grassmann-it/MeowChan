@@ -2153,6 +2153,14 @@
     "media.state.ratingValue": "{0} sur 5",
     "media.state.noTags": "aucune",
     "media.state.notTaggable": "impossible pour ce fichier",
-    "media.state.tagCount": "{0} étiquettes"
+    "media.state.tagCount": "{0} étiquettes",
+    "media.exportAll": "Exporter tous les résultats…",
+    "media.exportAll.hint": "Copier les originaux de toutes les vignettes affichées, un par vignette",
+    "media.exportAll.reason.none": "Aucune vignette n’est affichée, il n’y a donc rien à exporter.",
+    "media.exportAll.scope": "Tous les résultats",
+    "media.exportAll.preparing": "Préparation de {0} vignettes pour l’export…",
+    "media.exportAll.confirm": "{0} originaux ({1}) vont être copiés. Cela peut prendre du temps. Tous les exporter ?",
+    "media.exportAll.confirm.yes": "Exporter quand même",
+    "media.exportAll.confirm.no": "Annuler"
   }
 }

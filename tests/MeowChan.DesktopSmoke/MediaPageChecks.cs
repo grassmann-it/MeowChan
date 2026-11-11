@@ -54,7 +54,7 @@ internal static class MediaPageChecks
             await SeedVideosAsync(videoProfile);
             await VideoJourneyAsync(owner, videoProfile);
             Console.WriteLine("SMOKE media videos [en]: a video tile shows the local reader poster (cache keyed by verified bytes), also when it is a grouped tile; nothing fetched.");
-            Console.WriteLine("SMOKE media page [en]: index build, saved/missing toggle, three orders, verified thumbnail, gallery window, show in thread, cache reuse, own state on tiles (favorite, rating, media vs thread tags, unknown wording, tag edit reload, language switch), filters (thread and media tags all/any/exclude, favorites, rating, type, name, source, board, thread chip, reset, deleted tag refused), duplicates (same bytes in three threads: one tile, 'in 3 threads' hint, details with three occurrences and their own tags, jump into a thread, filter matches by one occurrence, gallery gets one entry per tile), selection (click, Ctrl+click, Shift+click, Ctrl+A, Esc, check mark on selected tiles, three tiles tagged and untagged with one occurrence of a duplicate deselected, gallery with exactly the selection, export of exactly their originals, selection kept or dropped by filters and order, actions disabled while building), navigation button in Simple and Tools menu in Barebones checked.");
+            Console.WriteLine("SMOKE media page [en]: index build, saved/missing toggle, three orders, verified thumbnail, gallery window, show in thread, cache reuse, own state on tiles (favorite, rating, media vs thread tags, unknown wording, tag edit reload, language switch), filters (thread and media tags all/any/exclude, favorites, rating, type, name, source, board, thread chip, reset, deleted tag refused), duplicates (same bytes in three threads: one tile, 'in 3 threads' hint, details with three occurrences and their own tags, jump into a thread, filter matches by one occurrence, gallery gets one entry per tile), selection (click, Ctrl+click, Shift+click, Ctrl+A, Esc, check mark on selected tiles, three tiles tagged and untagged with one occurrence of a duplicate deselected, gallery with exactly the selection, export of exactly their originals, selection kept or dropped by filters and order, actions disabled while building), export all (exactly the originals of the tiles the filter shows, independent of the selection; question above a lowered limit with confirm, cancel, Esc and dropped by a filter change; disabled with a reason without tiles and while building), navigation button in Simple and Tools menu in Barebones checked.");
         }
         finally { Texts.SetLanguage(language); }
     }
@@ -442,6 +442,9 @@ internal static class MediaPageChecks
         await host.StartAsync().WaitAsync(Deadline);
         List<(IReadOnlyList<MediaLibraryEntry> Window, int Start)> opened = new();
         List<(FavoriteExportAsset[] Assets, int Unavailable, FavoriteExportResult Result)> exported = new();
+        List<string> scopes = new();
+        string exportTarget = exportDirectory; // The "export all" steps below copy into folders of their own.
+        List<string> extraDirectories = new();
         TaskCompletionSource hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
         bool holding = false;
         MediaPage page = new(host.OpenArchiveReaderAsync, async (directory, token) =>
@@ -454,8 +457,11 @@ internal static class MediaPageChecks
             OpenGallery = (window, start) => { opened.Add((window, start)); return Task.CompletedTask; },
             TagServices = new(host.GetPublishedPrivateTagSnapshot, host.DefinePrivateTagAsync,
                 (tag, targets, assigned, revision, token) => host.SetMediaTagsAsync(tag, targets, assigned, revision, token)),
-            ExportOriginals = async (assets, unavailable) =>
-                exported.Add((assets.ToArray(), unavailable, await FavoriteOriginalExporter.ExportAsync(assets, exportDirectory)))
+            ExportOriginals = async (assets, unavailable, scope) =>
+            {
+                scopes.Add(scope);
+                exported.Add((assets.ToArray(), unavailable, await FavoriteOriginalExporter.ExportAsync(assets, exportTarget)));
+            }
         };
         Window window = new() { Width = 1400, Height = 900, Content = page, Title = "Synthetic media selection", ShowInTaskbar = false };
         try
@@ -609,13 +615,81 @@ internal static class MediaPageChecks
             await page.BuildTask.WaitAsync(Deadline);
             Require(tag.IsEnabled && gallery.IsEnabled && export.IsEnabled && Selected().Order().SequenceEqual(["sel-a.png", "sel-b.png"]),
                 "After the rebuild the selection must be intact and the actions available again.");
+
+            // Alle Treffer exportieren: exactly the tiles the active filter shows, whatever is selected; hidden tiles stay out.
+            Button exportAll = C<Button>(page, "MediaExportAll");
+            string NewTarget() { string made = TemporaryWorkspacePaths.CreateDirectory("media-page-export-all-"); extraDirectories.Add(made); return made; }
+            Require(exportAll.IsEnabled && exportAll.Content as string == Texts.T("media.exportAll") && ToolTip.GetTip(exportAll) as string == Texts.T("media.exportAll.hint"),
+                "Export all must be available while tiles are shown.");
+            name.Text = "sel-";
+            await UntilAsync(() => page.Tiles.Count == 3);
+            string allTarget = exportTarget = NewTarget();
+            int done = exported.Count;
+            ClickRaise(exportAll);
+            await UntilAsync(() => exported.Count == done + 1);
+            (FavoriteExportAsset[] allAssets, int allUnavailable, FavoriteExportResult allResult) = exported[^1];
+            string[] shownByFilter = ["sel-z.png", "sel-b.png", "sel-a.png"];
+            Require(allAssets.Select(asset => asset.OriginalFileName).SequenceEqual(shownByFilter) && allUnavailable == 0 && allResult.Copied == 3 && scopes[^1] == Texts.T("media.exportAll.scope"),
+                "Export all must offer exactly the three shown originals, not only the selection: " + string.Join(",", allAssets.Select(asset => asset.OriginalFileName)));
+            string[] allFiles = Directory.GetFiles(allTarget, "*", SearchOption.AllDirectories);
+            Require(allFiles.Length == 3 && allFiles.Select(path => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)))).Order()
+                .SequenceEqual(shownByFilter.Select(file => Convert.ToHexString(SHA256.HashData(BytesOf(file)))).Order()), "The copied files are not the shown originals.");
+            Require(Selected().Length == 2 && !page.ExportAllAsking, "Export all must leave the selection alone and not ask below the limits.");
+
+            // Above the limit the page asks first, with count and size, and exports only after "Trotzdem exportieren".
+            page.ExportAllConfirmAbove = (2, long.MaxValue);
+            done = exported.Count;
+            ClickRaise(exportAll);
+            await UntilAsync(() => page.ExportAllAsking);
+            TextBlock ask = C<TextBlock>(page, "MediaExportAllConfirmText");
+            Require(ask.Text!.Contains('3') && ask.Text.Contains(" MB") && exported.Count == done, "The question must name the count and the size and start nothing: " + ask.Text);
+            ClickRaise(C<Button>(page, "MediaExportAllConfirmNo"));
+            Require(!page.ExportAllAsking && exported.Count == done, "Cancel must close the question without exporting.");
+            ClickRaise(exportAll);
+            await UntilAsync(() => page.ExportAllAsking);
+            grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+            Require(!page.ExportAllAsking && exported.Count == done && Selected().Length == 2, "Escape must close the question and keep the selection.");
+            ClickRaise(exportAll);
+            await UntilAsync(() => page.ExportAllAsking);
+            exportTarget = NewTarget();
+            ClickRaise(C<Button>(page, "MediaExportAllConfirmYes"));
+            await UntilAsync(() => exported.Count == done + 1);
+            Require(!page.ExportAllAsking && exported[^1].Assets.Length == 3 && exported[^1].Result.Copied == 3, "Confirming must export the three shown originals.");
+            // A filter change while the question is open drops it: the frozen tiles are not the shown ones any more.
+            ClickRaise(exportAll);
+            await UntilAsync(() => page.ExportAllAsking);
+            name.Text = "sel-a";
+            await UntilAsync(() => page.Tiles.Count == 1);
+            Require(!page.ExportAllAsking && exported.Count == done + 1, "A filter change must drop the pending question.");
+            page.ExportAllConfirmAbove = (500, 2L * 1024 * 1024 * 1024);
+            exportTarget = NewTarget();
+            ClickRaise(exportAll);
+            await UntilAsync(() => exported.Count == done + 2);
+            Require(exported[^1].Assets.Select(asset => asset.OriginalFileName).SequenceEqual(["sel-a.png"]) && !page.ExportAllAsking, "One shown tile must export directly.");
+
+            // Disabled with a reason when nothing is shown and while the index is built.
+            name.Text = "no-such-file";
+            await UntilAsync(() => page.Tiles.Count == 0);
+            Require(!exportAll.IsEnabled && ToolTip.GetTip(exportAll) as string == Texts.T("media.exportAll.reason.none"), "Export all must say why it is disabled without tiles.");
+            ClickRaise(C<Button>(page, "MediaFilterReset"));
+            await UntilAsync(() => page.Tiles.Count == 4 && exportAll.IsEnabled);
+            holding = true;
+            hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            ClickRaise(C<Button>(page, "MediaRefresh"));
+            await UntilAsync(() => !exportAll.IsEnabled);
+            Require(ToolTip.GetTip(exportAll) as string == Texts.T("media.selection.reason.building"), "Export all must say that the index is being built.");
+            holding = false;
+            hold.SetResult();
+            await page.BuildTask.WaitAsync(Deadline);
+            Require(exportAll.IsEnabled, "Export all must be available again after the rebuild.");
         }
         finally
         {
             hold.TrySetResult();
             page.EndLifetime();
             window.Close();
-            try { Directory.Delete(exportDirectory, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            foreach (string folder in extraDirectories.Append(exportDirectory))
+                try { Directory.Delete(folder, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
     }
 

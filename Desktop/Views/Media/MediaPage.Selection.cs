@@ -33,8 +33,8 @@ public sealed partial class MediaPage
 
     /// <summary>Own-tag access for the "tag together" dialog; null disables that action.</summary>
     internal MediaSelectionTagServices? TagServices { get; set; }
-    /// <summary>Shows the export dialog for the frozen originals and the number of tiles that had none to offer.</summary>
-    internal Func<IReadOnlyList<FavoriteExportAsset>, int, Task>? ExportOriginals { get; set; }
+    /// <summary>Shows the export dialog for the frozen originals, the number of tiles that had none to offer and the label of what is exported.</summary>
+    internal Func<IReadOnlyList<FavoriteExportAsset>, int, string, Task>? ExportOriginals { get; set; }
     internal Window? SelectionTagWindow => _selectionTag;
 
     /// <summary>The selected tiles in page order. Selected tiles are always among the shown ones.</summary>
@@ -60,6 +60,7 @@ public sealed partial class MediaPage
         _selGallery.Content = Texts.T("media.selection.gallery");
         _selExport.Content = Texts.T("media.selection.export");
         _selClear.Content = Texts.T("media.selection.clear");
+        LocalizeExportAll();
         UpdateSelectionBar();
     }
 
@@ -68,6 +69,12 @@ public sealed partial class MediaPage
     // Escape clears and Ctrl/Cmd+A selects every shown tile; clicks and Shift/Ctrl ranges are the ListBox's own.
     private bool OnSelectionKey(KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && _exportAllAsk.IsVisible)
+        {
+            DismissExportAllAsk();
+            e.Handled = true;
+            return true;
+        }
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && _grid.Selection.Count > 0)
         {
             ClearSelection();
@@ -97,6 +104,7 @@ public sealed partial class MediaPage
         SetAction(_selGallery, ready && OpenGallery != null, reason, OpenGallery != null, "media.selection.gallery.hint");
         SetAction(_selExport, ready && ExportOriginals != null, reason, ExportOriginals != null, "media.selection.export.hint");
         _selClear.IsEnabled = count > 0;
+        UpdateExportAll();
         if (count == 0 && !_selectionBusy) ShowSelectionNote(null);
     }
 
@@ -130,14 +138,23 @@ public sealed partial class MediaPage
     internal async Task ExportSelectionAsync()
     {
         if (!_selExport.IsEnabled || ExportOriginals == null) return;
-        IReadOnlyList<MediaLibraryTile> tiles = SelectedTiles;
+        await ExportTilesAsync(SelectedTiles, Texts.T("media.selection.exportScope"));
+    }
+
+    // The one export path of the page, for the selection and for "export all": the frozen tiles become the export plan, the plan goes to the dialog.
+    private async Task ExportTilesAsync(IReadOnlyList<MediaLibraryTile> tiles, string scope, int? preparing = null)
+    {
+        if (ExportOriginals is not { } export) return;
+        DismissExportAllAsk();
         _selectionBusy = true;
         UpdateSelectionBar();
+        if (preparing is { } count) ShowSelectionNote(Texts.T("media.exportAll.preparing", count.ToString("N0", Texts.Culture)));
         try
         {
-            MediaLibraryExportPlan plan = await MediaLibraryExport.BuildAsync(tiles, _openManifest, _lifetime.Token);
+            // Reading the manifests is IO and a large plan is a long loop: neither belongs on the UI thread. The plan holds no controls.
+            MediaLibraryExportPlan plan = await Task.Run(() => MediaLibraryExport.BuildAsync(tiles, _openManifest, _lifetime.Token), _lifetime.Token);
             ShowSelectionNote(plan.Unavailable == 0 ? null : Texts.T("viewer.favorites.unavailable", plan.Unavailable));
-            await ExportOriginals(plan.Assets, plan.Unavailable);
+            await export(plan.Assets, plan.Unavailable, scope);
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         catch (Exception error) when (error is System.IO.IOException or System.IO.InvalidDataException or UnauthorizedAccessException)
