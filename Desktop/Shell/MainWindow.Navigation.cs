@@ -42,7 +42,7 @@ public partial class MainWindow
         _settingsEditor = new SettingsEditor(_config, ApplySettingsAsync, ForgetReadingPositionAsync);
         _settingsEditor.Updates = _session.Updates;
         _settingsEditor.BusyChanged += OnSettingsBusyChanged;
-        this.FindControl<ContentControl>("SettingsPageHost")!.Content = _settingsEditor;
+        SettingsPageHost.Content = _settingsEditor;
         _diagnosticsPage = new DiagnosticsPage(OpenDiagnosticWatch, async text =>
         {
             if (_isClosing) return;
@@ -55,12 +55,12 @@ public partial class MainWindow
             && _session.CanRetryMissingMedia(target.WatchId);
         _diagnosticsPage.AttachFeedback(_feedback);
         _diagnosticsPage.ManageMediaRatingsAsync = ManageMediaRatingsAsync;
-        this.FindControl<ContentControl>("DiagnosticsPageHost")!.Content = _diagnosticsPage;
+        DiagnosticsPageHost.Content = _diagnosticsPage;
         _rulesPage = new RulesPage(() => _session.MediaRules, _session.SaveRulesAsync);
         _rulesPage.GetSuggestionContexts = GetRuleSuggestionContexts;
         _rulesPage.AttachTemplateServices(_session.LoadRuleTemplatesAsync, _session.SaveRuleTemplatesAsync);
         _rulesPage.BusyChanged += OnSettingsBusyChanged;
-        this.FindControl<ContentControl>("RulesPageHost")!.Content = _rulesPage;
+        RulesPageHost.Content = _rulesPage;
         _archivePage = new ArchivePage(_session.OpenArchiveReaderAsync, _session.SetCaptureEnabledAsync, directory => OpenDirectory(directory, _archivePage?.CaptureActionErrorReporter()));
         _archivePage.AttachTransferImport(_session);
         _archivePage.AttachSavedSearches(_session);
@@ -159,7 +159,7 @@ public partial class MainWindow
         _archivePage.OpenGallery = (id, key, origin) => OpenGalleryAsync(id, key, origin);
         _archivePage.OpenMediaGallery = (entries, start, origin) => OpenMediaGalleryAsync(entries, start, origin);
         _archivePage.OpenResultsGallery = (query, workFilter, origin) => OpenSearchGalleryAsync(query, workFilter, origin);
-        this.FindControl<ContentControl>("ArchivePageHost")!.Content = _archivePage;
+        ArchivePageHost.Content = _archivePage;
         InitializeMediaPage();
         InitializeReadingResume();
         InitializePostBookmarks();
@@ -169,7 +169,7 @@ public partial class MainWindow
         }, () => NavigateWorkspace(WorkspacePage.Diagnostics), () => NavigateWorkspace(WorkspacePage.Downloads),
             (input, observeModal) => SubmitInputAsync(input, observeModal));
         _sourcesPage.BusyChanged += OnSettingsBusyChanged;
-        this.FindControl<ContentControl>("SourcesPageHost")!.Content = _sourcesPage;
+        SourcesPageHost.Content = _sourcesPage;
         InitializePluginPage();
     }
 
@@ -206,22 +206,22 @@ public partial class MainWindow
         if (page != WorkspacePage.Plugins) _pluginsPage?.Deactivate();
         if (_selectedPage == WorkspacePage.Rules && page != WorkspacePage.Rules) _rulesPage?.DeactivateRuleDecisions();
         _selectedPage = page;
-        this.FindControl<Grid>("WorkspaceBody")!.IsVisible = page == WorkspacePage.Downloads;
-        this.FindControl<ContentControl>("SettingsPageHost")!.IsVisible = page == WorkspacePage.Settings;
-        this.FindControl<ContentControl>("DiagnosticsPageHost")!.IsVisible = page == WorkspacePage.Diagnostics;
-        this.FindControl<ContentControl>("RulesPageHost")!.IsVisible = page == WorkspacePage.Rules;
-        this.FindControl<ContentControl>("ArchivePageHost")!.IsVisible = page == WorkspacePage.Archive;
-        this.FindControl<ContentControl>("MediaPageHost")!.IsVisible = page == WorkspacePage.Media;
-        this.FindControl<ContentControl>("SourcesPageHost")!.IsVisible = page == WorkspacePage.Sources;
-        this.FindControl<ContentControl>("PluginsPageHost")!.IsVisible = page == WorkspacePage.Plugins;
-        this.FindControl<Button>("DownloadsNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Downloads);
-        this.FindControl<Button>("SettingsNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Settings);
-        this.FindControl<Button>("DiagnosticsNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Diagnostics);
-        this.FindControl<Button>("RulesNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Rules);
-        this.FindControl<Button>("ArchiveNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Archive);
-        this.FindControl<Button>("MediaNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Media);
-        this.FindControl<Button>("SourcesNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Sources);
-        this.FindControl<Button>("PluginsNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Plugins);
+        WorkspaceBody.IsVisible = page == WorkspacePage.Downloads;
+        SettingsPageHost.IsVisible = page == WorkspacePage.Settings;
+        DiagnosticsPageHost.IsVisible = page == WorkspacePage.Diagnostics;
+        RulesPageHost.IsVisible = page == WorkspacePage.Rules;
+        ArchivePageHost.IsVisible = page == WorkspacePage.Archive;
+        MediaPageHost.IsVisible = page == WorkspacePage.Media;
+        SourcesPageHost.IsVisible = page == WorkspacePage.Sources;
+        PluginsPageHost.IsVisible = page == WorkspacePage.Plugins;
+        DownloadsNavigationButton.Classes.Set("selected", page == WorkspacePage.Downloads);
+        SettingsNavigationButton.Classes.Set("selected", page == WorkspacePage.Settings);
+        DiagnosticsNavigationButton.Classes.Set("selected", page == WorkspacePage.Diagnostics);
+        RulesNavigationButton.Classes.Set("selected", page == WorkspacePage.Rules);
+        ArchiveNavigationButton.Classes.Set("selected", page == WorkspacePage.Archive);
+        MediaNavigationButton.Classes.Set("selected", page == WorkspacePage.Media);
+        SourcesNavigationButton.Classes.Set("selected", page == WorkspacePage.Sources);
+        PluginsNavigationButton.Classes.Set("selected", page == WorkspacePage.Plugins);
         RefreshStartupPreview(); // The historical preview belongs to the Downloads page only.
         UpdatePageNavigation();
         RefreshReadingResumePresentation();
@@ -252,20 +252,20 @@ public partial class MainWindow
         try
         {
             bool advanced = _config.WorkspaceMode == "Advanced";
-            Button downloads = this.FindControl<Button>("DownloadsNavigationButton")!;
-            Button settings = this.FindControl<Button>("SettingsNavigationButton")!;
-            Button tools = this.FindControl<Button>("ToolsNavigationButton")!;
-            StackPanel panel = this.FindControl<StackPanel>("WorkspaceNavigationButtons")!;
-            Border footer = this.FindControl<Border>("WorkspaceNavigation")!;
-            ComboBox modes = this.FindControl<ComboBox>("WorkspaceModeComboBox")!;
+            Button downloads = DownloadsNavigationButton;
+            Button settings = SettingsNavigationButton;
+            Button tools = ToolsNavigationButton;
+            StackPanel panel = WorkspaceNavigationButtons;
+            Border footer = WorkspaceNavigation;
+            ComboBox modes = WorkspaceModeComboBox;
             var destinations = new[]
             {
-                (Page: WorkspacePage.Archive, Button: this.FindControl<Button>("ArchiveNavigationButton")!, Tag: "nav.archive"),
-                (Page: WorkspacePage.Media, Button: this.FindControl<Button>("MediaNavigationButton")!, Tag: "nav.media"),
-                (Page: WorkspacePage.Rules, Button: this.FindControl<Button>("RulesNavigationButton")!, Tag: "nav.rules"),
-                (Page: WorkspacePage.Plugins, Button: this.FindControl<Button>("PluginsNavigationButton")!, Tag: "nav.plugins"),
-                (Page: WorkspacePage.Sources, Button: this.FindControl<Button>("SourcesNavigationButton")!, Tag: "nav.sources"),
-                (Page: WorkspacePage.Diagnostics, Button: this.FindControl<Button>("DiagnosticsNavigationButton")!, Tag: "nav.diagnostics")
+                (Page: WorkspacePage.Archive, Button: ArchiveNavigationButton, Tag: "nav.archive"),
+                (Page: WorkspacePage.Media, Button: MediaNavigationButton, Tag: "nav.media"),
+                (Page: WorkspacePage.Rules, Button: RulesNavigationButton, Tag: "nav.rules"),
+                (Page: WorkspacePage.Plugins, Button: PluginsNavigationButton, Tag: "nav.plugins"),
+                (Page: WorkspacePage.Sources, Button: SourcesNavigationButton, Tag: "nav.sources"),
+                (Page: WorkspacePage.Diagnostics, Button: DiagnosticsNavigationButton, Tag: "nav.diagnostics")
             };
             // Capture the actual focused menu destination before changing visibility:
             // hiding its presenter can clear FocusManager synchronously.
@@ -396,7 +396,7 @@ public partial class MainWindow
 
     private void OnSourcesNavigationClick(object? sender, RoutedEventArgs e)
     {
-        this.FindControl<Button>("ToolsNavigationButton")!.Flyout?.Hide();
+        ToolsNavigationButton.Flyout?.Hide();
         NavigateWorkspace(WorkspacePage.Sources);
     }
 
@@ -407,15 +407,15 @@ public partial class MainWindow
         {
             if (!_threadRows.TryGetValue(target.WatchId, out ThreadRow? row)) return false;
             if (!NavigateWorkspace(WorkspacePage.Downloads)) return false;
-            this.FindControl<TabControl>("DownloadsTabs")!.SelectedIndex = 0;
-            this.FindControl<DataGrid>("ThreadsDataGrid")!.SelectedItem = row;
+            DownloadsTabs.SelectedIndex = 0;
+            ThreadsDataGrid.SelectedItem = row;
         }
         else
         {
             if (!_boardRows.TryGetValue(target.WatchId, out BoardRow? row)) return false;
             if (!NavigateWorkspace(WorkspacePage.Downloads)) return false;
-            this.FindControl<TabControl>("DownloadsTabs")!.SelectedIndex = 1;
-            this.FindControl<DataGrid>("BoardsDataGrid")!.SelectedItem = row;
+            DownloadsTabs.SelectedIndex = 1;
+            BoardsDataGrid.SelectedItem = row;
         }
         OpenWorkspaceDetails();
         return true;
@@ -423,25 +423,25 @@ public partial class MainWindow
 
     private void OnDiagnosticsNavigationClick(object? sender, RoutedEventArgs e)
     {
-        this.FindControl<Button>("ToolsNavigationButton")!.Flyout?.Hide();
+        ToolsNavigationButton.Flyout?.Hide();
         NavigateWorkspace(WorkspacePage.Diagnostics);
     }
 
     private void OnMediaNavigationClick(object? sender, RoutedEventArgs e)
     {
-        this.FindControl<Button>("ToolsNavigationButton")!.Flyout?.Hide();
+        ToolsNavigationButton.Flyout?.Hide();
         NavigateWorkspace(WorkspacePage.Media);
     }
 
     private void OnArchiveNavigationClick(object? sender, RoutedEventArgs e)
     {
-        this.FindControl<Button>("ToolsNavigationButton")!.Flyout?.Hide();
+        ToolsNavigationButton.Flyout?.Hide();
         NavigateWorkspace(WorkspacePage.Archive);
     }
 
     private void OnRulesNavigationClick(object? sender, RoutedEventArgs e)
     {
-        this.FindControl<Button>("ToolsNavigationButton")!.Flyout?.Hide();
+        ToolsNavigationButton.Flyout?.Hide();
         NavigateWorkspace(WorkspacePage.Rules);
     }
 
@@ -454,7 +454,7 @@ public partial class MainWindow
     }
 
     private async void OnCheckSelectionClick(object? sender, RoutedEventArgs e) =>
-        await CheckDownloadSelectionAsync(this.FindControl<TabControl>("DownloadsTabs")!.SelectedIndex == 1, false);
+        await CheckDownloadSelectionAsync(DownloadsTabs.SelectedIndex == 1, false);
 
     private void DisposeWorkspacePages()
     {

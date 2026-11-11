@@ -18,7 +18,7 @@ public partial class MainWindow
 
     private void InitializeReaderGroups()
     {
-        MenuItem item = this.FindControl<MenuItem>("ReaderGroupsMenuItem")!;
+        MenuItem item = ReaderGroupsMenuItem;
         CommandBindings.Apply(item, "reader-groups.open-manager");
         item.Click += async (_, _) => await OpenReaderGroupsAsync(item);
         ArchivePage.OpenReaderGroupsRequested = async origin => await OpenReaderGroupsAsync(origin);

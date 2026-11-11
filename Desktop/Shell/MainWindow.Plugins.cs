@@ -20,7 +20,7 @@ public partial class MainWindow
             }),
             OpenSourceWatches = source => { if (NavigateWorkspace(WorkspacePage.Sources)) _sourcesPage?.SelectSource(source); }
         };
-        this.FindControl<ContentControl>("PluginsPageHost")!.Content = _pluginsPage;
+        PluginsPageHost.Content = _pluginsPage;
         _sourcesPage!.OpenPluginSettings = source =>
         {
             if (NavigateWorkspace(WorkspacePage.Plugins)) _ = _pluginsPage.ActivateAsync(source);
@@ -49,7 +49,7 @@ public partial class MainWindow
     }
     private void OnPluginsNavigationClick(object? sender, RoutedEventArgs e)
     {
-        this.FindControl<Button>("ToolsNavigationButton")!.Flyout?.Hide();
+        ToolsNavigationButton.Flyout?.Hide();
         NavigateWorkspace(WorkspacePage.Plugins);
     }
 }

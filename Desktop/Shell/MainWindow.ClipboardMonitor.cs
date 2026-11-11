@@ -44,11 +44,11 @@ public partial class MainWindow
         if (panel == null) return;
         int count = _clipboardUrlMonitor.Pending.Count;
         panel.IsVisible = enabled && count > 0 && CanShowClipboardSuggestion;
-        this.FindControl<TextBlock>("ClipboardSuggestionTitle")!.Text = Texts.T("clipboard.monitor.found", count);
-        this.FindControl<Button>("ClipboardSuggestionAccept")!.Content = Texts.T("clipboard.monitor.accept");
-        this.FindControl<Button>("ClipboardSuggestionDismiss")!.Content = Texts.T("clipboard.monitor.dismiss");
-        this.FindControl<TextBox>("ClipboardSuggestionUrls")!.Text = string.Join(Environment.NewLine, _clipboardUrlMonitor.Pending);
-        this.FindControl<Button>("ClipboardSuggestionAccept")!.IsEnabled = panel.IsVisible && !RowCommandBusy;
+        ClipboardSuggestionTitle.Text = Texts.T("clipboard.monitor.found", count);
+        ClipboardSuggestionAccept.Content = Texts.T("clipboard.monitor.accept");
+        ClipboardSuggestionDismiss.Content = Texts.T("clipboard.monitor.dismiss");
+        ClipboardSuggestionUrls.Text = string.Join(Environment.NewLine, _clipboardUrlMonitor.Pending);
+        ClipboardSuggestionAccept.IsEnabled = panel.IsVisible && !RowCommandBusy;
     }
 
     private string[] GetClipboardMonitorHosts() => _session.GetProviderDescriptors()

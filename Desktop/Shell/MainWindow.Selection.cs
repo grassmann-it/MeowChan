@@ -388,14 +388,14 @@ public partial class MainWindow
         long[] threads = SelectedThreads().Select(row => row.WatchId).ToArray();
         long[] boards = SelectedBoards().Select(row => row.WatchId).ToArray();
         long? threadLead = _threadLeadId, boardLead = _boardLeadId;
-        int tab = this.FindControl<TabControl>("DownloadsTabs")!.SelectedIndex;
+        int tab = DownloadsTabs.SelectedIndex;
         long filterRevision = _downloadFilterRevision;
         var scrolls = new[] { DownloadList(false), DownloadList(true) }.Select(grid => grid.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault()).ToArray();
         Vector[] offsets = scrolls.Select(scroll => scroll?.Offset ?? default).ToArray();
         return () =>
         {
             if (_isClosing || !NavigateWorkspace(WorkspacePage.Downloads, activateArchive: false)) return;
-            this.FindControl<TabControl>("DownloadsTabs")!.SelectedIndex = tab;
+            DownloadsTabs.SelectedIndex = tab;
             DownloadList(false).SelectedItems.Clear(); DownloadList(true).SelectedItems.Clear();
             foreach (long id in threads) if (_threadFilterExclusions.GetValueOrDefault(id) <= filterRevision && _threadRows.TryGetValue(id, out ThreadRow? row) && VisibleThreads.Contains(row)) DownloadList(false).SelectedItems.Add(row);
             foreach (long id in boards) if (_boardFilterExclusions.GetValueOrDefault(id) <= filterRevision && _boardRows.TryGetValue(id, out BoardRow? row) && VisibleBoards.Contains(row)) DownloadList(true).SelectedItems.Add(row);

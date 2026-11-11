@@ -30,13 +30,13 @@ public partial class MainWindow
         bool show = !_startupPreviewRetired && !_isClosing && preview is { Rows.Count: > 0 }
             && (state == DesktopSessionState.Starting
                 || (state == DesktopSessionState.Ready && (!_restoreCompleted || _sessionRowsApplying)));
-        DataGrid grid = this.FindControl<DataGrid>("ThreadsDataGrid")!;
-        Border panel = this.FindControl<Border>("StartupPreviewPanel")!;
+        DataGrid grid = ThreadsDataGrid;
+        Border panel = StartupPreviewPanel;
         panel.IsVisible = show;
         if (show)
         {
-            this.FindControl<TextBlock>("StartupPreviewTitle")!.Text = Texts.T("shell.startupPreview");
-            this.FindControl<TextBlock>("StartupPreviewDetails")!.Text = Texts.T("shell.startupPreviewDetails",
+            StartupPreviewTitle.Text = Texts.T("shell.startupPreview");
+            StartupPreviewDetails.Text = Texts.T("shell.startupPreviewDetails",
                 preview!.CapturedAtUtc.ToLocalTime(), preview.ThreadCount, preview.BoardCount, preview.Rows.Count);
             if (!ReferenceEquals(_historicSource, preview))
             {

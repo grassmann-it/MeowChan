@@ -24,7 +24,7 @@ public partial class MainWindow
     {
         _postBookmarksMenu = CommandBindings.CreateMenuItem("post-bookmarks.open-manager",
             async () => await ShowPostBookmarksAsync(), () => CanOpenPostBookmarks);
-        this.FindControl<MenuItem>("WorkspaceMenuItem")!.Items.Insert(2, _postBookmarksMenu);
+        WorkspaceMenuItem.Items.Insert(2, _postBookmarksMenu);
         ArchivePage.EditPostBookmark = EditPostBookmarkAsync;
         ArchivePage.OpenPostBookmarks = async () => await ShowPostBookmarksAsync();
         Closed += (_, _) =>

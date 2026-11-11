@@ -62,15 +62,15 @@ public partial class MainWindow
             if (_feedback.IsDismissed(entry)) return;
             _shellFeedback = entry;
             // Freeze the displayed identity in the command, not a mutable control's Tag/current ID.
-            Button dismiss = this.FindControl<Button>("ShellFeedbackDismissButton")!;
+            Button dismiss = ShellFeedbackDismissButton;
             WireFeedbackDismissGesture(dismiss);
             dismiss.Command = new DelegateCommand(() => DismissShellFeedback(entry));
-            TextBlock text = this.FindControl<TextBlock>("ShellActionError")!;
+            TextBlock text = ShellActionError;
             AutomationProperties.SetLiveSetting(text, SessionFeedbackStore.AllowsPopup(_config, category)
                 ? AutomationLiveSetting.Off : AutomationLiveSetting.Assertive);
             text.Text = message;
-            this.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!.Type = type;
-            this.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!.IsVisible = true;
+            ShellActionErrorBanner.Type = type;
+            ShellActionErrorBanner.IsVisible = true;
         }
         PendingFeedback feedback = new(title, message, type, category, entry);
         if (!_hasOpened) _startupNotifications.Enqueue(feedback);
@@ -148,7 +148,7 @@ public partial class MainWindow
                 card.Close(); // Closing a card never acknowledges another event.
             }
         if (_shellFeedback == null || !SessionFeedbackStore.SameOccurrence(_shellFeedback, entry)) return;
-        var banner = this.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!;
+        var banner = ShellActionErrorBanner;
         // Only move focus when removing the focused banner, never on background publication.
         if (banner.IsKeyboardFocusWithin)
             RestoreFeedbackDismissFocus();
@@ -166,7 +166,7 @@ public partial class MainWindow
             target.Focus();
         // The earlier control is gone: continue in the page, never at the brand button first.
         else if (FocusManager?.TryMoveFocus(NavigationDirection.Next) != true)
-            this.FindControl<Button>("BrandAboutButton")!.Focus();
+            BrandAboutButton.Focus();
     }
 
     private WeakReference<Control>? _feedbackReturnTarget;
@@ -184,7 +184,7 @@ public partial class MainWindow
     {
         // Presentation only: closing a toast is not acknowledgement or recovery.
         _notificationManager.CloseAll();
-        this.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!.IsVisible = false;
+        ShellActionErrorBanner.IsVisible = false;
         _shellFeedback = null;
     }
 

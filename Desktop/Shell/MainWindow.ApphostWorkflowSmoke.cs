@@ -74,8 +74,8 @@ public partial class MainWindow
                 "The requested isolated display scale was not observed.");
             if (fixture.Phase is "download" or "shutdown")
             {
-                this.FindControl<TextBox>("UrlInput")!.Text = ApphostWorkflowSmoke.ThreadUrl;
-                ClickWorkflow(this.FindControl<Button>("AddUrlButton")!);
+                UrlInput.Text = ApphostWorkflowSmoke.ThreadUrl;
+                ClickWorkflow(AddUrlButton);
                 await WaitWorkflowAsync(() => UrlList.Count == 1 && UrlList[0].Active == 1 && fixture.Http.MediaRequests == 1,
                     "real Add/provider/queue admission");
                 RequireWorkflow(!File.Exists(saved), "A blocked response published media before its bytes arrived.");
@@ -93,13 +93,13 @@ public partial class MainWindow
                     await WaitWorkflowAsync(() => !RowCommandBusy && UrlList.Count == 1,
                         "complete uncovered-thread frame before watch selection");
                     ThreadRow row = UrlList[0];
-                    this.FindControl<DataGrid>("ThreadsDataGrid")!.SelectedItem = row;
-                    ClickWorkflow(this.FindControl<Button>("PauseButton")!);
+                    ThreadsDataGrid.SelectedItem = row;
+                    ClickWorkflow(PauseButton);
                     await WaitWorkflowAsync(() => _session.IsPaused && row.Active == 0 && fixture.Http.CancelledRequests == 1
-                        && this.FindControl<Button>("PauseButton")!.IsEnabled, "pause cancels active transfer");
+                        && PauseButton.IsEnabled, "pause cancels active transfer");
                     RequireWorkflow(!File.Exists(saved), "Pausing an incomplete response published a file.");
                     checks.Add("download-paused");
-                    ClickWorkflow(this.FindControl<Button>("PauseButton")!);
+                    ClickWorkflow(PauseButton);
                     await WaitWorkflowAsync(() => !_session.IsPaused && row.Active == 1 && fixture.Http.MediaRequests == 2,
                         "resume admits the same transfer");
                     checks.Add("download-resumed");
@@ -112,7 +112,7 @@ public partial class MainWindow
 
                     IClipboard clipboard = Clipboard ?? throw new InvalidOperationException("The packaged native clipboard is unavailable.");
                     await clipboard.SetTextAsync("meowchan-workflow-owned-sentinel");
-                    DataGrid selectedThreads = this.FindControl<DataGrid>("ThreadsDataGrid")!;
+                    DataGrid selectedThreads = ThreadsDataGrid;
                     // Clipboard access yields; wait for the same complete-frame command
                     // boundary as a user before preparing the selected-row context menu.
                     await WaitWorkflowAsync(() => !_sessionRowsApplying && selectedThreads.SelectedItems.Contains(row),
@@ -144,8 +144,8 @@ public partial class MainWindow
                         RequireWorkflow(frame.Width * RenderScaling <= screen.WorkingArea.Width + 1
                             && frame.Height * RenderScaling <= screen.WorkingArea.Height + 1,
                             "The compact native frame exceeds the screen working area.");
-                    RequireWorkflow(WorkflowControlVisible(this.FindControl<Button>("AddUrlButton")!)
-                        && WorkflowControlVisible(this.FindControl<Button>("PauseButton")!), "Compact primary commands leave the window.");
+                    RequireWorkflow(WorkflowControlVisible(AddUrlButton)
+                        && WorkflowControlVisible(PauseButton), "Compact primary commands leave the window.");
                     checks.Add("compact-window");
                     CaptureWorkflow(fixture.Profile, "compact");
 
@@ -155,7 +155,7 @@ public partial class MainWindow
                         await using ArchiveReader reader = await _session.OpenArchiveReaderAsync();
                         return (await reader.ReadThreadAsync(id))?.Summary.PostCount == 1;
                     }, "archived captured post");
-                    ClickWorkflow(this.FindControl<Button>("ArchiveNavigationButton")!);
+                    ClickWorkflow(ArchiveNavigationButton);
                     await ArchivePage.OpenExportForThreadAsync(id, this.FindControl<DataGrid>("ThreadsDataGrid"));
                     await WaitWorkflowAsync(() => ArchivePage.FindControl<Button>("ArchiveExportStart")!.IsEffectivelyEnabled,
                         "export dialog readiness");
@@ -231,7 +231,7 @@ public partial class MainWindow
                 ClickWorkflow(ArchivePage.FindControl<Button>("ArchiveExportClose")!);
                 await WaitWorkflowAsync(() => !RowCommandBusy && !_selectionCommandRunning && UrlList.Count == 1,
                     "complete restored-thread frame before Remove command");
-                this.FindControl<DataGrid>("ThreadsDataGrid")!.SelectedItem = UrlList.Single();
+                ThreadsDataGrid.SelectedItem = UrlList.Single();
                 await RemoveDownloadSelectionAsync(false);
                 await WaitWorkflowAsync(() => UrlList.Count == 0, "remove selected watch");
                 RequireWorkflow(File.Exists(saved) && File.ReadAllBytes(saved).SequenceEqual(ApphostWorkflowSmoke.Payload),

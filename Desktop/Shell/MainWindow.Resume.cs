@@ -113,14 +113,14 @@ public partial class MainWindow
         ArchivePage.ConsciousReadingPositionChanged += SaveConsciousReadingPosition;
         _resumeReadingMenu = new MenuItem();
         _resumeReadingMenu.Click += async (_, _) => await ResumeLastReadingAsync();
-        this.FindControl<MenuItem>("WorkspaceMenuItem")!.Items.Insert(1, _resumeReadingMenu);
-        this.FindControl<Button>("ContinueReadingButton")!.Click += async (_, _) => await ResumeLastReadingAsync();
+        WorkspaceMenuItem.Items.Insert(1, _resumeReadingMenu);
+        ContinueReadingButton.Click += async (_, _) => await ResumeLastReadingAsync();
         RefreshReadingResumeLabels();
     }
 
     private void RefreshReadingResumeLabels()
     {
-        Button button = this.FindControl<Button>("ContinueReadingButton")!;
+        Button button = ContinueReadingButton;
         CommandBindings.Apply(button, "navigation.continue-reading",
             () => Texts.T("resume.actionHint"), iconOnly: true);
         string help = CommandBindings.Tooltip("navigation.continue-reading") + " · " + Texts.T("resume.actionHint");
@@ -200,7 +200,7 @@ public partial class MainWindow
     internal async Task ResumeLastReadingAsync()
     {
         if (!CanResumeReading || !NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
-        bool ownedFocus = this.FindControl<Button>("ContinueReadingButton")!.IsKeyboardFocusWithin;
+        bool ownedFocus = ContinueReadingButton.IsKeyboardFocusWithin;
         _readingResumePending = true;
         RefreshReadingResumePresentation();
         int navigation = _readingResumeNavigationRevision;

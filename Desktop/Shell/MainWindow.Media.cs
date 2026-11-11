@@ -32,7 +32,7 @@ public partial class MainWindow
                 (tag, targets, assigned, expectedRevision, token) => _session.SetMediaTagsAsync(tag, targets, assigned, expectedRevision, token)),
             ExportOriginals = ExportMediaLibraryOriginalsAsync
         };
-        this.FindControl<ContentControl>("MediaPageHost")!.Content = _mediaPage;
+        MediaPageHost.Content = _mediaPage;
     }
 
     // Passive in-memory views only; an unavailable store stays null so a filter needing it is refused.

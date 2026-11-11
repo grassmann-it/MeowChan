@@ -94,14 +94,14 @@ public partial class MainWindow : Window
             Deactivated += OnGalleryActivationChanged;
 
             // The Add button is wired once in XAML. Enter uses that same action.
-            this.FindControl<TextBox>("UrlInput")!.AddHandler(KeyDownEvent,
+            UrlInput.AddHandler(KeyDownEvent,
                 OnUrlInputKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
-            this.FindControl<MenuItem>("SettingsMenuItem")!.Click += OnSettingsMenuItemClick;
-            this.FindControl<MenuItem>("AboutMenuItem")!.Click += OnAboutMenuItemClick;
-            this.FindControl<MenuItem>("ExitMenuItem")!.Click += async (sender, e) => await CloseApplicationAsync();
-            this.FindControl<DataGrid>("ThreadsDataGrid")!.AddHandler(PointerPressedEvent,
+            SettingsMenuItem.Click += OnSettingsMenuItemClick;
+            AboutMenuItem.Click += OnAboutMenuItemClick;
+            ExitMenuItem.Click += async (sender, e) => await CloseApplicationAsync();
+            ThreadsDataGrid.AddHandler(PointerPressedEvent,
                 OnThreadPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
-            this.FindControl<DataGrid>("BoardsDataGrid")!.AddHandler(PointerPressedEvent,
+            BoardsDataGrid.AddHandler(PointerPressedEvent,
                 OnBoardPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
             AddHandler(KeyDownEvent, OnKeyDown, handledEventsToo: true);
 
@@ -223,35 +223,35 @@ public partial class MainWindow : Window
             _archivePage.IsAvailable = ready;
             _archivePage.IsReadable = !_isClosing && _session.CatalogReadable;
         }
-        this.FindControl<Button>("AddUrlButton")!.IsEnabled = ready && !_importing;
-        this.FindControl<TextBox>("UrlInput")!.IsEnabled = ready;
-        this.FindControl<MenuItem>("SettingsMenuItem")!.IsEnabled = earlyPages;
-        this.FindControl<Button>("DownloadsNavigationButton")!.IsEnabled = earlyPages;
-        this.FindControl<Button>("SettingsNavigationButton")!.IsEnabled = earlyPages;
-        this.FindControl<Button>("ArchiveNavigationButton")!.IsEnabled = earlyPages;
+        AddUrlButton.IsEnabled = ready && !_importing;
+        UrlInput.IsEnabled = ready;
+        SettingsMenuItem.IsEnabled = earlyPages;
+        DownloadsNavigationButton.IsEnabled = earlyPages;
+        SettingsNavigationButton.IsEnabled = earlyPages;
+        ArchiveNavigationButton.IsEnabled = earlyPages;
         // Media reads the catalog and media folders like Archive, but its index build waits for a ready session.
-        this.FindControl<Button>("MediaNavigationButton")!.IsEnabled = navigationReady;
+        MediaNavigationButton.IsEnabled = navigationReady;
         if (_mediaPage != null) _mediaPage.IsAvailable = ready;
-        this.FindControl<Button>("RulesNavigationButton")!.IsEnabled = navigationReady;
-        this.FindControl<Button>("SourcesNavigationButton")!.IsEnabled = navigationReady;
-        this.FindControl<Button>("PluginsNavigationButton")!.IsEnabled = navigationReady;
+        RulesNavigationButton.IsEnabled = navigationReady;
+        SourcesNavigationButton.IsEnabled = navigationReady;
+        PluginsNavigationButton.IsEnabled = navigationReady;
         RefreshReadingResumeState();
-        this.FindControl<MenuItem>("SourcesMenuItem")!.IsEnabled = navigationReady;
-        this.FindControl<MenuItem>("ArchiveMenuItem")!.IsEnabled = earlyPages;
-        this.FindControl<MenuItem>("MediaMenuItem")!.IsEnabled = navigationReady;
+        SourcesMenuItem.IsEnabled = navigationReady;
+        ArchiveMenuItem.IsEnabled = earlyPages;
+        MediaMenuItem.IsEnabled = navigationReady;
         RefreshReaderGroupsEntry(); // URSA-12 shared session-readiness refresh.
-        this.FindControl<MenuItem>("RulesMenuItem")!.IsEnabled = navigationReady;
+        RulesMenuItem.IsEnabled = navigationReady;
         bool diagnosticsReady = !WorkspaceCommandBusy
             && (_restoreCompleted || _session.Projection.View.State == DesktopSessionState.RecoveryFailed);
-        this.FindControl<Button>("DiagnosticsNavigationButton")!.IsEnabled = diagnosticsReady;
-        this.FindControl<Button>("ToolsNavigationButton")!.IsEnabled = diagnosticsReady;
-        this.FindControl<MenuItem>("DiagnosticsMenuItem")!.IsEnabled = diagnosticsReady;
+        DiagnosticsNavigationButton.IsEnabled = diagnosticsReady;
+        ToolsNavigationButton.IsEnabled = diagnosticsReady;
+        DiagnosticsMenuItem.IsEnabled = diagnosticsReady;
         if (_clipboardMenuItem != null)
         {
             _clipboardMenuItem.IsEnabled = navigationReady && !_importing;
         }
-        this.FindControl<ComboBox>("WorkspaceModeComboBox")!.IsEnabled = navigationReady;
-        this.FindControl<Button>("ThemeToggleButton")!.IsEnabled = navigationReady;
+        WorkspaceModeComboBox.IsEnabled = navigationReady;
+        ThemeToggleButton.IsEnabled = navigationReady;
         RefreshDiagnosticPage();
         RefreshSourcesPage();
         RefreshWorkspace();
@@ -464,10 +464,10 @@ public partial class MainWindow : Window
     private async void OnAddUrl(object? sender, RoutedEventArgs e)
     {
         if (!_restoreCompleted || _isClosing || _importing || _applyingPreferences) return;
-        TextBox urlInput = this.FindControl<TextBox>("UrlInput")!;
+        TextBox urlInput = UrlInput;
         // Capture the Add button too, before the busy state disables it.
         using var focusReturn = new ExperimentalAdmissionFocusReturn(this, urlInput,
-            this.FindControl<Button>("AddUrlButton")!);
+            AddUrlButton);
         _experimentalAdmissionFocusReturn = focusReturn;
         string enteredText = urlInput.Text ?? string.Empty;
         bool accepted = false;
@@ -538,13 +538,13 @@ public partial class MainWindow : Window
     private void RefreshAdmissionResults()
     {
         string? repairSources = RefreshAdmissionRepair();
-        Border panel = this.FindControl<Border>("AdmissionResultsPanel")!;
-        StackPanel rows = this.FindControl<StackPanel>("AdmissionResultRows")!;
+        Border panel = AdmissionResultsPanel;
+        StackPanel rows = AdmissionResultRows;
         panel.IsVisible = _admissionResults.Count > 0;
         rows.Children.Clear();
         int added = _admissionResults.Count(item => item.Status == AdmissionStatus.Added);
         int duplicate = _admissionResults.Count(item => item.Status == AdmissionStatus.AlreadyPresent);
-        this.FindControl<TextBlock>("AdmissionResultsTitle")!.Text = Texts.T("admission.summary", added, duplicate, _admissionResults.Count - added - duplicate);
+        AdmissionResultsTitle.Text = Texts.T("admission.summary", added, duplicate, _admissionResults.Count - added - duplicate);
         if (_admissionResults.Count == 0) return;
         // One selectable, scrollable report keeps large imports from creating a control per URL.
         TextBox report = new TextBox
@@ -603,7 +603,7 @@ public partial class MainWindow : Window
     {
         if (RouteWorkspaceShortcut(e)) return;
         if (e.Handled || HasBlockingPageDecision() || IsNativeShortcutSource(e.Source) || !IsEnabled || _largeReaderOpen || (_gallery != null && !_gallerySuspended)) return;
-        TextBox urlInput = this.FindControl<TextBox>("UrlInput")!;
+        TextBox urlInput = UrlInput;
         KeyModifiers pasteModifier = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
         if (CommandBindings.Matches(e, "input.focus-url"))
         {
@@ -1103,7 +1103,7 @@ public partial class MainWindow : Window
 
     private void WireWorkspaceCommands()
     {
-        this.FindControl<ComboBox>("WorkspaceModeComboBox")!.SelectionChanged += async (sender, e) =>
+        WorkspaceModeComboBox.SelectionChanged += async (sender, e) =>
         {
             if (_updatingWorkspacePreferences) return;
             if (!_restoreCompleted || WorkspaceCommandBusy)
@@ -1111,21 +1111,21 @@ public partial class MainWindow : Window
                 ApplyWorkspacePreferences();
                 return;
             }
-            if (this.FindControl<ComboBox>("WorkspaceModeComboBox")!.SelectedItem is ComboBoxItem item && item.Tag is string mode && mode != _config.WorkspaceMode)
+            if (WorkspaceModeComboBox.SelectedItem is ComboBoxItem item && item.Tag is string mode && mode != _config.WorkspaceMode)
             {
                 Config candidate = _config.Clone();
                 candidate.WorkspaceMode = mode;
                 await SaveAppearanceAsync(candidate);
             }
         };
-        this.FindControl<Button>("ThemeToggleButton")!.Click += async (sender, e) =>
+        ThemeToggleButton.Click += async (sender, e) =>
         {
             if (!_restoreCompleted || WorkspaceCommandBusy) return;
             Config candidate = _config.Clone();
             candidate.Theme = ActualThemeVariant == ThemeVariant.Dark ? "Light" : "Dark";
             await SaveAppearanceAsync(candidate);
         };
-        this.FindControl<Button>("InspectorCopyUrlButton")!.Click += async (sender, e) =>
+        InspectorCopyUrlButton.Click += async (sender, e) =>
             await CopyUrlsAsync(GetInspectorUrl() is string url ? new[] { url } : Array.Empty<string>());
     }
 
@@ -1189,12 +1189,12 @@ public partial class MainWindow : Window
     private void UpdatePauseControls(bool enabled)
     {
         bool paused = _session.Projection.IsPaused;
-        MenuItem menu = this.FindControl<MenuItem>("PauseMenuItem")!;
+        MenuItem menu = PauseMenuItem;
         menu.IsEnabled = enabled && !_session.Projection.IsPauseTransitioning;
         CommandBindings.Apply(menu, "session.pause");
         menu.Header = Texts.T(paused ? "action.resume" : "action.pause");
         menu.Icon = CommandBindings.Icon("session.pause", 16, paused ? "paused" : "running");
-        Button button = this.FindControl<Button>("PauseButton")!;
+        Button button = PauseButton;
         button.IsEnabled = enabled && !_session.Projection.IsPauseTransitioning;
         if (_lastPauseIcon != paused)
         {

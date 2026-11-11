@@ -184,7 +184,7 @@ public partial class MainWindow
             int position = _galleryEntries.FindIndex(item => item.EntryKey == entry.EntryKey);
             if (position >= 0) _galleryIndex = position;
         };
-        ContentControl host = this.FindControl<ContentControl>("GalleryHost")!;
+        ContentControl host = GalleryHost;
         host.Content = _gallery;
         host.IsVisible = true;
         HideFeedbackForGallery();
@@ -428,7 +428,7 @@ public partial class MainWindow
         TrackNativeGalleryCleanup(_gallery.SuspendMediaAsync());
         _gallerySuspended = true;
         _galleryVisitedReader = true;
-        this.FindControl<ContentControl>("GalleryHost")!.IsVisible = false;
+        GalleryHost.IsVisible = false;
         UpdateGalleryFullscreenPresentation();
         ArchivePage.GalleryReturn = ReturnToGallery;
         ArchivePage.ShowGalleryReturn(true);
@@ -441,7 +441,7 @@ public partial class MainWindow
         if (!_gallerySuspended || _gallery == null) return;
         _gallerySuspended = false;
         ArchivePage.ShowGalleryReturn(false);
-        this.FindControl<ContentControl>("GalleryHost")!.IsVisible = true;
+        GalleryHost.IsVisible = true;
         HideFeedbackForGallery();
         UpdateGalleryFullscreenPresentation();
         if (_galleryReturnState != null) _gallery.RestoreState(_galleryReturnState);

@@ -28,7 +28,7 @@ public partial class MainWindow
         try
         {
             await OpenGalleryAsync(ApphostWorkflowGalleryFixture.Id);
-            GalleryViewer viewer = (GalleryViewer)this.FindControl<ContentControl>("GalleryHost")!.Content!;
+            GalleryViewer viewer = (GalleryViewer)GalleryHost.Content!;
             Image image = viewer.GetGalleryVisualDescendants().OfType<Image>().Single(control => control.Name == "GalleryImage");
             await WaitWorkflowAsync(() => image.Source is Bitmap, "initial verified gallery image during download");
             for (int index = 0; index < 8; index++)

@@ -24,7 +24,7 @@ public partial class MainWindow
         _readerRestoreOrigin = ArchivePage.CaptureGalleryOrigin(restoreReaderFocus: false);
         _readerOriginPage = _selectedPage;
         _readerOriginFocus = origin;
-        ContentControl host = this.FindControl<ContentControl>("ReaderHost")!;
+        ContentControl host = ReaderHost;
         host.Content = ArchivePage.DetachReader();
         host.IsVisible = true;
         _largeReaderOpen = true;
@@ -37,7 +37,7 @@ public partial class MainWindow
     {
         if (!_largeReaderOpen || (restoreOrigin && _archivePage?.IsFilenameSearchOpen == true)) return;
         if (_gallery != null && restoreOrigin) CloseGallery(restoreOrigin: false);
-        ContentControl host = this.FindControl<ContentControl>("ReaderHost")!;
+        ContentControl host = ReaderHost;
         Control pane = (Control)host.Content!;
         host.Content = null;
         host.IsVisible = false;
