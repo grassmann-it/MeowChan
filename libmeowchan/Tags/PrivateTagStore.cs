@@ -274,6 +274,41 @@ internal sealed class PrivateTagStore
     }
 
     /// <summary>
+    /// Adds, for each handover, the media assignments of its earlier revision key to the new key, in one write.
+    /// Only an assignment whose target names the same thread, post, position and bytes moves; the earlier
+    /// assignments stay. Existing assignments are not duplicated, so repeating a handover changes nothing.
+    /// </summary>
+    internal PrivateTagCommit CarryMediaAssignmentsAdmitted(IReadOnlyCollection<MediaTagKeyHandover> handovers,
+        ProfileAdmissionToken admission, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(handovers);
+        return Mutate(admission, null, token, model =>
+        {
+            List<PrivateMediaTagAssignment> fresh = new();
+            HashSet<PrivateMediaTagAssignment> seen = new();
+            foreach (PrivateMediaTagAssignment assignment in model.Media)
+            {
+                PrivateMediaTagTarget old = assignment.Target;
+                foreach (MediaTagKeyHandover handover in handovers)
+                {
+                    if (old.Reference.RevisionKey != handover.FromRevisionKey || old.Reference.Resource != handover.To.Resource
+                        || old.Reference.PostId != handover.To.PostId || old.Reference.Position != handover.To.Position
+                        || old.Sha256 != handover.Sha256) continue;
+                    if (!PrivateMediaTagTarget.TryCreate(handover.To, old.MediaId, old.Variant, old.Role, old.Sha256,
+                        out PrivateMediaTagTarget? moved, out _)) continue;
+                    PrivateMediaTagAssignment next = new(assignment.TagId, moved!);
+                    if (!model.MediaSet.Contains(next) && seen.Add(next)) fresh.Add(next);
+                }
+            }
+            if (fresh.Count == 0) return (false, default);
+            if (model.Media.Count + fresh.Count > MaximumMediaAssignments)
+                throw new PrivateTagStoreException(PrivateTagStoreError.CapacityExceeded);
+            model.Media.AddRange(fresh);
+            return (true, default);
+        });
+    }
+
+    /// <summary>
     /// Deletes one tag together with every thread and media assignment that uses it, in one write.
     /// An unknown tag is rejected rather than treated as already deleted.
     /// </summary>

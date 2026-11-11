@@ -24,6 +24,9 @@ namespace MeowChan.DesktopTests;
 /// attachment of an already archived thread a different key. This runs the real adapter, queue, media store,
 /// archive and gallery selection against a profile that was filled by the "old" metadata (MD5 present, like the
 /// 2ch plugin before) and then re-checked with the "new" metadata (no MD5, same URL, same bytes).
+/// Result: each original is fetched once more (the new key has no binding yet), identical bytes land in the same
+/// assets, favorites and ratings are untouched, and private media tags are carried over to the new key
+/// (MediaTagKeyCarryOver) when the bytes are the same and not when they differ.
 /// No network: the worker and the media transport are in-memory.
 /// </summary>
 public sealed class ProviderMd5DropArchiveTests(ITestOutputHelper output)
@@ -33,9 +36,12 @@ public sealed class ProviderMd5DropArchiveTests(ITestOutputHelper output)
     private static readonly ResourceId Id = new("2ch", "b", "123");
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task AReCheckWithoutTheProviderMd5RedownloadsIntoTheSameAssetsKeepsFavoritesAndRatingsButDetachesTagsFromTheirKey(bool restartBeforeTheRecheck)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task AReCheckWithoutTheProviderMd5RedownloadsIntoTheSameAssetsAndCarriesTagsOverOnlyForTheSameBytes(
+        bool restartBeforeTheRecheck, bool theBytesChanged)
     {
         using TempProfile profile = new();
         MediaCounter media = new();
@@ -76,6 +82,7 @@ public sealed class ProviderMd5DropArchiveTests(ITestOutputHelper output)
                 second = await Env.StartAsync(profile.Path, md5: false, media);
             }
             else first.Worker.Md5 = false;
+            media.ChangeFirstFile = theBytesChanged;
 
             // Phase 2: the same profile, the source now reports no MD5 (new plugin), same URL and bytes.
             int requestsBefore = media.Total;
@@ -89,33 +96,57 @@ public sealed class ProviderMd5DropArchiveTests(ITestOutputHelper output)
             Observation after = await Observe(second, mediaDirectory);
             output.WriteLine("AFTER\n" + after.Describe());
 
-            // Re-download: the new key has no binding yet, so the host fetches each original once more.
-            Assert.Equal(requestsBefore + 2, media.Total);
-            // No duplicate asset or tile: identical bytes land in the same two assets, both still current.
-            Assert.Equal(before.Assets.Select(asset => asset.AssetId).Order(), after.Assets.Select(asset => asset.AssetId).Order());
-            Assert.All(after.Assets, asset => Assert.True(asset.IsCurrent));
-            Assert.Equal(2, after.Gallery.Count);
-            Assert.All(after.Gallery, shown => { Assert.False(shown.Unassigned); Assert.False(shown.Historical); Assert.NotNull(shown.AttachmentResolution); });
-            Assert.Equal(2, after.Tiles.Count);
-            Assert.All(after.Tiles, tile => { Assert.Equal(MediaLibraryPresence.Present, tile.Presence); Assert.False(tile.Unassigned); Assert.False(tile.Historical); });
-            // The archive row moves to the new keys (without MD5); the old bindings stay in the manifest, nothing is superseded.
-            Assert.All(after.AttachmentKeys, key => Assert.EndsWith(":md5=null", key));
-            Assert.Empty(after.AttachmentKeys.Select(key => key.Split(':')[1] + ":" + key.Split(':')[2]).Intersect(before.AttachmentKeys.Select(key => key.Split(':')[1] + ":" + key.Split(':')[2])));
-            Assert.Equal(4, after.BindingKeys.Count);
-            Assert.Subset(after.BindingKeys.ToHashSet(), before.BindingKeys.ToHashSet());
-
-            // Keyed by thread, media id, variant and bytes: favorite and rating survive.
+            PrivateTagStoreSnapshot tagSnapshot = new PrivateTagStore(profile.Path, second.Lease).ReadSnapshot();
+            // Old assignments are never removed.
+            Assert.Single(tagSnapshot.TagsOf(oldTarget));
+            // Keyed by thread, media id, variant and bytes: favorite and rating are untouched by the key change.
             Assert.True(new FavoriteStore(profile.Path, second.Lease).Contains(favoriteKey));
             Assert.Equal(4, new MediaRatingStore(profile.Path, second.Lease).List().Single(item => item.Key == favoriteKey).Value);
-            // Keyed by the attachment revision key: the tag assignment still exists for the old key, but no
-            // gallery entry resolves to that key any more, so the tag is no longer shown or filterable.
-            PrivateTagStoreSnapshot tagSnapshot = new PrivateTagStore(profile.Path, second.Lease).ReadSnapshot();
-            Assert.Single(tagSnapshot.TagsOf(oldTarget));
-            foreach (GalleryEntry shown in after.Gallery)
+            // Re-download: the new key has no binding yet, so the host fetches each original once more.
+            Assert.Equal(requestsBefore + 2, media.Total);
+            Assert.Equal(2, after.Gallery.Count);
+            Assert.All(after.Gallery, shown => Assert.NotNull(shown.AttachmentResolution));
+            // The archive row moves to the new keys (without MD5); the old bindings stay in the manifest.
+            Assert.All(after.AttachmentKeys, key => Assert.EndsWith(":md5=null", key));
+            Assert.Empty(after.AttachmentKeys.Select(key => key.Split(':')[1] + ":" + key.Split(':')[2]).Intersect(before.AttachmentKeys.Select(key => key.Split(':')[1] + ":" + key.Split(':')[2])));
+            Assert.Subset(after.BindingKeys.ToHashSet(), before.BindingKeys.ToHashSet());
+
+            GalleryEntry shownFirst = after.Gallery.Single(item => item.Attachment!.Position == 0);
+            PrivateMediaTagTarget currentFirst = Assert.IsType<PrivateMediaTagTarget>(GalleryMediaTagTarget.Resolve(shownFirst, out _));
+            Assert.NotEqual(oldTarget.Reference.RevisionKey, currentFirst.Reference.RevisionKey);
+            // The second file has no tags and gets none.
+            PrivateMediaTagTarget currentSecond = Assert.IsType<PrivateMediaTagTarget>(GalleryMediaTagTarget.Resolve(
+                after.Gallery.Single(item => item.Attachment!.Position == 1), out _));
+            Assert.Empty(tagSnapshot.TagsOf(currentSecond));
+
+            if (!theBytesChanged)
             {
-                PrivateMediaTagTarget current = Assert.IsType<PrivateMediaTagTarget>(GalleryMediaTagTarget.Resolve(shown, out _));
-                Assert.NotEqual(oldTarget.Reference.RevisionKey, current.Reference.RevisionKey);
-                Assert.Empty(tagSnapshot.TagsOf(current));
+                // Same bytes: same two assets, both current, no duplicate tile, nothing superseded.
+                Assert.Equal(before.Assets.Select(asset => asset.AssetId).Order(), after.Assets.Select(asset => asset.AssetId).Order());
+                Assert.All(after.Assets, asset => Assert.True(asset.IsCurrent));
+                Assert.All(after.Gallery, shown => { Assert.False(shown.Unassigned); Assert.False(shown.Historical); });
+                Assert.Equal(2, after.Tiles.Count);
+                Assert.All(after.Tiles, tile => { Assert.Equal(MediaLibraryPresence.Present, tile.Presence); Assert.False(tile.Unassigned); Assert.False(tile.Historical); });
+                Assert.Equal(4, after.BindingKeys.Count);
+                // The tag is on the entry that is shown now, and exactly once more than before.
+                Assert.Equal(tag, Assert.Single(tagSnapshot.TagsOf(currentFirst)).Id);
+                Assert.Equal(2, tagSnapshot.MediaAssignments.Count);
+
+                // Idempotent: another re-check, and a fresh store instance after a restart, add nothing.
+                long revision = tagSnapshot.Revision;
+                await thread.checkThreadAsync(second.Queue);
+                await second.Queue.WaitForIdleAsync().WaitAsync(TimeSpan.FromSeconds(20));
+                await Task.Delay(300);
+                PrivateTagStoreSnapshot again = new PrivateTagStore(profile.Path, second.Lease).ReadSnapshot();
+                Assert.Equal(2, again.MediaAssignments.Count);
+                Assert.Equal(revision, again.Revision);
+            }
+            else
+            {
+                // Different bytes are a different file: a new asset, and it does not inherit the tag.
+                Assert.NotEqual(oldTarget.Sha256, currentFirst.Sha256);
+                Assert.Empty(tagSnapshot.TagsOf(currentFirst));
+                Assert.Single(tagSnapshot.MediaAssignments);
             }
         }
         finally { await second.DisposeAsync(); }
@@ -161,6 +192,7 @@ public sealed class ProviderMd5DropArchiveTests(ITestOutputHelper output)
     {
         private int _total;
         internal int Total => Volatile.Read(ref _total);
+        internal volatile bool ChangeFirstFile;
         internal void Hit() => Interlocked.Increment(ref _total);
     }
 
@@ -247,7 +279,8 @@ public sealed class ProviderMd5DropArchiveTests(ITestOutputHelper output)
         {
             counter.Hit();
             int index = request.RequestUri!.AbsolutePath.EndsWith("f0.png", StringComparison.Ordinal) ? 0 : 1;
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Files[index]), RequestMessage = request });
+            byte[] bytes = index == 0 && counter.ChangeFirstFile ? [42, 42, 42, 42] : Files[index];
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes), RequestMessage = request });
         }
     }
 

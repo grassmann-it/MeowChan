@@ -1255,6 +1255,28 @@ public partial class DownloadQueue
         }
     }
 
+    /// <summary>
+    /// A re-check can give an attachment a new revision key (changed provider metadata). Once its new binding is
+    /// committed, the private media tags of the earlier key for the same attachment and bytes carry over.
+    /// This never fails or delays the download: a problem is logged and the tags simply stay where they were.
+    /// </summary>
+    private async Task CarryMediaTagsAsync(DownloadItem item, ProfileAdmissionToken? admission)
+    {
+        if (admission == null || item.AttachmentReferences.Count == 0) return;
+        try
+        {
+            ProfileLease? lease = ResolveExecutionProfileLease(item);
+            if (lease == null) return;
+            string directory = Path.GetDirectoryName(Path.GetFullPath(item.DestinationPath))!;
+            await Tags.MediaTagKeyCarryOver.ApplyAsync(lease, admission, directory, item.AttachmentReferences, CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+        catch (Exception failure)
+        {
+            _logger.Warning(failure, "Could not carry private media tags over to the new revision of {MediaId}", item.MediaIdentifier);
+        }
+    }
+
     private async Task ProcessDownloadItemAsync(QueuedDownload job)
     {
         using ProfileProducerEpoch.Use? producerUse = job.ProducerUse;
@@ -1364,6 +1386,7 @@ public partial class DownloadQueue
                 {
                     Quarantine(job.Item, persistenceFailure);
                 }
+                await CarryMediaTagsAsync(job.Item, producerAdmission).ConfigureAwait(false);
             }
             Cleanup cleanup = new Cleanup();
             List<QueuedDownload> ready;
