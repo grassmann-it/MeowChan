@@ -1,8 +1,8 @@
 # MeowChan 1.0.3 — lokaler Abnahmestand (11.11.2026)
 
-Stand: Branch `goal/gesamtprogramm-profile-a`, Head `7e7b729` (Quellstand der
-unten genannten Läufe; der Core-Lauf lief auf `4d21da9`, danach änderten sich nur
-zwei Testdateien). Nichts ist veröffentlicht, gepusht oder getaggt.
+Stand: Branch `goal/gesamtprogramm-profile-a`, Head `db28407`. Die unten genannten Läufe liefen auf `7e7b729` (Core auf `4d21da9`);
+danach kamen nur SF-03/SF-05 (`db28407`) hinzu, belegt durch 390 gefilterte
+Desktop-Tests und den Reader-Find-Smoke, nicht durch einen neuen Vollauf. Nichts ist veröffentlicht, gepusht oder getaggt.
 
 **Ergebnis: kein freigebbarer 1.0.3-Kandidat.** Die lokal prüfbaren Pakete sind
 belegt; der Kandidat bleibt nach `START-GOAL-1.0.3.md` blockiert, solange die
@@ -24,15 +24,21 @@ Windows-, macOS- und Hardwarebelege fehlen. Sie sind unter Linux nicht ersetzbar
 
 - **Windows/macOS/Hardware:** keine Belege; blockiert den Kandidaten.
 - **Paketprüfungen** (`check-desktop-package.py`, Linux-Distribution): nicht ausgeführt.
-- **Discard:** speichert nur die Entscheidung im Ledger. Die Bytes der verworfenen
-  Alternative bleiben bis zu einem späteren Cleanup erhalten; es gibt keine
-  automatische Freigabe.
+- **Discard:** speichert nur die Entscheidung im Ledger. Nutzerentscheidung 11.11.:
+  Bytes dürfen per Cleanup nach Bestätigung gelöscht werden. Befund vor der
+  Umsetzung: die Alternative liegt im unveränderlichen Full-Root der Merge-Operation
+  (Safe-Root ist, was in Threads registriert wird). Freigabe ist daher nur pro ganzem
+  Operations-Full-Root möglich, wenn alle seine Konflikte entschieden sind und er in
+  keinem Thread referenziert wird. Offen: Wirkung auf Re-Merge-Idempotenz und
+  Operationsprüfung. Nicht implementiert; braucht eigenen Entwurf samt
+  Dateisystem-Fixtures.
 - **Guro.cx:** dokumentierter technischer Block (kein registrierbarer Source);
   **Anon Imageboards:** kein öffentlicher Quellvertrag, nur Plan und Fixtures zur
   Nichtverfügbarkeit. Beide gemäß Releaseplan als begründeter Nichtverfügbarkeitsfall.
 - **Experimental-Quellen:** standardmäßig deaktiviert und gebündelt; Livebelege fehlen
   (Live-Tests übersprungen), daher „nicht aktuell verifiziert“.
-- **UX103:** SF-03 und SF-05 bleiben Nutzerentscheidungen; UX103-E
+- **UX103:** SF-03 (Enter auf Find-Tasten) und SF-05 (Primary+F nur in der großen
+  Leseansicht, Befehl `reader.find`, umbelegbar) umgesetzt in `db28407`; UX103-E
   (Startkostenmessung) nicht begonnen.
 - **Ledger-Lücke:** Alternativen am selben Slot mit anderem Provider-Tupel sind nicht
   gesondert behandelt.
