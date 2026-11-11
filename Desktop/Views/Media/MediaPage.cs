@@ -76,7 +76,7 @@ public sealed partial class MediaPage : UserControl
         StackPanel header = new() { Spacing = 6, Margin = new Thickness(12, 12, 12, 6) };
         header.Children.Add(_title); header.Children.Add(_subtitle); header.Children.Add(tools);
         header.Children.Add(BuildFilterRow()); header.Children.Add(_filterChips); header.Children.Add(_filterError); header.Children.Add(_status); header.Children.Add(BuildSelectionBar());
-        _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel());
+        _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { ItemHeight = MediaLibraryTileView.TileHeight });
         _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThreadFilter = FilterToThread, ShowOccurrences = ShowOccurrences });
         ScrollViewer.SetHorizontalScrollBarVisibility(_grid, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
         Panel body = new();

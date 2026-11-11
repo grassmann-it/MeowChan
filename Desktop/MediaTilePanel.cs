@@ -19,6 +19,7 @@ namespace MeowChan.Desktop;
 public sealed class MediaTilePanel : VirtualizingUniformGrid
 {
     public const double CellWidth = 190;
+    /// <summary>Default cell height (archive tiles). A page with taller tiles sets <c>ItemHeight</c>; layout, virtualization and paging follow it.</summary>
     public const double CellHeight = 210;
     private bool _inLayout;
     private bool _scrolling;
@@ -195,7 +196,7 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
         base.OnDetachedFromVisualTree(e);
     }
 
-    private Rect CellRect(int index) => new(index % Columns * ItemWidth, index / Columns * CellHeight, ItemWidth, CellHeight);
+    private Rect CellRect(int index) => new(index % Columns * ItemWidth, index / Columns * ItemHeight, ItemWidth, ItemHeight);
 
     protected override Control? ScrollIntoView(int index)
     {
@@ -221,9 +222,9 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
     public (int Index, double Offset)? CaptureAnchor()
     {
         if (Items.Count == 0 || _viewport.Height <= 0) return null;
-        int row = Math.Max(0, (int)Math.Floor(Math.Max(0, _viewport.Top) / CellHeight));
+        int row = Math.Max(0, (int)Math.Floor(Math.Max(0, _viewport.Top) / ItemHeight));
         int index = Math.Min(Items.Count - 1, row * Columns);
-        return (index, index / Columns * CellHeight - _viewport.Top);
+        return (index, index / Columns * ItemHeight - _viewport.Top);
     }
 
     public void RestoreAnchor(int index, double offset)
@@ -249,7 +250,7 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
             Point? origin = this.TranslatePoint(default, presenter);
             if (origin is null) return;
             double target = origin.Value.Y + presenter.Offset.Y
-                + Math.Clamp(index, 0, Items.Count - 1) / Columns * CellHeight - offset;
+                + Math.Clamp(index, 0, Items.Count - 1) / Columns * ItemHeight - offset;
             presenter.SetCurrentValue(ScrollContentPresenter.OffsetProperty,
                 new Vector(presenter.Offset.X, Math.Clamp(target, 0, Math.Max(0, presenter.Extent.Height - presenter.Viewport.Height))));
             this.UpdateLayout();
@@ -265,7 +266,7 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
         for (Visual? visual = from as Visual; visual is not null && visual != this; visual = visual.GetVisualParent())
             if (visual is Control control && (fromIndex = IndexFromContainer(control)) >= 0) break;
         if (fromIndex < 0 && direction is not NavigationDirection.First and not NavigationDirection.Last) return null;
-        int pageRows = Math.Max(1, (int)Math.Floor(_viewport.Height / CellHeight));
+        int pageRows = Math.Max(1, (int)Math.Floor(_viewport.Height / ItemHeight));
         int lastRow = (count - 1) / Columns;
         int toIndex = direction switch
         {

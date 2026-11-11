@@ -413,6 +413,14 @@ internal static partial class MediaPageChecks
             Require(page.Tiles.Single(tile => tile.IsGroup).Favorite == MediaLibraryFavoriteState.Some, "One of three favorites must read some.");
             await UntilAsync(() => page.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Name == "MediaTileFavorite" && text.IsVisible
                 && text.Text == Texts.T("media.group.favorite.some")));
+            // The panel lays out cells with the tile's own height, so the favorite row is neither clipped nor under the next row.
+            MediaTilePanel panel = page.Grid.GetVisualDescendants().OfType<MediaTilePanel>().Single();
+            Require(panel.ItemHeight == MediaLibraryTileView.TileHeight, "Medien panel cell height must match the tile: " + panel.ItemHeight);
+            TextBlock favoriteRow = page.GetVisualDescendants().OfType<TextBlock>().First(text => text.Name == "MediaTileFavorite" && text.IsVisible);
+            MediaLibraryTileView favoriteTile = favoriteRow.FindAncestorOfType<MediaLibraryTileView>()!;
+            Point? rowBottom = favoriteRow.TranslatePoint(new Point(0, favoriteRow.Bounds.Height), favoriteTile);
+            Require(rowBottom is { } bottom && bottom.Y <= favoriteTile.Bounds.Height && favoriteTile.Bounds.Height <= panel.ItemHeight,
+                "Favorite row must fit inside its tile and the tile inside its cell: " + rowBottom + " / " + favoriteTile.Bounds.Height);
             Require(await host.SetFavoriteAsync(new FavoriteEntry(MediaLibraryFilterEngine.AssetKey(in400)!, Png.Length, in400.Name), false).WaitAsync(Deadline), "Favorite was not removed.");
             page.RefreshUserData();
 
