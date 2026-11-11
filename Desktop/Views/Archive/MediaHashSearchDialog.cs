@@ -12,6 +12,7 @@ using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Threading;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Storage;
 
@@ -275,21 +276,22 @@ internal sealed class MediaHashSearchDialog : Window
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
         _heading.Classes.Add("section-title");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
-        var body = new StackPanel { Spacing = 12, Margin = new Thickness(16) };
-        body.Children.Add(_heading); body.Children.Add(_scope); body.Children.Add(_generation);
-        body.Children.Add(_inputLabel); body.Children.Add(_input); body.Children.Add(_search);
-        body.Children.Add(_status); body.Children.Add(_page); body.Children.Add(_rows);
+        // UX103 P7: task, draft, search action and request status stay in the fixed header;
+        // scope, captured generation, page range and result rows scroll; paging/close stay fixed.
+        var header = new StackPanel { Spacing = 8 };
+        header.Children.Add(_heading); header.Children.Add(_inputLabel); header.Children.Add(_input);
+        header.Children.Add(_search); header.Children.Add(_status);
+        var body = new StackPanel { Spacing = 12, Margin = new Thickness(16, 0, 16, 16) };
+        body.Children.Add(_scope); body.Children.Add(_generation);
+        body.Children.Add(_page); body.Children.Add(_rows);
         var buttons = new WrapPanel { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         buttons.Children.Add(_previous); buttons.Children.Add(_next); buttons.Children.Add(_close);
-        var footer = new Border { Child = buttons, Margin = new Thickness(16, 0, 16, 16) };
-        footer.Classes.Add("workspace-dialog-footer");
-        var grid = new Grid { RowDefinitions = new RowDefinitions("48,*,Auto") };
+        var frame = DialogFrame.Build(header, body, buttons);
+        // The caption bar sits outside the frame; the window keeps cycling Tab through both.
+        KeyboardNavigation.SetTabNavigation(frame, KeyboardNavigationMode.Continue);
+        var grid = new Grid { RowDefinitions = new RowDefinitions("48,*") };
         grid.Children.Add(_chrome);
-        var scroll = new ScrollViewer { Content = body,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto };
-        grid.Children.Add(scroll); Grid.SetRow(scroll, 1);
-        grid.Children.Add(footer); Grid.SetRow(footer, 2);
+        grid.Children.Add(frame); Grid.SetRow(frame, 1);
         Content = grid;
         _search.Click += OnSearch; _previous.Click += OnPrevious; _next.Click += OnNext; _close.Click += OnClose;
         _input.PropertyChanged += OnInputChanged;

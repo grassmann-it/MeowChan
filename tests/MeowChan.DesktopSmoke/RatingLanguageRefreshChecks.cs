@@ -166,7 +166,7 @@ internal static class RatingLanguageRefreshChecks
                     "Manager language refresh changed selection, focus, search or busy state in " + language + ".");
                 CheckManagerLabels(manager, entries.Length);
                 Require(list.Items.Cast<object>().Zip(originalRows).All(pair => ReferenceEquals(pair.First, pair.Second))
-                    && string.IsNullOrEmpty(Need<TextBlock>(manager, "MediaRatingsError").Text),
+                    && string.IsNullOrEmpty(Private<TextBlock>(manager, "_error").Text),
                     language + ": manager reloaded/refiltered rows or tried to read the host again.");
                 foreach (object row in originalRows)
                 {

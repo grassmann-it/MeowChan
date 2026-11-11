@@ -14,6 +14,7 @@ using Avalonia.Threading;
 using Avalonia.Layout;
 using Avalonia.Media;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Ratings;
 
@@ -92,15 +93,18 @@ internal sealed class MediaRatingsManagerDialog : Window
         _identity.MaxHeight = 120;
         ScrollViewer.SetHorizontalScrollBarVisibility(_list, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
         ScrollViewer.SetVerticalScrollBarVisibility(_identity, Avalonia.Controls.Primitives.ScrollBarVisibility.Auto);
-        StackPanel detail = new() { Spacing = 8, Children = { _identity, _error } };
         WrapPanel buttons = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         foreach (Button button in new[] { _remove, _confirm, _cancel, _close }) buttons.Children.Add(button);
-        Border footer = new() { Child = buttons, Margin = new Thickness(-16, 0, -16, -16) };
-        footer.Classes.Add("workspace-dialog-footer");
+        // UX103 P7: search draft and summary fixed on top, the load/remove error in the local
+        // strip below them, list plus selected identity in the body, and the actions in the footer.
+        // The list scrolls itself, so the body only bounds it and keeps the identity in view.
         StackPanel header = new() { Spacing = 8, Children = { _search, _summary } };
-        Grid grid = new() { Margin = new Thickness(16), RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto"), RowSpacing = 12 };
-        grid.Children.Add(header); grid.Children.Add(_list); Grid.SetRow(_list, 1);
-        grid.Children.Add(detail); Grid.SetRow(detail, 2); grid.Children.Add(footer); Grid.SetRow(footer, 3); Content = grid;
+        Grid body = new() { Margin = new Thickness(16, 0, 16, 16), RowDefinitions = new RowDefinitions("*,Auto"), RowSpacing = 12 };
+        body.Children.Add(_list); body.Children.Add(_identity); Grid.SetRow(_identity, 1);
+        Grid frame = DialogFrame.Build(header, body, buttons, DialogFrame.ErrorStrip(_error));
+        frame.Children.OfType<ScrollViewer>().Single(child => child.Name == DialogFrame.BodyName).VerticalScrollBarVisibility =
+            Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled;
+        Content = frame;
         CommandRouter router = new(this);
         router.Register(new("media.rating.remove-selected", this, () => IsVisible, () => !_busy && _frozen == null && _list.SelectedItem is Row, BeginRemove, Priority: 300));
         KeyDown += (_, e) => router.Route(e);

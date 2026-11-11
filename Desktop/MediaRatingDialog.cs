@@ -12,6 +12,7 @@ using Avalonia.Media;
 using Avalonia.VisualTree;
 using Avalonia.Threading;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
 
@@ -65,17 +66,13 @@ internal sealed class MediaRatingDialog : Window
         _heading.Classes.Add("section-title");
         _identity = new() { Text = MediaRatingText.LocalizedIdentity(key), TextWrapping = TextWrapping.Wrap };
         _identity.Classes.Add("workspace-meta");
-        StackPanel body = new() { Spacing = 12 };
-        body.Children.Add(_heading); body.Children.Add(_identity); body.Children.Add(_confirmedValue);
+        // UX103 P7: title fixed on top, the save/remove error in the local strip below it,
+        // the asset identity and editor scroll, and the actions stay in the fixed footer.
+        StackPanel body = new() { Spacing = 12, Margin = new Thickness(16, 0, 16, 16) };
+        body.Children.Add(_identity); body.Children.Add(_confirmedValue);
         body.Children.Add(_rating); body.Children.Add(_value);
         _help.Classes.Add("workspace-help"); body.Children.Add(_help);
-        Border footer = new() { Child = actions, Margin = new Thickness(-16, 0, -16, -16) };
-        footer.Classes.Add("workspace-dialog-footer");
-        Grid layout = new() { Margin = new Thickness(16), RowDefinitions = new("*,Auto,Auto"), RowSpacing = 12 };
-        layout.Children.Add(new ScrollViewer { Content = body, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled });
-        ScrollViewer errorNotice = new() { Content = _error, MaxHeight = 96, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-        layout.Children.Add(errorNotice); Grid.SetRow(errorNotice, 1);
-        layout.Children.Add(footer); Grid.SetRow(footer, 2); Content = layout;
+        Content = DialogFrame.Build(_heading, body, actions, DialogFrame.ErrorStrip(_error, maxHeight: 96));
         _rating.AddHandler(PointerReleasedEvent, async (_, e) =>
         {
             if (_busy) return;

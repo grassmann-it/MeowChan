@@ -15,6 +15,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -200,18 +201,30 @@ internal sealed class FilenameSearchDialog : Window
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
-        var top = new StackPanel { Spacing = 8, Margin = new Thickness(16) };
-        top.Children.Add(_label); top.Children.Add(_query); top.Children.Add(_scope);
+        // UX103 P7: the draft, its actions and the request status stay in the fixed header;
+        // results scroll in the body (the list keeps its own virtualized scrolling, bounded
+        // to the body viewport), the scope note follows below, and paging/return stay fixed.
+        var header = new StackPanel { Spacing = 8 };
+        header.Children.Add(_label); header.Children.Add(_query);
         var actions = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
-        actions.Children.Add(_search); actions.Children.Add(_cancel); top.Children.Add(actions); top.Children.Add(_status);
-        var footer = new WrapPanel { ItemSpacing = 8, LineSpacing = 8, Margin = new Thickness(16), HorizontalAlignment = HorizontalAlignment.Right };
+        actions.Children.Add(_search); actions.Children.Add(_cancel); header.Children.Add(actions); header.Children.Add(_status);
+        var footer = new WrapPanel { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         foreach (var button in new[] { _previous, _next, _select, _close }) footer.Children.Add(button);
-        var layout = new Grid { RowDefinitions = new RowDefinitions("48,Auto,*,Auto") };
-        layout.Children.Add(_chrome); layout.Children.Add(top); Grid.SetRow(top, 1);
         _results.ItemTemplate = new FuncDataTemplate<Row>((row, _) => new TextBlock
         { Text = row?.Label, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4) });
-        _results.Margin = new Thickness(16, 0); layout.Children.Add(_results); Grid.SetRow(_results, 2);
-        layout.Children.Add(footer); Grid.SetRow(footer, 3); Content = layout;
+        var body = new StackPanel { Spacing = 8, Margin = new Thickness(16, 0, 16, 16) };
+        body.Children.Add(_results); body.Children.Add(_scope);
+        var frame = DialogFrame.Build(header, body, footer);
+        var scroll = frame.Children.OfType<ScrollViewer>().Single(child => child.Name == DialogFrame.BodyName);
+        scroll.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == ScrollViewer.ViewportProperty)
+                _results.MaxHeight = Math.Max(0, scroll.Viewport.Height - body.Margin.Top - body.Margin.Bottom);
+        };
+        // The caption bar sits outside the frame; the window keeps cycling Tab through both.
+        KeyboardNavigation.SetTabNavigation(frame, KeyboardNavigationMode.Continue);
+        var layout = new Grid { RowDefinitions = new RowDefinitions("48,*") };
+        layout.Children.Add(_chrome); layout.Children.Add(frame); Grid.SetRow(frame, 1); Content = layout;
         _query.PropertyChanged += OnQueryChanged;
         _query.AddHandler(KeyDownEvent, OnQueryKey, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         _search.Click += OnSearch; _cancel.Click += OnCancel;
