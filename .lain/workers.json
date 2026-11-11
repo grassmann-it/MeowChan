@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "profileId": "lain",
-  "maxWorkers": 9,
+  "maxWorkers": 12,
   "purposes": [
     {
       "name": "release-review-sol",
@@ -47,6 +47,36 @@
       "name": "ux103-stepfun",
       "routeIds": [
         "stepfun-step-5-preview"
+      ],
+      "contextMode": "native"
+    },
+    {
+      "name": "ux103-api-astra",
+      "routeIds": [
+        "route-846240ca844d8ed7045cfcc8c95088a9"
+      ],
+      "contextMode": "native",
+      "reasoningEffort": "high"
+    },
+    {
+      "name": "ux103-abo-astra",
+      "routeIds": [
+        "route-4a77563646f99022600e90ec4559a485"
+      ],
+      "contextMode": "native",
+      "reasoningEffort": "high"
+    },
+    {
+      "name": "ux103-glm",
+      "routeIds": [
+        "route-866d9f0c47f3a68a28a0b1e211c4661d"
+      ],
+      "contextMode": "native"
+    },
+    {
+      "name": "ux103-cmd-sonnet",
+      "routeIds": [
+        "route-6759a359fa0b5789dff2e7e871a5c4ee"
       ],
       "contextMode": "native"
     }
