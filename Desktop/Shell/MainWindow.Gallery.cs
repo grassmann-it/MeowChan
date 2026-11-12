@@ -81,11 +81,14 @@ public partial class MainWindow
         await StartGalleryAsync(Array.AsReadOnly(new[] { id }), origin, stillRequested: readerRequest);
     }
 
-    internal async Task OpenMediaGalleryAsync(IReadOnlyList<GalleryEntry> entries, GalleryEntryKey start, Control? origin = null)
+    internal async Task OpenMediaGalleryAsync(IReadOnlyList<GalleryEntry> entries, GalleryEntryKey start, Control? origin = null,
+        Func<bool>? stillRequested = null)
     {
+        if (stillRequested?.Invoke() == false) return;
         _galleryStart = null;
         _galleryAllVersions = true;
-        await StartGalleryAsync(Array.Empty<ResourceId>(), origin, entries, start);
+        // StartGalleryAsync rechecks this after retiring native media, alongside its own request revision.
+        await StartGalleryAsync(Array.Empty<ResourceId>(), origin, entries, start, stillRequested: stillRequested);
     }
 
     private async Task OpenFavoritesGalleryAsync(IReadOnlyList<GalleryEntry> entries, GalleryEntryKey start, Action completed)

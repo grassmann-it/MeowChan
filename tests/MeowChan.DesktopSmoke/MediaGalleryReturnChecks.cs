@@ -175,6 +175,7 @@ internal static partial class MediaPageChecks
             Require(!shell.MediaReturnAvailableForTests && !mediaReturn.IsVisible, "(b) The return point must end with the return.");
             await UntilAsync(() => FocusOn(chosen));
             Require(Selected() == "r-618.png" && page.SelectedTiles.Count == 1 && !note.IsVisible, "(b) 'Back to media' must lead to the same Medien tile: " + Selected());
+            await DirectGalleryOpenGuardAsync(shell, page);
             Console.WriteLine("SMOKE media gallery return [en]: real main window -> (a) Medien tile -> gallery whose close action is 'To media' (name, tooltip with Esc, visible label, help entry and Escape line; 'Zu Medien' after a switch to German) -> T -> thread with only 'Back to gallery', Alt+Left kept in the archive -> back to the same gallery -> Escape -> the same Medien tile focused and selected, no return state left, focus stable; (b) Medien tile -> T -> 'Back to media' -> gallery from the reader ('Close gallery') hides it -> T -> only 'Back to gallery' -> back -> close -> archive reader with 'Back to media' again -> the same Medien tile.");
         }
         finally

@@ -62,14 +62,20 @@ public partial class MainWindow
 
     private async Task OpenMediaLibraryGalleryAsync(IReadOnlyList<MediaLibraryEntry> window, int start, Func<bool>? current = null)
     {
-        if (_isClosing || current?.Invoke() == false || start < 0 || start >= window.Count) return;
+        // Direct tile/selection opens have no menu guard of their own. Freeze the host and
+        // presentation before resolution yields, and keep any caller's frozen-menu request too.
+        Func<bool> hostCurrent = CaptureMediaPageMenuGuard();
+        MediaPage? page = _mediaPage;
+        object? rows = page?.Grid.ItemsSource;
+        bool Current() => hostCurrent() && ReferenceEquals(rows, page?.Grid.ItemsSource) && current?.Invoke() != false;
+        if (!Current() || start < 0 || start >= window.Count) return;
         MediaLibraryEntry chosen = window[start];
         try
         {
             IReadOnlyList<GalleryEntry> entries = await MediaLibraryGallery.ResolveAsync(window, _session.OpenArchiveReaderAsync,
                 Storage.MediaAssetReader.OpenAsync);
             GalleryEntry? first = entries.FirstOrDefault(entry => MediaMenuIdentity.Matches(chosen, entry));
-            if (_isClosing || current?.Invoke() == false) return;
+            if (!Current()) return;
             if (first == null)
             {
                 ShowNotification(Texts.T("notification.error"), Texts.T("media.galleryFailed"), NotificationType.Warning, operation: "media.gallery");
@@ -77,13 +83,13 @@ public partial class MainWindow
             }
             // The grid is the origin: closing the gallery returns focus to the selected tile, not to the page shell.
             // A still pending second restore of an earlier "Back to media" must not move selection and focus under the gallery.
-            _mediaPage?.EndPendingReturn();
-            if (current?.Invoke() == false) return;
-            await OpenMediaGalleryAsync(entries, first.EntryKey, _mediaPage?.Grid);
+            page?.EndPendingReturn();
+            if (!Current()) return;
+            await OpenMediaGalleryAsync(entries, first.EntryKey, page?.Grid, stillRequested: Current);
         }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
         {
-            if (!_isClosing) ShowNotification(Texts.T("notification.error"), Texts.T("media.galleryFailed"), NotificationType.Error, operation: "media.gallery");
+            if (Current()) ShowNotification(Texts.T("notification.error"), Texts.T("media.galleryFailed"), NotificationType.Error, operation: "media.gallery");
         }
     }
 
