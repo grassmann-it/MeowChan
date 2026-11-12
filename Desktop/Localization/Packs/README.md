@@ -122,3 +122,9 @@ Simplified. Full built-in ES/FR support also requires helper/vendor localization
 layout/accessibility QA and an explicit upgrade/collision policy for existing packs.
 
 See [language-pack format and contracts](../README.md).
+
+The es/fr/ru entries of `MediaMenuCatalog` (keys `media.menu.*`: the reasons the shared
+media menu gives for actions it cannot offer, the summary item, the selection note and the
+posts line of the details) are **unreviewed machine translations**. They word the same
+causes on every surface (archive, media page, gallery); en and de are the built-in
+reference.

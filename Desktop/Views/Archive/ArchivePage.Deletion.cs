@@ -13,6 +13,7 @@ public partial class ArchivePage
         _contentCancellation?.Cancel();
         CancelMediaLoad(); ClosePreview();
         CloseThreadFind();
+        _mediaMenuPresenter.Invalidate();
         _thread = null; _selectedThread = null;
         _assets = System.Array.Empty<MeowChan.Desktop.ArchiveAssetRow>();
         _showReader = false; _busy = false;

@@ -16,6 +16,8 @@ internal sealed partial class GalleryViewer
 {
     private readonly MediaMenuPresenter _mediaMenuPresenter = new();
 
+    /// <summary>The medium shown now; the menu is opened for exactly this one.</summary>
+    internal GalleryEntry? CurrentEntry => _entry;
     internal ContextMenu? MediaMenu => _mediaMenuPresenter.Menu;
     internal MediaMenuSession? MediaMenuSession => _mediaMenuPresenter.Session;
     /// <summary>The post address of a downloaded provider medium, or null when it has none; supplied by the shell.</summary>

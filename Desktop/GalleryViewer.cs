@@ -1139,6 +1139,8 @@ internal sealed partial class GalleryViewer : UserControl
         { SetHelp(!_helpOpen); e.Handled = true; return; }
         if (_helpOpen) return;
         if (IsFavoriteConfirmOpen) { RouteFavoriteConfirmKey(e); return; }
+        // The Menu key and Shift+F10 open the same media menu as a right-click, for the medium shown now.
+        if (_entry != null && MeowChan.Desktop.MediaActions.MediaMenuPresenter.IsContextKey(e)) { ShowMediaMenu(); e.Handled = true; return; }
         if ((ReferenceEquals(routingOwner, _nativeVideoOverlay) ? _nativeRatingRouter : _ratingRouter)?.Route(e) == true) return;
         // This is part of the existing gallery handler, not a second router. Only
         // actual owned transport sliders may opt into these four effective commands.

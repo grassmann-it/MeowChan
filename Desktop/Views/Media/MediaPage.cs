@@ -80,6 +80,7 @@ public sealed partial class MediaPage : UserControl
     internal Func<Uri, Task>? CopyProviderPage { get; set; }
     internal Func<MediaLibraryEntry, Func<bool>, Task>? EditTagsForMenuAsync { get; set; }
     internal ContextMenu? MediaMenu => _mediaMenuPresenter.Menu;
+    internal MediaMenuSession? MediaMenuSession => _mediaMenuPresenter.Session;
     internal Task BuildTask { get; private set; } = Task.CompletedTask;
     /// <summary>One entry per tile: the occurrence each tile shows. Gallery windows are made from this list.</summary>
     internal IReadOnlyList<MediaLibraryEntry> ShownEntries => _shown;

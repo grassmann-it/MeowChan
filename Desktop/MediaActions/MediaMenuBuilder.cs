@@ -130,7 +130,8 @@ internal static class MediaMenuBuilder
     /// <summary>A disabled note inside the menu (for example which items the single-target actions apply to).</summary>
     internal static MenuItem Note(string text)
     {
-        MenuItem note = new() { Header = text, IsEnabled = false, Tag = "media.menu.note" };
+        // The note is a sentence: it wraps inside the menu instead of being cut at the menu's edge.
+        MenuItem note = new() { Header = new TextBlock { Text = text, TextWrapping = Avalonia.Media.TextWrapping.Wrap, MaxWidth = 320 }, IsEnabled = false, Tag = "media.menu.note" };
         AutomationProperties.SetName(note, text);
         ToolTip.SetTip(note, text);
         ToolTip.SetShowOnDisabled(note, true);

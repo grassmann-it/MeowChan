@@ -72,6 +72,7 @@ internal static partial class SmokeScenarios
             await MediaMenuCompositionChecks.RunAsync(mainWindow);
             await MediaPageChecks.RunAsync(mainWindow);
         }),
+        ["media-menu-surfaces"] = new(SmokeStage.Ready, mainWindow => MediaMenuSurfacesChecks.RunAsync(mainWindow)),
         ["gallery-media-tags"] = new(SmokeStage.Ready, mainWindow => GalleryMediaTagChecks.RunAsync(mainWindow)),
         ["local-media-tags"] = new(SmokeStage.Ready, mainWindow => LocalMediaTagChecks.RunAsync(mainWindow)),
         ["booru-media"] = new(SmokeStage.Ready, mainWindow => BooruMediaChecks.RunAsync(mainWindow)),

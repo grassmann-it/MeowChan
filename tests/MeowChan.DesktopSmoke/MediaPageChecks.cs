@@ -836,7 +836,7 @@ internal static partial class MediaPageChecks
         finally { await PresentationChecks.SwitchModeAsync(owner, mode); }
     }
 
-    private static async Task SeedAsync(string profile)
+    internal static async Task SeedAsync(string profile)
     {
         string a = Path.Combine(profile, "media", "a"), b = Path.Combine(profile, "media", "b");
         CapturedAttachment boundA = await WriteAsync(a, A, ("one.png", "m1", "100"), ("loose.png", "m9", null));

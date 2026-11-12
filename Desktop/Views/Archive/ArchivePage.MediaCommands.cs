@@ -20,6 +20,7 @@ namespace MeowChan;
 public partial class ArchivePage
 {
     internal ContextMenu? ArchiveMediaMenu => _mediaMenuPresenter.Menu;
+    internal MediaMenuSession? ArchiveMediaMenuSession => _mediaMenuPresenter.Session;
     internal Func<GalleryEntry, bool>? IsArchiveFavorite { get; set; }
     internal Func<GalleryEntry, Task>? ToggleArchiveFavoriteAsync { get; set; }
     internal Func<GalleryEntry, Task>? EditArchiveMediaTagsAsync { get; set; }
@@ -82,8 +83,22 @@ public partial class ArchivePage
         foreach (ArchiveMediaTileView view in reader.GetVisualDescendants().OfType<ArchiveMediaTileView>()) view.RefreshFavorite();
     }
 
-    private void InitializeArchiveMediaCommands() =>
+    private void InitializeArchiveMediaCommands()
+    {
         AddHandler(ContextRequestedEvent, OnArchiveMediaContextRequested, RoutingStrategies.Tunnel);
+        AddHandler(KeyDownEvent, OnArchiveMediaContextKey, RoutingStrategies.Tunnel);
+    }
+
+    // The Menu key and Shift+F10 open the same media menu as a right-click, for the focused row or attachment.
+    private void OnArchiveMediaContextKey(object? sender, KeyEventArgs e)
+    {
+        if (_ended || !_available || IsReaderDialogOpen || e.Source is not Control source || !MediaMenuPresenter.IsContextKey(e)) return;
+        if (!source.GetSelfAndVisualAncestors().OfType<Control>().Any(control => control is ArchiveAttachmentView
+            || control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles")) return;
+        ContextRequestedEventArgs request = new() { RoutedEvent = ContextRequestedEvent };
+        source.RaiseEvent(request);
+        e.Handled = request.Handled;
+    }
 
     private void OnArchiveMediaContextRequested(object? sender, ContextRequestedEventArgs e)
     {

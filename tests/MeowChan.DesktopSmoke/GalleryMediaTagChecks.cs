@@ -256,7 +256,7 @@ internal static class GalleryMediaTagChecks
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     }
 
-    private static async Task<GalleryEntry> BoundAsync(string directory)
+    internal static async Task<GalleryEntry> BoundAsync(string directory)
     {
         (MediaAssetSnapshot snapshot, MediaAssetReference asset, object entry, string path) = await WriteAsync(directory, "bound.png", "901");
         MediaProviderMetadata provider = new("901", "original", "https://offline.invalid/bound.png", "bound.png",
@@ -280,7 +280,7 @@ internal static class GalleryMediaTagChecks
             { AttachmentResolution = resolution };
     }
 
-    private static async Task<GalleryEntry> UnboundAsync(string directory)
+    internal static async Task<GalleryEntry> UnboundAsync(string directory)
     {
         (MediaAssetSnapshot snapshot, MediaAssetReference asset, _, _) = await WriteAsync(directory, "loose.png", "902");
         return new(new(Resource, directory, asset.AssetId), snapshot, asset, null, null, false, true);
