@@ -160,8 +160,13 @@ public partial class ArchivePage
         Add("thread.details", async () => await ShowArchiveDetailsAsync(lead), leadAction: true);
         menu.Items.Add(new Separator());
         Add("export.open-html-dialog", async () => await OpenExportForThreadsAsync(ids, origin), count: () => ids.Length);
-        Add("export.open-urltext-dialog", async () => await OpenUrlTextExportForThreadAsync(ids[0], origin),
-            () => ids.Length == 1 && CanOpenUrlTextExport, Texts.T("urltext.export.error.busy"));
+        // A URL-text export covers exactly one frozen thread. Offering it for a batch would show a
+        // permanently disabled entry whose stated reason ("busy") does not explain the selection.
+        if (ids.Length == 1)
+        {
+            Add("export.open-urltext-dialog", async () => await OpenUrlTextExportForThreadAsync(ids[0], origin),
+                () => CanOpenUrlTextExport, Texts.T("urltext.export.error.busy"));
+        }
         Add("selection.copy-links", async () => { if (CopySelectedUrls != null) await CopySelectedUrls(urls); }, count: () => urls.Length);
         Add("location.open-folder", () => RunArchiveLeadAction(lead, "folder"),
             () => !string.IsNullOrWhiteSpace(lead.Summary.MediaDirectory), Texts.T("archive.command.noFolder"), leadAction: true);

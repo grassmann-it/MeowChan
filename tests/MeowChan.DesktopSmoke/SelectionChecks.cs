@@ -137,6 +137,7 @@ internal static class SelectionChecks
         await Task.Delay(80);
         Require(table.IsEffectivelyVisible && !page.FindControl<Grid>("ArchiveReaderPane")!.IsEffectivelyVisible,
             "Selecting a narrow archive table row hid the list before an explicit reader action.");
+        await CheckKeyboardContextAsync(table, table.ContextMenu!, singleArchiveSelection: true);
         await PressAsync(window, Row(table, archived[3]), KeyModifiers.Shift);
         Require(table.IsEffectivelyVisible && !page.FindControl<Grid>("ArchiveReaderPane")!.IsEffectivelyVisible,
             "Selecting a narrow archive table range hid the list before an explicit reader action.");
@@ -145,9 +146,10 @@ internal static class SelectionChecks
         await PressAsync(window, Row(table, archived[3]), right: true);
         Require(table.SelectedItems.Count == 4, "Archive selected right-click collapsed the set.");
         Require(table.ContextMenu!.IsOpen, "Archive table right-click did not open its context menu.");
+        RequireArchiveMenuOrder(table.ContextMenu, single: false);
         table.ContextMenu!.Close();
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-        await CheckKeyboardContextAsync(table, table.ContextMenu);
+        await CheckKeyboardContextAsync(table, table.ContextMenu, singleArchiveSelection: false);
         ResourceId[] archiveIds = table.SelectedItems.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id).ToArray();
         Texts.SetLanguage("de"); await Task.Delay(80);
         Require(table.SelectedItems.Count == 4, "Archive language refresh collapsed the set.");
@@ -172,6 +174,7 @@ internal static class SelectionChecks
             .Select(control => control.ContextMenu).First(menu => menu != null)!;
         Require(cards.SelectedItems.Count == 2 && cardMenu.IsOpen,
             "Archive card right-click changed the selected set or failed to open its attached menu.");
+        RequireArchiveMenuOrder(cardMenu, single: false);
         cardMenu.Close();
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         await PressAsync(window, await CardForAsync(window, cards, firstCardId));
@@ -236,13 +239,33 @@ internal static class SelectionChecks
     }
     private static Point CardSelectionPoint(ListBoxItem row) => new(
         Math.Min(Math.Max(112, row.Bounds.Width / 2), Math.Max(8, row.Bounds.Width - 8)), row.Bounds.Height / 2);
-    private static async Task CheckKeyboardContextAsync(Control list, ContextMenu menu)
+    private static void RequireArchiveMenuOrder(ContextMenu menu, bool single)
+    {
+        // Keep the existing ArchiveCommandChecks batch contract exact. Page-URL
+        // text export accepts one thread, not a batch; validate its single-target
+        // slot too instead of silently ignoring extra commands or sorting tags.
+        var expected = new List<string>
+        {
+            "thread.favorite-toggle", "thread.read", "gallery.open", "thread.details", "export.open-html-dialog",
+            "selection.copy-links", "location.open-folder", "location.open-source", "watch.check", "watch.retry-media",
+            "rules.edit-scope", "watch.remove", "archive.delete-permanently"
+        };
+        if (single) expected.Insert(5, "export.open-urltext-dialog");
+        string[] actual = menu.Items.OfType<MenuItem>().Where(item => item.Tag is string)
+            .Select(item => (string)item.Tag!).ToArray();
+        Require(actual.SequenceEqual(expected),
+            $"Archive {(single ? "single" : "batch")} context menu action order differs from the shared contract: "
+            + string.Join(", ", actual) + "; expected: " + string.Join(", ", expected));
+    }
+
+    private static async Task CheckKeyboardContextAsync(Control list, ContextMenu menu, bool? singleArchiveSelection = null)
     {
         // Avalonia translates ContextMenu/Shift+F10 into a positionless request.
         // Inject that native routed request, rather than bypassing it with menu.Open().
         list.Focus();
         list.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
         await Program.WaitUntilAsync(() => menu.IsOpen);
+        if (singleArchiveSelection is bool single) RequireArchiveMenuOrder(menu, single);
         menu.Close();
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     }

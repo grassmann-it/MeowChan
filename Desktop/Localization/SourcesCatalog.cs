@@ -5,6 +5,7 @@ internal static class SourcesCatalog
     internal static readonly (string Key, string English, string German)[] Entries =
     {
         ("nav.sources", "Sources", "Quellen"),
+        ("sources.title", "Sources", "Quellen"),
         ("sources.subtitle", "Supported sources and the threads and boards being watched. This view does not check whether a website is reachable.", "Unterstützte Quellen und beobachtete Threads und Boards. Diese Ansicht prüft nicht, ob eine Website erreichbar ist."),
         ("sources.experimental", "Experimental", "Experimentell"),
         ("sources.tier.meowchanExperimental", "MeowChan · experimental", "MeowChan · experimental"),

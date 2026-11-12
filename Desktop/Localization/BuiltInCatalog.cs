@@ -160,6 +160,7 @@ internal static class BuiltInCatalog
         ("theme.system", "System", "System"),
         ("density.comfortable", "Comfortable", "Komfortabel"),
         ("density.compact", "Compact", "Kompakt"),
+        ("action.retry", "Retry", "Wiederholen"),
         ("action.add", "Add", "Hinzufügen"),
         ("action.openFolder", "Open folder", "Ordner öffnen"),
         ("action.openBrowser", "Open in browser", "Im Browser öffnen"),
