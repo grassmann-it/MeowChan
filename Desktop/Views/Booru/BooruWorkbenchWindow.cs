@@ -139,6 +139,21 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
 
     internal BooruWorkbenchModel Model => _model;
 
+    /// <summary>
+    /// Puts a query into the search field of the Search tab and brings that tab forward. The field itself is set (not only the
+    /// model), because a field that has not been laid out yet would otherwise report its initial empty text back and erase the
+    /// query. Nothing is requested.
+    /// </summary>
+    internal void ShowQuery(string query)
+    {
+        _tabs.SelectedItem = _searchTab;
+        _model.Search.SetMode(BooruInputMode.Tags);
+        _input.Text = query;
+        _model.Search.SetInput(query);
+        _input.Focus();
+        _input.CaretIndex = query.Length;
+    }
+
     // ---- construction ------------------------------------------------------------------------------
 
     private Control BuildHeader()

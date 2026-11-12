@@ -2694,6 +2694,22 @@
     "media.menu.reason.severalPosts": "Este archivo guardado pertenece a varias publicaciones. Usa esta acción desde la publicación que quieras.",
     "media.menu.reason.providerPost": "La dirección de la publicación del proveedor no está disponible.",
     "media.menu.note.selection": "Estas acciones se aplican al elemento en el que hiciste clic. Las acciones de selección de abajo se aplican a los {0} elementos seleccionados.",
-    "media.menu.details.posts": "Publicaciones: {0}"
+    "media.menu.details.posts": "Publicaciones: {0}",
+    "booru.media.tags.copyAll": "Copiar todas las etiquetas de origen",
+    "booru.media.tags.copySelected": "Copiar las etiquetas marcadas",
+    "booru.media.tags.copyCategory": "Copiar",
+    "booru.media.tags.copyCategoryFor": "Copiar las etiquetas de la categoría {0}",
+    "booru.media.tags.listFor": "Etiquetas de origen: {0}",
+    "booru.media.tags.useAsSearch": "Usar como búsqueda en Danbooru",
+    "booru.media.tags.useAsSearch.tip": "Pone las etiquetas marcadas (como máximo dos) en el campo de búsqueda de la ventana de Danbooru. Si esa ventana no está disponible, se copia la consulta en su lugar. No se solicita nada hasta que busques allí.",
+    "booru.media.tags.selection.none": "Marca etiquetas en las listas para copiarlas, o hasta dos para usarlas como búsqueda en Danbooru. La barra espaciadora marca una etiqueta; el atajo habitual de copiar copia las etiquetas marcadas.",
+    "booru.media.tags.selection.count": "{0} etiquetas marcadas.",
+    "booru.media.tags.selection.tooMany": "{0} etiquetas marcadas. Una búsqueda en Danbooru admite como máximo {1}: desmarca algunas para usarlas como búsqueda. Como etiquetas simples se puede copiar cualquier cantidad.",
+    "booru.media.tags.copied": "Se copiaron {0} etiquetas.",
+    "booru.media.tags.copyFailed": "No se pudieron copiar las etiquetas.",
+    "booru.media.tags.search.none": "Marca primero al menos una etiqueta.",
+    "booru.media.tags.search.tooMany": "Una búsqueda en Danbooru admite como máximo {0} etiquetas, pero hay {1} marcadas. Desmarca algunas o cópialas como etiquetas simples.",
+    "booru.media.tags.search.unusable": "La etiqueta {0} no se puede usar en esta búsqueda en Danbooru, que solo admite etiquetas simples. Cópiala como etiqueta simple.",
+    "booru.media.tags.search.copied": "La ventana de Danbooru no está disponible ahora. En su lugar se copió la consulta: {0}"
   }
 }

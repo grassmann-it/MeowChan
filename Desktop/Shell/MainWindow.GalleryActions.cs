@@ -185,6 +185,7 @@ public partial class MainWindow
     // Test seams: no browser is ever started and the clipboard is only touched when the shell has one.
     internal Func<Uri, Task>? OpenProviderPageForTests { get; set; }
     internal Func<Uri, Task>? CopyProviderPageForTests { get; set; }
+    internal Func<string, Task>? CopyTextForTests { get; set; }
 
     // Context lines of the gallery panel for a downloaded provider medium: source, post and the provider's own rating.
     private IReadOnlyList<string>? BooruGalleryContext(GalleryEntry entry)
@@ -221,7 +222,14 @@ public partial class MainWindow
             {
                 if (Clipboard == null) throw new InvalidOperationException("Clipboard is unavailable.");
                 await Clipboard.SetTextAsync(url.AbsoluteUri);
-            });
+            },
+            async text =>
+            {
+                if (CopyTextForTests is { } seam) { await seam(text); return; }
+                if (Clipboard == null) throw new InvalidOperationException("Clipboard is unavailable.");
+                await Clipboard.SetTextAsync(text);
+            },
+            UseAsBooruSearch);
         BooruDetailsWindow = dialog;
         try { await dialog.ShowDialog(this); }
         finally

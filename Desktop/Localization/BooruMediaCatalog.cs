@@ -52,6 +52,22 @@ internal static class BooruMediaCatalog
         ("booru.media.tile.inPosts", "in {0} Danbooru posts", "in {0} Danbooru-Beiträgen"),
         ("booru.media.tile.inMixed", "in {0} threads and {1} Danbooru posts", "in {0} Threads und {1} Danbooru-Beiträgen"),
         ("booru.media.occurrences.summaryPosts", "{0} occurrences in {1} Danbooru posts. Tags stay with each occurrence.", "{0} Fundstellen in {1} Danbooru-Beiträgen. Tags bleiben bei jeder Fundstelle gespeichert."),
-        ("booru.media.occurrences.summaryMixed", "{0} occurrences in {1} threads and {2} Danbooru posts. Tags stay with each occurrence.", "{0} Fundstellen in {1} Threads und {2} Danbooru-Beiträgen. Tags bleiben bei jeder Fundstelle gespeichert.")
+        ("booru.media.occurrences.summaryMixed", "{0} occurrences in {1} threads and {2} Danbooru posts. Tags stay with each occurrence.", "{0} Fundstellen in {1} Threads und {2} Danbooru-Beiträgen. Tags bleiben bei jeder Fundstelle gespeichert."),
+        ("booru.media.tags.copyAll", "Copy all source tags", "Alle Quelltags kopieren"),
+        ("booru.media.tags.copySelected", "Copy marked tags", "Markierte Tags kopieren"),
+        ("booru.media.tags.copyCategory", "Copy", "Kopieren"),
+        ("booru.media.tags.copyCategoryFor", "Copy tags of category {0}", "Tags der Kategorie {0} kopieren"),
+        ("booru.media.tags.listFor", "Source tags: {0}", "Quelltags: {0}"),
+        ("booru.media.tags.useAsSearch", "Use as Danbooru search", "Als Danbooru-Suche verwenden"),
+        ("booru.media.tags.useAsSearch.tip", "Puts the marked tags (at most two) into the search field of the Danbooru window. If that window is not available, the search query is copied instead. Nothing is requested until you search there.", "Übernimmt die markierten Tags (höchstens zwei) in das Suchfeld des Danbooru-Fensters. Ist das Fenster nicht erreichbar, wird die Suchanfrage stattdessen kopiert. Erst wenn Sie dort suchen, wird etwas angefragt."),
+        ("booru.media.tags.selection.none", "Mark tags in the lists to copy them, or up to two of them to use as a Danbooru search. Space marks a tag; the usual copy shortcut copies the marked tags.", "Tags in den Listen markieren, um sie zu kopieren oder bis zu zwei davon als Danbooru-Suche zu verwenden. Die Leertaste markiert einen Tag, der übliche Kopier-Kurzbefehl kopiert die markierten Tags."),
+        ("booru.media.tags.selection.count", "{0} tags marked.", "{0} Tags markiert."),
+        ("booru.media.tags.selection.tooMany", "{0} tags marked. A Danbooru search takes at most {1}: unmark some to use them as a search. Copying them as plain tags works with any number.", "{0} Tags markiert. Eine Danbooru-Suche nimmt höchstens {1}: einige Markierungen aufheben, um sie als Suche zu verwenden. Als einfache Tags lassen sich beliebig viele kopieren."),
+        ("booru.media.tags.copied", "Copied {0} tags.", "{0} Tags kopiert."),
+        ("booru.media.tags.copyFailed", "The tags could not be copied.", "Die Tags konnten nicht kopiert werden."),
+        ("booru.media.tags.search.none", "Mark at least one tag first.", "Zuerst mindestens einen Tag markieren."),
+        ("booru.media.tags.search.tooMany", "A Danbooru search takes at most {0} tags, but {1} are marked. Unmark some, or copy them as plain tags instead.", "Eine Danbooru-Suche nimmt höchstens {0} Tags, markiert sind aber {1}. Einige Markierungen aufheben oder die Tags stattdessen als einfache Tags kopieren."),
+        ("booru.media.tags.search.unusable", "The tag {0} cannot be used in this Danbooru search, which supports plain tags only. Copy it as a plain tag instead.", "Der Tag {0} lässt sich in dieser Danbooru-Suche nicht verwenden; sie unterstützt nur einfache Tags. Stattdessen als einfachen Tag kopieren."),
+        ("booru.media.tags.search.copied", "The Danbooru window is not available right now. The search query was copied instead: {0}", "Das Danbooru-Fenster ist gerade nicht erreichbar. Die Suchanfrage wurde stattdessen kopiert: {0}")
     };
 }

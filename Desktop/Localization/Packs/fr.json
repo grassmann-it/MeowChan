@@ -2694,6 +2694,22 @@
     "media.menu.reason.severalPosts": "Ce fichier enregistré appartient à plusieurs messages. Utilisez cette action depuis le message voulu.",
     "media.menu.reason.providerPost": "L'adresse du message chez le fournisseur n'est pas disponible.",
     "media.menu.note.selection": "Ces actions s'appliquent à l'élément sur lequel vous avez cliqué. Les actions de sélection ci-dessous s'appliquent aux {0} éléments sélectionnés.",
-    "media.menu.details.posts": "Messages : {0}"
+    "media.menu.details.posts": "Messages : {0}",
+    "booru.media.tags.copyAll": "Copier tous les tags source",
+    "booru.media.tags.copySelected": "Copier les tags marqués",
+    "booru.media.tags.copyCategory": "Copier",
+    "booru.media.tags.copyCategoryFor": "Copier les tags de la catégorie {0}",
+    "booru.media.tags.listFor": "Tags source : {0}",
+    "booru.media.tags.useAsSearch": "Utiliser comme recherche Danbooru",
+    "booru.media.tags.useAsSearch.tip": "Place les tags marqués (deux au maximum) dans le champ de recherche de la fenêtre Danbooru. Si cette fenêtre n'est pas disponible, la requête est copiée à la place. Rien n'est demandé tant que vous ne lancez pas la recherche là-bas.",
+    "booru.media.tags.selection.none": "Marquez des tags dans les listes pour les copier, ou jusqu'à deux d'entre eux pour une recherche Danbooru. La barre d'espace marque un tag ; le raccourci de copie habituel copie les tags marqués.",
+    "booru.media.tags.selection.count": "{0} tags marqués.",
+    "booru.media.tags.selection.tooMany": "{0} tags marqués. Une recherche Danbooru en accepte {1} au maximum : démarquez-en pour les utiliser comme recherche. Comme simples tags, on peut en copier n'importe quel nombre.",
+    "booru.media.tags.copied": "{0} tags copiés.",
+    "booru.media.tags.copyFailed": "Les tags n'ont pas pu être copiés.",
+    "booru.media.tags.search.none": "Marquez d'abord au moins un tag.",
+    "booru.media.tags.search.tooMany": "Une recherche Danbooru accepte {0} tags au maximum, mais {1} sont marqués. Démarquez-en ou copiez-les comme simples tags.",
+    "booru.media.tags.search.unusable": "Le tag {0} ne peut pas être utilisé dans cette recherche Danbooru, qui n'accepte que des tags simples. Copiez-le comme simple tag.",
+    "booru.media.tags.search.copied": "La fenêtre Danbooru n'est pas disponible pour le moment. La requête a été copiée à la place : {0}"
   }
 }

@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Commands;
@@ -30,6 +31,22 @@ public partial class MainWindow
             CommandBindings.Refresh(_booruMenu);
         };
         Closed += (_, _) => _booruWindow?.Close();
+    }
+
+    /// <summary>
+    /// Puts a checked tag query into the Danbooru window's search field (opening the window like the menu entry does) and
+    /// returns true, or returns false when the window cannot be reached. It only fills the field: nothing is requested until
+    /// the user presses Search there.
+    /// </summary>
+    internal bool UseAsBooruSearch(string query)
+    {
+        if (!CanOpenBooru) return false;
+        ShowBooruWorkbench();
+        if (_booruWindow is not { } window) return false;
+        window.ShowQuery(query);
+        // The details dialog that asked is closing; bring the search window forward once it is gone.
+        Dispatcher.UIThread.Post(() => { window.Activate(); window.ShowQuery(query); });
+        return true;
     }
 
     private void ShowBooruWorkbench()

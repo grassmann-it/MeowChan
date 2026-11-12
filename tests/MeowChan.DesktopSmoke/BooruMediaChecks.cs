@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -14,11 +15,13 @@ using MeowChan.Archive;
 using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
 using MeowChan.Booru;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Testing;
+using MeowChan.Tests.Shared;
 using SkiaSharp;
 
 namespace MeowChan.DesktopSmoke;
@@ -58,7 +61,7 @@ internal static class BooruMediaChecks
             await RestartedSessionAsync(owner, profile);
             Console.WriteLine("SMOKE booru media [en]: three downloaded Danbooru originals (two posts with the same bytes) on the media page with source badge and "
                 + "Danbooru source filter, one tile for equal bytes listing both claims and their findings, details with provider rating, versions, findings and read-only "
-                + "source tags apart from an unavailable own-tag section, open and copy of the canonical post link, gallery provider context, a favorite shared by gallery and "
+                + "source tags apart from an unavailable own-tag section, open and copy of the canonical post link, copy of source tags (all, per category, marked, as a Danbooru search query, refused over two tags, failing clipboard), gallery provider context, a favorite shared by gallery and "
                 + "media page, nothing written to private tags; identical after watcher removal and a restart without a provider. Light and Dark screenshots.");
         }
         finally
@@ -339,12 +342,16 @@ internal static class BooruMediaChecks
         string[] provider = Lines("BooruProviderLine");
         Require(provider.Any(line => line.Contains("42")) && provider.Any(line => line.Contains("https://source.example/art/125")),
             phase + ": provider score and source claim: " + string.Join(" | ", provider));
-        // Source tags: read-only, grouped by the provider's categories, never a text field or tag chip.
-        string[] groups = Lines("BooruSourceTagGroup");
-        Require(groups.Any(line => line.StartsWith(BooruMessages.TagCategory(BooruPostClaimTagCategory.Artist) + ": artist_name"))
-            && groups.Any(line => line.Contains("blue_sky") && line.Contains("1girl"))
-            && groups.Any(line => line.StartsWith(BooruMessages.TagCategory(BooruPostClaimTagCategory.Meta) + ": highres")),
-            phase + ": source tag groups: " + string.Join(" | ", groups));
+        // Source tags: read-only, grouped by the provider's categories as selectable lists, never a text field or tag chip.
+        string[] categories = Lines("BooruSourceTagCategory");
+        foreach (BooruPostClaimTagCategory category in new[] { BooruPostClaimTagCategory.Artist, BooruPostClaimTagCategory.Copyright,
+            BooruPostClaimTagCategory.Character, BooruPostClaimTagCategory.General, BooruPostClaimTagCategory.Meta })
+            Require(categories.Contains(BooruMessages.TagCategory(category)), phase + ": source tag category " + category + ": " + string.Join(" | ", categories));
+        string[] general = TagList(dialog, BooruPostClaimTagCategory.General).Items.OfType<ListBoxItem>().Select(item => (string)item.Tag!).Order().ToArray();
+        Require(general.SequenceEqual(new[] { "1girl", "blue_sky" })
+            && TagList(dialog, BooruPostClaimTagCategory.Artist).Items.OfType<ListBoxItem>().Select(item => (string)item.Tag!).SequenceEqual(new[] { "artist_name" })
+            && TagList(dialog, BooruPostClaimTagCategory.Meta).Items.OfType<ListBoxItem>().Select(item => (string)item.Tag!).SequenceEqual(new[] { "highres" }),
+            phase + ": source tag lists: " + string.Join(" | ", general));
         Require(!dialog.GetVisualDescendants().OfType<TextBox>().Any(), phase + ": the details must not offer a field that could write private tags.");
         Require(Lines("BooruOwnTagsNote").Single() == Texts.T("booru.media.ownTags.unavailable"), phase + ": own-tag explanation.");
         Require(host.GetPrivateTagSnapshot().Snapshot!.Tags.Count == 0, phase + ": provider tags must never become private tags.");
@@ -368,17 +375,150 @@ internal static class BooruMediaChecks
         // The smoke host's clipboard is a write-only fixture, so only the honest outcome is checked; the copied address is the
         // same canonical URL the open action received (see Core tests for its derivation).
 
+        await SourceTagActionsAsync(shell, dialog, host, post, phase);
+
         if (screenshots)
         {
+            dialog.GetVisualDescendants().OfType<StackPanel>().Single(panel => panel.Name == "BooruSourceTags").BringIntoView();
             foreach ((ThemeVariant theme, string name) in new[] { (ThemeVariant.Light, "light"), (ThemeVariant.Dark, "dark") })
             {
                 await SetThemeAsync(theme, shell, dialog);
                 Program.CaptureWindow(dialog, "smoke-booru-media-details-" + name + ".png");
             }
         }
-        dialog.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "BooruDetailsClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        await UntilAsync(() => shell.BooruDetailsWindow == null);
+        await UseAsSearchInDanbooruWindowAsync(shell, dialog, host, phase, screenshots);
         shell.OpenProviderPageForTests = null;
+        shell.CopyTextForTests = null;
+    }
+
+    // With the Danbooru window reachable, "use as Danbooru search" fills its search field (nothing is requested, the user still
+    // searches there) and the details dialog gives way to it. Without it the query was copied instead (checked above).
+    private static async Task UseAsSearchInDanbooruWindowAsync(MainWindow shell, BooruMediaDetailsDialog dialog, DesktopSessionHost host, string phase, bool screenshots)
+    {
+        BooruUiHarness harness = new();
+        host.BooruServices = harness.Services;
+        BooruWorkbenchWindow? workbench = null;
+        try
+        {
+            string query = string.Join(' ', dialog.SelectedTagNames());
+            Require(dialog.SelectedTagNames().Count == 2 && !shell.OwnedWindows.OfType<BooruWorkbenchWindow>().Any(), phase + ": two marked tags and no Danbooru window yet.");
+            dialog.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "BooruUseAsSearch").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            try { await UntilAsync(() => shell.BooruDetailsWindow == null && shell.OwnedWindows.OfType<BooruWorkbenchWindow>().Any()); }
+            catch (TimeoutException)
+            {
+                throw new InvalidOperationException(phase + ": use as search: details open " + (shell.BooruDetailsWindow != null) + ", tag status '" + dialog.TagStatus.Text
+                    + "', services " + (host.BooruServices != null) + ", state " + host.State + ", owned " + string.Join(",", shell.OwnedWindows.Select(window => window.GetType().Name)));
+            }
+            workbench = shell.OwnedWindows.OfType<BooruWorkbenchWindow>().Single();
+            try { await UntilAsync(() => workbench.GetVisualDescendants().OfType<TextBox>().Any(box => box.Name == BooruWorkbenchWindow.InputName && box.Text == query)); }
+            catch (TimeoutException)
+            {
+                throw new InvalidOperationException(phase + ": the Danbooru input field did not show the query '" + query + "'; model input '" + workbench.Model.Search.View.Input
+                    + "', fields: " + string.Join("|", workbench.GetVisualDescendants().OfType<TextBox>().Select(box => box.Name + "=" + box.Text)) + ", visible " + workbench.IsVisible);
+            }
+            Require(workbench.Model.Search.View.Input == query && workbench.Model.Search.View.Mode == BooruInputMode.Tags && workbench.Model.Search.View.Parsed.Kind == BooruInputKind.Tags,
+                phase + ": the Danbooru search field must hold exactly the marked tags: '" + workbench.Model.Search.View.Input + "'");
+            Require(harness.Search.Requests == 0 && harness.Queue.Loads.Count == 0 && harness.Watchers.Checks == 0,
+                phase + ": using tags as a search must not request anything.");
+            if (screenshots)
+            {
+                await SetThemeAsync(ThemeVariant.Light, shell, workbench);
+                Program.CaptureWindow(workbench, "smoke-booru-media-use-as-search.png");
+            }
+        }
+        finally
+        {
+            workbench?.Close();
+            host.BooruServices = null;
+        }
+        await UntilAsync(() => !shell.OwnedWindows.OfType<BooruWorkbenchWindow>().Any());
+    }
+
+    private static ListBox TagList(Window dialog, BooruPostClaimTagCategory category) =>
+        dialog.GetVisualDescendants().OfType<ListBox>().Single(list => list.Name == "BooruSourceTagList:" + category);
+
+    private static void Mark(Window dialog, BooruPostClaimTagCategory category, string tag) =>
+        TagList(dialog, category).SelectedItems!.Add(TagList(dialog, category).Items.OfType<ListBoxItem>().Single(item => (string)item.Tag! == tag));
+
+    // Copy of source tags per category, marked tags and all, and the marked tags as a Danbooru search query. The clipboard is
+    // replaced by a recording seam; nothing is requested and no private tag is created.
+    private static async Task SourceTagActionsAsync(MainWindow shell, BooruMediaDetailsDialog dialog, DesktopSessionHost host, string post, string phase)
+    {
+        List<string> copied = new();
+        shell.CopyTextForTests = text => { copied.Add(text); return Task.CompletedTask; };
+        BooruMediaDetails details = BooruMediaProjection.Find(host.ReadBooruCatalog()!, post)!;
+        Button Named(string name) => dialog.GetVisualDescendants().OfType<Button>().Single(button => button.Name == name);
+        async Task ClickAsync(string name, int expectedCopies)
+        {
+            Named(name).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await UntilAsync(() => copied.Count >= expectedCopies);
+        }
+        TextBlock hint = dialog.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Name == "BooruSourceTagSelection");
+
+        // Reachable from the keyboard and named for assistive technology; nothing is marked yet.
+        string[] names = { "BooruCopyAllTags", "BooruCopySelectedTags", "BooruUseAsSearch" };
+        foreach (BooruPostClaimTagCategory category in details.Tags.Select(tag => tag.Category).Distinct())
+        {
+            Button copyCategory = Named("BooruCopyCategory:" + category);
+            Require(copyCategory.Focusable && copyCategory.IsTabStop && copyCategory.IsEnabled
+                && (AutomationProperties.GetName(copyCategory) ?? string.Empty).Contains(BooruMessages.TagCategory(category)), phase + ": the category copy button for " + category + ".");
+            Require(!string.IsNullOrWhiteSpace(AutomationProperties.GetName(TagList(dialog, category))) 
+                && KeyboardNavigation.GetTabNavigation(TagList(dialog, category)) == KeyboardNavigationMode.Once
+                && TagList(dialog, category).Items.OfType<ListBoxItem>().All(item => item.Focusable),
+                phase + ": the tag list for " + category + " must be one tab stop with focusable items: tab navigation "
+                + KeyboardNavigation.GetTabNavigation(TagList(dialog, category)));
+        }
+        foreach (string name in names) Require(Named(name).Focusable && Named(name).IsTabStop && !string.IsNullOrWhiteSpace(Named(name).Content as string), phase + ": " + name + " must be a named tab stop.");
+        Require(Named("BooruCopyAllTags").IsEnabled && !Named("BooruCopySelectedTags").IsEnabled && !Named("BooruUseAsSearch").IsEnabled
+            && hint.Text == Texts.T("booru.media.tags.selection.none"), phase + ": initial tag action state.");
+
+        // All source tags, in the provider's spelling and one space apart; one category alone.
+        await ClickAsync("BooruCopyAllTags", 1);
+        Require(copied[^1] == string.Join(' ', details.Tags.Select(tag => tag.Name)) && copied[^1].Split(' ').Length == 6,
+            phase + ": copy all source tags: '" + copied[^1] + "'");
+        Require(dialog.TagStatus.Text == Texts.T("booru.media.tags.copied", 6), phase + ": copy status: " + dialog.TagStatus.Text);
+        await ClickAsync("BooruCopyCategory:" + BooruPostClaimTagCategory.General, 2);
+        Require(copied[^1] == string.Join(' ', details.Tags.Where(tag => tag.Category == BooruPostClaimTagCategory.General).Select(tag => tag.Name)) && copied[^1].Split(' ').Length == 2,
+            phase + ": copy one category: '" + copied[^1] + "'");
+
+        // Marked tags: one tag, then two from different categories (a valid search), via buttons and the copy shortcut.
+        Mark(dialog, BooruPostClaimTagCategory.Meta, "highres");
+        Require(Named("BooruCopySelectedTags").IsEnabled && hint.Text == Texts.T("booru.media.tags.selection.count", 1), phase + ": one marked tag: " + hint.Text);
+        await ClickAsync("BooruCopySelectedTags", 3);
+        Require(copied[^1] == "highres", phase + ": copy one tag: '" + copied[^1] + "'");
+        TagList(dialog, BooruPostClaimTagCategory.Meta).SelectedItems!.Clear();
+        Mark(dialog, BooruPostClaimTagCategory.Artist, "artist_name");
+        Mark(dialog, BooruPostClaimTagCategory.Character, "main_character");
+        string query = string.Join(' ', dialog.SelectedTagNames());
+        Require(query.Split(' ').OrderBy(x => x).SequenceEqual(new[] { "artist_name", "main_character" }) && hint.Text == Texts.T("booru.media.tags.selection.count", 2),
+            phase + ": two marked tags: '" + query + "' / " + hint.Text);
+        await ClickAsync("BooruUseAsSearch", 4);
+        Require(copied[^1] == query && dialog.TagStatus.Text == Texts.T("booru.media.tags.search.copied", query), phase + ": search query copy: '" + copied[^1] + "' / " + dialog.TagStatus.Text);
+        TagList(dialog, BooruPostClaimTagCategory.Artist).RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.C, KeyModifiers = KeyModifiers.Control });
+        await UntilAsync(() => copied.Count >= 5);
+        Require(copied[^1] == query, phase + ": the copy shortcut in a tag list must copy the marked tags: '" + copied[^1] + "'");
+
+        // A third tag cannot become a Danbooru search: stated, nothing dropped, nothing copied as a search; plain copy still works.
+        Mark(dialog, BooruPostClaimTagCategory.General, "blue_sky");
+        Require(hint.Text == Texts.T("booru.media.tags.selection.tooMany", 3, 2), phase + ": three marked tags: " + hint.Text);
+        Named("BooruUseAsSearch").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await UntilAsync(() => dialog.TagStatus.Text == Texts.T("booru.media.tags.search.tooMany", 2, 3));
+        Require(copied.Count == 5 && dialog.SelectedTagNames().Count == 3, phase + ": a refused search must not copy or drop tags.");
+        await ClickAsync("BooruCopySelectedTags", 6);
+        Require(copied[^1].Split(' ').Length == 3, phase + ": plain copy of three tags: '" + copied[^1] + "'");
+
+        // A failing clipboard is reported, never silent.
+        shell.CopyTextForTests = _ => throw new InvalidOperationException("clipboard unavailable");
+        Named("BooruCopyAllTags").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await UntilAsync(() => dialog.TagStatus.Text == Texts.T("booru.media.tags.copyFailed"));
+        shell.CopyTextForTests = text => { copied.Add(text); return Task.CompletedTask; };
+
+        // Back to two marked tags, which is also what the screenshots show.
+        TagList(dialog, BooruPostClaimTagCategory.General).SelectedItems!.Clear();
+        Require(dialog.SelectedTagNames().Count == 2, phase + ": unmarking the third tag.");
+        await ClickAsync("BooruCopySelectedTags", 7);
+        Require(dialog.TagStatus.Text == Texts.T("booru.media.tags.copied", 2), phase + ": status after recovery: " + dialog.TagStatus.Text);
+        Require(host.GetPrivateTagSnapshot().Snapshot!.Tags.Count == 0, phase + ": copying provider tags must never create private tags.");
     }
 
     private static async Task TagActionAsync(MediaPage page, MediaLibraryTileRow row, DesktopSessionHost host, string phase)

@@ -5,11 +5,14 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
+using Avalonia.Controls.Templates;
 using MeowChan.Archive;
+using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
@@ -28,15 +31,27 @@ internal sealed class BooruMediaDetailsDialog : Window
     private readonly TextBlock _status = new() { Name = "BooruDetailsStatus", TextWrapping = TextWrapping.Wrap, MinHeight = 0 };
     private readonly Func<Uri, Task> _open;
     private readonly Func<Uri, Task> _copy;
+    private readonly Func<string, Task> _copyText;
+    private readonly Func<string, bool>? _useAsSearch;
+    private readonly List<ListBox> _tagLists = new();
+    private readonly TextBlock _tagStatus = new() { Name = "BooruSourceTagStatus", TextWrapping = TextWrapping.Wrap, MinHeight = 0 };
+    private readonly TextBlock _tagSelection = new() { Name = "BooruSourceTagSelection", TextWrapping = TextWrapping.Wrap };
+    private readonly Button _copySelectedTags = new() { Name = "BooruCopySelectedTags", IsEnabled = false };
+    private readonly Button _useAsSearchButton = new() { Name = "BooruUseAsSearch", IsEnabled = false };
 
     /// <param name="fileLines">File name, size and checksum of the saved original, already formatted by the caller.</param>
     /// <param name="details">The catalog's data for the post, or null when the catalog cannot be read right now.</param>
     /// <param name="open">Opens the post page in the browser; injected so tests never start a browser.</param>
+    /// <param name="copyText">Puts source tags (or a search query) on the clipboard.</param>
+    /// <param name="useAsSearch">Puts a checked query into the Danbooru window's search field and returns true, or returns
+    /// false (or is null) when that window cannot be reached; the query is then copied instead.</param>
     internal BooruMediaDetailsDialog(string postId, IReadOnlyList<string> fileLines, BooruMediaDetails? details,
-        Func<Uri, Task> open, Func<Uri, Task> copy)
+        Func<Uri, Task> open, Func<Uri, Task> copy, Func<string, Task> copyText, Func<string, bool>? useAsSearch)
     {
         _open = open ?? throw new ArgumentNullException(nameof(open));
         _copy = copy ?? throw new ArgumentNullException(nameof(copy));
+        _copyText = copyText ?? throw new ArgumentNullException(nameof(copyText));
+        _useAsSearch = useAsSearch;
         Name = DialogName;
         Title = Texts.T("booru.media.detail.title", postId);
         Width = 640; Height = 620; MinWidth = 380; MinHeight = 320;
@@ -59,6 +74,7 @@ internal sealed class BooruMediaDetailsDialog : Window
             body.Children.Add(Section("BooruFindings", Texts.T("booru.media.findings.heading"), FindingLines(details),
                 Texts.T("booru.media.findings.note")));
             body.Children.Add(SourceTags(details));
+            AutomationProperties.SetLiveSetting(_tagStatus, AutomationLiveSetting.Polite);
         }
         body.Children.Add(OwnTags());
         body.Children.Add(_status);
@@ -71,6 +87,7 @@ internal sealed class BooruMediaDetailsDialog : Window
     }
 
     internal TextBlock Status => _status;
+    internal TextBlock TagStatus => _tagStatus;
 
     private static Control Badges(BooruMediaDetails? details)
     {
@@ -168,24 +185,129 @@ internal sealed class BooruMediaDetailsDialog : Window
         ? new[] { Texts.T("booru.media.findings.none") }
         : details.Findings.Select(FindingText);
 
-    private static Control SourceTags(BooruMediaDetails details)
+    private Control SourceTags(BooruMediaDetails details)
     {
         StackPanel panel = new() { Name = "BooruSourceTags", Spacing = 4 };
         TextBlock heading = new() { Text = Texts.T("booru.tags.sourceLabel"), TextWrapping = TextWrapping.Wrap };
         heading.Classes.Add("section-title");
         panel.Children.Add(heading);
-        if (details.Tags.Count == 0) panel.Children.Add(Note("BooruSourceTagsNone", Texts.T("booru.media.tags.none")));
+        if (details.Tags.Count == 0)
+        {
+            panel.Children.Add(Note("BooruSourceTagsNone", Texts.T("booru.media.tags.none")));
+            panel.Children.Add(Note("BooruSourceTagsNote", Texts.T("booru.media.sourceTags.note")));
+            return panel;
+        }
+
+        // Actions first, so they are reachable without scrolling past a long tag list. Copying never needs the provider.
+        Button copyAll = new() { Name = "BooruCopyAllTags", Content = Texts.T("booru.media.tags.copyAll") };
+        copyAll.Click += async (_, _) => await CopyTagsAsync(details.Tags.Select(tag => tag.Name).ToArray());
+        _copySelectedTags.Content = Texts.T("booru.media.tags.copySelected");
+        _copySelectedTags.Click += async (_, _) => await CopyTagsAsync(SelectedTagNames());
+        _useAsSearchButton.Content = Texts.T("booru.media.tags.useAsSearch");
+        ToolTip.SetTip(_useAsSearchButton, Texts.T("booru.media.tags.useAsSearch.tip"));
+        _useAsSearchButton.Click += (_, _) => UseSelectionAsSearch();
+        panel.Children.Add(new WrapPanel { Name = "BooruSourceTagActions", ItemSpacing = 8, LineSpacing = 6,
+            Children = { copyAll, _copySelectedTags, _useAsSearchButton } });
+        _tagSelection.Classes.Add("workspace-meta");
+        panel.Children.Add(_tagSelection);
+        panel.Children.Add(_tagStatus);
+
         foreach (IGrouping<BooruPostClaimTagCategory, BooruPostClaimTag> group in details.Tags.GroupBy(tag => tag.Category))
         {
-            // The category names the group; the tag keeps the provider's exact spelling and is selectable text, not a tag chip.
+            // The category names the group; each tag keeps the provider's exact spelling. Tags are selectable list items
+            // (one tab stop per category, arrow keys inside), not tag chips of the user's own.
             string category = BooruMessages.TagCategory(group.Key);
-            SelectableTextBlock line = new() { Name = "BooruSourceTagGroup", TextWrapping = TextWrapping.Wrap,
-                Text = category + ": " + string.Join(", ", group.Select(tag => tag.Name)) };
-            AutomationProperties.SetName(line, line.Text);
-            panel.Children.Add(line);
+            string[] names = group.Select(tag => tag.Name).ToArray();
+            TextBlock title = new() { Name = "BooruSourceTagCategory", Text = category, VerticalAlignment = VerticalAlignment.Center,
+                FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
+            Button copyCategory = new() { Name = "BooruCopyCategory:" + group.Key, Content = Texts.T("booru.media.tags.copyCategory") };
+            AutomationProperties.SetName(copyCategory, Texts.T("booru.media.tags.copyCategoryFor", category));
+            ToolTip.SetTip(copyCategory, Texts.T("booru.media.tags.copyCategoryFor", category));
+            copyCategory.Click += async (_, _) => await CopyTagsAsync(names);
+            Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8, Margin = new Thickness(0, 6, 0, 0) };
+            header.Children.Add(title);
+            Grid.SetColumn(copyCategory, 1); header.Children.Add(copyCategory);
+            panel.Children.Add(header);
+
+            ListBox list = new()
+            {
+                Name = "BooruSourceTagList:" + group.Key, SelectionMode = SelectionMode.Multiple | SelectionMode.Toggle,
+                ItemsPanel = new FuncTemplate<Panel?>(() => new WrapPanel { ItemSpacing = 4, LineSpacing = 4 }),
+                ItemsSource = names.Select(name => new ListBoxItem { Content = name, Tag = name, Padding = new Thickness(8, 2) }).ToArray()
+            };
+            ScrollViewer.SetHorizontalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
+            ScrollViewer.SetVerticalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
+            AutomationProperties.SetName(list, Texts.T("booru.media.tags.listFor", category));
+            list.SelectionChanged += (_, _) => UpdateTagSelection();
+            list.KeyDown += async (_, e) =>
+            {
+                if (e.Handled || !IsCopyGesture(e)) return;
+                e.Handled = true;
+                await CopyTagsAsync(SelectedTagNames());
+            };
+            _tagLists.Add(list);
+            panel.Children.Add(list);
         }
         panel.Children.Add(Note("BooruSourceTagsNote", Texts.T("booru.media.sourceTags.note")));
+        UpdateTagSelection();
         return panel;
+    }
+
+    private bool IsCopyGesture(KeyEventArgs e) =>
+        Application.Current?.PlatformSettings?.HotkeyConfiguration.Copy.Any(gesture => gesture.Matches(e))
+        ?? (e.Key == Key.C && e.KeyModifiers == KeyModifiers.Control);
+
+    /// <summary>The marked source tags in the order the dialog lists them.</summary>
+    internal IReadOnlyList<string> SelectedTagNames() => _tagLists
+        .SelectMany(list => list.Items.OfType<ListBoxItem>().Where(item => item.IsSelected).Select(item => (string)item.Tag!)).ToArray();
+
+    private void UpdateTagSelection()
+    {
+        int count = SelectedTagNames().Count;
+        _copySelectedTags.IsEnabled = count > 0;
+        _useAsSearchButton.IsEnabled = count > 0;
+        _tagSelection.Text = count == 0 ? Texts.T("booru.media.tags.selection.none")
+            : count > BooruSourceTagSearch.MaximumTags ? Texts.T("booru.media.tags.selection.tooMany", count, BooruSourceTagSearch.MaximumTags)
+            : Texts.T("booru.media.tags.selection.count", count);
+    }
+
+    private async Task CopyTagsAsync(IReadOnlyList<string> names)
+    {
+        if (names.Count == 0) { _tagStatus.Text = Texts.T("booru.media.tags.search.none"); return; }
+        try
+        {
+            await _copyText(BooruSourceTagSearch.Written(names));
+            _tagStatus.Text = Texts.T("booru.media.tags.copied", names.Count);
+        }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            _tagStatus.Text = Texts.T("booru.media.tags.copyFailed");
+        }
+    }
+
+    // The marked tags become the Danbooru window's search field. Nothing is requested: the user still presses Search there.
+    private async void UseSelectionAsSearch()
+    {
+        BooruTagSearchPlan plan = BooruSourceTagSearch.Plan(SelectedTagNames());
+        switch (plan.Problem)
+        {
+            case BooruTagSearchProblem.NothingSelected: _tagStatus.Text = Texts.T("booru.media.tags.search.none"); return;
+            case BooruTagSearchProblem.TooMany:
+                _tagStatus.Text = Texts.T("booru.media.tags.search.tooMany", BooruSourceTagSearch.MaximumTags, plan.Count); return;
+            case BooruTagSearchProblem.Unusable:
+                _tagStatus.Text = Texts.T("booru.media.tags.search.unusable", plan.Tag!); return;
+        }
+        string query = plan.Query!;
+        if (_useAsSearch?.Invoke(query) == true) { Close(); return; }
+        try
+        {
+            await _copyText(query);
+            _tagStatus.Text = Texts.T("booru.media.tags.search.copied", query);
+        }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            _tagStatus.Text = Texts.T("booru.media.tags.copyFailed");
+        }
     }
 
     private static Control OwnTags()
