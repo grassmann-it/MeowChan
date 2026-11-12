@@ -106,6 +106,8 @@ internal static partial class SmokeScenarios
         }),
         ["clipboard-monitor"] = new(SmokeStage.Ready, mainWindow => ClipboardMonitorChecks.RunAsync(mainWindow)),
         ["download-safety"] = new(SmokeStage.Ready, mainWindow => DownloadSafetyLimitChecks.RunAsync(mainWindow)),
+        ["booru-workbench"] = new(SmokeStage.Ready, mainWindow => BooruWorkbenchChecks.RunAsync(mainWindow)),
+        ["booru-composition"] = new(SmokeStage.Ready, mainWindow => BooruCompositionChecks.RunAsync(mainWindow)),
         ["board-language-refresh"] = new(SmokeStage.Ready, mainWindow => BoardAdmissionLanguageRefreshChecks.RunAsync(mainWindow)),
         ["rating-language-refresh"] = new(SmokeStage.Ready, mainWindow => RatingLanguageRefreshChecks.RunAsync(mainWindow)),
         ["html-export-language"] = new(SmokeStage.Ready, mainWindow => HtmlExportLanguageChecks.RunAsync(mainWindow)),

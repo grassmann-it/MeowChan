@@ -154,7 +154,8 @@ internal static class BooruWorkbenchChecks
             string watcherText = Text(window);
             foreach (string expected in new[] { "cat blue_eyes", "landscape", "scenery sky", "ruins", "Active", "Paused", "Cooling down", "Error",
                 "Last check:", "Next check:", "Hits: 6 · added to the download queue: 5", "Danbooru paused requests until",
-                "The last check failed (http-network)", "none while paused", "Removing a watcher only stops watching" })
+                // The app points the code seam at the booru message catalog, so the code reads as a sentence.
+                Texts.T("booru.ui.watcher.error", BooruText.CodeText("http-network")), "none while paused", "Removing a watcher only stops watching" })
                 Require(watcherText.Contains(expected), "Watcher list lacks '" + expected + "'.");
             Require(Find<Button>(window, BooruWorkbenchWindow.CheckPrefix + "w-paused").IsEnabled, "Check now is not available for a paused watcher.");
             Require(!Find<Button>(window, BooruWorkbenchWindow.CheckPrefix + "w-cooling").IsEnabled, "Check now is enabled during a cooldown.");
@@ -245,6 +246,13 @@ internal static class BooruWorkbenchChecks
 
     private static async Task CheckMenuHiddenWithoutPortsAsync(MainWindow owner, MenuItem menu)
     {
+        if (owner.SessionHost.BooruComposition is not null)
+        {
+            // Danbooru is delivered and enabled in this app: the composed ports are real, so the entry is visible.
+            // The hidden-entry case is covered by the booru-composition scenario (plugin disabled).
+            Console.WriteLine("SMOKE booru workbench: Danbooru is composed in this app; hidden-entry check left to booru-composition.");
+            return;
+        }
         Require(owner.SessionHost.BooruServices is null, "Ports are connected in the plain app.");
         MenuItem entry = Entry(menu);
         menu.IsSubMenuOpen = true;
