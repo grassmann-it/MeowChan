@@ -1280,7 +1280,7 @@ public partial class DownloadQueue
             ProfileLease? lease = ResolveExecutionProfileLease(item);
             if (lease == null) return;
             bool changed = committed != null && Tags.MediaTagKeyCarryOver.Apply(lease, admission, committed.TagHandovers, CancellationToken.None);
-            try { if (changed) MediaTagsCarriedOver?.Invoke(); } catch (Exception observer) { _logger.Debug(observer, "A media tag observer failed."); }
+            if (changed) RaiseMediaTagsCarriedOver();
             ResourceId thread = item.AttachmentReferences[0].Resource;
             if (!_tagReconciledThreads.TryAdd(thread, 0)) return;
             Tags.PrivateTagStoreSnapshot tags = new Tags.PrivateTagStore(lease.ProfileDirectory, lease).ReadSnapshot();
@@ -1292,7 +1292,7 @@ public partial class DownloadQueue
                 .FindPendingForThreadAsync(thread, keys, (_, _) => Task.FromResult<IReadOnlyList<string>>(new[] { directory }), CancellationToken.None)
                 .ConfigureAwait(false);
             if (Tags.MediaTagKeyCarryOver.Apply(lease, admission, pending, CancellationToken.None))
-                try { MediaTagsCarriedOver?.Invoke(); } catch (Exception observer) { _logger.Debug(observer, "A media tag observer failed."); }
+                RaiseMediaTagsCarriedOver();
         }
         catch (Exception failure)
         {
@@ -1530,6 +1530,12 @@ public partial class DownloadQueue
     }
 
     // A throwing subscriber must not abort the worker, schedule or quarantine path that reports the failure.
+    private void RaiseMediaTagsCarriedOver()
+    {
+        try { MediaTagsCarriedOver?.Invoke(); }
+        catch (Exception observer) { _logger.Error(observer, "Download queue media tag observer failed"); }
+    }
+
     private void RaisePersistenceFailed(string warning)
     {
         try { PersistenceFailed?.Invoke(warning); }
