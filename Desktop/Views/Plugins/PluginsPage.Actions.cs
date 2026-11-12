@@ -120,6 +120,14 @@ public partial class PluginsPage
         if (this.FindControl<Button>("PluginSettingsAction") != null) BindAction("PluginSettingsAction", "plugins.show-settings");
         PluginEntryPresentation view = PluginEntryPresentation.Create(entry);
         C<Button>("PluginSelectCandidate").IsVisible = view.CandidateChoiceRequired;
+        Button sdkTransition = C<Button>("PluginApproveSdkTransition");
+        sdkTransition.Content = Texts.T("plugins.sdkTransition.action");
+        sdkTransition.IsVisible = view.HasAutomaticSdkTransition;
+        sdkTransition.IsEnabled = view.HasAutomaticSdkTransition && !_busy && !IsDiscardConfirmationOpen;
+        AutomationProperties.SetName(sdkTransition, Texts.T("plugins.sdkTransition.action"));
+        AutomationProperties.SetHelpText(sdkTransition, view.HasAutomaticSdkTransition && view.AutomaticSdkTransition is { } transition
+            ? Texts.T("plugins.sdkTransition.automaticHint", transition.FromSdkVersion, transition.ToSdkVersion, transition.ExecutionRevision)
+            : string.Empty);
         C<Button>("PluginWatches").IsVisible = view.Sources.Count > 0;
         if (view.CandidateChoiceRequired) ShowReasons("PluginActivationReasons", "PluginEnabled", "PluginSelectCandidate");
         else ShowReasons("PluginActivationReasons", "PluginEnabled");

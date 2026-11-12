@@ -74,6 +74,9 @@ internal static class PluginContentPresentation
             labels.Add(presentation.IsPendingCandidateBuild
                 ? DescribePending(presentation.PendingKind) : Texts.T("plugins.candidate.otherPending"));
         if (presentation.IsRollbackPinned) labels.Add(Texts.T("plugins.rollbackPinned"));
+        if (presentation.HasAutomaticSdkTransition) labels.Add(Texts.T("plugins.sdkTransition.automaticStatus"));
+        else if (presentation.HasExplicitlyReviewedSdkTransition)
+            labels.Add(Texts.T("plugins.sdkTransition.reviewedStatus"));
         if (presentation.CandidateMissing || presentation.HasWorkerProblem || !string.IsNullOrEmpty(presentation.CandidateProblem) ||
             !string.IsNullOrEmpty(presentation.ActivationProblem)) labels.Add(Texts.T("plugins.problem"));
         return string.Join(" · ", labels);
@@ -107,6 +110,11 @@ internal static class PluginContentPresentation
                 _ => "plugins.pending.unknown"
             }));
         if (presentation.IsRollbackPinned) hints.Add(Texts.T("plugins.rollbackPinnedHint"));
+        if (presentation.HasAutomaticSdkTransition && presentation.AutomaticSdkTransition is { } transition)
+            hints.Add(Texts.T("plugins.sdkTransition.automaticHint", transition.FromSdkVersion, transition.ToSdkVersion,
+                transition.ExecutionRevision));
+        else if (presentation.HasExplicitlyReviewedSdkTransition && presentation.AutomaticSdkTransition is { } reviewed)
+            hints.Add(Texts.T("plugins.sdkTransition.reviewedHint", reviewed.ExecutionRevision));
         return string.Join("\n", hints);
     }
 

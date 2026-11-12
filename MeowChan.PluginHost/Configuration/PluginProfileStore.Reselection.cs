@@ -92,6 +92,7 @@ public sealed partial class PluginProfileStore
                 {
                     SelectedCandidateId = candidate.CandidateId,
                     Active = null, LastGood = null,
+                    AutomaticSdkTransition = null,
                     Pending = new(candidate.CandidateId, candidate.Artifact!, candidate.Description!, configuration),
                     Problem = "New bundled selection confirmed for next start; original state retained in backup."
                 };

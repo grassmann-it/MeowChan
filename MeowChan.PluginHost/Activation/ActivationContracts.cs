@@ -18,9 +18,21 @@ public sealed record PluginReleaseSnapshot(string CandidateId, PluginArtifact Ar
     public string CompilationFingerprint => Artifact.CompilationFingerprint;
 }
 
+/// <summary>Durable, exact evidence that the active build crossed the one-time SDK bridge automatically.
+/// The optional explicit review acknowledges this exact execution without changing code or grants.
+/// </summary>
+public sealed record PluginSdkTransitionSnapshot(string FromSdkVersion, string ToSdkVersion,
+    string ExecutionRevision, bool ExplicitlyApproved = false);
+
 public sealed record PluginActivationSnapshot(string PluginId, bool Enabled, long LifecycleRevision,
     string? SelectedCandidateId, PluginReleaseSnapshot? Active, PluginReleaseSnapshot? Pending,
     PluginReleaseSnapshot? LastGood, PluginReleaseSnapshot? Pinned,
-    IReadOnlyList<PluginCandidateSnapshot> Candidates, string? Problem);
+    IReadOnlyList<PluginCandidateSnapshot> Candidates, string? Problem)
+{
+    /// <summary>Set only for the exact active build that was automatically accepted via the
+    /// supported SDK 1.0.0 to 1.1.0 transition. It is not an executable or permission grant.
+    /// </summary>
+    public PluginSdkTransitionSnapshot? AutomaticSdkTransition { get; init; }
+}
 
 public sealed record PluginLifecycleChange(string PluginId, bool Enabled, long LifecycleRevision);

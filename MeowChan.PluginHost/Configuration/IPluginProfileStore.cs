@@ -25,6 +25,12 @@ public interface IPluginProfileStore
     Task<PluginProfileSnapshot> ReauthorizeBundledRepairAsync(BundledCandidateRepair repair, long expectedRevision,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Bundled permission reauthorization is not supported by this profile store.");
+    /// <summary>Persist an explicit acknowledgement of the exact automatically accepted SDK bridge.
+    /// This never activates code or transfers rights; it only records the user's review.
+    /// </summary>
+    Task<PluginProfileSnapshot> ExplicitlyApproveSdkTransitionAsync(string pluginId, string executionRevision,
+        long expectedRevision, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Explicit SDK transition review is not supported by this profile store.");
     Task<BundledCandidateReselectionPreview> PreviewBundledReselectionsAsync(CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Bundled new selection is not supported by this profile store.");
     Task<PluginProfileSnapshot> ConfirmBundledReselectionAsync(BundledCandidateReselection selection, long expectedRevision,

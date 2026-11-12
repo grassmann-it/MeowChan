@@ -74,6 +74,33 @@ public sealed partial class PluginProfileStoreTests
         }
     }
 
+    [Fact]
+    public async Task AutomaticSdkTransitionOffersDurableOptionalExplicitReviewForExactActiveBuild()
+    {
+        var old = await SdkDelivery("sdk-review", "old");
+        var store = Store();
+        var state = await store.ApplyBundledStartupAsync([old.Candidate], [old.Proof], [], 0);
+        var next = await SdkDelivery("sdk-review", "new", "1.1.0");
+
+        state = await store.ApplyBundledStartupAsync([next.Candidate], [next.Proof], [], state.Revision);
+        PluginActivationSnapshot automatic = Assert.Single(state.Plugins);
+        Assert.Equal(new PluginSdkTransitionSnapshot("1.0.0", "1.1.0", next.Proof.ExecutionRevision),
+            automatic.AutomaticSdkTransition);
+        Assert.False(automatic.AutomaticSdkTransition!.ExplicitlyApproved);
+
+        state = await store.ExplicitlyApproveSdkTransitionAsync("test.plugin", next.Proof.ExecutionRevision, state.Revision);
+        PluginActivationSnapshot reviewed = Assert.Single(state.Plugins);
+        Assert.True(reviewed.AutomaticSdkTransition!.ExplicitlyApproved);
+        Assert.Equal(next.Proof.ExecutionRevision, reviewed.Active!.ExecutionRevision);
+
+        // A later offline startup retains the acknowledgement for the same exact build;
+        // it does not reopen the automatic-review action or alter the active release.
+        state = await store.ApplyBundledStartupAsync([next.Candidate], [next.Proof], [], state.Revision);
+        PluginActivationSnapshot persisted = Assert.Single(state.Plugins);
+        Assert.True(persisted.AutomaticSdkTransition!.ExplicitlyApproved);
+        Assert.Equal(next.Proof.ExecutionRevision, persisted.Active!.ExecutionRevision);
+    }
+
     [Theory]
     [InlineData("name")]
     [InlineData("metadata")]

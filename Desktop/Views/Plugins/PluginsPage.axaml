@@ -64,6 +64,7 @@
               <WrapPanel x:Name="PluginPrimaryActions" Classes="workspace-toolbar">
                 <Button x:Name="PluginEnabled" Click="OnEnabledClick" />
                 <Button x:Name="PluginSelectCandidate" Click="OnSelectCandidateClick" />
+                <Button x:Name="PluginApproveSdkTransition" Click="OnApproveSdkTransitionClick" IsVisible="False" />
                 <Button x:Name="PluginWatches" Click="OnWatchesClick" />
                 <Button x:Name="PluginMoreActions" Click="OnPluginMoreActionsClick" />
               </WrapPanel>

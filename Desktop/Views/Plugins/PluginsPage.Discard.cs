@@ -8,8 +8,10 @@ namespace MeowChan;
 public partial class PluginsPage
 {
     private DraftDiscardConfirmation? _discardConfirmation;
-    internal bool IsDiscardConfirmationOpen => _discardConfirmation?.IsOpen == true;
-    internal void CancelDiscardConfirmation() => _discardConfirmation?.Close();
+    private DraftDiscardConfirmation? _sdkTransitionConfirmation;
+    internal bool IsDiscardConfirmationOpen => _discardConfirmation?.IsOpen == true || _sdkTransitionConfirmation?.IsOpen == true;
+    internal void CancelDiscardConfirmation()
+    { _discardConfirmation?.Close(); _sdkTransitionConfirmation?.Close(); }
     internal void RequestDiscardSelectedDraft()
     {
         if (_ended || _busy || _selectedKey is not string key || !_drafts.TryGetValue(key, out PluginConfigurationDraft? draft)) return;

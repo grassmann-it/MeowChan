@@ -154,10 +154,15 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                 inventory.AddRange(present.Select(ToSnapshot));
                 string? selected = old.SelectedCandidateId;
                 if (selected is null && present.Length == 1) selected = present[0].CandidateId;
+                // A transition marker is evidence about the exact active executable.  Do not
+                // carry it through an activation attempt: a blocked/failed start must not
+                // present the old automatic approval as if the new build were still active.
                 PluginActivationSnapshot next = old with { Candidates = inventory, SelectedCandidateId = selected, Active = null,
-                    LastGood = old.Active ?? old.LastGood, LifecycleRevision = checked(old.LifecycleRevision + 1), Problem = null };
+                    LastGood = old.Active ?? old.LastGood, AutomaticSdkTransition = null,
+                    LifecycleRevision = checked(old.LifecycleRevision + 1), Problem = null };
                 PluginReleaseSnapshot? release = null;
                 BundledRepairBinding? automaticBinding = null;
+                bool sdkUpgrade = false;
                 if (old.Pinned is not null)
                     release = old.Pending is not null && SameBuild(old.Pending, old.Pinned) ? old.Pending : old.Pinned;
                 else if (selected is null)
@@ -183,7 +188,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                         candidate?.Artifact?.ExecutionRevision == binding.TargetExecutionRevision &&
                         document.Provenance.Any(p => p.SlotId == binding.SlotId && BundledCandidateMigration.Matches(p, candidate));
                     bool canSerializePermissions = repairRestrictedSources is null || repairPermissionGate is not null;
-                    bool sdkUpgrade = buildChanged && canSerializePermissions && candidate?.Description is { } sdkDescription &&
+                    sdkUpgrade = buildChanged && canSerializePermissions && candidate?.Description is { } sdkDescription &&
                         !startup.Any(other => other.PluginId != pluginId && other.Description is { } otherDescription &&
                             sdkDescription.Sources.Any(source => otherDescription.Sources.Any(item => item.SourceId == source.SourceId))) &&
                         BundledCandidateMigration.CanAutomaticallyUpgradeSdk(document, old, candidate, previous, proofs, present.Length);
@@ -280,8 +285,15 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                     {
                         PluginReleaseSnapshot? lastGood = old.LastGood;
                         if (old.Active is not null && !SameBuild(old.Active, release)) lastGood = old.Active;
+                        PluginSdkTransitionSnapshot? sdkTransition = sdkUpgrade
+                            ? new("1.0.0", "1.1.0", release.ExecutionRevision)
+                            : old.AutomaticSdkTransition is { } existingTransition &&
+                                old.Active?.ExecutionRevision == existingTransition.ExecutionRevision &&
+                                release.ExecutionRevision == existingTransition.ExecutionRevision &&
+                                release.Description.SdkVersion == existingTransition.ToSdkVersion
+                                    ? existingTransition : null;
                         next = next with { Active = release, Pending = null, LastGood = lastGood ?? release,
-                            Pinned = old.Pinned is null ? null : release,
+                            Pinned = old.Pinned is null ? null : release, AutomaticSdkTransition = sdkTransition,
                             LifecycleRevision = checked(old.LifecycleRevision + 1),
                             Problem = present.Length > 1 ? "Multiple candidates exist; the selected candidate is retained." : null };
                         // Advance an established binding only with the accepted activation,
@@ -350,7 +362,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
             // selects a different execution at next startup. No owner/grant/pin/config rewrite.
             return document with
             {
-                Profile = Replace(document.Profile, plugin with { Pending = pending,
+                Profile = Replace(document.Profile, plugin with { Pending = pending, AutomaticSdkTransition = null,
                     Problem = "Confirmed bundled repair saved for next start; original selection and rollback retained." }),
                 Bindings = document.Bindings.Where(b => b.PluginId != plugin.PluginId).Append(binding).ToArray()
             };
@@ -386,6 +398,32 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
             throw new InvalidOperationException("Use bundled repair preview and confirmation; ordinary candidate selection cannot bypass provenance or grants.");
     }
 
+    /// <summary>
+    /// Records the optional, explicit review of the exact build that was already
+    /// accepted through the one-time SDK bridge. This is deliberately not a repair,
+    /// activation or grant operation: cancelling the UI leaves the automatically
+    /// compatible active plugin untouched.
+    /// </summary>
+    public Task<PluginProfileSnapshot> ExplicitlyApproveSdkTransitionAsync(string pluginId,
+        string executionRevision, long expectedRevision, CancellationToken cancellationToken = default) =>
+        MutateAsync(expectedRevision, state =>
+        {
+            RequireIdentity(pluginId);
+            RequireIdentity(executionRevision);
+            PluginActivationSnapshot plugin = Find(state, pluginId);
+            PluginSdkTransitionSnapshot transition = plugin.AutomaticSdkTransition
+                ?? throw new InvalidOperationException("No automatic SDK transition is awaiting explicit review.");
+            if (transition.ExplicitlyApproved || transition.ExecutionRevision != executionRevision ||
+                transition.FromSdkVersion != "1.0.0" || transition.ToSdkVersion != "1.1.0" ||
+                plugin.Active is not { } active || active.ExecutionRevision != executionRevision ||
+                active.Description.SdkVersion != transition.ToSdkVersion)
+                throw new InvalidOperationException("The automatic SDK transition changed or is no longer active. Review it again.");
+            return Replace(state, plugin with
+            {
+                AutomaticSdkTransition = transition with { ExplicitlyApproved = true }
+            });
+        }, cancellationToken);
+
     public Task<PluginProfileSnapshot> SelectCandidateAsync(string pluginId, string candidateId, long expectedRevision,
         CancellationToken cancellationToken = default) => MutateDocumentAsync(expectedRevision, document =>
     {
@@ -400,6 +438,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         Dictionary<string, string> selectedSources = new(state.SelectedSourceOwners, StringComparer.Ordinal);
         foreach (SourceDescription source in candidate.Description!.Sources) selectedSources[source.SourceId] = pluginId;
         PluginProfileSnapshot next = Replace(state, plugin with { SelectedCandidateId = candidateId, Pinned = null, Pending = pending,
+            AutomaticSdkTransition = null,
             Problem = migration.Configuration is null ? "Selected candidate needs settings correction: " + string.Join("; ", migration.Issues.Select(issue => issue.Message)) : null })
             with { SelectedSourceOwners = selectedSources };
         return Task.FromResult(document with { Profile = next, Bindings = document.Bindings.Where(b => b.PluginId != pluginId).ToArray() });
@@ -426,7 +465,8 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
             bool bound = document.Bindings.Any(b => b.PluginId == pluginId && b.SelectedCandidateId == plugin.SelectedCandidateId &&
                 b.TargetCandidateId == candidateId && b.TargetExecutionRevision == pending.ExecutionRevision);
             return Task.FromResult(document with { Profile = Replace(state, plugin with
-                { SelectedCandidateId = bound ? plugin.SelectedCandidateId : candidateId, Pending = pending, Problem = null }) });
+                { SelectedCandidateId = bound ? plugin.SelectedCandidateId : candidateId, Pending = pending,
+                    AutomaticSdkTransition = null, Problem = null }) });
         }, cancellationToken);
     }
 
@@ -437,7 +477,8 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         PluginReleaseSnapshot release = plugin.LastGood ?? throw new InvalidOperationException("No retained good release is available for rollback.");
         Dictionary<string, string> selectedSources = new(state.SelectedSourceOwners, StringComparer.Ordinal);
         foreach (SourceDescription source in release.Description.Sources) selectedSources[source.SourceId] = pluginId;
-        return Replace(state, plugin with { SelectedCandidateId = release.CandidateId, Pending = release, Pinned = release, Problem = null })
+        return Replace(state, plugin with { SelectedCandidateId = release.CandidateId, Pending = release, Pinned = release,
+            AutomaticSdkTransition = null, Problem = null })
             with { SelectedSourceOwners = selectedSources };
     }, cancellationToken);
 
@@ -488,7 +529,8 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         ArgumentException.ThrowIfNullOrWhiteSpace(problem);
         PluginActivationSnapshot plugin = Find(state, pluginId);
         if (plugin.Active?.ExecutionRevision != executionRevision) throw new InvalidOperationException("Failure belongs to a stale activation.");
-        return Replace(state, plugin with { Active = null, Problem = problem, LifecycleRevision = checked(plugin.LifecycleRevision + 1) });
+        return Replace(state, plugin with { Active = null, AutomaticSdkTransition = null, Problem = problem,
+            LifecycleRevision = checked(plugin.LifecycleRevision + 1) });
     }, cancellationToken);
 
     private Task<PluginProfileSnapshot> MutateAsync(long expectedRevision, Func<PluginProfileSnapshot, PluginProfileSnapshot> update,
@@ -769,6 +811,12 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                 ValidateObservation(new(release.CandidateId, plugin.PluginId, release.Artifact, release.Description));
                 ThrowValidation(SdkValidation.ValidateConfiguration(release.Description, release.Configuration));
             }
+            if (plugin.AutomaticSdkTransition is { } transition &&
+                (transition.FromSdkVersion != "1.0.0" || transition.ToSdkVersion != "1.1.0" ||
+                 string.IsNullOrWhiteSpace(transition.ExecutionRevision) || transition.ExecutionRevision.Length > 512 ||
+                 plugin.Active is not { } active || active.ExecutionRevision != transition.ExecutionRevision ||
+                 active.Description.SdkVersion != transition.ToSdkVersion))
+                throw new ArgumentException("Invalid automatic SDK transition marker.");
         }
         if (state.Grants.Any(grant => grant.Revision <= 0 || !state.Plugins.Any(plugin => plugin.PluginId == grant.PluginId))
             || state.Grants.GroupBy(grant => (grant.PluginId, grant.FilterKey, grant.Scope)).Any(group => group.Count() != 1))

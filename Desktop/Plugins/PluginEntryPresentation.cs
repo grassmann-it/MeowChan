@@ -41,6 +41,13 @@ internal sealed class PluginEntryPresentation
     internal PluginReleaseSnapshot? Pending { get; private init; }
     internal PluginReleaseSnapshot? Pinned { get; private init; }
     internal PluginReleaseSnapshot? LastGood { get; private init; }
+    internal PluginSdkTransitionSnapshot? AutomaticSdkTransition { get; private init; }
+    internal bool HasAutomaticSdkTransition => AutomaticSdkTransition is { ExplicitlyApproved: false } transition &&
+        Active is { } active && active.ExecutionRevision == transition.ExecutionRevision &&
+        active.Description.SdkVersion == transition.ToSdkVersion;
+    internal bool HasExplicitlyReviewedSdkTransition => AutomaticSdkTransition is { ExplicitlyApproved: true } transition &&
+        Active is { } active && active.ExecutionRevision == transition.ExecutionRevision &&
+        active.Description.SdkVersion == transition.ToSdkVersion;
     internal PluginPendingKind PendingKind { get; private init; }
     internal bool IsRollbackPinned => Pinned != null;
     internal bool IsSelectedCandidate { get; private init; }
@@ -131,6 +138,7 @@ internal sealed class PluginEntryPresentation
             Pending = state?.Pending,
             Pinned = state?.Pinned,
             LastGood = state?.LastGood,
+            AutomaticSdkTransition = state?.AutomaticSdkTransition,
             PendingKind = state?.Pending == null ? PluginPendingKind.None :
                 state.Active != null && SameBuild(state.Active, state.Pending)
                     ? PluginPendingKind.Configuration : PluginPendingKind.Build,

@@ -172,6 +172,7 @@ public sealed partial class PluginProfileStoreTests
         Assert.Equal(adopted.Proof.ExecutionRevision, Active(state).ExecutionRevision);
         state = await store.ReportActivationFailureAsync("test.plugin", adopted.Proof.ExecutionRevision, "Synthetic load failure.", state.Revision);
         Assert.Null(state.Plugins[0].Active);
+        Assert.Null(state.Plugins[0].AutomaticSdkTransition);
         Assert.Equal(old.Proof.ExecutionRevision, state.Plugins[0].LastGood!.ExecutionRevision);
         Assert.Equal("1.0.0", state.Plugins[0].LastGood!.Description.SdkVersion);
 
@@ -181,6 +182,7 @@ public sealed partial class PluginProfileStoreTests
         {
             state = await Store().ApplyBundledStartupAsync([rebuild.Candidate], [rebuild.Proof], restricted, state.Revision);
             Assert.Null(state.Plugins[0].Active);
+            Assert.Null(state.Plugins[0].AutomaticSdkTransition);
             Assert.Equal(old.Proof.ExecutionRevision, state.Plugins[0].LastGood!.ExecutionRevision);
             Assert.Equal(grants, SdkJson.Serialize(state.Grants));
             Assert.Equal(owners, SdkJson.Serialize(state.SelectedSourceOwners));
