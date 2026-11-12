@@ -2,8 +2,10 @@ import importlib.util
 import ast
 import json
 import os
+import re
 from pathlib import Path
 import struct
+import subprocess
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
@@ -51,6 +53,42 @@ class PluginPackagingTests(unittest.TestCase):
         self.assertEqual(1, len(compile_ids))
         self.assertEqual(set(PACKAGE.SOURCES), set(compile_ids[0]))
         self.assertTrue(set(compile_ids[0].values()).issubset(set(expected_ids[0].values())))
+
+    def test_booru_test_matrix_cites_only_tests_fixtures_and_files_that_exist(self):
+        # The matrix is the B8/B9 coverage index; a cited test that is not in the tree is a claimed
+        # pass without evidence. Every cited class, method, fixture and path must resolve here.
+        repository = SCRIPT.parents[1]
+        matrix = (repository / 'docs/development/booru-test-matrix.md').read_text(encoding='utf-8')
+        # Only tracked test sources count; an untracked or generated file is not repository evidence.
+        tracked = subprocess.run(['git', 'ls-files', '-z', '--', 'tests/*.cs'], cwd=repository, check=True,
+                                 capture_output=True).stdout.decode('utf-8').split('\0')
+        sources = {name: (repository / name).read_text(encoding='utf-8') for name in tracked if name}
+        def declares_class(text, name):
+            return name in text and re.search(r'\bclass\s+' + name + r'\b', text) is not None
+        def declares_method(text, name):
+            return name in text and re.search(r'\b(?:void|Task)\s+' + name + r'\s*\(', text) is not None
+        fixtures = repository / 'tests/MeowChan.OfficialPlugins.Tests/Fixtures/danbooru'
+        missing, cited = [], 0
+        for token in sorted(set(re.findall(r'`([^`\s]+)`', matrix))):
+            cited += 1
+            if match := re.fullmatch(r'([A-Z]\w*Tests)(?:\.([A-Z]\w*))?', token):
+                owners = [text for text in sources.values() if declares_class(text, match[1])]
+                if not owners or (match[2] and not any(declares_method(text, match[2]) for text in owners)):
+                    missing.append(token)
+            elif re.fullmatch(r'[A-Z][A-Za-z0-9]{24,}', token):
+                if not any(declares_method(text, token) for text in sources.values()):
+                    missing.append(token)
+            elif re.fullmatch(r'[a-z0-9-]+\.(?:json|html)', token):
+                if not (fixtures / token).is_file():
+                    missing.append(token)
+            elif re.fullmatch(r'(?:tests|docs|Desktop)/[\w./-]+', token):
+                # docs/architecture/ is the gitignored local planning tree; it cannot be checked here.
+                if not token.startswith('docs/architecture/') and not (repository / token.rstrip('/')).exists():
+                    missing.append(token)
+            else:
+                cited -= 1
+        self.assertGreater(cited, 60)
+        self.assertEqual([], missing)
 
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix='meowchan-plugin-package-')

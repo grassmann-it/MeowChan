@@ -6,6 +6,8 @@ fake tests** cover which acceptance scenario of package B9 in the 1.1.0 Booru wo
 plan (`docs/architecture/gesamtprogramm-2026-10-31/pakete/1.1.0-booru-arbeitsplan-2026-11-12.md`).
 It is an index of what exists. **A row marked *open* has no test yet**; it names the
 package that has to add one. A listed test is not an acceptance result.
+`tests/test_plugin_packaging.py` fails when a test class, test method, fixture or file
+named here is not in the repository.
 
 ## Rules for fixtures and stubs
 
@@ -13,7 +15,9 @@ package that has to add one. A listed test is not an acceptance result.
   credential is copied into the repository. Fixture addresses use invented ids and
   only two kinds of host: the provider's media CDN host (the plugin accepts media
   addresses only there, so the fixtures must use it) and reserved `.invalid` names.
-  `BooruHelpDocumentationTests` checks this for the Danbooru fixture folder.
+  No test checks this for the Danbooru fixture folder yet: the help-and-fixture
+  documentation test planned with the Danbooru help section (B8) is not on this line,
+  so the rule is enforced by review only.
 - No test contacts a booru site. HTTP behaviour is produced by in-memory fake
   transports, a fake clock and a loopback server bound to the test process.
 - Fixtures for the provider's JSON are in
@@ -29,7 +33,7 @@ package that has to add one. A listed test is not an acceptance result.
 | `tests/MeowChan.OfficialPlugins.Tests` | `DanbooruSourceTests` with the fixture folder: plugin description, parsing, HTTP status mapping |
 | `tests/MeowChan.PluginRuntime.Tests` | `BooruHostHttpTests` (pacing, budget, retry, cooldown, limits), `BooruSearchServiceTests`, `BooruClaimMapperTests`, `BooruRealWorkerTests` (real worker against a loopback stub) |
 | `tests/MeowChan.Tests/Booru` | `DanbooruTagQueryTests`, `DanbooruTagQueryBoundaryRegressionTests`, `DanbooruWatcherDomainTests`, `BooruOriginalDownloadTests`, `BooruCatalogStoreTests`; plus `DanbooruQueryAdversarialRegressionTests` |
-| `tests/MeowChan.DesktopTests` | `DesktopPluginSessionIntegrationTests` (delivered plugin), `BooruStatusCatalogTests` (texts), `BooruHelpDocumentationTests` (help and fixtures), `BundledLanguagePackCompletenessTests` |
+| `tests/MeowChan.DesktopTests` | `DesktopPluginSessionIntegrationTests` (delivered plugin), `BooruStatusCatalogTests` (texts), `BundledLanguagePackCompletenessTests` |
 | `tests/test_plugin_packaging.py`, `tests/PluginDeliverySmoke` | Danbooru in the plugin package inventory |
 
 ## Scenarios of package B9
@@ -45,7 +49,7 @@ package that has to add one. A listed test is not an acceptance result.
 | 7 | Restart without network keeps local booru media, data and gallery readable | `BooruCatalogStoreTests.ClaimsFindingsWatchersAndAssetLinksSurviveAProfileRestart` (storage level) | storage covered; media, gallery and favorites offline are *open* (B7, B9) |
 | 8 | Upgrade of an old profile without booru data | `BooruCatalogStoreTests.NewBooruFileIsAnAdditiveOfflineMigrationForAnExistingProfile`, `MalformedAndFutureCatalogsFailClosed`, `OversizedCatalogFailsClosedBeforeDeserialization`, `DuplicatePostFindingAndWatcherIdentitiesFailClosed`, `SuccessfulWritesLeaveNoTemporaryCatalogFiles`; notes in `docs/releases/v1.1.0-booru-data.md` | unit level only; no real 1.0.2 profile run (B9) |
 | 9 | Failure matrix, see the next table | see next table | host and plugin covered; UI states *open* (B6) |
-| 10 | Packaging, localization, help text, no credentials or private tags in provider requests | `tests/test_plugin_packaging.py`, `tests/PluginDeliverySmoke/sdk_free_worker_probe.py`, `DesktopPluginSessionIntegrationTests` (Danbooru delivered, active, not a chan source), `BooruStatusCatalogTests`, `BundledLanguagePackCompletenessTests`, `BooruHelpDocumentationTests`; `BooruHostHttpTests.BooruRouteUsesExactUserAgentAndRejectsHeadBeforeTransport` and `BooruRealWorkerTests.DanbooruPluginSearchUsesLoopbackWireAndInvalidQueryDoesNotStartWorkerCall` (no `Authorization` or `Cookie` header on the wire); `DanbooruSourceTests.FailureMessagesNeverEchoTheQueryOrTagText` | covered; UI strings added by B6 need the same completeness check at the string freeze |
+| 10 | Packaging, localization, help text, no credentials or private tags in provider requests | `tests/test_plugin_packaging.py`, `tests/PluginDeliverySmoke/sdk_free_worker_probe.py`, `DesktopPluginSessionIntegrationTests` (Danbooru delivered, active, not a chan source), `BooruStatusCatalogTests`, `BundledLanguagePackCompletenessTests`; `BooruHostHttpTests.BooruRouteUsesExactUserAgentAndRejectsHeadBeforeTransport` and `BooruRealWorkerTests.DanbooruPluginSearchUsesLoopbackWireAndInvalidQueryDoesNotStartWorkerCall` (no `Authorization` or `Cookie` header on the wire); `DanbooruSourceTests.FailureMessagesNeverEchoTheQueryOrTagText` | packaging, localization and request headers covered; the Danbooru section of the user help and its documentation test are *open* (B8); UI strings added by B6 need the same completeness check at the string freeze |
 
 ## Failure matrix of scenario 9
 
