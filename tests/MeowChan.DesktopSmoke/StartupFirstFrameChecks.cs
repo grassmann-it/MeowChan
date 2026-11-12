@@ -7,12 +7,14 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Interactivity;
 using Avalonia.Input;
+using Avalonia.Platform;
 using Avalonia.Rendering.Composition;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Diagnostics;
 using MeowChan.Persistence;
+using MeowChan.Testing;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -24,17 +26,17 @@ internal sealed class StartupFirstFrameSmokeApp : App
 
     protected override MainWindow CreateMainWindow()
     {
-        MainWindow.StartupTiming!.Mark(StartupTimingPoint.HostBegin);
+        StartupTimingRegistry.Current!.Mark(StartupTimingPoint.HostBegin);
         DesktopSessionHost host;
         try
         {
             host = new(Config.GetConfigDirectory(),
                 pluginTransportFactory: () => new HttpClient(Transport, disposeHandler: false));
         }
-        finally { MainWindow.StartupTiming!.Mark(StartupTimingPoint.HostEnd); }
-        MainWindow.StartupTiming!.Mark(StartupTimingPoint.WindowFactoryBegin);
+        finally { StartupTimingRegistry.Current!.Mark(StartupTimingPoint.HostEnd); }
+        StartupTimingRegistry.Current!.Mark(StartupTimingPoint.WindowFactoryBegin);
         MainWindow window = new(host);
-        MainWindow.StartupTiming!.Mark(StartupTimingPoint.WindowFactoryEnd);
+        StartupTimingRegistry.Current!.Mark(StartupTimingPoint.WindowFactoryEnd);
         StartupFirstFrameChecks.Attach(window);
         return window;
     }
@@ -70,6 +72,8 @@ internal static class StartupFirstFrameChecks
         Require(SmokeSelectors.Check([], [Variable(selector, "yes")], false, out _) != null,
             "ignored selector values must be rejected");
 
+        VerifyBootstrapContract();
+
         StartupTimingTrace trace = new();
         Require(trace.Read(StartupTimingPoint.Opened) == null
             && StartupTimingTrace.Milliseconds(100, null, 1000) == null, "missing is null");
@@ -91,6 +95,49 @@ internal static class StartupFirstFrameChecks
         long?[] final = trace.Snapshot();
         for (int i = 0; i < final.Length; i++)
             Require(final[i] == 1000 + i, "snapshot/write contention lost or replaced point " + i);
+    }
+
+    // Exercise the real pre-platform constructor and disposal, not just the holder. A static
+    // MainWindow access here would run its geometry initializer without a render service.
+    private static void VerifyBootstrapContract()
+    {
+        if (Application.Current != null || AvaloniaLocator.Current.GetService(typeof(IPlatformRenderInterface)) != null)
+            throw new InvalidOperationException("Startup timing bootstrap contract requires an uninitialized Avalonia platform.");
+        if (StartupTimingRegistry.Current != null || Active != null)
+            throw new InvalidOperationException("Startup timing bootstrap contract requires no active measurement.");
+
+        const string reportVariable = "MEOWCHAN_STARTUP_FIRST_FRAME_REPORT";
+        string? previousReport = Environment.GetEnvironmentVariable(reportVariable);
+        string directory = TemporaryWorkspacePaths.CreateDirectory("meowchan-startup-contract-");
+        string path = Path.Combine(directory, "report.json");
+        try
+        {
+            Environment.SetEnvironmentVariable(reportVariable, path);
+            using (StartupFirstFrameMeasurement measurement = new(Stopwatch.GetTimestamp(), DateTimeOffset.UtcNow))
+            {
+                StartupTimingTrace trace = StartupTimingRegistry.Current
+                    ?? throw new InvalidOperationException("Startup timing bootstrap did not install its trace.");
+                if (!ReferenceEquals(Active, measurement))
+                    throw new InvalidOperationException("Startup timing bootstrap did not install its measurement.");
+                trace.MarkAt(StartupTimingPoint.HostBegin, 1234);
+                measurement.Flush();
+                using JsonDocument report = JsonDocument.Parse(File.ReadAllText(path));
+                JsonElement host = report.RootElement.GetProperty("milestones")[0];
+                if (report.RootElement.GetProperty("status").GetString() != "observing"
+                    || host.GetProperty("timestamp").GetInt64() != 1234 || !File.Exists(path + ".claim"))
+                    throw new InvalidOperationException("Startup timing bootstrap report did not preserve its trace.");
+            }
+            if (StartupTimingRegistry.Current != null || Active != null || File.Exists(path + ".pending"))
+                throw new InvalidOperationException("Startup timing bootstrap did not clean up its handoff or pending report.");
+            using JsonDocument finalReport = JsonDocument.Parse(File.ReadAllText(path));
+            if (finalReport.RootElement.GetProperty("status").GetString() != "incomplete")
+                throw new InvalidOperationException("Startup timing bootstrap disposal did not finalize the report.");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(reportVariable, previousReport);
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     internal static void Prepare(string profile)
@@ -202,7 +249,7 @@ internal sealed class StartupFirstFrameMeasurement : IDisposable
         _run = PerformanceDiagnostics.BeginRun(Guid.NewGuid().ToString("N"),
             Environment.GetEnvironmentVariable("MEOWCHAN_STARTUP_SOURCE_BINDING") ?? "unbound-source-see-binary-hashes",
             "startup-first-frame-v1-empty-authority-one-historical-row", capacity: 32768);
-        MainWindow.StartupTiming = _trace;
+        StartupTimingRegistry.Current = _trace;
         StartupFirstFrameChecks.Active = this;
         PerformanceDiagnostics.Record("harness.startup.entry", "observed", value: entryTimestamp);
         Flush();
@@ -520,7 +567,7 @@ internal sealed class StartupFirstFrameMeasurement : IDisposable
         finally
         {
             _run.Dispose();
-            MainWindow.StartupTiming = null;
+            StartupTimingRegistry.Current = null;
             StartupFirstFrameChecks.Active = null;
         }
         if (_writeError != null) throw new IOException("Startup report writer failed: " + _writeError);

@@ -39,23 +39,28 @@ internal sealed class StartupTimingTrace
         from is long start && to is long end ? (end - start) * 1000.0 / frequency : null;
 }
 
+// This handoff must not initialize MainWindow: its static UI resources require Avalonia's
+// render service, while the opt-in harness installs the trace before platform setup.
+internal static class StartupTimingRegistry
+{
+    private static StartupTimingTrace? _current;
+    internal static StartupTimingTrace? Current
+    {
+        get => Volatile.Read(ref _current);
+        set => Volatile.Write(ref _current, value);
+    }
+}
+
 public partial class MainWindow
 {
-    // Set only by the opt-in isolated harness before constructing the host/window.
-    private static StartupTimingTrace? _startupTiming;
-    internal static StartupTimingTrace? StartupTiming
-    {
-        get => Volatile.Read(ref _startupTiming);
-        set => Volatile.Write(ref _startupTiming, value);
-    }
     private bool _startupTimingAttached;
     private int _startupTimingReady;
 
-    private static void RecordStartupTiming(StartupTimingPoint point) => StartupTiming?.Mark(point);
+    private static void RecordStartupTiming(StartupTimingPoint point) => StartupTimingRegistry.Current?.Mark(point);
 
     private void AttachStartupTiming()
     {
-        if (StartupTiming == null) return;
+        if (StartupTimingRegistry.Current == null) return;
         _startupTimingAttached = true;
         _session.CatalogReadableChanged += RecordStartupCatalogReadable;
         _session.ProjectionPublished += RecordStartupReady;
