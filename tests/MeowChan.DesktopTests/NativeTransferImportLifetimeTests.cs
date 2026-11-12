@@ -47,6 +47,43 @@ public sealed class NativeTransferImportLifetimeTests
         Assert.Equal(DesktopSessionState.Ready, f.Host.State);
     }
 
+    // AP-07a: the dialog always inspects with an explicit scope. Without a receiving consent path a package with a
+    // private component must be typed-rejected on every scope; an explicit New must not silently import only the public
+    // part (native-private-batch-apply-v1 §3.3, private-package-component-v1 "Boundaries and ownership").
+    [Theory]
+    [InlineData("new")]
+    [InlineData("merge")]
+    [InlineData("none")]
+    public async Task PrivatePackageIsTypedRejectedOnEveryScopeAndNeverSilentlyImportedPublicOnly(string scope)
+    {
+        await using Fixture f = await Fixture.StartAsync();
+        string source = await f.WritePackageAsync("private");
+        string before = f.TargetSnapshot();
+        int commits = 0;
+        f.Host.BeforeNativeImportCommitForTests = () => { Interlocked.Increment(ref commits); return Task.CompletedTask; };
+        await using NativeTransferImportSession session = f.Host.CreateNativeTransferImportSession(f.Work);
+
+        NativeTransferImportSnapshot inspected = await (scope switch
+        {
+            "new" => session.InspectAsync(source, NativeTransferImportScope.New),
+            "merge" => session.InspectAsync(source, NativeTransferImportScope.Merge),
+            _ => session.InspectAsync(source)
+        }).WaitAsync(Deadline);
+
+        Assert.Equal(NativeTransferImportState.Unsupported, inspected.State);
+        Assert.Equal(NativeTransferImportError.PrivateMetadataUnsupported, inspected.Error);
+        Assert.Null(inspected.Plan);
+        Assert.Null(inspected.Result);
+        Assert.True(inspected.PrivateOffer?.Available);
+        AssertOpaque(inspected, f, source);
+        NativeTransferImportSnapshot attempted = await session.ApplyAsync(inspected.Generation).WaitAsync(Deadline);
+        Assert.Equal(inspected, attempted);
+        Assert.Equal(0, Volatile.Read(ref commits));
+        Assert.Empty(Directory.GetFileSystemEntries(f.Work));
+        Assert.Equal(before, f.TargetSnapshot());
+        Assert.Equal(DesktopSessionState.Ready, f.Host.State);
+    }
+
     [Fact]
     public async Task MultithreadSetAppliesEachThreadSequentiallyAndReplaysAsMerge()
     {

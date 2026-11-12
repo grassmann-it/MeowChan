@@ -95,6 +95,11 @@ internal sealed partial class DesktopSessionHost
         PrepareNativeImportNewAsync(NativeTransferImportStage stage, CancellationToken token)
     {
         EnsureReady();
+        // No receiving-consent path is wired through the dialog yet. The core's implicit public-only decision must
+        // not turn an explicit New into a silent public-only import of a private package; Merge and the scope-less
+        // path already reject it (native-private-batch-apply-v1 §3.3, private-package-component-v1).
+        if (stage.Package.PrivateMetadata != null || stage.Package.Envelope.PrivateMetadata != null)
+            return (null, NativeTransferImportError.PrivateMetadataUnsupported);
         NativeMediaImportPreparation added = await _content.Catalog.PrepareNativeMediaImportAsync(stage, token).ConfigureAwait(false);
         if (added.Plan is { } plan) return BuildNew(plan);
         return added.Error == NativeMediaImportError.ResourceExists
