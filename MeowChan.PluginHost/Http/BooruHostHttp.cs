@@ -64,7 +64,7 @@ public sealed class BooruHostHttp : IDisposable
             return Failure("http-request", "Booru metadata accepts GET requests only.");
         if (!IsAllowedEndpoint(request.Url, source))
             return Failure("http-request", "The booru endpoint is not on the provider allowlist.");
-        if (HasForbiddenTransportDefaults())
+        if (HasForbiddenTransportDefaults() || HasForbiddenRequestHeaders(request.Headers))
             return Failure("http-request", "The booru transport contains host-owned credentials.");
         if (job.IsExpired) return Failure("booru-budget", "The booru job budget is exhausted.");
 
@@ -395,6 +395,12 @@ public sealed class BooruHostHttp : IDisposable
         _transport.DefaultRequestHeaders.Authorization is not null
         || _transport.DefaultRequestHeaders.Contains("Cookie")
         || _transport.DefaultRequestHeaders.Contains("Proxy-Authorization");
+
+    private static bool HasForbiddenRequestHeaders(IReadOnlyDictionary<string, string>? headers) =>
+        headers is not null && headers.Keys.Any(static name =>
+            string.Equals(name, "Authorization", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(name, "Cookie", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(name, "Proxy-Authorization", StringComparison.OrdinalIgnoreCase));
 
     private static IReadOnlyDictionary<string, string> ReadHeaders(HttpResponseMessage response)
     {

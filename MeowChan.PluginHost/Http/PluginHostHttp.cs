@@ -427,6 +427,12 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
     public static HttpClient CreateTransport() => new(new HttpClientHandler
     {
         AllowAutoRedirect = false,
+        // The shared transport must not silently attach profile/browser credentials to
+        // public provider metadata. BooruHostHttp also rejects explicit credential
+        // headers before the handler is entered.
+        UseCookies = false,
+        UseDefaultCredentials = false,
+        Credentials = null,
         // Keep wire bytes observable for the Booru path. PluginHostHttp performs
         // explicit bounded decoding for ordinary metadata; OriginalMedia requests
         // advertise identity and therefore keep their payload bytes unchanged.

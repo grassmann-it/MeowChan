@@ -56,6 +56,34 @@ public sealed class BooruHostHttpTests
     }
 
     [Fact]
+    public async Task ExplicitCredentialHeadersAreRejectedBeforeTransport()
+    {
+        int sends = 0;
+        using HttpClient transport = new(new Handler((_, _) =>
+        {
+            ++sends;
+            return Task.FromResult(Response(HttpStatusCode.OK, "{}"));
+        }));
+        using BooruHostHttp http = new(transport, new RequestPolicyState(), [Source()]);
+        BooruHostServices services = new(new Inner(), http);
+        BooruJob job = services.OpenJob();
+        try
+        {
+            foreach (string header in new[] { "Authorization", "Cookie", "Proxy-Authorization" })
+            {
+                HostHttpFailure result = Assert.IsType<HostHttpFailure>(await services.SendHttpAsync(
+                    Get() with { Headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        [header] = "secret"
+                    } }, job.Operation, default));
+                Assert.Equal("http-request", result.Failure.Code);
+            }
+            Assert.Equal(0, sends);
+        }
+        finally { services.CloseJob(job); }
+    }
+
+    [Fact]
     public async Task RequestUserAgentOverridesTransportDefault()
     {
         using HttpClient transport = new(new Handler((request, _) =>
