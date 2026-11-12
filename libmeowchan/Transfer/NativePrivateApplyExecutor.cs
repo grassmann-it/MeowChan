@@ -114,7 +114,9 @@ internal static class NativePrivateApplyExecutor
             {
                 cursor = ProcessStore(journal, request, lease, admission, cursor, kind,
                     cancellationToken);
-                if (cursor.HasTerminalReceipt)
+                // Recovery can be terminal in the chain without receipt.json.
+                // Stop before another store or a synthetic Completed receipt.
+                if (cursor.HasTerminalReceipt || NativePrivateApplyRecovery.IsTerminal(cursor.State.Phase))
                     return new(cursor, isReplay: false);
             }
             catch (OperationCanceledException)
