@@ -860,7 +860,7 @@ public partial class DownloadQueue
     /// <summary>Caller holds the resource fence, never _stateLock during I/O.</summary>
     private bool PrepareDurableAdmission(ref DownloadItem item, PreparedDownload prepared, MediaWork? expected = null, ProfileAdmissionToken? admission = null)
     {
-        IWorkStateStore? store = _workStore;
+        IWorkStateStore? store = JournalFor(item);
         if (store == null) return true;
         WorkResource owner;
         lock (_stateLock)
@@ -941,7 +941,7 @@ public partial class DownloadQueue
             if (expectedWaiter != null && !ReferenceEquals(NextWaiterLocked(), expectedWaiter)) { full = true; return false; }
             if (CleanupWaitLocked(item) != null) { full = true; return false; }
             if (_stopping || _cancelledThreads.TryGetValue(item.Thread, out _)
-                || _workStore != null && (!_workOwners.TryGetValue(item.Thread, out WorkResource? itemOwner) || !ItemOwnerCurrentLocked(item, itemOwner)))
+                || JournalFor(item) != null && (!_workOwners.TryGetValue(item.Thread, out WorkResource? itemOwner) || !ItemOwnerCurrentLocked(item, itemOwner)))
             {
                 return false;
             }
@@ -1329,7 +1329,7 @@ public partial class DownloadQueue
             if (!await _targets.CheckAsync(TargetPath(job.Item), job.Item.ExpectedSize, cancellation.Token).ConfigureAwait(false))
             { targetBlocked = true; return; }
             DownloadWorker worker = new DownloadWorker(job.Item, _bandwidthLimiter, _mediaStore, _bodyIdleTimeout, _timeProvider,
-                _logger, notifyThread: _workStore == null)
+                _logger, notifyThread: _workStore == null && job.Item.Thread is not IExternalMediaWorkOwner)
             {
                 BytesReceived = bytes => Interlocked.Add(ref _receivedMediaBytes, bytes),
                 AcquirePublicationFence = token => AcquirePublicationAsync(job.Item, token, producerAdmission)
@@ -1374,7 +1374,7 @@ public partial class DownloadQueue
         }
         catch (Exception exception)
         {
-            bool current = _workStore == null;
+            bool current = JournalFor(job.Item) == null;
             try { current |= RecordDurableResult(job.Item, exception, admission: producerAdmission); }
             catch (Exception persistenceFailure)
             {
@@ -1394,7 +1394,16 @@ public partial class DownloadQueue
         }
         finally
         {
-            if (succeeded)
+            if (succeeded && job.Item.Thread is IExternalMediaWorkOwner external)
+            {
+                // The external owner holds its own durable admission; it never becomes a journal row.
+                try { external.OnMediaCommitted(job.Item, committed!, producerAdmission); }
+                catch (Exception ownerFailure)
+                {
+                    _logger.Error(ownerFailure, "External media owner could not record committed {MediaId}", job.Item.MediaIdentifier);
+                }
+            }
+            else if (succeeded)
             {
                 try
                 {
@@ -1465,7 +1474,7 @@ public partial class DownloadQueue
 
     private MediaWork? LoadBlockedDeadline(DownloadItem item, ProfileAdmissionToken? admission = null)
     {
-        IWorkStateStore? store = _workStore;
+        IWorkStateStore? store = JournalFor(item);
         WorkResource owner;
         lock (_stateLock)
         {
@@ -1495,7 +1504,7 @@ public partial class DownloadQueue
     {
         using (EnterDurable(item, admission, continuation: true))
         {
-            IWorkStateStore? store = _workStore;
+            IWorkStateStore? store = JournalFor(item);
             if (store == null) return true;
             WorkResource? owner;
             lock (_stateLock)
@@ -1519,7 +1528,7 @@ public partial class DownloadQueue
     {
         lock (_stateLock)
         {
-            if (_workStore != null && (!_workOwners.TryGetValue(item.Thread, out WorkResource? owner) || !ItemOwnerCurrentLocked(item, owner))) return;
+            if (JournalFor(item) != null && (!_workOwners.TryGetValue(item.Thread, out WorkResource? owner) || !ItemOwnerCurrentLocked(item, owner))) return;
             if (_jobs.TryGetValue(Prepare(item).Job, out QueuedDownload? job) && job.Replacement != null && !SameRetrieval(job.Replacement, item)) return;
             _quarantined.Add(Prepare(item).Job); _scheduled.Remove(Prepare(item).Job);
         }
@@ -1549,7 +1558,7 @@ public partial class DownloadQueue
 
     private bool CanRunDurableLocked(DownloadItem item, ProfileAdmissionToken? admission = null)
     {
-        IWorkStateStore? store = _workStore;
+        IWorkStateStore? store = JournalFor(item);
         if (store == null) return true;
         WorkResource owner;
         lock (_stateLock)
@@ -1582,7 +1591,7 @@ public partial class DownloadQueue
 
     private bool RecordDurableResultLocked(DownloadItem item, Exception? failure, MediaCommitResult? committed, ProfileAdmissionToken? admission = null)
     {
-        IWorkStateStore? store = _workStore;
+        IWorkStateStore? store = JournalFor(item);
         if (store == null) return false;
         WorkResource owner;
         lock (_stateLock)

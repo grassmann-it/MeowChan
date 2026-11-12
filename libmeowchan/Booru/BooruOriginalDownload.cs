@@ -13,7 +13,11 @@ internal enum BooruOriginalSelectionError
     OriginalUrlInvalid,
     InvalidSize,
     InvalidMd5,
-    InvalidExtension
+    InvalidExtension,
+    /// <summary>Queue admission requires the provider's exact size and MD5 so damaged bytes fail closed.</summary>
+    MissingIntegrityClaims,
+    /// <summary>The original URL is not on the declared provider media host.</summary>
+    MediaHostNotAllowed
 }
 
 /// <summary>Validated immutable input for one original-variant queue admission.</summary>
