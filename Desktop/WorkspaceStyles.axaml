@@ -99,6 +99,15 @@
                     <SolidColorBrush x:Key="DataGridRowSelectedPointeroverBackground">#E7D4BE</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridCellFocusBorderBrush">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridLineBrush">#A89F92</SolidColorBrush>
+                    <!-- LW-06 N7a/N7b/N8/N10: Semi gives fields no visible outline (1-px transparent border) and a
+                         translucent grey checkbox/scrollbar; use Workspace.ControlBorder (#7A7062) in Light only. -->
+                    <SolidColorBrush x:Key="TextBoxDefaultBorderBrush">#7A7062</SolidColorBrush>
+                    <SolidColorBrush x:Key="TextBoxPointeroverBorderBrush">#7A7062</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorBorderBrush">#7A7062</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorPointeroverBorderBrush">#7A7062</SolidColorBrush>
+                    <SolidColorBrush x:Key="CheckBoxDefaultBorderBrush">#7A7062</SolidColorBrush>
+                    <SolidColorBrush x:Key="ScrollBarThumbForeground">#7A7062</SolidColorBrush>
+                    <SolidColorBrush x:Key="ScrollBarThumbPointeroverForeground">#575148</SolidColorBrush>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
