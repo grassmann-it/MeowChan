@@ -129,7 +129,7 @@ public sealed class LocalMediaTagResolverTests
         IReadOnlyList<MediaLibraryTile> tiles = MediaLibraryGrouping.Build(index.Entries, index.Entries, MediaLibrarySort.ByThread, includeMissing: true);
         IReadOnlyList<MediaTagCandidate> candidates = MediaLibraryTagging.Candidates(tiles);
         Assert.All(candidates, candidate => Assert.Equal(MediaTagBlock.None, candidate.Block));
-        Assert.Equal(new[] { MediaTagSubjects.Of(a1) }, MediaLibraryTagging.TargetsToRemove(tags, cat, candidates));
+        Assert.Equal(new MediaTagSubject[] { MediaTagSubjects.Of(a1)! }, MediaLibraryTagging.TargetsToRemove(tags, cat, candidates));
         Assert.Equal(3, MediaLibraryTagging.TargetsToAdd(tags, cat, candidates).Count);
     }
 
