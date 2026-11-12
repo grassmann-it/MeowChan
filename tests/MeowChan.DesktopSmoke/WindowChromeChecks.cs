@@ -96,7 +96,9 @@ internal static class WindowChromeChecks
             await CheckReachableAsync(window);
             stage = "minimize caption";
             Click(window.FindControl<Button>("WindowMinimizeButton")!);
-            await Program.WaitUntilAsync(() => window.WindowState == WindowState.Minimized);
+            // A loaded private window manager answers the iconify request late, so the wait reports what it saw.
+            await Program.WaitUntilAsync(() => window.WindowState == WindowState.Minimized,
+                () => $"state={window.WindowState}, visible={window.IsVisible}, taskbar={window.ShowInTaskbar}, bounds={window.Bounds}, load={SmokeLoad.Describe()}");
             Require(window.IsVisible && window.ShowInTaskbar, "The minimize caption stranded the window.");
         }
         catch (Exception exception)

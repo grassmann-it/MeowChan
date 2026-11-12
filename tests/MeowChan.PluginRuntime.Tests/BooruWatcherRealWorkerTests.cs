@@ -1,3 +1,4 @@
+using MeowChan.TestSupport;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
@@ -18,7 +19,7 @@ namespace MeowChan.PluginRuntime.Tests;
 
 /// <summary>
 /// B5 end-to-end with the real Danbooru plugin in the real worker process against a loopback stub
-/// (same preconditions as <see cref="BooruRealWorkerTests"/>: Release builds of plugin and worker).
+/// (same preconditions as <see cref="BooruRealWorkerTests"/>: plugin and worker are built in the test configuration by project references).
 /// Real time, interval 1 s; no request leaves 127.0.0.1.
 /// </summary>
 public sealed class BooruWatcherRealWorkerTests
@@ -27,10 +28,10 @@ public sealed class BooruWatcherRealWorkerTests
     public async Task RealPluginWatcherBaselineThenNewPostIsPacedAndAdmittedOnce()
     {
         string root = FindRoot();
-        string pluginPath = Path.Combine(root, "plugins/Official/Danbooru/bin/Release/net10.0/MeowChan.Plugin.Danbooru.dll");
-        string workerPath = Path.Combine(root, "MeowChan.PluginWorker/bin/Release/net10.0/MeowChan.PluginWorker.dll");
-        Assert.True(File.Exists(pluginPath), "Build the Danbooru plugin in Release before this test.");
-        Assert.True(File.Exists(workerPath), "Build the plugin worker in Release before this test.");
+        string pluginPath = BuiltTestBinaries.LibraryOf(Path.Combine("plugins", "Official", "Danbooru"), "MeowChan.Plugin.Danbooru");
+        string workerPath = BuiltTestBinaries.WorkerAssembly();
+        Assert.True(File.Exists(pluginPath), "Build the Danbooru plugin in the test configuration.");
+        Assert.True(File.Exists(workerPath), "Build the plugin worker in the test configuration.");
 
         // The complete post with a separate sample (id 1001), whatever its position in the fixture.
         JsonObject template = (JsonObject)JsonNode.Parse(File.ReadAllText(

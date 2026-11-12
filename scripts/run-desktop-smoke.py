@@ -7,6 +7,7 @@ DISPLAY when the virtual-display tools are missing.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import importlib.util
 import json
 import math
@@ -184,6 +185,15 @@ def stop_owned_processes(process: subprocess.Popen) -> None:
     process.wait(timeout=10)
 
 
+def host_load() -> dict[str, object]:
+    """Host load at a run's start/end: a 60 s deadline missed on a busy machine is not a product verdict."""
+    try:
+        average = os.getloadavg()[0]
+    except (AttributeError, OSError):
+        average = None
+    return {"loadavg_1m": average, "cpus": os.cpu_count()}
+
+
 def sample_timeout(process: subprocess.Popen, destination: Path) -> None:
     if sys.platform != "darwin":
         return
@@ -234,7 +244,34 @@ def check_scenario(log_text: str, expected: str, explicit: bool) -> tuple[str | 
     return observed[0], None
 
 
+@contextlib.contextmanager
+def capture_bin_lock(directory: Path):
+    """The fixtures write smoke-*.png/json next to the assembly and the runner collects them by mtime, so two
+    concurrent runs of one build would collect each other's captures. Runs sharing a bin take turns (POSIX
+    flock, released by the kernel if the runner dies); the wait is outside every run's own deadline."""
+    try:
+        import fcntl
+    except ImportError:  # Windows: no cross-process lock here; callers must not share a bin concurrently.
+        yield
+        return
+    with (directory / ".smoke-capture.lock").open("w") as handle:
+        waited = time.monotonic()
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        if time.monotonic() - waited > 1:
+            print(f"Desktop harness waited {time.monotonic() - waited:.0f}s for another run using {directory}.", flush=True)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
 def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str, str],
+             isolated: bool, timeout: float, expected_scenario: str | None = None) -> dict[str, object]:
+    with capture_bin_lock(assembly.parent):
+        return run_mode_locked(mode, assembly, destination, environment, isolated, timeout, expected_scenario)
+
+
+def run_mode_locked(mode: str, assembly: Path, destination: Path, environment: dict[str, str],
              isolated: bool, timeout: float, expected_scenario: str | None = None) -> dict[str, object]:
     destination = destination.resolve()
     destination.mkdir()
@@ -247,6 +284,7 @@ def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str
     interrupted = False
     error = None
     exit_code = 1
+    load_at_start = host_load()
     with private_working_directory(isolated) as working_directory:
         child_environment = prepare_environment(environment, isolated, Path(working_directory))
         scenario = expected_scenario or derived_scenario(mode, child_environment)
@@ -323,6 +361,12 @@ def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str
         exit_code, destination / "harness-exit-code", log_text)
     if xvfb_teardown_ignored:
         exit_code = 0
+    if timed_out:
+        end_load = host_load()
+        if end_load["loadavg_1m"] is not None and end_load["cpus"] and end_load["loadavg_1m"] > end_load["cpus"]:
+            print(f"Desktop harness {mode}: timed out on an overloaded host (loadavg {end_load['loadavg_1m']:.1f} "
+                  f"> {end_load['cpus']} CPUs); rerun with a larger --timeout before treating this as a product failure.",
+                  flush=True)
     for image in (image for pattern in ("smoke-*.png", "v0.9.0-*.png") for image in assembly.parent.glob(pattern)):
         if previous.get(image) != image.stat().st_mtime_ns:
             shutil.copy2(image, destination / image.name)
@@ -362,6 +406,7 @@ def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str
             "xvfb_teardown_ignored": xvfb_teardown_ignored,
             "expected_scenario": scenario, "scenario": observed_scenario,
             "watchdog": watchdog_result,
+            "host_load": {"start": load_at_start, "end": host_load()},
             "actual_render_scaling": scales[0] if len(scales) == 1 else None, "observed_render_scalings": scales}
 
 

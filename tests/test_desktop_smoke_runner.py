@@ -435,6 +435,33 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
             {"mode": "normal", "passed": False, "timed_out": True, "exit_code": 124, "scenario": None, "error": None}]}))
         self.assertEqual("timed out", runner.child_result(destination, "normal")["error"])
 
+    def test_results_record_host_load_and_a_timeout_on_an_overloaded_host_says_so(self):
+        self.assertEqual({"loadavg_1m", "cpus"}, set(runner.host_load()))
+        with mock.patch.object(runner.os, "getloadavg", return_value=(99.0, 1.0, 1.0)), \
+                mock.patch.object(runner.os, "cpu_count", return_value=4):
+            self.assertEqual({"loadavg_1m": 99.0, "cpus": 4}, runner.host_load())
+        with mock.patch.object(runner.os, "getloadavg", side_effect=OSError):
+            self.assertIsNone(runner.host_load()["loadavg_1m"])
+
+    @unittest.skipIf(os.name == "nt", "POSIX flock fixture")
+    def test_runs_sharing_one_assembly_bin_take_turns_collecting_captures(self):
+        import threading
+        inside, overlap, entered = [0], [False], threading.Event()
+        def hold():
+            with runner.capture_bin_lock(self.root):
+                inside[0] += 1
+                overlap[0] = overlap[0] or inside[0] > 1
+                entered.set()
+                time.sleep(0.3)
+                inside[0] -= 1
+        threads = [threading.Thread(target=hold) for _ in range(2)]
+        # flock is per open file description, so two handles in one process contend like two runners.
+        for thread in threads: thread.start()
+        for thread in threads: thread.join()
+        self.assertFalse(overlap[0])
+        self.assertTrue(entered.is_set())
+        self.assertTrue((self.root / ".smoke-capture.lock").exists())
+
     @unittest.skipIf(os.name == "nt", "POSIX process-group fixture")
     def test_timeout_kills_only_the_owned_group_including_its_child(self):
         # A fake dotnet process forks a child that ignores TERM. No window or display is involved.

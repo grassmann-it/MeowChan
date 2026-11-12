@@ -81,10 +81,15 @@ internal static class SettingsPageChecks
             editor.SelectedTheme = editor.ThemeChoices.Single(choice => choice.Value == initial.Theme);
             Click(window.FindControl<Button>("ThemeToggleButton")!);
             string nextTheme = initial.Theme == "Dark" ? "Light" : "Dark";
-            await Program.WaitUntilAsync(() => Config.LoadConfig().Theme == nextTheme && !editor.IsBusy && editor.IsAvailable);
+            // The file write precedes the editor's UI-thread projection of the committed theme, so wait for
+            // the field being synchronized too; only then does an unrelated field mismatch mean a lost draft.
+            await Program.WaitUntilAsync(() => Config.LoadConfig().Theme == nextTheme && !editor.IsBusy && editor.IsAvailable
+                && editor.SelectedTheme?.Value == nextTheme);
             Require(editor.SelectedTheme?.Value == nextTheme && editor.SelectedWorkspaceMode?.Value == "Barebones"
                 && timer.Text == raw && editor.DownloadPath == draftPath && editor.HasError,
-                "A footer theme commit overwrote unrelated draft fields or invalid text.");
+                "A footer theme commit overwrote unrelated draft fields or invalid text: "
+                + $"theme={editor.SelectedTheme?.Value} (want {nextTheme}), mode={editor.SelectedWorkspaceMode?.Value}, "
+                + $"timer='{timer.Text}' (want '{raw}'), path='{editor.DownloadPath}', hasError={editor.HasError}.");
             string nextMode = initial.WorkspaceMode == "Simple" ? "Advanced" : "Simple";
             await PresentationChecks.SwitchModeAsync(window, nextMode);
             Require(editor.SelectedWorkspaceMode?.Value == nextMode && editor.SelectedTheme?.Value == nextTheme

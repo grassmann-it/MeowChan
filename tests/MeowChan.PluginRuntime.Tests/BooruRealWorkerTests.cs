@@ -1,3 +1,4 @@
+using MeowChan.TestSupport;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
@@ -17,10 +18,10 @@ public sealed class BooruRealWorkerTests
     public async Task DanbooruPluginSearchUsesLoopbackWireAndInvalidQueryDoesNotStartWorkerCall()
     {
         string root = FindRoot();
-        string pluginPath = Path.Combine(root, "plugins/Official/Danbooru/bin/Release/net10.0/MeowChan.Plugin.Danbooru.dll");
-        string workerPath = Path.Combine(root, "MeowChan.PluginWorker/bin/Release/net10.0/MeowChan.PluginWorker.dll");
-        Assert.True(File.Exists(pluginPath), "Build the Danbooru plugin in Release before this test.");
-        Assert.True(File.Exists(workerPath), "Build the plugin worker in Release before this test.");
+        string pluginPath = BuiltTestBinaries.LibraryOf(Path.Combine("plugins", "Official", "Danbooru"), "MeowChan.Plugin.Danbooru");
+        string workerPath = BuiltTestBinaries.WorkerAssembly();
+        Assert.True(File.Exists(pluginPath), "Build the Danbooru plugin in the test configuration.");
+        Assert.True(File.Exists(workerPath), "Build the plugin worker in the test configuration.");
 
         await using LoopbackServer server = await LoopbackServer.StartAsync((_, _) => LoopbackReply.Json(200, Fixture(root, "search-normal.json")));
         using RewritingHandler rewriting = new(server.Port);
@@ -55,8 +56,8 @@ public sealed class BooruRealWorkerTests
     public async Task RealWorkerReceivesProvider429AsDeferredAndSecondCallDoesNotHitStub()
     {
         string root = FindRoot();
-        string pluginPath = Path.Combine(root, "plugins/Official/Danbooru/bin/Release/net10.0/MeowChan.Plugin.Danbooru.dll");
-        string workerPath = Path.Combine(root, "MeowChan.PluginWorker/bin/Release/net10.0/MeowChan.PluginWorker.dll");
+        string pluginPath = BuiltTestBinaries.LibraryOf(Path.Combine("plugins", "Official", "Danbooru"), "MeowChan.Plugin.Danbooru");
+        string workerPath = BuiltTestBinaries.WorkerAssembly();
         Assert.True(File.Exists(pluginPath)); Assert.True(File.Exists(workerPath));
         await using LoopbackServer server = await LoopbackServer.StartAsync((_, _) => LoopbackReply.Json(429, "busy", "Retry-After: 120\r\n"));
         using RewritingHandler rewriting = new(server.Port);
@@ -82,8 +83,8 @@ public sealed class BooruRealWorkerTests
     public async Task RealWorkerMapsSinglePost404ToNotFound()
     {
         string root = FindRoot();
-        string pluginPath = Path.Combine(root, "plugins/Official/Danbooru/bin/Release/net10.0/MeowChan.Plugin.Danbooru.dll");
-        string workerPath = Path.Combine(root, "MeowChan.PluginWorker/bin/Release/net10.0/MeowChan.PluginWorker.dll");
+        string pluginPath = BuiltTestBinaries.LibraryOf(Path.Combine("plugins", "Official", "Danbooru"), "MeowChan.Plugin.Danbooru");
+        string workerPath = BuiltTestBinaries.WorkerAssembly();
         Assert.True(File.Exists(pluginPath)); Assert.True(File.Exists(workerPath));
         await using LoopbackServer server = await LoopbackServer.StartAsync((target, _) =>
             target.StartsWith("/posts/", StringComparison.Ordinal) ? LoopbackReply.Json(404, "missing") : LoopbackReply.Json(500, "unexpected"));

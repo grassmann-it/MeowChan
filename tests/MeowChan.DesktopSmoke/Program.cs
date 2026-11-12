@@ -788,7 +788,7 @@ internal static class Program
                 string observed;
                 try { observed = state(); }
                 catch (Exception failure) { observed = "state unavailable: " + failure.GetType().Name + ": " + failure.Message; }
-                Console.Error.WriteLine("SMOKE wait timeout state at " + location + ": " + observed);
+                Console.Error.WriteLine("SMOKE wait timeout state at " + location + ": " + observed + "; " + SmokeLoad.Describe());
                 throw new TimeoutException($"Desktop condition timed out after fifteen seconds at {location}; state: {observed}");
             }
             await Task.Delay(50);

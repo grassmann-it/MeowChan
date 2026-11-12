@@ -6,6 +6,7 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
     <ProjectReference Include="../../MeowChan.PluginHost/MeowChan.PluginHost.csproj" />
     <ProjectReference Include="../../MeowChan.PluginWorker/MeowChan.PluginWorker.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../plugins/Official/Danbooru/MeowChan.Plugin.Danbooru.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../MeowChan.PluginRuntime.Fixture/MeowChan.PluginRuntime.Fixture.csproj" />
     <Compile Include="../Shared/BuiltTestBinaries.cs" Link="BuiltTestBinaries.cs" />
     <Using Include="Xunit" />

@@ -8,10 +8,15 @@ internal static class BuiltTestBinaries
 
     internal static string AssemblyOf(string projectDirectory) => ResolveExecutable(projectDirectory, appHost: false);
 
+    // A class library (plugin) has a .dll and .deps.json but no runtimeconfig.json.
+    // The project file may be named differently from its directory (plugins/Official/Danbooru/MeowChan.Plugin.Danbooru.csproj).
+    internal static string LibraryOf(string projectDirectory, string? projectName = null) =>
+        ResolveExecutable(projectDirectory, appHost: false, runtimeConfig: false, projectName);
+
     internal static string AppHostDirectory(string projectDirectory) =>
         Path.GetDirectoryName(ResolveExecutable(projectDirectory, appHost: true))!;
 
-    private static string ResolveExecutable(string projectDirectory, bool appHost)
+    private static string ResolveExecutable(string projectDirectory, bool appHost, bool runtimeConfig = true, string? projectName = null)
     {
         string assembly = typeof(BuiltTestBinaries).Assembly.Location;
         if (string.IsNullOrEmpty(assembly))
@@ -25,7 +30,7 @@ internal static class BuiltTestBinaries
         if (root == null)
             throw new InvalidOperationException($"Repository root missing above test assembly '{assembly}'.");
 
-        string project = Path.GetFileName(projectDirectory);
+        string project = projectName ?? Path.GetFileName(projectDirectory);
         RequireFile(Path.Combine(root.FullName, "tests", testProject, testProject + ".csproj"), assembly);
         RequireFile(Path.Combine(root.FullName, projectDirectory, project + ".csproj"), assembly);
 
@@ -53,7 +58,7 @@ internal static class BuiltTestBinaries
         // Existence is not freshness: the root runner still owns the dependency rebuild.
         RequireFile(Path.Combine(directory, project + ".dll"), assembly);
         RequireFile(Path.Combine(directory, project + ".deps.json"), assembly);
-        RequireFile(Path.Combine(directory, project + ".runtimeconfig.json"), assembly);
+        if (runtimeConfig) RequireFile(Path.Combine(directory, project + ".runtimeconfig.json"), assembly);
         RequireSameSharedAssemblies(output.FullName, directory, assembly);
         string binary = Path.Combine(directory, project + (appHost
             ? (OperatingSystem.IsWindows() ? ".exe" : string.Empty) : ".dll"));
