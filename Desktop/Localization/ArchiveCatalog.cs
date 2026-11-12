@@ -6,6 +6,7 @@ internal static class ArchiveCatalog
     {
         ("suggestions.count", "{0} local suggestions. Up to 20 shown; free input is available.", "{0} lokale Vorschläge. Höchstens 20 sichtbar; freie Eingabe ist möglich."),
         ("suggestions.limited", "Up to 20 local suggestions; type any other value freely.", "Bis zu 20 lokale Vorschläge; andere Werte frei eingeben."),
+        ("archive.suggestionsHint", "Up to 20 local suggestions; type any other value freely. Enter or a click adds it as a filter.", "Bis zu 20 lokale Vorschläge; andere Werte frei eingeben. Enter oder Klick fügt den Filter hinzu."),
         ("suggestions.unavailable", "Suggestions unavailable. Free input still works.", "Vorschläge nicht verfügbar. Freie Eingabe bleibt möglich."),
         ("suggestions.retry", "Retry suggestions", "Vorschläge erneut laden"),
         ("archive.boardOutsideSources", "outside selected sources", "außerhalb der gewählten Quellen"),
@@ -16,7 +17,6 @@ internal static class ArchiveCatalog
         ("archive.jumpBackward", "Jump back several result pages", "Mehrere Ergebnisseiten zurückspringen"),
         ("archive.currentPage", "current page", "aktuelle Seite"),
         ("archive.addFilter", "Add", "Hinzufügen"),
-        ("archive.pendingFilter", "Add or clear the pending source, board or state before searching.", "Quelle, Board oder Zustand vor der Suche hinzufügen oder die Eingabe leeren."),
         ("archive.workStatusLoading", "Work status is still loading. Search without the work filter now, or apply it once the session is ready.", "Der Arbeitsstatus wird noch geladen. Jetzt ohne Arbeitsfilter suchen oder ihn anwenden, sobald die Sitzung bereit ist."),
         ("archive.allSourceBoards", "All sources", "Alle Quellen"),
         ("archive.dateBasis", "First registered locally", "Erstmals lokal registriert"),

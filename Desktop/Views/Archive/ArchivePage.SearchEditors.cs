@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -34,6 +35,8 @@ public partial class ArchivePage
     private bool _boardScopeChosen;
     private sealed record BoardScope(string? Source, string Label) { public override string ToString() => Label; }
     internal event Action? SearchStateChanged;
+    internal IReadOnlyList<string> DraftSources => _draftSources.AsReadOnly();
+    internal IReadOnlyList<ArchiveBoardConstraint> DraftBoards => _draftBoards.AsReadOnly();
     private string IdentityText(string name) => Control<Control>(name) switch
     { TextBox text => text.Text ?? "", Ursa.Controls.AutoCompleteBox text => text.Text ?? "", _ => "" };
     private void SetIdentityText(string name, string value)
@@ -57,7 +60,7 @@ public partial class ArchivePage
             ("ArchivePostsFilter", "posts"), ("ArchiveWorkFilter", "work"), ("ArchiveSort", "sort") })
             Control<ComboBox>(entry.Item1).SelectionChanged += (_, _) => { if (!_localizingSearchOptions) DraftEdited(entry.Item2); };
         ArchiveBoardScope.SelectionChanged += (_, _) => { if (_updatingBoardScopes) return; _boardScopeChosen = true; DraftEdited("board"); InvalidateBoardSuggestions(); };
-        InitializeTagFilterEditor();
+        InitializeTagFilterEditor(); InitializeStateEditor();
         ArchiveStartDate.Edited += () => DateEdited();
         ArchiveEndDate.Edited += () => DateEdited();
     }
@@ -114,43 +117,66 @@ public partial class ArchivePage
             }, DispatcherPriority.Loaded);
         }, DispatcherPriority.Loaded);
     }
-    private void OnAddSource(object? sender, RoutedEventArgs e)
+    private async void OnAddSource(object? sender, RoutedEventArgs e) => await AddIdentityAsync(board: false);
+    private async void OnAddBoard(object? sender, RoutedEventArgs e) => await AddIdentityAsync(board: true);
+    // The one way a source or board becomes a chip: an accepted suggestion, Enter, Add and Search all use it.
+    // Without an accepted suggestion the text resolves like Enter (IdentitySuggestions.Resolve) against
+    // candidates read for exactly this text and scope. False: invalid (error under the field) or superseded.
+    private async Task<bool> AddIdentityAsync(bool board, IdentitySuggestion? accepted = null)
     {
-        string raw = IdentityText("ArchiveSourceFilter");
-        var candidate = TryReadSelectedIdentity("ArchiveSourceFilter");
-        string source = candidate != null && StringComparer.Ordinal.Equals(candidate.Value, raw) ? candidate.Value : raw.Trim();
-        if (source.Length == 0) return;
-        try { _ = ArchiveSearchSpec.FromExactIdentities(sources: _draftSources.Contains(source, StringComparer.Ordinal) ? _draftSources : _draftSources.Append(source)); }
-        catch (Exception exception) { DataValidationErrors.SetErrors(Control<Control>("ArchiveSourceFilter"), new object[] { exception.Message }); SearchEditorError(exception.Message); return; }
-        DataValidationErrors.ClearErrors(Control<Control>("ArchiveSourceFilter"));
-        if (!_draftSources.Contains(source, StringComparer.Ordinal)) _draftSources.Add(source);
-        SetIdentityText("ArchiveSourceFilter", ""); DraftEdited("source"); RenderDraftSets();
+        string name = board ? "ArchiveBoardFilter" : "ArchiveSourceFilter", field = board ? "board" : "source";
+        IdentitySuggestionBox editor = board ? ArchiveBoardFilter : ArchiveSourceFilter;
+        string raw = IdentityText(name);
+        accepted ??= TryReadSelectedIdentity(name);
+        if (accepted == null && string.IsNullOrWhiteSpace(raw)) { DataValidationErrors.ClearErrors(editor); return true; }
+        if (accepted == null)
+        {
+            long revision = _editorRevisions.GetValueOrDefault(field);
+            IdentitySuggestion[] candidates;
+            try { candidates = await ReadSuggestionsAsync(board, raw, _lifetime.Token); }
+            catch (Exception) { candidates = Array.Empty<IdentitySuggestion>(); } // Unavailable suggestions leave free input.
+            // A later edit of this text or scope wins; never resolve against candidates for an earlier text.
+            if (_ended || _editorRevisions.GetValueOrDefault(field) != revision) return false;
+            accepted = IdentitySuggestions.Resolve(raw, null, candidates);
+        }
+        string value = accepted?.Value ?? raw.Trim();
+        // An accepted board suggestion carries its actual source; free text takes the chosen board scope.
+        string? source = accepted?.Source ?? (ArchiveBoardScope.SelectedItem as BoardScope)?.Source;
+        ArchiveBoardConstraint pair = new(source, value);
+        bool duplicate = board ? _draftBoards.Contains(pair) : _draftSources.Contains(value, StringComparer.Ordinal);
+        try
+        {
+            _ = board ? ArchiveSearchSpec.FromExactIdentities(boards: duplicate ? _draftBoards : _draftBoards.Append(pair))
+                : ArchiveSearchSpec.FromExactIdentities(sources: duplicate ? _draftSources : _draftSources.Append(value));
+        }
+        catch (Exception exception) { DataValidationErrors.SetErrors(editor, new object[] { exception.Message }); return false; }
+        DataValidationErrors.ClearErrors(editor);
+        if (!duplicate) { if (board) _draftBoards.Add(pair); else _draftSources.Add(value); }
+        // Focus stays in the field; the list stays closed until the next typing or Down.
+        SetIdentityText(name, ""); editor.Dismiss(); DraftEdited(field); RenderDraftSets();
+        return true;
     }
-    private void OnAddBoard(object? sender, RoutedEventArgs e)
+    // Choosing a state is the decision: it becomes a chip and the list returns to "All source states".
+    private void AddChosenState()
     {
-        string raw = IdentityText("ArchiveBoardFilter");
-        var candidate = TryReadSelectedIdentity("ArchiveBoardFilter");
-        bool accepted = candidate != null && StringComparer.Ordinal.Equals(candidate.Value, raw);
-        string board = accepted ? candidate!.Value : raw.Trim();
-        if (board.Length == 0) return;
-        string? source = (ArchiveBoardScope.SelectedItem as BoardScope)?.Source;
-        // W04's explicit accepted candidates carry their actual source. Merely
-        // highlighting a suggestion must not qualify freely typed board text.
-        if (accepted && candidate!.Source != null) source = candidate.Source;
-        ArchiveBoardConstraint pair = new(source, board);
-        bool duplicate = _draftBoards.Any(item => item.Source == source && item.Board == board);
-        try { _ = ArchiveSearchSpec.FromExactIdentities(boards: duplicate ? _draftBoards : _draftBoards.Append(pair)); }
-        catch (Exception exception) { DataValidationErrors.SetErrors(Control<Control>("ArchiveBoardFilter"), new object[] { exception.Message }); SearchEditorError(exception.Message); return; }
-        DataValidationErrors.ClearErrors(Control<Control>("ArchiveBoardFilter"));
-        if (!duplicate) _draftBoards.Add(pair);
-        SetIdentityText("ArchiveBoardFilter", ""); DraftEdited("board"); RenderDraftSets();
-    }
-    private void OnAddState(object? sender, RoutedEventArgs e)
-    {
+        if (_localizingSearchOptions || _writingDraft || ArchiveStateFilter.IsDropDownOpen) return;
         ThreadSourceState? state = ArchiveStateFilter.SelectedIndex switch
         { 1 => ThreadSourceState.Active, 2 => ThreadSourceState.Archived, 3 => ThreadSourceState.NotFound, _ => null };
-        if (state.HasValue && !_draftStates.Contains(state.Value)) _draftStates.Add(state.Value);
+        if (state == null) return;
+        if (!_draftStates.Contains(state.Value)) _draftStates.Add(state.Value);
         ArchiveStateFilter.SelectedIndex = 0; DraftEdited("state"); RenderDraftSets();
+    }
+    private void InitializeStateEditor()
+    {
+        // Applied after the selection update has finished; an open list commits when it closes.
+        ArchiveStateFilter.SelectionChanged += (_, _) => Dispatcher.UIThread.Post(AddChosenState);
+        ArchiveStateFilter.DropDownClosed += (_, _) => Dispatcher.UIThread.Post(AddChosenState);
+        // Arrows on the closed list would add the next state at once; they open the list instead.
+        ArchiveStateFilter.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (ArchiveStateFilter.IsDropDownOpen || e.Key is not (Key.Up or Key.Down) || e.KeyModifiers != KeyModifiers.None) return;
+            ArchiveStateFilter.IsDropDownOpen = true; e.Handled = true;
+        }, RoutingStrategies.Tunnel);
     }
     private void RenderDraftSets()
     {
@@ -195,6 +221,8 @@ public partial class ArchivePage
             });
             panel.Children.Add(tag);
         }
+        // The chips of a category are a polite live region named by their labels, so a new chip is announced.
+        AutomationProperties.SetName(panel, string.Join(", ", entries.Select(entry => entry.Label)));
     }
     private void FocusAfterDraftTagRemoval(string panelName, string editorName, int position, Control removed)
     {
@@ -216,18 +244,14 @@ public partial class ArchivePage
     private ArchiveSearchSpec ReadSearchDraft(bool validateFields = true)
     {
         if (validateFields) _invalidSearchEditor = null;
-        bool pending = false, otherPending = false;
-        foreach (string name in new[] { "ArchiveSourceFilter", "ArchiveBoardFilter", "ArchiveStateFilter", "ArchiveTagChoice" })
-        {
-            bool tag = name == "ArchiveTagChoice";
-            bool hasPending = tag ? HasPendingTagChoice
-                : name == "ArchiveStateFilter" ? Control<ComboBox>(name).SelectedIndex > 0 : !string.IsNullOrWhiteSpace(IdentityText(name));
-            if (validateFields) DataValidationErrors.SetErrors(Control<Control>(name), hasPending ? new object[] { Texts.T(tag ? "tags.filter.pending" : "archive.pendingFilter") } : null);
-            if (validateFields && hasPending) _invalidSearchEditor ??= Control<Control>(name);
-            pending |= hasPending;
-            otherPending |= hasPending && !tag;
-        }
-        if (pending) throw new InvalidOperationException(Texts.T(otherPending ? "archive.pendingFilter" : "tags.filter.pending"));
+        // ApplySearchAsync adds leftover source, board and state input first; only a chosen tag still needs
+        // Include or Exclude. For the unapplied-draft marker, leftover source or board text is unapplied input.
+        bool pending = HasPendingTagChoice;
+        if (validateFields) DataValidationErrors.SetErrors(ArchiveTagChoice, pending ? new object[] { Texts.T("tags.filter.pending") } : null);
+        if (validateFields && pending) _invalidSearchEditor = ArchiveTagChoice;
+        if (pending) throw new InvalidOperationException(Texts.T("tags.filter.pending"));
+        if (!validateFields && (!string.IsNullOrWhiteSpace(IdentityText("ArchiveSourceFilter")) || !string.IsNullOrWhiteSpace(IdentityText("ArchiveBoardFilter"))))
+            throw new InvalidOperationException("Unadded source or board text.");
         bool? Choice(string name) => Control<ComboBox>(name).SelectedIndex switch { 1 => true, 2 => false, _ => null };
         DateOnly? ParseDate(string name)
         {
@@ -329,7 +353,7 @@ public partial class ArchivePage
     }
     private void LocalizeSearchEditors()
     {
-        foreach (string name in new[] { "ArchiveAddSource", "ArchiveAddBoard", "ArchiveAddState" }) Control<Button>(name).Content = Texts.T("archive.addFilter");
+        foreach (string name in new[] { "ArchiveAddSource", "ArchiveAddBoard" }) Control<Button>(name).Content = Texts.T("archive.addFilter");
         AutomationProperties.SetName(ArchiveBoardScope, Texts.T("archive.boardSourceScope"));
         ArchiveDateTitle.Text = Texts.T("archive.dateBasis");
         ArchiveDateHint.Text = Texts.T("archive.dateHint");

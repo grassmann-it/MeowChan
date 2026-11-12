@@ -24,6 +24,9 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
     internal event Action<IdentitySuggestion>? CandidateAccepted;
     internal event Action<Exception?>? LoadCompleted;
     internal IdentitySuggestion? AcceptedCandidate { get; private set; }
+    /// <summary>Opt-in: Enter on an open list with no highlighted suggestion closes the list and is left
+    /// unhandled for the parent, which decides what free text means. Off: Enter only closes the list.</summary>
+    internal bool ReleaseUnselectedEnter { get; set; }
     private CancellationTokenSource? _request;
     private int _revision;
     private bool _publishing;
@@ -147,6 +150,8 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
             _suppressed = false; _ = PopulateAsync(); e.Handled = true; return;
         }
         if (e.Key != Key.Enter || !IsDropDownOpen) return;
+        if (ReleaseUnselectedEnter && !(ItemsSource?.Cast<object>().Contains(SelectionAdapter?.SelectedItem ?? SelectedItem) ?? false))
+        { Dismiss(); return; }
         // Consume the popup's Enter before a parent search command can observe it.
         AcceptCandidate();
         e.Handled = true;

@@ -50,6 +50,15 @@ public partial class ArchivePage
         board.Candidates = (text, token) => ReadSuggestionsAsync(true, text, token);
         source.TextChanged += (_, _) => { InvalidateBoardSuggestions(); board.RefreshSuggestions(); };
         source.LoadCompleted += SuggestionLoadCompleted;
+        // Accepting a suggestion (click, or Enter on the highlighted one) adds it as a chip once the box has
+        // finished its selection update, and only while that exact accepted value is still in the field.
+        foreach (var (editor, isBoard) in new[] { (source, false), (board, true) })
+        {
+            editor.ReleaseUnselectedEnter = true;
+            editor.CandidateAccepted += item => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            { if (!_ended && ReferenceEquals(IdentitySuggestions.CurrentSelection(editor.Text, editor.AcceptedCandidate), item)) _ = AddIdentityAsync(isBoard, item); },
+                Avalonia.Threading.DispatcherPriority.Send);
+        }
         board.LoadCompleted += SuggestionLoadCompleted;
         ArchiveRetrySuggestions.Click += (_, _) =>
         {
@@ -89,7 +98,7 @@ public partial class ArchivePage
         AutomationProperties.SetName(ArchiveSourceFilter, Texts.T("archive.sourceFilter"));
         AutomationProperties.SetName(ArchiveBoardFilter, Texts.T("archive.boardFilter"));
         var hint = ArchiveSuggestionsHint;
-        hint.Text = Texts.T(_suggestionsFailed ? "suggestions.unavailable" : "suggestions.limited");
+        hint.Text = Texts.T(_suggestionsFailed ? "suggestions.unavailable" : "archive.suggestionsHint");
         ArchiveRetrySuggestions.Content = Texts.T("suggestions.retry");
         ArchiveRetrySuggestions.IsVisible = _suggestionsFailed;
     }

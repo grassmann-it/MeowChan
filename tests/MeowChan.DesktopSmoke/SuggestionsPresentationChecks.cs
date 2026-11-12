@@ -127,8 +127,13 @@ internal static class SuggestionsPresentationChecks
                     IdentitySuggestionBox field = C<IdentitySuggestionBox>(page, name);
                     string hintName = scene.StartsWith("archive", StringComparison.Ordinal) ? "ArchiveSuggestionsHint" : "RuleSuggestionsHint";
                     string hint = C<TextBlock>(page, hintName).Text ?? "";
-                    Require(hint == (cell.Language == "en" ? "Up to 20 local suggestions; type any other value freely."
-                        : "Bis zu 20 lokale Vorschläge; andere Werte frei eingeben."), "Actual suggestion hint is not in the requested language.");
+                    bool archiveScene = scene.StartsWith("archive", StringComparison.Ordinal);
+                    // The archive adds a suggestion on Enter or click, the rules editor only fills the field.
+                    Require(hint == (archiveScene
+                        ? cell.Language == "en" ? "Up to 20 local suggestions; type any other value freely. Enter or a click adds it as a filter."
+                            : "Bis zu 20 lokale Vorschläge; andere Werte frei eingeben. Enter oder Klick fügt den Filter hinzu."
+                        : cell.Language == "en" ? "Up to 20 local suggestions; type any other value freely."
+                            : "Bis zu 20 lokale Vorschläge; andere Werte frei eingeben."), "Actual suggestion hint is not in the requested language.");
                     field.BringIntoView(); await Settle();
                     TextBox input = field.GetVisualDescendants().OfType<TextBox>().First();
                     input.Focus(NavigationMethod.Tab); await Settle();
@@ -255,9 +260,21 @@ internal static class SuggestionsPresentationChecks
                         actualAccessibleName = AutomationProperties.GetName(field), candidates });
                     KeyEventArgs down = Press(input, Key.Down); await Settle();
                     Require(down.Handled, "Arrow Down escaped the actual suggestion adapter.");
+                    // Highlighting changes nothing; Enter accepts exactly the highlighted shown candidate.
+                    SelectingItemsControl? list = popupChild as SelectingItemsControl
+                        ?? popupChild.GetVisualDescendants().OfType<SelectingItemsControl>().FirstOrDefault(item => item.Name == "PART_SelectingItemsControl");
+                    IdentitySuggestion? highlighted = (list?.SelectedItem ?? field.SelectedItem) as IdentitySuggestion;
+                    Require(highlighted != null && candidates.Contains(highlighted) && field.Text == prefix && field.AcceptedCandidate == null,
+                        "Arrow Down did not highlight a shown candidate without changing the draft.");
                     KeyEventArgs enter = Press(input, Key.Enter); await Settle();
-                    Require(enter.Handled && !field.IsDropDownOpen && field.AcceptedCandidate is { } accepted
-                        && accepted.Value == field.Text && candidates.Contains(accepted), "Popup Enter did not accept exactly a shown canonical candidate.");
+                    // The archive adds the accepted candidate as a chip with its exact identity and empties the field
+                    // (no search); the rules editor only writes the canonical value into the field.
+                    Require(enter.Handled && !field.IsDropDownOpen && (archiveScene
+                            ? field.Text == "" && field.AcceptedCandidate == null && (qualified
+                                ? ((ArchivePage)page).DraftBoards.Contains(new ArchiveBoardConstraint(highlighted!.Source, highlighted.Value))
+                                : ((ArchivePage)page).DraftSources.Contains(highlighted!.Value, StringComparer.Ordinal))
+                            : field.AcceptedCandidate is { } accepted && ReferenceEquals(accepted, highlighted) && accepted.Value == field.Text),
+                        "Popup Enter did not accept exactly the highlighted shown candidate (archive: as a chip).");
                     preserve();
                     // Reopen and navigate, then Tab must not accept the highlighted candidate.
                     void ObserveTab(string step, KeyEventArgs? key = null) => Write("tab-diagnostic", new

@@ -325,7 +325,7 @@ internal static class ArchiveComparisonChecks
         await Reset(page, e);
         e.Predict("matrix-pair", "product-pair-list", PairIds("A/x", "B/y"));
         e.Action(C<Expander>(page, "ArchiveFilters"), "expand filters", () => C<Expander>(page, "ArchiveFilters").IsExpanded = true); await Settle();
-        Source(page, "A", e); Source(page, "B", e); Board(page, "A", "x", e); Board(page, "B", "y", e);
+        await Source(page, "A", e); await Source(page, "B", e); await Board(page, "A", "x", e); await Board(page, "B", "y", e);
         await Search(page, e, PairIds("A/x", "B/y"));
         e.Action(C<WrapPanel>(page, "ArchiveDraftBoards"), "inspect qualified pair labels (programmatic scroll)", () => { }); await Settle();
         Require(Tags(page, "ArchiveDraftBoards").SequenceEqual(new[] { "A /x/", "B /y/" }), "Matrix qualified board labels changed."); e.Capture("qualified-pairs");
@@ -638,18 +638,21 @@ internal static class ArchiveComparisonChecks
     private static void Click(Button button, Evidence e) => e.Action(button, "Click routed event", () => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)));
     private static void Edit(TextBox field, string raw, Evidence e) => e.Action(field, "edit raw text: " + raw, () => field.Text = raw);
     private static void Key(Control control, Key key, Evidence e) => e.Action(control, "KeyDown " + key, () => control.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key }));
-    private static void Source(ArchivePage page, string source, Evidence e)
+    // Add resolves the text against the suggestions for it (async on the first read); wait for the chip or its field error.
+    private static async Task Source(ArchivePage page, string source, Evidence e)
     {
         IdentitySuggestionBox field = C<IdentitySuggestionBox>(page, "ArchiveSourceFilter");
         e.Action(field, "edit identity: " + source, () => field.Text = source); Click(C<Button>(page, "ArchiveAddSource"), e);
+        await Program.WaitUntilAsync(() => string.IsNullOrEmpty(field.Text) || DataValidationErrors.GetHasErrors(field));
     }
-    private static void Board(ArchivePage page, string? source, string board, Evidence e)
+    private static async Task Board(ArchivePage page, string? source, string board, Evidence e)
     {
         ComboBox scope = C<ComboBox>(page, "ArchiveBoardScope");
         object? option = source == null ? scope.Items.Cast<object>().First() : scope.Items.Cast<object>().Single(item => item.ToString() == source);
         e.Action(scope, "select scope: " + option, () => scope.SelectedItem = option);
         IdentitySuggestionBox field = C<IdentitySuggestionBox>(page, "ArchiveBoardFilter");
         e.Action(field, "edit board: " + board, () => field.Text = board); Click(C<Button>(page, "ArchiveAddBoard"), e);
+        await Program.WaitUntilAsync(() => string.IsNullOrEmpty(field.Text) || DataValidationErrors.GetHasErrors(field));
     }
     private static async Task Search(ArchivePage page, Evidence e, string[] expected)
     {
@@ -669,14 +672,14 @@ internal static class ArchiveComparisonChecks
         e.Action(C<Expander>(page, "ArchiveFilters"), "expand filters (control property edit)", () => C<Expander>(page, "ArchiveFilters").IsExpanded = true); await Settle();
         await Reset(page, e);
         e.Predict("pair-exact", "product-pair-list", PairIds("A/x", "B/y"));
-        Source(page, "A", e); Source(page, "B", e); Board(page, "A", "x", e); Board(page, "B", "y", e);
+        await Source(page, "A", e); await Source(page, "B", e); await Board(page, "A", "x", e); await Board(page, "B", "y", e);
         await Search(page, e, PairIds("A/x", "B/y"));
         await Reset(page, e);
         e.Predict("global-x", "product-pair-list", PairIds("A/x", "B/x"));
-        Board(page, null, "x", e); await Search(page, e, PairIds("A/x", "B/x"));
+        await Board(page, null, "x", e); await Search(page, e, PairIds("A/x", "B/x"));
         await Reset(page, e);
         e.Predict("source-removal", "product-pair-list", new { rows = PairIds("B/y"), retainedOutsideDraft = "A/x" });
-        Source(page, "A", e); Source(page, "B", e); Board(page, "A", "x", e); Board(page, "B", "y", e);
+        await Source(page, "A", e); await Source(page, "B", e); await Board(page, "A", "x", e); await Board(page, "B", "y", e);
         Key(Tag(page, "ArchiveDraftSources", "A"), Avalonia.Input.Key.Enter, e);
         Require(Tags(page, "ArchiveDraftBoards").Any(label => label.Contains("A /x/") && label.Contains(Texts.T("archive.boardOutsideSources"))), "Outside-source board draft lost its warning.");
         await Search(page, e, PairIds("B/y"));
@@ -687,9 +690,9 @@ internal static class ArchiveComparisonChecks
         // Reset selection draft via allowed fixture setup; scalar compatibility above is independently asserted.
         await Reset(page, e);
         string[] before = Rows(page);
-        Source(page, "A", e); Source(page, "B", e);
-        foreach (string source in new[] { "A", "B" }) foreach (string board in Boards) Board(page, source, board, e);
-        Board(page, "A", "mistake", e);
+        await Source(page, "A", e); await Source(page, "B", e);
+        foreach (string source in new[] { "A", "B" }) foreach (string board in Boards) await Board(page, source, board, e);
+        await Board(page, "A", "mistake", e);
         Require(Rows(page).SequenceEqual(before), "Adding a draft applied search.");
         e.Write("correction", new { reason = "deliberately entered wrong board", rawBefore = Tags(page, "ArchiveDraftBoards") });
         Key(Tag(page, "ArchiveDraftBoards", "A /mistake/"), Avalonia.Input.Key.Enter, e);

@@ -102,9 +102,13 @@ internal static class NativeImeChecks
                 identity.Text = "";
                 identity.BringIntoView(); identity.Focus(); identity.RestartSuggestions();
                 await Program.WaitUntilAsync(() => identity.IsDropDownOpen);
+                int chipsBefore = archive.DraftSources.Count;
                 await ObserveAsync("archive-identity-conflict", identity);
                 if (ReadSearchGeneration() != beforeCompositionSearch)
                     throw new InvalidOperationException("Identity/IME candidate handling prematurely invoked archive search.");
+                // Accepting a suggestion now adds a chip; an Enter that confirms a composition must only confirm it.
+                if (archive.DraftSources.Count != chipsBefore)
+                    throw new InvalidOperationException("Identity/IME composition Enter added a source chip.");
             }
             finally { identity.Candidates = originalCandidates; identity.Dismiss(); }
             if (owner.SessionHost.GetView().Threads.Count != 0 || owner.SessionHost.GetView().Boards.Count != 0
@@ -155,7 +159,7 @@ internal static class NativeImeChecks
                     selected = suggestion.SelectedItem as IdentitySuggestion,
                     items = suggestion.ItemsSource?.OfType<IdentitySuggestion>().ToArray()
                 } : null,
-                sourceSubmitCount = sourceSubmits, appliedSearchChanges,
+                sourceSubmitCount = sourceSubmits, appliedSearchChanges, draftSources = archive.DraftSources.ToArray(),
                 searchValidationGeneration = ReadSearchGeneration(),
                 searchBusy = archive.IsBusy,
                 appliedSearch = archive.AppliedSearchSpec is { } spec ? ArchiveSearchSpecJson.Serialize(spec) : null,

@@ -17,6 +17,19 @@ internal sealed class IdentitySuggestions
         candidate != null && StringComparer.Ordinal.Equals(candidate.Value, text) ? candidate : null;
     internal static string? InputIdentity(string? text, IdentitySuggestion? candidate) =>
         CurrentSelection(text, candidate)?.Value ?? text?.Trim();
+    // Enter or Add without a click takes the highlighted suggestion, else the one matching the text exactly
+    // (ignoring case, only if unique), else the only suggestion shown. Null keeps the typed text as a free value.
+    internal static IdentitySuggestion? Resolve(string? text, IdentitySuggestion? highlighted, IReadOnlyList<IdentitySuggestion> candidates)
+    {
+        if (highlighted != null) return highlighted;
+        string typed = text?.Trim() ?? "";
+        if (typed.Length == 0) return null;
+        IdentitySuggestion[] exact = candidates.Where(x => StringComparer.Ordinal.Equals(x.Value, text)).ToArray();
+        if (exact.Length == 1) return exact[0];
+        IdentitySuggestion[] folded = candidates.Where(x => StringComparer.OrdinalIgnoreCase.Equals(x.Value.Trim(), typed)).ToArray();
+        if (folded.Length == 1) return folded[0];
+        return candidates.Count == 1 ? candidates[0] : null;
+    }
 
     internal IdentitySuggestions(ArchiveIdentityPage<string> sources, ArchiveIdentityPage<ArchiveBoardIdentity> boards)
     { Sources = sources; Boards = boards; }

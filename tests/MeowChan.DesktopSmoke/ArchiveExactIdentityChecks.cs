@@ -77,7 +77,9 @@ internal static class ArchiveExactIdentityChecks
                 var actual = Rows().Select(row => (row.Summary.Id.Source, row.Summary.Id.Board)).OrderBy(x => x.Source, StringComparer.Ordinal).ThenBy(x => x.Board, StringComparer.Ordinal);
                 Require(actual.SequenceEqual(expected.OrderBy(x => x.Source, StringComparer.Ordinal).ThenBy(x => x.Board, StringComparer.Ordinal)), "Exact result membership changed.");
             }
-            void Add(string name) => C<Button>(name).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            async Task Add(string name) { C<Button>(name).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Settle(); }
+            bool Draft(string name, string value, string? source) => name == "ArchiveSourceFilter"
+                ? page.DraftSources.Contains(value, StringComparer.Ordinal) : page.DraftBoards.Contains(new ArchiveBoardConstraint(source, value));
             void Scope(string source)
             {
                 ComboBox scope = C<ComboBox>("ArchiveBoardScope");
@@ -154,8 +156,9 @@ internal static class ArchiveExactIdentityChecks
                     option.RaiseEvent(new PointerReleasedEventArgs(option, mouse, root, at, 2,
                         new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonReleased), KeyModifiers.None, MouseButton.Left) { RoutedEvent = InputElement.PointerReleasedEvent });
                     await Settle();
-                    Require(!field.IsDropDownOpen && page.TryReadSelectedIdentity(name) is { } clicked
-                        && clicked.Value == value && clicked.Source == source && field.Text == value, "A clicked exact suggestion was not accepted.");
+                    // Accepting adds the exact identity (a board with its own source) as a chip, empties the field and keeps focus there.
+                    Require(!field.IsDropDownOpen && field.Text == "" && Draft(name, value, source) && field.IsKeyboardFocusWithin,
+                        "A clicked exact suggestion was not added as a chip with focus kept in its field.");
                     return;
                 }
                 KeyEventArgs down = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Down };
@@ -164,8 +167,8 @@ internal static class ArchiveExactIdentityChecks
                 KeyEventArgs enter = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter };
                 input.RaiseEvent(enter); KeyboardState("immediate-after-enter", enter); await Settle();
                 KeyboardState("settled-after-enter", enter);
-                Require(enter.Handled && !field.IsDropDownOpen && page.TryReadSelectedIdentity(name) is { } accepted
-                    && accepted.Value == value && accepted.Source == source && field.Text == value, "Shown exact suggestion was not explicitly accepted.");
+                Require(enter.Handled && !field.IsDropDownOpen && field.Text == "" && Draft(name, value, source) && field.IsKeyboardFocusWithin,
+                    "Shown exact suggestion was not added as a chip on Enter.");
             }
 
             await Case("definition-draft-reapply", async () =>
@@ -197,7 +200,7 @@ internal static class ArchiveExactIdentityChecks
             {
                 await Apply(Definition([" A "], []));
                 C<WrapPanel>("ArchiveDraftSources").Children.OfType<ClosableTag>().Single().Command!.Execute(null);
-                await Type("ArchiveSourceFilter", "A"); Add("ArchiveAddSource");
+                await Type("ArchiveSourceFilter", "A"); await Add("ArchiveAddSource");
                 Require(await page.RemoveAppliedFilter("source", " A "), "Source chip removal failed.");
                 Observe("source-category-distinguishes-padded-draft", "after-chip");
                 Membership(("A", "x"), ("A", " x "), (" A ", "x"), (" A ", " x "));
@@ -208,7 +211,7 @@ internal static class ArchiveExactIdentityChecks
             {
                 await Apply(Definition(["A"], [new("A", " x ")]));
                 C<WrapPanel>("ArchiveDraftBoards").Children.OfType<ClosableTag>().Single().Command!.Execute(null);
-                Scope("A"); await Type("ArchiveBoardFilter", "x"); Add("ArchiveAddBoard");
+                Scope("A"); await Type("ArchiveBoardFilter", "x"); await Add("ArchiveAddBoard");
                 string key = ArchivePage.AppliedFilterLabels(page.AppliedSearchSpec!).Single(item => item.Field == "board").Value!;
                 Require(await page.RemoveAppliedFilter("board", key), "Padded board removal failed.");
                 Observe("board-category-distinguishes-padded-draft", "after-chip");
@@ -220,18 +223,16 @@ internal static class ArchiveExactIdentityChecks
             {
                 await Apply(Definition([], []));
                 await Accept("ArchiveSourceFilter", " A ", null, pointer: true);
-                Observe("accepted-source-and-board-stay-exact-across-language", "after-source-accepted-before-add");
-                Add("ArchiveAddSource");
-                Observe("accepted-source-and-board-stay-exact-across-language", "after-source-add-before-scope");
+                Observe("accepted-source-and-board-stay-exact-across-language", "after-source-accepted");
                 Scope(" A ");
                 await Accept("ArchiveBoardFilter", " x ", " A ");
                 string languageBefore = Texts.Language;
                 Texts.SetLanguage(languageBefore == "en" ? "de" : "en"); await Settle();
                 Observe("accepted-source-and-board-stay-exact-across-language", "after-language");
-                Require(page.TryReadSelectedIdentity("ArchiveBoardFilter") is { Value: " x ", Source: " A " }, "Language-only relabel revoked an accepted exact board.");
-                Add("ArchiveAddBoard"); await page.ApplySearchAsync();
+                Require(page.DraftBoards.SequenceEqual([new ArchiveBoardConstraint(" A ", " x ")]), "Language-only relabel changed an accepted exact board.");
+                await page.ApplySearchAsync();
                 Membership((" A ", " x "));
-                Require(page.AppliedSearchSpec!.Sources.SequenceEqual([" A "]) && !page.HasUnappliedSearchDraft, "Accepted source or board was trimmed by Add.");
+                Require(page.AppliedSearchSpec!.Sources.SequenceEqual([" A "]) && !page.HasUnappliedSearchDraft, "Accepted source or board was trimmed.");
                 Texts.SetLanguage(languageBefore); await Settle();
             });
             await Case("explicit-scope-change-revokes-previous-board-qualification", async () =>
@@ -241,19 +242,20 @@ internal static class ArchiveExactIdentityChecks
                 Scope(" A ");
                 await Accept("ArchiveBoardFilter", " x ", " A "); Scope("A");
                 Observe("explicit-scope-change-revokes-previous-board-qualification", "after-scope-change");
-                Require(page.ReadIdentityEditor("ArchiveBoardFilter") == " x " && page.TryReadSelectedIdentity("ArchiveBoardFilter") == null,
-                    "Explicit source change kept stale accepted qualification or rewrote raw text.");
-                Add("ArchiveAddBoard"); await page.ApplySearchAsync();
-                Membership(("A", "x"));
-                Require(page.AppliedSearchSpec!.Boards.SequenceEqual([new ArchiveBoardConstraint("A", "x")]), "Free board did not use its new explicit scope.");
+                // The accepted chip keeps its own source; free text typed afterwards takes the new scope.
+                await Type("ArchiveBoardFilter", "x "); await Add("ArchiveAddBoard"); await page.ApplySearchAsync();
+                Membership((" A ", " x "), ("A", "x"));
+                Require(page.AppliedSearchSpec!.Boards.SequenceEqual([new ArchiveBoardConstraint(" A ", " x "), new ArchiveBoardConstraint("A", "x")]),
+                    "Accepted board lost its source or free board did not use its new explicit scope.");
             });
             await Case("new-free-input-trims-without-normalizing-existing-identities", async () =>
             {
                 await Apply(Definition([" A "], []));
-                await Type("ArchiveSourceFilter", " A ");
+                // "A " and "x " match no stored identity, so they stay free text and are trimmed.
+                await Type("ArchiveSourceFilter", "A ");
                 Require(page.TryReadSelectedIdentity("ArchiveSourceFilter") == null, "Merely typing accepted a suggestion.");
-                Add("ArchiveAddSource"); Scope("A");
-                await Type("ArchiveBoardFilter", " x "); Add("ArchiveAddBoard");
+                await Add("ArchiveAddSource"); Scope("A");
+                await Type("ArchiveBoardFilter", "x "); await Add("ArchiveAddBoard");
                 await Program.WaitUntilAsync(() => !page.IsBusy);
                 await page.ApplySearchAsync(); Observe("new-free-input-trims-without-normalizing-existing-identities", "after-apply");
                 Require(page.AppliedSearchSpec!.Sources.SequenceEqual([" A ", "A"]) && page.AppliedSearchSpec.Boards.SequenceEqual([new ArchiveBoardConstraint("A", "x")]),
@@ -304,12 +306,9 @@ internal static class ArchiveExactIdentityChecks
                 }
                 NoSearchHappened(applied, rows, "navigation");
                 KeyEventArgs enter = await PressKey(input, Avalonia.Input.Key.Enter);
-                Require(enter.Handled && !field.IsDropDownOpen && field.Text == "A" && page.TryReadSelectedIdentity("ArchiveSourceFilter") is { Value: "A" },
-                    "Enter did not accept the highlighted second candidate.");
+                Require(enter.Handled && !field.IsDropDownOpen && field.Text == "" && page.DraftSources.SequenceEqual(["A"]) && page.HasUnappliedSearchDraft,
+                    "Enter did not add the highlighted second candidate to the unapplied draft.");
                 NoSearchHappened(applied, rows, "enter");
-                Add("ArchiveAddSource");
-                Require(page.ReadIdentityEditor("ArchiveSourceFilter") == "" && page.HasUnappliedSearchDraft, "Add did not move the accepted source into the unapplied draft.");
-                NoSearchHappened(applied, rows, "add");
                 await page.ApplySearchAsync();
                 Require(page.AppliedSearchSpec!.Sources.SequenceEqual(["A"]), "Search did not use the accepted source.");
             });
@@ -320,19 +319,25 @@ internal static class ArchiveExactIdentityChecks
                 await PressKey(input, Avalonia.Input.Key.Down);
                 KeyEventArgs escape = await PressKey(input, Avalonia.Input.Key.Escape);
                 Require(escape.Handled && !field.IsDropDownOpen && field.Text == "" && field.AcceptedCandidate == null, "Escape accepted or kept the list.");
+                // Enter on the empty field with a closed list searches and adds nothing.
+                ArchiveSearchSpec? beforeEnter = page.AppliedSearchSpec;
                 KeyEventArgs enterClosed = await PressKey(input, Avalonia.Input.Key.Enter);
-                Require(field.AcceptedCandidate == null && field.Text == "", "Enter accepted a candidate from a closed list.");
+                await Program.WaitUntilAsync(() => !page.IsBusy);
+                Require(field.AcceptedCandidate == null && field.Text == "" && page.DraftSources.Count == 0 && !ReferenceEquals(beforeEnter, page.AppliedSearchSpec)
+                    && string.IsNullOrEmpty(C<TextBlock>("ArchiveSearchError").Text), "Enter on an empty closed field did not search cleanly or added a candidate.");
                 KeyEventArgs down = await PressKey(input, Avalonia.Input.Key.Down);
                 await Program.WaitUntilAsync(() => field.IsDropDownOpen && field.ItemsSource?.Cast<IdentitySuggestion>().Count() == 2);
                 Require(down.Handled && field.Text == "" && field.AcceptedCandidate == null, "Reopening changed the draft.");
                 await PressKey(input, Avalonia.Input.Key.Down);
                 Require(Selector(field)?.SelectedIndex == 0, "Navigation after reopen did not highlight the first candidate.");
                 await PressKey(input, Avalonia.Input.Key.Down); await PressKey(input, Avalonia.Input.Key.Enter);
-                Require(field.Text == "A" && page.TryReadSelectedIdentity("ArchiveSourceFilter") is { Value: "A" }, "Candidate after Escape reopen was not accepted.");
+                Require(field.Text == "" && page.DraftSources.SequenceEqual(["A"]), "Candidate after Escape reopen was not added.");
+                // Scenario 8: arrows through the list, then Escape: text and chips stay as they were.
                 await PressKey(input, Avalonia.Input.Key.Down);
                 await Program.WaitUntilAsync(() => field.IsDropDownOpen);
+                await PressKey(input, Avalonia.Input.Key.Down); await PressKey(input, Avalonia.Input.Key.Down);
                 await PressKey(input, Avalonia.Input.Key.Escape);
-                Require(field.Text == "A" && !field.IsDropDownOpen, "Escape after accept lost the accepted text.");
+                Require(field.Text == "" && !field.IsDropDownOpen && page.DraftSources.SequenceEqual(["A"]), "Navigation and Escape changed the text or the chips.");
             });
             await Case("board-candidate-add-then-explicit-search", async () =>
             {
@@ -344,11 +349,9 @@ internal static class ArchiveExactIdentityChecks
                 Require(list.All(x => x.Source == "A") && list.Select(x => x.Value).SequenceEqual([" x ", "x"]), "Board candidates are not scoped to source A: " + JsonSerializer.Serialize(list));
                 await PressKey(input, Avalonia.Input.Key.Down); await PressKey(input, Avalonia.Input.Key.Down);
                 await PressKey(input, Avalonia.Input.Key.Enter);
-                Require(page.TryReadSelectedIdentity("ArchiveBoardFilter") is { Value: "x", Source: "A" }, "Board candidate was not accepted with its source.");
+                Require(page.ReadIdentityEditor("ArchiveBoardFilter") == "" && page.DraftBoards.SequenceEqual([new ArchiveBoardConstraint("A", "x")]) && page.HasUnappliedSearchDraft,
+                    "Board candidate was not added with its source to the unapplied draft.");
                 NoSearchHappened(applied, rows, "board enter");
-                Add("ArchiveAddBoard");
-                Require(page.ReadIdentityEditor("ArchiveBoardFilter") == "" && page.HasUnappliedSearchDraft, "Board Add did not populate the unapplied draft.");
-                NoSearchHappened(applied, rows, "board add");
                 await page.ApplySearchAsync();
                 Membership(("A", "x"));
                 Require(page.AppliedSearchSpec!.Boards.SequenceEqual([new ArchiveBoardConstraint("A", "x")]), "Search did not receive the qualified board.");
@@ -359,17 +362,14 @@ internal static class ArchiveExactIdentityChecks
                 ArchiveSearchSpec? applied = page.AppliedSearchSpec; string[] rows = Rows().Select(row => row.Summary.Id.Source + "|" + row.Summary.Id.Board).ToArray();
                 var (field, input) = await OpenList("ArchiveSourceFilter", 2);
                 await PressKey(input, Avalonia.Input.Key.Down); await PressKey(input, Avalonia.Input.Key.Enter);
-                Require(page.TryReadSelectedIdentity("ArchiveSourceFilter") is { Value: " A " }, "First highlighted source was not accepted.");
-                Add("ArchiveAddSource");
+                Require(page.DraftSources.SequenceEqual([" A "]), "First highlighted source was not added.");
                 (field, input) = await OpenList("ArchiveSourceFilter", 2);
                 await PressKey(input, Avalonia.Input.Key.Down); await PressKey(input, Avalonia.Input.Key.Down); await PressKey(input, Avalonia.Input.Key.Enter);
-                Require(page.TryReadSelectedIdentity("ArchiveSourceFilter") is { Value: "A" }, "Second highlighted source was not accepted.");
-                Add("ArchiveAddSource");
+                Require(page.DraftSources.SequenceEqual([" A ", "A"]), "Second highlighted source was not added.");
                 NoSearchHappened(applied, rows, "two source accepts");
                 Scope("A");
                 (field, input) = await OpenList("ArchiveBoardFilter", 2);
                 await PressKey(input, Avalonia.Input.Key.Down); await PressKey(input, Avalonia.Input.Key.Down); await PressKey(input, Avalonia.Input.Key.Enter);
-                Add("ArchiveAddBoard");
                 NoSearchHappened(applied, rows, "board accept after sources");
                 Require(page.HasUnappliedSearchDraft, "Accepted candidates did not collect in the unapplied draft.");
                 await page.ApplySearchAsync();
@@ -412,7 +412,7 @@ internal static class ArchiveExactIdentityChecks
             {
                 string? appliedBefore = page.AppliedSearchSpec == null ? null : ArchiveSearchSpecJson.Serialize(page.AppliedSearchSpec);
                 ComboBox state = C<ComboBox>("ArchiveStateFilter");
-                for (int choice = 1; choice <= 3; choice++) { state.SelectedIndex = choice; Add("ArchiveAddState"); await Settle(); }
+                for (int choice = 1; choice <= 3; choice++) { state.SelectedIndex = choice; await Settle(); }
                 WrapPanel tags = C<WrapPanel>("ArchiveDraftStates");
                 Require(tags.Children.Count == 3, "Three draft state tags expected.");
                 IInputElement? Focused() => TopLevel.GetTopLevel(page)?.FocusManager?.GetFocusedElement();
@@ -433,11 +433,123 @@ internal static class ArchiveExactIdentityChecks
                 string? appliedAfter = page.AppliedSearchSpec == null ? null : ArchiveSearchSpecJson.Serialize(page.AppliedSearchSpec);
                 Require(appliedBefore == appliedAfter, "Removing a draft tag applied a search.");
                 // A pointer-style removal from a tag that is not focused must not take focus from another control.
-                state.SelectedIndex = 1; Add("ArchiveAddState"); await Settle();
+                state.SelectedIndex = 1; await Settle();
                 Control other = C<IdentitySuggestionBox>("ArchiveSourceFilter").GetVisualDescendants().OfType<TextBox>().First();
                 other.Focus(NavigationMethod.Tab); await Settle();
                 ((ClosableTag)tags.Children[0]).Command!.Execute(null); await Settle();
                 Require(tags.Children.Count == 0 && other.IsKeyboardFocusWithin, "An unfocused tag removal stole focus.");
+            });
+            // ---- UX filter input (spec UX-ARCHIVFILTER-EINGABE): accepting adds, search never fails on resolvable input ----
+            void Shot(string name)
+            {
+                if (Environment.GetEnvironmentVariable("MEOWCHAN_ARCHIVE_COMPARISON_OUTPUT") is not { } output || !Directory.Exists(output)) return;
+                Control surface = C<Border>("ArchiveFilterSurface");
+                double scale = host.RenderScaling;
+                using var bitmap = new Avalonia.Media.Imaging.RenderTargetBitmap(new PixelSize(Math.Max(1, (int)Math.Ceiling(host.Bounds.Width * scale)),
+                    Math.Max(1, (int)Math.Ceiling(host.Bounds.Height * scale))), new Vector(96 * scale, 96 * scale));
+                bitmap.Render(host); bitmap.Save(Path.Combine(output, "filter-input-" + name + ".png"));
+                Console.WriteLine("SMOKE archive filter-input capture: " + JsonSerializer.Serialize(new { name, surface = surface.Bounds.ToString() }));
+            }
+            bool TopErrorShown() => C<TextBlock>("ArchiveSearchError") is { IsVisible: true, Text.Length: > 0 };
+            await Case("scenario-1-click-adds-chip-without-search", async () =>
+            {
+                await Apply(Definition([], []));
+                ArchiveSearchSpec? applied = page.AppliedSearchSpec; string[] rows = Rows().Select(row => row.Summary.Id.Source + "|" + row.Summary.Id.Board).ToArray();
+                await Accept("ArchiveSourceFilter", " A ", null, pointer: true);
+                NoSearchHappened(applied, rows, "click");
+                Require(page.DraftSources.SequenceEqual([" A "]) && C<WrapPanel>("ArchiveDraftSources").Children.Count == 1, "Clicked suggestion is not a chip.");
+                Shot("scenario-1-click");
+            });
+            await Case("scenario-2-enter-adds-single-candidate-then-enter-searches", async () =>
+            {
+                await Apply(Definition([], []));
+                ArchiveSearchSpec? applied = page.AppliedSearchSpec; string[] rows = Rows().Select(row => row.Summary.Id.Source + "|" + row.Summary.Id.Board).ToArray();
+                // " A" is a prefix of exactly one stored source, the padded legacy " A " (like "4ch" of "4chan").
+                // Whitespace alone counts as an empty field, so it is not used as the prefix here.
+                await Type("ArchiveSourceFilter", " A");
+                IdentitySuggestionBox field = C<IdentitySuggestionBox>("ArchiveSourceFilter");
+                TextBox input = field.GetVisualDescendants().OfType<TextBox>().First();
+                await Program.WaitUntilAsync(() => field.IsDropDownOpen && field.ItemsSource?.Cast<IdentitySuggestion>().Count() == 1);
+                KeyEventArgs enter = await PressKey(input, Key.Enter);
+                Require(enter.Handled && field.Text == "" && !field.IsDropDownOpen && page.DraftSources.SequenceEqual([" A "]) && field.IsKeyboardFocusWithin,
+                    "Enter without a highlight did not add the only suggestion.");
+                NoSearchHappened(applied, rows, "first enter");
+                await PressKey(input, Key.Enter); await Program.WaitUntilAsync(() => !page.IsBusy);
+                Require(page.AppliedSearchSpec!.Sources.SequenceEqual([" A "]) && !TopErrorShown() && !DataValidationErrors.GetHasErrors(field),
+                    "Second Enter on the empty field did not search without error.");
+            });
+            await Case("scenario-3-search-adds-leftover-text-first", async () =>
+            {
+                await Apply(Definition([], []));
+                async Task Search()
+                {
+                    C<Button>("SearchArchiveButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    await Program.WaitUntilAsync(() => !page.IsBusy); await Settle();
+                }
+                await Type("ArchiveSourceFilter", "A"); await Search();
+                Require(page.AppliedSearchSpec!.Sources.SequenceEqual(["A"]) && page.ReadIdentityEditor("ArchiveSourceFilter") == ""
+                    && page.DraftSources.SequenceEqual(["A"]) && !TopErrorShown() && !page.HasUnappliedSearchDraft, "Search with leftover source text did not add it first.");
+                Membership(("A", "x"), ("A", " x "));
+                Scope("A"); await Type("ArchiveBoardFilter", "x"); await Search();
+                Require(page.AppliedSearchSpec!.Boards.SequenceEqual([new ArchiveBoardConstraint("A", "x")]) && page.ReadIdentityEditor("ArchiveBoardFilter") == ""
+                    && !TopErrorShown() && !page.HasUnappliedSearchDraft, "Search with leftover board text did not add it first.");
+                Membership(("A", "x"));
+            });
+            await Case("scenario-4-unknown-free-value-becomes-chip", async () =>
+            {
+                await Apply(Definition([], []));
+                await Type("ArchiveSourceFilter", " free β' value ");
+                TextBox input = C<IdentitySuggestionBox>("ArchiveSourceFilter").GetVisualDescendants().OfType<TextBox>().First();
+                await PressKey(input, Key.Enter);
+                Require(page.DraftSources.SequenceEqual(["free β' value"]) && page.ReadIdentityEditor("ArchiveSourceFilter") == "", "Unknown free text was not added trimmed.");
+                Require(page.HasUnappliedSearchDraft, "A new chip is not an unapplied draft.");
+            });
+            await Case("scenario-5-invalid-value-one-message-under-field", async () =>
+            {
+                await Apply(Definition([], []));
+                ArchiveSearchSpec? applied = page.AppliedSearchSpec;
+                IdentitySuggestionBox field = C<IdentitySuggestionBox>("ArchiveSourceFilter");
+                TextBox input = field.GetVisualDescendants().OfType<TextBox>().First();
+                input.Focus(NavigationMethod.Tab); await Settle();
+                input.Text = "bad\0value"; await Settle();
+                await PressKey(input, Key.Enter);
+                Require(page.DraftSources.Count == 0 && field.Text == "bad\0value" && DataValidationErrors.GetHasErrors(field) && !TopErrorShown()
+                    && ReferenceEquals(applied, page.AppliedSearchSpec), "Invalid Enter added a chip, lost the text or showed the message twice.");
+                string message = DataValidationErrors.GetErrors(field)?.OfType<object>().Single().ToString() ?? "";
+                int ShownUnderField() => field.GetVisualDescendants().OfType<TextBlock>().Count(text => text.Text == message && text.IsEffectivelyVisible);
+                Require(message.Length > 0 && ShownUnderField() == 1, "The validation message is not shown once under the field.");
+                Shot("scenario-5-invalid-enter");
+                // Search with the invalid leftover: nothing searched, still only the field message.
+                C<Button>("SearchArchiveButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Settle();
+                Require(ReferenceEquals(applied, page.AppliedSearchSpec) && DataValidationErrors.GetHasErrors(field) && ShownUnderField() == 1 && !TopErrorShown() && page.DraftSources.Count == 0,
+                    "Search with an invalid leftover searched or repeated the message above the toolbar.");
+                // The marker counts the leftover text as unapplied input.
+                Require(page.HasUnappliedSearchDraft, "Leftover text is not an unapplied draft.");
+                input.Text = ""; await Settle();
+                await page.ApplySearchAsync();
+                Require(!DataValidationErrors.GetHasErrors(field) && !page.HasUnappliedSearchDraft, "Clearing the invalid text did not clear its message on search.");
+            });
+            await Case("scenario-6-choosing-state-adds-chip", async () =>
+            {
+                await Apply(Definition([], []));
+                ComboBox state = C<ComboBox>("ArchiveStateFilter");
+                Require(page.FindControl<Button>("ArchiveAddState") == null, "The state Add button is still there.");
+                state.SelectedIndex = 2; await Settle();
+                WrapPanel chips = C<WrapPanel>("ArchiveDraftStates");
+                Require(state.SelectedIndex == 0 && chips.Children.OfType<ClosableTag>().Select(tag => (tag.Content as TextBlock)?.Text).SequenceEqual([Texts.T("archive.sourceArchived")]),
+                    "Choosing a state did not add its chip and reset the list.");
+                Require(Avalonia.Automation.AutomationProperties.GetLiveSetting(chips) == Avalonia.Automation.AutomationLiveSetting.Polite
+                    && Avalonia.Automation.AutomationProperties.GetName(chips) == Texts.T("archive.sourceArchived"), "The new state chip is not announced politely.");
+                Shot("scenario-6-state");
+                // Arrows on the closed list open it instead of adding the next state.
+                state.Focus(NavigationMethod.Tab); await Settle();
+                KeyEventArgs down = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Down };
+                state.RaiseEvent(down); await Settle();
+                Require(down.Handled && state.IsDropDownOpen && chips.Children.Count == 1, "Down on the closed state list added a state.");
+                state.IsDropDownOpen = false; await Settle();
+                Require(chips.Children.Count == 1 && state.SelectedIndex == 0, "Closing the state list unchanged added a state.");
+                await page.ApplySearchAsync();
+                Require(page.AppliedSearchSpec!.SourceStates.SequenceEqual([ThreadSourceState.Archived]), "Search did not use the state chip.");
             });
             Require(failures.Count == 0, "Exact identity regressions: " + string.Join(" | ", failures));
         }

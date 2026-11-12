@@ -372,11 +372,24 @@ internal static class PrivateTagBarChecks
         await SearchAsync();
         Require(Rows().SequenceEqual(new[] { "3001" }) && Applied().SequenceEqual(new[] { "Tag: red", "Without tag: blue" }), "Exclude result is wrong: " + string.Join(",", Rows()));
 
-        // A chosen but not added tag is an unfinished entry: explained, nothing searched.
+        // A chosen but not added tag is an unfinished entry: explained, nothing searched. Unlike a source or
+        // board (added on Search), the app cannot guess Include or Exclude. The request to choose stands once,
+        // under the tag choice in the opened filter surface, not again above the toolbar.
         Choose("unused");
         await SearchAsync();
-        Require(error.IsVisible && error.Text == Texts.T("tags.filter.pending") && Rows().SequenceEqual(new[] { "3001" }), "Pending tag choice was applied or ignored silently.");
-        Require(DataValidationErrors.GetHasErrors(choice), "Pending tag choice is not marked at its control.");
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
+        Require(Rows().SequenceEqual(new[] { "3001" }) && DataValidationErrors.GetHasErrors(choice)
+            && DataValidationErrors.GetErrors(choice)?.OfType<object>().Select(item => item.ToString()).SequenceEqual(new[] { Texts.T("tags.filter.pending") }) == true,
+            "Pending tag choice was applied or ignored silently.");
+        TextBlock[] shownUnderChoice = choice.GetVisualDescendants().OfType<TextBlock>()
+            .Where(text => text.Text == Texts.T("tags.filter.pending") && text.IsEffectivelyVisible).ToArray();
+        Console.WriteLine("SMOKE private-tags pending-choice: " + System.Text.Json.JsonSerializer.Serialize(new
+        {
+            surfaceOpen = page.IsFilterSurfaceOpen, choiceVisible = choice.IsEffectivelyVisible, shownUnderChoice = shownUnderChoice.Length,
+            validationPresenters = choice.GetVisualDescendants().OfType<DataValidationErrors>().Count(), topError = error.Text, topVisible = error.IsVisible
+        }));
+        Require(page.IsFilterSurfaceOpen && choice.IsEffectivelyVisible && shownUnderChoice.Length == 1 && !error.IsVisible,
+            "The Include/Exclude request is not shown exactly once, under the tag choice.");
         choice.SelectedIndex = 0;
         Require(!DataValidationErrors.GetHasErrors(choice), "Clearing the choice did not clear its mark.");
 

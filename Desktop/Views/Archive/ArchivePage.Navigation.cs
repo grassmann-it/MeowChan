@@ -83,12 +83,28 @@ public partial class ArchivePage
     {
         if (e.Key != Key.Enter) return;
         e.Handled = true;
+        // Enter in a source or board field with text adds it; the user sees the chip before searching.
+        // Enter on an empty field or in the text field searches.
+        if (sender is IdentitySuggestionBox editor && !string.IsNullOrWhiteSpace(editor.Text))
+        { await AddIdentityAsync(ReferenceEquals(editor, ArchiveBoardFilter)); return; }
         await ApplySearchAsync();
     }
     internal async Task ApplySearchAsync()
     {
         if (IsFilenameSearchOpen || _busy || _ended || !CanRead) return;
         long validation = ++_searchValidationGeneration;
+        // Leftover state, source or board input is added first, exactly like Enter in its field. Only an invalid
+        // value stops the search; its message stays under that field alone while the field can be shown.
+        AddChosenState();
+        foreach (IdentitySuggestionBox editor in new[] { ArchiveSourceFilter, ArchiveBoardFilter })
+        {
+            if (await AddIdentityAsync(ReferenceEquals(editor, ArchiveBoardFilter))) continue;
+            if (validation != _searchValidationGeneration || !DataValidationErrors.GetHasErrors(editor)) return;
+            _invalidSearchEditor = editor;
+            ShowSearchError(DataValidationErrors.GetErrors(editor)?.OfType<object>().FirstOrDefault()?.ToString() ?? string.Empty, validation);
+            return;
+        }
+        if (validation != _searchValidationGeneration || _busy || _ended || !CanRead) return;
         try
         {
             ArchiveSearchRequest request = CreateSearchRequest(ReadSearchDraft());
@@ -96,11 +112,17 @@ public partial class ArchivePage
             _showReader = false; UpdateLayoutMode();
             await LoadListAsync(NewListLoad(request));
         }
-        catch (Exception exception)
-        {
-            SearchEditorError(exception.Message);
-            RevealSearchValidationError(validation);
-        }
+        catch (Exception exception) { ShowSearchError(exception.Message, validation); }
+    }
+    // A field error stands once, directly under its field. The line above the toolbar carries it only when
+    // the field cannot show it (filter surface closed, field hidden) and for errors without a field.
+    private void ShowSearchError(string message, long validation)
+    {
+        RevealSearchValidationError(validation); // Opens the filter surface for a field error.
+        Control? field = _invalidSearchEditor == null ? null : ValidationFocusTarget(_invalidSearchEditor);
+        bool underField = field != null && IsFilterSurfaceOpen && field.IsEffectivelyVisible
+            && (DataValidationErrors.GetHasErrors(field) || DataValidationErrors.GetHasErrors(_invalidSearchEditor!));
+        SearchEditorError(underField ? string.Empty : message);
     }
     private void CancelReferences()
     {
