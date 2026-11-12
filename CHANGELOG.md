@@ -28,6 +28,9 @@
   as an overlay; open filters over the results; keep the Reader toolbar on one row.
 - Show the orange cat in the light theme and the grey cat in the dark theme; soften the light theme
   (palette corrections pending).
+- Show both cats side by side in the header logo and the About window in either theme (window,
+  tray and dialog icons keep following the theme), and credit the photographer of both cats (Simba, orange; Mila, grey),
+  Alexander Huxel · Webentwicklung Huxel, in THIRD-PARTY-NOTICES, the README and About > Credits.
 - Return focus to the export button or **More** after closing export, scroll the settings
   validation error into view in small windows, and keep secondary windows at normal size
   after a title-bar restore on Linux/X11.

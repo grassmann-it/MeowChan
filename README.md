@@ -275,3 +275,6 @@ If MeowChan helps you, you can voluntarily [support its development via PayPal](
 ## License
 
 The project uses Artistic License 2.0; see [LICENSE](LICENSE). Desktop dependency and asset notices are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+Cat photos (Mila, grey; Simba, orange): [Alexander Huxel · Webentwicklung Huxel](https://webentwicklung-huxel.de/)
+([Flickr](https://flickr.com/people/204852984@N05/)).

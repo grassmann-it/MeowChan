@@ -266,17 +266,35 @@ proprietary theme assemblies are no longer dependencies or distributed assets.
     `Assets/meowchan-dark.ico` and high-resolution source
     `Assets/branding/meowchan-dark-source.png`. Selected by the project
     maintainer on 2026-10-10, derived with OpenAI ImageGen from a cat
-    photograph supplied by the maintainer. These files are byte-identical to
+    photograph supplied by the maintainer; the cat is Mila, photographed
+    by Alexander Huxel (credit below). These files are byte-identical to
     the branding the application used before 2026-11-12.
-  - Orange, shown in the light theme and used for the executable, Linux
+  - Orange (Simba), shown in the light theme and used for the executable, Linux
     package and macOS bundle icons: `Assets/meowchan.png`,
     `Assets/meowchan.ico` and high-resolution source
     `Assets/branding/meowchan-source.png`. Adopted on 2026-11-12 as the
     selected UX103 branding source (`lain-aktuell.png`, SHA-256
     `6c9024b7220b6e015eeeb36aec9763fa5d804224b2b9e260caa7c4947c8436b1`); the
     source file is kept byte-for-byte and the PNG and ICO are derived from it
-    by `scripts/prepare-branding-ux103.py` without crop or recolour. That
-    preparation records its rights and provenance as not assessed.
+    by `scripts/prepare-branding-ux103.py` without crop or recolour. The same
+    artwork is the logo of the lain project (`lain-cat.png`, same SHA-256);
+    its provenance is recorded in lain's `src/Lain.Desktop/Assets/Brand/README.md`
+    ("Credit and permission"). The preparation script itself assesses no rights
+    (its manifest keeps the rights gate "not assessed"); the credit and statement
+    below are the rights record for both sets.
+
+  Cat photographs for both sets: Alexander Huxel · Webentwicklung Huxel,
+  <https://webentwicklung-huxel.de/>, Flickr
+  <https://flickr.com/people/204852984@N05/>. Simba (orange) and Mila (grey) are
+  each derived from a photograph by Alexander Huxel (the orange one an edited
+  variant of the supplied artwork, the grey one as described above). Used with
+  the permission of Alexander Huxel for the projects of Tom Graßmann, on condition
+  of attribution by name, as stated by the project owner on 12 November 2026. No
+  license name or further terms were given; the photographs are not covered by
+  MeowChan's license.
+
+  The application's header and About window show both cats side by side; the
+  window, tray and dialog icons keep following the theme.
 
   Within each set the PNG, Windows ICO and, for the orange set, packaged macOS
   ICNS use the same photographic cutout.

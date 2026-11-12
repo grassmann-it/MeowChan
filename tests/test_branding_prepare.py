@@ -441,19 +441,25 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn(f'internal const string LightAsset = "{uri}";', mapping)
         self.assertIn(f'internal const string DarkAsset = "{DARK_URI}";', mapping)
         self.assertIn("IsDark(variant) ? DarkAsset : LightAsset", mapping)
-        windows = {"Desktop/Shell/MainWindow.axaml": "WorkspaceLogo", "Desktop/Views/About/AboutWindow.axaml": "CatLogo",
+        # The header logo and About show both cats side by side (ThemeLogo.ShowPair); their window icons still follow the theme.
+        windows = {"Desktop/Shell/MainWindow.axaml": ("WorkspaceLogo", "WorkspaceLogoDark"),
+                   "Desktop/Views/About/AboutWindow.axaml": ("CatLogo", "CatLogoDark"),
                    "Desktop/Views/Settings/SettingsWindow.axaml": None, "Desktop/Views/Settings/FirstRunSetupWindow.axaml": None}
-        for name, image in windows.items():
+        self.assertIn("internal static void ShowPair(Image orange, Image grey)", mapping)
+        self.assertNotIn("Follow(Image", mapping)
+        for name, images in windows.items():
             with self.subTest(window=name):
                 window = ET.parse(ROOT / name).getroot()
                 self.assertNotIn("Icon", window.attrib)
                 code = (ROOT / (name + ".cs")).read_text(encoding="utf-8")
                 self.assertIn("ThemeLogo.Follow(this);", code)
-                if image:
-                    logo = next(element for element in window.iter()
-                                if element.get("{http://schemas.microsoft.com/winfx/2006/xaml}Name") == image)
-                    self.assertNotIn("Source", logo.attrib)
-                    self.assertIn(f"ThemeLogo.Follow({image});", code)
+                if images:
+                    for image in images:
+                        logo = next(element for element in window.iter()
+                                    if element.get("{http://schemas.microsoft.com/winfx/2006/xaml}Name") == image)
+                        self.assertNotIn("Source", logo.attrib)
+                        self.assertNotIn(f"ThemeLogo.Follow({image});", code)
+                    self.assertIn(f"ThemeLogo.ShowPair({images[0]}, {images[1]});", code)
         self.assertIn("ThemeLogo.Follow(this);", (ROOT / "Desktop/StartupErrorWindow.cs").read_text(encoding="utf-8"))
         shell = (ROOT / "Desktop/Shell/MainWindow.axaml.cs").read_text(encoding="utf-8")
         tray = shell.split("private void ConfigureTrayIcon(TrayIcon trayIcon)", 1)[1].split("private void RestoreWindow()", 1)[0]

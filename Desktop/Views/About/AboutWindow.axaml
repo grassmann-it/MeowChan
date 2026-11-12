@@ -19,8 +19,13 @@
              the window cycle keeps the caption buttons reachable. -->
         <Grid Grid.Row="1" RowDefinitions="Auto,Auto,*,Auto">
         <Border x:Name="DialogFrameHeader" Padding="16,16,16,12">
-        <Grid ColumnDefinitions="72,*" ColumnSpacing="16">
-            <Image x:Name="CatLogo" Width="72" Height="72" Stretch="Uniform"/>
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
+            <!-- Orange and grey cat together, in either theme; one accessible name for the pair. -->
+            <StackPanel x:Name="CatLogoPair" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                        AutomationProperties.AccessibilityView="Content">
+                <Image x:Name="CatLogo" Width="72" Height="72" Stretch="Uniform" AutomationProperties.AccessibilityView="Raw"/>
+                <Image x:Name="CatLogoDark" Width="72" Height="72" Stretch="Uniform" AutomationProperties.AccessibilityView="Raw"/>
+            </StackPanel>
             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
                 <TextBlock FontSize="26" FontWeight="SemiBold"><Run Text="Meow" Foreground="{DynamicResource Workspace.Text}"/><Run Text="Chan" Foreground="{DynamicResource Workspace.Accent}"/></TextBlock>
                 <WrapPanel ItemSpacing="12" LineSpacing="4">
@@ -87,6 +92,15 @@
                         <TextBlock x:Name="VideoCreditsText"/>
                         <TextBlock x:Name="UICreditsText"/>
                         <TextBlock x:Name="IconsText"/>
+                        <StackPanel Spacing="8">
+                            <TextBlock x:Name="PhotoCreditText"/>
+                            <WrapPanel ItemSpacing="8" LineSpacing="8">
+                                <Button x:Name="PhotoCreditLink" Classes="link"
+                                        Tag="https://webentwicklung-huxel.de/" Click="OnLinkClick"/>
+                                <Button x:Name="PhotoCreditFlickrLink" Classes="link" Content="Flickr"
+                                        Tag="https://flickr.com/people/204852984@N05/" Click="OnLinkClick"/>
+                            </WrapPanel>
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

@@ -88,7 +88,8 @@ public partial class MainWindow : Window
             }
             // After the saved theme, so the first logo decoded is the one shown.
             ThemeLogo.Follow(this);
-            ThemeLogo.Follow(WorkspaceLogo);
+            // Both cats side by side in the header, whatever the theme; only the window icon follows it.
+            ThemeLogo.ShowPair(WorkspaceLogo, WorkspaceLogoDark);
             // Progress-only changes are spaced (first comparison variant of PF-03: 100 ms, background priority);
             // lifecycle, pause, warnings, watch-set and failure changes use RequestImmediate.
             _sessionRefresh = new CoalescedUiUpdate(RefreshSession, SessionProgressIntervalForTests);

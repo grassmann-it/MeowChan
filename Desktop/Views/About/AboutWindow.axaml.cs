@@ -24,6 +24,8 @@ public partial class AboutWindow : Window
     private readonly OfflineLegalCatalog _legal;
     private bool _closed;
     private AboutActionError? _actionError;
+    // The photographer's and the business name are proper names: never translated.
+    internal const string PhotoCreditName = "Alexander Huxel · Webentwicklung Huxel";
 
     public AboutWindow() : this(null) { }
 
@@ -34,7 +36,8 @@ public partial class AboutWindow : Window
         InitializeComponent();
         AppCaption.Attach(this);
         ThemeLogo.Follow(this);
-        ThemeLogo.Follow(CatLogo);
+        // Both cats side by side in either theme; only the window icon follows the theme.
+        ThemeLogo.ShowPair(CatLogo, CatLogoDark);
         Opened += (_, _) => { MeowChan.Desktop.Commands.LegacyCommandAdapters.Register(this); MeowChan.Desktop.Commands.CommandBindings.BindExisting(CloseButton, "about.close"); };
         Assembly assembly = typeof(AboutWindow).Assembly;
         string? informationalVersion = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
@@ -60,7 +63,12 @@ public partial class AboutWindow : Window
         AboutTab.Header = Texts.T("about.tab.about");
         CreditsTab.Header = Texts.T("about.tab.credits");
         LicensesTab.Header = Texts.T("about.tab.licenses");
-        AutomationProperties.SetName(CatLogo, Texts.T("about.logoDescription"));
+        AutomationProperties.SetName(CatLogoPair, Texts.T("about.logoDescription"));
+        // Each cat is named by tooltip (and a name for tools); the images stay out of the accessibility tree.
+        AutomationProperties.SetName(CatLogo, Texts.T("about.logoSimba"));
+        ToolTip.SetTip(CatLogo, Texts.T("about.logoSimba"));
+        AutomationProperties.SetName(CatLogoDark, Texts.T("about.logoMila"));
+        ToolTip.SetTip(CatLogoDark, Texts.T("about.logoMila"));
         VersionText.Text = Texts.T("shell.version", _version);
         CopyVersionButton.Content = Texts.T("about.copyVersion");
         DescriptionText.Text = Texts.T("about.description");
@@ -74,6 +82,9 @@ public partial class AboutWindow : Window
         VideoCreditsText.Text = Texts.T("about.videoCredits");
         UICreditsText.Text = Texts.T("about.uiCredits");
         IconsText.Text = Texts.T("about.featherCredits");
+        PhotoCreditText.Text = Texts.T("about.photoCredit", PhotoCreditName);
+        PhotoCreditLink.Content = PhotoCreditName;
+        AutomationProperties.SetName(PhotoCreditFlickrLink, Texts.T("about.photoCreditFlickr", PhotoCreditName));
         LicenseText.Text = Texts.T("about.license");
         LicenseSearchBox.PlaceholderText = Texts.T("about.licenseSearch");
         LicenseMetadataExpander.Header = Texts.T("about.sources");

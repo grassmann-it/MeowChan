@@ -327,7 +327,7 @@ internal static class BuiltInCatalog
         ("admission.results", "Import results", "Importergebnisse"),
         ("admission.empty", "No URLs found in the input.", "Keine URLs in der Eingabe gefunden."),
         ("about.title", "About MeowChan", "Über MeowChan"),
-        ("about.logoDescription", "MeowChan cat logo", "MeowChan-Katzenlogo"),
+        ("about.logoDescription", "MeowChan logo: Simba (orange cat) and Mila (grey cat)", "MeowChan-Logo: Simba (orangefarbene Katze) und Mila (graue Katze)"),
         ("about.description", "MeowChan downloads and archives imageboard media and posts, with sources supplied by plugins.", "MeowChan lädt und archiviert Imageboard-Medien und Beiträge mit Quellen aus Plugins."),
         ("about.author", "Written by TomKa (grassmann-it), formerly known as themirage.", "Entwickelt von TomKa (grassmann-it), früher bekannt als themirage."),
         ("about.history", "Special thanks to Issung for forking YChan and keeping it alive as GChan.", "Besonderer Dank an Issung für den Fork von YChan und dessen Weiterentwicklung als GChan."),

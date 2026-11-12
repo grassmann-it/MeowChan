@@ -10,9 +10,11 @@ namespace MeowChan.Desktop;
 
 /// <summary>
 /// The one place that chooses the cat logo: the orange cat in the light theme, the grey cat in the dark
-/// theme. Consumers follow the effective (resolved) variant and switch live; an unresolved variant, such
-/// as before any theme exists, shows the orange cat. The executable and package icons cannot follow the
-/// app theme and stay orange outside this class.
+/// theme. Window icons, the tray and dialog icons follow the effective (resolved) variant and switch live;
+/// an unresolved variant, such as before any theme exists, shows the orange cat. The executable and
+/// package icons cannot follow the app theme and stay orange outside this class. The header brand and
+/// the About window are the exception: both cats belong to the identity, so they show the pair side by
+/// side in either theme (<see cref="ShowPair"/>) instead of following a variant.
 /// </summary>
 internal static class ThemeLogo
 {
@@ -49,9 +51,14 @@ internal static class ThemeLogo
         return new Bitmap(stream);
     }
 
-    internal static void Follow(Window window) => Follow(window, variant => window.Icon = IconFor(variant));
+    /// <summary>Shows the orange cat and the grey cat in two images, independent of the theme.</summary>
+    internal static void ShowPair(Image orange, Image grey)
+    {
+        orange.Source = BitmapFor(ThemeVariant.Light);
+        grey.Source = BitmapFor(ThemeVariant.Dark);
+    }
 
-    internal static void Follow(Image image) => Follow(image, variant => image.Source = BitmapFor(variant));
+    internal static void Follow(Window window) => Follow(window, variant => window.Icon = IconFor(variant));
 
     /// <summary>Applies the element's current variant now and again on every change; once per element.</summary>
     internal static void Follow(StyledElement element, Action<ThemeVariant?> apply)

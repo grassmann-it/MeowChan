@@ -18,7 +18,11 @@ empty translations; their English fallback stays empty. Tests compare each pack
 with the compiled English catalog and validate exact formatting contracts through
 the production loader. Key coverage is **not** language-quality or complete-UI QA.
 Future key additions require matching pack updates. The keys of `InlineTextCatalog` (formerly hard-coded English/German pairs in product code) were machine-translated into es/fr/ru and have had no human proofreading yet. Proper names and technical
-terms may legitimately match English.
+terms may legitimately match English. The About-window photo credit and logo
+description (`about.photoCredit`, `about.photoCreditFlickr`, `about.logoDescription`,
+`about.logoSimba`, `about.logoMila`)
+are machine translations in es/fr/ru too; the photographer's and business name are
+passed in as a placeholder and are never translated.
 
 The es/fr/ru entries of `BooruStatusCatalog` (keys `booru.failure.*`,
 `booru.deferred.*`, `booru.watcher.*`, `booru.query.*`, `booru.post.*`,

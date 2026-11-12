@@ -111,7 +111,7 @@ internal static class ShowcaseCaptures
         window.FindControl<MenuItem>("AboutMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         await Program.WaitUntilAsync(() => window.OwnedWindows.OfType<AboutWindow>().Any(about => about.IsVisible));
         AboutWindow about = window.OwnedWindows.OfType<AboutWindow>().Single();
-        await Program.WaitUntilAsync(() => about.FindControl<Image>("CatLogo")!.Source != null && about.Bounds.Width > 0);
+        await Program.WaitUntilAsync(() => about.FindControl<Image>("CatLogo")!.Source != null && about.FindControl<Image>("CatLogoDark")!.Source != null && about.Bounds.Width > 0);
         Button donate = about.FindControl<Button>("DonationLink")!;
         if (!donate.IsEffectivelyVisible || donate.Tag?.ToString() != "https://www.paypal.com/donate/?hosted_button_id=5BR4MK748PDSQ")
             throw new InvalidOperationException("The visible About support link does not match the project donation destination.");
@@ -510,7 +510,7 @@ internal static class ShowcaseCaptures
             {
                 Image logo = main.FindControl<Image>("WorkspaceLogo")!;
                 Point? origin = logo.TranslatePoint(default, main);
-                return logo.IsEffectivelyVisible && logo.Source != null && logo.Bounds.Width >= 24
+                return logo.IsEffectivelyVisible && logo.Source != null && main.FindControl<Image>("WorkspaceLogoDark")!.Source != null && logo.Bounds.Width >= 24
                     && logo.Bounds.Height >= 24 && origin is Point position && position.X >= 0 && position.Y >= 0
                     && position.X + logo.Bounds.Width <= main.Bounds.Width + 1
                     && position.Y + logo.Bounds.Height <= main.FindControl<Grid>("WorkspaceTitleBar")!.Bounds.Height + 1;
