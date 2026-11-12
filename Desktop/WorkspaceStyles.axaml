@@ -108,6 +108,30 @@
                     <SolidColorBrush x:Key="CheckBoxDefaultBorderBrush">#7A7062</SolidColorBrush>
                     <SolidColorBrush x:Key="ScrollBarThumbForeground">#7A7062</SolidColorBrush>
                     <SolidColorBrush x:Key="ScrollBarThumbPointeroverForeground">#575148</SolidColorBrush>
+                    <!-- LW-06 N1/N2/N3/N4/N8b/X2a: Semi blue left in Light. Selection uses Workspace.AccentSurface
+                         (#E7D4BE), focus and state indicators Workspace.Accent (#803B06, hover #9A4B0B, pressed #662F05). -->
+                    <SolidColorBrush x:Key="ListBoxItemSelectedBackground">#E7D4BE</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemSelectedPointeroverBackground">#E7D4BE</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemSelectedBackground">#E7D4BE</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemSelectedPointeroverBackground">#E7D4BE</SolidColorBrush>
+                    <SolidColorBrush x:Key="AdornerLayerBorderBrush">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="TextBoxFocusBorderBrush">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorFocusBorderBrush">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorPressedBorderBrush">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLinePipeSelectedBackground">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemIconSelectedForeground">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="PaginationButtonSelectedForeground">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="PaginationButtonSelectedBackground">#E7D4BE</SolidColorBrush>
+                    <SolidColorBrush x:Key="CheckBoxPointeroverBorderBrush">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="CheckBoxPressedBorderBrush">#662F05</SolidColorBrush>
+                    <SolidColorBrush x:Key="CheckBoxCheckedDefaultBackground">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="CheckBoxCheckedDefaultBorderBrush">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="CheckBoxCheckedPointeroverBackground">#9A4B0B</SolidColorBrush>
+                    <SolidColorBrush x:Key="CheckBoxCheckedPointeroverBorderBrush">#9A4B0B</SolidColorBrush>
+                    <SolidColorBrush x:Key="CheckBoxCheckedPressedBackground">#662F05</SolidColorBrush>
+                    <SolidColorBrush x:Key="CheckBoxCheckedPressedBorderBrush">#662F05</SolidColorBrush>
+                    <SolidColorBrush x:Key="TextBlockSelectionBackground">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="TextBlockSelectionForeground">#FFFFFF</SolidColorBrush>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
