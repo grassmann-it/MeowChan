@@ -131,7 +131,7 @@ internal static class LocalSearchLanguageRefreshChecks
                         "filename layout changed selection or queried");
                     Console.WriteLine(Marker + "FILENAME_LAYOUT_OK locale=" + code + " client=" + dialog.ClientSize);
                     // Restore height/width to avoid using tiny result viewport as a refresh oracle.
-                    dialog.Width = 820; dialog.Height = 680; await SettleAsync(dialog);
+                    await RestoreSizeAsync(dialog, 820, 680);
                 }
                 await native.ClickAsync(Named<Button>(dialog, "FilenameSearchSelect"));
                 Require(ReferenceEquals(hit, await shown.WaitAsync(Deadline)), "filename native selection returned wrong hit");
@@ -219,7 +219,7 @@ internal static class LocalSearchLanguageRefreshChecks
                     && query.SelectionStart == 1 && query.SelectionEnd == 9 && !shown.IsCompleted,
                     "hash layout changed query/selection/request");
                 Console.WriteLine(Marker + "HASH_LAYOUT_OK locale=" + code + " client=" + dialog.ClientSize);
-                dialog.Width = 760; dialog.Height = 640; await SettleAsync(dialog);
+                await RestoreSizeAsync(dialog, 760, 640);
             }
             Button selected = Named<StackPanel>(dialog, "MediaHashSearchResults").Children.OfType<Button>().Single();
             selected.BringIntoView(); await SettleAsync(dialog);
@@ -257,10 +257,12 @@ internal static class LocalSearchLanguageRefreshChecks
             .Where(run => run is not TextEndOfLine).Select(run => run.Text.ToString()));
         Require(layout.TextLines.Any() && double.IsFinite(layout.WidthIncludingTrailingWhitespace) && layout.Height > 0,
             "renderer bounds unavailable: " + button.Name + "/" + code);
+        // Glyph extent: the widest line without the break space that hangs at the end of a wrapped line.
+        double glyphWidth = layout.TextLines.Max(line => line.Width);
         Require(rendered == expected && layout.TextLines.All(line => !line.HasCollapsed)
-            && layout.WidthIncludingTrailingWhitespace <= label.Bounds.Width + 1 && layout.Height <= label.Bounds.Height + 1,
+            && glyphWidth <= label.Bounds.Width + 1 && layout.Height <= label.Bounds.Height + 1,
             "glyph clipping/collapse: " + button.Name + "/" + code + " label=" + label.Bounds.Size
-            + " glyphs=" + layout.WidthIncludingTrailingWhitespace + "x" + layout.Height);
+            + " glyphs=" + glyphWidth + "x" + layout.Height + " withTrailingWhitespace=" + layout.WidthIncludingTrailingWhitespace);
     }
 
     private static void CheckAttached(Window window, Control control)
@@ -278,6 +280,14 @@ internal static class LocalSearchLanguageRefreshChecks
             && child.Bounds.Width > 0 && child.Bounds.Height > 0 && origin is Point p
             && p.X >= -1 && p.Y >= -1 && p.X + child.Bounds.Width <= container.Bounds.Width + 1
             && p.Y + child.Bounds.Height <= container.Bounds.Height + 1;
+    }
+    private static async Task RestoreSizeAsync(Window window, double width, double height)
+    {
+        // The following native click is placed from screen coordinates, so the real window must have
+        // reached the restored size first; a layout-only settle can precede the window manager.
+        window.Width = width; window.Height = height;
+        await WaitAsync(() => Math.Abs(window.ClientSize.Width - width) <= 1 && Math.Abs(window.ClientSize.Height - height) <= 1);
+        await SettleAsync(window);
     }
     private static async Task MinimumAsync(Window window)
     {
