@@ -69,14 +69,19 @@ public sealed class BooruHostHttp : IDisposable
         if (job.IsExpired) return Failure("booru-budget", "The booru job budget is exhausted.");
 
         SourceState state = _states.GetOrAdd(source.SourceId, static _ => new SourceState());
+        // Every wait and attempt observes both the caller and the job lifetime. Closing the
+        // job (or reaching its deadline) therefore aborts a queued send-gate admission,
+        // provider spacing, retry delays, the header wait and body reads alike.
+        using CancellationTokenSource abort = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, job.Token);
+        CancellationToken token = abort.Token;
         bool entered = false;
         try
         {
-            await state.SendGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            await state.SendGate.WaitAsync(token).ConfigureAwait(false);
             entered = true;
             while (true)
             {
-                if (!job.IsOpen) return Failure("booru-job", "The booru job is not live.");
+                if (JobEnded(job) is HostHttpFailure ended) return ended;
                 DateTimeOffset now = _clock.GetUtcNow();
                 if (state.CooldownUntil > now)
                     return new HostHttpDeferred(state.CooldownUntil, "booru-cooldown");
@@ -86,19 +91,33 @@ public sealed class BooruHostHttp : IDisposable
                 if (due > now)
                 {
                     DateTimeOffset waitUntil = due < job.Deadline ? due : job.Deadline;
-                    await DelayUntilAsync(waitUntil, cancellationToken).ConfigureAwait(false);
+                    await DelayUntilAsync(waitUntil, token).ConfigureAwait(false);
                     continue;
                 }
 
-                if (!job.TryReserveSend()) return Failure("booru-budget", "The booru job send budget is exhausted.");
+                if (!job.TryReserveSend())
+                    return JobEnded(job) ?? Failure("booru-budget", "The booru job send budget is exhausted.");
                 state.NextStart = _clock.GetUtcNow() + MinimumStartSpacing;
-                return await SendWithRetryAsync(request, source, job, state, cancellationToken).ConfigureAwait(false);
+                return await SendWithRetryAsync(request, source, job, state, cancellationToken, token).ConfigureAwait(false);
             }
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && job.Token.IsCancellationRequested)
+        {
+            return JobEnded(job) ?? Failure("booru-job", "The booru job is not live.");
         }
         finally
         {
             if (entered) state.SendGate.Release();
         }
+    }
+
+    /// <summary>The terminal failure of a closed, expired or operation-cancelled job; null while it is live.</summary>
+    private static HostHttpFailure? JobEnded(BooruJob job, int? status = null)
+    {
+        if (!job.IsOpen) return Failure("booru-job", "The booru job is not live.", status);
+        if (job.IsExpired) return Failure("booru-budget", "The booru job budget is exhausted.", status);
+        if (job.Token.IsCancellationRequested) return Failure("booru-job", "The booru job is not live.", status);
+        return null;
     }
 
     internal bool TryGetCooldown(string sourceId, out DateTimeOffset retryAt)
@@ -120,17 +139,19 @@ public sealed class BooruHostHttp : IDisposable
     }
 
     private async Task<HostHttpResult> SendWithRetryAsync(HostHttpRequest request, SourceDescription source,
-        BooruJob job, SourceState state, CancellationToken cancellationToken)
+        BooruJob job, SourceState state, CancellationToken cancellationToken, CancellationToken abort)
     {
         bool retried = false;
         while (true)
         {
             HttpResponseMessage? response = null;
-            using AttemptWindow window = new(_clock, cancellationToken,
+            using AttemptWindow window = new(_clock, abort,
                 Min(_clock.GetUtcNow() + ResponseTimeout, job.Deadline));
             try
             {
                 response = await SendAttemptAsync(request, window.Token).ConfigureAwait(false);
+                // A job closed while the headers were in flight never reads a body byte.
+                abort.ThrowIfCancellationRequested();
                 if (response.RequestMessage?.RequestUri is Uri actual && actual != request.Url)
                     return Failure("http-redirect", "Metadata redirects are not followed.");
 
@@ -153,20 +174,28 @@ public sealed class BooruHostHttp : IDisposable
                         return Failure("booru-budget", "The booru job budget is exhausted.", status);
                     response.Dispose();
                     response = null;
-                    await DelayUntilAsync(retryAt, cancellationToken).ConfigureAwait(false);
-                    if (!job.IsOpen || job.IsExpired) return Failure("booru-budget", "The booru job budget is exhausted.", status);
-                    if (!job.TryReserveSend()) return Failure("booru-budget", "The booru job send budget is exhausted.", status);
+                    await DelayUntilAsync(retryAt, abort).ConfigureAwait(false);
+                    if (JobEnded(job, status) is HostHttpFailure ended) return ended;
+                    if (!job.TryReserveSend())
+                        return JobEnded(job, status) ?? Failure("booru-budget", "The booru job send budget is exhausted.", status);
                     state.NextStart = _clock.GetUtcNow() + MinimumStartSpacing;
                     continue;
                 }
 
-                byte[] body = await ReadBodyAsync(response.Content, window, cancellationToken).ConfigureAwait(false);
+                byte[] body = await ReadBodyAsync(response.Content, window, abort).ConfigureAwait(false);
                 return new HostHttpResponse(status, request.Url, ReadHeaders(response), body,
                     new SourceValidators(response.Headers.ETag?.ToString(), response.Content.Headers.LastModified));
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 throw;
+            }
+            catch (Exception exception) when (job.Token.IsCancellationRequested && exception is OperationCanceledException
+                or BooruAttemptTimeoutException or HttpRequestException or IOException)
+            {
+                // Close/deadline/operation end aborted this attempt: never classify it as a
+                // provider failure and never retry it.
+                return JobEnded(job) ?? Failure("booru-job", "The booru job is not live.");
             }
             catch (BooruAttemptTimeoutException exception)
             {
@@ -190,32 +219,22 @@ public sealed class BooruHostHttp : IDisposable
             {
                 return Failure("http-encoding", "The booru metadata response encoding is not supported.", exception: exception);
             }
-            catch (HttpRequestException exception) when (!retried)
+            catch (HttpRequestException) when (!retried)
             {
                 retried = true;
-                DateTimeOffset retryAt = _clock.GetUtcNow() + RetryDelay;
-                if (retryAt >= job.Deadline || job.IsExpired)
-                    return Failure("booru-budget", "The booru job budget is exhausted.", exception: exception);
-                await DelayUntilAsync(retryAt, cancellationToken).ConfigureAwait(false);
-                if (!job.IsOpen || job.IsExpired || !job.TryReserveSend())
-                    return Failure("booru-budget", "The booru job budget is exhausted.", exception: exception);
-                state.NextStart = _clock.GetUtcNow() + MinimumStartSpacing;
+                if (await DelayTransportRetryAsync(job, state, abort).ConfigureAwait(false) is HostHttpFailure stop)
+                    return stop;
                 continue;
             }
             catch (HttpRequestException exception)
             {
                 return Failure("http-network", "The booru metadata request failed.", exception: exception);
             }
-            catch (IOException exception) when (!retried)
+            catch (IOException) when (!retried)
             {
                 retried = true;
-                DateTimeOffset retryAt = _clock.GetUtcNow() + RetryDelay;
-                if (retryAt >= job.Deadline || job.IsExpired)
-                    return Failure("booru-budget", "The booru job budget is exhausted.", exception: exception);
-                await DelayUntilAsync(retryAt, cancellationToken).ConfigureAwait(false);
-                if (!job.IsOpen || job.IsExpired || !job.TryReserveSend())
-                    return Failure("booru-budget", "The booru job budget is exhausted.", exception: exception);
-                state.NextStart = _clock.GetUtcNow() + MinimumStartSpacing;
+                if (await DelayTransportRetryAsync(job, state, abort).ConfigureAwait(false) is HostHttpFailure stop)
+                    return stop;
                 continue;
             }
             catch (IOException exception)
@@ -229,8 +248,26 @@ public sealed class BooruHostHttp : IDisposable
         }
     }
 
+    /// <summary>Waits for the single transport retry; returns the stop failure when the job cannot send again.</summary>
+    private async Task<HostHttpFailure?> DelayTransportRetryAsync(BooruJob job, SourceState state, CancellationToken abort)
+    {
+        DateTimeOffset retryAt = _clock.GetUtcNow() + RetryDelay;
+        if (retryAt >= job.Deadline || job.IsExpired)
+            return Failure("booru-budget", "The booru job budget is exhausted.");
+        // A cancellation here propagates to SendAsync, which maps a job end to its failure.
+        await DelayUntilAsync(retryAt, abort).ConfigureAwait(false);
+        if (JobEnded(job) is HostHttpFailure ended) return ended;
+        if (!job.TryReserveSend())
+            return JobEnded(job) ?? Failure("booru-budget", "The booru job budget is exhausted.");
+        state.NextStart = _clock.GetUtcNow() + MinimumStartSpacing;
+        return null;
+    }
+
     private async Task<HttpResponseMessage> SendAttemptAsync(HostHttpRequest request, CancellationToken token)
     {
+        // The send was reserved under the job gate; a Close racing that reservation has
+        // already cancelled this token, so the transport is never entered afterwards.
+        token.ThrowIfCancellationRequested();
         using HttpRequestMessage message = new(HttpMethod.Get, request.Url);
         message.Headers.UserAgent.Clear();
         message.Headers.UserAgent.ParseAdd(_userAgent);
@@ -247,7 +284,7 @@ public sealed class BooruHostHttp : IDisposable
     }
 
     private async Task<byte[]> ReadBodyAsync(HttpContent content, AttemptWindow window,
-        CancellationToken cancellationToken)
+        CancellationToken abort)
     {
         if (content.Headers.ContentLength is long length && length > MaximumWireBytes)
             throw new BooruBodyTooLargeException();
@@ -259,7 +296,7 @@ public sealed class BooruHostHttp : IDisposable
         {
             int read;
             try { read = await raw.ReadAsync(chunk, window.Token).ConfigureAwait(false); }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (OperationCanceledException) when (abort.IsCancellationRequested) { throw; }
             catch (OperationCanceledException exception) when (window.Expired) { throw new BooruAttemptTimeoutException(exception); }
             if (read == 0) break;
             if (wire.Length + read > MaximumWireBytes) throw new BooruBodyTooLargeException();
@@ -286,7 +323,7 @@ public sealed class BooruHostHttp : IDisposable
                 {
                     int read;
                     try { read = await decoded.ReadAsync(chunk, window.Token).ConfigureAwait(false); }
-                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                    catch (OperationCanceledException) when (abort.IsCancellationRequested) { throw; }
                     catch (OperationCanceledException exception) when (window.Expired) { throw new BooruAttemptTimeoutException(exception); }
                     if (read == 0) break;
                     if (output.Length + read > MaximumDecodedBytes) throw new BooruBodyTooLargeException();
