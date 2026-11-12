@@ -81,7 +81,7 @@ public sealed class ConfigTests
 
         Assert.False(Directory.Exists(profile));
         Assert.Null(config.LoadWarning);
-        Assert.Equal("Barebones", config.WorkspaceMode);
+        Assert.Equal("Simple", config.WorkspaceMode);
         Assert.Equal(60, config.RecheckTimer);
         Assert.Equal(5, config.MaxParallelDownloads);
         Assert.Equal(1024 * 1024, config.BandwidthLimiter);
@@ -598,6 +598,32 @@ public sealed class ConfigTests
     }
 
     [Fact]
+    public void OnlyAPositivelyNewProfileStartsInSimpleAndKeepsItAfterSaving()
+    {
+        using TempDirectory fresh = new TempDirectory();
+        Config created = Config.LoadConfig(fresh.Path);
+        Assert.Equal(ProfileOrigin.ConfirmedNew, created.Origin);
+        Assert.Equal("Simple", created.WorkspaceMode);
+        created.SaveConfig();
+        Assert.Equal("Simple", Config.LoadConfig(fresh.Path).WorkspaceMode);
+
+        // Other files but no settings.json is not a new profile: it keeps the historical default.
+        using TempDirectory legacy = new TempDirectory();
+        File.WriteAllText(Path.Combine(legacy.Path, "saved_urls.json"), "[]");
+        Config existing = Config.LoadConfig(legacy.Path);
+        Assert.Equal(ProfileOrigin.ExistingMissingSettings, existing.Origin);
+        Assert.Equal("Barebones", existing.WorkspaceMode);
+
+        // A stored mode wins, and a stored file without a mode keeps Barebones.
+        using TempDirectory stored = new TempDirectory();
+        File.WriteAllText(SettingsPath(stored), "{\"WorkspaceMode\":\"Barebones\"}");
+        Assert.Equal("Barebones", Config.LoadConfig(stored.Path).WorkspaceMode);
+        using TempDirectory unset = new TempDirectory();
+        File.WriteAllText(SettingsPath(unset), "{\"RecheckTimer\":120}");
+        Assert.Equal("Barebones", Config.LoadConfig(unset.Path).WorkspaceMode);
+    }
+
+    [Fact]
     public void PresentationPreferencesCloneCopyAndRoundTripThroughTheBoundProfile()
     {
         using TempDirectory directory = new TempDirectory();
@@ -605,13 +631,13 @@ public sealed class ConfigTests
         Config candidate = original.Clone();
         candidate.Theme = "Light";
         candidate.Language = "de";
-        candidate.WorkspaceMode = "Simple";
+        candidate.WorkspaceMode = "Advanced";
         candidate.CompactDensity = true;
         candidate.SaveConfig();
 
         Assert.Equal("Dark", original.Theme);
         Assert.Equal("en", original.Language);
-        Assert.Equal("Barebones", original.WorkspaceMode);
+        Assert.Equal("Simple", original.WorkspaceMode);
         Assert.False(original.CompactDensity);
 
         original.CopyFrom(candidate);
@@ -619,7 +645,7 @@ public sealed class ConfigTests
         Assert.Null(loaded.LoadWarning);
         Assert.Equal("Light", loaded.Theme);
         Assert.Equal("de", loaded.Language);
-        Assert.Equal("Simple", loaded.WorkspaceMode);
+        Assert.Equal("Advanced", loaded.WorkspaceMode);
         Assert.True(loaded.CompactDensity);
         Assert.Equal(loaded.Theme, original.Theme);
         Assert.Equal(loaded.Language, original.Language);

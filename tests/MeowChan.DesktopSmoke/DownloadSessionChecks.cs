@@ -74,7 +74,7 @@ internal static class DownloadSessionChecks
         {
             Require(Config.LoadConfig(profile).WorkspaceMode == "Barebones"
                 && (initial.FindControl<ComboBox>("WorkspaceModeComboBox")!.SelectedItem as ComboBoxItem)?.Tag as string == "Barebones",
-                "The new download profile did not start in Barebones view.");
+                "The seeded download profile did not start in Barebones view.");
             // Exercise the existing Simple-to-Barebones transition explicitly.
             TraceLayout(initial, "before Simple mode");
             await PresentationChecks.SwitchModeAsync(initial, "Simple");

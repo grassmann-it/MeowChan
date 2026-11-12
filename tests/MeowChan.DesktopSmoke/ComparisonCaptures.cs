@@ -27,7 +27,7 @@ internal static class ComparisonCaptures
         ComboBox modes = window.FindControl<ComboBox>("WorkspaceModeComboBox")!;
         if (initial.WorkspaceMode != "Barebones" || (modes.SelectedItem as ComboBoxItem)?.Tag as string != "Barebones"
             || initial.Theme != "Dark" || Application.Current?.RequestedThemeVariant != ThemeVariant.Dark)
-            throw new InvalidOperationException("The comparison scene did not start in the new profile's Barebones/Dark view.");
+            throw new InvalidOperationException("The comparison scene did not start in the seeded profile's Barebones/Dark view.");
         if (window.UrlList.Count != 0 || window.BoardsList.Count != 0)
             throw new InvalidOperationException("The comparison scene requires an empty isolated session.");
 

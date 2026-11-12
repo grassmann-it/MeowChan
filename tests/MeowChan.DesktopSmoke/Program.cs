@@ -186,6 +186,8 @@ internal static class Program
             Config config = new Config
             {
                 DownloadPath = Path.Combine(profile, "Downloads"),
+                // The scenarios were written against the compact view; a real new profile now starts in Simple.
+                WorkspaceMode = "Barebones",
                 MinimizeToTray = _galleryCloseOnly || _noTrayMode || _trayFailureMode || _trayHostMode,
                 CloseToTray = _noTrayMode || _trayFailureMode || _trayHostMode,
                 DownloadsPaused = _selectionMode || (_shellLoadMode && ShellLoadFixture.Scenario == "paused"),

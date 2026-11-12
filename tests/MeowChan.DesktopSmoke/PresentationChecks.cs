@@ -24,7 +24,7 @@ internal static class PresentationChecks
         Require(modes.Items.OfType<ComboBoxItem>().Select(item => item.Tag as string)
             .SequenceEqual(new[] { "Barebones", "Simple", "Advanced" }),
             "The view choices were not ordered Barebones, Simple, Advanced.");
-        Require(initial.WorkspaceMode == "Barebones" && Mode(modes) == "Barebones", "A new profile did not open in Barebones view.");
+        Require(initial.WorkspaceMode == "Barebones" && Mode(modes) == "Barebones", "The seeded smoke profile did not open in Barebones view.");
         TextBlock version = window.FindControl<TextBlock>("WorkspaceVersion")!;
         Require(version.IsVisible && !string.IsNullOrWhiteSpace(version.Text),
             "Barebones did not display the application version in the title bar.");

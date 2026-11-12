@@ -437,6 +437,10 @@ namespace MeowChan
                 : status != LoadStatus.Missing || backupStatus != LoadStatus.Missing ? ProfileOrigin.Damaged
                 : (confirmedNew ?? IsEmptyProfile(directory)) ? ProfileOrigin.ConfirmedNew : ProfileOrigin.ExistingMissingSettings;
             Config defaults = BindProfile(new Config(), directory, relativePathBaseDirectory, origin);
+            // Only a positively new profile starts in Simple, where Archive and Media are footer buttons. The field
+            // default stays Barebones: a stored file without a mode, damaged or unsupported settings and a profile
+            // that has other files but no settings.json keep the view they have always had.
+            if (origin == ProfileOrigin.ConfirmedNew) defaults.WorkspaceMode = "Simple";
             if (IsLegacyProfileWithoutSettings(directory))
                 defaults.DownloadPath = GetDefaultDownloadPath("oChan");
             if (status != LoadStatus.Missing || backupStatus != LoadStatus.Missing)
