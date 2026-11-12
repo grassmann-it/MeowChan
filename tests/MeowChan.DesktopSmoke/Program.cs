@@ -751,14 +751,24 @@ internal static class Program
             ?? throw new InvalidOperationException("The synthetic fixture did not implement the shared harness facade.");
     }
 
-    internal static async Task WaitUntilAsync(Func<bool> condition,
+    // state: optional description of what the condition observes, printed and attached on timeout only.
+    internal static async Task WaitUntilAsync(Func<bool> condition, Func<string>? state = null,
         [System.Runtime.CompilerServices.CallerFilePath] string callerFile = "",
         [System.Runtime.CompilerServices.CallerLineNumber] int callerLine = 0)
     {
         DateTime deadline = DateTime.UtcNow.AddSeconds(15);
         while (!condition())
         {
-            if (DateTime.UtcNow >= deadline) throw new TimeoutException($"Desktop condition timed out after fifteen seconds at {Path.GetFileName(callerFile)}:{callerLine}.");
+            if (DateTime.UtcNow >= deadline)
+            {
+                string location = Path.GetFileName(callerFile) + ":" + callerLine;
+                if (state == null) throw new TimeoutException($"Desktop condition timed out after fifteen seconds at {location}.");
+                string observed;
+                try { observed = state(); }
+                catch (Exception failure) { observed = "state unavailable: " + failure.GetType().Name + ": " + failure.Message; }
+                Console.Error.WriteLine("SMOKE wait timeout state at " + location + ": " + observed);
+                throw new TimeoutException($"Desktop condition timed out after fifteen seconds at {location}; state: {observed}");
+            }
             await Task.Delay(50);
         }
     }

@@ -125,7 +125,8 @@ internal static class WindowChromeChecks
                 window.Activate();
                 await Program.WaitUntilAsync(() => window.WindowState == original
                     && (original != WindowState.Normal || (Math.Abs(window.Bounds.Width - originalBounds.Width) <= 1
-                        && Math.Abs(window.Bounds.Height - originalBounds.Height) <= 1)));
+                        && Math.Abs(window.Bounds.Height - originalBounds.Height) <= 1)),
+                    () => "restore to " + original + "/" + originalBounds + "; " + Geometry(window));
             }, cleanupFailure =>
             {
                 Console.WriteLine($"SMOKE caption restore failure (primary preserved={sequenceFailure != null}): original={original}/{originalBounds}; actual={window.WindowState}/{window.Bounds.Size}; requested={window.Width}x{window.Height}. {cleanupFailure}");
@@ -139,7 +140,12 @@ internal static class WindowChromeChecks
     }
 
     private static Task WaitForNormalBoundsAsync(MainWindow window, Size expected) => Program.WaitUntilAsync(() =>
-        Math.Abs(window.Bounds.Width - expected.Width) <= 1 && Math.Abs(window.Bounds.Height - expected.Height) <= 1);
+        Math.Abs(window.Bounds.Width - expected.Width) <= 1 && Math.Abs(window.Bounds.Height - expected.Height) <= 1,
+        () => "normal bounds " + expected + "; " + Geometry(window));
+
+    private static string Geometry(MainWindow window) => "actual=" + window.WindowState + "/" + window.Bounds.Size
+        + "; requested=" + window.Width + "x" + window.Height + "; frame=" + window.FrameSize + "; position=" + window.Position
+        + "; scale=" + window.RenderScaling + "; area=" + window.Screens.ScreenFromWindow(window)?.WorkingArea;
 
     private static Task WaitForMaximizedBoundsAsync(MainWindow window) => Program.WaitUntilAsync(() =>
     {
@@ -147,7 +153,7 @@ internal static class WindowChromeChecks
         Avalonia.Platform.Screen? screen = window.Screens.ScreenFromWindow(window);
         return screen != null && Math.Abs(window.Bounds.Width * window.RenderScaling - screen.WorkingArea.Width) <= 2
             && Math.Abs(window.Bounds.Height * window.RenderScaling - screen.WorkingArea.Height) <= 2;
-    });
+    }, () => "maximized bounds; " + Geometry(window));
 
     // Native rectangle reads + a separately labelled renderer observation. No resizing
     // is performed here; a stable 1px uncovered right edge is a failure, not tolerance.
