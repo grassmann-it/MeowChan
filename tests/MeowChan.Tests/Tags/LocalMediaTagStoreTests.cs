@@ -287,6 +287,188 @@ public sealed class LocalMediaTagStoreTests
         Assert.Single(retry.Snapshot.LocalRegistry.Occurrences);
     }
 
+    private const string V1BackupName = "private-tags.v1.bak";
+
+    // A profile with a real v1 document (tags, a thread assignment and a bound media assignment).
+    private static (PrivateTagStore Store, TagId Cat, string Path, byte[] V1) V1Profile(string directory, ProfileLease lease)
+    {
+        PrivateTagStore store = new(directory, lease);
+        TagId cat = store.Define("cat").Tag;
+        store.SetThread(cat, Thread, true);
+        store.SetMedia(cat, Bound(), true);
+        string path = Path.Combine(directory, FileName);
+        byte[] v1 = File.ReadAllBytes(path);
+        Assert.Equal(1, PrivateTagStore.ValidateDocumentBytes(v1));
+        return (store, cat, path, v1);
+    }
+
+    [Fact]
+    public void TheFirstV2UpgradeKeepsAPermanentV1CopyThatNoLaterWriteTouches()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        (PrivateTagStore store, TagId cat, string path, byte[] v1) = V1Profile(temp.Path, lease);
+        string keep = Path.Combine(temp.Path, V1BackupName);
+        Assert.Equal(V1BackupName, PrivateTagStore.V1BackupFileName);
+        Assert.False(File.Exists(keep)); // Bound and thread writes stay v1 and need no copy.
+        Assert.False(store.SetMediaSubjects(cat, [Loose(Observe())], false).Changed); // a local no-op does not either
+        Assert.False(File.Exists(keep));
+
+        store.SetMediaSubjects(cat, [Loose(Observe())], true);
+
+        Assert.Equal(v1, File.ReadAllBytes(keep));
+        Assert.Equal(v1, File.ReadAllBytes(path + ".bak"));
+        Assert.Equal(1, PrivateTagStore.ValidateDocumentBytes(File.ReadAllBytes(keep)));
+        byte[] firstV2 = File.ReadAllBytes(path);
+
+        // The ordinary backup rotates on every later write; the v1 copy never does.
+        store.SetMediaSubjects(cat, [Loose(Observe("b.png"))], true);
+        Assert.Equal(firstV2, File.ReadAllBytes(path + ".bak"));
+        Assert.Equal(v1, File.ReadAllBytes(keep));
+        TagId dog = store.Define("dog").Tag;
+        store.SetThread(dog, OtherThread, true);
+        store.SetMediaSubjects(dog, [Loose(Observe())], true);
+        store.SetMediaSubjects(dog, [Loose(Observe())], false);
+        store.RemoveThreads([Thread, OtherThread]);
+        store.Delete(dog);
+        Assert.NotEqual(v1, File.ReadAllBytes(path + ".bak"));
+        Assert.Equal(v1, File.ReadAllBytes(keep));
+
+        // A fresh store instance (restart) and a write that stays v2 leave it alone as well.
+        new PrivateTagStore(temp.Path, lease).SetMediaSubjects(cat, [Loose(Observe("c.png"))], true);
+        Assert.Equal(v1, File.ReadAllBytes(keep));
+        Assert.Empty(Directory.GetFiles(temp.Path, "*.tmp"));
+        Assert.Equal(new[] { FileName, FileName + ".bak", V1BackupName }.Order(),
+            Directory.GetFiles(temp.Path, "private-tags*").Select(Path.GetFileName).Order());
+    }
+
+    [Fact]
+    public void TheV1CopyIsTheExactByteSequenceIncludingABomAndNotARoundTrippedDocument()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        (PrivateTagStore store, TagId cat, string path, byte[] plain) = V1Profile(temp.Path, lease);
+        byte[] v1 = [0xEF, 0xBB, 0xBF, .. plain, (byte)'\n'];
+        File.WriteAllBytes(path, v1);
+        Assert.Equal(1, PrivateTagStore.ValidateDocumentBytes(v1));
+
+        store.SetMediaSubjects(cat, [Loose(Observe())], true);
+
+        Assert.Equal(v1, File.ReadAllBytes(Path.Combine(temp.Path, V1BackupName)));
+    }
+
+    [Fact]
+    public void AnExistingV1CopyIsNeverOverwrittenNotEvenByTheUpgradeItself()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        (PrivateTagStore store, TagId cat, string path, byte[] v1) = V1Profile(temp.Path, lease);
+        string keep = Path.Combine(temp.Path, V1BackupName);
+        byte[] earlier = Encoding.UTF8.GetBytes("an earlier v1 copy, for example after a crash");
+        File.WriteAllBytes(keep, earlier);
+
+        PrivateTagCommit upgrade = store.SetMediaSubjects(cat, [Loose(Observe())], true);
+
+        Assert.True(upgrade.Changed);
+        Assert.Equal(2, upgrade.Snapshot.FormatVersion);
+        Assert.Equal(earlier, File.ReadAllBytes(keep));
+        Assert.Equal(v1, File.ReadAllBytes(path + ".bak")); // the ordinary rotation is unchanged
+        store.SetMediaSubjects(cat, [Loose(Observe("b.png"))], true);
+        Assert.Equal(earlier, File.ReadAllBytes(keep));
+        Assert.Empty(Directory.GetFiles(temp.Path, "*.tmp"));
+    }
+
+    [Fact]
+    public void ADirectoryAtTheV1CopyNameIsLeftAloneAndDoesNotBlockTheUpgrade()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        (PrivateTagStore store, TagId cat, _, _) = V1Profile(temp.Path, lease);
+        string keep = Path.Combine(temp.Path, V1BackupName);
+        Directory.CreateDirectory(keep);
+        File.WriteAllText(Path.Combine(keep, "note.txt"), "x");
+
+        Assert.True(store.SetMediaSubjects(cat, [Loose(Observe())], true).Changed);
+
+        Assert.True(Directory.Exists(keep));
+        Assert.Equal("x", File.ReadAllText(Path.Combine(keep, "note.txt")));
+    }
+
+    [Fact]
+    public void ACorruptV1PrimaryAndAFreshProfileCreateNoV1Copy()
+    {
+        using (TempDirectory temp = new())
+        using (ProfileLease lease = ProfileLease.Acquire(temp.Path))
+        {
+            (PrivateTagStore store, TagId cat, string path, byte[] v1) = V1Profile(temp.Path, lease);
+            byte[] damaged = v1[..^7];
+            File.WriteAllBytes(path, damaged);
+
+            Assert.Throws<InvalidDataException>(() => store.SetMediaSubjects(cat, [Loose(Observe())], true));
+
+            Assert.Equal(damaged, File.ReadAllBytes(path));
+            Assert.False(File.Exists(Path.Combine(temp.Path, V1BackupName)));
+            Assert.Empty(Directory.GetFiles(temp.Path, "*.tmp"));
+        }
+        using (TempDirectory temp = new())
+        using (ProfileLease lease = ProfileLease.Acquire(temp.Path))
+        {
+            // No v1 file ever existed: the first write is v2 from the start and has nothing to keep.
+            Assert.Equal(2, new PrivateTagStore(temp.Path, lease).DefineAndSetMediaSubjects("cat", [Loose(Observe())]).Snapshot.FormatVersion);
+            Assert.False(File.Exists(Path.Combine(temp.Path, V1BackupName)));
+        }
+    }
+
+    [Fact]
+    public void AV2OnlyProfileThatNeverHadV1BytesGetsNoV1Copy()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        File.WriteAllText(Path.Combine(temp.Path, FileName), ValidV2());
+        PrivateTagStore store = new(temp.Path, lease);
+        TagId tag = Assert.Single(store.ReadSnapshot().Tags).Id;
+
+        store.SetMediaSubjects(tag, [Loose(Observe("new.png"))], true);
+
+        Assert.False(File.Exists(Path.Combine(temp.Path, V1BackupName)));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void ACrashAroundTheUpgradeKeepsPrimaryAndV1CopyConsistentAndTheRetryNeverRewritesTheCopy(int point)
+    {
+        PrivateTagWritePhase crashAt = point switch
+        {
+            0 => PrivateTagWritePhase.BeforeBackupCheck, 1 => PrivateTagWritePhase.BeforeReplace, _ => PrivateTagWritePhase.AfterReplace
+        };
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        (_, TagId cat, string path, byte[] v1) = V1Profile(temp.Path, lease);
+        string keep = Path.Combine(temp.Path, V1BackupName);
+        PrivateTagStore crashing = new(temp.Path, lease)
+        { WritePhaseForTests = phase => { if (phase == crashAt) throw new IOException("crash"); } };
+
+        Assert.Throws<IOException>(() => crashing.SetMediaSubjects(cat, [Loose(Observe())], true));
+
+        // Before the replace the primary is still the v1 document; the copy exists only once it is safe to need it.
+        bool replaced = crashAt == PrivateTagWritePhase.AfterReplace;
+        Assert.Equal(replaced ? 2 : 1, PrivateTagStore.ValidateDocumentBytes(File.ReadAllBytes(path)));
+        Assert.Equal(crashAt != PrivateTagWritePhase.BeforeBackupCheck, File.Exists(keep));
+        if (File.Exists(keep)) Assert.Equal(v1, File.ReadAllBytes(keep));
+        if (replaced) Assert.Equal(v1, File.ReadAllBytes(path + ".bak"));
+
+        PrivateTagStore restarted = new(temp.Path, lease);
+        restarted.SetMediaSubjects(cat, [Loose(Observe("b.png"))], true);
+        restarted.SetMediaSubjects(cat, [Loose(Observe("c.png"))], true);
+
+        Assert.Equal(v1, File.ReadAllBytes(keep));
+        // a.png is registered only if the crashed write got as far as the replace.
+        Assert.Equal(replaced ? 3 : 2, restarted.ReadSnapshot().LocalRegistry.Occurrences.Count);
+        Assert.Empty(Directory.GetFiles(temp.Path, "*.tmp"));
+    }
+
     [Fact]
     public void CancellationStaleRevisionCapacityAndADamagedBackupNeverWriteOrLoseAssignments()
     {

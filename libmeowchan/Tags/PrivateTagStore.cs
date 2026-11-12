@@ -160,6 +160,9 @@ internal enum PrivateTagWritePhase { BeforeBackupCheck, BeforeReplace, AfterRepl
 internal sealed class PrivateTagStore
 {
     internal const string FileName = "private-tags.json";
+    // Permanent copy of the v1 bytes taken by the first write that upgrades v1 to v2 (the way back to 1.0.2).
+    // Created once, never rewritten, rotated or deleted by this store; unlike ".bak" it survives every later write.
+    internal const string V1BackupFileName = "private-tags.v1.bak";
     // Defensive work bounds, not promised product quotas.
     internal const int MaximumTags = PrivateTagCatalog.MaximumDefinitions;
     internal const int MaximumThreadAssignments = ThreadTagProjection.MaximumAssignments;
@@ -697,10 +700,14 @@ internal sealed class PrivateTagStore
             catch (FileNotFoundException) { }
             model.Revision++;
             // The first committed local data upgrades the document; afterwards it stays v2 (never silently downgraded).
+            // Only a document that was read as v1 from an existing primary has v1 bytes worth keeping.
+            bool upgradesV1 = model.HasLocalData && model.Version == BoundOnlyVersion && bytes.Length > 0;
             if (model.HasLocalData) model.Version = LocalVersion;
             byte[] next = Serialize(model);
             if (next.Length > MaximumBytes)
                 throw new PrivateTagStoreException(PrivateTagStoreError.CapacityExceeded);
+            // The exact v1 bytes are secured before the replace; ".bak" alone would lose them at the next write.
+            if (upgradesV1) KeepV1Backup(bytes, token);
             WritePhaseForTests?.Invoke(PrivateTagWritePhase.BeforeReplace);
             // One atomic replace publishes registrations together with the assignments that name them.
             AtomicJsonFile.WriteAllText(_path, StrictUtf8.GetString(next), backupCurrentFile: true, token);
@@ -708,6 +715,38 @@ internal sealed class PrivateTagStore
             return new PrivateTagCommit(true, tag, model.Snapshot(next));
         });
     }
+
+    /// <summary>
+    /// Writes the exact v1 bytes as <see cref="V1BackupFileName"/> unless anything already occupies that name
+    /// (an earlier upgrade, a crash after this step, or the user's own file): an existing entry is never touched.
+    /// Temporary file, flush to disk, then a move that cannot overwrite.
+    /// </summary>
+    private void KeepV1Backup(byte[] v1Bytes, CancellationToken token)
+    {
+        string target = Path.Combine(_lease.ProfileDirectory, V1BackupFileName);
+        if (Occupied(target)) return;
+        string temporary = Path.Combine(_lease.ProfileDirectory, $".{V1BackupFileName}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            using (FileStream stream = new(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                stream.Write(v1Bytes);
+                stream.Flush(flushToDisk: true);
+            }
+            token.ThrowIfCancellationRequested();
+            try { File.Move(temporary, target, overwrite: false); }
+            catch (IOException) when (Occupied(target)) { }
+        }
+        finally
+        {
+            try { File.Delete(temporary); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    // True for a file, directory or link (also a dangling one) at the path.
+    private static bool Occupied(string path) => Path.Exists(path) || new FileInfo(path).LinkTarget != null;
 
     private static PrivateTagName RequireName(string? name) =>
         PrivateTagName.TryCreate(name, out PrivateTagName? parsed, out _)

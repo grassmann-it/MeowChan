@@ -102,21 +102,34 @@ entfernt werden, damit erneutes Taggen dieselbe ID liefert.
 - Der erste Schreibvorgang, der lokale Daten festschreibt, schreibt v2; dabei rotiert die bisherige
   v1-Datei unverändert nach `private-tags.json.bak`. Alle Tag-IDs, Namen, Thread- und gebundenen
   Medienzuordnungen bleiben in Wert und Bedeutung gleich (Hülle/Version ändern sich zwangsläufig).
+- Zusätzlich behält genau dieser erste Upgrade-Schreibvorgang die exakten v1-Bytes dauerhaft als
+  `private-tags.v1.bak` (kein Umschreiben, auch nicht über den JSON-Parser). `.bak` wird bei jedem
+  späteren Schreibvorgang ersetzt, `private-tags.v1.bak` nie: Der Speicher überschreibt, rotiert oder
+  löscht sie bei keinem späteren Schreibvorgang, Upgrade oder Bereinigungsweg. Existiert der Name
+  schon (frühere Aufnahme, Absturz nach diesem Schritt, eigene Datei), bleibt der Eintrag unberührt
+  und das Upgrade läuft normal weiter. Ein beschädigtes, unlesbares oder neueres Primärdokument
+  erzeugt sie nicht (der Schreibvorgang scheitert vorher); ein Profil ohne vorhandene v1-Datei
+  (erste Zuordnung ist lokal) hat nichts zu behalten.
 - v2 bleibt v2, auch wenn die letzte lokale Zuordnung oder Registrierung entfernt wurde.
 - **Ältere Programmstände lesen v2 nicht**: Sie lehnen das Dokument ab (Tags „nicht verfügbar“,
-  Bereinigungsschutz „unbekannt“) und überschreiben es nicht. Ein manueller Rückweg ist, die v1-Datei
-  aus `.bak` zurückzulegen — das verliert ausschließlich die lokalen Tags und alles, was nach dem
-  Upgrade geändert wurde. Eine automatische Rückstufung gibt es nicht.
+  Bereinigungsschutz „unbekannt“) und überschreiben es nicht. Ein manueller Rückweg ist, bei
+  geschlossener Anwendung `private-tags.v1.bak` als `private-tags.json` zurückzulegen (zurück zu
+  1.0.2) — das verliert ausschließlich die lokalen Tags und alles, was nach dem Upgrade geändert wurde.
+  `.bak` taugt dafür nur bis zur nächsten Änderung. Eine automatische Rückstufung gibt es nicht.
 - Neuere (v3+) oder beschädigte Primär- **oder** Backupdateien werden nie überschrieben oder
   wegrotiert; Änderungen schlagen dann fehl.
 
 ### Schreibreihenfolge und Absturzverhalten
 
 Jeder Schreibvorgang: Admission → Lease-Sektion → Datei frisch lesen → Revision prüfen → Änderung am
-Modell (dabei ggf. Registrierung) → Backup prüfen → serialisieren → temporäre Datei, Flush → atomarer
-Ersatz mit Backup. Daraus folgt:
+Modell (dabei ggf. Registrierung) → Backup prüfen → serialisieren → beim ersten v1→v2-Upgrade
+`private-tags.v1.bak` (temporäre Datei, Flush, Verschieben ohne Überschreiben; vorhanden = unberührt) →
+temporäre Datei, Flush → atomarer Ersatz mit Backup. Daraus folgt:
 
 - Abbruch, Kapazitäts-, Revisions- oder Backupfehler vor dem Ersatz: alter Stand, keine Registrierung.
+  Ein Abbruch nach dem v1-Exemplar, aber vor dem Ersatz, lässt `private-tags.v1.bak` neben dem noch
+  unveränderten v1-Primärdokument stehen; der nächste Versuch lässt sie unberührt. Scheitert das
+  Schreiben des Exemplars selbst, wird nichts veröffentlicht.
 - Absturz nach dem Ersatz, bevor der Aufrufer Erfolg sieht: Registrierung und Zuordnung sind beide
   da; der Aufrufer hat keinen Erfolg gemeldet. Wiederholen ist ein No-op mit derselben ID.
 - Gleichzeitige erste Zuordnungen derselben Datei laufen nacheinander durch die Lease-Sektion; die
@@ -162,7 +175,9 @@ Ersatz mit Backup. Daraus folgt:
 Lokale und gebundene private Tags sind **nicht** Teil privater Übertragung. `NativePrivateMetadataSelection`
 hat bewusst kein Tag-Feld (ein Wunsch nach Tags kann nicht still fallen gelassen werden);
 `NativePrivateMetadataSnapshot.Omissions` nennt `PrivateTags`, und jede Export-/Transferoberfläche muss
-das vor dem Export anzeigen (`PrivateTransferDisclosure`). Heute gibt es im Desktop keine Oberfläche
+das vor dem Export anzeigen (`PrivateTransferDisclosure`). `private-tags.v1.bak` gehört wie
+`private-tags.json` und `.bak` zum Profil und wird ebenfalls nicht übertragen; die Archivbereinigung
+liest sie nicht (Schutzinventur: nur Primär- und `.bak`-Datei). Heute gibt es im Desktop keine Oberfläche
 für privaten Export; der Hinweis steht im Dialog „Originale exportieren“, der einzigen Medienausfuhr.
 
 ## 7. Was nicht abgedeckt ist
