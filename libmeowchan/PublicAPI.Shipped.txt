@@ -1,26 +1,4 @@
 #nullable enable
-abstract MeowChan.Boards.Base.BaseBoard.BoardCode.get -> string!
-abstract MeowChan.Boards.Base.BaseBoard.BoardUri.get -> System.Uri!
-abstract MeowChan.Boards.Base.BaseBoard.GetThreadsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<MeowChan.Interfaces.IThread!>!>!
-abstract MeowChan.Boards.Base.BaseBoard.ImageBoard.get -> MeowChan.Interfaces.IImageBoard!
-abstract MeowChan.Boards.Base.BaseBoard.Name.get -> string!
-abstract MeowChan.Boards.Base.BaseBoard.Name.set -> void
-abstract MeowChan.Boards.Base.BaseBoard.NiceName.get -> string!
-abstract MeowChan.Boards.Base.BaseImageBoard.BaseUri.get -> System.Uri!
-abstract MeowChan.Boards.Base.BaseImageBoard.CanHandle(System.Uri! uri) -> bool
-abstract MeowChan.Boards.Base.BaseImageBoard.GetBoard(System.Uri! boardUri) -> MeowChan.Interfaces.IBoard!
-abstract MeowChan.Boards.Base.BaseImageBoard.GetThread(System.Uri! threadUri) -> MeowChan.Interfaces.IThread!
-abstract MeowChan.Boards.Base.BaseImageBoard.IsBoardUri(System.Uri! uri) -> bool
-abstract MeowChan.Boards.Base.BaseImageBoard.IsThreadUri(System.Uri! uri) -> bool
-abstract MeowChan.Boards.Base.BaseImageBoard.Name.get -> string!
-abstract MeowChan.Boards.Base.BaseImageBoard.NiceName.get -> string!
-abstract MeowChan.Boards.Base.BaseThread.Board.get -> MeowChan.Interfaces.IBoard!
-abstract MeowChan.Boards.Base.BaseThread.NiceName.get -> string!
-abstract MeowChan.Boards.Base.BaseThread.ThreadId.get -> string!
-abstract MeowChan.Boards.Base.BaseThread.ThreadUri.get -> System.Uri!
-const MeowChan.Archive.ArchiveCollectionExportMetadataFile.Name = "meowchan-collection-export.json" -> string!
-const MeowChan.Archive.ArchiveExportMetadataFile.Name = "meowchan-export.json" -> string!
-const MeowChan.Http.RequestPolicyHandler.MaximumAttempts = 3 -> int
 MeowChan.Admission.BoardAdmissionDecision
 MeowChan.Admission.BoardAdmissionDecision.BoardAdmissionDecision(bool Included, string! Reason) -> void
 MeowChan.Admission.BoardAdmissionDecision.Included.get -> bool
@@ -102,6 +80,18 @@ MeowChan.AdmissionStatus.Added = 0 -> MeowChan.AdmissionStatus
 MeowChan.AdmissionStatus.AlreadyPresent = 1 -> MeowChan.AdmissionStatus
 MeowChan.AdmissionStatus.Invalid = 2 -> MeowChan.AdmissionStatus
 MeowChan.AdmissionStatus.Unsupported = 3 -> MeowChan.AdmissionStatus
+MeowChan.Archive.ArchiveBoardConstraint
+MeowChan.Archive.ArchiveBoardConstraint.ArchiveBoardConstraint(string? Source, string! Board) -> void
+MeowChan.Archive.ArchiveBoardConstraint.Board.get -> string!
+MeowChan.Archive.ArchiveBoardConstraint.Board.init -> void
+MeowChan.Archive.ArchiveBoardConstraint.Source.get -> string?
+MeowChan.Archive.ArchiveBoardConstraint.Source.init -> void
+MeowChan.Archive.ArchiveBoardIdentity
+MeowChan.Archive.ArchiveBoardIdentity.ArchiveBoardIdentity(string! Source, string! Board) -> void
+MeowChan.Archive.ArchiveBoardIdentity.Board.get -> string!
+MeowChan.Archive.ArchiveBoardIdentity.Board.init -> void
+MeowChan.Archive.ArchiveBoardIdentity.Source.get -> string!
+MeowChan.Archive.ArchiveBoardIdentity.Source.init -> void
 MeowChan.Archive.ArchiveCaptureMerge
 MeowChan.Archive.ArchiveCatalog
 MeowChan.Archive.ArchiveCatalog.CaptureAsync(MeowChan.Archive.CapturedThreadSnapshot! snapshot, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
@@ -130,10 +120,10 @@ MeowChan.Archive.ArchiveCollectionExportInspection.ObservedFingerprint.init -> v
 MeowChan.Archive.ArchiveCollectionExportInspection.RequiresBackup.get -> bool
 MeowChan.Archive.ArchiveCollectionExportMetadata
 MeowChan.Archive.ArchiveCollectionExportMetadata.ArchiveCollectionExportMetadata(int Version, System.Guid ExportId, int Generation, System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveCollectionMember!>! Members, System.DateTimeOffset ExportedAt, MeowChan.Archive.ArchiveHtmlExportOptions! Options, System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveExportFile!>! Files) -> void
-MeowChan.Archive.ArchiveCollectionExportMetadata.ExportedAt.get -> System.DateTimeOffset
-MeowChan.Archive.ArchiveCollectionExportMetadata.ExportedAt.init -> void
 MeowChan.Archive.ArchiveCollectionExportMetadata.ExportId.get -> System.Guid
 MeowChan.Archive.ArchiveCollectionExportMetadata.ExportId.init -> void
+MeowChan.Archive.ArchiveCollectionExportMetadata.ExportedAt.get -> System.DateTimeOffset
+MeowChan.Archive.ArchiveCollectionExportMetadata.ExportedAt.init -> void
 MeowChan.Archive.ArchiveCollectionExportMetadata.Files.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveExportFile!>!
 MeowChan.Archive.ArchiveCollectionExportMetadata.Files.init -> void
 MeowChan.Archive.ArchiveCollectionExportMetadata.Generation.get -> int
@@ -167,7 +157,6 @@ MeowChan.Archive.ArchiveCollectionExportOperationResult.HistoryRecorded.get -> b
 MeowChan.Archive.ArchiveCollectionExportOperationResult.HistoryRecorded.init -> void
 MeowChan.Archive.ArchiveCollectionExportOperationResult.Metadata.get -> MeowChan.Archive.ArchiveCollectionExportMetadata!
 MeowChan.Archive.ArchiveCollectionExportOperationResult.Metadata.init -> void
-MeowChan.Archive.ArchiveCollectionHtmlExporter
 MeowChan.Archive.ArchiveCollectionHtmlExportProgress
 MeowChan.Archive.ArchiveCollectionHtmlExportProgress.ArchiveCollectionHtmlExportProgress(int ThreadsCompleted, int ThreadCount, int PostsWritten, int FilesCopied) -> void
 MeowChan.Archive.ArchiveCollectionHtmlExportProgress.FilesCopied.get -> int
@@ -198,6 +187,7 @@ MeowChan.Archive.ArchiveCollectionHtmlExportResult.ThreadCount.get -> int
 MeowChan.Archive.ArchiveCollectionHtmlExportResult.ThreadCount.init -> void
 MeowChan.Archive.ArchiveCollectionHtmlExportResult.Warnings.get -> System.Collections.Generic.IReadOnlyList<string!>!
 MeowChan.Archive.ArchiveCollectionHtmlExportResult.Warnings.init -> void
+MeowChan.Archive.ArchiveCollectionHtmlExporter
 MeowChan.Archive.ArchiveCollectionMember
 MeowChan.Archive.ArchiveCollectionMember.ArchiveCollectionMember(MeowChan.ResourceId! Thread, string! SourceUrl, string! PagePath, System.DateTimeOffset? LastCapturedAt, long CaptureRevision, int PostCount) -> void
 MeowChan.Archive.ArchiveCollectionMember.CaptureRevision.get -> long
@@ -212,6 +202,13 @@ MeowChan.Archive.ArchiveCollectionMember.SourceUrl.get -> string!
 MeowChan.Archive.ArchiveCollectionMember.SourceUrl.init -> void
 MeowChan.Archive.ArchiveCollectionMember.Thread.get -> MeowChan.ResourceId!
 MeowChan.Archive.ArchiveCollectionMember.Thread.init -> void
+MeowChan.Archive.ArchiveDateRange
+MeowChan.Archive.ArchiveDateRange.ArchiveDateRange(System.DateOnly? startDate, System.DateOnly? endDate, string! timeZoneId, string! basis = "first-seen") -> void
+MeowChan.Archive.ArchiveDateRange.Basis.get -> string!
+MeowChan.Archive.ArchiveDateRange.EndDate.get -> System.DateOnly?
+MeowChan.Archive.ArchiveDateRange.StartDate.get -> System.DateOnly?
+MeowChan.Archive.ArchiveDateRange.TimeZoneId.get -> string!
+MeowChan.Archive.ArchiveDateResolver
 MeowChan.Archive.ArchiveDeletedThread
 MeowChan.Archive.ArchiveDeletedThread.ArchiveDeletedThread(MeowChan.Archive.ArchiveThreadSummary! Summary, System.Collections.Generic.IReadOnlyList<string!>! MediaDirectories) -> void
 MeowChan.Archive.ArchiveDeletedThread.MediaDirectories.get -> System.Collections.Generic.IReadOnlyList<string!>!
@@ -224,12 +221,6 @@ MeowChan.Archive.ArchiveDeletionPlan.SharedMediaDirectories.get -> System.Collec
 MeowChan.Archive.ArchiveDeletionPlan.SharedMediaDirectories.init -> void
 MeowChan.Archive.ArchiveDeletionPlan.Threads.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveDeletedThread!>!
 MeowChan.Archive.ArchiveDeletionPlan.Threads.init -> void
-MeowChan.Archive.ArchivedThreadView
-MeowChan.Archive.ArchivedThreadView.FindPostIndex(string! postId) -> int
-MeowChan.Archive.ArchivedThreadView.GetPosts(int offset = 0, int limit = 100) -> System.Collections.Generic.IReadOnlyList<MeowChan.Archive.CapturedPost!>!
-MeowChan.Archive.ArchivedThreadView.MediaDirectories.get -> System.Collections.Generic.IReadOnlyList<string!>!
-MeowChan.Archive.ArchivedThreadView.PostCount.get -> int
-MeowChan.Archive.ArchivedThreadView.Summary.get -> MeowChan.Archive.ArchiveThreadSummary!
 MeowChan.Archive.ArchiveExportFile
 MeowChan.Archive.ArchiveExportFile.ArchiveExportFile(string! Path, long Length, string! Sha256) -> void
 MeowChan.Archive.ArchiveExportFile.Length.get -> long
@@ -258,10 +249,10 @@ MeowChan.Archive.ArchiveExportMetadata.AdoptedLegacy.init -> void
 MeowChan.Archive.ArchiveExportMetadata.ArchiveExportMetadata(int Version, System.Guid ExportId, int Generation, MeowChan.ResourceId! Thread, string! SourceUrl, System.DateTimeOffset ExportedAt, MeowChan.Archive.ArchiveHtmlExportOptions! Options, System.DateTimeOffset? LastCapturedAt, long? CaptureRevision, int? PostCount, System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveExportFile!>! Files) -> void
 MeowChan.Archive.ArchiveExportMetadata.CaptureRevision.get -> long?
 MeowChan.Archive.ArchiveExportMetadata.CaptureRevision.init -> void
-MeowChan.Archive.ArchiveExportMetadata.ExportedAt.get -> System.DateTimeOffset
-MeowChan.Archive.ArchiveExportMetadata.ExportedAt.init -> void
 MeowChan.Archive.ArchiveExportMetadata.ExportId.get -> System.Guid
 MeowChan.Archive.ArchiveExportMetadata.ExportId.init -> void
+MeowChan.Archive.ArchiveExportMetadata.ExportedAt.get -> System.DateTimeOffset
+MeowChan.Archive.ArchiveExportMetadata.ExportedAt.init -> void
 MeowChan.Archive.ArchiveExportMetadata.Files.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveExportFile!>!
 MeowChan.Archive.ArchiveExportMetadata.Files.init -> void
 MeowChan.Archive.ArchiveExportMetadata.Generation.get -> int
@@ -306,11 +297,12 @@ MeowChan.Archive.ArchiveExportOperationResult.HistoryRecorded.get -> bool
 MeowChan.Archive.ArchiveExportOperationResult.HistoryRecorded.init -> void
 MeowChan.Archive.ArchiveExportOperationResult.Metadata.get -> MeowChan.Archive.ArchiveExportMetadata!
 MeowChan.Archive.ArchiveExportOperationResult.Metadata.init -> void
-MeowChan.Archive.ArchiveHtmlExporter
 MeowChan.Archive.ArchiveHtmlExportOptions
 MeowChan.Archive.ArchiveHtmlExportOptions.ArchiveHtmlExportOptions(bool IncludeMedia = true) -> void
 MeowChan.Archive.ArchiveHtmlExportOptions.IncludeMedia.get -> bool
 MeowChan.Archive.ArchiveHtmlExportOptions.IncludeMedia.init -> void
+MeowChan.Archive.ArchiveHtmlExportOptions.Language.get -> string!
+MeowChan.Archive.ArchiveHtmlExportOptions.Language.init -> void
 MeowChan.Archive.ArchiveHtmlExportPhase
 MeowChan.Archive.ArchiveHtmlExportPhase.ReadingMedia = 0 -> MeowChan.Archive.ArchiveHtmlExportPhase
 MeowChan.Archive.ArchiveHtmlExportPhase.WritingPosts = 1 -> MeowChan.Archive.ArchiveHtmlExportPhase
@@ -340,6 +332,11 @@ MeowChan.Archive.ArchiveHtmlExportResult.PostCount.get -> int
 MeowChan.Archive.ArchiveHtmlExportResult.PostCount.init -> void
 MeowChan.Archive.ArchiveHtmlExportResult.Warnings.get -> System.Collections.Generic.IReadOnlyList<string!>!
 MeowChan.Archive.ArchiveHtmlExportResult.Warnings.init -> void
+MeowChan.Archive.ArchiveHtmlExporter
+MeowChan.Archive.ArchiveIdentityPage<T>
+MeowChan.Archive.ArchiveIdentityPage<T>.ArchiveIdentityPage(System.Collections.Generic.IEnumerable<T>! items, bool hasMore) -> void
+MeowChan.Archive.ArchiveIdentityPage<T>.HasMore.get -> bool
+MeowChan.Archive.ArchiveIdentityPage<T>.Items.get -> System.Collections.Generic.IReadOnlyList<T>!
 MeowChan.Archive.ArchiveLegacyExportCandidate
 MeowChan.Archive.ArchiveLegacyExportCandidate.ArchiveLegacyExportCandidate(string! Directory, bool SourceHeaderMatches) -> void
 MeowChan.Archive.ArchiveLegacyExportCandidate.Directory.get -> string!
@@ -401,13 +398,35 @@ MeowChan.Archive.ArchiveReader.GetBacklinksAsync(MeowChan.Archive.ArchivePostId!
 MeowChan.Archive.ArchiveReader.GetMediaDirectoriesAsync(MeowChan.ResourceId! id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
 MeowChan.Archive.ArchiveReader.GetQuotesAsync(MeowChan.Archive.ArchivePostId! post, int offset = 0, int limit = 100, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchiveQuotePage!>!
 MeowChan.Archive.ArchiveReader.ListThreadsAsync(int offset = 0, int limit = 100, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchiveThreadPage!>!
+MeowChan.Archive.ArchiveReader.ReadBoardIdentitiesAsync(string? source = null, int limit = 2048, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchiveIdentityPage<MeowChan.Archive.ArchiveBoardIdentity!>!>!
+MeowChan.Archive.ArchiveReader.ReadSourceIdentitiesAsync(int limit = 256, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchiveIdentityPage<string!>!>!
 MeowChan.Archive.ArchiveReader.ReadThreadAsync(MeowChan.ResourceId! id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchivedThreadView?>!
 MeowChan.Archive.ArchiveReader.ReadThreadPreviewsAsync(System.Collections.Generic.IReadOnlyList<MeowChan.ResourceId!>! ids, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<MeowChan.ResourceId!, MeowChan.Archive.ArchiveThreadPreview!>!>!
 MeowChan.Archive.ArchiveReader.ReadThreadSummaryAsync(MeowChan.ResourceId! id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchiveThreadSummary?>!
 MeowChan.Archive.ArchiveReader.ResolveQuoteAsync(MeowChan.Archive.ArchiveQuote! quote, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchiveQuoteResolution!>!
 MeowChan.Archive.ArchiveReader.SearchThreadsAsync(MeowChan.Archive.ArchiveThreadQuery! query, int offset = 0, int limit = 100, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchiveThreadPage!>!
+MeowChan.Archive.ArchiveReader.SearchThreadsBySpecAsync(MeowChan.Archive.ArchiveSearchRequest! request, int offset = 0, int limit = 100, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchiveThreadPage!>!
 MeowChan.Archive.ArchiveReader.SelectThreadIdsAsync(MeowChan.Archive.ArchiveThreadQuery! query, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<MeowChan.ResourceId!>!>!
+MeowChan.Archive.ArchiveReader.SelectThreadIdsBySpecAsync(MeowChan.Archive.ArchiveSearchRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<MeowChan.ResourceId!>!>!
 MeowChan.Archive.ArchiveReader.SelectThreadSummariesAsync(MeowChan.Archive.ArchiveThreadQuery! query, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveThreadSummary!>!>!
+MeowChan.Archive.ArchiveReader.SelectThreadSummariesBySpecAsync(MeowChan.Archive.ArchiveSearchRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveThreadSummary!>!>!
+MeowChan.Archive.ArchiveSearchRequest
+MeowChan.Archive.ArchiveSearchRequest.DateWindow.get -> MeowChan.Archive.ResolvedDateWindow?
+MeowChan.Archive.ArchiveSearchRequest.Spec.get -> MeowChan.Archive.ArchiveSearchSpec!
+MeowChan.Archive.ArchiveSearchSpec
+MeowChan.Archive.ArchiveSearchSpec.ArchiveSearchSpec(string! text = "", System.Collections.Generic.IEnumerable<string!>? sources = null, System.Collections.Generic.IEnumerable<MeowChan.Archive.ArchiveBoardConstraint!>? boards = null, System.Collections.Generic.IEnumerable<MeowChan.Interfaces.ThreadSourceState>? sourceStates = null, bool? captureEnabled = null, bool? hasPosts = null, MeowChan.Archive.ArchiveThreadSort sort = MeowChan.Archive.ArchiveThreadSort.LatestCapture, MeowChan.Archive.ArchiveWorkFilter workFilter = MeowChan.Archive.ArchiveWorkFilter.All, MeowChan.Archive.ArchiveDateRange? dateRange = null, int schemaVersion = 1) -> void
+MeowChan.Archive.ArchiveSearchSpec.Boards.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveBoardConstraint!>!
+MeowChan.Archive.ArchiveSearchSpec.CaptureEnabled.get -> bool?
+MeowChan.Archive.ArchiveSearchSpec.DateRange.get -> MeowChan.Archive.ArchiveDateRange?
+MeowChan.Archive.ArchiveSearchSpec.Equals(MeowChan.Archive.ArchiveSearchSpec? other) -> bool
+MeowChan.Archive.ArchiveSearchSpec.HasPosts.get -> bool?
+MeowChan.Archive.ArchiveSearchSpec.SchemaVersion.get -> int
+MeowChan.Archive.ArchiveSearchSpec.Sort.get -> MeowChan.Archive.ArchiveThreadSort
+MeowChan.Archive.ArchiveSearchSpec.SourceStates.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Interfaces.ThreadSourceState>!
+MeowChan.Archive.ArchiveSearchSpec.Sources.get -> System.Collections.Generic.IReadOnlyList<string!>!
+MeowChan.Archive.ArchiveSearchSpec.Text.get -> string!
+MeowChan.Archive.ArchiveSearchSpec.WorkFilter.get -> MeowChan.Archive.ArchiveWorkFilter
+MeowChan.Archive.ArchiveSearchSpecJson
 MeowChan.Archive.ArchiveText
 MeowChan.Archive.ArchiveThreadPage
 MeowChan.Archive.ArchiveThreadPage.ArchiveThreadPage(System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveThreadSummary!>! Items, int TotalCount, int Offset) -> void
@@ -483,6 +502,19 @@ MeowChan.Archive.ArchiveThreadSummary.Title.get -> string!
 MeowChan.Archive.ArchiveThreadSummary.Title.init -> void
 MeowChan.Archive.ArchiveThreadSummary.Url.get -> string!
 MeowChan.Archive.ArchiveThreadSummary.Url.init -> void
+MeowChan.Archive.ArchiveWorkFilter
+MeowChan.Archive.ArchiveWorkFilter.All = 0 -> MeowChan.Archive.ArchiveWorkFilter
+MeowChan.Archive.ArchiveWorkFilter.Completed = 4 -> MeowChan.Archive.ArchiveWorkFilter
+MeowChan.Archive.ArchiveWorkFilter.Followup = 2 -> MeowChan.Archive.ArchiveWorkFilter
+MeowChan.Archive.ArchiveWorkFilter.Intervention = 3 -> MeowChan.Archive.ArchiveWorkFilter
+MeowChan.Archive.ArchiveWorkFilter.Stopped = 5 -> MeowChan.Archive.ArchiveWorkFilter
+MeowChan.Archive.ArchiveWorkFilter.Watching = 1 -> MeowChan.Archive.ArchiveWorkFilter
+MeowChan.Archive.ArchivedThreadView
+MeowChan.Archive.ArchivedThreadView.FindPostIndex(string! postId) -> int
+MeowChan.Archive.ArchivedThreadView.GetPosts(int offset = 0, int limit = 100) -> System.Collections.Generic.IReadOnlyList<MeowChan.Archive.CapturedPost!>!
+MeowChan.Archive.ArchivedThreadView.MediaDirectories.get -> System.Collections.Generic.IReadOnlyList<string!>!
+MeowChan.Archive.ArchivedThreadView.PostCount.get -> int
+MeowChan.Archive.ArchivedThreadView.Summary.get -> MeowChan.Archive.ArchiveThreadSummary!
 MeowChan.Archive.CandidateDecision
 MeowChan.Archive.CandidateDecision.CandidateDecision(MeowChan.Archive.CandidateMetadata! Metadata, MeowChan.Rules.MediaSelectionResult! Selection, System.DateTimeOffset DecidedAtUtc) -> void
 MeowChan.Archive.CandidateDecision.DecidedAtUtc.get -> System.DateTimeOffset
@@ -497,19 +529,35 @@ MeowChan.Archive.CandidateKey.MediaId.get -> string!
 MeowChan.Archive.CandidateKey.Resource.get -> MeowChan.ResourceId!
 MeowChan.Archive.CandidateKey.Variant.get -> string!
 MeowChan.Archive.CandidateMetadata
+MeowChan.Archive.CandidateMetadata.AcquisitionRevisionKey.get -> string?
+MeowChan.Archive.CandidateMetadata.AcquisitionRevisionKey.init -> void
+MeowChan.Archive.CandidateMetadata.AttachmentReferences.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Storage.AttachmentRevisionReference!>!
+MeowChan.Archive.CandidateMetadata.AttachmentReferences.init -> void
 MeowChan.Archive.CandidateMetadata.CandidateMetadata(MeowChan.Archive.CandidateKey! key, System.Uri! downloadUri, string! destinationPath, long? expectedSize = null, string? expectedMd5 = null, string? originalFileName = null, string? legacyPath = null, string? extension = null) -> void
 MeowChan.Archive.CandidateMetadata.DestinationPath.get -> string!
 MeowChan.Archive.CandidateMetadata.DownloadUri.get -> System.Uri!
 MeowChan.Archive.CandidateMetadata.ExpectedMd5.get -> string?
+MeowChan.Archive.CandidateMetadata.ExpectedSha1.get -> string?
+MeowChan.Archive.CandidateMetadata.ExpectedSha1.init -> void
+MeowChan.Archive.CandidateMetadata.ExpectedSha256.get -> string?
+MeowChan.Archive.CandidateMetadata.ExpectedSha256.init -> void
 MeowChan.Archive.CandidateMetadata.ExpectedSize.get -> long?
 MeowChan.Archive.CandidateMetadata.Extension.get -> string?
 MeowChan.Archive.CandidateMetadata.Key.get -> MeowChan.Archive.CandidateKey!
 MeowChan.Archive.CandidateMetadata.LegacyPath.get -> string?
 MeowChan.Archive.CandidateMetadata.OriginalFileName.get -> string?
+MeowChan.Archive.CandidateMetadata.ProviderSizeHint.get -> MeowChan.Storage.MediaProviderSizeHint?
+MeowChan.Archive.CandidateMetadata.ProviderSizeHint.init -> void
 MeowChan.Archive.CapturedAttachment
+MeowChan.Archive.CapturedAttachment.AttachmentRevisionKey.get -> string?
+MeowChan.Archive.CapturedAttachment.AttachmentRevisionKey.init -> void
 MeowChan.Archive.CapturedAttachment.CapturedAttachment(int Position, string? MediaId, string! Variant = "original", string? Url = null, string? OriginalFileName = null, string? PlannedPath = null, long? ExpectedSize = null, string? ExpectedMd5 = null, bool IsDeleted = false) -> void
 MeowChan.Archive.CapturedAttachment.ExpectedMd5.get -> string?
 MeowChan.Archive.CapturedAttachment.ExpectedMd5.init -> void
+MeowChan.Archive.CapturedAttachment.ExpectedSha1.get -> string?
+MeowChan.Archive.CapturedAttachment.ExpectedSha1.init -> void
+MeowChan.Archive.CapturedAttachment.ExpectedSha256.get -> string?
+MeowChan.Archive.CapturedAttachment.ExpectedSha256.init -> void
 MeowChan.Archive.CapturedAttachment.ExpectedSize.get -> long?
 MeowChan.Archive.CapturedAttachment.ExpectedSize.init -> void
 MeowChan.Archive.CapturedAttachment.IsDeleted.get -> bool
@@ -522,6 +570,8 @@ MeowChan.Archive.CapturedAttachment.PlannedPath.get -> string?
 MeowChan.Archive.CapturedAttachment.PlannedPath.init -> void
 MeowChan.Archive.CapturedAttachment.Position.get -> int
 MeowChan.Archive.CapturedAttachment.Position.init -> void
+MeowChan.Archive.CapturedAttachment.ProviderSizeHint.get -> MeowChan.Storage.MediaProviderSizeHint?
+MeowChan.Archive.CapturedAttachment.ProviderSizeHint.init -> void
 MeowChan.Archive.CapturedAttachment.Url.get -> string?
 MeowChan.Archive.CapturedAttachment.Url.init -> void
 MeowChan.Archive.CapturedAttachment.Variant.get -> string!
@@ -540,10 +590,10 @@ MeowChan.Archive.CapturedPost.IsDeleted.get -> bool
 MeowChan.Archive.CapturedPost.IsDeleted.init -> void
 MeowChan.Archive.CapturedPost.Ordinal.get -> long
 MeowChan.Archive.CapturedPost.Ordinal.init -> void
-MeowChan.Archive.CapturedPost.PostedAt.get -> System.DateTimeOffset?
-MeowChan.Archive.CapturedPost.PostedAt.init -> void
 MeowChan.Archive.CapturedPost.PostId.get -> string!
 MeowChan.Archive.CapturedPost.PostId.init -> void
+MeowChan.Archive.CapturedPost.PostedAt.get -> System.DateTimeOffset?
+MeowChan.Archive.CapturedPost.PostedAt.init -> void
 MeowChan.Archive.CapturedPost.Subject.get -> string?
 MeowChan.Archive.CapturedPost.Subject.init -> void
 MeowChan.Archive.CapturedThreadSnapshot
@@ -571,6 +621,14 @@ MeowChan.Archive.PostFieldPresence.IsDeleted = 16 -> MeowChan.Archive.PostFieldP
 MeowChan.Archive.PostFieldPresence.None = 0 -> MeowChan.Archive.PostFieldPresence
 MeowChan.Archive.PostFieldPresence.PostedAt = 1 -> MeowChan.Archive.PostFieldPresence
 MeowChan.Archive.PostFieldPresence.Subject = 2 -> MeowChan.Archive.PostFieldPresence
+MeowChan.Archive.ResolvedDateWindow
+MeowChan.Archive.ResolvedDateWindow.EndExclusive.get -> System.DateTimeOffset?
+MeowChan.Archive.ResolvedDateWindow.EndExclusive.init -> void
+MeowChan.Archive.ResolvedDateWindow.ResolvedDateWindow(System.DateTimeOffset? StartInclusive, System.DateTimeOffset? EndExclusive, string! TimeZoneId) -> void
+MeowChan.Archive.ResolvedDateWindow.StartInclusive.get -> System.DateTimeOffset?
+MeowChan.Archive.ResolvedDateWindow.StartInclusive.init -> void
+MeowChan.Archive.ResolvedDateWindow.TimeZoneId.get -> string!
+MeowChan.Archive.ResolvedDateWindow.TimeZoneId.init -> void
 MeowChan.Archive.ThreadContentRuntime
 MeowChan.Archive.ThreadContentRuntime.Catalog.get -> MeowChan.Archive.ArchiveCatalog!
 MeowChan.Archive.ThreadContentRuntime.DisposeAsync() -> System.Threading.Tasks.ValueTask
@@ -592,6 +650,20 @@ MeowChan.Archive.ThreadContentStatus.LastCapturedAt.init -> void
 MeowChan.Archive.ThreadContentStatus.SelectionFailure.get -> MeowChan.FailureInfo?
 MeowChan.Archive.ThreadContentStatus.SelectionFailure.init -> void
 MeowChan.Archive.ThreadContentStatus.ThreadContentStatus(bool CaptureEnabled, System.DateTimeOffset? LastCapturedAt, MeowChan.FailureInfo? CaptureFailure, MeowChan.FailureInfo? SelectionFailure, int ExcludedMedia) -> void
+MeowChan.BoardSnapshot
+MeowChan.BoardSnapshot.BoardSnapshot(MeowChan.ResourceId! Id, string! Url, string! Name, string! DownloadDirectory, MeowChan.Http.RequestPolicyProgress? RequestProgress, MeowChan.FailureInfo? LastCheckFailure) -> void
+MeowChan.BoardSnapshot.DownloadDirectory.get -> string!
+MeowChan.BoardSnapshot.DownloadDirectory.init -> void
+MeowChan.BoardSnapshot.Id.get -> MeowChan.ResourceId!
+MeowChan.BoardSnapshot.Id.init -> void
+MeowChan.BoardSnapshot.LastCheckFailure.get -> MeowChan.FailureInfo?
+MeowChan.BoardSnapshot.LastCheckFailure.init -> void
+MeowChan.BoardSnapshot.Name.get -> string!
+MeowChan.BoardSnapshot.Name.init -> void
+MeowChan.BoardSnapshot.RequestProgress.get -> MeowChan.Http.RequestPolicyProgress?
+MeowChan.BoardSnapshot.RequestProgress.init -> void
+MeowChan.BoardSnapshot.Url.get -> string!
+MeowChan.BoardSnapshot.Url.init -> void
 MeowChan.Boards.Base.BaseBoard
 MeowChan.Boards.Base.BaseBoard.BaseBoard() -> void
 MeowChan.Boards.Base.BaseBoard.GetSnapshot(string! downloadDirectory) -> MeowChan.BoardSnapshot!
@@ -672,20 +744,18 @@ MeowChan.Boards.FourChan.FourChanThread
 MeowChan.Boards.FourChan.FourChanThread.CatalogOpeningText.get -> string!
 MeowChan.Boards.FourChan.FourChanThread.CatalogOpeningText.set -> void
 MeowChan.Boards.FourChan.FourChanThread.FourChanThread(MeowChan.Interfaces.IBoard! board, System.Uri! threadUri) -> void
-MeowChan.BoardSnapshot
-MeowChan.BoardSnapshot.BoardSnapshot(MeowChan.ResourceId! Id, string! Url, string! Name, string! DownloadDirectory, MeowChan.Http.RequestPolicyProgress? RequestProgress, MeowChan.FailureInfo? LastCheckFailure) -> void
-MeowChan.BoardSnapshot.DownloadDirectory.get -> string!
-MeowChan.BoardSnapshot.DownloadDirectory.init -> void
-MeowChan.BoardSnapshot.Id.get -> MeowChan.ResourceId!
-MeowChan.BoardSnapshot.Id.init -> void
-MeowChan.BoardSnapshot.LastCheckFailure.get -> MeowChan.FailureInfo?
-MeowChan.BoardSnapshot.LastCheckFailure.init -> void
-MeowChan.BoardSnapshot.Name.get -> string!
-MeowChan.BoardSnapshot.Name.init -> void
-MeowChan.BoardSnapshot.RequestProgress.get -> MeowChan.Http.RequestPolicyProgress?
-MeowChan.BoardSnapshot.RequestProgress.init -> void
-MeowChan.BoardSnapshot.Url.get -> string!
-MeowChan.BoardSnapshot.Url.init -> void
+MeowChan.DownloadSessionSnapshot
+MeowChan.DownloadSessionSnapshot.Boards.get -> System.Collections.Generic.IReadOnlyList<MeowChan.BoardSnapshot!>!
+MeowChan.DownloadSessionSnapshot.Boards.init -> void
+MeowChan.DownloadSessionSnapshot.DownloadSessionSnapshot(System.Collections.Generic.IReadOnlyList<MeowChan.ThreadSnapshot!>! Threads, System.Collections.Generic.IReadOnlyList<MeowChan.BoardSnapshot!>! Boards, bool IsStopping, System.Collections.Generic.IReadOnlyList<string!>! Warnings) -> void
+MeowChan.DownloadSessionSnapshot.IsPaused.get -> bool
+MeowChan.DownloadSessionSnapshot.IsPaused.init -> void
+MeowChan.DownloadSessionSnapshot.IsStopping.get -> bool
+MeowChan.DownloadSessionSnapshot.IsStopping.init -> void
+MeowChan.DownloadSessionSnapshot.Threads.get -> System.Collections.Generic.IReadOnlyList<MeowChan.ThreadSnapshot!>!
+MeowChan.DownloadSessionSnapshot.Threads.init -> void
+MeowChan.DownloadSessionSnapshot.Warnings.get -> System.Collections.Generic.IReadOnlyList<string!>!
+MeowChan.DownloadSessionSnapshot.Warnings.init -> void
 MeowChan.Downloader.BandwidthLimiter
 MeowChan.Downloader.BandwidthLimiter.BandwidthLimiter(long maxBytesPerSecond, System.TimeProvider? timeProvider = null, Serilog.ILogger? logger = null) -> void
 MeowChan.Downloader.BandwidthLimiter.MaxBytesPerSecond.get -> long
@@ -699,16 +769,28 @@ MeowChan.Downloader.DownloadCounts.DownloadCounts(int Queued, int Active) -> voi
 MeowChan.Downloader.DownloadCounts.Queued.get -> int
 MeowChan.Downloader.DownloadCounts.Queued.init -> void
 MeowChan.Downloader.DownloadItem
+MeowChan.Downloader.DownloadItem.AcquisitionRevisionKey.get -> string?
+MeowChan.Downloader.DownloadItem.AcquisitionRevisionKey.init -> void
+MeowChan.Downloader.DownloadItem.AttachmentReferences.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Storage.AttachmentRevisionReference!>!
+MeowChan.Downloader.DownloadItem.AttachmentReferences.init -> void
 MeowChan.Downloader.DownloadItem.DestinationPath.get -> string!
 MeowChan.Downloader.DownloadItem.DownloadItem(System.Uri! downloadUri, string! destinationPath, MeowChan.Interfaces.IImageBoard! imageBoard, MeowChan.Interfaces.IThread! thread, string! mediaIdentifier, long? expectedSize = null, string? expectedMd5 = null, string? originalFileName = null, string? legacyPath = null) -> void
 MeowChan.Downloader.DownloadItem.DownloadItem(System.Uri! downloadUri, string! destinationPath, MeowChan.Interfaces.IImageBoard! imageBoard, MeowChan.Interfaces.IThread! thread, string! mediaIdentifier, long? expectedSize, string? expectedMd5, string? originalFileName, string? legacyPath, string! variant) -> void
 MeowChan.Downloader.DownloadItem.DownloadUri.get -> System.Uri!
 MeowChan.Downloader.DownloadItem.ExpectedMd5.get -> string?
+MeowChan.Downloader.DownloadItem.ExpectedSha1.get -> string?
+MeowChan.Downloader.DownloadItem.ExpectedSha1.init -> void
+MeowChan.Downloader.DownloadItem.ExpectedSha256.get -> string?
+MeowChan.Downloader.DownloadItem.ExpectedSha256.init -> void
 MeowChan.Downloader.DownloadItem.ExpectedSize.get -> long?
 MeowChan.Downloader.DownloadItem.ImageBoard.get -> MeowChan.Interfaces.IImageBoard!
 MeowChan.Downloader.DownloadItem.LegacyPath.get -> string?
 MeowChan.Downloader.DownloadItem.MediaIdentifier.get -> string!
+MeowChan.Downloader.DownloadItem.MediaIntegrityPolicy.get -> MeowChan.Storage.ISourceMediaIntegrityPolicy?
+MeowChan.Downloader.DownloadItem.MediaIntegrityPolicy.init -> void
 MeowChan.Downloader.DownloadItem.OriginalFileName.get -> string?
+MeowChan.Downloader.DownloadItem.ProviderSizeHint.get -> MeowChan.Storage.MediaProviderSizeHint?
+MeowChan.Downloader.DownloadItem.ProviderSizeHint.init -> void
 MeowChan.Downloader.DownloadItem.Thread.get -> MeowChan.Interfaces.IThread!
 MeowChan.Downloader.DownloadItem.Variant.get -> string!
 MeowChan.Downloader.DownloadPriority
@@ -721,11 +803,12 @@ MeowChan.Downloader.DownloadQueue.CancelDownloadsForThread(MeowChan.Interfaces.I
 MeowChan.Downloader.DownloadQueue.CancelDownloadsForThreadAsync(MeowChan.Interfaces.IThread! thread) -> System.Threading.Tasks.Task!
 MeowChan.Downloader.DownloadQueue.CheckTargetsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 MeowChan.Downloader.DownloadQueue.ConfigureWorkState(MeowChan.Persistence.IWorkStateStore! store) -> void
-MeowChan.Downloader.DownloadQueue.DownloadQueue(int maxParallelDownloads, long maxBandwidthBytesPerSecond, int maxPendingDownloads, MeowChan.Storage.MediaStore? mediaStore = null, System.TimeSpan? bodyIdleTimeout = null, System.TimeProvider? timeProvider = null, Serilog.ILogger? logger = null) -> void
 MeowChan.Downloader.DownloadQueue.DownloadQueue(int maxParallelDownloads, long maxBandwidthBytesPerSecond, MeowChan.Storage.MediaStore? mediaStore = null, System.TimeSpan? bodyIdleTimeout = null, System.TimeProvider? timeProvider = null, Serilog.ILogger? logger = null) -> void
+MeowChan.Downloader.DownloadQueue.DownloadQueue(int maxParallelDownloads, long maxBandwidthBytesPerSecond, int maxPendingDownloads, MeowChan.Storage.MediaStore? mediaStore = null, System.TimeSpan? bodyIdleTimeout = null, System.TimeProvider? timeProvider = null, Serilog.ILogger? logger = null) -> void
 MeowChan.Downloader.DownloadQueue.EnqueueAsync(MeowChan.Downloader.DownloadItem! item, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<bool>!
 MeowChan.Downloader.DownloadQueue.EnqueueDownload(MeowChan.Downloader.DownloadItem! item) -> void
 MeowChan.Downloader.DownloadQueue.GetCapacitySnapshot() -> (int Active, int Pending, int WaitingAdmission)
+MeowChan.Downloader.DownloadQueue.GetConcurrencySnapshot() -> (int Configured, int Effective, int Active, int DeferredSlots)
 MeowChan.Downloader.DownloadQueue.GetMetadataCapacitySnapshot() -> (int Active, int Waiting)
 MeowChan.Downloader.DownloadQueue.GetThreadCounts(System.Collections.Generic.IReadOnlyList<MeowChan.Interfaces.IThread!>! threads) -> System.Collections.Generic.IReadOnlyDictionary<MeowChan.Interfaces.IThread!, MeowChan.Downloader.DownloadCounts>!
 MeowChan.Downloader.DownloadQueue.IsDownloading(string! url) -> bool
@@ -735,6 +818,7 @@ MeowChan.Downloader.DownloadQueue.MaxBandwidthBytesPerSecond.get -> long
 MeowChan.Downloader.DownloadQueue.MaxParallelDownloads.get -> int
 MeowChan.Downloader.DownloadQueue.MaxPendingDownloads.get -> int
 MeowChan.Downloader.DownloadQueue.MinimumFreeSpaceBytes.get -> long
+MeowChan.Downloader.DownloadQueue.ParallelDownloadsSafetyLimit.get -> int
 MeowChan.Downloader.DownloadQueue.PersistenceFailed -> System.Action<string!>?
 MeowChan.Downloader.DownloadQueue.ReceivedMediaBytes.get -> long
 MeowChan.Downloader.DownloadQueue.RequestMediaRetry(MeowChan.Interfaces.IThread! thread, string? mediaIdentifier = null) -> int
@@ -746,9 +830,11 @@ MeowChan.Downloader.DownloadQueue.StopAll() -> void
 MeowChan.Downloader.DownloadQueue.StopAllAsync() -> System.Threading.Tasks.Task!
 MeowChan.Downloader.DownloadQueue.TargetWaitStates.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Downloader.DownloadTargetWaitState!>!
 MeowChan.Downloader.DownloadQueue.TryEnqueue(MeowChan.Downloader.DownloadItem! item) -> bool
+MeowChan.Downloader.DownloadQueue.UpdateConcurrencyLimits(int requested, int safetyLimit) -> void
 MeowChan.Downloader.DownloadQueue.UpdateMaxBandwidth(long newMaxBytesPerSecond) -> void
 MeowChan.Downloader.DownloadQueue.UpdateMaxParallelDownloads(int newMax) -> void
 MeowChan.Downloader.DownloadQueue.UpdateMinimumFreeSpaceBytes(long bytes) -> void
+MeowChan.Downloader.DownloadQueue.UpdateParallelDownloadsSafetyLimit(int safetyLimit) -> void
 MeowChan.Downloader.DownloadQueue.UpdateWorkOwner(MeowChan.Interfaces.IThread! thread, MeowChan.Persistence.WorkResource! resource) -> void
 MeowChan.Downloader.DownloadQueue.UtcNow.get -> System.DateTimeOffset
 MeowChan.Downloader.DownloadQueue.WaitForIdleAsync() -> System.Threading.Tasks.Task!
@@ -760,19 +846,9 @@ MeowChan.Downloader.DownloadTargetWaitState.Reason.get -> string!
 MeowChan.Downloader.DownloadWorker
 MeowChan.Downloader.DownloadWorker.DownloadWorker(MeowChan.Downloader.DownloadItem! downloadItem, MeowChan.Downloader.BandwidthLimiter! bandwidthLimiter, MeowChan.Storage.MediaStore? store = null, System.TimeSpan? bodyIdleTimeout = null, System.TimeProvider? timeProvider = null, Serilog.ILogger? logger = null, bool notifyThread = true) -> void
 MeowChan.Downloader.DownloadWorker.ExecuteAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-MeowChan.DownloadSessionSnapshot
-MeowChan.DownloadSessionSnapshot.Boards.get -> System.Collections.Generic.IReadOnlyList<MeowChan.BoardSnapshot!>!
-MeowChan.DownloadSessionSnapshot.Boards.init -> void
-MeowChan.DownloadSessionSnapshot.DownloadSessionSnapshot(System.Collections.Generic.IReadOnlyList<MeowChan.ThreadSnapshot!>! Threads, System.Collections.Generic.IReadOnlyList<MeowChan.BoardSnapshot!>! Boards, bool IsStopping, System.Collections.Generic.IReadOnlyList<string!>! Warnings) -> void
-MeowChan.DownloadSessionSnapshot.IsPaused.get -> bool
-MeowChan.DownloadSessionSnapshot.IsPaused.init -> void
-MeowChan.DownloadSessionSnapshot.IsStopping.get -> bool
-MeowChan.DownloadSessionSnapshot.IsStopping.init -> void
-MeowChan.DownloadSessionSnapshot.Threads.get -> System.Collections.Generic.IReadOnlyList<MeowChan.ThreadSnapshot!>!
-MeowChan.DownloadSessionSnapshot.Threads.init -> void
-MeowChan.DownloadSessionSnapshot.Warnings.get -> System.Collections.Generic.IReadOnlyList<string!>!
-MeowChan.DownloadSessionSnapshot.Warnings.init -> void
 MeowChan.FailureInfo
+MeowChan.FailureInfo.DiagnosticCode.get -> string?
+MeowChan.FailureInfo.DiagnosticCode.init -> void
 MeowChan.FailureInfo.FailureInfo(MeowChan.FailureKind Kind, string! Message, System.Net.HttpStatusCode? HttpStatusCode = null) -> void
 MeowChan.FailureInfo.HttpStatusCode.get -> System.Net.HttpStatusCode?
 MeowChan.FailureInfo.HttpStatusCode.init -> void
@@ -780,6 +856,10 @@ MeowChan.FailureInfo.Kind.get -> MeowChan.FailureKind
 MeowChan.FailureInfo.Kind.init -> void
 MeowChan.FailureInfo.Message.get -> string!
 MeowChan.FailureInfo.Message.init -> void
+MeowChan.FailureInfo.NetworkStage.get -> MeowChan.FailureNetworkStage?
+MeowChan.FailureInfo.NetworkStage.init -> void
+MeowChan.FailureInfo.RetryAt.get -> System.DateTimeOffset?
+MeowChan.FailureInfo.RetryAt.init -> void
 MeowChan.FailureKind
 MeowChan.FailureKind.Http = 0 -> MeowChan.FailureKind
 MeowChan.FailureKind.InvalidData = 3 -> MeowChan.FailureKind
@@ -787,6 +867,10 @@ MeowChan.FailureKind.Network = 1 -> MeowChan.FailureKind
 MeowChan.FailureKind.Storage = 4 -> MeowChan.FailureKind
 MeowChan.FailureKind.Timeout = 2 -> MeowChan.FailureKind
 MeowChan.FailureKind.Unknown = 5 -> MeowChan.FailureKind
+MeowChan.FailureNetworkStage
+MeowChan.FailureNetworkStage.Connection = 1 -> MeowChan.FailureNetworkStage
+MeowChan.FailureNetworkStage.NameResolution = 0 -> MeowChan.FailureNetworkStage
+MeowChan.FailureNetworkStage.SecureConnection = 2 -> MeowChan.FailureNetworkStage
 MeowChan.Favorites.FavoriteAssetKey
 MeowChan.Favorites.FavoriteAssetKey.FavoriteAssetKey(MeowChan.ResourceId! Thread, string! MediaIdentifier, string! Variant, string! Sha256) -> void
 MeowChan.Favorites.FavoriteAssetKey.MediaIdentifier.get -> string!
@@ -849,6 +933,28 @@ MeowChan.Favorites.FavoriteStore.FavoriteStore(string! profileDirectory, MeowCha
 MeowChan.Favorites.FavoriteStore.List() -> System.Collections.Generic.IReadOnlyList<MeowChan.Favorites.FavoriteEntry!>!
 MeowChan.Favorites.FavoriteStore.RemoveThreads(System.Collections.Generic.IReadOnlyCollection<MeowChan.ResourceId!>! threads, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> int
 MeowChan.Favorites.FavoriteStore.SetFavorite(MeowChan.Favorites.FavoriteEntry! entry, bool favorite, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
+MeowChan.Favorites.ThreadFavoriteCommit
+MeowChan.Favorites.ThreadFavoriteCommit.Changed.get -> bool
+MeowChan.Favorites.ThreadFavoriteCommit.Changed.init -> void
+MeowChan.Favorites.ThreadFavoriteCommit.Favorite.get -> bool
+MeowChan.Favorites.ThreadFavoriteCommit.Favorite.init -> void
+MeowChan.Favorites.ThreadFavoriteCommit.Snapshot.get -> MeowChan.Favorites.ThreadFavoriteSnapshot!
+MeowChan.Favorites.ThreadFavoriteCommit.Snapshot.init -> void
+MeowChan.Favorites.ThreadFavoriteCommit.Thread.get -> MeowChan.ResourceId!
+MeowChan.Favorites.ThreadFavoriteCommit.Thread.init -> void
+MeowChan.Favorites.ThreadFavoriteCommit.ThreadFavoriteCommit(MeowChan.ResourceId! Thread, bool Favorite, bool Changed, MeowChan.Favorites.ThreadFavoriteSnapshot! Snapshot) -> void
+MeowChan.Favorites.ThreadFavoriteSnapshot
+MeowChan.Favorites.ThreadFavoriteSnapshot.Fingerprint.get -> string!
+MeowChan.Favorites.ThreadFavoriteSnapshot.Fingerprint.init -> void
+MeowChan.Favorites.ThreadFavoriteSnapshot.Revision.get -> long
+MeowChan.Favorites.ThreadFavoriteSnapshot.Revision.init -> void
+MeowChan.Favorites.ThreadFavoriteSnapshot.ThreadFavoriteSnapshot(System.Collections.Generic.IReadOnlyList<MeowChan.ResourceId!>! Threads, long Revision, string! Fingerprint) -> void
+MeowChan.Favorites.ThreadFavoriteSnapshot.Threads.get -> System.Collections.Generic.IReadOnlyList<MeowChan.ResourceId!>!
+MeowChan.Favorites.ThreadFavoriteSnapshot.Threads.init -> void
+MeowChan.Favorites.ThreadFavoriteStore
+MeowChan.Favorites.ThreadFavoriteStore.ReadSnapshot() -> MeowChan.Favorites.ThreadFavoriteSnapshot!
+MeowChan.Favorites.ThreadFavoriteStore.Set(MeowChan.ResourceId! thread, bool favorite, System.Threading.CancellationToken token = default(System.Threading.CancellationToken)) -> MeowChan.Favorites.ThreadFavoriteCommit!
+MeowChan.Favorites.ThreadFavoriteStore.ThreadFavoriteStore(string! profileDirectory, MeowChan.Persistence.ProfileLease! lease) -> void
 MeowChan.Gallery.GalleryAssetKey
 MeowChan.Gallery.GalleryAssetKey.AssetId.get -> string!
 MeowChan.Gallery.GalleryAssetKey.AssetId.init -> void
@@ -862,6 +968,8 @@ MeowChan.Gallery.GalleryEntry.Asset.get -> MeowChan.Storage.MediaAssetReference!
 MeowChan.Gallery.GalleryEntry.Asset.init -> void
 MeowChan.Gallery.GalleryEntry.Attachment.get -> MeowChan.Archive.CapturedAttachment?
 MeowChan.Gallery.GalleryEntry.Attachment.init -> void
+MeowChan.Gallery.GalleryEntry.AttachmentResolution.get -> MeowChan.Storage.ResolvedMediaAttachment?
+MeowChan.Gallery.GalleryEntry.AttachmentResolution.init -> void
 MeowChan.Gallery.GalleryEntry.EntryKey.get -> MeowChan.Gallery.GalleryEntryKey!
 MeowChan.Gallery.GalleryEntry.GalleryEntry(MeowChan.Gallery.GalleryAssetKey! Key, MeowChan.Storage.MediaAssetSnapshot! Manifest, MeowChan.Storage.MediaAssetReference! Asset, MeowChan.Archive.CapturedPost? Post, MeowChan.Archive.CapturedAttachment? Attachment, bool Historical, bool Unassigned) -> void
 MeowChan.Gallery.GalleryEntry.Historical.get -> bool
@@ -923,6 +1031,12 @@ MeowChan.Http.RequestPolicyProgress.RequestPolicyProgress(MeowChan.Http.RequestP
 MeowChan.Http.RequestPolicyState
 MeowChan.Http.RequestPolicyState.RequestPolicyState(System.TimeProvider? timeProvider = null, System.Func<double>? jitter = null) -> void
 MeowChan.Http.RequestPolicyState.TimeProvider.get -> System.TimeProvider!
+MeowChan.IFailureInfoProvider
+MeowChan.IFailureInfoProvider.FailureInfo.get -> MeowChan.FailureInfo!
+MeowChan.IProviderDescriptorSource
+MeowChan.IProviderDescriptorSource.AdapterVersion.get -> string?
+MeowChan.IProviderDescriptorSource.Capabilities.get -> MeowChan.ProviderCapabilities
+MeowChan.IProviderDescriptorSource.SupportedHosts.get -> System.Collections.Generic.IReadOnlyList<string!>!
 MeowChan.Interfaces.CheckRequestStatus
 MeowChan.Interfaces.CheckRequestStatus.AlreadyScheduled = 1 -> MeowChan.Interfaces.CheckRequestStatus
 MeowChan.Interfaces.CheckRequestStatus.Paused = 2 -> MeowChan.Interfaces.CheckRequestStatus
@@ -963,7 +1077,6 @@ MeowChan.Interfaces.IThread.Activity.get -> MeowChan.Interfaces.ThreadActivity
 MeowChan.Interfaces.IThread.Activity.set -> void
 MeowChan.Interfaces.IThread.Board.get -> MeowChan.Interfaces.IBoard!
 MeowChan.Interfaces.IThread.CatalogOpeningText.get -> string!
-MeowChan.Interfaces.IThread.checkThreadAsync(MeowChan.Downloader.DownloadQueue! queue, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 MeowChan.Interfaces.IThread.DownloadDirectory.get -> string!
 MeowChan.Interfaces.IThread.DownloadedMedia.get -> System.Collections.Generic.HashSet<string!>!
 MeowChan.Interfaces.IThread.DownloadedMedia.set -> void
@@ -992,6 +1105,7 @@ MeowChan.Interfaces.IThread.Title.set -> void
 MeowChan.Interfaces.IThread.TotalMediaCount.get -> int
 MeowChan.Interfaces.IThread.UpdateMonitoringInterval(System.TimeSpan interval) -> void
 MeowChan.Interfaces.IThread.Url.get -> string!
+MeowChan.Interfaces.IThread.checkThreadAsync(MeowChan.Downloader.DownloadQueue! queue, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 MeowChan.Interfaces.ThreadActivity
 MeowChan.Interfaces.ThreadActivity.Checking = 1 -> MeowChan.Interfaces.ThreadActivity
 MeowChan.Interfaces.ThreadActivity.Downloading = 2 -> MeowChan.Interfaces.ThreadActivity
@@ -1005,18 +1119,14 @@ MeowChan.Interfaces.ThreadSourceState
 MeowChan.Interfaces.ThreadSourceState.Active = 0 -> MeowChan.Interfaces.ThreadSourceState
 MeowChan.Interfaces.ThreadSourceState.Archived = 1 -> MeowChan.Interfaces.ThreadSourceState
 MeowChan.Interfaces.ThreadSourceState.NotFound = 2 -> MeowChan.Interfaces.ThreadSourceState
-MeowChan.IProviderDescriptorSource
-MeowChan.IProviderDescriptorSource.AdapterVersion.get -> string?
-MeowChan.IProviderDescriptorSource.Capabilities.get -> MeowChan.ProviderCapabilities
-MeowChan.IProviderDescriptorSource.SupportedHosts.get -> System.Collections.Generic.IReadOnlyList<string!>!
 MeowChan.Persistence.CollectionExportHistoryEntry
 MeowChan.Persistence.CollectionExportHistoryEntry.CollectionExportHistoryEntry(System.Collections.Generic.IReadOnlyList<MeowChan.ResourceId!>! Members, string! Destination, System.Guid ExportId, int Generation, System.DateTimeOffset ExportedAt, MeowChan.Archive.ArchiveHtmlExportOptions! Options) -> void
 MeowChan.Persistence.CollectionExportHistoryEntry.Destination.get -> string!
 MeowChan.Persistence.CollectionExportHistoryEntry.Destination.init -> void
-MeowChan.Persistence.CollectionExportHistoryEntry.ExportedAt.get -> System.DateTimeOffset
-MeowChan.Persistence.CollectionExportHistoryEntry.ExportedAt.init -> void
 MeowChan.Persistence.CollectionExportHistoryEntry.ExportId.get -> System.Guid
 MeowChan.Persistence.CollectionExportHistoryEntry.ExportId.init -> void
+MeowChan.Persistence.CollectionExportHistoryEntry.ExportedAt.get -> System.DateTimeOffset
+MeowChan.Persistence.CollectionExportHistoryEntry.ExportedAt.init -> void
 MeowChan.Persistence.CollectionExportHistoryEntry.Generation.get -> int
 MeowChan.Persistence.CollectionExportHistoryEntry.Generation.init -> void
 MeowChan.Persistence.CollectionExportHistoryEntry.Members.get -> System.Collections.Generic.IReadOnlyList<MeowChan.ResourceId!>!
@@ -1032,11 +1142,11 @@ MeowChan.Persistence.CollectionExportHistoryStore.RecordPublishedAsync(MeowChan.
 MeowChan.Persistence.ExportHistoryEntry
 MeowChan.Persistence.ExportHistoryEntry.Destination.get -> string!
 MeowChan.Persistence.ExportHistoryEntry.Destination.init -> void
-MeowChan.Persistence.ExportHistoryEntry.ExportedAt.get -> System.DateTimeOffset
-MeowChan.Persistence.ExportHistoryEntry.ExportedAt.init -> void
 MeowChan.Persistence.ExportHistoryEntry.ExportHistoryEntry(MeowChan.ResourceId! Thread, string! Destination, System.Guid ExportId, int Generation, System.DateTimeOffset ExportedAt, MeowChan.Archive.ArchiveHtmlExportOptions! Options) -> void
 MeowChan.Persistence.ExportHistoryEntry.ExportId.get -> System.Guid
 MeowChan.Persistence.ExportHistoryEntry.ExportId.init -> void
+MeowChan.Persistence.ExportHistoryEntry.ExportedAt.get -> System.DateTimeOffset
+MeowChan.Persistence.ExportHistoryEntry.ExportedAt.init -> void
 MeowChan.Persistence.ExportHistoryEntry.Generation.get -> int
 MeowChan.Persistence.ExportHistoryEntry.Generation.init -> void
 MeowChan.Persistence.ExportHistoryEntry.Options.get -> MeowChan.Archive.ArchiveHtmlExportOptions!
@@ -1060,8 +1170,14 @@ MeowChan.Persistence.IWorkStateStore.CommitState(MeowChan.Persistence.WorkResour
 MeowChan.Persistence.IWorkStateStore.LoadMedia(string! url, long generation) -> System.Collections.Generic.IReadOnlyList<MeowChan.Persistence.MediaWork!>!
 MeowChan.Persistence.IWorkStateStore.LoadResources() -> System.Collections.Generic.IReadOnlyList<MeowChan.Persistence.WorkResource!>!
 MeowChan.Persistence.MediaWork
+MeowChan.Persistence.MediaWork.AcquisitionRevisionKey.get -> string?
+MeowChan.Persistence.MediaWork.AcquisitionRevisionKey.init -> void
+MeowChan.Persistence.MediaWork.AttachmentReferences.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Storage.AttachmentRevisionReference!>!
+MeowChan.Persistence.MediaWork.AttachmentReferences.init -> void
 MeowChan.Persistence.MediaWork.Attempts.get -> int
 MeowChan.Persistence.MediaWork.Attempts.init -> void
+MeowChan.Persistence.MediaWork.CommittedAssetId.get -> string?
+MeowChan.Persistence.MediaWork.CommittedAssetId.init -> void
 MeowChan.Persistence.MediaWork.ConsecutiveNotFound.get -> int
 MeowChan.Persistence.MediaWork.ConsecutiveNotFound.init -> void
 MeowChan.Persistence.MediaWork.DestinationPath.get -> string!
@@ -1072,6 +1188,10 @@ MeowChan.Persistence.MediaWork.DueAt.get -> System.DateTimeOffset?
 MeowChan.Persistence.MediaWork.DueAt.init -> void
 MeowChan.Persistence.MediaWork.ExpectedMd5.get -> string?
 MeowChan.Persistence.MediaWork.ExpectedMd5.init -> void
+MeowChan.Persistence.MediaWork.ExpectedSha1.get -> string?
+MeowChan.Persistence.MediaWork.ExpectedSha1.init -> void
+MeowChan.Persistence.MediaWork.ExpectedSha256.get -> string?
+MeowChan.Persistence.MediaWork.ExpectedSha256.init -> void
 MeowChan.Persistence.MediaWork.ExpectedSize.get -> long?
 MeowChan.Persistence.MediaWork.ExpectedSize.init -> void
 MeowChan.Persistence.MediaWork.Failure.get -> string?
@@ -1090,6 +1210,8 @@ MeowChan.Persistence.MediaWork.MediaIdentifier.get -> string!
 MeowChan.Persistence.MediaWork.MediaIdentifier.init -> void
 MeowChan.Persistence.MediaWork.OriginalFileName.get -> string?
 MeowChan.Persistence.MediaWork.OriginalFileName.init -> void
+MeowChan.Persistence.MediaWork.ProviderSizeHint.get -> MeowChan.Storage.MediaProviderSizeHint?
+MeowChan.Persistence.MediaWork.ProviderSizeHint.init -> void
 MeowChan.Persistence.MediaWork.ResourceUrl.get -> string!
 MeowChan.Persistence.MediaWork.ResourceUrl.init -> void
 MeowChan.Persistence.MediaWork.Status.get -> MeowChan.Persistence.MediaWorkStatus
@@ -1201,6 +1323,25 @@ MeowChan.ProviderDescriptor.SourceId.get -> string!
 MeowChan.ProviderDescriptor.SourceId.init -> void
 MeowChan.ProviderDescriptor.SupportedHosts.get -> System.Collections.Generic.IReadOnlyList<string!>!
 MeowChan.ProviderDescriptor.SupportedHosts.init -> void
+MeowChan.Ratings.MediaRatingCommit
+MeowChan.Ratings.MediaRatingCommit.Changed.get -> bool
+MeowChan.Ratings.MediaRatingCommit.Changed.init -> void
+MeowChan.Ratings.MediaRatingCommit.Key.get -> MeowChan.Favorites.FavoriteAssetKey!
+MeowChan.Ratings.MediaRatingCommit.Key.init -> void
+MeowChan.Ratings.MediaRatingCommit.MediaRatingCommit(MeowChan.Favorites.FavoriteAssetKey! Key, int? Value, bool Changed) -> void
+MeowChan.Ratings.MediaRatingCommit.Value.get -> int?
+MeowChan.Ratings.MediaRatingCommit.Value.init -> void
+MeowChan.Ratings.MediaRatingEntry
+MeowChan.Ratings.MediaRatingEntry.Key.get -> MeowChan.Favorites.FavoriteAssetKey!
+MeowChan.Ratings.MediaRatingEntry.Key.init -> void
+MeowChan.Ratings.MediaRatingEntry.MediaRatingEntry(MeowChan.Favorites.FavoriteAssetKey! Key, int Value) -> void
+MeowChan.Ratings.MediaRatingEntry.Value.get -> int
+MeowChan.Ratings.MediaRatingEntry.Value.init -> void
+MeowChan.Ratings.MediaRatingStore
+MeowChan.Ratings.MediaRatingStore.List() -> System.Collections.Generic.IReadOnlyList<MeowChan.Ratings.MediaRatingEntry!>!
+MeowChan.Ratings.MediaRatingStore.MediaRatingStore(string! profileDirectory, MeowChan.Persistence.ProfileLease! lease) -> void
+MeowChan.Ratings.MediaRatingStore.RemoveThreads(System.Collections.Generic.IReadOnlyCollection<MeowChan.ResourceId!>! threads, System.Threading.CancellationToken token = default(System.Threading.CancellationToken)) -> int
+MeowChan.Ratings.MediaRatingStore.Set(MeowChan.Favorites.FavoriteAssetKey! key, int? value, System.Threading.CancellationToken token = default(System.Threading.CancellationToken)) -> MeowChan.Ratings.MediaRatingCommit!
 MeowChan.Registry
 MeowChan.Registry.AddAsync(string! url) -> System.Threading.Tasks.Task<MeowChan.AdmissionResult!>!
 MeowChan.Registry.ApplyBoardAdmissionAsync(string! url, MeowChan.Admission.BoardAdmissionPolicy! policy, System.Collections.Generic.IReadOnlyCollection<string!>? reactivateThreadUrls = null) -> System.Threading.Tasks.Task<MeowChan.AdmissionResult!>!
@@ -1229,6 +1370,7 @@ MeowChan.Registry.RetryCompletedMediaAsync(string! threadUrl, string? mediaIdent
 MeowChan.Registry.RetryMissingMedia(MeowChan.Interfaces.IThread! thread, string? mediaIdentifier = null) -> int
 MeowChan.Registry.SetPaused(bool paused) -> void
 MeowChan.Registry.SetPausedAsync(bool paused) -> System.Threading.Tasks.Task!
+MeowChan.Registry.StartAsync(MeowChan.Persistence.ProfileLease! lease, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 MeowChan.Registry.StateChanged -> System.Action?
 MeowChan.Registry.StopAsync() -> System.Threading.Tasks.Task!
 MeowChan.Registry.SuppressArchivedThreadAsync(MeowChan.ResourceId! id, string! url, System.Threading.CancellationToken token = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
@@ -1372,6 +1514,30 @@ MeowChan.Rules.MediaTypeSelectionMode
 MeowChan.Rules.MediaTypeSelectionMode.All = 1 -> MeowChan.Rules.MediaTypeSelectionMode
 MeowChan.Rules.MediaTypeSelectionMode.Inherit = 0 -> MeowChan.Rules.MediaTypeSelectionMode
 MeowChan.Rules.MediaTypeSelectionMode.Selected = 2 -> MeowChan.Rules.MediaTypeSelectionMode
+MeowChan.Rules.RuleTemplate
+MeowChan.Rules.RuleTemplate.Id.get -> System.Guid
+MeowChan.Rules.RuleTemplate.ImageFilter.get -> MeowChan.Rules.MediaImageFilterRule?
+MeowChan.Rules.RuleTemplate.Name.get -> string!
+MeowChan.Rules.RuleTemplate.RuleTemplate(System.Guid id, string! name, MeowChan.Rules.MediaTypeSelection? types = null, MeowChan.Rules.MediaSizeLimit? sizeLimit = null, MeowChan.Rules.MediaImageFilterRule? imageFilter = null) -> void
+MeowChan.Rules.RuleTemplate.SizeLimit.get -> MeowChan.Rules.MediaSizeLimit?
+MeowChan.Rules.RuleTemplate.Types.get -> MeowChan.Rules.MediaTypeSelection?
+MeowChan.Rules.RuleTemplateLoadResult
+MeowChan.Rules.RuleTemplateLoadResult.Catalog.get -> MeowChan.Rules.RuleTemplateSet!
+MeowChan.Rules.RuleTemplateLoadResult.Catalog.init -> void
+MeowChan.Rules.RuleTemplateLoadResult.Recovered.get -> bool
+MeowChan.Rules.RuleTemplateLoadResult.Recovered.init -> void
+MeowChan.Rules.RuleTemplateLoadResult.RuleTemplateLoadResult(MeowChan.Rules.RuleTemplateSet! Catalog, string? Warning, bool Recovered) -> void
+MeowChan.Rules.RuleTemplateLoadResult.Warning.get -> string?
+MeowChan.Rules.RuleTemplateLoadResult.Warning.init -> void
+MeowChan.Rules.RuleTemplateSet
+MeowChan.Rules.RuleTemplateSet.Revision.get -> string!
+MeowChan.Rules.RuleTemplateSet.RuleTemplateSet(string! revision, System.Collections.Generic.IEnumerable<MeowChan.Rules.RuleTemplate!>! templates) -> void
+MeowChan.Rules.RuleTemplateSet.Templates.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Rules.RuleTemplate!>!
+MeowChan.Rules.RuleTemplateStore
+MeowChan.Rules.RuleTemplateStore.Current.get -> MeowChan.Rules.RuleTemplateSet!
+MeowChan.Rules.RuleTemplateStore.LoadAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Rules.RuleTemplateLoadResult!>!
+MeowChan.Rules.RuleTemplateStore.RuleTemplateStore(string! profileDirectory, MeowChan.Persistence.ProfileLease! lease) -> void
+MeowChan.Rules.RuleTemplateStore.SaveAsync(System.Collections.Generic.IEnumerable<MeowChan.Rules.RuleTemplate!>! templates, string! expectedRevision, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Rules.RuleTemplateSet!>!
 MeowChan.SessionOptions
 MeowChan.SessionOptions.BandwidthBytesPerSecond.get -> long
 MeowChan.SessionOptions.BandwidthBytesPerSecond.init -> void
@@ -1379,10 +1545,62 @@ MeowChan.SessionOptions.DownloadPath.get -> string!
 MeowChan.SessionOptions.DownloadPath.init -> void
 MeowChan.SessionOptions.MaxParallelDownloads.get -> int
 MeowChan.SessionOptions.MaxParallelDownloads.init -> void
+MeowChan.SessionOptions.ParallelDownloadsSafetyLimit.get -> int
+MeowChan.SessionOptions.ParallelDownloadsSafetyLimit.init -> void
 MeowChan.SessionOptions.RecheckInterval.get -> System.TimeSpan
 MeowChan.SessionOptions.RecheckInterval.init -> void
 MeowChan.SessionOptions.SessionOptions() -> void
 MeowChan.SessionOptions.Validate() -> void
+MeowChan.Storage.AttachmentRevisionReference
+MeowChan.Storage.AttachmentRevisionReference.AttachmentRevisionReference(MeowChan.ResourceId! Resource, string! PostId, int Position, string! RevisionKey) -> void
+MeowChan.Storage.AttachmentRevisionReference.Position.get -> int
+MeowChan.Storage.AttachmentRevisionReference.Position.init -> void
+MeowChan.Storage.AttachmentRevisionReference.PostId.get -> string!
+MeowChan.Storage.AttachmentRevisionReference.PostId.init -> void
+MeowChan.Storage.AttachmentRevisionReference.Resource.get -> MeowChan.ResourceId!
+MeowChan.Storage.AttachmentRevisionReference.Resource.init -> void
+MeowChan.Storage.AttachmentRevisionReference.RevisionKey.get -> string!
+MeowChan.Storage.AttachmentRevisionReference.RevisionKey.init -> void
+MeowChan.Storage.ISourceMediaIntegrityPolicy
+MeowChan.Storage.ISourceMediaIntegrityPolicy.AcquireAcceptanceLeaseAsync(long expectedRevision, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<MeowChan.Storage.MediaAcceptanceLease!>
+MeowChan.Storage.ISourceMediaIntegrityPolicy.GetSnapshot() -> MeowChan.Storage.SourceMediaIntegrityPolicySnapshot!
+MeowChan.Storage.ISourceMediaIntegrityPolicyProvider
+MeowChan.Storage.ISourceMediaIntegrityPolicyProvider.MediaIntegrityPolicy.get -> MeowChan.Storage.ISourceMediaIntegrityPolicy?
+MeowChan.Storage.MediaAcceptanceKind
+MeowChan.Storage.MediaAcceptanceKind.ExplicitProviderMismatch = 1 -> MeowChan.Storage.MediaAcceptanceKind
+MeowChan.Storage.MediaAcceptanceKind.PassiveImport = 2 -> MeowChan.Storage.MediaAcceptanceKind
+MeowChan.Storage.MediaAcceptanceKind.Strict = 0 -> MeowChan.Storage.MediaAcceptanceKind
+MeowChan.Storage.MediaAcceptanceLease
+MeowChan.Storage.MediaAcceptanceLease.MediaAcceptanceLease(MeowChan.Storage.SourceMediaIntegrityPolicySnapshot! snapshot) -> void
+MeowChan.Storage.MediaAcceptanceLease.Snapshot.get -> MeowChan.Storage.SourceMediaIntegrityPolicySnapshot!
+MeowChan.Storage.MediaAcceptanceRecord
+MeowChan.Storage.MediaAcceptanceRecord.AcceptedAtUtc.get -> System.DateTimeOffset
+MeowChan.Storage.MediaAcceptanceRecord.AcceptedAtUtc.init -> void
+MeowChan.Storage.MediaAcceptanceRecord.Kind.get -> MeowChan.Storage.MediaAcceptanceKind
+MeowChan.Storage.MediaAcceptanceRecord.Kind.init -> void
+MeowChan.Storage.MediaAcceptanceRecord.Md5Mismatch.get -> bool
+MeowChan.Storage.MediaAcceptanceRecord.Md5Mismatch.init -> void
+MeowChan.Storage.MediaAcceptanceRecord.MediaAcceptanceRecord(MeowChan.Storage.MediaAcceptanceKind Kind, bool SizeMismatch, bool Md5Mismatch, System.DateTimeOffset AcceptedAtUtc, string? ProfileId = null, string? PluginOwnerId = null, string? SourceId = null, long? PolicyRevision = null) -> void
+MeowChan.Storage.MediaAcceptanceRecord.PluginOwnerId.get -> string?
+MeowChan.Storage.MediaAcceptanceRecord.PluginOwnerId.init -> void
+MeowChan.Storage.MediaAcceptanceRecord.PolicyRevision.get -> long?
+MeowChan.Storage.MediaAcceptanceRecord.PolicyRevision.init -> void
+MeowChan.Storage.MediaAcceptanceRecord.ProfileId.get -> string?
+MeowChan.Storage.MediaAcceptanceRecord.ProfileId.init -> void
+MeowChan.Storage.MediaAcceptanceRecord.SizeMismatch.get -> bool
+MeowChan.Storage.MediaAcceptanceRecord.SizeMismatch.init -> void
+MeowChan.Storage.MediaAcceptanceRecord.SourceId.get -> string?
+MeowChan.Storage.MediaAcceptanceRecord.SourceId.init -> void
+MeowChan.Storage.MediaActualIntegrity
+MeowChan.Storage.MediaActualIntegrity.Length.get -> long
+MeowChan.Storage.MediaActualIntegrity.Length.init -> void
+MeowChan.Storage.MediaActualIntegrity.Md5.get -> string!
+MeowChan.Storage.MediaActualIntegrity.Md5.init -> void
+MeowChan.Storage.MediaActualIntegrity.MediaActualIntegrity(long Length, string! Md5, string! Sha256) -> void
+MeowChan.Storage.MediaActualIntegrity.Sha1.get -> string?
+MeowChan.Storage.MediaActualIntegrity.Sha1.init -> void
+MeowChan.Storage.MediaActualIntegrity.Sha256.get -> string!
+MeowChan.Storage.MediaActualIntegrity.Sha256.init -> void
 MeowChan.Storage.MediaAssetReader
 MeowChan.Storage.MediaAssetReference
 MeowChan.Storage.MediaAssetReference.AssetId.get -> string!
@@ -1402,6 +1620,8 @@ MeowChan.Storage.MediaAssetReference.Path.get -> string!
 MeowChan.Storage.MediaAssetReference.Path.init -> void
 MeowChan.Storage.MediaAssetReference.RequestedFileName.get -> string!
 MeowChan.Storage.MediaAssetReference.RequestedFileName.init -> void
+MeowChan.Storage.MediaAssetReference.Sha1.get -> string?
+MeowChan.Storage.MediaAssetReference.Sha1.init -> void
 MeowChan.Storage.MediaAssetReference.Sha256.get -> string!
 MeowChan.Storage.MediaAssetReference.Sha256.init -> void
 MeowChan.Storage.MediaAssetReference.SourceUrl.get -> string!
@@ -1409,8 +1629,10 @@ MeowChan.Storage.MediaAssetReference.SourceUrl.init -> void
 MeowChan.Storage.MediaAssetReference.Variant.get -> string!
 MeowChan.Storage.MediaAssetReference.Variant.init -> void
 MeowChan.Storage.MediaAssetSnapshot
+MeowChan.Storage.MediaAssetSnapshot.AttachmentBindings.get -> System.Collections.Generic.IReadOnlyDictionary<string!, MeowChan.Storage.MediaAttachmentBinding!>!
 MeowChan.Storage.MediaAssetSnapshot.Count.get -> int
 MeowChan.Storage.MediaAssetSnapshot.Directory.get -> string!
+MeowChan.Storage.MediaAssetSnapshot.FindAttachmentBinding(string! revisionKey) -> MeowChan.Storage.MediaAttachmentBinding?
 MeowChan.Storage.MediaAssetSnapshot.FindById(string! assetId) -> MeowChan.Storage.MediaAssetReference?
 MeowChan.Storage.MediaAssetSnapshot.Generation.get -> string?
 MeowChan.Storage.MediaAssetSnapshot.GetPage(int offset = 0, int limit = 100) -> System.Collections.Generic.IReadOnlyList<MeowChan.Storage.MediaAssetReference!>!
@@ -1418,9 +1640,30 @@ MeowChan.Storage.MediaAssetSnapshot.ManifestVersion.get -> int?
 MeowChan.Storage.MediaAssetSnapshot.OpenVerifiedReadAsync(string! assetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.IO.Stream!>!
 MeowChan.Storage.MediaAssetSnapshot.Status.get -> MeowChan.Storage.MediaManifestStatus
 MeowChan.Storage.MediaAssetSnapshot.Warning.get -> string?
+MeowChan.Storage.MediaAttachmentBinding
+MeowChan.Storage.MediaAttachmentBinding.Acceptance.get -> MeowChan.Storage.MediaAcceptanceRecord!
+MeowChan.Storage.MediaAttachmentBinding.Acceptance.init -> void
+MeowChan.Storage.MediaAttachmentBinding.AcquisitionRevisionKey.get -> string!
+MeowChan.Storage.MediaAttachmentBinding.AcquisitionRevisionKey.init -> void
+MeowChan.Storage.MediaAttachmentBinding.Actual.get -> MeowChan.Storage.MediaActualIntegrity!
+MeowChan.Storage.MediaAttachmentBinding.Actual.init -> void
+MeowChan.Storage.MediaAttachmentBinding.AssetId.get -> string!
+MeowChan.Storage.MediaAttachmentBinding.AssetId.init -> void
+MeowChan.Storage.MediaAttachmentBinding.MediaAttachmentBinding(MeowChan.Storage.AttachmentRevisionReference! Reference, string! AcquisitionRevisionKey, string! AssetId, MeowChan.Storage.MediaProviderMetadata! Provider, MeowChan.Storage.MediaActualIntegrity! Actual, MeowChan.Storage.MediaAcceptanceRecord! Acceptance) -> void
+MeowChan.Storage.MediaAttachmentBinding.PassiveImport.get -> MeowChan.Storage.MediaPassiveImportRecord?
+MeowChan.Storage.MediaAttachmentBinding.PassiveImport.init -> void
+MeowChan.Storage.MediaAttachmentBinding.Provider.get -> MeowChan.Storage.MediaProviderMetadata!
+MeowChan.Storage.MediaAttachmentBinding.Provider.init -> void
+MeowChan.Storage.MediaAttachmentBinding.Reference.get -> MeowChan.Storage.AttachmentRevisionReference!
+MeowChan.Storage.MediaAttachmentBinding.Reference.init -> void
+MeowChan.Storage.MediaAttachmentResolver
 MeowChan.Storage.MediaCommitResult
+MeowChan.Storage.MediaCommitResult.AcquisitionRevisionKey.get -> string?
+MeowChan.Storage.MediaCommitResult.AcquisitionRevisionKey.init -> void
 MeowChan.Storage.MediaCommitResult.AssetId.get -> string?
 MeowChan.Storage.MediaCommitResult.AssetId.init -> void
+MeowChan.Storage.MediaCommitResult.AttachmentRevisionKeys.get -> System.Collections.Generic.IReadOnlyList<string!>!
+MeowChan.Storage.MediaCommitResult.AttachmentRevisionKeys.init -> void
 MeowChan.Storage.MediaCommitResult.Length.get -> long
 MeowChan.Storage.MediaCommitResult.Length.init -> void
 MeowChan.Storage.MediaCommitResult.MediaCommitResult(string! Path, long Length, string! Sha256, bool Reused) -> void
@@ -1430,14 +1673,102 @@ MeowChan.Storage.MediaCommitResult.Reused.get -> bool
 MeowChan.Storage.MediaCommitResult.Reused.init -> void
 MeowChan.Storage.MediaCommitResult.Sha256.get -> string!
 MeowChan.Storage.MediaCommitResult.Sha256.init -> void
+MeowChan.Storage.MediaImportedHistory
+MeowChan.Storage.MediaImportedHistory.AcceptedAtUtc.get -> System.DateTimeOffset
+MeowChan.Storage.MediaImportedHistory.AcceptedAtUtc.init -> void
+MeowChan.Storage.MediaImportedHistory.Kind.get -> MeowChan.Storage.MediaAcceptanceKind
+MeowChan.Storage.MediaImportedHistory.Kind.init -> void
+MeowChan.Storage.MediaImportedHistory.Md5Mismatch.get -> bool
+MeowChan.Storage.MediaImportedHistory.Md5Mismatch.init -> void
+MeowChan.Storage.MediaImportedHistory.MediaImportedHistory(MeowChan.Storage.MediaAcceptanceKind Kind, System.DateTimeOffset AcceptedAtUtc, bool SizeMismatch, bool Md5Mismatch) -> void
+MeowChan.Storage.MediaImportedHistory.SizeMismatch.get -> bool
+MeowChan.Storage.MediaImportedHistory.SizeMismatch.init -> void
 MeowChan.Storage.MediaManifestStatus
 MeowChan.Storage.MediaManifestStatus.Available = 1 -> MeowChan.Storage.MediaManifestStatus
 MeowChan.Storage.MediaManifestStatus.Corrupt = 2 -> MeowChan.Storage.MediaManifestStatus
 MeowChan.Storage.MediaManifestStatus.Missing = 0 -> MeowChan.Storage.MediaManifestStatus
+MeowChan.Storage.MediaPassiveImportRecord
+MeowChan.Storage.MediaPassiveImportRecord.History.get -> MeowChan.Storage.MediaImportedHistory?
+MeowChan.Storage.MediaPassiveImportRecord.History.init -> void
+MeowChan.Storage.MediaPassiveImportRecord.ImportedAtUtc.get -> System.DateTimeOffset
+MeowChan.Storage.MediaPassiveImportRecord.ImportedAtUtc.init -> void
+MeowChan.Storage.MediaPassiveImportRecord.IncomingRevisionKey.get -> string?
+MeowChan.Storage.MediaPassiveImportRecord.IncomingRevisionKey.init -> void
+MeowChan.Storage.MediaPassiveImportRecord.MediaPassiveImportRecord(string! OperationId, string! PackageFingerprint, System.DateTimeOffset ImportedAtUtc, string? IncomingRevisionKey, MeowChan.Storage.MediaImportedHistory? History) -> void
+MeowChan.Storage.MediaPassiveImportRecord.OperationId.get -> string!
+MeowChan.Storage.MediaPassiveImportRecord.OperationId.init -> void
+MeowChan.Storage.MediaPassiveImportRecord.PackageFingerprint.get -> string!
+MeowChan.Storage.MediaPassiveImportRecord.PackageFingerprint.init -> void
+MeowChan.Storage.MediaProviderMetadata
+MeowChan.Storage.MediaProviderMetadata.ExpectedMd5.get -> string?
+MeowChan.Storage.MediaProviderMetadata.ExpectedMd5.init -> void
+MeowChan.Storage.MediaProviderMetadata.ExpectedSha1.get -> string?
+MeowChan.Storage.MediaProviderMetadata.ExpectedSha1.init -> void
+MeowChan.Storage.MediaProviderMetadata.ExpectedSha256.get -> string?
+MeowChan.Storage.MediaProviderMetadata.ExpectedSha256.init -> void
+MeowChan.Storage.MediaProviderMetadata.ExpectedSize.get -> long?
+MeowChan.Storage.MediaProviderMetadata.ExpectedSize.init -> void
+MeowChan.Storage.MediaProviderMetadata.MediaId.get -> string!
+MeowChan.Storage.MediaProviderMetadata.MediaId.init -> void
+MeowChan.Storage.MediaProviderMetadata.MediaProviderMetadata(string! MediaId, string! Variant, string! Url, string? OriginalFileName, long? ExpectedSize, string? ExpectedMd5, string? ExpectedSha256) -> void
+MeowChan.Storage.MediaProviderMetadata.OriginalFileName.get -> string?
+MeowChan.Storage.MediaProviderMetadata.OriginalFileName.init -> void
+MeowChan.Storage.MediaProviderMetadata.ProviderSizeHint.get -> MeowChan.Storage.MediaProviderSizeHint?
+MeowChan.Storage.MediaProviderMetadata.ProviderSizeHint.init -> void
+MeowChan.Storage.MediaProviderMetadata.Url.get -> string!
+MeowChan.Storage.MediaProviderMetadata.Url.init -> void
+MeowChan.Storage.MediaProviderMetadata.Variant.get -> string!
+MeowChan.Storage.MediaProviderMetadata.Variant.init -> void
+MeowChan.Storage.MediaProviderSizeHint
+MeowChan.Storage.MediaProviderSizeHint.MediaProviderSizeHint(string! RawValue, string! UnitLabel, MeowChan.Storage.MediaSizePrecision Precision = MeowChan.Storage.MediaSizePrecision.Unspecified) -> void
+MeowChan.Storage.MediaProviderSizeHint.Precision.get -> MeowChan.Storage.MediaSizePrecision
+MeowChan.Storage.MediaProviderSizeHint.Precision.init -> void
+MeowChan.Storage.MediaProviderSizeHint.RawValue.get -> string!
+MeowChan.Storage.MediaProviderSizeHint.RawValue.init -> void
+MeowChan.Storage.MediaProviderSizeHint.UnitLabel.get -> string!
+MeowChan.Storage.MediaProviderSizeHint.UnitLabel.init -> void
+MeowChan.Storage.MediaRevisionKeys
+MeowChan.Storage.MediaSizePrecision
+MeowChan.Storage.MediaSizePrecision.Rounded = 1 -> MeowChan.Storage.MediaSizePrecision
+MeowChan.Storage.MediaSizePrecision.Truncated = 2 -> MeowChan.Storage.MediaSizePrecision
+MeowChan.Storage.MediaSizePrecision.Unspecified = 0 -> MeowChan.Storage.MediaSizePrecision
 MeowChan.Storage.MediaStore
 MeowChan.Storage.MediaStore.CommitAsync(MeowChan.Downloader.DownloadItem! item, System.IO.Stream! source, System.Threading.CancellationToken cancellationToken, System.Func<int, System.Threading.CancellationToken, System.Threading.Tasks.Task!>? throttleAsync = null) -> System.Threading.Tasks.Task<MeowChan.Storage.MediaCommitResult!>!
 MeowChan.Storage.MediaStore.MediaStore(System.TimeProvider? timeProvider = null) -> void
 MeowChan.Storage.MediaStore.TryRestoreAsync(MeowChan.Downloader.DownloadItem! item, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<MeowChan.Storage.MediaCommitResult?>!
+MeowChan.Storage.ProviderIntegrityAssessment
+MeowChan.Storage.ProviderIntegrityAssessment.IsStrictMatch.get -> bool
+MeowChan.Storage.ProviderIntegrityAssessment.Md5Mismatch.get -> bool
+MeowChan.Storage.ProviderIntegrityAssessment.Md5Mismatch.init -> void
+MeowChan.Storage.ProviderIntegrityAssessment.ProviderIntegrityAssessment(bool SizeMismatch, bool Md5Mismatch, bool Sha256Mismatch) -> void
+MeowChan.Storage.ProviderIntegrityAssessment.Sha1Mismatch.get -> bool
+MeowChan.Storage.ProviderIntegrityAssessment.Sha1Mismatch.init -> void
+MeowChan.Storage.ProviderIntegrityAssessment.Sha256Mismatch.get -> bool
+MeowChan.Storage.ProviderIntegrityAssessment.Sha256Mismatch.init -> void
+MeowChan.Storage.ProviderIntegrityAssessment.SizeMismatch.get -> bool
+MeowChan.Storage.ProviderIntegrityAssessment.SizeMismatch.init -> void
+MeowChan.Storage.ResolvedMediaAttachment
+MeowChan.Storage.ResolvedMediaAttachment.Asset.get -> MeowChan.Storage.MediaAssetReference!
+MeowChan.Storage.ResolvedMediaAttachment.Asset.init -> void
+MeowChan.Storage.ResolvedMediaAttachment.Binding.get -> MeowChan.Storage.MediaAttachmentBinding?
+MeowChan.Storage.ResolvedMediaAttachment.Binding.init -> void
+MeowChan.Storage.ResolvedMediaAttachment.IsLegacy.get -> bool
+MeowChan.Storage.ResolvedMediaAttachment.IsLegacy.init -> void
+MeowChan.Storage.ResolvedMediaAttachment.ResolvedMediaAttachment(MeowChan.Storage.MediaAssetSnapshot! Snapshot, MeowChan.Storage.MediaAssetReference! Asset, MeowChan.Storage.MediaAttachmentBinding? Binding, bool IsLegacy) -> void
+MeowChan.Storage.ResolvedMediaAttachment.Snapshot.get -> MeowChan.Storage.MediaAssetSnapshot!
+MeowChan.Storage.ResolvedMediaAttachment.Snapshot.init -> void
+MeowChan.Storage.SourceMediaIntegrityPolicySnapshot
+MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.AllowProviderSizeMd5Mismatch.get -> bool
+MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.AllowProviderSizeMd5Mismatch.init -> void
+MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.PluginOwnerId.get -> string!
+MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.PluginOwnerId.init -> void
+MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.ProfileId.get -> string!
+MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.ProfileId.init -> void
+MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.Revision.get -> long
+MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.Revision.init -> void
+MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.SourceId.get -> string!
+MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.SourceId.init -> void
+MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.SourceMediaIntegrityPolicySnapshot(string! ProfileId, string! PluginOwnerId, string! SourceId, bool AllowProviderSizeMd5Mismatch, long Revision) -> void
 MeowChan.Storage.StorageLayout
 MeowChan.ThreadSnapshot
 MeowChan.ThreadSnapshot.Activity.get -> MeowChan.Interfaces.ThreadActivity
@@ -1488,6 +1819,37 @@ MeowChan.ThreadWorkSnapshot.Source.init -> void
 MeowChan.ThreadWorkSnapshot.ThreadWorkSnapshot(string! Url, MeowChan.Persistence.WorkIntent Intent, MeowChan.Persistence.ThreadSourceStateValue Source, System.DateTimeOffset? EndObservedAt, bool CapturePending, System.Collections.Generic.IReadOnlyList<MeowChan.Persistence.MediaWork!>! Media) -> void
 MeowChan.ThreadWorkSnapshot.Url.get -> string!
 MeowChan.ThreadWorkSnapshot.Url.init -> void
+abstract MeowChan.Boards.Base.BaseBoard.BoardCode.get -> string!
+abstract MeowChan.Boards.Base.BaseBoard.BoardUri.get -> System.Uri!
+abstract MeowChan.Boards.Base.BaseBoard.GetThreadsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<MeowChan.Interfaces.IThread!>!>!
+abstract MeowChan.Boards.Base.BaseBoard.ImageBoard.get -> MeowChan.Interfaces.IImageBoard!
+abstract MeowChan.Boards.Base.BaseBoard.Name.get -> string!
+abstract MeowChan.Boards.Base.BaseBoard.Name.set -> void
+abstract MeowChan.Boards.Base.BaseBoard.NiceName.get -> string!
+abstract MeowChan.Boards.Base.BaseImageBoard.BaseUri.get -> System.Uri!
+abstract MeowChan.Boards.Base.BaseImageBoard.CanHandle(System.Uri! uri) -> bool
+abstract MeowChan.Boards.Base.BaseImageBoard.GetBoard(System.Uri! boardUri) -> MeowChan.Interfaces.IBoard!
+abstract MeowChan.Boards.Base.BaseImageBoard.GetThread(System.Uri! threadUri) -> MeowChan.Interfaces.IThread!
+abstract MeowChan.Boards.Base.BaseImageBoard.IsBoardUri(System.Uri! uri) -> bool
+abstract MeowChan.Boards.Base.BaseImageBoard.IsThreadUri(System.Uri! uri) -> bool
+abstract MeowChan.Boards.Base.BaseImageBoard.Name.get -> string!
+abstract MeowChan.Boards.Base.BaseImageBoard.NiceName.get -> string!
+abstract MeowChan.Boards.Base.BaseThread.Board.get -> MeowChan.Interfaces.IBoard!
+abstract MeowChan.Boards.Base.BaseThread.NiceName.get -> string!
+abstract MeowChan.Boards.Base.BaseThread.ThreadId.get -> string!
+abstract MeowChan.Boards.Base.BaseThread.ThreadUri.get -> System.Uri!
+abstract MeowChan.Storage.MediaAcceptanceLease.DisposeAsync() -> System.Threading.Tasks.ValueTask
+const MeowChan.Archive.ArchiveCollectionExportMetadataFile.Name = "meowchan-collection-export.json" -> string!
+const MeowChan.Archive.ArchiveExportMetadataFile.Name = "meowchan-export.json" -> string!
+const MeowChan.Downloader.DownloadQueue.MaximumParallelDownloadsSafetyLimit = 256 -> int
+const MeowChan.Downloader.DownloadQueue.ProtectiveParallelDownloadsCeiling = 32 -> int
+const MeowChan.Favorites.ThreadFavoriteStore.MaximumBytes = 8000000 -> int
+const MeowChan.Favorites.ThreadFavoriteStore.MaximumEntries = 50000 -> int
+const MeowChan.Http.RequestPolicyHandler.MaximumAttempts = 3 -> int
+const MeowChan.Ratings.MediaRatingStore.MaximumBytes = 8000000 -> int
+const MeowChan.Ratings.MediaRatingStore.MaximumEntries = 50000 -> int
+override MeowChan.Archive.ArchiveSearchSpec.Equals(object? obj) -> bool
+override MeowChan.Archive.ArchiveSearchSpec.GetHashCode() -> int
 override MeowChan.Boards.EightKun.EightKunBoard.BoardCode.get -> string!
 override MeowChan.Boards.EightKun.EightKunBoard.BoardUri.get -> System.Uri!
 override MeowChan.Boards.EightKun.EightKunBoard.GetThreadsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<MeowChan.Interfaces.IThread!>!>!
@@ -1504,11 +1866,11 @@ override MeowChan.Boards.EightKun.EightKunImageBoard.IsThreadUri(System.Uri! uri
 override MeowChan.Boards.EightKun.EightKunImageBoard.Name.get -> string!
 override MeowChan.Boards.EightKun.EightKunImageBoard.NiceName.get -> string!
 override MeowChan.Boards.EightKun.EightKunThread.Board.get -> MeowChan.Interfaces.IBoard!
-override MeowChan.Boards.EightKun.EightKunThread.checkThreadAsync(MeowChan.Downloader.DownloadQueue! queue, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 override MeowChan.Boards.EightKun.EightKunThread.NiceName.get -> string!
 override MeowChan.Boards.EightKun.EightKunThread.SupportsContent.get -> bool
 override MeowChan.Boards.EightKun.EightKunThread.ThreadId.get -> string!
 override MeowChan.Boards.EightKun.EightKunThread.ThreadUri.get -> System.Uri!
+override MeowChan.Boards.EightKun.EightKunThread.checkThreadAsync(MeowChan.Downloader.DownloadQueue! queue, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 override MeowChan.Boards.FourChan.FourChanBoard.BoardCode.get -> string!
 override MeowChan.Boards.FourChan.FourChanBoard.BoardUri.get -> System.Uri!
 override MeowChan.Boards.FourChan.FourChanBoard.GetThreadsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<MeowChan.Interfaces.IThread!>!>!
@@ -1525,12 +1887,12 @@ override MeowChan.Boards.FourChan.FourChanImageBoard.IsThreadUri(System.Uri! uri
 override MeowChan.Boards.FourChan.FourChanImageBoard.Name.get -> string!
 override MeowChan.Boards.FourChan.FourChanImageBoard.NiceName.get -> string!
 override MeowChan.Boards.FourChan.FourChanThread.Board.get -> MeowChan.Interfaces.IBoard!
-override MeowChan.Boards.FourChan.FourChanThread.checkThreadAsync(MeowChan.Downloader.DownloadQueue! queue, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 override MeowChan.Boards.FourChan.FourChanThread.MinimumRecheckInterval.get -> System.TimeSpan
 override MeowChan.Boards.FourChan.FourChanThread.NiceName.get -> string!
 override MeowChan.Boards.FourChan.FourChanThread.SupportsContent.get -> bool
 override MeowChan.Boards.FourChan.FourChanThread.ThreadId.get -> string!
 override MeowChan.Boards.FourChan.FourChanThread.ThreadUri.get -> System.Uri!
+override MeowChan.Boards.FourChan.FourChanThread.checkThreadAsync(MeowChan.Downloader.DownloadQueue! queue, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 static MeowChan.Admission.BoardAdmissionPolicy.All.get -> MeowChan.Admission.BoardAdmissionPolicy!
 static MeowChan.Archive.ArchiveCaptureMerge.Merge(MeowChan.Archive.CapturedThreadSnapshot! previous, MeowChan.Archive.CapturedThreadSnapshot! next) -> MeowChan.Archive.CapturedThreadSnapshot!
 static MeowChan.Archive.ArchiveCaptureMerge.MergePost(MeowChan.Archive.CapturedPost! previous, MeowChan.Archive.CapturedPost! next) -> MeowChan.Archive.CapturedPost!
@@ -1540,6 +1902,8 @@ static MeowChan.Archive.ArchiveCollectionExportMetadataFile.InspectAsync(string!
 static MeowChan.Archive.ArchiveCollectionHtmlExporter.ExportAsync(MeowChan.Archive.ArchiveReader! reader, System.Collections.Generic.IReadOnlyList<MeowChan.ResourceId!>! members, string! destinationDirectory, MeowChan.Archive.ArchiveHtmlExportOptions? options = null, System.IProgress<MeowChan.Archive.ArchiveCollectionHtmlExportProgress!>? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchiveCollectionHtmlExportResult!>!
 static MeowChan.Archive.ArchiveCollectionHtmlExporter.InspectAsync(string! destinationDirectory, System.Collections.Generic.IReadOnlyList<MeowChan.ResourceId!>? expectedMembers = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchiveCollectionExportInspection!>!
 static MeowChan.Archive.ArchiveCollectionHtmlExporter.UpdateAsync(MeowChan.Archive.ArchiveReader! reader, System.Collections.Generic.IReadOnlyList<MeowChan.ResourceId!>! members, string! destinationDirectory, System.Guid expectedExportId, int expectedGeneration, string! expectedObservedFingerprint, MeowChan.Archive.ArchiveHtmlExportOptions? options = null, bool confirmPreserveBackup = false, System.IProgress<MeowChan.Archive.ArchiveCollectionHtmlExportProgress!>? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchiveCollectionHtmlExportResult!>!
+static MeowChan.Archive.ArchiveDateResolver.GetLocalTimeZoneId() -> string!
+static MeowChan.Archive.ArchiveDateResolver.Resolve(MeowChan.Archive.ArchiveDateRange? range) -> MeowChan.Archive.ResolvedDateWindow?
 static MeowChan.Archive.ArchiveExportLegacy.AssociateAsync(MeowChan.Archive.ArchiveReader! reader, MeowChan.ResourceId! thread, string! directory, System.Threading.CancellationToken token = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchiveExportInspection!>!
 static MeowChan.Archive.ArchiveExportLegacy.FindCandidates(string! parentDirectory, MeowChan.ResourceId! thread, System.Threading.CancellationToken token = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveLegacyExportCandidate!>!
 static MeowChan.Archive.ArchiveExportMetadataFile.CreateAsync(string! stage, MeowChan.Archive.ArchivedThreadView! view, MeowChan.Archive.ArchiveHtmlExportOptions! options, System.Guid id, int generation, System.Threading.CancellationToken token, bool adoptedLegacy = false) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchiveExportMetadata!>!
@@ -1549,17 +1913,23 @@ static MeowChan.Archive.ArchiveHtmlExporter.InspectAsync(string! destinationDire
 static MeowChan.Archive.ArchiveHtmlExporter.UpdateAsync(MeowChan.Archive.ArchiveReader! reader, MeowChan.ResourceId! thread, string! destinationDirectory, System.Guid expectedExportId, int expectedGeneration, MeowChan.Archive.ArchiveHtmlExportOptions? options = null, bool confirmPreserveBackup = false, System.IProgress<MeowChan.Archive.ArchiveHtmlExportProgress!>? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken), string? expectedObservedFingerprint = null) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchiveHtmlExportResult!>!
 static MeowChan.Archive.ArchiveQuoteParser.Parse(MeowChan.ResourceId! thread, string! threadUrl, MeowChan.Archive.CapturedPost! post) -> System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveQuote!>!
 static MeowChan.Archive.ArchiveReader.OpenAsync(string! profileDirectory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchiveReader!>!
+static MeowChan.Archive.ArchiveSearchRequest.Create(MeowChan.Archive.ArchiveSearchSpec! spec) -> MeowChan.Archive.ArchiveSearchRequest!
+static MeowChan.Archive.ArchiveSearchSpec.FromLegacy(MeowChan.Archive.ArchiveThreadQuery! query, MeowChan.Archive.ArchiveWorkFilter workFilter = MeowChan.Archive.ArchiveWorkFilter.All) -> MeowChan.Archive.ArchiveSearchSpec!
+static MeowChan.Archive.ArchiveSearchSpecJson.Deserialize(string! json) -> MeowChan.Archive.ArchiveSearchSpec!
+static MeowChan.Archive.ArchiveSearchSpecJson.Serialize(MeowChan.Archive.ArchiveSearchSpec! spec) -> string!
 static MeowChan.Archive.ArchiveText.PlainText(string? html) -> string!
 static MeowChan.Boards.Base.BaseImageBoard.IsWebUri(System.Uri? uri) -> bool
 static MeowChan.Favorites.FavoriteAssetKey.From(MeowChan.ResourceId! thread, MeowChan.Storage.MediaAssetReference! asset) -> MeowChan.Favorites.FavoriteAssetKey!
 static MeowChan.Favorites.FavoriteExportAsset.From(MeowChan.ResourceId! thread, MeowChan.Storage.MediaAssetSnapshot! manifest, MeowChan.Storage.MediaAssetReference! asset) -> MeowChan.Favorites.FavoriteExportAsset!
 static MeowChan.Favorites.FavoriteOriginalExporter.ExportAsync(System.Collections.Generic.IReadOnlyList<MeowChan.Favorites.FavoriteExportAsset!>! assets, string! destinationDirectory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Favorites.FavoriteExportResult!>!
 static MeowChan.Favorites.FavoriteStore.From(MeowChan.ResourceId! thread, MeowChan.Storage.MediaAssetReference! asset) -> MeowChan.Favorites.FavoriteEntry!
+static MeowChan.Favorites.ThreadFavoriteStore.Validate(MeowChan.ResourceId! thread) -> void
 static MeowChan.Gallery.GallerySelection.Build(MeowChan.Archive.ArchivedThreadView! thread, System.Collections.Generic.IEnumerable<MeowChan.Storage.MediaAssetSnapshot!>! manifests, bool allSavedVersions = false, bool includeOtherMedia = false) -> MeowChan.Gallery.GalleryThreadResult!
 static MeowChan.Gallery.SavedMediaTypes.Classify(string! path) -> MeowChan.Gallery.SavedMediaKind
 static MeowChan.Http.ProviderHttpClientFactory.CreatePolicyClient(System.Net.Http.HttpClient! transport, string! source, MeowChan.Http.RequestPolicyState? policy = null, Serilog.ILogger? logger = null) -> System.Net.Http.HttpClient!
 static MeowChan.Http.ProviderHttpClientFactory.GetDefaultClient(string! source, Serilog.ILogger? logger = null) -> System.Net.Http.HttpClient!
 static MeowChan.Persistence.ProfileLease.Acquire(string! profileDirectory) -> MeowChan.Persistence.ProfileLease!
+static MeowChan.Ratings.MediaRatingStore.ValidateKey(MeowChan.Favorites.FavoriteAssetKey! key) -> void
 static MeowChan.Rules.MediaImageFilterRule.Disabled.get -> MeowChan.Rules.MediaImageFilterRule!
 static MeowChan.Rules.MediaImageFilterRule.Inherit.get -> MeowChan.Rules.MediaImageFilterRule!
 static MeowChan.Rules.MediaRuleScope.ForBoard(string! source, string! board) -> MeowChan.Rules.MediaRuleScope!
@@ -1572,7 +1942,13 @@ static MeowChan.Rules.MediaSizeLimit.Unlimited.get -> MeowChan.Rules.MediaSizeLi
 static MeowChan.Rules.MediaTypeSelection.All.get -> MeowChan.Rules.MediaTypeSelection!
 static MeowChan.Rules.MediaTypeSelection.Inherit.get -> MeowChan.Rules.MediaTypeSelection!
 static MeowChan.Rules.MediaTypeSelection.NormalizeExtension(string! extension) -> string!
+static MeowChan.Rules.RuleTemplateSet.Empty.get -> MeowChan.Rules.RuleTemplateSet!
 static MeowChan.Storage.MediaAssetReader.OpenAsync(string! threadDirectory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Storage.MediaAssetSnapshot!>!
+static MeowChan.Storage.MediaAttachmentResolver.Resolve(MeowChan.Storage.MediaAssetSnapshot! snapshot, MeowChan.ResourceId! resource, string! postId, MeowChan.Archive.CapturedAttachment! attachment) -> MeowChan.Storage.ResolvedMediaAttachment?
+static MeowChan.Storage.MediaAttachmentResolver.Resolve(System.Collections.Generic.IEnumerable<MeowChan.Storage.MediaAssetSnapshot!>! snapshots, MeowChan.ResourceId! resource, string! postId, MeowChan.Archive.CapturedAttachment! attachment) -> MeowChan.Storage.ResolvedMediaAttachment?
+static MeowChan.Storage.MediaRevisionKeys.CreateAcquisitionKey(MeowChan.ResourceId! resource, MeowChan.Storage.MediaProviderMetadata! provider) -> string!
+static MeowChan.Storage.MediaRevisionKeys.CreateAttachmentKey(MeowChan.ResourceId! resource, string! postId, int position, MeowChan.Storage.MediaProviderMetadata! provider) -> string!
+static MeowChan.Storage.ProviderIntegrityAssessment.Assess(MeowChan.Storage.MediaProviderMetadata! provider, MeowChan.Storage.MediaActualIntegrity! actual) -> MeowChan.Storage.ProviderIntegrityAssessment!
 static MeowChan.Storage.StorageLayout.GetBoardDirectory(string! root, string! source, string! board) -> string!
 static MeowChan.Storage.StorageLayout.GetMediaPath(string! root, string! source, string! board, string! thread, string! mediaId, string! ext) -> string!
 static MeowChan.Storage.StorageLayout.GetMediaPath(string! root, string! source, string! board, string! thread, string! mediaId, string! ext, string! variant) -> string!
@@ -1584,341 +1960,10 @@ static readonly MeowChan.Http.RequestPolicyHandler.OverallTimeout -> System.Time
 virtual MeowChan.Boards.Base.BaseBoard.CheckForNewThreadsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 virtual MeowChan.Boards.Base.BaseBoard.WaitForNextCheckAsync(System.TimeSpan interval, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 virtual MeowChan.Boards.Base.BaseImageBoard.GetHttpClient() -> System.Net.Http.HttpClient!
-virtual MeowChan.Boards.Base.BaseThread.checkThreadAsync(MeowChan.Downloader.DownloadQueue! queue, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 virtual MeowChan.Boards.Base.BaseThread.EnqueueMediaDownloadsAsync(MeowChan.Downloader.DownloadQueue! queue, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 virtual MeowChan.Boards.Base.BaseThread.MinimumRecheckInterval.get -> System.TimeSpan
 virtual MeowChan.Boards.Base.BaseThread.SupportsContent.get -> bool
 virtual MeowChan.Boards.Base.BaseThread.Title.get -> string!
 virtual MeowChan.Boards.Base.BaseThread.Title.set -> void
 virtual MeowChan.Boards.Base.BaseThread.WaitForNextCheckAsync(System.TimeSpan interval, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-
-MeowChan.Archive.ArchiveBoardIdentity
-MeowChan.Archive.ArchiveBoardIdentity.ArchiveBoardIdentity(string! Source, string! Board) -> void
-MeowChan.Archive.ArchiveBoardIdentity.Board.get -> string!
-MeowChan.Archive.ArchiveBoardIdentity.Board.init -> void
-MeowChan.Archive.ArchiveBoardIdentity.Source.get -> string!
-MeowChan.Archive.ArchiveBoardIdentity.Source.init -> void
-MeowChan.Archive.ArchiveIdentityPage<T>
-MeowChan.Archive.ArchiveIdentityPage<T>.ArchiveIdentityPage(System.Collections.Generic.IEnumerable<T>! items, bool hasMore) -> void
-MeowChan.Archive.ArchiveIdentityPage<T>.HasMore.get -> bool
-MeowChan.Archive.ArchiveIdentityPage<T>.Items.get -> System.Collections.Generic.IReadOnlyList<T>!
-MeowChan.Archive.ArchiveReader.ReadBoardIdentitiesAsync(string? source = null, int limit = 2048, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchiveIdentityPage<MeowChan.Archive.ArchiveBoardIdentity!>!>!
-MeowChan.Archive.ArchiveReader.ReadSourceIdentitiesAsync(int limit = 256, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchiveIdentityPage<string!>!>!
-MeowChan.Archive.ArchiveBoardConstraint
-MeowChan.Archive.ArchiveBoardConstraint.ArchiveBoardConstraint(string? Source, string! Board) -> void
-MeowChan.Archive.ArchiveBoardConstraint.Board.get -> string!
-MeowChan.Archive.ArchiveBoardConstraint.Board.init -> void
-MeowChan.Archive.ArchiveBoardConstraint.Source.get -> string?
-MeowChan.Archive.ArchiveBoardConstraint.Source.init -> void
-MeowChan.Archive.ArchiveDateRange
-MeowChan.Archive.ArchiveDateRange.ArchiveDateRange(System.DateOnly? startDate, System.DateOnly? endDate, string! timeZoneId, string! basis = "first-seen") -> void
-MeowChan.Archive.ArchiveDateRange.Basis.get -> string!
-MeowChan.Archive.ArchiveDateRange.EndDate.get -> System.DateOnly?
-MeowChan.Archive.ArchiveDateRange.StartDate.get -> System.DateOnly?
-MeowChan.Archive.ArchiveDateRange.TimeZoneId.get -> string!
-MeowChan.Archive.ArchiveDateResolver
-MeowChan.Archive.ArchiveReader.SearchThreadsBySpecAsync(MeowChan.Archive.ArchiveSearchRequest! request, int offset = 0, int limit = 100, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchiveThreadPage!>!
-MeowChan.Archive.ArchiveReader.SelectThreadIdsBySpecAsync(MeowChan.Archive.ArchiveSearchRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<MeowChan.ResourceId!>!>!
-MeowChan.Archive.ArchiveReader.SelectThreadSummariesBySpecAsync(MeowChan.Archive.ArchiveSearchRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveThreadSummary!>!>!
-MeowChan.Archive.ArchiveSearchRequest
-MeowChan.Archive.ArchiveSearchRequest.DateWindow.get -> MeowChan.Archive.ResolvedDateWindow?
-MeowChan.Archive.ArchiveSearchRequest.Spec.get -> MeowChan.Archive.ArchiveSearchSpec!
-MeowChan.Archive.ArchiveSearchSpec
-MeowChan.Archive.ArchiveSearchSpec.ArchiveSearchSpec(string! text = "", System.Collections.Generic.IEnumerable<string!>? sources = null, System.Collections.Generic.IEnumerable<MeowChan.Archive.ArchiveBoardConstraint!>? boards = null, System.Collections.Generic.IEnumerable<MeowChan.Interfaces.ThreadSourceState>? sourceStates = null, bool? captureEnabled = null, bool? hasPosts = null, MeowChan.Archive.ArchiveThreadSort sort = MeowChan.Archive.ArchiveThreadSort.LatestCapture, MeowChan.Archive.ArchiveWorkFilter workFilter = MeowChan.Archive.ArchiveWorkFilter.All, MeowChan.Archive.ArchiveDateRange? dateRange = null, int schemaVersion = 1) -> void
-MeowChan.Archive.ArchiveSearchSpec.Boards.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveBoardConstraint!>!
-MeowChan.Archive.ArchiveSearchSpec.CaptureEnabled.get -> bool?
-MeowChan.Archive.ArchiveSearchSpec.DateRange.get -> MeowChan.Archive.ArchiveDateRange?
-MeowChan.Archive.ArchiveSearchSpec.Equals(MeowChan.Archive.ArchiveSearchSpec? other) -> bool
-MeowChan.Archive.ArchiveSearchSpec.HasPosts.get -> bool?
-MeowChan.Archive.ArchiveSearchSpec.SchemaVersion.get -> int
-MeowChan.Archive.ArchiveSearchSpec.Sort.get -> MeowChan.Archive.ArchiveThreadSort
-MeowChan.Archive.ArchiveSearchSpec.SourceStates.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Interfaces.ThreadSourceState>!
-MeowChan.Archive.ArchiveSearchSpec.Sources.get -> System.Collections.Generic.IReadOnlyList<string!>!
-MeowChan.Archive.ArchiveSearchSpec.Text.get -> string!
-MeowChan.Archive.ArchiveSearchSpec.WorkFilter.get -> MeowChan.Archive.ArchiveWorkFilter
-MeowChan.Archive.ArchiveSearchSpecJson
-MeowChan.Archive.ArchiveWorkFilter
-MeowChan.Archive.ArchiveWorkFilter.All = 0 -> MeowChan.Archive.ArchiveWorkFilter
-MeowChan.Archive.ArchiveWorkFilter.Completed = 4 -> MeowChan.Archive.ArchiveWorkFilter
-MeowChan.Archive.ArchiveWorkFilter.Followup = 2 -> MeowChan.Archive.ArchiveWorkFilter
-MeowChan.Archive.ArchiveWorkFilter.Intervention = 3 -> MeowChan.Archive.ArchiveWorkFilter
-MeowChan.Archive.ArchiveWorkFilter.Stopped = 5 -> MeowChan.Archive.ArchiveWorkFilter
-MeowChan.Archive.ArchiveWorkFilter.Watching = 1 -> MeowChan.Archive.ArchiveWorkFilter
-MeowChan.Archive.ResolvedDateWindow
-MeowChan.Archive.ResolvedDateWindow.EndExclusive.get -> System.DateTimeOffset?
-MeowChan.Archive.ResolvedDateWindow.EndExclusive.init -> void
-MeowChan.Archive.ResolvedDateWindow.ResolvedDateWindow(System.DateTimeOffset? StartInclusive, System.DateTimeOffset? EndExclusive, string! TimeZoneId) -> void
-MeowChan.Archive.ResolvedDateWindow.StartInclusive.get -> System.DateTimeOffset?
-MeowChan.Archive.ResolvedDateWindow.StartInclusive.init -> void
-MeowChan.Archive.ResolvedDateWindow.TimeZoneId.get -> string!
-MeowChan.Archive.ResolvedDateWindow.TimeZoneId.init -> void
-override MeowChan.Archive.ArchiveSearchSpec.Equals(object? obj) -> bool
-override MeowChan.Archive.ArchiveSearchSpec.GetHashCode() -> int
-static MeowChan.Archive.ArchiveDateResolver.GetLocalTimeZoneId() -> string!
-static MeowChan.Archive.ArchiveDateResolver.Resolve(MeowChan.Archive.ArchiveDateRange? range) -> MeowChan.Archive.ResolvedDateWindow?
-static MeowChan.Archive.ArchiveSearchRequest.Create(MeowChan.Archive.ArchiveSearchSpec! spec) -> MeowChan.Archive.ArchiveSearchRequest!
-static MeowChan.Archive.ArchiveSearchSpec.FromLegacy(MeowChan.Archive.ArchiveThreadQuery! query, MeowChan.Archive.ArchiveWorkFilter workFilter = MeowChan.Archive.ArchiveWorkFilter.All) -> MeowChan.Archive.ArchiveSearchSpec!
-static MeowChan.Archive.ArchiveSearchSpecJson.Deserialize(string! json) -> MeowChan.Archive.ArchiveSearchSpec!
-static MeowChan.Archive.ArchiveSearchSpecJson.Serialize(MeowChan.Archive.ArchiveSearchSpec! spec) -> string!
-MeowChan.Rules.RuleTemplate
-MeowChan.Rules.RuleTemplate.Id.get -> System.Guid
-MeowChan.Rules.RuleTemplate.ImageFilter.get -> MeowChan.Rules.MediaImageFilterRule?
-MeowChan.Rules.RuleTemplate.Name.get -> string!
-MeowChan.Rules.RuleTemplate.RuleTemplate(System.Guid id, string! name, MeowChan.Rules.MediaTypeSelection? types = null, MeowChan.Rules.MediaSizeLimit? sizeLimit = null, MeowChan.Rules.MediaImageFilterRule? imageFilter = null) -> void
-MeowChan.Rules.RuleTemplate.SizeLimit.get -> MeowChan.Rules.MediaSizeLimit?
-MeowChan.Rules.RuleTemplate.Types.get -> MeowChan.Rules.MediaTypeSelection?
-MeowChan.Rules.RuleTemplateLoadResult
-MeowChan.Rules.RuleTemplateLoadResult.Catalog.get -> MeowChan.Rules.RuleTemplateSet!
-MeowChan.Rules.RuleTemplateLoadResult.Catalog.init -> void
-MeowChan.Rules.RuleTemplateLoadResult.Recovered.get -> bool
-MeowChan.Rules.RuleTemplateLoadResult.Recovered.init -> void
-MeowChan.Rules.RuleTemplateLoadResult.RuleTemplateLoadResult(MeowChan.Rules.RuleTemplateSet! Catalog, string? Warning, bool Recovered) -> void
-MeowChan.Rules.RuleTemplateLoadResult.Warning.get -> string?
-MeowChan.Rules.RuleTemplateLoadResult.Warning.init -> void
-MeowChan.Rules.RuleTemplateSet
-MeowChan.Rules.RuleTemplateSet.Revision.get -> string!
-MeowChan.Rules.RuleTemplateSet.RuleTemplateSet(string! revision, System.Collections.Generic.IEnumerable<MeowChan.Rules.RuleTemplate!>! templates) -> void
-MeowChan.Rules.RuleTemplateSet.Templates.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Rules.RuleTemplate!>!
-MeowChan.Rules.RuleTemplateStore
-MeowChan.Rules.RuleTemplateStore.Current.get -> MeowChan.Rules.RuleTemplateSet!
-MeowChan.Rules.RuleTemplateStore.LoadAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Rules.RuleTemplateLoadResult!>!
-MeowChan.Rules.RuleTemplateStore.RuleTemplateStore(string! profileDirectory, MeowChan.Persistence.ProfileLease! lease) -> void
-MeowChan.Rules.RuleTemplateStore.SaveAsync(System.Collections.Generic.IEnumerable<MeowChan.Rules.RuleTemplate!>! templates, string! expectedRevision, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Rules.RuleTemplateSet!>!
-static MeowChan.Rules.RuleTemplateSet.Empty.get -> MeowChan.Rules.RuleTemplateSet!
-MeowChan.Ratings.MediaRatingEntry
-MeowChan.Ratings.MediaRatingEntry.MediaRatingEntry(MeowChan.Favorites.FavoriteAssetKey! Key, int Value) -> void
-MeowChan.Ratings.MediaRatingEntry.Key.get -> MeowChan.Favorites.FavoriteAssetKey!
-MeowChan.Ratings.MediaRatingEntry.Key.init -> void
-MeowChan.Ratings.MediaRatingEntry.Value.get -> int
-MeowChan.Ratings.MediaRatingEntry.Value.init -> void
-MeowChan.Ratings.MediaRatingCommit
-MeowChan.Ratings.MediaRatingCommit.MediaRatingCommit(MeowChan.Favorites.FavoriteAssetKey! Key, int? Value, bool Changed) -> void
-MeowChan.Ratings.MediaRatingCommit.Key.get -> MeowChan.Favorites.FavoriteAssetKey!
-MeowChan.Ratings.MediaRatingCommit.Key.init -> void
-MeowChan.Ratings.MediaRatingCommit.Value.get -> int?
-MeowChan.Ratings.MediaRatingCommit.Value.init -> void
-MeowChan.Ratings.MediaRatingCommit.Changed.get -> bool
-MeowChan.Ratings.MediaRatingCommit.Changed.init -> void
-MeowChan.Ratings.MediaRatingStore
-MeowChan.Ratings.MediaRatingStore.MediaRatingStore(string! profileDirectory, MeowChan.Persistence.ProfileLease! lease) -> void
-MeowChan.Ratings.MediaRatingStore.List() -> System.Collections.Generic.IReadOnlyList<MeowChan.Ratings.MediaRatingEntry!>!
-MeowChan.Ratings.MediaRatingStore.Set(MeowChan.Favorites.FavoriteAssetKey! key, int? value, System.Threading.CancellationToken token = default(System.Threading.CancellationToken)) -> MeowChan.Ratings.MediaRatingCommit!
-MeowChan.Ratings.MediaRatingStore.RemoveThreads(System.Collections.Generic.IReadOnlyCollection<MeowChan.ResourceId!>! threads, System.Threading.CancellationToken token = default(System.Threading.CancellationToken)) -> int
-static MeowChan.Ratings.MediaRatingStore.ValidateKey(MeowChan.Favorites.FavoriteAssetKey! key) -> void
-const MeowChan.Ratings.MediaRatingStore.MaximumEntries = 50000 -> int
-const MeowChan.Ratings.MediaRatingStore.MaximumBytes = 8000000 -> int
-MeowChan.Favorites.ThreadFavoriteSnapshot
-MeowChan.Favorites.ThreadFavoriteSnapshot.ThreadFavoriteSnapshot(System.Collections.Generic.IReadOnlyList<MeowChan.ResourceId!>! Threads, long Revision, string! Fingerprint) -> void
-MeowChan.Favorites.ThreadFavoriteSnapshot.Threads.get -> System.Collections.Generic.IReadOnlyList<MeowChan.ResourceId!>!
-MeowChan.Favorites.ThreadFavoriteSnapshot.Threads.init -> void
-MeowChan.Favorites.ThreadFavoriteSnapshot.Revision.get -> long
-MeowChan.Favorites.ThreadFavoriteSnapshot.Revision.init -> void
-MeowChan.Favorites.ThreadFavoriteSnapshot.Fingerprint.get -> string!
-MeowChan.Favorites.ThreadFavoriteSnapshot.Fingerprint.init -> void
-MeowChan.Favorites.ThreadFavoriteCommit
-MeowChan.Favorites.ThreadFavoriteCommit.ThreadFavoriteCommit(MeowChan.ResourceId! Thread, bool Favorite, bool Changed, MeowChan.Favorites.ThreadFavoriteSnapshot! Snapshot) -> void
-MeowChan.Favorites.ThreadFavoriteCommit.Thread.get -> MeowChan.ResourceId!
-MeowChan.Favorites.ThreadFavoriteCommit.Thread.init -> void
-MeowChan.Favorites.ThreadFavoriteCommit.Favorite.get -> bool
-MeowChan.Favorites.ThreadFavoriteCommit.Favorite.init -> void
-MeowChan.Favorites.ThreadFavoriteCommit.Changed.get -> bool
-MeowChan.Favorites.ThreadFavoriteCommit.Changed.init -> void
-MeowChan.Favorites.ThreadFavoriteCommit.Snapshot.get -> MeowChan.Favorites.ThreadFavoriteSnapshot!
-MeowChan.Favorites.ThreadFavoriteCommit.Snapshot.init -> void
-MeowChan.Favorites.ThreadFavoriteStore
-MeowChan.Favorites.ThreadFavoriteStore.ThreadFavoriteStore(string! profileDirectory, MeowChan.Persistence.ProfileLease! lease) -> void
-MeowChan.Favorites.ThreadFavoriteStore.ReadSnapshot() -> MeowChan.Favorites.ThreadFavoriteSnapshot!
-MeowChan.Favorites.ThreadFavoriteStore.Set(MeowChan.ResourceId! thread, bool favorite, System.Threading.CancellationToken token = default(System.Threading.CancellationToken)) -> MeowChan.Favorites.ThreadFavoriteCommit!
-static MeowChan.Favorites.ThreadFavoriteStore.Validate(MeowChan.ResourceId! thread) -> void
-const MeowChan.Favorites.ThreadFavoriteStore.MaximumEntries = 50000 -> int
-const MeowChan.Favorites.ThreadFavoriteStore.MaximumBytes = 8000000 -> int
-MeowChan.Downloader.DownloadItem.AcquisitionRevisionKey.get -> string?
-MeowChan.Downloader.DownloadItem.AcquisitionRevisionKey.init -> void
-MeowChan.Downloader.DownloadItem.AttachmentReferences.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Storage.AttachmentRevisionReference!>!
-MeowChan.Downloader.DownloadItem.AttachmentReferences.init -> void
-MeowChan.Downloader.DownloadItem.ExpectedSha256.get -> string?
-MeowChan.Downloader.DownloadItem.ExpectedSha256.init -> void
-MeowChan.Downloader.DownloadItem.MediaIntegrityPolicy.get -> MeowChan.Storage.ISourceMediaIntegrityPolicy?
-MeowChan.Downloader.DownloadItem.MediaIntegrityPolicy.init -> void
-MeowChan.Persistence.MediaWork.AcquisitionRevisionKey.get -> string?
-MeowChan.Persistence.MediaWork.AcquisitionRevisionKey.init -> void
-MeowChan.Persistence.MediaWork.AttachmentReferences.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Storage.AttachmentRevisionReference!>!
-MeowChan.Persistence.MediaWork.AttachmentReferences.init -> void
-MeowChan.Persistence.MediaWork.CommittedAssetId.get -> string?
-MeowChan.Persistence.MediaWork.CommittedAssetId.init -> void
-MeowChan.Persistence.MediaWork.ExpectedSha256.get -> string?
-MeowChan.Persistence.MediaWork.ExpectedSha256.init -> void
-MeowChan.Storage.AttachmentRevisionReference
-MeowChan.Storage.AttachmentRevisionReference.AttachmentRevisionReference(MeowChan.ResourceId! Resource, string! PostId, int Position, string! RevisionKey) -> void
-MeowChan.Storage.AttachmentRevisionReference.Position.get -> int
-MeowChan.Storage.AttachmentRevisionReference.Position.init -> void
-MeowChan.Storage.AttachmentRevisionReference.PostId.get -> string!
-MeowChan.Storage.AttachmentRevisionReference.PostId.init -> void
-MeowChan.Storage.AttachmentRevisionReference.Resource.get -> MeowChan.ResourceId!
-MeowChan.Storage.AttachmentRevisionReference.Resource.init -> void
-MeowChan.Storage.AttachmentRevisionReference.RevisionKey.get -> string!
-MeowChan.Storage.AttachmentRevisionReference.RevisionKey.init -> void
-MeowChan.Storage.ISourceMediaIntegrityPolicy
-MeowChan.Storage.ISourceMediaIntegrityPolicy.AcquireAcceptanceLeaseAsync(long expectedRevision, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<MeowChan.Storage.MediaAcceptanceLease!>
-MeowChan.Storage.ISourceMediaIntegrityPolicy.GetSnapshot() -> MeowChan.Storage.SourceMediaIntegrityPolicySnapshot!
-MeowChan.Storage.ISourceMediaIntegrityPolicyProvider
-MeowChan.Storage.ISourceMediaIntegrityPolicyProvider.MediaIntegrityPolicy.get -> MeowChan.Storage.ISourceMediaIntegrityPolicy?
-MeowChan.Storage.MediaAcceptanceKind
-MeowChan.Storage.MediaAcceptanceKind.ExplicitProviderMismatch = 1 -> MeowChan.Storage.MediaAcceptanceKind
-MeowChan.Storage.MediaAcceptanceKind.Strict = 0 -> MeowChan.Storage.MediaAcceptanceKind
-MeowChan.Storage.MediaAcceptanceLease
-MeowChan.Storage.MediaAcceptanceLease.MediaAcceptanceLease(MeowChan.Storage.SourceMediaIntegrityPolicySnapshot! snapshot) -> void
-MeowChan.Storage.MediaAcceptanceLease.Snapshot.get -> MeowChan.Storage.SourceMediaIntegrityPolicySnapshot!
-MeowChan.Storage.MediaAcceptanceRecord
-MeowChan.Storage.MediaAcceptanceRecord.AcceptedAtUtc.get -> System.DateTimeOffset
-MeowChan.Storage.MediaAcceptanceRecord.AcceptedAtUtc.init -> void
-MeowChan.Storage.MediaAcceptanceRecord.Kind.get -> MeowChan.Storage.MediaAcceptanceKind
-MeowChan.Storage.MediaAcceptanceRecord.Kind.init -> void
-MeowChan.Storage.MediaAcceptanceRecord.Md5Mismatch.get -> bool
-MeowChan.Storage.MediaAcceptanceRecord.Md5Mismatch.init -> void
-MeowChan.Storage.MediaAcceptanceRecord.MediaAcceptanceRecord(MeowChan.Storage.MediaAcceptanceKind Kind, bool SizeMismatch, bool Md5Mismatch, System.DateTimeOffset AcceptedAtUtc, string? ProfileId = null, string? PluginOwnerId = null, string? SourceId = null, long? PolicyRevision = null) -> void
-MeowChan.Storage.MediaAcceptanceRecord.PluginOwnerId.get -> string?
-MeowChan.Storage.MediaAcceptanceRecord.PluginOwnerId.init -> void
-MeowChan.Storage.MediaAcceptanceRecord.PolicyRevision.get -> long?
-MeowChan.Storage.MediaAcceptanceRecord.PolicyRevision.init -> void
-MeowChan.Storage.MediaAcceptanceRecord.ProfileId.get -> string?
-MeowChan.Storage.MediaAcceptanceRecord.ProfileId.init -> void
-MeowChan.Storage.MediaAcceptanceRecord.SizeMismatch.get -> bool
-MeowChan.Storage.MediaAcceptanceRecord.SizeMismatch.init -> void
-MeowChan.Storage.MediaAcceptanceRecord.SourceId.get -> string?
-MeowChan.Storage.MediaAcceptanceRecord.SourceId.init -> void
-MeowChan.Storage.MediaActualIntegrity
-MeowChan.Storage.MediaActualIntegrity.Length.get -> long
-MeowChan.Storage.MediaActualIntegrity.Length.init -> void
-MeowChan.Storage.MediaActualIntegrity.Md5.get -> string!
-MeowChan.Storage.MediaActualIntegrity.Md5.init -> void
-MeowChan.Storage.MediaActualIntegrity.MediaActualIntegrity(long Length, string! Md5, string! Sha256) -> void
-MeowChan.Storage.MediaActualIntegrity.Sha256.get -> string!
-MeowChan.Storage.MediaActualIntegrity.Sha256.init -> void
-MeowChan.Storage.MediaAttachmentBinding
-MeowChan.Storage.MediaAttachmentBinding.Acceptance.get -> MeowChan.Storage.MediaAcceptanceRecord!
-MeowChan.Storage.MediaAttachmentBinding.Acceptance.init -> void
-MeowChan.Storage.MediaAttachmentBinding.AcquisitionRevisionKey.get -> string!
-MeowChan.Storage.MediaAttachmentBinding.AcquisitionRevisionKey.init -> void
-MeowChan.Storage.MediaAttachmentBinding.Actual.get -> MeowChan.Storage.MediaActualIntegrity!
-MeowChan.Storage.MediaAttachmentBinding.Actual.init -> void
-MeowChan.Storage.MediaAttachmentBinding.AssetId.get -> string!
-MeowChan.Storage.MediaAttachmentBinding.AssetId.init -> void
-MeowChan.Storage.MediaAttachmentBinding.MediaAttachmentBinding(MeowChan.Storage.AttachmentRevisionReference! Reference, string! AcquisitionRevisionKey, string! AssetId, MeowChan.Storage.MediaProviderMetadata! Provider, MeowChan.Storage.MediaActualIntegrity! Actual, MeowChan.Storage.MediaAcceptanceRecord! Acceptance) -> void
-MeowChan.Storage.MediaAttachmentBinding.Provider.get -> MeowChan.Storage.MediaProviderMetadata!
-MeowChan.Storage.MediaAttachmentBinding.Provider.init -> void
-MeowChan.Storage.MediaAttachmentBinding.Reference.get -> MeowChan.Storage.AttachmentRevisionReference!
-MeowChan.Storage.MediaAttachmentBinding.Reference.init -> void
-MeowChan.Storage.MediaCommitResult.AcquisitionRevisionKey.get -> string?
-MeowChan.Storage.MediaCommitResult.AcquisitionRevisionKey.init -> void
-MeowChan.Storage.MediaCommitResult.AttachmentRevisionKeys.get -> System.Collections.Generic.IReadOnlyList<string!>!
-MeowChan.Storage.MediaCommitResult.AttachmentRevisionKeys.init -> void
-MeowChan.Storage.MediaProviderMetadata
-MeowChan.Storage.MediaProviderMetadata.ExpectedMd5.get -> string?
-MeowChan.Storage.MediaProviderMetadata.ExpectedMd5.init -> void
-MeowChan.Storage.MediaProviderMetadata.ExpectedSha256.get -> string?
-MeowChan.Storage.MediaProviderMetadata.ExpectedSha256.init -> void
-MeowChan.Storage.MediaProviderMetadata.ExpectedSize.get -> long?
-MeowChan.Storage.MediaProviderMetadata.ExpectedSize.init -> void
-MeowChan.Storage.MediaProviderMetadata.MediaId.get -> string!
-MeowChan.Storage.MediaProviderMetadata.MediaId.init -> void
-MeowChan.Storage.MediaProviderMetadata.MediaProviderMetadata(string! MediaId, string! Variant, string! Url, string? OriginalFileName, long? ExpectedSize, string? ExpectedMd5, string? ExpectedSha256) -> void
-MeowChan.Storage.MediaProviderMetadata.OriginalFileName.get -> string?
-MeowChan.Storage.MediaProviderMetadata.OriginalFileName.init -> void
-MeowChan.Storage.MediaProviderMetadata.Url.get -> string!
-MeowChan.Storage.MediaProviderMetadata.Url.init -> void
-MeowChan.Storage.MediaProviderMetadata.Variant.get -> string!
-MeowChan.Storage.MediaProviderMetadata.Variant.init -> void
-MeowChan.Storage.MediaRevisionKeys
-MeowChan.Storage.ProviderIntegrityAssessment
-MeowChan.Storage.ProviderIntegrityAssessment.IsStrictMatch.get -> bool
-MeowChan.Storage.ProviderIntegrityAssessment.Md5Mismatch.get -> bool
-MeowChan.Storage.ProviderIntegrityAssessment.Md5Mismatch.init -> void
-MeowChan.Storage.ProviderIntegrityAssessment.ProviderIntegrityAssessment(bool SizeMismatch, bool Md5Mismatch, bool Sha256Mismatch) -> void
-MeowChan.Storage.ProviderIntegrityAssessment.Sha256Mismatch.get -> bool
-MeowChan.Storage.ProviderIntegrityAssessment.Sha256Mismatch.init -> void
-MeowChan.Storage.ProviderIntegrityAssessment.SizeMismatch.get -> bool
-MeowChan.Storage.ProviderIntegrityAssessment.SizeMismatch.init -> void
-MeowChan.Storage.SourceMediaIntegrityPolicySnapshot
-MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.AllowProviderSizeMd5Mismatch.get -> bool
-MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.AllowProviderSizeMd5Mismatch.init -> void
-MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.PluginOwnerId.get -> string!
-MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.PluginOwnerId.init -> void
-MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.ProfileId.get -> string!
-MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.ProfileId.init -> void
-MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.Revision.get -> long
-MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.Revision.init -> void
-MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.SourceId.get -> string!
-MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.SourceId.init -> void
-MeowChan.Storage.SourceMediaIntegrityPolicySnapshot.SourceMediaIntegrityPolicySnapshot(string! ProfileId, string! PluginOwnerId, string! SourceId, bool AllowProviderSizeMd5Mismatch, long Revision) -> void
-abstract MeowChan.Storage.MediaAcceptanceLease.DisposeAsync() -> System.Threading.Tasks.ValueTask
-static MeowChan.Storage.MediaRevisionKeys.CreateAcquisitionKey(MeowChan.ResourceId! resource, MeowChan.Storage.MediaProviderMetadata! provider) -> string!
-static MeowChan.Storage.MediaRevisionKeys.CreateAttachmentKey(MeowChan.ResourceId! resource, string! postId, int position, MeowChan.Storage.MediaProviderMetadata! provider) -> string!
-static MeowChan.Storage.ProviderIntegrityAssessment.Assess(MeowChan.Storage.MediaProviderMetadata! provider, MeowChan.Storage.MediaActualIntegrity! actual) -> MeowChan.Storage.ProviderIntegrityAssessment!
-MeowChan.Archive.CandidateMetadata.AcquisitionRevisionKey.get -> string?
-MeowChan.Archive.CandidateMetadata.AcquisitionRevisionKey.init -> void
-MeowChan.Archive.CandidateMetadata.AttachmentReferences.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Storage.AttachmentRevisionReference!>!
-MeowChan.Archive.CandidateMetadata.AttachmentReferences.init -> void
-MeowChan.Archive.CandidateMetadata.ExpectedSha256.get -> string?
-MeowChan.Archive.CandidateMetadata.ExpectedSha256.init -> void
-MeowChan.Archive.CapturedAttachment.AttachmentRevisionKey.get -> string?
-MeowChan.Archive.CapturedAttachment.AttachmentRevisionKey.init -> void
-MeowChan.Archive.CapturedAttachment.ExpectedSha256.get -> string?
-MeowChan.Archive.CapturedAttachment.ExpectedSha256.init -> void
-MeowChan.Storage.MediaAssetSnapshot.AttachmentBindings.get -> System.Collections.Generic.IReadOnlyDictionary<string!, MeowChan.Storage.MediaAttachmentBinding!>!
-MeowChan.Storage.MediaAssetSnapshot.FindAttachmentBinding(string! revisionKey) -> MeowChan.Storage.MediaAttachmentBinding?
-MeowChan.Storage.MediaAttachmentResolver
-MeowChan.Storage.ResolvedMediaAttachment
-MeowChan.Storage.ResolvedMediaAttachment.Asset.get -> MeowChan.Storage.MediaAssetReference!
-MeowChan.Storage.ResolvedMediaAttachment.Asset.init -> void
-MeowChan.Storage.ResolvedMediaAttachment.Binding.get -> MeowChan.Storage.MediaAttachmentBinding?
-MeowChan.Storage.ResolvedMediaAttachment.Binding.init -> void
-MeowChan.Storage.ResolvedMediaAttachment.IsLegacy.get -> bool
-MeowChan.Storage.ResolvedMediaAttachment.IsLegacy.init -> void
-MeowChan.Storage.ResolvedMediaAttachment.ResolvedMediaAttachment(MeowChan.Storage.MediaAssetSnapshot! Snapshot, MeowChan.Storage.MediaAssetReference! Asset, MeowChan.Storage.MediaAttachmentBinding? Binding, bool IsLegacy) -> void
-MeowChan.Storage.ResolvedMediaAttachment.Snapshot.get -> MeowChan.Storage.MediaAssetSnapshot!
-MeowChan.Storage.ResolvedMediaAttachment.Snapshot.init -> void
-static MeowChan.Storage.MediaAttachmentResolver.Resolve(MeowChan.Storage.MediaAssetSnapshot! snapshot, MeowChan.ResourceId! resource, string! postId, MeowChan.Archive.CapturedAttachment! attachment) -> MeowChan.Storage.ResolvedMediaAttachment?
-static MeowChan.Storage.MediaAttachmentResolver.Resolve(System.Collections.Generic.IEnumerable<MeowChan.Storage.MediaAssetSnapshot!>! snapshots, MeowChan.ResourceId! resource, string! postId, MeowChan.Archive.CapturedAttachment! attachment) -> MeowChan.Storage.ResolvedMediaAttachment?
-MeowChan.Gallery.GalleryEntry.AttachmentResolution.get -> MeowChan.Storage.ResolvedMediaAttachment?
-MeowChan.Gallery.GalleryEntry.AttachmentResolution.init -> void
-MeowChan.Archive.CapturedAttachment.ExpectedSha1.get -> string?
-MeowChan.Archive.CapturedAttachment.ExpectedSha1.init -> void
-MeowChan.Archive.CapturedAttachment.ProviderSizeHint.get -> MeowChan.Storage.MediaProviderSizeHint?
-MeowChan.Archive.CapturedAttachment.ProviderSizeHint.init -> void
-MeowChan.Archive.CandidateMetadata.ExpectedSha1.get -> string?
-MeowChan.Archive.CandidateMetadata.ExpectedSha1.init -> void
-MeowChan.Archive.CandidateMetadata.ProviderSizeHint.get -> MeowChan.Storage.MediaProviderSizeHint?
-MeowChan.Archive.CandidateMetadata.ProviderSizeHint.init -> void
-MeowChan.Downloader.DownloadItem.ExpectedSha1.get -> string?
-MeowChan.Downloader.DownloadItem.ExpectedSha1.init -> void
-MeowChan.Downloader.DownloadItem.ProviderSizeHint.get -> MeowChan.Storage.MediaProviderSizeHint?
-MeowChan.Downloader.DownloadItem.ProviderSizeHint.init -> void
-MeowChan.Persistence.MediaWork.ExpectedSha1.get -> string?
-MeowChan.Persistence.MediaWork.ExpectedSha1.init -> void
-MeowChan.Persistence.MediaWork.ProviderSizeHint.get -> MeowChan.Storage.MediaProviderSizeHint?
-MeowChan.Persistence.MediaWork.ProviderSizeHint.init -> void
-MeowChan.Storage.MediaProviderMetadata.ExpectedSha1.get -> string?
-MeowChan.Storage.MediaProviderMetadata.ExpectedSha1.init -> void
-MeowChan.Storage.MediaProviderMetadata.ProviderSizeHint.get -> MeowChan.Storage.MediaProviderSizeHint?
-MeowChan.Storage.MediaProviderMetadata.ProviderSizeHint.init -> void
-MeowChan.Storage.MediaActualIntegrity.Sha1.get -> string?
-MeowChan.Storage.MediaActualIntegrity.Sha1.init -> void
-MeowChan.Storage.MediaAssetReference.Sha1.get -> string?
-MeowChan.Storage.MediaAssetReference.Sha1.init -> void
-MeowChan.Storage.ProviderIntegrityAssessment.Sha1Mismatch.get -> bool
-MeowChan.Storage.ProviderIntegrityAssessment.Sha1Mismatch.init -> void
-MeowChan.Storage.MediaProviderSizeHint
-MeowChan.Storage.MediaProviderSizeHint.MediaProviderSizeHint(string! RawValue, string! UnitLabel, MeowChan.Storage.MediaSizePrecision Precision = MeowChan.Storage.MediaSizePrecision.Unspecified) -> void
-MeowChan.Storage.MediaProviderSizeHint.RawValue.get -> string!
-MeowChan.Storage.MediaProviderSizeHint.RawValue.init -> void
-MeowChan.Storage.MediaProviderSizeHint.UnitLabel.get -> string!
-MeowChan.Storage.MediaProviderSizeHint.UnitLabel.init -> void
-MeowChan.Storage.MediaProviderSizeHint.Precision.get -> MeowChan.Storage.MediaSizePrecision
-MeowChan.Storage.MediaProviderSizeHint.Precision.init -> void
-MeowChan.Storage.MediaSizePrecision
-MeowChan.Storage.MediaSizePrecision.Unspecified = 0 -> MeowChan.Storage.MediaSizePrecision
-MeowChan.Storage.MediaSizePrecision.Rounded = 1 -> MeowChan.Storage.MediaSizePrecision
-MeowChan.Storage.MediaSizePrecision.Truncated = 2 -> MeowChan.Storage.MediaSizePrecision
-const MeowChan.Downloader.DownloadQueue.ProtectiveParallelDownloadsCeiling = 32 -> int
-MeowChan.Downloader.DownloadQueue.GetConcurrencySnapshot() -> (int Configured, int Effective, int Active, int DeferredSlots)
+virtual MeowChan.Boards.Base.BaseThread.checkThreadAsync(MeowChan.Downloader.DownloadQueue! queue, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!

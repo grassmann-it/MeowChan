@@ -1,13 +1,4 @@
 #nullable enable
-const MeowChan.PluginSdk.SdkContract.Version = "1.0.0" -> string!
-const MeowChan.PluginSdk.SdkLimits.MaximumCollectionCount = 100000 -> int
-const MeowChan.PluginSdk.SdkLimits.MaximumDecodedPixels = 16777216 -> long
-const MeowChan.PluginSdk.SdkLimits.MaximumDiagnosticLength = 2048 -> int
-const MeowChan.PluginSdk.SdkLimits.MaximumIdentifierLength = 256 -> int
-const MeowChan.PluginSdk.SdkLimits.MaximumImageBytes = 33554432 -> long
-const MeowChan.PluginSdk.SdkLimits.MaximumImageChunkBytes = 65536 -> int
-const MeowChan.PluginSdk.SdkLimits.MaximumMetadataBytes = 8388608 -> int
-const MeowChan.PluginSdk.SdkLimits.MaximumTextLength = 1048576 -> int
 MeowChan.PluginSdk.CatalogDeferred
 MeowChan.PluginSdk.CatalogDeferred.Board.get -> MeowChan.PluginSdk.SourceBoardId!
 MeowChan.PluginSdk.CatalogDeferred.Board.init -> void
@@ -154,6 +145,17 @@ MeowChan.PluginSdk.IImageAssetReader
 MeowChan.PluginSdk.IImageAssetReader.ReadImageAsync(string! assetToken, long offset, int count, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.PluginSdk.ImageAssetChunk!>!
 MeowChan.PluginSdk.IImageFilterPlugin
 MeowChan.PluginSdk.IImageFilterPlugin.EvaluateAsync(MeowChan.PluginSdk.ImageFilterRequest! request, MeowChan.PluginSdk.PluginCallContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.PluginSdk.ImageFilterResult!>!
+MeowChan.PluginSdk.IPlugin
+MeowChan.PluginSdk.IPlugin.Describe() -> MeowChan.PluginSdk.PluginDescription!
+MeowChan.PluginSdk.IPluginLog
+MeowChan.PluginSdk.IPluginLog.Write(MeowChan.PluginSdk.PluginLogLevel level, string! message) -> void
+MeowChan.PluginSdk.IPluginResources
+MeowChan.PluginSdk.IPluginResources.ResolvePath(string! logicalName) -> string?
+MeowChan.PluginSdk.IPluginSettingsValidator
+MeowChan.PluginSdk.IPluginSettingsValidator.ValidateSettingsAsync(MeowChan.PluginSdk.SettingsValidationRequest! request, MeowChan.PluginSdk.PluginCallContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.FieldValidationError!>!>!
+MeowChan.PluginSdk.ISourcePlugin
+MeowChan.PluginSdk.ISourcePlugin.ReadCatalogAsync(MeowChan.PluginSdk.CatalogReadRequest! request, MeowChan.PluginSdk.PluginCallContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.PluginSdk.CatalogReadResult!>!
+MeowChan.PluginSdk.ISourcePlugin.ReadThreadAsync(MeowChan.PluginSdk.ThreadReadRequest! request, MeowChan.PluginSdk.PluginCallContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.PluginSdk.ThreadReadResult!>!
 MeowChan.PluginSdk.ImageAssetChunk
 MeowChan.PluginSdk.ImageAssetChunk.Bytes.get -> byte[]!
 MeowChan.PluginSdk.ImageAssetChunk.Bytes.init -> void
@@ -222,17 +224,6 @@ MeowChan.PluginSdk.InformationKind
 MeowChan.PluginSdk.InformationKind.List = 2 -> MeowChan.PluginSdk.InformationKind
 MeowChan.PluginSdk.InformationKind.Text = 0 -> MeowChan.PluginSdk.InformationKind
 MeowChan.PluginSdk.InformationKind.Value = 1 -> MeowChan.PluginSdk.InformationKind
-MeowChan.PluginSdk.IPlugin
-MeowChan.PluginSdk.IPlugin.Describe() -> MeowChan.PluginSdk.PluginDescription!
-MeowChan.PluginSdk.IPluginLog
-MeowChan.PluginSdk.IPluginLog.Write(MeowChan.PluginSdk.PluginLogLevel level, string! message) -> void
-MeowChan.PluginSdk.IPluginResources
-MeowChan.PluginSdk.IPluginResources.ResolvePath(string! logicalName) -> string?
-MeowChan.PluginSdk.IPluginSettingsValidator
-MeowChan.PluginSdk.IPluginSettingsValidator.ValidateSettingsAsync(MeowChan.PluginSdk.SettingsValidationRequest! request, MeowChan.PluginSdk.PluginCallContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.FieldValidationError!>!>!
-MeowChan.PluginSdk.ISourcePlugin
-MeowChan.PluginSdk.ISourcePlugin.ReadCatalogAsync(MeowChan.PluginSdk.CatalogReadRequest! request, MeowChan.PluginSdk.PluginCallContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.PluginSdk.CatalogReadResult!>!
-MeowChan.PluginSdk.ISourcePlugin.ReadThreadAsync(MeowChan.PluginSdk.ThreadReadRequest! request, MeowChan.PluginSdk.PluginCallContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.PluginSdk.ThreadReadResult!>!
 MeowChan.PluginSdk.PluginCallContext
 MeowChan.PluginSdk.PluginCallContext.Configuration.get -> MeowChan.PluginSdk.PluginConfiguration!
 MeowChan.PluginSdk.PluginCallContext.Configuration.init -> void
@@ -253,11 +244,16 @@ MeowChan.PluginSdk.PluginConfiguration.Revision.get -> string!
 MeowChan.PluginSdk.PluginConfiguration.Revision.init -> void
 MeowChan.PluginSdk.PluginConfiguration.SourceSettings.get -> System.Collections.Generic.IReadOnlyDictionary<string!, MeowChan.PluginSdk.SettingsSnapshot!>!
 MeowChan.PluginSdk.PluginConfiguration.SourceSettings.init -> void
+MeowChan.PluginSdk.PluginDeclarationStatus
+MeowChan.PluginSdk.PluginDeclarationStatus.Available = 0 -> MeowChan.PluginSdk.PluginDeclarationStatus
+MeowChan.PluginSdk.PluginDeclarationStatus.Blocked = 1 -> MeowChan.PluginSdk.PluginDeclarationStatus
 MeowChan.PluginSdk.PluginDescription
 MeowChan.PluginSdk.PluginDescription.Author.get -> string?
 MeowChan.PluginSdk.PluginDescription.Author.init -> void
 MeowChan.PluginSdk.PluginDescription.AuthorUrl.get -> System.Uri?
 MeowChan.PluginSdk.PluginDescription.AuthorUrl.init -> void
+MeowChan.PluginSdk.PluginDescription.DeclarationStatus.get -> MeowChan.PluginSdk.PluginDeclarationStatus
+MeowChan.PluginSdk.PluginDescription.DeclarationStatus.init -> void
 MeowChan.PluginSdk.PluginDescription.Description.get -> string!
 MeowChan.PluginSdk.PluginDescription.Description.init -> void
 MeowChan.PluginSdk.PluginDescription.DocumentationUrl.get -> System.Uri?
@@ -335,6 +331,18 @@ MeowChan.PluginSdk.SettingScope
 MeowChan.PluginSdk.SettingScope.FilterRule = 2 -> MeowChan.PluginSdk.SettingScope
 MeowChan.PluginSdk.SettingScope.Plugin = 0 -> MeowChan.PluginSdk.SettingScope
 MeowChan.PluginSdk.SettingScope.Source = 1 -> MeowChan.PluginSdk.SettingScope
+MeowChan.PluginSdk.SettingValue
+MeowChan.PluginSdk.SettingValue.Boolean.get -> bool?
+MeowChan.PluginSdk.SettingValue.Boolean.init -> void
+MeowChan.PluginSdk.SettingValue.Integer.get -> long?
+MeowChan.PluginSdk.SettingValue.Integer.init -> void
+MeowChan.PluginSdk.SettingValue.Key.get -> string!
+MeowChan.PluginSdk.SettingValue.Key.init -> void
+MeowChan.PluginSdk.SettingValue.Kind.get -> MeowChan.PluginSdk.SettingKind
+MeowChan.PluginSdk.SettingValue.Kind.init -> void
+MeowChan.PluginSdk.SettingValue.SettingValue(string! Key, MeowChan.PluginSdk.SettingKind Kind, string? Text = null, long? Integer = null, bool? Boolean = null) -> void
+MeowChan.PluginSdk.SettingValue.Text.get -> string?
+MeowChan.PluginSdk.SettingValue.Text.init -> void
 MeowChan.PluginSdk.SettingsSchema
 MeowChan.PluginSdk.SettingsSchema.Fields.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.SettingDefinition!>!
 MeowChan.PluginSdk.SettingsSchema.Fields.init -> void
@@ -357,21 +365,11 @@ MeowChan.PluginSdk.SettingsValidationRequest.Settings.init -> void
 MeowChan.PluginSdk.SettingsValidationRequest.SettingsValidationRequest(MeowChan.PluginSdk.SettingScope Scope, MeowChan.PluginSdk.SettingsSnapshot! Settings, string? SourceId = null, string? FilterKey = null) -> void
 MeowChan.PluginSdk.SettingsValidationRequest.SourceId.get -> string?
 MeowChan.PluginSdk.SettingsValidationRequest.SourceId.init -> void
-MeowChan.PluginSdk.SettingValue
-MeowChan.PluginSdk.SettingValue.Boolean.get -> bool?
-MeowChan.PluginSdk.SettingValue.Boolean.init -> void
-MeowChan.PluginSdk.SettingValue.Integer.get -> long?
-MeowChan.PluginSdk.SettingValue.Integer.init -> void
-MeowChan.PluginSdk.SettingValue.Key.get -> string!
-MeowChan.PluginSdk.SettingValue.Key.init -> void
-MeowChan.PluginSdk.SettingValue.Kind.get -> MeowChan.PluginSdk.SettingKind
-MeowChan.PluginSdk.SettingValue.Kind.init -> void
-MeowChan.PluginSdk.SettingValue.SettingValue(string! Key, MeowChan.PluginSdk.SettingKind Kind, string? Text = null, long? Integer = null, bool? Boolean = null) -> void
-MeowChan.PluginSdk.SettingValue.Text.get -> string?
-MeowChan.PluginSdk.SettingValue.Text.init -> void
 MeowChan.PluginSdk.SourceAttachment
 MeowChan.PluginSdk.SourceAttachment.ExpectedMd5.get -> string?
 MeowChan.PluginSdk.SourceAttachment.ExpectedMd5.init -> void
+MeowChan.PluginSdk.SourceAttachment.ExpectedSha1.get -> string?
+MeowChan.PluginSdk.SourceAttachment.ExpectedSha1.init -> void
 MeowChan.PluginSdk.SourceAttachment.ExpectedSha256.get -> string?
 MeowChan.PluginSdk.SourceAttachment.ExpectedSha256.init -> void
 MeowChan.PluginSdk.SourceAttachment.ExpectedSize.get -> long?
@@ -388,6 +386,8 @@ MeowChan.PluginSdk.SourceAttachment.OriginalFileName.get -> string?
 MeowChan.PluginSdk.SourceAttachment.OriginalFileName.init -> void
 MeowChan.PluginSdk.SourceAttachment.Position.get -> int
 MeowChan.PluginSdk.SourceAttachment.Position.init -> void
+MeowChan.PluginSdk.SourceAttachment.ProviderSizeHint.get -> MeowChan.PluginSdk.SourceSizeHint?
+MeowChan.PluginSdk.SourceAttachment.ProviderSizeHint.init -> void
 MeowChan.PluginSdk.SourceAttachment.SourceAttachment(int Position, string? MediaId, string! Variant = "original", System.Uri? Url = null, string? OriginalFileName = null, string? Extension = null, long? ExpectedSize = null, string? ExpectedMd5 = null, string? ExpectedSha256 = null, string? MimeType = null, bool IsDeleted = false) -> void
 MeowChan.PluginSdk.SourceAttachment.Url.get -> System.Uri?
 MeowChan.PluginSdk.SourceAttachment.Url.init -> void
@@ -427,6 +427,8 @@ MeowChan.PluginSdk.SourceDescription.Capabilities.get -> MeowChan.PluginSdk.Sour
 MeowChan.PluginSdk.SourceDescription.Capabilities.init -> void
 MeowChan.PluginSdk.SourceDescription.HttpHosts.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.HttpHostDeclaration!>!
 MeowChan.PluginSdk.SourceDescription.HttpHosts.init -> void
+MeowChan.PluginSdk.SourceDescription.Maturity.get -> MeowChan.PluginSdk.SourceMaturity
+MeowChan.PluginSdk.SourceDescription.Maturity.init -> void
 MeowChan.PluginSdk.SourceDescription.Name.get -> string!
 MeowChan.PluginSdk.SourceDescription.Name.init -> void
 MeowChan.PluginSdk.SourceDescription.PostOrder.get -> MeowChan.PluginSdk.PostOrderKind
@@ -447,6 +449,9 @@ MeowChan.PluginSdk.SourceFieldPresence.None = 0 -> MeowChan.PluginSdk.SourceFiel
 MeowChan.PluginSdk.SourceFieldPresence.PostedAt = 1 -> MeowChan.PluginSdk.SourceFieldPresence
 MeowChan.PluginSdk.SourceFieldPresence.Subject = 2 -> MeowChan.PluginSdk.SourceFieldPresence
 MeowChan.PluginSdk.SourceFieldPresence.Text = 8 -> MeowChan.PluginSdk.SourceFieldPresence
+MeowChan.PluginSdk.SourceMaturity
+MeowChan.PluginSdk.SourceMaturity.Experimental = 1 -> MeowChan.PluginSdk.SourceMaturity
+MeowChan.PluginSdk.SourceMaturity.Unspecified = 0 -> MeowChan.PluginSdk.SourceMaturity
 MeowChan.PluginSdk.SourceMediaId
 MeowChan.PluginSdk.SourceMediaId.MediaId.get -> string!
 MeowChan.PluginSdk.SourceMediaId.MediaId.init -> void
@@ -466,10 +471,10 @@ MeowChan.PluginSdk.SourcePost.IsDeleted.get -> bool
 MeowChan.PluginSdk.SourcePost.IsDeleted.init -> void
 MeowChan.PluginSdk.SourcePost.Ordinal.get -> long
 MeowChan.PluginSdk.SourcePost.Ordinal.init -> void
-MeowChan.PluginSdk.SourcePost.PostedAt.get -> System.DateTimeOffset?
-MeowChan.PluginSdk.SourcePost.PostedAt.init -> void
 MeowChan.PluginSdk.SourcePost.PostId.get -> string!
 MeowChan.PluginSdk.SourcePost.PostId.init -> void
+MeowChan.PluginSdk.SourcePost.PostedAt.get -> System.DateTimeOffset?
+MeowChan.PluginSdk.SourcePost.PostedAt.init -> void
 MeowChan.PluginSdk.SourcePost.SourcePost(string! PostId, long Ordinal, MeowChan.PluginSdk.SourceFieldPresence Fields, System.DateTimeOffset? PostedAt = null, string? Subject = null, string? Author = null, string? Text = null, MeowChan.PluginSdk.SourceTextFormat TextFormat = MeowChan.PluginSdk.SourceTextFormat.Html, bool IsDeleted = false, System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.SourceAttachment!>? Attachments = null) -> void
 MeowChan.PluginSdk.SourcePost.Subject.get -> string?
 MeowChan.PluginSdk.SourcePost.Subject.init -> void
@@ -480,6 +485,18 @@ MeowChan.PluginSdk.SourcePost.TextFormat.init -> void
 MeowChan.PluginSdk.SourceResourceKind
 MeowChan.PluginSdk.SourceResourceKind.Board = 0 -> MeowChan.PluginSdk.SourceResourceKind
 MeowChan.PluginSdk.SourceResourceKind.Thread = 1 -> MeowChan.PluginSdk.SourceResourceKind
+MeowChan.PluginSdk.SourceSizeHint
+MeowChan.PluginSdk.SourceSizeHint.Precision.get -> MeowChan.PluginSdk.SourceSizePrecision
+MeowChan.PluginSdk.SourceSizeHint.Precision.init -> void
+MeowChan.PluginSdk.SourceSizeHint.RawValue.get -> string!
+MeowChan.PluginSdk.SourceSizeHint.RawValue.init -> void
+MeowChan.PluginSdk.SourceSizeHint.SourceSizeHint(string! RawValue, string! UnitLabel, MeowChan.PluginSdk.SourceSizePrecision Precision = MeowChan.PluginSdk.SourceSizePrecision.Unspecified) -> void
+MeowChan.PluginSdk.SourceSizeHint.UnitLabel.get -> string!
+MeowChan.PluginSdk.SourceSizeHint.UnitLabel.init -> void
+MeowChan.PluginSdk.SourceSizePrecision
+MeowChan.PluginSdk.SourceSizePrecision.Rounded = 1 -> MeowChan.PluginSdk.SourceSizePrecision
+MeowChan.PluginSdk.SourceSizePrecision.Truncated = 2 -> MeowChan.PluginSdk.SourceSizePrecision
+MeowChan.PluginSdk.SourceSizePrecision.Unspecified = 0 -> MeowChan.PluginSdk.SourceSizePrecision
 MeowChan.PluginSdk.SourceTextFormat
 MeowChan.PluginSdk.SourceTextFormat.Html = 1 -> MeowChan.PluginSdk.SourceTextFormat
 MeowChan.PluginSdk.SourceTextFormat.PlainText = 0 -> MeowChan.PluginSdk.SourceTextFormat
@@ -603,6 +620,15 @@ MeowChan.PluginSdk.ValidationIssue.Message.init -> void
 MeowChan.PluginSdk.ValidationIssue.Path.get -> string!
 MeowChan.PluginSdk.ValidationIssue.Path.init -> void
 MeowChan.PluginSdk.ValidationIssue.ValidationIssue(string! Path, string! Code, string! Message) -> void
+const MeowChan.PluginSdk.SdkContract.Version = "1.0.0" -> string!
+const MeowChan.PluginSdk.SdkLimits.MaximumCollectionCount = 100000 -> int
+const MeowChan.PluginSdk.SdkLimits.MaximumDecodedPixels = 16777216 -> long
+const MeowChan.PluginSdk.SdkLimits.MaximumDiagnosticLength = 2048 -> int
+const MeowChan.PluginSdk.SdkLimits.MaximumIdentifierLength = 256 -> int
+const MeowChan.PluginSdk.SdkLimits.MaximumImageBytes = 33554432 -> long
+const MeowChan.PluginSdk.SdkLimits.MaximumImageChunkBytes = 65536 -> int
+const MeowChan.PluginSdk.SdkLimits.MaximumMetadataBytes = 8388608 -> int
+const MeowChan.PluginSdk.SdkLimits.MaximumTextLength = 1048576 -> int
 static MeowChan.PluginSdk.SdkContract.IsSupported(string? version) -> bool
 static MeowChan.PluginSdk.SdkJson.CreateOptions() -> System.Text.Json.JsonSerializerOptions!
 static MeowChan.PluginSdk.SdkJson.Deserialize<T>(System.ReadOnlySpan<byte> utf8Json) -> T
@@ -619,24 +645,3 @@ static MeowChan.PluginSdk.SdkValidation.ValidateImageFilterResult(MeowChan.Plugi
 static MeowChan.PluginSdk.SdkValidation.ValidateImageRead(string! assetToken, long offset, int count, long assetSize) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
 static MeowChan.PluginSdk.SdkValidation.ValidateSettings(MeowChan.PluginSdk.SettingsSchema! schema, MeowChan.PluginSdk.SettingsSnapshot! settings, MeowChan.PluginSdk.SettingScope scope) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
 static MeowChan.PluginSdk.SdkValidation.ValidateThreadResult(MeowChan.PluginSdk.ThreadReadRequest! request, MeowChan.PluginSdk.ThreadReadResult! result, MeowChan.PluginSdk.SourceDescription! source) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
-MeowChan.PluginSdk.SourceDescription.Maturity.get -> MeowChan.PluginSdk.SourceMaturity
-MeowChan.PluginSdk.SourceDescription.Maturity.init -> void
-MeowChan.PluginSdk.SourceMaturity
-MeowChan.PluginSdk.SourceMaturity.Experimental = 1 -> MeowChan.PluginSdk.SourceMaturity
-MeowChan.PluginSdk.SourceMaturity.Unspecified = 0 -> MeowChan.PluginSdk.SourceMaturity
-MeowChan.PluginSdk.SourceAttachment.ExpectedSha1.get -> string?
-MeowChan.PluginSdk.SourceAttachment.ExpectedSha1.init -> void
-MeowChan.PluginSdk.SourceAttachment.ProviderSizeHint.get -> MeowChan.PluginSdk.SourceSizeHint?
-MeowChan.PluginSdk.SourceAttachment.ProviderSizeHint.init -> void
-MeowChan.PluginSdk.SourceSizeHint
-MeowChan.PluginSdk.SourceSizeHint.RawValue.get -> string!
-MeowChan.PluginSdk.SourceSizeHint.RawValue.init -> void
-MeowChan.PluginSdk.SourceSizeHint.UnitLabel.get -> string!
-MeowChan.PluginSdk.SourceSizeHint.UnitLabel.init -> void
-MeowChan.PluginSdk.SourceSizeHint.Precision.get -> MeowChan.PluginSdk.SourceSizePrecision
-MeowChan.PluginSdk.SourceSizeHint.Precision.init -> void
-MeowChan.PluginSdk.SourceSizeHint.SourceSizeHint(string! RawValue, string! UnitLabel, MeowChan.PluginSdk.SourceSizePrecision Precision = MeowChan.PluginSdk.SourceSizePrecision.Unspecified) -> void
-MeowChan.PluginSdk.SourceSizePrecision
-MeowChan.PluginSdk.SourceSizePrecision.Unspecified = 0 -> MeowChan.PluginSdk.SourceSizePrecision
-MeowChan.PluginSdk.SourceSizePrecision.Rounded = 1 -> MeowChan.PluginSdk.SourceSizePrecision
-MeowChan.PluginSdk.SourceSizePrecision.Truncated = 2 -> MeowChan.PluginSdk.SourceSizePrecision
