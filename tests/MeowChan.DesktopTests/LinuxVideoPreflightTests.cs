@@ -65,6 +65,90 @@ public sealed class LinuxVideoPreflightTests : IDisposable
     }
 
     [Fact]
+    public void ValidationIsReusedOnlyByTheSamePolicyInstance()
+    {
+        Marker("bundled", Payload());
+        var policy = LinuxVideoRuntimePolicy.Read(_directory, "linux-x64");
+        policy.ValidateBundle();
+        File.WriteAllText(Path.Combine(Bundle, "lib/libvlc.so.5"), "tampered");
+        // The runtime's own instance is not hashed again within its process...
+        policy.ValidateBundle();
+        Assert.Equal(1, policy.ValidationPasses);
+        // ...but every fresh read is, and a failed validation is never remembered as success.
+        var fresh = LinuxVideoRuntimePolicy.Read(_directory, "linux-x64");
+        Assert.Throws<InvalidDataException>(fresh.ValidateBundle);
+        Assert.Throws<InvalidDataException>(fresh.ValidateBundle);
+        Assert.Equal(2, fresh.ValidationPasses);
+        Assert.Equal(LinuxVideoPreflightErrorKind.BundleDamaged, CheckUntouched().Kind);
+    }
+
+    // Startup order: preflight validates, then version() runs the native initializer and the
+    // loader, which validate the same process-lifetime instance again before loading.
+    [Fact]
+    public void StartupPreflightInitializerAndLoaderHashTheBundleOnce()
+    {
+        Marker("bundled", Payload());
+        var policy = LinuxVideoRuntimePolicy.Read(_directory, "linux-x64");
+        int engines = 0;
+        var result = LinuxVideoPreflight.Check(() => policy, () =>
+        {
+            policy.ValidateBundle(); // NativeVideoRuntime.Initialize
+            policy.ValidateBundle(); // NativeVideoRuntime.LoadLinuxLibrary
+            return "3.0.20";
+        }, () => { policy.ValidateBundle(); engines++; });
+        Assert.True(result.Success, result.Diagnostic);
+        Assert.Equal(1, engines);
+        Assert.Equal(1, policy.ValidationPasses);
+    }
+
+    [Fact]
+    public void DamagedBundleFailsEveryStartupCheckWithTheSameKindAndIsNeverCached()
+    {
+        Marker("bundled", Payload());
+        var policy = LinuxVideoRuntimePolicy.Read(_directory, "linux-x64");
+        File.WriteAllText(Path.Combine(Bundle, "lib/vlc/plugins/codec.so"), "tampered");
+        string? first = null;
+        for (int attempt = 1; attempt <= 3; attempt++)
+        {
+            int calls = 0;
+            var result = LinuxVideoPreflight.Check(() => policy, () => { calls++; return "3.0.20"; }, () => calls++);
+            Assert.Equal(LinuxVideoPreflightErrorKind.BundleDamaged, result.Kind);
+            Assert.Equal(0, calls);
+            first ??= result.Diagnostic;
+            Assert.Equal(first, result.Diagnostic);
+            Assert.Equal(attempt, policy.ValidationPasses);
+        }
+        // A later caller in the same process (initializer/loader) still gets the exception.
+        Assert.Throws<InvalidDataException>(policy.ValidateBundle);
+        Assert.Equal(4, policy.ValidationPasses);
+        // Only a complete success is remembered.
+        Payload();
+        Assert.True(LinuxVideoPreflight.Check(() => policy, () => "3.0.20", () => { }).Success);
+        policy.ValidateBundle();
+        Assert.Equal(5, policy.ValidationPasses);
+    }
+
+    [Fact]
+    public async Task ConcurrentCallersShareOneSuccessfulPass()
+    {
+        Marker("bundled", Payload());
+        var policy = LinuxVideoRuntimePolicy.Read(_directory, "linux-x64");
+        using var start = new Barrier(8);
+        var callers = Enumerable.Range(0, 8).Select(_ => Task.Run(() => { start.SignalAndWait(); policy.ValidateBundle(); })).ToArray();
+        await Task.WhenAll(callers);
+        Assert.Equal(1, policy.ValidationPasses);
+    }
+
+    [Fact]
+    public void SystemRuntimeIsNeverHashed()
+    {
+        Marker("system");
+        var policy = LinuxVideoRuntimePolicy.Read(_directory, "linux-x64");
+        policy.ValidateBundle();
+        Assert.Equal(0, policy.ValidationPasses);
+    }
+
+    [Fact]
     public void UnlistedPluginCannotEnterTheEngine()
     {
         Marker("bundled", Payload());
