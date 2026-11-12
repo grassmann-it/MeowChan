@@ -40,7 +40,10 @@ internal static class BooruMessages
         ["http-410"] = "booru.failure.http-410",
         ["page-limit"] = "booru.failure.page-limit",
         ["access-denied"] = "booru.failure.access-denied",
-        ["too-many-posts"] = "booru.failure.too-many-posts"
+        ["too-many-posts"] = "booru.failure.too-many-posts",
+        ["invalid-cursor"] = "booru.failure.invalid-cursor",
+        ["invalid_cursor"] = "booru.failure.invalid-cursor",
+        ["unexpected-order"] = "booru.failure.unexpected-order"
     };
 
     private static readonly IReadOnlyDictionary<string, string> DeferredKeys = new Dictionary<string, string>(StringComparer.Ordinal)
