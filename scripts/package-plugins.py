@@ -13,7 +13,7 @@ import struct
 from pathlib import Path
 
 RUNTIMES = ('win-x64', 'linux-x64', 'linux-arm64', 'osx-x64', 'osx-arm64')
-PLUGINS = ('MeowChan.Plugin.FourChan', 'MeowChan.Plugin.EightKun', 'MeowChan.Plugin.Lainchan',
+PLUGINS = ('MeowChan.Plugin.FourChan', 'MeowChan.Plugin.EightKun', 'MeowChan.Plugin.Danbooru', 'MeowChan.Plugin.Lainchan',
            'MeowChan.Plugin.Kohlchan', 'MeowChan.ImageDimensionsFilter', 'MeowChan.Plugin.Wizchan', 'MeowChan.Plugin.Endchan',
            'MeowChan.FileRulesFilter', 'MeowChan.HashBlocklistFilter', 'MeowChan.AnimationFormatFilter', 'MeowChan.PngMetadataFilter',
            'MeowChan.Plugin.Leftypol', 'MeowChan.Plugin.Dvach', 'MeowChan.Plugin.Uboachan', 'MeowChan.Plugin.Zzzchan', 'MeowChan.Plugin.SushiChan',

@@ -137,7 +137,7 @@ class PluginPackagingTests(unittest.TestCase):
                 try:
                     self.fixture(runtime)
                     report = PACKAGE.verify(self.root, runtime)
-                    self.assertEqual(23, report['plugins'])
+                    self.assertEqual(24, report['plugins'])
                     self.assertEqual(21, report['editable_sources'])
                 finally:
                     self.root = outer
@@ -149,7 +149,7 @@ class PluginPackagingTests(unittest.TestCase):
         self.assertTrue(PACKAGE.verify(self.root, 'linux-x64', development=True)['passed'])
 
     def test_exact_bundled_inventory_includes_filters(self):
-        self.assertEqual({'MeowChan.Plugin.FourChan', 'MeowChan.Plugin.EightKun', 'MeowChan.Plugin.Lainchan',
+        self.assertEqual({'MeowChan.Plugin.FourChan', 'MeowChan.Plugin.EightKun', 'MeowChan.Plugin.Danbooru', 'MeowChan.Plugin.Lainchan',
                           'MeowChan.Plugin.Kohlchan', 'MeowChan.ImageDimensionsFilter',
                           'MeowChan.Plugin.Wizchan', 'MeowChan.Plugin.Endchan',
                           'MeowChan.FileRulesFilter', 'MeowChan.HashBlocklistFilter', 'MeowChan.AnimationFormatFilter', 'MeowChan.PngMetadataFilter',
@@ -162,6 +162,8 @@ class PluginPackagingTests(unittest.TestCase):
                           'SevenChan.cs', 'BbwChan.cs', 'AnonImageboards.cs', 'CapybaraChan.cs', 'EightchanMoe.cs',
                           'Fchan.cs', 'GuroCx.cs'}, set(PACKAGE.SOURCES))
         self.assertEqual(5, len(PACKAGE.RUNTIMES))
+        self.assertNotIn('Danbooru.cs', PACKAGE.SOURCES)
+        self.assertIn('MeowChan.Plugin.Danbooru', PACKAGE.PLUGINS)
         self.fixture()
         for assembly_name, source in ([('MeowChan.Plugin.Wizchan', 'Wizchan'), ('MeowChan.Plugin.Endchan', 'Endchan')] +
                 [('MeowChan.FileRulesFilter', 'FileRulesFilter'), ('MeowChan.HashBlocklistFilter', 'HashBlocklistFilter'), ('MeowChan.AnimationFormatFilter', 'AnimationFormatFilter'), ('MeowChan.PngMetadataFilter', 'PngMetadataFilter'),

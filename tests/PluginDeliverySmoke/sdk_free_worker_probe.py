@@ -59,7 +59,7 @@ def main():
         raise SystemExit('bubblewrap is required for an SDK-inaccessible worker proof')
     results = []
     expected_ids = {'MeowChan.Plugin.FourChan': 'meowchan.official.4chan', 'MeowChan.Plugin.EightKun': 'meowchan.official.8kun',
-                    'MeowChan.Plugin.Lainchan': 'meowchan.source.lainchan', 'MeowChan.Plugin.Kohlchan': 'meowchan.source.kohlchan',
+                    'MeowChan.Plugin.Danbooru': 'meowchan.official.danbooru', 'MeowChan.Plugin.Lainchan': 'meowchan.source.lainchan', 'MeowChan.Plugin.Kohlchan': 'meowchan.source.kohlchan',
                     'MeowChan.ImageDimensionsFilter': 'meowchan.example.image-dimensions',
                     'MeowChan.Plugin.Wizchan': 'meowchan.source.wizchan', 'MeowChan.Plugin.Endchan': 'meowchan.source.endchan',
                     'MeowChan.FileRulesFilter': 'meowchan.filter.file-rules',
@@ -78,6 +78,7 @@ def main():
                     'MeowChan.Plugin.EightchanMoe': 'meowchan.source.eightchanmoe',
                     'MeowChan.Plugin.Fchan': 'meowchan.source.fchan',
                     'MeowChan.Plugin.GuroCx': 'meowchan.source.gurocx'}
+    blocked_ids = {'meowchan.source.anonimageboards', 'meowchan.source.gurocx'}
     manifests = sorted((bundle / 'plugins').glob('*.plugin.json'))
     assert {path.stem.removesuffix(".plugin") for path in manifests} == set(expected_ids)
     for index, manifest_path in enumerate(manifests):
@@ -100,7 +101,12 @@ def main():
                     'configuration': {'revision': 'delivery-config', 'pluginSettings': {'schemaVersion': '1', 'values': []}, 'sourceSettings': {}},
                     'validateConfiguration': False}))
                 assert description['pluginId'] == expected_ids[manifest_path.name.removesuffix('.plugin.json')], description
-                assert description['sources'] or description['filters']
+                if description['pluginId'] in blocked_ids:
+                    # Documented technical blocks register no route; they must say so explicitly.
+                    assert not description['sources'] and not description['filters'], description
+                    assert any(item['key'] == 'block' for item in description['information']), description
+                else:
+                    assert description['sources'] or description['filters'], description
                 process.stdin.close()
                 assert process.wait(timeout=5) == 0
                 results.append({'manifest': manifest_path.name, 'pluginId': description['pluginId'],
