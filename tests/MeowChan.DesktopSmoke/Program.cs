@@ -45,10 +45,29 @@ internal static class Program
     private static bool _pluginsMode;
     private static bool _archiveCleanupMode;
     private static bool _shellLoadMode;
+    private static bool _startupFirstFrameOnly;
 
     [STAThread]
     private static int Main(string[] args)
     {
+        long entryTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+        DateTimeOffset entryUtc = DateTimeOffset.UtcNow;
+        if (args.Length == 1 && args[0] == "--startup-timing-contract")
+        {
+            string? error = SmokeSelectors.Check([], Environment.GetEnvironmentVariables()
+                .Cast<System.Collections.DictionaryEntry>()
+                .Select(entry => KeyValuePair.Create((string)entry.Key, entry.Value as string)),
+                OperatingSystem.IsWindows(), out string scenario);
+            if (error != null || scenario != "normal")
+            {
+                Console.Error.WriteLine("SMOKE CONFIGURATION ERROR: contract check requires no active selectors: " + (error ?? scenario));
+                return 2;
+            }
+            StartupFirstFrameChecks.VerifyContracts();
+            Console.WriteLine("Startup timing and selector contracts passed (no GUI).");
+            return 0;
+        }
+        _startupFirstFrameOnly = Environment.GetEnvironmentVariable("MEOWCHAN_STARTUP_FIRST_FRAME_ONLY") == "1";
         Environment.SetEnvironmentVariable("MEOWCHAN_DISABLE_UPDATE_CHECK", "1");
         // These focused journeys have their own final PASS claims. Reject an
         // ambiguous request BEFORE creating a profile/window: branch priority must
@@ -66,7 +85,7 @@ internal static class Program
             "MEOWCHAN_FILENAME_SEARCH_ONLY", "MEOWCHAN_MEDIA_HASH_SEARCH_ONLY",
             "MEOWCHAN_FILENAME_SEARCH_HOST_ONLY", "MEOWCHAN_FILENAME_SEARCH_LARGE_READER_ONLY",
             "MEOWCHAN_LOCAL_SEARCH_LANGUAGE_ONLY", "MEOWCHAN_PRIVATE_TAGS_ONLY", "MEOWCHAN_GALLERY_MEDIA_TAGS_ONLY", "MEOWCHAN_MEDIA_PAGE_ONLY",
-            "MEOWCHAN_DIALOG_FRAME_ONLY"
+            "MEOWCHAN_DIALOG_FRAME_ONLY", "MEOWCHAN_STARTUP_FIRST_FRAME_ONLY"
         ];
         if (focusedModes.Any(name => Environment.GetEnvironmentVariable(name) == "1"))
         {
@@ -100,6 +119,15 @@ internal static class Program
             Console.Error.WriteLine("SMOKE CONFIGURATION ERROR: " + selectorError);
             return 2;
         }
+
+        if (_startupFirstFrameOnly && (!OperatingSystem.IsLinux()
+            || Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") != "1"))
+        {
+            Console.Error.WriteLine("SMOKE CONFIGURATION ERROR: startup measurement requires the private Linux Xvfb runner.");
+            return 2;
+        }
+        using StartupFirstFrameMeasurement? startupTiming = _startupFirstFrameOnly
+            ? new StartupFirstFrameMeasurement(entryTimestamp, entryUtc) : null;
 
         _readingPositionMode = args.Contains("--reading-position", StringComparer.Ordinal);
         _selectionMode = args.Contains("--selection", StringComparer.Ordinal);
@@ -182,6 +210,7 @@ internal static class Program
             if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_RATINGS_ONLY") == "1")
                 config.WorkspaceMode = Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_MODE") ?? "Advanced";
             if ((!_readingPositionMode && !_savedSearchesOnly) || !File.Exists(Path.Combine(profile, "settings.json"))) config.SaveConfig();
+            if (_startupFirstFrameOnly) StartupFirstFrameChecks.Prepare(profile);
             if (Environment.GetEnvironmentVariable("MEOWCHAN_STARTUP_PREVIEW_ONLY") == "1")
                 StartupPreviewChecks.Prepare(profile);
             // Marker files are data too: initialize an owned empty profile first.
@@ -216,7 +245,8 @@ internal static class Program
             using ProfileLease? conflictingLease = _lockedProfileMode ? ProfileLease.Acquire(profile) : null;
             Avalonia.Logging.Logger.Sink = sink;
             Console.WriteLine("SMOKE isolated profile: " + profile);
-            AppBuilder appBuilder = (Environment.GetEnvironmentVariable("MEOWCHAN_STARTUP_PREVIEW_ONLY") == "1" ? AppBuilder.Configure<StartupPreviewSmokeApp>()
+            AppBuilder appBuilder = (_startupFirstFrameOnly ? AppBuilder.Configure<StartupFirstFrameSmokeApp>()
+                : Environment.GetEnvironmentVariable("MEOWCHAN_STARTUP_PREVIEW_ONLY") == "1" ? AppBuilder.Configure<StartupPreviewSmokeApp>()
                 : _downloadSessionMode ? AppBuilder.Configure<DownloadSessionSmokeApp>()
                 : _shellLoadMode ? AppBuilder.Configure<ShellLoadSmokeApp>()
                 : _visualMode ? AppBuilder.Configure<ShowcaseSmokeApp>() : AppBuilder.Configure<App>())
@@ -225,7 +255,8 @@ internal static class Program
             if (xvfbEnvironment)
             {
                 Console.WriteLine("SMOKE isolated environment: " + (Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_KWIN") == "1" ? "headless KWin/XWayland" : "Xvfb/Openbox")
-                    + "; X11 software rendering; tray fixture=" + (_trayHostMode ? "private StatusNotifier watcher/host" : "no native tray"));
+                    + "; X11 software rendering; tray fixture=" + (_startupFirstFrameOnly ? "native Avalonia, no supplied host"
+                        : _trayHostMode ? "private StatusNotifier watcher/host" : "no native tray"));
                 appBuilder.With(new X11PlatformOptions
                 {
                     RenderingMode = new X11RenderingMode[] { X11RenderingMode.Software }
@@ -236,7 +267,7 @@ internal static class Program
                 {
                     if (!_lockedProfileMode)
                         ClipboardChecks.Install();
-                    if ((xvfbEnvironment && !_trayHostMode) || _noTrayMode || _trayFailureMode)
+                    if ((xvfbEnvironment && !_trayHostMode && !_startupFirstFrameOnly) || _noTrayMode || _trayFailureMode)
                     {
                         IWindowingPlatform platform = AvaloniaLocator.Current.GetRequiredService<IWindowingPlatform>();
                         AvaloniaLocator.CurrentMutable.Bind<IWindowingPlatform>()
@@ -253,6 +284,7 @@ internal static class Program
             int expectedExitCode = _lockedProfileMode ? 2 : 0;
             if (exitCode != expectedExitCode || !_checksPassed || !_closed || _failure != null || !sink.Errors.IsEmpty)
             {
+                startupTiming?.Finish(false, $"exit={exitCode}, checks={_checksPassed}, closed={_closed}, errors={sink.Errors.Count}; {_failure}");
                 Console.Error.WriteLine($"SMOKE FAILED: exit={exitCode}, checks={_checksPassed}, closed={_closed}, errors={sink.Errors.Count}; {_failure}");
                 return 1;
             }
@@ -265,7 +297,9 @@ internal static class Program
                     MediaRatingChecks.VerifyAfterClose(profile, reacquired);
             }
 
-            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_DIALOG_FRAME_ONLY") == "1"
+            string scenario = _startupFirstFrameOnly
+                ? "startup first frame: isolated timing separations and post-startup managed navigation probes; no latency SLO or physical-presentation claim"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_DIALOG_FRAME_ONLY") == "1"
                 ? "dialog frame: fixed header/error strip/footer around a scrolling body per production dialog, group=" + (Environment.GetEnvironmentVariable("MEOWCHAN_DIALOG_FRAME_GROUP") ?? "all") + "; private fixtures, managed input, no Windows/macOS or screen-reader claim"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_DIAGNOSTIC_EVIDENCE_ONLY") == "1"
                 ? "diagnostic evidence: native controls with synthetic snapshots, passive facts/waiting/language refresh; managed input and copy delegate, no live network or OS clipboard/Windows/macOS acceptance"
@@ -388,6 +422,7 @@ internal static class Program
                 : _windowGeometryMode ? "isolated native interactive resize; each edge/corner after pointer release and settled correction"
                 : _videoContrastMode ? "real decoded video time, ended and corrupt-media error contrast in Light/Dark"
                 : "startup, rendered thread/board bindings, background update, normal close";
+            startupTiming?.Finish(true);
             Console.WriteLine("SMOKE SCENARIO: " + selectorScenario);
             Console.WriteLine("SMOKE PASS: " + scenario + "; no binding errors.");
             return 0;
@@ -420,6 +455,13 @@ internal static class Program
                 _closed = true;
                 Console.WriteLine("SMOKE MainWindow.Closed observed.");
             };
+            if (_startupFirstFrameOnly)
+            {
+                MainWindow timingWindow = window as MainWindow
+                    ?? throw new InvalidOperationException("Startup measurement did not create MainWindow.");
+                await StartupFirstFrameChecks.RunAsync(timingWindow);
+                _checksPassed = true; timingWindow.Close(); return;
+            }
             await WaitUntilAsync(() => window.IsVisible && window.Bounds.Width > 0);
             Console.WriteLine("SMOKE render scaling: actual=" + window.RenderScaling.ToString("0.###", CultureInfo.InvariantCulture)
                 + "; requested=" + (Environment.GetEnvironmentVariable("AVALONIA_GLOBAL_SCALE_FACTOR") ?? "unset") + ";");

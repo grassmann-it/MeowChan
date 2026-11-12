@@ -65,6 +65,7 @@ public partial class MainWindow : Window
 
     internal MainWindow(DesktopSessionHost? session)
     {
+        RecordStartupTiming(StartupTimingPoint.ConstructorBegin);
         try { InitializeComponent(); }
         catch
         {
@@ -77,6 +78,7 @@ public partial class MainWindow : Window
         InitializeStartupWindowSize();
         try
         {
+            AttachStartupTiming();
             Texts.Initialize(Path.Combine(_session.ProfileDirectory, "LanguagePacks"));
             Texts.SetLanguage(_config.Language);
             if (Application.Current != null)
@@ -122,14 +124,18 @@ public partial class MainWindow : Window
             WireWorkspaceCommands();
             InitializeSelectionCommands();
             Texts.Changed += OnLanguageChanged;
-            SetupTrayIcon();
+            RecordStartupTiming(StartupTimingPoint.TrayBegin);
+            try { SetupTrayIcon(); }
+            finally { RecordStartupTiming(StartupTimingPoint.TrayEnd); }
             InitializeClipboardMonitor();
             Opened += OnMainWindowOpened;
             UpdateInteractionState();
             _restoreTask = RestoreSessionAsync();
+            RecordStartupTiming(StartupTimingPoint.ConstructorEnd);
         }
         catch
         {
+            DetachStartupTiming();
             Texts.Changed -= OnLanguageChanged;
             _session.ProjectionPublished -= OnSessionChanged;
             _session.StartupPreviewChanged -= OnStartupPreviewChanged;
@@ -161,6 +167,7 @@ public partial class MainWindow : Window
 
     private void OnMainWindowOpened(object? sender, EventArgs e)
     {
+        RecordStartupTiming(StartupTimingPoint.Opened);
         Opened -= OnMainWindowOpened;
         _hasOpened = true;
         _mainWindowOpened.TrySetResult();
@@ -416,6 +423,9 @@ public partial class MainWindow : Window
             UpdateInteractionState();
             TryOfferFirstRunSetup();
         });
+        // The restore body has returned from its existing UI continuation, independently of any
+        // render observer. On an exception this remains unobserved, rather than inventing success.
+        RecordStartupTiming(StartupTimingPoint.ShellRestoreCompleted);
     }
 
     private bool _firstRunSetupScheduled;
