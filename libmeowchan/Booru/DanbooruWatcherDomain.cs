@@ -205,25 +205,32 @@ internal sealed record DanbooruWatcher
 
         HashSet<string> known = new(watcher.KnownPostIds, StringComparer.Ordinal);
         List<string> added = new();
-        string? oldHighWater = watcher.HighWaterMark;
+        // Stable per-check fence: page 1 of a catch-up raises HighWaterMark, so later pages
+        // of the same traversal must still be classified against the check-start value.
+        // Only the baseline-establishing first check has no fence and keeps the live HWM
+        // (which is null there and emits nothing anyway). An established watcher whose
+        // check started with an empty HWM has a null fence: every unknown post is new.
+        string? checkFence = watcher.BaselineEstablished
+            ? watcher.CheckStartHighWaterMark
+            : watcher.HighWaterMark;
         foreach (string id in page.PostIds)
         {
-            bool newer = oldHighWater is null
-                || DanbooruPostReference.ComparePostIds(id, oldHighWater) > 0;
+            bool newer = checkFence is null
+                || DanbooruPostReference.ComparePostIds(id, checkFence) > 0;
             if (watcher.BaselineEstablished && newer && known.Add(id))
                 added.Add(id);
             else
                 known.Add(id);
         }
 
-        string? highWater = oldHighWater;
+        string? highWater = watcher.HighWaterMark;
         foreach (string id in page.PostIds)
             if (highWater is null || DanbooruPostReference.ComparePostIds(id, highWater) > 0)
                 highWater = id;
 
         bool establishingBaseline = !watcher.BaselineEstablished;
-        bool reachedKnownBoundary = watcher.BaselineEstablished && watcher.CheckStartHighWaterMark is not null
-            && page.PostIds.Any(id => DanbooruPostReference.ComparePostIds(id, watcher.CheckStartHighWaterMark) <= 0);
+        bool reachedKnownBoundary = watcher.BaselineEstablished && checkFence is not null
+            && page.PostIds.Any(id => DanbooruPostReference.ComparePostIds(id, checkFence) <= 0);
         int pagesChecked = watcher.Progress.PagesCheckedInRun + 1;
         bool complete = establishingBaseline || page.IsEnd || reachedKnownBoundary;
         bool budgetReached = pagesChecked >= watcher.PageBudget;

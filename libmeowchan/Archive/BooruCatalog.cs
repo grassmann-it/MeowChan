@@ -131,6 +131,27 @@ internal sealed record BooruPostRecord(
 /// <summary>
 /// Restart-safe watcher projection. The scheduler owns the domain transition; this record is the
 /// storage boundary and intentionally contains no provider-specific executable state.
+/// <para>
+/// Restart contract (B2 MUST-2): the flat fields <see cref="NextPage"/>, <see cref="CursorBeforePostId"/>,
+/// <see cref="CheckStartHighWaterMark"/>, <see cref="ResumeState"/>, <see cref="PageSize"/>,
+/// <see cref="PageBudget"/>, <see cref="PagesCheckedInRun"/> and <see cref="BudgetLimited"/> carry exactly
+/// the traversal state of <c>DanbooruWatcher</c> / <c>DanbooruWatcherProgress</c> under the same names.
+/// All of them are additive: a record written before they existed (<c>NextPage == 0</c>, all new fields
+/// absent) stays readable. A record that claims an in-flight traversal (<c>NextPage &gt; 0</c>) must carry
+/// every field needed to resume it; otherwise the store rejects it fail-closed instead of letting a
+/// rebuilt watcher silently declare a partial catch-up complete.
+/// </para>
+/// <para>
+/// <see cref="CheckStartHighWaterMarkCaptured"/> exists because a captured fence may legitimately be
+/// <c>null</c> (a watcher whose empty baseline had no high-water mark when the check began); the flag
+/// separates that from a lost fence.
+/// </para>
+/// <para>
+/// Contract boundary: no production mapper between <c>DanbooruWatcher</c> and this record exists yet
+/// (B5 owns it). This type and <see cref="BooruCatalogStore"/> only guarantee that a conforming mapper can
+/// store the domain state losslessly and that inconsistent records are refused; they do not construct or
+/// interpret domain objects.
+/// </para>
 /// </summary>
 internal sealed record BooruWatcherRecord(
     string WatcherId,
@@ -144,7 +165,15 @@ internal sealed record BooruWatcherRecord(
     string? HighWaterMark = null,
     int NextPage = 0,
     bool BaselineEstablished = false,
-    IReadOnlyList<string>? KnownPostIds = null)
+    IReadOnlyList<string>? KnownPostIds = null,
+    string? CursorBeforePostId = null,
+    string? CheckStartHighWaterMark = null,
+    bool CheckStartHighWaterMarkCaptured = false,
+    string? ResumeState = null,
+    int? PageSize = null,
+    int? PageBudget = null,
+    int PagesCheckedInRun = 0,
+    bool BudgetLimited = false)
 {
     public IReadOnlyList<string> KnownPostIds { get; init; } = KnownPostIds ?? Array.Empty<string>();
 }
@@ -384,7 +413,15 @@ internal sealed class BooruCatalogStore
             {
                 State = "Removed",
                 CooldownUntilUtc = null,
-                ErrorCode = null
+                ErrorCode = null,
+                // Mirrors DanbooruWatcher.Remove: observation stops and traversal progress is dropped;
+                // known ids, high-water mark and the watcher's configured limits remain.
+                NextPage = 0,
+                CursorBeforePostId = null,
+                CheckStartHighWaterMark = null,
+                CheckStartHighWaterMarkCaptured = false,
+                PagesCheckedInRun = 0,
+                BudgetLimited = false
             });
             WriteLocked(snapshot with { Watchers = FreezeWatchers(watchers) }, admission, cancellationToken);
             return true;
@@ -613,6 +650,7 @@ internal sealed class BooruCatalogStore
             || watcher.KnownPostIds.Count > MaximumKnownPostIds)
             throw new ArgumentException("The Booru watcher record is invalid.", nameof(watcher));
         _ = CanonicalIds(watcher.KnownPostIds);
+        ValidateWatcherRestartState(watcher, state);
         if (state == DanbooruWatcherState.Cooldown && watcher.CooldownUntilUtc is null
             || state != DanbooruWatcherState.Cooldown && watcher.CooldownUntilUtc is not null)
             throw new ArgumentException("The Booru watcher cooldown state is invalid.", nameof(watcher));
@@ -621,6 +659,102 @@ internal sealed class BooruCatalogStore
             || state is not (DanbooruWatcherState.Error or DanbooruWatcherState.Cooldown)
             && watcher.ErrorCode is not null)
             throw new ArgumentException("The Booru watcher error state is invalid.", nameof(watcher));
+    }
+
+    /// <summary>
+    /// Validates the restart-critical traversal fields against the invariants of the watcher domain
+    /// (bounded pages/budget, descending cursor, fixed check-start fence, resume target). The rules are
+    /// stated on the storage fields only; no domain object is built or consulted.
+    /// </summary>
+    private static void ValidateWatcherRestartState(BooruWatcherRecord watcher, DanbooruWatcherState state)
+    {
+        static ArgumentException Invalid(string reason, string parameterName) =>
+            new($"The Booru watcher restart state is invalid: {reason}.", parameterName);
+        const string name = "watcher";
+
+        DanbooruWatcherState? resume = null;
+        if (watcher.ResumeState is not null)
+        {
+            if (!Enum.TryParse(watcher.ResumeState, ignoreCase: false, out DanbooruWatcherState parsed)
+                || parsed is not (DanbooruWatcherState.Active or DanbooruWatcherState.Paused))
+                throw Invalid("resume state", name);
+            resume = parsed;
+        }
+        if (watcher.PageSize is < 1 or > DanbooruWatcher.MaximumPageSize)
+            throw Invalid("page size", name);
+        if (watcher.PageBudget is < 1 or > DanbooruWatcher.MaximumPageBudget)
+            throw Invalid("page budget", name);
+        if (watcher.PagesCheckedInRun < 0)
+            throw Invalid("pages checked", name);
+        ValidateOptionalText(watcher.CursorBeforePostId, nameof(watcher.CursorBeforePostId), 18);
+        ValidateOptionalText(watcher.CheckStartHighWaterMark, nameof(watcher.CheckStartHighWaterMark), 18);
+        if (watcher.CursorBeforePostId is not null && !IsValidPostId(watcher.CursorBeforePostId))
+            throw Invalid("cursor", name);
+        if (watcher.CheckStartHighWaterMark is not null && !IsValidPostId(watcher.CheckStartHighWaterMark))
+            throw Invalid("check-start fence", name);
+        if (watcher.CheckStartHighWaterMark is not null && !watcher.CheckStartHighWaterMarkCaptured)
+            throw Invalid("check-start fence without capture flag", name);
+
+        // A resume target is only meaningful as Active or Paused and must agree with those states.
+        if (resume is { } target && (state == DanbooruWatcherState.Active && target != DanbooruWatcherState.Active
+            || state == DanbooruWatcherState.Paused && target != DanbooruWatcherState.Paused))
+            throw Invalid("state and resume state disagree", name);
+
+        if (state == DanbooruWatcherState.Removed || watcher.NextPage == 0)
+        {
+            // No traversal in flight (the domain clears all of it on completion and on Remove).
+            if (state == DanbooruWatcherState.Checking)
+                throw Invalid("a checking watcher always has a requested page", name);
+            if (watcher.NextPage != 0 || watcher.CursorBeforePostId is not null
+                || watcher.CheckStartHighWaterMark is not null || watcher.CheckStartHighWaterMarkCaptured
+                || watcher.PagesCheckedInRun != 0 || watcher.BudgetLimited)
+                throw Invalid("traversal fields without an in-flight traversal", name);
+            return;
+        }
+
+        // NextPage > 0: every field required to resume the traversal must be present.
+        if (resume is null || watcher.PageSize is null || watcher.PageBudget is null
+            || !watcher.CheckStartHighWaterMarkCaptured)
+            throw Invalid("in-flight traversal is missing resume state, limits or check-start fence", name);
+        int pageBudget = watcher.PageBudget.Value;
+        if (watcher.PagesCheckedInRun >= pageBudget || watcher.PagesCheckedInRun > watcher.NextPage - 1)
+            throw Invalid("pages checked exceed the page budget or the traversed pages", name);
+        if (watcher.PagesCheckedInRun > 0 && state != DanbooruWatcherState.Checking)
+            throw Invalid("a run counter outside a running check", name);
+
+        if (watcher.NextPage == 1)
+        {
+            // Check begun, but no page applied yet: nothing to continue below.
+            if (watcher.CursorBeforePostId is not null || watcher.BudgetLimited)
+                throw Invalid("cursor or budget limit before any page was applied", name);
+        }
+        else
+        {
+            if (!watcher.BaselineEstablished)
+                throw Invalid("continuation page before the baseline was established", name);
+            if (watcher.CursorBeforePostId is null)
+                throw Invalid("continuation page without a cursor", name);
+            if (watcher.HighWaterMark is null
+                || DanbooruPostReference.ComparePostIds(watcher.CursorBeforePostId, watcher.HighWaterMark) > 0)
+                throw Invalid("cursor above the high-water mark", name);
+        }
+
+        if (watcher.CheckStartHighWaterMark is not null)
+        {
+            if (watcher.HighWaterMark is null
+                || DanbooruPostReference.ComparePostIds(watcher.CheckStartHighWaterMark, watcher.HighWaterMark) > 0)
+                throw Invalid("check-start fence above the high-water mark", name);
+            // A page reaching the fence completes the traversal, so a partial cursor is still above it.
+            if (watcher.CursorBeforePostId is not null
+                && DanbooruPostReference.ComparePostIds(watcher.CursorBeforePostId, watcher.CheckStartHighWaterMark) <= 0)
+                throw Invalid("cursor at or below the check-start fence", name);
+        }
+
+        if (watcher.BudgetLimited
+            && (watcher.NextPage < pageBudget + 1 || watcher.PagesCheckedInRun != 0
+                || state is not (DanbooruWatcherState.Active or DanbooruWatcherState.Paused)
+                || resume != state))
+            throw Invalid("inconsistent budget limit", name);
     }
 
     private static void ValidateFindingArguments(string sourceId, string postId, BooruFindingKind kind,

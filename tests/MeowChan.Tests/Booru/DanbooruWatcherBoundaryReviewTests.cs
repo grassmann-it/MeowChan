@@ -13,10 +13,9 @@ public sealed class DanbooruWatcherBoundaryReviewTests
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 12, 12, 0, 0, TimeSpan.Zero);
 
-    // MUST-1: ApplyPage classifies "newer" against the *live* HighWaterMark, which page 1 of
-    // the same traversal has already raised. Posts on pages 2..5 of a catch-up are therefore
-    // recorded as known but never reported as new, i.e. silently skipped by the download queue.
-    [Fact(Skip = "MUST-1 product gap: pages 2..N of a catch-up never emit new posts (compares to live HighWaterMark instead of CheckStartHighWaterMark)")]
+    // MUST-1 (fixed): ApplyPage classifies "newer" against the stable CheckStartHighWaterMark,
+    // not the live HighWaterMark that page 1 of the same traversal has already raised.
+    [Fact]
     public void CatchUpAcrossSeveralPagesEmitsEveryPostNewerThanTheCheckStartBoundary()
     {
         DanbooruWatcher current = DanbooruWatcher.BeginCheck(Baseline("100"), Now.AddMinutes(1)).Watcher;
@@ -29,12 +28,47 @@ public sealed class DanbooruWatcherBoundaryReviewTests
         emitted = p1.AddedPostIds.Concat(p2.AddedPostIds).Concat(p3.AddedPostIds).ToArray();
         Assert.Equal(new[] { "120", "119", "118", "117", "101" }, emitted);
         Assert.Equal(DanbooruWatcherState.Active, p3.Watcher.State);
+        Assert.Equal("120", p3.Watcher.HighWaterMark);
+        Assert.Null(p3.Watcher.CheckStartHighWaterMark);
     }
 
-    // MUST-2: BooruWatcherRecord persists NextPage/HighWaterMark/KnownPostIds but not the cursor
-    // fence, CheckStartHighWaterMark or ResumeState. A watcher rebuilt from exactly the persisted
-    // fields must never *complete* a traversal it has not finished.
-    [Fact(Skip = "MUST-2 contract gap: persisted record lacks CursorBeforePostId/CheckStartHighWaterMark/ResumeState; rebuilt watcher falsely completes")]
+    // MUST-1 regression: the stable fence also applies when an established watcher's check
+    // started with an empty high-water mark, and a budget-limited run keeps its fence.
+    [Fact]
+    public void CatchUpFromEmptyBaselineEmitsEveryPostAcrossPagesAndKeepsFenceAcrossBudgetPause()
+    {
+        DanbooruWatcher empty = DanbooruWatcher.ApplyPage(
+            DanbooruWatcher.BeginCheck(Create(), Now).Watcher, Page(1, true), Now).Watcher;
+        DanbooruWatcher w = DanbooruWatcher.BeginCheck(empty, Now.AddMinutes(1)).Watcher;
+
+        DanbooruWatcherTransition p1 = DanbooruWatcher.ApplyPage(w, Page(1, false, "9", "8"), Now);
+        DanbooruWatcherTransition p2 = DanbooruWatcher.ApplyPage(p1.Watcher, Page(2, true, "7", "6"), Now);
+
+        Assert.Equal(new[] { "9", "8", "7", "6" }, p1.AddedPostIds.Concat(p2.AddedPostIds).ToArray());
+        Assert.Equal(DanbooruWatcherState.Active, p2.Watcher.State);
+
+        // Budget-limited run (budget 1): page 2 resumes against the original fence (100), so
+        // the second page is still emitted and the boundary page completes the traversal.
+        Assert.True(DanbooruWatcher.TryCreate("w-budget", "cat", Now, out DanbooruWatcher? created, out _, pageBudget: 1));
+        DanbooruWatcher budgeted = DanbooruWatcher.ApplyPage(
+            DanbooruWatcher.BeginCheck(created!, Now).Watcher, Page(1, true, "100"), Now).Watcher;
+        DanbooruWatcher run1 = DanbooruWatcher.BeginCheck(budgeted, Now.AddMinutes(1)).Watcher;
+        DanbooruWatcherTransition b1 = DanbooruWatcher.ApplyPage(run1, Page(1, false, "120", "119"), Now);
+        Assert.Equal(new[] { "120", "119" }, b1.AddedPostIds);
+        Assert.True(b1.Watcher.Progress.BudgetLimited);
+        Assert.Equal("100", b1.Watcher.CheckStartHighWaterMark);
+        DanbooruWatcher run2 = DanbooruWatcher.BeginCheck(b1.Watcher, Now.AddMinutes(2)).Watcher;
+        DanbooruWatcherTransition b2 = DanbooruWatcher.ApplyPage(run2, Page(2, false, "101", "100"), Now);
+        Assert.Equal(new[] { "101" }, b2.AddedPostIds);
+        Assert.Null(b2.Watcher.CheckStartHighWaterMark);
+        Assert.Equal(0, b2.Watcher.Progress.NextPage);
+    }
+
+    // MUST-2 (fixed): BooruWatcherRecord now carries the whole traversal contract
+    // (CursorBeforePostId, CheckStartHighWaterMark + capture flag, ResumeState, PageSize, PageBudget,
+    // PagesCheckedInRun, BudgetLimited), so a watcher rebuilt from exactly the persisted fields keeps
+    // its fence and cursor instead of falsely completing a partial catch-up.
+    [Fact]
     public void WatcherRebuiltFromPersistedFieldsOnlyDoesNotFalselyCompleteAPartialTraversal()
     {
         DanbooruWatcher live = DanbooruWatcher.BeginCheck(Baseline("100"), Now.AddMinutes(1)).Watcher;
@@ -48,8 +82,18 @@ public sealed class DanbooruWatcherBoundaryReviewTests
             BaselineEstablished = live.BaselineEstablished,
             HighWaterMark = live.HighWaterMark,
             KnownPostIds = live.KnownPostIds,
-            Progress = new DanbooruWatcherProgress(live.Progress.NextPage, 0, false)
+            Progress = new DanbooruWatcherProgress(live.Progress.NextPage, live.Progress.PagesCheckedInRun, false)
+            {
+                CursorBeforePostId = live.CursorPostId
+            },
+            CheckStartHighWaterMark = live.CheckStartHighWaterMark,
+            ResumeState = live.ResumeState,
+            PageSize = live.PageSize,
+            PageBudget = live.PageBudget
         };
+        // The rebuilt watcher keeps the fence that page 1 captured; without it the resumed
+        // run would fall back to the live high-water mark and stop at the first page.
+        Assert.Equal("100", rebuilt.CheckStartHighWaterMark);
         DanbooruWatcherTransition resumed = DanbooruWatcher.BeginCheck(rebuilt, Now.AddMinutes(2));
         DanbooruWatcherTransition p2 = DanbooruWatcher.ApplyPage(resumed.Watcher, Page(2, false, "118", "117"), Now);
 

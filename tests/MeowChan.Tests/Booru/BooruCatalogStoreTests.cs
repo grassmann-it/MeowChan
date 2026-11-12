@@ -27,8 +27,11 @@ public sealed class BooruCatalogStoreTests
             store.AddFinding("danbooru", "123", BooruFindingKind.Search, null, "cat", observed);
             store.AddFinding("danbooru", "123", BooruFindingKind.Watcher, "w1", "cat", observed);
             store.LinkLocalAsset("danbooru", "123", "asset-1", "/offline/asset.png");
+            // A partial traversal must carry its full restart contract (see BooruWatcherRestartContractTests).
             store.UpsertWatcher(new("w1", "danbooru", "cat", "Active", observed,
-                NextPage: 2, BaselineEstablished: true, KnownPostIds: ["123"]));
+                HighWaterMark: "123", NextPage: 2, BaselineEstablished: true, KnownPostIds: ["123"],
+                CursorBeforePostId: "123", CheckStartHighWaterMark: "100", CheckStartHighWaterMarkCaptured: true,
+                ResumeState: "Active", PageSize: 20, PageBudget: 5));
         }
 
         using ProfileLease reopenedLease = ProfileLease.Acquire(directory.Path);
@@ -46,7 +49,11 @@ public sealed class BooruCatalogStoreTests
         Assert.Equal(BooruPostClaimMediaRole.Original, saved.Post.Media[0].Role);
         Assert.Equal(BooruPostClaimMediaRole.Sample, saved.Post.Media[1].Role);
         Assert.Equal(BooruPostClaimMediaRole.Preview, saved.Post.Media[2].Role);
-        Assert.Equal("123", Assert.Single(snapshot.Watchers).KnownPostIds.Single());
+        BooruWatcherRecord savedWatcher = Assert.Single(snapshot.Watchers);
+        Assert.Equal("123", savedWatcher.KnownPostIds.Single());
+        Assert.Equal(2, savedWatcher.NextPage);
+        Assert.Equal("123", savedWatcher.CursorBeforePostId);
+        Assert.Equal("100", savedWatcher.CheckStartHighWaterMark);
         Assert.Equal(BooruCatalogSnapshot.CurrentSchemaVersion, snapshot.SchemaVersion);
     }
 
@@ -183,7 +190,9 @@ public sealed class BooruCatalogStoreTests
 
         BooruWatcherRecord watcher = new("w1", "danbooru", "-cat rating:g", "Cooldown", now,
             LastCheckedAtUtc: now.AddMinutes(-1), CooldownUntilUtc: now.AddMinutes(1), ErrorCode: "rate_limited",
-            HighWaterMark: "100", NextPage: 6, BaselineEstablished: true, KnownPostIds: ["7", "100"]);
+            HighWaterMark: "100", NextPage: 6, BaselineEstablished: true, KnownPostIds: ["7", "100"],
+            CursorBeforePostId: "50", CheckStartHighWaterMark: "40", CheckStartHighWaterMarkCaptured: true,
+            ResumeState: "Active", PageSize: 20, PageBudget: 5);
         store.UpsertWatcher(watcher);
         BooruWatcherRecord saved = Assert.Single(store.Read().Watchers);
         Assert.Equal("-cat rating:g", saved.Query);
@@ -191,6 +200,13 @@ public sealed class BooruCatalogStoreTests
         Assert.Equal(6, saved.NextPage);
         Assert.Equal(["7", "100"], saved.KnownPostIds);
         Assert.Equal("100", saved.HighWaterMark);
+        Assert.Equal("50", saved.CursorBeforePostId);
+        Assert.Equal("40", saved.CheckStartHighWaterMark);
+        Assert.Equal("Active", saved.ResumeState);
+        Assert.Equal(20, saved.PageSize);
+        Assert.Equal(5, saved.PageBudget);
+        Assert.Equal(0, saved.PagesCheckedInRun);
+        Assert.False(saved.BudgetLimited);
     }
 
     [Fact]
