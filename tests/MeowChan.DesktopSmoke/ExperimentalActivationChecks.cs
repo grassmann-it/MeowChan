@@ -455,8 +455,15 @@ internal static class ExperimentalActivationChecks
             && ReferenceEquals(TopLevel.GetTopLevel(control), window) && InWindow(window, control);
         foreach (string scenario in new[] { "add-button", "later-focus", "later-null", "owner-hide", "source-change", "detach", "text-away-back" })
         {
+            // SelectSource is a silent no-op until the page has loaded its rows, and the page then falls back to
+            // its first row. Wait for the real condition (the source row exists), then require the selection.
+            const System.Reflection.BindingFlags pageFlags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+            await Program.WaitUntilAsync(() => typeof(SourcesPage).GetField("_rows", pageFlags)!.GetValue(sources)
+                is IReadOnlyList<SourceRow> rows && rows.Any(row => row.Id == Source));
             sources.SelectSource(Source);
             await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => { }, Avalonia.Threading.DispatcherPriority.Background);
+            Require(typeof(SourcesPage).GetField("_selectedId", pageFlags)!.GetValue(sources) as string == Source,
+                "The Sources page did not select the experimental source before its submit.");
             editor.Text = ThreadUrl; editor.BringIntoView();
             Require(editor.Focus(), "The Sources modal guard fixture could not focus its actual editor.");
             if (scenario == "add-button")
@@ -700,8 +707,15 @@ internal static class ExperimentalActivationChecks
             // physical keyboard/IME acceptance are not inferred from routed Enter.
             window.FindControl<MenuItem>("SourcesMenuItem")!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
             SourcesPage sources = (SourcesPage)C<ContentControl>(window, "SourcesPageHost").Content!;
+            // SelectSource is a silent no-op until the page has loaded its rows, and the page then falls back to
+            // its first row. Wait for the real condition (the source row exists), then require the selection.
+            const System.Reflection.BindingFlags pageFlags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+            await Program.WaitUntilAsync(() => typeof(SourcesPage).GetField("_rows", pageFlags)!.GetValue(sources)
+                is IReadOnlyList<SourceRow> rows && rows.Any(row => row.Id == Source));
             sources.SelectSource(Source);
             await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => { }, Avalonia.Threading.DispatcherPriority.Background);
+            Require(typeof(SourcesPage).GetField("_selectedId", pageFlags)!.GetValue(sources) as string == Source,
+                "The Sources page did not select the experimental source before its submit.");
             TextBox sourceInput = C<TextBox>(sources, "SourceUrlInput");
             sourceInput.Text = ThreadUrl; sourceInput.BringIntoView();
             Require(sourceInput.Focus(), "The productive Sources editor could not receive focus before its modal.");
@@ -937,6 +951,13 @@ internal static class ExperimentalActivationChecks
             Require(stopping.IsVisible && host.State == DesktopSessionState.Stopped, "Shutdown did not leave the captured modal testable.");
             stopping.Closed += (_, _) => window.Close();
             await RejectStaleAsync(stopping);
+            // StopAsync above sealed the profile's final writes, so the window's own shutdown cannot confirm its
+            // preferences. By design (MainWindow.CloseApplicationAsync) it then leaves an inert, disposed window
+            // for acknowledgement and the SECOND close request exits directly. Wait for that settled state.
+            const System.Reflection.BindingFlags shellFlags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+            bool Shell(string field) => (bool)typeof(MainWindow).GetField(field, shellFlags)!.GetValue(window)!;
+            await Program.WaitUntilAsync(() => !window.IsVisible || Shell("_allowClose") && !Shell("_shutdownRunning"));
+            if (window.IsVisible) window.Close();
             await Program.WaitUntilAsync(() => !window.IsVisible);
             Require(!input.IsFocused, "A late canceled modal restored focus while its owner was closing.");
             Require((await host.Plugins.ProfileStore.ReadAsync()).Revision == saved.Revision
