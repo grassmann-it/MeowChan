@@ -206,6 +206,54 @@ public sealed class SmokeScenariosTests
         Assert.Null(SmokeScenarios.Invocation(Assert.Single(SmokeScenarios.All, entry => entry.Id == "reader-groups-restore")).Skip);
     }
 
+    // A selector named anywhere in the driver, its runner scripts or workflows but missing from the
+    // registry is rejected at startup as unknown, so that check or invocation could never run.
+    [Fact]
+    public void EveryOnlySelectorNamedInTheSmokeProjectScriptsOrWorkflowsIsRegistered()
+    {
+        string repository = Repository();
+        IEnumerable<string> files = SourceFiles(Path.Combine(repository, "tests/MeowChan.DesktopSmoke"), "*.cs")
+            .Concat(SourceFiles(Path.Combine(repository, "scripts"), "*"))
+            .Concat(SourceFiles(Path.Combine(repository, ".github/workflows"), "*.yml"));
+        Dictionary<string, string> named = new(StringComparer.Ordinal);
+        foreach (string file in files)
+            foreach (Match match in Regex.Matches(File.ReadAllText(file), "MEOWCHAN_[A-Z0-9_]+_ONLY"))
+                named.TryAdd(match.Value, Path.GetRelativePath(repository, file));
+        Assert.True(named.Count >= 100, "The source scan found only " + named.Count + " selector names.");
+        HashSet<string> known = SmokeSelectors.KnownNames.ToHashSet(StringComparer.Ordinal);
+        Assert.Empty(named.Where(pair => !known.Contains(pair.Key)).Select(pair => pair.Key + " (" + pair.Value + ")"));
+    }
+
+    // Every entry must be able to start: a mode through its command-line flag, a Root/Branch through
+    // its bound run, a nested selector through a read in its parent's checks.
+    [Fact]
+    public void EveryRegisteredScenarioHasAReachableEntryPoint()
+    {
+        string driver = string.Concat(SourceFiles(Path.Combine(Repository(), "tests/MeowChan.DesktopSmoke"), "*.cs")
+            .Where(file => !file.EndsWith("SmokeScenarios.cs", StringComparison.Ordinal)
+                && !file.EndsWith("SmokeSelectors.cs", StringComparison.Ordinal))
+            .Select(File.ReadAllText));
+        string program = File.ReadAllText(Path.Combine(Repository(), "tests/MeowChan.DesktopSmoke/Program.cs"));
+        List<string> unreachable = [];
+        foreach (SmokeScenario entry in SmokeScenarios.All)
+        {
+            bool reachable = entry.Kind switch
+            {
+                SmokeScenarioKind.Mode => entry.Selector.Length == 0
+                    || program.Contains("args.Contains(\"" + entry.Selector + "\", StringComparer.Ordinal)", StringComparison.Ordinal),
+                SmokeScenarioKind.Root or SmokeScenarioKind.Branch => RunsSource().Contains("        [\"" + entry.Id + "\"] = new(SmokeStage.", StringComparison.Ordinal),
+                _ => driver.Contains("GetEnvironmentVariable(\"" + entry.Selector + "\")", StringComparison.Ordinal)
+            };
+            if (!reachable) unreachable.Add(entry.Kind + " " + entry.Id + " (" + entry.Selector + ")");
+        }
+        Assert.Empty(unreachable);
+    }
+
+    private static IEnumerable<string> SourceFiles(string root, string pattern) =>
+        Directory.EnumerateFiles(root, pattern, SearchOption.AllDirectories)
+            .Where(file => !Path.GetRelativePath(root, file).Split(Path.DirectorySeparatorChar)
+                .Any(part => part is "bin" or "obj" or "__pycache__"));
+
     private static string Repository() => Path.GetFullPath(Path.Combine(Path.GetDirectoryName(RunsSourcePath())!, "../.."));
 
     private static string Binding(string id)
