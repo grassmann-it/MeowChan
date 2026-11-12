@@ -89,6 +89,32 @@ public sealed class GalleryMediaTagTests
         Assert.Equal(GalleryMediaTagUnavailable.Mismatch, thread);
     }
 
+    [Fact]
+    public void LooseFilesAndFavoriteEntriesWithoutResolutionNeverBorrowAnExistingBinding()
+    {
+        // Favorites galleries and loose thread files build entries from (thread, asset) only. Even though
+        // the manifest holds an exact post binding for these bytes, the entry must not adopt it: several
+        // bindings may share one asset, and no contract picks one. These stay untaggable until tags v3.
+        Fixture fixture = Bound("100", 0, "a.png");
+        GalleryEntry favoriteStyle = Entry(fixture, null);
+        Assert.Contains(fixture.RevisionKey, fixture.Snapshot.AttachmentBindings.Keys);
+        Assert.Null(GalleryMediaTagTarget.Resolve(favoriteStyle, out GalleryMediaTagUnavailable reason));
+        Assert.Equal(GalleryMediaTagUnavailable.NoPostVersion, reason);
+    }
+
+    [Fact]
+    public void BoundEntryWithoutUsableDigestIsRejectedAsInvalidIdentity()
+    {
+        Fixture fixture = Bound("100", 0, "a.png");
+        MediaAssetReference noDigest = fixture.Asset with { Sha256 = "" };
+        GalleryEntry entry = new(new GalleryAssetKey(Thread, fixture.Snapshot.Directory, noDigest.AssetId), fixture.Snapshot,
+            noDigest, null, fixture.Attachment, false, false)
+        { AttachmentResolution = new ResolvedMediaAttachment(fixture.Snapshot, noDigest, fixture.Binding, false) };
+
+        Assert.Null(GalleryMediaTagTarget.Resolve(entry, out GalleryMediaTagUnavailable reason));
+        Assert.Equal(GalleryMediaTagUnavailable.InvalidIdentity, reason);
+    }
+
     private static MediaTagSession Session(PrivateTagStore store, PrivateMediaTagTarget target) => new(new MediaTagSubject.Bound(target),
         () => new PrivateTagLoadSnapshot(PrivateTagLoadState.Ready, store.ReadSnapshot(), null),
         (name, subject, token) => Task.FromResult(store.DefineAndSetMediaSubjects(name, [subject], null, token)),
