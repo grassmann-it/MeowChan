@@ -182,12 +182,12 @@ internal sealed class BooruSchedulerWatcherPort : IBooruWatcherPort, IDisposable
             DanbooruWatcherActivity.Checking => BooruWatcherStatus.Checking,
             DanbooruWatcherActivity.Paused => BooruWatcherStatus.Paused,
             DanbooruWatcherActivity.Cooldown => BooruWatcherStatus.Cooldown,
-            DanbooruWatcherActivity.Error or DanbooruWatcherActivity.ContinuationBlocked => BooruWatcherStatus.Error,
+            DanbooruWatcherActivity.Error => BooruWatcherStatus.Error,
             _ => BooruWatcherStatus.Active
         };
         DateTimeOffset? cooldown = status.CooldownUntilUtc
             ?? (mapped == BooruWatcherStatus.Cooldown ? providerCooldown : null);
-        string? error = status.Activity == DanbooruWatcherActivity.ContinuationBlocked ? BooruCodes.ContinuationBlocked : status.ErrorCode;
+        string? error = status.ErrorCode;
         return new BooruWatcherView(status.WatcherId, status.Query, mapped, status.CreatedAtUtc, status.LastCheckedAtUtc,
             mapped is BooruWatcherStatus.Active ? status.NextCheckAtUtc : null, cooldown, error,
             stored?.HitCount ?? 0, stored?.QueuedCount ?? 0, status.BaselineEstablished, status.BudgetLimited);

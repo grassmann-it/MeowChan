@@ -26,6 +26,7 @@ namespace MeowChan.Desktop.Booru
         internal const string Rejected = "rejected";
         internal const string Superseded = "superseded";
         internal const string Cancelled = "cancelled";
+        // No longer produced since cursor paging (a stored watcher may still carry it); the text and "Restart from now" stay.
         internal const string ContinuationBlocked = "continuation_blocked";
         internal const string SearchResultMissing = "search_result_missing";
         internal const string SearchPortFault = "search_port_fault";
@@ -79,7 +80,8 @@ namespace MeowChan.Desktop.Booru
             Busy, Canceled, Closed, Exception, Error, NoWorker, UnknownResult, PageBinding, WrongPost,
             // Domain codes whose texts already exist on goal (BooruStatusCatalog).
             "check_not_running", "watcher_paused", "watcher_already_paused", "watcher_already_active", "page_binding_mismatch",
-            "page_limit_exceeded", "invalid_post_id", "page_not_descending", "cursor_did_not_advance", "empty_page_did_not_advance"
+            "page_limit_exceeded", "invalid_post_id", "page_not_descending", "cursor_did_not_advance", "empty_page_did_not_advance",
+            "cursor_missing"
         ];
 
         internal static string Key(string code) => "booru.watcher.problem." + code;
