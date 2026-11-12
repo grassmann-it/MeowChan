@@ -349,7 +349,9 @@ public sealed class BooruHostHttp : IDisposable
     {
         if (!uri.IsAbsoluteUri || uri.Scheme != Uri.UriSchemeHttps || uri.UserInfo.Length != 0
             || uri.Fragment.Length != 0 || !uri.IsDefaultPort) return false;
-        if (!string.Equals(source.SourceId, "danbooru", StringComparison.Ordinal)) return true;
+        // Fail closed: only a source with a host-owned endpoint profile may send. A PostSearch source
+        // without one (a new or third-party plugin) is refused until its profile exists here.
+        if (!string.Equals(source.SourceId, "danbooru", StringComparison.Ordinal)) return false;
 
         string path = uri.AbsolutePath;
         if (path == "/posts.json") return IsValidSearchQuery(uri.Query);

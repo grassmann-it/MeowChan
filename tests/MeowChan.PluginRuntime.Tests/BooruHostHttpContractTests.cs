@@ -106,6 +106,56 @@ public sealed class BooruHostHttpContractTests
         finally { rig.Services.CloseJob(job); }
     }
 
+    // ---------- Endpoint allowlist: fail closed ----------
+
+    [Theory]
+    [InlineData("https://danbooru.test/posts.json")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat%20rating%3Ag&page=b123&limit=20")]
+    [InlineData("https://danbooru.test/posts/12345.json")]
+    public async Task DanbooruEndpointsAreAllowedAsBefore(string url)
+    {
+        using Rig rig = new((_, _, _) => Task.FromResult(Response(HttpStatusCode.OK, "{}")));
+        BooruJob job = rig.Services.OpenJob();
+        try
+        {
+            Assert.IsType<HostHttpResponse>(await rig.Send(job, new("danbooru", HostHttpMethod.Get, new(url))));
+            Assert.Equal(1, rig.Sends);
+        }
+        finally { rig.Services.CloseJob(job); }
+    }
+
+    [Theory]
+    [InlineData("https://danbooru.test/users.json")]
+    [InlineData("https://danbooru.test/posts.json?login=x")]
+    public async Task DanbooruPathsOutsideTheProfileAreStillRefused(string url)
+    {
+        using Rig rig = new((_, _, _) => Task.FromResult(Response(HttpStatusCode.OK, "{}")));
+        BooruJob job = rig.Services.OpenJob();
+        try
+        {
+            Assert.IsType<HostHttpFailure>(await rig.Send(job, new("danbooru", HostHttpMethod.Get, new(url))));
+            Assert.Equal(0, rig.Sends);
+        }
+        finally { rig.Services.CloseJob(job); }
+    }
+
+    [Theory]
+    [InlineData("https://other.test/posts.json")]
+    [InlineData("https://other.test/index.php?page=dapi&s=post&q=index")]
+    public async Task PostSearchSourceWithoutEndpointProfileIsRejectedBeforeTheTransport(string url)
+    {
+        using Rig rig = new((_, _, _) => Task.FromResult(Response(HttpStatusCode.OK, "{}")));
+        BooruJob job = rig.Services.OpenJob();
+        try
+        {
+            HostHttpFailure failure = Assert.IsType<HostHttpFailure>(await rig.Send(job, new("other", HostHttpMethod.Get, new(url))));
+            Assert.Equal("http-request", failure.Failure.Code);
+            Assert.Equal(0, rig.Sends);
+            Assert.Equal(0, job.Sends);
+        }
+        finally { rig.Services.CloseJob(job); }
+    }
+
     // ---------- Retry budget: max 20 sends including retries ----------
 
     [Fact]
@@ -362,9 +412,12 @@ public sealed class BooruHostHttpContractTests
         {
             Assert.IsType<HostHttpDeferred>(await rig.Send(job));
             rig.Clock.Advance(BooruHostHttp.MinimumStartSpacing);
+            // A PostSearch source without a host endpoint profile is refused before the transport (fail closed),
+            // so it neither sends nor shares the Danbooru cooldown.
             HostHttpRequest other = new("other", HostHttpMethod.Get, new("https://other.test/index.php"));
-            Assert.IsType<HostHttpResponse>(await rig.Send(job, other));
+            Assert.Equal("http-request", Assert.IsType<HostHttpFailure>(await rig.Send(job, other)).Failure.Code);
             Assert.False(rig.Http.TryGetCooldown("other", out _));
+            Assert.Equal(1, rig.Sends);
 
             int before = job.Sends;
             HostHttpResponse chan = Assert.IsType<HostHttpResponse>(await rig.Send(job,
