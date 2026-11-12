@@ -22,6 +22,9 @@ internal static class UpdateGuiChecks
         Config config = Config.LoadConfig(profile);
         config.DownloadPath = Path.Combine(profile, "downloads");
         config.SaveConfig();
+        // Saving a changed reserve re-checks the destination, which never creates folders; the fixture must provide it
+        // (after the first save, because settings are only written into an empty or already valid profile).
+        Directory.CreateDirectory(config.DownloadPath);
         Handler handler = new();
         string? disabled = null;
         await using DesktopSessionHost host = new(profile, [], updateSessionFactory: (path, settings) =>
@@ -114,7 +117,10 @@ internal static class UpdateGuiChecks
             editor.SelectedLanguage = editor.LanguageChoices.Single(choice => choice.Code == "de");
             editor.SelectedTheme = editor.ThemeChoices.Single(choice => choice.Value == "Light");
             editor.FindControl<Button>("SaveSettingsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await Program.WaitUntilAsync(() => !editor.IsBusy && !host.Config.AutomaticUpdateChecks);
+            await Program.WaitUntilAsync(() => !editor.IsBusy && !host.Config.AutomaticUpdateChecks,
+                () => $"busy={editor.IsBusy}, automatic={host.Config.AutomaticUpdateChecks}, status={editor.StatusMessage}, visible errors="
+                    + string.Join(" | ", editor.GetVisualDescendants().OfType<TextBlock>()
+                        .Where(block => block.IsVisible && block.Name?.EndsWith("Error") == true).Select(block => block.Name + ": " + block.Text)));
             Require(!editor.HasError && Config.LoadConfig(profile).MinimumFreeSpaceGiB == 2, "Updated settings were not persisted.");
             await RevealUpdateSettingsAsync(window);
             Capture(window, "smoke-updates-settings-de-Light.png");
