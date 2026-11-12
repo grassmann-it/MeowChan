@@ -421,6 +421,146 @@ public sealed class WorkStateStore : IWorkStateStore, IConditionalWorkStateStore
         command.ExecuteNonQuery();
     }
 
+    // Retention (user decision 11.11.2026): only media rows of a generation lower than their resource's
+    // current generation are removed. Every LoadMedia/FindMedia names the owner's current generation
+    // (restore, work cache, queue binding, retries and archive cleanup), and generations only advance,
+    // so no reader can observe them again. The owner's generation is read exactly as restore reads it;
+    // resource rows always stay (they fix the generation number), and media of a missing or unreadable
+    // resource row is of unknown state and stays. Media payloads are not parsed: a corrupt media row is
+    // kept or removed by its key columns like any other. A verified copy is written before the first
+    // DELETE; without it nothing is deleted. One backup is kept next to the journal: a later effective
+    // run replaces it only after its own copy is complete and verified. No schema change, no new index:
+    // the primary key prefix (resource_url,generation) serves both statements.
+    internal const string PruneBackupFileName = "work-state.before-prune.sqlite";
+
+    // Instance-scoped deterministic test observer, unset in production: invoked inside the open
+    // deletion transaction after each owner's DELETE, with the number of owners processed so far.
+    internal Action<int>? PruneDeleteObserver { get; set; }
+
+    // Startup only: Registry calls this under its gate before any watch is bound, so no generation
+    // changes meanwhile; the lease monitor excludes every other store operation for the whole run.
+    internal WorkJournalPrune PruneSupersededMedia(ProfileAdmissionToken? admission)
+    {
+        if (admission != null) return _lease.RunStoreWrite(admission, PruneSupersededMediaCore);
+        using ProfileAdmissionToken local = _lease.Admission.EnterStoreWriter();
+        return _lease.RunStoreWrite(local, PruneSupersededMediaCore);
+    }
+
+    private WorkJournalPrune PruneSupersededMediaCore()
+    {
+        string backup = Path.Combine(_lease.ProfileDirectory, PruneBackupFileName);
+        string partial = backup + ".tmp";
+        try
+        {
+            using SqliteConnection db = Open();
+            // IMMEDIATE: the reserved lock admits readers (the copy below) but no other writer,
+            // so the copy and the deletion see the same rows. Disposal without commit rolls back.
+            using SqliteTransaction transaction = db.BeginTransaction();
+            List<(string Url, long Generation)> owners = new();
+            using (SqliteCommand command = db.CreateCommand())
+            {
+                command.Transaction = transaction;
+                command.CommandText = "SELECT url,payload FROM work_resources ORDER BY url";
+                using SqliteDataReader reader = command.ExecuteReader();
+                while (reader.Read())
+                {
+                    string url = reader.GetString(0);
+                    try
+                    {
+                        WorkResource resource = Read<WorkResource>(reader.GetString(1));
+                        if (resource.Url == url) owners.Add((url, resource.Generation));
+                    }
+                    catch (Exception exception) when (exception is InvalidDataException or JsonException) { }
+                }
+            }
+            long superseded = 0;
+            using (SqliteCommand count = db.CreateCommand())
+            {
+                count.Transaction = transaction;
+                count.CommandText = "SELECT COUNT(*) FROM work_media WHERE resource_url=$url AND generation<$generation";
+                SqliteParameter url = count.Parameters.Add("$url", SqliteType.Text), generation = count.Parameters.Add("$generation", SqliteType.Integer);
+                foreach ((string Url, long Generation) owner in owners)
+                {
+                    url.Value = owner.Url; generation.Value = owner.Generation;
+                    superseded += (long)count.ExecuteScalar()!;
+                }
+            }
+            if (superseded == 0)
+            {
+                PerformanceDiagnostics.Record("work.sql", "media-prune", value: 0);
+                return new WorkJournalPrune(0, null);
+            }
+            (long Media, long Resources) expected = CountRows(db, transaction);
+            try
+            {
+                File.Delete(partial);
+                using (SqliteConnection source = OpenReadOnly())
+                using (SqliteCommand copy = source.CreateCommand())
+                {
+                    copy.CommandText = "VACUUM INTO $path";
+                    copy.Parameters.AddWithValue("$path", partial);
+                    copy.ExecuteNonQuery();
+                }
+                // VACUUM INTO does not sync its output; the copy must be durable before rows go.
+                using (FileStream written = new(partial, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) written.Flush(flushToDisk: true);
+                // Only a copy that opens, passes the quick check and holds every row may stand in for them.
+                using (SqliteConnection copied = new(new SqliteConnectionStringBuilder
+                    { DataSource = partial, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString()))
+                {
+                    copied.Open();
+                    using SqliteCommand check = copied.CreateCommand();
+                    check.CommandText = "PRAGMA quick_check";
+                    if (check.ExecuteScalar() as string != "ok" || CountRows(copied, null) != expected)
+                        throw new InvalidDataException("The written copy does not match the work journal.");
+                }
+                File.Move(partial, backup, overwrite: true);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or SqliteException or InvalidDataException)
+            {
+                try { File.Delete(partial); } catch (Exception cleanup) when (cleanup is IOException or UnauthorizedAccessException) { }
+                PerformanceDiagnostics.Record("work.sql", "media-prune-backup-failed", value: superseded);
+                return new WorkJournalPrune(0, $"The work journal backup '{backup}' could not be written ({exception.Message}); " +
+                    $"{superseded} superseded media rows were kept.");
+            }
+            long removed = 0;
+            using (SqliteCommand delete = db.CreateCommand())
+            {
+                delete.Transaction = transaction;
+                delete.CommandText = "DELETE FROM work_media WHERE resource_url=$url AND generation<$generation";
+                SqliteParameter url = delete.Parameters.Add("$url", SqliteType.Text), generation = delete.Parameters.Add("$generation", SqliteType.Integer);
+                int processed = 0;
+                foreach ((string Url, long Generation) owner in owners)
+                {
+                    url.Value = owner.Url; generation.Value = owner.Generation;
+                    removed += delete.ExecuteNonQuery();
+                    PruneDeleteObserver?.Invoke(++processed);
+                }
+            }
+            // Unreachable under the reserved lock; if it ever differs, roll back rather than guess.
+            if (removed != superseded)
+                return new WorkJournalPrune(0, "Superseded work journal media changed during pruning; every row was kept.");
+            transaction.Commit();
+            PerformanceDiagnostics.Record("work.sql", "media-prune", value: removed);
+            return new WorkJournalPrune(removed, null);
+        }
+        catch (SqliteException exception)
+        {
+            // The transaction rolled back: every row is still in place.
+            PerformanceDiagnostics.Record("work.sql", "media-prune-failed", value: 0);
+            return new WorkJournalPrune(0, $"Superseded work journal media could not be removed ({exception.Message}); every row was kept.");
+        }
+    }
+
+    private static (long Media, long Resources) CountRows(SqliteConnection db, SqliteTransaction? transaction)
+    {
+        using SqliteCommand command = db.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT (SELECT COUNT(*) FROM work_media),(SELECT COUNT(*) FROM work_resources)";
+        using SqliteDataReader reader = command.ExecuteReader();
+        reader.Read();
+        return (reader.GetInt64(0), reader.GetInt64(1));
+    }
+
     private SqliteConnection OpenReadOnly() => Open(SqliteOpenMode.ReadOnly);
 
     // Only admitted runtime/initialization cores open a writable connection.
@@ -552,6 +692,7 @@ public sealed class WorkStateStore : IWorkStateStore, IConditionalWorkStateStore
 }
 
 internal sealed record UnreadableWorkRow(string Url, string Reason);
+internal sealed record WorkJournalPrune(long Removed, string? Warning);
 internal sealed record WorkResourceLoad(IReadOnlyList<WorkResource> Resources, IReadOnlyList<UnreadableWorkRow> Unreadable);
 
 internal readonly record struct WorkStoreQueryCounts(long ResourcePointReads, long MediaPointReads,

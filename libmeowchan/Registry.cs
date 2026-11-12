@@ -333,6 +333,11 @@ public sealed partial class Registry : IAsyncDisposable
             Dictionary<string, string> canonicalUrls = new Dictionary<string, string>(StringComparer.Ordinal);
             HashSet<string> threads = NormalizeRestoredUrls(loaded.Snapshot.ThreadUrls, true, resources, canonicalUrls, warnings);
             HashSet<string> boards = NormalizeRestoredUrls(loaded.Snapshot.BoardUrls, false, resources, canonicalUrls, warnings);
+            // Once per session, before any watch is bound or a generation changes (the gate is held).
+            // Off the caller's thread: an effective run copies the whole journal first.
+            if (_workStore is WorkStateStore journalStore
+                && (await Task.Run(() => journalStore.PruneSupersededMedia(admission)).ConfigureAwait(false)).Warning is { } pruneWarning)
+                warnings.Add(pruneWarning);
             WorkResourceLoad journal = _workStore == null ? new WorkResourceLoad(Array.Empty<WorkResource>(), Array.Empty<UnreadableWorkRow>())
                 : WorkStateAccess.For(_workStore).LoadReadableResources();
             IReadOnlyList<WorkResource> durable = journal.Resources;
