@@ -101,7 +101,7 @@ internal static class MediaMenuCompositionChecks
 
             MenuItem stale = Item(page.MediaMenu!, "media.tags.edit");
             page.MediaMenu!.Close();
-            page.FindControl<ComboBox>("MediaSort")!.SelectedIndex = 1;
+            page.GetVisualDescendants().OfType<ComboBox>().Single(control => control.Name == "MediaSort").SelectedIndex = 1;
             stale.Command!.Execute(null);
             Require(calls.Count == 1, "A filter/rebuild revived a frozen menu callback.");
 
