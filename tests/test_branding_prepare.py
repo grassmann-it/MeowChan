@@ -25,6 +25,11 @@ SPEC = importlib.util.spec_from_file_location("branding_prepare", ROOT / "script
 branding = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(branding)
 PINNED_SHA256 = "6c9024b7220b6e015eeeb36aec9763fa5d804224b2b9e260caa7c4947c8436b1"
+# The grey dark-theme set beside the orange one; the converter neither reads nor writes it.
+DARK_MASTER = "Assets/branding/meowchan-dark-source.png"
+DARK_PNG = "Assets/meowchan-dark.png"
+DARK_ICO = "Assets/meowchan-dark.ico"
+DARK_URI = "avares://MeowChan/" + DARK_PNG
 
 
 def chunk(kind, data):
@@ -429,16 +434,30 @@ class RepositoryContractTests(unittest.TestCase):
                     self.assertEqual(0, alpha[corner])
 
     def test_window_tray_and_executable_keep_existing_branding_resources(self):
+        # The light theme and unresolved themes keep the adopted orange PNG; Desktop/ThemeLogo.cs is the one
+        # mapping, the dark theme's grey PNG its only alternative. Consumers keep no literal of their own.
         uri = "avares://MeowChan/Assets/meowchan.png"
-        window = ET.parse(ROOT / "Desktop/Shell/MainWindow.axaml").getroot()
-        self.assertEqual(uri, window.attrib["Icon"])
-        logo = next(element for element in window.iter()
-                    if element.get("{http://schemas.microsoft.com/winfx/2006/xaml}Name") == "WorkspaceLogo")
-        self.assertEqual(uri, logo.attrib["Source"])
+        mapping = (ROOT / "Desktop/ThemeLogo.cs").read_text(encoding="utf-8")
+        self.assertIn(f'internal const string LightAsset = "{uri}";', mapping)
+        self.assertIn(f'internal const string DarkAsset = "{DARK_URI}";', mapping)
+        self.assertIn("IsDark(variant) ? DarkAsset : LightAsset", mapping)
+        windows = {"Desktop/Shell/MainWindow.axaml": "WorkspaceLogo", "Desktop/Views/About/AboutWindow.axaml": "CatLogo",
+                   "Desktop/Views/Settings/SettingsWindow.axaml": None, "Desktop/Views/Settings/FirstRunSetupWindow.axaml": None}
+        for name, image in windows.items():
+            with self.subTest(window=name):
+                window = ET.parse(ROOT / name).getroot()
+                self.assertNotIn("Icon", window.attrib)
+                code = (ROOT / (name + ".cs")).read_text(encoding="utf-8")
+                self.assertIn("ThemeLogo.Follow(this);", code)
+                if image:
+                    logo = next(element for element in window.iter()
+                                if element.get("{http://schemas.microsoft.com/winfx/2006/xaml}Name") == image)
+                    self.assertNotIn("Source", logo.attrib)
+                    self.assertIn(f"ThemeLogo.Follow({image});", code)
+        self.assertIn("ThemeLogo.Follow(this);", (ROOT / "Desktop/StartupErrorWindow.cs").read_text(encoding="utf-8"))
         shell = (ROOT / "Desktop/Shell/MainWindow.axaml.cs").read_text(encoding="utf-8")
         tray = shell.split("private void ConfigureTrayIcon(TrayIcon trayIcon)", 1)[1].split("private void RestoreWindow()", 1)[0]
-        self.assertIn(f'AssetLoader.Open(new Uri("{uri}"))', tray)
-        self.assertIn("trayIcon.Icon = new WindowIcon(iconStream);", tray)
+        self.assertIn("_trayLogo = ThemeLogo.Follow(trayIcon);", tray)
         project = ET.parse(ROOT / "MeowChan.csproj").getroot()
         self.assertEqual(branding.ICO, project.findtext("PropertyGroup/ApplicationIcon"))
         self.assertTrue(any(item.get("Include") == "Assets/**" for item in project.iter("AvaloniaResource")))
@@ -451,11 +470,11 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertEqual([256, 128, 64, 48, 32, 24, 16], [frame["width"] for frame in frames])
         self.assertEqual(["png"] + ["dib"] * 6, [frame["encoding"] for frame in frames])
         consumers = {item["path"]: item for item in branding.adoption_inventory(ROOT)["consumers"]}
-        for name in ("MeowChan.csproj", "Desktop/Shell/MainWindow.axaml", "Desktop/Shell/MainWindow.axaml.cs",
-                     "Desktop/Views/About/AboutWindow.axaml", "Desktop/Views/Settings/FirstRunSetupWindow.axaml",
-                     "Desktop/Views/Settings/SettingsWindow.axaml", "Desktop/StartupErrorWindow.cs",
+        # Windows, images and the tray read the logo through Desktop/ThemeLogo.cs only.
+        for name in ("MeowChan.csproj", "Desktop/ThemeLogo.cs",
                      "scripts/package-linux.py", "scripts/package-macos.py", "scripts/check-desktop-package.py", "README.md"):
             self.assertIn(name, consumers)
+        self.assertEqual(["meowchan.png"], consumers["Desktop/ThemeLogo.cs"]["references"][0]["assets"])
 
     def test_generated_256_png_round_trips_existing_macos_ico_and_icns_contract(self):
         spec = importlib.util.spec_from_file_location("branding_existing_macos", ROOT / "scripts/package-macos.py")
@@ -470,6 +489,32 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertEqual(ico_payloads(data)[0], embedded)
         self.assertEqual(embedded, macos.validate_icns(macos.make_icns(embedded)))
         self.assertEqual((256, 256, bytes((30, 50, 90, 180)) * 256 * 256), branding.decode_rgba(embedded))
+
+    def test_dark_theme_set_is_the_previous_grey_branding_beside_the_orange_set(self):
+        # Byte-identical to Assets/meowchan.{png,ico} and the master before 4a1f8e10; never regenerated.
+        expected = {
+            DARK_MASTER: "2cfa1c2d4a70928fecdcc59f30f5866d9479eaaf9ae58657a204d1ac659d5551",
+            DARK_PNG: "02004c086e4c5f3ead5848d3fa790a9fcb321eb619e13ee642367688077f5931",
+            DARK_ICO: "0e405dc05c1a0a675e2731511047d13470877bb28f289b5d7d7ec903d748fb7b",
+        }
+        for name, sha256 in expected.items():
+            with self.subTest(path=name):
+                self.assertEqual(sha256, hashlib.sha256((ROOT / name).read_bytes()).hexdigest())
+        for dark, orange in ((DARK_MASTER, branding.MASTER), (DARK_PNG, branding.PNG), (DARK_ICO, branding.ICO)):
+            self.assertNotEqual((ROOT / orange).read_bytes(), (ROOT / dark).read_bytes())
+        self.assertEqual((1254, 1254), branding.png_size((ROOT / DARK_MASTER).read_bytes()))
+        self.assertEqual((512, 512), branding.png_size((ROOT / DARK_PNG).read_bytes()))
+        self.assertEqual(branding.ico_frames((ROOT / branding.ICO).read_bytes()),
+                         branding.ico_frames((ROOT / DARK_ICO).read_bytes()))
+        # The orange-only converter keeps its paths; the grey set is outside its adoption scope.
+        self.assertNotIn("dark", " ".join((branding.MASTER, branding.PNG, branding.ICO)))
+
+    def test_inventory_does_not_count_dark_theme_names_as_orange_references(self):
+        for line in (f'"{DARK_URI}"', DARK_ICO, DARK_MASTER, 'srcset="Assets/meowchan-dark.png"'):
+            with self.subTest(line=line):
+                self.assertEqual([], branding.ICON_REFERENCE.findall(line))
+        both = f'Light = "avares://MeowChan/Assets/meowchan.png"; Dark = "{DARK_URI}"'
+        self.assertEqual(["meowchan.png"], branding.ICON_REFERENCE.findall(both))
 
     def test_git_helper_is_read_only_and_surfaces_failure(self):
         with patch.object(branding.subprocess, "run") as run:

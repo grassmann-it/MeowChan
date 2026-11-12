@@ -33,6 +33,8 @@ public partial class AboutWindow : Window
         _openBrowser = openBrowser ?? ExternalLauncher.OpenAsync;
         InitializeComponent();
         AppCaption.Attach(this);
+        ThemeLogo.Follow(this);
+        ThemeLogo.Follow(CatLogo);
         Opened += (_, _) => { MeowChan.Desktop.Commands.LegacyCommandAdapters.Register(this); MeowChan.Desktop.Commands.CommandBindings.BindExisting(CloseButton, "about.close"); };
         Assembly assembly = typeof(AboutWindow).Assembly;
         string? informationalVersion = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;

@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using MeowChan.Desktop;
 
 namespace MeowChan;
 
@@ -13,6 +14,7 @@ public partial class SettingsWindow : Window
     {
         InitializeComponent();
         AppCaption.Attach(this);
+        ThemeLogo.Follow(this);
         Editor = new SettingsEditor(config, applySettings, closeOnDiscard: true);
         EditorHost.Content = Editor;
         DataContext = Editor;

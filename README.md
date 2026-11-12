@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="Assets/meowchan.png" alt="MeowChan cat logo" width="256">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Assets/meowchan-dark.png">
+    <img src="Assets/meowchan.png" alt="MeowChan cat logo" width="256">
+  </picture>
 </p>
 
 <h1 align="center">MeowChan</h1>

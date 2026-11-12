@@ -40,6 +40,7 @@ internal partial class FirstRunSetupWindow : Window
     {
         InitializeComponent();
         AppCaption.Attach(this);
+        ThemeLogo.Follow(this);
         _baseline = baseline.Clone();
         _accept = accept;
         _validator = validator ?? DownloadDestinationValidator.Shared;

@@ -3,7 +3,6 @@
         xmlns:desktop="clr-namespace:MeowChan.Desktop"
         x:Class="MeowChan.AboutWindow"
         Title="About MeowChan"
-        Icon="avares://MeowChan/Assets/meowchan.png"
         Width="800" Height="660" MinWidth="440" MinHeight="400"
         WindowStartupLocation="CenterOwner"
         WindowDecorations="BorderOnly" ExtendClientAreaToDecorationsHint="True" ExtendClientAreaTitleBarHeightHint="48"
@@ -21,7 +20,7 @@
         <Grid Grid.Row="1" RowDefinitions="Auto,Auto,*,Auto">
         <Border x:Name="DialogFrameHeader" Padding="16,16,16,12">
         <Grid ColumnDefinitions="72,*" ColumnSpacing="16">
-            <Image x:Name="CatLogo" Width="72" Height="72" Source="avares://MeowChan/Assets/meowchan.png" Stretch="Uniform"/>
+            <Image x:Name="CatLogo" Width="72" Height="72" Stretch="Uniform"/>
             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
                 <TextBlock FontSize="26" FontWeight="SemiBold"><Run Text="Meow" Foreground="{DynamicResource Workspace.Text}"/><Run Text="Chan" Foreground="{DynamicResource Workspace.Accent}"/></TextBlock>
                 <WrapPanel ItemSpacing="12" LineSpacing="4">

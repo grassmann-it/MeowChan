@@ -261,11 +261,25 @@ proprietary theme assemblies are no longer dependencies or distributed assets.
   the font metadata at the package source commit. Font files are covered by SIL
   Open Font License 1.1; the Avalonia wrapper's MIT declaration does not replace
   that font license.
-- `Assets/meowchan.png`, `Assets/meowchan.ico` and high-resolution source
-  `Assets/branding/meowchan-source.png`: cat-head branding selected by the
-  project maintainer on 2026-10-10, derived with OpenAI ImageGen from a cat
-  photograph supplied by the maintainer. The PNG, Windows ICO and packaged
-  macOS ICNS use the same selected photographic cutout.
+- Cat-head branding, two sets shown by the application's theme:
+  - Grey tabby, shown in the dark theme: `Assets/meowchan-dark.png`,
+    `Assets/meowchan-dark.ico` and high-resolution source
+    `Assets/branding/meowchan-dark-source.png`. Selected by the project
+    maintainer on 2026-10-10, derived with OpenAI ImageGen from a cat
+    photograph supplied by the maintainer. These files are byte-identical to
+    the branding the application used before 2026-11-12.
+  - Orange, shown in the light theme and used for the executable, Linux
+    package and macOS bundle icons: `Assets/meowchan.png`,
+    `Assets/meowchan.ico` and high-resolution source
+    `Assets/branding/meowchan-source.png`. Adopted on 2026-11-12 as the
+    selected UX103 branding source (`lain-aktuell.png`, SHA-256
+    `6c9024b7220b6e015eeeb36aec9763fa5d804224b2b9e260caa7c4947c8436b1`); the
+    source file is kept byte-for-byte and the PNG and ICO are derived from it
+    by `scripts/prepare-branding-ux103.py` without crop or recolour. That
+    preparation records its rights and provenance as not assessed.
+
+  Within each set the PNG, Windows ICO and, for the orange set, packaged macOS
+  ICNS use the same photographic cutout.
 
 ## Resolved package inventory
 

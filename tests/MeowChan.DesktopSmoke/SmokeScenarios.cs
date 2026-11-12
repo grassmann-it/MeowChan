@@ -197,6 +197,7 @@ internal static partial class SmokeScenarios
         Root("language-switch-footer", "MEOWCHAN_LANGUAGE_SWITCH_FOOTER_ONLY", "language switch footer: passive EN/ES/FR/RU/EN mode selector and command-label refresh; no URL/source activation"),
         Root("preview-languages", "MEOWCHAN_PREVIEW_LANGUAGES_ONLY", "bundled ES/FR/RU preview packs: embedded load, settings commit/live switch, raw drafts and screenshots; no whole-UI/native linguistic claim"),
         Root("window-chrome", "MEOWCHAN_WINDOW_CHROME_ONLY", "app chrome: isolated native geometry and right-edge pixels, own Settings/About captions, modal lifetime; platform/scales as recorded"),
+        Root("logo-theme", "MEOWCHAN_LOGO_THEME_ONLY", "logo by theme: orange cat in Light, grey cat in Dark for the main window icon/header logo, About icon/logo, a plain dialog and a standalone tray icon, live Light/Dark/System switches and new windows; asserted assets and rendered colour, private Xvfb, no native tray host or Windows/macOS claim"),
         Root("shortcut-presentation", "MEOWCHAN_SHORTCUT_PRESENTATION_ONLY"),
         Root("poweruser", "MEOWCHAN_POWERUSER_ONLY")
     ];

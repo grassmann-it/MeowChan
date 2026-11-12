@@ -245,6 +245,7 @@ internal static partial class SmokeScenarios
             await WindowChromeChecks.RunAsync(mainWindow);
             await SecondaryWindowChromeChecks.RunAsync(mainWindow);
         }),
+        ["logo-theme"] = new(SmokeStage.Ready, mainWindow => LogoThemeChecks.RunAsync(mainWindow)),
         ["shortcut-presentation"] = new(SmokeStage.AfterCommandRefresh, mainWindow => ShortcutPresentationChecks.RunAsync(mainWindow)),
         ["poweruser"] = new(SmokeStage.AfterCommandRefresh, async mainWindow =>
         {

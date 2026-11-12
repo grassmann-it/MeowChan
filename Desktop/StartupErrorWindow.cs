@@ -3,12 +3,10 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
-using Avalonia.Platform;
 using Avalonia.Threading;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using System;
-using System.IO;
 
 namespace MeowChan.Desktop;
 
@@ -21,8 +19,8 @@ public sealed class StartupErrorWindow : Window
 
     public StartupErrorWindow(string message)
     {
-        using Stream iconStream = AssetLoader.Open(new Uri("avares://MeowChan/Assets/meowchan.png"));
-        Icon = new WindowIcon(iconStream);
+        // Can open before MainWindow applies the saved theme; the variant in effect now decides.
+        ThemeLogo.Follow(this);
         Width = 560;
         Height = 360;
         MinWidth = 340;

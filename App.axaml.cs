@@ -19,6 +19,7 @@ public partial class App : Application
     {
         LinuxHarfBuzzBootstrap.EnsureLoaded();
         AvaloniaXamlLoader.Load(this);
+        ThemeLogo.FollowAllWindows();
         ApplyControlLanguage();
         Texts.Changed += OnLanguageChanged;
     }

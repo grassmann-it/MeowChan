@@ -4,7 +4,7 @@
         x:Class="MeowChan.MainWindow" x:DataType="local:MainWindow"
         Width="1380" Height="850" MinWidth="760" MinHeight="500"
         WindowDecorations="BorderOnly" ExtendClientAreaToDecorationsHint="True" ExtendClientAreaTitleBarHeightHint="48"
-        Title="MeowChan" Icon="avares://MeowChan/Assets/meowchan.png" TextOptions.TextRenderingMode="Antialias">
+        Title="MeowChan" TextOptions.TextRenderingMode="Antialias">
     <!-- Paint the complete allocated client root explicitly. Template/native decoration
          margins are outside this root and require separate native evidence.
          This does not change native frame geometry or normal restore behavior. -->
@@ -16,7 +16,7 @@
                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                         <Button x:Name="BrandAboutButton" Classes="subtle" Padding="0" Width="34" Height="34"
                                 Background="Transparent" BorderThickness="0" Click="OnBrandAboutClick">
-                            <Image x:Name="WorkspaceLogo" Source="avares://MeowChan/Assets/meowchan.png" Width="30" Height="30"
+                            <Image x:Name="WorkspaceLogo" Width="30" Height="30"
                                    Stretch="Uniform" VerticalAlignment="Center" />
                         </Button>
                         <TextBlock Classes="brand" VerticalAlignment="Center" AutomationProperties.Name="MeowChan"><Run Text="Meow" /><Run Text="Chan" Foreground="{DynamicResource Workspace.Accent}" /></TextBlock>

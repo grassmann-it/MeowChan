@@ -36,6 +36,7 @@ public partial class MainWindow : Window
     private readonly HashSet<string> _knownWarnings = new HashSet<string>(StringComparer.Ordinal);
     private readonly Task _restoreTask;
     private TrayIcon? _trayIcon;
+    private IDisposable? _trayLogo;
     private TrayIcons? _applicationTrayIcons;
     private NativeMenuItem? _clipboardMenuItem;
     private DispatcherTimer? _trayHostMonitor;
@@ -85,6 +86,9 @@ public partial class MainWindow : Window
             {
                 Application.Current.RequestedThemeVariant = ThemeForPreference(_config.Theme);
             }
+            // After the saved theme, so the first logo decoded is the one shown.
+            ThemeLogo.Follow(this);
+            ThemeLogo.Follow(WorkspaceLogo);
             // Progress-only changes are spaced (first comparison variant of PF-03: 100 ms, background priority);
             // lifecycle, pause, warnings, watch-set and failure changes use RequestImmediate.
             _sessionRefresh = new CoalescedUiUpdate(RefreshSession, SessionProgressIntervalForTests);
@@ -683,8 +687,7 @@ public partial class MainWindow : Window
     private void ConfigureTrayIcon(TrayIcon trayIcon)
     {
         _trayPlatformSettings = Application.Current?.PlatformSettings;
-        using Stream iconStream = AssetLoader.Open(new Uri("avares://MeowChan/Assets/meowchan.png"));
-        trayIcon.Icon = new WindowIcon(iconStream);
+        _trayLogo = ThemeLogo.Follow(trayIcon);
         trayIcon.ToolTipText = "MeowChan - Image Downloader";
         NativeMenu menu = new NativeMenu();
         NativeMenuItem openItem = CreateTrayCommandItem("app.show");
@@ -787,6 +790,8 @@ public partial class MainWindow : Window
         if (_trayPlatformSettings != null)
             _trayPlatformSettings.ColorValuesChanged -= OnTrayColorValuesChanged;
         _trayPlatformSettings = null;
+        _trayLogo?.Dispose();
+        _trayLogo = null;
         TrayIcon? trayIcon = _trayIcon;
         _trayIcon = null;
         _clipboardMenuItem = null;
