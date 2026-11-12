@@ -6,8 +6,9 @@ public static class SdkContract
     public const string Version = "1.1.0";
 
     /// <summary>
-    /// 1.1.0 only adds the booru post-search contract to 1.0.0. The host accepts exactly 1.0.0 and
-    /// 1.1.0 by ordinal comparison; no other cross-version compatibility is promised in 1.x.
+    /// 1.1.0 adds the booru post-search contract and <see cref="PluginDescription.DeclarationStatus"/> to
+    /// 1.0.0, both additively. The host accepts exactly 1.0.0 and 1.1.0 by ordinal comparison; no other
+    /// cross-version compatibility is promised in 1.x.
     /// </summary>
     public static bool IsSupported(string? version)
         => string.Equals(version, "1.0.0", StringComparison.Ordinal) || string.Equals(version, Version, StringComparison.Ordinal);

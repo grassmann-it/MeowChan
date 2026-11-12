@@ -27,6 +27,8 @@ public enum HttpHostPurpose { None = 0, Metadata = 1, OriginalMedia = 2, Preview
 /// that every search page lists strictly descending ids, and that the source serves
 /// <see cref="BooruSearchRequest.BeforePostId"/> cursors. It does not promise dense ids, creation-time
 /// order, that an older id never starts matching a query later, or that a page is full.
+/// For post search this value is the one switch for the cursor: a source whose ids are decimal but that cannot
+/// serve before-id cursors keeps <see cref="StableOrdinal"/> (opaque ids, no cursor).
 /// </summary>
 public enum PostOrderKind { StableOrdinal, DecimalPostId }
 

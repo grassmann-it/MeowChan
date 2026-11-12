@@ -192,6 +192,11 @@ public static class SdkValidation
         return checks.Issues;
     }
 
+    /// <summary>
+    /// Validates a search request against the source description: post-search capability, query bound, page
+    /// 1..1000, limit 1..100 and the cursor rules (only for a <see cref="PostOrderKind.DecimalPostId"/> source,
+    /// a canonical decimal post id, page 1). Issues never echo query or cursor text.
+    /// </summary>
     public static IReadOnlyList<ValidationIssue> ValidateBooruSearchRequest(BooruSearchRequest request,
         SourceDescription source)
     {
@@ -200,6 +205,11 @@ public static class SdkValidation
         return checks.Issues;
     }
 
+    /// <summary>
+    /// Validates the request and its result: the page echoes source, query and page, holds at most Limit posts
+    /// with unique ids of the source and consistent presence flags, URLs on declared hosts; for a decimal-ordered
+    /// source also strictly descending canonical ids, ids below the request cursor and the next cursor rule.
+    /// </summary>
     public static IReadOnlyList<ValidationIssue> ValidateBooruSearchResult(BooruSearchRequest request,
         BooruSearchResult result, SourceDescription source)
     {
@@ -226,6 +236,7 @@ public static class SdkValidation
         return checks.Issues;
     }
 
+    /// <summary>Validates a single-post request: identity of the described post-search source (canonical decimal for a decimal-ordered source).</summary>
     public static IReadOnlyList<ValidationIssue> ValidateBooruPostRequest(BooruPostRequest request,
         SourceDescription source)
     {
@@ -234,6 +245,10 @@ public static class SdkValidation
         return checks.Issues;
     }
 
+    /// <summary>
+    /// Validates the request and its result: a snapshot identifies the requested post and passes the post rules;
+    /// not found, deferred and failure identify the requested post, and a not-found status is 404 or 410 when given.
+    /// </summary>
     public static IReadOnlyList<ValidationIssue> ValidateBooruPostResult(BooruPostRequest request,
         BooruPostResult result, SourceDescription source)
     {

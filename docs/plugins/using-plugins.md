@@ -243,9 +243,10 @@ there.
 
 ### SDK 1.0.0 to 1.1.0 transition
 
-SDK 1.1.0 only adds the booru post-search contract, so a bundled build that changes
-nothing but its declared SDK version from exactly `1.0.0` to exactly `1.1.0` is
-treated as follows.
+SDK 1.1.0 adds the booru post-search contract and the metadata-only
+`PluginDescription.DeclarationStatus`; both are additive, so a bundled build that
+changes nothing but its declared SDK version from exactly `1.0.0` to exactly
+`1.1.0` is treated as follows.
 
 At startup it is activated automatically, keeping its enable state, settings, filter
 grants, restricted sources and source ownership, and without a new rights review,

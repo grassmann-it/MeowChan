@@ -3,11 +3,16 @@ using System.Text.Json.Serialization;
 namespace MeowChan.PluginSdk;
 
 /// <summary>Opaque provider post id. The same PostId on two sources identifies two different posts.</summary>
+/// <remarks>
+/// Ids stay opaque unless the source declares <see cref="PostOrderKind.DecimalPostId"/>; then every PostId is a
+/// positive decimal without leading zeros and a larger id was assigned later by the provider.
+/// </remarks>
 public sealed record BooruPostId(string SourceId, string PostId);
 
 /// <summary>Variant roles are never interchangeable: a preview or sample never satisfies an original.</summary>
 public enum BooruMediaRole { Original, Sample, Preview }
 
+/// <summary>The provider's category of a provider tag; <c>Unknown</c> when the provider names none.</summary>
 public enum BooruTagCategory { Unknown, General, Artist, Copyright, Character, Meta }
 
 /// <summary>The provider's rating of a post, never the user's rating.</summary>
@@ -67,19 +72,36 @@ public sealed record BooruSearchRequest(string SourceId, string Query, int Page,
 public sealed record BooruSearchPage(string SourceId, string Query, int Page, IReadOnlyList<BooruPost> Posts,
     bool IsEnd, string? NextBeforePostId = null);
 
+/// <summary>
+/// Outcome of one search page, serialized with the discriminator <c>kind</c>. Exactly one of snapshot, deferred
+/// or failure; none of them implies an empty page. Validate it with
+/// <see cref="SdkValidation.ValidateBooruSearchResult"/> against the request before use.
+/// </summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(BooruSearchSnapshot), "snapshot")]
 [JsonDerivedType(typeof(BooruSearchDeferred), "deferred")]
 [JsonDerivedType(typeof(BooruSearchFailure), "failure")]
 public abstract record BooruSearchResult;
 
+/// <summary>The provider answered with a page.</summary>
 public sealed record BooruSearchSnapshot(BooruSearchPage Page) : BooruSearchResult;
+
+/// <summary>
+/// The provider or the host asked to wait until <c>RetryAt</c> (for example HTTP 429 or a host cooldown). It is
+/// not an empty page and not a failure; <c>ReasonCode</c> is a stable machine code.
+/// </summary>
 public sealed record BooruSearchDeferred(string SourceId, DateTimeOffset RetryAt, string ReasonCode,
     int? HttpStatusCode = null) : BooruSearchResult;
+/// <summary>The page could not be read; <c>Failure.Code</c> is a stable machine code, the message is diagnostic.</summary>
 public sealed record BooruSearchFailure(string SourceId, FailureDetail Failure) : BooruSearchResult;
 
+/// <summary>Reads one post of a post-search source by its identity.</summary>
 public sealed record BooruPostRequest(BooruPostId Post);
 
+/// <summary>
+/// Outcome of one single-post read, serialized with the discriminator <c>kind</c>: snapshot, verified absence
+/// (not found), deferred or failure. Validate it with <see cref="SdkValidation.ValidateBooruPostResult"/>.
+/// </summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(BooruPostSnapshot), "snapshot")]
 [JsonDerivedType(typeof(BooruPostNotFound), "notFound")]
@@ -87,8 +109,17 @@ public sealed record BooruPostRequest(BooruPostId Post);
 [JsonDerivedType(typeof(BooruPostFailure), "failure")]
 public abstract record BooruPostResult;
 
+/// <summary>The provider answered with the requested post; its identity must equal the request.</summary>
 public sealed record BooruPostSnapshot(BooruPost Post) : BooruPostResult;
+
+/// <summary>
+/// Verified absence of the requested post. <c>HttpStatusCode</c> is optional and, when given, 404 or 410; a
+/// status the plugin cannot verify as absence is reported as <see cref="BooruPostFailure"/> instead.
+/// </summary>
 public sealed record BooruPostNotFound(BooruPostId Post, int? HttpStatusCode = null) : BooruPostResult;
+
+/// <summary>The provider or the host asked to wait until <c>RetryAt</c>; the post's state is unknown, not absent.</summary>
 public sealed record BooruPostDeferred(BooruPostId Post, DateTimeOffset RetryAt, string ReasonCode,
     int? HttpStatusCode = null) : BooruPostResult;
+/// <summary>The post could not be read; the host keeps what it already knows about it.</summary>
 public sealed record BooruPostFailure(BooruPostId Post, FailureDetail Failure) : BooruPostResult;
