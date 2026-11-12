@@ -38,11 +38,18 @@ public sealed class BooruWatcherRealWorkerTests
             .Single(post => (long)post!["id"]! == 1001)!;
         List<long> ids = [100, 99];
         object idsGate = new();
-        await using Loopback server = new(_ =>
+        await using Loopback server = new(target =>
         {
+            // Danbooru semantics: page=<n> counts pages from the newest post, page=b<id> lists the posts below <id>.
+            Dictionary<string, string> query = target[(target.IndexOf('?') + 1)..].Split('&')
+                .Select(part => part.Split('=', 2)).ToDictionary(part => part[0], part => part[1]);
+            int limit = int.Parse(query["limit"]);
+            string pageValue = query["page"];
             JsonArray page = new();
             lock (idsGate)
-                foreach (long id in ids.OrderByDescending(value => value))
+                foreach (long id in (pageValue.StartsWith('b')
+                             ? ids.Where(value => value < long.Parse(pageValue[1..])).OrderByDescending(value => value)
+                             : ids.OrderByDescending(value => value).Skip((int.Parse(pageValue) - 1) * limit)).Take(limit))
                 {
                     JsonObject post = (JsonObject)template.DeepClone();
                     post["id"] = id;
@@ -55,7 +62,7 @@ public sealed class BooruWatcherRealWorkerTests
         SourceDescription source = new("danbooru", "Danbooru", new("https://danbooru.donmai.us/"),
             SourceCapabilities.PostSearch | SourceCapabilities.OriginalMedia | SourceCapabilities.Previews, [],
             [new("danbooru.donmai.us", HttpHostPurpose.Metadata), new("cdn.donmai.us", HttpHostPurpose.OriginalMedia | HttpHostPurpose.PreviewMedia)],
-            new("1", []));
+            new("1", []), PostOrderKind.DecimalPostId);
         using BooruHostHttp booruHttp = new(transport, new RequestPolicyState(), [source], productVersion: "1.1.0");
         BooruHostServices services = new(new NoInner(), booruHttp);
         string workspace = Path.Combine(Path.GetTempPath(), "meowchan-b5-real-" + Guid.NewGuid().ToString("N"));
@@ -92,15 +99,30 @@ public sealed class BooruWatcherRealWorkerTests
             Assert.Single(admission.PerPost);
             Assert.Equal("101", catalog.Read().Watchers.Single(w => w.WatcherId == watcher).HighWaterMark);
 
-            Assert.Equal(2, server.Requests.Count);
+            // More new posts than one page: the real plugin continues with a before-id page through the real
+            // worker, the host allowlist and the bounded transport.
+            lock (idsGate) ids.AddRange(Enumerable.Range(102, 24).Select(value => (long)value));
+            await Task.Delay(1100);
+            DanbooruWatcherCheckSummary catchUp = (await scheduler.RunNextAsync())!;
+            Assert.Equal(DanbooruWatcherCheckKind.Completed, catchUp.Kind);
+            Assert.Equal(2, catchUp.PagesRead);
+            Assert.Equal(24, catchUp.Queued);
+            Assert.Equal(25, admission.PerPost.Count);
+            Assert.All(admission.PerPost.Values, count => Assert.Equal(1, count));
+            Assert.Equal("125", catalog.Read().Watchers.Single(w => w.WatcherId == watcher).HighWaterMark);
+
+            Assert.Equal(4, server.Requests.Count);
+            Assert.Equal(["/posts.json?tags=cat_ears&page=1&limit=20", "/posts.json?tags=cat_ears&page=1&limit=20",
+                "/posts.json?tags=cat_ears&page=1&limit=20", "/posts.json?tags=cat_ears&page=b106&limit=20"],
+                server.Requests.Select(request => request.Target).ToArray());
             Assert.All(server.Requests, request =>
             {
-                Assert.Equal("/posts.json?tags=cat_ears&page=1&limit=20", request.Target);
                 Assert.Equal("MeowChan/1.1.0 (+https://github.com/grassmann-it/MeowChan)", request.Headers["user-agent"]);
                 Assert.False(request.Headers.ContainsKey("authorization"));
                 Assert.False(request.Headers.ContainsKey("cookie"));
             });
-            Assert.True(server.Requests[1].At - server.Requests[0].At >= TimeSpan.FromMilliseconds(950));
+            for (int index = 1; index < server.Requests.Count; index++)
+                Assert.True(server.Requests[index].At - server.Requests[index - 1].At >= TimeSpan.FromMilliseconds(950));
         }
         finally
         {

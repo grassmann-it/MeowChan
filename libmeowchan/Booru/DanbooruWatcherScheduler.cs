@@ -15,6 +15,12 @@ namespace MeowChan.Booru;
 /// host transport behind <see cref="IDanbooruWatcherSearchPort"/> still enforces the 1 s start spacing,
 /// the per-job send budget, the 429 cooldown and the redirect/body limits; nothing here sends HTTP.
 /// <para>
+/// Paging: the first page of a traversal is the newest page of the query; every later page is requested
+/// below the traversal cursor (the lowest post id seen so far, Danbooru <c>page=b&lt;id&gt;</c>). Posts that
+/// arrive during a traversal therefore never shift a page, and a continuation has no page limit: one check
+/// reads at most the watcher's page budget and the next check continues below the stored cursor.
+/// </para>
+/// <para>
 /// Per page the order is: provider page → domain transition (not yet committed) → hand every new post
 /// to the shared queue → persist the advanced watcher. A crash in between re-emits the same posts and
 /// the B4 admission dedupes them (at-least-once, never a silent loss). Pause/Remove/Shutdown cancel the
@@ -32,7 +38,6 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     private readonly IDanbooruWatcherAdmissionPort _admission;
     private readonly TimeProvider _time;
     private readonly DanbooruWatcherSchedulerOptions _options;
-    private readonly int _maximumPage;
     private readonly Dictionary<string, DanbooruWatcher> _watchers = new(StringComparer.Ordinal);
     private readonly HashSet<string> _removed = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DanbooruWatcherCheckSummary> _lastChecks = new(StringComparer.Ordinal);
@@ -61,12 +66,8 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
         if (_options.CheckStartSpacing < TimeSpan.Zero || _options.MinimumDeferral < TimeSpan.Zero
             || _options.UnavailableRetry <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(options));
-        if (_search.MaximumPage < 1 || _search.PageSize is < 1 or > DanbooruWatcher.MaximumPageSize)
+        if (_search.PageSize is < 1 or > DanbooruWatcher.MaximumPageSize)
             throw new ArgumentException("The watcher search port declares invalid page limits.", nameof(search));
-        // Two independent limits bound numeric continuation: the transport page window and the store,
-        // which can only persist a next page up to MaximumWatcherPage (so the last page it can advance
-        // past is one lower). A continuation beyond both is ContinuationBlocked, never requested.
-        _maximumPage = Math.Min(_search.MaximumPage, BooruCatalogStore.MaximumWatcherPage - 1);
     }
 
     /// <summary>Raised outside locks after any visible change; read <see cref="GetSnapshot"/> afterwards.</summary>
@@ -255,7 +256,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
 
     /// <summary>
     /// Explicitly accepts a gap: removes the watcher (non-destructively) and creates a new one for the
-    /// same query with a fresh baseline from now. Intended for <see cref="DanbooruWatcherActivity.ContinuationBlocked"/>.
+    /// same query with a fresh baseline from now, so posts between the old progress and now are skipped.
     /// </summary>
     internal DanbooruWatcherCommandResult RestartFromNow(string watcherId)
     {
@@ -414,12 +415,12 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
         }
 
         DanbooruWatcher? next = DanbooruWatcherSchedule.SelectNext(_watchers.Values, now, _options.Interval,
-            cooldown, null, _maximumPage);
+            cooldown, null);
         if (next != null) return (next.WatcherId, false, null);
 
         foreach (DanbooruWatcher watcher in _watchers.Values)
         {
-            DateTimeOffset? due = DanbooruWatcherSchedule.NextCheckAtUtc(watcher, _options.Interval, now, _maximumPage);
+            DateTimeOffset? due = DanbooruWatcherSchedule.NextCheckAtUtc(watcher, _options.Interval, now);
             if (due is { } at && (wakeAt is null || at < wakeAt)) wakeAt = at;
         }
         return null;
@@ -472,10 +473,10 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     {
         private IDanbooruWatcherSearchSession? _session;
 
-        internal Task<DanbooruWatcherSearchOutcome> SearchAsync(string providerQuery, int page, CancellationToken cancellationToken)
+        internal Task<DanbooruWatcherSearchOutcome> SearchAsync(string providerQuery, string? beforePostId, CancellationToken cancellationToken)
         {
             _session ??= port.OpenCheck();
-            return _session.SearchAsync(providerQuery, page, cancellationToken);
+            return _session.SearchAsync(providerQuery, beforePostId, cancellationToken);
         }
 
         public void Dispose() => _session?.Dispose();
@@ -488,24 +489,27 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
         bool establishingBaseline = !current.BaselineEstablished;
         while (true)
         {
+            // The traversal page ordinal (1 = newest page) binds the domain transition; the request itself
+            // names its position by cursor. A later page always has a cursor (the store and the record
+            // mapper refuse anything else); without one, requesting the newest page again could declare an
+            // unfinished catch-up complete, so stop visibly instead.
             int page = current.Progress.NextPage;
-            if (page > _maximumPage)
+            string? before = current.CursorPostId;
+            if (page > 1 && before is null)
             {
-                // Only reachable with a per-check budget smaller than the transport window: stop with the
-                // progress stored; the watcher then shows ContinuationBlocked instead of requesting.
                 lock (_sync)
                 {
                     if (!IsCurrentLocked(watcherId, current)) return Cancelled(started, counters, manual, "superseded");
-                    CommitWithoutRequestLocked(DanbooruWatcher.CancelCheck(current).Watcher);
+                    CommitWithoutRequestLocked(DanbooruWatcher.ApplyError(current, "cursor_missing", _time.GetUtcNow()).Watcher);
                 }
-                return Summary(DanbooruWatcherCheckKind.PartialBudgetLimited, started, counters, "continuation_blocked", manual);
+                return Summary(DanbooruWatcherCheckKind.Failed, started, counters, "cursor_missing", manual);
             }
 
             DanbooruWatcherSearchOutcome outcome;
             try
             {
                 check.Token.ThrowIfCancellationRequested();
-                outcome = await session.SearchAsync(current.CanonicalQuery, page, check.Token).ConfigureAwait(false)
+                outcome = await session.SearchAsync(current.CanonicalQuery, before, check.Token).ConfigureAwait(false)
                     ?? new DanbooruWatcherSearchFailed("search_result_missing");
             }
             catch (OperationCanceledException) when (check.IsCancellationRequested)
@@ -533,8 +537,13 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                             CommitWithoutRequestLocked(DanbooruWatcher.ApplyError(current, "foreign_post", now).Watcher);
                             return Summary(DanbooruWatcherCheckKind.Failed, started, counters, "foreign_post", manual);
                         }
+                        if (!string.Equals(snapshot.BeforePostId, before, StringComparison.Ordinal))
+                        {
+                            CommitWithoutRequestLocked(DanbooruWatcher.ApplyError(current, "page_binding_mismatch", now).Watcher);
+                            return Summary(DanbooruWatcherCheckKind.Failed, started, counters, "page_binding_mismatch", manual);
+                        }
                         DanbooruSearchPageObservation observation = new(DanbooruWatcher.ProviderId, snapshot.Query,
-                            snapshot.Page, snapshot.Posts.Select(post => post.PostId).ToArray(), snapshot.IsEnd);
+                            page, snapshot.Posts.Select(post => post.PostId).ToArray(), snapshot.IsEnd);
                         applied = DanbooruWatcher.ApplyPage(current, observation, now);
                         if (!applied.Accepted)
                         {
@@ -621,11 +630,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                 DanbooruWatcherCheckKind kind = establishingBaseline ? DanbooruWatcherCheckKind.BaselineEstablished
                     : current.Progress.BudgetLimited ? DanbooruWatcherCheckKind.PartialBudgetLimited
                     : DanbooruWatcherCheckKind.Completed;
-                string? code = kind == DanbooruWatcherCheckKind.PartialBudgetLimited
-                    && DanbooruWatcherSchedule.IsContinuationBlocked(current, _maximumPage)
-                    ? "continuation_blocked"
-                    : null;
-                return Summary(kind, started, counters, code, manual);
+                return Summary(kind, started, counters, null, manual);
             }
             if (check.IsCancellationRequested) return CancelRun(watcherId, current, started, counters, manual);
         }
@@ -689,8 +694,6 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     /// <summary>Gates that must hold before a check may send anything. Null means "may start".</summary>
     private DanbooruWatcherCheckSummary? Gate(DanbooruWatcher watcher, DateTimeOffset now, bool manual)
     {
-        if (DanbooruWatcherSchedule.IsContinuationBlocked(watcher, _maximumPage))
-            return Rejected("continuation_blocked", now, manual);
         if (ProviderCooldownLocked(now) is { } until && until > now)
             return Rejected("provider_cooldown", now, manual, until);
         DanbooruWatcherTransition preview = DanbooruWatcher.BeginCheck(watcher, now, manual);
@@ -745,8 +748,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     private DanbooruWatcherStatus StatusLocked(DanbooruWatcher watcher, DateTimeOffset now)
     {
         DateTimeOffset? providerCooldown = ProviderCooldownLocked(now);
-        bool blocked = DanbooruWatcherSchedule.IsContinuationBlocked(watcher, _maximumPage);
-        DateTimeOffset? next = DanbooruWatcherSchedule.NextCheckAtUtc(watcher, _options.Interval, now, _maximumPage);
+        DateTimeOffset? next = DanbooruWatcherSchedule.NextCheckAtUtc(watcher, _options.Interval, now);
         if (next is { } due && providerCooldown is { } cooling && cooling > due) next = cooling;
         DanbooruWatcherActivity activity;
         if (_running?.WatcherId == watcher.WatcherId || watcher.State == DanbooruWatcherState.Checking)
@@ -759,7 +761,6 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                 DanbooruWatcherState.Paused => DanbooruWatcherActivity.Paused,
                 DanbooruWatcherState.Error => DanbooruWatcherActivity.Error,
                 DanbooruWatcherState.Cooldown => DanbooruWatcherActivity.Cooldown,
-                _ when blocked => DanbooruWatcherActivity.ContinuationBlocked,
                 _ when providerCooldown is not null => DanbooruWatcherActivity.Cooldown,
                 _ => DanbooruWatcherActivity.Scheduled
             };

@@ -271,6 +271,26 @@ public sealed class BooruWatcherRestartContractTests
         AssertRestartFieldsEqual(ValidMidTraversal(), Assert.Single(store.Read().Watchers));
     }
 
+    [Theory]
+    [InlineData(7)]
+    [InlineData(42)]
+    [InlineData(BooruCatalogStore.MaximumWatcherPage)]
+    public void CursorContinuationsBeyondTheFormerSixPageCapArePersistedAndRestored(int nextPage)
+    {
+        // Pages after the first are requested below the cursor, so the page ordinal of a long catch-up
+        // grows across checks; the store keeps it like any other in-flight traversal.
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        BooruCatalogStore store = new(directory.Path, lease);
+        BooruWatcherRecord deep = ValidMidTraversal() with { NextPage = nextPage, BudgetLimited = true };
+        store.UpsertWatcher(deep);
+        BooruWatcherRecord stored = Assert.Single(new BooruCatalogStore(directory.Path, lease).Read().Watchers);
+        AssertRestartFieldsEqual(deep, stored);
+        DanbooruWatcher restored = DanbooruWatcherRecordMapper.FromRecord(stored);
+        Assert.Equal(nextPage, restored.Progress.NextPage);
+        Assert.Equal("117", restored.CursorPostId);
+    }
+
     // --- Real domain states vs. the store (test-only projection) --------------------------
 
     [Fact]

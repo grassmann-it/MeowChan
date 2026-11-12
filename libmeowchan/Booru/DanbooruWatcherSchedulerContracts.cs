@@ -14,8 +14,11 @@ namespace MeowChan.Booru;
 /// <summary>One provider page for a watcher check. Posts are already validated core claims, newest first.</summary>
 internal abstract record DanbooruWatcherSearchOutcome;
 
-/// <summary>A provider page. <paramref name="Query"/>/<paramref name="Page"/> are what the provider page claims.</summary>
-internal sealed record DanbooruWatcherSearchSnapshot(string Query, int Page, IReadOnlyList<BooruPostClaim> Posts,
+/// <summary>
+/// A provider page. <paramref name="Query"/> is what the provider page claims; <paramref name="BeforePostId"/>
+/// is the cursor the page answers (null for the newest page of the query).
+/// </summary>
+internal sealed record DanbooruWatcherSearchSnapshot(string Query, string? BeforePostId, IReadOnlyList<BooruPostClaim> Posts,
     bool IsEnd) : DanbooruWatcherSearchOutcome;
 
 /// <summary>The provider or the host transport asked to wait (429 cooldown, 502/503 after the host retry).</summary>
@@ -33,9 +36,6 @@ internal sealed record DanbooruWatcherSearchUnavailable(string Code) : DanbooruW
 
 internal interface IDanbooruWatcherSearchPort
 {
-    /// <summary>Highest page the bounded transport accepts (numeric paging).</summary>
-    int MaximumPage { get; }
-
     /// <summary>The fixed number of posts the transport requests per page.</summary>
     int PageSize { get; }
 
@@ -53,8 +53,14 @@ internal interface IDanbooruWatcherSearchPort
 /// <summary>One watcher check's search operation. Pages of one check share one host job lifetime.</summary>
 internal interface IDanbooruWatcherSearchSession : IDisposable
 {
-    /// <summary>Exactly one bounded provider page. Caller cancellation must propagate as <see cref="OperationCanceledException"/>.</summary>
-    Task<DanbooruWatcherSearchOutcome> SearchAsync(string providerQuery, int page, CancellationToken cancellationToken);
+    /// <summary>
+    /// Exactly one bounded provider page: the newest posts of the query when <paramref name="beforePostId"/> is
+    /// null, otherwise the posts with a lower id than <paramref name="beforePostId"/>, newest first (Danbooru
+    /// <c>page=b&lt;id&gt;</c>). A cursor names its position, so posts that arrive meanwhile never shift it, and
+    /// there is no page limit for a continuation. Caller cancellation must propagate as
+    /// <see cref="OperationCanceledException"/>.
+    /// </summary>
+    Task<DanbooruWatcherSearchOutcome> SearchAsync(string providerQuery, string? beforePostId, CancellationToken cancellationToken);
 }
 
 /// <summary>What the shared queue did with one newly found post.</summary>
@@ -118,13 +124,7 @@ internal enum DanbooruWatcherActivity
     /// <summary>Waiting for a provider retry time (429/503) or the provider-wide cooldown.</summary>
     Cooldown,
     /// <summary>Stopped by a non-retryable failure; needs Resume or a manual check.</summary>
-    Error,
-    /// <summary>
-    /// More new posts than one check may read, and the remaining partial progress needs a provider page
-    /// the transport cannot request. Nothing is requested; the progress stays visible until the user
-    /// restarts the watcher from now (see open contract question about cursor paging).
-    /// </summary>
-    ContinuationBlocked
+    Error
 }
 
 /// <summary>Result kind of one check.</summary>
@@ -134,13 +134,16 @@ internal enum DanbooruWatcherCheckKind
     Completed,
     /// <summary>The first check stored the current newest post as the baseline; nothing was downloaded.</summary>
     BaselineEstablished,
-    /// <summary>The check budget was spent before reaching known posts; progress is stored for continuation.</summary>
+    /// <summary>
+    /// The check budget was spent before reaching known posts; the cursor is stored and the next check
+    /// continues below it.
+    /// </summary>
     PartialBudgetLimited,
     Deferred,
     Failed,
     /// <summary>The check stopped because of pause, removal or shutdown; stored progress is unchanged.</summary>
     Cancelled,
-    /// <summary>No request was sent (paused, removed, already running, cooldown, blocked continuation...).</summary>
+    /// <summary>No request was sent (paused, removed, already running, cooldown...).</summary>
     Rejected,
     /// <summary>The search path was unavailable; no provider answer, watcher unchanged.</summary>
     SourceUnavailable

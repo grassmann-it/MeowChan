@@ -202,18 +202,18 @@ public sealed class DanbooruWatcherScheduleTests
     }
 
     [Fact]
-    public void ContinuationBeyondTheTransportPageWindowIsNotDueButAReachableOneIs()
+    public void BudgetLimitedProgressIsDueAtOnceWhateverItsPageOrdinal()
     {
         DanbooruWatcher partial = BudgetLimited("busy", T0 + TimeSpan.FromMinutes(5)); // budget 1 => next page 2
         DateTimeOffset now = T0 + TimeSpan.FromMinutes(6);
         Assert.Equal(2, partial.Progress.NextPage);
-        Assert.False(DanbooruWatcherSchedule.IsContinuationBlocked(partial, 5));
-        Assert.Same(partial, DanbooruWatcherSchedule.SelectNext(new[] { partial }, now, Interval, maximumRequestPage: 5));
+        Assert.NotNull(partial.CursorPostId);
+        Assert.Same(partial, DanbooruWatcherSchedule.SelectNext(new[] { partial }, now, Interval));
 
-        Assert.True(DanbooruWatcherSchedule.IsContinuationBlocked(partial, 1));
-        Assert.Null(DanbooruWatcherSchedule.NextCheckAtUtc(partial, Interval, now.AddDays(1), maximumRequestPage: 1));
-        Assert.Null(DanbooruWatcherSchedule.SelectNext(new[] { partial }, now.AddDays(1), Interval, maximumRequestPage: 1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => DanbooruWatcherSchedule.IsContinuationBlocked(partial, 0));
+        // Continuations go below the cursor, so a deep traversal is never parked behind a page limit.
+        DanbooruWatcher deep = partial with { Progress = partial.Progress with { NextPage = 5_000 } };
+        Assert.Equal(T0 + TimeSpan.FromMinutes(5), DanbooruWatcherSchedule.NextCheckAtUtc(deep, Interval, now.AddDays(1)));
+        Assert.Same(deep, DanbooruWatcherSchedule.SelectNext(new[] { deep }, now.AddDays(1), Interval));
     }
 
     private static DanbooruWatcher Create(string id, DateTimeOffset createdAt, int pageBudget = 5)

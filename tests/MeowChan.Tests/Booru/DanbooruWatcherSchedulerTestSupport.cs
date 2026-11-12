@@ -80,30 +80,33 @@ internal sealed class SchedulerClock : TimeProvider
 }
 
 /// <summary>
-/// In-memory Danbooru search: newest-first numeric pages of 20, per query. Records every call with the
-/// clock time and the number of concurrently running calls. It never opens a socket.
+/// In-memory Danbooru search, per query, newest first: the newest page, or the posts below a cursor
+/// (Danbooru <c>page=b&lt;id&gt;</c>), 20 per page. Posts published between calls appear on the newest page
+/// only, exactly like a live provider; a cursor page never shifts. Records every call with the clock time
+/// and the number of concurrently running calls. It never opens a socket.
 /// </summary>
-internal sealed class FakeDanbooruSearch(TimeProvider clock, int maximumPage = 5) : IDanbooruWatcherSearchPort
+internal sealed class FakeDanbooruSearch(TimeProvider clock) : IDanbooruWatcherSearchPort
 {
     private readonly object _gate = new();
     private readonly Dictionary<string, List<long>> _posts = new(StringComparer.Ordinal);
-    private readonly Queue<Func<string, int, DanbooruWatcherSearchOutcome?>> _script = new();
+    private readonly Queue<Func<string, string?, DanbooruWatcherSearchOutcome?>> _script = new();
     private int _concurrent;
 
-    internal List<(string Query, int Page, DateTimeOffset At)> Calls { get; } = new();
+    internal List<(string Query, string? Before, DateTimeOffset At)> Calls { get; } = new();
     internal int MaxConcurrent { get; private set; }
     internal int Cancelled;
     internal DateTimeOffset? TransportCooldown { get; set; }
-    internal Func<string, int, CancellationToken, Task>? Hold { get; set; }
+    internal Func<string, string?, CancellationToken, Task>? Hold { get; set; }
     internal Func<long, BooruPostClaim>? ClaimFactory { get; set; }
 
-    public int MaximumPage { get; } = maximumPage;
     public int PageSize => 20;
 
     public DateTimeOffset? GetProviderCooldownUntilUtc() =>
         TransportCooldown is { } until && until > clock.GetUtcNow() ? until : null;
 
     internal int CallCount { get { lock (_gate) return Calls.Count; } }
+
+    internal string?[] Cursors { get { lock (_gate) return Calls.Select(call => call.Before).ToArray(); } }
 
     internal void Publish(string query, params long[] ids)
     {
@@ -115,7 +118,7 @@ internal sealed class FakeDanbooruSearch(TimeProvider clock, int maximumPage = 5
         }
     }
 
-    internal void Next(Func<string, int, DanbooruWatcherSearchOutcome?> outcome) { lock (_gate) _script.Enqueue(outcome); }
+    internal void Next(Func<string, string?, DanbooruWatcherSearchOutcome?> outcome) { lock (_gate) _script.Enqueue(outcome); }
 
     /// <summary>Number of check sessions opened / disposed, and the session index of every call.</summary>
     internal int SessionsOpened { get { lock (_gate) return _sessionsOpened; } }
@@ -137,8 +140,8 @@ internal sealed class FakeDanbooruSearch(TimeProvider clock, int maximumPage = 5
     private sealed class Session(FakeDanbooruSearch owner, int index) : IDanbooruWatcherSearchSession
     {
         private bool _disposed;
-        public Task<DanbooruWatcherSearchOutcome> SearchAsync(string providerQuery, int page, CancellationToken cancellationToken)
-            => owner.SearchAsync(index, providerQuery, page, cancellationToken);
+        public Task<DanbooruWatcherSearchOutcome> SearchAsync(string providerQuery, string? beforePostId, CancellationToken cancellationToken)
+            => owner.SearchAsync(index, providerQuery, beforePostId, cancellationToken);
         public void Dispose()
         {
             lock (owner._gate)
@@ -150,12 +153,12 @@ internal sealed class FakeDanbooruSearch(TimeProvider clock, int maximumPage = 5
         }
     }
 
-    private async Task<DanbooruWatcherSearchOutcome> SearchAsync(int session, string providerQuery, int page, CancellationToken cancellationToken)
+    private async Task<DanbooruWatcherSearchOutcome> SearchAsync(int session, string providerQuery, string? beforePostId, CancellationToken cancellationToken)
     {
-        Func<string, int, DanbooruWatcherSearchOutcome?>? scripted = null;
+        Func<string, string?, DanbooruWatcherSearchOutcome?>? scripted = null;
         lock (_gate)
         {
-            Calls.Add((providerQuery, page, clock.GetUtcNow()));
+            Calls.Add((providerQuery, beforePostId, clock.GetUtcNow()));
             CallSessions.Add(session);
             _concurrent++;
             MaxConcurrent = Math.Max(MaxConcurrent, _concurrent);
@@ -165,19 +168,25 @@ internal sealed class FakeDanbooruSearch(TimeProvider clock, int maximumPage = 5
         {
             if (Hold is { } hold)
             {
-                try { await hold(providerQuery, page, cancellationToken); }
+                try { await hold(providerQuery, beforePostId, cancellationToken); }
                 catch (OperationCanceledException) { Interlocked.Increment(ref Cancelled); throw; }
             }
-            if (page < 1 || page > MaximumPage) return new DanbooruWatcherSearchFailed("invalid_page");
-            if (scripted?.Invoke(providerQuery, page) is { } result) return result;
+            if (beforePostId is not null && !DanbooruPostReference.IsValidPostId(beforePostId))
+                return new DanbooruWatcherSearchFailed("invalid_cursor");
+            if (scripted?.Invoke(providerQuery, beforePostId) is { } result) return result;
             long[] slice;
             lock (_gate)
             {
-                List<long> all = _posts.TryGetValue(providerQuery, out List<long>? list) ? list : new();
-                slice = all.Skip((page - 1) * PageSize).Take(PageSize).ToArray();
+                IEnumerable<long> all = _posts.TryGetValue(providerQuery, out List<long>? list) ? list : new();
+                if (beforePostId is not null)
+                {
+                    long before = long.Parse(beforePostId, System.Globalization.CultureInfo.InvariantCulture);
+                    all = all.Where(id => id < before);
+                }
+                slice = all.Take(PageSize).ToArray();
             }
             BooruPostClaim[] claims = slice.Select(id => (ClaimFactory ?? MinimalClaim)(id)).ToArray();
-            return new DanbooruWatcherSearchSnapshot(providerQuery, page, claims, slice.Length < PageSize);
+            return new DanbooruWatcherSearchSnapshot(providerQuery, beforePostId, claims, slice.Length < PageSize);
         }
         finally
         {

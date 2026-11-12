@@ -8,9 +8,10 @@ namespace MeowChan.PluginHost.Sources.Booru;
 
 /// <summary>
 /// B5 search port: one bounded Danbooru page per session call through the existing host façade
-/// (<see cref="BooruSearchService"/> → worker → <see cref="BooruHostHttp"/>). It adds no HTTP, pacing,
-/// retry or cooldown logic of its own; it only classifies results for the core watcher scheduler.
-/// One <see cref="IDanbooruWatcherSearchPort.OpenCheck"/> session owns one host operation scope
+/// (<see cref="BooruSearchService"/> → worker → <see cref="BooruHostHttp"/>). The newest page is page 1;
+/// a continuation is requested below a post id (<c>page=b&lt;id&gt;</c>), never by page number. It adds no
+/// HTTP, pacing, retry or cooldown logic of its own; it only classifies results for the core watcher
+/// scheduler. One <see cref="IDanbooruWatcherSearchPort.OpenCheck"/> session owns one host operation scope
 /// (<see cref="BooruSearchScope"/>): all pages of one watcher check share one job resource id, the 20-send
 /// budget and the 120 s lifetime instead of opening a fresh job per page.
 /// <list type="bullet">
@@ -55,8 +56,6 @@ public sealed class BooruWatcherSearchPort : IDanbooruWatcherSearchPort
         _time = timeProvider ?? TimeProvider.System;
     }
 
-    int IDanbooruWatcherSearchPort.MaximumPage => BooruHostHttp.MaximumSearchPage;
-
     int IDanbooruWatcherSearchPort.PageSize => BooruSearchService.SearchLimit;
 
     DateTimeOffset? IDanbooruWatcherSearchPort.GetProviderCooldownUntilUtc() =>
@@ -68,7 +67,7 @@ public sealed class BooruWatcherSearchPort : IDanbooruWatcherSearchPort
     {
         public void Dispose() => scope.Dispose();
 
-        public async Task<DanbooruWatcherSearchOutcome> SearchAsync(string providerQuery, int page,
+        public async Task<DanbooruWatcherSearchOutcome> SearchAsync(string providerQuery, string? beforePostId,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -84,7 +83,9 @@ public sealed class BooruWatcherSearchPort : IDanbooruWatcherSearchPort
             }
             if (client is null) return new DanbooruWatcherSearchUnavailable("worker_unavailable");
 
-            BooruSearchResult result = await port._search.SearchAsync(client, SourceId, providerQuery, page, scope, cancellationToken)
+            BooruSearchResult result = await (beforePostId is null
+                    ? port._search.SearchAsync(client, SourceId, providerQuery, 1, scope, cancellationToken)
+                    : port._search.SearchBeforeAsync(client, SourceId, providerQuery, beforePostId, scope, cancellationToken))
                 .ConfigureAwait(false);
             switch (result)
             {
@@ -100,7 +101,8 @@ public sealed class BooruWatcherSearchPort : IDanbooruWatcherSearchPort
                     {
                         return new DanbooruWatcherSearchFailed("malformed_post");
                     }
-                    return new DanbooruWatcherSearchSnapshot(snapshot.Page.Query, snapshot.Page.Page, claims, snapshot.Page.IsEnd);
+                    // The façade validated the page against this request, including "only ids below the cursor".
+                    return new DanbooruWatcherSearchSnapshot(snapshot.Page.Query, beforePostId, claims, snapshot.Page.IsEnd);
                 }
                 case BooruSearchDeferred deferred:
                     return new DanbooruWatcherSearchDeferred(deferred.RetryAt, deferred.ReasonCode, deferred.HttpStatusCode);

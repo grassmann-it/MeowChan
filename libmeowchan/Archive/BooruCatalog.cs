@@ -161,6 +161,8 @@ internal sealed record BooruPostRecord(
 /// <see cref="CheckStartHighWaterMark"/>, <see cref="ResumeState"/>, <see cref="PageSize"/>,
 /// <see cref="PageBudget"/>, <see cref="PagesCheckedInRun"/> and <see cref="BudgetLimited"/> carry exactly
 /// the traversal state of <c>DanbooruWatcher</c> / <c>DanbooruWatcherProgress</c> under the same names.
+/// <see cref="NextPage"/> is the page ordinal of the traversal (1 = the newest page); every later page is
+/// requested below <see cref="CursorBeforePostId"/>, the lowest post id the traversal has seen.
 /// All of them are additive: a record written before they existed (<c>NextPage == 0</c>, all new fields
 /// absent) stays readable. A record that claims an in-flight traversal (<c>NextPage &gt; 0</c>) must carry
 /// every field needed to resume it; otherwise the store rejects it fail-closed instead of letting a
@@ -230,7 +232,14 @@ internal sealed class BooruCatalogStore
     internal const int MaximumMediaVariants = 16;
     internal const int MaximumFindings = 10_000;
     internal const int MaximumKnownPostIds = 100_000;
-    internal const int MaximumWatcherPage = 6;
+    /// <summary>
+    /// Sanity bound for <see cref="BooruWatcherRecord.NextPage"/>, the page ordinal of a traversal. It is not a
+    /// paging limit: every page after the first is requested below the stored cursor, never by number, so a
+    /// catch-up may span any number of checks. One million pages of 20 posts exceeds any real backlog; the
+    /// bound only keeps a corrupt record from overflowing the counter. Records written before cursor paging
+    /// (next page at most 6) stay valid and continue below their stored cursor.
+    /// </summary>
+    internal const int MaximumWatcherPage = 1_000_000;
 
     private readonly object _sync = new();
     private readonly ProfileLease _lease;

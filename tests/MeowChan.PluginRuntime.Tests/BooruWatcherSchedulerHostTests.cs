@@ -60,13 +60,44 @@ public sealed class BooruWatcherSchedulerHostTests
                 $"Request {index} started {(starts[index] - starts[index - 1]).TotalMilliseconds} ms after the previous one.");
         foreach (string query in new[] { "cat", "dog" })
         {
-            DateTimeOffset[] firstPages = harness.Provider.Requests.Where(request => request.Query == query && request.Page == 1)
+            DateTimeOffset[] firstPages = harness.Provider.Requests.Where(request => request.Query == query && request.Page == "1")
                 .Select(request => request.At).ToArray();
             Assert.Equal(3, firstPages.Length);
             for (int index = 1; index < firstPages.Length; index++) Assert.True(firstPages[index] - firstPages[index - 1] >= Interval);
         }
         Assert.All(harness.Provider.Requests, request => Assert.Equal(20, request.Limit));
         Assert.All(new[] { cat, dog }, id => Assert.Equal(DanbooruWatcherActivity.Scheduled, harness.Scheduler.GetStatus(id)!.Activity));
+    }
+
+    [Fact]
+    public async Task MoreThanOneCheckBudgetOfNewPostsIsCaughtUpThroughTheHostByBeforeIdPages()
+    {
+        await using Harness harness = new();
+        harness.Provider.Publish("cat", 100);
+        string id = harness.Scheduler.AddWatcher("cat").Watcher!.WatcherId;
+        Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, (await harness.RunNextAsync())!.Kind);
+
+        harness.Provider.Publish("cat", Enumerable.Range(101, 250).Select(value => (long)value).ToArray()); // 250 new
+        harness.Clock.Advance(Interval);
+        List<DanbooruWatcherCheckSummary> checks = new();
+        while (await harness.RunNextAsync() is { } check) checks.Add(check);
+
+        Assert.Equal([DanbooruWatcherCheckKind.PartialBudgetLimited, DanbooruWatcherCheckKind.PartialBudgetLimited,
+            DanbooruWatcherCheckKind.Completed], checks.Select(check => check.Kind).ToArray());
+        Assert.Equal(250, harness.Admission.Count);
+        Assert.All(harness.Admission.PerPost.Values, count => Assert.Equal(1, count));
+        // The traversal starts at the newest page and continues only by Danbooru before-id pages.
+        string[] pages = harness.Provider.Requests.Skip(1).Select(request => request.Page).ToArray();
+        Assert.Equal(13, pages.Length);
+        Assert.Equal("1", pages[0]);
+        Assert.Equal("b331", pages[1]);
+        Assert.All(pages.Skip(1), page => Assert.Matches("^b[1-9][0-9]*$", page));
+        Assert.Equal(1, harness.Provider.MaxConcurrent);
+        DateTimeOffset[] starts = harness.Provider.Requests.Select(request => request.At).ToArray();
+        for (int index = 1; index < starts.Length; index++)
+            Assert.True(starts[index] - starts[index - 1] >= BooruHostHttp.MinimumStartSpacing);
+        Assert.Equal(DanbooruWatcherActivity.Scheduled, harness.Scheduler.GetStatus(id)!.Activity);
+        Assert.Equal("350", harness.Catalog.Read().Watchers.Single().HighWaterMark);
     }
 
     [Fact]
@@ -233,7 +264,7 @@ public sealed class BooruWatcherSchedulerHostTests
     private static SourceDescription DanbooruSource() => new("danbooru", "Danbooru", new("https://danbooru.donmai.us/"),
         SourceCapabilities.PostSearch | SourceCapabilities.OriginalMedia | SourceCapabilities.Previews, [],
         [new("danbooru.donmai.us", HttpHostPurpose.Metadata), new("cdn.donmai.us", HttpHostPurpose.OriginalMedia | HttpHostPurpose.PreviewMedia)],
-        new("1", []));
+        new("1", []), PostOrderKind.DecimalPostId);
 
     /// <summary>Everything one test needs, on a private profile directory.</summary>
     private sealed class Harness : IAsyncDisposable
@@ -373,7 +404,8 @@ public sealed class BooruWatcherSchedulerHostTests
         private readonly Dictionary<string, List<long>> _posts = new(StringComparer.Ordinal);
         private int _inFlight;
 
-        internal List<(string Query, int Page, int Limit, DateTimeOffset At)> Requests { get; } = new();
+        /// <summary>Page is the raw Danbooru page value: a number, or <c>b&lt;id&gt;</c> for the posts below an id.</summary>
+        internal List<(string Query, string Page, int Limit, DateTimeOffset At)> Requests { get; } = new();
         internal int MaxConcurrent { get; private set; }
         internal int InFlight => Volatile.Read(ref _inFlight);
         internal int RequestCount { get { lock (_gate) return Requests.Count; } }
@@ -400,7 +432,7 @@ public sealed class BooruWatcherSchedulerHostTests
                 Dictionary<string, string> query = request.RequestUri!.Query.TrimStart('?').Split('&')
                     .Select(part => part.Split('=', 2)).ToDictionary(part => part[0], part => Uri.UnescapeDataString(part[1]));
                 string tags = query["tags"];
-                int page = int.Parse(query["page"]);
+                string page = query["page"];
                 int limit = int.Parse(query["limit"]);
                 int index;
                 lock (_gate)
@@ -416,7 +448,12 @@ public sealed class BooruWatcherSchedulerHostTests
                 }
                 long[] slice;
                 lock (_gate)
-                    slice = (_posts.TryGetValue(tags, out List<long>? list) ? list : new()).Skip((page - 1) * limit).Take(limit).ToArray();
+                {
+                    IEnumerable<long> all = _posts.TryGetValue(tags, out List<long>? list) ? list : new();
+                    slice = (page.StartsWith('b')
+                        ? all.Where(id => id < long.Parse(page[1..]))
+                        : all.Skip((int.Parse(page) - 1) * limit)).Take(limit).ToArray();
+                }
                 string body = JsonSerializer.Serialize(slice.Select(id => new { id }));
                 HttpResponseMessage response = new(HttpStatusCode.OK)
                 {
@@ -443,7 +480,8 @@ public sealed class BooruWatcherSchedulerHostTests
             CancellationToken cancellationToken = default)
         {
             lock (_operations) _operations.Add(operation);
-            Uri url = new($"https://danbooru.donmai.us/posts.json?tags={Uri.EscapeDataString(request.Query)}&page={request.Page}&limit={request.Limit}");
+            string page = request.BeforePostId is null ? request.Page.ToString() : "b" + request.BeforePostId;
+            Uri url = new($"https://danbooru.donmai.us/posts.json?tags={Uri.EscapeDataString(request.Query)}&page={page}&limit={request.Limit}");
             HostHttpResult result = await services.SendHttpAsync(new HostHttpRequest(request.SourceId, HostHttpMethod.Get, url,
                 new Dictionary<string, string> { ["Accept"] = "application/json" }), operation, cancellationToken);
             switch (result)
@@ -470,7 +508,9 @@ public sealed class BooruWatcherSchedulerHostTests
             BooruPost[] posts = document.RootElement.EnumerateArray()
                 .Select(item => new BooruPost(new SourcePostId(request.SourceId, item.GetProperty("id").GetInt64().ToString()), BooruFieldPresence.None))
                 .ToArray();
-            return new BooruSearchSnapshot(new BooruSearchPage(request.SourceId, request.Query, request.Page, posts, posts.Length < request.Limit));
+            bool isEnd = posts.Length < request.Limit;
+            return new BooruSearchSnapshot(new BooruSearchPage(request.SourceId, request.Query, request.Page, posts, isEnd,
+                isEnd ? null : posts[^1].Id.PostId));
         }
 
         public Task<BooruPostResult> ReadBooruPostAsync(BooruPostRequest request, PluginOperationContext operation, CancellationToken cancellationToken = default)

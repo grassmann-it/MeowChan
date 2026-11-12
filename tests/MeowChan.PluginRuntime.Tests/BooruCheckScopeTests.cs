@@ -103,19 +103,21 @@ public sealed class BooruCheckScopeTests
         IDanbooruWatcherSearchPort core = port;
 
         IDanbooruWatcherSearchSession check = core.OpenCheck();
-        for (int page = 1; page <= core.MaximumPage; ++page)
+        // Five pages of one check (the source has no decimal order, so each is a newest-page request).
+        const int pages = 5;
+        for (int page = 1; page <= pages; ++page)
         {
-            Assert.IsType<DanbooruWatcherSearchSnapshot>(await check.SearchAsync("cat", page, default));
+            Assert.IsType<DanbooruWatcherSearchSnapshot>(await check.SearchAsync("cat", null, default));
             rig.Clock.Advance(TimeSpan.FromSeconds(1));
         }
         string checkId = rig.Worker.Operations.Select(operation => operation.ResourceId).Distinct().Single();
-        Assert.Equal(core.MaximumPage, rig.Worker.Operations.Count);
+        Assert.Equal(pages, rig.Worker.Operations.Count);
         Assert.StartsWith(BooruJob.ResourcePrefix, checkId, StringComparison.Ordinal);
         Assert.All(rig.Worker.Operations, operation => Assert.Equal(1, operation.Generation));
         check.Dispose();
 
         using (IDanbooruWatcherSearchSession again = core.OpenCheck())
-            Assert.IsType<DanbooruWatcherSearchSnapshot>(await again.SearchAsync("cat", 1, default));
+            Assert.IsType<DanbooruWatcherSearchSnapshot>(await again.SearchAsync("cat", null, default));
         Assert.NotEqual(checkId, rig.Worker.Operations.Last().ResourceId);
 
         // The closed first check can no longer send through its old resource id.
@@ -133,11 +135,11 @@ public sealed class BooruCheckScopeTests
         using IDanbooruWatcherSearchSession check = ((IDanbooruWatcherSearchPort)port).OpenCheck();
         for (int index = 0; index < BooruHostHttp.MaximumSendsPerJob; ++index)
         {
-            Assert.IsType<DanbooruWatcherSearchSnapshot>(await check.SearchAsync("cat", index % 5 + 1, default));
+            Assert.IsType<DanbooruWatcherSearchSnapshot>(await check.SearchAsync("cat", null, default));
             rig.Clock.Advance(TimeSpan.FromSeconds(1));
         }
         DanbooruWatcherSearchDeferred deferred = Assert.IsType<DanbooruWatcherSearchDeferred>(
-            await check.SearchAsync("cat", 1, default));
+            await check.SearchAsync("cat", null, default));
         Assert.Equal("booru-budget", deferred.ReasonCode);
         Assert.Equal(BooruHostHttp.MaximumSendsPerJob, rig.Sends);
     }

@@ -28,7 +28,10 @@ internal enum DanbooruWatcherCreateError
     InvalidPageBudget
 }
 
-/// <summary>A provider page supplied by the adapter. It is data, not a command.</summary>
+/// <summary>
+/// A provider page supplied by the adapter. It is data, not a command. <see cref="Page"/> is the traversal
+/// page ordinal the adapter requested (the watcher's next page), not a provider page number.
+/// </summary>
 internal sealed record DanbooruSearchPageObservation(
     string SourceId,
     string Query,
@@ -36,7 +39,12 @@ internal sealed record DanbooruSearchPageObservation(
     IReadOnlyList<string> PostIds,
     bool IsEnd);
 
-/// <summary>Restart-persisted, bounded traversal state.</summary>
+/// <summary>
+/// Restart-persisted traversal state. <see cref="NextPage"/> is the page ordinal of the traversal (1 = the
+/// newest page of the query); every later page is requested below <see cref="CursorBeforePostId"/>, the
+/// lowest post id the traversal has seen, so the ordinal has no provider page limit. One check reads at
+/// most <see cref="DanbooruWatcher.PageBudget"/> pages; budget-limited progress resumes below the cursor.
+/// </summary>
 internal sealed record DanbooruWatcherProgress(
     int NextPage,
     int PagesCheckedInRun,

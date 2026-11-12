@@ -81,13 +81,12 @@ public sealed class DanbooruWatcherSchedulerTests
     }
 
     [Fact]
-    public async Task MoreNewPostsThanOneCheckReadsIsVisiblePartialProgressAndNeverClaimsCompletion()
+    public async Task MoreNewPostsThanOneCheckReadsIsVisiblePartialProgressAndContinuesBelowTheCursor()
     {
         using TempDirectory directory = new();
         await using SchedulerProfile profile = new(directory.Path);
         SchedulerClock clock = new(T0);
-        // Even a transport with a wider page window cannot continue past the store's next-page cap (6).
-        FakeDanbooruSearch search = new(clock, maximumPage: 10);
+        FakeDanbooruSearch search = new(clock);
         CountingAdmission admission = new();
         search.Publish("cat", 100);
         DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
@@ -99,18 +98,19 @@ public sealed class DanbooruWatcherSchedulerTests
         clock.Advance(Interval);
         DanbooruWatcherCheckSummary partial = (await scheduler.RunNextAsync())!;
         Assert.Equal(DanbooruWatcherCheckKind.PartialBudgetLimited, partial.Kind);
-        Assert.Equal("continuation_blocked", partial.Code);
+        Assert.Null(partial.Code);
         Assert.Equal(5, partial.PagesRead);
         Assert.Equal(100, partial.NewPosts);
-        Assert.Equal([1, 2, 3, 4, 5], search.Calls.Skip(1).Select(call => call.Page).ToArray());
+        // The newest page, then each page strictly below the lowest id seen so far.
+        Assert.Equal([null, "231", "211", "191", "171"], search.Cursors.Skip(1).ToArray());
         Assert.Equal(100, admission.QueuedCount);
-        Assert.All(admission.PerPost.Values, count => Assert.Equal(1, count));
 
         DanbooruWatcherStatus status = scheduler.GetStatus(id)!;
         Assert.True(status.BudgetLimited);
         Assert.True(status.HasPartialProgress);
         Assert.Equal(6, status.NextPage);
-        Assert.Equal(DanbooruWatcherActivity.ContinuationBlocked, status.Activity);
+        Assert.Equal(DanbooruWatcherActivity.Scheduled, status.Activity);
+        Assert.Equal(clock.GetUtcNow(), status.NextCheckAtUtc); // continues without waiting for the interval
         BooruWatcherRecord stored = profile.Catalog.Read().Watchers.Single();
         Assert.True(stored.BudgetLimited);
         Assert.Equal(6, stored.NextPage);
@@ -118,22 +118,243 @@ public sealed class DanbooruWatcherSchedulerTests
         Assert.Equal("100", stored.CheckStartHighWaterMark);
         Assert.Equal("250", stored.HighWaterMark);
 
-        // The stored progress survives a restart unchanged and is still not requested.
+        // The stored progress survives a restart and the next check continues below the cursor.
         DanbooruWatcherScheduler restarted = new(profile.Catalog, search, admission, clock, Options());
         restarted.Load();
-        Assert.Equal(DanbooruWatcherActivity.ContinuationBlocked, restarted.GetStatus(id)!.Activity);
-        clock.Advance(TimeSpan.FromDays(1));
-        Assert.Null(await restarted.RunNextAsync());
-        Assert.Equal(6, search.CallCount);
+        DanbooruWatcherCheckSummary rest = (await restarted.RunNextAsync())!;
+        Assert.Equal(DanbooruWatcherCheckKind.Completed, rest.Kind);
+        Assert.Equal(50, rest.NewPosts);
+        Assert.Equal(["151", "131", "111"], search.Cursors.Skip(6).ToArray());
+        Assert.Equal(Range(250, 150).Select(value => value.ToString()).Order(), admission.PerPost.Keys.Order());
+        Assert.All(admission.PerPost.Values, count => Assert.Equal(1, count));
+        DanbooruWatcherStatus done = restarted.GetStatus(id)!;
+        Assert.False(done.HasPartialProgress);
+        Assert.Equal(T0 + Interval + Interval, done.NextCheckAtUtc);
     }
 
     [Fact]
-    public async Task ContinuationBeyondTheTransportPageWindowIsBlockedVisiblyAndNeverRequested()
+    public async Task WatcherCatchesUpAnyBacklogOverSeveralChecksByCursorWithoutGapsOrDuplicates()
     {
         using TempDirectory directory = new();
         await using SchedulerProfile profile = new(directory.Path);
         SchedulerClock clock = new(T0);
-        FakeDanbooruSearch search = new(clock); // numeric pages 1..5, as BooruHostHttp
+        FakeDanbooruSearch search = new(clock);
+        CountingAdmission admission = new();
+        search.Publish("cat", 1000);
+        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        scheduler.Load();
+        string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
+        Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, (await scheduler.RunNextAsync())!.Kind);
+
+        // 250 new posts between two regular checks: more than two full check budgets (2 x 5 x 20).
+        search.Publish("cat", Range(1250, 250));
+        clock.Advance(Interval);
+        List<DanbooruWatcherCheckSummary> checks = new();
+        for (int run = 0; run < 10; run++)
+        {
+            DanbooruWatcherCheckSummary? check = await scheduler.RunNextAsync();
+            if (check is null) break;
+            checks.Add(check);
+            Assert.NotEqual(DanbooruWatcherCheckKind.Failed, check.Kind);
+            Assert.NotEqual(DanbooruWatcherCheckKind.Rejected, check.Kind);
+        }
+
+        Assert.Equal([DanbooruWatcherCheckKind.PartialBudgetLimited, DanbooruWatcherCheckKind.PartialBudgetLimited,
+            DanbooruWatcherCheckKind.Completed], checks.Select(check => check.Kind).ToArray());
+        Assert.Equal([5, 5, 3], checks.Select(check => check.PagesRead).ToArray());
+        Assert.Equal([100, 100, 50], checks.Select(check => check.NewPosts).ToArray());
+        Assert.All(checks, check => Assert.True(check.PagesRead <= DanbooruWatcher.DefaultPageBudget));
+        // Every post exactly once: no gap, no duplicate.
+        Assert.Equal(Range(1250, 250).Select(value => value.ToString()).Order(), admission.PerPost.Keys.Order());
+        Assert.All(admission.PerPost.Values, count => Assert.Equal(1, count));
+        // Only the first page of the traversal is a newest-page request; the rest continue by cursor.
+        string?[] traversal = search.Cursors.Skip(1).ToArray();
+        Assert.Null(traversal[0]);
+        Assert.All(traversal.Skip(1), cursor => Assert.NotNull(cursor));
+        Assert.Equal(13, traversal.Length);
+
+        DanbooruWatcherStatus status = scheduler.GetStatus(id)!;
+        Assert.Equal(DanbooruWatcherActivity.Scheduled, status.Activity);
+        Assert.False(status.HasPartialProgress);
+        BooruWatcherRecord stored = profile.Catalog.Read().Watchers.Single();
+        Assert.Equal(0, stored.NextPage);
+        Assert.Equal("1250", stored.HighWaterMark);
+        Assert.Null(await scheduler.RunNextAsync());
+
+        // The next regular check sees only what is new since the catch-up started.
+        search.Publish("cat", 1251);
+        clock.Advance(Interval);
+        DanbooruWatcherCheckSummary next = (await scheduler.RunNextAsync())!;
+        Assert.Equal(DanbooruWatcherCheckKind.Completed, next.Kind);
+        Assert.Equal(1, next.NewPosts);
+        Assert.Equal(251, admission.QueuedCount);
+    }
+
+    [Fact]
+    public async Task PostsArrivingDuringATraversalDoNotShiftCursorPagesAndAreFoundByTheNextCheck()
+    {
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock);
+        CountingAdmission admission = new();
+        search.Publish("cat", 100);
+        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        scheduler.Load();
+        string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
+        await scheduler.RunNextAsync();
+        search.Publish("cat", Range(160, 60)); // 160..101
+        clock.Advance(Interval);
+
+        // A busy tag: three new posts arrive before every continuation page. With page numbers each would
+        // push the last post of a page onto the next one (cursor_did_not_advance).
+        long arriving = 500;
+        search.Hold = (_, before, _) =>
+        {
+            if (before is not null) search.Publish("cat", arriving++, arriving++, arriving++);
+            return Task.CompletedTask;
+        };
+        DanbooruWatcherCheckSummary check = (await scheduler.RunNextAsync())!;
+        Assert.Equal(DanbooruWatcherCheckKind.Completed, check.Kind);
+        Assert.Null(check.Code);
+        Assert.Equal(60, check.NewPosts);
+        Assert.Equal([null, "141", "121", "101"], search.Cursors.Skip(1).ToArray());
+        Assert.Equal(DanbooruWatcherState.Active, scheduler.GetStatus(id)!.State);
+        Assert.Null(scheduler.GetStatus(id)!.ErrorCode);
+
+        search.Hold = null;
+        clock.Advance(Interval);
+        DanbooruWatcherCheckSummary later = (await scheduler.RunNextAsync())!;
+        Assert.Equal(DanbooruWatcherCheckKind.Completed, later.Kind);
+        Assert.Equal(9, later.NewPosts);
+        Assert.Equal(69, admission.QueuedCount);
+        Assert.All(admission.PerPost.Values, count => Assert.Equal(1, count));
+        Assert.Equal("508", profile.Catalog.Read().Watchers.Single().HighWaterMark);
+    }
+
+    [Fact]
+    public async Task ProviderDeferralDuringACursorPageKeepsTheCursorAndResumesBelowItAfterTheCooldown()
+    {
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock);
+        CountingAdmission admission = new();
+        search.Publish("cat", 100);
+        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        scheduler.Load();
+        string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
+        await scheduler.RunNextAsync();
+        search.Publish("cat", Range(160, 60));
+        clock.Advance(Interval);
+        DateTimeOffset retryAt = clock.GetUtcNow() + TimeSpan.FromMinutes(2);
+        search.Next((_, _) => null); // the newest page answers normally
+        search.Next((_, before) => before == "141" ? new DanbooruWatcherSearchDeferred(retryAt, "booru-cooldown", 429) : null);
+
+        DanbooruWatcherCheckSummary deferred = (await scheduler.RunNextAsync())!;
+        Assert.Equal(DanbooruWatcherCheckKind.Deferred, deferred.Kind);
+        Assert.Equal(retryAt, deferred.RetryAtUtc);
+        Assert.Equal(DanbooruWatcherActivity.Cooldown, scheduler.GetStatus(id)!.Activity);
+        BooruWatcherRecord stored = profile.Catalog.Read().Watchers.Single();
+        Assert.Equal("Cooldown", stored.State);
+        Assert.Equal(2, stored.NextPage);
+        Assert.Equal("141", stored.CursorBeforePostId);
+        Assert.Equal(20, admission.QueuedCount);
+
+        // Only deferred: no request for any watcher until the cooldown ends, then below the same cursor.
+        clock.Advance(TimeSpan.FromMinutes(2) - TimeSpan.FromSeconds(1));
+        Assert.Null(await scheduler.RunNextAsync());
+        Assert.Equal(3, search.CallCount);
+        clock.Advance(TimeSpan.FromSeconds(1));
+        DanbooruWatcherCheckSummary resumed = (await scheduler.RunNextAsync())!;
+        Assert.Equal(DanbooruWatcherCheckKind.Completed, resumed.Kind);
+        Assert.Equal(["141", "121", "101"], search.Cursors.Skip(3).ToArray());
+        Assert.Equal(60, admission.QueuedCount);
+        Assert.All(admission.PerPost.Values, count => Assert.Equal(1, count));
+    }
+
+    [Fact]
+    public async Task RecordsWrittenBeforeCursorPagingWithAPageContinuationLoadAndFinish()
+    {
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        // Exactly what the page-number scheduler stored: a budget-limited traversal parked at next page 6
+        // (formerly ContinuationBlocked) and a check interrupted by a crash at page 3.
+        profile.Catalog.UpsertWatcher(new BooruWatcherRecord("w-cat", "danbooru", "cat", "Active", T0,
+            LastCheckedAtUtc: T0, HighWaterMark: "250", NextPage: 6, BaselineEstablished: true,
+            KnownPostIds: Range(250, 100).Select(value => value.ToString()).ToArray(),
+            CursorBeforePostId: "151", CheckStartHighWaterMark: "100", CheckStartHighWaterMarkCaptured: true,
+            ResumeState: "Active", PageSize: 20, PageBudget: 5, PagesCheckedInRun: 0, BudgetLimited: true));
+        profile.Catalog.UpsertWatcher(new BooruWatcherRecord("w-dog", "danbooru", "dog", "Checking", T0.AddSeconds(1),
+            LastCheckedAtUtc: T0, HighWaterMark: "500", NextPage: 3, BaselineEstablished: true,
+            KnownPostIds: Range(500, 40).Select(value => value.ToString()).ToArray(),
+            CursorBeforePostId: "461", CheckStartHighWaterMark: "400", CheckStartHighWaterMarkCaptured: true,
+            ResumeState: "Active", PageSize: 20, PageBudget: 5, PagesCheckedInRun: 2, BudgetLimited: false));
+        FakeDanbooruSearch search = new(clock);
+        search.Publish("cat", Range(250, 151));
+        search.Publish("dog", Range(500, 101));
+        CountingAdmission admission = new();
+        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        scheduler.Load();
+        Assert.Null(scheduler.GetSnapshot().FaultCode);
+        Assert.True(scheduler.GetStatus("w-cat")!.HasPartialProgress);
+        Assert.Equal(DanbooruWatcherState.Active, scheduler.GetStatus("w-dog")!.State);
+
+        DanbooruWatcherCheckSummary cat = (await scheduler.RunNextAsync())!;
+        DanbooruWatcherCheckSummary dog = (await scheduler.RunNextAsync())!;
+        Assert.Equal(DanbooruWatcherCheckKind.Completed, cat.Kind);
+        Assert.Equal(DanbooruWatcherCheckKind.Completed, dog.Kind);
+        // Both continue below their stored cursor; neither restarts at the newest page or skips posts.
+        Assert.Equal(["151", "131", "111", "461", "441", "421", "401"], search.Cursors);
+        Assert.Equal(Range(150, 50).Concat(Range(460, 60)).Select(value => value.ToString()).Order(), admission.PerPost.Keys.Order());
+        Assert.All(admission.PerPost.Values, count => Assert.Equal(1, count));
+        Assert.All(profile.Catalog.Read().Watchers, record =>
+        {
+            Assert.Equal(0, record.NextPage);
+            Assert.Null(record.CursorBeforePostId);
+        });
+        Assert.Equal(50, admission.Findings.Count(finding => finding.WatcherId == "w-cat"));
+        Assert.Equal(60, admission.Findings.Count(finding => finding.WatcherId == "w-dog"));
+    }
+
+    [Fact]
+    public async Task APageAnsweringAnotherCursorStopsTheWatcherWithoutAdvancingIt()
+    {
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock);
+        CountingAdmission admission = new();
+        search.Publish("cat", 100);
+        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        scheduler.Load();
+        string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
+        await scheduler.RunNextAsync();
+        search.Publish("cat", Range(140, 40));
+        clock.Advance(Interval);
+        search.Next((_, _) => null);
+        // The port claims the page below 131 although the scheduler asked for the page below 121.
+        search.Next((query, _) => new DanbooruWatcherSearchSnapshot(query, "131",
+            Range(130, 20).Select(FakeDanbooruSearch.MinimalClaim).ToArray(), false));
+
+        DanbooruWatcherCheckSummary failed = (await scheduler.RunNextAsync())!;
+        Assert.Equal(DanbooruWatcherCheckKind.Failed, failed.Kind);
+        Assert.Equal("page_binding_mismatch", failed.Code);
+        Assert.Equal(20, admission.QueuedCount);
+        BooruWatcherRecord stored = profile.Catalog.Read().Watchers.Single();
+        Assert.Equal("Error", stored.State);
+        Assert.Equal("121", stored.CursorBeforePostId);
+        Assert.Equal(DanbooruWatcherActivity.Error, scheduler.GetStatus(id)!.Activity);
+    }
+
+    [Fact]
+    public async Task RestartFromNowAcceptsAGapNonDestructively()
+    {
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock);
         CountingAdmission admission = new();
         search.Publish("cat", 100);
         DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
@@ -142,24 +363,8 @@ public sealed class DanbooruWatcherSchedulerTests
         await scheduler.RunNextAsync();
         search.Publish("cat", Range(250, 150));
         clock.Advance(Interval);
+        Assert.Equal(DanbooruWatcherCheckKind.PartialBudgetLimited, (await scheduler.RunNextAsync())!.Kind);
 
-        DanbooruWatcherCheckSummary partial = (await scheduler.RunNextAsync())!;
-        Assert.Equal(DanbooruWatcherCheckKind.PartialBudgetLimited, partial.Kind);
-        Assert.Equal("continuation_blocked", partial.Code);
-        int calls = search.CallCount;
-        DanbooruWatcherStatus blocked = scheduler.GetStatus(id)!;
-        Assert.Equal(DanbooruWatcherActivity.ContinuationBlocked, blocked.Activity);
-        Assert.Null(blocked.NextCheckAtUtc);
-        Assert.True(blocked.HasPartialProgress);
-
-        clock.Advance(TimeSpan.FromDays(3));
-        Assert.Null(await scheduler.RunNextAsync());
-        DanbooruWatcherCheckSummary manual = await scheduler.CheckNowAsync(id);
-        Assert.Equal(DanbooruWatcherCheckKind.Rejected, manual.Kind);
-        Assert.Equal("continuation_blocked", manual.Code);
-        Assert.Equal(calls, search.CallCount);
-
-        // The user explicitly accepts the gap: non-destructive removal plus a new baseline from now.
         DanbooruWatcherCommandResult restarted = scheduler.RestartFromNow(id);
         Assert.True(restarted.Accepted);
         Assert.NotEqual(id, restarted.Watcher!.WatcherId);
@@ -186,9 +391,9 @@ public sealed class DanbooruWatcherSchedulerTests
         clock.Advance(Interval);
 
         TaskCompletionSource reachedPage3 = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        search.Hold = async (_, page, token) =>
+        search.Hold = async (_, before, token) =>
         {
-            if (page != 3) return;
+            if (before != "121") return; // page 3: below the lowest id of pages 1 and 2
             reachedPage3.TrySetResult();
             await Task.Delay(Timeout.Infinite, token); // the process "dies" here; never resumed
         };
@@ -207,7 +412,7 @@ public sealed class DanbooruWatcherSchedulerTests
         Assert.True(recovered.HasPartialProgress);
         DanbooruWatcherCheckSummary resumed = (await restarted.RunNextAsync())!;
         Assert.Equal(DanbooruWatcherCheckKind.Completed, resumed.Kind);
-        Assert.Equal([3, 4], search.Calls.Skip(4).Select(call => call.Page).ToArray()); // resumes at page 3
+        Assert.Equal(["121", "101"], search.Cursors.Skip(4).ToArray()); // resumes below the stored cursor
         Assert.Equal(60, admission.QueuedCount);
         Assert.All(admission.PerPost.Values, count => Assert.Equal(1, count));
     }
@@ -407,9 +612,9 @@ public sealed class DanbooruWatcherSchedulerTests
         search.Publish("cat", Range(140, 40));
         clock.Advance(Interval);
         TaskCompletionSource onPage2 = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        search.Hold = async (_, page, token) =>
+        search.Hold = async (_, before, token) =>
         {
-            if (page != 2) return;
+            if (before != "121") return; // page 2
             onPage2.TrySetResult();
             await Task.Delay(Timeout.Infinite, token);
         };
@@ -433,7 +638,7 @@ public sealed class DanbooruWatcherSchedulerTests
         Assert.True(scheduler.Resume(id).Accepted);
         DanbooruWatcherCheckSummary resumed = (await scheduler.RunNextAsync())!;
         Assert.Equal(DanbooruWatcherCheckKind.Completed, resumed.Kind);
-        Assert.Equal(2, search.Calls[calls].Page);
+        Assert.Equal("121", search.Calls[calls].Before);
         Assert.Equal(40, admission.QueuedCount);
         Assert.All(admission.PerPost.Values, count => Assert.Equal(1, count));
     }
@@ -618,7 +823,7 @@ public sealed class DanbooruWatcherSchedulerTests
         DanbooruWatcherCheckSummary check = (await scheduler.RunNextAsync())!;
         Assert.Equal(DanbooruWatcherCheckKind.Completed, check.Kind);
         Assert.Equal(4, check.PagesRead);
-        Assert.Equal([1, 2, 3, 4], search.Calls.Skip(1).Select(call => call.Page).ToArray());
+        Assert.Equal([null, "141", "121", "101"], search.Cursors.Skip(1).ToArray());
         Assert.Equal([1, 2, 2, 2, 2], search.CallSessions.ToArray());
         Assert.Equal(2, search.SessionsOpened);
         Assert.Equal(2, search.SessionsDisposed);
@@ -787,9 +992,9 @@ public sealed class DanbooruWatcherSchedulerTests
         search.Publish("cat", Range(140, 40));
         clock.Advance(Interval);
         TaskCompletionSource onPage2 = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        search.Hold = async (_, page, token) =>
+        search.Hold = async (_, before, token) =>
         {
-            if (page != 2) return;
+            if (before != "121") return; // page 2
             onPage2.TrySetResult();
             await Task.Delay(Timeout.Infinite, token);
         };
