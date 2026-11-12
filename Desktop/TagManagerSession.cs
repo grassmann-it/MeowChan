@@ -19,16 +19,29 @@ internal sealed class TagManagerSession
     private readonly Func<PrivateTagLoadSnapshot> _load;
     private readonly Func<TagId, string, long, CancellationToken, Task<PrivateTagCommit>> _rename;
     private readonly Func<TagId, long, CancellationToken, Task<PrivateTagCommit>> _delete;
+    private readonly Func<CancellationToken, Task<LocalMediaTagInspection?>>? _inspectOrphans;
+    private readonly Func<IReadOnlyCollection<PrivateLocalMediaTagAssignment>, long, CancellationToken, Task<PrivateTagCommit>>? _removeOrphans;
 
     internal TagManagerSession(Func<PrivateTagLoadSnapshot> load,
         Func<TagId, string, long, CancellationToken, Task<PrivateTagCommit>> rename,
-        Func<TagId, long, CancellationToken, Task<PrivateTagCommit>> delete)
+        Func<TagId, long, CancellationToken, Task<PrivateTagCommit>> delete,
+        Func<CancellationToken, Task<LocalMediaTagInspection?>>? inspectOrphans = null,
+        Func<IReadOnlyCollection<PrivateLocalMediaTagAssignment>, long, CancellationToken, Task<PrivateTagCommit>>? removeOrphans = null)
     {
         _load = load ?? throw new ArgumentNullException(nameof(load));
         _rename = rename ?? throw new ArgumentNullException(nameof(rename));
         _delete = delete ?? throw new ArgumentNullException(nameof(delete));
+        _inspectOrphans = inspectOrphans;
+        _removeOrphans = removeOrphans;
         Reload();
     }
+
+    /// <summary>True when the host can inspect and remove orphaned local media tag assignments.</summary>
+    internal bool CanInspectOrphans => _inspectOrphans != null && _removeOrphans != null;
+    /// <summary>The last orphan inspection, valid only for the tag revision it names; null before a check.</summary>
+    internal LocalMediaTagInspection? Inspection { get; private set; }
+    /// <summary>True while an inspection reads the catalog and manifests.</summary>
+    internal bool Inspecting { get; private set; }
 
     /// <summary>Null while the tag index is unavailable; then nothing can be changed.</summary>
     internal PrivateTagStoreSnapshot? Snapshot { get; private set; }
@@ -54,6 +67,46 @@ internal sealed class TagManagerSession
     {
         Snapshot = snapshot;
         Rows = BuildRows(snapshot);
+        // An inspection describes one revision; after any change it would name the wrong assignments.
+        if (Inspection != null && Inspection.Revision != snapshot?.Revision) Inspection = null;
+    }
+
+    /// <summary>
+    /// Checks which local media tag assignments no longer reach a loose file (gone, moved, replaced, now bound). Read-only:
+    /// the result is shown and can be removed explicitly; nothing is retargeted.
+    /// </summary>
+    internal async Task CheckOrphansAsync(CancellationToken token = default)
+    {
+        if (_inspectOrphans == null || Busy || Inspecting || Snapshot == null) return;
+        Inspecting = true;
+        MessageKey = null;
+        Updated?.Invoke();
+        try
+        {
+            LocalMediaTagInspection? inspection = await _inspectOrphans(token);
+            Reload();
+            Inspection = inspection != null && inspection.Revision == Snapshot?.Revision ? inspection : null;
+            // The dialog shows the result itself; only a check that produced no usable result is an outcome message.
+            if (inspection == null || Inspection == null) { MessageIsError = true; MessageKey = inspection == null ? "tags.unavailable" : "tags.error.stale"; }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception)
+        {
+            MessageIsError = true;
+            MessageKey = "tags.error.other";
+        }
+        finally
+        {
+            Inspecting = false;
+            Updated?.Invoke();
+        }
+    }
+
+    /// <summary>Removes exactly the inspected orphaned assignments, bound to the inspected revision. Tags stay.</summary>
+    internal Task RemoveOrphansAsync(CancellationToken token = default)
+    {
+        if (_removeOrphans == null || Inspection is not { Orphans.Count: > 0 } inspection) return Task.CompletedTask;
+        return RunAsync(_ => _removeOrphans(inspection.Orphans, inspection.Revision, token), "tags.manage.orphansRemoved");
     }
 
     internal static IReadOnlyList<TagManagerRow> BuildRows(PrivateTagStoreSnapshot? snapshot)
@@ -74,7 +127,7 @@ internal sealed class TagManagerSession
 
     private async Task RunAsync(Func<long, Task<PrivateTagCommit>> operation, string doneKey)
     {
-        if (Busy || Snapshot == null) return;
+        if (Busy || Inspecting || Snapshot == null) return;
         Busy = true;
         MessageKey = null;
         Updated?.Invoke();

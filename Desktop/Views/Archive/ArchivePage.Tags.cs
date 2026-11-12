@@ -44,6 +44,8 @@ public partial class ArchivePage
         _setThreadTag = host.SetThreadTagAsync;
         _renamePrivateTag = host.RenamePrivateTagAsync;
         _deletePrivateTag = host.DeletePrivateTagAsync;
+        _inspectLocalTagOrphans = host.InspectLocalMediaTagOrphansAsync;
+        _removeLocalTagOrphans = host.RemoveLocalMediaTagAssignmentsAsync;
         ReloadPrivateTags();
     }
 

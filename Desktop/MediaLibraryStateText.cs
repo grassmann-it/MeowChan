@@ -42,7 +42,7 @@ internal static class MediaLibraryStateText
         Texts.T("media.state.rating", !state.RatingKnown ? Texts.T("media.state.unknown")
             : state.UserRating is int rating ? Texts.T("media.state.ratingValue", rating) : Texts.T("media.state.unrated")),
         Texts.T("media.state.mediaTags", !state.TagsKnown ? Texts.T("media.state.unknown")
-            : state.TagTarget == null ? Texts.T("media.state.notTaggable") : List(state.MediaTags)),
+            : state.TagSubject == null ? Texts.T("media.state.notTaggable") : List(state.MediaTags)),
         Texts.T("media.state.threadTags", state.TagsKnown ? List(state.ThreadTags) : Texts.T("media.state.unknown")));
 
     private static string List(IReadOnlyList<string> names) =>

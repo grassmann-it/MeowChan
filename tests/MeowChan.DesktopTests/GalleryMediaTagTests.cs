@@ -89,10 +89,10 @@ public sealed class GalleryMediaTagTests
         Assert.Equal(GalleryMediaTagUnavailable.Mismatch, thread);
     }
 
-    private static MediaTagSession Session(PrivateTagStore store, PrivateMediaTagTarget target) => new(target,
+    private static MediaTagSession Session(PrivateTagStore store, PrivateMediaTagTarget target) => new(new MediaTagSubject.Bound(target),
         () => new PrivateTagLoadSnapshot(PrivateTagLoadState.Ready, store.ReadSnapshot(), null),
-        (name, token) => Task.FromResult(store.Define(name, null, token)),
-        (id, media, assigned, token) => Task.FromResult(store.SetMedia(id, media, assigned, null, token)));
+        (name, subject, token) => Task.FromResult(store.DefineAndSetMediaSubjects(name, [subject], null, token)),
+        (id, subject, assigned, token) => Task.FromResult(store.SetMediaSubjects(id, [subject], assigned, null, token)));
 
     private static PrivateMediaTagTarget Target(string post = "100", byte seed = 1)
     {
@@ -151,9 +151,9 @@ public sealed class GalleryMediaTagTests
         Assert.False(session.Changed);
 
         int calls = 0;
-        MediaTagSession unavailable = new(Target(),
+        MediaTagSession unavailable = new(new MediaTagSubject.Bound(Target()),
             () => new PrivateTagLoadSnapshot(PrivateTagLoadState.Unavailable, null, "damaged"),
-            (_, _) => { calls++; throw new InvalidOperationException(); },
+            (_, _, _) => { calls++; throw new InvalidOperationException(); },
             (_, _, _, _) => { calls++; throw new InvalidOperationException(); });
         await unavailable.AddAsync("x");
         await unavailable.RemoveAsync(gone);
@@ -169,7 +169,8 @@ public sealed class GalleryMediaTagTests
         await using (DesktopSessionHost host = new(temp.Path, Array.Empty<IImageBoard>()))
         {
             await host.StartAsync();
-            MediaTagSession session = new(target, host.GetPublishedPrivateTagSnapshot, host.DefinePrivateTagAsync, host.SetMediaTagAsync);
+            MediaTagSession session = new(new MediaTagSubject.Bound(target), host.GetPublishedPrivateTagSnapshot,
+                host.DefineAndSetMediaSubjectTagAsync, host.SetMediaSubjectTagAsync);
             await session.AddAsync("keep");
             Assert.Equal("keep", Assert.Single(session.Assigned).Name.Display);
         }

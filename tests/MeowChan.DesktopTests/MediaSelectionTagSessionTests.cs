@@ -20,8 +20,8 @@ public sealed class MediaSelectionTagSessionTests
     private static MediaSelectionTagSession Session(PrivateTagStore store, IReadOnlyList<MediaTagCandidate> candidates,
         Func<PrivateTagLoadSnapshot>? load = null) => new(candidates,
         load ?? (() => new PrivateTagLoadSnapshot(PrivateTagLoadState.Ready, store.ReadSnapshot(), null)),
-        (name, token) => Task.FromResult(store.Define(name, null, token)),
-        (tag, targets, assigned, revision, token) => Task.FromResult(store.SetMediaBatch(tag, targets.ToArray(), assigned, revision, token)));
+        (name, subjects, revision, token) => Task.FromResult(store.DefineAndSetMediaSubjects(name, subjects.ToArray(), revision, token)),
+        (tag, subjects, assigned, revision, token) => Task.FromResult(store.SetMediaSubjects(tag, subjects.ToArray(), assigned, revision, token)));
 
     // A tile of equal bytes in three threads (e, d, c by capture time) plus one unsaved tile.
     private static (IReadOnlyList<MediaTagCandidate> Candidates, MediaLibraryEntry[] Group) Selection()
@@ -120,8 +120,8 @@ public sealed class MediaSelectionTagSessionTests
         (IReadOnlyList<MediaTagCandidate> candidates, _) = Selection();
         int writes = 0;
         MediaSelectionTagSession unavailable = new(candidates, () => new PrivateTagLoadSnapshot(PrivateTagLoadState.Unavailable, null, "broken"),
-            (name, token) => { writes++; return Task.FromResult(store.Define(name, null, token)); },
-            (tag, targets, assigned, revision, token) => { writes++; return Task.FromResult(store.SetMediaBatch(tag, targets.ToArray(), assigned, revision, token)); });
+            (name, subjects, revision, token) => { writes++; return Task.FromResult(store.DefineAndSetMediaSubjects(name, subjects.ToArray(), revision, token)); },
+            (tag, subjects, assigned, revision, token) => { writes++; return Task.FromResult(store.SetMediaSubjects(tag, subjects.ToArray(), assigned, revision, token)); });
 
         await unavailable.AddAsync("red");
         Assert.Null(unavailable.Snapshot);

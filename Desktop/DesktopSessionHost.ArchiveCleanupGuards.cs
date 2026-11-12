@@ -59,6 +59,9 @@ internal sealed partial class DesktopSessionHost
                 Protect(assignment.Thread, ArchiveCleanupReason.PrivateTag);
             foreach (PrivateMediaTagAssignment assignment in tags.MediaAssignments)
                 Protect(assignment.Target.Reference.Resource, ArchiveCleanupReason.PrivateTag);
+            // A tagged loose file protects the thread that owns its occurrence. An untagged registration does not.
+            foreach (ResourceId owner in PrivateTagStore.LocalAssignmentOwners(tags))
+                Protect(owner, ArchiveCleanupReason.PrivateTag);
             byte[]? positionBytes = ReadCleanupOptionalFile("reading-position.json", 16384, token);
             if (positionBytes != null)
             {
@@ -124,6 +127,12 @@ internal sealed partial class DesktopSessionHost
                     // Validate BOTH primary and backup with the canonical parser;
                     // do not widen the generic schema-1 protection check below.
                     FavoriteStore.ValidateDocumentBytes(bytes);
+                    continue;
+                }
+                if (name == PrivateTagStore.FileName)
+                {
+                    // v1 or the local-media v2: the store's own strict parser decides, for primary and backup.
+                    PrivateTagStore.ValidateDocumentBytes(bytes);
                     continue;
                 }
                 using JsonDocument document = JsonDocument.Parse(CleanupUtf8.GetString(bytes));

@@ -120,7 +120,7 @@ internal sealed class MediaTagDialog : Window
         if (_closed) return;
         Title = Texts.T("tags.media.title");
         _heading.Text = Texts.T("tags.media.heading", _mediaLabel);
-        _scope.Text = Texts.T("tags.media.scope");
+        _scope.Text = Texts.T(_session.IsLocal ? "tags.media.scopeLocal" : "tags.media.scope");
         _assignedLabel.Text = Texts.T("tags.media.assigned");
         _availableLabel.Text = Texts.T("tags.media.available");
         _input.Watermark = Texts.T("tags.input");

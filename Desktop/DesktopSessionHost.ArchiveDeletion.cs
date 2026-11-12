@@ -15,7 +15,8 @@ namespace MeowChan.Desktop;
 internal sealed record ArchivePermanentDeletionPlan(ArchiveDeletionPlan Catalog, ArchiveFilesPlan Files, int RatingCount = 0);
 
 internal sealed record ArchivePermanentDeletionResult(IReadOnlyList<ResourceId> DeletedThreads,
-    IReadOnlyList<string> Errors, ArchiveFilesResult? Files, IReadOnlyList<ResourceId>? RatingCleanupThreads = null);
+    IReadOnlyList<string> Errors, ArchiveFilesResult? Files, IReadOnlyList<ResourceId>? RatingCleanupThreads = null,
+    IReadOnlyList<ResourceId>? TagCleanupThreads = null);
 
 internal sealed partial class DesktopSessionHost
 {
@@ -61,6 +62,7 @@ internal sealed partial class DesktopSessionHost
             ValidateMediaRatingsForDeletion(plan.Catalog.Threads.Select(thread => thread.Summary.Id).ToArray());
             List<string> errors = new();
             IReadOnlyList<ResourceId>? ratingCleanupThreads = null;
+            IReadOnlyList<ResourceId>? tagCleanupThreads = null;
             List<ResourceId> deleted = new();
             HashSet<string> evictedPosters = new(StringComparer.Ordinal);
             ArchiveFilesResult? files = null;
@@ -207,11 +209,15 @@ internal sealed partial class DesktopSessionHost
                     // Own tags of a permanently deleted thread go with it, like favorites and ratings.
                     try { CleanupPrivateTags(deleted, admission); }
                     catch (Exception exception) when (exception is not OperationCanceledException)
-                    { errors.Add($"The archive was deleted, but tags could not be updated: {exception.Message}"); }
+                    {
+                        // Visible and retryable: the deleted threads' assignments stay until a retry succeeds.
+                        tagCleanupThreads = Array.AsReadOnly(deleted.ToArray());
+                        errors.Add($"The archive was deleted, but tags could not be updated: {exception.Message}");
+                    }
                 }
                 SignalChanged();
                 return new ArchivePermanentDeletionResult(Array.AsReadOnly(deleted.ToArray()),
-                    Array.AsReadOnly(errors.ToArray()), files, ratingCleanupThreads);
+                    Array.AsReadOnly(errors.ToArray()), files, ratingCleanupThreads, tagCleanupThreads);
             }
             finally
             {

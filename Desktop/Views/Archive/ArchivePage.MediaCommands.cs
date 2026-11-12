@@ -141,9 +141,14 @@ public partial class ArchivePage
         GalleryEntry[] galleryEntries = BuildVisibleGalleryEntries(thread, assets, visible);
         GalleryEntry[] entries = GallerySelection.Build(thread, assets.Select(row => row.Manifest).DistinctBy(manifest => manifest.Directory),
             true, includeOtherMedia: true).Entries.ToArray();
-        GalleryEntry? entry = asset == null ? null : entries.FirstOrDefault(item => item.Key == new GalleryAssetKey(threadId, asset.Manifest.Directory, asset.Asset.AssetId)
+        GalleryEntry[] candidates = asset == null ? Array.Empty<GalleryEntry>() : entries.Where(item => item.Key == new GalleryAssetKey(threadId, asset.Manifest.Directory, asset.Asset.AssetId)
             && (postId == null || item.Post?.PostId == postId)
-            && (attachment == null || item.Attachment?.Position == attachment.Attachment.Position));
+            && (attachment == null || item.Attachment?.Position == attachment.Attachment.Position)).ToArray();
+        GalleryEntry? entry = candidates.FirstOrDefault();
+        // A saved file shared by several post bindings has several tag targets: never pick one silently.
+        MediaTagSubject[] tagSubjects = candidates.Select(item => MediaTagSubjects.Of(item)).OfType<MediaTagSubject>().Distinct().ToArray();
+        bool ambiguousTagTarget = tagSubjects.Length > 1;
+        GalleryEntry? tagEntry = tagSubjects.Length == 1 ? candidates.First(item => Equals(MediaTagSubjects.Of(item), tagSubjects[0])) : null;
         if (entry == null && asset != null)
             entry = new GalleryEntry(new GalleryAssetKey(threadId, asset.Manifest.Directory, asset.Asset.AssetId), asset.Manifest, asset.Asset,
                 null, null, !asset.Asset.IsCurrent, true) { ThreadUrl = thread.Summary.Url };
@@ -192,14 +197,15 @@ public partial class ArchivePage
         {
             if (target != null && EditMediaRatingAsync != null) await EditMediaRatingAsync(target);
         }, saved && EditMediaRatingAsync != null && _mediaRatingError == null, _mediaRatingError ?? missing);
-        // Use the same exact bound media version as the gallery. A loose/legacy
-        // file must not silently fall back to tagging its thread or another copy.
-        bool taggable = GalleryMediaTagTarget.Resolve(target, out GalleryMediaTagUnavailable tagReason) != null;
+        // The shared resolver: the exact bound media version, or the loose local file itself. It
+        // never falls back to tagging the thread, another copy with equal bytes or a guessed version.
+        MediaTagSubjects.Of(target, out GalleryMediaTagUnavailable tagReason);
+        bool taggable = tagEntry != null;
         Add("media.tags.edit", async () =>
         {
-            if (target != null && EditArchiveMediaTagsAsync != null) await EditArchiveMediaTagsAsync(target);
-        }, taggable && EditArchiveMediaTagsAsync != null, Texts.T(tagReason == GalleryMediaTagUnavailable.NoPostVersion
-            ? "tags.media.unbound" : "tags.media.unsupported"));
+            if (tagEntry != null && EditArchiveMediaTagsAsync != null) await EditArchiveMediaTagsAsync(tagEntry);
+        }, taggable && EditArchiveMediaTagsAsync != null, Texts.T(ambiguousTagTarget ? "tags.media.ambiguous"
+            : tagReason == GalleryMediaTagUnavailable.NoPostVersion ? "tags.media.boundElsewhere" : "tags.media.unsupported"));
         Add("media.export-original", async () =>
         {
             if (target != null) await OpenOriginalExportAsync(new[] { FavoriteExportAsset.From(threadId, target.Manifest, target.Asset) }, origin);

@@ -15,7 +15,9 @@ internal enum MediaLibraryPresence { Present, Missing }
 /// <summary>
 /// One media occurrence for the archive-wide media page: a captured attachment of a post, or a saved
 /// file not assigned to any post. Derived data only; it carries no tags, favorites or ratings and is
-/// never authority for writing, deleting or verifying anything.
+/// never authority for writing, deleting or verifying anything. <see cref="LocalSlot"/> is the manifest's requested
+/// file name when the gallery build found this entry locally taggable (a loose view of a file with no bound view),
+/// otherwise null; it lets the one tag resolver name the local occurrence locator without reopening the manifest.
 /// </summary>
 internal sealed record MediaLibraryEntry(
     ResourceId Thread, string ThreadTitle, long ThreadRevision,
@@ -23,7 +25,7 @@ internal sealed record MediaLibraryEntry(
     string? PostId, long? PostOrdinal, DateTimeOffset? PostedAt, int? Position, string? AttachmentRevisionKey,
     string? Directory, string? AssetId, string? Sha256, long? Length,
     string? MediaId, string Variant, string? Name, SavedMediaKind Kind,
-    MediaLibraryPresence Presence, bool Unassigned, bool Historical);
+    MediaLibraryPresence Presence, bool Unassigned, bool Historical, string? LocalSlot = null);
 
 /// <summary>What one thread's entries were derived from; equal state means the entries can be reused.</summary>
 internal sealed record MediaLibraryThreadState(ResourceId Thread, long Revision,
@@ -178,7 +180,8 @@ internal static class MediaLibraryIndexBuilder
                 post?.PostId, post?.Ordinal, post?.PostedAt, entry.Attachment?.Position, entry.AttachmentResolution?.Binding?.Reference.RevisionKey,
                 entry.Manifest.Directory, entry.Asset.AssetId, entry.Asset.Sha256.ToLowerInvariant(), entry.Asset.Length,
                 entry.Asset.MediaIdentifier, entry.Asset.Variant, entry.Asset.OriginalFileName ?? Path.GetFileName(entry.Asset.Path),
-                entry.Kind, MediaLibraryPresence.Present, entry.Unassigned, entry.Historical);
+                entry.Kind, MediaLibraryPresence.Present, entry.Unassigned, entry.Historical,
+                entry.LocalTagEligible ? entry.Asset.RequestedFileName : null);
         }
         foreach (CapturedPost post in posts.Values.OrderBy(post => post.Ordinal).ThenBy(post => post.PostId, StringComparer.Ordinal))
             foreach (CapturedAttachment attachment in (post.Attachments ?? Array.Empty<CapturedAttachment>()).OrderBy(item => item.Position))

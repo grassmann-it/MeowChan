@@ -74,9 +74,13 @@ public partial class MainWindow
             Button ratingRetry = CommandBindings.CreateButton("media.rating.cleanup-retry", () => { });
             ratingRetry.Command = null; ratingRetry.IsVisible = false;
             IReadOnlyList<ResourceId>? ratingRetryIds = null; // Deliberately session/dialog-only, never persisted.
+            // Own tags of the deleted threads: a failed cleanup is visible and can be retried here, idempotently.
+            Button tagRetry = new() { Name = "ArchivePermanentDeleteTagRetry", Content = Texts.T("archive.delete.tagRetry"), IsVisible = false };
+            Avalonia.Automation.AutomationProperties.SetName(tagRetry, Texts.T("archive.delete.tagRetry"));
+            IReadOnlyList<ResourceId>? tagRetryIds = null;
             // Risk flow: Cancel stays on its own at the start, the destructive action sits apart at the end.
             StackPanel risky = new() { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-            risky.Children.Add(ratingRetry); risky.Children.Add(delete);
+            risky.Children.Add(ratingRetry); risky.Children.Add(tagRetry); risky.Children.Add(delete);
             Grid actions = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 24 };
             actions.Children.Add(cancel); actions.Children.Add(risky); Grid.SetColumn(risky, 2);
             status.IsVisible = !string.IsNullOrEmpty(status.Text);
@@ -110,6 +114,22 @@ public partial class MainWindow
                 finally { executing = false; ratingRetry.IsEnabled = cancel.IsEnabled = true; }
             }
             ratingRetry.Click += async (_, _) => await RetryRatingsAsync();
+            async Task RetryTagsAsync()
+            {
+                if (executing || tagRetryIds == null) return;
+                ResourceId[] frozen = tagRetryIds.ToArray();
+                executing = true; tagRetry.IsEnabled = cancel.IsEnabled = false;
+                try
+                {
+                    await _session.RetryPrivateTagCleanupAsync(frozen);
+                    tagRetryIds = null; tagRetry.IsVisible = false;
+                    failure.Text = string.Empty;
+                    status.Text = Texts.T("archive.delete.tagsCleaned");
+                }
+                catch (Exception error) { status.Text = string.Empty; failure.Text = error.Message; }
+                finally { executing = false; tagRetry.IsEnabled = cancel.IsEnabled = true; }
+            }
+            tagRetry.Click += async (_, _) => await RetryTagsAsync();
             CommandRouter ratingRouter = new(dialog);
             ratingRouter.Register(new("media.rating.cleanup-retry", dialog, () => dialog.IsVisible,
                 () => !executing && ratingRetryIds?.Count > 0, () => _ = RetryRatingsAsync(), Priority: 300));
@@ -129,6 +149,8 @@ public partial class MainWindow
                     ArchivePermanentDeletionResult result = await _session.DeleteArchivePermanentlyAsync(plan);
                     ratingRetryIds = result.RatingCleanupThreads;
                     ratingRetry.IsVisible = ratingRetryIds?.Count > 0;
+                    tagRetryIds = result.TagCleanupThreads;
+                    tagRetry.IsVisible = tagRetryIds?.Count > 0;
                     List<string> outcome = result.Errors.ToList();
                     if (result.Files != null)
                         foreach (ArchiveDirectoryResult directory in result.Files.Directories)

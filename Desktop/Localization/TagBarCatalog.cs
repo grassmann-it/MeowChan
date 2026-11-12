@@ -69,6 +69,7 @@ internal static class TagBarCatalog
         ("tags.media.buttonCount", "Tags ({0})", "Tags ({0})"),
         ("tags.media.hint", "Add own tags to exactly this media file.", "Diesem Medium eigene Tags geben."),
         ("tags.media.unbound", "This file is not linked to a captured post version and cannot be tagged.", "Diese Datei ist keiner erfassten Beitragsfassung zugeordnet und kann nicht getaggt werden."),
+        ("tags.media.boundElsewhere", "This view of the file cannot be tagged: the file is shown with a recorded post version elsewhere in this thread, or a media folder of the thread is damaged.", "Diese Ansicht der Datei kann nicht getaggt werden: Die Datei wird an anderer Stelle im Thread mit einer erfassten Beitragsfassung gezeigt, oder ein Medienordner des Threads ist beschädigt."),
         ("tags.media.unsupported", "This file cannot be tagged.", "Diese Datei kann nicht getaggt werden."),
         ("tags.media.title", "Media tags", "Medientags"),
         ("tags.media.heading", "Tags for {0}", "Tags für {0}"),
@@ -78,6 +79,19 @@ internal static class TagBarCatalog
         ("tags.media.available", "Add an existing tag:", "Vorhandenen Tag hinzufügen:"),
         ("tags.media.remove", "Remove tag {0} from this media file", "Tag {0} von diesem Medium entfernen"),
         ("tags.media.addExisting", "Add tag {0} to this media file", "Tag {0} diesem Medium hinzufügen"),
+        ("tags.media.scopeLocal", "Tags apply to exactly this saved file at this place in the archive. Copies with equal bytes elsewhere and the thread are not tagged; a replaced file starts without tags.", "Tags gelten genau für diese gespeicherte Datei an dieser Stelle im Archiv. Kopien mit gleichen Bytes an anderer Stelle und der Thread werden nicht getaggt; eine ersetzte Datei beginnt ohne Tags."),
+        ("tags.media.error.changed", "This file now resolves to a different saved version than when the dialog opened. Nothing was changed. Close the dialog and open it again.", "Diese Datei verweist inzwischen auf eine andere gespeicherte Fassung als beim Öffnen des Dialogs. Es wurde nichts geändert. Dialog schließen und erneut öffnen."),
+        ("tags.media.error.unavailable", "The file could not be verified (missing, changed, or no longer a loose file). No tag was added. Existing tags can still be removed.", "Die Datei konnte nicht geprüft werden (fehlt, geändert oder keine lose Datei mehr). Es wurde kein Tag hinzugefügt. Vorhandene Tags lassen sich weiterhin entfernen."),
+        ("tags.media.ambiguous", "This saved file belongs to several posts. Open its tags from the post you mean.", "Diese gespeicherte Datei gehört zu mehreren Beiträgen. Tags beim gemeinten Beitrag öffnen."),
+        ("tags.manage.orphansIntro", "Tags of loose files stay on their file even when it is moved, replaced or missing. Check which ones can no longer be found.", "Tags loser Dateien bleiben an ihrer Datei, auch wenn sie verschoben, ersetzt oder nicht mehr vorhanden ist. Prüfen, welche nicht mehr auffindbar sind."),
+        ("tags.manage.orphansCheck", "Check tagged loose files", "Getaggte lose Dateien prüfen"),
+        ("tags.manage.orphansChecking", "Checking tagged loose files…", "Getaggte lose Dateien werden geprüft …"),
+        ("tags.manage.orphans", "{0} tag assignments refer to {1} loose files that are missing, moved, replaced or now linked to a post. They are kept until you remove them.", "{0} Tagzuordnungen verweisen auf {1} lose Dateien, die fehlen, verschoben, ersetzt oder jetzt einem Beitrag zugeordnet sind. Sie bleiben erhalten, bis du sie entfernst."),
+        ("tags.manage.orphansUnchecked", "{0} tagged loose files could not be checked.", "{0} getaggte lose Dateien konnten nicht geprüft werden."),
+        ("tags.manage.orphansNone", "All tagged loose files were found.", "Alle getaggten losen Dateien wurden gefunden."),
+        ("tags.manage.orphansRemove", "Remove these assignments", "Diese Zuordnungen entfernen"),
+        ("tags.manage.orphansRemoved", "Orphaned assignments removed. The tags themselves were kept.", "Verwaiste Zuordnungen entfernt. Die Tags selbst bleiben erhalten."),
+        ("tags.export.omitted", "Only the files are copied. Own tags, including tags of loose files, are not part of any export or transfer yet and stay in this profile.", "Kopiert werden nur die Dateien. Eigene Tags, auch die loser Dateien, sind noch in keinem Export und keiner Übertragung enthalten und bleiben in diesem Profil."),
         ("tags.media.close", "Close", "Schließen")
     };
 }

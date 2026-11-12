@@ -22,7 +22,8 @@ internal static class MediaLibraryIndexCache
     internal const long MaximumBytes = 256L * 1024 * 1024;
     internal const int MaximumEntries = 1_000_000;
     internal const int MaximumThreads = 200_000;
-    private const int CurrentVersion = 1;
+    // Version 2 adds the local tag slot of loose entries. An older or newer document is simply no cache: rebuild.
+    private const int CurrentVersion = 2;
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -36,7 +37,7 @@ internal static class MediaLibraryIndexCache
     private sealed record ManifestDto(string D, string? G);
     private sealed record EntryDto(string S, string B, string T, string Title, long Rev, DateTimeOffset First, DateTimeOffset? Last,
         string? Post, long? Ord, DateTimeOffset? At, int? Pos, string? Key, string? Dir, string? Asset, string? Sha, long? Len,
-        string? Mid, string Var, string? Name, SavedMediaKind Kind, bool Missing, bool Loose, bool Old);
+        string? Mid, string Var, string? Name, SavedMediaKind Kind, bool Missing, bool Loose, bool Old, string? Slot);
 
     /// <summary>Null when there is no usable cache. Never throws for file content problems.</summary>
     internal static MediaLibrarySnapshot? Load(string path)
@@ -65,10 +66,12 @@ internal static class MediaLibraryIndexCache
                 ResourceId id = Id(entry.S, entry.B, entry.T);
                 // Every entry belongs to a listed thread; a present entry names its file and bytes.
                 if (!known.Contains(id) || entry.Title == null || entry.Var == null || !Enum.IsDefined(entry.Kind)
-                    || !entry.Missing && (entry.Dir == null || entry.Asset == null || !Sha256(entry.Sha))) return null;
+                    || !entry.Missing && (entry.Dir == null || entry.Asset == null || !Sha256(entry.Sha))
+                    // A local slot exists only on a present, unbound entry; anything else is a damaged cache.
+                    || entry.Slot != null && (entry.Missing || entry.Key != null || entry.Slot.Length == 0)) return null;
                 entries.Add(new(id, entry.Title, entry.Rev, entry.First, entry.Last, entry.Post, entry.Ord, entry.At, entry.Pos,
                     entry.Key, entry.Dir, entry.Asset, entry.Sha, entry.Len, entry.Mid, entry.Var, entry.Name, entry.Kind,
-                    entry.Missing ? MediaLibraryPresence.Missing : MediaLibraryPresence.Present, entry.Loose, entry.Old));
+                    entry.Missing ? MediaLibraryPresence.Missing : MediaLibraryPresence.Present, entry.Loose, entry.Old, entry.Slot));
             }
             // A cached index is a starting point for reuse, not a complete answer on its own.
             return new MediaLibrarySnapshot(entries, threads, Array.Empty<string>(), complete: threads.All(thread => thread.Complete));
@@ -90,7 +93,7 @@ internal static class MediaLibraryIndexCache
                 entry.ThreadTitle, entry.ThreadRevision, entry.FirstSeenAt, entry.LastCapturedAt, entry.PostId, entry.PostOrdinal,
                 entry.PostedAt, entry.Position, entry.AttachmentRevisionKey, entry.Directory, entry.AssetId, entry.Sha256, entry.Length,
                 entry.MediaId, entry.Variant, entry.Name, entry.Kind, entry.Presence == MediaLibraryPresence.Missing,
-                entry.Unassigned, entry.Historical)).ToList());
+                entry.Unassigned, entry.Historical, entry.LocalSlot)).ToList());
         string json = JsonSerializer.Serialize(document, Options);
         if (StrictUtf8.GetByteCount(json) > MaximumBytes) return;
         // A cache needs neither a backup nor a preserved copy of the previous version: plain atomic replace.

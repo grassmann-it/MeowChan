@@ -90,6 +90,7 @@ internal sealed class MediaLibraryUserData
 {
     private readonly Dictionary<ResourceId, HashSet<Guid>>? _threadTags;
     private readonly Dictionary<PrivateMediaTagTarget, HashSet<Guid>>? _mediaTags;
+    private readonly Dictionary<LocalMediaTagTarget, HashSet<Guid>>? _localTags;
     private readonly HashSet<FavoriteAssetKey>? _favorites;
     private readonly Dictionary<FavoriteAssetKey, int>? _ratings;
 
@@ -107,6 +108,9 @@ internal sealed class MediaLibraryUserData
             _mediaTags = new();
             foreach (PrivateMediaTagAssignment item in tags.MediaAssignments)
                 (_mediaTags.TryGetValue(item.Target, out var set) ? set : _mediaTags[item.Target] = new()).Add(item.TagId.Value);
+            _localTags = new();
+            foreach (PrivateLocalMediaTagAssignment item in tags.LocalAssignments)
+                (_localTags.TryGetValue(item.Target, out var set) ? set : _localTags[item.Target] = new()).Add(item.TagId.Value);
         }
         if (favorites != null) _favorites = favorites.Select(entry => entry.Key).ToHashSet();
         if (ratings != null)
@@ -128,14 +132,25 @@ internal sealed class MediaLibraryUserData
     internal bool SameSourcesAs(MediaLibraryUserData? other) => other != null && ReferenceEquals(TagSnapshot, other.TagSnapshot)
         && ReferenceEquals(FavoriteSource, other.FavoriteSource) && ReferenceEquals(RatingSource, other.RatingSource);
 
-    /// <summary>Own tags of the occurrence plus the tags of its thread. Requires available tags.</summary>
+    /// <summary>
+    /// Own tags of the occurrence (its bound version, or its registered local revision) plus the tags of its thread.
+    /// Requires available tags. Equal bytes elsewhere never contribute (no hash fan-out).
+    /// </summary>
     internal IReadOnlySet<Guid> TagsOf(MediaLibraryEntry entry)
     {
         if (_threadTags == null || _mediaTags == null) throw new MediaLibraryFilterException(MediaLibraryFilterError.TagsUnavailable);
         HashSet<Guid> result = new();
         if (_threadTags.TryGetValue(entry.Thread, out var threadTags)) result.UnionWith(threadTags);
-        if (MediaLibraryFilterEngine.TagTarget(entry) is { } target && _mediaTags.TryGetValue(target, out var mediaTags))
-            result.UnionWith(mediaTags);
+        switch (MediaTagSubjects.Of(entry))
+        {
+            case MediaTagSubject.Bound bound when _mediaTags.TryGetValue(bound.Target, out var mediaTags):
+                result.UnionWith(mediaTags);
+                break;
+            case MediaTagSubject.Local local when TagSnapshot!.ResolveLocal(local.Observation) is { IsRegistered: true, Target: { } target }
+                && _localTags!.TryGetValue(target, out var localTags):
+                result.UnionWith(localTags);
+                break;
+        }
         return result;
     }
 
@@ -257,8 +272,9 @@ internal static class MediaLibraryFilterEngine
             ? new FavoriteAssetKey(entry.Thread, entry.MediaId, entry.Variant, entry.Sha256) : null;
 
     /// <summary>
-    /// Exact media tag target, built the same way the gallery builds it: the bound post attachment
-    /// version plus the saved asset. Null for missing, unassigned or unbound (legacy) occurrences.
+    /// Exact BOUND media tag target, built the same way the gallery builds it: the bound post attachment
+    /// version plus the saved asset. Null for missing, unassigned or unbound (legacy) occurrences; those are
+    /// resolved as local subjects by <see cref="MediaTagSubjects.Of(MediaLibraryEntry)"/>, the resolver views use.
     /// </summary>
     internal static PrivateMediaTagTarget? TagTarget(MediaLibraryEntry entry)
     {

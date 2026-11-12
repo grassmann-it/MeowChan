@@ -147,7 +147,7 @@ internal sealed class MediaSelectionTagDialog : Window
         return candidate.Block switch
         {
             MediaTagBlock.NotSaved => text + " — " + Texts.T("media.tile.missing"),
-            MediaTagBlock.NoPostVersion => text + " — " + Texts.T("tags.media.unbound"),
+            MediaTagBlock.NoPostVersion => text + " — " + Texts.T("tags.media.boundElsewhere"),
             _ => text
         };
     }
@@ -182,7 +182,7 @@ internal sealed class MediaSelectionTagDialog : Window
                 MediaTagCandidate candidate = _session.Candidates[index];
                 text.Text = Describe(candidate);
                 box.IsChecked = _session.IsChosen(index);
-                box.IsEnabled = candidate.Target != null && !_session.Busy;
+                box.IsEnabled = candidate.Subject != null && !_session.Busy;
                 AutomationProperties.SetName(box, text.Text);
             }
         }

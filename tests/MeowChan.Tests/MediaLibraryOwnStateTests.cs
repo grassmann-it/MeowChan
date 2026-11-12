@@ -88,9 +88,13 @@ public sealed class MediaLibraryOwnStateTests
         Assert.Equal(new[] { "rpt" }, stateB.ThreadTags); // A thread tag stays a thread tag; no inheritance into media tags.
         Assert.True(stateA.CanEditMediaTags);
 
+        // AP-01b replaces the former "no captured post version: cannot be tagged": a loose saved file is taggable as
+        // its own local occurrence, starts without tags and never shows the tags of equal bytes or of its thread.
         MediaLibraryEntryState stateLoose = MediaLibraryEntryState.Of(loose, data);
         Assert.True(stateLoose.TagsKnown);
-        Assert.False(stateLoose.CanEditMediaTags); // No captured post version: cannot be tagged.
+        Assert.True(stateLoose.CanEditMediaTags);
+        Assert.IsType<MediaTagSubject.Local>(stateLoose.TagSubject);
+        Assert.Empty(stateLoose.MediaTags);
     }
 
     private static PrivateMediaTagTarget GalleryTarget(IReadOnlyList<GalleryEntry> entries)

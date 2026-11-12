@@ -440,7 +440,7 @@ public sealed partial class MediaPage : UserControl
             bool canTags = state?.CanEditMediaTags == true && (EditTagsForMenuAsync != null || ExecuteMediaMenuActionAsync != null);
             string tagReason = !present ? Texts.T("archive.notSaved")
                 : state == null || !state.TagsKnown ? Texts.T("tags.unavailable")
-                : state.TagTarget == null ? UnboundTagReason(entry) : Texts.T("tags.unavailable");
+                : state.TagSubject == null ? UnboundTagReason(entry) : Texts.T("tags.unavailable");
 
             items.Add(CommandMenuItem(entry, "media.open", () => OpenMediaMenuAsync(entry, galleryWindow, galleryStart, Current),
                 single && present && galleryStart >= 0 && (OpenGallery != null || ExecuteMediaMenuActionAsync != null),
@@ -509,9 +509,11 @@ public sealed partial class MediaPage : UserControl
             ? ExecuteMediaMenuActionAsync("media.open", entry, current)
             : OpenGallery?.Invoke(galleryWindow, galleryStart) ?? Task.CompletedTask;
 
+    // Only reached when the shared resolver offered no target: a loose view of a file that is shown bound elsewhere
+    // (or whose thread has a damaged manifest), or an invalid identity.
     private static string UnboundTagReason(MediaLibraryEntry entry) =>
-        entry.PostId == null || entry.Position == null || entry.AttachmentRevisionKey == null
-            ? Texts.T("tags.media.unbound") : Texts.T("tags.media.unsupported");
+        entry.AttachmentRevisionKey == null && entry.LocalSlot == null
+            ? Texts.T("tags.media.boundElsewhere") : Texts.T("tags.media.unsupported");
 
     private MenuItem CommandMenuItem(MediaLibraryEntry entry, string id, Func<Task> action, bool available, Func<bool> current, string reason)
     {

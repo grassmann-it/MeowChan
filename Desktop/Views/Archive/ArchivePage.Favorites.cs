@@ -318,11 +318,15 @@ public partial class ArchivePage
         header.Children.Add(title); header.Children.Add(scope);
         TextBlock hint = new() { Text = Texts.T("export.originalHint"), TextWrapping = TextWrapping.Wrap };
         hint.Classes.Add("workspace-help");
+        // Said before the export starts: own tags never travel with copied files (no silent drop, no implied round trip).
+        TextBlock privateOmitted = new() { Name = "OriginalExportPrivateOmitted", Text = string.Join(" ", PrivateTransferDisclosure.Lines()),
+            TextWrapping = TextWrapping.Wrap };
+        privateOmitted.Classes.Add("workspace-help");
         TextBlock targetLabel = new() { Text = Texts.T("export.target") }; targetLabel.Classes.Add("section-title");
         TextBlock unavailable = new() { Text = Texts.T("viewer.favorites.unavailable", missingCount), TextWrapping = TextWrapping.Wrap, IsVisible = missingCount > 0 };
         unavailable.Classes.Add("workspace-warning");
         StackPanel content = new() { Spacing = 12, Margin = new Thickness(16, 0, 16, 12) };
-        content.Children.Add(hint); content.Children.Add(unavailable); content.Children.Add(targetLabel);
+        content.Children.Add(hint); content.Children.Add(privateOmitted); content.Children.Add(unavailable); content.Children.Add(targetLabel);
         content.Children.Add(destination); content.Children.Add(browse);
         AutomationProperties.SetLabeledBy(destination, targetLabel);
         AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Polite);

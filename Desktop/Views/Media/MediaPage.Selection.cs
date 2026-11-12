@@ -174,7 +174,7 @@ public sealed partial class MediaPage
         if (!_selTag.IsEnabled || TagServices is not { } services) return;
         if ((_owner ?? TopLevel.GetTopLevel(this) as Window) is not { } owner) return;
         IReadOnlyList<MediaLibraryTile> tiles = SelectedTiles;
-        MediaSelectionTagSession session = new(MediaLibraryTagging.Candidates(tiles), services.Load, services.Define, services.SetMany);
+        MediaSelectionTagSession session = new(MediaLibraryTagging.Candidates(tiles), services.Load, services.DefineAndSetMany, services.SetMany);
         MediaSelectionTagDialog dialog = new(session, tiles.Count);
         _selectionTag = dialog;
         _selectionBusy = true;
@@ -195,5 +195,5 @@ public sealed partial class MediaPage
 
 /// <summary>What the page needs from the host to write own media tags.</summary>
 internal sealed record MediaSelectionTagServices(Func<PrivateTagLoadSnapshot> Load,
-    Func<string, CancellationToken, Task<PrivateTagCommit>> Define,
-    Func<TagId, IReadOnlyList<PrivateMediaTagTarget>, bool, long?, CancellationToken, Task<PrivateTagCommit>> SetMany);
+    Func<string, IReadOnlyList<MediaTagSubject>, long?, CancellationToken, Task<PrivateTagCommit>> DefineAndSetMany,
+    Func<TagId, IReadOnlyList<MediaTagSubject>, bool, long?, CancellationToken, Task<PrivateTagCommit>> SetMany);

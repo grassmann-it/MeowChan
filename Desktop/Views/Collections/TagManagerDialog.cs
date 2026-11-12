@@ -37,6 +37,11 @@ internal sealed class TagManagerDialog : Window
     private readonly TextBlock _status = new() { Name = "TagManagerStatus", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _error = new() { Name = "TagManagerError", TextWrapping = TextWrapping.Wrap };
     private readonly Button _close = new() { Name = "TagManagerClose" };
+    // Orphaned local media tag assignments: shown and removable explicitly, never retargeted.
+    private readonly StackPanel _orphans = new() { Name = "TagManagerOrphans", Spacing = 8 };
+    private readonly TextBlock _orphanText = new() { Name = "TagManagerOrphanText", TextWrapping = TextWrapping.Wrap };
+    private readonly Button _orphanCheck = new() { Name = "TagManagerOrphanCheck" };
+    private readonly Button _orphanRemove = new() { Name = "TagManagerOrphanRemove" };
     private TagId? _confirming;
     private bool _refreshing;
     private bool _closed;
@@ -51,6 +56,9 @@ internal sealed class TagManagerDialog : Window
     internal Button ConfirmDeleteButton => _confirmDelete;
     internal Button KeepButton => _keep;
     internal TextBlock Status => _status;
+    internal Button OrphanCheckButton => _orphanCheck;
+    internal Button OrphanRemoveButton => _orphanRemove;
+    internal TextBlock OrphanText => _orphanText;
 
     internal TagManagerDialog(TagManagerSession session)
     {
@@ -79,6 +87,11 @@ internal sealed class TagManagerDialog : Window
         _list.MinHeight = 120; _list.MaxHeight = 280;
         var body = new StackPanel { Spacing = 8, Margin = new Thickness(16, 0, 16, 8) };
         body.Children.Add(_list); body.Children.Add(edit); body.Children.Add(_delete); body.Children.Add(_confirm);
+        var orphanActions = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
+        orphanActions.Children.Add(_orphanCheck); orphanActions.Children.Add(_orphanRemove);
+        _orphans.Children.Add(_orphanText); _orphans.Children.Add(orphanActions);
+        _orphans.IsVisible = _session.CanInspectOrphans;
+        body.Children.Add(_orphans);
         _delete.HorizontalAlignment = HorizontalAlignment.Left;
         var close = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
         close.Children.Add(_close);
@@ -93,6 +106,7 @@ internal sealed class TagManagerDialog : Window
         _list.SelectionChanged += OnSelection;
         _rename.Click += OnRename; _delete.Click += OnDelete; _confirmDelete.Click += OnConfirmDelete;
         _keep.Click += OnKeep; _close.Click += OnClose;
+        _orphanCheck.Click += OnOrphanCheck; _orphanRemove.Click += OnOrphanRemove;
         _name.AddHandler(KeyDownEvent, OnNameKey, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, OnKey, RoutingStrategies.Tunnel);
         Opened += OnOpened; Closed += OnClosed;
@@ -154,6 +168,10 @@ internal sealed class TagManagerDialog : Window
 
     private void OnClose(object? sender, RoutedEventArgs e) => Close();
 
+    private async void OnOrphanCheck(object? sender, RoutedEventArgs e) => await _session.CheckOrphansAsync();
+
+    private async void OnOrphanRemove(object? sender, RoutedEventArgs e) => await _session.RemoveOrphansAsync();
+
     private void OnKey(object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None) return;
@@ -176,6 +194,7 @@ internal sealed class TagManagerDialog : Window
         void Label(Button button, string key) { button.Content = Texts.T(key); AutomationProperties.SetName(button, Texts.T(key)); }
         Label(_rename, "tags.manage.rename"); Label(_delete, "tags.manage.delete");
         Label(_confirmDelete, "tags.manage.confirmDelete"); Label(_keep, "tags.manage.keep"); Label(_close, "tags.manage.close");
+        Label(_orphanCheck, "tags.manage.orphansCheck"); Label(_orphanRemove, "tags.manage.orphansRemove");
 
         TagId? selected = Selected?.Id;
         _refreshing = true;
@@ -199,6 +218,18 @@ internal sealed class TagManagerDialog : Window
         if (_confirm.IsVisible)
             _confirmText.Text = Texts.T("tags.manage.confirm", current!.Name, current.Threads, current.Media);
         _confirmDelete.IsEnabled = _keep.IsEnabled = ready;
+        LocalMediaTagInspection? inspection = _session.Inspection;
+        _orphanText.Text = _session.Inspecting ? Texts.T("tags.manage.orphansChecking")
+            : inspection == null ? Texts.T("tags.manage.orphansIntro")
+            : string.Join(" ", new[]
+            {
+                inspection.Orphans.Count > 0 ? Texts.T("tags.manage.orphans", inspection.Orphans.Count, inspection.OrphanedFiles) : null,
+                inspection.UncheckedFiles > 0 ? Texts.T("tags.manage.orphansUnchecked", inspection.UncheckedFiles) : null
+            }.OfType<string>());
+        if (_orphanText.Text.Length == 0) _orphanText.Text = Texts.T("tags.manage.orphansNone");
+        _orphanCheck.IsEnabled = ready && !_session.Inspecting && _confirming == null;
+        _orphanRemove.IsVisible = inspection is { Orphans.Count: > 0 };
+        _orphanRemove.IsEnabled = ready && !_session.Inspecting && _confirming == null;
 
         _status.Text = _session.Snapshot == null ? Texts.T("tags.unavailable")
             : _session.MessageKey != null ? Texts.T(_session.MessageKey)
@@ -217,6 +248,7 @@ internal sealed class TagManagerDialog : Window
         _list.SelectionChanged -= OnSelection;
         _rename.Click -= OnRename; _delete.Click -= OnDelete; _confirmDelete.Click -= OnConfirmDelete;
         _keep.Click -= OnKeep; _close.Click -= OnClose;
+        _orphanCheck.Click -= OnOrphanCheck; _orphanRemove.Click -= OnOrphanRemove;
         _name.RemoveHandler(KeyDownEvent, OnNameKey); RemoveHandler(KeyDownEvent, OnKey);
         Opened -= OnOpened; Closed -= OnClosed;
     }

@@ -210,9 +210,9 @@ internal static partial class DialogFrameChecks
         MediaTagDialog? media = null;
         try
         {
-            media = new MediaTagDialog(new MediaTagSession(target!, Load,
-                (name, token) => Task.FromResult(store.Define(name, null, token)),
-                (tag, on, assigned, token) => Task.FromResult(store.SetMedia(tag, on, assigned, null, token))), "frame-fixture.png");
+            media = new MediaTagDialog(new MediaTagSession(new MediaTagSubject.Bound(target!), Load,
+                (name, on, token) => Task.FromResult(store.DefineAndSetMediaSubjects(name, [on], null, token)),
+                (tag, on, assigned, token) => Task.FromResult(store.SetMediaSubjects(tag, [on], assigned, null, token))), "frame-fixture.png");
             media.Show(owner);
             await Program.WaitUntilAsync(() => media.IsVisible);
             Require(Find<Control>(media, "DialogFrameErrorStrip") is { IsVisible: false }, "media tags: error strip shown without an error.");

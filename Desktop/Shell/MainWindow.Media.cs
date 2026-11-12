@@ -40,8 +40,9 @@ public partial class MainWindow
             EditTagsForMenuAsync = (entry, current) => EditMediaLibraryTagsForMenuAsync(entry, current),
             ExecuteMediaMenuActionAsync = ExecuteMediaLibraryMenuActionAsync,
             ReadUserData = ReadMediaLibraryUserData,
-            TagServices = new(_session.GetPublishedPrivateTagSnapshot, _session.DefinePrivateTagAsync,
-                (tag, targets, assigned, expectedRevision, token) => _session.SetMediaTagsAsync(tag, targets, assigned, expectedRevision, token)),
+            TagServices = new(_session.GetPublishedPrivateTagSnapshot,
+                (name, subjects, expectedRevision, token) => _session.DefineAndSetMediaSubjectTagsAsync(name, subjects, expectedRevision, token),
+                (tag, subjects, assigned, expectedRevision, token) => _session.SetMediaSubjectTagsAsync(tag, subjects, assigned, expectedRevision, token)),
             ExportOriginals = ExportMediaLibraryOriginalsAsync
         };
         _mediaPage.InitializeSharedMediaMenus();
@@ -179,7 +180,7 @@ public partial class MainWindow
         }
     }
 
-    // Own media tags from the media page use the gallery's exact target rules. A
+    // Own media tags from the media page use the gallery's exact target rules (bound or loose local). A
     // menu callback carries both the frozen index entry and its presentation guard;
     // it cannot fall back to the selected tile after an await.
     private Task EditMediaLibraryTagsAsync(MediaLibraryEntry entry) =>
@@ -198,16 +199,16 @@ public partial class MainWindow
             GalleryEntry? match = alreadyResolved ?? await MediaMenuIdentity.ResolveAsync(indexed,
                 _session.OpenArchiveReaderAsync, Storage.MediaAssetReader.OpenAsync, Current, CancellationToken.None);
             if (!Current()) return;
-            PrivateMediaTagTarget? target = GalleryMediaTagTarget.Resolve(match, out GalleryMediaTagUnavailable reason);
+            MediaTagSubject? target = MediaTagSubjects.Of(match, out GalleryMediaTagUnavailable reason);
             if (match == null || target == null)
             {
                 ShowNotification(Texts.T("notification.error"), Texts.T(match == null ? "media.galleryFailed"
-                    : reason == GalleryMediaTagUnavailable.NoPostVersion ? "tags.media.unbound" : "tags.media.unsupported"),
+                    : reason == GalleryMediaTagUnavailable.NoPostVersion ? "tags.media.boundElsewhere" : "tags.media.unsupported"),
                     NotificationType.Warning, operation: "media.tags");
                 return;
             }
             MediaTagSession session = new(target, _session.GetPublishedPrivateTagSnapshot,
-                _session.DefinePrivateTagAsync, _session.SetMediaTagAsync);
+                _session.DefineAndSetMediaSubjectTagAsync, _session.SetMediaSubjectTagAsync);
             MediaTagDialog dialog = new(session, match.Asset.OriginalFileName ?? Path.GetFileName(match.Asset.Path));
             MediaPageTagWindow = dialog;
             await dialog.ShowDialog(this);
@@ -258,7 +259,9 @@ internal static class MediaMenuIdentity
         && string.Equals(indexed.Sha256, resolved.Asset.Sha256, StringComparison.OrdinalIgnoreCase)
         && indexed.Length == resolved.Asset.Length && indexed.MediaId == resolved.Asset.MediaIdentifier
         && indexed.Variant == resolved.Asset.Variant && indexed.Historical == resolved.Historical
-        && indexed.Unassigned == resolved.Unassigned;
+        && indexed.Unassigned == resolved.Unassigned
+        // The loose (local tag) presentation must still hold; a changed namespace is a different presentation.
+        && indexed.LocalSlot == (resolved.LocalTagEligible ? resolved.Asset.RequestedFileName : null);
 
     internal static async Task<GalleryEntry?> ResolveAsync(MediaLibraryEntry indexed,
         Func<CancellationToken, Task<ArchiveReader>> openReader,

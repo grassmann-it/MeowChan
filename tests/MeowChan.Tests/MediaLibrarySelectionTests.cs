@@ -102,8 +102,8 @@ public sealed class MediaLibrarySelectionTests
 
         Assert.Equal(4, candidates.Count);
         Assert.Equal(new[] { MediaTagBlock.None, MediaTagBlock.None, MediaTagBlock.NoPostVersion, MediaTagBlock.NotSaved }, candidates.Select(c => c.Block));
-        Assert.All(candidates.Where(c => c.Block == MediaTagBlock.None), c => Assert.NotNull(c.Target));
-        Assert.All(candidates.Where(c => c.Block != MediaTagBlock.None), c => Assert.Null(c.Target));
+        Assert.All(candidates.Where(c => c.Block == MediaTagBlock.None), c => Assert.NotNull(c.Subject));
+        Assert.All(candidates.Where(c => c.Block != MediaTagBlock.None), c => Assert.Null(c.Subject));
     }
 
     [Fact]
@@ -120,8 +120,8 @@ public sealed class MediaLibrarySelectionTests
         MediaTagCandidate deselected = candidates.Single(x => x.Entry == b);
         MediaTagCandidate[] chosen = candidates.Where(x => x != deselected).ToArray();
 
-        IReadOnlyList<PrivateMediaTagTarget> toAdd = MediaLibraryTagging.TargetsToAdd(store.ReadSnapshot(), cat, chosen);
-        PrivateTagCommit added = store.SetMediaBatch(cat, toAdd, true);
+        IReadOnlyList<MediaTagSubject> toAdd = MediaLibraryTagging.TargetsToAdd(store.ReadSnapshot(), cat, chosen);
+        PrivateTagCommit added = store.SetMediaSubjects(cat, toAdd.ToArray(), true);
 
         Assert.Equal(3, toAdd.Count);
         Assert.Equal(cat, Assert.Single(added.Snapshot.TagsOf(MediaLibraryFilterEngine.TagTarget(a)!)).Id);
@@ -133,8 +133,8 @@ public sealed class MediaLibrarySelectionTests
         // Choosing the already tagged ones again offers nothing; removing reaches only chosen occurrences that carry the tag.
         Assert.Empty(MediaLibraryTagging.TargetsToAdd(added.Snapshot, cat, chosen));
         store.SetMedia(cat, MediaLibraryFilterEngine.TagTarget(b)!, true); // b gets the tag on its own later
-        IReadOnlyList<PrivateMediaTagTarget> toRemove = MediaLibraryTagging.TargetsToRemove(store.ReadSnapshot(), cat, chosen.Where(x => x.Entry != c));
-        PrivateTagCommit removed = store.SetMediaBatch(cat, toRemove, false);
+        IReadOnlyList<MediaTagSubject> toRemove = MediaLibraryTagging.TargetsToRemove(store.ReadSnapshot(), cat, chosen.Where(x => x.Entry != c));
+        PrivateTagCommit removed = store.SetMediaSubjects(cat, toRemove.ToArray(), false);
 
         Assert.Equal(2, toRemove.Count); // a and single; b was deselected, c was not chosen for removal
         Assert.Empty(removed.Snapshot.TagsOf(MediaLibraryFilterEngine.TagTarget(a)!));

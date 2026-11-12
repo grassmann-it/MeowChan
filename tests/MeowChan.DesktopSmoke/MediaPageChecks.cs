@@ -480,8 +480,9 @@ internal static partial class MediaPageChecks
         {
             ReadUserData = () => UserData(host),
             OpenGallery = (window, start) => { opened.Add((window, start)); return Task.CompletedTask; },
-            TagServices = new(host.GetPublishedPrivateTagSnapshot, host.DefinePrivateTagAsync,
-                (tag, targets, assigned, revision, token) => host.SetMediaTagsAsync(tag, targets, assigned, revision, token)),
+            TagServices = new(host.GetPublishedPrivateTagSnapshot,
+                (name, subjects, revision, token) => host.DefineAndSetMediaSubjectTagsAsync(name, subjects, revision, token),
+                (tag, subjects, assigned, revision, token) => host.SetMediaSubjectTagsAsync(tag, subjects, assigned, revision, token)),
             ExportOriginals = async (assets, unavailable, scope) =>
             {
                 scopes.Add(scope);

@@ -9,8 +9,9 @@ using MeowChan.Tags;
 
 namespace MeowChan;
 
-// Own media tags from the gallery. The target is resolved once from the exact entry and frozen in
-// the dialog's session; gallery navigation while the dialog is open cannot redirect a change.
+// Own media tags from the gallery. The target (bound version or loose local file) is resolved once from the
+// exact entry by the shared resolver and frozen in the dialog's session; gallery navigation while the dialog is
+// open cannot redirect a change.
 public partial class MainWindow
 {
     private bool _galleryTagDialogOpen;
@@ -20,11 +21,11 @@ public partial class MainWindow
     {
         if (_gallery == null || _galleryIndex < 0 || _galleryIndex >= _galleryEntries.Count) return;
         GalleryEntry current = _galleryEntries[_galleryIndex];
-        PrivateMediaTagTarget? target = GalleryMediaTagTarget.Resolve(current, out GalleryMediaTagUnavailable reason);
+        MediaTagSubject? target = MediaTagSubjects.Of(current, out GalleryMediaTagUnavailable reason);
         if (target == null)
         {
             _gallery.SetMediaTags(null, Texts.T(reason == GalleryMediaTagUnavailable.NoPostVersion
-                ? "tags.media.unbound" : "tags.media.unsupported"));
+                ? "tags.media.boundElsewhere" : "tags.media.unsupported"));
             return;
         }
         PrivateTagLoadSnapshot loaded = _session.GetPublishedPrivateTagSnapshot();
@@ -39,14 +40,14 @@ public partial class MainWindow
     private async Task EditGalleryMediaTagsAsync(GalleryEntry entry)
     {
         if (_isClosing || _galleryTagDialogOpen) return;
-        PrivateMediaTagTarget? target = GalleryMediaTagTarget.Resolve(entry, out _);
+        MediaTagSubject? target = MediaTagSubjects.Of(entry, out _);
         if (target == null) { RefreshGalleryMediaTags(); return; }
         Control? origin = FocusManager?.GetFocusedElement() as Control;
         _galleryTagDialogOpen = true;
         try
         {
             MediaTagSession session = new(target, _session.GetPublishedPrivateTagSnapshot,
-                _session.DefinePrivateTagAsync, _session.SetMediaTagAsync);
+                _session.DefineAndSetMediaSubjectTagAsync, _session.SetMediaSubjectTagAsync);
             MediaTagDialog dialog = new(session, entry.Asset.OriginalFileName ?? System.IO.Path.GetFileName(entry.Asset.Path));
             GalleryMediaTagWindow = dialog;
             await dialog.ShowDialog(this);

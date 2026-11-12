@@ -69,15 +69,18 @@ internal static class MediaLibrarySelection
 /// <summary>Why one occurrence cannot take a media tag.</summary>
 internal enum MediaTagBlock { None, NotSaved, NoPostVersion }
 
-/// <summary>One occurrence offered to the tag dialog and the exact tag target it would be written to (null: not taggable).</summary>
-internal sealed record MediaTagCandidate(MediaLibraryEntry Entry, PrivateMediaTagTarget? Target)
+/// <summary>
+/// One occurrence offered to the tag dialog and the exact tag subject it would be written to (null: not taggable).
+/// A loose file gets a local subject from the same resolver the gallery and the media page state use.
+/// </summary>
+internal sealed record MediaTagCandidate(MediaLibraryEntry Entry, MediaTagSubject? Subject)
 {
-    internal MediaTagBlock Block => Target != null ? MediaTagBlock.None
+    internal MediaTagBlock Block => Subject != null ? MediaTagBlock.None
         : Entry.Presence != MediaLibraryPresence.Present ? MediaTagBlock.NotSaved : MediaTagBlock.NoPostVersion;
 }
 
 /// <summary>
-/// Which media tag targets a "tag the selection" action touches. Tags stay per occurrence: a grouped tile
+/// Which media tag subjects a "tag the selection" action touches. Tags stay per occurrence: a grouped tile
 /// offers every occurrence of its bytes, the caller decides which of them take part, and thread tags are never involved.
 /// </summary>
 internal static class MediaLibraryTagging
@@ -87,34 +90,30 @@ internal static class MediaLibraryTagging
     {
         ArgumentNullException.ThrowIfNull(tiles);
         return tiles.SelectMany(tile => tile.Occurrences).Distinct()
-            .Select(entry => new MediaTagCandidate(entry, MediaLibraryFilterEngine.TagTarget(entry))).ToArray();
+            .Select(entry => new MediaTagCandidate(entry, MediaTagSubjects.Of(entry))).ToArray();
     }
 
-    /// <summary>Targets of the chosen candidates that do not carry the tag yet.</summary>
-    internal static IReadOnlyList<PrivateMediaTagTarget> TargetsToAdd(PrivateTagStoreSnapshot snapshot, TagId tag,
+    /// <summary>Subjects of the chosen candidates that do not carry the tag yet.</summary>
+    internal static IReadOnlyList<MediaTagSubject> TargetsToAdd(PrivateTagStoreSnapshot snapshot, TagId tag,
         IEnumerable<MediaTagCandidate> chosen)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(chosen);
-        HashSet<PrivateMediaTagTarget> has = Carrying(snapshot, tag);
-        return Targets(chosen).Where(target => !has.Contains(target)).ToArray();
+        return Targets(chosen).Where(subject => !snapshot.Carries(tag, subject)).ToArray();
     }
 
-    /// <summary>Targets of the chosen candidates that carry the tag; the others are left alone.</summary>
-    internal static IReadOnlyList<PrivateMediaTagTarget> TargetsToRemove(PrivateTagStoreSnapshot snapshot, TagId tag,
+    /// <summary>Subjects of the chosen candidates that carry the tag; the others are left alone.</summary>
+    internal static IReadOnlyList<MediaTagSubject> TargetsToRemove(PrivateTagStoreSnapshot snapshot, TagId tag,
         IEnumerable<MediaTagCandidate> chosen)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(chosen);
-        HashSet<PrivateMediaTagTarget> has = Carrying(snapshot, tag);
-        return Targets(chosen).Where(has.Contains).ToArray();
+        return Targets(chosen).Where(subject => snapshot.Carries(tag, subject)).ToArray();
     }
 
-    private static HashSet<PrivateMediaTagTarget> Carrying(PrivateTagStoreSnapshot snapshot, TagId tag) =>
-        snapshot.MediaAssignments.Where(item => (TagId)item.TagId == tag).Select(item => item.Target).ToHashSet();
-
-    private static IEnumerable<PrivateMediaTagTarget> Targets(IEnumerable<MediaTagCandidate> chosen) =>
-        chosen.Select(candidate => candidate.Target).OfType<PrivateMediaTagTarget>().Distinct();
+    // Two views of the same loose file (for example two legacy posts) are one occurrence: one subject.
+    private static IEnumerable<MediaTagSubject> Targets(IEnumerable<MediaTagCandidate> chosen) =>
+        chosen.Select(candidate => candidate.Subject).OfType<MediaTagSubject>().Distinct();
 }
 
 /// <summary>Originals to export for a selection, and how many tiles could not be offered.</summary>

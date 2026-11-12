@@ -10,8 +10,17 @@ namespace MeowChan.Transfer;
 
 // An explicit selection, never inferred from a package, media filter or previous import.
 // default(NativePrivateMetadataSelection) intentionally selects no private data.
+// Own tags have no selection flag on purpose: they cannot be requested, so they can never be silently dropped.
+// Exporters disclose their omission through NativePrivateMetadataSnapshot.Omissions before exporting.
 internal readonly record struct NativePrivateMetadataSelection(
     bool ThreadFavorites = false, bool MediaFavorites = false, bool PostBookmarksAndNotes = false);
+
+/// <summary>A private category a transfer never carries in this slice; an exporter must disclose it before exporting.</summary>
+internal enum NativePrivateMetadataOmission
+{
+    /// <summary>Own thread tags, bound media tags and local (loose file) media tags. No mapping or consent contract exists yet.</summary>
+    PrivateTags = 1
+}
 
 /// <summary>
 /// Read-only, selected-only input for a future native export planner. Not a wire
@@ -49,6 +58,12 @@ internal sealed class NativePrivateMetadataSnapshot
     internal ImmutableArray<ResourceId> ThreadFavorites { get; }
     internal ImmutableArray<FavoriteEntry> MediaFavorites { get; }
     internal ImmutableArray<PostBookmark> PostBookmarksAndNotes { get; }
+
+    /// <summary>
+    /// Private categories this snapshot never contains, whatever was selected. An export planner must show these to the
+    /// user before exporting and must not imply that they round-trip. Always includes private tags in this slice.
+    /// </summary>
+    internal static ImmutableArray<NativePrivateMetadataOmission> Omissions { get; } = [NativePrivateMetadataOmission.PrivateTags];
 
     internal static NativePrivateMetadataSnapshot Capture(ProfileLease owner, IEnumerable<ResourceId> threads,
         NativePrivateMetadataSelection selection = default, CancellationToken cancellationToken = default)

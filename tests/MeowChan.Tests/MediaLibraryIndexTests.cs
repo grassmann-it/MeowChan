@@ -16,18 +16,18 @@ public sealed class MediaLibraryIndexTests
     private static readonly byte[] Other = { 4, 5, 6, 7 };
 
     // A saved file; Post/Position bind it to a captured attachment, null leaves it unassigned.
-    private sealed record File_(string Name, string MediaId, byte[] Bytes, string? Post = null, int Position = 0);
+    internal sealed record File_(string Name, string MediaId, byte[] Bytes, string? Post = null, int Position = 0);
 
-    private static string Sha(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+    internal static string Sha(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
     private static string Md5(byte[] bytes) => Convert.ToBase64String(MD5.HashData(bytes));
     private static string Url(string name) => "https://offline.invalid/" + name;
 
-    private static CapturedAttachment Attachment(int position, string mediaId, string name, byte[]? bytes = null) =>
+    internal static CapturedAttachment Attachment(int position, string mediaId, string name, byte[]? bytes = null) =>
         new(position, mediaId, "original", Url(name), name, ExpectedSize: bytes?.Length, ExpectedMd5: bytes == null ? null : Md5(bytes))
         { ExpectedSha256 = bytes == null ? null : Sha(bytes) };
 
     /// <summary>Writes a manifest like real captures do: files plus exact bindings to post attachment versions.</summary>
-    private static async Task WriteManifestAsync(string directory, ResourceId resource, params File_[] files)
+    internal static async Task WriteManifestAsync(string directory, ResourceId resource, params File_[] files)
     {
         Directory.CreateDirectory(directory);
         Dictionary<string, object> entries = new(), assets = new();
@@ -57,7 +57,7 @@ public sealed class MediaLibraryIndexTests
         await File.WriteAllTextAsync(path, JsonSerializer.Serialize(new { Version = 3, Entries = entries, Assets = assets, AttachmentBindings = bindings }));
     }
 
-    private static async Task CaptureAsync(string profile, ResourceId id, string title, string directory, params CapturedPost[] posts)
+    internal static async Task CaptureAsync(string profile, ResourceId id, string title, string directory, params CapturedPost[] posts)
     {
         using ProfileLease lease = ProfileLease.Acquire(profile);
         await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
@@ -210,7 +210,9 @@ public sealed class MediaLibraryIndexTests
         Assert.Equal(2, progress.Last().Reused);
 
         string valid = await File.ReadAllTextAsync(path);
-        foreach (string damaged in new[] { "{bad", valid.Replace("\"Version\":1", "\"Version\":2"),
+        // Version 2 is current (local tag slots); an older v1 or a newer document is no cache and rebuilds.
+        Assert.Contains("\"Version\":2", valid);
+        foreach (string damaged in new[] { "{bad", valid.Replace("\"Version\":2", "\"Version\":3"), valid.Replace("\"Version\":2", "\"Version\":1"),
                      valid.Replace("\"Threads\":[", "\"Extra\":1,\"Threads\":["),
                      valid.Replace("\"Sha\":\"" + Sha(Shared) + "\"", "\"Sha\":\"nothex\"") })
         {

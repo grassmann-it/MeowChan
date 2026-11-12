@@ -14,10 +14,10 @@ internal enum MediaLibraryFlag { Unknown, No, Yes }
 /// the media tags and are never merged into them (no inheritance). A provider rating is not part of this.
 /// </summary>
 internal sealed record MediaLibraryEntryState(MediaLibraryFlag Favorite, bool RatingKnown, int? UserRating,
-    bool TagsKnown, IReadOnlyList<string> MediaTags, IReadOnlyList<string> ThreadTags, PrivateMediaTagTarget? TagTarget)
+    bool TagsKnown, IReadOnlyList<string> MediaTags, IReadOnlyList<string> ThreadTags, MediaTagSubject? TagSubject)
 {
-    /// <summary>Media tags can only be changed for a saved file bound to a captured post version.</summary>
-    internal bool CanEditMediaTags => TagsKnown && TagTarget != null;
+    /// <summary>Media tags can be changed for a saved file with a bound post version or a loose local occurrence.</summary>
+    internal bool CanEditMediaTags => TagsKnown && TagSubject != null;
 
     internal static MediaLibraryEntryState Of(MediaLibraryEntry entry, MediaLibraryUserData data)
     {
@@ -27,7 +27,7 @@ internal sealed record MediaLibraryEntryState(MediaLibraryFlag Favorite, bool Ra
         MediaLibraryFlag favorite = !keyed || !data.FavoritesAvailable ? MediaLibraryFlag.Unknown
             : data.IsFavorite(entry) ? MediaLibraryFlag.Yes : MediaLibraryFlag.No;
         bool ratingKnown = keyed && data.RatingsAvailable;
-        PrivateMediaTagTarget? target = MediaLibraryFilterEngine.TagTarget(entry);
+        MediaTagSubject? target = MediaTagSubjects.Of(entry);
         PrivateTagStoreSnapshot? tags = data.TagSnapshot;
         return new MediaLibraryEntryState(favorite, ratingKnown, ratingKnown ? data.RatingOf(entry) : null,
             tags != null,
