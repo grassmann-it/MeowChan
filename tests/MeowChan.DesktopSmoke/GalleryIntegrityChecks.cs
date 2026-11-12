@@ -68,7 +68,14 @@ internal static class GalleryIntegrityChecks
                     + binding.Provider.ExpectedSize!.Value.ToString("N0", Texts.Culture) + " bytes";
                 SelectableTextBlock local = text.Single(item => item.Text == localLabel);
                 SelectableTextBlock provider = text.Single(item => item.Text == expectedSummary + Environment.NewLine + sourceLabel);
-                AssertVisibleText(summary, viewer); AssertVisibleText(local, viewer); AssertVisibleText(provider, viewer);
+                AssertVisibleText(summary, viewer);
+                // The context panel is a bounded ScrollViewer by design: at 640x480 it shows only part of its
+                // content. Each integrity line must fit completely once the user scrolls it into view.
+                foreach (SelectableTextBlock line in new[] { local, provider })
+                {
+                    line.BringIntoView(); await Settle(window);
+                    AssertVisibleText(line, viewer);
+                }
                 AssertNoRawValues(viewer, binding);
                 Rect caption = Bounds(Find<Border>(viewer, "GalleryOverlayInfo"), viewer);
                 Rect contextBounds = Bounds(context, viewer), chrome = Bounds(Find<Border>(viewer, "GalleryOverlayControls"), viewer);
