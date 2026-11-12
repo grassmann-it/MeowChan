@@ -66,9 +66,14 @@ public partial class MainWindow
     private Func<bool>? ArchiveGalleryHandoffGuard() => _selectedPage == WorkspacePage.Archive || _largeReaderOpen
         ? _archivePage?.CaptureGalleryHandoffGuard() : null;
 
+    // A revoked Archive handoff can retain its guard until native cleanup drains.
+    // Like the fallback guard, it belongs to Archive/reader requests, not independent Downloads opens.
+    private Func<bool>? ArchiveReaderMediaActivationGuard() => _selectedPage == WorkspacePage.Archive || _largeReaderOpen
+        ? _archivePage?.ReaderMediaActivationGuard : null;
+
     internal async Task OpenGalleryAsync(ResourceId id, GalleryEntryKey? start = null, Control? origin = null)
     {
-        Func<bool>? activationRequest = _archivePage?.ReaderMediaActivationGuard;
+        Func<bool>? activationRequest = ArchiveReaderMediaActivationGuard();
         Func<bool>? readerRequest = activationRequest ?? ArchiveGalleryHandoffGuard();
         if (readerRequest?.Invoke() == false) return;
         if (activationRequest == null && _gallerySuspended && _largeReaderOpen && start != null)

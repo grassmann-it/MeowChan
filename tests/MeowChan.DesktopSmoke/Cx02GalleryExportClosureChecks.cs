@@ -19,6 +19,7 @@ namespace MeowChan.DesktopSmoke;
 // -p:DefineConstants=CX02_GALLERY_EXPORT_CLOSURE
 // -p:StartupObject=MeowChan.DesktopSmoke.Cx02GalleryExportClosureChecks .
 // Run via scripts/run-desktop-smoke.py --mode normal on its disposable private Xvfb.
+// The same entry supports --source-contracts <source-root> and --managed without starting a GUI.
 internal static class Cx02GalleryExportClosureChecks
 {
     private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
@@ -29,6 +30,7 @@ internal static class Cx02GalleryExportClosureChecks
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args is ["--source-contracts", var root]) { VerifySourceContracts(root); return 0; }
         if (args is ["--managed"]) { VerifyManagedContracts(); return 0; }
         if (args.Length != 0 || !OperatingSystem.IsLinux()
             || Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") != "1"
@@ -74,6 +76,46 @@ internal static class Cx02GalleryExportClosureChecks
     }
 #endif
 
+    // Pure source assertions: no application, catalog, native media or platform initialization.
+    internal static void VerifySourceContracts(string root)
+    {
+        string Section(string path, string first, string last)
+        {
+            string source = File.ReadAllText(Path.Combine(root, path));
+            int firstIndex = source.IndexOf(first, StringComparison.Ordinal);
+            Require(firstIndex >= 0, "Missing contract section: " + first);
+            int lastIndex = source.IndexOf(last, firstIndex + first.Length, StringComparison.Ordinal);
+            Require(lastIndex > firstIndex, "Missing contract boundary: " + last);
+            return source[firstIndex..lastIndex];
+        }
+        const string shell = "Desktop/Shell/MainWindow.Gallery.cs";
+        string guard = Section(shell, "private Func<bool>? ArchiveReaderMediaActivationGuard()", "internal async Task OpenGalleryAsync");
+        Require(guard.Contains("_selectedPage == WorkspacePage.Archive || _largeReaderOpen", StringComparison.Ordinal)
+            && guard.Contains("? _archivePage?.ReaderMediaActivationGuard : null", StringComparison.Ordinal),
+            "Archive activation guard leaked into independent Downloads requests.");
+        string open = Section(shell, "internal async Task OpenGalleryAsync", "internal async Task OpenMediaGalleryAsync");
+        Require(open.Contains("activationRequest = ArchiveReaderMediaActivationGuard()", StringComparison.Ordinal)
+            && open.Contains("activationRequest ?? ArchiveGalleryHandoffGuard()", StringComparison.Ordinal)
+            && open.Contains("if (readerRequest?.Invoke() == false) return;", StringComparison.Ordinal)
+            && open.Contains("stillRequested: readerRequest", StringComparison.Ordinal),
+            "Archive activation/fallback guard must still survive the async shell handoff.");
+        string start = Section(shell, "await _galleryCleanupTask;", "_galleryOrigin = origin;");
+        Require(start.Contains("request != _galleryRequest", StringComparison.Ordinal)
+            && start.Contains("stillRequested?.Invoke() == false", StringComparison.Ordinal),
+            "Native cleanup must not revive a revoked Archive request.");
+        string available = Section("Desktop/Views/Archive/ArchivePage.axaml.cs", "internal bool IsAvailable", "// Catalog reads may begin");
+        Require(available.IndexOf("UpdateExportActions();", StringComparison.Ordinal)
+                > available.IndexOf("_available = value;", StringComparison.Ordinal)
+            && available.Contains("if (!value) _exportCancellation?.Cancel();", StringComparison.Ordinal),
+            "Availability must refresh export presentation after assignment, retaining revocation.");
+        string export = Section("Desktop/Views/Archive/ArchivePage.Export.cs", "private void UpdateExportActions()", "private void OnExportClose");
+        Require(export.Contains("ExportRequestIsCurrent(_exportRequest)", StringComparison.Ordinal)
+            && export.Contains("!_exportRunning && !_exportPicking && !_exportLoading && !_exportResolving", StringComparison.Ordinal)
+            && export.Contains("IsEnabled = ready && !UpdatingExport", StringComparison.Ordinal),
+            "Readiness recovery must preserve request/lifetime, operation and update-mode guards.");
+        Console.WriteLine("CX02 source PASS: Archive-only activation scope; retained cleanup guards; export readiness refresh.");
+    }
+
     // Real compiled callback/guard checks without platform/window/catalog initialization.
     internal static void VerifyManagedContracts()
     {
@@ -102,6 +144,25 @@ internal static class Cx02GalleryExportClosureChecks
         Require((bool)Call(page, "ExportRequestIsCurrent", 7)! && !(bool)Call(page, "ExportRequestIsCurrent", 6)!,
             "Export request identity not enforced.");
         Console.WriteLine("CX02 managed PASS: real inline callback unavailable/busy/ended/lifetime; export identity/lifetime.");
+
+        // Keep a real captured guard alive after navigation's existing invalidation hook.
+        // The shell must drop it only for independent workspace requests, not revive it in Archive/a reader.
+        Func<bool> guard = page.CaptureGalleryHandoffGuard();
+        Set(page, "<ReaderMediaActivationGuard>k__BackingField", guard);
+        var shell = (MainWindow)RuntimeHelpers.GetUninitializedObject(typeof(MainWindow));
+        Set(shell, "_archivePage", page); Set(shell, "_selectedPage", MainWindow.WorkspacePage.Archive);
+        Require(guard() && ReferenceEquals(Call(shell, "ArchiveReaderMediaActivationGuard"), guard),
+            "Current Archive handoff lost its activation guard.");
+        page.CancelPendingGalleryOpen(); Set(shell, "_selectedPage", MainWindow.WorkspacePage.Downloads);
+        Require(!guard() && Call(shell, "ArchiveReaderMediaActivationGuard") == null,
+            "Revoked Archive activation guard rejected an independent Downloads request.");
+        Set(shell, "_selectedPage", MainWindow.WorkspacePage.Archive);
+        Require(ReferenceEquals(Call(shell, "ArchiveReaderMediaActivationGuard"), guard) && !guard(),
+            "Returning to Archive revived a revoked handoff.");
+        Set(shell, "_selectedPage", MainWindow.WorkspacePage.Downloads); Set(shell, "_largeReaderOpen", true);
+        Require(ReferenceEquals(Call(shell, "ArchiveReaderMediaActivationGuard"), guard) && !guard(),
+            "Detached reader bypassed its revoked activation guard.");
+        Console.WriteLine("CX02 managed PASS: navigation revokes Archive guard without contaminating Downloads.");
     }
 
     private static async Task RunAsync(MainWindow window, StartupPreviewSmokeApp app)
@@ -150,6 +211,7 @@ internal static class Cx02GalleryExportClosureChecks
         foreach (string kind in new[] { "asset", "results", "thread" })
         foreach (string change in new[] { "valid", "readiness", "readiness-cycle", "content", "away-back", "modal", "cancel" })
             await HeldGalleryAsync(window, page, kind, change);
+        await ArchiveThenDownloadsAsync(window, page);
         await MenuAndFocusAsync(window, page);
         await SuspendedInlineAsync(window, page);
         foreach (bool collection in new[] { false, true })
@@ -203,6 +265,41 @@ internal static class Cx02GalleryExportClosureChecks
             C<Border>(page, "ArchiveExportDialog").IsVisible = false;
             page.IsAvailable = true;
             Call(window, "CloseGallery", true); await window.GalleryCleanupTask.WaitAsync(Deadline);
+        }
+    }
+
+    private static async Task ArchiveThenDownloadsAsync(MainWindow window, ArchivePage page)
+    {
+        C<Button>(window, "ArchiveNavigationButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Until(() => !page.IsBusy);
+        await page.LoadThreadAsync(ApphostWorkflowGalleryFixture.Id); await page.MediaLoadTask.WaitAsync(Deadline);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Set(window, "_galleryCleanupTask", release.Task);
+        Task archive = (Task)Call(page, "OpenThreadGalleryAsync", ApphostWorkflowGalleryFixture.Id, null, page)!;
+        Task downloads = Task.CompletedTask;
+        try
+        {
+            Func<bool>? revoked = page.ReaderMediaActivationGuard;
+            Require(revoked != null && revoked() && !archive.IsCompleted, "Archive handoff did not reach cleanup.");
+            C<Button>(window, "DownloadsNavigationButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(window.SelectedPage == MainWindow.WorkspacePage.Downloads && !revoked!(),
+                "Navigation did not revoke the held Archive handoff.");
+            downloads = window.OpenGalleryAsync(ApphostWorkflowGalleryFixture.Id,
+                origin: C<Button>(window, "DownloadsNavigationButton"));
+            Require(!downloads.IsCompleted && Read<GalleryViewer?>(window, "_gallery") == null,
+                "Downloads request was rejected by the retained Archive guard instead of waiting for cleanup.");
+            release.TrySetResult(); await Task.WhenAll(archive, downloads).WaitAsync(Deadline);
+            Require(Read<GalleryViewer?>(window, "_gallery") != null && !revoked!()
+                && Read<MainWindow.WorkspacePage>(window, "_galleryOriginPage") == MainWindow.WorkspacePage.Downloads
+                && window.SelectedPage == MainWindow.WorkspacePage.Downloads,
+                "Only the fresh Downloads request may cover the shell after navigation.");
+            Console.WriteLine("CX02 held-cleanup PASS: revoked Archive handoff does not veto a fresh Downloads gallery.");
+        }
+        finally
+        {
+            release.TrySetResult(); await Task.WhenAll(archive, downloads).WaitAsync(Deadline);
+            Call(window, "CloseGallery", false); await window.GalleryCleanupTask.WaitAsync(Deadline);
+            Call(window, "NavigateWorkspace", MainWindow.WorkspacePage.Archive, false);
         }
     }
 
@@ -269,6 +366,7 @@ internal static class Cx02GalleryExportClosureChecks
             await page.OpenExportForThreadsAsync(collection ? [First, Second] : [First], page);
             C<TextBox>(page, "ArchiveExportDestination").Text = destination;
             C<CheckBox>(page, "ArchiveExportMedia").IsChecked = false;
+            if (change == "valid") VerifyExportReadinessRecovery(page);
             hold = true;
             C<Button>(page, "ArchiveExportStart").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await entered.Task.WaitAsync(Deadline);
@@ -297,6 +395,42 @@ internal static class Cx02GalleryExportClosureChecks
             Console.WriteLine("CX02 held-reader PASS: " + (collection ? "collection/" : "single/") + change);
         }
         finally { release.TrySetResult(); await Until(() => !page.IsExportRunning); page.EndLifetime(); window.Close(); }
+    }
+
+    private static void VerifyExportReadinessRecovery(ArchivePage page)
+    {
+        Border dialog = C<Border>(page, "ArchiveExportDialog"); object? card = dialog.Child;
+        string? destination = C<TextBox>(page, "ArchiveExportDestination").Text;
+        int request = Read<int>(page, "_exportRequest");
+        ResourceId? thread = Read<ResourceId?>(page, "_exportThread");
+        ResourceId[]? members = Read<ResourceId[]?>(page, "_exportMembers");
+        void Actions(bool enabled)
+        {
+            foreach (string name in new[] { "ArchiveExportStart", "ArchiveExportBrowse", "ArchiveExportDestination", "ArchiveExportMedia", "ArchiveExportBackup" })
+                Require(C<Control>(page, name).IsEnabled == enabled, name + ": stale export readiness presentation.");
+        }
+        Actions(true);
+        page.IsAvailable = false; Actions(false);
+        page.IsAvailable = true; Actions(true);
+        // Recovery must not bypass any of the dialog's existing operation guards.
+        foreach (string field in new[] { "_exportRunning", "_exportPicking", "_exportLoading", "_exportResolving" })
+        {
+            Set(page, field, true);
+            try
+            {
+                page.IsAvailable = false; Actions(false);
+                page.IsAvailable = true; Actions(false);
+            }
+            finally { Set(page, field, false); page.IsAvailable = true; }
+            Actions(true);
+        }
+        Require(dialog.IsVisible && ReferenceEquals(dialog.Child, card)
+            && C<TextBox>(page, "ArchiveExportDestination").Text == destination
+            && C<CheckBox>(page, "ArchiveExportMedia").IsChecked == false
+            && Read<int>(page, "_exportRequest") == request && Read<ResourceId?>(page, "_exportThread") == thread
+            && ReferenceEquals(Read<ResourceId[]?>(page, "_exportMembers"), members),
+            "Readiness recovery reopened/reset the dialog or changed its frozen export request.");
+        Console.WriteLine("CX02 readiness-recovery PASS: same single/collection dialog, restored fields/start, retained operation guards.");
     }
 
     private static async Task HeldCollectionHistoryAsync(MainWindow owner)

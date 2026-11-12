@@ -157,6 +157,8 @@ public partial class ArchivePage : UserControl
             }
             bool becameAvailable = value && !_available;
             _available = value; UpdateActions();
+            // An open dialog must recover its fields/actions with readiness, without reopening it.
+            UpdateExportActions();
             // A list read before the runtime existed shows unknown work status; refresh the same applied
             // request once, without touching the draft. A busy page picks it up with its next load.
             if (becameAvailable && _listReadWithoutRuntime && !_busy && !_ended) _ = LoadListAsync();
