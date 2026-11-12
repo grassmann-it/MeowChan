@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Controls.Notifications;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
@@ -37,7 +38,7 @@ internal static class BooruWorkbenchChecks
             BooruUiHarness h = new();
             h.Serve(pages: 3, perPage: 3);
             h.Watchers.Seed(
-                BooruUiFixtures.Watcher("w-active", "cat blue_eyes", clock: h.Clock, hits: 6, queued: 5),
+                BooruUiFixtures.Watcher("w-active", "cat blue_eyes", clock: h.Clock, hits: 6, queued: 5) with { LatestPostId = "9001" },
                 BooruUiFixtures.Watcher("w-paused", "landscape", BooruWatcherStatus.Paused, h.Clock, hits: 2, queued: 2),
                 BooruUiFixtures.Watcher("w-cooling", "scenery sky", BooruWatcherStatus.Cooldown, h.Clock,
                     cooldownUntil: h.Clock.GetUtcNow() + TimeSpan.FromMinutes(7), hits: 1, queued: 1),
@@ -71,6 +72,34 @@ internal static class BooruWorkbenchChecks
             Require(Find<Button>(window, BooruWorkbenchWindow.PreviousName).IsVisible == false
                 || !Find<Button>(window, BooruWorkbenchWindow.PreviousName).IsEnabled, "Previous page enabled on page 1.");
             Capture(window, shots, "search-light");
+
+            // ---- post link actions: canonical page only, explicit clicks, keyboard reachable --------------------------------
+            Require(h.Links.Opened.Count == 0 && h.Links.Copied.Count == 0, "Showing results opened or copied a link.");
+            Button openPost = Find<Button>(window, BooruWorkbenchWindow.OpenPostPrefix + "101");
+            Button copyPost = Find<Button>(window, BooruWorkbenchWindow.CopyLinkPrefix + "101");
+            Require(openPost.Focusable && openPost.IsTabStop && copyPost.Focusable && copyPost.IsTabStop, "The link buttons are not keyboard reachable.");
+            Require(AutomationProperties.GetName(openPost) == "Open post 101 in the browser"
+                && AutomationProperties.GetName(copyPost) == "Copy link of post 101", "The link buttons lack their automation names.");
+            Require(openPost.Content as string == "Open post in browser" && copyPost.Content as string == "Copy link", "The link buttons lack their labels.");
+            Click(openPost);
+            await Program.WaitUntilAsync(() => h.Links.Opened.Count == 1, () => "open not requested");
+            Require(h.Links.Opened[0] == "https://danbooru.donmai.us/posts/101", "The browser got another URL: " + h.Links.Opened[0]);
+            Click(copyPost);
+            await Program.WaitUntilAsync(() => h.Links.Copied.Count == 1 && Text(window).Contains("Link copied: https://danbooru.donmai.us/posts/101"),
+                () => "copy note missing");
+            Require(h.Links.Copied[0] == "https://danbooru.donmai.us/posts/101", "The clipboard got another text: " + h.Links.Copied[0]);
+            Require(h.Search.Requests == 1 && h.Queue.Loads.Count == 0, "A link action caused a provider or queue request.");
+            Capture(window, shots, "search-links-light");
+            h.Links.OnOpen = _ => throw new InvalidOperationException("no browser");
+            Click(Find<Button>(window, BooruWorkbenchWindow.OpenPostPrefix + "102"));
+            await Program.WaitUntilAsync(() => Text(window).Contains("could not be opened in your browser"), () => "open failure not shown");
+            h.Links.OnOpen = null;
+            Click(Find<Button>(window, BooruWorkbenchWindow.OpenPostPrefix + "102"));
+            await Program.WaitUntilAsync(() => !Text(window).Contains("could not be opened in your browser") && h.Links.Opened.Count == 3,
+                () => "open failure note not cleared");
+            // The real clipboard path (no injected copier): the window's own top-level clipboard receives exactly the canonical link.
+            BooruWorkbenchServices plain = new(h.Search, h.Queue, h.Watchers, h.Previews, h.Clock);
+            Require(plain.Links.Copy is null && ReferenceEquals(plain.Links, BooruLinkActions.System), "The default link actions are not the app launcher and the window clipboard.");
 
             // ---- paging is bounded -----------------------------------------------------------------------------------
             Click(Find<Button>(window, BooruWorkbenchWindow.NextName));
@@ -162,6 +191,31 @@ internal static class BooruWorkbenchChecks
             Require(Find<Button>(window, BooruWorkbenchWindow.ResumePrefix + "w-paused").IsEnabled, "Resume is not offered for a paused watcher.");
             Capture(window, shots, "watchers-light");
 
+            // ---- watcher card: newest seen post link, only where the watcher knows one --------------------------------------
+            Require(Exists(window, BooruWorkbenchWindow.WatcherOpenPrefix + "w-active") && Exists(window, BooruWorkbenchWindow.WatcherCopyPrefix + "w-active"),
+                "The watcher with a newest post lacks the link buttons.");
+            Require(!Exists(window, BooruWorkbenchWindow.WatcherOpenPrefix + "w-paused"), "A watcher without a newest post offers a link.");
+            Require(watcherText.Contains("Newest post seen: #9001"), "The newest post is not named.");
+            Click(Find<Button>(window, BooruWorkbenchWindow.WatcherOpenPrefix + "w-active"));
+            await Program.WaitUntilAsync(() => h.Links.Opened.Last() == "https://danbooru.donmai.us/posts/9001", () => "watcher open missing");
+            Click(Find<Button>(window, BooruWorkbenchWindow.WatcherCopyPrefix + "w-active"));
+            await Program.WaitUntilAsync(() => h.Links.Copied.Last() == "https://danbooru.donmai.us/posts/9001", () => "watcher copy missing");
+            Capture(window, shots, "watchers-links-light");
+
+            // ---- notification after an automatic check that queued originals ----------------------------------------------------
+            Require(Toasts(owner).Count == 0, "A notification was visible before any check.");
+            h.Watchers.RaiseCheckQueued(new BooruWatcherCheckNotice("w-active", "cat blue_eyes", 3));
+            await Program.WaitUntilAsync(() => Toasts(owner).Count == 1, () => "no notification for the queued originals");
+            FeedbackToastContent toast = Toasts(owner)[0];
+            Require(toast.Title == "Danbooru watcher" && toast.Message == "Watcher “cat blue_eyes” found new posts. Originals added to the download queue: 3.",
+                "Unexpected notification text: " + toast.Title + " / " + toast.Message);
+            Capture(owner, shots, "watcher-notification-light");
+            foreach (NotificationCard card in owner.GetVisualDescendants().OfType<NotificationCard>().ToArray()) card.Close();
+            await Program.WaitUntilAsync(() => Toasts(owner).Count == 0, () => "notification not closed");
+            h.Watchers.RaiseCheckQueued(new BooruWatcherCheckNotice("w-active", "cat blue_eyes", 0));
+            await Task.Delay(200);
+            Require(Toasts(owner).Count == 0, "A check that queued nothing was announced.");
+
             // a paused watcher: one explicit check, it stays paused
             int pausedChecks = h.Watchers.Checks;
             Click(Find<Button>(window, BooruWorkbenchWindow.CheckPrefix + "w-paused"));
@@ -232,7 +286,7 @@ internal static class BooruWorkbenchChecks
             h.Clock.Advance(TimeSpan.FromHours(3));
             await Task.Delay(300);
             Require(h.ProviderRequests == total, "A request happened after the window was closed.");
-            Console.WriteLine("SMOKE booru workbench: menu hidden without ports and shown with fakes; no request on open; exact query visible; 3 result cards with previews, provider rating and original availability; bounded paging; one explicit load; offline, 429 (disabled and not retried), restricted, error and empty states; post link one-shot; watcher create/check/pause/resume/remove with confirmation and local-media notice; EN/DE/ES/FR/RU live; light and dark screenshots in " + shots);
+            Console.WriteLine("SMOKE booru workbench: menu hidden without ports and shown with fakes; no request on open; exact query visible; 3 result cards with previews, provider rating and original availability; bounded paging; one explicit load; offline, 429 (disabled and not retried), restricted, error and empty states; post link one-shot; canonical post link open/copy on result and watcher cards with failure note; watcher notification for queued originals (none for zero); watcher create/check/pause/resume/remove with confirmation and local-media notice; EN/DE/ES/FR/RU live; light and dark screenshots in " + shots);
         }
         finally
         {
@@ -302,6 +356,9 @@ internal static class BooruWorkbenchChecks
     private static T Find<T>(Control root, string name) where T : Control =>
         root.GetVisualDescendants().OfType<T>().FirstOrDefault(control => control.Name == name)
         ?? throw new InvalidOperationException("Control not found: " + name);
+
+    private static List<FeedbackToastContent> Toasts(Window window) => window.GetVisualDescendants().OfType<NotificationCard>()
+        .Where(card => !card.IsClosing && !card.IsClosed).Select(card => card.Content).OfType<FeedbackToastContent>().ToList();
 
     private static bool Exists(Control root, string name) => root.GetVisualDescendants().OfType<Control>().Any(control => control.Name == name);
 

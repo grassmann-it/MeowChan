@@ -94,6 +94,13 @@ internal static class BooruCompositionChecks
             Require(!Find<Button>(window, BooruWorkbenchWindow.LoadPrefix + "8001").IsEnabled, "A restricted post can be loaded.");
             Capture(window, shots, "composition-results-light");
 
+            // ---- copy link through the window's own top-level clipboard (the harness fixture; opening would start a browser: covered with fakes in booru-workbench) ----
+            Click(Find<Button>(window, BooruWorkbenchWindow.CopyLinkPrefix + "8004"));
+            await Program.WaitUntilAsync(() => Text(window).Contains("Link copied: https://danbooru.donmai.us/posts/8004"), () => "copy note missing: " + Text(window));
+            Require(Find<Button>(window, BooruWorkbenchWindow.OpenPostPrefix + "8004").IsEffectivelyEnabled, "Open post in browser is missing on the result card.");
+            Require(stub.Requests.Count(url => url.StartsWith("https://danbooru.donmai.us/", StringComparison.Ordinal)) == 1, "Copying a link sent a request.");
+            Capture(window, shots, "composition-link-copied-light");
+
             // ---- one explicit original into the shared queue ----------------------------------------------------------------
             Click(Find<Button>(window, BooruWorkbenchWindow.LoadPrefix + "8004"));
             await Program.WaitUntilAsync(() => Text(window).Contains("Added to the download queue."), () => "queued notice missing");
@@ -102,6 +109,8 @@ internal static class BooruCompositionChecks
             BooruPostRecord queued = host.BooruComposition.Catalog.Read().Posts.Single(post => post.PostId == "8004");
             Require(queued.OriginalIntent == BooruOriginalIntent.Requested && queued.Findings.Any(finding => finding.Kind == BooruFindingKind.Search),
                 "The catalog does not record the requested original with its search finding.");
+            Require(queued.Findings.Single(finding => finding.Kind == BooruFindingKind.Search).Query == "cat_ears",
+                "The search finding does not keep the query that found the post.");
             Require(stub.SampleRequests == 0, "A sample was requested.");
             Capture(window, shots, "composition-queued-light");
 
@@ -146,7 +155,7 @@ internal static class BooruCompositionChecks
             Require(host.BooruServices is null, "The Danbooru ports outlived the session.");
             host = null;
             Require(stub.Requests.Count == requests, "A request happened during shutdown.");
-            Console.WriteLine("SMOKE booru composition: plugin disabled -> nothing composed, entry hidden; enabled at runtime -> composed, entry shown; window from the Workspace menu; one exact search request through the real adapter and in-process plugin; 4 result cards with 4 previews via the bounded preview path (no sample/original); restricted post not loadable; one Load original -> exactly one queue job, Requested intent with search finding; watcher created, scheduler baseline, Check now -> no new posts; light and dark screenshots in " + shots + "; held original completed with one transfer; orderly shutdown without requests.");
+            Console.WriteLine("SMOKE booru composition: plugin disabled -> nothing composed, entry hidden; enabled at runtime -> composed, entry shown; window from the Workspace menu; one exact search request through the real adapter and in-process plugin; 4 result cards with 4 previews via the bounded preview path (no sample/original); restricted post not loadable; copy link through the window clipboard path; one Load original -> exactly one queue job, Requested intent with search finding that keeps the query; watcher created, scheduler baseline, Check now -> no new posts; light and dark screenshots in " + shots + "; held original completed with one transfer; orderly shutdown without requests.");
         }
         finally
         {
