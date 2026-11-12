@@ -307,7 +307,7 @@ public partial class ArchivePage
         EndExportDialog();
         UpdateActions();
         Action? closed = _exportClosed; _exportClosed = null;
-        if (closed != null) closed(); else _exportOrigin?.Focus();
+        if (closed != null) closed(); else ActionOriginFocusTarget(_exportOrigin)?.Focus();
     }
     private async void OnExportOpen(object? sender, RoutedEventArgs e)
     { if (ExportRequestIsCurrent(_exportRequest) && !_exportRunning && !_exportPicking && !_exportLoading && PublishedExportDirectory is string destination) await TryOpenExportFolderAsync(destination); }

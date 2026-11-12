@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
@@ -56,11 +57,13 @@ internal static class ArchiveExportChecks
             {
                 fixture.IsAvailable = true;
                 await fixture.LoadThreadAsync(readerIdentity);
-                holdReader = true;
-                Task delayedReader = fixture.LoadThreadAsync(readerIdentity);
                 await fixture.OpenExportForThreadAsync(saved.Summary.Id, fixture.FindControl<Button>("ExportArchiveButton"));
                 Require(fixture.FindControl<Button>("ArchiveExportOpen")!.IsVisible && !fixture.FindControl<Button>("ArchiveExportOpen")!.IsEnabled, "Current result folder action must be visible and disabled before success.");
                 Require(fixture.FindControl<Border>("ArchiveExportDialog")!.IsVisible, "Export action did not open its workflow.");
+                // A busy page refuses to open an export (readiness gate), so the independent
+                // reader load starts only once the context export dialog is open.
+                holdReader = true;
+                Task delayedReader = fixture.LoadThreadAsync(readerIdentity);
                 string output = Path.Combine(destinationRoot, "thread-export");
                 fixture.FindControl<TextBox>("ArchiveExportDestination")!.Text = output;
                 await fixture.OpenExportForThreadAsync(readerIdentity, fixture.FindControl<Button>("ExportArchiveButton"));
@@ -196,7 +199,8 @@ internal static class ArchiveExportChecks
                 Console.WriteLine("SMOKE portable export index: " + Path.Combine(moved, "index.html"));
                 fixture.FindControl<Button>("ArchiveExportClose")!.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
                 Require(!fixture.FindControl<Border>("ArchiveExportDialog")!.IsVisible, "Export workflow did not close with Escape.");
-                Require(fixture.FindControl<Button>("ExportArchiveButton")!.IsFocused, "Closing export did not restore its real origin focus.");
+                RequireExportOriginFocus(fixture, "Closing export did not restore its real origin focus.");
+                await CheckExportOriginFocusAsync(fixture, saved.Summary.Id);
                 await ArchiveCollectionExportChecks.RunAsync(fixture, saved.Summary.Id, readerIdentity, destinationRoot, value => exportGate = value, () => opened);
                 await ArchiveResultsExportChecks.RunAsync(window, fixture, profile, exportLease, destinationRoot, value => exportGate = value);
             }
@@ -204,6 +208,58 @@ internal static class ArchiveExportChecks
         }
         finally { Directory.Delete(profile, true); if (evidence == null) Directory.Delete(destinationRoot, true); }
         Console.WriteLine("SMOKE HTML export: real shared library writer, verified PNG, retained reply, internal quote, relocation and no-overwrite conflict passed.");
+    }
+    // The origin is the toolbar action itself while it is a visible direct item. In a closed
+    // More popup it has no window presentation and cannot hold focus, so the visible More
+    // toggle that carries it is the real origin; focus must never be left on nothing.
+    private static void RequireExportOriginFocus(ArchivePage page, string message)
+    {
+        Button origin = page.FindControl<Button>("ExportArchiveButton")!;
+        ActionToolBar toolbar = page.FindControl<ActionToolBar>("ReaderToolbar")!;
+        bool direct = origin.IsEffectivelyVisible && origin.Bounds.Width > 0 && origin.Bounds.Height > 0
+            && origin.GetVisualAncestors().Contains(toolbar);
+        bool overflowed = toolbar.OverflowHost?.Children.Contains(origin) == true;
+        Control? expected = direct ? origin : overflowed ? toolbar.More : null;
+        object? focused = TopLevel.GetTopLevel(page)?.FocusManager?.GetFocusedElement();
+        string focusedName = (focused as Control)?.Name ?? focused?.GetType().Name ?? "none";
+        Require(expected != null && ReferenceEquals(focused, expected), message
+            + $" direct={direct}, overflowed={overflowed}, originBounds={origin.Bounds}, "
+            + $"moreVisible={toolbar.More?.IsEffectivelyVisible}, focused={focusedName}, window={TopLevel.GetTopLevel(page)?.Bounds}");
+    }
+    // Both presentations of the same action must return focus: wide enough to stay a direct
+    // item, and narrow enough to sit in the closed More popup.
+    private static async Task CheckExportOriginFocusAsync(ArchivePage page, ResourceId id)
+    {
+        Button origin = page.FindControl<Button>("ExportArchiveButton")!;
+        ActionToolBar toolbar = page.FindControl<ActionToolBar>("ReaderToolbar")!;
+        double width = toolbar.Width, maxWidth = toolbar.MaxWidth;
+        try
+        {
+            foreach (bool overflow in new[] { false, true })
+            {
+                toolbar.Width = overflow ? double.NaN : 3000;
+                toolbar.MaxWidth = overflow ? 200 : double.PositiveInfinity;
+                string state = overflow ? "overflowed" : "direct";
+                await Program.WaitUntilAsync(() =>
+                {
+                    page.UpdateLayout();
+                    return overflow
+                        ? toolbar.OverflowHost?.Children.Contains(origin) == true && toolbar.More?.IsEffectivelyVisible == true
+                        : toolbar.OverflowHost?.Children.Contains(origin) != true && origin.IsEffectivelyVisible
+                            && origin.Bounds.Width > 0 && origin.GetVisualAncestors().Contains(toolbar);
+                });
+                await page.OpenExportForThreadAsync(id, origin);
+                Border dialog = page.FindControl<Border>("ArchiveExportDialog")!;
+                Require(dialog.IsVisible, $"Export from the {state} origin did not open.");
+                page.FindControl<Button>("ArchiveExportClose")!.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+                Require(!dialog.IsVisible, $"Export from the {state} origin did not close with Escape.");
+                RequireExportOriginFocus(page, $"Closing export from the {state} origin did not restore its focus.");
+                // A queued toolbar repair must not move the restored focus either.
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                RequireExportOriginFocus(page, $"A deferred toolbar repair moved the focus restored for the {state} origin.");
+            }
+        }
+        finally { toolbar.Width = width; toolbar.MaxWidth = maxWidth; page.UpdateLayout(); }
     }
     private static async Task CheckCompactLayoutsAsync(MainWindow window, ArchivePage page)
     {

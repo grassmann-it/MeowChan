@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using Avalonia.Controls;
 using Avalonia.Automation;
@@ -36,10 +37,15 @@ public partial class ArchivePage
     // The original action remains the semantic origin, but a closed overflow
     // has no focusable window presentation. Resolve at return time after layout
     // or mode changes, without reopening the popup or executing any action.
-    internal Control? GalleryOriginFocusTarget(Control? origin)
+    internal Control? GalleryOriginFocusTarget(Control? origin) => ActionOriginFocusTarget(origin);
+
+    // Works for every ActionToolBar item of this page (results and reader toolbars).
+    internal Control? ActionOriginFocusTarget(Control? origin)
     {
-        ActionToolBar toolbar = ArchiveResultActions;
-        if (origin == null || !toolbar.Items.Contains(origin)) return origin;
+        if (origin == null) return null;
+        // Items stay logical children of their toolbar in the direct panel and in a closed popup alike.
+        if (origin.GetLogicalAncestors().OfType<ActionToolBar>().FirstOrDefault() is not { } toolbar
+            || !toolbar.Items.Contains(origin)) return origin;
         TopLevel? root = TopLevel.GetTopLevel(toolbar);
         if (root != null && origin.IsEffectivelyVisible
             && ReferenceEquals(TopLevel.GetTopLevel(origin), root)
