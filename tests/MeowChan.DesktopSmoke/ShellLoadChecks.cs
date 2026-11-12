@@ -257,14 +257,26 @@ internal static class ShellLoadChecks
             {
                 app.Gate.Release();
                 // Keep heartbeat alive while the remainder drains. Every successful download is checked against original fixture bytes.
-                Stopwatch drain = Stopwatch.StartNew();
+                // This is a functional completion check, not a speed check: the fixture's own transport pacing (4 KiB per
+                // 25 ms, five parallel downloads) already needs ~14 s for 64 files on an idle machine and stretches with
+                // machine load, while the timing claims are made by the UI-gap and hold checks above. A fixed wall-clock
+                // budget would therefore only measure the machine; the set must keep committing durable files (a stall
+                // fails after Timeout without progress) and the external watchdog bounds the whole run.
+                Stopwatch drain = Stopwatch.StartNew(), stalled = Stopwatch.StartNew();
+                long drainStartSuccesses = app.Gate.Successes, progress = drainStartSuccesses;
                 while (true)
                 {
                     DesktopSessionView view = await session.ReadViewAsync();
-                    if (app.Gate.Successes == ShellLoadFixture.MediaCount && view.Threads.Single().Snapshot.Downloads.Active == 0) break;
-                    if (drain.Elapsed > Timeout) throw new TimeoutException("The finite offline download set did not finish draining.");
+                    long successes = app.Gate.Successes;
+                    if (successes == ShellLoadFixture.MediaCount && view.Threads.Single().Snapshot.Downloads.Active == 0) break;
+                    if (successes != progress) { progress = successes; stalled.Restart(); }
+                    if (stalled.Elapsed > Timeout)
+                        throw new TimeoutException($"The finite offline download set stopped making durable progress at {successes}/{ShellLoadFixture.MediaCount} for {Timeout.TotalSeconds:0} s.");
                     await Task.Delay(50);
                 }
+                Console.WriteLine($"SMOKE shell-load drain: {drainStartSuccesses}/{ShellLoadFixture.MediaCount} durable at drain start, "
+                    + $"drained in {drain.Elapsed.TotalSeconds:0.0} s, {Stopwatch.GetElapsedTime(app.Transport.FirstAllowedAt).TotalSeconds:0.0} s since the first media byte was allowed "
+                    + $"(idle-machine floor {Math.Ceiling(ShellLoadFixture.MediaCount / 5d) * 1.05:0.0} s).");
                 string root = Config.LoadConfig(Config.GetConfigDirectory()).DownloadPath;
                 for (int n = 0; n < ShellLoadFixture.MediaCount; n++)
                 {

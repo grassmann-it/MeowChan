@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -86,7 +87,13 @@ internal sealed class ShellLoadTransport : HttpMessageHandler
     internal int MediaRequests => Volatile.Read(ref _requests);
     internal int Active => Volatile.Read(ref _active);
     internal Task MediaRequested => _requested.Task;
-    internal void AllowMedia() => _allowed.TrySetResult();
+    private long _firstAllowedAt;
+    internal long FirstAllowedAt => Interlocked.Read(ref _firstAllowedAt);
+    internal void AllowMedia()
+    {
+        Interlocked.CompareExchange(ref _firstAllowedAt, Stopwatch.GetTimestamp(), 0);
+        _allowed.TrySetResult();
+    }
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
