@@ -34,6 +34,21 @@ public partial class MainWindow
     private readonly Dictionary<long, long> _threadFilterExclusions = new();
     private readonly Dictionary<long, long> _boardFilterExclusions = new();
     public string DownloadSearchText => this.FindControl<TextBox>("DownloadSearchInput")?.Text ?? string.Empty;
+    // This is the cardinality of the live filtered collections, never the historical cache.
+    // Only publish it after an authoritative frame AND the current query have finished applying.
+    private bool DownloadResultsCurrent => _restoreCompleted && !_isClosing && !_startupPreviewShown
+        && !_sessionRowsApplying && !DownloadSearchNeedsReconciliation
+        && _appliedSessionProjection?.View.State == DesktopSessionState.Ready
+        && _session.Projection.View.State == DesktopSessionState.Ready;
+    private string DownloadResultsPendingText => _isClosing ? Texts.T("shell.stopping")
+        : _session.Projection.View.State switch
+        {
+            DesktopSessionState.RecoveryFailed => Texts.T("shell.recoveryFailed"),
+            DesktopSessionState.Stopping or DesktopSessionState.Stopped => Texts.T("shell.stopping"),
+            _ when _startupPreviewShown => Texts.T("shell.startupPreview") + " · " + Texts.T("shell.starting"),
+            _ when _restoreCompleted => Texts.T("menu.unavailable.restoring"),
+            _ => Texts.T("shell.starting")
+        };
     public int VisibleResultCount => this.FindControl<TabControl>("DownloadsTabs")?.SelectedIndex == 1
         ? VisibleBoards.Count : VisibleThreads.Count;
     public bool CanFocusDownloadSearch => _workspaceInitialized && _selectedPage == WorkspacePage.Downloads
@@ -66,6 +81,7 @@ public partial class MainWindow
         if (!_workspaceInitialized) return;
         _downloadFilterRevision++;
         _downloadSearchQueryRevision++;
+        RefreshDownloadSearchPresentation();
         _sessionRefresh.RequestImmediate();
     }
 
@@ -80,6 +96,8 @@ public partial class MainWindow
         _threadSearchReconciliation = null; _boardSearchReconciliation = null;
         _restoreDownloadSelection?.Dispose(); _restoreDownloadSelection = null;
         _refreshingDownloadSearch = true;
+        if (_appliedSessionProjection?.View.State != DesktopSessionState.Ready)
+            RefreshDownloadSearchPresentation();
     }
 
     private void BeginDownloadSearch(DesktopSessionProjection projection)
@@ -162,15 +180,30 @@ public partial class MainWindow
         Grid.SetColumn(summary, _downloadSearchOpen ? 1 : 0);
         Grid.SetColumnSpan(summary, _downloadSearchOpen ? 1 : 2);
         summary.MaxWidth = _downloadSearchOpen ? 120 : double.PositiveInfinity;
-        summary.Text = active && !_downloadSearchOpen ? Texts.T("downloads.searchActive", VisibleResultCount, DownloadSearchText)
+        bool current = DownloadResultsCurrent;
+        string pending = current ? string.Empty : DownloadResultsPendingText;
+        if (!current)
+        {
+            WorkspaceCounts.Text = pending;
+            ToolTip.SetTip(WorkspaceCounts, pending);
+            AutomationProperties.SetName(WorkspaceCounts, pending);
+        }
+        summary.Text = !current ? pending + (active && !_downloadSearchOpen ? " · " + DownloadSearchText : string.Empty)
+            : active && !_downloadSearchOpen ? Texts.T("downloads.searchActive", VisibleResultCount, DownloadSearchText)
             : Texts.T("downloads.searchCount", VisibleResultCount);
         ToolTip.SetTip(summary, summary.Text);
         AutomationProperties.SetName(summary, summary.Text);
         bool boards = DownloadsTabs.SelectedIndex == 1;
         ThreadsResultPanel.IsVisible = !boards;
         BoardsResultPanel.IsVisible = boards;
-        ThreadsEmptyState.Text = Texts.T(active ? "downloads.searchEmpty" : "downloads.empty");
-        BoardsEmptyState.Text = Texts.T(active ? "downloads.searchEmpty" : "downloads.boardsEmpty");
+        // The cache is capped/truncated and has no historical board grid. Neither its membership
+        // nor an absent/broken cache can establish a session count or a failed literal search.
+        ThreadsTab.Header = current ? Texts.T("downloads.threadsCount", VisibleThreads.Count) : Texts.T("downloads.threads");
+        BoardsTab.Header = current ? Texts.T("downloads.boardsCount", VisibleBoards.Count) : Texts.T("downloads.boards");
+        ThreadsEmptyState.Text = current ? Texts.T(active ? "downloads.searchEmpty" : "downloads.empty") : pending;
+        BoardsEmptyState.Text = current ? Texts.T(active ? "downloads.searchEmpty" : "downloads.boardsEmpty") : pending;
+        ThreadsEmptyState.IsVisible = _startupPreviewShown ? HistoricThreads.Count == 0 : VisibleThreads.Count == 0;
+        BoardsEmptyState.IsVisible = VisibleBoards.Count == 0;
         TextBox input = DownloadSearchInput;
         input.PlaceholderText = Texts.T("downloads.searchPlaceholder");
         AutomationProperties.SetName(input, Texts.T("downloads.searchPlaceholder"));

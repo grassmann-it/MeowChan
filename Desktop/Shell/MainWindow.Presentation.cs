@@ -346,21 +346,20 @@ public partial class MainWindow
         RefreshMediaRetryControls();
         DesktopSessionProjection priorityFrame = _appliedSessionProjection ?? _session.Projection;
         foreach (ThreadRow row in UrlList) row.ApplyUserPriority(priorityFrame.HighPriorityWatches.Contains(row.WatchId));
-        string summary = Texts.T("downloads.statusSummary", UrlList.Count, BoardsList.Count,
-            UrlList.Sum(row => (long)row.Queued), UrlList.Sum(row => (long)row.Active));
-        var concurrency = priorityFrame.MediaConcurrency;
-        string fullSummary = summary + " · " + Texts.T("downloads.protectionDetails", concurrency.Configured, concurrency.Effective);
-        if (concurrency.DeferredSlots > 0)
+        string summary, fullSummary;
+        if (DownloadResultsCurrent)
         {
-            summary += " · " + Texts.T("downloads.protectionShort", concurrency.Effective);
+            summary = Texts.T("downloads.statusSummary", UrlList.Count, BoardsList.Count,
+                UrlList.Sum(row => (long)row.Queued), UrlList.Sum(row => (long)row.Active));
+            var concurrency = priorityFrame.MediaConcurrency;
+            fullSummary = summary + " · " + Texts.T("downloads.protectionDetails", concurrency.Configured, concurrency.Effective);
+            if (concurrency.DeferredSlots > 0)
+                summary += " · " + Texts.T("downloads.protectionShort", concurrency.Effective);
         }
+        else summary = fullSummary = DownloadResultsPendingText;
         WorkspaceCounts.Text = summary;
         ToolTip.SetTip(WorkspaceCounts, fullSummary);
         AutomationProperties.SetName(WorkspaceCounts, fullSummary);
-        ThreadsTab.Header = Texts.T("downloads.threadsCount", _startupPreviewShown ? HistoricThreads.Count : VisibleThreads.Count);
-        BoardsTab.Header = Texts.T("downloads.boardsCount", VisibleBoards.Count);
-        ThreadsEmptyState.IsVisible = VisibleThreads.Count == 0 && !_startupPreviewShown;
-        BoardsEmptyState.IsVisible = VisibleBoards.Count == 0;
         SettingsNavigationButton.IsEnabled = SettingsMenuItem.IsEnabled;
         DownloadsNavigationButton.IsEnabled = SettingsMenuItem.IsEnabled;
         Button sessionUrls = CopyAllUrlsButton;
