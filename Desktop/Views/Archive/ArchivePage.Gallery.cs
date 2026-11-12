@@ -58,9 +58,11 @@ public partial class ArchivePage
         ResourceId threadId = thread.Summary.Id;
         GalleryThreadResult associated = GallerySelection.Build(thread,
             assets.Select(asset => asset.Manifest).DistinctBy(manifest => manifest.Directory), true, includeOtherMedia: true);
+        // Prefer a post-associated entry; otherwise keep the selection's own unassigned entry, which carries
+        // the loose-file (local tag) eligibility a hand-made entry never has.
         Dictionary<GalleryAssetKey, GalleryEntry> postByAsset = associated.Entries
-            .Where(entry => entry.Post != null).GroupBy(entry => entry.Key)
-            .ToDictionary(group => group.Key, group => group.First());
+            .GroupBy(entry => entry.Key)
+            .ToDictionary(group => group.Key, group => group.FirstOrDefault(entry => entry.Post != null) ?? group.First());
         return visible.Select(asset =>
         {
             GalleryAssetKey identity = new(threadId, asset.Manifest.Directory, asset.Asset.AssetId);

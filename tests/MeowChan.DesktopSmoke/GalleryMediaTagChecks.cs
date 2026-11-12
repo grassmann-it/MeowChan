@@ -93,9 +93,10 @@ internal static class GalleryMediaTagChecks
             Require(stored.TagsOf(target).Select(tag => tag.Name.Display).SequenceEqual(new[] { "my_media" }) && stored.TagsOf(Resource).Count == 0,
                 "Store does not hold exactly one media tag and no thread tag.");
 
-            // The next entry has no bound post version: no tagging, with an explanation.
+            // The next entry has no bound post version and was not offered as a loose file by the gallery selection
+            // (a synthetic entry): no tagging, with an explanation. Real loose files are covered by local-media-tags.
             GalleryViewerChecksAccess.Click(viewer, "GalleryNext");
-            await UntilAsync(() => !tags.IsEffectivelyEnabled && ToolTip.GetTip(tags) as string == Texts.T("tags.media.unbound"));
+            await UntilAsync(() => !tags.IsEffectivelyEnabled && ToolTip.GetTip(tags) as string == Texts.T("tags.media.boundElsewhere"));
             Require(Equals(tags.Content, Texts.T("tags.media.button")), "Unbound entry shows another medium's tags.");
             GalleryViewerChecksAccess.Click(viewer, "GalleryPrevious");
             await UntilAsync(() => tags.IsEffectivelyEnabled && Equals(tags.Content, Texts.T("tags.media.buttonCount", 1)));
@@ -213,14 +214,24 @@ internal static class GalleryMediaTagChecks
             looseTiles.SelectedIndex = 0;
             looseTiles.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
             await UntilAsync(() => page.ArchiveMediaMenu?.IsOpen == true);
-            MenuItem unavailable = page.ArchiveMediaMenu!.Items.OfType<MenuItem>()
+            // AP-01b replaces "unbound file disabled": the loose file is tagged as its own local occurrence.
+            MenuItem looseEdit = page.ArchiveMediaMenu!.Items.OfType<MenuItem>()
                 .Single(item => item.Tag as string == "media.tags.edit");
-            Require(!unavailable.IsEnabled && unavailable.Command?.CanExecute(null) == false,
-                "An unbound archive file can silently acquire a guessed media-tag target.");
-            Require((ToolTip.GetTip(unavailable) as string)?.Contains(Texts.T("tags.media.unbound")) == true,
-                "The unbound file has no explanation for unavailable media tags.");
+            Require(looseEdit.IsEnabled && looseEdit.Command!.CanExecute(null), "A loose archive file must offer media tags as a local file.");
+            looseEdit.Command!.Execute(null);
             page.ArchiveMediaMenu.Close();
-            Console.WriteLine("SMOKE archive media tags [en]: inline image -> real tag dialog -> host/store; thread tags unchanged; table and tile menus reopen the same media tags; unbound file disabled with explanation; no gallery opened.");
+            await UntilAsync(() => shell.GalleryMediaTagWindow?.IsVisible == true);
+            MediaTagDialog looseDialog = shell.GalleryMediaTagWindow!;
+            Require(looseDialog.Session.IsLocal && looseDialog.Session.Target == null, "The loose file must get a local, not a bound or guessed target.");
+            looseDialog.Input.Text = "loose_archive";
+            looseDialog.AddButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await IdleAsync(looseDialog);
+            await CloseAsync(looseDialog);
+            PrivateTagStoreSnapshot afterLoose = session.GetPrivateTagSnapshot().Snapshot!;
+            Require(afterLoose.LocalAssignments.Count == 1 && afterLoose.TagsOf(looseThread).Count == 0
+                && afterLoose.TagsOf(target).Select(tag => tag.Name.Display).SequenceEqual(new[] { "archive_image" }),
+                "Tagging the loose file changed thread or bound tags, or did not store one local assignment.");
+            Console.WriteLine("SMOKE archive media tags [en]: inline image -> real tag dialog -> host/store; thread tags unchanged; table and tile menus reopen the same media tags; loose file tagged as a local occurrence; no gallery opened.");
         }
         catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally

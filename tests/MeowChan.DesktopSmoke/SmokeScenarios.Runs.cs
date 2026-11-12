@@ -73,6 +73,7 @@ internal static partial class SmokeScenarios
             await MediaPageChecks.RunAsync(mainWindow);
         }),
         ["gallery-media-tags"] = new(SmokeStage.Ready, mainWindow => GalleryMediaTagChecks.RunAsync(mainWindow)),
+        ["local-media-tags"] = new(SmokeStage.Ready, mainWindow => LocalMediaTagChecks.RunAsync(mainWindow)),
         ["private-tags"] = new(SmokeStage.Ready, mainWindow => PrivateTagBarChecks.RunAsync(mainWindow)),
         ["reader-find"] = new(SmokeStage.Ready, mainWindow => ReaderThreadFindChecks.RunAsync(mainWindow)),
         ["filename-search"] = new(SmokeStage.Ready, mainWindow => FilenameSearchChecks.RunAsync(mainWindow)),

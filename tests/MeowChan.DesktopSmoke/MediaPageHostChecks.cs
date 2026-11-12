@@ -128,7 +128,7 @@ internal static partial class MediaPageChecks
             await OpenMenuAndEditTagsAsync();
             await UntilAsync(() => RefusalCount() == 2);
             string unboundNotice = string.Join(" | ", Refusals().Select(entry => entry.Summary + " x" + entry.Count));
-            Require(Refusals().All(entry => entry.Summary == Texts.T("media.galleryFailed") || entry.Summary == Texts.T("tags.media.unbound")), "Unexpected refusal text: " + unboundNotice);
+            Require(Refusals().All(entry => entry.Summary == Texts.T("media.galleryFailed") || entry.Summary == Texts.T("tags.media.boundElsewhere")), "Unexpected refusal text: " + unboundNotice);
             Require(shell.MediaPageTagWindow == null && !shell.OwnedWindows.OfType<MediaTagDialog>().Any(), "An unbound file must not open the tag dialog.");
             await UntilAsync(FocusInGrid);
             Require(session.GetPrivateTagSnapshot().Snapshot!.Revision == revision && Tags("200") == string.Empty && RefusalCount() == 2
