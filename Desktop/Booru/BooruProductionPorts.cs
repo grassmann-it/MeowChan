@@ -236,6 +236,11 @@ internal sealed class BooruSchedulerWatcherPort : IBooruWatcherPort, IDisposable
     public Task<BooruWatcherCommandResult> RestartFromNowAsync(string watcherId, CancellationToken cancellationToken) =>
         Task.Run(() => Command(_scheduler.RestartFromNow(watcherId)), cancellationToken);
 
+    /// <summary>Read-only: size, post count and configured limit of the profile's catalog (cached; no parse while unchanged).</summary>
+    public Task<BooruCatalogUsageView?> GetCatalogUsageAsync(CancellationToken cancellationToken) => _catalog is not { } catalog
+        ? Task.FromResult<BooruCatalogUsageView?>(null)
+        : Task.Run<BooruCatalogUsageView?>(() => BooruCatalogUsageView.From(catalog.GetUsage()), cancellationToken);
+
     internal static BooruWatcherCommandResult Command(DanbooruWatcherCommandResult result) => result.Accepted
         ? BooruWatcherCommandResult.Success()
         : new BooruWatcherCommandResult(BooruWatcherCommandStatus.Rejected, result.Code);

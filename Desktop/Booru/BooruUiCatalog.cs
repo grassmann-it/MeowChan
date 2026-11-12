@@ -129,6 +129,7 @@ internal static class BooruUiCatalog
         ("booru.ui.watchers.loading", "Loading watchers…", "Watcher werden geladen …"),
         ("booru.ui.watchers.loadFailed", "The watcher list could not be read ({0}).", "Die Watcher-Liste konnte nicht gelesen werden ({0})."),
         ("booru.ui.watchers.retry", "Reload", "Neu laden"),
+        ("booru.ui.watchers.catalogSize", "The local Danbooru catalog uses {0} of its {1} limit ({2} %, {3} posts). When it is full, watchers and original downloads can no longer save new posts. You can raise the limit in Settings → {4} → “{5}”.", "Der lokale Danbooru-Katalog belegt {0} von {1} ({2} %, {3} Posts). Ist er voll, können Watcher und Original-Downloads keine neuen Posts mehr speichern. Die Grenze lässt sich unter Einstellungen → {4} → „{5}“ erhöhen."),
         ("booru.ui.watcher.status.Active", "Active", "Aktiv"),
         ("booru.ui.watcher.status.Paused", "Paused", "Pausiert"),
         ("booru.ui.watcher.status.Checking", "Checking now…", "Prüfung läuft …"),

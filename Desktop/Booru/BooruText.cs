@@ -169,5 +169,6 @@ internal static class BooruText
             yield return Prefix + "watcher.why." + block;
         foreach (string code in KnownRejections)
             yield return Prefix + "watcher.reject." + code;
+        yield return Prefix + "watchers.catalogSize";
     }
 }

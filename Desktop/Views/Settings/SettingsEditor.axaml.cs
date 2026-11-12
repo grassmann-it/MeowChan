@@ -128,6 +128,7 @@ namespace MeowChan
         private decimal? _workerIdleMinutes;
         private decimal? _sourceHeapMiB;
         private decimal? _filterHeapMiB;
+        private decimal? _booruCatalogMiB;
 
 
         public IReadOnlyList<SettingsChoice> ThemeChoices { get; private set; } = Array.Empty<SettingsChoice>();
@@ -216,6 +217,7 @@ namespace MeowChan
             WorkerIdleMinutes = config.PluginWorkerIdleMinutes;
             SourceHeapMiB = config.PluginSourceHeapMiB;
             FilterHeapMiB = config.PluginFilterHeapMiB;
+            BooruCatalogMiB = config.BooruCatalogLimitMiB;
 
             RefreshChoices(config.Theme, config.WorkspaceMode, config.Language);
             DataContext = this;
@@ -230,6 +232,7 @@ namespace MeowChan
             ResetNumber(WorkerIdleMinutesInput, WorkerIdleMinutes!.Value);
             ResetNumber(SourceHeapMiBInput, SourceHeapMiB!.Value);
             ResetNumber(FilterHeapMiBInput, FilterHeapMiB!.Value);
+            ResetNumber(BooruCatalogMiBInput, BooruCatalogMiB!.Value);
             ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
 
             Texts.Changed += OnLanguageChanged;
@@ -266,6 +269,9 @@ namespace MeowChan
         public decimal? SourceHeapMiB { get => _sourceHeapMiB; set => SetField(ref _sourceHeapMiB, value, nameof(SourceHeapMiB)); }
         public string FilterHeapMiBLabel => Texts.T("budgets.filterHeap");
         public decimal? FilterHeapMiB { get => _filterHeapMiB; set => SetField(ref _filterHeapMiB, value, nameof(FilterHeapMiB)); }
+        public string BooruCatalogMiBLabel => Texts.T("budgets.booruCatalog");
+        public string BooruCatalogMiBHint => Texts.T("budgets.booruCatalogHint");
+        public decimal? BooruCatalogMiB { get => _booruCatalogMiB; set => SetField(ref _booruCatalogMiB, value, nameof(BooruCatalogMiB)); }
 
         public string SettingsTitle => Texts.T("settings.title");
         public string SettingsSubtitle => Texts.T("settings.subtitle");
@@ -608,6 +614,7 @@ namespace MeowChan
             WorkerIdleMinutes = _config.PluginWorkerIdleMinutes;
             SourceHeapMiB = _config.PluginSourceHeapMiB;
             FilterHeapMiB = _config.PluginFilterHeapMiB;
+            BooruCatalogMiB = _config.BooruCatalogLimitMiB;
 
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
@@ -619,6 +626,7 @@ namespace MeowChan
             ResetNumber(WorkerIdleMinutesInput, WorkerIdleMinutes!.Value);
             ResetNumber(SourceHeapMiBInput, SourceHeapMiB!.Value);
             ResetNumber(FilterHeapMiBInput, FilterHeapMiB!.Value);
+            ResetNumber(BooruCatalogMiBInput, BooruCatalogMiB!.Value);
             ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
 
             SetErrorMessage(null);
@@ -697,7 +705,7 @@ namespace MeowChan
                     nameof(BusyStatusMessage), nameof(NotificationsTitle), nameof(InformationNotificationsLabel), nameof(WarningNotificationsLabel), nameof(ErrorNotificationsLabel), nameof(NotificationsHint), nameof(UpdatesTitle), nameof(AutomaticUpdateChecksLabel), nameof(IncludePrereleaseUpdatesLabel), nameof(UpdatePrivacyHint),
                     nameof(UpdateDisabledReason), nameof(ReserveLabel), nameof(ReserveHint), nameof(AdvancedBudgetsLabel),
                     nameof(BudgetRestartHint), nameof(ProductionWorkersLabel), nameof(WorkerIdleMinutesLabel), nameof(SourceHeapMiBLabel),
-                    nameof(FilterHeapMiBLabel), nameof(SettingsTitle), nameof(SettingsSubtitle), nameof(DownloadsTitle),
+                    nameof(FilterHeapMiBLabel), nameof(BooruCatalogMiBLabel), nameof(BooruCatalogMiBHint), nameof(BooruCatalogMiBHelp), nameof(SettingsTitle), nameof(SettingsSubtitle), nameof(DownloadsTitle),
                     nameof(InterfaceTitle), nameof(ReadingMediaTitle), nameof(ReadingFontSizeLabel), nameof(VideoAutoplayLabel),
                     nameof(VideoStartMutedLabel), nameof(VideoVolumeLabel), nameof(ShowShortcutHelpLabel), nameof(AboutLabel),
                     nameof(GalleryPlaybackTitle), nameof(GalleryPlaybackModeLabel), nameof(GallerySlideshowSecondsLabel), nameof(GallerySlideshowSecondsHelp),
@@ -927,6 +935,7 @@ namespace MeowChan
                 candidate.PluginWorkerIdleMinutes = GetInteger(WorkerIdleMinutes, WorkerIdleMinutesLabel, 1, 30);
                 candidate.PluginSourceHeapMiB = GetInteger(SourceHeapMiB, SourceHeapMiBLabel, 128, 1024);
                 candidate.PluginFilterHeapMiB = GetInteger(FilterHeapMiB, FilterHeapMiBLabel, 256, 2048);
+                candidate.BooruCatalogLimitMiB = GetInteger(BooruCatalogMiB, BooruCatalogMiBLabel, Config.BooruCatalogMinimumLimitMiB, Config.BooruCatalogMaximumLimitMiB);
 
                 if (!BandwidthLimiterMB.HasValue || BandwidthLimiterMB.Value <= 0)
                 {
@@ -1011,6 +1020,7 @@ namespace MeowChan
             WorkerIdleMinutes = _config.PluginWorkerIdleMinutes;
             SourceHeapMiB = _config.PluginSourceHeapMiB;
             FilterHeapMiB = _config.PluginFilterHeapMiB;
+            BooruCatalogMiB = _config.BooruCatalogLimitMiB;
 
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
@@ -1022,6 +1032,7 @@ namespace MeowChan
             ResetNumber(WorkerIdleMinutesInput, WorkerIdleMinutes!.Value);
             ResetNumber(SourceHeapMiBInput, SourceHeapMiB!.Value);
             ResetNumber(FilterHeapMiBInput, FilterHeapMiB!.Value);
+            ResetNumber(BooruCatalogMiBInput, BooruCatalogMiB!.Value);
             ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
 
         }

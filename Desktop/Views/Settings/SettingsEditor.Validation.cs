@@ -131,12 +131,13 @@ public partial class SettingsEditor
     public string WorkerIdleMinutesHelp => FieldHelp(nameof(WorkerIdleMinutesInput), Texts.T("settings.unitMinutes") + ". " + BudgetRestartHint);
     public string SourceHeapMiBHelp => FieldHelp(nameof(SourceHeapMiBInput), Texts.T("settings.unitMiB") + ". " + BudgetRestartHint);
     public string FilterHeapMiBHelp => FieldHelp(nameof(FilterHeapMiBInput), Texts.T("settings.unitMiB") + ". " + BudgetRestartHint);
+    public string BooruCatalogMiBHelp => FieldHelp(nameof(BooruCatalogMiBInput), Texts.T("settings.unitMiB") + ". " + BooruCatalogMiBHint);
 
     private void NotifyFieldHelpChanged()
     {
         foreach (string property in new[] { nameof(DownloadPathHelp), nameof(RecheckTimerHelp), nameof(BandwidthInputHelp),
             nameof(ParallelDownloadsHelp), nameof(ParallelDownloadsSafetyHelp), nameof(ReserveInputHelp), nameof(ProductionWorkersHelp),
-            nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp) })
+            nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp), nameof(BooruCatalogMiBHelp) })
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
     }
 
@@ -170,6 +171,8 @@ public partial class SettingsEditor
         yield return (WorkerIdleMinutesInput, WorkerIdleMinutes, WorkerIdleMinutesLabel, Texts.T("settings.unitMinutes"), 1, 30, true);
         yield return (SourceHeapMiBInput, SourceHeapMiB, SourceHeapMiBLabel, Texts.T("settings.unitMiB"), 128, 1024, true);
         yield return (FilterHeapMiBInput, FilterHeapMiB, FilterHeapMiBLabel, Texts.T("settings.unitMiB"), 256, 2048, true);
+        yield return (BooruCatalogMiBInput, BooruCatalogMiB, BooruCatalogMiBLabel, Texts.T("settings.unitMiB"),
+            Config.BooruCatalogMinimumLimitMiB, Config.BooruCatalogMaximumLimitMiB, true);
     }
 
     private void ClearFieldErrors()

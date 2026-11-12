@@ -267,8 +267,15 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         return tab;
     }
 
+    internal const string CatalogStorageName = "BooruCatalogStorage";
+    // Shown from 75 % of the configured catalog limit on (S2); the text names the setting that raises it.
+    private readonly Border _storageHost = new() { Name = CatalogStorageName, IsVisible = false };
+    private readonly TextBlock _storageText = new() { TextWrapping = TextWrapping.Wrap };
+
     private Control BuildWatchersTab()
     {
+        _storageHost.Child = _storageText;
+        AutomationProperties.SetLiveSetting(_storageText, AutomationLiveSetting.Polite);
         _removeNoteHost.Child = _removeNote;
         _watcherNoticeHost.Child = _watcherNoticeText;
         AutomationProperties.SetLiveSetting(_watcherNoticeText, AutomationLiveSetting.Polite);
@@ -277,6 +284,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         tab.Children.Add(_watchersIntro);
         tab.Children.Add(_removeNoteHost);
         tab.Children.Add(_watcherNoticeHost);
+        tab.Children.Add(_storageHost);
         tab.Children.Add(_watchersState);
         tab.Children.Add(_watchersReload);
         tab.Children.Add(_watchers);
@@ -451,6 +459,13 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
             ApplyTone(_watcherNoticeHost, notice.Kind);
         }
         _watcherNoticeHost.IsVisible = view.Notice is not null;
+        if (view.Storage is { NearLimit: true } storage)
+        {
+            _storageText.Text = Texts.T("booru.ui.watchers.catalogSize", Size(storage.DocumentBytes), Size(storage.LimitBytes),
+                storage.Percent, storage.PostCount, Texts.T("budgets.advanced"), Texts.T("budgets.booruCatalog"));
+            ApplyTone(_storageHost, BooruNoticeKind.Warning);
+        }
+        _storageHost.IsVisible = view.Storage is { NearLimit: true };
         _watchersState.IsVisible = view.Status != BooruWatcherListStatus.Ready;
         _watchersState.Text = view.Status switch
         {

@@ -24,7 +24,8 @@ internal sealed record BooruWatcherListView(
     ImmutableArray<BooruWatcherRowView> Rows,
     bool Creating,
     BooruNotice? Notice,
-    string? Code);
+    string? Code,
+    BooruCatalogUsageView? Storage = null);
 
 /// <summary>Why a command is unavailable; the view shows it as the disabled button's explanation.</summary>
 internal enum BooruWatcherBlock { None, Busy, Removed, Paused, Checking, CoolingDown, NotPaused }
@@ -126,6 +127,11 @@ internal sealed class BooruWatcherListModel : IDisposable
             RaiseChanged();
             return;
         }
+        // The catalog size is a convenience next to the list: a failed read only hides the warning.
+        BooruCatalogUsageView? storage;
+        try { storage = await _port.GetCatalogUsageAsync(_lifetime.Token).ConfigureAwait(false); }
+        catch (OperationCanceledException) { return; }
+        catch (Exception exception) when (exception is not OutOfMemoryException) { storage = null; }
         lock (_gate)
         {
             if (id != _refreshId || _disposed) return;
@@ -138,7 +144,7 @@ internal sealed class BooruWatcherListModel : IDisposable
                 .ToImmutableArray();
             _view = _view with
             {
-                Rows = rows, Code = null,
+                Rows = rows, Code = null, Storage = storage,
                 Status = rows.IsEmpty ? BooruWatcherListStatus.Empty : BooruWatcherListStatus.Ready
             };
         }

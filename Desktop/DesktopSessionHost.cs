@@ -105,6 +105,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             _registry = new Registry(sources, queue, Path.GetFullPath(Config.DownloadPath),
                 TimeSpan.FromSeconds(Config.RecheckTimer), Config.RecheckTimer, store, Config.SaveUrlsOnExit, _logger, _content, workStore);
             _registry.PrepareProfileProducers(_profileLease);
+            ApplyBooruCatalogLimit();
             _hostFinalWriteParticipant = new HostFinalWriteParticipant(this);
             _registry.RegisterProfileFinalWriteParticipant(_hostFinalWriteParticipant);
             _registry.ConfigureBoardAdmission(new MeowChan.Admission.BoardAdmissionStore(_profileLease.ProfileDirectory, _profileLease));
@@ -539,6 +540,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             PublishConfig(candidate);
             Commands.ShortcutService.Publish(Config.ShortcutBindings);
             _downloadQueue.UpdateMinimumFreeSpaceBytes((long)Config.MinimumFreeSpaceGiB * 1024 * 1024 * 1024);
+            ApplyBooruCatalogLimit();
             await Updates.ConfigureAsync(Config).ConfigureAwait(false);
         }
         finally { _commands.Release(); }

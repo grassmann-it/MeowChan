@@ -139,6 +139,10 @@ internal interface IBooruWatcherPort
     /// </summary>
     Task<BooruWatcherCommandResult> RestartFromNowAsync(string watcherId, CancellationToken cancellationToken) =>
         Task.FromResult(new BooruWatcherCommandResult(BooruWatcherCommandStatus.Rejected, "rejected"));
+
+    /// <summary>Size of the local catalog against its configured limit; null when the port keeps no local catalog.</summary>
+    Task<BooruCatalogUsageView?> GetCatalogUsageAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<BooruCatalogUsageView?>(null);
 }
 
 /// <summary>A port read that failed with a stable code (for example a scheduler fault); the view shows the code's text.</summary>

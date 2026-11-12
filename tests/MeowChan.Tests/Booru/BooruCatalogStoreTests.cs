@@ -424,6 +424,41 @@ public sealed class BooruCatalogStoreTests
     }
 
     [Fact]
+    public void TheWriteLimitIsConfigurableAndALowerLimitKeepsTheCatalogReadable()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        BooruCatalogStore store = new(directory.Path, lease);
+        Assert.Equal(BooruCatalogStore.DefaultDocumentLimitBytes, store.DocumentLimitBytes);
+        Assert.Throws<ArgumentOutOfRangeException>(() => store.DocumentLimitBytes = BooruCatalogStore.MinimumDocumentLimitBytes - 1);
+        Assert.Throws<ArgumentOutOfRangeException>(() => store.DocumentLimitBytes = BooruCatalogStore.MaximumDocumentBytes + 1L);
+
+        // About 9 MiB in one post: over the minimum limit, under the default.
+        BooruPostClaim large = Post("95") with
+        {
+            Tags = Enumerable.Range(0, 600).Select(index => new BooruPostClaimTag(index.ToString("D4") + new string('t', 15_000),
+                BooruPostClaimTagCategory.General)).ToArray()
+        };
+        store.UpsertPost(large, DateTimeOffset.UtcNow);
+        BooruCatalogUsage usage = store.GetUsage();
+        Assert.Equal(new FileInfo(store.FilePath).Length, usage.DocumentBytes);
+        Assert.Equal((1, 0, BooruCatalogStore.DefaultDocumentLimitBytes), (usage.PostCount, usage.WatcherCount, usage.LimitBytes));
+        Assert.False(usage.NearLimit);
+
+        store.DocumentLimitBytes = BooruCatalogStore.MinimumDocumentLimitBytes;
+        Assert.True(store.GetUsage().NearLimit);
+        Assert.Equal("95", Assert.Single(store.Read().Posts).PostId);
+        int writes = 0;
+        store.BeforeAdmittedMutationForTests = _ => writes++;
+        InvalidDataException full = Assert.Throws<InvalidDataException>(() => store.UpsertPost(Post("96"), DateTimeOffset.UtcNow));
+        Assert.Equal(BooruCatalogStore.FullMessage, full.Message);
+        Assert.Equal((long)BooruCatalogStore.MinimumDocumentLimitBytes, full.Data["limitBytes"]);
+        Assert.Equal(0, writes);
+        // A fresh store (next start) with the lower limit still reads the larger file.
+        Assert.Single(new BooruCatalogStore(directory.Path, lease).Read().Posts);
+    }
+
+    [Fact]
     public void SuccessfulWritesLeaveNoTemporaryCatalogFiles()
     {
         using TempDirectory directory = new();

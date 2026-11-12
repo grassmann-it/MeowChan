@@ -116,6 +116,14 @@ namespace MeowChan
         public int PluginWorkerIdleMinutes { get; set; } = 5;
         public int PluginSourceHeapMiB { get; set; } = 256;
         public int PluginFilterHeapMiB { get; set; } = 512;
+        /// <summary>
+        /// Write limit of the local Danbooru catalog (provider claims, findings, watchers) in MiB. Lowering it below the
+        /// current size keeps the catalog readable and only stops it from growing.
+        /// </summary>
+        public int BooruCatalogLimitMiB { get; set; } = BooruCatalogDefaultLimitMiB;
+        internal const int BooruCatalogDefaultLimitMiB = Archive.BooruCatalogStore.DefaultDocumentLimitBytes / (1024 * 1024);
+        internal const int BooruCatalogMinimumLimitMiB = Archive.BooruCatalogStore.MinimumDocumentLimitBytes / (1024 * 1024);
+        internal const int BooruCatalogMaximumLimitMiB = Archive.BooruCatalogStore.MaximumDocumentBytes / (1024 * 1024);
 
         public string? PluginEditorExecutable { get; set; }
         public string[] PluginEditorArguments { get; set; } = ["{file}"];
@@ -485,6 +493,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(PluginFilterHeapMiB), "The plugin limit must be between 256 and 2048.");
             if (MinimumFreeSpaceGiB < 0)
                 throw new ArgumentOutOfRangeException(nameof(MinimumFreeSpaceGiB), "Free-space reserve must not be negative.");
+            if (BooruCatalogLimitMiB is < BooruCatalogMinimumLimitMiB or > BooruCatalogMaximumLimitMiB)
+                throw new ArgumentOutOfRangeException(nameof(BooruCatalogLimitMiB), "The Danbooru catalog limit must be between 8 and 128 MiB.");
             if (PluginEditorExecutable is { Length: > 4096 } || PluginEditorExecutable?.Any(char.IsControl) == true
                 || PluginEditorArguments == null || PluginEditorArguments.Length > 32
                 || PluginEditorArguments.Any(value => value == null || value.Length > 4096 || value.Any(char.IsControl)))
@@ -542,6 +552,7 @@ namespace MeowChan
                 PluginWorkerIdleMinutes = PluginWorkerIdleMinutes,
                 PluginSourceHeapMiB = PluginSourceHeapMiB,
                 PluginFilterHeapMiB = PluginFilterHeapMiB,
+                BooruCatalogLimitMiB = BooruCatalogLimitMiB,
 
                 ShortcutBindings = ShortcutBindings.Clone(),
                 PluginEditorExecutable = PluginEditorExecutable,
@@ -633,6 +644,7 @@ namespace MeowChan
             PluginWorkerIdleMinutes = source.PluginWorkerIdleMinutes;
             PluginSourceHeapMiB = source.PluginSourceHeapMiB;
             PluginFilterHeapMiB = source.PluginFilterHeapMiB;
+            BooruCatalogLimitMiB = source.BooruCatalogLimitMiB;
 
             ShortcutBindings = source.ShortcutBindings.Clone();
             Theme = source.Theme;
@@ -688,6 +700,7 @@ namespace MeowChan
             PluginWorkerIdleMinutes = source.PluginWorkerIdleMinutes;
             PluginSourceHeapMiB = source.PluginSourceHeapMiB;
             PluginFilterHeapMiB = source.PluginFilterHeapMiB;
+            BooruCatalogLimitMiB = source.BooruCatalogLimitMiB;
 
             ShortcutBindings = source.ShortcutBindings.Clone();
             Theme = source.Theme;

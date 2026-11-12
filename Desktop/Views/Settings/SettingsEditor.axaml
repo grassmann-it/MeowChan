@@ -211,6 +211,14 @@
                             </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding ReserveHint}" Classes="muted workspace-help" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="BooruCatalogMiBFieldLabel" Text="{Binding BooruCatalogMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="BooruCatalogMiBInput" Value="{Binding BooruCatalogMiB, Mode=TwoWay}" Minimum="8" Maximum="128" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=BooruCatalogMiBFieldLabel}" AutomationProperties.Name="{Binding BooruCatalogMiBLabel}" AutomationProperties.HelpText="{Binding BooruCatalogMiBHelp}" />
+                                <TextBlock x:Name="BooruCatalogMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding BooruCatalogMiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
                     <Expander x:Name="SettingsWorkerBudgetsHeading" Header="{Binding AdvancedBudgetsLabel}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                         <StackPanel Spacing="10" Margin="0,8,0,0">
                             <TextBlock Text="{Binding BudgetRestartHint}" Classes="muted" TextWrapping="Wrap" />

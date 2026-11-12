@@ -221,6 +221,16 @@ internal sealed record BooruCatalogSnapshot(
         Array.Empty<BooruPostRecord>(), Array.Empty<BooruWatcherRecord>());
 }
 
+/// <summary>Current size of the catalog file against its configured write limit (for a visible warning).</summary>
+internal sealed record BooruCatalogUsage(long DocumentBytes, int PostCount, int WatcherCount, long LimitBytes)
+{
+    /// <summary>Share of the limit at which the UI warns that the catalog is filling up.</summary>
+    internal const double WarningFraction = 0.75;
+
+    internal double Fraction => LimitBytes <= 0 ? 1 : (double)DocumentBytes / LimitBytes;
+    internal bool NearLimit => Fraction >= WarningFraction;
+}
+
 /// <summary>Read/write counters of one store instance (measurement in tests; never used for decisions).</summary>
 internal readonly record struct BooruCatalogStoreCounters(long FullReads, long Writes, long CachedReads);
 
@@ -240,11 +250,29 @@ internal readonly record struct BooruCatalogStoreCounters(long FullReads, long W
 /// changes (identity uniqueness is kept by the indexes); that is the same rule set the full validation
 /// applies per record, so the written document satisfies exactly the old fail-closed checks.
 /// </para>
+/// <para>
+/// Size: writes are bounded by <see cref="DocumentLimitBytes"/> (user setting, default
+/// <see cref="DefaultDocumentLimitBytes"/>). Reads are bounded only by the technical ceiling
+/// <see cref="MaximumDocumentBytes"/>, so lowering the setting below the current size never makes an
+/// existing catalog unreadable; it only stops further growth.
+/// </para>
 /// </summary>
 internal sealed class BooruCatalogStore
 {
     internal const string FileName = "booru-catalog.json";
-    internal const int MaximumDocumentBytes = 32 * 1024 * 1024;
+    /// <summary>
+    /// Technical ceiling for reading and for the configurable write limit. The whole document is held in memory
+    /// and every mutation rewrites and flushes it, so a larger catalog makes each watcher page and download
+    /// noticeably slower; the ceiling keeps that bounded and keeps a damaged file from exhausting memory.
+    /// </summary>
+    internal const int MaximumDocumentBytes = 128 * 1024 * 1024;
+    /// <summary>Default write limit (the fixed limit before it became a setting).</summary>
+    internal const int DefaultDocumentLimitBytes = 32 * 1024 * 1024;
+    /// <summary>Smallest accepted write limit.</summary>
+    internal const int MinimumDocumentLimitBytes = 8 * 1024 * 1024;
+    // The remaining bounds validate provider claims and records; they are not growth limits a user can reach by
+    // normal use (a post has one claim, at most a few findings per search or watcher, and watcher id lists are
+    // compacted by the mapper), so they stay fixed technical limits.
     internal const int MaximumClaimTextLength = 16 * 1024;
     internal const int MaximumTags = 10_000;
     internal const int MaximumMediaVariants = 16;
@@ -267,6 +295,7 @@ internal sealed class BooruCatalogStore
     private readonly string _path;
     private readonly JsonSerializerOptions _json;
     private Cache? _cache;
+    private long _documentLimitBytes = DefaultDocumentLimitBytes;
     private long _fullReads;
     private long _writes;
     private long _cachedReads;
@@ -283,6 +312,18 @@ internal sealed class BooruCatalogStore
 
     internal string FilePath => _path;
     internal ProfileLease ProfileLease => _lease;
+
+    /// <summary>Configured write limit in bytes, between <see cref="MinimumDocumentLimitBytes"/> and <see cref="MaximumDocumentBytes"/>.</summary>
+    internal long DocumentLimitBytes
+    {
+        get => Interlocked.Read(ref _documentLimitBytes);
+        set
+        {
+            if (value is < MinimumDocumentLimitBytes or > MaximumDocumentBytes)
+                throw new ArgumentOutOfRangeException(nameof(value), "The Booru catalog limit is outside its supported range.");
+            Interlocked.Exchange(ref _documentLimitBytes, value);
+        }
+    }
 
     internal BooruCatalogStoreCounters Counters => new(Interlocked.Read(ref _fullReads), Interlocked.Read(ref _writes),
         Interlocked.Read(ref _cachedReads));
@@ -305,6 +346,17 @@ internal sealed class BooruCatalogStore
         {
             Cache cache = LoadLocked();
             return cache.Posts.TryGetValue(PostKey(sourceId, postId), out int index) ? cache.Snapshot.Posts[index] : null;
+        }
+    });
+
+    /// <summary>Size of the catalog file, its counts and the configured write limit.</summary>
+    internal BooruCatalogUsage GetUsage() => _lease.RunExclusive(() =>
+    {
+        lock (_sync)
+        {
+            Cache cache = LoadLocked();
+            return new BooruCatalogUsage(cache.DocumentBytes, cache.Snapshot.Posts.Count, cache.Snapshot.Watchers.Count,
+                DocumentLimitBytes);
         }
     });
 
@@ -726,6 +778,20 @@ internal sealed class BooruCatalogStore
         return canonical;
     }
 
+    internal const string FullMessage = "The Booru catalog has reached its configured size limit.";
+
+    /// <summary>
+    /// A write that would grow the catalog past its configured size limit; nothing was written. The type stays
+    /// <see cref="InvalidDataException"/> (existing callers report it as a persistence failure); the sizes are in Data.
+    /// </summary>
+    private static InvalidDataException CatalogFull(long documentBytes, long limitBytes)
+    {
+        InvalidDataException full = new(FullMessage);
+        full.Data["documentBytes"] = documentBytes;
+        full.Data["limitBytes"] = limitBytes;
+        return full;
+    }
+
     private static T[] CopyWith<T>(IReadOnlyList<T> current, int index, T value)
     {
         T[] result = new T[index < 0 ? current.Count + 1 : current.Count];
@@ -739,8 +805,8 @@ internal sealed class BooruCatalogStore
     {
         cancellationToken.ThrowIfCancellationRequested();
         byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(snapshot, _json);
-        if (bytes.Length > MaximumDocumentBytes)
-            throw new InvalidDataException("The Booru catalog exceeds its bounded size.");
+        long limit = DocumentLimitBytes;
+        if (bytes.Length > limit) throw CatalogFull(bytes.Length, limit);
 
         string directory = Path.GetDirectoryName(_path)!;
         Directory.CreateDirectory(directory);

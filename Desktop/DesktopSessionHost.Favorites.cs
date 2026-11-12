@@ -50,6 +50,15 @@ internal sealed partial class DesktopSessionHost
         { return null; }
     }
 
+    /// <summary>Hands the configured Danbooru catalog write limit (Settings, validated by <see cref="Config.Validate"/>) to the store.</summary>
+    private void ApplyBooruCatalogLimit()
+    {
+        if (_registry.BooruCatalog is { } store) store.DocumentLimitBytes = (long)Config.BooruCatalogLimitMiB * 1024 * 1024;
+    }
+
+    /// <summary>The write limit the profile's Danbooru catalog currently enforces (diagnostics, tests).</summary>
+    internal long? BooruCatalogLimitBytes => _registry.BooruCatalog?.DocumentLimitBytes;
+
     /// <summary>Passive immutable index. Loading and writes belong to the background owner.</summary>
     internal IReadOnlyList<FavoriteEntry> GetFavorites()
     {
