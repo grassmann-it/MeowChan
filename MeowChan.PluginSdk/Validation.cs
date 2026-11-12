@@ -953,6 +953,33 @@ public static class SdkValidation
                 Add("request.query", "invalid_query", "Query must be at most 1024 UTF-8 bytes and contain no control characters.");
             if (request.Page is < 1 or > 1000) Add("request.page", "invalid_page", "Page must be between 1 and 1000.");
             if (request.Limit is < 1 or > 100) Add("request.limit", "invalid_limit", "Limit must be between 1 and 100.");
+            if (request.BeforePostId is not null)
+            {
+                if (source.PostOrder != PostOrderKind.DecimalPostId)
+                    Add("request.beforePostId", "cursor_unsupported", "Only a source with decimal post order accepts a search cursor.");
+                BooruCursor(request.BeforePostId, "request.beforePostId");
+                if (request.Page != 1) Add("request.page", "ambiguous_page", "A cursor request uses page 1; the cursor alone selects the position.");
+            }
+        }
+
+        // A cursor is a post id the host received from the same source; it is never echoed in an issue.
+        private void BooruCursor(string cursor, string path)
+        {
+            if (!CanonicalDecimal(cursor) || cursor.Length > SdkLimits.MaximumIdentifierLength)
+                Add(path, "invalid_cursor", "A cursor is a positive decimal post id without leading zeros.");
+        }
+
+        // Positive decimal without leading zeros; such ids compare by length, then ordinally.
+        private static bool CanonicalDecimal([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? value)
+            => !string.IsNullOrEmpty(value) && value[0] is >= '1' and <= '9' && value.All(char.IsAsciiDigit);
+
+        private static int CompareDecimal(string left, string right)
+            => left.Length != right.Length ? left.Length.CompareTo(right.Length) : string.CompareOrdinal(left, right);
+
+        private void DecimalBooruPostId(SourcePostId? id, SourceDescription source, string path)
+        {
+            if (source.PostOrder == PostOrderKind.DecimalPostId && id?.PostId is not null && !CanonicalDecimal(id.PostId))
+                Add(path + ".postId", "invalid_order", "This source declares decimal post ids: a positive decimal without leading zeros.");
         }
 
         internal void BooruPostRequest(BooruPostRequest? request, SourceDescription? source)
@@ -961,6 +988,7 @@ public static class SdkValidation
             BooruPostId(request.Post, "request.post");
             SameSource(request.Post?.SourceId, source.SourceId, "request.post.sourceId");
             RequirePostSearch(source, "request.post.sourceId");
+            DecimalBooruPostId(request.Post, source, "request.post");
         }
 
         private void RequirePostSearch(SourceDescription source, string path)
@@ -990,20 +1018,44 @@ public static class SdkValidation
             if (page.SourceId != request.SourceId) Add(path + ".sourceId", "wrong_resource", "Page identifies another source.");
             if (page.Query != request.Query) Add(path + ".query", "wrong_resource", "Page does not echo the requested query.");
             if (page.Page != request.Page) Add(path + ".page", "wrong_resource", "Page does not echo the requested page number.");
+            bool decimalOrder = source.PostOrder == PostOrderKind.DecimalPostId;
+            bool cursorRequest = request.BeforePostId is not null && CanonicalDecimal(request.BeforePostId);
             HashSet<string> ids = new HashSet<string>(StringComparer.Ordinal);
+            string? previous = null;
             List(page.Posts, path + ".posts", (post, itemPath) =>
             {
                 BooruPost(post, source, itemPath);
                 if (post?.Id is null) return;
                 SameSource(post.Id.SourceId, request.SourceId, itemPath + ".id.sourceId");
                 if (post.Id.PostId is not null && !ids.Add(post.Id.PostId)) Add(itemPath + ".id.postId", "duplicate_post", "Post identity is duplicated within the page.");
+                if (!decimalOrder || !CanonicalDecimal(post.Id.PostId)) return;
+                if (previous is not null && CompareDecimal(post.Id.PostId, previous) >= 0)
+                    Add(itemPath + ".id.postId", "invalid_order", "A decimal-ordered source lists strictly descending post ids.");
+                if (cursorRequest && CompareDecimal(post.Id.PostId, request.BeforePostId!) >= 0)
+                    Add(itemPath + ".id.postId", "cursor_not_advanced", "A cursor page lists only posts below the cursor.");
+                previous = post.Id.PostId;
             }, Math.Clamp(request.Limit, 0, 100));
+
+            string? lowest = page.Posts is { Count: > 0 } posts ? posts[^1]?.Id?.PostId : null;
+            if (page.NextBeforePostId is not null)
+            {
+                if (!decimalOrder)
+                    Add(path + ".nextBeforePostId", "cursor_unsupported", "Only a source with decimal post order offers a search cursor.");
+                BooruCursor(page.NextBeforePostId, path + ".nextBeforePostId");
+                if (page.IsEnd)
+                    Add(path + ".nextBeforePostId", "end_with_cursor", "A final page cannot offer a next cursor.");
+                else if (lowest is null || page.NextBeforePostId != lowest)
+                    Add(path + ".nextBeforePostId", "invalid_cursor", "The next cursor is the lowest post id of the page.");
+            }
+            else if (decimalOrder && !page.IsEnd && lowest is not null)
+                Add(path + ".nextBeforePostId", "missing_cursor", "A decimal-ordered page that is not final names its next cursor.");
         }
 
         internal void BooruPost(BooruPost? post, SourceDescription source, string path)
         {
             if (post is null) { Add(path, "missing", "Post is required."); return; }
             BooruPostId(post.Id, path + ".id");
+            DecimalBooruPostId(post.Id, source, path + ".id");
             if ((post.Fields & ~BooruFieldPresence.All) != 0) Add(path + ".fields", "unknown_presence", "Unknown field-presence flag.");
             if ((!post.Fields.HasFlag(BooruFieldPresence.CreatedAt) && post.CreatedAt is not null)
                 || (!post.Fields.HasFlag(BooruFieldPresence.Rating) && (post.Rating != BooruRating.Unknown || post.RawRating is not null))

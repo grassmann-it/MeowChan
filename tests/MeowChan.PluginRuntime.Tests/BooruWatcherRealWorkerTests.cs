@@ -32,8 +32,10 @@ public sealed class BooruWatcherRealWorkerTests
         Assert.True(File.Exists(pluginPath), "Build the Danbooru plugin in Release before this test.");
         Assert.True(File.Exists(workerPath), "Build the plugin worker in Release before this test.");
 
+        // The complete post with a separate sample (id 1001), whatever its position in the fixture.
         JsonObject template = (JsonObject)JsonNode.Parse(File.ReadAllText(
-            Path.Combine(root, "tests/MeowChan.OfficialPlugins.Tests/Fixtures/danbooru/search-normal.json")))!.AsArray()[0]!;
+            Path.Combine(root, "tests/MeowChan.OfficialPlugins.Tests/Fixtures/danbooru/search-normal.json")))!.AsArray()
+            .Single(post => (long)post!["id"]! == 1001)!;
         List<long> ids = [100, 99];
         object idsGate = new();
         await using Loopback server = new(_ =>

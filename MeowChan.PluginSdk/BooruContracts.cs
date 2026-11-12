@@ -45,12 +45,27 @@ public sealed record BooruPost(SourcePostId Id, BooruFieldPresence Fields, Uri? 
     IReadOnlyList<BooruMediaVariant>? Media = null, string? SourceClaim = null, bool IsDeleted = false,
     bool IsBanned = false);
 
-/// <summary>Query is the already host-validated provider query and never contains private tags. Page is 1-based.</summary>
-public sealed record BooruSearchRequest(string SourceId, string Query, int Page, int Limit);
+/// <summary>
+/// Query is the already host-validated provider query and never contains private tags. Page is 1-based.
+/// BeforePostId is the optional cursor: "the posts of this query with an id lower than BeforePostId",
+/// newest first. A cursor request uses Page 1; the cursor alone selects the position.
+/// </summary>
+/// <remarks>
+/// Only a source that declares <see cref="PostOrderKind.DecimalPostId"/> receives a cursor, so a plugin that
+/// does not know the field never sees one. The value is a post id the host already received from the same
+/// source: a positive decimal without leading zeros. Plugins validate it and refuse one they cannot serve.
+/// </remarks>
+public sealed record BooruSearchRequest(string SourceId, string Query, int Page, int Limit,
+    string? BeforePostId = null);
 
-/// <summary>IsEnd states that the provider reported no further page, never that the site was fully observed.</summary>
+/// <summary>
+/// IsEnd states that the provider reported no further page, never that the site was fully observed.
+/// NextBeforePostId is the cursor that continues this query below this page: the lowest post id of the
+/// page. A decimal-ordered source names it on every nonempty page that is not final; a final or empty
+/// page and a source without decimal order have none.
+/// </summary>
 public sealed record BooruSearchPage(string SourceId, string Query, int Page, IReadOnlyList<BooruPost> Posts,
-    bool IsEnd);
+    bool IsEnd, string? NextBeforePostId = null);
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(BooruSearchSnapshot), "snapshot")]

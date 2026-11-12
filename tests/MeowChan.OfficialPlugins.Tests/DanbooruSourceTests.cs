@@ -42,6 +42,8 @@ public sealed class DanbooruSourceTests
         Assert.Equal(new Uri("https://danbooru.donmai.us/"), Source.BaseUri);
         Assert.Equal(SourceCapabilities.PostSearch | SourceCapabilities.OriginalMedia | SourceCapabilities.Previews, Source.Capabilities);
         Assert.Equal(SourceMaturity.Experimental, Source.Maturity);
+        // Danbooru lists searches and "page=b<id>" continuations by descending numeric post id.
+        Assert.Equal(PostOrderKind.DecimalPostId, Source.PostOrder);
         Assert.Empty(Source.Routes);
         Assert.Equal("1", Source.Settings.Version);
         Assert.Empty(Source.Settings.Fields);
@@ -192,10 +194,12 @@ public sealed class DanbooruSourceTests
         Assert.Equal("cat", page.Query);
         Assert.Equal(2, page.Page);
         Assert.False(page.IsEnd);
-        Assert.Equal(new[] { "1001", "1002", "1003" }, page.Posts.Select(post => post.Id.PostId));
+        // Newest first, like Danbooru's default order; a full page continues below its lowest id.
+        Assert.Equal(new[] { "1003", "1002", "1001" }, page.Posts.Select(post => post.Id.PostId));
+        Assert.Equal("1001", page.NextBeforePostId);
         Assert.All(page.Posts, post => Assert.Equal("danbooru", post.Id.SourceId));
 
-        BooruPost first = page.Posts[0];
+        BooruPost first = page.Posts[2];
         Assert.Equal(new Uri("https://danbooru.donmai.us/posts/1001"), first.PostUrl);
         Assert.Equal(BooruFieldPresence.All, first.Fields);
         Assert.Equal(new DateTimeOffset(2024, 3, 5, 14, 7, 9, 123, TimeSpan.FromHours(9)), first.CreatedAt);
@@ -230,7 +234,7 @@ public sealed class DanbooruSourceTests
         Assert.Equal(new BooruMediaVariant(BooruMediaRole.Original, new Uri("https://cdn.donmai.us/original/ff/ee/ffeeddccbbaa99887766554433221100.png"), ".png", 4096, 640, 480, "/+7dzLuqmYh3ZlVEMyIRAA=="), second.Media![0]);
         Assert.Equal(new[] { "artist_two", "original", "scenery", "no_humans" }, second.Tags!.Select(tag => tag.Name));
 
-        BooruPost third = page.Posts[2];
+        BooruPost third = page.Posts[0];
         Assert.Equal(BooruRating.Explicit, third.Rating);
         Assert.Equal(-4, third.Score);
         // Only tag_string is present: every tag has an unknown category; the duplicate is kept once.
@@ -262,11 +266,108 @@ public sealed class DanbooruSourceTests
     [InlineData(1, 0, true)]
     public async Task IsEndIsTrueOnlyWhenFewerPostsThanTheLimitCame(int limit, int count, bool isEnd)
     {
-        string body = "[" + string.Join(',', Enumerable.Range(1, count).Select(id => $"{{\"id\":{id}}}")) + "]";
+        string body = "[" + string.Join(',', Enumerable.Range(1, count).Reverse().Select(id => $"{{\"id\":{id}}}")) + "]";
         (BooruSearchResult result, _) = await Search(Json(body), "q", 1, limit);
         BooruSearchPage page = Assert.IsType<BooruSearchSnapshot>(result).Page;
         Assert.Equal(count, page.Posts.Count);
         Assert.Equal(isEnd, page.IsEnd);
+        // A final page offers no cursor; a full page continues below its lowest id.
+        Assert.Equal(isEnd ? null : "1", page.NextBeforePostId);
+    }
+
+    // ---- cursor paging and order ------------------------------------------------------------------
+
+    [Fact]
+    public async Task CursorRequestsUseDanbooruBeforeIdPagingAndContinueBelowTheLowestId()
+    {
+        (BooruSearchResult result, RecordingHttp http) = await Search(Json(Fixture("search-cursor.json")), "cat rating:g", 1, 2, "1000");
+        Assert.Equal($"{SearchBase}cat%20rating%3Ag&page=b1000&limit=2", Assert.Single(http.Requests).Url.AbsoluteUri);
+        BooruSearchPage page = Assert.IsType<BooruSearchSnapshot>(result).Page;
+        Assert.Equal(new[] { "999", "998" }, page.Posts.Select(post => post.Id.PostId));
+        Assert.Equal(1, page.Page);
+        Assert.False(page.IsEnd);
+        Assert.Equal("998", page.NextBeforePostId);
+
+        // The cursor's own last page: fewer posts than the limit is the end, without a cursor.
+        (BooruSearchResult last, _) = await Search(Json(Fixture("search-cursor.json")), "cat", 1, 3, "1000");
+        BooruSearchPage end = Assert.IsType<BooruSearchSnapshot>(last).Page;
+        Assert.True(end.IsEnd);
+        Assert.Null(end.NextBeforePostId);
+        (BooruSearchResult empty, _) = await Search(Json(Fixture("search-empty.json")), "cat", 1, 20, "5");
+        Assert.True(Assert.IsType<BooruSearchSnapshot>(empty).Page.IsEnd);
+        Assert.Null(Assert.IsType<BooruSearchSnapshot>(empty).Page.NextBeforePostId);
+    }
+
+    [Fact]
+    public async Task NumberedPagingStillSendsThePageNumber()
+    {
+        (BooruSearchResult result, RecordingHttp http) = await Search(Json(Fixture("search-normal.json")), "cat", 7, 3);
+        Assert.Equal($"{SearchBase}cat&page=7&limit=3", Assert.Single(http.Requests).Url.AbsoluteUri);
+        Assert.Equal(7, Assert.IsType<BooruSearchSnapshot>(result).Page.Page);
+    }
+
+    [Theory]
+    [InlineData("b1000")]
+    [InlineData("0")]
+    [InlineData("01")]
+    [InlineData("-1")]
+    [InlineData("1a")]
+    [InlineData(" 1")]
+    [InlineData("")]
+    [InlineData("１")]
+    public async Task MalformedCursorsAreInvalidRequestsBeforeAnyRequestWithoutEchoingThem(string cursor)
+    {
+        RecordingHttp http = Returning(Json("[]"));
+        BooruSearchRequest request = new("danbooru", "cat", 1, 20, cursor);
+        BooruSearchFailure failure = Assert.IsType<BooruSearchFailure>(await Plugin.SearchPostsAsync(request, Context(http)));
+        Assert.Equal("invalid-request", failure.Failure.Code);
+        if (cursor.Length > 2) Assert.DoesNotContain(cursor, JsonSerializer.Serialize(failure));
+        Assert.Empty(SdkValidation.ValidateBooruSearchResult(request with { BeforePostId = "5" }, failure, Source));
+        Assert.Empty(http.Requests);
+    }
+
+    [Theory]
+    [InlineData("1234567890123456789")]
+    [InlineData("99999999999999999999")]
+    public async Task CursorsBeyondTheDanbooruIdRangeFailBeforeAnyRequestWithoutEchoingThem(string cursor)
+    {
+        RecordingHttp http = Returning(Json("[]"));
+        BooruSearchRequest request = new("danbooru", "cat", 1, 20, cursor);
+        // A canonical SDK cursor, but longer than any Danbooru post id (18 digits).
+        Assert.Empty(SdkValidation.ValidateBooruSearchRequest(request, Source));
+        BooruSearchFailure failure = Assert.IsType<BooruSearchFailure>(await Plugin.SearchPostsAsync(request, Context(http)));
+        Assert.Equal("invalid-cursor", failure.Failure.Code);
+        Assert.Equal("The cursor is not a Danbooru post id.", failure.Failure.Message);
+        Assert.DoesNotContain(cursor, JsonSerializer.Serialize(failure));
+        Assert.Empty(SdkValidation.ValidateBooruSearchResult(request, failure, Source));
+        Assert.Empty(http.Requests);
+    }
+
+    [Fact]
+    public async Task CursorCombinedWithAPageNumberIsAnInvalidRequest()
+    {
+        RecordingHttp http = Returning(Json("[]"));
+        BooruSearchFailure failure = Assert.IsType<BooruSearchFailure>(await Plugin.SearchPostsAsync(new BooruSearchRequest("danbooru", "cat", 2, 20, "1000"), Context(http)));
+        Assert.Equal("invalid-request", failure.Failure.Code);
+        Assert.Empty(http.Requests);
+    }
+
+    [Fact]
+    public async Task EighteenDigitCursorsAreSentAsBeforeIdPages()
+    {
+        (_, RecordingHttp http) = await Search(Json("[]"), "cat", 1, 20, "999999999999999999");
+        Assert.Equal($"{SearchBase}cat&page=b999999999999999999&limit=20", Assert.Single(http.Requests).Url.AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task PagesOutOfDescendingIdOrderAreFailuresInsteadOfBrokenOrderClaims()
+    {
+        Assert.Equal("unexpected-order", Assert.IsType<BooruSearchFailure>((await Search(Json(Fixture("search-unordered.json")))).Result).Failure.Code);
+        // An answer to "below 999" that contains 999 or more is not below the cursor.
+        Assert.Equal("unexpected-order", Assert.IsType<BooruSearchFailure>((await Search(Json(Fixture("search-cursor.json")), "cat", 1, 2, "999")).Result).Failure.Code);
+        Assert.Equal("unexpected-order", Assert.IsType<BooruSearchFailure>((await Search(Json("[{\"id\":5},{\"id\":4}]"), "cat", 1, 2, "4")).Result).Failure.Code);
+        Assert.IsType<BooruSearchSnapshot>((await Search(Json("[{\"id\":5},{\"id\":4}]"), "cat", 1, 2, "6")).Result);
+        Assert.IsType<BooruSearchSnapshot>((await Search(Json("[{\"id\":9223372036854775807}]"), "cat", 1, 2)).Result);
     }
 
     [Fact]
@@ -410,7 +511,7 @@ public sealed class DanbooruSourceTests
         // Search and Read validate each result internally; run every fixture through both entry points.
         string[] bodies = Directory.EnumerateFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "danbooru"))
             .Where(path => !path.EndsWith(".md", StringComparison.Ordinal)).Select(File.ReadAllText).ToArray();
-        Assert.Equal(14, bodies.Length);
+        Assert.Equal(16, bodies.Length);
         foreach (string body in bodies)
         {
             await Search(Json(body), "q", 1, 3);
@@ -977,10 +1078,10 @@ public sealed class DanbooruSourceTests
 
     private static RecordingHttp Returning(HostHttpResult result) => new(_ => result);
 
-    private static async Task<(BooruSearchResult Result, RecordingHttp Http)> Search(HostHttpResult response, string query = "cat", int page = 1, int limit = 20)
+    private static async Task<(BooruSearchResult Result, RecordingHttp Http)> Search(HostHttpResult response, string query = "cat", int page = 1, int limit = 20, string? cursor = null)
     {
         RecordingHttp http = Returning(response);
-        BooruSearchRequest request = new("danbooru", query, page, limit);
+        BooruSearchRequest request = new("danbooru", query, page, limit, cursor);
         BooruSearchResult result = await Plugin.SearchPostsAsync(request, Context(http));
         Assert.Empty(SdkValidation.ValidateBooruSearchResult(request, result, Source));
         Assert.Single(http.Requests);

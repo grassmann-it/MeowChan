@@ -115,9 +115,11 @@ MeowChan.PluginSdk.BooruSearchFailure.Failure.init -> void
 MeowChan.PluginSdk.BooruSearchFailure.SourceId.get -> string!
 MeowChan.PluginSdk.BooruSearchFailure.SourceId.init -> void
 MeowChan.PluginSdk.BooruSearchPage
-MeowChan.PluginSdk.BooruSearchPage.BooruSearchPage(string! SourceId, string! Query, int Page, System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.BooruPost!>! Posts, bool IsEnd) -> void
+MeowChan.PluginSdk.BooruSearchPage.BooruSearchPage(string! SourceId, string! Query, int Page, System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.BooruPost!>! Posts, bool IsEnd, string? NextBeforePostId = null) -> void
 MeowChan.PluginSdk.BooruSearchPage.IsEnd.get -> bool
 MeowChan.PluginSdk.BooruSearchPage.IsEnd.init -> void
+MeowChan.PluginSdk.BooruSearchPage.NextBeforePostId.get -> string?
+MeowChan.PluginSdk.BooruSearchPage.NextBeforePostId.init -> void
 MeowChan.PluginSdk.BooruSearchPage.Page.get -> int
 MeowChan.PluginSdk.BooruSearchPage.Page.init -> void
 MeowChan.PluginSdk.BooruSearchPage.Posts.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.BooruPost!>!
@@ -127,7 +129,9 @@ MeowChan.PluginSdk.BooruSearchPage.Query.init -> void
 MeowChan.PluginSdk.BooruSearchPage.SourceId.get -> string!
 MeowChan.PluginSdk.BooruSearchPage.SourceId.init -> void
 MeowChan.PluginSdk.BooruSearchRequest
-MeowChan.PluginSdk.BooruSearchRequest.BooruSearchRequest(string! SourceId, string! Query, int Page, int Limit) -> void
+MeowChan.PluginSdk.BooruSearchRequest.BeforePostId.get -> string?
+MeowChan.PluginSdk.BooruSearchRequest.BeforePostId.init -> void
+MeowChan.PluginSdk.BooruSearchRequest.BooruSearchRequest(string! SourceId, string! Query, int Page, int Limit, string? BeforePostId = null) -> void
 MeowChan.PluginSdk.BooruSearchRequest.Limit.get -> int
 MeowChan.PluginSdk.BooruSearchRequest.Limit.init -> void
 MeowChan.PluginSdk.BooruSearchRequest.Page.get -> int

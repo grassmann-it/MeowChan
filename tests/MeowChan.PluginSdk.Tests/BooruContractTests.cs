@@ -359,4 +359,143 @@ public sealed class BooruContractTests
         Assert.Contains(ValidatePost(new BooruPost(Id, BooruFieldPresence.Rating, RawRating: new string('r', 17))), issue => issue.Path.EndsWith("rawRating"));
         Assert.Contains(ValidatePost(new BooruPost(Id, BooruFieldPresence.FavoriteCount, FavoriteCount: -1)), issue => issue.Code == "invalid_count");
     }
+
+    // Cursor paging (BeforePostId) and the decimal order declaration
+
+    private static SourceDescription Decimal() => Source() with { PostOrder = PostOrderKind.DecimalPostId };
+
+    private static BooruSearchResult CursorPage(bool isEnd, string? next, params BooruPost[] posts)
+        => new BooruSearchSnapshot(new("booru", PrivateQuery, 1, posts, isEnd, next));
+
+    [Fact]
+    public void CursorRequestsAndPagesRoundTripAndExistingPageCallersStillWork()
+    {
+        BooruSearchRequest cursor = Request with { BeforePostId = "1000" };
+        Assert.Equal(cursor, SdkJson.Deserialize<BooruSearchRequest>(SdkJson.Serialize(cursor)));
+        Assert.Contains("\"beforePostId\":\"1000\"", Encoding.UTF8.GetString(SdkJson.Serialize(cursor)));
+        Assert.Null(new BooruSearchRequest("booru", "q", 3, 20).BeforePostId);
+        // A request without the field (an older host) is a numbered request.
+        Assert.Null(SdkJson.Deserialize<BooruSearchRequest>(Encoding.UTF8.GetBytes("{\"sourceId\":\"booru\",\"query\":\"q\",\"page\":2,\"limit\":20}")).BeforePostId);
+        Assert.Empty(SdkValidation.ValidateBooruSearchRequest(new("booru", "q", 3, 20), Source()));
+        Assert.Empty(SdkValidation.ValidateBooruSearchRequest(new("booru", "q", 3, 20), Decimal()));
+        Assert.Empty(SdkValidation.ValidateBooruSearchRequest(cursor, Decimal()));
+        BooruSearchPage page = new("booru", "q", 1, [], false, "900");
+        Assert.Equal("900", SdkJson.Deserialize<BooruSearchPage>(SdkJson.Serialize(page)).NextBeforePostId);
+        Assert.Null(SdkJson.Deserialize<BooruSearchPage>(Encoding.UTF8.GetBytes("{\"sourceId\":\"booru\",\"query\":\"q\",\"page\":1,\"posts\":[],\"isEnd\":true}")).NextBeforePostId);
+        Assert.Empty(Validate(CursorPage(false, "2", FullPost("3"), FullPost("2")), cursor, Decimal()));
+        Assert.Empty(Validate(CursorPage(true, null, FullPost("999")), cursor, Decimal()));
+        Assert.Empty(Validate(CursorPage(true, null), cursor, Decimal()));
+        // A numbered request to a decimal source is told its continuation too.
+        Assert.Empty(Validate(CursorPage(false, "7", FullPost("8"), FullPost("7")), source: Decimal()));
+        // Opaque-id sources keep working without any cursor.
+        Assert.Empty(Validate(CursorPage(false, null, FullPost("2"))));
+    }
+
+    [Fact]
+    public void OnlyDecimalOrderedSourcesAcceptOrOfferACursor()
+    {
+        Assert.Contains(SdkValidation.ValidateBooruSearchRequest(Request with { BeforePostId = "5" }, Source()),
+            issue => issue.Code == "cursor_unsupported" && issue.Path == "request.beforePostId");
+        Assert.Contains(Validate(CursorPage(false, "2", FullPost("2"))), issue => issue.Code == "cursor_unsupported" && issue.Path == "result.page.nextBeforePostId");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("0")]
+    [InlineData("007")]
+    [InlineData("-1")]
+    [InlineData("+1")]
+    [InlineData("1a")]
+    [InlineData("b1000")]
+    [InlineData(" 1")]
+    [InlineData("1\n")]
+    [InlineData("1&x=2")]
+    [InlineData("%31")]
+    [InlineData("１")]
+    public void CursorsAreCanonicalDecimalPostIds(string value)
+    {
+        Assert.Contains(SdkValidation.ValidateBooruSearchRequest(Request with { BeforePostId = value }, Decimal()),
+            issue => issue.Code == "invalid_cursor" && issue.Path == "request.beforePostId");
+        Assert.Contains(Validate(CursorPage(false, value, FullPost("2")), source: Decimal()),
+            issue => issue.Code == "invalid_cursor" && issue.Path == "result.page.nextBeforePostId");
+    }
+
+    [Fact]
+    public void CursorLengthBoundariesFollowTheIdentifierLimit()
+    {
+        string longest = "1" + new string('0', SdkLimits.MaximumIdentifierLength - 1);
+        Assert.Empty(SdkValidation.ValidateBooruSearchRequest(Request with { BeforePostId = "1" }, Decimal()));
+        Assert.Empty(SdkValidation.ValidateBooruSearchRequest(Request with { BeforePostId = longest }, Decimal()));
+        Assert.Contains(SdkValidation.ValidateBooruSearchRequest(Request with { BeforePostId = longest + "0" }, Decimal()),
+            issue => issue.Code == "invalid_cursor");
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(5)]
+    [InlineData(1000)]
+    public void CursorAndPageNumberAreMutuallyExclusive(int page)
+        => Assert.Contains(SdkValidation.ValidateBooruSearchRequest(Request with { Page = page, BeforePostId = "5" }, Decimal()),
+            issue => issue.Code == "ambiguous_page" && issue.Path == "request.page");
+
+    [Fact]
+    public void NextCursorIsTheLowestIdOfANonFinalPage()
+    {
+        BooruSearchRequest cursor = Request with { BeforePostId = "10" };
+        Assert.Contains(Validate(CursorPage(true, "1", FullPost("1")), cursor, Decimal()), issue => issue.Code == "end_with_cursor");
+        Assert.Contains(Validate(CursorPage(false, null, FullPost("2")), cursor, Decimal()), issue => issue.Code == "missing_cursor");
+        Assert.DoesNotContain(Validate(CursorPage(false, null, FullPost("2"))), issue => issue.Code == "missing_cursor");
+        Assert.Contains(Validate(CursorPage(false, "3", FullPost("3"), FullPost("2")), cursor, Decimal()), issue => issue.Code == "invalid_cursor");
+        Assert.Contains(Validate(CursorPage(false, "10", FullPost("2")), cursor, Decimal()), issue => issue.Code == "invalid_cursor");
+        Assert.Contains(Validate(CursorPage(false, "2"), cursor, Decimal()), issue => issue.Code == "invalid_cursor");
+        // An empty page that is not final has nothing to continue below; it needs no cursor.
+        Assert.DoesNotContain(Validate(CursorPage(false, null), cursor, Decimal()), issue => issue.Code == "missing_cursor");
+    }
+
+    [Fact]
+    public void CursorPagesListOnlyPostsBelowTheCursor()
+    {
+        BooruSearchRequest cursor = Request with { BeforePostId = "10" };
+        Assert.Contains(Validate(CursorPage(true, null, FullPost("10")), cursor, Decimal()),
+            issue => issue.Code == "cursor_not_advanced" && issue.Path == "result.page.posts[0].id.postId");
+        Assert.Contains(Validate(CursorPage(true, null, FullPost("12"), FullPost("9")), cursor, Decimal()), issue => issue.Code == "cursor_not_advanced");
+        Assert.Empty(Validate(CursorPage(true, null, FullPost("9"), FullPost("1")), cursor, Decimal()));
+    }
+
+    [Fact]
+    public void CursorValidationNeverEchoesTheCursor()
+    {
+        const string secret = "8675309";
+        IReadOnlyList<ValidationIssue> issues = [.. SdkValidation.ValidateBooruSearchRequest(Request with { BeforePostId = secret + "x", Page = 2 }, Decimal()),
+            .. Validate(CursorPage(true, secret + "#"), source: Decimal())];
+        Assert.NotEmpty(issues);
+        Assert.All(issues, issue => Assert.DoesNotContain(secret, issue.Path + issue.Code + issue.Message));
+    }
+
+    [Fact]
+    public void DecimalOrderedSearchPagesListStrictlyDescendingCanonicalIds()
+    {
+        Assert.Empty(SdkValidation.ValidateDescription(Plugin(Decimal())));
+        Assert.Empty(Validate(CursorPage(false, "9", FullPost("1000"), FullPost("999"), FullPost("10"), FullPost("9")), source: Decimal()));
+        Assert.Empty(Validate(CursorPage(true, null, FullPost("100000000000000000000000000002"), FullPost("100000000000000000000000000001")), source: Decimal()));
+        Assert.Contains(Validate(CursorPage(true, null, FullPost("9"), FullPost("10")), source: Decimal()), issue => issue.Code == "invalid_order" && issue.Path == "result.page.posts[1].id.postId");
+        Assert.Contains(Validate(CursorPage(true, null, FullPost("5"), FullPost("5")), source: Decimal()), issue => issue.Code == "invalid_order");
+        // StableOrdinal (the default) promises no order: ascending or opaque ids stay valid.
+        Assert.Empty(Validate(Page(FullPost("9"), FullPost("10"), FullPost("x-1"))));
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("007")]
+    [InlineData("-1")]
+    [InlineData("1a")]
+    [InlineData("１")]
+    public void DecimalOrderedSourcesUseCanonicalPositiveDecimalIds(string postId)
+    {
+        Assert.Contains(Validate(CursorPage(true, null, FullPost(postId)), source: Decimal()), issue => issue.Code == "invalid_order");
+        Assert.Contains(SdkValidation.ValidateBooruPostRequest(new(new("booru", postId)), Decimal()), issue => issue.Code == "invalid_order");
+        Assert.Contains(SdkValidation.ValidateBooruPostResult(new(new("booru", "1")), new BooruPostSnapshot(FullPost(postId)), Decimal()),
+            issue => issue.Code == "invalid_order");
+        Assert.DoesNotContain(SdkValidation.ValidateBooruPostRequest(new(new("booru", postId)), Source()), issue => issue.Code == "invalid_order");
+    }
 }

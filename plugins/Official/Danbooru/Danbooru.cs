@@ -3,6 +3,13 @@
 // metadata requests only through IHostHttp, never retries, never downloads media and never invents
 // a CDN address. Every returned value is a provider claim; the host owns pacing, retries and the
 // media queue.
+//
+// Order and paging: Danbooru lists a search by descending post id unless the query reorders it (the
+// accepted query syntax has no order term), and its "page=b<id>" form returns the posts below <id>,
+// again by descending id. The source therefore declares DecimalPostId: a cursor request
+// (BeforePostId) is sent as "page=b<id>", a numbered request keeps "page=<n>", and NextBeforePostId is
+// the lowest id of a page. A page that is not strictly descending (or not below its cursor) is
+// reported as a failure instead of breaking that promise.
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -30,7 +37,7 @@ public sealed class DanbooruPlugin : IBooruSourcePlugin
                 {
                     new(DanbooruParser.MetadataHost, HttpHostPurpose.Metadata),
                     new(DanbooruParser.MediaHost, HttpHostPurpose.OriginalMedia | HttpHostPurpose.PreviewMedia)
-                }, EmptySettings) { Maturity = SourceMaturity.Experimental }
+                }, EmptySettings, PostOrderKind.DecimalPostId) { Maturity = SourceMaturity.Experimental }
         }, Array.Empty<FilterDescription>(), EmptySettings,
         new InformationEntry[] { new("access", "Access and tags", InformationKind.Text,
             "Public read-only access: no account or API key is used. Tags are Danbooru's provider tags (source tags), never private tags. " +
@@ -44,8 +51,14 @@ public sealed class DanbooruPlugin : IBooruSourcePlugin
     {
         if (request is null || SdkValidation.ValidateBooruSearchRequest(request, Description.Sources[0]).Count != 0)
             return new BooruSearchFailure(request?.SourceId ?? DanbooruParser.SourceId, new FailureDetail("invalid-request", "The search request is not valid for this source."));
+        // Danbooru post ids fit a 64-bit integer; a longer cursor is not one of its ids. Never echoed.
+        if (request.BeforePostId is not null && !DanbooruParser.ValidPostId(request.BeforePostId))
+            return new BooruSearchFailure(request.SourceId, new FailureDetail("invalid-cursor", "The cursor is not a Danbooru post id."));
+        string page = request.BeforePostId is null
+            ? request.Page.ToString(CultureInfo.InvariantCulture)
+            : DanbooruParser.BeforeCursor(request.BeforePostId);
         HostHttpResult result = await context.Http.SendAsync(Get(new Uri(
-            $"https://{DanbooruParser.MetadataHost}/posts.json?tags={Uri.EscapeDataString(request.Query)}&page={request.Page.ToString(CultureInfo.InvariantCulture)}&limit={request.Limit.ToString(CultureInfo.InvariantCulture)}")),
+            $"https://{DanbooruParser.MetadataHost}/posts.json?tags={Uri.EscapeDataString(request.Query)}&page={page}&limit={request.Limit.ToString(CultureInfo.InvariantCulture)}")),
             cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         if (result is HostHttpDeferred deferred) return new BooruSearchDeferred(request.SourceId, deferred.RetryAt, deferred.ReasonCode, deferred.HttpStatusCode);
@@ -57,7 +70,15 @@ public sealed class DanbooruPlugin : IBooruSourcePlugin
         try
         {
             IReadOnlyList<BooruPost> posts = DanbooruParser.ParseSearch(response.Body, request.Limit, cancellationToken);
-            return new BooruSearchSnapshot(new BooruSearchPage(request.SourceId, request.Query, request.Page, posts, posts.Count < request.Limit));
+            if (!DanbooruParser.StrictlyDescending(posts, request.BeforePostId))
+                return new BooruSearchFailure(request.SourceId, new FailureDetail("unexpected-order", "Danbooru did not list the posts by descending id."));
+            // IsEnd is a heuristic: Danbooru's JSON array carries no "last page" marker, so a page with
+            // fewer posts than requested is taken as the end. A full page is never the end and continues
+            // below its lowest id. Hosts treat IsEnd as "stop this pass", never as proof that nothing else
+            // matches, and recheck from the newest posts later.
+            bool isEnd = posts.Count < request.Limit;
+            string? next = isEnd ? null : posts[^1].Id.PostId;
+            return new BooruSearchSnapshot(new BooruSearchPage(request.SourceId, request.Query, request.Page, posts, isEnd, next));
         }
         catch (DanbooruParser.ResponseException exception) { return new BooruSearchFailure(request.SourceId, exception.Detail); }
     }
@@ -127,6 +148,22 @@ internal static class DanbooruParser
 
     // Positive decimal without leading zeros, small enough to fit a 64-bit integer.
     internal static bool ValidPostId(string? id) => id is { Length: > 0 and <= 18 } && id[0] != '0' && id.All(char.IsAsciiDigit);
+
+    // Danbooru's "before id" page value: the posts with a lower id, by descending id.
+    internal static string BeforeCursor(string postId) => "b" + postId;
+
+    // Parsed ids are positive 64-bit integers, so they compare as such; a cursor is a valid post id.
+    internal static bool StrictlyDescending(IReadOnlyList<BooruPost> posts, string? before)
+    {
+        long? previous = before is null ? null : long.Parse(before, NumberStyles.None, CultureInfo.InvariantCulture);
+        foreach (BooruPost post in posts)
+        {
+            long id = long.Parse(post.Id.PostId, NumberStyles.None, CultureInfo.InvariantCulture);
+            if (id >= previous) return false;
+            previous = id;
+        }
+        return true;
+    }
 
     private static DateTimeOffset Now() => TimeProvider.System.GetUtcNow();
 

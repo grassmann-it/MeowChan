@@ -18,6 +18,16 @@ public enum SourceCapabilities
 [Flags]
 public enum HttpHostPurpose { None = 0, Metadata = 1, OriginalMedia = 2, PreviewMedia = 4 }
 
+/// <summary>
+/// Post order of a source. For threads, StableOrdinal orders posts by their stable ordinal and
+/// DecimalPostId by arbitrary-length decimal post identity.
+/// For a PostSearch source, StableOrdinal promises nothing: post ids stay opaque, a host tells new posts
+/// only by set membership and never sends a search cursor. DecimalPostId declares that every booru post
+/// id is a positive decimal without leading zeros, that a larger id was assigned later by the provider,
+/// that every search page lists strictly descending ids, and that the source serves
+/// <see cref="BooruSearchRequest.BeforePostId"/> cursors. It does not promise dense ids, creation-time
+/// order, that an older id never starts matching a query later, or that a page is full.
+/// </summary>
 public enum PostOrderKind { StableOrdinal, DecimalPostId }
 
 /// <summary>Informational source maturity; it does not authorize relaxed media integrity checks.</summary>

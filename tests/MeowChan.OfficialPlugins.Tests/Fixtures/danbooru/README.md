@@ -15,8 +15,10 @@ that the plugin reads: `id`, `created_at`, `rating`, `score`, `fav_count`,
 
 | File | Purpose |
 | --- | --- |
-| `search-normal.json` | three posts: with sample, sample equal to original, tag_string fallback |
+| `search-normal.json` | three posts, newest (highest id) first like Danbooru's default order: tag_string fallback, sample equal to original, with sample |
 | `search-empty.json` | empty result page |
+| `search-cursor.json` | a full page of two posts below a `page=b1000` cursor, descending ids |
+| `search-unordered.json` | ascending ids, which break the declared descending order |
 | `post-normal.json` | complete single post |
 | `post-restricted.json` | no `file_url`, `large_file_url` or `md5` |
 | `post-deleted-banned.json` | `is_deleted` and `is_banned` true |
@@ -28,4 +30,4 @@ that the plugin reads: `id`, `created_at`, `rating`, `score`, `fav_count`,
 | `html-challenge.html` | an HTML page instead of JSON |
 | `malformed-json.json` | truncated JSON |
 | `wrong-shape.json` | an object where a search array is expected |
-| `too-many-posts.json` | four posts for a request limit of three |
+| `too-many-posts.json` | four posts (descending ids) for a request limit of three |
