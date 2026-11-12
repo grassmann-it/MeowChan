@@ -33,10 +33,10 @@ public partial class MainWindow
         }
         _mediaPage = new MediaPage(_session.OpenArchiveReaderAsync, cachePath: Path.Combine(_session.ProfileDirectory, "cache", MediaLibraryIndexCache.FileName))
         {
-            OpenGallery = OpenMediaLibraryGalleryAsync,
+            OpenGallery = (window, start) => OpenMediaLibraryGalleryAsync(window, start),
             ShowInThread = ShowMediaLibraryEntryInThreadAsync,
             EditTags = EditMediaLibraryTagsAsync,
-            EditTagsForMenuAsync = EditMediaLibraryTagsForMenuAsync,
+            EditTagsForMenuAsync = (entry, current) => EditMediaLibraryTagsForMenuAsync(entry, current),
             ExecuteMediaMenuActionAsync = ExecuteMediaLibraryMenuActionAsync,
             ReadUserData = ReadMediaLibraryUserData,
             TagServices = new(_session.GetPublishedPrivateTagSnapshot, _session.DefinePrivateTagAsync,
