@@ -20,11 +20,23 @@ internal static class DanbooruWatcherSchedule
     /// started automatically (Paused, Error, Removed or already Checking). Error and Paused need an
     /// explicit user action; a manual check bypasses this schedule but not the provider cooldown.
     /// </summary>
-    internal static DateTimeOffset? NextCheckAtUtc(DanbooruWatcher watcher, TimeSpan interval, DateTimeOffset nowUtc)
+    /// <remarks>
+    /// <c>maximumRequestPage</c> is the highest provider page the transport can request (numeric paging).
+    /// A watcher whose continuation needs a later page is never started automatically: requesting it
+    /// cannot succeed, and restarting at page 1 would silently skip the unseen posts. <c>null</c> applies
+    /// no transport limit.
+    /// </remarks>
+    internal static DateTimeOffset? NextCheckAtUtc(DanbooruWatcher watcher, TimeSpan interval, DateTimeOffset nowUtc,
+        int? maximumRequestPage = null)
     {
         ArgumentNullException.ThrowIfNull(watcher);
         ValidateInterval(interval);
         DateTimeOffset now = nowUtc.ToUniversalTime();
+        if (IsContinuationBlocked(watcher, maximumRequestPage)) return null;
+        // A paused watcher whose manual check was deferred keeps Paused as its resume target; the
+        // provider retry time must not turn that into an automatic request.
+        if (watcher.State == DanbooruWatcherState.Cooldown && watcher.ResumeState == DanbooruWatcherState.Paused)
+            return null;
         // A last-check time in the future (clock moved back) is not trustworthy: treat the watcher as due
         // now, so the next real check rewrites LastCheckedAtUtc instead of stalling it for a long time.
         DateTimeOffset? last = watcher.LastCheckedAtUtc;
@@ -52,7 +64,7 @@ internal static class DanbooruWatcherSchedule
     /// </summary>
     internal static DanbooruWatcher? SelectNext(IEnumerable<DanbooruWatcher> watchers, DateTimeOffset nowUtc,
         TimeSpan interval, DateTimeOffset? providerCooldownUntilUtc = null,
-        IReadOnlyCollection<string>? inFlightWatcherIds = null)
+        IReadOnlyCollection<string>? inFlightWatcherIds = null, int? maximumRequestPage = null)
     {
         ArgumentNullException.ThrowIfNull(watchers);
         ValidateInterval(interval);
@@ -67,13 +79,26 @@ internal static class DanbooruWatcherSchedule
         if (distinct.Any(watcher => watcher.State == DanbooruWatcherState.Checking)) return null;
 
         return distinct
-            .Select(watcher => (Watcher: watcher, Due: NextCheckAtUtc(watcher, interval, now)))
+            .Select(watcher => (Watcher: watcher, Due: NextCheckAtUtc(watcher, interval, now, maximumRequestPage)))
             .Where(item => item.Due is { } due && due <= now)
             .OrderBy(item => item.Due!.Value)
             .ThenBy(item => item.Watcher.CreatedAtUtc)
             .ThenBy(item => item.Watcher.WatcherId, StringComparer.Ordinal)
             .Select(item => item.Watcher)
             .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// True when the watcher's resumable partial progress needs a provider page beyond
+    /// <paramref name="maximumRequestPage"/>. Such progress stays stored and visible; it is neither
+    /// requested nor discarded.
+    /// </summary>
+    internal static bool IsContinuationBlocked(DanbooruWatcher watcher, int? maximumRequestPage)
+    {
+        ArgumentNullException.ThrowIfNull(watcher);
+        if (maximumRequestPage is not { } maximum) return false;
+        if (maximum < 1) throw new ArgumentOutOfRangeException(nameof(maximumRequestPage));
+        return watcher.State != DanbooruWatcherState.Removed && watcher.Progress.NextPage > maximum;
     }
 
     private static void ValidateInterval(TimeSpan interval)

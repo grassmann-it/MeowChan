@@ -188,6 +188,34 @@ public sealed class DanbooruWatcherScheduleTests
         Assert.Equal(DanbooruWatcherState.Paused, cancelled.State);
     }
 
+    [Fact]
+    public void PausedWatcherWhoseManualCheckWasDeferredIsNeverRetriedAutomatically()
+    {
+        DanbooruWatcher paused = DanbooruWatcher.Pause(Checked("w", T0)).Watcher;
+        DanbooruWatcher running = DanbooruWatcher.BeginCheck(paused, T0.AddHours(1), manual: true).Watcher;
+        DanbooruWatcher deferred = DanbooruWatcher.ApplyDeferred(running, T0.AddHours(2), "booru-cooldown", T0.AddHours(1)).Watcher;
+        Assert.Equal(DanbooruWatcherState.Cooldown, deferred.State);
+        Assert.Equal(DanbooruWatcherState.Paused, deferred.ResumeState);
+
+        Assert.Null(DanbooruWatcherSchedule.NextCheckAtUtc(deferred, Interval, T0.AddDays(1)));
+        Assert.Null(DanbooruWatcherSchedule.SelectNext(new[] { deferred }, T0.AddDays(1), Interval));
+    }
+
+    [Fact]
+    public void ContinuationBeyondTheTransportPageWindowIsNotDueButAReachableOneIs()
+    {
+        DanbooruWatcher partial = BudgetLimited("busy", T0 + TimeSpan.FromMinutes(5)); // budget 1 => next page 2
+        DateTimeOffset now = T0 + TimeSpan.FromMinutes(6);
+        Assert.Equal(2, partial.Progress.NextPage);
+        Assert.False(DanbooruWatcherSchedule.IsContinuationBlocked(partial, 5));
+        Assert.Same(partial, DanbooruWatcherSchedule.SelectNext(new[] { partial }, now, Interval, maximumRequestPage: 5));
+
+        Assert.True(DanbooruWatcherSchedule.IsContinuationBlocked(partial, 1));
+        Assert.Null(DanbooruWatcherSchedule.NextCheckAtUtc(partial, Interval, now.AddDays(1), maximumRequestPage: 1));
+        Assert.Null(DanbooruWatcherSchedule.SelectNext(new[] { partial }, now.AddDays(1), Interval, maximumRequestPage: 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => DanbooruWatcherSchedule.IsContinuationBlocked(partial, 0));
+    }
+
     private static DanbooruWatcher Create(string id, DateTimeOffset createdAt, int pageBudget = 5)
     {
         Assert.True(DanbooruWatcher.TryCreate(id, "cat", createdAt, out DanbooruWatcher? w, out _, pageBudget: pageBudget));
