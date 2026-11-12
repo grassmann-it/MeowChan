@@ -3,6 +3,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
 import signal
 import subprocess
 import sys
@@ -122,6 +123,54 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
         # D1: captures and smokes must not depend on a transition; the motion smoke removes the variable inside its own process.
         self.assertEqual("off", runner.prepare_environment({}, False, self.root)["MEOWCHAN_MOTION"])
         self.assertEqual("on", runner.prepare_environment({"MEOWCHAN_MOTION": "on"}, False, self.root)["MEOWCHAN_MOTION"])
+
+    def long_temp_base(self):
+        """A TMPDIR whose private directory cannot hold the session bus socket."""
+        base = self.root / ("long-" + "x" * 80)
+        base.mkdir()
+        return base
+
+    def test_short_tmpdir_keeps_the_private_directory_where_tempfile_puts_it(self):
+        short = Path(tempfile.mkdtemp(prefix="mcs-t-", dir=runner.SHORT_DIRECTORY_BASE))
+        self.addCleanup(shutil.rmtree, short, ignore_errors=True)
+        with mock.patch.dict(os.environ, {"TMPDIR": str(short)}), mock.patch.object(tempfile, "tempdir", None):
+            directory = runner.private_working_directory(True)
+            self.addCleanup(directory.cleanup)
+            self.assertEqual(short, Path(directory.name).parent)
+            self.assertTrue(runner.socket_paths_fit(directory.name))
+
+    def test_long_tmpdir_moves_only_the_isolated_directory_to_a_short_base_and_cleans_it_up(self):
+        base = self.long_temp_base()
+        with mock.patch.dict(os.environ, {"TMPDIR": str(base)}), mock.patch.object(tempfile, "tempdir", None):
+            self.assertFalse(runner.socket_paths_fit(tempfile.mkdtemp(prefix="meowchan-smoke-cwd-", dir=base)))
+            native = runner.private_working_directory(False)
+            self.assertEqual(base, Path(native.name).parent)
+            native.cleanup()
+            with runner.private_working_directory(True) as name:
+                self.assertEqual(Path(runner.SHORT_DIRECTORY_BASE), Path(name).parent)
+                self.assertTrue(runner.socket_paths_fit(name))
+            self.assertFalse(Path(name).exists())
+        self.assertEqual(1, len([entry for entry in base.iterdir() if entry.name.startswith("meowchan-smoke-cwd-")]),
+                         "only the probe directory of this test is left below the long TMPDIR")
+
+    def test_unusable_short_base_is_a_clear_error_and_leaves_nothing_behind(self):
+        base = self.long_temp_base()
+        with mock.patch.dict(os.environ, {"TMPDIR": str(base)}), mock.patch.object(tempfile, "tempdir", None), \
+                mock.patch.object(runner, "SHORT_DIRECTORY_BASE", str(base)):
+            with self.assertRaisesRegex(ValueError, "too long for the private session bus"):
+                runner.private_working_directory(True)
+        self.assertEqual([], list(base.iterdir()))
+
+    @unittest.skipUnless(sys.platform.startswith("linux") and runner.shutil.which("dbus-run-session"),
+                         "needs dbus-run-session (Linux)")
+    def test_private_bus_starts_under_a_long_tmpdir_without_any_display(self):
+        base = self.long_temp_base()
+        with mock.patch.dict(os.environ, {"TMPDIR": str(base)}), mock.patch.object(tempfile, "tempdir", None), \
+                runner.private_working_directory(True) as name:
+            environment = runner.prepare_environment({"PATH": os.environ["PATH"]}, True, Path(name))
+            started = subprocess.run(["dbus-run-session", "--config-file=" + name + "/bus.conf", "--", "true"],
+                                     env=environment, capture_output=True, text=True, timeout=30)
+        self.assertEqual(0, started.returncode, started.stderr)
 
     def test_missing_tools_fail_without_starting_any_process(self):
         with mock.patch.object(runner.sys, "platform", "linux"), \

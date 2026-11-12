@@ -92,6 +92,36 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return args
 
 
+# AF_UNIX sun_path holds 108 bytes including the NUL. The longest socket the isolated session creates below its
+# private directory is the nested KWin Wayland lock file; dbus-daemon's "dbus-XXXXXXXX" is shorter.
+SOCKET_PATH_LIMIT = 107
+LONGEST_SOCKET_SUFFIX = "/runtime/meowchan-smoke-wayland.lock"
+SHORT_DIRECTORY_BASE = "/tmp"
+
+
+def socket_paths_fit(directory: str) -> bool:
+    return len(os.fsencode(directory)) + len(LONGEST_SOCKET_SUFFIX) <= SOCKET_PATH_LIMIT
+
+
+def private_working_directory(isolated: bool) -> tempfile.TemporaryDirectory:
+    """The per-run private directory (profile, XDG dirs, bus.conf, bus socket).
+
+    With a long TMPDIR the private session bus cannot bind below it: dbus-daemon stops with "Socket name too long"
+    and dbus-run-session only reports "EOF reading address from bus daemon". Only then this run's directory moves
+    to a short base; a TMPDIR that fits keeps it. The native (non-isolated) run starts no bus."""
+    directory = tempfile.TemporaryDirectory(prefix="meowchan-smoke-cwd-")
+    if not isolated or socket_paths_fit(directory.name):
+        return directory
+    long_name = directory.name
+    directory.cleanup()
+    short = tempfile.TemporaryDirectory(prefix="mcs-", dir=SHORT_DIRECTORY_BASE)
+    if not socket_paths_fit(short.name):
+        short.cleanup()
+        raise ValueError(f"TMPDIR {long_name!r} is too long for the private session bus sockets "
+                         f"(limit {SOCKET_PATH_LIMIT} bytes) and {SHORT_DIRECTORY_BASE} is no short fallback")
+    return short
+
+
 def prepare_environment(base: dict[str, str], isolated: bool, directory: Path) -> dict[str, str]:
     # A fixture/application child must never inherit routing to the project Git index.
     environment = {key: value for key, value in base.items() if not key.startswith("GIT_")}
@@ -217,7 +247,7 @@ def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str
     interrupted = False
     error = None
     exit_code = 1
-    with tempfile.TemporaryDirectory(prefix="meowchan-smoke-cwd-") as working_directory:
+    with private_working_directory(isolated) as working_directory:
         child_environment = prepare_environment(environment, isolated, Path(working_directory))
         scenario = expected_scenario or derived_scenario(mode, child_environment)
         if not isolated:
