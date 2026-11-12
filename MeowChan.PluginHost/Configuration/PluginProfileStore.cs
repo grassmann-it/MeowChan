@@ -289,6 +289,11 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                         if (automaticBinding is { } acceptedBinding)
                             document = document with { Bindings = document.Bindings
                                 .Select(value => value.PluginId == pluginId ? acceptedBinding : value).ToArray() };
+                        // Any accepted 1.1.0 build, automatic or explicitly reviewed, uses up the SDK bridge.
+                        if (release.Description.SdkVersion == "1.1.0" && document.Provenance.Any(p => p.PluginId == pluginId) &&
+                            !document.AcceptedSdkUpgrades.Any(u => u.PluginId == pluginId))
+                            document = document with { AcceptedSdkUpgrades = document.AcceptedSdkUpgrades
+                                .Append(new AcceptedSdkUpgrade(pluginId, release.ExecutionRevision)).ToArray() };
                     }
                 }
                 plugins.Add(next);

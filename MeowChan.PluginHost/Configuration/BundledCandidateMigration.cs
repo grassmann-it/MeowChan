@@ -63,12 +63,16 @@ internal sealed record PreReplacementBasis(PluginReleaseSnapshot? Release, strin
 {
     internal bool Missing => HasHistory && ExecutionRevision is null;
 }
+// First SDK 1.1.0 executable ever activated for a delivered plugin. Active/LastGood lose it
+// after an activation failure, so this is the only proof the one-time SDK bridge was used.
+internal sealed record AcceptedSdkUpgrade(string PluginId, string ExecutionRevision);
 internal sealed record BundledProfileDocument(PluginProfileSnapshot Profile,
     IReadOnlyList<DeliveredCandidateProvenance> Provenance, IReadOnlyList<BundledRepairBinding> Bindings,
     IReadOnlyList<string> RestrictedSourceIds)
 {
     // Bind the actual first pre-selection envelope, without pretending it was v1.
     public string? ReselectionBackupSha256 { get; init; }
+    public IReadOnlyList<AcceptedSdkUpgrade> AcceptedSdkUpgrades { get; init; } = [];
 }
 
 internal static class BundledCandidateMigration
@@ -306,7 +310,10 @@ internal static class BundledCandidateMigration
         PluginActivationSnapshot plugin, PluginCandidateSnapshot? candidate, PreReplacementBasis previous,
         IReadOnlyList<DeliveredCandidateProvenance>? currentDelivery, int presentCount)
     {
+        // One bridge per plugin: once any 1.1.0 build was activated, a failed one leaves LastGood
+        // 1.0.0 behind, which must not authorize a further rebuild to inherit rights.
         if (currentDelivery is null || presentCount != 1 || plugin.Pinned is not null ||
+            document.AcceptedSdkUpgrades.Any(u => u.PluginId == plugin.PluginId) ||
             candidate is not { IsPresent: true, Problem: null, Artifact: not null, Description: not null } ||
             previous.Missing || previous.Release is null || previous.Provenance is null ||
             previous.CandidateId != candidate.CandidateId ||
@@ -379,8 +386,13 @@ internal static class BundledCandidateMigration
         if (document.ReselectionBackupSha256 is { } backupHash && !CompilerWire.IsHash(backupHash))
             throw new ArgumentException("Invalid new-selection backup binding.");
         if (document.Provenance is null || document.Bindings is null || document.RestrictedSourceIds is null ||
+            document.AcceptedSdkUpgrades is null || document.AcceptedSdkUpgrades.Count > MaximumEvidence ||
             document.Provenance.Count > MaximumEvidence || document.Bindings.Count > MaximumEvidence || document.RestrictedSourceIds.Count > 4096)
             throw new ArgumentException("Invalid bounded delivered provenance collections.");
+        if (document.AcceptedSdkUpgrades.GroupBy(u => u?.PluginId).Any(g => g.Count() != 1) ||
+            document.AcceptedSdkUpgrades.Any(u => u is null || string.IsNullOrWhiteSpace(u.PluginId) || u.PluginId.Length > 512 ||
+                string.IsNullOrWhiteSpace(u.ExecutionRevision) || u.ExecutionRevision.Length > 512))
+            throw new ArgumentException("Invalid accepted SDK upgrade history.");
         if (document.Provenance.GroupBy(p => (p.CandidateId, p.ExecutionRevision)).Any(g => g.Count() != 1) ||
             document.Bindings.GroupBy(b => b.PluginId).Any(g => g.Count() != 1))
             throw new ArgumentException("Duplicate delivered provenance or repair binding.");

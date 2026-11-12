@@ -152,6 +152,54 @@ public sealed partial class PluginProfileStoreTests
         Assert.Equal(before, await File.ReadAllBytesAsync(store.StorePath));
     }
 
+    // Regression: a failed 1.1.0 activation leaves LastGood 1.0.0, which must not let the SDK
+    // bridge be used a second time for a rebuild (or a retry) to inherit rights unreviewed.
+    [Theory]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public async Task SdkBridgeIsUsedUpByAcceptedBuildEvenAfterItsActivationFails(bool filterRight, bool sourceRight, bool retrySame)
+    {
+        string[] restricted = sourceRight ? ["shared"] : [];
+        var old = await SdkDelivery("sdk-once", "A");
+        var store = Store();
+        var state = await store.ApplyBundledStartupAsync([old.Candidate], [old.Proof], restricted, 0);
+        if (filterRight) state = await AddReviewedFilterGrantsAsync(store, state);
+        byte[] configuration = SdkJson.Serialize(Active(state).Configuration);
+        var adopted = await SdkDelivery("sdk-once", "B", "1.1.0");
+        state = await store.ApplyBundledStartupAsync([adopted.Candidate], [adopted.Proof], restricted, state.Revision);
+        Assert.Equal(adopted.Proof.ExecutionRevision, Active(state).ExecutionRevision);
+        state = await store.ReportActivationFailureAsync("test.plugin", adopted.Proof.ExecutionRevision, "Synthetic load failure.", state.Revision);
+        Assert.Null(state.Plugins[0].Active);
+        Assert.Equal(old.Proof.ExecutionRevision, state.Plugins[0].LastGood!.ExecutionRevision);
+        Assert.Equal("1.0.0", state.Plugins[0].LastGood!.Description.SdkVersion);
+
+        var rebuild = retrySame ? adopted : await SdkDelivery("sdk-once", "C", "1.1.0");
+        byte[] grants = SdkJson.Serialize(state.Grants), owners = SdkJson.Serialize(state.SelectedSourceOwners);
+        for (int i = 0; i < 2; i++)
+        {
+            state = await Store().ApplyBundledStartupAsync([rebuild.Candidate], [rebuild.Proof], restricted, state.Revision);
+            Assert.Null(state.Plugins[0].Active);
+            Assert.Equal(old.Proof.ExecutionRevision, state.Plugins[0].LastGood!.ExecutionRevision);
+            Assert.Equal(grants, SdkJson.Serialize(state.Grants));
+            Assert.Equal(owners, SdkJson.Serialize(state.SelectedSourceOwners));
+        }
+        var preview = await store.PreviewBundledRepairsAsync();
+        BundledCandidateRepair row = Assert.Single(preview.Rows);
+        Assert.Equal("inherited-grants", row.BlockedReason);
+        Assert.False(row.CanConfirm);
+        Assert.True(row.CanReauthorize);
+        Assert.Equal(rebuild.Proof.ExecutionRevision, row.NewExecutionRevision);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.ConfirmBundledRepairAsync(row, preview.ProfileRevision));
+        state = await store.ReauthorizeBundledRepairAsync(row, preview.ProfileRevision);
+        state = await Store().ApplyBundledStartupAsync([rebuild.Candidate], [rebuild.Proof], restricted, state.Revision);
+        Assert.Equal(rebuild.Proof.ExecutionRevision, Active(state).ExecutionRevision);
+        Assert.Equal(configuration, SdkJson.Serialize(Active(state).Configuration));
+        Assert.Equal(grants, SdkJson.Serialize(state.Grants));
+        Assert.Null(state.Plugins[0].Problem);
+    }
+
     [Fact]
     public async Task SdkUpgradeActivatesThePendingSameBuildSettingsItValidated()
     {
