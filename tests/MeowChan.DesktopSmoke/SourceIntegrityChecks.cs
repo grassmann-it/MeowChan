@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Plugins;
 using MeowChan.PluginSdk;
 
 namespace MeowChan.DesktopSmoke;
@@ -164,8 +165,13 @@ internal static class SourceIntegrityChecks
                 Navigate(window, "nav.sources");
                 sources.Refresh(providers, session.GetView(), true); sources.SelectSource(PluginUxFixture.SourceId);
                 TextBlock badge = C<TextBlock>(sources, "SourceExperimental"), scope = C<TextBlock>(sources, "SourceMediaIntegrityScope");
-                Require(badge.Text == Texts.T("sources.experimental") && scope.Text == Texts.T("sources.providerMismatchScope", providers[0].DisplayName)
-                    && !scope.Text!.Contains("commit", StringComparison.OrdinalIgnoreCase), "The source scope or Experimental translation was stale or exposed an internal commit term.");
+                // The badge carries the classification sentence: unverified maintenance (no trusted evidence in
+                // this fixture) plus the declared Experimental maturity, never a bare or stale label.
+                string classification = SourceWording.Describe(new SourceWordingClassification(PluginUxFixture.SourceId,
+                    providers[0].DisplayName, SourceWordingMaintenance.Unknown, SourceWordingMaturity.Experimental));
+                Require(badge.Text == classification && badge.Text!.Contains(Texts.T("sources.maturity.experimental"), StringComparison.Ordinal)
+                    && scope.Text == Texts.T("sources.providerMismatchScope", providers[0].DisplayName)
+                    && !scope.Text!.Contains("commit", StringComparison.OrdinalIgnoreCase), "The source scope or Experimental classification was stale or exposed an internal commit term.");
                 await RevealAsync(window, badge); AssertTextFits(badge);
                 Program.CaptureWindow(window, CaptureName("badge-" + cell));
                 await RevealAsync(window, permission);
@@ -202,8 +208,14 @@ internal static class SourceIntegrityChecks
 
                 Navigate(window, "nav.plugins"); plugins.Select(PluginUxFixture.SourceKey);
                 await Settle();
+                // The chip carries one compact classification per described source (unverified maintenance plus
+                // the typed Experimental maturity), not the bare maturity word.
+                string pluginClassification = SourceWording.DescribeCompact(observation.Description!.Sources
+                    .Select(source => new SourceWordingClassification(source.SourceId, source.Name,
+                        SourceWordingMaintenance.Unknown, SourceWordingMaturity.Experimental)).ToArray());
                 Require(C<Border>(plugins, "PluginExperimentalChip").IsVisible
-                    && C<TextBlock>(plugins, "PluginExperimental").Text == Texts.T("plugins.experimental")
+                    && C<TextBlock>(plugins, "PluginExperimental").Text == pluginClassification
+                    && pluginClassification.Contains(Texts.T("sources.maturity.experimental"), StringComparison.Ordinal)
                     && C<TextBlock>(plugins, "PluginDescriptionOrigin").IsVisible,
                     "Typed Experimental or its description origin was missing from the real plugin details.");
                 TextBlock pluginBadge = C<TextBlock>(plugins, "PluginExperimental");
@@ -303,8 +315,11 @@ internal static class SourceIntegrityChecks
             && point.X >= -1 && point.Y >= -1 && point.X + target.Bounds.Width <= scroll.Viewport.Width + 1
             && point.Y + target.Bounds.Height <= scroll.Viewport.Height + 1);
     }
-    private static void AssertTextFits(TextBlock text) => Require(text.TextLayout.WidthIncludingTrailingWhitespace <= text.Bounds.Width + 1
-        && text.TextLayout.Height <= text.Bounds.Height + 1, "Changed source text is clipped: " + text.Name);
+    // The widest line's glyph extent: the break space hanging after a wrapped line is neither drawn nor clipped.
+    private static void AssertTextFits(TextBlock text) => Require(text.TextLayout.TextLines.Max(line => line.Width) <= text.Bounds.Width + 1
+        && text.TextLayout.Height <= text.Bounds.Height + 1, "Changed source text is clipped: " + text.Name
+        + $" bounds={text.Bounds.Size} layout={text.TextLayout.WidthIncludingTrailingWhitespace}x{text.TextLayout.Height}"
+        + $" lines={string.Join("/", text.TextLayout.TextLines.Select(line => line.Width.ToString("0.#")))} text='{text.Text}'");
     private static object State(Window window, Control control) => new { control.Name, bounds = control.Bounds.ToString(),
         origin = control.TranslatePoint(default, window)?.ToString(), control.IsEffectivelyVisible, control.IsEffectivelyEnabled,
         control.IsFocused, inViewport = InViewport(window, control), text = (control as TextBlock)?.Text };
