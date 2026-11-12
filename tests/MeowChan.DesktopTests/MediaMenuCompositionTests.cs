@@ -229,16 +229,16 @@ public sealed class MediaMenuCompositionTests : IDisposable
     }
 
     [Fact]
-    public void ASessionRefusesAfterInvalidationOrWhenItsGuardFails()
+    public async Task ASessionRefusesAfterInvalidationOrWhenItsGuardFails()
     {
         bool current = true;
         MediaMenuSession session = new(MediaMenuSurface.Gallery, Target(), () => current);
         int calls = 0;
-        session.RunAsync(() => { calls++; return Task.CompletedTask; }).GetAwaiter().GetResult();
+        await session.RunAsync(() => { calls++; return Task.CompletedTask; });
         Assert.Equal(1, calls);
         current = false;
         Assert.False(session.IsCurrent);
-        session.RunAsync(() => { calls++; return Task.CompletedTask; }).GetAwaiter().GetResult();
+        await session.RunAsync(() => { calls++; return Task.CompletedTask; });
         current = true;
         Assert.True(session.IsCurrent);
         int invalidated = 0;
@@ -247,7 +247,7 @@ public sealed class MediaMenuCompositionTests : IDisposable
         session.Invalidate();
         Assert.Equal(1, invalidated);
         Assert.False(session.IsCurrent);
-        session.RunAsync(() => { calls++; return Task.CompletedTask; }).GetAwaiter().GetResult();
+        await session.RunAsync(() => { calls++; return Task.CompletedTask; });
         Assert.Equal(1, calls);
     }
 

@@ -197,7 +197,7 @@ internal static class MediaMenuSurfacesChecks
                 "Right-clicking the bound row while the loose row is selected did not freeze the clicked occurrence.");
             // The platform may move the list's selection to the clicked row; the menu stays on the clicked one regardless.
             object? selected = list is ListBox b ? b.SelectedItem : ((DataGrid)list).SelectedItem;
-            Require(selected == looseRow || selected == bound, "A right-click selected a third row.");
+            Require(ReferenceEquals(selected, looseRow) || ReferenceEquals(selected, bound), "A right-click selected a third row.");
             string[] snapshot = Snapshot(menu);
             Console.WriteLine("SMOKE media menu archive " + (useTiles ? "tiles" : "table") + ": " + string.Join(" | ", snapshot));
             RequireOrder(menu);
@@ -374,7 +374,7 @@ internal static class MediaMenuSurfacesChecks
         double scale = TopLevel.GetTopLevel(menu)?.RenderScaling ?? 1;
         using RenderTargetBitmap image = new(PixelSize.FromSize(menu.Bounds.Size, scale), new Vector(96 * scale, 96 * scale));
         image.Render(menu);
-        image.Save(Path.Combine(AppContext.BaseDirectory, "smoke-media-menu-" + surface + ".png"));
+        image.Save(Path.Combine(AppContext.BaseDirectory, "smoke-media-menu-" + surface + ".png"), Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
     }
 
     private static T C<T>(Control root, string name) where T : Control =>
