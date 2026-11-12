@@ -247,14 +247,35 @@ public sealed partial class MediaPage : UserControl
     }
 
     /// <summary>Puts the keyboard focus back on the grid (its selected tile, else the first) once the tiles are laid out; the list itself is not focusable.</summary>
-    internal void FocusGrid() => Dispatcher.UIThread.Post(() =>
+    internal void FocusGrid(Func<bool>? current = null) => Dispatcher.UIThread.Post(() =>
     {
-        if (_lifetime.IsCancellationRequested || !_grid.IsEffectivelyVisible) return;
+        if (_lifetime.IsCancellationRequested || !_grid.IsEffectivelyVisible || current?.Invoke() == false) return;
         int index = SelectedRow?.Index ?? (_grid.ItemCount > 0 ? 0 : -1);
         if (index < 0) return;
         _grid.ScrollIntoView(index);
+        if (current?.Invoke() == false) return; // Scrolling can run layout and invalidate the presentation.
         (_grid.ContainerFromIndex(index) as Control ?? _grid).Focus();
     }, DispatcherPriority.Loaded);
+
+    internal void RestoreMediaMenuActionFocus(Control? origin, Func<bool> hostCurrent)
+    {
+        long revision = _mediaMenuRevision;
+        long serial = _mediaMenuSerial;
+        object? rows = _grid.ItemsSource;
+        object? originData = origin?.DataContext;
+        bool Current() => hostCurrent() && !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible
+            && revision == _mediaMenuRevision && serial == _mediaMenuSerial
+            && ReferenceEquals(rows, _grid.ItemsSource);
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!Current()) return;
+            if (origin is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true }
+                && origin.IsAttachedToVisualTree() && ReferenceEquals(originData, origin.DataContext)
+                && origin.Focus()) return;
+            FocusGrid(Current);
+        }, DispatcherPriority.Loaded);
+    }
 
     internal async Task EditSelectedTagsAsync()
     {
@@ -530,10 +551,11 @@ public sealed partial class MediaPage : UserControl
         {
             if (!current() || ReferenceEquals(MediaMenu, menu) && menu.IsOpen) return;
             TopLevel? top = TopLevel.GetTopLevel(origin);
+            if (top is Window owner && owner.OwnedWindows.Any(window => window.IsVisible)) return;
             object? focused = top?.FocusManager?.GetFocusedElement();
             if (focused is Control control && !ReferenceEquals(control, menu) && control.GetSelfAndVisualAncestors().OfType<ContextMenu>().Any()) return;
             if (origin.IsAttachedToVisualTree() && origin.IsEffectivelyVisible && origin.IsEffectivelyEnabled) origin.Focus();
-            else FocusGrid();
+            else FocusGrid(() => current() && !(top is Window window && window.OwnedWindows.Any(child => child.IsVisible)));
         }, DispatcherPriority.Background);
     }
 

@@ -155,11 +155,7 @@ public partial class MainWindow
         }
         finally
         {
-            if (hostCurrent())
-            {
-                _mediaPage?.RefreshUserData();
-                if (presentationCurrent()) RestoreMediaPageMenuFocus(origin);
-            }
+            RefreshMediaPageAfterMenuAction(origin, hostCurrent, presentationCurrent);
         }
     }
 
@@ -206,20 +202,24 @@ public partial class MainWindow
         {
             MediaPageTagWindow = null;
             _mediaTagDialogOpen = false;
-            if (hostCurrent())
-            {
-                _mediaPage?.RefreshUserData();
-                if (presentationCurrent()) RestoreMediaPageMenuFocus(origin);
-            }
+            RefreshMediaPageAfterMenuAction(origin, hostCurrent, presentationCurrent);
         }
     }
 
-    private void RestoreMediaPageMenuFocus(Control? origin)
+    private void RefreshMediaPageAfterMenuAction(Control? origin, Func<bool> hostCurrent, Func<bool> presentationCurrent)
     {
-        if (_isClosing || _selectedPage != WorkspacePage.Media || _gallery != null
-            || OwnedWindows.Any(window => window.IsVisible)) return;
-        if (origin is { IsEffectivelyVisible: true } && origin.IsAttachedToVisualTree()) origin.Focus();
-        else _mediaPage?.FocusGrid();
+        if (!hostCurrent() || _mediaPage is not { } page) return;
+        // A changed store calls Present(), invalidating the menu that admitted this action.
+        // Validate before our refresh, then guard the deferred focus against the NEW presentation.
+        bool restoreFocus = presentationCurrent();
+        object? rows = page.Grid.ItemsSource;
+        page.RefreshUserData();
+        if (restoreFocus)
+        {
+            // A refreshed/recycled container is no longer the old keyboard origin.
+            page.RestoreMediaMenuActionFocus(ReferenceEquals(rows, page.Grid.ItemsSource) ? origin : null,
+                () => hostCurrent() && !OwnedWindows.Any(window => window.IsVisible));
+        }
     }
 
     // The same export dialog as the gallery and the favorites: verified originals, no overwriting, per-file results.
