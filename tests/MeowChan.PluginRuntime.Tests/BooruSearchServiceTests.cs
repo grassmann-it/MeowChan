@@ -90,7 +90,74 @@ public sealed class BooruSearchServiceTests
         Assert.Equal(0, sends);
     }
 
+    [Fact]
+    public async Task CursorSearchSendsTheCursorOnPageOneAndAcceptsTheNextCursor()
+    {
+        using HttpClient transport = new(new Handler((request, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK))));
+        using BooruHostHttp http = new(transport, new MeowChan.Http.RequestPolicyState(), [DecimalDanbooruSource()]);
+        BooruSearchService search = new(new BooruHostServices(new Inner(), http));
+        FakeWorker worker = new((request, _, _) =>
+        {
+            Assert.Equal("cat", request.Query);
+            Assert.Equal(1, request.Page);
+            Assert.Equal("1000", request.BeforePostId);
+            BooruPost[] posts = Enumerable.Range(0, 20).Select(index => new BooruPost(new("danbooru", (999 - index).ToString()), BooruFieldPresence.None)).ToArray();
+            return Task.FromResult<BooruSearchResult>(new BooruSearchSnapshot(new(request.SourceId, request.Query, 1, posts, false, "980")));
+        });
+
+        BooruSearchSnapshot result = Assert.IsType<BooruSearchSnapshot>(await search.SearchBeforeAsync(worker, "danbooru", "cat", "1000"));
+        Assert.Equal("980", result.Page.NextBeforePostId);
+        Assert.Equal(1, worker.SearchCalls);
+    }
+
+    [Fact]
+    public async Task CursorPagesThatDoNotMoveBelowTheCursorAreRefused()
+    {
+        using HttpClient transport = new(new Handler((request, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK))));
+        using BooruHostHttp http = new(transport, new MeowChan.Http.RequestPolicyState(), [DecimalDanbooruSource()]);
+        BooruSearchService search = new(new BooruHostServices(new Inner(), http));
+        FakeWorker worker = new((request, _, _) => Task.FromResult<BooruSearchResult>(new BooruSearchSnapshot(
+            new(request.SourceId, request.Query, 1, [new BooruPost(new("danbooru", "1000"), BooruFieldPresence.None)], true))));
+        BooruSearchFailure failure = Assert.IsType<BooruSearchFailure>(await search.SearchBeforeAsync(worker, "danbooru", "cat", "1000"));
+        Assert.Equal("cursor_not_advanced", failure.Failure.Code);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("01")]
+    [InlineData("b1000")]
+    [InlineData("-1")]
+    [InlineData("")]
+    [InlineData("1234567890123456789")]
+    public async Task InvalidCursorsAreRefusedBeforeWorkerOrHttp(string cursor)
+    {
+        int sends = 0;
+        using HttpClient transport = new(new Handler((request, _) =>
+        { ++sends; return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)); }));
+        using BooruHostHttp http = new(transport, new MeowChan.Http.RequestPolicyState(), [DecimalDanbooruSource()]);
+        BooruSearchService search = new(new BooruHostServices(new Inner(), http));
+        FakeWorker worker = new();
+        BooruSearchFailure failure = Assert.IsType<BooruSearchFailure>(await search.SearchBeforeAsync(worker, "danbooru", "cat", cursor));
+        Assert.Equal(BooruSearchService.InvalidCursorCode, failure.Failure.Code);
+        Assert.Equal(BooruSearchService.InvalidCursorMessage, failure.Failure.Message);
+        Assert.Equal(0, worker.SearchCalls);
+        Assert.Equal(0, sends);
+    }
+
+    [Fact]
+    public async Task ASourceWithoutDecimalOrderIsNeverSentACursor()
+    {
+        using HttpClient transport = new(new Handler((request, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK))));
+        using BooruHostHttp http = new(transport, new MeowChan.Http.RequestPolicyState(), [DanbooruSource()]);
+        BooruSearchService search = new(new BooruHostServices(new Inner(), http));
+        FakeWorker worker = new();
+        Assert.Equal(BooruSearchService.InvalidCursorCode,
+            Assert.IsType<BooruSearchFailure>(await search.SearchBeforeAsync(worker, "danbooru", "cat", "1000")).Failure.Code);
+        Assert.Equal(0, worker.SearchCalls);
+    }
+
     private const string BooruJobResourcePrefix = "booru-job:";
+    private static SourceDescription DecimalDanbooruSource() => DanbooruSource() with { PostOrder = PostOrderKind.DecimalPostId };
     private static SourceDescription DanbooruSource() => new("danbooru", "Danbooru", new("https://danbooru.test/"),
         SourceCapabilities.PostSearch, [], [new("danbooru.test", HttpHostPurpose.Metadata)], new("1", []));
     private static SourceDescription ChanSource() => new("chan", "Chan", new("https://chan.test/"),

@@ -381,6 +381,9 @@ public sealed class BooruHostHttp : IDisposable
                     if (!MeowChan.Booru.DanbooruTagQuery.TryParse(value, out _, out _)) return false;
                     break;
                 case "page":
+                    // Either a page number 1..5 or Danbooru's before-id cursor "b<post id>" (posts below
+                    // that id), checked on the raw text so no escaped form slips through.
+                    if (IsBeforeIdPage(part[(equals + 1)..])) break;
                     if (!int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int page)
                         || page is < 1 or > MaximumSearchPage) return false;
                     break;
@@ -392,6 +395,11 @@ public sealed class BooruHostHttp : IDisposable
         }
         return true;
     }
+
+    /// <summary>Exactly <c>b</c> followed by a canonical Danbooru post id (1 to 18 digits, no leading zero).</summary>
+    private static bool IsBeforeIdPage(string raw) =>
+        raw.Length is >= 2 and <= 19 && raw[0] == 'b' && raw[1] is >= '1' and <= '9'
+        && raw.AsSpan(2).IndexOfAnyExceptInRange('0', '9') < 0;
 
     private bool HasForbiddenTransportDefaults() =>
         _transport.DefaultRequestHeaders.Authorization is not null

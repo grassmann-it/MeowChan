@@ -354,6 +354,41 @@ public sealed class BooruHostHttpTests
     }
 
     [Fact]
+    public async Task CursorPagesShareTheProviderSpacingAndTheJobSendBudget()
+    {
+        ManualClock clock = new();
+        List<string> sent = new();
+        using HttpClient transport = new(new Handler((request, _) =>
+        { lock (sent) sent.Add(request.RequestUri!.Query); return Task.FromResult(Response(HttpStatusCode.OK, "[]")); }));
+        using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
+        BooruHostServices services = new(new Inner(), http);
+        BooruJob job = services.OpenJob();
+        try
+        {
+            HostHttpRequest Cursor(int index) => new("danbooru", HostHttpMethod.Get,
+                new($"https://danbooru.test/posts.json?tags=cat&page=b{1000 - index}&limit=20"));
+            Assert.IsType<HostHttpResponse>(await services.SendHttpAsync(Cursor(0), job.Operation, default));
+            // The next cursor page waits for the 1 s start spacing like any numbered page.
+            Task<HostHttpResult> spaced = services.SendHttpAsync(Cursor(1), job.Operation, default);
+            await Task.Delay(20);
+            Assert.False(spaced.IsCompleted);
+            Assert.Single(sent);
+            clock.Advance(BooruHostHttp.MinimumStartSpacing);
+            Assert.IsType<HostHttpResponse>(await spaced);
+            for (int i = 2; i < BooruHostHttp.MaximumSendsPerJob; ++i)
+            {
+                clock.Advance(BooruHostHttp.MinimumStartSpacing);
+                Assert.IsType<HostHttpResponse>(await services.SendHttpAsync(Cursor(i), job.Operation, default));
+            }
+            clock.Advance(BooruHostHttp.MinimumStartSpacing);
+            Assert.Equal("booru-budget", Assert.IsType<HostHttpFailure>(await services.SendHttpAsync(Cursor(99), job.Operation, default)).Failure.Code);
+            Assert.Equal(BooruHostHttp.MaximumSendsPerJob, sent.Count);
+            Assert.Equal("?tags=cat&page=b999&limit=20", sent[1]);
+        }
+        finally { services.CloseJob(job); }
+    }
+
+    [Fact]
     public async Task TwentyFirstSendAndExpiredJobDoNotReachTransport()
     {
         ManualClock clock = new();
@@ -424,6 +459,26 @@ public sealed class BooruHostHttpTests
     [InlineData("https://danbooru.test/posts.json?tags=a+b+c+d&page=1&limit=20")]
     [InlineData("https://danbooru.test:8443/posts.json")]
     [InlineData("http://danbooru.test/posts.json")]
+    // Every page form other than 1..5 or "b" + a canonical post id of at most 18 digits.
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=b&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=b0&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=b01&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=b-5&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=b%2B5&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=b5%20&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=b5x&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=bb5&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=B5&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=a5&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=5b&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=1234567890123456789&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=b1234567890123456789&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=b%EF%BC%91&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=-1&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=1.5&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=b5&page=b6&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=b5&limit=21")]
     public async Task NonAllowlistedDanbooruEndpointsNeverReachTransport(string url)
     {
         int sends = 0;
@@ -445,6 +500,9 @@ public sealed class BooruHostHttpTests
     [InlineData("https://danbooru.test/posts.json")]
     [InlineData("https://danbooru.test/posts.json?tags=rating%3Ag%20cat_ears&page=5&limit=20")]
     [InlineData("https://danbooru.test/posts/12345.json")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=b1&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=rating%3Ag%20cat_ears&page=b12345&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=b999999999999999999&limit=20")]
     public async Task AllowlistedDanbooruEndpointsReachTransport(string url)
     {
         int sends = 0;

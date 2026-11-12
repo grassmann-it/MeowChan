@@ -12,6 +12,8 @@ public sealed class BooruSearchService
     public const string InvalidQueryMessage = "The booru query is not accepted.";
     public const string InvalidPostIdCode = "post_id";
     public const string InvalidPostIdMessage = "The booru post id is not accepted.";
+    public const string InvalidCursorCode = "invalid_cursor";
+    public const string InvalidCursorMessage = "The booru cursor is not accepted.";
     public const int SearchLimit = BooruHostHttp.MaximumSearchLimit;
 
     private readonly BooruHostServices _services;
@@ -38,14 +40,42 @@ public sealed class BooruSearchService
     }
 
     /// <summary>One validated page inside a caller-owned scope; the page shares the scope's send and time budget.</summary>
-    public async Task<BooruSearchResult> SearchAsync(IPluginWorkerClient worker, string sourceId,
+    public Task<BooruSearchResult> SearchAsync(IPluginWorkerClient worker, string sourceId,
         string userQuery, int page, BooruSearchScope scope, CancellationToken cancellationToken = default)
+        => SearchCoreAsync(worker, sourceId, userQuery, page, null, scope, cancellationToken);
+
+    /// <summary>
+    /// One page of the posts below <paramref name="beforePostId"/> (a post id this source returned), newest
+    /// first, in its own one-page scope. Only a source with decimal post order accepts a cursor; it is never
+    /// limited to the five numbered pages because it names its position instead of counting pages.
+    /// </summary>
+    public async Task<BooruSearchResult> SearchBeforeAsync(IPluginWorkerClient worker, string sourceId,
+        string userQuery, string beforePostId, CancellationToken cancellationToken = default)
+    {
+        using BooruSearchScope scope = OpenScope();
+        return await SearchBeforeAsync(worker, sourceId, userQuery, beforePostId, scope, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>One page below <paramref name="beforePostId"/> inside a caller-owned scope.</summary>
+    public Task<BooruSearchResult> SearchBeforeAsync(IPluginWorkerClient worker, string sourceId,
+        string userQuery, string beforePostId, BooruSearchScope scope, CancellationToken cancellationToken = default)
+    {
+        if (beforePostId is null)
+            return Task.FromResult<BooruSearchResult>(new BooruSearchFailure(sourceId, new FailureDetail(InvalidCursorCode, InvalidCursorMessage)));
+        return SearchCoreAsync(worker, sourceId, userQuery, 1, beforePostId, scope, cancellationToken);
+    }
+
+    private async Task<BooruSearchResult> SearchCoreAsync(IPluginWorkerClient worker, string sourceId,
+        string userQuery, int page, string? beforePostId, BooruSearchScope scope, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(scope);
         if (!TryGetSource(sourceId, out SourceDescription? source, out FailureDetail? sourceFailure))
             return new BooruSearchFailure(sourceId, sourceFailure!);
         if (page is < 1 or > BooruHostHttp.MaximumSearchPage)
             return new BooruSearchFailure(sourceId, new FailureDetail("invalid_page", "The booru page must be between 1 and 5."));
+        if (beforePostId is not null && (source!.PostOrder != PostOrderKind.DecimalPostId
+                || !IsValidPostId(new SourcePostId(sourceId, beforePostId), source)))
+            return new BooruSearchFailure(sourceId, new FailureDetail(InvalidCursorCode, InvalidCursorMessage));
         if (userQuery is null)
             return new BooruSearchFailure(sourceId, new FailureDetail(InvalidQueryCode, InvalidQueryMessage));
 
@@ -58,7 +88,7 @@ public sealed class BooruSearchService
             providerQuery = parsed.ProviderQuery;
         }
 
-        BooruSearchRequest request = new(sourceId, providerQuery, page, SearchLimit);
+        BooruSearchRequest request = new(sourceId, providerQuery, page, SearchLimit, beforePostId);
         IReadOnlyList<ValidationIssue> requestIssues = SdkValidation.ValidateBooruSearchRequest(request, source!);
         if (requestIssues.Count > 0)
             return new BooruSearchFailure(sourceId, PublicFailure(requestIssues[0]));
