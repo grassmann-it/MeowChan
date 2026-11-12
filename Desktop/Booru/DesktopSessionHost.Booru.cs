@@ -38,8 +38,34 @@ internal sealed partial class DesktopSessionHost
             BooruSessionComposition? composed = Volatile.Read(ref _booru);
             return composed is { IsAvailable: true } ? composed.Services : null;
         }
-        set => Volatile.Write(ref _booruServicesOverride, value);
+        set
+        {
+            Volatile.Write(ref _booruServicesOverride, value);
+            SyncBooruNoticeObservation();
+        }
     }
+
+    /// <summary>
+    /// Raised (on any thread) once per finished automatic watcher check that queued new originals; the main window shows it
+    /// as a notification. Follows whichever ports <see cref="BooruServices"/> currently names.
+    /// </summary>
+    internal event Action<BooruWatcherCheckNotice>? BooruWatcherQueued;
+
+    private IBooruWatcherPort? _observedWatchers;
+
+    private void SyncBooruNoticeObservation()
+    {
+        lock (_booruSync)
+        {
+            IBooruWatcherPort? current = BooruServices?.Watchers;
+            if (ReferenceEquals(current, _observedWatchers)) return;
+            if (_observedWatchers != null) _observedWatchers.CheckQueued -= OnBooruCheckQueued;
+            _observedWatchers = current;
+            if (current != null) current.CheckQueued += OnBooruCheckQueued;
+        }
+    }
+
+    private void OnBooruCheckQueued(BooruWatcherCheckNotice notice) => BooruWatcherQueued?.Invoke(notice);
 
     /// <summary>The running composition (tests, diagnostics); null when Danbooru is not composed.</summary>
     internal BooruSessionComposition? BooruComposition => Volatile.Read(ref _booru);
@@ -145,7 +171,11 @@ internal sealed partial class DesktopSessionHost
             _logger.Error(exception, "The Danbooru composition failed; the window stays hidden.");
         }
         finally { _booruGate.Release(); }
-        if (changed) BooruChanged?.Invoke();
+        if (changed)
+        {
+            SyncBooruNoticeObservation();
+            BooruChanged?.Invoke();
+        }
     }
 
     /// <summary>
@@ -187,6 +217,7 @@ internal sealed partial class DesktopSessionHost
         finally { _booruGate.Release(); }
         if (composition == null) return;
         await composition.StopAsync().ConfigureAwait(false);
+        SyncBooruNoticeObservation();
         BooruChanged?.Invoke();
     }
 

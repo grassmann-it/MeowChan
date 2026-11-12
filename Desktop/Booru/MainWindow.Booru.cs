@@ -1,5 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Threading;
+using Avalonia.Controls.Notifications;
+using MeowChan.Desktop.Localization;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Commands;
@@ -30,7 +32,13 @@ public partial class MainWindow
             _booruMenu.IsVisible = CanOpenBooru;
             CommandBindings.Refresh(_booruMenu);
         };
-        Closed += (_, _) => _booruWindow?.Close();
+        // One quiet information notification per finished automatic check that queued new originals.
+        _session.BooruWatcherQueued += OnBooruWatcherQueued;
+        Closed += (_, _) =>
+        {
+            _session.BooruWatcherQueued -= OnBooruWatcherQueued;
+            _booruWindow?.Close();
+        };
     }
 
     /// <summary>
@@ -48,6 +56,18 @@ public partial class MainWindow
         Dispatcher.UIThread.Post(() => { window.Activate(); window.ShowQuery(query); });
         return true;
     }
+
+    // Uses the shell's ordinary notification path, so the user's "information notifications" setting applies.
+    // Failures, cooldowns and checks that found nothing never come here, and a check started in the window reports there.
+    private void OnBooruWatcherQueued(BooruWatcherCheckNotice notice)
+    {
+        if (notice.Queued <= 0) return;
+        ShowBooruWatcherQueued(notice);
+    }
+
+    internal void ShowBooruWatcherQueued(BooruWatcherCheckNotice notice) =>
+        ShowNotification(Texts.T("booru.ui.notify.queued.title"), Texts.T("booru.ui.notify.queued", notice.Query, notice.Queued),
+            NotificationType.Information, context: notice.WatcherId, operation: "booru.watcher.queued");
 
     private void ShowBooruWorkbench()
     {

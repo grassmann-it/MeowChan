@@ -138,7 +138,7 @@ internal static class BooruCatalogReadMapper
                 (int found, int loaded) = hits.GetValueOrDefault(record.WatcherId);
                 return new BooruWatcherView(record.WatcherId, record.Query, Status(record.State), record.CreatedAtUtc,
                     record.LastCheckedAtUtc, null, record.CooldownUntilUtc, record.ErrorCode, found, loaded,
-                    record.BaselineEstablished);
+                    record.BaselineEstablished, LatestPostId: record.HighWaterMark);
             })
             .Where(view => view.Status != BooruWatcherStatus.Removed)
             .ToImmutableArray();
@@ -161,7 +161,7 @@ internal static class BooruCatalogReadMapper
     internal static BooruWatcherView View(DanbooruWatcher watcher, DateTimeOffset? nextCheckAt, int hitCount, int queuedCount) =>
         new(watcher.WatcherId, watcher.CanonicalQuery, FromDomain(watcher.State), watcher.CreatedAtUtc,
             watcher.LastCheckedAtUtc, nextCheckAt, watcher.CooldownUntilUtc, watcher.ErrorCode, hitCount, queuedCount,
-            watcher.BaselineEstablished, watcher.Progress.BudgetLimited);
+            watcher.BaselineEstablished, watcher.Progress.BudgetLimited, watcher.HighWaterMark);
 }
 
 /// <summary>Local-state lookups over a catalog read; the read itself is the store's blocking call.</summary>

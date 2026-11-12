@@ -9,6 +9,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -17,6 +18,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.PluginSdk;
+using Serilog;
 using SkiaSharp;
 
 namespace MeowChan.Desktop.Booru;
@@ -52,6 +54,11 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     internal const string RestartPrefix = "BooruRestart:";
     internal const string RemoveConfirmPrefix = "BooruRemoveConfirm:";
     internal const string RemoveCancelPrefix = "BooruRemoveCancel:";
+    internal const string OpenPostPrefix = "BooruOpenPost:";
+    internal const string CopyLinkPrefix = "BooruCopyLink:";
+    internal const string WatcherOpenPrefix = "BooruWatcherOpen:";
+    internal const string WatcherCopyPrefix = "BooruWatcherCopy:";
+    internal const string LinkNoteName = "BooruLinkNote";
 
     private const int PreviewSize = 112;
     private const int MaximumTagsShown = 24;
@@ -99,7 +106,9 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     private readonly StackPanel _watchers = new() { Name = WatchersName, Spacing = 8 };
     private readonly TextBlock _footerNote = new() { Name = NoFilterNoteName, Classes = { "workspace-help" } };
     private readonly Button _close = new();
+    private readonly TextBlock _linkNote = new() { Name = LinkNoteName, Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
 
+    private (string Key, string Argument, bool Problem)? _linkNoteState;
     private string? _resultsKey;
     private string? _watchersKey;
     private bool _paused;
@@ -177,8 +186,11 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     {
         _close.Click += (_, _) => Close();
         Grid footer = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 12 };
-        _footerNote.VerticalAlignment = VerticalAlignment.Center;
-        footer.Children.Add(_footerNote);
+        AutomationProperties.SetLiveSetting(_linkNote, AutomationLiveSetting.Polite);
+        StackPanel notes = new() { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        notes.Children.Add(_footerNote);
+        notes.Children.Add(_linkNote);
+        footer.Children.Add(notes);
         _close.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(_close, 1);
         footer.Children.Add(_close);
@@ -342,6 +354,9 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         _watchersTab.Header = Texts.T("booru.ui.tab.watchers", _model.Watchers.Count);
         AutomationProperties.SetName(_watchersTab, Texts.T("booru.ui.tab.watchers", _model.Watchers.Count));
         _footerNote.Text = Texts.T("booru.ui.noFilterNote");
+        _linkNote.IsVisible = _linkNoteState is not null;
+        _linkNote.Text = _linkNoteState is { } note ? Texts.T(note.Key, note.Argument) : string.Empty;
+        _linkNote.Classes.Set("workspace-error", _linkNoteState is { Problem: true });
         _close.Content = Texts.T("action.close");
     }
 
@@ -512,6 +527,9 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
             AutomationProperties.SetName(link, Texts.T("booru.ui.post.urlLabel"));
             info.Children.Add(link);
         }
+        if (BooruPostLinks.TryCanonical(post, out string canonical))
+            info.Children.Add(CreateLinkActions(OpenPostPrefix + post.PostId, CopyLinkPrefix + post.PostId, canonical,
+                Texts.T("booru.ui.post.openFor", post.PostId), Texts.T("booru.ui.post.copyFor", post.PostId)));
         info.Children.Add(new TextBlock { Text = MetaLine(post), Classes = { "workspace-meta" } });
 
         bool withdrawn = post.IsDeleted || post.IsBanned;
@@ -554,6 +572,65 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         grid.Children.Add(load);
         card.Child = grid;
         return card;
+    }
+
+    /// <summary>"Open in browser" and "Copy link" for one canonical post URL; nothing else is ever opened or copied.</summary>
+    private Control CreateLinkActions(string openName, string copyName, string url, string openAccessibleName, string copyAccessibleName)
+    {
+        WrapPanel actions = new() { Classes = { "workspace-toolbar" } };
+        Button open = new() { Name = openName, Content = Texts.T("booru.ui.post.open") };
+        open.Classes.Add("subtle");
+        AutomationProperties.SetName(open, openAccessibleName);
+        ToolTip.SetTip(open, Texts.T("booru.ui.post.openTip", url));
+        open.Click += async (_, _) => await OpenLinkAsync(url);
+        Button copy = new() { Name = copyName, Content = Texts.T("booru.ui.post.copy") };
+        copy.Classes.Add("subtle");
+        AutomationProperties.SetName(copy, copyAccessibleName);
+        ToolTip.SetTip(copy, url);
+        copy.Click += async (_, _) => await CopyLinkAsync(url);
+        actions.Children.Add(open);
+        actions.Children.Add(copy);
+        return actions;
+    }
+
+    private async Task OpenLinkAsync(string url)
+    {
+        // Only canonical post pages reach this method (built by BooruPostLinks); a launcher failure is shown, never retried.
+        try
+        {
+            await _model.Services.Links.Open(url);
+            SetLinkNote(null);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            Log.Warning(exception, "Could not open a Danbooru post in the browser");
+            SetLinkNote(("booru.ui.link.openFailed", string.Empty, true));
+        }
+    }
+
+    private async Task CopyLinkAsync(string url)
+    {
+        try
+        {
+            if (_model.Services.Links.Copy is { } copy) await copy(url);
+            else if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard) await clipboard.SetTextAsync(url);
+            else throw new InvalidOperationException("The clipboard is unavailable.");
+            SetLinkNote(("booru.ui.link.copied", url, false));
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            Log.Warning(exception, "Could not copy a Danbooru post link");
+            SetLinkNote(("booru.ui.link.copyFailed", string.Empty, true));
+        }
+    }
+
+    private void SetLinkNote((string Key, string Argument, bool Problem)? state)
+    {
+        if (_closed) return;
+        _linkNoteState = state;
+        _applying = true;
+        try { RenderChrome(_model.Watchers.View); }
+        finally { _applying = false; }
     }
 
     private Control CreatePreview(BooruResultRowView row)
@@ -725,6 +802,12 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         {
             Text = Texts.T("booru.ui.watcher.hits", watcher.HitCount, watcher.QueuedCount), Classes = { "workspace-meta" }
         });
+        if (watcher.LatestPostId is { } latest && BooruPostLinks.TryCanonical(latest, out string latestUrl))
+        {
+            panel.Children.Add(new TextBlock { Text = Texts.T("booru.ui.watcher.latest", latest), Classes = { "workspace-meta" } });
+            panel.Children.Add(CreateLinkActions(WatcherOpenPrefix + watcher.WatcherId, WatcherCopyPrefix + watcher.WatcherId, latestUrl,
+                Texts.T("booru.ui.watcher.latestOpenFor", latest, watcher.Query), Texts.T("booru.ui.watcher.latestCopyFor", latest, watcher.Query)));
+        }
         if (!watcher.BaselineEstablished)
             panel.Children.Add(new TextBlock { Text = Texts.T("booru.ui.watcher.baseline"), Classes = { "workspace-help" } });
         if (watcher.BudgetLimited)

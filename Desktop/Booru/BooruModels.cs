@@ -113,6 +113,7 @@ internal enum BooruWatcherStatus { Active, Paused, Checking, Cooldown, Error, Re
 /// <summary>
 /// UI projection of one stored watcher. Mapped from the domain aggregate (or storage record) by the
 /// adapter that owns the scheduler; the UI only shows it and issues the five explicit commands.
+/// <paramref name="LatestPostId"/> is the newest post id the watcher has seen (its high-water mark), if any.
 /// </summary>
 internal sealed record BooruWatcherView(
     string WatcherId,
@@ -126,4 +127,5 @@ internal sealed record BooruWatcherView(
     int HitCount = 0,
     int QueuedCount = 0,
     bool BaselineEstablished = false,
-    bool BudgetLimited = false);
+    bool BudgetLimited = false,
+    string? LatestPostId = null);

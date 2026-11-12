@@ -107,13 +107,18 @@ internal sealed class FakeBooruQueuePort : IBooruQueuePort
     internal Func<BooruPostView, BooruLoadOrigin, Task<BooruLoadResult>>? OnLoad { get; set; }
     internal Dictionary<string, BooruLocalState> States { get; } = new(StringComparer.Ordinal);
     internal List<(string PostId, BooruLoadOrigin Origin)> Loads { get; } = new();
+    /// <summary>The query each load carried as provenance (null for a one-shot), parallel to <see cref="Loads"/>.</summary>
+    internal List<string?> LoadQueries { get; } = new();
     internal int StateReads { get; private set; }
 
     public event Action? LocalStatesChanged;
 
-    public async Task<BooruLoadResult> LoadOriginalAsync(BooruPostView post, BooruLoadOrigin origin, CancellationToken cancellationToken)
+    public Task<BooruLoadResult> LoadOriginalAsync(BooruPostView post, BooruLoadOrigin origin, CancellationToken cancellationToken) =>
+        LoadOriginalAsync(post, origin, null, cancellationToken);
+
+    public async Task<BooruLoadResult> LoadOriginalAsync(BooruPostView post, BooruLoadOrigin origin, string? query, CancellationToken cancellationToken)
     {
-        lock (_gate) Loads.Add((post.PostId, origin));
+        lock (_gate) { Loads.Add((post.PostId, origin)); LoadQueries.Add(query); }
         return OnLoad is null ? new BooruLoadResult(BooruLoadStatus.Queued) : await OnLoad(post, origin).ConfigureAwait(false);
     }
 
@@ -166,6 +171,9 @@ internal sealed class FakeBooruWatcherPort : IBooruWatcherPort
     internal Func<string, BooruWatcherCommandResult>? OnRemove { get; set; }
 
     public event Action? Changed;
+    public event Action<BooruWatcherCheckNotice>? CheckQueued;
+
+    internal void RaiseCheckQueued(BooruWatcherCheckNotice notice) => CheckQueued?.Invoke(notice);
 
     internal IReadOnlyList<BooruWatcherView> Snapshot { get { lock (_gate) return _watchers.ToArray(); } }
 
@@ -246,6 +254,21 @@ internal sealed class FakeBooruWatcherPort : IBooruWatcherPort
     }
 }
 
+/// <summary>Records what the window would open or copy; no browser or clipboard is touched.</summary>
+internal sealed class FakeBooruLinks
+{
+    private readonly object _gate = new();
+    internal FakeBooruLinks() => Actions = new BooruLinkActions(
+        url => { lock (_gate) Opened.Add(url); return OnOpen?.Invoke(url) ?? Task.CompletedTask; },
+        url => { lock (_gate) Copied.Add(url); return OnCopy?.Invoke(url) ?? Task.CompletedTask; });
+
+    internal BooruLinkActions Actions { get; }
+    internal List<string> Opened { get; } = new();
+    internal List<string> Copied { get; } = new();
+    internal Func<string, Task>? OnOpen { get; set; }
+    internal Func<string, Task>? OnCopy { get; set; }
+}
+
 /// <summary>The four fakes and the clock, bundled the way production bundles its ports.</summary>
 internal sealed class BooruUiHarness
 {
@@ -256,8 +279,11 @@ internal sealed class BooruUiHarness
         Queue = new FakeBooruQueuePort();
         Previews = new FakeBooruPreviewPort();
         Watchers = new FakeBooruWatcherPort(Clock);
-        Services = new BooruWorkbenchServices(Search, Queue, Watchers, Previews, Clock);
+        Links = new FakeBooruLinks();
+        Services = new BooruWorkbenchServices(Search, Queue, Watchers, Previews, Clock, Links.Actions);
     }
+
+    internal FakeBooruLinks Links { get; }
 
     internal BooruManualClock Clock { get; }
     internal FakeBooruSearchPort Search { get; }

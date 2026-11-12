@@ -285,7 +285,7 @@ public sealed class BooruCompositionHostTests
     private static BooruCatalogSnapshot ReadCatalog(DesktopSessionHost host) => host.BooruComposition!.Catalog.Read();
 
     internal static async Task<DesktopSessionHost> StartAsync(string profile, DanbooruStub stub, Func<BooruProviderBinding?> binding,
-        bool paused = false, bool writeConfig = true)
+        bool paused = false, bool writeConfig = true, DanbooruWatcherSchedulerOptions? options = null)
     {
         if (writeConfig) new Config
         {
@@ -298,7 +298,7 @@ public sealed class BooruCompositionHostTests
             updateSessionFactory: (path, config) => new UpdateSession(path, config, stub.Client(), disableEnvironment: () => "1"))
         {
             BooruBindingForTests = binding,
-            BooruSchedulerOptionsForTests = new DanbooruWatcherSchedulerOptions { Interval = TimeSpan.FromMinutes(30), CheckStartSpacing = TimeSpan.Zero }
+            BooruSchedulerOptionsForTests = options ?? new DanbooruWatcherSchedulerOptions { Interval = TimeSpan.FromMinutes(30), CheckStartSpacing = TimeSpan.Zero }
         };
         try
         {

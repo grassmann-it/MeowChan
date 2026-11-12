@@ -37,7 +37,9 @@ and is not part of the catalogs. Texts of the booru screens (B6) use `booru.ui.*
 The scheduler, port and window codes of the Danbooru window (`BooruCodeCatalog`, further
 `booru.watcher.problem.*` keys) and the watcher "Restart from now" texts
 (`booru.ui.watcher.restart*`, `booru.ui.watcher.msg.restarted`) are unreviewed machine
-translations in es/fr/ru as well.
+translations in es/fr/ru as well. So are the texts of the post link actions
+(`booru.ui.post.open*`, `booru.ui.post.copy*`, `booru.ui.link.*`,
+`booru.ui.watcher.latest*`) and of the watcher notification (`booru.ui.notify.*`).
 
 The es/fr/ru entries of `BooruMediaCatalog` (keys `booru.media.*`: source badge, post
 details of downloaded Danbooru media, provider data and source tags shown apart from

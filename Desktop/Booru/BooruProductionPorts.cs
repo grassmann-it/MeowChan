@@ -38,7 +38,11 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
 
     public event Action? LocalStatesChanged;
 
-    public async Task<BooruLoadResult> LoadOriginalAsync(BooruPostView post, BooruLoadOrigin origin, CancellationToken cancellationToken)
+    public Task<BooruLoadResult> LoadOriginalAsync(BooruPostView post, BooruLoadOrigin origin, CancellationToken cancellationToken) =>
+        LoadOriginalAsync(post, origin, null, cancellationToken);
+
+    public async Task<BooruLoadResult> LoadOriginalAsync(BooruPostView post, BooruLoadOrigin origin, string? query,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(post);
         cancellationToken.ThrowIfCancellationRequested();
@@ -58,7 +62,8 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
         try
         {
             // The admission writes the catalog synchronously before its first await: never on the UI thread.
-            admission = await Task.Run(() => _originals.AdmitAsync(claim, kind, cancellationToken: cancellationToken), cancellationToken)
+            admission = await Task.Run(() => _originals.AdmitAsync(claim, kind, query: Provenance(kind, query),
+                cancellationToken: cancellationToken), cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
@@ -73,6 +78,16 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
         RaiseLocalStatesChanged();
         return result;
     }
+
+    /// <summary>
+    /// The query a search finding keeps: only the canonical provider query the catalog itself accepts. Anything else (a
+    /// one-shot, an empty or not canonical text) is dropped rather than failing the load or storing odd text.
+    /// </summary>
+    internal static string? Provenance(BooruFindingKind kind, string? query) =>
+        kind == BooruFindingKind.Search && !string.IsNullOrEmpty(query) && query.Length <= 1024
+            && DanbooruTagQuery.TryParse(query, out DanbooruTagQuery? parsed, out _) && parsed is not null
+            && string.Equals(parsed.ProviderQuery, query, StringComparison.Ordinal)
+            ? query : null;
 
     internal static BooruLoadResult Map(BooruOriginalAdmission admission) => admission.Status switch
     {
@@ -136,6 +151,8 @@ internal sealed class BooruSchedulerWatcherPort : IBooruWatcherPort, IDisposable
     private readonly DanbooruWatcherScheduler _scheduler;
     private readonly BooruCatalogStore? _catalog;
     private readonly string _sourceId;
+    private readonly object _noticeGate = new();
+    private readonly Dictionary<string, DateTimeOffset> _reported = new(StringComparer.Ordinal);
     private int _disposed;
 
     internal BooruSchedulerWatcherPort(DanbooruWatcherScheduler scheduler, BooruCatalogStore? catalog = null,
@@ -148,6 +165,8 @@ internal sealed class BooruSchedulerWatcherPort : IBooruWatcherPort, IDisposable
     }
 
     public event Action? Changed;
+
+    public event Action<BooruWatcherCheckNotice>? CheckQueued;
 
     public Task<IReadOnlyList<BooruWatcherView>> ListAsync(CancellationToken cancellationToken) =>
         Task.Run<IReadOnlyList<BooruWatcherView>>(() =>
@@ -190,7 +209,8 @@ internal sealed class BooruSchedulerWatcherPort : IBooruWatcherPort, IDisposable
         string? error = status.ErrorCode;
         return new BooruWatcherView(status.WatcherId, status.Query, mapped, status.CreatedAtUtc, status.LastCheckedAtUtc,
             mapped is BooruWatcherStatus.Active ? status.NextCheckAtUtc : null, cooldown, error,
-            stored?.HitCount ?? 0, stored?.QueuedCount ?? 0, status.BaselineEstablished, status.BudgetLimited);
+            stored?.HitCount ?? 0, stored?.QueuedCount ?? 0, status.BaselineEstablished, status.BudgetLimited,
+            stored?.LatestPostId);
     }
 
     public Task<BooruWatcherCommandResult> CreateAsync(string canonicalQuery, CancellationToken cancellationToken) =>
@@ -250,6 +270,48 @@ internal sealed class BooruSchedulerWatcherPort : IBooruWatcherPort, IDisposable
         if (Volatile.Read(ref _disposed) != 0) return;
         try { Changed?.Invoke(); }
         catch (Exception exception) { Log.Error(exception, "Danbooru watcher observer failed"); }
+        ReportFinishedChecks();
+    }
+
+    /// <summary>
+    /// The scheduler publishes each watcher's last check summary in its status. A summary not seen before that queued new
+    /// originals is reported once (one notice per check). Manual checks are skipped: the window already shows their result,
+    /// and a check that queued nothing, failed or was deferred has nothing to announce.
+    /// </summary>
+    private void ReportFinishedChecks()
+    {
+        // Summaries are marked as seen even while nobody listens, so a later observer never gets an old check.
+        List<BooruWatcherCheckNotice> notices = new();
+        try
+        {
+            lock (_noticeGate)
+            {
+                DanbooruWatcherSchedulerSnapshot snapshot = _scheduler.GetSnapshot();
+                foreach (DanbooruWatcherStatus status in snapshot.Watchers)
+                {
+                    if (status.LastCheck is not { } check) continue;
+                    if (_reported.TryGetValue(status.WatcherId, out DateTimeOffset seen) && check.FinishedAtUtc <= seen) continue;
+                    _reported[status.WatcherId] = check.FinishedAtUtc;
+                    if (!check.Manual && check.Queued > 0)
+                        notices.Add(new BooruWatcherCheckNotice(status.WatcherId, status.Query, check.Queued));
+                }
+            }
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            Log.Warning(exception, "Danbooru watcher check summaries could not be read");
+            return;
+        }
+        Action<BooruWatcherCheckNotice>? observers = CheckQueued;
+        if (observers is null) return;
+        foreach (BooruWatcherCheckNotice notice in notices)
+        {
+            foreach (Action<BooruWatcherCheckNotice> observer in observers.GetInvocationList().Cast<Action<BooruWatcherCheckNotice>>())
+            {
+                try { observer(notice); }
+                catch (Exception exception) { Log.Error(exception, "Danbooru watcher notice observer failed"); }
+            }
+        }
     }
 
     public void Dispose()

@@ -440,6 +440,7 @@ internal sealed class BooruSearchModel : IDisposable
     {
         BooruPostView post;
         BooruLoadOrigin origin;
+        string? query = null;
         bool blocked = false;
         lock (_gate)
         {
@@ -449,6 +450,8 @@ internal sealed class BooruSearchModel : IDisposable
             BooruResultRowView row = _view.Rows[index];
             post = row.Post;
             origin = _view.IsPostResult ? BooruLoadOrigin.OneShot : BooruLoadOrigin.Search;
+            // The search that found the post is the provenance of a search finding; a post link has none.
+            if (origin == BooruLoadOrigin.Search) query = _view.ExecutedQuery;
             if (row.Post.OriginalAccess != BooruOriginalAccess.Available)
             {
                 BooruRowLoad reason = row.Post.OriginalAccess == BooruOriginalAccess.Restricted ? BooruRowLoad.Restricted : BooruRowLoad.NoOriginal;
@@ -461,7 +464,7 @@ internal sealed class BooruSearchModel : IDisposable
         RaiseChanged();
         if (blocked) return;
         BooruLoadResult result;
-        try { result = await _queue.LoadOriginalAsync(post, origin, _lifetime.Token).ConfigureAwait(false); }
+        try { result = await _queue.LoadOriginalAsync(post, origin, query, _lifetime.Token).ConfigureAwait(false); }
         catch (OperationCanceledException) { result = new BooruLoadResult(BooruLoadStatus.Failed, "canceled"); }
         catch (Exception exception) when (exception is not OutOfMemoryException) { result = new BooruLoadResult(BooruLoadStatus.Failed, "exception"); }
         BooruRowLoad load = result.Status switch

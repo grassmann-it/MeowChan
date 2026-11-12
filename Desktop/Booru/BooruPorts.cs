@@ -66,6 +66,13 @@ internal interface IBooruQueuePort
 {
     Task<BooruLoadResult> LoadOriginalAsync(BooruPostView post, BooruLoadOrigin origin, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The same hand-over for a search result, with the canonical query that found the post kept as the finding's
+    /// provenance. Ports that store no query ignore it; a one-shot post link passes none.
+    /// </summary>
+    Task<BooruLoadResult> LoadOriginalAsync(BooruPostView post, BooruLoadOrigin origin, string? query,
+        CancellationToken cancellationToken) => LoadOriginalAsync(post, origin, cancellationToken);
+
     /// <summary>Local queue/library state by provider post id; unknown ids may be omitted.</summary>
     Task<IReadOnlyDictionary<string, BooruLocalState>> GetLocalStatesAsync(
         IReadOnlyList<string> postIds, CancellationToken cancellationToken);
@@ -101,6 +108,9 @@ internal sealed record BooruWatcherCommandResult(BooruWatcherCommandStatus Statu
         new(BooruWatcherCommandStatus.Done, null, newPosts, queued);
 }
 
+/// <summary>One finished watcher check that put new originals into the download queue; shown once as a notification.</summary>
+internal sealed record BooruWatcherCheckNotice(string WatcherId, string Query, int Queued);
+
 /// <summary>
 /// Explicit watcher commands. "Check now" is one bounded check requested by the user; pause and
 /// removal must stop all scheduler requests for that watcher. Removal never deletes local media.
@@ -108,6 +118,13 @@ internal sealed record BooruWatcherCommandResult(BooruWatcherCommandStatus Statu
 internal interface IBooruWatcherPort
 {
     event Action? Changed;
+
+    /// <summary>
+    /// Raised once per finished automatic check that queued at least one new original. Checks the user started with
+    /// "Check now" report in the window itself and are not raised. May come from any thread; ports without it never raise.
+    /// </summary>
+    event Action<BooruWatcherCheckNotice>? CheckQueued { add { } remove { } }
+
     Task<IReadOnlyList<BooruWatcherView>> ListAsync(CancellationToken cancellationToken);
     /// <summary>Stores a watcher for the canonical query, starting "from now" (no backfill).</summary>
     Task<BooruWatcherCommandResult> CreateAsync(string canonicalQuery, CancellationToken cancellationToken);
@@ -134,13 +151,14 @@ internal sealed class BooruPortException(string code) : Exception("Booru port fa
 internal sealed class BooruWorkbenchServices
 {
     internal BooruWorkbenchServices(IBooruSearchPort search, IBooruQueuePort queue, IBooruWatcherPort watchers,
-        IBooruPreviewPort previews, TimeProvider? clock = null)
+        IBooruPreviewPort previews, TimeProvider? clock = null, BooruLinkActions? links = null)
     {
         Search = search ?? throw new ArgumentNullException(nameof(search));
         Queue = queue ?? throw new ArgumentNullException(nameof(queue));
         Watchers = watchers ?? throw new ArgumentNullException(nameof(watchers));
         Previews = previews ?? throw new ArgumentNullException(nameof(previews));
         Clock = clock ?? TimeProvider.System;
+        Links = links ?? BooruLinkActions.System;
     }
 
     internal IBooruSearchPort Search { get; }
@@ -148,4 +166,5 @@ internal sealed class BooruWorkbenchServices
     internal IBooruWatcherPort Watchers { get; }
     internal IBooruPreviewPort Previews { get; }
     internal TimeProvider Clock { get; }
+    internal BooruLinkActions Links { get; }
 }
