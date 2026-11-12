@@ -179,6 +179,35 @@ public sealed class SmokeScenariosTests
         Assert.Contains("group=search;", frame.Pass!(name => name == "MEOWCHAN_DIALOG_FRAME_GROUP" ? "search" : null), StringComparison.Ordinal);
     }
 
+    // The registry run (run-desktop-smoke.py --registry, nightly workflow) starts exactly these invocations.
+    [Fact]
+    public void EveryStandaloneRunIsAValidInvocationOfItsEntry()
+    {
+        string repository = Repository();
+        foreach (SmokeScenario entry in SmokeScenarios.All)
+        {
+            (string[] args, string[] environment, string? skip) = SmokeScenarios.Invocation(entry);
+            string? error = SmokeSelectors.Check(args, environment.Select(pair => pair.Split('=', 2))
+                .Select(pair => KeyValuePair.Create(pair[0], (string?)pair[1])).ToArray(), false, out string scenario, out SmokeScenario? selected);
+            Assert.True(error == null, entry.Id + ": " + error);
+            if (entry.Kind != SmokeScenarioKind.Mode) Assert.Contains(entry.Selector, scenario.Split('+'));
+            if (entry.Kind != SmokeScenarioKind.Nested) Assert.Same(entry, selected);
+            Assert.All(entry.NightlyEnvironment, pair => Assert.DoesNotContain("_ONLY=", pair, StringComparison.Ordinal));
+            foreach (string pair in environment.Where(pair => pair.Contains("{repo}", StringComparison.Ordinal)))
+                Assert.True(File.Exists(pair[(pair.IndexOf('=') + 1)..].Replace("{repo}", repository)), entry.Id + ": " + pair);
+            Assert.True(skip == null || skip.Length > 0, entry.Id);
+        }
+        // The selectors CI runs must stay in the registry run.
+        foreach (string id in new[] { "first-run-setup", "preference-startup", "compact-diagnostics", "gif-playback", "gallery-error",
+            "reader-media-input", "gallery-playback-features", "plugin-reselection", "normal", "reader-ux", "selection", "tray-host" })
+            Assert.Null(SmokeScenarios.Invocation(Assert.Single(SmokeScenarios.All, entry => entry.Id == id)).Skip);
+        // The plain groups suite needs the external native exchange; its restore run does not and stays in the sweep.
+        Assert.NotNull(SmokeScenarios.Invocation(Assert.Single(SmokeScenarios.All, entry => entry.Id == "ursa-native-suite-groups")).Skip);
+        Assert.Null(SmokeScenarios.Invocation(Assert.Single(SmokeScenarios.All, entry => entry.Id == "reader-groups-restore")).Skip);
+    }
+
+    private static string Repository() => Path.GetFullPath(Path.Combine(Path.GetDirectoryName(RunsSourcePath())!, "../.."));
+
     private static string Binding(string id)
     {
         string source = RunsSource();
@@ -190,8 +219,10 @@ public sealed class SmokeScenariosTests
         return source[from..(to < 0 ? source.Length : to)].Trim().TrimEnd(',');
     }
 
-    private static string RunsSource([CallerFilePath] string path = "") =>
-        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, "../MeowChan.DesktopSmoke/SmokeScenarios.Runs.cs")));
+    private static string RunsSource() => File.ReadAllText(RunsSourcePath());
+
+    private static string RunsSourcePath([CallerFilePath] string path = "") =>
+        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, "../MeowChan.DesktopSmoke/SmokeScenarios.Runs.cs"));
 
     private static KeyValuePair<string, string?>[] Variables(params (string Name, string Value)[] variables) =>
         variables.Select(variable => KeyValuePair.Create(variable.Name, (string?)variable.Value)).ToArray();

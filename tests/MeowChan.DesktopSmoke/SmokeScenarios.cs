@@ -20,6 +20,16 @@ internal sealed record SmokeScenario(string Id, SmokeScenarioKind Kind, string S
     // Nested selectors sharing a Group are alternative runs of that parent: the first one read
     // wins and the others would silently have no effect, so only one may be set per run.
     internal string? Group { get; init; }
+
+    // Extra NAME=value environment of a standalone registry run; {repo} is the repository root.
+    // Nested entries also inherit their first requirement's environment.
+    internal string[] NightlyEnvironment { get; init; } = [];
+
+    // Why the plain registry run (scripts/run-desktop-smoke.py on private Xvfb) cannot run this entry.
+    internal string? NightlySkip { get; init; }
+
+    // False when NightlySkip concerns only this entry's own run and nested entries that require it still run.
+    internal bool NightlySkipCoversNested { get; init; } = true;
 }
 
 // The single registry of DesktopSmoke scenarios: the selector inventory (SmokeSelectors), the
@@ -30,6 +40,13 @@ internal sealed record SmokeScenario(string Id, SmokeScenarioKind Kind, string S
 internal static partial class SmokeScenarios
 {
     internal const string NormalPass = "startup, rendered thread/board bindings, background update, normal close";
+
+    private const string Video = "MEOWCHAN_VIDEO_FIXTURE={repo}/tests/Fixtures/gallery-playback-vp8.webm";
+    private const string Mp4 = "MEOWCHAN_MP4_FIXTURE={repo}/tests/Fixtures/release102/playback-h264-silent.mp4";
+    // The registry run wraps such entries in scripts/with-private-null-audio.py, as CI does.
+    internal const string FunctionalAudio = "MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO=1";
+    private const string ExternalDriver = "needs its independent native driver and exchange directory";
+    private const string Provenance = "provenance-bound evidence run: needs an executed source digest and a fresh output directory";
 
     // Modes in their historical usage order; roots and branches in their former dispatch order.
     internal static readonly SmokeScenario[] All =
@@ -46,23 +63,24 @@ internal static partial class SmokeScenarios
         Mode("visual", "actual release showcase with original offline demo content, no watches or HTTP"),
         Mode("reader-ux", NormalPass),
         Alternative("gallery-close", "MEOWCHAN_GALLERY_CLOSE_ONLY", "--reader-ux"),
-        Alternative("reader-media-input", "MEOWCHAN_READER_MEDIA_INPUT_ONLY", "--reader-ux"),
+        Alternative("reader-media-input", "MEOWCHAN_READER_MEDIA_INPUT_ONLY", "--reader-ux") with { NightlyEnvironment = [Video] },
         Alternative("reader-shortcut-contexts", "MEOWCHAN_READER_SHORTCUT_CONTEXTS_ONLY", "--reader-ux"),
         Nested("pagination-focus", "MEOWCHAN_PAGINATION_FOCUS_ONLY", "MEOWCHAN_READER_SHORTCUT_CONTEXTS_ONLY"),
         Alternative("reader-groups", "MEOWCHAN_READER_GROUPS_ONLY", "--reader-ux"),
         Alternative("reader-returns", "MEOWCHAN_READER_RETURNS_ONLY", "--reader-ux"),
         Alternative("reader-stability", "MEOWCHAN_READER_STABILITY_ONLY", "--reader-ux"),
         Alternative("reader-navigation", "MEOWCHAN_READER_NAVIGATION_ONLY", "--reader-ux"),
-        Nested("reader-groups-restore", "MEOWCHAN_READER_GROUPS_RESTORE_ONLY", "--reader-ux", "MEOWCHAN_URSA_NATIVE_SUITE=groups"),
+        // The registry run uses the first requirement; under --reader-ux it acts only with READER_GROUPS.
+        Nested("reader-groups-restore", "MEOWCHAN_READER_GROUPS_RESTORE_ONLY", "MEOWCHAN_URSA_NATIVE_SUITE=groups", "--reader-ux"),
         Mode("selection", "native watch/archive multi-selection, focus-safe commands, batch export return, watch-only Delete and board admission modal"),
         Mode("tray-host", "private StatusNotifier host: independent tray settings, native registration/activation, hide/restore and host/watcher loss"),
         Mode("about-links", "About project and PayPal links reached the selected private browser fixture with new-window requests, intact URLs and clean runtime paths"),
         Mode("board-admission", "board admission: local rule clearing, multi-board validation, retry, cancel, EN/DE, themes and minimum dialog layout"),
         Mode("reading-position", "local reading position, explicit process restart and settings semantics"),
-        Mode("accessibility-probe", "native accessibility fixture stages completed; external AT-SPI/Orca results are separate"),
+        Mode("accessibility-probe", "native accessibility fixture stages completed; external AT-SPI/Orca results are separate") with { NightlySkip = ExternalDriver },
         Nested("accessibility-numeric", "MEOWCHAN_ACCESSIBILITY_NUMERIC_ONLY", "--accessibility-probe"),
         Mode("window-geometry", "isolated native interactive resize; each edge/corner after pointer release and settled correction"),
-        Mode("video-contrast", "real decoded video time, ended and corrupt-media error contrast in Light/Dark"),
+        Mode("video-contrast", "real decoded video time, ended and corrupt-media error contrast in Light/Dark") with { NightlyEnvironment = [Video] },
         Mode("plugins", NormalPass),
         Nested("plugin-reselection", "MEOWCHAN_PLUGIN_RESELECTION_ONLY", "--plugins"),
         Mode("archive-cleanup", "archive cleanup: private preview, explicit confirmation, real deletion, durable invariants and controlled failures"),
@@ -91,7 +109,7 @@ internal static partial class SmokeScenarios
         Root("reader-groups-binding", "MEOWCHAN_READER_GROUPS_BINDING_ONLY", "reader-group bindings: exact live labels for 3 row states in 5 languages on actual native UI thread; synthetic fixture only"),
         Root("native-transfer-preview", "MEOWCHAN_NATIVE_TRANSFER_PREVIEW_ONLY", "native transfer inventory-only preview: synthetic package, dialog terminal ownership and late picker/close paths; managed input, no Apply or native Windows/macOS acceptance"),
         Root("html-export-labels", "MEOWCHAN_HTML_EXPORT_LABELS_ONLY", "HTML export full labels: production inspector, results overflow and split/large reader layout; EN/DE/ES/FR/RU, recorded scale; managed input, no OCR or cross-platform claim"),
-        Root("gif-playback", "MEOWCHAN_GIF_PLAYBACK_ONLY", "GIF actual rendered animation: encoded loops/disposal, native pause/next, verified failures/retirement and Reader-associated playback; private source-built evidence only"),
+        Root("gif-playback", "MEOWCHAN_GIF_PLAYBACK_ONLY", "GIF actual rendered animation: encoded loops/disposal, native pause/next, verified failures/retirement and Reader-associated playback; private source-built evidence only") with { NightlyEnvironment = [Video, Mp4] },
         Root("clipboard-monitor", "MEOWCHAN_CLIPBOARD_MONITOR_ONLY", "clipboard monitor: isolated synthetic clipboard, Save/Discard, passive offer, local button confirmation and lifecycle; managed input"),
         Root("download-safety", "MEOWCHAN_DOWNLOAD_SAFETY_ONLY", "download resource limit: real Settings Save/Discard/rejection and fresh host, managed input; no HTTP/load claim"),
         Root("board-language-refresh", "MEOWCHAN_BOARD_LANGUAGE_REFRESH_ONLY", "board admission command-help refresh: UI-thread live accessibility bindings and all seven mapping hints; private controls, no catalog fetch or apply"),
@@ -104,28 +122,29 @@ internal static partial class SmokeScenarios
         Root("first-run-setup", "MEOWCHAN_FIRST_RUN_SETUP_ONLY", "first-profile setup: EN/DE Light/Dark explicit accept/Later/X/errors/probe retirement; private fixtures, no package claim"),
         Root("preference-startup", "MEOWCHAN_PREFERENCE_STARTUP_ONLY", "startup preferences: private held-restore/Ready/native column input/reopen, current source; platform limits explicit"),
         Root("compact-diagnostics", "MEOWCHAN_COMPACT_DIAGNOSTICS_ONLY", "compact and diagnostics: all-mode projection, frozen scope/revalidation/context/acknowledgement; routed harness input"),
-        Root("gallery-error", "MEOWCHAN_GALLERY_ERROR_ONLY", "gallery diagnostics-only notices: central acknowledgement, no transport/focus/autohide side effects; true failure safe"),
+        Root("gallery-error", "MEOWCHAN_GALLERY_ERROR_ONLY", "gallery diagnostics-only notices: central acknowledgement, no transport/focus/autohide side effects; true failure safe") with { NightlyEnvironment = [Video] },
         Root("feedback", "MEOWCHAN_FEEDBACK_ONLY", "feedback: real rendered banner/toast dismissal, matching duplicates, queue, stale close and passive expiry"),
         Root("gallery-playback-features", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY", env => env("MEOWCHAN_GALLERY_EDGE_ONLY") == "1"
             ? "native edge-hover panels: slideshow pointer-focus hide, bottom transport/right post, no central-motion reveal or preference write"
-            : "gallery playback features: saved choices, edge panels, real mixed-media sequence, replay and decode failure; recorded platform only"),
+            : "gallery playback features: saved choices, edge panels, real mixed-media sequence, replay and decode failure; recorded platform only") with { NightlyEnvironment = [Video, FunctionalAudio] },
         Alternative("owned-control-transfers", "MEOWCHAN_OWNED_CONTROL_TRANSFERS_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
         Alternative("cross-root-migration", "MEOWCHAN_CROSS_ROOT_MIGRATION_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
         Alternative("native-overlay-visibility", "MEOWCHAN_NATIVE_OVERLAY_VISIBILITY_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
         Alternative("gallery-edge", "MEOWCHAN_GALLERY_EDGE_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
-        Root("gallery-mute", "MEOWCHAN_GALLERY_MUTE_ONLY", "gallery mute persistence: real OS input and decoder with functional private audio; session intent across selection changes, not physical output acceptance"),
-        Root("media-interaction", "MEOWCHAN_MEDIA_INTERACTION_ONLY", "media interaction: XTest pointer/key input on private Linux X11; decoder/slider sync, custom navigation, loop and retired gesture checks; NOT Windows acceptance"),
-        Root("native-ime", "MEOWCHAN_NATIVE_IME_ONLY", "IME product checkpoints completed; real engine and UI acceptance require the independent native driver"),
-        Root("gallery-integrity-gui", "MEOWCHAN_GALLERY_INTEGRITY_GUI_ONLY", "gallery integrity: four EN/DE Light/Dark cells at actual scale, exact binding, summary/context/details and geometry"),
-        Root("smoke-alpha2-copy", "MEOWCHAN_SMOKE_ALPHA2_COPY_ONLY", "alpha2 copy: Sources granted/strict/null/inactive and Rules help at actual scale and minimum size"),
+        Root("gallery-mute", "MEOWCHAN_GALLERY_MUTE_ONLY", "gallery mute persistence: real OS input and decoder with functional private audio; session intent across selection changes, not physical output acceptance") with { NightlyEnvironment = [Video, FunctionalAudio] },
+        Root("media-interaction", "MEOWCHAN_MEDIA_INTERACTION_ONLY", "media interaction: XTest pointer/key input on private Linux X11; decoder/slider sync, custom navigation, loop and retired gesture checks; NOT Windows acceptance") with { NightlySkip = "XTest input and its report run through scripts/test-media-interaction-smoke.py" },
+        Root("native-ime", "MEOWCHAN_NATIVE_IME_ONLY", "IME product checkpoints completed; real engine and UI acceptance require the independent native driver") with { NightlySkip = ExternalDriver },
+        Root("gallery-integrity-gui", "MEOWCHAN_GALLERY_INTEGRITY_GUI_ONLY", "gallery integrity: four EN/DE Light/Dark cells at actual scale, exact binding, summary/context/details and geometry") with { NightlyEnvironment = ["MEOWCHAN_GALLERY_INTEGRITY_EXPECT_SCALE=1"] },
+        Root("smoke-alpha2-copy", "MEOWCHAN_SMOKE_ALPHA2_COPY_ONLY", "alpha2 copy: Sources granted/strict/null/inactive and Rules help at actual scale and minimum size") with { NightlyEnvironment = ["MEOWCHAN_ALPHA2_COPY_EXPECT_SCALE=1"] },
         Root("source-filter-wave", "MEOWCHAN_SOURCE_FILTER_WAVE_ONLY"),
         Root("archive-media-counts", "MEOWCHAN_ARCHIVE_MEDIA_COUNTS_ONLY"),
-        Root("source-integrity-gui", "MEOWCHAN_SOURCE_INTEGRITY_GUI_ONLY", "source integrity: focused Sources/Plugins consent and Experimental fixture at the requested actual scale"),
+        Root("source-integrity-gui", "MEOWCHAN_SOURCE_INTEGRITY_GUI_ONLY", "source integrity: focused Sources/Plugins consent and Experimental fixture at the requested actual scale") with { NightlyEnvironment = ["MEOWCHAN_SOURCE_INTEGRITY_EXPECT_SCALE=1"] },
         Nested("experimental-activation-gui", "MEOWCHAN_EXPERIMENTAL_ACTIVATION_GUI_ONLY", "MEOWCHAN_SOURCE_INTEGRITY_GUI_ONLY"),
         Nested("experimental-activation-status", "MEOWCHAN_EXPERIMENTAL_ACTIVATION_STATUS_ONLY", "MEOWCHAN_EXPERIMENTAL_ACTIVATION_GUI_ONLY"),
-        Root("suggestions", "MEOWCHAN_SUGGESTIONS_ONLY"),
-        Branch("ursa-native-suite-groups", "MEOWCHAN_URSA_NATIVE_SUITE=groups"),
-        Branch("media-fit-benchmark", "MEOWCHAN_MEDIA_FIT_BENCHMARK"),
+        Root("suggestions", "MEOWCHAN_SUGGESTIONS_ONLY") with { NightlySkip = Provenance },
+        // Its NativeFeatureCheckpoint needs the external driver's MEOWCHAN_ACCESSIBILITY_EXCHANGE; the restore run never reaches it.
+        Branch("ursa-native-suite-groups", "MEOWCHAN_URSA_NATIVE_SUITE=groups") with { NightlySkip = ExternalDriver, NightlySkipCoversNested = false },
+        Branch("media-fit-benchmark", "MEOWCHAN_MEDIA_FIT_BENCHMARK") with { NightlySkip = "benchmark measurement, not a pass/fail check" },
         Root("media-ratings", "MEOWCHAN_MEDIA_RATINGS_ONLY", env => env("MEOWCHAN_RATINGS_LATE_ERROR_ONLY") == "1"
             ? "ratings: targeted direct/menu late failures and detached tile refresh; exact keys and store reopen"
             : env("MEOWCHAN_RATINGS_PRESENTATION_ONLY") == "1"
@@ -135,14 +154,14 @@ internal static partial class SmokeScenarios
         Alternative("ratings-presentation", "MEOWCHAN_RATINGS_PRESENTATION_ONLY", "MEOWCHAN_MEDIA_RATINGS_ONLY"),
         Root("section-comparison", "MEOWCHAN_SECTION_COMPARISON_ONLY"),
         Nested("section-presentation", "MEOWCHAN_SECTION_PRESENTATION_ONLY", "MEOWCHAN_SECTION_COMPARISON_ONLY"),
-        Branch("template-comparison", "MEOWCHAN_TEMPLATE_COMPARISON"),
+        Branch("template-comparison", "MEOWCHAN_TEMPLATE_COMPARISON") with { NightlySkip = Provenance },
         Nested("template-comparison-presentation", "MEOWCHAN_TEMPLATE_COMPARISON_PRESENTATION_ONLY", "MEOWCHAN_TEMPLATE_COMPARISON"),
-        Branch("archive-comparison", "MEOWCHAN_ARCHIVE_COMPARISON"),
+        Branch("archive-comparison", "MEOWCHAN_ARCHIVE_COMPARISON") with { NightlySkip = Provenance },
         Alternative("archive-comparison-exact-ids", "MEOWCHAN_ARCHIVE_COMPARISON_EXACT_IDS_ONLY", "MEOWCHAN_ARCHIVE_COMPARISON"),
         Alternative("archive-comparison-locale", "MEOWCHAN_ARCHIVE_COMPARISON_LOCALE_ONLY", "MEOWCHAN_ARCHIVE_COMPARISON"),
         Alternative("archive-comparison-matrix", "MEOWCHAN_ARCHIVE_COMPARISON_MATRIX_ONLY", "MEOWCHAN_ARCHIVE_COMPARISON"),
         Alternative("archive-comparison-state", "MEOWCHAN_ARCHIVE_COMPARISON_STATE_ONLY", "MEOWCHAN_ARCHIVE_COMPARISON"),
-        Root("saved-searches", "MEOWCHAN_SAVED_SEARCHES_ONLY"),
+        Root("saved-searches", "MEOWCHAN_SAVED_SEARCHES_ONLY") with { NightlySkip = "restart journey across processes with an explicit disposable MEOWCHAN_SAVED_SEARCH_TEST_PROFILE" },
         Root("footer-navigation", "MEOWCHAN_FOOTER_NAVIGATION_ONLY"),
         Root("picker-lifetime", "MEOWCHAN_PICKER_LIFETIME_ONLY"),
         Root("settings-category", "MEOWCHAN_SETTINGS_CATEGORY_ONLY"),
@@ -168,7 +187,7 @@ internal static partial class SmokeScenarios
         Root("post-bookmarks", "MEOWCHAN_POST_BOOKMARKS_ONLY"),
         Root("command-contrast", "MEOWCHAN_COMMAND_CONTRAST_ONLY"),
         Root("action-dynamic", "MEOWCHAN_ACTION_DYNAMIC_ONLY"),
-        Root("action-overflow", "MEOWCHAN_ACTION_OVERFLOW_ONLY"),
+        Root("action-overflow", "MEOWCHAN_ACTION_OVERFLOW_ONLY") with { NightlySkip = Provenance },
         Root("download-search", "MEOWCHAN_DOWNLOAD_SEARCH_ONLY"),
         Root("settings-footer", "MEOWCHAN_SETTINGS_FOOTER_ONLY"),
         Root("ui-refinement", "MEOWCHAN_UI_REFINEMENT_ONLY"),
@@ -180,6 +199,26 @@ internal static partial class SmokeScenarios
         Root("shortcut-presentation", "MEOWCHAN_SHORTCUT_PRESENTATION_ONLY"),
         Root("poweruser", "MEOWCHAN_POWERUSER_ONLY")
     ];
+
+    // The standalone run of one entry: its command-line arguments and NAME=value environment
+    // (selectors plus NightlyEnvironment), and the inherited NightlySkip reason if any.
+    internal static (string[] Args, string[] Environment, string? Skip) Invocation(SmokeScenario entry)
+    {
+        switch (entry.Kind)
+        {
+            case SmokeScenarioKind.Mode:
+                return (entry.Selector.Length == 0 ? [] : [entry.Selector], entry.NightlyEnvironment, entry.NightlySkip);
+            case SmokeScenarioKind.Root:
+            case SmokeScenarioKind.Branch:
+                string selector = entry.Selector.Contains('=') ? entry.Selector : entry.Selector + "=1";
+                return ([], [selector, .. entry.NightlyEnvironment], entry.NightlySkip);
+            default:
+                SmokeScenario parent = All.Single(candidate => candidate.Selector == entry.Requires[0]);
+                (string[] args, string[] environment, string? skip) = Invocation(parent);
+                return (args, [.. environment, entry.Selector + "=1", .. entry.NightlyEnvironment],
+                    entry.NightlySkip ?? (parent.NightlySkipCoversNested ? skip : null));
+        }
+    }
 
     private static SmokeScenario Mode(string id, string pass) =>
         new(id, SmokeScenarioKind.Mode, id == SmokeSelectors.NormalMode ? "" : "--" + id, _ => pass, []);

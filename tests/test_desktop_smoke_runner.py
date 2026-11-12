@@ -257,6 +257,130 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 runner.parse_args(self.args + ["--expect-scenario", "normal"])
 
+    REGISTRY = [
+        {"id": "normal", "kind": "Mode", "mode": "normal", "environment": [], "scenario": "normal", "skip": None},
+        {"id": "gallery-error", "kind": "Root", "mode": "normal", "scenario": "normal+MEOWCHAN_GALLERY_ERROR_ONLY", "skip": None,
+         "environment": ["MEOWCHAN_GALLERY_ERROR_ONLY=1", "MEOWCHAN_VIDEO_FIXTURE={repo}/tests/Fixtures/gallery-playback-vp8.webm"]},
+        {"id": "gallery-edge", "kind": "Nested", "mode": "normal", "skip": None,
+         "scenario": "normal+MEOWCHAN_GALLERY_EDGE_ONLY+MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY",
+         "environment": ["MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY=1", runner.FUNCTIONAL_AUDIO, "MEOWCHAN_GALLERY_EDGE_ONLY=1"]},
+        {"id": "native-ime", "kind": "Root", "mode": "normal", "environment": ["MEOWCHAN_NATIVE_IME_ONLY=1"],
+         "scenario": "normal+MEOWCHAN_NATIVE_IME_ONLY", "skip": "needs its independent native driver"},
+        {"id": "broken", "kind": "Nested", "mode": "normal", "environment": ["MEOWCHAN_BROKEN_ONLY=1"],
+         "scenario": "normal", "skip": None, "error": "unknown selector MEOWCHAN_BROKEN_ONLY=1"}]
+
+    @staticmethod
+    def child_runner(*outcomes):
+        """Fake entry runners: each writes the results.json its real runner would and exits with the outcome's code."""
+        pending = iter(outcomes)
+
+        def run(command, **kwargs):
+            outcome = next(pending)
+            destination = Path(command[command.index("--output") + 1])
+            mode = command[command.index("--mode") + 1]
+            destination.mkdir(parents=True)
+            (destination / "results.json").write_text(json.dumps({"results": [{
+                "mode": mode, "passed": outcome.returncode == 0 and outcome.no_pass is not True,
+                "scenario": command[command.index("--expect-scenario") + 1], "error": None}]}))
+            return outcome
+        return run
+
+    def test_registry_is_linux_only_and_selects_its_own_modes(self):
+        with mock.patch.object(runner.sys, "platform", "linux"):
+            self.assertTrue(runner.parse_args(self.args + ["--registry", "--only", "normal"]).registry)
+            for extra in (["--mode", "normal"], ["--expect-scenario", "normal"], ["--scale", "2"], ["--native-display"]):
+                with self.assertRaises(SystemExit):
+                    runner.parse_args(self.args + ["--registry", *extra])
+            with self.assertRaises(SystemExit):
+                runner.parse_args(self.args + ["--only", "normal"])
+        with mock.patch.object(runner.sys, "platform", "darwin"), self.assertRaises(SystemExit):
+            runner.parse_args(self.args + ["--registry", "--allow-native-desktop"])
+
+    def test_registry_child_carries_exactly_its_entry_and_audio_wrapper(self):
+        repository = Path("/repo root")
+        command = runner.registry_command(self.REGISTRY[1], self.assembly, self.output / "gallery-error", 300, "openbox", repository)
+        self.assertEqual("env", command[0])
+        self.assertIn("MEOWCHAN_VIDEO_FIXTURE=/repo root/tests/Fixtures/gallery-playback-vp8.webm", command)
+        self.assertEqual("normal+MEOWCHAN_GALLERY_ERROR_ONLY", command[command.index("--expect-scenario") + 1])
+        self.assertEqual("normal", command[command.index("--mode") + 1])
+        audio = runner.registry_command(self.REGISTRY[2], self.assembly, self.output / "gallery-edge", 300, "openbox", repository)
+        self.assertTrue(audio[1].endswith("with-private-null-audio.py"))
+        self.assertEqual(["--", "env"], audio[4:6])
+
+    def test_registry_runs_every_entry_records_skips_and_retries_only_the_window_manager_flake(self):
+        fake = self.child_runner(mock.Mock(returncode=1, stdout="RuntimeError: The isolated window manager exited during startup", stderr=""),
+                                 mock.Mock(returncode=0, stdout="", stderr=""),
+                                 mock.Mock(returncode=1, stdout="SMOKE check failed", stderr=""),
+                                 mock.Mock(returncode=0, stdout="", stderr=""))
+        environment = {"MEOWCHAN_READER_FIND_ONLY": "1", "MEOWCHAN_ARCHIVE_COMPARISON": "1", "KEEP": "1"}
+        with mock.patch.object(runner.sys, "platform", "linux"), \
+                mock.patch.dict(runner.os.environ, environment), \
+                mock.patch.object(runner, "registry_entries", return_value=self.REGISTRY), \
+                mock.patch.object(runner.subprocess, "run", side_effect=fake) as run:
+            self.assertEqual(1, runner.main(self.args + ["--registry"]))
+        self.assertEqual(4, run.call_count)
+        for call in run.call_args_list:
+            self.assertNotIn("MEOWCHAN_READER_FIND_ONLY", call.kwargs["env"])
+            self.assertNotIn("MEOWCHAN_ARCHIVE_COMPARISON", call.kwargs["env"])
+            self.assertEqual("1", call.kwargs["env"]["KEEP"])
+        report = json.loads((self.output / "registry.json").read_text())
+        # The failing entry does not stop the sweep; an entry the assembly rejects is a failure, not a skip.
+        self.assertEqual({"passed": 2, "failed": 2, "skipped": 1}, report["counts"])
+        self.assertEqual(["gallery-error", "broken"], report["failed"])
+        self.assertEqual(2, len(report["results"][0]["attempts"]))
+        self.assertEqual("normal", report["results"][0]["attempts"][-1]["observed_scenario"])
+        self.assertEqual("skipped", report["results"][3]["status"])
+        self.assertIn("invalid registry invocation", report["results"][4]["reason"])
+
+    def test_registry_needs_the_entry_runners_own_pass_verdict_not_only_its_exit_code(self):
+        silent = mock.Mock(returncode=0, stdout="", stderr="", no_pass=True)
+        with mock.patch.object(runner.sys, "platform", "linux"), \
+                mock.patch.object(runner, "registry_entries", return_value=self.REGISTRY[:1]), \
+                mock.patch.object(runner.subprocess, "run", side_effect=self.child_runner(silent)):
+            self.assertEqual(1, runner.main(self.args + ["--registry"]))
+        self.assertEqual(["normal"], json.loads((self.output / "registry.json").read_text())["failed"])
+        missing = self.root / "missing"
+        with mock.patch.object(runner.sys, "platform", "linux"), \
+                mock.patch.object(runner, "registry_entries", return_value=self.REGISTRY[:1]), \
+                mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="", stderr="")):
+            self.assertEqual(1, runner.main(["--assembly", str(self.assembly), "--output", str(missing), "--registry"]))
+        self.assertEqual("no results.json from the entry runner",
+                         json.loads((missing / "registry.json").read_text())["results"][0]["attempts"][0]["error"])
+        with mock.patch.object(runner.sys, "platform", "linux"), \
+                mock.patch.object(runner, "registry_entries", return_value=self.REGISTRY), self.assertRaises(ValueError):
+            runner.main(self.args + ["--registry", "--only", "normal"])  # evidence directory is not fresh
+
+    def test_registry_report_survives_an_interrupted_sweep(self):
+        passed = self.child_runner(mock.Mock(returncode=0, stdout="", stderr=""))
+        calls = []
+
+        def run(command, **kwargs):
+            calls.append(command)
+            if len(calls) == 2:
+                raise KeyboardInterrupt
+            return passed(command, **kwargs)
+        with mock.patch.object(runner.sys, "platform", "linux"), \
+                mock.patch.object(runner, "registry_entries", return_value=self.REGISTRY[:2]), \
+                mock.patch.object(runner.subprocess, "run", side_effect=run):
+            self.assertEqual(130, runner.main(self.args + ["--registry"]))
+        report = json.loads((self.output / "registry.json").read_text())
+        self.assertEqual((False, True), (report["complete"], report["interrupted"]))
+        self.assertEqual(["normal"], [result["id"] for result in report["results"]])
+        self.assertEqual({"passed": 1, "failed": 0, "skipped": 0}, report["counts"])
+
+    def test_registry_failure_reports_the_harness_failure_line_or_the_timeout(self):
+        destination = self.root / "entry"
+        (destination / "normal").mkdir(parents=True)
+        (destination / "normal" / "output.log").write_text(
+            "SMOKE APP noise\nSMOKE FAILED: exit=0, checks=False; System.TimeoutException: at X.cs:12.\n   at Y\n")
+        (destination / "results.json").write_text(json.dumps({"results": [
+            {"mode": "normal", "passed": False, "timed_out": False, "exit_code": 1, "scenario": None, "error": None}]}))
+        self.assertEqual("SMOKE FAILED: exit=0, checks=False; System.TimeoutException: at X.cs:12.",
+                         runner.child_result(destination, "normal")["error"])
+        (destination / "results.json").write_text(json.dumps({"results": [
+            {"mode": "normal", "passed": False, "timed_out": True, "exit_code": 124, "scenario": None, "error": None}]}))
+        self.assertEqual("timed out", runner.child_result(destination, "normal")["error"])
+
     @unittest.skipIf(os.name == "nt", "POSIX process-group fixture")
     def test_timeout_kills_only_the_owned_group_including_its_child(self):
         # A fake dotnet process forks a child that ignores TERM. No window or display is involved.

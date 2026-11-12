@@ -78,6 +78,23 @@ internal static class Program
             Console.Error.WriteLine("SMOKE CONFIGURATION ERROR: " + registryError);
             return 2;
         }
+        // One JSON line per registry entry with its standalone run (scripts/run-desktop-smoke.py --registry);
+        // no profile or window. error: the invocation SmokeSelectors.Check would reject, which the runner reports as failed.
+        if (args is ["--list-scenarios"])
+        {
+            foreach (SmokeScenario entry in SmokeScenarios.All)
+            {
+                (string[] invocation, string[] environment, string? skip) = SmokeScenarios.Invocation(entry);
+                string? invalid = SmokeSelectors.Check(invocation, environment.Select(pair => pair.Split('=', 2))
+                    .Select(pair => KeyValuePair.Create(pair[0], (string?)pair[1])), false, out string expected);
+                Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    id = entry.Id, kind = entry.Kind.ToString(), mode = invocation.Length == 0 ? SmokeSelectors.NormalMode : invocation[0][2..],
+                    environment, scenario = expected, skip, error = invalid
+                }));
+            }
+            return 0;
+        }
         _savedSearchesOnly = Environment.GetEnvironmentVariable("MEOWCHAN_SAVED_SEARCHES_ONLY") == "1";
         string[] modes = SmokeScenarios.All.Where(entry => entry.Kind == SmokeScenarioKind.Mode && entry.Selector.Length != 0)
             .Select(entry => entry.Selector).ToArray();

@@ -31,6 +31,10 @@ SESSION_VARIABLES = ("DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DBUS_SESSION_B
 # Mirrors SmokeSelectors.BranchSelectors: scenario selectors without the _ONLY suffix.
 BRANCH_SELECTORS = (("MEOWCHAN_TEMPLATE_COMPARISON", "1"), ("MEOWCHAN_ARCHIVE_COMPARISON", "1"),
                     ("MEOWCHAN_MEDIA_FIT_BENCHMARK", "1"), ("MEOWCHAN_URSA_NATIVE_SUITE", "groups"))
+# SmokeScenarios.FunctionalAudio: such registry entries run inside the private null-audio wrapper, as in CI.
+FUNCTIONAL_AUDIO = "MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO=1"
+# scripts/with-isolated-window-manager.py: the known sporadic startup failures of the private window manager.
+WINDOW_MANAGER_STARTUP_FLAKE = re.compile(r"The isolated window manager (exited during startup|did not become ready)")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -50,7 +54,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--expect-scenario",
                         help="Require this exact 'SMOKE SCENARIO:' id (one --mode only). By default the id is derived "
                              "from the mode and the MEOWCHAN_*_ONLY selectors in the environment.")
+    parser.add_argument("--registry", action="store_true",
+                        help="Run every entry of the assembly's scenario registry (--list-scenarios) as its own isolated "
+                             "Linux run and continue after failures; entries the registry marks as skipped are recorded.")
+    parser.add_argument("--only", action="append", default=[], metavar="ID",
+                        help="With --registry: run only these registry ids (repeatable).")
     args = parser.parse_args(argv)
+    if args.registry:
+        if args.mode or args.expect_scenario is not None or args.native_display or args.scale is not None:
+            parser.error("--registry selects modes, scenarios and scale per entry; omit --mode, --expect-scenario, --scale and --native-display")
+        if not sys.platform.startswith("linux"):
+            parser.error("--registry runs only on Linux in the isolated runner")
+    elif args.only:
+        parser.error("--only requires --registry")
     if not math.isfinite(args.timeout) or args.timeout <= 0:
         parser.error("--timeout must be finite and positive")
     args.modes = tuple(dict.fromkeys(args.mode or STANDARD_MODES))
@@ -316,8 +332,135 @@ def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str
             "actual_render_scaling": scales[0] if len(scales) == 1 else None, "observed_render_scalings": scales}
 
 
+def registry_entries(assembly: Path) -> list[dict[str, object]]:
+    """The assembly's own scenario registry; listing creates no profile or window."""
+    listing = subprocess.run(["dotnet", str(assembly), "--list-scenarios"], capture_output=True, text=True, timeout=120,
+                             env={key: value for key, value in os.environ.items() if not key.startswith("GIT_")})
+    if listing.returncode != 0:
+        raise ValueError(f"--list-scenarios failed with exit {listing.returncode}: {listing.stderr.strip()}")
+    return [json.loads(line) for line in listing.stdout.splitlines() if line.startswith("{")]
+
+
+def registry_command(entry: dict[str, object], assembly: Path, output: Path, timeout: float, window_manager: str,
+                     repository: Path) -> list[str]:
+    """One child runner per entry, with exactly its registry environment, as a CI step would start it."""
+    environment = [str(value).replace("{repo}", str(repository)) for value in entry["environment"]]
+    command = ["env", *environment, sys.executable, str(Path(__file__).resolve()), "--assembly", str(assembly),
+               "--mode", str(entry["mode"]), "--timeout", str(timeout), "--window-manager", window_manager,
+               "--expect-scenario", str(entry["scenario"]), "--output", str(output)]
+    if FUNCTIONAL_AUDIO in environment:
+        audio = Path(__file__).with_name("with-private-null-audio.py").resolve()
+        command = [sys.executable, str(audio), "--report", str(output.with_name(output.name + "-audio.json")), "--", *command]
+    return command
+
+
+def run_registry(args: argparse.Namespace) -> int:
+    assembly = Path(args.assembly).resolve(strict=True)
+    output = Path(args.output).resolve()
+    output.mkdir(parents=True, exist_ok=True)
+    if any(output.iterdir()):
+        raise ValueError("Choose a fresh --output directory; existing evidence is preserved")
+    entries = registry_entries(assembly)
+    unknown = sorted(set(args.only) - {str(entry["id"]) for entry in entries})
+    if unknown:
+        raise ValueError("Unknown registry ids: " + ", ".join(unknown))
+    # A selector left in the caller's environment would change every entry's scenario.
+    base = {key: value for key, value in os.environ.items()
+            if not (key.startswith("MEOWCHAN_") and key.endswith("_ONLY"))
+            and key not in {name for name, _ in BRANCH_SELECTORS}}
+    repository = Path(__file__).resolve().parents[1]
+    results: list[dict[str, object]] = []
+
+    def write_report(complete: bool, interrupted: bool = False) -> tuple[list[str], dict[str, int]]:
+        # Rewritten after every entry, so a sweep stopped by a job timeout or signal keeps its results.
+        failed = [result["id"] for result in results if result["status"] == "failed"]
+        counts = {status: sum(result["status"] == status for result in results) for status in ("passed", "failed", "skipped")}
+        report = output / "registry.json"
+        report.with_suffix(".json.tmp").write_text(json.dumps({
+            "kind": "source-built Avalonia harness registry run; not published apphost",
+            "platform": sys.platform, "window_manager": args.window_manager, "complete": complete,
+            "interrupted": interrupted, "counts": counts, "failed": failed, "results": results
+        }, indent=2) + "\n", encoding="utf-8")
+        os.replace(report.with_suffix(".json.tmp"), report)
+        return failed, counts
+
+    try:
+        for entry in entries:
+            identifier = str(entry["id"])
+            if args.only and identifier not in args.only:
+                continue
+            if entry.get("error"):
+                # The assembly itself would reject this entry's invocation: a registry defect, not a skip.
+                results.append({"id": identifier, "kind": entry.get("kind"), "status": "failed", "passed": False,
+                                "reason": "invalid registry invocation: " + str(entry["error"]), "attempts": []})
+                print(f"Registry {identifier}: FAILED (invalid registry invocation: {entry['error']})", flush=True)
+                continue
+            if entry.get("skip"):
+                results.append({"id": identifier, "kind": entry.get("kind"), "status": "skipped", "passed": None,
+                                "reason": entry["skip"]})
+                print(f"Registry {identifier}: skipped ({entry['skip']})", flush=True)
+                continue
+            attempts = []
+            for attempt in (1, 2):
+                destination = output / (identifier if attempt == 1 else identifier + "-retry")
+                command = registry_command(entry, assembly, destination, args.timeout, args.window_manager, repository)
+                started = time.monotonic()
+                try:
+                    completed = subprocess.run(command, env=base, capture_output=True, text=True, timeout=args.timeout + 120)
+                    exit_code, log = completed.returncode, completed.stdout + completed.stderr
+                except subprocess.TimeoutExpired as expired:
+                    exit_code, log = 124, str(expired)
+                (output / (destination.name + ".log")).write_text(log, encoding="utf-8")
+                attempts.append({"output": str(destination), "exit_code": exit_code, "seconds": round(time.monotonic() - started),
+                                 **child_result(destination, entry["mode"])})
+                # Only the known sporadic window-manager startup failure is retried, once.
+                if exit_code == 0 or not WINDOW_MANAGER_STARTUP_FLAKE.search(log):
+                    break
+            passed = attempts[-1]["exit_code"] == 0 and attempts[-1].get("child_passed") is True
+            results.append({"id": identifier, "kind": entry.get("kind"), "mode": entry["mode"], "scenario": entry["scenario"],
+                            "status": "passed" if passed else "failed", "passed": passed, "attempts": attempts})
+            print(f"Registry {identifier}: {'passed' if passed else 'FAILED'} ({entry['scenario']})", flush=True)
+            write_report(False)
+    except (KeyboardInterrupt, InterruptedError):
+        failed, counts = write_report(False, interrupted=True)
+        print(f"Registry interrupted after {len(results)} entries: " + ", ".join(f"{status} {count}" for status, count in counts.items()), flush=True)
+        return 130
+    failed, counts = write_report(True)
+    print("Registry summary: " + ", ".join(f"{status} {count}" for status, count in counts.items())
+          + (" ; failed: " + ", ".join(failed) if failed else ""), flush=True)
+    return 1 if failed else 0
+
+
+SMOKE_FAILURE_LINE = re.compile(r"^SMOKE (?:FAILED|CONFIGURATION ERROR|check failed):.*$", re.MULTILINE)
+
+
+def child_result(destination: Path, mode: object) -> dict[str, object]:
+    """What the entry's own runner recorded: its pass verdict, timeout, observed SMOKE SCENARIO id and error.
+    Without a runner error, a failed entry reports the harness's own first failure line."""
+    try:
+        report = json.loads((destination / "results.json").read_text(encoding="utf-8"))
+        result = next(result for result in report["results"] if result.get("mode") == mode)
+    except (OSError, ValueError, KeyError, StopIteration):
+        return {"child_passed": None, "timed_out": None, "observed_scenario": None,
+                "error": "no results.json from the entry runner"}
+    error = result.get("error") or result.get("reason")
+    if error is None and not result.get("passed"):
+        if result.get("timed_out"):
+            error = "timed out"
+        else:
+            try:
+                line = SMOKE_FAILURE_LINE.search((destination / str(mode) / "output.log").read_text(encoding="utf-8", errors="replace"))
+            except OSError:
+                line = None
+            error = line.group(0)[:400] if line else f"exit {result.get('exit_code')} without a SMOKE failure line"
+    return {"child_passed": result.get("passed"), "timed_out": result.get("timed_out"),
+            "observed_scenario": result.get("scenario"), "error": error}
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    if args.registry:
+        return run_registry(args)
     isolated = sys.platform.startswith("linux") and not args.native_display
     environment = os.environ.copy()
     environment.pop("MEOWCHAN_DESKTOP_SMOKE_KWIN", None)
