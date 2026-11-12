@@ -469,6 +469,41 @@ public sealed class LocalMediaTagStoreTests
         Assert.Empty(Directory.GetFiles(temp.Path, "*.tmp"));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ACancellationDuringTheUpgradePublishesNothingAndTheRetryKeepsTheExactV1Copy(bool afterCopy)
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        (_, TagId cat, string path, byte[] v1) = V1Profile(temp.Path, lease);
+        string keep = Path.Combine(temp.Path, V1BackupName);
+        byte[] bakBefore = File.ReadAllBytes(path + ".bak");
+        using CancellationTokenSource cancel = new();
+        // Cancelled before the copy, the token is first observed after its temporary file was flushed;
+        // cancelled after it, by the replace, which then must not run.
+        PrivateTagWritePhase cancelAt = afterCopy ? PrivateTagWritePhase.BeforeReplace : PrivateTagWritePhase.BeforeBackupCheck;
+        PrivateTagStore cancelling = new(temp.Path, lease)
+        { WritePhaseForTests = phase => { if (phase == cancelAt) cancel.Cancel(); } };
+
+        Assert.ThrowsAny<OperationCanceledException>(() =>
+            cancelling.SetMediaSubjects(cat, [Loose(Observe())], true, null, cancel.Token));
+
+        Assert.Equal(v1, File.ReadAllBytes(path));
+        Assert.Equal(bakBefore, File.ReadAllBytes(path + ".bak"));
+        Assert.Equal(afterCopy, File.Exists(keep));
+        if (afterCopy) Assert.Equal(v1, File.ReadAllBytes(keep));
+        Assert.Empty(Directory.GetFiles(temp.Path, "*.tmp"));
+        Assert.Empty(new PrivateTagStore(temp.Path, lease).ReadSnapshot().LocalRegistry.Occurrences);
+
+        PrivateTagCommit retry = new PrivateTagStore(temp.Path, lease).SetMediaSubjects(cat, [Loose(Observe())], true);
+
+        Assert.Equal(2, retry.Snapshot.FormatVersion);
+        Assert.Equal(v1, File.ReadAllBytes(keep));
+        Assert.Equal(v1, File.ReadAllBytes(path + ".bak"));
+        Assert.Empty(Directory.GetFiles(temp.Path, "*.tmp"));
+    }
+
     [Fact]
     public void CancellationStaleRevisionCapacityAndADamagedBackupNeverWriteOrLoseAssignments()
     {
