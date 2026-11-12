@@ -25,7 +25,28 @@ public sealed class PluginSourceImageBoard : BaseImageBoard, IProviderDescriptor
     public override string NiceName => Description.Name;
     public override Uri BaseUri => Description.BaseUri;
     internal override bool UsesOpaqueStorageIdentifiers => true;
-    public ProviderCapabilities Capabilities => (ProviderCapabilities)(int)Description.Capabilities;
+    public ProviderCapabilities Capabilities => MapCapabilities(Description.Capabilities);
+
+    /// <summary>
+    /// Explicit SDK-to-descriptor mapping. Only the flags listed here are carried over; flags without a descriptor
+    /// counterpart (PostSearch, and any future SDK flag) are dropped instead of leaking as undefined enum values.
+    /// </summary>
+    private static readonly (SourceCapabilities Sdk, ProviderCapabilities Provider)[] CapabilityMap =
+    {
+        (SourceCapabilities.ThreadRead, ProviderCapabilities.ThreadWatch),
+        (SourceCapabilities.BoardCatalog, ProviderCapabilities.BoardCatalog),
+        (SourceCapabilities.PostCapture, ProviderCapabilities.PostCapture),
+        (SourceCapabilities.OriginalMedia, ProviderCapabilities.OriginalMedia),
+        (SourceCapabilities.Previews, ProviderCapabilities.Previews)
+    };
+
+    public static ProviderCapabilities MapCapabilities(SourceCapabilities capabilities)
+    {
+        ProviderCapabilities mapped = ProviderCapabilities.None;
+        foreach ((SourceCapabilities sdk, ProviderCapabilities provider) in CapabilityMap)
+            if ((capabilities & sdk) != 0) mapped |= provider;
+        return mapped;
+    }
     public IReadOnlyList<string> SupportedHosts { get; }
     public string? AdapterVersion { get; }
     public bool Enabled { get { lock (_lifecycle) return _enabled && !_disposed; } }
