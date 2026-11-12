@@ -20,6 +20,20 @@ the production loader. Key coverage is **not** language-quality or complete-UI Q
 Future key additions require matching pack updates. The keys of `InlineTextCatalog` (formerly hard-coded English/German pairs in product code) were machine-translated into es/fr/ru and have had no human proofreading yet. Proper names and technical
 terms may legitimately match English.
 
+The es/fr/ru texts of the bundled repair/reselection review dialog's batch
+approval are likewise **unreviewed machine translations of consent texts**:
+`plugins.approval.submit`, `plugins.approval.submitOne`, `plugins.approval.reload`,
+`plugins.approval.policy`, `plugins.approval.saving`, `plugins.approval.stopping`,
+`plugins.approval.stopped`, `plugins.approval.reviewAgain`,
+`plugins.approval.needsReview`, `plugins.approval.failed`,
+`plugins.approval.checkStore`, `plugins.approval.refreshFailed`,
+`plugins.approval.receipt` and `plugins.approval.state.*` (`Saved`, `NotExecuted`,
+`NeedsReview`, `Failed`, `CheckStore`). They state what is and is not saved,
+stopped or activated, so they need qualified human review before these languages
+can be considered reviewed for this dialog. The Russian `plugins.approval.submit`
+uses a count-agnostic "label: number" form because one singular key cannot cover
+Russian's plural forms.
+
 ## Select and customize
 
 Select the desired language in Settings → Interface and save normally. Merely

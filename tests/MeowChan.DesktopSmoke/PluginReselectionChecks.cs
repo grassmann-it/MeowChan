@@ -9,6 +9,7 @@ using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Plugins;
@@ -41,6 +42,25 @@ internal static class PluginReselectionChecks
             owner.GetLogicalDescendants().OfType<MenuItem>().First(item => Equals(item.Tag, "nav.plugins"))
                 .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             await page.ActivateAsync();
+            // Long localized footer labels at the modal's 320 px floor. Runs first: the catalog-reload boundary
+            // below reinitializes Texts without the bundled packs, after which RU would fall back to English.
+            foreach (string narrowLanguage in new[] { "de", "ru" })
+            {
+                Texts.SetLanguage(narrowLanguage); await Settle();
+                Require(Texts.Language == narrowLanguage && Texts.T("plugins.approval.reload") != "Reload review",
+                    "Bundled language pack is not active for the footer check: " + narrowLanguage);
+                store.ResetOffers();
+                Window modal = await OpenAsync(owner, page);
+                bool oneRow = VerifyFooter(modal, closePrimary: false, requireOneRow: false);
+                Program.CaptureWindow(modal, "smoke-approval-footer-default-" + narrowLanguage + ".png");
+                modal.Width = 320; modal.Height = 320;
+                await Program.WaitUntilAsync(() => { modal.UpdateLayout(); return Math.Abs(modal.ClientSize.Width - 320) <= 1; });
+                VerifyFooter(modal, closePrimary: false, requireOneRow: false);
+                Program.CaptureWindow(modal, "smoke-approval-footer-minimum-" + narrowLanguage + ".png");
+                using (MediaNativeInput input = new(modal)) await ClickAsync(modal, input, Cancel(modal));
+                await ClosedAsync(page, modal);
+                Console.WriteLine("PLUGIN_APPROVAL_FOOTER " + JsonSerializer.Serialize(new { result = "pass", language = narrowLanguage, oneRowAtDefaultWidth = oneRow, defaultWidth = modal.Width, minimumWidth = 320 }));
+            }
             foreach (string currentLanguage in new[] { "en", "de" })
             {
                 Texts.SetLanguage(currentLanguage); await Settle();
@@ -206,6 +226,32 @@ internal static class PluginReselectionChecks
                 Require(store.Calls == beforeBatch + 2 && store.Revision == batchRevision + 2 &&
                     store.ReauthorizationRevisions.TakeLast(2).SequenceEqual(new[] { batchRevision, batchRevision + 1 }) &&
                     store.ModalReadyAtConfirmation, "Batch did not follow its own monotonic return-revision chain in the same modal.");
+                // Footer row, singular label, neutral status and finish emphasis: with only the two
+                // reauthorizations offered, one batch save leaves nothing actionable.
+                store.ResetOffers(); store.MarkSaved(store.Row.PluginId, store.Repair.PluginId);
+                int beforeFinish = store.Calls;
+                modal = await OpenAsync(owner, page);
+                VerifyFooter(modal, closePrimary: false);
+                Program.CaptureWindow(modal, "smoke-approval-footer-" + currentLanguage + ".png");
+                using (MediaNativeInput input = new(modal))
+                {
+                    await ClickAsync(modal, input, Ack(ReauthorizeConfirm(modal, store.Reauthorization.PluginId)));
+                    Require(AutomationProperties.GetName(ById(modal, "BundledApprovalSubmit")) == Texts.T("plugins.approval.submitOne"),
+                        "One checked row did not use the singular submit label.");
+                    await ClickAsync(modal, input, Ack(ReauthorizeConfirm(modal, store.SecondReauthorization.PluginId)));
+                    Require(AutomationProperties.GetName(ById(modal, "BundledApprovalSubmit")) == Texts.T("plugins.approval.submit", 2),
+                        "Two checked rows did not use the plural submit label.");
+                    await ClickAsync(modal, input, ById(modal, "BundledApprovalSubmit"));
+                }
+                await SavedAsync(page, modal);
+                VerifyNeutralStatus(modal, Texts.T("plugins.approval.reviewAgain"));
+                Require(ReferenceEquals(modal.FocusManager?.GetFocusedElement(), ById(modal, "BundledApprovalClose")),
+                    "Keyboard focus did not move to Close once nothing actionable remained.");
+                VerifyFooter(modal, closePrimary: true);
+                Program.CaptureWindow(modal, "smoke-approval-done-" + currentLanguage + ".png");
+                using (MediaNativeInput input = new(modal)) await ClickAsync(modal, input, Cancel(modal));
+                await ClosedAsync(page, modal);
+                Require(store.Calls == beforeFinish + 2, "Finish scenario did not save exactly the two checked rows.");
                 // Closing, same-code catalog reload and navigation must stop the frozen remainder,
                 // while still observing the already-admitted task (not claiming rollback).
                 foreach (string boundary in new[] { "close", "catalog", "deactivate" })
@@ -223,7 +269,11 @@ internal static class PluginReselectionChecks
                         {
                             await ClickAsync(modal, input, ById(modal, "BundledApprovalSubmit"));
                             Require(store.Calls == beforeStop + 1, "Stop fixture did not hold exactly one admitted write.");
-                            if (boundary == "close") await ClickAsync(modal, input, Cancel(modal));
+                            if (boundary == "close")
+                            {
+                                await ClickAsync(modal, input, Cancel(modal));
+                                VerifyNeutralStatus(modal, Texts.T("plugins.approval.stopping"));
+                            }
                             else if (boundary == "catalog")
                             {
                                 Texts.InitializeWithoutBundlesForTests();
@@ -326,6 +376,45 @@ internal static class PluginReselectionChecks
         Require(modal.GetVisualDescendants().OfType<CheckBox>().All(ack => ack.IsChecked == false),
             "A save retained unconsumed consent instead of requiring a new explicit check.");
     }
+    // Neutral status sits in the footer, muted and polite; the assertive error strip stays empty and hidden.
+    private static void VerifyNeutralStatus(Window modal, string text)
+    {
+        // Logical tree: a hidden strip's scroll content is not templated into the visual tree.
+        TextBlock status = modal.GetLogicalDescendants().OfType<TextBlock>().Single(t => AutomationProperties.GetAutomationId(t) == "BundledApprovalStatus");
+        TextBlock issue = modal.GetLogicalDescendants().OfType<TextBlock>().Single(t => AutomationProperties.GetAutomationId(t) == "BundledApprovalIssue");
+        Control strip = modal.GetLogicalDescendants().OfType<Control>().Single(c => c.Name == DialogFrame.ErrorStripName);
+        Control footer = modal.GetLogicalDescendants().OfType<Control>().Single(c => c.Name == DialogFrame.FooterName);
+        Require(status.Text == text && status.IsEffectivelyVisible, "Neutral status text is not shown: " + text);
+        Require(status.GetLogicalAncestors().Contains(footer) && !status.GetLogicalAncestors().Contains(strip),
+            "Neutral status is not in the footer or sits in the error strip: " + text);
+        Require(!status.Classes.Contains("workspace-error") && status.Classes.Contains("workspace-meta") &&
+            AutomationProperties.GetLiveSetting(status) == AutomationLiveSetting.Polite, "Neutral status is styled or announced as an error: " + text);
+        Require(string.IsNullOrEmpty(issue.Text) && !strip.IsVisible && AutomationProperties.GetLiveSetting(issue) == AutomationLiveSetting.Assertive,
+            "Error strip shows or repeats a neutral message: " + text);
+    }
+    // One right-aligned row at the default width, Close/Reload/Submit, with exactly one primary action.
+    private static bool VerifyFooter(Window modal, bool closePrimary, bool requireOneRow = true)
+    {
+        modal.UpdateLayout();
+        Control footer = modal.GetVisualDescendants().OfType<Control>().Single(c => c.Name == DialogFrame.FooterName);
+        WrapPanel actions = modal.GetVisualDescendants().OfType<WrapPanel>().Single(p => AutomationProperties.GetAutomationId(p) == "BundledApprovalActions");
+        Button close = ById(modal, "BundledApprovalClose"), reload = ById(modal, "BundledApprovalReload"), submit = ById(modal, "BundledApprovalSubmit");
+        Rect Box(Control c) => new(c.TranslatePoint(default, footer)!.Value, c.Bounds.Size);
+        Rect footerBox = new Rect(footer.Bounds.Size).Inflate(0.5);
+        foreach (Button button in new[] { close, reload, submit })
+            Require(footerBox.Contains(Box(button)) && button.Bounds.Width > 0, "Footer button is clipped or hidden: " + AutomationProperties.GetAutomationId(button));
+        bool oneRow = Math.Abs(Box(close).Y - Box(reload).Y) < 1 && Math.Abs(Box(reload).Y - Box(submit).Y) < 1 &&
+            Box(close).X < Box(reload).X && Box(reload).X < Box(submit).X;
+        if (requireOneRow)
+        {
+            Require(oneRow, "Footer buttons do not share one ordered row.");
+            Require(footerBox.Right - Box(submit).Right < 40, "Footer row is not right-aligned.");
+        }
+        Require(actions.Classes.Contains("workspace-actions"), "Footer row does not use the shared action-row style.");
+        Require(submit.Classes.Contains("primary") == !closePrimary && close.Classes.Contains("primary") == closePrimary &&
+            !reload.Classes.Contains("primary"), "Footer emphasis is wrong (close primary expected: " + closePrimary + ").");
+        return oneRow;
+    }
     private static async Task SavedAndCloseAsync(PluginsPage page, Window modal)
     {
         await SavedAsync(page, modal);
@@ -342,6 +431,7 @@ internal static class PluginReselectionChecks
         internal long Revision { get; private set; } = 71029;
         private readonly HashSet<string> saved = new(StringComparer.Ordinal);
         internal void ResetOffers() => saved.Clear();
+        internal void MarkSaved(params string[] pluginIds) => saved.UnionWith(pluginIds);
         internal TaskCompletionSource? HoldWrite { get; set; }
         internal List<long> ReauthorizationRevisions { get; } = new();
         internal const string Configuration = "{\n  \"revision\": \"settings ü exact\",\n  \"pluginSettings\": {\"label\": \" spaces  and \\\"quotes\\\" \"},\n  \"sourceSettings\": {\"pux-source\": {\"limit\": 17}},\n  \"filterSettings\": {},\n  \"reviewTail\": \"END exact configuration 漢字\"\n}";

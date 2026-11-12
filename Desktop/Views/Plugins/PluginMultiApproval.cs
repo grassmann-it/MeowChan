@@ -27,9 +27,15 @@ internal sealed class PluginMultiApproval(IPluginProfileStore store)
     internal Task? InFlight { get; private set; }
     internal bool Saving => InFlight is { IsCompleted: false };
     internal string? IssueKey { get; private set; }
-    internal long? LastSavedRevision { get; private set; }
     internal bool MayOffer(string pluginId) => !_consumed.Contains(pluginId);
     internal void Stop() => _stop = true;
+
+    /// <summary>
+    /// Keys that report a problem with the frozen selection or the store. Everything else this dialog
+    /// shows (progress, refreshed review, stopping) is neutral status.
+    /// </summary>
+    internal static bool IsProblem(string key) => key is "plugins.approval.failed" or "plugins.approval.checkStore" or
+        "plugins.approval.needsReview" or "plugins.approval.refreshFailed" or "plugins.approval.stopped";
 
     internal Task SubmitAsync(IReadOnlyList<PluginApprovalChoice> selected, Func<bool> admit,
         CancellationToken token = default)
@@ -88,14 +94,15 @@ internal sealed class PluginMultiApproval(IPluginProfileStore store)
                     same = preview.ProfileRevision == expected && matches.Length == 1 && matches[0] == choice.Repair &&
                         (choice.Kind == PluginApprovalKind.Reauthorization ? matches[0].CanReauthorize : matches[0].CanConfirm);
                 }
+                // A stop or cancellation during the preview read wins over its result: nothing was dispatched.
+                if (_stop || token.IsCancellationRequested || !admit())
+                { IssueKey = "plugins.approval.stopped"; return; }
                 if (!same)
                 {
                     _receipts[start + i] = new(choice, PluginApprovalState.NeedsReview);
                     IssueKey = "plugins.approval.needsReview";
                     return; // In particular: never adopt a foreign preview revision.
                 }
-                if (_stop || token.IsCancellationRequested || !admit())
-                { IssueKey = "plugins.approval.stopped"; return; }
                 dispatched = true;
                 var result = await (choice.Kind switch
                 {
@@ -105,7 +112,6 @@ internal sealed class PluginMultiApproval(IPluginProfileStore store)
                 });
                 _consumed.Add(choice.PluginId);
                 _receipts[start + i] = new(choice, PluginApprovalState.Saved, result.Revision);
-                LastSavedRevision = result.Revision;
                 if (result.Revision <= expected) { IssueKey = "plugins.approval.needsReview"; return; }
                 expected = result.Revision; // ONLY the return revision of our immediately preceding successful write.
             }
@@ -113,6 +119,13 @@ internal sealed class PluginMultiApproval(IPluginProfileStore store)
             {
                 _receipts[start + i] = new(choice, PluginApprovalState.NeedsReview);
                 IssueKey = "plugins.approval.needsReview";
+                return;
+            }
+            catch (Exception exception) when (!dispatched &&
+                (exception is OperationCanceledException || _stop || token.IsCancellationRequested))
+            {
+                // Stopped before the write was dispatched: this row was not executed, so its receipt stays NotExecuted.
+                IssueKey = "plugins.approval.stopped";
                 return;
             }
             catch (Exception exception)

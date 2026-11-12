@@ -2316,6 +2316,7 @@
     "plugins.approval.stopped": "Las acciones restantes no se ejecutaron. Revise de nuevo antes de guardar.",
     "plugins.approval.stopping": "Deteniendo tras la operación actual. Puede que aún guarde; las aprobaciones ya guardadas permanecen.",
     "plugins.approval.submit": "Guardar {0} reparaciones autorizadas individualmente",
+    "plugins.approval.submitOne": "Guardar 1 reparación autorizada individualmente",
     "action.retry": "Reintentar",
     "sources.title": "Fuentes"
   }

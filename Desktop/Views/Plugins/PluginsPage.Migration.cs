@@ -72,10 +72,22 @@ public partial class PluginsPage
             StackPanel selectionRows = new() { Spacing = 16 };
             StackPanel receipts = new() { Spacing = 6 };
             List<(CheckBox Ack, PluginApprovalChoice Choice)> reauthorizations = new();
+            // Neutral progress/outcome text sits politely above the footer actions; only real problems use the
+            // assertive error strip. Exactly one of the two carries a message at a time, so nothing is announced twice.
             TextBlock status = RepairText("");
             status.Focusable = true;
+            status.Classes.Add("workspace-meta");
+            // Long outcomes scroll inside the footer instead of pushing the actions out of a small window.
+            ScrollViewer statusHost = new()
+            {
+                Content = status, MaxHeight = 96, IsVisible = false,
+                HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled
+            };
             AutomationProperties.SetAutomationId(status, "BundledApprovalStatus");
             AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Polite);
+            TextBlock issue = RepairText("");
+            issue.Focusable = true;
+            AutomationProperties.SetAutomationId(issue, "BundledApprovalIssue");
             Button submit = new();
             AutomationProperties.SetAutomationId(submit, "BundledApprovalSubmit");
             Button reload = new() { Content = RepairText(Texts.T("plugins.approval.reload")) };
@@ -83,14 +95,31 @@ public partial class PluginsPage
             Button cancel = new() { Content = Texts.T("plugins.repair.cancel") };
             AutomationProperties.SetName(cancel, Texts.T("plugins.repair.cancel"));
             AutomationProperties.SetAutomationId(cancel, "BundledApprovalClose");
+            bool actionable = false, closeIsPrimary = false;
+            void Emphasise(bool close)
+            {
+                // Submit is the primary action until a successful save leaves nothing to act on; then Close is.
+                closeIsPrimary = close;
+                submit.Classes.Set("primary", !close);
+                cancel.Classes.Set("primary", close); cancel.Classes.Set("subtle", !close);
+            }
             void UpdateSubmit()
             {
                 int count = reauthorizations.Count(item => item.Ack.IsChecked == true);
-                submit.Content = RepairText(Texts.T("plugins.approval.submit", count));
-                AutomationProperties.SetName(submit, Texts.T("plugins.approval.submit", count));
+                string label = count == 1 ? Texts.T("plugins.approval.submitOne") : Texts.T("plugins.approval.submit", count);
+                submit.Content = RepairText(label);
+                AutomationProperties.SetName(submit, label);
                 submit.IsEnabled = !saving && coherent && count > 0;
             }
-            void SetStatus(string key) { status.Text = Texts.T(key); AutomationProperties.SetName(status, status.Text); }
+            void SetStatus(string key)
+            {
+                bool problem = PluginMultiApproval.IsProblem(key);
+                TextBlock target = problem ? issue : status, other = problem ? status : issue;
+                other.Text = ""; AutomationProperties.SetName(other, "");
+                target.Text = Texts.T(key); AutomationProperties.SetName(target, target.Text);
+                statusHost.IsVisible = !problem; // The error strip hides itself while its text is empty.
+            }
+            TextBlock Message() => string.IsNullOrEmpty(issue.Text) ? status : issue;
             async Task ReloadAsync()
             {
                 // One bounded pair of reads. A mixed snapshot never becomes actionable.
@@ -127,6 +156,8 @@ public partial class PluginsPage
                         if (!SessionCurrent() || closeRequested) return;
                         RenderRows(); // All unconsumed checkboxes are freshly UNCHECKED, also on failure.
                         SetStatus(approval.IssueKey ?? (coherent ? "plugins.approval.reviewAgain" : "plugins.approval.needsReview"));
+                        // The dialog stays open so receipts remain readable; with nothing left, Close is the next step.
+                        Emphasise(approval.IssueKey is null && coherent && !actionable);
                     }
                     catch (Exception)
                     {
@@ -138,7 +169,7 @@ public partial class PluginsPage
                         }
                     }
                     receipts.BringIntoView();
-                    status.Focus();
+                    if (closeIsPrimary) cancel.Focus(); else Message().Focus();
                 }
                 finally
                 {
@@ -288,6 +319,9 @@ public partial class PluginsPage
                     content.Children.Add(confirm);
                     selectionRows.Children.Add(new Border { Child = content, Padding = new Thickness(12), BorderThickness = new Thickness(1) });
                 }
+                actionable = reauthorizations.Any(item => item.Ack.IsEnabled) ||
+                    preview.Rows.Any(row => !row.CanReauthorize && row.CanConfirm && coherent && approval.MayOffer(row.PluginId)) ||
+                    selections.Rows.Any(row => row.CanConfirm && coherent && approval.MayOffer(row.PluginId));
                 // Keep every proven repair available, but do not bury usable new choices below legacy denials.
                 bool hasNewChoice = selections.Rows.Any(row => row.CanConfirm);
                 if (receipts.Children.Count != 0) rows.Children.Add(receipts);
@@ -313,7 +347,10 @@ public partial class PluginsPage
                 {
                     await ReloadAsync();
                     if (SessionCurrent() && !closeRequested)
-                    { RenderRows(); SetStatus(coherent ? "plugins.approval.reviewAgain" : "plugins.approval.needsReview"); }
+                    {
+                        RenderRows(); SetStatus(coherent ? "plugins.approval.reviewAgain" : "plugins.approval.needsReview");
+                        Emphasise(closeIsPrimary && coherent && !actionable);
+                    }
                 }
                 catch (Exception)
                 { coherent = false; if (SessionCurrent() && !closeRequested) { RenderRows(); SetStatus("plugins.approval.refreshFailed"); } }
@@ -330,14 +367,19 @@ public partial class PluginsPage
                 closeRequested = true; approval.Stop();
                 if (saving) { args.Cancel = true; SetStatus("plugins.approval.stopping"); }
             };
-            StackPanel footer = new() { Spacing = 6 };
-            StackPanel buttons = new() { Spacing = 6, HorizontalAlignment = HorizontalAlignment.Stretch };
-            buttons.Children.Add(submit); buttons.Children.Add(reload); buttons.Children.Add(cancel); footer.Children.Add(buttons);
+            // One right-aligned row like the other dialogs; it wraps (and long labels wrap) at narrow widths.
+            WrapPanel buttons = new();
+            buttons.Classes.Add("workspace-actions");
+            AutomationProperties.SetAutomationId(buttons, "BundledApprovalActions");
+            buttons.Children.Add(cancel); buttons.Children.Add(reload); buttons.Children.Add(submit);
+            Emphasise(false);
+            StackPanel footer = new() { Spacing = 8 };
+            footer.Children.Add(statusHost); footer.Children.Add(buttons);
             TextBlock heading = new() { Text = window.Title, TextWrapping = TextWrapping.Wrap };
             heading.Classes.Add("page-title");
             Border body = new() { Child = rows };
             body.Classes.Add("workspace-dialog-body");
-            window.Content = DialogFrame.Build(heading, body, footer, DialogFrame.ErrorStrip(status));
+            window.Content = DialogFrame.Build(heading, body, footer, DialogFrame.ErrorStrip(issue));
             window.KeyDown += (_, args) => { if (args.Key == Key.Escape) { window.Close(); args.Handled = true; } };
             window.Opened += (_, _) => cancel.Focus();
             await window.ShowDialog<object?>(owner);

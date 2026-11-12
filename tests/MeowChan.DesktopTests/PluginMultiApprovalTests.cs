@@ -312,6 +312,81 @@ public sealed class PluginMultiApprovalTests
         Assert.All(session.Receipts.Skip(1), receipt => Assert.Equal(PluginApprovalState.NotExecuted, receipt.State));
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task CancellationDuringPreviewReadIsStoppedAndLeavesTheRowNotExecuted(int previewCall)
+    {
+        using Fixture f = await Fixture.CreateAsync();
+        using CancellationTokenSource cancellation = new();
+        f.Recording.BeforePreview = (count, token) =>
+        {
+            if (count == previewCall) { cancellation.Cancel(); token.ThrowIfCancellationRequested(); }
+            return Task.CompletedTask;
+        };
+        PluginMultiApproval session = new(f.Recording);
+        await session.SubmitAsync(f.Choices, () => true, cancellation.Token);
+        Assert.Equal(previewCall - 1, f.Recording.Writes.Count);
+        Assert.Equal(Enumerable.Repeat(PluginApprovalState.Saved, previewCall - 1)
+                .Concat(Enumerable.Repeat(PluginApprovalState.NotExecuted, 3 - (previewCall - 1))),
+            session.Receipts.Select(receipt => receipt.State));
+        Assert.Equal("plugins.approval.stopped", session.IssueKey);
+        Assert.True(session.MayOffer(f.Choices[previewCall - 1].PluginId)); // Never dispatched, so not consumed.
+        Assert.Equal(f.Choices[0].Revision + previewCall - 1, (await f.Store.ReadAsync()).Revision);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StopDuringPreviewReadWinsOverItsResultAndDispatchesNothing(bool changedPreview)
+    {
+        using Fixture f = await Fixture.CreateAsync();
+        PluginMultiApproval session = new(f.Recording);
+        f.Recording.BeforePreview = (_, _) => { session.Stop(); return Task.CompletedTask; };
+        if (changedPreview) f.Recording.RewritePreview = preview => preview with { Rows = [] };
+        await session.SubmitAsync(f.Choices, () => true);
+        Assert.Empty(f.Recording.Writes);
+        Assert.All(session.Receipts, receipt => Assert.Equal(PluginApprovalState.NotExecuted, receipt.State));
+        Assert.Equal("plugins.approval.stopped", session.IssueKey);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CancellationAfterDispatchStaysUncertainAndIsNeverRetried(bool viaToken)
+    {
+        using Fixture f = await Fixture.CreateAsync();
+        using CancellationTokenSource cancellation = new();
+        f.Recording.BeforeWrite = count =>
+        {
+            if (count != 1) return Task.CompletedTask;
+            if (!viaToken) return Task.FromException(new OperationCanceledException("adapter cancelled after dispatch"));
+            cancellation.Cancel();
+            return Task.FromException(new OperationCanceledException(cancellation.Token));
+        };
+        PluginMultiApproval session = new(f.Recording);
+        await session.SubmitAsync(f.Choices, () => true, cancellation.Token);
+        Assert.Single(f.Recording.Writes);
+        Assert.Equal(new[] { PluginApprovalState.CheckStore, PluginApprovalState.NotExecuted, PluginApprovalState.NotExecuted },
+            session.Receipts.Select(receipt => receipt.State));
+        Assert.Equal("plugins.approval.checkStore", session.IssueKey);
+        Assert.False(session.MayOffer(f.Choices[0].PluginId));
+    }
+
+    [Theory]
+    [InlineData("plugins.approval.failed", true)]
+    [InlineData("plugins.approval.checkStore", true)]
+    [InlineData("plugins.approval.needsReview", true)]
+    [InlineData("plugins.approval.refreshFailed", true)]
+    [InlineData("plugins.approval.stopped", true)]
+    [InlineData("plugins.approval.saving", false)]
+    [InlineData("plugins.approval.reviewAgain", false)]
+    [InlineData("plugins.approval.stopping", false)]
+    public void OnlyRealProblemsUseTheAssertiveErrorStrip(string key, bool problem)
+    {
+        Assert.Equal(problem, PluginMultiApproval.IsProblem(key));
+    }
+
     private sealed class Fixture : IDisposable
     {
         internal string Root { get; } = Path.Combine(Path.GetTempPath(), "meowchan-multiapproval-" + Guid.NewGuid().ToString("N"));
@@ -390,11 +465,14 @@ public sealed class PluginMultiApprovalTests
         internal Func<int, Task>? AfterWrite { get; set; }
         internal Func<long, long>? ResponseRevision { get; set; }
         internal Func<BundledCandidateRepairPreview, BundledCandidateRepairPreview>? RewritePreview { get; set; }
+        internal Func<int, CancellationToken, Task>? BeforePreview { get; set; }
+        private int _previews;
         public event Action<PluginLifecycleChange>? LifecycleChanged { add => inner.LifecycleChanged += value; remove => inner.LifecycleChanged -= value; }
         public event Action<PluginGrantChange>? GrantChanged { add => inner.GrantChanged += value; remove => inner.GrantChanged -= value; }
         public Task<PluginProfileSnapshot> ReadAsync(CancellationToken cancellationToken = default) => inner.ReadAsync(cancellationToken);
         public async Task<BundledCandidateRepairPreview> PreviewBundledRepairsAsync(CancellationToken cancellationToken = default)
         {
+            if (BeforePreview is { } before) await before(++_previews, cancellationToken);
             var preview = await inner.PreviewBundledRepairsAsync(cancellationToken);
             return RewritePreview?.Invoke(preview) ?? preview;
         }

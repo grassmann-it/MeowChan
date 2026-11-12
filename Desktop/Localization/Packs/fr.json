@@ -2316,6 +2316,7 @@
     "plugins.approval.stopped": "Les actions restantes n'ont pas été exécutées. Examinez à nouveau avant d'enregistrer.",
     "plugins.approval.stopping": "Arrêt après l'opération en cours. Elle peut encore enregistrer ; les autorisations déjà enregistrées sont conservées.",
     "plugins.approval.submit": "Enregistrer {0} réparations autorisées individuellement",
+    "plugins.approval.submitOne": "Enregistrer 1 réparation autorisée individuellement",
     "action.retry": "Réessayer",
     "sources.title": "Sources"
   }
