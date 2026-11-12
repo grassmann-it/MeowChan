@@ -433,11 +433,12 @@ internal sealed class BooruCatalogStore
             int index = posts.FindIndex(item => item.SourceId == sourceId && item.PostId == postId);
             if (index < 0) throw new InvalidOperationException("A provider post must be stored before its download intent.");
             BooruPostRecord current = posts[index];
-            BooruOriginalIntent next = intent == BooruOriginalIntent.Linked && current.LocalAssetId == null
-                ? intent
-                : intent;
-            if (current.OriginalIntent == next) return current;
-            BooruPostRecord updated = FreezePostRecord(current with { OriginalIntent = next });
+            // Linked is only ever reached through LinkLocalAssetAdmitted, which records the committed asset in the
+            // same write. Claiming it here without an asset is a caller error, not corrupt storage.
+            if (intent == BooruOriginalIntent.Linked && current.LocalAssetId == null)
+                throw new ArgumentException("A linked original needs a committed local asset; use LinkLocalAsset.", nameof(intent));
+            if (current.OriginalIntent == intent) return current;
+            BooruPostRecord updated = FreezePostRecord(current with { OriginalIntent = intent });
             posts[index] = updated;
             WriteLocked(snapshot with { Posts = FreezePosts(posts) }, admission, cancellationToken);
             return updated;

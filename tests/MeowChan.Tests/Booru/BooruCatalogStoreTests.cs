@@ -323,6 +323,30 @@ public sealed class BooruCatalogStoreTests
     }
 
     [Fact]
+    public void LinkedIntentWithoutACommittedAssetIsRejectedAsACallerErrorAndWritesNothing()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        BooruCatalogStore store = new(directory.Path, lease);
+        store.UpsertPost(Post("60"), DateTimeOffset.UtcNow);
+        int writes = 0;
+        store.BeforeAdmittedMutationForTests = _ => writes++;
+
+        ArgumentException rejected = Assert.Throws<ArgumentException>(() =>
+            store.SetOriginalIntent("danbooru", "60", BooruOriginalIntent.Linked));
+        Assert.Equal("intent", rejected.ParamName);
+        Assert.Equal(0, writes);
+        Assert.Equal(BooruOriginalIntent.None, Assert.Single(store.Read().Posts).OriginalIntent);
+
+        // After a real link the same intent is an accepted no-op.
+        store.LinkLocalAsset("danbooru", "60", "asset-60");
+        writes = 0;
+        BooruPostRecord linked = store.SetOriginalIntent("danbooru", "60", BooruOriginalIntent.Linked);
+        Assert.Equal(("asset-60", BooruOriginalIntent.Linked), (linked.LocalAssetId, linked.OriginalIntent));
+        Assert.Equal(0, writes);
+    }
+
+    [Fact]
     public void SuccessfulWritesLeaveNoTemporaryCatalogFiles()
     {
         using TempDirectory directory = new();
