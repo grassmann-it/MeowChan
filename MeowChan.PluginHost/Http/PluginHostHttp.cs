@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Net.Http.Headers;
 using MeowChan.Http;
 using MeowChan.PluginSdk;
+using MeowChan.PluginHost.Sources.Booru;
 
 namespace MeowChan.PluginHost.Http;
 
@@ -13,12 +14,14 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
     private readonly HttpClient _transport;
     private readonly HttpClient _borrowedTransport;
     private readonly RequestPolicyState _policy;
+    private readonly BooruMetadataHttp _booru;
     private readonly IReadOnlyDictionary<string, SourceDescription> _sources;
     private readonly Dictionary<string, HttpClient> _clients = new(StringComparer.Ordinal);
     private readonly object _sync = new();
     public PluginHostHttp(HttpClient transport, RequestPolicyState policy, IReadOnlyList<SourceDescription> sources)
     {
         _borrowedTransport = transport;
+        _booru = new BooruMetadataHttp(transport, policy, sources);
         _transport = new HttpClient(new HistoryTransport(transport)) { Timeout = Timeout.InfiniteTimeSpan }; _policy = policy;
         _sources = sources.ToDictionary(source => source.SourceId, StringComparer.Ordinal);
     }
@@ -38,6 +41,13 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
             return Failure("http-source", "The plugin did not declare this source.");
         IReadOnlyList<ValidationIssue> issues = SdkValidation.ValidateHttpRequest(request, source);
         if (issues.Count > 0) return Failure("http-request", issues[0].Message);
+        if (source.Capabilities.HasFlag(SourceCapabilities.PostSearch))
+        {
+            HostHttpResult booruResult = await _booru.SendAsync(request, source, cancellationToken).ConfigureAwait(false);
+            if (booruResult is HostHttpFailure booruFailure)
+                observation?.RecordReturnedFailure(booruFailure.Failure, null, booruFailure.Failure.HttpStatusCode is int status ? (HttpStatusCode)status : null);
+            return booruResult;
+        }
         HttpClient client;
         lock (_sync)
         {
@@ -160,12 +170,26 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
     {
         private static readonly AsyncLocal<MetadataHistory?> Slot = new();
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Contracts.PluginOperationContext, MetadataHistory> Operations = new();
+        private static readonly object OperationsLock = new();
         internal void Bind(Contracts.PluginOperationContext operation) => Operations.Add(operation, this);
         internal static IDisposable Resume(Contracts.PluginOperationContext operation)
         {
             MetadataHistory? previous = Slot.Value;
-            Slot.Value = Operations.TryGetValue(operation, out MetadataHistory? history)
-                && Volatile.Read(ref history._disposed) == 0 ? history : null;
+            MetadataHistory? history;
+            lock (OperationsLock)
+            {
+                if (!Operations.TryGetValue(operation, out MetadataHistory? candidate)
+                    || Volatile.Read(ref candidate._disposed) != 0)
+                {
+                    Operations.Remove(operation);
+                    history = null;
+                }
+                else
+                {
+                    history = candidate;
+                }
+            }
+            Slot.Value = history;
             return new Restore(previous);
         }
         private sealed class Restore(MetadataHistory? previous) : IDisposable
@@ -231,6 +255,16 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
             }
         }
 
+        internal BooruJob? GetBooruJob(TimeProvider clock)
+        {
+            lock (_progressLock)
+            {
+                if (_disposed != 0) return null;
+                return _booruJob ??= new BooruJob(clock);
+            }
+        }
+        private BooruJob? _booruJob;
+
         internal FailureInfo? MatchFinalFailure(FailureDetail final)
         {
             lock (_progressLock)
@@ -288,13 +322,17 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
         {
             // Correlated service tasks may arrive after the parent operation
             // retires. A retained context must never resurrect its history.
+            BooruJob? booruJob;
             lock (_progressLock)
             {
                 if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
                 // A retained operation/callback must not keep the watch observer alive.
                 _observer = null;
                 _completedFailure = null;
+                booruJob = _booruJob;
+                _booruJob = null;
             }
+            booruJob?.Close();
             Slot.Value = _previous;
         }
     }
@@ -318,12 +356,15 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
         }
         catch { await body.DisposeAsync().ConfigureAwait(false); throw; }
     }
-    public void Dispose() { lock (_sync) { foreach (HttpClient client in _clients.Values) client.Dispose(); _clients.Clear(); _transport.Dispose(); } }
+    public void Dispose() { lock (_sync) { foreach (HttpClient client in _clients.Values) client.Dispose(); _clients.Clear(); _booru.Dispose(); _transport.Dispose(); } }
 
-    /// <summary>Creates a transport with explicit decompression and no invisible redirects/retries.</summary>
+    /// <summary>Creates a transport with visible response bytes and no invisible redirects/retries.</summary>
     public static HttpClient CreateTransport() => new(new HttpClientHandler
     {
         AllowAutoRedirect = false,
-        AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli
+        // Keep wire bytes observable for the Booru path. PluginHostHttp performs
+        // explicit bounded decoding for ordinary metadata; OriginalMedia requests
+        // advertise identity and therefore keep their payload bytes unchanged.
+        AutomaticDecompression = DecompressionMethods.None
     }) { Timeout = Timeout.InfiniteTimeSpan };
 }
