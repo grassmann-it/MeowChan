@@ -14,7 +14,7 @@ namespace MeowChan.Tests.Booru;
 /// B4: explicit Danbooru originals use the existing DownloadQueue in its durable (work-journal) mode,
 /// without journal rows, chan registration or private tags. All HTTP is an in-memory fake CDN.
 /// </summary>
-public sealed class BooruOriginalQueueTests
+public sealed partial class BooruOriginalQueueTests
 {
     [Fact]
     public async Task NormalPostDownloadsOnlyTheOriginalLinksItsAssetOnceAndStaysOutOfChanState()
@@ -361,16 +361,28 @@ public sealed class BooruOriginalQueueTests
         byte[] bytes = Bytes(12);
         FakeCdn cdn = new() { Gate = new SemaphoreSlim(0) };
         BooruPostClaim post = Post("71", bytes, cdn);
-        await using Session session = new(directory.Path, cdn);
+        await using (Session session = new(directory.Path, cdn))
+        {
+            BooruOriginalAdmission admission = await session.Booru.AdmitAsync(post, BooruFindingKind.OneShot);
+            await TestWait.UntilAsync(() => cdn.Requests.Count == 1);
+            await session.Queue.StopAllAsync();
 
-        BooruOriginalAdmission admission = await session.Booru.AdmitAsync(post, BooruFindingKind.OneShot);
-        await TestWait.UntilAsync(() => cdn.Requests.Count == 1);
-        await session.Queue.StopAllAsync();
+            // The completion task reaches a terminal, non-success state instead of hanging forever.
+            BooruOriginalDownloadOutcome stopped = await admission.Completion.WaitAsync(TestWait.Timeout);
+            Assert.Equal(BooruOriginalDownloadState.Interrupted, stopped.State);
+            Assert.Null(stopped.AssetId);
+            // A shutdown is not a user cancellation: the accepted request stays durable.
+            Assert.Equal(BooruOriginalIntent.Requested, Assert.Single(session.Catalog.Read().Posts).OriginalIntent);
+            Assert.Equal("71", Assert.Single(session.Booru.GetPendingOriginals()).PostId);
+            Assert.Equal(0, session.Booru.ActiveCount);
+        }
 
-        // The completion task reaches a terminal, non-success state instead of hanging forever.
-        BooruOriginalDownloadOutcome stopped = await admission.Completion.WaitAsync(TestWait.Timeout);
-        Assert.Equal(BooruOriginalDownloadState.Cancelled, stopped.State);
-        Assert.Null(stopped.AssetId);
+        cdn.Gate.Release();
+        await using Session reopened = new(directory.Path, cdn);
+        BooruOriginalAdmission recovered = Assert.Single(await reopened.Booru.RecoverPendingAsync());
+        Assert.Equal(BooruOriginalAdmissionStatus.Queued, recovered.Status);
+        Assert.Equal(BooruOriginalDownloadState.Linked, (await recovered.Completion.WaitAsync(TestWait.Timeout)).State);
+        Assert.Equal(2, cdn.Requests.Count);
     }
 
     [Fact]
@@ -498,7 +510,7 @@ public sealed class BooruOriginalQueueTests
     {
         private readonly ProfileLease _lease;
 
-        internal Session(string root, FakeCdn cdn)
+        internal Session(string root, FakeCdn cdn, int maxPendingDownloads = 256)
         {
             ProfileDirectory = Path.Combine(root, "profile");
             OutputRoot = Path.Combine(root, "media");
@@ -506,7 +518,7 @@ public sealed class BooruOriginalQueueTests
             _lease = ProfileLease.Acquire(ProfileDirectory);
             ProfileDirectory = _lease.ProfileDirectory;
             Work = new WorkStateStore(ProfileDirectory, _lease);
-            Queue = new DownloadQueue(1, 1L << 30);
+            Queue = new DownloadQueue(1, 1L << 30, maxPendingDownloads);
             Queue.ConfigureWorkState(Work);
             Catalog = new BooruCatalogStore(ProfileDirectory, _lease);
             // As in Registry startup: the additive catalog is read while startup owns the profile.

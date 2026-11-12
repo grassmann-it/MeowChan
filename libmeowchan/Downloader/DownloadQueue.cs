@@ -113,6 +113,9 @@ public partial class DownloadQueue
         }
     }
 
+    /// <summary>True once <see cref="StopAllAsync"/> has permanently closed admission.</summary>
+    internal bool IsStopping { get { lock (_stateLock) { return _stopping; } } }
+
     /// <summary>True while dispatch and provider checks are halted.</summary>
     public bool IsPaused { get { lock (_stateLock) { return _paused; } } }
 
@@ -1041,6 +1044,7 @@ public partial class DownloadQueue
         ThreadState? threadState;
         List<QueuedDownload> ready;
         AdmissionWaiter[] waiters;
+        List<DownloadItem> cancelledExternal = new();
         lock (_stateLock)
         {
             _cancelledThreads.GetValue(thread, static (IThread _) => new object());
@@ -1060,13 +1064,15 @@ public partial class DownloadQueue
                 // Keep the CTS alive while cancellation callbacks execute outside the
                 // lock, even if the final worker finishes at the same time.
                 threadState.CancellationLeases++;
-                RemovePendingJobsLocked(threadState);
+                cancelledExternal = RemovePendingJobsLocked(threadState);
                 RetireThreadIfIdleLocked(threadState, cleanup);
                 SignalIdleIfNeededLocked(cleanup);
                 ready = ReserveWorkersLocked();
             }
         }
 
+        // External owners have no chan notification path: notify them outside the state lock.
+        foreach (DownloadItem item in cancelledExternal) NotifyExternalCancelled(item, ExternalMediaCancellation.Cancelled);
         RunCleanup(cleanup);
         Task waiterCancellation = CancelWaitersAsync(waiters);
         Task cancellation = threadState == null ? Task.CompletedTask : CancelThreadStateAsync(threadState);
@@ -1090,6 +1096,7 @@ public partial class DownloadQueue
         List<ThreadState> threads;
         TaskCompletionSource stopCompletion;
         AdmissionWaiter[] waiters;
+        List<DownloadItem> stoppedExternal = new();
         lock (_stateLock)
         {
             if (_stopCompletion != null)
@@ -1118,6 +1125,7 @@ public partial class DownloadQueue
                 _jobs.Remove(interrupted.Value.Identity);
                 DetachFilter(interrupted.Value);
                 interrupted.Value.ThreadState.OutstandingJobs--;
+                if (interrupted.Value.Item.Thread is IExternalMediaWorkOwner) stoppedExternal.Add(interrupted.Value.Item);
             }
 
             while (_pendingDownloads.First is LinkedListNode<QueuedDownload> node)
@@ -1127,6 +1135,7 @@ public partial class DownloadQueue
                 _jobs.Remove(job.Identity);
                 DetachFilter(job);
                 job.ThreadState.OutstandingJobs--;
+                if (job.Item.Thread is IExternalMediaWorkOwner) stoppedExternal.Add(job.Item);
             }
 
             foreach (ThreadState threadState in threads)
@@ -1140,6 +1149,9 @@ public partial class DownloadQueue
 
         Task waiterCancellation = CancelWaitersAsync(waiters);
         _lifetime.Cancel();
+        // Queued and interrupted external jobs never reach a worker again. A stop is not an owner
+        // decision, so they are told Stopped and keep their own durable request for recovery.
+        foreach (DownloadItem item in stoppedExternal) NotifyExternalCancelled(item, ExternalMediaCancellation.Stopped);
         RunCleanup(cleanup);
         _changes.Signal();
         _ = CompleteStopAsync(threads, stopCompletion, waiterCancellation);
@@ -1311,6 +1323,9 @@ public partial class DownloadQueue
         MediaCommitResult? committed = null;
         bool interrupted = false;
         bool targetBlocked = false;
+        // An external owner has no journal: every job end that is neither a commit nor a reported
+        // failure must reach it as a cancellation, or its completion would never terminate.
+        bool externalReported = false;
         using AsyncCancellationLink cancellation = new(job.ThreadState.Token, job.EpochToken);
         try
         {
@@ -1351,25 +1366,11 @@ public partial class DownloadQueue
         {
             interrupted = job.EpochToken.IsCancellationRequested;
             _logger.Debug("Download for {DownloadUri} was cancelled.", job.Item.DownloadUri);
-            // Only a real cancellation (thread cancel / stop) is terminal for an external owner.
-            // A pause interruption re-queues the same job below, so it must not complete the owner.
-            bool requeued = false;
-            if (interrupted && job.Item.Thread is IExternalMediaWorkOwner)
-            {
-                lock (_stateLock)
-                    requeued = _jobs.ContainsKey(Prepare(job.Item).Job);
-            }
-            if (!requeued && job.Item.Thread is IExternalMediaWorkOwner external)
-            {
-                try { external.OnMediaCancelled(job.Item); }
-                catch (Exception ownerFailure)
-                {
-                    _logger.Error(ownerFailure, "External media owner could not record cancelled {MediaId}", job.Item.MediaIdentifier);
-                }
-            }
+            // An external owner is notified in finally, once it is known whether the job was re-queued.
         }
         catch (MediaFilterOmissionException omission)
         {
+            externalReported = true;
             try
             {
                 if (RecordFilterOmission(job.Item, omission, producerAdmission))
@@ -1396,6 +1397,7 @@ public partial class DownloadQueue
             {
                 Quarantine(job.Item, persistenceFailure);
             }
+            externalReported |= current;
             if (current) try
             {
                 if (job.Item.Thread is Boards.Base.BaseThread thread)
@@ -1440,6 +1442,7 @@ public partial class DownloadQueue
             List<QueuedDownload> ready;
             // Read the durable 404 deadline before taking the state lock; it is only applied if still needed.
             MediaWork? preservedDeadline = targetBlocked ? LoadBlockedDeadline(job.Item, producerAdmission) : null;
+            ExternalMediaCancellation? externalEnd = null;
             lock (_stateLock)
             {
                 _activeDownloads--;
@@ -1467,6 +1470,12 @@ public partial class DownloadQueue
                     DetachFilter(job);
                     job.ThreadState.OutstandingJobs--;
                     if (job.Replacement != null) _reservedSuccessors--;
+                    // The job is gone without a commit or reported failure (cancel, stop, a pause or target
+                    // wait overtaken by a stop). Only an explicit owner cancel is terminal for its request.
+                    if (!succeeded && !externalReported && job.Item.Thread is IExternalMediaWorkOwner)
+                        externalEnd = _cancelledThreads.TryGetValue(job.Item.Thread, out _)
+                            ? ExternalMediaCancellation.Cancelled
+                            : ExternalMediaCancellation.Stopped;
                     if (job.Replacement is DownloadItem replacement && !_stopping && !job.ThreadState.Token.IsCancellationRequested
                         && !_cancelledThreads.TryGetValue(replacement.Thread, out _))
                     {
@@ -1482,9 +1491,22 @@ public partial class DownloadQueue
                 }
             }
 
+            // Notify before thread retirement completes, so a finished cancel or stop implies a notified owner.
+            if (externalEnd is ExternalMediaCancellation reason)
+                NotifyExternalCancelled(job.Item, reason, producerAdmission);
             RunCleanup(cleanup);
             StartWorkers(ready);
             _changes.Signal();
+        }
+    }
+
+    private void NotifyExternalCancelled(DownloadItem item, ExternalMediaCancellation reason, ProfileAdmissionToken? admission = null)
+    {
+        if (item.Thread is not IExternalMediaWorkOwner external) return;
+        try { external.OnMediaCancelled(item, reason, admission); }
+        catch (Exception ownerFailure)
+        {
+            _logger.Error(ownerFailure, "External media owner could not record cancelled {MediaId}", item.MediaIdentifier);
         }
     }
 
@@ -1663,7 +1685,8 @@ public partial class DownloadQueue
         return true;
     }
 
-    private void RemovePendingJobsLocked(ThreadState threadState)
+    /// <summary>Removes queued jobs of the thread; returns external items the caller notifies outside the lock.</summary>
+    private List<DownloadItem> RemovePendingJobsLocked(ThreadState threadState)
     {
         List<DownloadItem> cancelledExternal = new();
         foreach (QueuedDownload interrupted in _interruptedDownloads.Where(job => ReferenceEquals(job.ThreadState, threadState)).ToArray())
@@ -1691,16 +1714,7 @@ public partial class DownloadQueue
         }
         PulseCapacityLocked();
         // A removed job never reaches a worker, so it would never report a cancellation itself.
-        // External owners have no chan notification path: notify them outside the state lock.
-        foreach (DownloadItem item in cancelledExternal)
-        {
-            if (item.Thread is not IExternalMediaWorkOwner external) continue;
-            try { external.OnMediaCancelled(item); }
-            catch (Exception ownerFailure)
-            {
-                _logger.Error(ownerFailure, "External media owner could not record cancelled {MediaId}", item.MediaIdentifier);
-            }
-        }
+        return cancelledExternal;
     }
 
     private async Task CancelThreadStateAsync(ThreadState threadState)
