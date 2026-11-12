@@ -51,8 +51,13 @@ internal static class UrlTextExportPageBoundaryChecks
         ArchiveThreadRow a = new(Summary(First)), b = new(Summary(Second));
         f.SetRows(a, b);
         f.Select(a, b);
-        MenuItem batch = await f.OpenUrlMenuAsync();
-        Require(batch.Command?.CanExecute(null) == false, "Two selected rows admitted URLtext.");
+        // A URLtext export covers exactly one frozen thread: the product leaves the entry out of a
+        // multi-selection menu (ArchivePage.Commands, d9eb18d5) instead of showing a disabled one.
+        await f.OpenMenuAsync();
+        Require(f.Menu.Items.OfType<MenuItem>().Any(item => Equals(item.Tag, "export.open-html-dialog")),
+            "The multi-selection menu is not the real archive command menu.");
+        Require(!f.Menu.Items.OfType<MenuItem>().Any(item => Equals(item.Tag, "export.open-urltext-dialog")),
+            "Two selected rows offered URLtext.");
         f.Menu.Close();
         f.Select(a);
         MenuItem captured = await f.OpenUrlMenuAsync();
@@ -409,12 +414,16 @@ internal static class UrlTextExportPageBoundaryChecks
             foreach (ArchiveThreadRow row in rows) table.SelectedItems.Add(row);
             Require(table.SelectedItems.Cast<ArchiveThreadRow>().SequenceEqual(rows), "Actual table selection differs from fixture.");
         }
-        internal async Task<MenuItem> OpenUrlMenuAsync()
+        internal async Task OpenMenuAsync()
         {
             DataGrid table = Control<DataGrid>("ArchiveThreadTable");
             table.Focus();
             table.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Avalonia.Controls.Control.ContextRequestedEvent });
             await UntilAsync(() => Menu.IsOpen);
+        }
+        internal async Task<MenuItem> OpenUrlMenuAsync()
+        {
+            await OpenMenuAsync();
             return Menu.Items.OfType<MenuItem>().Single(item => Equals(item.Tag, "export.open-urltext-dialog"));
         }
         internal void End(bool closeOwner)
