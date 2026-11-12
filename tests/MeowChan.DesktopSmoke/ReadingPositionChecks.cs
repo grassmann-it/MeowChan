@@ -37,10 +37,10 @@ internal static class ReadingPositionChecks
         page.FindControl<ComboBox>("ArchiveSort")!.SelectedIndex = 2;
         await page.ApplySearchAsync();
         await page.LoadThreadAsync(new ResourceId("4chan", "g", "1000"));
-        Require(await window.SessionHost.ReadReadingPositionAsync() == null, "Passive preview wrote a reading position.");
+        Require(await ReadPositionAsync(window) == null, "Passive preview wrote a reading position.");
         Click(page.FindControl<Button>("ArchiveReadPosts")!);
         await Program.WaitUntilAsync(() => reader.IsVisible && SelectedPost(page) == "1000");
-        Require(await window.SessionHost.ReadReadingPositionAsync() == null, "Reader wrote before opt-in.");
+        Require(await ReadPositionAsync(window) == null, "Reader wrote before opt-in.");
         await CheckWheelCaptureBatchAsync(window, page, expectedCaptures: 0);
         Click(page.FindControl<Button>("ArchiveCloseReader")!);
         Click(window.FindControl<Button>("SettingsNavigationButton")!);
@@ -50,15 +50,15 @@ internal static class ReadingPositionChecks
         Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
         await Program.WaitUntilAsync(() => !page.IsBusy);
         await page.LoadThreadAsync(new ResourceId("4chan", "g", "1000"));
-        Require(await window.SessionHost.ReadReadingPositionAsync() == null, "Enabling or passive preview created an entry.");
+        Require(await ReadPositionAsync(window) == null, "Enabling or passive preview created an entry.");
         Click(page.FindControl<Button>("ArchiveReadPosts")!);
         await Program.WaitUntilAsync(() => reader.IsVisible && SelectedPost(page) == "1000");
         await CheckWheelCaptureBatchAsync(window, page, expectedCaptures: 1);
         Click(page.FindControl<Button>("NextPostsButton")!);
-        await WaitForAsync(async () => (await window.SessionHost.ReadReadingPositionAsync())?.PostId == "1050");
+        await WaitForAsync(async () => (await ReadPositionAsync(window))?.PostId == "1050");
         await page.FocusPostAsync("1022");
-        await WaitForAsync(async () => (await window.SessionHost.ReadReadingPositionAsync())?.SelectedPostId == "1022");
-        LocalReadingPosition? captured = await window.SessionHost.ReadReadingPositionAsync();
+        await WaitForAsync(async () => (await ReadPositionAsync(window))?.SelectedPostId == "1022");
+        LocalReadingPosition? captured = await ReadPositionAsync(window);
         Require(captured?.Thread == "1000", "Reader movement captured a different thread.");
         Click(page.FindControl<Button>("ArchiveCloseReader")!);
         await CheckSavedHeaderModesAsync(window);
@@ -73,7 +73,7 @@ internal static class ReadingPositionChecks
         Require(window.FocusManager?.GetFocusedElement() is Control focused && focused.IsEffectivelyVisible
             && focused.IsEffectivelyEnabled && !ReferenceEquals(focused, window.FindControl<Button>("ContinueReadingButton")),
             "Opening the reader retained focus on a hidden top-bar action.");
-        Require(await window.SessionHost.ReadReadingPositionAsync() == captured,
+        Require(await ReadPositionAsync(window) == captured,
             "Explicit top-bar resume changed the saved reading position.");
         Click(page.FindControl<Button>("ArchiveCloseReader")!);
         Click(window.FindControl<Button>("SettingsNavigationButton")!);
@@ -100,15 +100,15 @@ internal static class ReadingPositionChecks
         Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
         await Program.WaitUntilAsync(() => !page.IsBusy);
         await page.LoadThreadAsync(new ResourceId("4chan", "g", "1001"), resetPage: false);
-        Require(await window.SessionHost.ReadReadingPositionAsync() == null, "Refresh restored a forgotten position.");
+        Require(await ReadPositionAsync(window) == null, "Refresh restored a forgotten position.");
         await window.SessionHost.RememberReadingPositionAsync(new LocalReadingPosition("4chan", "g", "1000", "missing", -25, "missing"), window.SessionHost.ReadingPositionGeneration);
         Click(ResumeMenu(window));
         await WaitForResumeAsync(window, "1000");
         Require(page.FindControl<TextBlock>("ArchiveMessage")!.Text == Texts.T("resume.fallback"), "Missing-post replacement was not explained.");
-        Require((await window.SessionHost.ReadReadingPositionAsync())?.PostId == "missing", "Fallback silently replaced the saved anchor.");
+        Require((await ReadPositionAsync(window))?.PostId == "missing", "Fallback silently replaced the saved anchor.");
         Program.CaptureWindow(window, "smoke-reading-position-fallback.png");
         await page.FocusPostAsync("1022");
-        await WaitForAsync(async () => (await window.SessionHost.ReadReadingPositionAsync())?.SelectedPostId == "1022");
+        await WaitForAsync(async () => (await ReadPositionAsync(window))?.SelectedPostId == "1022");
         Click(page.FindControl<Button>("ArchiveCloseReader")!);
         SemaphoreSlim commands = (SemaphoreSlim)typeof(DesktopSessionHost).GetField("_commands", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window.SessionHost)!;
         await commands.WaitAsync();
@@ -145,7 +145,7 @@ internal static class ReadingPositionChecks
         await delayedResume;
         await WaitForAsync(async () =>
         {
-            LocalReadingPosition? position = await window.SessionHost.ReadReadingPositionAsync();
+            LocalReadingPosition? position = await ReadPositionAsync(window);
             return int.TryParse(position?.PostId, out int post) && post is >= 1050 and <= 1054;
         });
         Require(pagedReaderUnchanged?.Invoke() == true, "The reader-scope resume changed the newly chosen page.");
@@ -153,7 +153,7 @@ internal static class ReadingPositionChecks
             && pagedRows.FirstOrDefault()?.Id == "1050", "A reader-scope resume replaced a newer reader page.");
         Program.CaptureWindow(window, "smoke-reading-position-reader-scope-pagination.png");
         await page.FocusPostAsync("1022");
-        await WaitForAsync(async () => (await window.SessionHost.ReadReadingPositionAsync())?.SelectedPostId == "1022");
+        await WaitForAsync(async () => (await ReadPositionAsync(window))?.SelectedPostId == "1022");
         await ReaderLiveChecks.RunAsync(window);
         await ReadingPositionAnchorChecks.PrepareRestartAsync(window, profile);
         File.WriteAllText(Path.Combine(profile, "reading-restart-ready"), "second process must explicitly restore the recorded nonzero visible anchor");
@@ -274,7 +274,7 @@ internal static class ReadingPositionChecks
                 FooterNavigationChecks.RequireLanguage(window, language);
                 Require(!window.FindControl<ContentControl>("ReaderHost")!.IsVisible,
                     "Continue reading without a saved position opened the reader.");
-                Require(await window.SessionHost.ReadReadingPositionAsync() == null,
+                Require(await ReadPositionAsync(window) == null,
                     "Continue reading without a saved position created one.");
             }
         }
@@ -330,6 +330,18 @@ internal static class ReadingPositionChecks
         Require(AutomationProperties.GetName(separate.Editor.FindControl<Button>("CancelSettingsButton")!) == Texts.T("settings.cancel"), "Separate Settings window lost close semantics.");
         separate.Editor.EndLifetime();
         Console.WriteLine("SMOKE Settings V04/V32: localized label relations and units in EN/DE; embedded discard vs separate Cancel passed (native speech not measured).");
+    }
+
+    // The shell reads the position through the same host action for its own resume state, and the host
+    // refuses a second concurrent read by design (DesktopSessionBusyException). Wait until it is admitted.
+    private static async Task<LocalReadingPosition?> ReadPositionAsync(MainWindow window)
+    {
+        DateTime deadline = DateTime.UtcNow.AddSeconds(15);
+        while (true)
+        {
+            try { return await window.SessionHost.ReadReadingPositionAsync(); }
+            catch (DesktopSessionBusyException) when (DateTime.UtcNow < deadline) { await Task.Delay(10); }
+        }
     }
 
     private static async Task WaitForAsync(Func<Task<bool>> condition)
