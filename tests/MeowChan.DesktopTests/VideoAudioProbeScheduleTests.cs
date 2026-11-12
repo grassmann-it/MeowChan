@@ -119,10 +119,33 @@ public sealed class VideoAudioProbeScheduleTests
         Assert.False(schedule.Tick());
     }
 
+    // The backend can replace its output without a track or Playing event; mute must be reapplied.
+    [Fact]
+    public void SettledRenderingAudioStillProbesOnTheHeartbeat()
+    {
+        var schedule = Started();
+        Probe(schedule, 1, true, 5);
+        Probe(schedule, 1, true, 6);
+        for (int round = 0; round < 3; round++)
+        {
+            for (int i = 1; i < VideoAudioProbeSchedule.HeartbeatTicks; i++) Assert.False(schedule.Tick());
+            Assert.True(schedule.Tick());
+            Probe(schedule, 1, true, 7 + round);
+        }
+    }
+
+    [Fact]
+    public void SettledTracklessMediaHasNoHeartbeat()
+    {
+        var schedule = Started();
+        Probe(schedule, 0, false, 0);
+        for (int i = 0; i < 3 * VideoAudioProbeSchedule.HeartbeatTicks; i++) Assert.False(schedule.Tick());
+    }
+
     // Counted work for a 10 s clip at VLC's ~4 time ticks per second, audio rendering throughout.
     // The removed behavior requested one probe per tick and refreshed the transport per probe.
     [Fact]
-    public void RenderingClipStopsProbingAfterSettling()
+    public void RenderingClipProbesOnlyOnTheHeartbeatAfterSettling()
     {
         var schedule = Started();
         int played = 0, probes = 0;
@@ -133,7 +156,8 @@ public sealed class VideoAudioProbeScheduleTests
             probes++;
             Probe(schedule, 1, true, played);
         }
-        Assert.Equal(2, probes);
+        // Two probes settle; the remaining 38 ticks carry four heartbeats.
+        Assert.Equal(6, probes);
         Assert.Equal(40, schedule.Counts.Ticks);
         Assert.True(schedule.Counts.Settled);
     }

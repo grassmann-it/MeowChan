@@ -1561,13 +1561,19 @@ internal static class VideoAudioAvailability
 /// available probes of that epoch saw played buffers grow: the output then rendered after the
 /// epoch began, so the probe that saw it already reapplied volume and mute to the live output.
 /// Present but silent tracks never settle (an output may still start), so they keep the
-/// previous per-tick behavior.
+/// previous per-tick behavior. A settled epoch with a rendering track still probes every
+/// <see cref="HeartbeatTicks"/> ticks: the backend can replace its output (device switch,
+/// format change) without a track or Playing event, and a new output may reset mute.
 /// </summary>
 internal sealed class VideoAudioProbeSchedule
 {
+    // About two seconds at VLC's usual four time ticks per second.
+    internal const int HeartbeatTicks = 8;
     private long _epoch;
     private long _settledAt = -1, _baselineAt = -1;
     private int _baselineBuffers;
+    private bool _rendering;
+    private int _idleTicks;
     private long _ticks, _requests, _probes, _presentations;
 
     internal void Invalidate() => Interlocked.Increment(ref _epoch);
@@ -1576,7 +1582,7 @@ internal sealed class VideoAudioProbeSchedule
 
     internal void BeginMedia()
     {
-        _settledAt = _baselineAt = -1;
+        _settledAt = _baselineAt = -1; _rendering = false; _idleTicks = 0;
         Interlocked.Exchange(ref _ticks, 0); Interlocked.Exchange(ref _requests, 0);
         Interlocked.Exchange(ref _probes, 0); Interlocked.Exchange(ref _presentations, 0);
     }
@@ -1585,16 +1591,20 @@ internal sealed class VideoAudioProbeSchedule
     internal bool Tick()
     {
         Interlocked.Increment(ref _ticks);
-        return !IsSettled;
+        if (!IsSettled) return true;
+        // Trackless media has no output to replace; a track event invalidates it.
+        if (!_rendering || ++_idleTicks < HeartbeatTicks) return false;
+        _idleTicks = 0;
+        return true;
     }
 
     internal void Record(long epoch, int tracks, bool available, int playedBuffers)
     {
         Interlocked.Increment(ref _probes);
-        _settledAt = -1;
+        _settledAt = -1; _idleTicks = 0; _rendering = false;
         if (tracks == 0) { _settledAt = epoch; return; }
         if (!available) { _baselineAt = -1; return; }
-        if (_baselineAt == epoch && playedBuffers > _baselineBuffers) { _settledAt = epoch; return; }
+        if (_baselineAt == epoch && playedBuffers > _baselineBuffers) { _settledAt = epoch; _rendering = true; return; }
         // First available sample of this epoch, or stale statistics of a replaced input.
         _baselineAt = epoch; _baselineBuffers = playedBuffers;
     }
