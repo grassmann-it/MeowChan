@@ -332,7 +332,8 @@ internal static class ComparisonCaptures
                 throw new InvalidOperationException("Full context menu was not laid out: " + menuGeometry, exception);
             }
             bool dark = window.ActualThemeVariant == ThemeVariant.Dark;
-            Color expected = dark ? Color.Parse("#EEF1F4") : Color.Parse("#272520");
+            // The expectation follows the active theme's Workspace.Text token instead of a duplicated hex value.
+            Color expected = SmokeThemeResources.Color(window, "Workspace.Text");
             foreach (MenuItem item in items)
             {
                 // Shared masks use Workspace.Text, independently of the vendor menu text brushes.
@@ -382,8 +383,7 @@ internal static class ComparisonCaptures
             throw new InvalidOperationException($"The comparison row is not selected: rowSelected={selected.IsSelected}; selectedItems={grid.SelectedItems.Count}; selectedIndex={grid.SelectedIndex}.");
         Border background = selected.GetVisualDescendants().OfType<Border>()
             .First(border => border.Name == "BackgroundBorder" && ReferenceEquals(border.TemplatedParent, selected));
-        Color expectedSelection = Application.Current?.RequestedThemeVariant == ThemeVariant.Dark
-            ? Color.Parse("#25344A") : Color.Parse("#E7D4BE");
+        Color expectedSelection = SmokeThemeResources.Color(window, "Workspace.AccentSurface");
         if (background.Background is not ISolidColorBrush selection || selection.Color != expectedSelection)
             throw new InvalidOperationException($"The row template overrode the workspace's selection color: expected={expectedSelection}; actual={background.Background}; theme={selected.ActualThemeVariant}.");
         Console.WriteLine("SMOKE comparison capture: " + fileName + "; bounds=" + window.Bounds
