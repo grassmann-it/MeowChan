@@ -228,6 +228,58 @@ Plugin and source settings take effect at the next app start. Image-filter
 parameters belong to their media rule and affect new decisions after that rule is
 saved. See [settings and grants](filters-and-settings.md) before enabling a filter.
 
+## Updates of bundled plugins
+
+An app update or rebuild replaces the bytes of bundled plugins. At startup the host
+compares each new bundled build with the last approved one. A build that matches
+the app's delivery record, whose plugin description is unchanged and that has no
+rights to carry over (no filter grant, no
+restricted source with size/MD5 exception) is taken over automatically. A changed
+build that would keep existing rights stays off until you review it in **Review
+bundled repairs** and explicitly authorize those rights for that exact new
+execution revision. A changed description (capabilities, routes, hosts, filters,
+settings schema, names or metadata) is shown as blocked and cannot be confirmed
+there.
+
+### SDK 1.0.0 to 1.1.0 transition
+
+SDK 1.1.0 only adds the booru post-search contract, so a bundled build that changes
+nothing but its declared SDK version from exactly `1.0.0` to exactly `1.1.0` is
+treated as follows.
+
+At startup it is activated automatically, keeping its enable state, settings, filter
+grants, restricted sources and source ownership, and without a new rights review,
+when all of these hold:
+
+- the description is byte-identical to the approved one except for `sdkVersion`
+  `1.0.0` → `1.1.0`;
+- it is the same candidate at the same path in the same delivered slot, it is the
+  only present candidate of the plugin, and the plugin is not pinned to a rollback;
+- the active or last good release is exactly the approved 1.0.0 predecessor, and no
+  different build or settings choice is pending;
+- the app's delivery record matches the current bytes, checked again under the
+  profile write lock;
+- no other plugin claims its sources, and the settings that will be activated are
+  valid for the new build;
+- if the plugin has a confirmed repair, that repair targets the 1.0.0 predecessor,
+  and a saved rights authorization (if any) still matches the current rights; the
+  saved authorization is cleared when the repair moves to the new build;
+- no 1.1.0 build has been activated for this plugin before.
+
+Without a confirmed repair, nobody reviews the rights again in this case: the new
+bytes keep existing filter grants and restricted sources. This is accepted because
+the bytes are checked against the delivery record of the same app and the
+description is otherwise unchanged.
+
+The exception applies only to this exact change and only once per plugin. Reverse
+(`1.1.0` → `1.0.0`) and unknown versions, an SDK change combined with any other
+description difference, and any later rebuild after a 1.1.0 build was activated
+(also when that build later failed to load) follow the ordinary rules above: a
+build with rights needs explicit review again. If the startup check refuses an
+SDK-only build, **Review bundled repairs** shows the ordinary reason (source owner
+conflict, incompatible settings or existing rights) and its confirm or authorize
+action, not a blocked description change.
+
 ## English and German labels
 
 The labels below come from the implemented [plugin localization
