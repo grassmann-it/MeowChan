@@ -157,8 +157,13 @@ internal sealed record DanbooruWatcher
             && nowUtc.ToUniversalTime() < retryAt)
             return Reject(watcher, "cooldown_active");
 
+        // The pause target is the last deliberately chosen resume state, not whatever state the
+        // watcher happens to hold now. Deriving it from State loses the pause as soon as a check
+        // passes through Cooldown/Error: BeginCheck on the retry would resume Active.
         DanbooruWatcherState returnState = watcher.State == DanbooruWatcherState.Paused
-            ? DanbooruWatcherState.Paused : DanbooruWatcherState.Active;
+            ? DanbooruWatcherState.Paused
+            : watcher.ResumeState == DanbooruWatcherState.Paused ? DanbooruWatcherState.Paused
+            : DanbooruWatcherState.Active;
         int nextPage = watcher.Progress.NextPage == 0 ? 1 : watcher.Progress.NextPage;
         string? checkStartHighWaterMark = watcher.Progress.NextPage > 0 && watcher.CursorPostId is not null
             ? watcher.CheckStartHighWaterMark
