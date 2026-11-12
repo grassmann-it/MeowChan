@@ -451,8 +451,10 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
 
         try
         {
-            DanbooruWatcherCheckSummary summary = await RunPagesAsync(watcherId, current, manual, started, counters, check)
-                .ConfigureAwait(false);
+            // One search session per check: all pages of this check share one host operation scope.
+            using LazySearchSession session = new(_search);
+            DanbooruWatcherCheckSummary summary = await RunPagesAsync(watcherId, current, manual, started, counters, check,
+                session).ConfigureAwait(false);
             return Record(watcherId, summary);
         }
         finally
@@ -465,8 +467,23 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
         }
     }
 
+    /// <summary>Opens the check's search session on the first request, so a check that never sends opens nothing.</summary>
+    private sealed class LazySearchSession(IDanbooruWatcherSearchPort port) : IDisposable
+    {
+        private IDanbooruWatcherSearchSession? _session;
+
+        internal Task<DanbooruWatcherSearchOutcome> SearchAsync(string providerQuery, int page, CancellationToken cancellationToken)
+        {
+            _session ??= port.OpenCheck();
+            return _session.SearchAsync(providerQuery, page, cancellationToken);
+        }
+
+        public void Dispose() => _session?.Dispose();
+    }
+
     private async Task<DanbooruWatcherCheckSummary> RunPagesAsync(string watcherId, DanbooruWatcher current,
-        bool manual, DateTimeOffset started, CheckCounters counters, CancellationTokenSource check)
+        bool manual, DateTimeOffset started, CheckCounters counters, CancellationTokenSource check,
+        LazySearchSession session)
     {
         bool establishingBaseline = !current.BaselineEstablished;
         while (true)
@@ -488,7 +505,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
             try
             {
                 check.Token.ThrowIfCancellationRequested();
-                outcome = await _search.SearchAsync(current.CanonicalQuery, page, check.Token).ConfigureAwait(false)
+                outcome = await session.SearchAsync(current.CanonicalQuery, page, check.Token).ConfigureAwait(false)
                     ?? new DanbooruWatcherSearchFailed("search_result_missing");
             }
             catch (OperationCanceledException) when (check.IsCancellationRequested)

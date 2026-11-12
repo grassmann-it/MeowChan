@@ -188,6 +188,48 @@ public sealed class BooruWatcherSchedulerHostTests
         return response;
     }
 
+    [Fact]
+    public async Task MultiPageCheckSharesOneJobResourceAcrossAllPagesAndEachCheckGetsItsOwn()
+    {
+        await using Harness harness = new();
+        harness.Provider.Publish("cat", 100);
+        harness.Scheduler.AddWatcher("cat");
+        Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, (await harness.RunNextAsync())!.Kind);
+        PluginOperationContext baseline = Assert.Single(harness.Worker.Operations);
+        Assert.StartsWith("booru-job:", baseline.ResourceId, StringComparison.Ordinal);
+
+        // 70 new posts: pages 1-3 are full, page 4 reaches the known post; four requests in one check.
+        harness.Provider.Publish("cat", Enumerable.Range(101, 70).Select(id => (long)id).ToArray());
+        harness.Clock.Advance(Interval);
+        DanbooruWatcherCheckSummary multi = (await harness.RunNextAsync())!;
+        Assert.Equal(DanbooruWatcherCheckKind.Completed, multi.Kind);
+        Assert.Equal(4, multi.PagesRead);
+        IReadOnlyList<PluginOperationContext> all = harness.Worker.Operations;
+        PluginOperationContext[] second = all.Skip(1).ToArray();
+        Assert.Equal(4, second.Length);
+        Assert.Equal(1 + 4, harness.Provider.RequestCount);
+        // One typed operation context for the whole check (same resource id, same generation) ...
+        Assert.Single(second.Select(operation => operation.ResourceId).Distinct());
+        Assert.All(second, operation => Assert.Equal(1, operation.Generation));
+        Assert.All(second, operation => Assert.Equal(second[0], operation));
+        // ... which is different from the previous check's job.
+        Assert.NotEqual(baseline.ResourceId, second[0].ResourceId);
+
+        // The job is closed when the check ends: the old resource id can no longer send.
+        HostHttpResult late = await harness.Services.SendHttpAsync(new HostHttpRequest("danbooru", HostHttpMethod.Get,
+            new("https://danbooru.donmai.us/posts.json?tags=cat&page=1&limit=20"), new Dictionary<string, string>()),
+            second[0], default);
+        Assert.Equal("booru-job", Assert.IsType<HostHttpFailure>(late).Failure.Code);
+
+        // A third check is another job again.
+        harness.Provider.Publish("cat", 171);
+        harness.Clock.Advance(Interval);
+        Assert.Equal(DanbooruWatcherCheckKind.Completed, (await harness.RunNextAsync())!.Kind);
+        PluginOperationContext third = harness.Worker.Operations.Last();
+        Assert.NotEqual(second[0].ResourceId, third.ResourceId);
+        Assert.NotEqual(baseline.ResourceId, third.ResourceId);
+    }
+
     private static SourceDescription DanbooruSource() => new("danbooru", "Danbooru", new("https://danbooru.donmai.us/"),
         SourceCapabilities.PostSearch | SourceCapabilities.OriginalMedia | SourceCapabilities.Previews, [],
         [new("danbooru.donmai.us", HttpHostPurpose.Metadata), new("cdn.donmai.us", HttpHostPurpose.OriginalMedia | HttpHostPurpose.PreviewMedia)],
@@ -213,6 +255,8 @@ public sealed class BooruWatcherSchedulerHostTests
             _http = new BooruHostHttp(_transport, new RequestPolicyState(Clock), [DanbooruSource()], productVersion: "1.1.0");
             BooruHostServices services = new(new NoInner(), _http);
             PluginLikeWorker worker = new(services);
+            Worker = worker;
+            Services = services;
             BooruWatcherSearchPort port = new(new BooruSearchService(services), services,
                 _ => Task.FromResult<IPluginWorkerClient?>(workerAvailable ? worker : null), Clock);
             Scheduler = new DanbooruWatcherScheduler(Catalog, port, Admission, Clock,
@@ -222,6 +266,8 @@ public sealed class BooruWatcherSchedulerHostTests
 
         internal PumpClock Clock { get; } = new(new DateTimeOffset(2026, 11, 12, 12, 0, 0, TimeSpan.Zero));
         internal StubProvider Provider { get; }
+        internal PluginLikeWorker Worker { get; }
+        internal BooruHostServices Services { get; }
         internal BooruCatalogStore Catalog { get; }
         internal RecordingAdmission Admission { get; } = new();
         internal DanbooruWatcherScheduler Scheduler { get; }
@@ -384,8 +430,11 @@ public sealed class BooruWatcherSchedulerHostTests
     }
 
     /// <summary>Behaves like the Danbooru plugin for search: one host GET per page, statuses classified.</summary>
-    private sealed class PluginLikeWorker(BooruHostServices services) : IPluginWorkerClient
+    internal sealed class PluginLikeWorker(BooruHostServices services) : IPluginWorkerClient
     {
+        private readonly List<PluginOperationContext> _operations = new();
+        internal IReadOnlyList<PluginOperationContext> Operations { get { lock (_operations) return _operations.ToArray(); } }
+
         public PluginDescription Description { get; } = new("fake", "fake", "1", SdkContract.Version, "fake", [DanbooruSource()], [], new("1", []), []);
         public PluginWorkerIdentity Identity { get; } = new("fake", "1", "1");
         public PluginWorkerSnapshot Snapshot => new(Identity, "ready", null, null, null, []);
@@ -393,6 +442,7 @@ public sealed class BooruWatcherSchedulerHostTests
         public async Task<BooruSearchResult> SearchBooruPostsAsync(BooruSearchRequest request, PluginOperationContext operation,
             CancellationToken cancellationToken = default)
         {
+            lock (_operations) _operations.Add(operation);
             Uri url = new($"https://danbooru.donmai.us/posts.json?tags={Uri.EscapeDataString(request.Query)}&page={request.Page}&limit={request.Limit}");
             HostHttpResult result = await services.SendHttpAsync(new HostHttpRequest(request.SourceId, HostHttpMethod.Get, url,
                 new Dictionary<string, string> { ["Accept"] = "application/json" }), operation, cancellationToken);

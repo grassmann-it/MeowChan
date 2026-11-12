@@ -23,9 +23,25 @@ public sealed class BooruSearchService
         _sources = services.Sources;
     }
 
+    /// <summary>
+    /// Opens one operation scope (one host job: at most 20 sends and 120 s) that several pages of the same
+    /// logical operation, e.g. one watcher check, can share. Dispose it when the operation ends.
+    /// </summary>
+    public BooruSearchScope OpenScope() => new(_services.OpenJob(), _services);
+
+    /// <summary>One validated page in its own one-page scope.</summary>
     public async Task<BooruSearchResult> SearchAsync(IPluginWorkerClient worker, string sourceId,
         string userQuery, int page, CancellationToken cancellationToken = default)
     {
+        using BooruSearchScope scope = OpenScope();
+        return await SearchAsync(worker, sourceId, userQuery, page, scope, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>One validated page inside a caller-owned scope; the page shares the scope's send and time budget.</summary>
+    public async Task<BooruSearchResult> SearchAsync(IPluginWorkerClient worker, string sourceId,
+        string userQuery, int page, BooruSearchScope scope, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
         if (!TryGetSource(sourceId, out SourceDescription? source, out FailureDetail? sourceFailure))
             return new BooruSearchFailure(sourceId, sourceFailure!);
         if (page is < 1 or > BooruHostHttp.MaximumSearchPage)
@@ -50,7 +66,7 @@ public sealed class BooruSearchService
             return new BooruSearchDeferred(sourceId, retryAt, "booru-cooldown");
 
         ArgumentNullException.ThrowIfNull(worker);
-        BooruJob job = _services.OpenJob();
+        BooruJob job = scope.Job; // throws if the scope was disposed
         try
         {
             BooruSearchResult result = await worker.SearchBooruPostsAsync(request, job.Operation, cancellationToken).ConfigureAwait(false);
@@ -68,10 +84,6 @@ public sealed class BooruSearchService
         catch (NotSupportedException exception)
         {
             return new BooruSearchFailure(sourceId, new FailureDetail("capability", exception.Message));
-        }
-        finally
-        {
-            _services.CloseJob(job);
         }
     }
 
@@ -143,4 +155,29 @@ public sealed class BooruSearchService
     private static FailureDetail WorkerFailure(PluginWorkerException exception) =>
         new(exception.Code, "The booru worker did not return a usable result.", exception.FailureInfo.HttpStatusCode is not null
             ? (int)exception.FailureInfo.HttpStatusCode : null, exception.FailureInfo.RetryAt);
+}
+
+/// <summary>
+/// A host-owned operation scope shared by the pages of one logical booru operation. It wraps one
+/// <see cref="BooruJob"/> (one <see cref="PluginOperationContext"/>/resource id, one send and time budget);
+/// disposing it closes the job so late sends are refused.
+/// </summary>
+public sealed class BooruSearchScope : IDisposable
+{
+    private readonly BooruHostServices _services;
+    private BooruJob? _job;
+
+    internal BooruSearchScope(BooruJob job, BooruHostServices services)
+    {
+        _job = job;
+        _services = services;
+    }
+
+    internal BooruJob Job => _job ?? throw new ObjectDisposedException(nameof(BooruSearchScope));
+
+    public void Dispose()
+    {
+        BooruJob? job = Interlocked.Exchange(ref _job, null);
+        if (job is not null) _services.CloseJob(job);
+    }
 }

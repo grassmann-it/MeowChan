@@ -598,6 +598,63 @@ public sealed class DanbooruWatcherSchedulerTests
     }
 
     [Fact]
+    public async Task AllPagesOfOneCheckShareOneSearchSessionAndEachCheckGetsItsOwn()
+    {
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock);
+        search.Publish("cat", 100);
+        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        scheduler.Load();
+        scheduler.AddWatcher("cat");
+
+        await scheduler.RunNextAsync(); // baseline: one page, one session
+        Assert.Equal(1, search.SessionsOpened);
+        Assert.Equal(1, search.SessionsDisposed);
+
+        search.Publish("cat", Range(160, 60)); // 160..101: three new pages, then the known post 100
+        clock.Advance(Interval);
+        DanbooruWatcherCheckSummary check = (await scheduler.RunNextAsync())!;
+        Assert.Equal(DanbooruWatcherCheckKind.Completed, check.Kind);
+        Assert.Equal(4, check.PagesRead);
+        Assert.Equal([1, 2, 3, 4], search.Calls.Skip(1).Select(call => call.Page).ToArray());
+        Assert.Equal([1, 2, 2, 2, 2], search.CallSessions.ToArray());
+        Assert.Equal(2, search.SessionsOpened);
+        Assert.Equal(2, search.SessionsDisposed);
+
+        // A check that sends nothing (not due) opens no session at all.
+        Assert.Null(await scheduler.RunNextAsync());
+        Assert.Equal(2, search.SessionsOpened);
+    }
+
+    [Fact]
+    public async Task SearchSessionIsDisposedWhenTheCheckIsCancelledOrFaultsAndOpenFailureIsAPortFault()
+    {
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock);
+        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        scheduler.Load();
+        string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
+
+        search.Next((_, _) => new DanbooruWatcherSearchFailed("access-denied", 403));
+        DanbooruWatcherCheckSummary failed = (await scheduler.RunNextAsync())!;
+        Assert.Equal(DanbooruWatcherCheckKind.Failed, failed.Kind);
+        Assert.Equal(1, search.SessionsOpened);
+        Assert.Equal(1, search.SessionsDisposed);
+
+        search.FailOpen = true;
+        Task<DanbooruWatcherCheckSummary> manualCheck = scheduler.CheckNowAsync(id);
+        await scheduler.RunNextAsync(); // the manual request is executed by the scheduler step
+        DanbooruWatcherCheckSummary fault = await manualCheck;
+        Assert.Equal(DanbooruWatcherCheckKind.Failed, fault.Kind);
+        Assert.Equal("search_port_fault", fault.Code);
+        Assert.Equal(1, search.SessionsDisposed);
+    }
+
+    [Fact]
     public async Task UnavailableSearchPathLeavesTheWatcherUnchangedAndBacksOff()
     {
         using TempDirectory directory = new();

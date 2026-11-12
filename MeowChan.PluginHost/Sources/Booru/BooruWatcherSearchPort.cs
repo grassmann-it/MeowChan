@@ -7,9 +7,12 @@ using MeowChan.PluginSdk;
 namespace MeowChan.PluginHost.Sources.Booru;
 
 /// <summary>
-/// B5 search port: one bounded Danbooru page per call through the existing host façade
+/// B5 search port: one bounded Danbooru page per session call through the existing host façade
 /// (<see cref="BooruSearchService"/> → worker → <see cref="BooruHostHttp"/>). It adds no HTTP, pacing,
 /// retry or cooldown logic of its own; it only classifies results for the core watcher scheduler.
+/// One <see cref="IDanbooruWatcherSearchPort.OpenCheck"/> session owns one host operation scope
+/// (<see cref="BooruSearchScope"/>): all pages of one watcher check share one job resource id, the 20-send
+/// budget and the 120 s lifetime instead of opening a fresh job per page.
 /// <list type="bullet">
 /// <item>snapshot → validated core claims (<see cref="BooruClaimMapper"/>), newest first as delivered;</item>
 /// <item>deferred (429 cooldown, 502/503 after the host retry) → provider retry time;</item>
@@ -59,52 +62,59 @@ public sealed class BooruWatcherSearchPort : IDanbooruWatcherSearchPort
     DateTimeOffset? IDanbooruWatcherSearchPort.GetProviderCooldownUntilUtc() =>
         _services.TryGetCooldown(SourceId, out DateTimeOffset retryAt) ? retryAt : null;
 
-    async Task<DanbooruWatcherSearchOutcome> IDanbooruWatcherSearchPort.SearchAsync(string providerQuery, int page,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        IPluginWorkerClient? client;
-        try
-        {
-            client = await _worker(cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            return new DanbooruWatcherSearchUnavailable("worker_unavailable");
-        }
-        if (client is null) return new DanbooruWatcherSearchUnavailable("worker_unavailable");
+    IDanbooruWatcherSearchSession IDanbooruWatcherSearchPort.OpenCheck() => new CheckSession(this, _search.OpenScope());
 
-        BooruSearchResult result = await _search.SearchAsync(client, SourceId, providerQuery, page, cancellationToken)
-            .ConfigureAwait(false);
-        switch (result)
+    private sealed class CheckSession(BooruWatcherSearchPort port, BooruSearchScope scope) : IDanbooruWatcherSearchSession
+    {
+        public void Dispose() => scope.Dispose();
+
+        public async Task<DanbooruWatcherSearchOutcome> SearchAsync(string providerQuery, int page,
+            CancellationToken cancellationToken)
         {
-            case BooruSearchSnapshot snapshot:
+            cancellationToken.ThrowIfCancellationRequested();
+            IPluginWorkerClient? client;
+            try
             {
-                List<BooruPostClaim> claims = new(snapshot.Page.Posts.Count);
-                try
-                {
-                    foreach (BooruPost post in snapshot.Page.Posts) claims.Add(BooruClaimMapper.Map(post));
-                }
-                catch (Exception exception) when (exception is ArgumentException or InvalidDataException
-                    or FormatException or OverflowException)
-                {
-                    return new DanbooruWatcherSearchFailed("malformed_post");
-                }
-                return new DanbooruWatcherSearchSnapshot(snapshot.Page.Query, snapshot.Page.Page, claims, snapshot.Page.IsEnd);
+                client = await port._worker(cancellationToken).ConfigureAwait(false);
             }
-            case BooruSearchDeferred deferred:
-                return new DanbooruWatcherSearchDeferred(deferred.RetryAt, deferred.ReasonCode, deferred.HttpStatusCode);
-            case BooruSearchFailure failure when UnavailableCodes.Contains(failure.Failure.Code):
-                return new DanbooruWatcherSearchUnavailable(failure.Failure.Code);
-            case BooruSearchFailure failure when TransientCodes.Contains(failure.Failure.Code):
-                // The host already retried once; wait at least the scheduler's deferral floor.
-                return new DanbooruWatcherSearchDeferred(failure.Failure.RetryAt ?? _time.GetUtcNow(), failure.Failure.Code,
-                    failure.Failure.HttpStatusCode);
-            case BooruSearchFailure failure:
-                return new DanbooruWatcherSearchFailed(failure.Failure.Code, failure.Failure.HttpStatusCode);
-            default:
-                return new DanbooruWatcherSearchFailed("search_result_unknown");
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                return new DanbooruWatcherSearchUnavailable("worker_unavailable");
+            }
+            if (client is null) return new DanbooruWatcherSearchUnavailable("worker_unavailable");
+
+            BooruSearchResult result = await port._search.SearchAsync(client, SourceId, providerQuery, page, scope, cancellationToken)
+                .ConfigureAwait(false);
+            switch (result)
+            {
+                case BooruSearchSnapshot snapshot:
+                {
+                    List<BooruPostClaim> claims = new(snapshot.Page.Posts.Count);
+                    try
+                    {
+                        foreach (BooruPost post in snapshot.Page.Posts) claims.Add(BooruClaimMapper.Map(post));
+                    }
+                    catch (Exception exception) when (exception is ArgumentException or InvalidDataException
+                        or FormatException or OverflowException)
+                    {
+                        return new DanbooruWatcherSearchFailed("malformed_post");
+                    }
+                    return new DanbooruWatcherSearchSnapshot(snapshot.Page.Query, snapshot.Page.Page, claims, snapshot.Page.IsEnd);
+                }
+                case BooruSearchDeferred deferred:
+                    return new DanbooruWatcherSearchDeferred(deferred.RetryAt, deferred.ReasonCode, deferred.HttpStatusCode);
+                case BooruSearchFailure failure when UnavailableCodes.Contains(failure.Failure.Code):
+                    return new DanbooruWatcherSearchUnavailable(failure.Failure.Code);
+                case BooruSearchFailure failure when TransientCodes.Contains(failure.Failure.Code):
+                    // The host already retried once; wait at least the scheduler's deferral floor.
+                    return new DanbooruWatcherSearchDeferred(failure.Failure.RetryAt ?? port._time.GetUtcNow(), failure.Failure.Code,
+                        failure.Failure.HttpStatusCode);
+                case BooruSearchFailure failure:
+                    return new DanbooruWatcherSearchFailed(failure.Failure.Code, failure.Failure.HttpStatusCode);
+                default:
+                    return new DanbooruWatcherSearchFailed("search_result_unknown");
+            }
         }
     }
 }

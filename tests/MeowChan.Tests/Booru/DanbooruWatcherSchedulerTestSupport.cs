@@ -117,12 +117,46 @@ internal sealed class FakeDanbooruSearch(TimeProvider clock, int maximumPage = 5
 
     internal void Next(Func<string, int, DanbooruWatcherSearchOutcome?> outcome) { lock (_gate) _script.Enqueue(outcome); }
 
-    public async Task<DanbooruWatcherSearchOutcome> SearchAsync(string providerQuery, int page, CancellationToken cancellationToken)
+    /// <summary>Number of check sessions opened / disposed, and the session index of every call.</summary>
+    internal int SessionsOpened { get { lock (_gate) return _sessionsOpened; } }
+    internal int SessionsDisposed { get { lock (_gate) return _sessionsDisposed; } }
+    internal List<int> CallSessions { get; } = new();
+    private int _sessionsOpened;
+    private int _sessionsDisposed;
+
+    internal bool FailOpen { get; set; }
+
+    public IDanbooruWatcherSearchSession OpenCheck()
+    {
+        if (FailOpen) throw new InvalidOperationException("The search path could not open a check.");
+        int index;
+        lock (_gate) index = ++_sessionsOpened;
+        return new Session(this, index);
+    }
+
+    private sealed class Session(FakeDanbooruSearch owner, int index) : IDanbooruWatcherSearchSession
+    {
+        private bool _disposed;
+        public Task<DanbooruWatcherSearchOutcome> SearchAsync(string providerQuery, int page, CancellationToken cancellationToken)
+            => owner.SearchAsync(index, providerQuery, page, cancellationToken);
+        public void Dispose()
+        {
+            lock (owner._gate)
+            {
+                if (_disposed) return;
+                _disposed = true;
+                owner._sessionsDisposed++;
+            }
+        }
+    }
+
+    private async Task<DanbooruWatcherSearchOutcome> SearchAsync(int session, string providerQuery, int page, CancellationToken cancellationToken)
     {
         Func<string, int, DanbooruWatcherSearchOutcome?>? scripted = null;
         lock (_gate)
         {
             Calls.Add((providerQuery, page, clock.GetUtcNow()));
+            CallSessions.Add(session);
             _concurrent++;
             MaxConcurrent = Math.Max(MaxConcurrent, _concurrent);
             if (_script.Count > 0) scripted = _script.Dequeue();
