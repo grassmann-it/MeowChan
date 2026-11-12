@@ -132,6 +132,10 @@
                     <SolidColorBrush x:Key="CheckBoxCheckedPressedBorderBrush">#662F05</SolidColorBrush>
                     <SolidColorBrush x:Key="TextBlockSelectionBackground">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="TextBlockSelectionForeground">#FFFFFF</SolidColorBrush>
+                    <!-- LW-06 N6b/N9: Semi's 62 % black is 4.28:1 on fields and 4.31:1 in menus; use Workspace.Muted. -->
+                    <SolidColorBrush x:Key="TextBoxPlaceholderForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorPlaceHolderForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemInputGestureTextForeground">#575148</SolidColorBrush>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
