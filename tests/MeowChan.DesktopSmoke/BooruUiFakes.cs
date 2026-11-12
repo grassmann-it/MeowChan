@@ -38,7 +38,7 @@ internal static class BooruUiFixtures
         {
             0 => BooruTagCategory.General, 1 => BooruTagCategory.General, _ => BooruTagCategory.Artist
         })).ToArray();
-        return BooruPostView.From(new BooruPost(new SourcePostId(Source, id), BooruFieldPresence.All,
+        return BooruPostView.From(new BooruPost(new BooruPostId(Source, id), BooruFieldPresence.All,
             new Uri($"https://danbooru.donmai.us/posts/{id}"), new DateTimeOffset(2026, 11, 1, 8, 0, 0, TimeSpan.Zero),
             rating, rawRating ?? rating.ToString()[..1].ToLowerInvariant(), score, 3, tagList, media, null, deleted, banned));
     }

@@ -506,7 +506,7 @@ public sealed class BooruWatcherSchedulerHostTests
             }
             using JsonDocument document = JsonDocument.Parse(response.Body);
             BooruPost[] posts = document.RootElement.EnumerateArray()
-                .Select(item => new BooruPost(new SourcePostId(request.SourceId, item.GetProperty("id").GetInt64().ToString()), BooruFieldPresence.None))
+                .Select(item => new BooruPost(new BooruPostId(request.SourceId, item.GetProperty("id").GetInt64().ToString()), BooruFieldPresence.None))
                 .ToArray();
             bool isEnd = posts.Length < request.Limit;
             return new BooruSearchSnapshot(new BooruSearchPage(request.SourceId, request.Query, request.Page, posts, isEnd,

@@ -518,7 +518,7 @@ internal sealed class B9Session : IAsyncDisposable
         PumpAsync(Search.SearchAsync(Worker, "danbooru", query, page));
 
     internal Task<BooruPostResult> ReadPostAsync(string postId) =>
-        PumpAsync(Search.ReadPostAsync(Worker, new SourcePostId("danbooru", postId)));
+        PumpAsync(Search.ReadPostAsync(Worker, new BooruPostId("danbooru", postId)));
 
     internal Task<DanbooruWatcherCheckSummary?> RunNextAsync() => PumpAsync(Scheduler.RunNextAsync());
 

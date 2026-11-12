@@ -75,7 +75,7 @@ public sealed class RuntimeProcessTests
         using Workspace workspace = new(); await using PluginWorkerManager manager = new();
         await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
         BooruPostSnapshot snapshot = Assert.IsType<BooruPostSnapshot>(await worker.ReadBooruPostAsync(new(new("fixture-booru", "42")), Operation));
-        Assert.Equal(new SourcePostId("fixture-booru", "42"), snapshot.Post.Id);
+        Assert.Equal(new BooruPostId("fixture-booru", "42"), snapshot.Post.Id);
         Assert.Equal("fixture_tag", Assert.Single(snapshot.Post.Tags!).Name);
         BooruPostNotFound missing = Assert.IsType<BooruPostNotFound>(await worker.ReadBooruPostAsync(new(new("fixture-booru", "missing")), Operation));
         Assert.Equal(404, missing.HttpStatusCode);

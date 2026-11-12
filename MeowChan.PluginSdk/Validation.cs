@@ -976,7 +976,7 @@ public static class SdkValidation
         private static int CompareDecimal(string left, string right)
             => left.Length != right.Length ? left.Length.CompareTo(right.Length) : string.CompareOrdinal(left, right);
 
-        private void DecimalBooruPostId(SourcePostId? id, SourceDescription source, string path)
+        private void DecimalBooruPostId(BooruPostId? id, SourceDescription source, string path)
         {
             if (source.PostOrder == PostOrderKind.DecimalPostId && id?.PostId is not null && !CanonicalDecimal(id.PostId))
                 Add(path + ".postId", "invalid_order", "This source declares decimal post ids: a positive decimal without leading zeros.");
@@ -985,7 +985,7 @@ public static class SdkValidation
         internal void BooruPostRequest(BooruPostRequest? request, SourceDescription? source)
         {
             if (request is null || source is null) { Add("request", "missing", "Request and source description are required."); return; }
-            BooruPostId(request.Post, "request.post");
+            BooruPostIdentity(request.Post, "request.post");
             SameSource(request.Post?.SourceId, source.SourceId, "request.post.sourceId");
             RequirePostSearch(source, "request.post.sourceId");
             DecimalBooruPostId(request.Post, source, "request.post");
@@ -997,7 +997,7 @@ public static class SdkValidation
                 Add(path, "missing_capability", "The source does not declare post search.");
         }
 
-        internal void BooruPostId(SourcePostId? id, string path)
+        internal void BooruPostIdentity(BooruPostId? id, string path)
         {
             if (id is null) { Add(path, "missing", "Post identity is required."); return; }
             Identity(id.SourceId, path + ".sourceId");
@@ -1006,9 +1006,9 @@ public static class SdkValidation
                 Add(path + ".postId", "invalid_identity", "Post identity must be nonempty, bounded and contain no whitespace or control characters.");
         }
 
-        internal void ExpectedBooruPost(SourcePostId? actual, SourcePostId? expected, string path)
+        internal void ExpectedBooruPost(BooruPostId? actual, BooruPostId? expected, string path)
         {
-            BooruPostId(actual, path);
+            BooruPostIdentity(actual, path);
             if (actual != expected) Add(path, "wrong_resource", "Result identifies another post.");
         }
 
@@ -1054,7 +1054,7 @@ public static class SdkValidation
         internal void BooruPost(BooruPost? post, SourceDescription source, string path)
         {
             if (post is null) { Add(path, "missing", "Post is required."); return; }
-            BooruPostId(post.Id, path + ".id");
+            BooruPostIdentity(post.Id, path + ".id");
             DecimalBooruPostId(post.Id, source, path + ".id");
             if ((post.Fields & ~BooruFieldPresence.All) != 0) Add(path + ".fields", "unknown_presence", "Unknown field-presence flag.");
             if ((!post.Fields.HasFlag(BooruFieldPresence.CreatedAt) && post.CreatedAt is not null)

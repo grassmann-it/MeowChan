@@ -11,7 +11,7 @@ public sealed class DanbooruSourceTests
 {
     private static readonly DanbooruPlugin Plugin = new();
     private static readonly SourceDescription Source = Plugin.Describe().Sources.Single();
-    private static readonly SourcePostId Seven = new("danbooru", "7");
+    private static readonly BooruPostId Seven = new("danbooru", "7");
     private const string SearchBase = "https://danbooru.donmai.us/posts.json?tags=";
 
     // ---- description -------------------------------------------------------------------------------
@@ -106,7 +106,7 @@ public sealed class DanbooruSourceTests
     [Fact]
     public async Task PostRequestIsOneExactGet()
     {
-        (BooruPostResult _, RecordingHttp http) = await Read(Json("{\"id\":12345}"), new SourcePostId("danbooru", "12345"));
+        (BooruPostResult _, RecordingHttp http) = await Read(Json("{\"id\":12345}"), new BooruPostId("danbooru", "12345"));
         HostHttpRequest request = Assert.Single(http.Requests);
         Assert.Equal("https://danbooru.donmai.us/posts/12345.json", request.Url.AbsoluteUri);
         Assert.Equal("danbooru", request.SourceId);
@@ -136,7 +136,7 @@ public sealed class DanbooruSourceTests
     public async Task InvalidPostIdsFailBeforeAnyRequest(string postId)
     {
         RecordingHttp http = Returning(Json("{}"));
-        SourcePostId id = new("danbooru", postId);
+        BooruPostId id = new("danbooru", postId);
         BooruPostFailure failure = Assert.IsType<BooruPostFailure>(await Plugin.ReadPostAsync(new BooruPostRequest(id), Context(http)));
         Assert.Equal("post-id", failure.Failure.Code);
         Assert.Equal(id, failure.Post);
@@ -149,7 +149,7 @@ public sealed class DanbooruSourceTests
         foreach (string postId in new[] { "1", "10", "999999999999999999" })
         {
             RecordingHttp http = Returning(Json("{}", status: 404));
-            Assert.IsType<BooruPostNotFound>(await Plugin.ReadPostAsync(new BooruPostRequest(new SourcePostId("danbooru", postId)), Context(http)));
+            Assert.IsType<BooruPostNotFound>(await Plugin.ReadPostAsync(new BooruPostRequest(new BooruPostId("danbooru", postId)), Context(http)));
             Assert.Equal($"https://danbooru.donmai.us/posts/{postId}.json", Assert.Single(http.Requests).Url.AbsoluteUri);
         }
     }
@@ -165,7 +165,7 @@ public sealed class DanbooruSourceTests
             new("danbooru", "bad\nquery", 1, 20), new("danbooru", new string('x', 1025), 1, 20)
         })
             Assert.Equal("invalid-request", Assert.IsType<BooruSearchFailure>(await Plugin.SearchPostsAsync(request, Context(http))).Failure.Code);
-        Assert.Equal("invalid-request", Assert.IsType<BooruPostFailure>(await Plugin.ReadPostAsync(new BooruPostRequest(new SourcePostId("other", "7")), Context(http))).Failure.Code);
+        Assert.Equal("invalid-request", Assert.IsType<BooruPostFailure>(await Plugin.ReadPostAsync(new BooruPostRequest(new BooruPostId("other", "7")), Context(http))).Failure.Code);
         Assert.Empty(http.Requests);
     }
 
@@ -465,7 +465,7 @@ public sealed class DanbooruSourceTests
     [Fact]
     public async Task PostBadMd5FixtureMakesTheWholeResponseMalformed()
     {
-        BooruPostFailure failure = Assert.IsType<BooruPostFailure>((await Read(Json(Fixture("post-bad-md5.json")), new SourcePostId("danbooru", "8001"))).Result);
+        BooruPostFailure failure = Assert.IsType<BooruPostFailure>((await Read(Json(Fixture("post-bad-md5.json")), new BooruPostId("danbooru", "8001"))).Result);
         Assert.Equal("malformed", failure.Failure.Code);
     }
 
@@ -516,7 +516,7 @@ public sealed class DanbooruSourceTests
         {
             await Search(Json(body), "q", 1, 3);
             await Search(Json(body, contentType: "text/html"), "q", 1, 3);
-            await Read(Json(body), new SourcePostId("danbooru", "2001"));
+            await Read(Json(body), new BooruPostId("danbooru", "2001"));
             await Read(Json(body, contentType: "text/html"), Seven);
         }
     }
@@ -771,7 +771,7 @@ public sealed class DanbooruSourceTests
     {
         BooruPost post = await PostFrom("\"score\":1");
         Assert.Equal(new Uri("https://danbooru.donmai.us/posts/7"), post.PostUrl);
-        Assert.Equal(new SourcePostId("danbooru", "7"), post.Id);
+        Assert.Equal(new BooruPostId("danbooru", "7"), post.Id);
     }
 
     [Fact]
@@ -1088,7 +1088,7 @@ public sealed class DanbooruSourceTests
         return (result, http);
     }
 
-    private static async Task<(BooruPostResult Result, RecordingHttp Http)> Read(HostHttpResult response, SourcePostId post)
+    private static async Task<(BooruPostResult Result, RecordingHttp Http)> Read(HostHttpResult response, BooruPostId post)
     {
         RecordingHttp http = Returning(response);
         BooruPostRequest request = new(post);
@@ -1099,7 +1099,7 @@ public sealed class DanbooruSourceTests
     }
 
     private static async Task<BooruPost> PostFixture(string fixture, string id)
-        => Assert.IsType<BooruPostSnapshot>((await Read(Json(Fixture(fixture)), new SourcePostId("danbooru", id))).Result).Post;
+        => Assert.IsType<BooruPostSnapshot>((await Read(Json(Fixture(fixture)), new BooruPostId("danbooru", id))).Result).Post;
 
     // A post with id 7 and the given raw JSON fields, parsed through the single-post endpoint.
     private static async Task<BooruPost> PostFrom(string fields)

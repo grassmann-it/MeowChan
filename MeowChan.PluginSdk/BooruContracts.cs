@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace MeowChan.PluginSdk;
 
 /// <summary>Opaque provider post id. The same PostId on two sources identifies two different posts.</summary>
-public sealed record SourcePostId(string SourceId, string PostId);
+public sealed record BooruPostId(string SourceId, string PostId);
 
 /// <summary>Variant roles are never interchangeable: a preview or sample never satisfies an original.</summary>
 public enum BooruMediaRole { Original, Sample, Preview }
@@ -39,7 +39,7 @@ public sealed record BooruMediaVariant(BooruMediaRole Role, Uri? Url, string? Ex
 /// A booru post is its own object, never a board or a thread. Values are provider claims.
 /// SourceClaim is the provider's free-text "source" and stays inert text: never a fetch target.
 /// </summary>
-public sealed record BooruPost(SourcePostId Id, BooruFieldPresence Fields, Uri? PostUrl = null,
+public sealed record BooruPost(BooruPostId Id, BooruFieldPresence Fields, Uri? PostUrl = null,
     DateTimeOffset? CreatedAt = null, BooruRating Rating = BooruRating.Unknown, string? RawRating = null,
     int? Score = null, int? FavoriteCount = null, IReadOnlyList<BooruTag>? Tags = null,
     IReadOnlyList<BooruMediaVariant>? Media = null, string? SourceClaim = null, bool IsDeleted = false,
@@ -78,7 +78,7 @@ public sealed record BooruSearchDeferred(string SourceId, DateTimeOffset RetryAt
     int? HttpStatusCode = null) : BooruSearchResult;
 public sealed record BooruSearchFailure(string SourceId, FailureDetail Failure) : BooruSearchResult;
 
-public sealed record BooruPostRequest(SourcePostId Post);
+public sealed record BooruPostRequest(BooruPostId Post);
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(BooruPostSnapshot), "snapshot")]
@@ -88,7 +88,7 @@ public sealed record BooruPostRequest(SourcePostId Post);
 public abstract record BooruPostResult;
 
 public sealed record BooruPostSnapshot(BooruPost Post) : BooruPostResult;
-public sealed record BooruPostNotFound(SourcePostId Post, int? HttpStatusCode = null) : BooruPostResult;
-public sealed record BooruPostDeferred(SourcePostId Post, DateTimeOffset RetryAt, string ReasonCode,
+public sealed record BooruPostNotFound(BooruPostId Post, int? HttpStatusCode = null) : BooruPostResult;
+public sealed record BooruPostDeferred(BooruPostId Post, DateTimeOffset RetryAt, string ReasonCode,
     int? HttpStatusCode = null) : BooruPostResult;
-public sealed record BooruPostFailure(SourcePostId Post, FailureDetail Failure) : BooruPostResult;
+public sealed record BooruPostFailure(BooruPostId Post, FailureDetail Failure) : BooruPostResult;

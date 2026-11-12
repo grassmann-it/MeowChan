@@ -76,7 +76,7 @@ public sealed class BooruSearchService
         if (page is < 1 or > BooruHostHttp.MaximumSearchPage)
             return new BooruSearchFailure(sourceId, new FailureDetail("invalid_page", "The booru page must be between 1 and 5."));
         if (beforePostId is not null && (source!.PostOrder != PostOrderKind.DecimalPostId
-                || !IsValidPostId(new SourcePostId(sourceId, beforePostId), source)))
+                || !IsValidPostId(new BooruPostId(sourceId, beforePostId), source)))
             return new BooruSearchFailure(sourceId, new FailureDetail(InvalidCursorCode, InvalidCursorMessage));
         if (userQuery is null)
             return new BooruSearchFailure(sourceId, new FailureDetail(InvalidQueryCode, InvalidQueryMessage));
@@ -119,11 +119,11 @@ public sealed class BooruSearchService
         }
     }
 
-    public async Task<BooruPostResult> ReadPostAsync(IPluginWorkerClient worker, SourcePostId post,
+    public async Task<BooruPostResult> ReadPostAsync(IPluginWorkerClient worker, BooruPostId post,
         CancellationToken cancellationToken = default)
     {
         if (post is null)
-            return new BooruPostFailure(new SourcePostId(string.Empty, string.Empty), new FailureDetail("invalid_post", InvalidPostIdMessage));
+            return new BooruPostFailure(new BooruPostId(string.Empty, string.Empty), new FailureDetail("invalid_post", InvalidPostIdMessage));
         if (!TryGetSource(post.SourceId, out SourceDescription? source, out FailureDetail? sourceFailure))
             return new BooruPostFailure(post, sourceFailure!);
         if (!IsValidPostId(post, source!))
@@ -174,7 +174,7 @@ public sealed class BooruSearchService
         return false;
     }
 
-    private static bool IsValidPostId(SourcePostId post, SourceDescription source)
+    private static bool IsValidPostId(BooruPostId post, SourceDescription source)
     {
         if (string.Equals(source.SourceId, "danbooru", StringComparison.Ordinal))
             return post.PostId.Length is > 0 and <= 18 && post.PostId[0] != '0' && post.PostId.All(char.IsAsciiDigit);

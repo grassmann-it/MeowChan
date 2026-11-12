@@ -61,7 +61,7 @@ and no board/thread routes. It is never combined with `ThreadRead`,
 `BoardCatalog` or `PostCapture`; booru posts are their own objects and never
 fake boards or threads.
 
-- Identity: `SourcePostId(SourceId, PostId)` is opaque and provider-defined; the
+- Identity: `BooruPostId(SourceId, PostId)` is opaque and provider-defined; the
   same `PostId` on two sources stays two posts.
 - Query: `BooruSearchRequest.Query` is the already host-validated provider query
   and never contains private tags. `Page` is 1-based (1..1000), `Limit` 1..100.

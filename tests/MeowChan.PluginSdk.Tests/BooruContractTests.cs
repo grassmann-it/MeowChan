@@ -7,7 +7,7 @@ public sealed class BooruContractTests
 {
     private const string PrivateQuery = "secret_private_tag rating:safe";
     private static readonly string Md5 = Convert.ToBase64String(new byte[16]);
-    private static readonly SourcePostId Id = new("booru", "42");
+    private static readonly BooruPostId Id = new("booru", "42");
     private static readonly BooruSearchRequest Request = new("booru", PrivateQuery, 1, 20);
     private static readonly DateTimeOffset Due = new(2026, 11, 11, 12, 0, 0, TimeSpan.Zero);
 
@@ -108,7 +108,7 @@ public sealed class BooruContractTests
 
     [Fact]
     public void SamePostIdOnTwoSourcesStaysDistinct()
-        => Assert.NotEqual(new SourcePostId("one", "42"), new SourcePostId("two", "42"));
+        => Assert.NotEqual(new BooruPostId("one", "42"), new BooruPostId("two", "42"));
 
     // Description
 

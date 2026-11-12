@@ -12,7 +12,7 @@ public sealed class BooruClaimMapperTests
         string md5 = Convert.ToBase64String(new byte[16]);
         DateTimeOffset created = new(2026, 11, 12, 8, 30, 0, TimeSpan.Zero);
         BooruPost source = new(
-            new SourcePostId("danbooru", "42"),
+            new BooruPostId("danbooru", "42"),
             BooruFieldPresence.All,
             new Uri("https://danbooru.donmai.us/posts/42"),
             created,
@@ -63,7 +63,7 @@ public sealed class BooruClaimMapperTests
     public void AbsentFieldsBecomeUnsetCoreValuesAndDoNotInventPrivateMetadata()
     {
         BooruPostClaim claim = BooruClaimMapper.Map(new BooruPost(
-            new SourcePostId("danbooru", "7"), BooruFieldPresence.None));
+            new BooruPostId("danbooru", "7"), BooruFieldPresence.None));
 
         Assert.Equal(BooruPostClaimPresence.None, claim.Fields);
         Assert.Null(claim.PostUrl);
@@ -83,15 +83,15 @@ public sealed class BooruClaimMapperTests
     public void UnknownPresenceAndEnumValuesAreRejectedInsteadOfBlindCast()
     {
         Assert.Throws<InvalidDataException>(() => BooruClaimMapper.Map(new BooruPost(
-            new SourcePostId("danbooru", "1"), (BooruFieldPresence)(1 << 12))));
+            new BooruPostId("danbooru", "1"), (BooruFieldPresence)(1 << 12))));
         Assert.Throws<InvalidDataException>(() => BooruClaimMapper.Map(new BooruPost(
-            new SourcePostId("danbooru", "1"), BooruFieldPresence.Rating,
+            new BooruPostId("danbooru", "1"), BooruFieldPresence.Rating,
             Rating: (BooruRating)99)));
         Assert.Throws<InvalidDataException>(() => BooruClaimMapper.Map(new BooruPost(
-            new SourcePostId("danbooru", "1"), BooruFieldPresence.Tags,
+            new BooruPostId("danbooru", "1"), BooruFieldPresence.Tags,
             Tags: [new BooruTag("tag", (BooruTagCategory)99)])));
         Assert.Throws<InvalidDataException>(() => BooruClaimMapper.Map(new BooruPost(
-            new SourcePostId("danbooru", "1"), BooruFieldPresence.Media,
+            new BooruPostId("danbooru", "1"), BooruFieldPresence.Media,
             Media: [new BooruMediaVariant((BooruMediaRole)99, null)])));
     }
 
@@ -99,12 +99,12 @@ public sealed class BooruClaimMapperTests
     public void PresenceMismatchAndForeignOrMismatchedUrlsAreRejected()
     {
         Assert.Throws<InvalidDataException>(() => BooruClaimMapper.Map(new BooruPost(
-            new SourcePostId("danbooru", "1"), BooruFieldPresence.None,
+            new BooruPostId("danbooru", "1"), BooruFieldPresence.None,
             Tags: [])));
         Assert.Throws<InvalidDataException>(() => BooruClaimMapper.Map(new BooruPost(
-            new SourcePostId("other", "1"), BooruFieldPresence.None)));
+            new BooruPostId("other", "1"), BooruFieldPresence.None)));
         Assert.Throws<InvalidDataException>(() => BooruClaimMapper.Map(new BooruPost(
-            new SourcePostId("danbooru", "1"), BooruFieldPresence.None,
+            new BooruPostId("danbooru", "1"), BooruFieldPresence.None,
             PostUrl: new Uri("https://danbooru.donmai.us/posts/2"))));
     }
 }

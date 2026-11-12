@@ -12,7 +12,7 @@ public sealed class BooruAdapterTests
     private static readonly DateTimeOffset Now = new(2026, 11, 12, 10, 0, 0, TimeSpan.Zero);
 
     private static BooruPost Sdk(string id, bool original = true, bool restricted = false, bool deleted = false) =>
-        new(new SourcePostId("danbooru", id), BooruFieldPresence.All, new Uri("https://danbooru.donmai.us/posts/" + id), Now,
+        new(new BooruPostId("danbooru", id), BooruFieldPresence.All, new Uri("https://danbooru.donmai.us/posts/" + id), Now,
             BooruRating.Questionable, "q", 5, 1, new[] { new BooruTag("cat", BooruTagCategory.General) },
             original ? new[]
             {
@@ -34,7 +34,7 @@ public sealed class BooruAdapterTests
     [Fact]
     public void OnlyFlaggedFieldsAreObservations()
     {
-        BooruPost bare = new(new SourcePostId("danbooru", "9"), BooruFieldPresence.None, Rating: BooruRating.Explicit, Score: 99);
+        BooruPost bare = new(new BooruPostId("danbooru", "9"), BooruFieldPresence.None, Rating: BooruRating.Explicit, Score: 99);
         BooruPostView view = BooruPostView.From(bare);
         Assert.Equal(BooruRating.Unknown, view.Rating);
         Assert.Null(view.Score);
@@ -76,9 +76,9 @@ public sealed class BooruAdapterTests
     public void PostResultsMapToTheOneShotOutcomes()
     {
         Assert.Equal("5", BooruSdkMapper.Map(new BooruPostSnapshot(Sdk("5"))).Value!.PostId);
-        Assert.Equal(BooruCallStatus.NotFound, BooruSdkMapper.Map(new BooruPostNotFound(new SourcePostId("danbooru", "5"), 404)).Status);
-        Assert.Equal(BooruCallStatus.RateLimited, BooruSdkMapper.Map(new BooruPostDeferred(new SourcePostId("danbooru", "5"), Now, "x", 429)).Status);
-        Assert.Equal(BooruCallStatus.Offline, BooruSdkMapper.Map(new BooruPostFailure(new SourcePostId("danbooru", "5"),
+        Assert.Equal(BooruCallStatus.NotFound, BooruSdkMapper.Map(new BooruPostNotFound(new BooruPostId("danbooru", "5"), 404)).Status);
+        Assert.Equal(BooruCallStatus.RateLimited, BooruSdkMapper.Map(new BooruPostDeferred(new BooruPostId("danbooru", "5"), Now, "x", 429)).Status);
+        Assert.Equal(BooruCallStatus.Offline, BooruSdkMapper.Map(new BooruPostFailure(new BooruPostId("danbooru", "5"),
             new FailureDetail("http-network", "m"))).Status);
     }
 

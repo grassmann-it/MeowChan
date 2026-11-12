@@ -99,7 +99,7 @@ internal sealed class BooruHostSearchAdapter : IBooruSearchPort
     {
         IPluginWorkerClient? worker = await _worker(cancellationToken).ConfigureAwait(false);
         if (worker is null) return BooruCallResult<BooruPostView>.Of(BooruCallStatus.Unavailable, "no-worker");
-        return BooruSdkMapper.Map(await _service.ReadPostAsync(worker, new SourcePostId(ProviderId, postId), cancellationToken).ConfigureAwait(false));
+        return BooruSdkMapper.Map(await _service.ReadPostAsync(worker, new BooruPostId(ProviderId, postId), cancellationToken).ConfigureAwait(false));
     }
 }
 

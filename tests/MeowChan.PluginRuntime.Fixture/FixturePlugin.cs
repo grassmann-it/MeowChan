@@ -92,7 +92,7 @@ public sealed class FixturePlugin : ISourcePlugin, IBooruSourcePlugin, IImageFil
         "foreign" => new BooruPostSnapshot(BooruPost(new("other", request.Post.PostId))),
         _ => new BooruPostSnapshot(BooruPost(request.Post))
     });
-    private static BooruPost BooruPost(SourcePostId id) => new(id, BooruFieldPresence.CreatedAt | BooruFieldPresence.Rating | BooruFieldPresence.Tags | BooruFieldPresence.Media,
+    private static BooruPost BooruPost(BooruPostId id) => new(id, BooruFieldPresence.CreatedAt | BooruFieldPresence.Rating | BooruFieldPresence.Tags | BooruFieldPresence.Media,
         new("https://booru.fixture.test/posts/" + id.PostId), new DateTimeOffset(2026, 11, 11, 0, 0, 0, TimeSpan.Zero), BooruRating.General, "g",
         Tags: [new("fixture_tag", BooruTagCategory.General)],
         Media: [new(BooruMediaRole.Original, new("https://media.fixture.test/o/" + id.PostId + ".png"), ".png", 4, 2, 2), new(BooruMediaRole.Preview, new("https://media.fixture.test/p/" + id.PostId + ".jpg"))]);

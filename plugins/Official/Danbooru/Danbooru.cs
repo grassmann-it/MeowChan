@@ -87,7 +87,7 @@ public sealed class DanbooruPlugin : IBooruSourcePlugin
         CancellationToken cancellationToken = default)
     {
         if (request?.Post is null || request.Post.SourceId != DanbooruParser.SourceId)
-            return new BooruPostFailure(request?.Post ?? new SourcePostId(DanbooruParser.SourceId, string.Empty), new FailureDetail("invalid-request", "The post request is not valid for this source."));
+            return new BooruPostFailure(request?.Post ?? new BooruPostId(DanbooruParser.SourceId, string.Empty), new FailureDetail("invalid-request", "The post request is not valid for this source."));
         if (!DanbooruParser.ValidPostId(request.Post.PostId))
             return new BooruPostFailure(request.Post, new FailureDetail("post-id", "A post id is a positive decimal number without leading zeros."));
         HostHttpResult result = await context.Http.SendAsync(Get(new Uri(
@@ -343,7 +343,7 @@ internal static class DanbooruParser
 
         IReadOnlyList<BooruMediaVariant>? media = ParseMedia(element, ref fields);
 
-        return new BooruPost(new SourcePostId(SourceId, postId), fields, new Uri($"https://{MetadataHost}/posts/{postId}"),
+        return new BooruPost(new BooruPostId(SourceId, postId), fields, new Uri($"https://{MetadataHost}/posts/{postId}"),
             createdAt, rating, rawRating, score, favorites, tags, media, sourceClaim, isDeleted, isBanned);
     }
 
