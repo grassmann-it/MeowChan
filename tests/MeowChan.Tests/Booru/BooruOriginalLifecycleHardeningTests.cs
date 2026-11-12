@@ -321,4 +321,68 @@ public sealed partial class BooruOriginalQueueTests
         Assert.True(queueReachable);
         Assert.Equal(BooruOriginalIntent.Cancelled, Assert.Single(session.Catalog.Read().Posts).OriginalIntent);
     }
+    [Fact]
+    public async Task AcknowledgementCannotResurrectCancellationAfterACompletedFailure()
+    {
+        using TempDirectory directory = new();
+        FakeCdn cdn = new();
+        BooruPostClaim post = Post("211", Bytes(37), cdn);
+        // The queue accepts the item, but the transfer fails before the admission acknowledgement is released.
+        cdn.Responses[OriginalUrl("211")] = new FakeResponse(Bytes(37).Select(value => (byte)(value ^ 0x51)).ToArray());
+        TaskCompletionSource<bool> accepted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource<bool> release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using Session session = new(directory.Path, cdn);
+        session.Booru.AfterQueueAcceptedForTests = async _ =>
+        {
+            accepted.TrySetResult(true);
+            await release.Task.WaitAsync(TestWait.Timeout);
+        };
+
+        Task<BooruOriginalAdmission> admissionTask = session.Booru.AdmitAsync(post, BooruFindingKind.OneShot);
+        await accepted.Task.WaitAsync(TestWait.Timeout);
+        await TestWait.UntilAsync(() => session.Booru.Snapshot().TryGetValue("211", out BooruOriginalDownloadOutcome? outcome)
+            && outcome.State == BooruOriginalDownloadState.DownloadFailed);
+        Assert.True(await session.Booru.CancelAsync("211").WaitAsync(TestWait.Timeout));
+        Assert.Equal(BooruOriginalIntent.Cancelled,
+            session.Catalog.Read().Posts.Single(item => item.PostId == "211").OriginalIntent);
+
+        release.TrySetResult(true);
+        BooruOriginalAdmission admission = await admissionTask.WaitAsync(TestWait.Timeout);
+        Assert.Equal(BooruOriginalAdmissionStatus.Queued, admission.Status);
+        Assert.Equal(BooruOriginalDownloadState.DownloadFailed,
+            (await admission.Completion.WaitAsync(TestWait.Timeout)).State);
+        Assert.Equal(BooruOriginalIntent.Cancelled,
+            session.Catalog.Read().Posts.Single(item => item.PostId == "211").OriginalIntent);
+    }
+
+    [Fact]
+    public async Task StoredCancellationCanSynchronouslyStartAnExplicitRetry()
+    {
+        using TempDirectory directory = new();
+        FakeCdn cdn = new();
+        BooruPostClaim post = Post("212", Bytes(38), cdn);
+        await using (Session initial = new(directory.Path, cdn))
+        {
+            await initial.Queue.SetPausedAsync(true);
+            await initial.Booru.AdmitAsync(post, BooruFindingKind.OneShot);
+        }
+
+        await using Session session = new(directory.Path, cdn);
+        await session.Queue.SetPausedAsync(true);
+        Task<BooruOriginalAdmission>? retryTask = null;
+        session.Booru.OutcomeChanged += outcome =>
+        {
+            if (outcome.PostId == "212" && outcome.State == BooruOriginalDownloadState.Cancelled)
+                retryTask = session.Booru.RetryAsync("212");
+        };
+
+        Assert.True(await session.Booru.CancelAsync("212").WaitAsync(TestWait.Timeout));
+        BooruOriginalAdmission retry = await (retryTask ?? throw new InvalidOperationException("Retry callback was not raised."))
+            .WaitAsync(TestWait.Timeout);
+        Assert.Equal(BooruOriginalAdmissionStatus.Queued, retry.Status);
+        await session.Queue.StopAllAsync().WaitAsync(TestWait.Timeout);
+        Assert.Equal(BooruOriginalDownloadState.Interrupted,
+            (await retry.Completion.WaitAsync(TestWait.Timeout)).State);
+    }
+
 }
