@@ -25,7 +25,11 @@ internal enum PrivateTagStoreError
     InvalidThread,
     InvalidTarget,
     CapacityExceeded,
-    RevisionOverflow
+    RevisionOverflow,
+    /// <summary>A local media write named a registration the registry no longer resolves the file to.</summary>
+    StaleTarget,
+    /// <summary>The host could not revalidate a loose file (gone, changed, no longer loose) before adding a tag.</summary>
+    TargetUnavailable
 }
 
 /// <summary>A rejected tag operation. Nothing was written; the message is a constant.</summary>
@@ -44,22 +48,63 @@ internal sealed class PrivateTagStoreException : Exception
 /// </summary>
 internal sealed class PrivateTagStoreSnapshot
 {
+    private Dictionary<LocalMediaTagTarget, HashSet<TagId>>? _localIndex;
+
     internal PrivateTagStoreSnapshot(long revision, string fingerprint, IEnumerable<PrivateTagDefinition> tags,
-        IEnumerable<PrivateThreadTagAssignment> threads, IEnumerable<PrivateMediaTagAssignment> media)
+        IEnumerable<PrivateThreadTagAssignment> threads, IEnumerable<PrivateMediaTagAssignment> media,
+        LocalMediaRegistry? localRegistry = null, IEnumerable<PrivateLocalMediaTagAssignment>? local = null, int formatVersion = 1)
     {
         Revision = revision;
         Fingerprint = fingerprint;
         Tags = Array.AsReadOnly(tags.ToArray());
         ThreadAssignments = Array.AsReadOnly(threads.ToArray());
         MediaAssignments = Array.AsReadOnly(media.ToArray());
+        LocalRegistry = localRegistry ?? LocalMediaRegistry.Empty;
+        LocalAssignments = Array.AsReadOnly((local ?? Array.Empty<PrivateLocalMediaTagAssignment>()).ToArray());
+        FormatVersion = formatVersion;
     }
 
     internal long Revision { get; }
     /// <summary>SHA-256 of the committed file bytes; the empty store hashes zero bytes.</summary>
     internal string Fingerprint { get; }
+    /// <summary>1 for a v1 (or missing) document, 2 once a local write upgraded it. v2 stays v2.</summary>
+    internal int FormatVersion { get; }
     internal IReadOnlyList<PrivateTagDefinition> Tags { get; }
     internal IReadOnlyList<PrivateThreadTagAssignment> ThreadAssignments { get; }
+    /// <summary>Exact bound attachment-version assignments only. Local assignments are in <see cref="LocalAssignments"/>.</summary>
     internal IReadOnlyList<PrivateMediaTagAssignment> MediaAssignments { get; }
+    /// <summary>Registered loose occurrences. A registration without assignments is kept so adoption stays idempotent.</summary>
+    internal LocalMediaRegistry LocalRegistry { get; }
+    internal IReadOnlyList<PrivateLocalMediaTagAssignment> LocalAssignments { get; }
+
+    /// <summary>How the registry relates to this observation. Read-only; nothing is registered.</summary>
+    internal LocalMediaResolution ResolveLocal(LocalMediaObservation observation) => LocalRegistry.Resolve(observation);
+
+    /// <summary>Tags assigned to exactly this local occurrence revision, in vocabulary order.</summary>
+    internal IReadOnlyList<PrivateTagDefinition> TagsOf(LocalMediaTagTarget target)
+    {
+        _localIndex ??= LocalAssignments.GroupBy(item => item.Target)
+            .ToDictionary(group => group.Key, group => group.Select(item => item.TagId).ToHashSet());
+        return _localIndex.TryGetValue(target, out HashSet<TagId>? ids)
+            ? Tags.Where(item => ids.Contains(item.Id)).ToArray() : Array.Empty<PrivateTagDefinition>();
+    }
+
+    /// <summary>
+    /// Tags of the subject: the exact bound version, or for a local file the registration the caller saw
+    /// (<see cref="MediaTagSubject.Local.Expected"/>) or, when it saw none, whatever the observation resolves to now.
+    /// Thread tags are never included.
+    /// </summary>
+    internal IReadOnlyList<PrivateTagDefinition> TagsOf(MediaTagSubject subject) => subject switch
+    {
+        MediaTagSubject.Bound bound => TagsOf(bound.Target),
+        MediaTagSubject.Local { Expected: { } expected } => TagsOf(expected),
+        MediaTagSubject.Local local => ResolveLocal(local.Observation) is { IsRegistered: true, Target: { } target }
+            ? TagsOf(target) : Array.Empty<PrivateTagDefinition>(),
+        _ => throw new ArgumentNullException(nameof(subject))
+    };
+
+    /// <summary>True when exactly this subject carries the tag (same rules as <see cref="TagsOf(MediaTagSubject)"/>).</summary>
+    internal bool Carries(TagId tag, MediaTagSubject subject) => TagsOf(subject).Any(item => item.Id == tag);
 
     internal PrivateTagDefinition? Find(TagId id) => Tags.FirstOrDefault(item => item.Id == id);
 
@@ -77,9 +122,18 @@ internal sealed class PrivateTagStoreSnapshot
     /// </summary>
     internal int DistinctMediaCount(TagId tag) => DistinctMediaCounts().GetValueOrDefault(tag);
 
-    /// <summary>Distinct files per tag in one pass; tags without media are absent.</summary>
-    internal IReadOnlyDictionary<TagId, int> DistinctMediaCounts() => MediaAssignments.GroupBy(item => (TagId)item.TagId)
-        .ToDictionary(group => group.Key, group => group.Select(item => item.Target.Identity).Distinct().Count());
+    /// <summary>
+    /// Distinct files per tag in one pass; tags without media are absent. Bound files count by identity, local files by
+    /// occurrence revision; a bound and a local assignment are always two (different namespaces, never merged by hash).
+    /// </summary>
+    internal IReadOnlyDictionary<TagId, int> DistinctMediaCounts()
+    {
+        Dictionary<TagId, int> counts = MediaAssignments.GroupBy(item => (TagId)item.TagId)
+            .ToDictionary(group => group.Key, group => group.Select(item => item.Target.Identity).Distinct().Count());
+        foreach (IGrouping<TagId, PrivateLocalMediaTagAssignment> group in LocalAssignments.GroupBy(item => item.TagId))
+            counts[group.Key] = counts.GetValueOrDefault(group.Key) + group.Select(item => item.Target).Distinct().Count();
+        return counts;
+    }
 
     /// <summary>Tags assigned to exactly this media version, in vocabulary order. Thread tags are not included.</summary>
     internal IReadOnlyList<PrivateTagDefinition> TagsOf(PrivateMediaTagTarget target)
@@ -93,8 +147,12 @@ internal sealed class PrivateTagStoreSnapshot
 /// <summary>Result of one accepted call. <see cref="Changed"/> is false for an idempotent no-op.</summary>
 internal sealed record PrivateTagCommit(bool Changed, TagId Tag, PrivateTagStoreSnapshot Snapshot);
 
+/// <summary>Points of one changing write where tests inject a failure or a simulated crash.</summary>
+internal enum PrivateTagWritePhase { BeforeBackupCheck, BeforeReplace, AfterReplace }
+
 /// <summary>
-/// Profile-owned persistence for own tags (contract: private-tag-store-v1). One JSON document,
+/// Profile-owned persistence for own tags (contracts: private-tag-store-v1, private-tag-store-v2 with the
+/// local-media-occurrence-v1 registry). One JSON document,
 /// rewritten atomically with a backup, guarded by the profile lease and store-writer admission.
 /// Invalid or newer documents are never overwritten. No merge of tags, no transfer, no source
 /// tags and no archive-existence checks live here.
@@ -106,8 +164,15 @@ internal sealed class PrivateTagStore
     internal const int MaximumTags = PrivateTagCatalog.MaximumDefinitions;
     internal const int MaximumThreadAssignments = ThreadTagProjection.MaximumAssignments;
     internal const int MaximumMediaAssignments = MediaTagProjection.MaximumAssignments;
+    internal const int MaximumLocalOccurrences = 50_000;
+    internal const int MaximumLocalRevisionsPerOccurrence = 64;
+    internal const int MaximumLocalRevisions = 100_000;
+    internal const int MaximumLocalAssignments = 50_000;
     internal const int MaximumBytes = 32 * 1024 * 1024;
-    private const int CurrentVersion = 1;
+    // v1: vocabulary, thread and bound media assignments. v2 adds the local occurrence registry and local assignments.
+    // A v1 document is read without rewriting it; only a write that commits local data upgrades it, and v2 stays v2.
+    private const int BoundOnlyVersion = 1;
+    private const int LocalVersion = 2;
     private const string Invalid = "The private tag index is invalid.";
 
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
@@ -124,16 +189,94 @@ internal sealed class PrivateTagStore
 
     private sealed class Model
     {
+        internal int Version = BoundOnlyVersion;
         internal long Revision;
         internal PrivateTagCatalog Catalog = new();
         internal readonly List<PrivateThreadTagAssignment> Threads = new();
         internal readonly HashSet<PrivateThreadTagAssignment> ThreadSet = new();
         internal readonly List<PrivateMediaTagAssignment> Media = new();
         internal readonly HashSet<PrivateMediaTagAssignment> MediaSet = new();
+        internal readonly List<LocalMediaOccurrence> Occurrences = new();
+        internal readonly Dictionary<LocalMediaLocator, int> OccurrenceByLocator = new();
+        internal readonly Dictionary<LocalMediaOccurrenceId, int> OccurrenceById = new();
+        internal readonly HashSet<Guid> LocalIds = new();
+        internal int LocalRevisionCount;
+        internal readonly List<PrivateLocalMediaTagAssignment> Local = new();
+        internal readonly HashSet<PrivateLocalMediaTagAssignment> LocalSet = new();
+
+        internal bool HasLocalData => Occurrences.Count > 0 || Local.Count > 0;
 
         internal PrivateTagStoreSnapshot Snapshot(byte[] bytes) =>
-            new(Revision, Convert.ToHexString(SHA256.HashData(bytes)), Catalog.Definitions, Threads, Media);
+            new(Revision, Convert.ToHexString(SHA256.HashData(bytes)), Catalog.Definitions, Threads, Media,
+                new LocalMediaRegistry(Occurrences), Local, Version);
+
+        internal LocalMediaResolution Resolve(LocalMediaObservation observation) => LocalMediaRegistry.Resolve(
+            OccurrenceByLocator.TryGetValue(observation.Locator, out int index) ? Occurrences[index] : null, observation);
+
+        internal bool Registered(LocalMediaTagTarget target) => OccurrenceById.TryGetValue(target.Occurrence, out int index)
+            && Occurrences[index].Find(target.Revision) != null;
+
+        /// <summary>
+        /// Registers the observed file: a new occurrence for an unknown locator, or a new revision of the occurrence at that
+        /// locator for an asset record it has not seen. Only called inside a write that also publishes an assignment.
+        /// </summary>
+        internal LocalMediaTagTarget Adopt(LocalMediaObservation observation)
+        {
+            LocalMediaResolution resolution = Resolve(observation);
+            if (resolution is { IsRegistered: true, Target: { } known }) return known;
+            if (resolution.State == LocalMediaResolutionState.Conflict)
+                throw new PrivateTagStoreException(PrivateTagStoreError.InvalidTarget);
+            if (LocalRevisionCount >= MaximumLocalRevisions)
+                throw new PrivateTagStoreException(PrivateTagStoreError.CapacityExceeded);
+            LocalMediaRevision revision = new(new LocalMediaRevisionId(NewId()), observation.AssetId, observation.Length, observation.Sha256);
+            if (resolution.State == LocalMediaResolutionState.NewRevision)
+            {
+                int index = OccurrenceByLocator[observation.Locator];
+                if (Occurrences[index].Revisions.Count >= MaximumLocalRevisionsPerOccurrence)
+                    throw new PrivateTagStoreException(PrivateTagStoreError.CapacityExceeded);
+                Occurrences[index] = Occurrences[index].WithRevision(revision);
+                LocalRevisionCount++;
+                return new(Occurrences[index].Id, revision.Id);
+            }
+            if (Occurrences.Count >= MaximumLocalOccurrences)
+                throw new PrivateTagStoreException(PrivateTagStoreError.CapacityExceeded);
+            LocalMediaOccurrence occurrence = new(new LocalMediaOccurrenceId(NewId()), observation.Locator, [revision]);
+            AddOccurrence(occurrence);
+            return new(occurrence.Id, revision.Id);
+        }
+
+        internal void AddOccurrence(LocalMediaOccurrence occurrence)
+        {
+            OccurrenceByLocator.Add(occurrence.Locator, Occurrences.Count);
+            OccurrenceById.Add(occurrence.Id, Occurrences.Count);
+            Occurrences.Add(occurrence);
+            LocalRevisionCount += occurrence.Revisions.Count;
+        }
+
+        /// <summary>Drops the given occurrences with every assignment that names them; tags stay.</summary>
+        internal int RemoveOccurrences(Func<LocalMediaOccurrence, bool> selected)
+        {
+            HashSet<LocalMediaOccurrenceId> gone = Occurrences.Where(selected).Select(item => item.Id).ToHashSet();
+            if (gone.Count == 0) return 0;
+            int removed = Local.RemoveAll(item => gone.Contains(item.Target.Occurrence));
+            LocalSet.RemoveWhere(item => gone.Contains(item.Target.Occurrence));
+            List<LocalMediaOccurrence> kept = Occurrences.Where(item => !gone.Contains(item.Id)).ToList();
+            Occurrences.Clear(); OccurrenceByLocator.Clear(); OccurrenceById.Clear(); LocalRevisionCount = 0;
+            foreach (LocalMediaOccurrence occurrence in kept) AddOccurrence(occurrence);
+            return removed + gone.Count;
+        }
+
+        private Guid NewId()
+        {
+            // Occurrence and revision IDs are unique across the whole registry document.
+            Guid id;
+            do id = Guid.NewGuid(); while (!LocalIds.Add(id));
+            return id;
+        }
     }
+
+    /// <summary>Test seam: called at each phase of a changing write; throwing there aborts (or, after the replace, simulates a crash).</summary>
+    internal Action<PrivateTagWritePhase>? WritePhaseForTests { get; init; }
 
     internal PrivateTagStoreSnapshot ReadSnapshot() => _lease.RunExclusive(() =>
     {
@@ -285,6 +428,159 @@ internal sealed class PrivateTagStore
     }
 
     /// <summary>
+    /// One tag on several media subjects (bound versions and/or loose local files) in one write: all or none.
+    /// Bound subjects behave exactly like <see cref="SetMediaBatch"/>. A local add registers the observed file in
+    /// the same write when it is not registered yet (new occurrence, or new revision of the occurrence at that
+    /// locator), so a published assignment never names an unpublished identity. A local subject that carries the
+    /// registration the caller saw is rejected as <see cref="PrivateTagStoreError.StaleTarget"/> when the registry
+    /// now resolves the file to anything else. Local removal removes exactly the seen (or resolved) target; it
+    /// never touches another occurrence, revision, equal bytes or a bound assignment. The store does not verify
+    /// files: the host revalidates membership and bytes of every local add before calling this.
+    /// </summary>
+    internal PrivateTagCommit SetMediaSubjects(TagId tag, IReadOnlyCollection<MediaTagSubject> subjects, bool assigned,
+        long? expectedRevision = null, CancellationToken token = default)
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(token);
+        return SetMediaSubjectsAdmitted(tag, subjects, assigned, admission, expectedRevision, token);
+    }
+
+    internal PrivateTagCommit SetMediaSubjectsAdmitted(TagId tag, IReadOnlyCollection<MediaTagSubject> subjects, bool assigned,
+        ProfileAdmissionToken admission, long? expectedRevision = null, CancellationToken token = default)
+    {
+        MediaTagSubject[] frozen = RequireSubjects(subjects);
+        return Mutate(admission, expectedRevision, token, model =>
+        {
+            RequireKnown(model, tag);
+            return (ApplySubjects(model, tag, frozen, assigned), tag);
+        });
+    }
+
+    /// <summary>
+    /// Create-or-get a tag by name and give it to the subjects in ONE write, so a failed assignment can never leave a
+    /// newly created, unassigned tag behind. Same subject rules as <see cref="SetMediaSubjects"/>.
+    /// </summary>
+    internal PrivateTagCommit DefineAndSetMediaSubjects(string? name, IReadOnlyCollection<MediaTagSubject> subjects,
+        long? expectedRevision = null, CancellationToken token = default)
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(token);
+        return DefineAndSetMediaSubjectsAdmitted(name, subjects, admission, expectedRevision, token);
+    }
+
+    internal PrivateTagCommit DefineAndSetMediaSubjectsAdmitted(string? name, IReadOnlyCollection<MediaTagSubject> subjects,
+        ProfileAdmissionToken admission, long? expectedRevision = null, CancellationToken token = default)
+    {
+        PrivateTagName parsed = RequireName(name);
+        MediaTagSubject[] frozen = RequireSubjects(subjects);
+        return Mutate(admission, expectedRevision, token, model =>
+        {
+            bool defined = false;
+            TagId id;
+            if (model.Catalog.Definitions.FirstOrDefault(item => item.Name == parsed) is { } existing) id = existing.Id;
+            else
+            {
+                id = new(Guid.NewGuid());
+                if (!model.Catalog.TryDefine(id, parsed, model.Catalog.Revision, out PrivateTagCatalog next,
+                    out PrivateTagCatalogError error))
+                    throw new PrivateTagStoreException(Map(error));
+                model.Catalog = next;
+                defined = true;
+            }
+            return (ApplySubjects(model, id, frozen, assigned: true) | defined, id);
+        });
+    }
+
+    /// <summary>
+    /// Removes exactly these local assignments (for example orphans whose file can no longer be found), in one write
+    /// bound to the revision the caller looked at. Registrations and tag definitions stay. Absent ones change nothing.
+    /// </summary>
+    internal PrivateTagCommit RemoveLocalAssignmentsAdmitted(IReadOnlyCollection<PrivateLocalMediaTagAssignment> assignments,
+        ProfileAdmissionToken admission, long? expectedRevision = null, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(assignments);
+        if (assignments.Any(item => item is null)) throw new PrivateTagStoreException(PrivateTagStoreError.InvalidTarget);
+        HashSet<PrivateLocalMediaTagAssignment> gone = assignments.ToHashSet();
+        return Mutate(admission, expectedRevision, token, model =>
+        {
+            int removed = model.Local.RemoveAll(gone.Contains);
+            model.LocalSet.ExceptWith(gone);
+            return (removed > 0, default);
+        });
+    }
+
+    private static MediaTagSubject[] RequireSubjects(IReadOnlyCollection<MediaTagSubject> subjects)
+    {
+        ArgumentNullException.ThrowIfNull(subjects);
+        MediaTagSubject[] frozen = subjects.ToArray();
+        foreach (MediaTagSubject subject in frozen)
+        {
+            bool valid = subject switch
+            {
+                MediaTagSubject.Bound bound => IsTarget(bound.Target),
+                MediaTagSubject.Local local => local.Observation is not null
+                    && (local.Expected is not { } seen || seen.Occurrence.Value != Guid.Empty && seen.Revision.Value != Guid.Empty),
+                _ => false
+            };
+            if (!valid) throw new PrivateTagStoreException(PrivateTagStoreError.InvalidTarget);
+        }
+        return frozen;
+    }
+
+    private static bool ApplySubjects(Model model, TagId tag, IReadOnlyList<MediaTagSubject> subjects, bool assigned)
+    {
+        bool changed = false;
+        List<PrivateMediaTagAssignment> bound = subjects.OfType<MediaTagSubject.Bound>()
+            .Select(item => new PrivateMediaTagAssignment(tag, item.Target)).Distinct().ToList();
+        if (assigned)
+        {
+            List<PrivateMediaTagAssignment> fresh = bound.Where(item => !model.MediaSet.Contains(item)).ToList();
+            if (model.Media.Count + fresh.Count > MaximumMediaAssignments)
+                throw new PrivateTagStoreException(PrivateTagStoreError.CapacityExceeded);
+            foreach (PrivateMediaTagAssignment item in fresh) { model.Media.Add(item); model.MediaSet.Add(item); }
+            changed |= fresh.Count > 0;
+        }
+        else if (bound.Count > 0)
+        {
+            // By file, not by exact key: see SetMedia.
+            HashSet<(PrivateMediaTagId, MediaIdentity)> gone = bound.Select(item => (item.TagId, item.Target.Identity)).ToHashSet();
+            int removed = model.Media.RemoveAll(item => gone.Contains((item.TagId, item.Target.Identity)));
+            model.MediaSet.RemoveWhere(item => gone.Contains((item.TagId, item.Target.Identity)));
+            changed |= removed > 0;
+        }
+
+        foreach (MediaTagSubject.Local local in subjects.OfType<MediaTagSubject.Local>().Distinct())
+        {
+            LocalMediaResolution resolution = model.Resolve(local.Observation);
+            bool asSeen = local.Expected is not { } seen || resolution.IsRegistered && resolution.Target == seen;
+            if (assigned)
+            {
+                if (resolution.State == LocalMediaResolutionState.Conflict)
+                    throw new PrivateTagStoreException(PrivateTagStoreError.InvalidTarget);
+                // Never write to an occurrence or revision other than the one the caller looked at.
+                if (!asSeen) throw new PrivateTagStoreException(PrivateTagStoreError.StaleTarget);
+                LocalMediaTagTarget target = resolution is { IsRegistered: true, Target: { } known } ? known : model.Adopt(local.Observation);
+                PrivateLocalMediaTagAssignment assignment = new(tag, target);
+                if (model.LocalSet.Contains(assignment)) continue;
+                if (model.Local.Count >= MaximumLocalAssignments)
+                    throw new PrivateTagStoreException(PrivateTagStoreError.CapacityExceeded);
+                model.Local.Add(assignment);
+                model.LocalSet.Add(assignment);
+                changed = true;
+            }
+            else
+            {
+                // Remove what the caller saw, even when its file no longer resolves there (an orphan).
+                LocalMediaTagTarget? target = local.Expected ?? (resolution.IsRegistered ? resolution.Target : null);
+                if (target is not { } exact) continue;
+                PrivateLocalMediaTagAssignment assignment = new(tag, exact);
+                if (!model.LocalSet.Remove(assignment)) continue;
+                model.Local.Remove(assignment);
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    /// <summary>
     /// Adds, for each handover, the media assignments of its earlier revision key to the new key, in one write.
     /// Only an assignment whose target names the same thread, post, position and bytes moves; the earlier
     /// assignments stay. Existing assignments are not duplicated, so repeating a handover changes nothing.
@@ -350,11 +646,14 @@ internal sealed class PrivateTagStore
             model.Catalog = rebuilt;
             model.Threads.RemoveAll(item => (TagId)item.TagId == tag);
             model.Media.RemoveAll(item => (TagId)item.TagId == tag);
+            model.Local.RemoveAll(item => item.TagId == tag);
+            model.LocalSet.RemoveWhere(item => item.TagId == tag);
             return (true, tag);
         });
 
     /// <summary>
-    /// Drops every thread assignment and every media assignment that belongs to the given threads.
+    /// Drops every thread assignment and every media assignment that belongs to the given threads, including the local
+    /// occurrences those threads own (registration and assignments: a later re-archive is an independent occurrence).
     /// Tags themselves stay in the vocabulary. Used after a thread was permanently deleted.
     /// The returned commit carries no tag.
     /// </summary>
@@ -372,7 +671,8 @@ internal sealed class PrivateTagStore
         return Mutate(admission, null, token, model =>
         {
             int removed = model.Threads.RemoveAll(item => selected.Contains(item.Thread))
-                + model.Media.RemoveAll(item => selected.Contains(item.Target.Reference.Resource));
+                + model.Media.RemoveAll(item => selected.Contains(item.Target.Reference.Resource))
+                + model.RemoveOccurrences(occurrence => selected.Contains(occurrence.Locator.Thread));
             return (removed > 0, default);
         });
     }
@@ -391,14 +691,20 @@ internal sealed class PrivateTagStore
             if (!changed) return new PrivateTagCommit(false, tag, model.Snapshot(bytes));
             if (model.Revision == long.MaxValue)
                 throw new PrivateTagStoreException(PrivateTagStoreError.RevisionOverflow);
+            WritePhaseForTests?.Invoke(PrivateTagWritePhase.BeforeBackupCheck);
             // A newer or damaged backup must never be rotated away by this writer.
             try { ReadDocument(_path + ".bak"); }
             catch (FileNotFoundException) { }
             model.Revision++;
+            // The first committed local data upgrades the document; afterwards it stays v2 (never silently downgraded).
+            if (model.HasLocalData) model.Version = LocalVersion;
             byte[] next = Serialize(model);
             if (next.Length > MaximumBytes)
                 throw new PrivateTagStoreException(PrivateTagStoreError.CapacityExceeded);
+            WritePhaseForTests?.Invoke(PrivateTagWritePhase.BeforeReplace);
+            // One atomic replace publishes registrations together with the assignments that name them.
             AtomicJsonFile.WriteAllText(_path, StrictUtf8.GetString(next), backupCurrentFile: true, token);
+            WritePhaseForTests?.Invoke(PrivateTagWritePhase.AfterReplace);
             return new PrivateTagCommit(true, tag, model.Snapshot(next));
         });
     }
@@ -487,9 +793,16 @@ internal sealed class PrivateTagStore
             if (json.Length > 0 && json[0] == '﻿') json = json[1..];
             using JsonDocument parsed = JsonDocument.Parse(json);
             JsonElement root = parsed.RootElement;
-            CheckObject(root, ["Version", "Revision", "Tags", "Threads", "Media"]);
-            if (root.GetProperty("Version").GetInt32() != CurrentVersion) throw new InvalidDataException(Invalid);
-            Model model = new() { Revision = root.GetProperty("Revision").GetInt64() };
+            if (root.ValueKind != JsonValueKind.Object) throw new InvalidDataException(Invalid);
+            // Unknown and newer versions are rejected; the caller then never overwrites the file.
+            int version = root.GetProperty("Version").GetInt32();
+            CheckObject(root, version switch
+            {
+                BoundOnlyVersion => ["Version", "Revision", "Tags", "Threads", "Media"],
+                LocalVersion => ["Version", "Revision", "Tags", "Threads", "Media", "LocalOccurrences", "LocalMedia"],
+                _ => throw new InvalidDataException(Invalid)
+            });
+            Model model = new() { Version = version, Revision = root.GetProperty("Revision").GetInt64() };
             if (model.Revision < 0) throw new InvalidDataException(Invalid);
 
             foreach (JsonElement item in Items(root.GetProperty("Tags"), MaximumTags))
@@ -539,11 +852,77 @@ internal sealed class PrivateTagStore
                     throw new InvalidDataException(Invalid);
                 model.Media.Add(assignment);
             }
+            if (version == LocalVersion) ParseLocal(root, model);
             return model;
         }
         catch (Exception error) when (error is JsonException or DecoderFallbackException or ArgumentException
             or InvalidOperationException or FormatException or OverflowException or KeyNotFoundException)
         { throw new InvalidDataException(Invalid); }
+    }
+
+    private static void ParseLocal(JsonElement root, Model model)
+    {
+        foreach (JsonElement item in Items(root.GetProperty("LocalOccurrences"), MaximumLocalOccurrences))
+        {
+            CheckObject(item, ["Id", "Source", "Board", "Thread", "Directory", "RequestedFile", "Revisions"]);
+            Guid id = ReadGuid(item.GetProperty("Id"));
+            ResourceId thread = ReadThread(item);
+            string directory = Text(item.GetProperty("Directory")), file = Text(item.GetProperty("RequestedFile"));
+            if (!model.LocalIds.Add(id) || !IsThread(thread)
+                || !LocalMediaObservation.ValidText(directory, LocalMediaObservation.MaximumDirectoryLength)
+                || !LocalMediaObservation.ValidText(file, LocalMediaObservation.MaximumFileNameLength))
+                throw new InvalidDataException(Invalid);
+            JsonElement revisions = item.GetProperty("Revisions");
+            if (revisions.ValueKind != JsonValueKind.Array || revisions.GetArrayLength() == 0) throw new InvalidDataException(Invalid);
+            List<LocalMediaRevision> parsed = new();
+            HashSet<string> assets = new(StringComparer.Ordinal);
+            foreach (JsonElement revision in Items(revisions, MaximumLocalRevisionsPerOccurrence))
+            {
+                CheckObject(revision, ["Id", "AssetId", "Length", "Sha256"]);
+                Guid revisionId = ReadGuid(revision.GetProperty("Id"));
+                string asset = Text(revision.GetProperty("AssetId")), sha = Text(revision.GetProperty("Sha256"));
+                long length = revision.GetProperty("Length").GetInt64();
+                if (!model.LocalIds.Add(revisionId) || !LocalMediaObservation.CanonicalHex(asset) || !assets.Add(asset)
+                    || length < 0 || !LocalMediaObservation.CanonicalHex(sha))
+                    throw new InvalidDataException(Invalid);
+                parsed.Add(new LocalMediaRevision(new LocalMediaRevisionId(revisionId), asset, length, sha));
+            }
+            LocalMediaLocator locator = new(thread, directory, file);
+            // One occurrence per locator; equal bytes or asset IDs at other locators are other occurrences.
+            if (model.OccurrenceByLocator.ContainsKey(locator) || model.LocalRevisionCount + parsed.Count > MaximumLocalRevisions)
+                throw new InvalidDataException(Invalid);
+            model.AddOccurrence(new LocalMediaOccurrence(new LocalMediaOccurrenceId(id), locator, parsed));
+        }
+        foreach (JsonElement item in Items(root.GetProperty("LocalMedia"), MaximumLocalAssignments))
+        {
+            CheckObject(item, ["Tag", "Occurrence", "Revision"]);
+            TagId tag = ReadTagId(item.GetProperty("Tag"));
+            LocalMediaTagTarget target = new(new LocalMediaOccurrenceId(ReadGuid(item.GetProperty("Occurrence"))),
+                new LocalMediaRevisionId(ReadGuid(item.GetProperty("Revision"))));
+            PrivateLocalMediaTagAssignment assignment = new(tag, target);
+            // Every published assignment names a committed registration of the same document.
+            if (!model.Catalog.Contains(tag) || !model.Registered(target) || !model.LocalSet.Add(assignment))
+                throw new InvalidDataException(Invalid);
+            model.Local.Add(assignment);
+        }
+    }
+
+    /// <summary>
+    /// Validates complete document bytes with the canonical parser (v1 or v2), for protection inventories that must
+    /// not accept what the store itself would reject. Throws <see cref="InvalidDataException"/>; returns the version.
+    /// </summary>
+    internal static int ValidateDocumentBytes(byte[] bytes)
+    {
+        ArgumentNullException.ThrowIfNull(bytes);
+        return Parse(bytes).Version;
+    }
+
+    /// <summary>The owning archive threads of every local assignment (cleanup protection), each once.</summary>
+    internal static IReadOnlyList<ResourceId> LocalAssignmentOwners(PrivateTagStoreSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        return snapshot.LocalAssignments.Select(item => snapshot.LocalRegistry.Find(item.Target.Occurrence)?.Locator.Thread)
+            .OfType<ResourceId>().Distinct().ToArray();
     }
 
     private static IEnumerable<JsonElement> Items(JsonElement array, int maximum)
@@ -553,14 +932,16 @@ internal sealed class PrivateTagStore
         return array.EnumerateArray();
     }
 
-    private static TagId ReadTagId(JsonElement value)
+    private static TagId ReadTagId(JsonElement value) => new(ReadGuid(value));
+
+    private static Guid ReadGuid(JsonElement value)
     {
         string text = Text(value);
         // Exactly the lowercase hyphenated form this store writes; no alternative spellings.
         if (!Guid.TryParseExact(text, "D", out Guid id) || id == Guid.Empty
             || !string.Equals(id.ToString("D"), text, StringComparison.Ordinal))
             throw new InvalidDataException(Invalid);
-        return new TagId(id);
+        return id;
     }
 
     private static ResourceId ReadThread(JsonElement item) => new(Text(item.GetProperty("Source")),
@@ -586,7 +967,7 @@ internal sealed class PrivateTagStore
         using (Utf8JsonWriter writer = new(buffer))
         {
             writer.WriteStartObject();
-            writer.WriteNumber("Version", CurrentVersion);
+            writer.WriteNumber("Version", model.Version);
             writer.WriteNumber("Revision", model.Revision);
             writer.WriteStartArray("Tags");
             foreach (PrivateTagDefinition tag in model.Catalog.Definitions)
@@ -623,6 +1004,41 @@ internal sealed class PrivateTagStore
                 writer.WriteEndObject();
             }
             writer.WriteEndArray();
+            if (model.Version == LocalVersion)
+            {
+                writer.WriteStartArray("LocalOccurrences");
+                foreach (LocalMediaOccurrence occurrence in model.Occurrences)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteString("Id", occurrence.Id.Value.ToString("D"));
+                    WriteThread(writer, occurrence.Locator.Thread);
+                    writer.WriteString("Directory", occurrence.Locator.Directory);
+                    writer.WriteString("RequestedFile", occurrence.Locator.RequestedFileName);
+                    writer.WriteStartArray("Revisions");
+                    foreach (LocalMediaRevision revision in occurrence.Revisions)
+                    {
+                        writer.WriteStartObject();
+                        writer.WriteString("Id", revision.Id.Value.ToString("D"));
+                        writer.WriteString("AssetId", revision.AssetId);
+                        writer.WriteNumber("Length", revision.Length);
+                        writer.WriteString("Sha256", revision.Sha256);
+                        writer.WriteEndObject();
+                    }
+                    writer.WriteEndArray();
+                    writer.WriteEndObject();
+                }
+                writer.WriteEndArray();
+                writer.WriteStartArray("LocalMedia");
+                foreach (PrivateLocalMediaTagAssignment item in model.Local)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteString("Tag", item.TagId.Value.ToString("D"));
+                    writer.WriteString("Occurrence", item.Target.Occurrence.Value.ToString("D"));
+                    writer.WriteString("Revision", item.Target.Revision.Value.ToString("D"));
+                    writer.WriteEndObject();
+                }
+                writer.WriteEndArray();
+            }
             writer.WriteEndObject();
         }
         return buffer.WrittenSpan.ToArray();
