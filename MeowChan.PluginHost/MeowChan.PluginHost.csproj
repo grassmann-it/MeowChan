@@ -15,5 +15,6 @@
     <ProjectReference Include="../libmeowchan/libmeowchan.csproj" />
     <Compile Include="../Shared/PluginProtocol/**/*.cs" Link="Protocol/%(Filename)%(Extension)" />
     <InternalsVisibleTo Include="MeowChan.PluginFilters.Tests" />
+    <InternalsVisibleTo Include="MeowChan.PluginRuntime.Tests" />
   </ItemGroup>
 </Project>

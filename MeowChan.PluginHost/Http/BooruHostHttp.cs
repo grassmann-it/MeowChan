@@ -1,0 +1,399 @@
+using System.IO.Compression;
+using System.Net;
+using System.Net.Http.Headers;
+using MeowChan.Http;
+using MeowChan.PluginHost.Sources.Booru;
+using MeowChan.PluginSdk;
+
+namespace MeowChan.PluginHost.Http;
+
+/// <summary>
+/// Bounded metadata transport for post-search sources. This path intentionally does not
+/// reuse <see cref="RequestPolicyHandler"/>: booru retries, pacing and job budgets differ
+/// from the ordinary chan policy.
+/// </summary>
+public sealed class BooruHostHttp : IDisposable
+{
+    public const int MaximumWireBytes = 2 * 1024 * 1024;
+    public const int MaximumDecodedBytes = 4 * 1024 * 1024;
+    public const int MaximumSendsPerJob = BooruJob.MaximumSends;
+    public const int MaximumSearchPage = 5;
+    public const int MaximumSearchLimit = 20;
+    public static readonly TimeSpan MinimumStartSpacing = TimeSpan.FromSeconds(1);
+    public static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(2);
+    public static readonly TimeSpan MaximumJobLifetime = BooruJob.MaximumLifetime;
+    public static readonly TimeSpan ResponseTimeout = TimeSpan.FromSeconds(15);
+    public static readonly TimeSpan MinimumCooldown = TimeSpan.FromSeconds(60);
+
+    private readonly HttpClient _transport;
+    private readonly bool _disposeTransport;
+    private readonly TimeProvider _clock;
+    private readonly string _userAgent;
+    private readonly IReadOnlyDictionary<string, SourceDescription> _sources;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, SourceState> _states = new(StringComparer.Ordinal);
+
+    public BooruHostHttp(HttpClient transport, RequestPolicyState policy, IReadOnlyList<SourceDescription> sources,
+        string? danbooruUserId = null, string? productVersion = null, bool disposeTransport = false)
+    {
+        _transport = transport ?? throw new ArgumentNullException(nameof(transport));
+        ArgumentNullException.ThrowIfNull(policy);
+        _clock = policy.TimeProvider;
+        _disposeTransport = disposeTransport;
+        _sources = (sources ?? throw new ArgumentNullException(nameof(sources)))
+            .Where(source => source is not null)
+            .ToDictionary(source => source.SourceId, StringComparer.Ordinal);
+        _userAgent = BooruUserAgent.Build(productVersion ?? BooruUserAgent.ProductVersion(), danbooruUserId);
+    }
+
+    internal IReadOnlyDictionary<string, SourceDescription> Sources => _sources;
+    internal TimeProvider TimeProvider => _clock;
+
+    internal async Task<HostHttpResult> SendAsync(HostHttpRequest request, SourceDescription source,
+        BooruJob job, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (source is null || !_sources.TryGetValue(source.SourceId, out SourceDescription? declared)
+            || !ReferenceEquals(source, declared) && source != declared)
+            return Failure("booru-source", "The booru source is not declared by this host.");
+        if (!source.Capabilities.HasFlag(SourceCapabilities.PostSearch))
+            return Failure("booru-source", "The source does not declare post search.");
+        if (!job.IsOpen) return Failure("booru-job", "The booru job is not live.");
+        IReadOnlyList<ValidationIssue> issues = SdkValidation.ValidateHttpRequest(request, source);
+        if (issues.Count > 0) return Failure("http-request", issues[0].Message);
+        if (request.Method != HostHttpMethod.Get)
+            return Failure("http-request", "Booru metadata accepts GET requests only.");
+        if (HasForbiddenTransportDefaults())
+            return Failure("http-request", "The booru transport contains host-owned credentials.");
+        if (job.IsExpired) return Failure("booru-budget", "The booru job budget is exhausted.");
+
+        SourceState state = _states.GetOrAdd(source.SourceId, static _ => new SourceState());
+        bool entered = false;
+        try
+        {
+            await state.SendGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            entered = true;
+            while (true)
+            {
+                if (!job.IsOpen) return Failure("booru-job", "The booru job is not live.");
+                DateTimeOffset now = _clock.GetUtcNow();
+                if (state.CooldownUntil > now)
+                    return new HostHttpDeferred(state.CooldownUntil, "booru-cooldown");
+                if (now >= job.Deadline) return Failure("booru-budget", "The booru job budget is exhausted.");
+
+                DateTimeOffset due = state.NextStart;
+                if (due > now)
+                {
+                    DateTimeOffset waitUntil = due < job.Deadline ? due : job.Deadline;
+                    await DelayUntilAsync(waitUntil, cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
+
+                if (!job.TryReserveSend()) return Failure("booru-budget", "The booru job send budget is exhausted.");
+                state.NextStart = _clock.GetUtcNow() + MinimumStartSpacing;
+                return await SendWithRetryAsync(request, source, job, state, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            if (entered) state.SendGate.Release();
+        }
+    }
+
+    internal bool TryGetCooldown(string sourceId, out DateTimeOffset retryAt)
+    {
+        if (_states.TryGetValue(sourceId, out SourceState? state))
+        {
+            DateTimeOffset now = _clock.GetUtcNow();
+            lock (state.Gate)
+            {
+                if (state.CooldownUntil > now)
+                {
+                    retryAt = state.CooldownUntil;
+                    return true;
+                }
+            }
+        }
+        retryAt = default;
+        return false;
+    }
+
+    private async Task<HostHttpResult> SendWithRetryAsync(HostHttpRequest request, SourceDescription source,
+        BooruJob job, SourceState state, CancellationToken cancellationToken)
+    {
+        bool retried = false;
+        while (true)
+        {
+            HttpResponseMessage? response = null;
+            using AttemptWindow window = new(_clock, cancellationToken,
+                Min(_clock.GetUtcNow() + ResponseTimeout, job.Deadline));
+            try
+            {
+                response = await SendAttemptAsync(request, window.Token).ConfigureAwait(false);
+                if (response.RequestMessage?.RequestUri is Uri actual && actual != request.Url)
+                    return Failure("http-redirect", "Metadata redirects are not followed.");
+
+                byte[] body = await ReadBodyAsync(response.Content, window, cancellationToken).ConfigureAwait(false);
+                int status = (int)response.StatusCode;
+                if (status is >= 300 and <= 399)
+                    return Failure("http-redirect", "Metadata redirects are not followed.", status);
+                if (status is 502 or 503 && !retried)
+                {
+                    retried = true;
+                    DateTimeOffset retryAt = RetryAt(response.Headers.RetryAfter, _clock.GetUtcNow());
+                    if (retryAt >= job.Deadline || job.IsExpired)
+                        return Failure("booru-budget", "The booru job budget is exhausted.", status);
+                    await DelayUntilAsync(retryAt, cancellationToken).ConfigureAwait(false);
+                    if (!job.IsOpen || job.IsExpired) return Failure("booru-budget", "The booru job budget is exhausted.", status);
+                    if (!job.TryReserveSend()) return Failure("booru-budget", "The booru job send budget is exhausted.", status);
+                    state.NextStart = _clock.GetUtcNow() + MinimumStartSpacing;
+                    response.Dispose();
+                    response = null;
+                    continue;
+                }
+                if (status == 429)
+                {
+                    DateTimeOffset cooldown = CooldownUntil(response.Headers.RetryAfter, _clock.GetUtcNow());
+                    lock (state.Gate)
+                        if (cooldown > state.CooldownUntil) state.CooldownUntil = cooldown;
+                    return new HostHttpDeferred(cooldown, "booru-cooldown", status);
+                }
+
+                return new HostHttpResponse(status, request.Url, ReadHeaders(response), body,
+                    new SourceValidators(response.Headers.ETag?.ToString(), response.Content.Headers.LastModified));
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (BooruAttemptTimeoutException exception)
+            {
+                if (job.IsExpired) return Failure("booru-budget", "The booru job budget is exhausted.", exception: exception);
+                return Failure("http-timeout", "The booru metadata response exceeded its 15-second deadline.", exception: exception);
+            }
+            catch (OperationCanceledException exception)
+            {
+                if (job.IsExpired) return Failure("booru-budget", "The booru job budget is exhausted.", exception: exception);
+                return Failure("http-timeout", "The booru metadata response exceeded its 15-second deadline.", exception: exception);
+            }
+            catch (BooruBodyTooLargeException exception)
+            {
+                return Failure("metadata-too-large", "The booru metadata response exceeds its bounded body limit.", exception: exception);
+            }
+            catch (BooruEncodingException exception)
+            {
+                return Failure("http-encoding", "The booru metadata response encoding is not supported.", exception: exception);
+            }
+            catch (InvalidDataException exception)
+            {
+                return Failure("http-encoding", "The booru metadata response encoding is not supported.", exception: exception);
+            }
+            catch (HttpRequestException exception) when (!retried)
+            {
+                retried = true;
+                DateTimeOffset retryAt = _clock.GetUtcNow() + RetryDelay;
+                if (retryAt >= job.Deadline || job.IsExpired)
+                    return Failure("booru-budget", "The booru job budget is exhausted.", exception: exception);
+                await DelayUntilAsync(retryAt, cancellationToken).ConfigureAwait(false);
+                if (!job.IsOpen || job.IsExpired || !job.TryReserveSend())
+                    return Failure("booru-budget", "The booru job budget is exhausted.", exception: exception);
+                state.NextStart = _clock.GetUtcNow() + MinimumStartSpacing;
+                continue;
+            }
+            catch (HttpRequestException exception)
+            {
+                return Failure("http-network", "The booru metadata request failed.", exception: exception);
+            }
+            catch (IOException exception) when (!retried)
+            {
+                retried = true;
+                DateTimeOffset retryAt = _clock.GetUtcNow() + RetryDelay;
+                if (retryAt >= job.Deadline || job.IsExpired)
+                    return Failure("booru-budget", "The booru job budget is exhausted.", exception: exception);
+                await DelayUntilAsync(retryAt, cancellationToken).ConfigureAwait(false);
+                if (!job.IsOpen || job.IsExpired || !job.TryReserveSend())
+                    return Failure("booru-budget", "The booru job budget is exhausted.", exception: exception);
+                state.NextStart = _clock.GetUtcNow() + MinimumStartSpacing;
+                continue;
+            }
+            catch (IOException exception)
+            {
+                return Failure("http-network", "The booru metadata response could not be read.", exception: exception);
+            }
+            finally
+            {
+                response?.Dispose();
+            }
+        }
+    }
+
+    private async Task<HttpResponseMessage> SendAttemptAsync(HostHttpRequest request, CancellationToken token)
+    {
+        using HttpRequestMessage message = new(HttpMethod.Get, request.Url);
+        message.Headers.UserAgent.Clear();
+        message.Headers.UserAgent.ParseAdd(_userAgent);
+        message.Headers.AcceptEncoding.Clear();
+        message.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("identity"));
+        if (request.Headers is not null)
+            foreach ((string name, string value) in request.Headers)
+                message.Headers.TryAddWithoutValidation(name, value);
+        if (request.Validators?.EntityTag is string etag)
+            message.Headers.TryAddWithoutValidation("If-None-Match", etag);
+        if (request.Validators?.LastModified is DateTimeOffset modified)
+            message.Headers.IfModifiedSince = modified;
+        return await _transport.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
+    }
+
+    private async Task<byte[]> ReadBodyAsync(HttpContent content, AttemptWindow window,
+        CancellationToken cancellationToken)
+    {
+        if (content.Headers.ContentLength is long length && length > MaximumWireBytes)
+            throw new BooruBodyTooLargeException();
+
+        await using Stream raw = await content.ReadAsStreamAsync(window.Token).ConfigureAwait(false);
+        using MemoryStream wire = new();
+        byte[] chunk = new byte[64 * 1024];
+        while (true)
+        {
+            int read;
+            try { read = await raw.ReadAsync(chunk, window.Token).ConfigureAwait(false); }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (OperationCanceledException exception) when (window.Expired) { throw new BooruAttemptTimeoutException(exception); }
+            if (read == 0) break;
+            if (wire.Length + read > MaximumWireBytes) throw new BooruBodyTooLargeException();
+            await wire.WriteAsync(chunk.AsMemory(0, read), window.Token).ConfigureAwait(false);
+        }
+
+        Stream decoded = new MemoryStream(wire.ToArray(), writable: false);
+        try
+        {
+            if (content.Headers.ContentEncoding.Count > 2) throw new BooruEncodingException();
+            foreach (string encoding in content.Headers.ContentEncoding.Reverse())
+                decoded = encoding.ToLowerInvariant() switch
+                {
+                    "identity" => decoded,
+                    "gzip" => new GZipStream(decoded, CompressionMode.Decompress),
+                    "deflate" => new DeflateStream(decoded, CompressionMode.Decompress),
+                    "br" => new BrotliStream(decoded, CompressionMode.Decompress),
+                    _ => throw new BooruEncodingException()
+                };
+            using (decoded)
+            using (MemoryStream output = new())
+            {
+                while (true)
+                {
+                    int read;
+                    try { read = await decoded.ReadAsync(chunk, window.Token).ConfigureAwait(false); }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                    catch (OperationCanceledException exception) when (window.Expired) { throw new BooruAttemptTimeoutException(exception); }
+                    if (read == 0) break;
+                    if (output.Length + read > MaximumDecodedBytes) throw new BooruBodyTooLargeException();
+                    await output.WriteAsync(chunk.AsMemory(0, read), window.Token).ConfigureAwait(false);
+                }
+                return output.ToArray();
+            }
+        }
+        catch (BooruBodyTooLargeException) { throw; }
+        catch (BooruEncodingException) { throw; }
+        catch (InvalidDataException exception) { throw new BooruEncodingException(exception); }
+        finally
+        {
+            // The using above disposes the outermost decoder. If decoder construction
+            // failed before entering it, release the raw memory stream here.
+            if (decoded is MemoryStream memory && memory != null) memory.Dispose();
+        }
+    }
+
+    private bool HasForbiddenTransportDefaults() =>
+        _transport.DefaultRequestHeaders.Authorization is not null
+        || _transport.DefaultRequestHeaders.Contains("Cookie")
+        || _transport.DefaultRequestHeaders.Contains("Proxy-Authorization");
+
+    private static IReadOnlyDictionary<string, string> ReadHeaders(HttpResponseMessage response)
+    {
+        Dictionary<string, string> headers = new(StringComparer.OrdinalIgnoreCase);
+        foreach (string name in new[] { "ETag", "Last-Modified", "Content-Type", "Retry-After", "Cache-Control", "Date" })
+            if (response.Headers.TryGetValues(name, out IEnumerable<string>? values)
+                || response.Content.Headers.TryGetValues(name, out values))
+                headers[name] = string.Join(", ", values);
+        return headers;
+    }
+
+    private static DateTimeOffset RetryAt(RetryConditionHeaderValue? header, DateTimeOffset now)
+    {
+        DateTimeOffset minimum = now + RetryDelay;
+        DateTimeOffset? requested = header?.Delta is TimeSpan delta && delta >= TimeSpan.Zero
+            ? now + delta
+            : header?.Date is DateTimeOffset date && date > now ? date : null;
+        return requested is DateTimeOffset value && value > minimum ? value : minimum;
+    }
+
+    private static DateTimeOffset CooldownUntil(RetryConditionHeaderValue? header, DateTimeOffset now)
+    {
+        DateTimeOffset minimum = now + MinimumCooldown;
+        DateTimeOffset? requested = header?.Delta is TimeSpan delta && delta >= TimeSpan.Zero
+            ? now + delta
+            : header?.Date is DateTimeOffset date && date > now ? date : null;
+        return requested is DateTimeOffset value && value > minimum ? value : minimum;
+    }
+
+    private async Task DelayUntilAsync(DateTimeOffset due, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            TimeSpan delay = due - _clock.GetUtcNow();
+            if (delay <= TimeSpan.Zero) return;
+            await Task.Delay(delay, _clock, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private static DateTimeOffset Min(DateTimeOffset left, DateTimeOffset right) => left < right ? left : right;
+
+    private static HostHttpFailure Failure(string code, string message, int? status = null, Exception? exception = null) =>
+        new(new FailureDetail(code, message, status));
+
+    public void Dispose()
+    {
+        foreach (SourceState state in _states.Values) state.SendGate.Dispose();
+        if (_disposeTransport) _transport.Dispose();
+    }
+
+    private sealed class SourceState
+    {
+        internal readonly SemaphoreSlim SendGate = new(1, 1);
+        internal readonly object Gate = new();
+        internal DateTimeOffset NextStart;
+        internal DateTimeOffset CooldownUntil;
+    }
+
+    private sealed class AttemptWindow : IDisposable
+    {
+        private readonly CancellationTokenSource _timeout = new();
+        private readonly CancellationTokenSource _linked;
+        private readonly ITimer _timer;
+        internal bool Expired => _timeout.IsCancellationRequested;
+        internal CancellationToken Token => _linked.Token;
+
+        internal AttemptWindow(TimeProvider clock, CancellationToken caller, DateTimeOffset due)
+        {
+            _linked = CancellationTokenSource.CreateLinkedTokenSource(caller, _timeout.Token);
+            TimeSpan delay = due - clock.GetUtcNow();
+            if (delay < TimeSpan.Zero) delay = TimeSpan.Zero;
+            _timer = clock.CreateTimer(static state =>
+            {
+                try { ((CancellationTokenSource)state!).Cancel(); }
+                catch (ObjectDisposedException) { }
+            }, _timeout, delay, Timeout.InfiniteTimeSpan);
+        }
+
+        public void Dispose()
+        {
+            _timer.Dispose();
+            _linked.Dispose();
+            _timeout.Dispose();
+        }
+    }
+
+    private sealed class BooruBodyTooLargeException : Exception { }
+    private sealed class BooruEncodingException(Exception? inner = null) : Exception("Unsupported booru content encoding.", inner) { }
+    private sealed class BooruAttemptTimeoutException(Exception inner) : Exception("Booru response timed out.", inner) { }
+}
