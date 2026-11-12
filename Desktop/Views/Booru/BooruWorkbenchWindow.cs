@@ -49,6 +49,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     internal const string PausePrefix = "BooruPause:";
     internal const string ResumePrefix = "BooruResume:";
     internal const string RemovePrefix = "BooruRemove:";
+    internal const string RestartPrefix = "BooruRestart:";
     internal const string RemoveConfirmPrefix = "BooruRemoveConfirm:";
     internal const string RemoveCancelPrefix = "BooruRemoveCancel:";
 
@@ -745,6 +746,9 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
             watcher.Query, model.RemoveBlock(row), cooling, () => { model.RequestRemoval(watcher.WatcherId); return Task.CompletedTask; });
         remove.Classes.Add("danger");
         actions.Children.Add(remove);
+        if (BooruWatcherListModel.CanRestartFromNow(watcher))
+            actions.Children.Add(WatcherButton(RestartPrefix + watcher.WatcherId, "booru.ui.watcher.restart", "booru.ui.watcher.restartFor",
+                watcher.Query, model.RestartBlock(row), cooling, async () => await model.RestartFromNowAsync(watcher.WatcherId)));
         panel.Children.Add(actions);
 
         if (row.ConfirmingRemoval)

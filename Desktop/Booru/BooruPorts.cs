@@ -115,6 +115,19 @@ internal interface IBooruWatcherPort
     Task<BooruWatcherCommandResult> PauseAsync(string watcherId, CancellationToken cancellationToken);
     Task<BooruWatcherCommandResult> ResumeAsync(string watcherId, CancellationToken cancellationToken);
     Task<BooruWatcherCommandResult> RemoveAsync(string watcherId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Accepts a gap for a watcher whose remaining new posts cannot be reached: the watcher is removed (local media
+    /// stay) and a new one for the same query starts from now. Ports without the operation reject it.
+    /// </summary>
+    Task<BooruWatcherCommandResult> RestartFromNowAsync(string watcherId, CancellationToken cancellationToken) =>
+        Task.FromResult(new BooruWatcherCommandResult(BooruWatcherCommandStatus.Rejected, "rejected"));
+}
+
+/// <summary>A port read that failed with a stable code (for example a scheduler fault); the view shows the code's text.</summary>
+internal sealed class BooruPortException(string code) : Exception("Booru port failure: " + code)
+{
+    internal string Code { get; } = code;
 }
 
 /// <summary>The port bundle one Danbooru window works with.</summary>

@@ -92,6 +92,13 @@ internal sealed class BooruWatcherListModel : IDisposable
     internal BooruWatcherBlock RemoveBlock(BooruWatcherRowView row) => row.Busy ? BooruWatcherBlock.Busy
         : row.Watcher.Status == BooruWatcherStatus.Removed ? BooruWatcherBlock.Removed : BooruWatcherBlock.None;
 
+    /// <summary>"Restart from now" is offered only while the remaining new posts cannot be reached.</summary>
+    internal static bool CanRestartFromNow(BooruWatcherView watcher) =>
+        watcher.Status != BooruWatcherStatus.Removed && watcher.ErrorCode == BooruCodes.ContinuationBlocked;
+
+    internal BooruWatcherBlock RestartBlock(BooruWatcherRowView row) => row.Busy ? BooruWatcherBlock.Busy
+        : row.Watcher.Status == BooruWatcherStatus.Removed ? BooruWatcherBlock.Removed : BooruWatcherBlock.None;
+
     // ---- list ----------------------------------------------------------------------------
 
     internal async Task RefreshAsync()
@@ -110,7 +117,11 @@ internal sealed class BooruWatcherListModel : IDisposable
             lock (_gate)
             {
                 if (id != _refreshId || _disposed) return;
-                _view = _view with { Status = BooruWatcherListStatus.Failed, Code = "exception" };
+                _view = _view with
+                {
+                    Status = BooruWatcherListStatus.Failed,
+                    Code = exception is BooruPortException port ? port.Code : BooruCodes.Exception
+                };
             }
             RaiseChanged();
             return;
@@ -185,6 +196,11 @@ internal sealed class BooruWatcherListModel : IDisposable
 
     internal Task<BooruWatcherCommandResult?> ResumeAsync(string watcherId) => CommandAsync(watcherId, ResumeBlock,
         (id, token) => _port.ResumeAsync(id, token), _ => new BooruNotice(BooruNoticeKind.Info, "booru.ui.watcher.msg.resumed"), refreshAfter: true);
+
+    /// <summary>Accepts the gap: the watcher restarts from now under the same query (local media stay).</summary>
+    internal Task<BooruWatcherCommandResult?> RestartFromNowAsync(string watcherId) => CommandAsync(watcherId, RestartBlock,
+        (id, token) => _port.RestartFromNowAsync(id, token), _ => new BooruNotice(BooruNoticeKind.Success, "booru.ui.watcher.msg.restarted"),
+        refreshAfter: true);
 
     /// <summary>First step of removal: only opens the inline confirmation; nothing is removed yet.</summary>
     internal void RequestRemoval(string watcherId)

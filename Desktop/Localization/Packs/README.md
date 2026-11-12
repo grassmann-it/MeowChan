@@ -34,6 +34,10 @@ The English diagnostic messages that the host and the Danbooru plugin put in a
 failure are not shown to the user; `BooruMessages` maps their stable codes to these
 catalog texts. The plugin's own information text (`access`) is plugin-provided English
 and is not part of the catalogs. Texts of the booru screens (B6) use `booru.ui.*`.
+The scheduler, port and window codes of the Danbooru window (`BooruCodeCatalog`, further
+`booru.watcher.problem.*` keys) and the watcher "Restart from now" texts
+(`booru.ui.watcher.restart*`, `booru.ui.watcher.msg.restarted`) are unreviewed machine
+translations in es/fr/ru as well.
 
 The es/fr/ru texts of the bundled repair/reselection review dialog's batch
 approval are likewise **unreviewed machine translations of consent texts**:

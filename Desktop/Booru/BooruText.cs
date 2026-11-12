@@ -147,7 +147,8 @@ internal static class BooruText
             "booru.ui.watcher.removeConfirm", "booru.ui.watcher.msg.checked", "booru.ui.watcher.msg.checkedNone", "booru.ui.watcher.msg.checkedPaused",
             "booru.ui.watcher.msg.paused", "booru.ui.watcher.msg.resumed", "booru.ui.watcher.msg.removed",
             "booru.ui.watcher.msg.rateLimited", "booru.ui.watcher.msg.cooldown", "booru.ui.watcher.msg.offline",
-            "booru.ui.watcher.msg.failed", "booru.ui.watcher.reject"
+            "booru.ui.watcher.msg.failed", "booru.ui.watcher.reject",
+            "booru.ui.watcher.restart", "booru.ui.watcher.restartFor", "booru.ui.watcher.msg.restarted"
         })
             yield return key;
         foreach (BooruInputIssue issue in Enum.GetValues<BooruInputIssue>().Where(issue => issue != BooruInputIssue.None))

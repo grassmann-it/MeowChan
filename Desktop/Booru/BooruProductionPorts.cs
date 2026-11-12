@@ -43,7 +43,7 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
         ArgumentNullException.ThrowIfNull(post);
         cancellationToken.ThrowIfCancellationRequested();
         if (!string.Equals(post.SourceId, _sourceId, StringComparison.Ordinal))
-            return new BooruLoadResult(BooruLoadStatus.Failed, "booru-source");
+            return new BooruLoadResult(BooruLoadStatus.Failed, BooruCodes.BooruSource);
         // Decided from the validated provider claim before anything is stored or queued.
         if (post.OriginalAccess == BooruOriginalAccess.NotOffered) return new BooruLoadResult(BooruLoadStatus.NoOriginal);
         if (post.OriginalAccess == BooruOriginalAccess.Restricted) return new BooruLoadResult(BooruLoadStatus.Restricted);
@@ -51,7 +51,7 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
         try { claim = BooruClaimMapper.Map(post.Post); }
         catch (Exception exception) when (exception is ArgumentException or InvalidDataException or FormatException or OverflowException)
         {
-            return new BooruLoadResult(BooruLoadStatus.Failed, "malformed_post");
+            return new BooruLoadResult(BooruLoadStatus.Failed, BooruCodes.MalformedPost);
         }
         BooruFindingKind kind = origin == BooruLoadOrigin.OneShot ? BooruFindingKind.OneShot : BooruFindingKind.Search;
         BooruOriginalAdmission admission;
@@ -66,7 +66,7 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
             or InvalidDataException or ObjectDisposedException or OperationCanceledException)
         {
             Log.Warning(exception, "Danbooru original admission failed for post {PostId}", post.PostId);
-            return new BooruLoadResult(BooruLoadStatus.Failed, "not_admitted");
+            return new BooruLoadResult(BooruLoadStatus.Failed, BooruCodes.NotAdmitted);
         }
         BooruLoadResult result = Map(admission);
         // The catalog changed (claim, finding, intent) even when the queue raised nothing yet.
@@ -83,7 +83,7 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
             => new BooruLoadResult(BooruLoadStatus.NoOriginal),
         // Withheld URL, missing integrity claims or an unusable original: never substituted by a sample.
         BooruOriginalAdmissionStatus.Unavailable => new BooruLoadResult(BooruLoadStatus.Restricted, admission.SelectionError.ToString()),
-        _ => new BooruLoadResult(BooruLoadStatus.Failed, "not_admitted")
+        _ => new BooruLoadResult(BooruLoadStatus.Failed, BooruCodes.NotAdmitted)
     };
 
     public Task<IReadOnlyDictionary<string, BooruLocalState>> GetLocalStatesAsync(IReadOnlyList<string> postIds,
@@ -154,6 +154,8 @@ internal sealed class BooruSchedulerWatcherPort : IBooruWatcherPort, IDisposable
         {
             cancellationToken.ThrowIfCancellationRequested();
             DanbooruWatcherSchedulerSnapshot snapshot = _scheduler.GetSnapshot();
+            // A load fault (unreadable catalog, invalid record) means nothing is scheduled: show it, not an empty list.
+            if (snapshot.FaultCode is { } fault) throw new BooruPortException(fault);
             Dictionary<string, BooruWatcherView> counts = new(StringComparer.Ordinal);
             if (_catalog != null)
             {
@@ -185,7 +187,7 @@ internal sealed class BooruSchedulerWatcherPort : IBooruWatcherPort, IDisposable
         };
         DateTimeOffset? cooldown = status.CooldownUntilUtc
             ?? (mapped == BooruWatcherStatus.Cooldown ? providerCooldown : null);
-        string? error = status.Activity == DanbooruWatcherActivity.ContinuationBlocked ? status.ErrorCode ?? "continuation_blocked" : status.ErrorCode;
+        string? error = status.Activity == DanbooruWatcherActivity.ContinuationBlocked ? BooruCodes.ContinuationBlocked : status.ErrorCode;
         return new BooruWatcherView(status.WatcherId, status.Query, mapped, status.CreatedAtUtc, status.LastCheckedAtUtc,
             mapped is BooruWatcherStatus.Active ? status.NextCheckAtUtc : null, cooldown, error,
             stored?.HitCount ?? 0, stored?.QueuedCount ?? 0, status.BaselineEstablished, status.BudgetLimited);
@@ -211,6 +213,9 @@ internal sealed class BooruSchedulerWatcherPort : IBooruWatcherPort, IDisposable
     public Task<BooruWatcherCommandResult> RemoveAsync(string watcherId, CancellationToken cancellationToken) =>
         Task.Run(() => Command(_scheduler.Remove(watcherId)), cancellationToken);
 
+    public Task<BooruWatcherCommandResult> RestartFromNowAsync(string watcherId, CancellationToken cancellationToken) =>
+        Task.Run(() => Command(_scheduler.RestartFromNow(watcherId)), cancellationToken);
+
     internal static BooruWatcherCommandResult Command(DanbooruWatcherCommandResult result) => result.Accepted
         ? BooruWatcherCommandResult.Success()
         : new BooruWatcherCommandResult(BooruWatcherCommandStatus.Rejected, result.Code);
@@ -221,19 +226,21 @@ internal sealed class BooruSchedulerWatcherPort : IBooruWatcherPort, IDisposable
             => BooruWatcherCommandResult.Success(summary.NewPosts, summary.Queued),
         DanbooruWatcherCheckKind.Deferred => new BooruWatcherCommandResult(DeferredStatus(summary.Code), summary.Code,
             summary.NewPosts, summary.Queued, summary.RetryAtUtc),
-        DanbooruWatcherCheckKind.Rejected when summary.Code == "cooldown_active" && summary.RetryAtUtc is { } retry
+        DanbooruWatcherCheckKind.Rejected when summary.Code is BooruCodes.CooldownActive or BooruCodes.ProviderCooldown
+            && summary.RetryAtUtc is { } retry
             => new BooruWatcherCommandResult(BooruWatcherCommandStatus.Cooldown, summary.Code, RetryAt: retry),
         DanbooruWatcherCheckKind.Rejected => new BooruWatcherCommandResult(BooruWatcherCommandStatus.Rejected, summary.Code),
         DanbooruWatcherCheckKind.Failed when summary.Code is "http-network" or "http-timeout"
             => new BooruWatcherCommandResult(BooruWatcherCommandStatus.Offline, summary.Code),
+        // The worker's own reason (stopped, worker-exit, …) is diagnostic; the user sees "plugin not available".
         DanbooruWatcherCheckKind.SourceUnavailable => new BooruWatcherCommandResult(BooruWatcherCommandStatus.Failed,
-            summary.Code ?? "source_unavailable"),
+            BooruCodes.SourceUnavailable),
         _ => new BooruWatcherCommandResult(BooruWatcherCommandStatus.Failed, summary.Code ?? summary.Kind.ToString())
     };
 
     private static BooruWatcherCommandStatus DeferredStatus(string? code) => code switch
     {
-        "booru-cooldown" or "provider-throttled" => BooruWatcherCommandStatus.RateLimited,
+        BooruCodes.BooruCooldown or BooruCodes.ProviderThrottled => BooruWatcherCommandStatus.RateLimited,
         "http-network" or "http-timeout" => BooruWatcherCommandStatus.Offline,
         _ => BooruWatcherCommandStatus.Cooldown
     };
