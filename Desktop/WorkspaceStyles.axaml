@@ -24,6 +24,8 @@
                     <SolidColorBrush x:Key="Workspace.WarningSurface">#352C1D</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Success">#83D4AC</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.SuccessSurface">#20382D</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Progress">#C9CFD6</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ProgressTrack">#30363E</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPrimaryForeground">#EEF1F4</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPointeroverBackground">#30363E</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPressedBackground">#25344A</SolidColorBrush>
@@ -53,43 +55,45 @@
                     <SolidColorBrush x:Key="Workspace.Panel">#EFECE6</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Raised">#DBD5CB</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Border">#A89F92</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.Text">#272520</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Text">#1A1A1A</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Muted">#575148</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.Accent">#934408</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Accent">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentSurface">#E7D4BE</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ReaderActiveSurface">#E8E0D5</SolidColorBrush>
                     <x:Double x:Key="Workspace.ReaderPostSeparatorHeight">0</x:Double>
                     <SolidColorBrush x:Key="Workspace.Hover">#D2CABE</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.OnAccent">#FFFFFF</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.AccentHover">#783507</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.AccentHover">#9A4B0B</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Error">#A52736</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ErrorSurface">#F4E0E3</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Warning">#795100</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.WarningSurface">#F2E5C4</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.Success">#176342</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.SuccessSurface">#DCEBE1</SolidColorBrush>
-                    <SolidColorBrush x:Key="ButtonDefaultPrimaryForeground">#272520</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Success">#2D4023</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.SuccessSurface">#E8F0E4</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Progress">#333333</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ProgressTrack">#D4CFC7</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonDefaultPrimaryForeground">#1A1A1A</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPointeroverBackground">#D2CABE</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPressedBackground">#E7D4BE</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultDisabledForeground">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultDisabledBorderBrush">#A89F92</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPointeroverBorderBrush">#A89F92</SolidColorBrush>
-                    <SolidColorBrush x:Key="ButtonDefaultPressedBorderBrush">#934408</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonDefaultPressedBorderBrush">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidForeground">#FFFFFF</SolidColorBrush>
-                    <SolidColorBrush x:Key="ButtonSolidPrimaryBackground">#934408</SolidColorBrush>
-                    <SolidColorBrush x:Key="ButtonSolidPrimaryBorderBrush">#934408</SolidColorBrush>
-                    <SolidColorBrush x:Key="ButtonSolidPrimaryPointeroverBackground">#783507</SolidColorBrush>
-                    <SolidColorBrush x:Key="ButtonSolidPrimaryPointeroverBorderBrush">#783507</SolidColorBrush>
-                    <SolidColorBrush x:Key="ButtonSolidPrimaryPressedBackground">#934408</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryBackground">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryBorderBrush">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryPointeroverBackground">#9A4B0B</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryPointeroverBorderBrush">#9A4B0B</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryPressedBackground">#662F05</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidPrimaryPressedForeground">#FFFFFF</SolidColorBrush>
-                    <SolidColorBrush x:Key="ButtonSolidPrimaryPressedBorderBrush">#934408</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryPressedBorderBrush">#662F05</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidDisabledBackground">#DBD5CB</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidDisabledForeground">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidDisabledBorderBrush">#A89F92</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridRowPointeroverBackground">#DBD5CB</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridRowSelectedBackground">#E7D4BE</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridRowSelectedPointeroverBackground">#E7D4BE</SolidColorBrush>
-                    <SolidColorBrush x:Key="DataGridCellFocusBorderBrush">#934408</SolidColorBrush>
+                    <SolidColorBrush x:Key="DataGridCellFocusBorderBrush">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridLineBrush">#A89F92</SolidColorBrush>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
@@ -130,6 +134,7 @@
         <Setter Property="FontFamily" Value="avares://Avalonia.Fonts.Inter/Assets#Inter" />
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" />
     </Style>
+    <Style Selector="ProgressBar"><Setter Property="Background" Value="{DynamicResource Workspace.ProgressTrack}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Progress}" /></Style>
     <Style Selector="TextBlock.muted, SelectableTextBlock.muted"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /></Style>
     <Style Selector="TextBlock.error, SelectableTextBlock.error"><Setter Property="Foreground" Value="{DynamicResource Workspace.Error}" /></Style>
     <Style Selector="TextBlock.brand"><Setter Property="FontSize" Value="19" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
