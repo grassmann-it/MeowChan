@@ -14,7 +14,7 @@ echter 1.0.2-Profillauf, **kein** Release-PASS.
 | Datei | Inhalt |
 | --- | --- |
 | `tests/MeowChan.PluginRuntime.Tests/BooruB9AcceptanceSupport.cs` | Harness: `B9World` (Temp-Root, manuelle Uhr, Provider-Stub, CDN), `B9Session` (ein App-Lauf auf einem Profil; Dispose = geordneter Shutdown, neue Instanz = Neustart), `InProcessDanbooruWorker` (echtes Danbooru-Plugin in-process), `B9Provider`, `B9Cdn`, `B9Clock` |
-| `tests/MeowChan.PluginRuntime.Tests/BooruB9AcceptanceTests.cs` | 15 Gates (27 Testfälle inkl. 13er-Fehlermatrix), eines davon als Befund F1 übersprungen |
+| `tests/MeowChan.PluginRuntime.Tests/BooruB9AcceptanceTests.cs` | 15 Gates (27 Testfälle inkl. 13er-Fehlermatrix); das F1-Gate ist seit Wave 06 wieder aktiv |
 
 Verdrahtung pro Gate (alles real außer Netz und Uhr):
 
@@ -44,7 +44,7 @@ Hälften zusammen und nutzen den **echten Plugin-Parser**. Die Prozessgrenze
 | 3 | Einzelpost-URL lädt genau ein Original oder meldet fehlende Berechtigung | `S3_OneShotPostLink…` (strikte URL, genau `/posts/4001.json`, ein CDN-Transfer, eingeschränkt → `Unavailable` ohne Transfer, 404 → `NotFound`, Wiederholung → `AlreadyLinked`) | belegt |
 | 4 | Derselbe Post aus Suche, One-Shot und zwei Watchern nur einmal admitted | `S4_SamePostFromSearchOneShotAndTwoWatchers…` (1 CDN-Transfer, 4 Fundstellen, Watcher melden `AlreadyQueuedOrLinked`) | belegt |
 | 5 | Watcher: Anlegen, Baseline, neue Posts, Pause, manueller Check, Cooldown, Restart, Entfernen | `S5_WatcherBaselineNewPosts…`, `S5_S9_Provider429…CooldownSurvivesARestart` | belegt |
-| 6 | Queue-Pause/Cancel/Restart, beschädigte Bytes | `S6_PausedQueueAcrossRestart…`, `S6_UserCancelIsDurable…`, `S6_DamagedBytesNeverBecomeASuccess…`; `S6_AppShutdownDuringATransfer…` **rot → Befund F1** | belegt bis auf **F1** |
+| 6 | Queue-Pause/Cancel/Restart, beschädigte Bytes | `S6_PausedQueueAcrossRestart…`, `S6_UserCancelIsDurable…`, `S6_DamagedBytesNeverBecomeASuccess…`; `S6_AppShutdownDuringATransfer…` (F1, behoben, aktiv) | belegt |
 | 7 | Neustart ohne Netz: Medien/Metadaten/Watcher lesbar | `S7_OfflineRestartKeeps…` (echter `DanbooruWatcherHost.StartAsync` mit Loop, 0 Metadaten-Requests beim Start, verifizierte Offline-Reads, Offline-Suche = sichtbarer `http-network`-Fehler, manueller Check = Cooldown statt Fehler/Löschung, ausstehendes Original bleibt pending und wird online nachgeholt) | belegt auf Daten-/Hostebene; Galerie/Favoriten-UI offen (B7) |
 | 8 | Migration eines Altbestands ohne Booru-Daten | `S8_ProfileWithoutBooruData…` (Start offline ohne einen Byte-Unterschied an bestehenden Dateien, keine neue Datei; erste Nutzung fügt nur `booru-catalog.json` und `media/danbooru/<id>/…` hinzu; Neustart offline lesbar) | synthetisch belegt; **kein echtes 1.0.2-Profil** |
 | 9 | leer, eingeschränkt, gelöscht, 3xx, 401/403, 404/410, 429, 502/503, Timeout, zu groß | `S9_ProviderFailures…` (13 Fälle mit exakten stabilen Codes, Watcher bleibt, nichts admitted, ≤1 Host-Retry, 59 s Ruhe), `S9_EmptyResultIsABaseline…` (leer, gelöscht/gebannt), `S9_SlowMetadataBodyTimesOut…` (`http-timeout` → Cooldown) | belegt (Host/Plugin/Scheduler); UI-Zustände offen (B6) |
@@ -56,7 +56,7 @@ HTML `not-json` · falsche Form/abgeschnitten `malformed` · >2 MiB `metadata-to
 502/503 `provider-unavailable` (nach genau einem Host-Retry) · 429 `booru-cooldown`
 (Host-Cooldown, nicht der Plugin-Code `provider-throttled`) · langsamer Body `http-timeout`.
 
-## Befund F1 — Muss vor 1.1.0: App-Shutdown während eines Transfers verwirft den Originalwunsch
+## Befund F1 — behoben (2d57d64e, Gate reaktiviert in Wave 06): App-Shutdown während eines Transfers verwarf den Originalwunsch
 
 **Beobachtung (reproduzierbar, `S6_AppShutdownDuringATransfer…` ohne Skip):** Läuft beim
 geordneten Beenden (`DanbooruWatcherHost.StopAsync` → `DownloadQueue.StopAllAsync`) gerade

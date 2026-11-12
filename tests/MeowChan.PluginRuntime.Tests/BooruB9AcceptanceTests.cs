@@ -366,15 +366,12 @@ public sealed class BooruB9AcceptanceTests
     }
 
     /// <summary>
-    /// B9 finding F1 (review/booru-b9-gates-2026-11-12.md): <see cref="MeowChan.Downloader.DownloadQueue.StopAllAsync"/>
-    /// reports an in-flight external job through the same <c>OnMediaCancelled</c> callback as a user cancel, and
-    /// <c>BooruOriginalQueue.PostOwner.OnMediaCancelled</c> then persists <see cref="BooruOriginalIntent.Cancelled"/>.
-    /// A normal app exit during a transfer therefore silently drops the user's request: the next start does not
-    /// resume it. This gate states the required behaviour and is skipped until the product fix lands; remove the
-    /// Skip together with the fix. Observed at ab9f99e5: the running job (8101) ends Cancelled; the waiting job
-    /// (8102) correctly stays Requested.
+    /// B9 finding F1 (review/booru-b9-gates-2026-11-12.md): an app shutdown during a transfer must not drop the
+    /// user's request. Fixed by 2d57d64e (a queue stop settles as <c>Interrupted</c> and keeps the durable
+    /// <see cref="BooruOriginalIntent.Requested"/>); this gate is active again and checks the running and the
+    /// waiting job and their single transfer after the restart.
     /// </summary>
-    [Fact(Skip = "B9 finding F1: app shutdown during an original transfer persists Cancelled; see review/booru-b9-gates-2026-11-12.md")]
+    [Fact]
     public async Task S6_AppShutdownDuringATransferKeepsRunningAndWaitingOriginalsPendingForTheNextStart()
     {
         using B9World world = new();

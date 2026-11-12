@@ -74,11 +74,13 @@ internal sealed record BooruOriginalAdmission(
 /// MD5, transport length, measured SHA-256) before any file is published.
 ///
 /// Durability is the B3 <see cref="BooruCatalogStore"/>, not the chan work journal: an admission first
-/// stores the provider claim and its finding (provenance only); only a job the shared queue accepted is
-/// recorded as <see cref="BooruOriginalIntent.Requested"/>, the single pending state that restart
-/// recovery re-admits. A user cancel is recorded as <see cref="BooruOriginalIntent.Cancelled"/> before
-/// <see cref="CancelAsync"/> returns; a queue stop keeps the request. Only after the queue reports an
-/// atomic <see cref="MediaCommitResult.AssetId"/> is <see cref="BooruCatalogStore.LinkLocalAssetAdmitted"/>
+/// stores the provider claim and its finding (provenance only); a plannable explicit request is then
+/// recorded as <see cref="BooruOriginalIntent.Requested"/> (write-ahead, before it is visible as queued or
+/// offered to the queue), the single pending state that restart recovery re-admits. A queue refusal replaces
+/// it with <see cref="BooruOriginalIntent.NotAdmitted"/> before the admission returns, so only a request the
+/// queue accepted, or one whose admission a process crash interrupted, stays pending. A user cancel is
+/// recorded as <see cref="BooruOriginalIntent.Cancelled"/> before <see cref="CancelAsync"/> returns; a queue
+/// stop keeps the request. Only after the queue reports an atomic <see cref="MediaCommitResult.AssetId"/> is <see cref="BooruCatalogStore.LinkLocalAssetAdmitted"/>
 /// called, once, under the job's own producer admission. A failed link stays visible as
 /// <see cref="BooruOriginalDownloadState.LinkFailed"/>; a retry finds the committed file through the
 /// store's strict restore and relinks without a second transfer.
@@ -105,9 +107,9 @@ internal sealed class BooruOriginalQueue
     private readonly TimeProvider _timeProvider;
     private readonly OwnerProvider _provider;
     private readonly Dictionary<string, PostOwner> _active = new(StringComparer.Ordinal);
-    // Accepted queue work whose durable Requested acknowledgement has not completed yet. This closes the
-    // narrow window after queue acceptance but before RecordAccepted: a fast failure must still be cancellable
-    // instead of looking like an unrequested record when the user cancels or the profile is reopened.
+    // Accepted queue work whose acknowledgement (RecordAccepted) has not completed yet. Requested is already
+    // durable (write-ahead), so this only keeps the owner visible for AlreadyQueued and routes a cancel of a
+    // fast, already finished job through the durable stored-cancel path.
     private readonly Dictionary<string, PostOwner> _acceptedAwaitingIntent = new(StringComparer.Ordinal);
     private readonly Dictionary<string, BooruOriginalDownloadOutcome> _outcomes = new(StringComparer.Ordinal);
 
@@ -169,7 +171,8 @@ internal sealed class BooruOriginalQueue
     /// anything but this single post.
     /// <para>
     /// The finding is provenance only and never makes the post pending: the durable
-    /// <see cref="BooruOriginalIntent.Requested"/> is written only after the shared queue accepted the job.
+    /// <see cref="BooruOriginalIntent.Requested"/> is written ahead of the queue offer and replaced by
+    /// <see cref="BooruOriginalIntent.NotAdmitted"/> if the queue refuses the job.
     /// An unacceptable original is recorded as <see cref="BooruOriginalIntent.Unavailable"/>; the claim
     /// itself is kept so a later, richer provider answer can still be evaluated.
     /// </para>
@@ -348,11 +351,9 @@ internal sealed class BooruOriginalQueue
                 BooruOriginalDownloadOutcome kept = new(BooruOriginalDownloadState.Cancelled, postId);
                 return new(BooruOriginalAdmissionStatus.NotAdmitted, postId, Task.FromResult(kept));
             }
-            // An explicit retry overrides a previously recorded terminal outcome (unavailable/not admitted/cancelled).
-            if (mode == AdmissionMode.Retry && record.OriginalIntent is BooruOriginalIntent.Unavailable
-                    or BooruOriginalIntent.NotAdmitted or BooruOriginalIntent.Cancelled)
-                record = _catalog.SetOriginalIntent(DanbooruPostReference.ProviderId, postId,
-                    BooruOriginalIntent.None, cancellationToken);
+            // An explicit retry overrides a previously recorded terminal outcome (unavailable/not admitted/cancelled):
+            // the plan below records either Unavailable or the write-ahead Requested over it.
+            bool wasRequested = record.OriginalIntent == BooruOriginalIntent.Requested;
             if (!TryPlan(record.Post, out BooruOriginalDownloadPlan? plan, out BooruOriginalSelectionError error))
             {
                 _catalog.SetOriginalIntent(DanbooruPostReference.ProviderId, postId,
@@ -364,8 +365,16 @@ internal sealed class BooruOriginalQueue
             }
             else
             {
-                owner = new PostOwner(this, _provider, plan!,
-                    wasRequested: record.OriginalIntent == BooruOriginalIntent.Requested);
+                // Write-ahead: the explicit request is durable before it becomes visible as Queued and before
+                // the queue may start the transfer. A process crash between the queue accept and the
+                // acknowledgement therefore leaves a Requested record that recovery re-admits, exactly like an
+                // interrupted request, instead of an accepted (possibly already transferring) job whose request
+                // silently vanishes. Every decision this admission still reaches replaces it: a refusal records
+                // NotAdmitted, a cancel Cancelled, a link Linked, before the admission or cancel returns.
+                if (!wasRequested)
+                    _catalog.SetOriginalIntent(DanbooruPostReference.ProviderId, postId,
+                        BooruOriginalIntent.Requested, cancellationToken);
+                owner = new PostOwner(this, _provider, plan!, wasRequested);
                 lock (_sync)
                 {
                     _active.Add(postId, owner);
@@ -419,8 +428,8 @@ internal sealed class BooruOriginalQueue
     }
 
     /// <summary>
-    /// Only a genuinely accepted queue job becomes a durable, recoverable request. The job may already have
-    /// ended while the accept was returning: a cancel or link has recorded its own terminal intent and is
+    /// Acknowledges a genuinely accepted queue job: re-asserts the write-ahead Requested. The job may already
+    /// have ended while the accept was returning: a cancel or link has recorded its own terminal intent and is
     /// never overwritten, while a failure or stop still leaves the accepted request pending.
     /// </summary>
     private void RecordAccepted(PostOwner owner)
@@ -479,7 +488,9 @@ internal sealed class BooruOriginalQueue
             // startup) keeps its durable request; it is not a refusal of a new request.
             Settle(owner, new(BooruOriginalDownloadState.Interrupted, postId, Failure: failure), durable: null);
         else
-            // A refusal is terminal until the user asks again; it must not look pending after a restart.
+            // A refusal is terminal until the user asks again; it must not look pending after a restart, so it
+            // replaces the write-ahead Requested. Only a profile that is already closing cannot take this write;
+            // the request then stays pending like one interrupted by a crash.
             Settle(owner, new(BooruOriginalDownloadState.NotAdmitted, postId, Failure: failure), BooruOriginalIntent.NotAdmitted);
     }
 

@@ -28,7 +28,11 @@ internal enum BooruOriginalIntent
 {
     /// <summary>No original was requested yet; a finding may still exist for observation only.</summary>
     None,
-    /// <summary>The original was admitted to the shared download queue and has not completed.</summary>
+    /// <summary>
+    /// The original was explicitly requested and has not completed. Written ahead of the shared queue's
+    /// admission; a refusal replaces it with <see cref="NotAdmitted"/>, so a pending record is either an
+    /// accepted job or one whose admission a process crash interrupted.
+    /// </summary>
     Requested,
     /// <summary>The user explicitly cancelled the original; it is not recovered automatically.</summary>
     Cancelled,

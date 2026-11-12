@@ -83,3 +83,28 @@ Neue Regressionstests in `tests/MeowChan.Tests/Booru/BooruOriginalQueueTests.cs`
   abgesichert, aber noch nicht explizit getestet.
 - Fortschritt pro Post (Bytes) wird nicht separat projiziert; B6 kann `GetThreadCounts` bzw.
   `OutcomeChanged` nutzen.
+
+## Nachtrag Wave 06: Prozessabsturz zwischen Queue-Accept und `Requested` (12.11.2026)
+
+Basis `a54906ae`. **Befund:** `Requested` wurde erst nach `DownloadQueue.EnqueueAsync == true` in
+`RecordAccepted` geschrieben, das sichtbare `Queued` aber schon vorher gemeldet; die Queue konnte den
+Transfer bereits starten. Ein Absturz in diesem Fenster ließ den Record mit `None` (neue Anfrage) oder
+`None` nach Retry-Reset zurück: kein Pending, `RecoverPendingAsync` übersprang ihn, der Wunsch war
+still verloren. Zusätzlich blieb bei einer expliziten Neuanfrage nach Cancel `Cancelled` gespeichert,
+weil `RecordAccepted` `Cancelled` nie überschreibt – ein anschließender Stop/Absturz verlor die Anfrage.
+
+**Fix (Write-ahead, keine neue Intent-Semantik):** `AdmitStoredAsync` schreibt für eine planbare
+explizite Anfrage `Requested` unter dem Admission-Gate, bevor der Owner sichtbar wird und bevor die
+Queue angeboten wird. Jede Entscheidung, die die Admission danach noch erreicht, ersetzt es wie bisher:
+Ablehnung → `NotAdmitted`, Cancel → `Cancelled`, Link → `Linked`. Ein Absturz vor einer dieser
+Entscheidungen hinterlässt `Requested` und wird wie ein `Interrupted` wiederhergestellt. Der Retry-Reset
+auf `None` entfällt. Watcherfunde auf gespeichertem `Cancelled` schreiben weiterhin nichts
+(`KeptCancelled` unverändert). `_acceptedAwaitingIntent`/`RecordAccepted` bleiben als Fence
+(AlreadyQueued, Cancel eines schnell beendeten Jobs, keine Resurrection).
+
+Crash-Simulation in `tests/MeowChan.Tests/Booru/BooruOriginalCrashWindowTests.cs`: Kopie von Profil und
+Medien exakt im Fenster (`AfterQueueAcceptedForTests` bzw. `OutcomeChanged(Queued)`), Wiedereröffnung
+der Kopie. 8 der 9 neuen Fälle scheitern an `a54906ae`, alle grün mit Fix.
+
+Das B9-Gate `S6_AppShutdownDuringATransfer…` (F1) ist wieder aktiv; F1 war bereits durch `2d57d64e`
+behoben und läuft stabil grün.
