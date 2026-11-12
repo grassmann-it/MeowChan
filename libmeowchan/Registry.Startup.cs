@@ -101,10 +101,6 @@ public sealed partial class Registry
                     lease.ProfileDirectory, lease, startup!, token).ConfigureAwait(false);
                 await catalog.EnsureNativeMediaRecoveryClearAsync(token).ConfigureAwait(false);
             }
-            // The additive Booru file is read while startup owns the profile. A malformed
-            // or future catalog therefore fails closed instead of silently becoming empty;
-            // an absent file is the normal offline migration from an older profile.
-            _booruCatalog?.Read();
             token.ThrowIfCancellationRequested();
             await RestoreAdmittedAsync(startup).ConfigureAwait(false);
             if (BeforeStandaloneStartupReadyForTests is { } beforeReady)

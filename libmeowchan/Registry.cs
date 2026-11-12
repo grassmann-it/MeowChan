@@ -330,6 +330,11 @@ public sealed partial class Registry : IAsyncDisposable
             ObjectDisposedException.ThrowIf(_stopping, this);
             if (_restored) return;
             if (_hasMutations) throw new InvalidOperationException("Restore the session before adding or removing watches.");
+            // Validate the additive Booru catalog at the same admitted restore
+            // boundary used by both public standalone startup and the desktop host.
+            // An absent file remains the normal offline migration; malformed or
+            // future data must fail closed before any watch is restored.
+            _booruCatalog?.Read();
             SessionLoadResult loaded = _sessionStore == null || !_persistSession
                 ? new SessionLoadResult(new SessionSnapshot(), null, false)
                 : await _sessionStore.LoadAsync().ConfigureAwait(false);

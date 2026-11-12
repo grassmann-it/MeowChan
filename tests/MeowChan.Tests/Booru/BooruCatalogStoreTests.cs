@@ -5,12 +5,15 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using MeowChan.Archive;
+using MeowChan.Downloader;
 using MeowChan.Persistence;
 
 namespace MeowChan.Tests.Booru;
 
 public sealed class BooruCatalogStoreTests
 {
+    private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(15);
+
     [Fact]
     public void ClaimsFindingsWatchersAndAssetLinksSurviveAProfileRestart()
     {
@@ -64,6 +67,53 @@ public sealed class BooruCatalogStoreTests
         Assert.Single(saved.Findings);
         Assert.Equal(BooruPostClaimTagCategory.Artist, Assert.Single(saved.Post.Tags).Category);
         Assert.DoesNotContain(saved.Post.Tags, tag => tag.Name == "artist_name" && tag.Category == BooruPostClaimTagCategory.Unknown);
+    }
+
+    [Fact]
+    public void LaterPartialClaimsRetainPreviouslyObservedProviderFields()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        BooruCatalogStore store = new(directory.Path, lease);
+        DateTimeOffset first = DateTimeOffset.Parse("2026-11-12T12:00:00Z");
+        DateTimeOffset later = first.AddMinutes(1);
+
+        store.UpsertPost(CompletePost("16"), first);
+        // A search result may only carry a tag field. It must update that
+        // explicitly observed field without erasing richer single-post data.
+        store.UpsertPost(Post("16") with
+        {
+            Tags = [new BooruPostClaimTag("updated_tag", BooruPostClaimTagCategory.General)]
+        }, later);
+
+        BooruPostClaim saved = Assert.Single(store.Read().Posts).Post;
+        Assert.Equal(BooruPostClaimPresence.All, saved.Fields);
+        Assert.Equal(BooruPostClaimRating.Sensitive, saved.Rating);
+        Assert.Equal(7, saved.Score);
+        Assert.Equal("updated_tag", Assert.Single(saved.Tags).Name);
+        Assert.Equal(3, saved.Media.Count);
+        Assert.Equal("https://source.example/post/123", saved.SourceClaim);
+    }
+
+    [Fact]
+    public void OutOfOrderObservationTimesKeepAStableObservationRange()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        BooruCatalogStore store = new(directory.Path, lease);
+        DateTimeOffset first = DateTimeOffset.Parse("2026-11-12T12:00:00Z");
+        DateTimeOffset earlier = first.AddMinutes(-5);
+        DateTimeOffset earliest = first.AddMinutes(-10);
+        DateTimeOffset later = first.AddMinutes(5);
+
+        store.UpsertPost(Post("17"), first);
+        store.AddFinding("danbooru", "17", BooruFindingKind.Search, null, "cat", earlier);
+        store.AddFinding("danbooru", "17", BooruFindingKind.Search, null, "cat", earliest);
+        store.AddFinding("danbooru", "17", BooruFindingKind.OneShot, null, null, later);
+
+        BooruPostRecord saved = Assert.Single(store.Read().Posts);
+        Assert.Equal(earliest, saved.FirstSeenAtUtc);
+        Assert.Equal(later, saved.LastSeenAtUtc);
     }
 
     [Fact]
@@ -234,6 +284,26 @@ public sealed class BooruCatalogStoreTests
         store.UpsertPost(Post("40"), DateTimeOffset.UtcNow);
         Assert.Equal("legacy-session-content", File.ReadAllText(legacyPath));
         Assert.True(File.Exists(store.FilePath));
+    }
+
+    [Theory]
+    [InlineData("{")]
+    [InlineData("{\"schemaVersion\":99,\"posts\":[],\"watchers\":[]}")]
+    public async Task PreparedRestoreFailsClosedForMalformedOrFutureBooruCatalog(string contents)
+    {
+        using TempDirectory directory = new();
+        File.WriteAllText(Path.Combine(directory.Path, BooruCatalogStore.FileName), contents);
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        using StubImageBoard provider = new();
+        await using Registry registry = new([provider], new DownloadQueue(1, 1024 * 1024),
+            directory.Path, TimeSpan.FromHours(1), 3600, persistSession: false);
+
+        registry.PrepareProfileProducers(lease);
+        using (ProfileAdmissionToken startup = lease.Admission.EnterStartupWriter())
+            await Assert.ThrowsAsync<InvalidDataException>(() => registry.RestoreAdmittedAsync(startup));
+
+        lease.Admission.FailStartup();
+        await registry.StopAsync().WaitAsync(Deadline);
     }
 
     [Fact]

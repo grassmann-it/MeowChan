@@ -229,7 +229,15 @@ internal sealed class BooruCatalogStore
             DateTimeOffset observed = observedAtUtc.ToUniversalTime();
             BooruPostRecord next = index < 0
                 ? new(frozenPost.SourceId, frozenPost.PostId, frozenPost, observed, observed)
-                : FreezePostRecord(posts[index] with { Post = frozenPost, LastSeenAtUtc = observed });
+                : FreezePostRecord(posts[index] with
+                {
+                    // Provider search and single-post responses may expose different
+                    // presence subsets. Do not let a less complete later observation
+                    // erase fields already retained from a richer claim.
+                    Post = MergeClaims(posts[index].Post, frozenPost),
+                    FirstSeenAtUtc = Earliest(posts[index].FirstSeenAtUtc, observed),
+                    LastSeenAtUtc = Latest(posts[index].LastSeenAtUtc, observed)
+                });
             if (index < 0) posts.Add(next); else posts[index] = next;
             WriteLocked(snapshot with { Posts = FreezePosts(posts) }, admission, cancellationToken);
             return next;
@@ -266,8 +274,13 @@ internal sealed class BooruCatalogStore
             DateTimeOffset observed = foundAtUtc.ToUniversalTime();
             if (current.Findings.Any(item => item.FindingId == findingId))
             {
-                BooruPostRecord observedAgain = FreezePostRecord(current with { LastSeenAtUtc = observed });
-                if (observedAgain.LastSeenAtUtc != current.LastSeenAtUtc)
+                BooruPostRecord observedAgain = FreezePostRecord(current with
+                {
+                    FirstSeenAtUtc = Earliest(current.FirstSeenAtUtc, observed),
+                    LastSeenAtUtc = Latest(current.LastSeenAtUtc, observed)
+                });
+                if (observedAgain.FirstSeenAtUtc != current.FirstSeenAtUtc
+                    || observedAgain.LastSeenAtUtc != current.LastSeenAtUtc)
                 {
                     posts[index] = observedAgain;
                     WriteLocked(snapshot with { Posts = FreezePosts(posts) }, admission, cancellationToken);
@@ -281,7 +294,8 @@ internal sealed class BooruCatalogStore
             findings.Add(new(findingId, kind, watcherId, query, observed));
             BooruPostRecord next = FreezePostRecord(current with
             {
-                LastSeenAtUtc = observed,
+                FirstSeenAtUtc = Earliest(current.FirstSeenAtUtc, observed),
+                LastSeenAtUtc = Latest(current.LastSeenAtUtc, observed),
                 Findings = FreezeFindings(findings)
             });
             posts[index] = next;
@@ -689,6 +703,29 @@ internal sealed class BooruCatalogStore
     }
 
     private static bool Has(BooruPostClaimPresence value, BooruPostClaimPresence flag) => (value & flag) != 0;
+
+    private static BooruPostClaim MergeClaims(BooruPostClaim previous, BooruPostClaim incoming) =>
+        new(
+            previous.SourceId,
+            previous.PostId,
+            previous.Fields | incoming.Fields,
+            incoming.PostUrl ?? previous.PostUrl,
+            Has(incoming.Fields, BooruPostClaimPresence.CreatedAt) ? incoming.CreatedAtUtc : previous.CreatedAtUtc,
+            Has(incoming.Fields, BooruPostClaimPresence.Rating) ? incoming.Rating : previous.Rating,
+            Has(incoming.Fields, BooruPostClaimPresence.Rating) ? incoming.RawRating : previous.RawRating,
+            Has(incoming.Fields, BooruPostClaimPresence.Score) ? incoming.Score : previous.Score,
+            Has(incoming.Fields, BooruPostClaimPresence.FavoriteCount) ? incoming.FavoriteCount : previous.FavoriteCount,
+            Has(incoming.Fields, BooruPostClaimPresence.Tags) ? incoming.Tags : previous.Tags,
+            Has(incoming.Fields, BooruPostClaimPresence.Media) ? incoming.Media : previous.Media,
+            Has(incoming.Fields, BooruPostClaimPresence.SourceClaim) ? incoming.SourceClaim : previous.SourceClaim,
+            Has(incoming.Fields, BooruPostClaimPresence.IsDeleted) ? incoming.IsDeleted : previous.IsDeleted,
+            Has(incoming.Fields, BooruPostClaimPresence.IsBanned) ? incoming.IsBanned : previous.IsBanned);
+
+    private static DateTimeOffset Earliest(DateTimeOffset left, DateTimeOffset right) =>
+        left <= right ? left : right;
+
+    private static DateTimeOffset Latest(DateTimeOffset left, DateTimeOffset right) =>
+        left >= right ? left : right;
 
     private static string PostKey(string sourceId, string postId) => sourceId + "\0" + postId;
 
