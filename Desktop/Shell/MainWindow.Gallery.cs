@@ -61,17 +61,24 @@ public partial class MainWindow
     private GalleryViewerState? _galleryReturnState;
     private WorkspacePage _galleryOriginPage;
 
+    // Direct archive list/media-menu delegates share the same contract as the specialized wrappers.
+    // Downloads, Favorites and Media retain their existing independent entry contracts.
+    private Func<bool>? ArchiveGalleryHandoffGuard() => _selectedPage == WorkspacePage.Archive || _largeReaderOpen
+        ? _archivePage?.CaptureGalleryHandoffGuard() : null;
+
     internal async Task OpenGalleryAsync(ResourceId id, GalleryEntryKey? start = null, Control? origin = null)
     {
-        Func<bool>? readerRequest = _archivePage?.ReaderMediaActivationGuard;
+        Func<bool>? activationRequest = _archivePage?.ReaderMediaActivationGuard;
+        Func<bool>? readerRequest = activationRequest ?? ArchiveGalleryHandoffGuard();
         if (readerRequest?.Invoke() == false) return;
-        if (readerRequest == null && _gallerySuspended && _largeReaderOpen && start != null)
+        if (activationRequest == null && _gallerySuspended && _largeReaderOpen && start != null)
         {
             int existing = _galleryEntries.FindIndex(entry => entry.EntryKey == start);
             if (existing >= 0)
             {
                 _galleryIndex = existing;
                 await ShowGalleryEntryAsync();
+                if (readerRequest?.Invoke() == false) return;
                 ReturnToGallery();
                 return;
             }
@@ -84,6 +91,7 @@ public partial class MainWindow
     internal async Task OpenMediaGalleryAsync(IReadOnlyList<GalleryEntry> entries, GalleryEntryKey start, Control? origin = null,
         Func<bool>? stillRequested = null)
     {
+        stillRequested ??= _archivePage?.GallerySelectionGuard ?? ArchiveGalleryHandoffGuard();
         if (stillRequested?.Invoke() == false) return;
         _galleryStart = null;
         _galleryAllVersions = true;
@@ -103,6 +111,8 @@ public partial class MainWindow
 
     internal async Task OpenSearchGalleryAsync(ArchiveSearchRequest query, int workFilter = 0, Control? origin = null)
     {
+        Func<bool>? stillRequested = _archivePage?.GallerySelectionGuard ?? ArchiveGalleryHandoffGuard();
+        if (stillRequested?.Invoke() == false) return;
         // Freeze the work projection with the query before asynchronous selection begins.
         IReadOnlySet<string>? eligibleUrls = MeowChan.ArchivePage.CaptureExportWorkUrls(workFilter, _session.GetThreadWorkSnapshots());
         _galleryStart = null;
@@ -111,7 +121,7 @@ public partial class MainWindow
         {
             await using ArchiveReader reader = await _session.OpenArchiveReaderAsync(token);
             return await MeowChan.ArchivePage.ResolveExportResultIdsAsync(reader, query, eligibleUrls, token);
-        });
+        }, stillRequested: stillRequested);
     }
 
     private async Task StartGalleryAsync(IReadOnlyList<ResourceId> ids, Control? origin,
@@ -122,7 +132,9 @@ public partial class MainWindow
         bool largeReaderOrigin = _largeReaderOpen;
         bool readerOrigin = largeReaderOrigin && ArchivePage.ReaderShowsPosts;
         WorkspacePage originPage = _selectedPage;
-        CloseGallery(restoreOrigin: false);
+        // Retiring the previous viewer is an internal handoff, not a user cancellation.
+        // Navigation/explicit close still invalidate the page request while cleanup is held.
+        CloseGalleryCore(restoreOrigin: false, cancelPendingOpen: false);
         int request = ++_galleryRequest;
         // Keep a retiring video's native drawable attached until VLC has
         // stopped. A new viewer must not replace that host prematurely.
@@ -454,9 +466,11 @@ public partial class MainWindow
         _gallery.Focus();
     }
 
-    private void CloseGallery(bool restoreOrigin = true)
+    private void CloseGallery(bool restoreOrigin = true) => CloseGalleryCore(restoreOrigin, cancelPendingOpen: true);
+
+    private void CloseGalleryCore(bool restoreOrigin, bool cancelPendingOpen)
     {
-        _archivePage?.CancelPendingGalleryOpen();
+        if (cancelPendingOpen) _archivePage?.CancelPendingGalleryOpen();
         TrackGalleryCleanup(FlushGalleryPreferencesAsync());
         GalleryEntry? current = _galleryIndex >= 0 && _galleryIndex < _galleryEntries.Count ? _galleryEntries[_galleryIndex] : null;
         bool followReader = restoreOrigin && _galleryReaderOrigin;

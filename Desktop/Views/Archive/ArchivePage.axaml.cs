@@ -149,7 +149,12 @@ public partial class ArchivePage : UserControl
         set
         {
             if (!value) InvalidateFilenameSearch();
-            if (_available != value) CancelReaderMediaActivation();
+            if (_available != value)
+            {
+                CancelReaderMediaActivation();
+                CancelPendingGalleryOpen();
+                if (!value) _exportCancellation?.Cancel();
+            }
             bool becameAvailable = value && !_available;
             _available = value; UpdateActions();
             // A list read before the runtime existed shows unknown work status; refresh the same applied
@@ -658,7 +663,7 @@ public partial class ArchivePage : UserControl
             },
             OpenPreview = async () =>
             {
-                if (_ended || IsReaderDialogOpen || _busy || !_available || !ready.IsCompletedSuccessfully) return;
+                if (_ended || _lifetime.IsCancellationRequested || IsReaderDialogOpen || _busy || !_available || !ready.IsCompletedSuccessfully) return;
                 ArchiveAssetRow? match = FindMatchingAsset(resource, postId, attachment, ready.Result);
                 if (match != null && _selectedThread == resource && OpenGallery != null)
                     await OpenGallery(resource, new GalleryEntryKey(
@@ -679,7 +684,7 @@ public partial class ArchivePage : UserControl
             LoadThumbnail = token => LoadListThumbnailAsync(summary, postId, attachment, binding => row.Binding = binding, token),
             OpenPreview = async () =>
             {
-                if (!IsReaderDialogOpen && OpenGallery != null) await OpenGallery(summary.Id, null, this);
+                await OpenThreadGalleryAsync(summary.Id, null, this);
             }
         };
         return row;

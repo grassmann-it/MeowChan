@@ -20,6 +20,17 @@ public partial class ArchivePage
     private ArchiveThreadRow? _contextThread;
     private int _gallerySelectionRequest;
     private CancellationTokenSource? _gallerySelectionCancellation;
+    // Snapshotted synchronously by the shell delegates, then retained through native cleanup.
+    internal Func<bool>? GallerySelectionGuard { get; private set; }
+    internal Func<bool> CaptureGalleryHandoffGuard()
+    {
+        int request = _gallerySelectionRequest, content = _contentRequest;
+        var threadOpen = OpenGallery; var mediaOpen = OpenMediaGallery; var resultsOpen = OpenResultsGallery;
+        return () => _available && !_ended && !_lifetime.IsCancellationRequested && !_busy && !IsReaderDialogOpen
+            && request == _gallerySelectionRequest && content == _contentRequest
+            && ReferenceEquals(threadOpen, OpenGallery) && ReferenceEquals(mediaOpen, OpenMediaGallery)
+            && ReferenceEquals(resultsOpen, OpenResultsGallery);
+    }
     internal void CancelPendingGalleryOpen()
     {
         // Also the existing shell workspace-leave/forced gallery-close hook, including
@@ -59,14 +70,39 @@ public partial class ArchivePage
         }).ToArray();
     }
 
+    // The shell already snapshots this guard for thread-gallery handoff and rechecks it
+    // after native-media cleanup. Catalog readability alone never authorizes coverage.
+    private async Task OpenThreadGalleryAsync(ResourceId id, GalleryEntryKey? start, Control? origin)
+    {
+        if (!_available || _ended || _lifetime.IsCancellationRequested || _busy || IsReaderDialogOpen || OpenGallery == null) return;
+        if (_readerMediaActivationCancellation != null) return;
+        using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _readerMediaActivationCancellation = cancellation;
+        var open = OpenGallery;
+        int content = _contentRequest, request = _gallerySelectionRequest;
+        Func<bool> current = () => _available && !_ended && !cancellation.IsCancellationRequested
+            && !_busy && !IsReaderDialogOpen && content == _contentRequest && request == _gallerySelectionRequest
+            && ReferenceEquals(open, OpenGallery);
+        ReaderMediaActivationGuard = current;
+        try { await open(id, start, origin); }
+        finally
+        {
+            if (ReferenceEquals(ReaderMediaActivationGuard, current)) ReaderMediaActivationGuard = null;
+            if (ReferenceEquals(_readerMediaActivationCancellation, cancellation)) _readerMediaActivationCancellation = null;
+        }
+    }
+
     private async Task OpenAssetGalleryAsync(ArchiveAssetRow row, Control? origin)
     {
-        if (IsReaderDialogOpen || _selectedThread == null || OpenMediaGallery == null || _thread == null) return;
+        if (!_available || _ended || _lifetime.IsCancellationRequested || _busy || IsReaderDialogOpen
+            || _selectedThread == null || OpenMediaGallery == null || _thread == null) return;
         CancelPendingGalleryOpen();
         int request = _gallerySelectionRequest;
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _gallerySelectionCancellation = loading;
         CancellationToken token = loading.Token;
+        var open = OpenMediaGallery;
+        int content = _contentRequest;
         ResourceId threadId = _selectedThread;
         ArchivedThreadView thread = _thread;
         ArchiveAssetRow[] visible = VisibleAssets().ToArray();
@@ -76,10 +112,19 @@ public partial class ArchivePage
         try
         {
             GalleryEntry[] entries = await Task.Run(() => BuildVisibleGalleryEntries(thread, assets, visible), token);
-            if (_ended || IsReaderDialogOpen || token.IsCancellationRequested || request != _gallerySelectionRequest
-                || _selectedThread != threadId || !ReferenceEquals(_thread, thread) || !_showReader) return;
+            bool Current() => _available && !_ended && !_busy && !IsReaderDialogOpen
+                && !token.IsCancellationRequested && request == _gallerySelectionRequest && content == _contentRequest
+                && _selectedThread == threadId && ReferenceEquals(_thread, thread) && _showReader
+                && ReferenceEquals(open, OpenMediaGallery);
+            if (!Current()) return;
             GalleryEntry? selected = entries.FirstOrDefault(entry => entry.Key == key);
-            if (selected != null) await OpenMediaGallery(entries, selected.EntryKey, origin);
+            if (selected != null)
+            {
+                Func<bool> current = Current;
+                GallerySelectionGuard = current;
+                try { await open(entries, selected.EntryKey, origin); }
+                finally { if (ReferenceEquals(GallerySelectionGuard, current)) GallerySelectionGuard = null; }
+            }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         finally { if (ReferenceEquals(_gallerySelectionCancellation, loading)) _gallerySelectionCancellation = null; }
@@ -226,9 +271,9 @@ public partial class ArchivePage
 
     private async void OnThreadGalleryMenu(object? sender, RoutedEventArgs e)
     {
-        if (IsFilenameSearchOpen) return;
+        if (!_available || _ended || _lifetime.IsCancellationRequested || _busy || IsFilenameSearchOpen) return;
         if (EventThread(sender, e.Source) is ArchiveThreadRow row && OpenGallery != null)
-            await OpenGallery(row.Summary.Id, null, ThreadOrigin(row));
+            await OpenThreadGalleryAsync(row.Summary.Id, null, ThreadOrigin(row));
     }
 
     private async void OnThreadReadMenu(object? sender, RoutedEventArgs e)
@@ -254,19 +299,44 @@ public partial class ArchivePage
 
     private async void OnCurrentGalleryClick(object? sender, RoutedEventArgs e)
     {
-        if (IsFilenameSearchOpen) return;
+        if (!_available || _ended || _lifetime.IsCancellationRequested || _busy || IsFilenameSearchOpen) return;
         if (_selectedThread != null && OpenGallery != null)
-            await OpenGallery(_selectedThread, null, sender as Control);
+            await OpenThreadGalleryAsync(_selectedThread, null, sender as Control);
     }
 
     private async void OnResultsGalleryClick(object? sender, RoutedEventArgs e)
     {
-        if (IsFilenameSearchOpen) return;
-        if (OpenResultsGallery != null) await OpenResultsGallery(_appliedSearch ?? ArchiveSearchRequest.Create(_query), _workFilter, sender as Control);
+        await OpenResultsGalleryAsync(sender as Control);
+    }
+
+    private async Task OpenResultsGalleryAsync(Control? origin)
+    {
+        if (!_available || _ended || _lifetime.IsCancellationRequested || _busy || IsReaderDialogOpen || OpenResultsGallery == null) return;
+        CancelPendingGalleryOpen();
+        int request = _gallerySelectionRequest, content = _contentRequest;
+        using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _gallerySelectionCancellation = loading;
+        var open = OpenResultsGallery;
+        ArchiveSearchRequest query = _appliedSearch ?? ArchiveSearchRequest.Create(_query);
+        var applied = _appliedSearch;
+        var draft = _query;
+        int workFilter = _workFilter;
+        Func<bool> current = () => _available && !_ended && !_busy && !IsReaderDialogOpen
+            && !loading.IsCancellationRequested && request == _gallerySelectionRequest && content == _contentRequest
+            && ReferenceEquals(applied, _appliedSearch) && Equals(draft, _query) && workFilter == _workFilter
+            && ReferenceEquals(open, OpenResultsGallery);
+        GallerySelectionGuard = current;
+        try { await open(query, workFilter, origin); }
+        finally
+        {
+            if (ReferenceEquals(GallerySelectionGuard, current)) GallerySelectionGuard = null;
+            if (ReferenceEquals(_gallerySelectionCancellation, loading)) _gallerySelectionCancellation = null;
+        }
     }
 
     private async void OnMediaDoubleTapped(object? sender, TappedEventArgs e)
     {
+        if (!_available || _ended || _lifetime.IsCancellationRequested || _busy || IsReaderDialogOpen) return;
         if (e.Source is Visual visual && visual.GetSelfAndVisualAncestors().Any(node => node is Button or TextBox or ComboBox or Slider)) return;
         ArchiveAssetRow? row = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Control>()
             .Select(control => control.DataContext).OfType<ArchiveAssetRow>().FirstOrDefault();
@@ -277,7 +347,7 @@ public partial class ArchivePage
 
     private async void OnMediaKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || IsReaderDialogOpen || sender is not Control list) return;
+        if (e.Handled || !_available || _ended || _lifetime.IsCancellationRequested || _busy || IsReaderDialogOpen || sender is not Control list) return;
         if (TryRouteArchiveMediaShortcut(list, e)) return;
         if (!MeowChan.Desktop.Commands.CommandBindings.Matches(e, "media.open") || !MainWindow.IsListCommandSource(e.Source, list)) return;
         ArchiveAssetRow? row = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Control>()

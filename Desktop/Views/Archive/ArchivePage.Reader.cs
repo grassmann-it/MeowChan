@@ -473,18 +473,18 @@ public partial class ArchivePage
         KeyModifiers primary = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
         if (CommandBindings.Matches(e, "export.open-html-dialog") && _thread != null)
         {
-            if (_busy || _ended) return;
+            if (!_available || _busy || _ended || _lifetime.IsCancellationRequested) return;
             e.Handled = true;
             await OpenExportForThreadsAsync(new[] { _thread.Summary.Id }, e.Source as Control);
             return;
         }
         if (CommandBindings.Matches(e, "gallery.open") && _thread != null && OpenGallery != null)
         {
-            if (_busy || _ended) return;
+            if (!_available || _busy || _ended || _lifetime.IsCancellationRequested) return;
             // Buttons and native editors retain their activation gestures.
             if (e.Source is Visual visual && visual.GetSelfAndVisualAncestors().Any(node => node is Button or Slider or TabItem)) return;
             e.Handled = true;
-            await OpenGallery(_thread.Summary.Id, null, e.Source as Control);
+            await OpenThreadGalleryAsync(_thread.Summary.Id, null, e.Source as Control);
             return;
         }
         if (TryActivateReaderMedia(e))

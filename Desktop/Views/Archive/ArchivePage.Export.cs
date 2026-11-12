@@ -33,6 +33,9 @@ public partial class ArchivePage
     {
         public override string ToString() => (Inspection?.Metadata.AdoptedLegacy == true ? Texts.T("export.associatedDate") + " " : string.Empty) + Date.ToLocalTime().ToString("g", Texts.Culture) + " · " + Destination + (Inspection == null ? " · " + Texts.T("export.missing") : string.Empty);
     }
+    // Reuse the runtime gate and existing dialog request/lifetime; CanRead is passive only.
+    private bool ExportRequestIsCurrent(int request) => _available && !_ended
+        && !_lifetime.IsCancellationRequested && request == _exportRequest;
     private async void OnExportClick(object? sender, RoutedEventArgs e)
     {
         ResourceId? id = _selectedThread ?? _thread?.Summary.Id;
@@ -49,7 +52,8 @@ public partial class ArchivePage
     private async Task OpenExportCoreAsync(ResourceId id, Control? origin, ResourceId[]? members, Action? onClosed,
         bool allResults = false, bool resolvedResults = false)
     {
-        if (_ended || IsFilenameSearchOpen || _urlTextExportBusy || IsArchiveCleanupOpen || _openReader == null) return;
+        if (!_available || _ended || _lifetime.IsCancellationRequested || _busy || IsFilenameSearchOpen
+            || _urlTextExportBusy || IsArchiveCleanupOpen || _openReader == null) return;
         EnsureExportDialog();
         if (ArchiveExportDialog.IsVisible && !resolvedResults) { Control<Button>("ArchiveExportClose").Focus(); return; }
         int request = ++_exportRequest;
@@ -80,19 +84,19 @@ public partial class ArchivePage
                 if (!Directory.Exists(parent)) parent = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
                 return FreshSelectedExportDestination(parent, id);
             });
-            if (_ended || request != _exportRequest) return;
+            if (!ExportRequestIsCurrent(request)) return;
             _exportNewDestination = destination;
             Control<TextBox>("ArchiveExportDestination").Text = destination;
             await ReloadSelectedExportHistoryAsync(id, request);
         }
-        catch (Exception exception) { if (!_ended && request == _exportRequest) ExportError(exception.Message); }
+        catch (Exception exception) { if (ExportRequestIsCurrent(request)) ExportError(exception.Message); }
         finally
         {
             if (request == _exportRequest) _exportLoading = false;
             if (!_ended)
             {
                 UpdateExportActions();
-                if (request == _exportRequest && ArchiveExportDialog.IsVisible)
+                if (ExportRequestIsCurrent(request) && ArchiveExportDialog.IsVisible)
                     Control<TextBox>("ArchiveExportDestination").Focus();
             }
         }
@@ -105,7 +109,7 @@ public partial class ArchivePage
         {
             CancellationToken lookup = _exportLookupCancellation?.Token ?? _lifetime.Token;
             var entries = await Task.Run(() => ExportHistory.ListVerifiedAsync(id, lookup));
-            if (_ended || request != _exportRequest || !ArchiveExportDialog.IsVisible) return;
+            if (!ExportRequestIsCurrent(request) || !ArchiveExportDialog.IsVisible) return;
             PreviousExport[] choices = entries.OrderBy(item => item.Inspection == null).Select(item => new PreviousExport(item.Entry.Destination, item.Entry.ExportedAt, item.Inspection)).ToArray();
             Control<ComboBox>("ArchiveExportHistory").ItemsSource = choices;
             int selected = Array.FindIndex(choices, item => item.Destination == selectedDestination);
@@ -114,7 +118,7 @@ public partial class ArchivePage
         }
         catch (Exception exception)
         {
-            if (!_ended && request == _exportRequest)
+            if (ExportRequestIsCurrent(request))
                 ExportError(ArchiveExportStatusText.Localized("export.historyError", exception.Message));
         }
     }
@@ -146,7 +150,7 @@ public partial class ArchivePage
     private async void OnExportAssociate(object? sender, RoutedEventArgs e) => await PickExportFolderAsync(true);
     private async Task PickExportFolderAsync(bool associate)
     {
-        if (_exportRunning || _exportPicking || _exportLoading || _ended || _exportThread == null) return;
+        if (!_available || _ended || _lifetime.IsCancellationRequested || _exportRunning || _exportPicking || _exportLoading || _exportThread == null) return;
         ResourceId id = _exportThread; int request = _exportRequest;
         _exportPicking = true; UpdateExportActions();
         try
@@ -159,35 +163,37 @@ public partial class ArchivePage
             finally { _exportPickerOpen = false; }
             try
             {
-                if (_ended || request != _exportRequest || folders.Count == 0) return;
+                if (!ExportRequestIsCurrent(request) || folders.Count == 0) return;
                 string? parent = folders[0].TryGetLocalPath();
                 if (parent == null) { ExportError(ArchiveExportStatusText.Localized("settings.pickerLocalOnly")); return; }
                 await RememberExportDirectoryAsync(parent);
-                if (_ended || request != _exportRequest) return;
+                if (!ExportRequestIsCurrent(request)) return;
                 if (associate && HasSelectedExportHistory)
                 {
                     if (IsCollectionExport) await Task.Run(() => CollectionExportHistory!.AssociateAsync(parent, _exportMembers!, _lifetime.Token));
                     else await Task.Run(() => ExportHistory!.AssociateAsync(parent, id, _lifetime.Token));
+                    if (!ExportRequestIsCurrent(request)) return;
                     await ReloadSelectedExportHistoryAsync(id, request);
                 }
                 else
                 {
                     string destination = await Task.Run(() => FreshSelectedExportDestination(parent, id));
-                    if (_ended || request != _exportRequest) return;
+                    if (!ExportRequestIsCurrent(request)) return;
                     _exportNewDestination = destination;
                     Control<TextBox>("ArchiveExportDestination").Text = destination;
                 }
             }
             finally { foreach (IStorageFolder folder in folders) folder.Dispose(); }
         }
-        catch (Exception exception) { if (!_ended && request == _exportRequest) ExportError(exception.Message); }
+        catch (Exception exception) { if (ExportRequestIsCurrent(request)) ExportError(exception.Message); }
         finally { if (request == _exportRequest) { _exportPicking = false; if (!_ended) UpdateExportActions(); } }
     }
     private async void OnExportStart(object? sender, RoutedEventArgs e)
     {
-        if (_exportRunning || _exportPicking || _exportLoading || _ended || _exportThread == null || _openReader == null) return;
+        if (!_available || _ended || _lifetime.IsCancellationRequested || _exportRunning || _exportPicking || _exportLoading || _exportThread == null || _openReader == null) return;
         if (IsCollectionExport) { await StartCollectionExportAsync(); return; }
         ResourceId id = _exportThread;
+        int request = _exportRequest;
         string destination = Control<TextBox>("ArchiveExportDestination").Text ?? string.Empty;
         ArchiveHtmlExportOptions options = new(Control<CheckBox>("ArchiveExportMedia").IsChecked == true)
         {
@@ -203,15 +209,16 @@ public partial class ArchivePage
         try
         {
             await using ArchiveReader reader = await Task.Run(() => _openReader(cancellation.Token));
+            if (!ExportRequestIsCurrent(request) || !ReferenceEquals(_exportCancellation, cancellation) || cancellation.IsCancellationRequested) return;
             Progress<ArchiveHtmlExportProgress> progress = new(value =>
             {
-                if (!_ended && ReferenceEquals(_exportCancellation, cancellation) && !cancellation.IsCancellationRequested)
+                if (ExportRequestIsCurrent(request) && ReferenceEquals(_exportCancellation, cancellation) && !cancellation.IsCancellationRequested)
                     ExportStatus(ArchiveExportStatusText.Localized(value.Phase == ArchiveHtmlExportPhase.ReadingMedia ? "archive.exportReading" : "archive.exportProgress", value.PostsWritten, value.FilesCopied));
             });
             ArchiveHtmlExportResult result = await Task.Run(() => updating
                 ? ArchiveHtmlExporter.UpdateAsync(reader, id, destination, previous!.Inspection!.Metadata.ExportId, previous.Inspection.Metadata.Generation, options, preserve, progress, cancellation.Token, expectedObservedFingerprint: previous.Inspection.ObservedFingerprint)
                 : ArchiveHtmlExporter.ExportAsync(reader, id, destination, options, progress, cancellation.Token));
-            if (_ended || !ReferenceEquals(_exportCancellation, cancellation) || cancellation.IsCancellationRequested) return;
+            if (!ExportRequestIsCurrent(request) || !ReferenceEquals(_exportCancellation, cancellation) || cancellation.IsCancellationRequested) return;
             LastExport = result;
             ExportStatus(ArchiveExportStatusText.SingleResult(result));
             if (ExportHistory != null)
@@ -219,16 +226,17 @@ public partial class ArchivePage
                 try
                 {
                     ArchiveExportOperationResult recorded = await Task.Run(() => ExportHistory.RecordPublishedAsync(result));
+                    if (!ExportRequestIsCurrent(request) || cancellation.IsCancellationRequested) return;
                     if (!recorded.HistoryRecorded) ExportError(ArchiveExportStatusText.Localized("export.historyError", recorded.HistoryError));
-                    else await ReloadExportHistoryAsync(id, _exportRequest);
+                    else await ReloadExportHistoryAsync(id, request);
                 }
-                catch (Exception exception) { ExportError(ArchiveExportStatusText.Localized("export.historyError", exception.Message)); }
+                catch (Exception exception) { if (ExportRequestIsCurrent(request)) ExportError(ArchiveExportStatusText.Localized("export.historyError", exception.Message)); }
             }
         }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { if (!_ended) ExportStatus(ArchiveExportStatusText.Localized("archive.exportCancelled")); }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { if (ExportRequestIsCurrent(request)) ExportStatus(ArchiveExportStatusText.Localized("archive.exportCancelled")); }
         catch (Exception exception)
         {
-            if (!_ended && ReferenceEquals(_exportCancellation, cancellation))
+            if (ExportRequestIsCurrent(request) && ReferenceEquals(_exportCancellation, cancellation))
             {
                 if (cancellation.IsCancellationRequested) { ExportStatus(ArchiveExportStatusText.Localized("archive.exportCancelled")); return; }
                 ExportError(ArchiveExportStatusText.Failed(exception.Message));
@@ -243,7 +251,7 @@ public partial class ArchivePage
                         history.ItemsSource = choices.Select(item => item with { Inspection = null }).ToArray();
                         history.SelectedIndex = selected;
                     }
-                    await ReloadExportHistoryAsync(id, _exportRequest);
+                    await ReloadExportHistoryAsync(id, request);
                 }
             }
         }
@@ -260,7 +268,7 @@ public partial class ArchivePage
     {
         if (_exportCard == null) return;
         Control<Ursa.Controls.LoadingIcon>("ArchiveExportLoading").IsLoading = Control<Ursa.Controls.LoadingIcon>("ArchiveExportLoading").IsVisible = _exportRunning || _exportPicking || _exportLoading || _exportResolving;
-        bool ready = !_exportRunning && !_exportPicking && !_exportLoading && _exportThread != null;
+        bool ready = ExportRequestIsCurrent(_exportRequest) && !_exportRunning && !_exportPicking && !_exportLoading && !_exportResolving && _exportThread != null;
         Control<Button>("ArchiveExportStart").IsEnabled = ready;
         Control<Button>("ArchiveExportBrowse").IsEnabled = ready && !UpdatingExport;
         Control<Button>("ArchiveExportAssociate").IsEnabled = ready && HasSelectedExportHistory;
@@ -302,9 +310,10 @@ public partial class ArchivePage
         if (closed != null) closed(); else _exportOrigin?.Focus();
     }
     private async void OnExportOpen(object? sender, RoutedEventArgs e)
-    { if (!_exportRunning && !_exportPicking && !_exportLoading && PublishedExportDirectory is string destination) await TryOpenExportFolderAsync(destination); }
+    { if (ExportRequestIsCurrent(_exportRequest) && !_exportRunning && !_exportPicking && !_exportLoading && PublishedExportDirectory is string destination) await TryOpenExportFolderAsync(destination); }
     private async void OnExportPrevious(object? sender, RoutedEventArgs e)
     {
+        if (!ExportRequestIsCurrent(_exportRequest)) return;
         if (IsCollectionExport) { await OpenPreviousCollectionExportAsync(); return; }
         if (_exportRunning || _exportPicking || SelectedExport == null || _exportThread == null) return;
         PreviousExport previous = SelectedExport;
@@ -316,7 +325,7 @@ public partial class ArchivePage
         try
         {
             ArchiveExportInspection current = await Task.Run(() => ArchiveHtmlExporter.InspectAsync(destination, id, _lifetime.Token));
-            if (_ended || request != _exportRequest) return;
+            if (!ExportRequestIsCurrent(request)) return;
             if (current.Metadata.ExportId != expected.Metadata.ExportId || current.Metadata.Generation != expected.Metadata.Generation)
             {
                 ExportError(ArchiveExportStatusText.Localized("export.openFailed",
@@ -325,12 +334,12 @@ public partial class ArchivePage
             }
             await TryOpenExportFolderAsync(destination);
         }
-        catch (Exception exception) { if (!_ended && request == _exportRequest) ExportError(ArchiveExportStatusText.Localized("export.openFailed", exception.Message)); }
+        catch (Exception exception) { if (ExportRequestIsCurrent(request)) ExportError(ArchiveExportStatusText.Localized("export.openFailed", exception.Message)); }
         finally { if (request == _exportRequest) { _exportPicking = false; if (!_ended) UpdateExportActions(); } }
     }
     private async void OnExportLegacyFind(object? sender, RoutedEventArgs e)
     {
-        if (_exportRunning || _exportPicking || _exportThread == null) return;
+        if (!ExportRequestIsCurrent(_exportRequest) || _exportRunning || _exportPicking || _exportThread == null) return;
         ResourceId id = _exportThread; int request = _exportRequest;
         string target = Control<TextBox>("ArchiveExportDestination").Text ?? string.Empty;
         // Escape cancels a search without closing the modal. Each retry therefore
@@ -343,35 +352,39 @@ public partial class ArchivePage
             string parent = Path.GetDirectoryName(Path.GetFullPath(target))!;
             CancellationToken lookup = _exportLookupCancellation?.Token ?? _lifetime.Token;
             var candidates = await Task.Run(() => ArchiveExportLegacy.FindCandidates(parent, id, lookup));
-            if (_ended || request != _exportRequest) return;
+            if (!ExportRequestIsCurrent(request)) return;
             Control<ComboBox>("ArchiveExportLegacy").ItemsSource = candidates.Select(candidate => candidate.Directory).ToArray();
             Control<ComboBox>("ArchiveExportLegacy").SelectedIndex = candidates.Count > 0 ? 0 : -1;
             ExportStatus(ArchiveExportStatusText.Localized("export.legacyFound", candidates.Count));
         }
         catch (OperationCanceledException) when (_exportLookupCancellation?.IsCancellationRequested == true)
-        { if (!_ended) ExportStatus(ArchiveExportStatusText.Localized("archive.exportCancelled")); }
-        catch (Exception exception) { if (!_ended && request == _exportRequest) ExportError(exception.Message); }
+        { if (ExportRequestIsCurrent(request)) ExportStatus(ArchiveExportStatusText.Localized("archive.exportCancelled")); }
+        catch (Exception exception) { if (ExportRequestIsCurrent(request)) ExportError(exception.Message); }
         finally { if (request == _exportRequest) { _exportPicking = false; if (!_ended) UpdateExportActions(); } }
     }
     private async void OnExportLegacyAssociate(object? sender, RoutedEventArgs e)
     {
-        if (_exportRunning || _exportPicking || _exportThread == null || ExportHistory == null || _openReader == null ||
+        if (!ExportRequestIsCurrent(_exportRequest) || _exportRunning || _exportPicking || _exportThread == null || ExportHistory == null || _openReader == null ||
             Control<ComboBox>("ArchiveExportLegacy").SelectedItem is not string destination) return;
         ResourceId id = _exportThread; int request = _exportRequest;
         _exportPicking = true; UpdateExportActions();
         try
         {
             await using ArchiveReader reader = await Task.Run(() => _openReader(_lifetime.Token));
+            if (!ExportRequestIsCurrent(request)) return;
             await Task.Run(() => ArchiveExportLegacy.AssociateAsync(reader, id, destination, _lifetime.Token));
+            if (!ExportRequestIsCurrent(request)) return;
             await Task.Run(() => ExportHistory.AssociateAsync(destination, id, _lifetime.Token));
+            if (!ExportRequestIsCurrent(request)) return;
             await ReloadSelectedExportHistoryAsync(id, request);
-            if (!_ended && request == _exportRequest) ExportStatus(ArchiveExportStatusText.Localized("export.legacyAssociated"));
+            if (ExportRequestIsCurrent(request)) ExportStatus(ArchiveExportStatusText.Localized("export.legacyAssociated"));
         }
-        catch (Exception exception) { if (!_ended && request == _exportRequest) ExportError(exception.Message); }
+        catch (Exception exception) { if (ExportRequestIsCurrent(request)) ExportError(exception.Message); }
         finally { if (request == _exportRequest) { _exportPicking = false; if (!_ended) UpdateExportActions(); } }
     }
     private async Task TryOpenExportFolderAsync(string destination)
     {
+        if (!ExportRequestIsCurrent(_exportRequest)) return;
         int request = _exportRequest;
         _exportPicking = true; UpdateExportActions();
         try
@@ -379,7 +392,7 @@ public partial class ArchivePage
             if (OpenExportFolder != null) await OpenExportFolder(destination);
             else _openFolder?.Invoke(destination);
         }
-        catch (Exception exception) { if (!_ended && request == _exportRequest) ExportError(ArchiveExportStatusText.Localized("export.openFailed", exception.Message)); }
+        catch (Exception exception) { if (ExportRequestIsCurrent(request)) ExportError(ArchiveExportStatusText.Localized("export.openFailed", exception.Message)); }
         finally { if (request == _exportRequest) { _exportPicking = false; if (!_ended) UpdateExportActions(); } }
     }
     private void OnExportKeyDown(object? sender, KeyEventArgs e)
