@@ -24,6 +24,10 @@ public sealed class BooruHostHttp : IDisposable
     public static readonly TimeSpan MaximumJobLifetime = BooruJob.MaximumLifetime;
     public static readonly TimeSpan ResponseTimeout = TimeSpan.FromSeconds(15);
     public static readonly TimeSpan MinimumCooldown = TimeSpan.FromSeconds(60);
+    /// <summary>Upper bound for a provider Retry-After on 429; matches the Danbooru plugin's own 24-hour cap.</summary>
+    public static readonly TimeSpan MaximumCooldown = TimeSpan.FromHours(24);
+    /// <summary>Danbooru post ids fit a signed 64-bit integer: at most 18 canonical decimal digits are accepted.</summary>
+    private const int MaximumPostIdDigits = 18;
 
     private readonly HttpClient _transport;
     private readonly bool _disposeTransport;
@@ -83,8 +87,11 @@ public sealed class BooruHostHttp : IDisposable
             {
                 if (JobEnded(job) is HostHttpFailure ended) return ended;
                 DateTimeOffset now = _clock.GetUtcNow();
-                if (state.CooldownUntil > now)
-                    return new HostHttpDeferred(state.CooldownUntil, "booru-cooldown");
+                DateTimeOffset cooldownUntil;
+                // CooldownUntil is a 16-byte struct written under Gate: never read it torn.
+                lock (state.Gate) cooldownUntil = state.CooldownUntil;
+                if (cooldownUntil > now)
+                    return new HostHttpDeferred(cooldownUntil, "booru-cooldown");
                 if (now >= job.Deadline) return Failure("booru-budget", "The booru job budget is exhausted.");
 
                 DateTimeOffset due = state.NextStart;
@@ -157,6 +164,11 @@ public sealed class BooruHostHttp : IDisposable
 
                 int status = (int)response.StatusCode;
                 // Decide on redirects, cooldowns and retries before any body byte is read.
+                // A 304 answers the plugin's own conditional request: it is not a redirect and
+                // carries no body. An unconditional 304 stays a terminal 3xx like any other.
+                if (status == 304 && IsConditional(request))
+                    return new HostHttpResponse(status, request.Url, ReadHeaders(response), [],
+                        new SourceValidators(response.Headers.ETag?.ToString(), response.Content.Headers.LastModified));
                 if (status is >= 300 and <= 399)
                     return Failure("http-redirect", "Metadata redirects are not followed.", status);
                 if (status == 429)
@@ -357,9 +369,14 @@ public sealed class BooruHostHttp : IDisposable
         if (path == "/posts.json") return IsValidSearchQuery(uri.Query);
         if (!path.StartsWith("/posts/", StringComparison.Ordinal) || !path.EndsWith(".json", StringComparison.Ordinal)
             || uri.Query.Length != 0) return false;
-        string id = path[7..^5];
-        return id.Length is > 0 and <= 18 && id[0] != '0' && id.All(char.IsAsciiDigit);
+        return IsCanonicalPostId(path[7..^5]);
     }
+
+    private static bool IsCanonicalPostId(string id) =>
+        id.Length is > 0 and <= MaximumPostIdDigits && id[0] != '0' && id.All(char.IsAsciiDigit);
+
+    private static bool IsConditional(HostHttpRequest request) =>
+        request.Validators?.EntityTag is not null || request.Validators?.LastModified is not null;
 
     private static bool IsValidSearchQuery(string query)
     {
@@ -436,10 +453,13 @@ public sealed class BooruHostHttp : IDisposable
     private static DateTimeOffset CooldownUntil(RetryConditionHeaderValue? header, DateTimeOffset now)
     {
         DateTimeOffset minimum = now + MinimumCooldown;
+        DateTimeOffset maximum = now + MaximumCooldown;
         DateTimeOffset? requested = header?.Delta is TimeSpan delta && delta >= TimeSpan.Zero
-            ? now + delta
+            ? (delta >= MaximumCooldown ? maximum : now + delta)
             : header?.Date is DateTimeOffset date && date > now ? date : null;
-        return requested is DateTimeOffset value && value > minimum ? value : minimum;
+        if (requested is not DateTimeOffset value || value <= minimum) return minimum;
+        // A far-future Retry-After must not silence the provider until the process restarts.
+        return value > maximum ? maximum : value;
     }
 
     private async Task DelayUntilAsync(DateTimeOffset due, CancellationToken cancellationToken)

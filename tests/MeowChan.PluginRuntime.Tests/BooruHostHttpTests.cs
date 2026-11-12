@@ -538,6 +538,129 @@ public sealed class BooruHostHttpTests
         finally { services.CloseJob(job); }
     }
 
+    [Theory]
+    [InlineData(7 * 24 * 3600)]
+    [InlineData(int.MaxValue)]
+    public async Task FarFutureRetryAfterCooldownIsCappedAtTwentyFourHours(int seconds)
+    {
+        ManualClock clock = new();
+        int sends = 0;
+        using HttpClient transport = new(new Handler((request, _) =>
+        {
+            ++sends;
+            HttpResponseMessage response = Response(HttpStatusCode.TooManyRequests, "busy");
+            response.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromSeconds(seconds));
+            return Task.FromResult(response);
+        }));
+        using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
+        BooruHostServices services = new(new Inner(), http);
+        BooruJob job = services.OpenJob();
+        try
+        {
+            DateTimeOffset expected = clock.GetUtcNow() + BooruHostHttp.MaximumCooldown;
+            HostHttpDeferred first = Assert.IsType<HostHttpDeferred>(await services.SendHttpAsync(Get(), job.Operation, default));
+            Assert.Equal(expected, first.RetryAt);
+            Assert.Equal(429, first.HttpStatusCode);
+            Assert.True(services.TryGetCooldown("danbooru", out DateTimeOffset retryAt));
+            Assert.Equal(expected, retryAt);
+            Assert.Equal(1, sends);
+        }
+        finally { services.CloseJob(job); }
+
+        // After the capped cooldown the provider is reachable again with a fresh job.
+        clock.Advance(BooruHostHttp.MaximumCooldown);
+        Assert.False(services.TryGetCooldown("danbooru", out _));
+        BooruJob later = services.OpenJob();
+        try
+        {
+            Assert.IsType<HostHttpDeferred>(await services.SendHttpAsync(Get(), later.Operation, default));
+            Assert.Equal(2, sends);
+        }
+        finally { services.CloseJob(later); }
+    }
+
+    [Fact]
+    public async Task FarFutureRetryAfterDateIsCappedAndShortDateKeepsTheMinimum()
+    {
+        ManualClock clock = new();
+        DateTimeOffset retryAfterDate = default;
+        using HttpClient transport = new(new Handler((request, _) =>
+        {
+            HttpResponseMessage response = Response(HttpStatusCode.TooManyRequests, "busy");
+            response.Headers.RetryAfter = new RetryConditionHeaderValue(retryAfterDate);
+            return Task.FromResult(response);
+        }));
+        using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
+        BooruHostServices services = new(new Inner(), http);
+
+        retryAfterDate = clock.GetUtcNow().AddDays(30);
+        BooruJob far = services.OpenJob();
+        try
+        {
+            Assert.Equal(clock.GetUtcNow() + BooruHostHttp.MaximumCooldown,
+                Assert.IsType<HostHttpDeferred>(await services.SendHttpAsync(Get(), far.Operation, default)).RetryAt);
+        }
+        finally { services.CloseJob(far); }
+
+        clock.Advance(BooruHostHttp.MaximumCooldown);
+        retryAfterDate = clock.GetUtcNow().AddSeconds(5);
+        BooruJob near = services.OpenJob();
+        try
+        {
+            Assert.Equal(clock.GetUtcNow() + BooruHostHttp.MinimumCooldown,
+                Assert.IsType<HostHttpDeferred>(await services.SendHttpAsync(Get(), near.Operation, default)).RetryAt);
+        }
+        finally { services.CloseJob(near); }
+    }
+
+    [Fact]
+    public async Task ConditionalNotModifiedIsAnEmptyResponseAndReadsNoBody()
+    {
+        TrackingContent content = new();
+        int sends = 0;
+        using HttpClient transport = new(new Handler((request, _) =>
+        {
+            ++sends;
+            Assert.Equal("\"v1\"", Assert.Single(request.Headers.GetValues("If-None-Match")));
+            HttpResponseMessage response = new(HttpStatusCode.NotModified) { Content = content };
+            response.Headers.ETag = new EntityTagHeaderValue("\"v1\"");
+            return Task.FromResult(response);
+        }));
+        using BooruHostHttp http = new(transport, new RequestPolicyState(), [Source()]);
+        BooruHostServices services = new(new Inner(), http);
+        BooruJob job = services.OpenJob();
+        try
+        {
+            HostHttpResponse result = Assert.IsType<HostHttpResponse>(await services.SendHttpAsync(
+                Get() with { Validators = new SourceValidators("\"v1\"", null) }, job.Operation, default));
+            Assert.Equal(304, result.StatusCode);
+            Assert.Empty(result.Body);
+            Assert.Equal("\"v1\"", result.Validators?.EntityTag);
+            Assert.False(content.StreamOpened);
+            Assert.Equal(1, sends);
+        }
+        finally { services.CloseJob(job); }
+    }
+
+    [Fact]
+    public async Task UnconditionalNotModifiedStaysATerminalThreeHundredWithoutRetry()
+    {
+        int sends = 0;
+        using HttpClient transport = new(new Handler((request, _) =>
+        { ++sends; return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotModified) { Content = new TrackingContent() }); }));
+        using BooruHostHttp http = new(transport, new RequestPolicyState(), [Source()]);
+        BooruHostServices services = new(new Inner(), http);
+        BooruJob job = services.OpenJob();
+        try
+        {
+            HostHttpFailure result = Assert.IsType<HostHttpFailure>(await services.SendHttpAsync(Get(), job.Operation, default));
+            Assert.Equal("http-redirect", result.Failure.Code);
+            Assert.Equal(304, result.Failure.HttpStatusCode);
+            Assert.Equal(1, sends);
+        }
+        finally { services.CloseJob(job); }
+    }
+
     private static HostHttpRequest Get() => new("danbooru", HostHttpMethod.Get, new("https://danbooru.test/posts.json"));
     private static SourceDescription Source() => new("danbooru", "Danbooru", new("https://danbooru.test/"),
         SourceCapabilities.PostSearch, [], [new("danbooru.test", HttpHostPurpose.Metadata)], new("1", []));

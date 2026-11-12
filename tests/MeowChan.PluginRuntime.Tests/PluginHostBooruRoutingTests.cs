@@ -39,6 +39,54 @@ public sealed class PluginHostBooruRoutingTests
         Assert.Equal(1, sends);
     }
 
+    [Fact]
+    public async Task ChanSourceKeepsItsPolicyAndRedirectsBesideTheZeroRedirectBooruRoute()
+    {
+        List<string> sent = [];
+        using HttpClient transport = new(new Handler(request =>
+        {
+            string url = request.RequestUri!.AbsoluteUri;
+            lock (sent) sent.Add(url);
+            if (url == "https://chan.test/a")
+            {
+                Assert.Equal("MeowChan", request.Headers.UserAgent.ToString());
+                HttpResponseMessage moved = new(HttpStatusCode.MovedPermanently) { RequestMessage = request };
+                moved.Headers.Location = new("/b", UriKind.Relative);
+                return moved;
+            }
+            if (url == "https://chan.test/b")
+                return new HttpResponseMessage(HttpStatusCode.OK) { RequestMessage = request, Content = new StringContent("chan") };
+            Assert.Equal("danbooru.test", request.RequestUri.Host);
+            Assert.StartsWith("MeowChan/", request.Headers.UserAgent.ToString());
+            HttpResponseMessage redirect = new(HttpStatusCode.Found) { RequestMessage = request };
+            redirect.Headers.Location = new("https://danbooru.test/posts/2.json");
+            return redirect;
+        }));
+
+        using PluginHostHttp host = new(transport, new RequestPolicyState(), [Source(), ChanSource()]);
+
+        HostHttpResponse chan = Assert.IsType<HostHttpResponse>(await host.SendAsync(new(
+            "chan", HostHttpMethod.Get, new("https://chan.test/a"))));
+        Assert.Equal("https://chan.test/b", chan.FinalUri.AbsoluteUri);
+        Assert.Equal("chan", Encoding.UTF8.GetString(chan.Body));
+
+        HostHttpFailure booru = Assert.IsType<HostHttpFailure>(await host.SendAsync(new(
+            "danbooru", HostHttpMethod.Get, new("https://danbooru.test/posts/1.json"))));
+        Assert.Equal("http-redirect", booru.Failure.Code);
+        Assert.Equal(302, booru.Failure.HttpStatusCode);
+
+        // The chan source followed its one redirect; the booru source never followed Location.
+        Assert.Equal(["https://chan.test/a", "https://chan.test/b", "https://danbooru.test/posts/1.json"], sent);
+
+        // A chan HEAD still works: the GET-only booru restriction does not leak into chan sources.
+        Assert.IsType<HostHttpResponse>(await host.SendAsync(new("chan", HostHttpMethod.Head, new("https://chan.test/b"))));
+    }
+
+    private static SourceDescription ChanSource() => new(
+        "chan", "Chan", new("https://chan.test/"),
+        SourceCapabilities.ThreadRead, [],
+        [new("chan.test", HttpHostPurpose.Metadata)], new("1", []));
+
     private static SourceDescription Source() => new(
         "danbooru", "Danbooru", new("https://danbooru.test/"),
         SourceCapabilities.PostSearch, [],
