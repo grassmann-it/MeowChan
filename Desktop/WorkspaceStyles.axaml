@@ -8,6 +8,8 @@
                     <SolidColorBrush x:Key="Workspace.Panel">#1B1E22</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Raised">#24282D</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Border">#2D3239</SolidColorBrush>
+                    <!-- Interactive outlines (buttons, seek rail); Dark keeps the decorative border value. -->
+                    <SolidColorBrush x:Key="Workspace.ControlBorder">#2D3239</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Text">#EEF1F4</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Muted">#A4ADB8</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Accent">#6AA7FF</SolidColorBrush>
@@ -55,6 +57,8 @@
                     <SolidColorBrush x:Key="Workspace.Panel">#EFECE6</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Raised">#DBD5CB</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Border">#A89F92</SolidColorBrush>
+                    <!-- LW-06 (B1, N7, N8, N10, N12): interactive outlines only; decorative lines stay on Workspace.Border. -->
+                    <SolidColorBrush x:Key="Workspace.ControlBorder">#7A7062</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Text">#1A1A1A</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Muted">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Accent">#803B06</SolidColorBrush>
@@ -77,7 +81,7 @@
                     <SolidColorBrush x:Key="ButtonDefaultPressedBackground">#E7D4BE</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultDisabledForeground">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultDisabledBorderBrush">#A89F92</SolidColorBrush>
-                    <SolidColorBrush x:Key="ButtonDefaultPointeroverBorderBrush">#A89F92</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonDefaultPointeroverBorderBrush">#7A7062</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPressedBorderBrush">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidForeground">#FFFFFF</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidPrimaryBackground">#803B06</SolidColorBrush>
@@ -153,7 +157,7 @@
     <Style Selector="Button">
         <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="VerticalAlignment" Value="Stretch" />
@@ -166,7 +170,7 @@
         <Setter Property="Background" Value="{DynamicResource Workspace.Accent}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.OnAccent}" />
         <Setter Property="FontWeight" Value="SemiBold" /><Setter Property="BorderThickness" Value="0" />
     </Style>
-    <Style Selector="Button.subtle"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /></Style>
+    <Style Selector="Button.subtle"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /></Style>
     <Style Selector="Button.danger"><Setter Property="Foreground" Value="{DynamicResource Workspace.Error}" /></Style>
     <Style Selector="Button.header-icon">
         <Setter Property="Width" Value="30" /><Setter Property="Height" Value="30" />
@@ -318,7 +322,7 @@
         <Setter Property="Opacity" Value="0.6" />
     </Style>
     <Style Selector="Slider.media-slider">
-        <Setter Property="Background" Value="{DynamicResource Workspace.Border}" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.ControlBorder}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" />
     </Style>
     <Style Selector="Slider.media-slider /template/ Grid#SliderContainer">
@@ -329,7 +333,7 @@
         <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" />
     </Style>
     <Style Selector="Slider.media-slider:disabled /template/ RepeatButton#PART_IncreaseButton">
-        <Setter Property="Background" Value="{DynamicResource Workspace.Border}" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.ControlBorder}" />
     </Style>
     <Style Selector="Slider.media-slider:disabled /template/ RepeatButton#PART_DecreaseButton">
         <Setter Property="Background" Value="{DynamicResource Workspace.Muted}" />
