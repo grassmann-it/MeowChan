@@ -2647,7 +2647,7 @@
     "booru.media.source": "Danbooru",
     "booru.media.badge": "Danbooru",
     "booru.media.tile.post": "Publication Danbooru n° {0}",
-    "booru.media.statusCount": "{0} depuis Danbooru",
+    "booru.media.statusCount": "{0} publications Danbooru téléchargées",
     "booru.media.detail.title": "Publication Danbooru n° {0}",
     "booru.media.detail.post": "Publication n° {0} chez le fournisseur",
     "booru.media.openPost": "Ouvrir la publication chez le fournisseur",
@@ -2681,6 +2681,11 @@
     "booru.media.ownTags.unavailable": "Les tags personnels ne peuvent pas encore être ajoutés aux médias téléchargés d'un fournisseur.",
     "booru.media.tags.unavailable": "Les tags personnels ne sont pas encore disponibles pour les médias téléchargés d'un fournisseur.",
     "booru.media.occurrence.findings": "Trouvée via : {0}",
-    "booru.media.gallery.tags": "{0} tags d'origine du fournisseur"
+    "booru.media.gallery.tags": "{0} tags d'origine du fournisseur",
+    "booru.media.tile.inPosts": "dans {0} publications Danbooru",
+    "booru.media.tile.inMixed": "dans {0} fils et {1} publications Danbooru",
+    "booru.media.occurrences.summaryPosts": "{0} occurrences dans {1} publications Danbooru. Les tags restent attachés à chaque occurrence.",
+    "booru.media.occurrences.summaryMixed": "{0} occurrences dans {1} fils et {2} publications Danbooru. Les tags restent attachés à chaque occurrence.",
+    "booru.media.gallery.scope": "Danbooru · {0} publications"
   }
 }

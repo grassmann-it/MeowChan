@@ -352,7 +352,13 @@ public partial class MainWindow
     private void UpdateGalleryScope()
     {
         ResourceId? thread = _galleryThreads.FirstOrDefault() ?? _galleryEntries.FirstOrDefault()?.Key.Thread;
-        string scope = _galleryResultsScope
+        int providerPosts = _galleryEntries.Select(entry => entry.Key.Thread).Where(BooruMediaIdentity.IsBooruThread).Distinct().Count();
+        // Downloaded provider posts are no chan thread: a window of them is named by its source, a mixed one is a result list.
+        string scope = providerPosts > 0 && !_galleryResultsScope
+            ? providerPosts == _galleryEntries.Select(entry => entry.Key.Thread).Distinct().Count()
+                ? Texts.T("booru.media.gallery.scope", providerPosts)
+                : Texts.T("gallery.results") + " · " + _galleryEntries.Select(entry => entry.Key.Thread).Distinct().Count() + " " + Texts.T("gallery.threads")
+            : _galleryResultsScope
             ? Texts.T("gallery.results") + " · " + _galleryThreads.Count + " " + Texts.T("gallery.threads")
             : Texts.T("gallery.thread") + " · " + (thread == null ? string.Empty
                 : thread.Source + " /" + thread.Board + "/ · " + thread.Thread);

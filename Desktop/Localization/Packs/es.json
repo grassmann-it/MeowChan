@@ -2647,7 +2647,7 @@
     "booru.media.source": "Danbooru",
     "booru.media.badge": "Danbooru",
     "booru.media.tile.post": "Publicación de Danbooru #{0}",
-    "booru.media.statusCount": "{0} de Danbooru",
+    "booru.media.statusCount": "{0} publicaciones de Danbooru descargadas",
     "booru.media.detail.title": "Publicación de Danbooru #{0}",
     "booru.media.detail.post": "Publicación #{0} en el proveedor",
     "booru.media.openPost": "Abrir la publicación en el proveedor",
@@ -2681,6 +2681,11 @@
     "booru.media.ownTags.unavailable": "Todavía no se pueden añadir etiquetas propias a los medios descargados de un proveedor.",
     "booru.media.tags.unavailable": "Las etiquetas propias aún no están disponibles para los medios descargados de un proveedor.",
     "booru.media.occurrence.findings": "Encontrada mediante: {0}",
-    "booru.media.gallery.tags": "{0} etiquetas de origen del proveedor"
+    "booru.media.gallery.tags": "{0} etiquetas de origen del proveedor",
+    "booru.media.tile.inPosts": "en {0} publicaciones de Danbooru",
+    "booru.media.tile.inMixed": "en {0} hilos y {1} publicaciones de Danbooru",
+    "booru.media.occurrences.summaryPosts": "{0} apariciones en {1} publicaciones de Danbooru. Las etiquetas se quedan con cada aparición.",
+    "booru.media.occurrences.summaryMixed": "{0} apariciones en {1} hilos y {2} publicaciones de Danbooru. Las etiquetas se quedan con cada aparición.",
+    "booru.media.gallery.scope": "Danbooru · {0} publicaciones"
   }
 }

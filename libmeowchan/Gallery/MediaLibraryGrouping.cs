@@ -19,6 +19,10 @@ internal sealed record MediaLibraryTile(MediaLibraryEntry Entry, IReadOnlyList<M
 {
     /// <summary>Distinct threads over all occurrences, not only the ones that passed a filter.</summary>
     internal int ThreadCount => Occurrences.Select(entry => entry.Thread).Distinct().Count();
+    /// <summary>Distinct downloaded provider posts (Danbooru) among the occurrences; they are no chan threads.</summary>
+    internal int ProviderPostCount => Occurrences.Where(entry => entry.BooruPostId != null).Select(entry => entry.Thread).Distinct().Count();
+    /// <summary>Distinct archived threads among the occurrences, without provider posts.</summary>
+    internal int ArchivedThreadCount => ThreadCount - ProviderPostCount;
     internal bool IsGroup => Occurrences.Count > 1;
 }
 

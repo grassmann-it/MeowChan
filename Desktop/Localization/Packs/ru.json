@@ -2647,7 +2647,7 @@
     "booru.media.source": "Danbooru",
     "booru.media.badge": "Danbooru",
     "booru.media.tile.post": "Публикация Danbooru #{0}",
-    "booru.media.statusCount": "{0} из Danbooru",
+    "booru.media.statusCount": "{0} публикаций Danbooru загружено",
     "booru.media.detail.title": "Публикация Danbooru #{0}",
     "booru.media.detail.post": "Публикация #{0} у поставщика",
     "booru.media.openPost": "Открыть публикацию у поставщика",
@@ -2681,6 +2681,11 @@
     "booru.media.ownTags.unavailable": "Собственные теги для загруженных медиа поставщика пока добавить нельзя.",
     "booru.media.tags.unavailable": "Собственные теги для загруженных медиа поставщика пока недоступны.",
     "booru.media.occurrence.findings": "Найдено через: {0}",
-    "booru.media.gallery.tags": "{0} тегов источника от поставщика"
+    "booru.media.gallery.tags": "{0} тегов источника от поставщика",
+    "booru.media.tile.inPosts": "в {0} публикациях Danbooru",
+    "booru.media.tile.inMixed": "в {0} темах и {1} публикациях Danbooru",
+    "booru.media.occurrences.summaryPosts": "{0} вхождений в {1} публикациях Danbooru. Теги остаются у каждого вхождения.",
+    "booru.media.occurrences.summaryMixed": "{0} вхождений в {1} темах и {2} публикациях Danbooru. Теги остаются у каждого вхождения.",
+    "booru.media.gallery.scope": "Danbooru · {0} публикаций"
   }
 }

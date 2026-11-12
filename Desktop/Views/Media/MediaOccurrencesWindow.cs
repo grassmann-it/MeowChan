@@ -24,7 +24,9 @@ internal sealed class MediaOccurrencesWindow : Window
         Width = 680; Height = 480; MinWidth = 340; MinHeight = 240;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         TextBlock summary = new() { Name = "MediaOccurrencesSummary", TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-            Text = Texts.T("media.occurrences.summary", tile.Occurrences.Count, tile.ThreadCount) };
+            Text = tile.ProviderPostCount == 0 ? Texts.T("media.occurrences.summary", tile.Occurrences.Count, tile.ThreadCount)
+                : tile.ArchivedThreadCount == 0 ? Texts.T("booru.media.occurrences.summaryPosts", tile.Occurrences.Count, tile.ProviderPostCount)
+                : Texts.T("booru.media.occurrences.summaryMixed", tile.Occurrences.Count, tile.ArchivedThreadCount, tile.ProviderPostCount) };
         summary.Classes.Add("workspace-meta");
         TextBlock favorite = new() { Name = "MediaOccurrencesFavorite", Text = MediaLibraryStateText.Favorite(tile.Favorite), IsVisible = tile.IsGroup };
         favorite.Classes.Add("workspace-meta");

@@ -13,7 +13,7 @@ internal static class BooruMediaCatalog
         ("booru.media.source", "Danbooru", "Danbooru"),
         ("booru.media.badge", "Danbooru", "Danbooru"),
         ("booru.media.tile.post", "Danbooru post #{0}", "Danbooru-Beitrag #{0}"),
-        ("booru.media.statusCount", "{0} from Danbooru", "{0} von Danbooru"),
+        ("booru.media.statusCount", "{0} Danbooru posts downloaded", "{0} Danbooru-Beiträge heruntergeladen"),
         ("booru.media.detail.title", "Danbooru post #{0}", "Danbooru-Beitrag #{0}"),
         ("booru.media.detail.post", "Post #{0} at the provider", "Beitrag #{0} beim Anbieter"),
         ("booru.media.openPost", "Open post at provider", "Beitrag beim Anbieter öffnen"),
@@ -47,6 +47,11 @@ internal static class BooruMediaCatalog
         ("booru.media.ownTags.unavailable", "Own tags cannot be added to downloaded provider media yet.", "Eigene Tags lassen sich für heruntergeladene Anbieter-Medien noch nicht vergeben."),
         ("booru.media.tags.unavailable", "Own tags are not available for downloaded provider media yet.", "Eigene Tags sind für heruntergeladene Anbieter-Medien noch nicht verfügbar."),
         ("booru.media.occurrence.findings", "Found by: {0}", "Gefunden über: {0}"),
-        ("booru.media.gallery.tags", "{0} source tags from the provider", "{0} Quelltags vom Anbieter")
+        ("booru.media.gallery.scope", "Danbooru · {0} posts", "Danbooru · {0} Beiträge"),
+        ("booru.media.gallery.tags", "{0} source tags from the provider", "{0} Quelltags vom Anbieter"),
+        ("booru.media.tile.inPosts", "in {0} Danbooru posts", "in {0} Danbooru-Beiträgen"),
+        ("booru.media.tile.inMixed", "in {0} threads and {1} Danbooru posts", "in {0} Threads und {1} Danbooru-Beiträgen"),
+        ("booru.media.occurrences.summaryPosts", "{0} occurrences in {1} Danbooru posts. Tags stay with each occurrence.", "{0} Fundstellen in {1} Danbooru-Beiträgen. Tags bleiben bei jeder Fundstelle gespeichert."),
+        ("booru.media.occurrences.summaryMixed", "{0} occurrences in {1} threads and {2} Danbooru posts. Tags stay with each occurrence.", "{0} Fundstellen in {1} Threads und {2} Danbooru-Beiträgen. Tags bleiben bei jeder Fundstelle gespeichert.")
     };
 }
