@@ -2316,15 +2316,7 @@
     "plugins.approval.stopped": "Las acciones restantes no se ejecutaron. Revise de nuevo antes de guardar.",
     "plugins.approval.stopping": "Deteniendo tras la operación actual. Puede que aún guarde; las aprobaciones ya guardadas permanecen.",
     "plugins.approval.submit": "Guardar {0} reparaciones autorizadas individualmente",
-    "action.retry": {
-      "es": "Reintentar",
-      "fr": "Réessayer",
-      "ru": "Повторить"
-    },
-    "sources.title": {
-      "es": "Fuentes",
-      "fr": "Sources",
-      "ru": "Источники"
-    }
+    "action.retry": "Reintentar",
+    "sources.title": "Fuentes"
   }
 }
