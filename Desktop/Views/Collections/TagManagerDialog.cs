@@ -90,7 +90,6 @@ internal sealed class TagManagerDialog : Window
         var orphanActions = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
         orphanActions.Children.Add(_orphanCheck); orphanActions.Children.Add(_orphanRemove);
         _orphans.Children.Add(_orphanText); _orphans.Children.Add(orphanActions);
-        _orphans.IsVisible = _session.CanInspectOrphans;
         body.Children.Add(_orphans);
         _delete.HorizontalAlignment = HorizontalAlignment.Left;
         var close = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
@@ -219,6 +218,9 @@ internal sealed class TagManagerDialog : Window
             _confirmText.Text = Texts.T("tags.manage.confirm", current!.Name, current.Threads, current.Media);
         _confirmDelete.IsEnabled = _keep.IsEnabled = ready;
         LocalMediaTagInspection? inspection = _session.Inspection;
+        // Only profiles that tag loose files see the orphan check; everyone else keeps the plain manager.
+        _orphans.IsVisible = _session.CanInspectOrphans
+            && (_session.Snapshot?.LocalAssignments.Count > 0 || inspection != null || _session.Inspecting);
         _orphanText.Text = _session.Inspecting ? Texts.T("tags.manage.orphansChecking")
             : inspection == null ? Texts.T("tags.manage.orphansIntro")
             : string.Join(" ", new[]

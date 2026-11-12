@@ -92,15 +92,16 @@ internal sealed class MediaSelectionTagSession
     }
 
     /// <summary>
-    /// Create-or-get by name and give it to every chosen occurrence, in ONE write bound to the shown revision: a failure
-    /// leaves neither a new unassigned tag nor a partial assignment.
+    /// Create-or-get by name and give it to every chosen occurrence, in ONE write: a failure leaves neither a new unassigned
+    /// tag nor a partial assignment. Like the former define-then-assign, it is not bound to the shown tag revision (adding a
+    /// name to fixed occurrences is idempotent); loose files are still frozen to the registration this dialog shows.
     /// </summary>
     internal Task AddAsync(string? name, CancellationToken token = default) => RunAsync(async () =>
     {
         PrivateTagStoreSnapshot snapshot = Snapshot!;
         IReadOnlyList<MediaTagSubject> subjects = Chosen.Select(candidate => candidate.Subject).OfType<MediaTagSubject>()
             .Select(subject => MediaTagSubjects.Freeze(subject, snapshot)).Distinct().ToArray();
-        PrivateTagCommit commit = await _defineAndSet(name ?? string.Empty, subjects, snapshot.Revision, token);
+        PrivateTagCommit commit = await _defineAndSet(name ?? string.Empty, subjects, null, token);
         Adopt(commit.Snapshot);
         return commit.Changed;
     });

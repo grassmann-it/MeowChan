@@ -302,7 +302,9 @@ internal static partial class MediaPageChecks
                 Require(s1.MediaTags.Count == 0 && s1.ThreadTags.SequenceEqual(new[] { "rpt" }), "A thread tag must show as a thread tag only.");
                 Require(s2.Favorite == MediaLibraryFlag.No && s2.UserRating == 4 && s2.MediaTags.SequenceEqual(new[] { "keep" }) && s2.ThreadTags.Count == 0,
                     "Rating and media tag of the second file are wrong.");
-                Require(s3.TagsKnown && !s3.CanEditMediaTags && s3.ThreadTags.SequenceEqual(new[] { "rpt" }), "A file without a post cannot carry media tags.");
+                // AP-01b: a loose file is taggable as its own local occurrence; it starts without media tags (none from its thread).
+                Require(s3.TagsKnown && s3.CanEditMediaTags && s3.TagSubject is MediaTagSubject.Local && s3.MediaTags.Count == 0
+                    && s3.ThreadTags.SequenceEqual(new[] { "rpt" }), "A loose file must be taggable as a local file and start untagged.");
                 Require(Row(one).DetailWithState.Contains('★') && Row(two).DetailWithState.Contains("4/5"), "The tile line must show favorite and rating.");
 
                 // The tile carries the same text as a tooltip and as its automation name.
@@ -319,13 +321,13 @@ internal static partial class MediaPageChecks
                 await UntilAsync(() => page.GetVisualDescendants().OfType<MediaLibraryTileView>().Any(view => view.DataContext is MediaLibraryTileRow row && row.Entry == two
                     && ToolTip.GetTip(view) is string en && en.Contains("Your rating: 4 of 5")));
 
-                // The tag command is offered for a bound file only.
+                // The tag command is offered for bound and loose files alike, each for exactly its own file.
                 page.Grid.SelectedItem = Row(loose);
                 await page.EditSelectedTagsAsync();
-                Require(edited.Count == 0, "A file without a post must not open the tag editor.");
+                Require(edited.SequenceEqual(new[] { loose }), "A loose file must open the tag editor for itself.");
                 page.Grid.SelectedItem = Row(two);
                 await page.EditSelectedTagsAsync();
-                Require(edited.SequenceEqual(new[] { two }), "The tag editor got the wrong file.");
+                Require(edited.SequenceEqual(new[] { loose, two }), "The tag editor got the wrong file.");
 
                 // A tag change through the host command shows at once after a refresh of the own data.
                 extra = (await host.DefinePrivateTagAsync("extra").WaitAsync(Deadline)).Tag;
