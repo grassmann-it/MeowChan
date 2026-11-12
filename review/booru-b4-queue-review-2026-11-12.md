@@ -39,21 +39,47 @@ Basis: `3c675786` (Branch `claude/booru-b4-downloadqueue-20261112`). Kein Live-N
    - Owner beansprucht keine URL, wirft bei Monitoring/Check/Snapshot, wird nie an Registry, Session,
      Journal oder Archiv gegeben; es entstehen keine privaten Tags.
 
-## Präzise Grenzen / offene Verträge
+## Nachgezogene P1-Korrekturen (12.11.2026, Root-Integration)
 
-- **Cancel über Neustart:** B3 hat keinen Admission-/Cancel-Intent. Ein abgebrochener Post bleibt
-  „pending“ und würde von `RecoverPendingAsync` wieder aufgenommen. Deshalb ist die automatische
-  Recovery noch **nicht** in den Startup verdrahtet. Erforderlich: B3-Feld (z. B. Original-Intent
-  `Requested|Cancelled`) oder Root-Entscheidung, dass Cancel nur sitzungsweit gilt.
-- **Findings = Admission:** Der Adapter definiert „Finding ohne Asset = ausstehendes Original“.
-  B5/B6 dürfen Findings daher nur bei echter Admission schreiben (Watcher-Baseline nur als
-  `KnownPostIds`, reine Suchtreffer nicht als `Search`-Finding).
+Die unabhängige Gegenprüfung der Root-Integration (Astra) hatte drei P1-Befunde gegen die
+Lebenszyklus-Semantik erhoben. Alle drei sind jetzt behoben und regressionsgetestet:
+
+1. **Dauerhafter Cancel-/Admission-Intent.** `BooruPostRecord` trägt additiv
+   `BooruOriginalIntent` (`None|Requested|Cancelled|Unavailable|NotAdmitted|Linked`). Nur ein
+   echt angenommener Queue-Job wird `Requested`; Cancel, Queue-Ablehnung und fehlendes/unzulässiges
+   Original werden terminal gespeichert. `LinkLocalAssetAdmitted` setzt `Linked` atomar mit dem
+   Link. `GetPendingOriginals`/`RecoverPendingAsync` arbeiten ausschließlich auf `Requested`
+   ohne Asset, sodass ein gecancelter oder unverfügbarer Post nach einem Neustart nicht still
+   neu startet. Alte Records ohne das Feld bleiben lesbar (`None`).
+2. **Terminaler Shutdown-Zustand.** `IExternalMediaWorkOwner` hat jetzt zusätzlich
+   `OnMediaCancelled`. Die Queue meldet echte Cancels (Thread-Cancel, Stop, entfernte wartende
+   Jobs) an externe Owner; eine Pause/Interruption, die denselben Job wieder einreiht, meldet
+   bewusst nichts. Damit endet `Completion` nach `StopAllAsync()` mit `Cancelled` statt offen zu
+   hängen. Kein falscher Erfolg.
+3. **Findings nur bei fachlich zulässiger Admission.** `AdmitAsync` prüft zuerst Planbarkeit
+   (Original vorhanden, Größe/MD5, Medienhost) und schreibt bei Ablehnung das Finding plus
+   terminales `Unavailable`. Ein Finding ohne zulässiges Original ist damit kein pending Download.
+
+Neue Regressionstests in `tests/MeowChan.Tests/Booru/BooruOriginalQueueTests.cs`:
+`CancelledOriginalIsNotReAdmittedAfterARestart`, `UnavailableOriginalIsNotAPendingOriginalAfterARestart`,
+`QueueRefusalIsTerminalAndAnExplicitRetryRestartsTheRequest`,
+`StoppingTheQueueCompletesTheExternalOwnerInsteadOfHanging`.
+
+## Verbleibende präzise Grenzen / offene Verträge
+
+- **Startup-Anschluss:** `RecoverPendingAsync()` ist weiterhin eine explizite API. Die automatische
+  Einbindung in Startup/Host-Lifecycle (inklusive Offline-/Restart-/No-second-transfer-Matrix) ist
+  B5-/Host-Arbeit und vor B9 verbindlich anzuschließen.
+- **Mehrere `Original`-Claims:** `BooruOriginalDownloadSelector` nimmt weiterhin den ersten
+  `Original`-Eintrag. Für den aktuellen Danbooru-Adapter praktisch nicht erreichbar; eine definierte
+  Auswahlregel inklusive Test bleibt als Boundary-Aufnahme offen.
 - **Komposition:** Wer `BooruOriginalQueue` mit Registry-Queue, Catalog, OutputRoot und Medienclient
   baut, ist Host/B5/B6. Default-Client ist der bestehende `ProviderHttpClientFactory`-Pfad
   (keine Redirects); B1-HTTP wurde nicht verändert.
 - **SHA-256:** Danbooru liefert MD5 + Größe; SHA-256 wird gemessen und an Manifest/AssetId gebunden.
   Ein erwarteter Provider-SHA-256 bräuchte ein B3-Claimfeld.
-- **Shutdown:** `StopAllAsync` beendet aktive Jobs ohne Owner-Callback; eine offene `Completion` bleibt
-  dann unvollendet (kein falscher Erfolg, aber kein `Cancelled`-Ergebnis).
+- **Exactly-once-Grenzen:** Der `_committed`-Guard schützt je Owner. Doppelte `OnMediaCommitted`-
+  Callbacks für denselben Owner sowie zwei Queue-Instanzen gegen dieselbe Identität sind defensiv
+  abgesichert, aber noch nicht explizit getestet.
 - Fortschritt pro Post (Bytes) wird nicht separat projiziert; B6 kann `GetThreadCounts` bzw.
   `OutcomeChanged` nutzen.

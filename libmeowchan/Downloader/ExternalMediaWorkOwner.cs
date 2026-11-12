@@ -22,4 +22,11 @@ internal interface IExternalMediaWorkOwner
     /// media commit, so the owner must record and surface its own follow-up failure.
     /// </summary>
     void OnMediaCommitted(DownloadItem item, MediaCommitResult committed, ProfileAdmissionToken? admission);
+
+    /// <summary>
+    /// Called when a queue execution for <paramref name="item"/> is cancelled (explicit thread cancel,
+    /// queue stop or shutdown). It is the external owner's only cancellation notification, so it must
+    /// bring its completion task to a terminal, non-success state. It runs outside queue locks.
+    /// </summary>
+    void OnMediaCancelled(DownloadItem item);
 }

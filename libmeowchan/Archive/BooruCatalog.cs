@@ -19,6 +19,27 @@ internal enum BooruFindingKind
     Watcher
 }
 
+/// <summary>
+/// The durable intent for an original download. A finding alone only explains why a post was observed;
+/// this field records what was actually requested, so a cancelled or unavailable original is never
+/// silently re-admitted after a restart, and an unavailable original is never treated as pending.
+/// </summary>
+internal enum BooruOriginalIntent
+{
+    /// <summary>No original was requested yet; a finding may still exist for observation only.</summary>
+    None,
+    /// <summary>The original was admitted to the shared download queue and has not completed.</summary>
+    Requested,
+    /// <summary>The user explicitly cancelled the original; it is not recovered automatically.</summary>
+    Cancelled,
+    /// <summary>No acceptable original exists (missing, sample-only, forbidden host, missing claims).</summary>
+    Unavailable,
+    /// <summary>The shared download queue refused the job; a retry needs a new explicit request.</summary>
+    NotAdmitted,
+    /// <summary>The original is committed and linked to a local asset.</summary>
+    Linked
+}
+
 /// <summary>A durable local observation connecting a provider post to a search or watcher.</summary>
 internal sealed record BooruFinding(
     string FindingId,
@@ -123,9 +144,13 @@ internal sealed record BooruPostRecord(
     DateTimeOffset LastSeenAtUtc,
     string? LocalAssetId = null,
     string? LocalPath = null,
-    IReadOnlyList<BooruFinding>? Findings = null)
+    IReadOnlyList<BooruFinding>? Findings = null,
+    BooruOriginalIntent OriginalIntent = BooruOriginalIntent.None)
 {
     public IReadOnlyList<BooruFinding> Findings { get; init; } = Findings ?? Array.Empty<BooruFinding>();
+
+    /// <summary>True when an explicitly requested original is still awaiting a committed local asset.</summary>
+    internal bool HasPendingOriginal => LocalAssetId == null && OriginalIntent == BooruOriginalIntent.Requested;
 }
 
 /// <summary>
@@ -356,10 +381,53 @@ internal sealed class BooruCatalogStore
             List<BooruPostRecord> posts = snapshot.Posts.ToList();
             int index = posts.FindIndex(item => item.SourceId == sourceId && item.PostId == postId);
             if (index < 0) throw new InvalidOperationException("A provider post must be stored before its asset link.");
-            BooruPostRecord next = FreezePostRecord(posts[index] with { LocalAssetId = assetId, LocalPath = localPath });
+            // A committed link is a terminal intent; anything else would look pending after a restart.
+            BooruPostRecord next = FreezePostRecord(posts[index] with
+            {
+                LocalAssetId = assetId,
+                LocalPath = localPath,
+                OriginalIntent = BooruOriginalIntent.Linked
+            });
             posts[index] = next;
             WriteLocked(snapshot with { Posts = FreezePosts(posts) }, admission, cancellationToken);
             return next;
+        });
+    }
+
+    /// <summary>
+    /// Records the durable intent for an original download. A cancelled or unavailable original must
+    /// survive a restart so it is never silently re-admitted, and a queue refusal stays visible.
+    /// </summary>
+    internal BooruPostRecord SetOriginalIntent(string sourceId, string postId, BooruOriginalIntent intent,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateIdentity(sourceId, postId);
+        if (!Enum.IsDefined(intent)) throw new ArgumentOutOfRangeException(nameof(intent));
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+        return SetOriginalIntentAdmitted(sourceId, postId, intent, admission, cancellationToken);
+    }
+
+    internal BooruPostRecord SetOriginalIntentAdmitted(string sourceId, string postId, BooruOriginalIntent intent,
+        ProfileAdmissionToken admission, CancellationToken cancellationToken = default)
+    {
+        ValidateIdentity(sourceId, postId);
+        if (!Enum.IsDefined(intent)) throw new ArgumentOutOfRangeException(nameof(intent));
+        return _lease.RunStoreWrite(admission, () =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            BooruCatalogSnapshot snapshot = ReadLocked();
+            List<BooruPostRecord> posts = snapshot.Posts.ToList();
+            int index = posts.FindIndex(item => item.SourceId == sourceId && item.PostId == postId);
+            if (index < 0) throw new InvalidOperationException("A provider post must be stored before its download intent.");
+            BooruPostRecord current = posts[index];
+            BooruOriginalIntent next = intent == BooruOriginalIntent.Linked && current.LocalAssetId == null
+                ? intent
+                : intent;
+            if (current.OriginalIntent == next) return current;
+            BooruPostRecord updated = FreezePostRecord(current with { OriginalIntent = next });
+            posts[index] = updated;
+            WriteLocked(snapshot with { Posts = FreezePosts(posts) }, admission, cancellationToken);
+            return updated;
         });
     }
 
@@ -548,6 +616,13 @@ internal sealed class BooruCatalogStore
         ValidateOptionalText(post.LocalPath, nameof(post.LocalPath), 4096);
         if (post.LocalAssetId is null && post.LocalPath is not null)
             throw new InvalidDataException("The Booru catalog contains a local path without an asset identity.");
+        if (!Enum.IsDefined(post.OriginalIntent))
+            throw new InvalidDataException("The Booru catalog contains an invalid original download intent.");
+        if (post.OriginalIntent == BooruOriginalIntent.Linked && post.LocalAssetId is null)
+            throw new InvalidDataException("The Booru catalog claims a linked original without an asset identity.");
+        if (post.OriginalIntent is not (BooruOriginalIntent.Linked or BooruOriginalIntent.None)
+            && post.LocalAssetId is not null)
+            throw new InvalidDataException("The Booru catalog keeps a completed link with an unfinished intent.");
         if (post.Findings is null || post.Findings.Count > MaximumFindings)
             throw new InvalidDataException("The Booru catalog contains invalid post findings.");
         HashSet<string> findings = new(StringComparer.Ordinal);

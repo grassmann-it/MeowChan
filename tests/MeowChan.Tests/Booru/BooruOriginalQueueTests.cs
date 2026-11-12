@@ -35,8 +35,8 @@ public sealed class BooruOriginalQueueTests
 
             Assert.Equal(BooruOriginalDownloadState.Linked, outcome.State);
             Assert.Equal(1, links);
-            // Claim, one-shot finding and exactly one asset link; nothing else is written.
-            Assert.Equal(3, catalogWrites);
+            // Claim, one-shot finding, the durable request intent and exactly one asset link.
+            Assert.Equal(4, catalogWrites);
             Assert.Equal(Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(), outcome.Sha256);
             Assert.Equal(bytes.Length, outcome.Length);
             Assert.Equal(bytes, File.ReadAllBytes(outcome.LocalPath!));
@@ -272,6 +272,105 @@ public sealed class BooruOriginalQueueTests
         Assert.Single(cdn.Requests);
         Assert.Single(Assert.Single(second.Catalog.Read().Posts).Findings);
         Assert.Empty(second.Work.LoadResources());
+    }
+
+    [Fact]
+    public async Task CancelledOriginalIsNotReAdmittedAfterARestart()
+    {
+        using TempDirectory directory = new();
+        byte[] bytes = Bytes(9);
+        FakeCdn cdn = new() { Gate = new SemaphoreSlim(0) };
+        BooruPostClaim post = Post("41", bytes, cdn);
+        await using (Session session = new(directory.Path, cdn))
+        {
+            BooruOriginalAdmission admission = await session.Booru.AdmitAsync(post, BooruFindingKind.OneShot);
+            await TestWait.UntilAsync(() => cdn.Requests.Count == 1);
+            Assert.True(await session.Booru.CancelAsync("41"));
+            Assert.Equal(BooruOriginalDownloadState.Cancelled, (await admission.Completion.WaitAsync(TestWait.Timeout)).State);
+            // The cancellation is durable and the post is no longer a pending original.
+            Assert.Equal(BooruOriginalIntent.Cancelled,
+                Assert.Single(session.Catalog.Read().Posts).OriginalIntent);
+            Assert.Empty(session.Booru.GetPendingOriginals());
+        }
+
+        cdn.Gate.Release();
+        await using Session reopened = new(directory.Path, cdn);
+        Assert.Empty(reopened.Booru.GetPendingOriginals());
+        Assert.Empty(await reopened.Booru.RecoverPendingAsync());
+        // The one request seen above is the cancelled in-flight attempt; nothing new was sent.
+        Assert.Single(cdn.Requests);
+    }
+
+    [Fact]
+    public async Task UnavailableOriginalIsNotAPendingOriginalAfterARestart()
+    {
+        using TempDirectory directory = new();
+        byte[] bytes = Bytes(10);
+        FakeCdn cdn = new();
+        // A sample-only post has no acceptable original; the provider data stays stored.
+        BooruPostClaim post = Post("51", bytes, cdn) with
+        {
+            Media =
+            [
+                new BooruPostClaimMedia(BooruPostClaimMediaRole.Preview, $"https://cdn.donmai.us/preview/51.jpg"),
+                new BooruPostClaimMedia(BooruPostClaimMediaRole.Sample, $"https://cdn.donmai.us/sample/51.jpg")
+            ]
+        };
+        await using (Session session = new(directory.Path, cdn))
+        {
+            BooruOriginalAdmission admission = await session.Booru.AdmitAsync(post, BooruFindingKind.OneShot);
+            Assert.Equal(BooruOriginalAdmissionStatus.Unavailable, admission.Status);
+            BooruOriginalDownloadOutcome outcome = await admission.Completion.WaitAsync(TestWait.Timeout);
+            Assert.Equal(BooruOriginalDownloadState.Unavailable, outcome.State);
+            Assert.Equal(BooruOriginalSelectionError.MissingOriginal, outcome.SelectionError);
+            Assert.Empty(cdn.Requests);
+            Assert.Equal(BooruOriginalIntent.Unavailable,
+                Assert.Single(session.Catalog.Read().Posts).OriginalIntent);
+            Assert.Empty(session.Booru.GetPendingOriginals());
+        }
+
+        await using Session reopened = new(directory.Path, cdn);
+        Assert.Empty(reopened.Booru.GetPendingOriginals());
+        Assert.Empty(await reopened.Booru.RecoverPendingAsync());
+        Assert.Empty(cdn.Requests);
+    }
+
+    [Fact]
+    public async Task QueueRefusalIsTerminalAndAnExplicitRetryRestartsTheRequest()
+    {
+        using TempDirectory directory = new();
+        byte[] bytes = Bytes(11);
+        FakeCdn cdn = new() { Gate = new SemaphoreSlim(0) };
+        BooruPostClaim post = Post("61", bytes, cdn);
+        await using Session session = new(directory.Path, cdn);
+        await session.Queue.StopAllAsync();
+
+        BooruOriginalAdmission refused = await session.Booru.AdmitAsync(post, BooruFindingKind.OneShot);
+        Assert.Equal(BooruOriginalAdmissionStatus.NotAdmitted, refused.Status);
+        Assert.Equal(BooruOriginalDownloadState.NotAdmitted, (await refused.Completion.WaitAsync(TestWait.Timeout)).State);
+        Assert.Equal(BooruOriginalIntent.NotAdmitted,
+            Assert.Single(session.Catalog.Read().Posts).OriginalIntent);
+        Assert.Empty(session.Booru.GetPendingOriginals());
+        Assert.Empty(cdn.Requests);
+    }
+
+    [Fact]
+    public async Task StoppingTheQueueCompletesTheExternalOwnerInsteadOfHanging()
+    {
+        using TempDirectory directory = new();
+        byte[] bytes = Bytes(12);
+        FakeCdn cdn = new() { Gate = new SemaphoreSlim(0) };
+        BooruPostClaim post = Post("71", bytes, cdn);
+        await using Session session = new(directory.Path, cdn);
+
+        BooruOriginalAdmission admission = await session.Booru.AdmitAsync(post, BooruFindingKind.OneShot);
+        await TestWait.UntilAsync(() => cdn.Requests.Count == 1);
+        await session.Queue.StopAllAsync();
+
+        // The completion task reaches a terminal, non-success state instead of hanging forever.
+        BooruOriginalDownloadOutcome stopped = await admission.Completion.WaitAsync(TestWait.Timeout);
+        Assert.Equal(BooruOriginalDownloadState.Cancelled, stopped.State);
+        Assert.Null(stopped.AssetId);
     }
 
     [Fact]

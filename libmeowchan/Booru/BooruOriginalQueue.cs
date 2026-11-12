@@ -124,16 +124,37 @@ internal sealed class BooruOriginalQueue
     /// Persists the provider claim and the finding that explains this explicit request, then admits the
     /// original into the shared queue. A one-shot never creates a watcher; a watcher finding never marks
     /// anything but this single post.
+    /// <para>
+    /// Order matters: an unacceptable original is recorded as <see cref="BooruOriginalIntent.Unavailable"/>
+    /// instead of a finding that would look like a requested download after a restart. The claim itself is
+    /// kept so a later, richer provider answer can still be evaluated.
+    /// </para>
     /// </summary>
-    internal Task<BooruOriginalAdmission> AdmitAsync(BooruPostClaim post, BooruFindingKind kind,
+    internal async Task<BooruOriginalAdmission> AdmitAsync(BooruPostClaim post, BooruFindingKind kind,
         string? watcherId = null, string? query = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(post);
         cancellationToken.ThrowIfCancellationRequested();
         DateTimeOffset now = _timeProvider.GetUtcNow();
         _catalog.UpsertPost(post, now, cancellationToken);
+        if (!TryPlan(post, out BooruOriginalDownloadPlan? plan, out BooruOriginalSelectionError error))
+            return RecordUnavailable(post, kind, watcherId, query, error, cancellationToken);
         BooruPostRecord record = _catalog.AddFinding(post.SourceId, post.PostId, kind, watcherId, query, now, cancellationToken);
-        return AdmitRecordAsync(record, cancellationToken);
+        return await AdmitRecordAsync(record, cancellationToken).ConfigureAwait(false);
+    }
+
+    private BooruOriginalAdmission RecordUnavailable(BooruPostClaim post, BooruFindingKind kind,
+        string? watcherId, string? query, BooruOriginalSelectionError error, CancellationToken cancellationToken)
+    {
+        DateTimeOffset now = _timeProvider.GetUtcNow();
+        BooruPostRecord record = _catalog.AddFinding(post.SourceId, post.PostId, kind, watcherId, query, now, cancellationToken);
+        BooruPostRecord marked = _catalog.SetOriginalIntent(post.SourceId, post.PostId,
+            BooruOriginalIntent.Unavailable, cancellationToken);
+        BooruOriginalDownloadOutcome outcome = new(BooruOriginalDownloadState.Unavailable, post.PostId, error);
+        Publish(outcome);
+        _ = record;
+        _ = marked;
+        return new(BooruOriginalAdmissionStatus.Unavailable, post.PostId, Task.FromResult(outcome), error);
     }
 
     /// <summary>Re-admits a stored post without adding a finding, e.g. after a visible failure or cancel.</summary>
@@ -143,12 +164,21 @@ internal sealed class BooruOriginalQueue
         BooruPostRecord record = _catalog.Read().Posts.FirstOrDefault(item =>
                 item.SourceId == DanbooruPostReference.ProviderId && item.PostId == postId)
             ?? throw new InvalidOperationException("The provider post is not stored locally.");
+        // An explicit retry overrides a previously recorded terminal outcome (unavailable/not admitted).
+        if (record.OriginalIntent is BooruOriginalIntent.Unavailable or BooruOriginalIntent.NotAdmitted
+            or BooruOriginalIntent.Cancelled)
+            record = _catalog.SetOriginalIntent(DanbooruPostReference.ProviderId, postId,
+                BooruOriginalIntent.None, cancellationToken);
         return AdmitRecordAsync(record, cancellationToken);
     }
 
-    /// <summary>Stored posts that were admitted (have a finding) but are not linked to a local asset yet.</summary>
+    /// <summary>
+    /// Stored posts whose original was explicitly requested and is still awaiting a committed local asset.
+    /// A cancelled, unavailable or queue-refused request is deliberately not pending, so a restart never
+    /// silently re-admits work the user did not ask for.
+    /// </summary>
     internal IReadOnlyList<BooruPostRecord> GetPendingOriginals() => _catalog.Read().Posts
-        .Where(IsPending).ToArray();
+        .Where(record => record.HasPendingOriginal).ToArray();
 
     /// <summary>
     /// Restart recovery: re-admits every pending stored original from local data only. A medium that was
@@ -170,12 +200,29 @@ internal sealed class BooruOriginalQueue
     {
         PostOwner? owner;
         lock (_sync) _active.TryGetValue(postId, out owner);
-        if (owner == null) return false;
+        // The queue cancels the thread state and reports back through OnMediaCancelled, which
+        // already completes the owner and removes it from _active. Re-read before declaring "no job".
+        if (owner == null)
+        {
+            // No live job. A second cancel of the same post is a no-op, not a fresh cancellation,
+            // even though the last recorded outcome for it is Cancelled.
+            return false;
+        }
+        // The queue reports the cancellation back through OnMediaCancelled, which completes the
+        // owner exactly once and records the durable Cancelled intent. The local Complete is the
+        // fallback for an owner the queue never notified (already finished or never admitted).
         await _queue.CancelDownloadsForThreadAsync(owner).ConfigureAwait(false);
-        return Complete(owner, new BooruOriginalDownloadOutcome(BooruOriginalDownloadState.Cancelled, postId));
+        bool completed = Complete(owner, new BooruOriginalDownloadOutcome(BooruOriginalDownloadState.Cancelled, postId));
+        // Either path is a real cancellation; make the durable intent explicit in both cases.
+        MarkCancelled(postId);
+        return completed || IsCancelled(postId);
     }
 
-    private static bool IsPending(BooruPostRecord record) => record.LocalAssetId == null && record.Findings.Count > 0;
+    private bool IsCancelled(string postId)
+    {
+        _outcomes.TryGetValue(postId, out BooruOriginalDownloadOutcome? outcome);
+        return outcome is { State: BooruOriginalDownloadState.Cancelled };
+    }
 
     private async Task<BooruOriginalAdmission> AdmitRecordAsync(BooruPostRecord record, CancellationToken cancellationToken)
     {
@@ -188,6 +235,8 @@ internal sealed class BooruOriginalQueue
         }
         if (!TryPlan(record.Post, out BooruOriginalDownloadPlan? plan, out BooruOriginalSelectionError error))
         {
+            _catalog.SetOriginalIntent(DanbooruPostReference.ProviderId, postId,
+                BooruOriginalIntent.Unavailable, cancellationToken);
             BooruOriginalDownloadOutcome unavailable = new(BooruOriginalDownloadState.Unavailable, postId, error);
             Publish(unavailable);
             return new(BooruOriginalAdmissionStatus.Unavailable, postId, Task.FromResult(unavailable), error);
@@ -212,14 +261,22 @@ internal sealed class BooruOriginalQueue
         }
         catch (Exception exception)
         {
+            _catalog.SetOriginalIntent(DanbooruPostReference.ProviderId, postId,
+                BooruOriginalIntent.NotAdmitted, CancellationToken.None);
             Complete(owner, new(BooruOriginalDownloadState.NotAdmitted, postId, Failure: exception.Message));
             throw;
         }
         if (!accepted)
         {
+            // A refusal is terminal until the user asks again; it must not look pending after a restart.
+            _catalog.SetOriginalIntent(DanbooruPostReference.ProviderId, postId,
+                BooruOriginalIntent.NotAdmitted, CancellationToken.None);
             Complete(owner, new(BooruOriginalDownloadState.NotAdmitted, postId, Failure: "The download queue refused the original."));
             return new(BooruOriginalAdmissionStatus.NotAdmitted, postId, owner.Completion);
         }
+        // Only a genuinely accepted queue job is a durable, recoverable request.
+        _catalog.SetOriginalIntent(DanbooruPostReference.ProviderId, postId,
+            BooruOriginalIntent.Requested, CancellationToken.None);
         return new(BooruOriginalAdmissionStatus.Queued, postId, owner.Completion);
     }
 
@@ -233,6 +290,20 @@ internal sealed class BooruOriginalQueue
         else return true;
         plan = null;
         return false;
+    }
+
+    internal void MarkCancelled(string postId)
+    {
+        // Idempotent: the queue may report the cancellation and a local Complete may follow.
+        try
+        {
+            _catalog.SetOriginalIntent(DanbooruPostReference.ProviderId, postId,
+                BooruOriginalIntent.Cancelled, CancellationToken.None);
+        }
+        catch (InvalidOperationException)
+        {
+            // The post record is gone (profile closed); the in-memory outcome already says Cancelled.
+        }
     }
 
     private void OnCommitted(PostOwner owner, MediaCommitResult committed, ProfileAdmissionToken? admission)
@@ -343,6 +414,16 @@ internal sealed class BooruOriginalQueue
         public void ReportMediaFailure(string mediaIdentifier, Exception exception, string? destinationPath = null)
         {
             if (mediaIdentifier == Plan.MediaIdentifier && Volatile.Read(ref _committed) == 0) _owner.OnFailed(this, exception);
+        }
+
+        void IExternalMediaWorkOwner.OnMediaCancelled(DownloadItem item)
+        {
+            if (!ReferenceEquals(item.Thread, this) || item.MediaIdentifier != Plan.MediaIdentifier) return;
+            // A cancelled job is never a success and never a pending original after a restart.
+            // Pause/interruption re-queues the same job and reports no cancellation, so only a
+            // genuinely terminal cancellation reaches this path.
+            if (_owner.Complete(this, new BooruOriginalDownloadOutcome(BooruOriginalDownloadState.Cancelled, Plan.PostId)))
+                _owner.MarkCancelled(Plan.PostId);
         }
 
         public IBoard Board { get; }
