@@ -182,6 +182,47 @@ public sealed partial class BooruOriginalQueueTests
         Assert.Empty(session.Booru.GetPendingOriginals());
     }
 
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(1)]
+    public async Task ProviderSizeMismatchFailsBeforePublicationEvenWhenMd5AndTransportLengthMatch(int sizeDelta)
+    {
+        using TempDirectory directory = new();
+        byte[] bytes = Bytes(39);
+        FakeCdn cdn = new();
+        BooruPostClaim post = Post("91", bytes, cdn);
+        long providerSize = bytes.Length + sizeDelta;
+        post = post with
+        {
+            Media = post.Media.Select(media => media.Role == BooruPostClaimMediaRole.Original
+                ? media with { ExpectedSize = providerSize } : media).ToArray()
+        };
+        // Only the provider size is wrong: both the MD5 claim and HTTP Content-Length match the body.
+        cdn.Responses[OriginalUrl("91")] = new FakeResponse(bytes, DeclaredLength: bytes.Length);
+        await using Session session = new(directory.Path, cdn);
+        int links = 0;
+        session.Booru.LinkingForTests = (_, _) => Interlocked.Increment(ref links);
+
+        BooruOriginalAdmission admission = await session.Booru.AdmitAsync(post, BooruFindingKind.OneShot);
+        Assert.Equal(BooruOriginalAdmissionStatus.Queued, admission.Status);
+        BooruOriginalDownloadOutcome failed = await admission.Completion.WaitAsync(TestWait.Timeout);
+
+        Assert.Equal(BooruOriginalDownloadState.DownloadFailed, failed.State);
+        Assert.False(string.IsNullOrWhiteSpace(failed.Failure));
+        Assert.Null(failed.AssetId);
+        Assert.Equal(0, links);
+        Assert.False(File.Exists(Path.Combine(session.OutputRoot, "danbooru", "91", "91.png")));
+        Assert.Equal([OriginalUrl("91")], cdn.Requests.ToArray());
+        BooruPostRecord record = Assert.Single(session.Catalog.Read().Posts);
+        Assert.Null(record.LocalAssetId);
+        Assert.Equal(BooruOriginalIntent.Requested, record.OriginalIntent);
+        Assert.Equal(BooruFindingKind.OneShot, Assert.Single(record.Findings).Kind);
+        BooruPostClaimMedia original = Assert.Single(record.Post.Media, media => media.Role == BooruPostClaimMediaRole.Original);
+        Assert.Equal(providerSize, original.ExpectedSize);
+        Assert.Equal(Md5(bytes), original.ExpectedMd5);
+        Assert.Equal("91", Assert.Single(session.Booru.GetPendingOriginals()).PostId);
+    }
+
     [Fact]
     public async Task PausedQueueHoldsTheOriginalAndResumeCompletesIt()
     {
