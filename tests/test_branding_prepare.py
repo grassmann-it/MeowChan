@@ -1,7 +1,8 @@
-"""Focused, stdlib-only prepare tests; no GUI, dotnet, package build or live IO.
+"""Focused offline preparation and AP-02 adopted-branding contract tests.
 
-Synthetic RGBA fixtures substitute the pinned digest only inside tests. The CLI
-has no digest override. Run the selected real source separately after the lease.
+No GUI, dotnet, package build or network IO. Synthetic RGBA fixtures substitute
+only the test digest; the CLI has no override. Repository checks pin the adopted
+source and derivatives without depending on the external source location.
 """
 from contextlib import redirect_stderr, redirect_stdout
 import hashlib
@@ -15,6 +16,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
+import xml.etree.ElementTree as ET
 import zlib
 
 
@@ -384,6 +386,65 @@ class PrepareContractTests(unittest.TestCase):
 
 
 class RepositoryContractTests(unittest.TestCase):
+    def test_ap02_adopted_assets_match_the_selected_source_and_generated_hashes(self):
+        # AP-02: byte-identical lain-aktuell.png master; derivatives from the
+        # unchanged prepare-only converter, explicitly adopted at existing paths.
+        expected = {
+            branding.MASTER: PINNED_SHA256,
+            branding.PNG: "a31427805df5ff561744882b01cee0e25b87df43c48cccce3590c3b6d60e586f",
+            branding.ICO: "f47dd4d832dfbcec2522a3ae476d95195af3b53b7157e9462e82274b83856c13",
+        }
+        for name, sha256 in expected.items():
+            with self.subTest(path=name):
+                self.assertEqual(sha256, hashlib.sha256((ROOT / name).read_bytes()).hexdigest())
+        self.assertEqual((1254, 1254), branding.png_size((ROOT / branding.MASTER).read_bytes()))
+
+    def test_adopted_png_and_every_ico_frame_preserve_transparency(self):
+        images = [(branding.PNG, branding.decode_rgba((ROOT / branding.PNG).read_bytes()))]
+        icon = (ROOT / branding.ICO).read_bytes()
+        for frame, payload in zip(branding.ico_frames(icon), ico_payloads(icon)):
+            width, height = frame["width"], frame["height"]
+            if frame["encoding"] == "png":
+                decoded = branding.decode_rgba(payload)
+            else:
+                # Independent bottom-up BGRA decode and legacy AND-mask check.
+                pixels = bytearray()
+                mask = payload[40 + width * height * 4:]
+                mask_stride = ((width + 31) // 32) * 4
+                for y in range(height - 1, -1, -1):
+                    for x in range(width):
+                        offset = 40 + (y * width + x) * 4
+                        b, g, r, a = payload[offset:offset + 4]
+                        pixels.extend((r, g, b, a))
+                        masked = bool(mask[y * mask_stride + x // 8] & (1 << (7 - x % 8)))
+                        self.assertEqual(a == 0, masked, (width, x, y))
+                decoded = width, height, bytes(pixels)
+            images.append((f"ICO {width}x{height}", decoded))
+        for name, (width, height, pixels) in images:
+            with self.subTest(image=name):
+                alpha = pixels[3::4]
+                self.assertIn(0, alpha)
+                self.assertTrue(any(0 < a < 255 for a in alpha))
+                for corner in (0, width - 1, (height - 1) * width, width * height - 1):
+                    self.assertEqual(0, alpha[corner])
+
+    def test_window_tray_and_executable_keep_existing_branding_resources(self):
+        uri = "avares://MeowChan/Assets/meowchan.png"
+        window = ET.parse(ROOT / "Desktop/Shell/MainWindow.axaml").getroot()
+        self.assertEqual(uri, window.attrib["Icon"])
+        logo = next(element for element in window.iter()
+                    if element.get("{http://schemas.microsoft.com/winfx/2006/xaml}Name") == "WorkspaceLogo")
+        self.assertEqual(uri, logo.attrib["Source"])
+        shell = (ROOT / "Desktop/Shell/MainWindow.axaml.cs").read_text(encoding="utf-8")
+        tray = shell.split("private void ConfigureTrayIcon(TrayIcon trayIcon)", 1)[1].split("private void RestoreWindow()", 1)[0]
+        self.assertIn(f'AssetLoader.Open(new Uri("{uri}"))', tray)
+        self.assertIn("trayIcon.Icon = new WindowIcon(iconStream);", tray)
+        project = ET.parse(ROOT / "MeowChan.csproj").getroot()
+        self.assertEqual(branding.ICO, project.findtext("PropertyGroup/ApplicationIcon"))
+        self.assertTrue(any(item.get("Include") == "Assets/**" for item in project.iter("AvaloniaResource")))
+        self.assertTrue(any(item.get("Update") == branding.PNG and item.get("CopyToPublishDirectory") == "PreserveNewest"
+                            for item in project.iter("None")))
+
     def test_current_product_sizes_and_package_consumer_inventory(self):
         self.assertEqual((512, 512), branding.png_size((ROOT / branding.PNG).read_bytes()))
         frames = branding.ico_frames((ROOT / branding.ICO).read_bytes())
