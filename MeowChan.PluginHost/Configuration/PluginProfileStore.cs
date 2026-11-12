@@ -117,7 +117,13 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                 document = document with { Provenance = evidence, RestrictedSourceIds = restricted ?? [] };
                 BundledCandidateMigration.Validate(document);
             }
-            document = WithCurrentRepairRestrictions(document);
+            // Capture the live authority itself, not only its union with persisted/startup
+            // restrictions: a removal during verification is a change too.
+            string[]? initialLiveRestrictions = repairRestrictedSources?.Invoke()
+                .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+            if (initialLiveRestrictions is not null)
+                document = document with { RestrictedSourceIds = document.RestrictedSourceIds.Concat(initialLiveRestrictions)
+                    .Distinct(StringComparer.Ordinal).ToArray() };
             PluginProfileSnapshot state = document.Profile;
             state = ReleaseProvisionalOwners(state, observations);
             // A source file changing its declared plugin identity is an unavailable update of
@@ -176,9 +182,15 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                     bool bindingMatches = binding is not null && !previous.Missing && previous.Provenance?.SlotId == binding.SlotId &&
                         candidate?.Artifact?.ExecutionRevision == binding.TargetExecutionRevision &&
                         document.Provenance.Any(p => p.SlotId == binding.SlotId && BundledCandidateMigration.Matches(p, candidate));
-                    bool automaticBundleUpdate = buildChanged && (repairRestrictedSources is null || repairPermissionGate is not null)
-                        && BundledCandidateMigration.CanAutomaticallyUpdateKnownBundle(
-                        document, old, candidate, previous, proofs, present.Length);
+                    bool canSerializePermissions = repairRestrictedSources is null || repairPermissionGate is not null;
+                    bool sdkUpgrade = buildChanged && canSerializePermissions && candidate?.Description is { } sdkDescription &&
+                        !startup.Any(other => other.PluginId != pluginId && other.Description is { } otherDescription &&
+                            sdkDescription.Sources.Any(source => otherDescription.Sources.Any(item => item.SourceId == source.SourceId))) &&
+                        BundledCandidateMigration.CanAutomaticallyUpgradeSdk(document, old, candidate, previous, proofs, present.Length);
+                    bool automaticBundleUpdate = sdkUpgrade || buildChanged && canSerializePermissions &&
+                        BundledCandidateMigration.CanAutomaticallyUpdateKnownBundle(document, old, candidate, previous, proofs, present.Length);
+                    string? sdkPermissions = sdkUpgrade
+                        ? BundledRepairPermissionReview.Json(document, old, candidate!) : null;
                     string? automaticUpdateProblem = null;
                     if (automaticBundleUpdate)
                     {
@@ -188,12 +200,28 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                             // Revalidate shipped bytes AND imported cache under the writer lease.
                             await PluginInstallationInventory.VerifyRepairTargetAsync(proof, candidate!.Artifact!, candidate.Description!, cancellationToken)
                                 .ConfigureAwait(false);
-                            document = WithCurrentRepairRestrictions(document);
-                            if (!BundledCandidateMigration.CanAutomaticallyUpdateKnownBundle(document, old, candidate, previous, proofs, present.Length))
-                                throw new InvalidOperationException("Bundled update authority changed during integrity verification.");
-                            if (binding is not null)
+                            string[]? currentLiveRestrictions = repairRestrictedSources?.Invoke()
+                                .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+                            if (currentLiveRestrictions is not null)
+                                document = document with { RestrictedSourceIds = document.RestrictedSourceIds.Concat(currentLiveRestrictions)
+                                    .Distinct(StringComparer.Ordinal).ToArray() };
+                            bool authorityUnchanged = sdkUpgrade
+                                ? (initialLiveRestrictions is null || currentLiveRestrictions is not null &&
+                                    initialLiveRestrictions.SequenceEqual(currentLiveRestrictions, StringComparer.Ordinal)) &&
+                                    BundledCandidateMigration.CanAutomaticallyUpgradeSdk(document, old, candidate, previous, proofs, present.Length) &&
+                                    sdkPermissions == BundledRepairPermissionReview.Json(document, old, candidate!)
+                                : BundledCandidateMigration.CanAutomaticallyUpdateKnownBundle(document, old, candidate, previous, proofs, present.Length);
+                            if (!authorityUnchanged)
                             {
-                                automaticBinding = binding with { TargetExecutionRevision = candidate.Artifact!.ExecutionRevision };
+                                automaticBundleUpdate = false;
+                                sdkUpgrade = false;
+                                automaticUpdateProblem = "Bundled update authority changed during integrity verification.";
+                            }
+                            else if (binding is not null)
+                            {
+                                // Explicit consent always belongs to the old exact executable, never this build.
+                                automaticBinding = binding with { TargetExecutionRevision = candidate.Artifact!.ExecutionRevision,
+                                    ReauthorizedPermissionFingerprint = null };
                                 bindingMatches = true;
                             }
                         }
@@ -217,7 +245,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                         next = next with { Problem = "Bundled executable changed; explicit repair review is required." };
                     // Persisted consent cannot replace serialization of a live permission authority.
                     // Legacy callers without its shared gate retain the raw inheritance guard.
-                    else if (deliveredCandidate && (repairRestrictedSources is not null && repairPermissionGate is null
+                    else if (deliveredCandidate && !sdkUpgrade && (repairRestrictedSources is not null && repairPermissionGate is null
                         ? BundledCandidateMigration.HasInheritedRights(document, old, candidate, buildChanged)
                         : BundledCandidateMigration.HasUnreviewedInheritedRights(document, old, candidate, buildChanged)))
                         next = next with { Problem = "Bundled replacement is blocked: existing grants cannot be inherited." };

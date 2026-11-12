@@ -300,6 +300,47 @@ internal static class BundledCandidateMigration
         return currentSlot.Length == 1 && Matches(currentSlot[0], candidate);
     }
 
+    // This is not a general executable equivalence or permission reauthorization. The
+    // only supported declaration transition is the shipped SDK 1.0 -> 1.1 change.
+    internal static bool CanAutomaticallyUpgradeSdk(BundledProfileDocument document,
+        PluginActivationSnapshot plugin, PluginCandidateSnapshot? candidate, PreReplacementBasis previous,
+        IReadOnlyList<DeliveredCandidateProvenance>? currentDelivery, int presentCount)
+    {
+        if (currentDelivery is null || presentCount != 1 || plugin.Pinned is not null ||
+            candidate is not { IsPresent: true, Problem: null, Artifact: not null, Description: not null } ||
+            previous.Missing || previous.Release is null || previous.Provenance is null ||
+            previous.CandidateId != candidate.CandidateId ||
+            previous.Provenance.CandidatePath != candidate.CandidatePath) return false;
+
+        PluginReleaseSnapshot? established = plugin.Active ?? plugin.LastGood;
+        if (established is null || established.CandidateId != previous.CandidateId ||
+            established.ExecutionRevision != previous.ExecutionRevision ||
+            established.Description.SdkVersion != "1.0.0" ||
+            previous.Release.Description.SdkVersion != "1.0.0" || candidate.Description.SdkVersion != "1.1.0" ||
+            !SdkJson.Serialize(established.Description).AsSpan().SequenceEqual(SdkJson.Serialize(previous.Release.Description)) ||
+            !SdkJson.Serialize(previous.Release.Description with { SdkVersion = "1.1.0" }).AsSpan()
+                .SequenceEqual(SdkJson.Serialize(candidate.Description))) return false;
+
+        // Unlike the ordinary no-rights rebuild path, an unactivated confirmed target
+        // or an independent pending choice cannot establish compatibility authority.
+        if (plugin.Pending is { } pending && (pending.CandidateId != previous.CandidateId ||
+            pending.ExecutionRevision != previous.ExecutionRevision)) return false;
+        BundledRepairBinding? binding = document.Bindings.SingleOrDefault(b => b.PluginId == plugin.PluginId);
+        if (binding is null)
+        {
+            if (plugin.SelectedCandidateId != candidate.CandidateId) return false;
+        }
+        else if (binding.SelectedCandidateId != plugin.SelectedCandidateId || binding.SlotId != previous.Provenance.SlotId ||
+            binding.TargetCandidateId != established.CandidateId || binding.TargetExecutionRevision != established.ExecutionRevision ||
+            binding.ReauthorizedPermissionFingerprint is { } fingerprint && fingerprint !=
+                BundledRepairPermissionReview.Fingerprint(BundledRepairPermissionReview.Json(document, plugin, candidate))) return false;
+
+        if (HasOwnerConflict(document.Profile, plugin.PluginId, candidate.Description) ||
+            SdkValidation.ValidateConfiguration(candidate.Description, previous.Release.Configuration).Count != 0) return false;
+        DeliveredCandidateProvenance[] currentSlot = currentDelivery.Where(p => p.SlotId == previous.Provenance.SlotId).ToArray();
+        return currentSlot.Length == 1 && Matches(currentSlot[0], candidate);
+    }
+
     internal static bool HasInheritedRights(BundledProfileDocument document, PluginActivationSnapshot plugin,
         PluginCandidateSnapshot target, bool changed) => changed &&
         (document.Profile.Grants.Any(g => g.PluginId == plugin.PluginId && g.Access != FilterDataAccess.None) ||
