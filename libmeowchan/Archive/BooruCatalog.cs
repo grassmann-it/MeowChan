@@ -639,6 +639,8 @@ internal sealed class BooruCatalogStore
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             PropertyNameCaseInsensitive = false,
+            // Ambiguous schema, intent or claim values must not be silently accepted and rewritten.
+            AllowDuplicateProperties = false,
             MaxDepth = 64,
             UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
             WriteIndented = true

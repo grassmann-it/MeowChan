@@ -257,6 +257,42 @@ public sealed class BooruCatalogStoreTests
         Assert.Throws<InvalidDataException>(() => new BooruCatalogStore(directory.Path, lease).Read());
     }
 
+    [Theory]
+    [InlineData("schemaVersion", "99", "1")]
+    [InlineData("posts", "[null]", "[]")]
+    [InlineData("state", "\"Removed\"", "\"Active\"")]
+    [InlineData("originalIntent", "\"Cancelled\"", "\"Requested\"")]
+    [InlineData("score", "-1", "7")]
+    public void DuplicateJsonPropertiesFailClosedWithoutOverwritingCatalog(
+        string property, string firstValue, string lastValue)
+    {
+        using TempDirectory directory = new();
+        string path = Path.Combine(directory.Path, BooruCatalogStore.FileName);
+        DateTimeOffset observed = DateTimeOffset.Parse("2026-11-12T12:00:00Z");
+        BooruPostRecord post = new("danbooru", "30", CompletePost("30"), observed, observed,
+            OriginalIntent: BooruOriginalIntent.Requested);
+        BooruWatcherRecord watcher = new("w1", "danbooru", "cat", "Active", observed);
+        string json = Json(new BooruCatalogSnapshot(1, [post], [watcher]));
+        string member = $"\"{property}\":{lastValue}";
+        if (property == "posts")
+            json = json.Replace("\"posts\":[", $"\"posts\":{firstValue},\"posts\":[", StringComparison.Ordinal);
+        else
+        {
+            Assert.Contains(member, json);
+            json = json.Replace(member, $"\"{property}\":{firstValue},{member}", StringComparison.Ordinal);
+        }
+        File.WriteAllText(path, json);
+        byte[] original = File.ReadAllBytes(path);
+
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        BooruCatalogStore store = new(directory.Path, lease);
+        Assert.Throws<InvalidDataException>(() => store.Read());
+        Assert.Throws<InvalidDataException>(() => store.UpsertPost(Post("31"), observed));
+        Assert.Equal(original, File.ReadAllBytes(path));
+        Assert.DoesNotContain(Directory.EnumerateFiles(directory.Path),
+            file => file.EndsWith(".tmp", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void OversizedCatalogFailsClosedBeforeDeserialization()
     {
