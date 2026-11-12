@@ -204,7 +204,11 @@ internal sealed partial class PluginSession : IAsyncDisposable
             {
                 // A booru post-search source is served by the booru host services. It is never a chan board adapter,
                 // so it must not appear in the chan source registry, URL routing or board/thread watch paths.
-                if (source.Capabilities.HasFlag(SourceCapabilities.PostSearch)) continue;
+                if (source.Capabilities.HasFlag(SourceCapabilities.PostSearch))
+                {
+                    RegisterBooruSource(activation, description, source, descriptions, activated);
+                    continue;
+                }
                 string[] owners = descriptions.Where(item => item.Description.Sources.Any(value => value.SourceId == source.SourceId))
                     .Select(item => item.Activation.PluginId).Distinct(StringComparer.Ordinal).ToArray();
                 if (owners.Length > 1 && (!activated.SelectedSourceOwners.TryGetValue(source.SourceId, out string? selected) || selected != activation.PluginId)) continue;
@@ -314,6 +318,13 @@ internal sealed partial class PluginSession : IAsyncDisposable
 
     private IPluginHostServices CreateServices(PluginDescription description)
     {
+        // A post-search plugin runs with the booru host services that the desktop composition also uses.
+        if (TryGetBooruServices(description.PluginId, out IPluginHostServices booru)) return booru;
+        return new HostServices(GetPluginHttp(description), _filterStages, description.PluginId);
+    }
+
+    private PluginHostHttp GetPluginHttp(PluginDescription description)
+    {
         PluginHostHttp http;
         lock (_state)
         {
@@ -324,7 +335,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
                 _services.Add(http);
             }
         }
-        return new HostServices(http, _filterStages, description.PluginId);
+        return http;
     }
 
     private void OnLifecycleChanged(PluginLifecycleChange change)
@@ -349,6 +360,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
             lock (_state) _draining.Add(draining);
             _ = draining.ContinueWith(completed => { lock (_state) _draining.Remove(completed); }, TaskScheduler.Default);
         }
+        NotifyBooruLifecycle(change.PluginId);
     }
 
     public async ValueTask DisposeAsync()

@@ -63,9 +63,14 @@ internal static class BooruSdkMapper
 internal sealed class BooruHostSearchAdapter : IBooruSearchPort
 {
     private readonly BooruSearchService _service;
-    private readonly Func<IPluginWorkerClient?> _worker;
+    private readonly Func<CancellationToken, Task<IPluginWorkerClient?>> _worker;
 
     internal BooruHostSearchAdapter(BooruSearchService service, Func<IPluginWorkerClient?> worker,
+        string providerId = DanbooruPostReference.ProviderId, string providerName = "Danbooru")
+        : this(service, WrapWorker(worker), providerId, providerName) { }
+
+    /// <summary>The worker is resolved (and, if needed, started) per call; null means "not available".</summary>
+    internal BooruHostSearchAdapter(BooruSearchService service, Func<CancellationToken, Task<IPluginWorkerClient?>> worker,
         string providerId = DanbooruPostReference.ProviderId, string providerName = "Danbooru")
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
@@ -74,19 +79,25 @@ internal sealed class BooruHostSearchAdapter : IBooruSearchPort
         ProviderName = providerName;
     }
 
+    private static Func<CancellationToken, Task<IPluginWorkerClient?>> WrapWorker(Func<IPluginWorkerClient?> worker)
+    {
+        ArgumentNullException.ThrowIfNull(worker);
+        return _ => Task.FromResult(worker());
+    }
+
     public string ProviderId { get; }
     public string ProviderName { get; }
 
     public async Task<BooruCallResult<BooruResultPage>> SearchAsync(string canonicalQuery, int page, CancellationToken cancellationToken)
     {
-        IPluginWorkerClient? worker = _worker();
+        IPluginWorkerClient? worker = await _worker(cancellationToken).ConfigureAwait(false);
         if (worker is null) return BooruCallResult<BooruResultPage>.Of(BooruCallStatus.Unavailable, "no-worker");
         return BooruSdkMapper.Map(await _service.SearchAsync(worker, ProviderId, canonicalQuery, page, cancellationToken).ConfigureAwait(false));
     }
 
     public async Task<BooruCallResult<BooruPostView>> ReadPostAsync(string postId, CancellationToken cancellationToken)
     {
-        IPluginWorkerClient? worker = _worker();
+        IPluginWorkerClient? worker = await _worker(cancellationToken).ConfigureAwait(false);
         if (worker is null) return BooruCallResult<BooruPostView>.Of(BooruCallStatus.Unavailable, "no-worker");
         return BooruSdkMapper.Map(await _service.ReadPostAsync(worker, new SourcePostId(ProviderId, postId), cancellationToken).ConfigureAwait(false));
     }

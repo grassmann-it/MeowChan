@@ -235,6 +235,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             }
             if (State == DesktopSessionState.Ready) Updates.Start();
             if (State == DesktopSessionState.Ready) StartMediaTagReconcile();
+            if (State == DesktopSessionState.Ready) await StartBooruAfterReadyAsync().ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -742,6 +743,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     {
         using var measurement = MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.shutdown.engine", epoch: _epoch);
         Task startupCanceled = _startupCancellation.CancelAsync();
+        // Danbooru watchers stop first, while the shared queue still runs and the profile still accepts writes.
+        Task booruStopped = await StopBooruBeforeQueueAsync().ConfigureAwait(false);
         Task queueStopped = _downloadQueue.StopAllAsync();
         RetireSourceMediaIntegrityPolicies();
         List<Exception> errors = new();
@@ -752,6 +755,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         await Drain(_mediaTagReconcile ?? Task.CompletedTask).ConfigureAwait(false);
         Task registryStopped = _registry.StopAsync();
         await Drain(Task.WhenAll(queueStopped, registryStopped)).ConfigureAwait(false);
+        ReleaseBooruAfterQueue();
+        await Drain(booruStopped).ConfigureAwait(false);
         try { await Updates.DisposeAsync().ConfigureAwait(false); _updatesQuiescent = true; } catch (Exception error) { errors.Add(error); }
         if (errors.Count != 0) throw new AggregateException("Engine shutdown reported failures.", errors);
     }

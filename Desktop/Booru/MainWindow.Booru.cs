@@ -5,8 +5,9 @@ using MeowChan.Desktop.Commands;
 
 namespace MeowChan;
 
-// Relocated from Desktop/Shell for the B6 adapt slice. Inert until the shared integration calls
-// InitializeBooru() from MainWindow.Navigation.cs and registers the "booru.open" command in CommandCatalog.
+// The Danbooru window entry of the Workspace menu (command "booru.open"). InitializeBooru() runs from
+// MainWindow.Navigation.cs; the entry is visible only while DesktopSessionHost.BooruServices is set, i.e. while
+// the Danbooru plugin is delivered, enabled and composed for this profile.
 public partial class MainWindow
 {
     private BooruWorkbenchWindow? _booruWindow;
@@ -16,6 +17,8 @@ public partial class MainWindow
 
     private void InitializeBooru()
     {
+        // Machine codes inside the window's sentences use the shared booru message catalog.
+        BooruText.CodeText = BooruCodeTexts.Localized;
         _booruMenu = CommandBindings.CreateMenuItem("booru.open", ShowBooruWorkbench, () => CanOpenBooru);
         _booruMenu.IsVisible = CanOpenBooru;
         int at = _postBookmarksMenu is null ? -1 : WorkspaceMenuItem.Items.IndexOf(_postBookmarksMenu);

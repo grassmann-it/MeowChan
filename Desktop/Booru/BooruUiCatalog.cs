@@ -1,8 +1,7 @@
 namespace MeowChan.Desktop.Localization;
 
 /// <summary>
-/// (Lives in Desktop/Booru for the B6 adapt slice; it belongs next to the other catalogs and must be concatenated
-/// into BuiltInCatalog.English/German together with BooruStatusCatalog, not instead of it.)
+/// (Lives in Desktop/Booru; BuiltInCatalog concatenates it after BooruStatusCatalog.)
 /// Texts of the Danbooru search/watcher window ("booru.ui.*"). English and German are authored here;
 /// the bundled es/fr/ru previews carry unreviewed machine translations of the same keys.
 /// Provider vocabulary (Danbooru's rating names, tag categories) is a provider claim, not a MeowChan rating.
