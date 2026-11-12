@@ -371,11 +371,7 @@ internal sealed partial class GalleryViewer : UserControl
         _nativeVideoOverlay.AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         _nativeVideoOverlay.AddHandler(KeyUpEvent, OnFavoriteKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);
         _nativeVideoOverlay.AddHandler(KeyDownEvent, OnNativeOverlayKeyDown, RoutingStrategies.Bubble);
-        _nativeVideoOverlay.ContextRequested += (_, e) =>
-        {
-            if (e.Source is Visual input && input.GetVisualAncestors().Prepend(input).Any(control => control is TextBox or ComboBox or Slider)) return;
-            if (_entry != null) { ShowMediaMenu(); e.Handled = true; }
-        };
+        _nativeVideoOverlay.ContextRequested += OnMediaContextRequested;
         SizeChanged += (_, _) =>
         {
             _chrome.MaxWidth = Math.Max(0, Bounds.Width - 16);
@@ -398,11 +394,9 @@ internal sealed partial class GalleryViewer : UserControl
             _panX += point.X - _dragPoint.X; _panY += point.Y - _dragPoint.Y; _dragPoint = point; ApplyPan();
         };
         _viewport.DoubleTapped += (_, e) => { if (_manualZoom) Fit(); else ActualPixels(); e.Handled = true; };
-        _viewport.ContextRequested += (_, e) =>
-        {
-            if (e.Source is Visual input && input.GetVisualAncestors().Prepend(input).Any(control => control is TextBox or ComboBox or Slider)) return;
-            if (_entry != null) { ShowMediaMenu(); e.Handled = true; }
-        };
+        _viewport.ContextRequested += OnMediaContextRequested;
+        // The keyboard's Menu key and Shift+F10 come from the focused control (the viewer or a toolbar button), not from the viewport.
+        AddHandler(ContextRequestedEvent, OnKeyboardContextRequested);
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(KeyUpEvent, OnFavoriteKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);
         AttachedToVisualTree += (_, _) =>
@@ -746,44 +740,6 @@ internal sealed partial class GalleryViewer : UserControl
         _helpContent.Children.Add(actions);
     }
 
-    private void ShowMediaMenu()
-    {
-        HoldSlideshowAdvance();
-        RevealOverlayControls();
-        if (_entry == null) return;
-        GalleryEntry entry = _entry;
-        static MenuItem Item(string id, Action action, bool enabled = true)
-        {
-            MenuItem item = new() { IsEnabled = enabled };
-            CommandBindings.Apply(item, id);
-            item.Click += (_, _) => { if (item.IsEnabled) action(); };
-            return item;
-        }
-        MenuItem favorite = Item("favorites.toggle", () => FavoriteToggleRequested?.Invoke(entry));
-        favorite.Header = Texts.T(_favoriteSelected ? "viewer.favorite.remove" : "viewer.favorite.add");
-        favorite.ToggleType = MenuItemToggleType.CheckBox;
-        favorite.IsChecked = _favoriteSelected;
-        AutomationProperties.SetName(favorite, favorite.Header.ToString());
-        AutomationProperties.SetHelpText(favorite, CommandBindings.Tooltip("favorites.toggle"));
-        ToolTip.SetTip(favorite, CommandBindings.Tooltip("favorites.toggle"));
-        ContextMenu menu = new() { ItemsSource = new object[]
-        {
-            favorite,
-            Item("media.rating.edit", () => RatingEditRequested?.Invoke(entry), _ratingButton.IsEnabled),
-            new Separator(),
-            Item("media.export-original", () => ExportOriginalRequested?.Invoke(entry)),
-            Item("media.show-in-folder", () => ShowInFolderRequested?.Invoke(entry)),
-            new Separator(),
-            Item("gallery.show-in-thread", () => { PauseSlideshow(); ReadPostRequested?.Invoke(entry); }, entry.Post != null),
-            Item("media.details", () => DetailsRequested?.Invoke(entry))
-        } };
-        Control owner = _nativeOverlayActive ? _nativeVideoOverlay : _viewport;
-        menu.Opened += (_, _) => RefreshPlaybackControls();
-        menu.Closed += (_, _) => RefreshPlaybackControls();
-        owner.ContextMenu = menu;
-        menu.Open(owner);
-    }
-
     // Unlike _viewerInteractionStopped (also used for reusable detachment), this
     // closes placement admission permanently before terminal stop begins.
     private bool _terminalRetirement;
@@ -888,6 +844,7 @@ internal sealed partial class GalleryViewer : UserControl
         _info = null; SetImageCommands(false); ClearBitmaps();
         _sessionCancellation = cancellationToken; _videoSuspended = false;
         if (_entry?.Key != entry.Key) SetFavoriteError(null);
+        InvalidateMediaMenu(); // The menu belongs to the medium it was opened on.
         _entry = entry; _manualZoom = _actualZoom = false; _panX = _panY = 0;
         _exportOriginal.IsEnabled = true;
         ResetMediaTags(); // A new medium's tags are unknown until the owner reports them.
@@ -1122,7 +1079,7 @@ internal sealed partial class GalleryViewer : UserControl
                 selector.SelectionChanged += (_, _) =>
                 {
                     if (generation != _contextGeneration || !_contextOpen || selector.SelectedIndex < 0 || selector.SelectedIndex >= associations.Count) return;
-                    _entry = associations[selector.SelectedIndex]; UpdateContext(); AssociationRequested?.Invoke(_entry);
+                    InvalidateMediaMenu(); _entry = associations[selector.SelectedIndex]; UpdateContext(); AssociationRequested?.Invoke(_entry);
                 };
                 _context.Children.Add(selector);
             }
@@ -1420,6 +1377,7 @@ internal sealed partial class GalleryViewer : UserControl
         UnbindVideoPlaybackSignals();
         ++_request; CancelLoads();
         await RetireGifAsync();
+        InvalidateMediaMenu();
         ClearBitmaps(); _entry = null; _info = null; _restore = null;
         _provenance.Text = string.Empty; _provenance.IsVisible = false;
         _exportOriginal.IsEnabled = false;

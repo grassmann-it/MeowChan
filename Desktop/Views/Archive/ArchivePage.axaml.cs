@@ -1036,6 +1036,7 @@ public partial class ArchivePage : UserControl
         InvalidateFilenameSearch();
         CloseThreadFind();
         _ended = true;
+        _mediaMenuPresenter.Invalidate();
         StopObservingReaderMediaKeys();
         CancelArchiveMediaCounts();
         EndArchiveCleanupLifetime();

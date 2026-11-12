@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -15,6 +16,7 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
+using MeowChan.Archive;
 using MeowChan.Gallery;
 
 namespace MeowChan;
@@ -39,6 +41,44 @@ public partial class MainWindow
         };
         _gallery.DetailsRequested += entry => _ = RunGalleryActionAsync(() => ShowGalleryDetailsAsync(entry), entry.Key.ToString());
         _gallery.TagsRequested += entry => _ = RunGalleryActionAsync(() => EditGalleryMediaTagsAsync(entry), entry.Key.ToString());
+        // The gallery menu's provider post actions and its summary of unavailable actions, like the media page's.
+        _gallery.ProviderPostUrl = GalleryProviderPostUrl;
+        _gallery.ProviderPostOpenRequested += entry => _ = RunGalleryActionAsync(() => OpenGalleryProviderPostAsync(entry), entry.Key.ToString());
+        _gallery.ProviderPostCopyRequested += entry => _ = RunGalleryActionAsync(() => CopyGalleryProviderPostAsync(entry), entry.Key.ToString());
+        _gallery.MenuExplanationRequested += text => ShowNotification(Texts.T("archive.command.unavailable"), text,
+            NotificationType.Information, operation: "gallery.menu");
+    }
+
+    private Uri? GalleryProviderPostUrl(GalleryEntry entry)
+    {
+        if (!BooruMediaIdentity.TryGetPostId(entry.Key.Thread, out string postId)) return null;
+        BooruPostRecord? record = null;
+        try { record = _session.ReadBooruCatalog()?.Posts.FirstOrDefault(post => post.SourceId == BooruMediaIdentity.Source && post.PostId == postId); }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException) { }
+        return BooruMediaIdentity.PostUrl(postId, record?.Post.PostUrl);
+    }
+
+    // The exact entry the menu was opened on; a failure is said in words and changes nothing.
+    private async Task OpenGalleryProviderPostAsync(GalleryEntry entry)
+    {
+        if (GalleryProviderPostUrl(entry) is not { } url) return;
+        try { await (OpenProviderPageForTests?.Invoke(url) ?? ExternalLauncher.OpenAsync(url.AbsoluteUri)); }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        { ShowNotification(Texts.T("notification.error"), Texts.T("booru.media.openFailed"), NotificationType.Warning, operation: "gallery.provider-post"); }
+    }
+
+    private async Task CopyGalleryProviderPostAsync(GalleryEntry entry)
+    {
+        if (GalleryProviderPostUrl(entry) is not { } url) return;
+        try
+        {
+            if (CopyProviderPageForTests != null) await CopyProviderPageForTests(url);
+            else if (Clipboard is { } clipboard) await clipboard.SetTextAsync(url.AbsoluteUri);
+            else throw new InvalidOperationException("The clipboard is unavailable.");
+            ShowNotification(Texts.T("booru.media.copied"), url.AbsoluteUri, NotificationType.Information, operation: "gallery.provider-post");
+        }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        { ShowNotification(Texts.T("notification.error"), Texts.T("booru.media.copyFailed"), NotificationType.Warning, operation: "gallery.provider-post"); }
     }
 
     private async Task RunGalleryActionAsync(Func<Task> command, string? context = null)
@@ -144,6 +184,7 @@ public partial class MainWindow
     internal BooruMediaDetailsDialog? BooruDetailsWindow { get; private set; }
     // Test seams: no browser is ever started and the clipboard is only touched when the shell has one.
     internal Func<Uri, Task>? OpenProviderPageForTests { get; set; }
+    internal Func<Uri, Task>? CopyProviderPageForTests { get; set; }
 
     // Context lines of the gallery panel for a downloaded provider medium: source, post and the provider's own rating.
     private IReadOnlyList<string>? BooruGalleryContext(GalleryEntry entry)

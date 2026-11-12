@@ -2686,6 +2686,14 @@
     "booru.media.tile.inMixed": "en {0} hilos y {1} publicaciones de Danbooru",
     "booru.media.occurrences.summaryPosts": "{0} apariciones en {1} publicaciones de Danbooru. Las etiquetas se quedan con cada aparición.",
     "booru.media.occurrences.summaryMixed": "{0} apariciones en {1} hilos y {2} publicaciones de Danbooru. Las etiquetas se quedan con cada aparición.",
-    "booru.media.gallery.scope": "Danbooru · {0} publicaciones"
+    "booru.media.gallery.scope": "Danbooru · {0} publicaciones",
+    "media.menu.reason.notSaved": "No hay ninguna versión guardada de este archivo multimedia.",
+    "media.menu.reason.unavailable": "No disponible aquí en este momento.",
+    "media.menu.reason.notInSequence": "Este archivo está oculto por el filtro actual, por lo que la galería no puede abrirse en él.",
+    "media.menu.reason.severalSelected": "Hay varios elementos seleccionados. Selecciona un solo elemento para usar esta acción.",
+    "media.menu.reason.severalPosts": "Este archivo guardado pertenece a varias publicaciones. Usa esta acción desde la publicación que quieras.",
+    "media.menu.reason.providerPost": "La dirección de la publicación del proveedor no está disponible.",
+    "media.menu.note.selection": "Estas acciones se aplican al elemento en el que hiciste clic. Las acciones de selección de abajo se aplican a los {0} elementos seleccionados.",
+    "media.menu.details.posts": "Publicaciones: {0}"
   }
 }

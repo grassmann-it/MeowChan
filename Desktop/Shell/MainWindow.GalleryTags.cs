@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
 using MeowChan.Tags;
 
@@ -24,8 +25,7 @@ public partial class MainWindow
         MediaTagSubject? target = MediaTagSubjects.Of(current, out GalleryMediaTagUnavailable reason);
         if (target == null)
         {
-            _gallery.SetMediaTags(null, Texts.T(BooruMediaIdentity.IsBooruThread(current.Key.Thread) ? "booru.media.tags.unavailable"
-                : reason == GalleryMediaTagUnavailable.NoPostVersion ? "tags.media.boundElsewhere" : "tags.media.unsupported"));
+            _gallery.SetMediaTags(null, MediaMenuReasons.Tags(reason, BooruMediaIdentity.IsBooruThread(current.Key.Thread)));
             return;
         }
         PrivateTagLoadSnapshot loaded = _session.GetPublishedPrivateTagSnapshot();

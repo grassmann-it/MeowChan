@@ -2686,6 +2686,14 @@
     "booru.media.tile.inMixed": "в {0} темах и {1} публикациях Danbooru",
     "booru.media.occurrences.summaryPosts": "{0} вхождений в {1} публикациях Danbooru. Теги остаются у каждого вхождения.",
     "booru.media.occurrences.summaryMixed": "{0} вхождений в {1} темах и {2} публикациях Danbooru. Теги остаются у каждого вхождения.",
-    "booru.media.gallery.scope": "Danbooru · {0} публикаций"
+    "booru.media.gallery.scope": "Danbooru · {0} публикаций",
+    "media.menu.reason.notSaved": "Сохранённая версия этого медиафайла недоступна.",
+    "media.menu.reason.unavailable": "Сейчас здесь недоступно.",
+    "media.menu.reason.notInSequence": "Этот файл скрыт текущим фильтром, поэтому галерея не может открыться на нём.",
+    "media.menu.reason.severalSelected": "Выбрано несколько элементов. Выберите один элемент, чтобы использовать это действие.",
+    "media.menu.reason.severalPosts": "Этот сохранённый файл относится к нескольким публикациям. Используйте действие у нужной публикации.",
+    "media.menu.reason.providerPost": "Адрес публикации у поставщика недоступен.",
+    "media.menu.note.selection": "Эти действия относятся к элементу, по которому вы щёлкнули. Действия с выбором ниже относятся ко всем {0} выбранным элементам.",
+    "media.menu.details.posts": "Публикации: {0}"
   }
 }

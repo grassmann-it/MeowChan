@@ -19,8 +19,10 @@ using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
 using MeowChan.Storage;
+using MeowChan.Tags;
 
 namespace MeowChan;
 
@@ -57,7 +59,6 @@ public sealed partial class MediaPage : UserControl
     private bool _sharedMediaMenusInitialized;
     private long _mediaMenuRevision;
     private long _mediaMenuSerial;
-    private Control? _mediaMenuOwner;
     private bool _sharedPointerContextPending;
 
     /// <summary>Opens the gallery for a window of shown entries; the int is the chosen entry inside it.</summary>
@@ -68,7 +69,6 @@ public sealed partial class MediaPage : UserControl
     // The shell supplies the guarded executor for the shared menu. Keeping this seam on
     // the page means menu construction never resolves a selected row at invocation time.
     internal Func<string, MediaLibraryEntry, Func<bool>, Task>? ExecuteMediaMenuActionAsync { get; set; }
-    internal Func<string, MediaLibraryEntry, string?>? MediaMenuActionUnavailableReason { get; set; }
     /// <summary>
     /// Read-only access to the local Booru catalog (downloaded provider posts). Null: the page shows archived media only.
     /// An unreadable catalog (the function returns null) keeps the provider media the previous index showed.
@@ -79,7 +79,7 @@ public sealed partial class MediaPage : UserControl
     /// <summary>Copies a provider post address to the clipboard; the default uses this page's clipboard.</summary>
     internal Func<Uri, Task>? CopyProviderPage { get; set; }
     internal Func<MediaLibraryEntry, Func<bool>, Task>? EditTagsForMenuAsync { get; set; }
-    internal ContextMenu? MediaMenu { get; private set; }
+    internal ContextMenu? MediaMenu => _mediaMenuPresenter.Menu;
     internal Task BuildTask { get; private set; } = Task.CompletedTask;
     /// <summary>One entry per tile: the occurrence each tile shows. Gallery windows are made from this list.</summary>
     internal IReadOnlyList<MediaLibraryEntry> ShownEntries => _shown;
@@ -377,16 +377,10 @@ public sealed partial class MediaPage : UserControl
         ++_mediaMenuRevision;
         ++_mediaMenuSerial;
         _sharedPointerContextPending = false;
-        if (MediaMenu is not { } menu) return;
-        foreach (MenuItem item in menu.Items.OfType<MenuItem>()) item.IsEnabled = false;
-        menu.Close();
-        if (_mediaMenuOwner is { } owner && ReferenceEquals(owner.ContextMenu, menu)) owner.ContextMenu = null;
-        _mediaMenuOwner = null;
+        _mediaMenuPresenter.Invalidate();
     }
 
-    private static bool IsNativeContextSource(object? source) => source is Visual visual
-        && visual.GetSelfAndVisualAncestors().Any(control => control is TextBox or ComboBox or Slider or SelectableTextBlock
-            or Ursa.Controls.AutoCompleteBox);
+    private static bool IsNativeContextSource(object? source) => MediaMenuPresenter.IsNativeTextSource(source);
 
     private static MediaLibraryTileRow? RowAt(object? source) => source is Visual visual
         ? visual.GetSelfAndVisualAncestors().OfType<Control>().Select(control => control.DataContext)
@@ -402,10 +396,7 @@ public sealed partial class MediaPage : UserControl
             ?? controls.FirstOrDefault(control => ReferenceEquals(control.DataContext, row));
     }
 
-    private static bool IsContextKey(KeyEventArgs e) => !e.Handled && !CommandRouter.IsNativeInput(e.Source, e.Key)
-        && (e.Key == Key.Apps && e.KeyModifiers == KeyModifiers.None
-            || e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift
-            || CommandBindings.Matches(e, "menu.context-open"));
+    private static bool IsContextKey(KeyEventArgs e) => MediaMenuPresenter.IsContextKey(e);
 
     private Control ResolveMenuOrigin(object? source, MediaLibraryTileRow? row)
     {
@@ -467,123 +458,99 @@ public sealed partial class MediaPage : UserControl
             && origin.IsAttachedToVisualTree() && origin.IsEffectivelyVisible
             && ReferenceEquals(originData, origin.DataContext);
 
-        List<object> items = new();
         if (row == null)
         {
-            MenuItem exportAll = LocalizedMenuItem("media.exportAll", _ => ExportAllAsync(),
-                () => _exportAll.IsEnabled && Current());
-            items.Add(exportAll);
+            MediaMenuSession blank = new(MediaMenuSurface.MediaPage, null, Current);
+            Task RunBlank(Func<Task> action) => RunMenuActionAsync(action, blank);
+            ContextMenu blankMenu = new() { ItemsSource = new Control[]
+            {
+                MediaMenuBuilder.ContextItem(blank, "media.exportAll", ExportAllAsync, () => _exportAll.IsEnabled, RunBlank)
+            } };
+            blank.Invalidated += () => blankMenu.Close();
+            _mediaMenuPresenter.Show(blankMenu, blank, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
+            return;
         }
-        else
+        MediaLibraryEntry entry = row.Entry;
+        MediaLibraryTile tile = row.Tile;
+        MediaLibraryEntry[] shown = _shown.ToArray();
+        (IReadOnlyList<MediaLibraryEntry> galleryWindow, int galleryStart) = MediaLibraryView.GalleryWindow(shown, row.Index);
+        MediaLibraryEntryState? state = row.State;
+        int selectedCount = SelectedTiles.Count;
+        bool several = selectedCount > 1;
+        bool hostActions = ExecuteMediaMenuActionAsync != null;
+        MediaMenuFacts facts = new(MediaMenuSurface.MediaPage, MediaMenuTarget.Of(entry))
         {
-            MediaLibraryEntry entry = row.Entry;
-            MediaLibraryTile tile = row.Tile;
-            MediaLibraryEntry[] shown = _shown.ToArray();
-            (IReadOnlyList<MediaLibraryEntry> galleryWindow, int galleryStart) =
-                MediaLibraryView.GalleryWindow(shown, row.Index);
-            MediaLibraryEntryState? state = row.State;
-            bool present = entry.Presence == MediaLibraryPresence.Present;
-            bool single = SelectedTiles.Count == 1;
-            bool canTags = state?.CanEditMediaTags == true && (EditTagsForMenuAsync != null || ExecuteMediaMenuActionAsync != null);
-            string tagReason = !present ? Texts.T("archive.notSaved")
-                : state == null || !state.TagsKnown ? Texts.T("tags.unavailable")
-                : state.TagSubject == null ? UnboundTagReason(entry) : Texts.T("tags.unavailable");
-
-            items.Add(CommandMenuItem(entry, "media.open", () => OpenMediaMenuAsync(entry, galleryWindow, galleryStart, Current),
-                single && present && galleryStart >= 0 && (OpenGallery != null || ExecuteMediaMenuActionAsync != null),
-                Current, Texts.T("archive.notSaved")));
-            items.Add(CommandMenuItem(entry, "favorites.toggle", () => ExecuteMediaActionAsync("favorites.toggle", entry, Current),
-                present && (state?.Favorite is MediaLibraryFlag.No or MediaLibraryFlag.Yes) && ExecuteMediaMenuActionAsync != null,
-                Current, Texts.T("media.selection.reason.unavailable")));
-            items.Add(CommandMenuItem(entry, "media.rating.edit", () => ExecuteMediaActionAsync("media.rating.edit", entry, Current),
-                present && state?.RatingKnown == true && ExecuteMediaMenuActionAsync != null,
-                Current, Texts.T("media.selection.reason.unavailable")));
-            items.Add(CommandMenuItem(entry, "media.tags.edit", () => EditTagsForMenuAsync != null
-                    ? EditTagsForMenuAsync(entry, Current)
-                    : ExecuteMediaActionAsync("media.tags.edit", entry, Current),
-                canTags, Current, tagReason));
-            items.Add(CommandMenuItem(entry, "media.export-original", () => ExecuteMediaActionAsync("media.export-original", entry, Current),
-                present && ExecuteMediaMenuActionAsync != null,
-                Current, Texts.T("export.missing")));
-            items.Add(CommandMenuItem(entry, "media.show-in-folder", () => ExecuteMediaActionAsync("media.show-in-folder", entry, Current),
-                present && ExecuteMediaMenuActionAsync != null, Current, Texts.T("media.selection.reason.unavailable")));
-            items.Add(CommandMenuItem(entry, "media.details", () => ExecuteMediaActionAsync("media.details", entry, Current),
-                present && ExecuteMediaMenuActionAsync != null, Current, Texts.T("archive.notSaved")));
-            if (entry.BooruPostId != null)
+            Present = entry.Presence == MediaLibraryPresence.Present,
+            GalleryWired = galleryStart >= 0 && (OpenGallery != null || hostActions),
+            SeveralSelected = several,
+            Favorite = state?.Favorite switch
             {
-                items.Add(LocalizedMenuItem("booru.media.openPost", _ => OpenProviderPostAsync(entry), () => single && Current()));
-                items.Add(LocalizedMenuItem("booru.media.copyPost", _ => CopyProviderPostAsync(entry), () => single && Current()));
-            }
-            items.Add(new Separator());
-            items.Add(CommandMenuItem(entry, "gallery.show-in-thread", () => ShowInThread == null || entry.PostId == null
-                    ? Task.CompletedTask : ShowInThread(entry),
-                single && entry.PostId != null && ShowInThread != null, Current, Texts.T("gallery.noPost")));
-            items.Add(LocalizedMenuItem("media.filter.onlyThread", _ => { FilterToThread(entry); return Task.CompletedTask; },
-                () => single && Current()));
-            items.Add(LocalizedMenuItem("media.occurrences", _ => { ShowOccurrences(tile); return Task.CompletedTask; },
-                () => tile.IsGroup && Current()));
-            foreach ((Button action, string key) in new[] { (_selTag, "media.selection.tag"),
-                (_selGallery, "media.selection.gallery"), (_selExport, "media.selection.export") })
-            {
-                Button selectedAction = action;
-                items.Add(LocalizedMenuItem(key, _ =>
-                {
-                    if (Current()) selectedAction.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                    return Task.CompletedTask;
-                }, () => selectedAction.IsEnabled && Current()));
-            }
-            items.Add(LocalizedMenuItem("media.exportAll", _ => ExportAllAsync(),
-                () => _exportAll.IsEnabled && Current()));
-        }
-
-        ContextMenu menu = new() { ItemsSource = items };
-        ContextMenu? previousMenu = MediaMenu;
-        Control? previousOwner = _mediaMenuOwner;
-        previousMenu?.Close();
-        if (previousOwner is { } previous && ReferenceEquals(previous.ContextMenu, previousMenu)) previous.ContextMenu = null;
-        MediaMenu = menu;
-        _mediaMenuOwner = origin;
-        origin.ContextMenu = menu;
-        menu.Closed += (_, _) =>
-        {
-            if (ReferenceEquals(_mediaMenuOwner, origin) && ReferenceEquals(origin.ContextMenu, menu))
-            {
-                origin.ContextMenu = null;
-                _mediaMenuOwner = null;
-            }
-            RestoreMenuFocus(menu, origin, Current);
+                MediaLibraryFlag.Yes => MediaMenuFavorite.On,
+                MediaLibraryFlag.No => MediaMenuFavorite.Off,
+                _ => MediaMenuFavorite.Unknown
+            },
+            FavoriteWired = hostActions,
+            RatingWired = hostActions,
+            RatingKnown = state?.RatingKnown == true,
+            TagsWired = EditTagsForMenuAsync != null || hostActions,
+            TagsBlocked = state?.CanEditMediaTags == true ? null : state == null || !state.TagsKnown ? MediaMenuReasons.TagsUnknown
+                : MediaMenuReasons.Tags(entry.AttachmentRevisionKey == null && entry.LocalSlot == null
+                    ? GalleryMediaTagUnavailable.NoPostVersion : GalleryMediaTagUnavailable.InvalidIdentity,
+                    providerMedia: entry.BooruPostId != null),
+            ExportWired = hostActions,
+            FolderWired = hostActions,
+            DetailsWired = hostActions,
+            Posts = entry.PostId != null ? MediaMenuPostScope.Single : MediaMenuPostScope.None,
+            ShowInThreadWired = ShowInThread != null,
+            ProviderMedia = entry.BooruPostId != null,
+            ProviderPostKnown = ProviderPostUrl(entry) != null
         };
-        menu.Open(origin);
+        MediaMenuModel model = MediaMenuComposition.Compose(facts);
+        MediaMenuSession session = new(MediaMenuSurface.MediaPage, model.Target, Current);
+        Task Run(Func<Task> action) => RunMenuActionAsync(action, session);
+        Dictionary<MediaMenuAction, Func<Task>> handlers = new()
+        {
+            [MediaMenuAction.Open] = () => OpenMediaMenuAsync(entry, galleryWindow, galleryStart, Current),
+            [MediaMenuAction.Favorite] = () => ExecuteMediaActionAsync("favorites.toggle", entry, Current),
+            [MediaMenuAction.Rating] = () => ExecuteMediaActionAsync("media.rating.edit", entry, Current),
+            [MediaMenuAction.Tags] = () => EditTagsForMenuAsync != null
+                ? EditTagsForMenuAsync(entry, Current) : ExecuteMediaActionAsync("media.tags.edit", entry, Current),
+            [MediaMenuAction.Export] = () => ExecuteMediaActionAsync("media.export-original", entry, Current),
+            [MediaMenuAction.ShowInFolder] = () => ExecuteMediaActionAsync("media.show-in-folder", entry, Current),
+            [MediaMenuAction.Details] = () => ExecuteMediaActionAsync("media.details", entry, Current),
+            [MediaMenuAction.ShowInThread] = () => ShowInThread == null || entry.PostId == null ? Task.CompletedTask : ShowInThread(entry),
+            [MediaMenuAction.OpenProviderPost] = () => OpenProviderPostAsync(entry),
+            [MediaMenuAction.CopyProviderPost] = () => CopyProviderPostAsync(entry)
+        };
+        // Everything below the common section belongs to this page: it works on the grid, not on one medium.
+        List<Control> context = new();
+        if (selectedCount > 0 && !(selectedCount == 1 && ReferenceEquals(SelectedRow, row)))
+            context.Add(MediaMenuBuilder.Note(Texts.T("media.menu.note.selection", selectedCount)));
+        context.Add(MediaMenuBuilder.ContextItem(session, "media.filter.onlyThread", () => { FilterToThread(entry); return Task.CompletedTask; },
+            () => !several, Run, MediaMenuReasons.SeveralSelected));
+        context.Add(MediaMenuBuilder.ContextItem(session, "media.occurrences", () => { ShowOccurrences(tile); return Task.CompletedTask; },
+            () => tile.IsGroup, Run, MediaMenuReasons.Unavailable));
+        foreach ((Button action, string key) in new[] { (_selTag, "media.selection.tag"),
+            (_selGallery, "media.selection.gallery"), (_selExport, "media.selection.export") })
+        {
+            Button selectedAction = action;
+            context.Add(MediaMenuBuilder.ContextItem(session, key, () =>
+            {
+                selectedAction.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                return Task.CompletedTask;
+            }, () => selectedAction.IsEnabled, Run, ToolTip.GetTip(selectedAction) as string ?? MediaMenuReasons.Unavailable));
+        }
+        context.Add(MediaMenuBuilder.ContextItem(session, "media.exportAll", ExportAllAsync, () => _exportAll.IsEnabled, Run));
+        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, ShowSelectionNote);
+        _mediaMenuPresenter.Show(menu, session, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
     }
+
+    private readonly MediaMenuPresenter _mediaMenuPresenter = new();
 
     private Task OpenMediaMenuAsync(MediaLibraryEntry entry, IReadOnlyList<MediaLibraryEntry> galleryWindow,
         int galleryStart, Func<bool> current) => ExecuteMediaMenuActionAsync != null
             ? ExecuteMediaMenuActionAsync("media.open", entry, current)
             : OpenGallery?.Invoke(galleryWindow, galleryStart) ?? Task.CompletedTask;
-
-    // Only reached when the shared resolver offered no target: a loose view of a file that is shown bound elsewhere
-    // (or whose thread has a damaged manifest), or an invalid identity.
-    private static string UnboundTagReason(MediaLibraryEntry entry) =>
-        entry.BooruPostId != null ? Texts.T("booru.media.tags.unavailable")
-        : entry.AttachmentRevisionKey == null && entry.LocalSlot == null
-            ? Texts.T("tags.media.boundElsewhere") : Texts.T("tags.media.unsupported");
-
-    private MenuItem CommandMenuItem(MediaLibraryEntry entry, string id, Func<Task> action, bool available, Func<bool> current, string reason)
-    {
-        string? hostReason = MediaMenuActionUnavailableReason?.Invoke(id, entry);
-        MenuItem item = CommandBindings.CreateMenuItem(id, () => _ = RunMenuActionAsync(action, current),
-            () => available && current(), () => hostReason ?? (available ? null : reason));
-        item.Tag = id;
-        return item;
-    }
-
-    private MenuItem LocalizedMenuItem(string key, Func<MediaLibraryEntry?, Task> action, Func<bool> canExecute)
-    {
-        MenuItem item = new() { Header = Texts.T(key), Tag = key,
-            Command = new DelegateCommand(() => _ = RunMenuActionAsync(() => action(null), canExecute), canExecute) };
-        AutomationProperties.SetName(item, item.Header?.ToString() ?? string.Empty);
-        return item;
-    }
 
     private async Task ExecuteMediaActionAsync(string id, MediaLibraryEntry entry, Func<bool> current)
     {
@@ -591,27 +558,13 @@ public sealed partial class MediaPage : UserControl
         else if (id == "media.tags.edit" && EditTags != null) await EditTags(entry);
     }
 
-    private async Task RunMenuActionAsync(Func<Task> action, Func<bool> current)
+    private async Task RunMenuActionAsync(Func<Task> action, MediaMenuSession session)
     {
-        if (!current()) return;
+        if (!session.IsCurrent) return;
         try { await action(); }
-        catch (OperationCanceledException) when (!current() || _lifetime.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (!session.IsCurrent || _lifetime.IsCancellationRequested) { }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException)
-        { if (current()) ShowSelectionNote(error.Message); }
-    }
-
-    private void RestoreMenuFocus(ContextMenu menu, Control origin, Func<bool> current)
-    {
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (!current() || ReferenceEquals(MediaMenu, menu) && menu.IsOpen) return;
-            TopLevel? top = TopLevel.GetTopLevel(origin);
-            if (top is Window owner && owner.OwnedWindows.Any(window => window.IsVisible)) return;
-            object? focused = top?.FocusManager?.GetFocusedElement();
-            if (focused is Control control && !ReferenceEquals(control, menu) && control.GetSelfAndVisualAncestors().OfType<ContextMenu>().Any()) return;
-            if (origin.IsAttachedToVisualTree() && origin.IsEffectivelyVisible && origin.IsEffectivelyEnabled) origin.Focus();
-            else FocusGrid(() => current() && !(top is Window window && window.OwnedWindows.Any(child => child.IsVisible)));
-        }, DispatcherPriority.Background);
+        { if (session.IsCurrent) ShowSelectionNote(error.Message); }
     }
 
     private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(Localize);

@@ -102,7 +102,9 @@ internal static class GalleryIntegrityChecks
                 menu.Close();
                 Require(viewer.Focus(NavigationMethod.Tab) && ReferenceEquals(window.FocusManager?.GetFocusedElement(), viewer),
                     "The details action has no focused gallery origin to restore.");
-                details.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                // The shared menu runs its command (as a native click does), not a bare routed Click.
+                Require(details.Command?.CanExecute(null) == true, "The gallery details command is not executable.");
+                details.Command!.Execute(null);
                 await Program.WaitUntilAsync(() => window.OwnedWindows.Any(child => child.IsVisible));
                 Window dialog = window.OwnedWindows.Single(child => child.IsVisible);
                 bool dialogClosed = false;

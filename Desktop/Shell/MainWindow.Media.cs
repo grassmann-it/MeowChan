@@ -11,6 +11,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
 using MeowChan.Storage;
 using MeowChan.Archive;
@@ -203,9 +204,8 @@ public partial class MainWindow
             MediaTagSubject? target = MediaTagSubjects.Of(match, out GalleryMediaTagUnavailable reason);
             if (match == null || target == null)
             {
-                ShowNotification(Texts.T("notification.error"), Texts.T(match == null ? "media.galleryFailed"
-                    : BooruMediaIdentity.IsBooruThread(match.Key.Thread) ? "booru.media.tags.unavailable"
-                    : reason == GalleryMediaTagUnavailable.NoPostVersion ? "tags.media.boundElsewhere" : "tags.media.unsupported"),
+                ShowNotification(Texts.T("notification.error"), match == null ? Texts.T("media.galleryFailed")
+                    : MediaMenuReasons.Tags(reason, BooruMediaIdentity.IsBooruThread(match.Key.Thread)),
                     NotificationType.Warning, operation: "media.tags");
                 return;
             }

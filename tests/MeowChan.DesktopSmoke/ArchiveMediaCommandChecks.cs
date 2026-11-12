@@ -50,17 +50,18 @@ internal static class ArchiveMediaCommandChecks
             Console.WriteLine("SMOKE archive media menu: " + JsonSerializer.Serialize(items
                 .Select(item => new { item.Tag, header = item.Header?.ToString(), item.IsEnabled,
                     canExecute = item.Command?.CanExecute(item.CommandParameter) })));
-            Require(page.EditPostBookmark != null && items.Length == 9 && items[0].Tag == null
-                && Equals(items[0].Header, CommandCatalog.Label("post-bookmarks.edit-post")),
-                "The real reader media menu lost its leading post-bookmark action or contains unexpected actions.");
-            MenuItem bookmark = items[0];
+            // The common media section comes first, in the one shared order; the page's own post-bookmark action follows it.
+            Require(page.EditPostBookmark != null && items.Length == 9 && items[^1].Tag == null
+                && Equals(items[^1].Header, CommandCatalog.Label("post-bookmarks.edit-post")),
+                "The real reader media menu lost its trailing post-bookmark action or contains unexpected actions.");
+            MenuItem bookmark = items[^1];
             Require(bookmark.IsEnabled && bookmark.Command?.CanExecute(bookmark.CommandParameter) == true,
                 "The captured inline post has no available shared bookmark action.");
             // Check every remaining item; do not hide the untagged bookmark or any unexpected action.
-            MenuItem[] commands = items.Skip(1).ToArray();
+            MenuItem[] commands = items.Take(items.Length - 1).ToArray();
             string[] actualTags = commands.Select(item => item.Tag as string ?? "<untagged>").ToArray();
             Require(actualTags.SequenceEqual(new[]
-            { "gallery.open", "favorites.toggle", "media.rating.edit", "media.tags.edit", "media.export-original", "media.show-in-folder", "gallery.show-in-thread", "media.details" }),
+            { "gallery.open", "favorites.toggle", "media.rating.edit", "media.tags.edit", "media.export-original", "media.show-in-folder", "media.details", "gallery.show-in-thread" }),
                 "Inline media menu lacks the shared media actions or order: " + string.Join(", ", actualTags));
             MenuItem rating = commands.Single(item => (string)item.Tag! == "media.rating.edit");
             Require(rating.IsEnabled && rating.Command?.CanExecute(rating.CommandParameter) == true,

@@ -10,6 +10,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
 using MeowChan.Tags;
@@ -18,7 +19,7 @@ namespace MeowChan;
 
 public partial class ArchivePage
 {
-    internal ContextMenu? ArchiveMediaMenu { get; private set; }
+    internal ContextMenu? ArchiveMediaMenu => _mediaMenuPresenter.Menu;
     internal Func<GalleryEntry, bool>? IsArchiveFavorite { get; set; }
     internal Func<GalleryEntry, Task>? ToggleArchiveFavoriteAsync { get; set; }
     internal Func<GalleryEntry, Task>? EditArchiveMediaTagsAsync { get; set; }
@@ -87,6 +88,8 @@ public partial class ArchivePage
     private void OnArchiveMediaContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (e.Handled || _ended || !_available || e.Source is not Control source) return;
+        // Text inputs and selectable text keep their own native menu.
+        if (MediaMenuPresenter.IsNativeTextSource(source)) return;
         Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         ArchiveAttachmentView? attachmentView = ancestors.OfType<ArchiveAttachmentView>().FirstOrDefault();
         ArchiveAttachmentRow? attachment = attachmentView?.DataContext as ArchiveAttachmentRow;
@@ -104,11 +107,16 @@ public partial class ArchivePage
         if (asset == null && attachment == null) return;
         if (_selectedThread == null || _thread == null || origin == null) return;
         e.Handled = true;
-        ContextMenu menu = BuildArchiveMediaMenu(asset, attachment, origin, postId);
-        ArchiveMediaMenu?.Close();
-        ArchiveMediaMenu = menu;
-        menu.Open(origin);
+        (ContextMenu menu, MediaMenuSession session) = BuildArchiveMediaMenu(asset, attachment, origin, postId, ArchiveMenuSurface(ancestors, attachment));
+        _mediaMenuPresenter.Show(menu, session, origin);
     }
+
+    private readonly MediaMenuPresenter _mediaMenuPresenter = new();
+
+    private static MediaMenuSurface ArchiveMenuSurface(Control[] ancestors, ArchiveAttachmentRow? attachment) =>
+        attachment != null ? MediaMenuSurface.ArchiveInline
+        : ancestors.Any(control => control.Name == "ArchiveMediaTiles") ? MediaMenuSurface.ArchiveTiles
+        : MediaMenuSurface.ArchiveTable;
 
     private bool TryRouteArchiveMediaShortcut(Control owner, KeyEventArgs e)
     {
@@ -125,12 +133,14 @@ public partial class ArchivePage
         if (attachment != null) asset = postId == null ? null : FindMatchingAsset(_selectedThread, postId, attachment.Attachment, _assets);
         if (asset == null && attachment == null) return false;
         var origin = (Control?)attachmentView ?? owner;
-        return CommandBindings.RouteMenuAction(BuildArchiveMediaMenu(asset, attachment, origin, postId), e);
+        MediaMenuSurface surface = attachment != null ? MediaMenuSurface.ArchiveInline
+            : owner.Name == "ArchiveMediaTiles" ? MediaMenuSurface.ArchiveTiles : MediaMenuSurface.ArchiveTable;
+        return CommandBindings.RouteMenuAction(BuildArchiveMediaMenu(asset, attachment, origin, postId, surface).Menu, e);
     }
 
-    private ContextMenu BuildArchiveMediaMenu(ArchiveAssetRow? asset, ArchiveAttachmentRow? attachment, Control origin, string? postId = null)
+    private (ContextMenu Menu, MediaMenuSession Session) BuildArchiveMediaMenu(ArchiveAssetRow? asset, ArchiveAttachmentRow? attachment,
+        Control origin, string? postId, MediaMenuSurface surface)
     {
-        ContextMenu menu = new();
         Action<string> reportError = CaptureActionErrorReporter();
         // Freeze the current manifest references and post association together. Neither
         // a later page refresh nor a different lead may retarget an open media menu.
@@ -145,10 +155,12 @@ public partial class ArchivePage
             && (postId == null || item.Post?.PostId == postId)
             && (attachment == null || item.Attachment?.Position == attachment.Attachment.Position)).ToArray();
         GalleryEntry? entry = candidates.FirstOrDefault();
-        // A saved file shared by several post bindings has several tag targets: never pick one silently.
+        // A saved file shared by several post bindings has several tag targets and several posts: never pick one silently.
         MediaTagSubject[] tagSubjects = candidates.Select(item => MediaTagSubjects.Of(item)).OfType<MediaTagSubject>().Distinct().ToArray();
         bool ambiguousTagTarget = tagSubjects.Length > 1;
         GalleryEntry? tagEntry = tagSubjects.Length == 1 ? candidates.First(item => Equals(MediaTagSubjects.Of(item), tagSubjects[0])) : null;
+        string[] postIds = candidates.Select(item => item.Post?.PostId).OfType<string>().Distinct(StringComparer.Ordinal).ToArray();
+        bool severalPosts = postIds.Length > 1;
         if (entry == null && asset != null)
             entry = new GalleryEntry(new GalleryAssetKey(threadId, asset.Manifest.Directory, asset.Asset.AssetId), asset.Manifest, asset.Asset,
                 null, null, !asset.Asset.IsCurrent, true) { ThreadUrl = thread.Summary.Url };
@@ -157,90 +169,79 @@ public partial class ArchivePage
         if (attachment != null && target != null)
             galleryEntries = galleryEntries.Select(item => item.Key == target.Key ? target : item).ToArray();
         GalleryEntry? galleryTarget = target == null ? null : galleryEntries.FirstOrDefault(item => item.EntryKey == target.EntryKey);
-        bool saved = target != null;
-        string missing = Texts.T("archive.notSaved");
-        var unavailable = new List<string>();
-        void Add(string id, Func<Task> action, bool available, string? reason = null)
-        {
-            var item = CommandBindings.CreateMenuItem(id, async () =>
-            {
-                try { if (!IsFilenameSearchOpen) await action(); }
-                catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-                catch (Exception error) { reportError(error.Message); }
-            }, () => available && !_ended && !IsFilenameSearchOpen, () => available ? null : reason);
-            item.Tag = id;
-            if (!available && reason != null) unavailable.Add(CommandCatalog.Label(id) + ": " + reason);
-            menu.Items.Add(item);
-        }
-        if (postId != null && EditPostBookmark != null)
-            menu.Items.Add(CreatePostBookmarkMenuItem(new MeowChan.Persistence.PostBookmarkKey(threadId, postId), origin));
-        Add("gallery.open", async () =>
-        {
-            if (galleryTarget != null && OpenMediaGallery != null)
-                await OpenMediaGallery(galleryEntries, galleryTarget.EntryKey, origin);
-        }, galleryTarget != null && OpenMediaGallery != null, missing);
-        Add("favorites.toggle", async () =>
-        {
-            if (target != null) await ToggleArchiveMediaFavoriteAsync(target);
-        }, saved && ToggleArchiveFavoriteAsync != null, missing);
-        if (target != null && menu.Items.OfType<MenuItem>().LastOrDefault() is MenuItem favorite)
-        {
-            favorite.Header = Texts.T(IsArchiveFavorite?.Invoke(target) == true ? "viewer.favorite.remove" : "viewer.favorite.add");
-            favorite.IsChecked = IsArchiveFavorite?.Invoke(target) == true;
-            favorite.ToggleType = MenuItemToggleType.CheckBox;
-            favorite.InputGesture = CommandBindings.Gesture("favorites.toggle");
-            Avalonia.Automation.AutomationProperties.SetName(favorite, favorite.Header.ToString());
-            Avalonia.Automation.AutomationProperties.SetHelpText(favorite, CommandBindings.Tooltip("favorites.toggle"));
-            ToolTip.SetTip(favorite, CommandBindings.Tooltip("favorites.toggle"));
-        }
-        Add("media.rating.edit", async () =>
-        {
-            if (target != null && EditMediaRatingAsync != null) await EditMediaRatingAsync(target);
-        }, saved && EditMediaRatingAsync != null && _mediaRatingError == null, _mediaRatingError ?? missing);
-        // The shared resolver: the exact bound media version, or the loose local file itself. It
-        // never falls back to tagging the thread, another copy with equal bytes or a guessed version.
         MediaTagSubjects.Of(target, out GalleryMediaTagUnavailable tagReason);
         bool taggable = tagEntry != null;
-        Add("media.tags.edit", async () =>
+        bool? favorite = target == null || IsArchiveFavorite == null ? null : IsArchiveFavorite(target);
+        MediaMenuFacts facts = new(surface, target == null ? null : severalPosts ? MediaMenuTarget.OfFile(target) : MediaMenuTarget.Of(target))
         {
-            if (tagEntry != null && EditArchiveMediaTagsAsync != null) await EditArchiveMediaTagsAsync(tagEntry);
-        }, taggable && EditArchiveMediaTagsAsync != null, Texts.T(ambiguousTagTarget ? "tags.media.ambiguous"
-            : tagReason == GalleryMediaTagUnavailable.NoPostVersion ? "tags.media.boundElsewhere" : "tags.media.unsupported"));
-        Add("media.export-original", async () =>
+            Present = target != null,
+            GalleryWired = OpenMediaGallery != null,
+            InGallerySequence = galleryTarget != null,
+            Favorite = favorite == null ? MediaMenuFavorite.Unknown : favorite == true ? MediaMenuFavorite.On : MediaMenuFavorite.Off,
+            FavoriteWired = ToggleArchiveFavoriteAsync != null,
+            RatingWired = EditMediaRatingAsync != null,
+            RatingBlocked = _mediaRatingError,
+            TagsWired = EditArchiveMediaTagsAsync != null,
+            TagsBlocked = taggable ? null : MediaMenuReasons.Tags(tagReason, ambiguous: ambiguousTagTarget),
+            FolderWired = _openFolder != null,
+            Posts = severalPosts ? MediaMenuPostScope.Several : postIds.Length == 1 ? MediaMenuPostScope.Single : MediaMenuPostScope.None
+        };
+        MediaMenuModel model = MediaMenuComposition.Compose(facts);
+        // The guard is the page state the menu was opened on. A different thread, a reloaded thread, a closed page or an
+        // open filename search retires it; a mere filter change keeps the frozen visible sequence it was built from.
+        MediaMenuSession session = new(surface, model.Target, () => !_ended && _available && !IsFilenameSearchOpen
+            && ReferenceEquals(_thread, thread) && _selectedThread == threadId);
+        Task Run(Func<Task> action) => RunArchiveMenuActionAsync(action, session, reportError);
+        Dictionary<MediaMenuAction, Func<Task>> handlers = new()
         {
-            if (target != null) await OpenOriginalExportAsync(new[] { FavoriteExportAsset.From(threadId, target.Manifest, target.Asset) }, origin);
-        }, saved, missing);
-        Add("media.show-in-folder", () =>
-        {
-            if (target != null && Path.GetDirectoryName(target.Asset.Path) is string directory) _openFolder?.Invoke(directory);
-            return Task.CompletedTask;
-        }, saved && _openFolder != null, missing);
-        Add("gallery.show-in-thread", async () =>
-        {
-            if (target?.Post == null) return;
-            if (_thread?.Summary.Id != threadId) await LoadThreadAsync(threadId);
-            ArchiveContentTabs.SelectedIndex = 0;
-            await FocusPostAsync(target.Post.PostId);
-        }, target?.Post != null, Texts.T("gallery.noPost"));
-        Add("media.details", () =>
-        {
-            string details = target == null ? attachment?.Label + Environment.NewLine + missing
-                : (target.Asset.OriginalFileName ?? target.Asset.Path) + Environment.NewLine + target.Asset.Path + Environment.NewLine
-                    + MediaProvenanceText.LocalSize(target.Asset.Length) + Environment.NewLine + "SHA-256: " + target.Asset.Sha256
-                    + Environment.NewLine + MediaProvenanceText.Details(target.AttachmentResolution?.Binding)
-                    + Environment.NewLine + threadId.Source + " /" + threadId.Board + "/ " + threadId.Thread
-                    + Environment.NewLine + (target.Post?.PostId ?? Texts.T("gallery.noPost"));
-            return ShowArchiveMetadataAsync(CommandCatalog.Label("media.details"), details);
-        }, true);
-        if (unavailable.Count > 0)
-        {
-            string explanation = string.Join(Environment.NewLine, unavailable);
-            var info = new MenuItem { Header = Texts.T("archive.command.unavailable"), Icon = CommandBindings.Icon("thread.details") };
-            Avalonia.Automation.AutomationProperties.SetHelpText(info, explanation);
-            ToolTip.SetTip(info, explanation);
-            info.Click += (_, _) => Message(explanation);
-            menu.Items.Add(info);
-        }
-        return menu;
+            [MediaMenuAction.Open] = async () =>
+            {
+                if (galleryTarget != null && OpenMediaGallery != null)
+                    await OpenMediaGallery(galleryEntries, galleryTarget.EntryKey, origin);
+            },
+            [MediaMenuAction.Favorite] = async () => { if (target != null) await ToggleArchiveMediaFavoriteAsync(target); },
+            [MediaMenuAction.Rating] = async () => { if (target != null && EditMediaRatingAsync != null) await EditMediaRatingAsync(target); },
+            [MediaMenuAction.Tags] = async () => { if (tagEntry != null && EditArchiveMediaTagsAsync != null) await EditArchiveMediaTagsAsync(tagEntry); },
+            [MediaMenuAction.Export] = async () =>
+            {
+                if (target != null) await OpenOriginalExportAsync(new[] { FavoriteExportAsset.From(threadId, target.Manifest, target.Asset) }, origin);
+            },
+            [MediaMenuAction.ShowInFolder] = () =>
+            {
+                if (target != null && Path.GetDirectoryName(target.Asset.Path) is string directory) _openFolder?.Invoke(directory);
+                return Task.CompletedTask;
+            },
+            [MediaMenuAction.Details] = () =>
+            {
+                string details = target == null ? attachment?.Label + Environment.NewLine + MediaMenuReasons.NotSaved
+                    : (target.Asset.OriginalFileName ?? target.Asset.Path) + Environment.NewLine + target.Asset.Path + Environment.NewLine
+                        + MediaProvenanceText.LocalSize(target.Asset.Length) + Environment.NewLine + "SHA-256: " + target.Asset.Sha256
+                        + Environment.NewLine + (severalPosts ? string.Empty : MediaProvenanceText.Details(target.AttachmentResolution?.Binding) + Environment.NewLine)
+                        + threadId.Source + " /" + threadId.Board + "/ " + threadId.Thread
+                        + Environment.NewLine + (severalPosts ? Texts.T("media.menu.details.posts", string.Join(", ", postIds))
+                            : target.Post?.PostId ?? Texts.T("gallery.noPost"));
+                return ShowArchiveMetadataAsync(CommandCatalog.Label("media.details"), details);
+            },
+            [MediaMenuAction.ShowInThread] = async () =>
+            {
+                if (target?.Post == null || severalPosts) return;
+                if (_thread?.Summary.Id != threadId) await LoadThreadAsync(threadId);
+                ArchiveContentTabs.SelectedIndex = 0;
+                await FocusPostAsync(target.Post.PostId);
+            }
+        };
+        List<Control> context = new();
+        if (postId != null && EditPostBookmark != null)
+            context.Add(CreatePostBookmarkMenuItem(new MeowChan.Persistence.PostBookmarkKey(threadId, postId), origin));
+        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, text => Message(text));
+        return (menu, session);
+    }
+
+    // The archive's own error reporting: a late failure is shown on the thread it belongs to, never after the page ended.
+    private async Task RunArchiveMenuActionAsync(Func<Task> action, MediaMenuSession session, Action<string> reportError)
+    {
+        try { if (!IsFilenameSearchOpen && session.IsCurrent) await action(); }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        catch (Exception error) { reportError(error.Message); }
     }
 }

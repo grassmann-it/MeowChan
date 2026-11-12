@@ -2686,6 +2686,14 @@
     "booru.media.tile.inMixed": "dans {0} fils et {1} publications Danbooru",
     "booru.media.occurrences.summaryPosts": "{0} occurrences dans {1} publications Danbooru. Les tags restent attachés à chaque occurrence.",
     "booru.media.occurrences.summaryMixed": "{0} occurrences dans {1} fils et {2} publications Danbooru. Les tags restent attachés à chaque occurrence.",
-    "booru.media.gallery.scope": "Danbooru · {0} publications"
+    "booru.media.gallery.scope": "Danbooru · {0} publications",
+    "media.menu.reason.notSaved": "Aucune version enregistrée de ce fichier média n'est disponible.",
+    "media.menu.reason.unavailable": "Indisponible ici pour le moment.",
+    "media.menu.reason.notInSequence": "Ce fichier est masqué par le filtre actuel : la galerie ne peut pas s'ouvrir dessus.",
+    "media.menu.reason.severalSelected": "Plusieurs éléments sont sélectionnés. Sélectionnez un seul élément pour utiliser cette action.",
+    "media.menu.reason.severalPosts": "Ce fichier enregistré appartient à plusieurs messages. Utilisez cette action depuis le message voulu.",
+    "media.menu.reason.providerPost": "L'adresse du message chez le fournisseur n'est pas disponible.",
+    "media.menu.note.selection": "Ces actions s'appliquent à l'élément sur lequel vous avez cliqué. Les actions de sélection ci-dessous s'appliquent aux {0} éléments sélectionnés.",
+    "media.menu.details.posts": "Messages : {0}"
   }
 }
