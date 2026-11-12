@@ -378,7 +378,9 @@ internal sealed partial class PluginSession : IAsyncDisposable
 
     private sealed class HostServices(PluginHostHttp http, FilterStageCoordinator stages, string pluginId) : IPluginHostServices
     {
-        public Task<HostHttpResult> SendHttpAsync(HostHttpRequest request, PluginOperationContext operation, CancellationToken cancellationToken) => http.SendAsync(request, cancellationToken);
+        // Pass the typed operation through: post-search requests resolve the booru job bound
+        // to it for the whole operation and fail closed without one.
+        public Task<HostHttpResult> SendHttpAsync(HostHttpRequest request, PluginOperationContext operation, CancellationToken cancellationToken) => http.SendAsync(request, operation, cancellationToken);
         public Task<ImageAssetChunk> ReadImageAsync(string assetToken, long offset, int count, PluginOperationContext operation, CancellationToken cancellationToken) =>
             stages.ReadImageAsync(pluginId, assetToken, offset, count, operation, cancellationToken);
     }

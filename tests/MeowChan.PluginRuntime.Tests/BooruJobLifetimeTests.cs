@@ -316,6 +316,99 @@ public sealed class BooruJobLifetimeTests
         }
     }
 
+    [Fact]
+    public async Task OperationBoundJobIsSharedAcrossRequestsAndFailsClosedWithoutBinding()
+    {
+        ManualClock clock = new();
+        int sends = 0;
+        using HttpClient transport = new(new Handler((request, _) =>
+        {
+            Interlocked.Increment(ref sends);
+            clock.Advance(BooruHostHttp.MinimumStartSpacing);
+            return Task.FromResult(Response(HttpStatusCode.OK, "{}"));
+        }));
+        using PluginHostHttp host = new(transport, new RequestPolicyState(clock), [Source()]);
+
+        PluginOperationContext unbound = new("booru/unbound", 1);
+        Assert.Equal("booru-job", Assert.IsType<HostHttpFailure>(await host.SendAsync(Get(), unbound)).Failure.Code);
+        Assert.Equal(0, sends);
+
+        PluginOperationContext operation = new("booru/op", 1);
+        PluginHostHttp.MetadataHistory owner = Assert.IsType<PluginHostHttp.MetadataHistory>(
+            PluginHostHttp.MetadataHistory.BindOperation(operation, CancellationToken.None));
+        BooruJob job = Assert.IsType<BooruJob>(PluginHostHttp.MetadataHistory.BooruJobFor(operation, clock));
+        Assert.Same(job, PluginHostHttp.MetadataHistory.BooruJobFor(operation, clock));
+        // A second binding for a live operation does not replace its owner.
+        Assert.Null(PluginHostHttp.MetadataHistory.BindOperation(operation, CancellationToken.None));
+        for (int i = 0; i < BooruJob.MaximumSends; ++i)
+            Assert.IsType<HostHttpResponse>(await host.SendAsync(Get(), operation));
+        Assert.Equal("booru-budget", Assert.IsType<HostHttpFailure>(await host.SendAsync(Get(), operation)).Failure.Code);
+        Assert.Equal(BooruJob.MaximumSends, sends);
+        Assert.Equal(BooruJob.MaximumSends, job.Sends);
+
+        owner.Dispose();
+        Assert.False(job.IsOpen);
+        Assert.True(job.Token.IsCancellationRequested);
+        Assert.Equal("booru-job", Assert.IsType<HostHttpFailure>(await host.SendAsync(Get(), operation)).Failure.Code);
+        Assert.Equal(BooruJob.MaximumSends, sends);
+
+        // The retired binding can be replaced by a fresh owner with a fresh job.
+        using PluginHostHttp.MetadataHistory next = PluginHostHttp.MetadataHistory.BindOperation(operation, CancellationToken.None)!;
+        Assert.IsType<HostHttpResponse>(await host.SendAsync(Get(), operation));
+        Assert.NotSame(job, PluginHostHttp.MetadataHistory.BooruJobFor(operation, clock));
+    }
+
+    [Fact]
+    public async Task OperationBoundJobDeadlineSpansRequests()
+    {
+        ManualClock clock = new();
+        int sends = 0;
+        using HttpClient transport = new(new Handler((_, _) =>
+        {
+            Interlocked.Increment(ref sends);
+            clock.Advance(TimeSpan.FromSeconds(10));
+            return Task.FromResult(Response(HttpStatusCode.OK, "{}"));
+        }));
+        using PluginHostHttp host = new(transport, new RequestPolicyState(clock), [Source()]);
+        PluginOperationContext operation = new("booru/deadline", 1);
+        using PluginHostHttp.MetadataHistory owner = PluginHostHttp.MetadataHistory.BindOperation(operation, CancellationToken.None)!;
+
+        int completed = 0;
+        HostHttpResult result;
+        while ((result = await host.SendAsync(Get(), operation)) is HostHttpResponse) ++completed;
+        // Request n starts at 10n s; the 12th (started at 110 s) is aborted at the 120 s deadline.
+        Assert.Equal("booru-budget", Assert.IsType<HostHttpFailure>(result).Failure.Code);
+        Assert.Equal(11, completed);
+        Assert.Equal(12, sends);
+    }
+
+    [Fact]
+    public async Task OperationLifetimeCancellationAbortsInFlightRequest()
+    {
+        ManualClock clock = new();
+        TaskCompletionSource<bool> transportCancelled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int sends = 0;
+        using HttpClient transport = new(new Handler(async (_, token) =>
+        {
+            Interlocked.Increment(ref sends);
+            try { await Task.Delay(Timeout.InfiniteTimeSpan, token); }
+            catch (OperationCanceledException) { transportCancelled.TrySetResult(true); throw; }
+            return Response(HttpStatusCode.OK, "late");
+        }));
+        using PluginHostHttp host = new(transport, new RequestPolicyState(clock), [Source()]);
+        PluginOperationContext operation = new("booru/lifetime", 1);
+        using CancellationTokenSource lifetime = new();
+        using PluginHostHttp.MetadataHistory owner = PluginHostHttp.MetadataHistory.BindOperation(operation, lifetime.Token)!;
+
+        Task<HostHttpResult> pending = host.SendAsync(Get(), operation);
+        await EventuallyAsync(() => Volatile.Read(ref sends) == 1);
+        lifetime.Cancel();
+        Assert.Equal("booru-job", Assert.IsType<HostHttpFailure>(await pending.WaitAsync(Bound)).Failure.Code);
+        Assert.True(await transportCancelled.Task.WaitAsync(Bound));
+        Assert.Equal("booru-job", Assert.IsType<HostHttpFailure>(await host.SendAsync(Get(), operation)).Failure.Code);
+        Assert.Equal(1, Volatile.Read(ref sends));
+    }
+
     private static HostHttpRequest Get() => new("danbooru", HostHttpMethod.Get, new("https://danbooru.test/posts.json"));
     // One instance: direct BooruHostHttp calls must pass the declared source itself.
     private static readonly SourceDescription Declared = new("danbooru", "Danbooru", new("https://danbooru.test/"),

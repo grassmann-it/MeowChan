@@ -140,7 +140,12 @@ internal sealed class WorkerConnection : IAsyncDisposable
         using CancellationTokenSource deadline = new(timeout);
         using CancellationTokenSource lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token, _lifetime.Token);
         Pending pending = new(envelope, context, lifetime.Token, request);
-        if (!_pending.TryAdd(id, pending)) throw new InvalidOperationException();
+        // A typed booru operation owns exactly one booru job for all of its host HTTP
+        // service calls. It lives no longer than this call and is linked to its lifetime
+        // (caller cancellation, operation deadline, worker failure).
+        Http.PluginHostHttp.MetadataHistory? booruOperation = context != null && IsBooruOperation(operation)
+            ? Http.PluginHostHttp.MetadataHistory.BindOperation(context, lifetime.Token) : null;
+        if (!_pending.TryAdd(id, pending)) { booruOperation?.Dispose(); throw new InvalidOperationException(); }
         try
         {
             await _codec.WriteAsync(envelope, lifetime.Token).ConfigureAwait(false);
@@ -181,9 +186,14 @@ internal sealed class WorkerConnection : IAsyncDisposable
         finally
         {
             _pending.TryRemove(id, out _);
+            // Close the job first: in-flight booru waits and transport calls of this
+            // operation abort, and no later service call can reserve another send.
+            booruOperation?.Dispose();
             await lifetime.CancelAsync().ConfigureAwait(false);
         }
     }
+
+    internal static bool IsBooruOperation(string operation) => operation is "booru.search" or "booru.post";
 
     private async Task ReadLoopAsync()
     {

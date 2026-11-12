@@ -25,7 +25,24 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
         _transport = new HttpClient(new HistoryTransport(transport)) { Timeout = Timeout.InfiniteTimeSpan }; _policy = policy;
         _sources = sources.ToDictionary(source => source.SourceId, StringComparer.Ordinal);
     }
-    public async Task<HostHttpResult> SendAsync(HostHttpRequest request, CancellationToken cancellationToken = default)
+    public Task<HostHttpResult> SendAsync(HostHttpRequest request, CancellationToken cancellationToken = default)
+        => SendCoreAsync(request, null, cancellationToken);
+
+    /// <summary>
+    /// Worker host-service entry point. A post-search request is served by the booru job
+    /// bound to <paramref name="operation"/> for the whole typed operation (see
+    /// <see cref="MetadataHistory.BindOperation"/>); without a live binding it fails closed
+    /// instead of falling back to a per-request job.
+    /// </summary>
+    public Task<HostHttpResult> SendAsync(HostHttpRequest request, Contracts.PluginOperationContext operation,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        return SendCoreAsync(request, operation, cancellationToken);
+    }
+
+    private async Task<HostHttpResult> SendCoreAsync(HostHttpRequest request, Contracts.PluginOperationContext? operation,
+        CancellationToken cancellationToken)
     {
         // A final SDK failure may echo only the last completed, non-overlapping
         // host failure. Keep this separate from the operation's deferred history.
@@ -43,7 +60,14 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
         if (issues.Count > 0) return Failure("http-request", issues[0].Message);
         if (source.Capabilities.HasFlag(SourceCapabilities.PostSearch))
         {
-            HostHttpResult booruResult = await _booru.SendAsync(request, source, cancellationToken).ConfigureAwait(false);
+            BooruJob? operationJob = null;
+            if (operation is not null)
+            {
+                operationJob = MetadataHistory.BooruJobFor(operation, _booru.TimeProvider);
+                if (operationJob is null)
+                    return Failure("booru-job", "The booru job is not live.");
+            }
+            HostHttpResult booruResult = await _booru.SendAsync(request, source, operationJob, cancellationToken).ConfigureAwait(false);
             if (booruResult is HostHttpFailure booruFailure)
                 observation?.RecordReturnedFailure(booruFailure.Failure, null, booruFailure.Failure.HttpStatusCode is int status ? (HttpStatusCode)status : null);
             return booruResult;
@@ -172,6 +196,38 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Contracts.PluginOperationContext, MetadataHistory> Operations = new();
         private static readonly object OperationsLock = new();
         internal void Bind(Contracts.PluginOperationContext operation) => Operations.Add(operation, this);
+
+        /// <summary>
+        /// Binds a non-ambient history to a typed operation for exactly the caller's scope,
+        /// so every host HTTP service call of that operation shares one booru job. The job
+        /// is linked to <paramref name="lifetime"/> (caller cancellation, operation deadline,
+        /// worker lifetime) and closed when the returned owner is disposed. Returns null when
+        /// the caller already bound a live history: that owner keeps the job lifetime.
+        /// </summary>
+        internal static MetadataHistory? BindOperation(Contracts.PluginOperationContext operation, CancellationToken lifetime)
+        {
+            ArgumentNullException.ThrowIfNull(operation);
+            lock (OperationsLock)
+            {
+                if (Operations.TryGetValue(operation, out MetadataHistory? existing))
+                {
+                    if (Volatile.Read(ref existing._disposed) == 0) return null;
+                    Operations.Remove(operation);
+                }
+                MetadataHistory history = new(null, ambient: false) { _operationLifetime = lifetime, _boundOperation = operation };
+                Operations.Add(operation, history);
+                return history;
+            }
+        }
+
+        /// <summary>The booru job of the live history bound to <paramref name="operation"/>, if any.</summary>
+        internal static BooruJob? BooruJobFor(Contracts.PluginOperationContext operation, TimeProvider clock)
+        {
+            MetadataHistory? history;
+            lock (OperationsLock)
+                if (!Operations.TryGetValue(operation, out history) || Volatile.Read(ref history._disposed) != 0) return null;
+            return history.GetBooruJob(clock);
+        }
         internal static IDisposable Resume(Contracts.PluginOperationContext operation)
         {
             MetadataHistory? previous = Slot.Value;
@@ -197,6 +253,9 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
             public void Dispose() => Slot.Value = previous;
         }
         private readonly MetadataHistory? _previous = Slot.Value;
+        private readonly bool _ambient;
+        private CancellationToken _operationLifetime;
+        private Contracts.PluginOperationContext? _boundOperation;
         private readonly object _progressLock = new();
         private Action<RequestPolicyProgress>? _observer;
         private int _sends, _waits, _disposed;
@@ -207,10 +266,12 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
             && Volatile.Read(ref history._disposed) == 0 ? history : null;
         // Preserve the actual parameterless constructor used by existing internal callers.
         internal MetadataHistory() : this(null) { }
-        internal MetadataHistory(Action<RequestPolicyProgress>? observer)
+        internal MetadataHistory(Action<RequestPolicyProgress>? observer) : this(observer, ambient: true) { }
+        private MetadataHistory(Action<RequestPolicyProgress>? observer, bool ambient)
         {
             _observer = observer;
-            Slot.Value = this;
+            _ambient = ambient;
+            if (ambient) Slot.Value = this;
         }
         internal void ReportProgress(RequestPolicyProgress progress)
         {
@@ -260,7 +321,7 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
             lock (_progressLock)
             {
                 if (_disposed != 0) return null;
-                return _booruJob ??= new BooruJob(clock);
+                return _booruJob ??= new BooruJob(clock, _operationLifetime);
             }
         }
         private BooruJob? _booruJob;
@@ -333,7 +394,11 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
                 _booruJob = null;
             }
             booruJob?.Close();
-            Slot.Value = _previous;
+            if (_boundOperation is Contracts.PluginOperationContext operation)
+                lock (OperationsLock)
+                    if (Operations.TryGetValue(operation, out MetadataHistory? bound) && ReferenceEquals(bound, this))
+                        Operations.Remove(operation);
+            if (_ambient) Slot.Value = _previous;
         }
     }
 

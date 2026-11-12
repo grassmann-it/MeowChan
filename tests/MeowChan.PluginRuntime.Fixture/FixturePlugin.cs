@@ -53,6 +53,10 @@ public sealed class FixturePlugin : ISourcePlugin, IBooruSourcePlugin, IImageFil
     }
     public Task<BooruSearchResult> SearchPostsAsync(BooruSearchRequest request, PluginCallContext context, CancellationToken cancellationToken = default)
     {
+        const string burst = "http-burst:";
+        if (request.Query.StartsWith(burst, StringComparison.Ordinal)
+            && int.TryParse(request.Query[burst.Length..], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int count))
+            return HttpBurstAsync(request, count, context, cancellationToken);
         switch (request.Query)
         {
             case "foreign": return Task.FromResult<BooruSearchResult>(new BooruSearchSnapshot(new(request.SourceId, request.Query, request.Page, [BooruPost(new("other", "1"))], true)));
@@ -61,6 +65,26 @@ public sealed class FixturePlugin : ISourcePlugin, IBooruSourcePlugin, IImageFil
         }
         BooruPost[] posts = Enumerable.Range(1, 2).Select(index => BooruPost(new(request.SourceId, (request.Page * 100 + index).ToString()))).Take(request.Limit).ToArray();
         return Task.FromResult<BooruSearchResult>(new BooruSearchSnapshot(new(request.SourceId, request.Query, request.Page, posts, request.Page >= 2)));
+    }
+    // Sends `count` sequential host HTTP requests inside one typed booru operation. The
+    // first non-200 result ends the burst and reports how many requests completed.
+    private static async Task<BooruSearchResult> HttpBurstAsync(BooruSearchRequest request, int count, PluginCallContext context, CancellationToken cancellationToken)
+    {
+        for (int index = 0; index < count; index++)
+        {
+            HostHttpResult result = await context.Http.SendAsync(new(request.SourceId, HostHttpMethod.Get,
+                new("https://booru.fixture.test/posts.json?i=" + index.ToString(System.Globalization.CultureInfo.InvariantCulture))), cancellationToken);
+            string? code = result switch
+            {
+                HostHttpResponse { StatusCode: 200 } => null,
+                HostHttpFailure failure => failure.Failure.Code,
+                HostHttpDeferred deferred => deferred.ReasonCode,
+                _ => "http-status"
+            };
+            if (code != null) return new BooruSearchFailure(request.SourceId, new(code, "completed " + index.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        }
+        BooruPost[] posts = Enumerable.Range(1, Math.Min(count, request.Limit)).Select(index => BooruPost(new(request.SourceId, index.ToString(System.Globalization.CultureInfo.InvariantCulture)))).ToArray();
+        return new BooruSearchSnapshot(new(request.SourceId, request.Query, request.Page, posts, true));
     }
     public Task<BooruPostResult> ReadPostAsync(BooruPostRequest request, PluginCallContext context, CancellationToken cancellationToken = default) => Task.FromResult<BooruPostResult>(request.Post.PostId switch
     {
