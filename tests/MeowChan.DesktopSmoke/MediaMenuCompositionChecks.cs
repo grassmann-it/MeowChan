@@ -6,12 +6,14 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Storage;
+using MeowChan.Testing;
 
 namespace MeowChan.DesktopSmoke;
 
