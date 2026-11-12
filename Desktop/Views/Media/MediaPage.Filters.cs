@@ -59,7 +59,7 @@ public sealed partial class MediaPage
         _filterReset.IsEnabled = false;
         _tagInclude.IsEnabled = _tagExclude.IsEnabled = false;
         _nameFilter.TextChanged += (_, _) => FilterEdited();
-        foreach (ComboBox combo in new[] { _boardFilter, _minRating, _tagMode })
+        foreach (ComboBox combo in new[] { _minRating, _tagMode })
             combo.SelectionChanged += (_, _) => FilterEdited();
         // A sound choice implies videos: it sets the type to Videos, and choosing another type drops the sound choice.
         _kindFilter.SelectionChanged += (_, _) =>
@@ -72,7 +72,8 @@ public sealed partial class MediaPage
             if (!_localizing && SoundFilterActive) SetSelection(_kindFilter, (int)MediaLibraryKindFilter.Video);
             FilterEdited();
         };
-        _sourceFilter.SelectionChanged += (_, _) => { if (_localizing) return; RenderBoardOptions(); FilterEdited(); };
+        _sourceFilter.SelectionChanged += (_, _) => { if (_localizing) return; RenderSourceOptions(); FilterEdited(); };
+        _boardFilter.SelectionChanged += (_, _) => { if (_localizing) return; RenderBoardOptions(); FilterEdited(); };
         _favoritesOnly.IsCheckedChanged += (_, _) => FilterEdited();
         _tagChoice.SelectionChanged += (_, _) => UpdateTagButtons();
         _tagInclude.Click += (_, _) => AddTag(include: true);
@@ -188,8 +189,8 @@ public sealed partial class MediaPage
             _kindFilter.SelectedIndex = 0;
             _soundFilter.SelectedIndex = 0;
             _sourceFilter.SelectedIndex = 0;
-            RenderBoardOptions();
             _boardFilter.SelectedIndex = 0;
+            RenderSourceOptions();
             _favoritesOnly.IsChecked = false;
             _minRating.SelectedIndex = 0;
             _tagMode.SelectedIndex = 0;
@@ -261,15 +262,18 @@ public sealed partial class MediaPage
     private void UpdateTagButtons() =>
         _tagInclude.IsEnabled = _tagExclude.IsEnabled = _tagChoice.SelectedItem is TagOption { Id: not null };
 
-    // Sources and boards come from the index, so only values that exist are offered.
+    // Keep a selected identity even if a new index no longer contains it: dropping it would widen the results.
+    private static string UnavailableOption(string label) => label + " (" + Texts.T("mediahash.unavailable") + ")";
     private void RenderSourceOptions()
     {
         _optionsFor = _snapshot;
         IReadOnlyList<MediaLibraryEntry> entries = _snapshot?.Entries ?? Array.Empty<MediaLibraryEntry>();
         string? selected = (_sourceFilter.SelectedItem as Choice)?.Value;
-        Choice[] options = new[] { new Choice(null, Texts.T("media.filter.anySource")) }
+        List<Choice> options = new[] { new Choice(null, Texts.T("media.filter.anySource")) }
             .Concat(entries.Select(entry => entry.Thread.Source).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
-                .Select(source => new Choice(source, source))).ToArray();
+                .Select(source => new Choice(source, source))).ToList();
+        if (selected != null && !options.Any(option => option.Value == selected))
+            options.Add(new Choice(selected, UnavailableOption(selected)));
         bool localizing = _localizing;
         _localizing = true;
         try
@@ -286,13 +290,20 @@ public sealed partial class MediaPage
         IReadOnlyList<MediaLibraryEntry> entries = _snapshot?.Entries ?? Array.Empty<MediaLibraryEntry>();
         string? source = (_sourceFilter.SelectedItem as Choice)?.Value;
         BoardChoice? selected = _boardFilter.SelectedItem as BoardChoice;
-        BoardChoice[] options = new[] { new BoardChoice(null, null, Texts.T("media.filter.anyBoard")) }
+        List<BoardChoice> options = new[] { new BoardChoice(null, null, Texts.T("media.filter.anyBoard")) }
             .Concat(entries.Select(entry => (entry.Thread.Source, entry.Thread.Board)).Distinct()
                 .Where(pair => source == null || pair.Source == source)
                 .OrderBy(pair => pair.Board, StringComparer.Ordinal).ThenBy(pair => pair.Source, StringComparer.Ordinal)
                 .Select(pair => new BoardChoice(pair.Source, pair.Board,
                     source == null ? Texts.T("media.filter.boardOfSource", pair.Board, pair.Source) : "/" + pair.Board + "/")))
-            .ToArray();
+            .ToList();
+        if (selected is { Source: not null, Board: not null }
+            && (source == null || source == selected.Source)
+            && !options.Any(option => option.Board == selected.Board && option.Source == selected.Source))
+        {
+            string label = source == null ? Texts.T("media.filter.boardOfSource", selected.Board, selected.Source) : "/" + selected.Board + "/";
+            options.Add(new BoardChoice(selected.Source, selected.Board, UnavailableOption(label)));
+        }
         bool localizing = _localizing;
         _localizing = true;
         try

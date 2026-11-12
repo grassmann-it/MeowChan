@@ -20,7 +20,10 @@ public sealed partial class MediaPage
     private readonly TextBlock _audioNote = new() { Name = "MediaAudioNote", TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false, Classes = { "muted" } };
     private MediaAudioMap _audio = MediaAudioMap.Empty;
     private MediaAudioScanProgress? _audioProgress;
+    // The latest identity is also used by queued UI updates after the worker finishes.
     private CancellationTokenSource? _audioScan;
+    private readonly object _audioScanLock = new();
+    private CancellationTokenSource? _activeAudioScan;
     private int _audioUnknown;
 
     /// <summary>Completes when the current background sound check has finished (or was cancelled).</summary>
@@ -36,15 +39,26 @@ public sealed partial class MediaPage
     /// <summary>Starts (or restarts, for a newer index) the low-priority sound check of the videos in the index.</summary>
     private void StartAudioProbe(MediaLibrarySnapshot snapshot)
     {
-        _audioScan?.Cancel();
-        if (_lifetime.IsCancellationRequested) return;
-        CancellationTokenSource scan = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        _audioScan = scan;
+        CancellationTokenSource scan;
+        lock (_audioScanLock)
+        {
+            _activeAudioScan?.Cancel();
+            if (_lifetime.IsCancellationRequested) return;
+            scan = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+            _audioScan = _activeAudioScan = scan;
+        }
         MediaAudioMap current = _audio;
         string? cachePath = AudioCachePath;
         Task work = Task.Factory.StartNew(() => RunAudioScan(snapshot, current, cachePath, scan), scan.Token,
             TaskCreationOptions.LongRunning, TaskScheduler.Default);
-        AudioScanTask = work.ContinueWith(_ => scan.Dispose(), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        AudioScanTask = work.ContinueWith(_ =>
+        {
+            lock (_audioScanLock)
+            {
+                if (ReferenceEquals(_activeAudioScan, scan)) _activeAudioScan = null;
+                scan.Dispose();
+            }
+        }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
     // Runs on its own thread at below-normal priority; everything it shows goes through the dispatcher.
