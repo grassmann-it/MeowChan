@@ -23,6 +23,7 @@ public partial class MainWindow
     private SourcesPage? _sourcesPage;
     private PluginsPage? _pluginsPage;
     private WorkspacePage _selectedPage;
+    private int _mediaPageNavigationRevision;
     internal SettingsEditor SettingsEditor => _settingsEditor
         ?? throw new InvalidOperationException("The settings page has not been initialized.");
     internal bool SettingsPageVisible => _selectedPage == WorkspacePage.Settings;
@@ -202,6 +203,11 @@ public partial class MainWindow
             || WorkspaceCommandBusy) return false;
         if (page != WorkspacePage.Archive) _archivePage?.CancelPendingGalleryOpen();
         if (page != WorkspacePage.Archive) ForgetMediaReturn(); // the way back belongs to the archive the Medien page opened
+        if (page != _selectedPage)
+        {
+            ++_mediaPageNavigationRevision;
+            _mediaPage?.InvalidateSharedMediaMenu();
+        }
         ++_readingResumeNavigationRevision;
         if (page != WorkspacePage.Plugins) _pluginsPage?.Deactivate();
         if (_selectedPage == WorkspacePage.Rules && page != WorkspacePage.Rules) _rulesPage?.DeactivateRuleDecisions();

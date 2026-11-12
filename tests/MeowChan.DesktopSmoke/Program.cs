@@ -477,6 +477,7 @@ internal static class Program
             }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_PAGE_ONLY") == "1")
             {
+                await MediaMenuCompositionChecks.RunAsync(mainWindow);
                 await MediaPageChecks.RunAsync(mainWindow);
                 _checksPassed = true; mainWindow.Close(); return;
             }
