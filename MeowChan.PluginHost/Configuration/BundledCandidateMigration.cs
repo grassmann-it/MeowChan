@@ -227,7 +227,7 @@ internal static class BundledCandidateMigration
                 present.Length > 1 || targets.Length > 1 || document.Profile.Plugins.SelectMany(p => p.Candidates)
                     .Count(c => c.IsPresent && document.Provenance.Any(p => p.SlotId == old.SlotId && Matches(p, c))) > 1 ? "ambiguous" :
                 target is null ? "no-proven-target" :
-                !SdkJson.Serialize(basis.Description).AsSpan().SequenceEqual(SdkJson.Serialize(target.Description!)) ? "description-changed" :
+                !SameReviewedDescription(basis.Description, target.Description!) ? "description-changed" :
                 HasOwnerConflict(document.Profile, plugin.PluginId, target.Description!) ? "source-owner-conflict" :
                 SdkValidation.ValidateConfiguration(target.Description!, basis.Configuration).Count != 0 ? "configuration-incompatible" :
                 HasInheritedRights(document, plugin, target, changed) ? "inherited-grants" : null;
@@ -318,8 +318,7 @@ internal static class BundledCandidateMigration
             established.Description.SdkVersion != "1.0.0" ||
             previous.Release.Description.SdkVersion != "1.0.0" || candidate.Description.SdkVersion != "1.1.0" ||
             !SdkJson.Serialize(established.Description).AsSpan().SequenceEqual(SdkJson.Serialize(previous.Release.Description)) ||
-            !SdkJson.Serialize(previous.Release.Description with { SdkVersion = "1.1.0" }).AsSpan()
-                .SequenceEqual(SdkJson.Serialize(candidate.Description))) return false;
+            !IsSdkOnlyUpgrade(previous.Release.Description, candidate.Description)) return false;
 
         // Unlike the ordinary no-rights rebuild path, an unactivated confirmed target
         // or an independent pending choice cannot establish compatibility authority.
@@ -335,11 +334,23 @@ internal static class BundledCandidateMigration
             binding.ReauthorizedPermissionFingerprint is { } fingerprint && fingerprint !=
                 BundledRepairPermissionReview.Fingerprint(BundledRepairPermissionReview.Json(document, plugin, candidate))) return false;
 
+        // Validate exactly the configuration startup activates.
         if (HasOwnerConflict(document.Profile, plugin.PluginId, candidate.Description) ||
-            SdkValidation.ValidateConfiguration(candidate.Description, previous.Release.Configuration).Count != 0) return false;
+            SdkValidation.ValidateConfiguration(candidate.Description, plugin.Pending?.Configuration ?? previous.Release.Configuration).Count != 0) return false;
         DeliveredCandidateProvenance[] currentSlot = currentDelivery.Where(p => p.SlotId == previous.Provenance.SlotId).ToArray();
         return currentSlot.Length == 1 && Matches(currentSlot[0], candidate);
     }
+
+    // The only exempt declaration change: the shipped SDK 1.0.0 -> 1.1.0 field, every other
+    // byte equal. Reverse, unknown or combined changes remain a description change.
+    internal static bool IsSdkOnlyUpgrade(PluginDescription previous, PluginDescription candidate) =>
+        previous.SdkVersion == "1.0.0" && candidate.SdkVersion == "1.1.0" &&
+        SdkJson.Serialize(previous with { SdkVersion = "1.1.0" }).AsSpan().SequenceEqual(SdkJson.Serialize(candidate));
+
+    // Shared by the repair preview and every confirmation that rederives it, so an SDK-only
+    // build reaches the ordinary owner/configuration/grant review instead of a dead end.
+    internal static bool SameReviewedDescription(PluginDescription previous, PluginDescription candidate) =>
+        SdkJson.Serialize(previous).AsSpan().SequenceEqual(SdkJson.Serialize(candidate)) || IsSdkOnlyUpgrade(previous, candidate);
 
     internal static bool HasInheritedRights(BundledProfileDocument document, PluginActivationSnapshot plugin,
         PluginCandidateSnapshot target, bool changed) => changed &&
