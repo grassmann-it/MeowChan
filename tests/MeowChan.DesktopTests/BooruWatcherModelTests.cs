@@ -55,25 +55,72 @@ public sealed class BooruWatcherModelTests : IDisposable
     }
 
     [Fact]
-    public async Task APausedWatcherSendsNothingEvenWhenCheckNowIsForced()
+    public async Task APausedWatcherIsCheckedOnlyOnExplicitRequestAndStaysPaused()
     {
         _h.Watchers.Seed(BooruUiFixtures.Watcher("w1", "cat", clock: _h.Clock));
         await _model.RefreshAsync();
         await _model.PauseAsync("w1");
         Assert.Equal(BooruWatcherStatus.Paused, Row("w1").Watcher.Status);
-        Assert.Equal(BooruWatcherBlock.Paused, _model.CheckBlock(Row("w1")));
         Assert.Null(Row("w1").Watcher.NextCheckAt);
+        Assert.Equal(0, _h.Watchers.Checks); // pausing itself sends nothing
+        Assert.Equal(BooruWatcherBlock.None, _model.CheckBlock(Row("w1")));
 
-        Assert.Null(await _model.CheckNowAsync("w1"));
-        Assert.Null(await _model.PauseAsync("w1"));
-        Assert.Equal(0, _h.Watchers.Checks);
-        Assert.DoesNotContain("check:w1", _h.Watchers.Calls);
+        BooruWatcherCommandResult? result = await _model.CheckNowAsync("w1");
+        Assert.Equal(BooruWatcherCommandStatus.Done, result!.Status);
+        Assert.Equal(1, _h.Watchers.Checks); // exactly one request through the port
+        Assert.Single(_h.Watchers.Calls, call => call == "check:w1");
+        Assert.DoesNotContain("resume:w1", _h.Watchers.Calls);
+        Assert.Equal(BooruWatcherStatus.Paused, Row("w1").Watcher.Status);
+        Assert.Null(Row("w1").Watcher.NextCheckAt); // nothing is scheduled
+        Assert.NotNull(Row("w1").Watcher.LastCheckedAt);
+        Assert.Equal("booru.ui.watcher.msg.checkedPaused", Row("w1").Message!.Key);
+        Assert.Equal(new object?[] { 2, 2 }, Row("w1").Message!.Args);
+        Assert.Equal(BooruWatcherBlock.None, _model.ResumeBlock(Row("w1")));
 
+        // Time passing never checks a paused watcher by itself.
+        _h.Clock.Advance(TimeSpan.FromHours(5));
+        _model.Tick();
+        await Task.Delay(30);
+        Assert.Equal(1, _h.Watchers.Checks);
+
+        // Resuming does not run a check either.
         await _model.ResumeAsync("w1");
         Assert.Equal(BooruWatcherStatus.Active, Row("w1").Watcher.Status);
         Assert.NotNull(Row("w1").Watcher.NextCheckAt);
-        Assert.Equal(BooruWatcherBlock.None, _model.CheckBlock(Row("w1")));
-        Assert.Equal(0, _h.Watchers.Checks); // resuming does not run a check either
+        Assert.Equal(1, _h.Watchers.Checks);
+    }
+
+    [Fact]
+    public async Task APausedWatcherRejectedByTheSchedulerKeepsItsStateAndShowsTheReason()
+    {
+        _h.Watchers.Seed(BooruUiFixtures.Watcher("w1", "cat", BooruWatcherStatus.Paused, _h.Clock));
+        _h.Watchers.OnCheck = _ => new BooruWatcherCommandResult(BooruWatcherCommandStatus.Offline);
+        await _model.RefreshAsync();
+        await _model.CheckNowAsync("w1");
+        Assert.Equal(BooruWatcherStatus.Paused, Row("w1").Watcher.Status);
+        Assert.Equal("booru.ui.watcher.msg.offline", Row("w1").Message!.Key);
+        Assert.Equal(1, _h.Watchers.Checks);
+    }
+
+    [Fact]
+    public async Task APausedWatcherCannotBePausedAgain()
+    {
+        _h.Watchers.Seed(BooruUiFixtures.Watcher("w1", "cat", BooruWatcherStatus.Paused, _h.Clock));
+        await _model.RefreshAsync();
+        Assert.Null(await _model.PauseAsync("w1"));
+        Assert.DoesNotContain("pause:w1", _h.Watchers.Calls);
+    }
+
+    [Fact]
+    public async Task ACoolingPausedLookingWatcherStillNeedsTheCooldownToPass()
+    {
+        // Provider cooldown wins: the button stays unavailable with the cooldown reason.
+        DateTimeOffset until = _h.Clock.GetUtcNow() + TimeSpan.FromMinutes(3);
+        _h.Watchers.Seed(BooruUiFixtures.Watcher("w1", "cat", BooruWatcherStatus.Cooldown, _h.Clock, cooldownUntil: until));
+        await _model.RefreshAsync();
+        Assert.Equal(BooruWatcherBlock.CoolingDown, _model.CheckBlock(Row("w1")));
+        Assert.Null(await _model.CheckNowAsync("w1"));
+        Assert.Equal(0, _h.Watchers.Checks);
     }
 
     [Fact]

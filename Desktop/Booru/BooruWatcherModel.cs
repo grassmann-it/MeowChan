@@ -67,7 +67,7 @@ internal sealed class BooruWatcherListModel : IDisposable
         : row.Watcher.Status switch
         {
             BooruWatcherStatus.Removed => BooruWatcherBlock.Removed,
-            BooruWatcherStatus.Paused => BooruWatcherBlock.Paused,
+            // A paused watcher may be checked once on explicit request; it stays paused afterwards.
             BooruWatcherStatus.Checking => BooruWatcherBlock.Checking,
             BooruWatcherStatus.Cooldown when ActiveCooldown(row.Watcher) is not null => BooruWatcherBlock.CoolingDown,
             _ => BooruWatcherBlock.None
@@ -173,8 +173,12 @@ internal sealed class BooruWatcherListModel : IDisposable
 
     // ---- row commands ----------------------------------------------------------------------
 
-    internal Task<BooruWatcherCommandResult?> CheckNowAsync(string watcherId) => CommandAsync(watcherId, CheckBlock,
-        (id, token) => _port.CheckNowAsync(id, token), CheckMessage, refreshAfter: true);
+    internal Task<BooruWatcherCommandResult?> CheckNowAsync(string watcherId)
+    {
+        bool paused = View.Rows.Any(row => row.WatcherId == watcherId && row.Watcher.Status == BooruWatcherStatus.Paused);
+        return CommandAsync(watcherId, CheckBlock, (id, token) => _port.CheckNowAsync(id, token),
+            result => CheckMessage(result, paused), refreshAfter: true);
+    }
 
     internal Task<BooruWatcherCommandResult?> PauseAsync(string watcherId) => CommandAsync(watcherId, PauseBlock,
         (id, token) => _port.PauseAsync(id, token), _ => new BooruNotice(BooruNoticeKind.Info, "booru.ui.watcher.msg.paused"), refreshAfter: true);
@@ -282,9 +286,15 @@ internal sealed class BooruWatcherListModel : IDisposable
         }
     }
 
-    private static BooruNotice CheckMessage(BooruWatcherCommandResult result) => result.NewPosts == 0
-        ? new BooruNotice(BooruNoticeKind.Success, "booru.ui.watcher.msg.checkedNone")
-        : new BooruNotice(BooruNoticeKind.Success, "booru.ui.watcher.msg.checked", new object?[] { result.NewPosts, result.Queued });
+    /// <summary>A check of a paused watcher says that it was one-time and that the watcher is still paused.</summary>
+    private static BooruNotice CheckMessage(BooruWatcherCommandResult result, bool wasPaused)
+    {
+        if (wasPaused)
+            return new BooruNotice(BooruNoticeKind.Success, "booru.ui.watcher.msg.checkedPaused", new object?[] { result.NewPosts, result.Queued });
+        return result.NewPosts == 0
+            ? new BooruNotice(BooruNoticeKind.Success, "booru.ui.watcher.msg.checkedNone")
+            : new BooruNotice(BooruNoticeKind.Success, "booru.ui.watcher.msg.checked", new object?[] { result.NewPosts, result.Queued });
+    }
 
     private static BooruNotice FailureMessage(BooruWatcherCommandResult result) => result.Status switch
     {

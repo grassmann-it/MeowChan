@@ -144,7 +144,7 @@ internal static class BooruText
             "booru.ui.watcher.cooldown", "booru.ui.watcher.error", "booru.ui.watcher.checkNow", "booru.ui.watcher.pause",
             "booru.ui.watcher.resume", "booru.ui.watcher.remove", "booru.ui.watcher.checkNowFor", "booru.ui.watcher.pauseFor",
             "booru.ui.watcher.resumeFor", "booru.ui.watcher.removeFor", "booru.ui.watcher.removeAsk",
-            "booru.ui.watcher.removeConfirm", "booru.ui.watcher.msg.checked", "booru.ui.watcher.msg.checkedNone",
+            "booru.ui.watcher.removeConfirm", "booru.ui.watcher.msg.checked", "booru.ui.watcher.msg.checkedNone", "booru.ui.watcher.msg.checkedPaused",
             "booru.ui.watcher.msg.paused", "booru.ui.watcher.msg.resumed", "booru.ui.watcher.msg.removed",
             "booru.ui.watcher.msg.rateLimited", "booru.ui.watcher.msg.cooldown", "booru.ui.watcher.msg.offline",
             "booru.ui.watcher.msg.failed", "booru.ui.watcher.reject"

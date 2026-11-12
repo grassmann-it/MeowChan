@@ -93,19 +93,22 @@ public sealed class BooruWorkbenchFlowTests : IDisposable
         Assert.NotNull(_model.Watchers.View.Rows[0].Watcher.LastCheckedAt);
 
         await _model.Watchers.PauseAsync(id);
-        Assert.Null(await _model.Watchers.CheckNowAsync(id));
-        Assert.Equal(1, _h.Watchers.Checks);
+        Assert.Equal(1, _h.Watchers.Checks); // pausing sends nothing
+        await _model.Watchers.CheckNowAsync(id); // an explicit one-time check of the paused watcher
+        Assert.Equal(2, _h.Watchers.Checks);
+        Assert.Equal(BooruWatcherStatus.Paused, _model.Watchers.View.Rows[0].Watcher.Status);
 
         await _model.Watchers.ResumeAsync(id);
+        Assert.Equal(2, _h.Watchers.Checks); // resuming does not check
         await _model.Watchers.CheckNowAsync(id);
-        Assert.Equal(2, _h.Watchers.Checks);
+        Assert.Equal(3, _h.Watchers.Checks);
 
         _model.Watchers.RequestRemoval(id);
         await _model.Watchers.ConfirmRemovalAsync(id);
         Assert.Empty(_model.Watchers.View.Rows);
         Assert.Equal(BooruWatcherListStatus.Empty, _model.Watchers.View.Status);
-        Assert.Null(await _model.Watchers.CheckNowAsync(id));
-        Assert.Equal(2, _h.Watchers.Checks);
+        Assert.Null(await _model.Watchers.CheckNowAsync(id)); // a removed watcher is never checked
+        Assert.Equal(3, _h.Watchers.Checks);
         // Removal never touched the download side.
         Assert.Empty(_h.Queue.Loads);
     }

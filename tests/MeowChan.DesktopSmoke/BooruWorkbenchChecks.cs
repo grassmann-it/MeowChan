@@ -156,10 +156,20 @@ internal static class BooruWorkbenchChecks
                 "Last check:", "Next check:", "Hits: 6 · added to the download queue: 5", "Danbooru paused requests until",
                 "The last check failed (http-network)", "none while paused", "Removing a watcher only stops watching" })
                 Require(watcherText.Contains(expected), "Watcher list lacks '" + expected + "'.");
-            Require(!Find<Button>(window, BooruWorkbenchWindow.CheckPrefix + "w-paused").IsEnabled, "Check now is enabled for a paused watcher.");
+            Require(Find<Button>(window, BooruWorkbenchWindow.CheckPrefix + "w-paused").IsEnabled, "Check now is not available for a paused watcher.");
             Require(!Find<Button>(window, BooruWorkbenchWindow.CheckPrefix + "w-cooling").IsEnabled, "Check now is enabled during a cooldown.");
             Require(Find<Button>(window, BooruWorkbenchWindow.ResumePrefix + "w-paused").IsEnabled, "Resume is not offered for a paused watcher.");
             Capture(window, shots, "watchers-light");
+
+            // a paused watcher: one explicit check, it stays paused
+            int pausedChecks = h.Watchers.Checks;
+            Click(Find<Button>(window, BooruWorkbenchWindow.CheckPrefix + "w-paused"));
+            await Program.WaitUntilAsync(() => h.Watchers.Checks == pausedChecks + 1 && Text(window).Contains("One-time check finished: 2 new posts")
+                && Text(window).Contains("The watcher is still paused."), () => "one-time check result missing");
+            Require(Exists(window, BooruWorkbenchWindow.ResumePrefix + "w-paused") && !Exists(window, BooruWorkbenchWindow.PausePrefix + "w-paused"),
+                "The paused watcher did not stay paused after the one-time check.");
+            Require(h.Watchers.Calls.Count(call => call == "check:w-paused") == 1 && !h.Watchers.Calls.Contains("resume:w-paused"),
+                "The one-time check was not exactly one request without a resume.");
 
             // check now / pause / resume
             int checks = h.Watchers.Checks;
@@ -167,7 +177,7 @@ internal static class BooruWorkbenchChecks
             await Program.WaitUntilAsync(() => h.Watchers.Checks == checks + 1 && Text(window).Contains("Check finished: 2 new posts"), () => "check result missing");
             Click(Find<Button>(window, BooruWorkbenchWindow.PausePrefix + "w-active"));
             await Program.WaitUntilAsync(() => Exists(window, BooruWorkbenchWindow.ResumePrefix + "w-active")
-                && !Find<Button>(window, BooruWorkbenchWindow.CheckPrefix + "w-active").IsEnabled, () => "pause not reflected");
+                && !Exists(window, BooruWorkbenchWindow.PausePrefix + "w-active"), () => "pause not reflected");
             Require(h.Watchers.Checks == checks + 1, "Pausing ran a check.");
             Click(Find<Button>(window, BooruWorkbenchWindow.ResumePrefix + "w-active"));
             await Program.WaitUntilAsync(() => Exists(window, BooruWorkbenchWindow.PausePrefix + "w-active")
