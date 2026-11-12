@@ -8,21 +8,34 @@
   multi-select tagging, gallery and original export, and a way back from the thread.
 - Add private own tags for threads and exact media versions, with Reader and gallery
   editing, Archive tag filters, a Tag manager, cleanup protection and tag hand-over
-  when a source changes an attachment key.
-- Add the Danbooru source, read-only: tag search, single posts, watchers that continue
-  below a post id cursor, provenance and offline use. Not yet reachable in the integrated
-  source; default activation is undecided.
-- Add plugin SDK 1.1.0 (booru post search, blocked-declaration status) with a one-time
-  automatic transition for bundled plugins that only change the declared SDK version.
+  when a source changes an attachment key. Loose and legacy files that no captured post
+  binds can be tagged too, with orphan check and retryable cleanup; own tags are not
+  exported.
+- Add the Danbooru source, read-only and enabled by default (it sends nothing until you
+  search or a watcher checks): tag search with restricted previews, single posts, watchers
+  that continue below a post id cursor without a page limit, a one-time check of a paused
+  watcher, readable errors in all five languages, provenance and offline use. It is
+  reachable from the Workspace menu and bundled with the plugin package. Downloaded
+  Danbooru originals show in the Media page, gallery and favorites; own tags on them are
+  not available.
+- Add plugin SDK 1.1.0 (booru post search, blocked-declaration status), reviewed and
+  moved to Shipped, with a one-time automatic transition for bundled plugins that only
+  change the declared SDK version. Pending: rename `SourcePostId` to `BooruPostId`.
 - Bundle five further experimental chan sources (disabled by default) and two documented
   technical blocks; stop passing the 2ch provider MD5 as an integrity expectation, so archived
   2ch originals are fetched once more on re-check.
 - Accept picked or typed Archive source/board/state filters immediately; show archive status
   as an overlay; open filters over the results; keep the Reader toolbar on one row.
-- Show the orange cat in the light theme and the grey cat in the dark theme; soften the light theme.
+- Show the orange cat in the light theme and the grey cat in the dark theme; soften the light theme
+  (palette corrections pending).
+- Return focus to the export button or **More** after closing export, scroll the settings
+  validation error into view in small windows, and keep secondary windows at normal size
+  after a title-bar restore on Linux/X11.
 - Upgrade: archive schema 5 to 12, media manifest 4 to 5, work journal pruning with one
   backup, new `private-tags.json`, media index cache and `booru-catalog.json`.
-  Back up the whole profile first; there is no supported downgrade.
+  `private-tags.json` becomes version 2 at the first tag on a loose file; a permanent
+  version 1 backup is pending. Back up the whole profile first; there is no supported
+  downgrade.
 
 ## 1.0.2 — 2026-10-31 — stability, media controls and startup recovery
 
