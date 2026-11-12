@@ -174,6 +174,15 @@ internal static class SecondaryWindowChromeChecks
             return handle != 0 && XGetWindowAttributes(_display, handle, out var attributes) != 0
                 && attributes.MapState == 2; // IsViewable: mapped, including every ancestor.
         }
+        // Native X11 geometry of the window as the server holds it, for timeout diagnostics only.
+        internal static string Geometry(Window window)
+        {
+            using var native = new NativeFocusProbe();
+            nint handle = window.TryGetPlatformHandle()?.Handle ?? 0;
+            if (native._display == 0 || handle == 0 || XGetWindowAttributes(native._display, handle, out XWindowAttributes a) == 0)
+                return "X11 geometry unavailable";
+            return $"X11 geometry={a.Width}x{a.Height} at {a.X},{a.Y}, mapState={a.MapState}";
+        }
         internal void Log(Window window, string phase)
         {
             nint handle = window.TryGetPlatformHandle()?.Handle ?? 0;
@@ -255,13 +264,13 @@ internal static class SecondaryWindowChromeChecks
         await Task.Delay(doubleTap + TimeSpan.FromMilliseconds(100));
         await input.ClickAsync(title, new Point(12, 10));
         await input.ClickAsync(title, new Point(12, 10));
-        await Program.WaitUntilAsync(() => window.WindowState == WindowState.Maximized);
+        await Program.WaitUntilAsync(() => window.WindowState == WindowState.Maximized, () => WindowObservation(window));
         await Task.Delay(doubleTap + TimeSpan.FromMilliseconds(100));
         await input.ClickAsync(title, new Point(12, 10));
         await input.ClickAsync(title, new Point(12, 10));
         await WaitNormalAsync(window, normal);
         await input.ClickAsync(minimize);
-        await Program.WaitUntilAsync(() => window.WindowState == WindowState.Minimized);
+        await Program.WaitUntilAsync(() => window.WindowState == WindowState.Minimized, () => WindowObservation(window));
         Require(window.IsVisible && window.ShowInTaskbar, "Secondary minimize lost its taskbar return path.");
         // Like existing main-caption smoke: programmatic unminimize is NOT a
         // native taskbar click, and is deliberately described as such.
@@ -274,7 +283,11 @@ internal static class SecondaryWindowChromeChecks
 
     private static Task WaitNormalAsync(Window window, Size size) => Program.WaitUntilAsync(() =>
         window.WindowState == WindowState.Normal && Math.Abs(window.ClientSize.Width - size.Width) <= 1
-        && Math.Abs(window.ClientSize.Height - size.Height) <= 1);
+        && Math.Abs(window.ClientSize.Height - size.Height) <= 1,
+        () => WindowObservation(window) + $", expected={size}");
+
+    private static string WindowObservation(Window window) =>
+        $"{window.GetType().Name} state={window.WindowState}, client={window.ClientSize}, position={window.Position}, active={window.IsActive}, {NativeFocusProbe.Geometry(window)}";
 
     private static Button Caption(Window window, string name) => window.GetVisualDescendants().OfType<Button>()
         .Single(button => button.Name == name && button.GetVisualAncestors().Any(a => a is WindowChromeBar));

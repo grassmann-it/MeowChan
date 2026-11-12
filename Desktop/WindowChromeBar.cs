@@ -25,7 +25,9 @@ public sealed class WindowChromeBar : UserControl
     private readonly Button _maximize;
     private readonly Button _close;
     private readonly Path _maximizeIcon;
+    private readonly CaptionRestoreTracker _restore = new();
     private Window? _window;
+    private bool _restoreCheckQueued;
 
     public WindowChromeBar()
     {
@@ -97,11 +99,37 @@ public sealed class WindowChromeBar : UserControl
     {
         if (_window is not { } window) return;
         WindowState next = WindowChromePolicy.ToggleMaximize(window.WindowState, window.CanMaximize, window.CanResize);
-        if (next != window.WindowState) window.WindowState = next;
+        if (next == window.WindowState) return;
+        if (next == WindowState.Maximized && window.WindowState == WindowState.Normal) _restore.BeforeMaximize(window.Bounds.Size);
+        else if (next == WindowState.Normal) _restore.BeforeRestore(window.Bounds.Size);
+        window.WindowState = next;
+    }
+
+    // Window.Width/Height and Bounds are what the stale X11 report changes; the check runs after the
+    // layout pass of the same dispatch so a queued ConfigureNotify and the layout resize have both landed.
+    private void ObserveRestore(AvaloniaPropertyChangedEventArgs e)
+    {
+        if (_window is not { } window) return;
+        if (e.Property == Window.WindowStateProperty && !Equals(e.OldValue, e.NewValue)) _restore.StateChanged(window.WindowState);
+        else if (e.Property != Visual.BoundsProperty && e.Property != Layoutable.WidthProperty && e.Property != Layoutable.HeightProperty
+            && e.Property != Window.WindowStateProperty) return;
+        if (_restoreCheckQueued || !_restore.Pending || window.WindowState != WindowState.Normal) return;
+        _restoreCheckQueued = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _restoreCheckQueued = false;
+            if (_window is { IsVisible: true } current
+                && _restore.StaleMaximum(current.WindowState, current.Bounds.Size, current.Width, current.Height) is Size normal)
+            {
+                current.Width = normal.Width;
+                current.Height = normal.Height;
+            }
+        }, DispatcherPriority.Background);
     }
 
     private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
+        ObserveRestore(e);
         if (e.Property == Window.TitleProperty || e.Property == Window.WindowStateProperty || e.Property == Window.CanMinimizeProperty
             || e.Property == Window.CanMaximizeProperty || e.Property == Window.CanResizeProperty) Refresh();
     }
