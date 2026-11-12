@@ -79,6 +79,7 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
         string outputRoot, TimeProvider? clock, DanbooruWatcherSchedulerOptions? options)
     {
         _binding = binding;
+        Catalog = catalog;
         Search = new BooruSearchService(binding.Services);
         _mediaClient = binding.CreateOriginalMediaClient();
         try
@@ -100,6 +101,7 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
         }
     }
 
+    internal BooruCatalogStore Catalog { get; }
     internal BooruSearchService Search { get; }
     internal BooruOriginalQueue Originals { get; }
     internal BooruWatcherSearchPort SearchPort { get; }

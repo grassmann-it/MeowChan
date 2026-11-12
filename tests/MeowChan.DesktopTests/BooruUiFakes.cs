@@ -206,7 +206,9 @@ internal sealed class FakeBooruWatcherPort : IBooruWatcherPort
             if (OnCheck?.Invoke(watcherId) is { } custom) return Task.FromResult(custom);
             Update(watcherId, watcher => watcher with
             {
-                LastCheckedAt = _clock.GetUtcNow(), NextCheckAt = _clock.GetUtcNow() + TimeSpan.FromMinutes(30),
+                LastCheckedAt = _clock.GetUtcNow(),
+                // A one-time check of a paused watcher schedules nothing (scheduler rule since 1a8d770a).
+                NextCheckAt = watcher.Status == BooruWatcherStatus.Paused ? null : _clock.GetUtcNow() + TimeSpan.FromMinutes(30),
                 BaselineEstablished = true, HitCount = watcher.HitCount + 2, QueuedCount = watcher.QueuedCount + 2
             });
         }

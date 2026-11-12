@@ -55,6 +55,14 @@ internal sealed partial class DesktopSessionHost
     /// <summary>Raised after the composition was created, started or stopped.</summary>
     internal event Action? BooruChanged;
 
+    private Task _booruStart = Task.CompletedTask;
+
+    private void StartBooruInBackground()
+    {
+        lock (_booruSync)
+            if (!_booruClosed) _booruStart = Task.Run(StartBooruAfterReadyAsync);
+    }
+
     private BooruProviderBinding? ResolveBooruBinding() => BooruBindingForTests is { } factory ? factory() : Plugins?.Booru;
 
     // Ready continuation of StartCoreAsync. Never throws: Danbooru is optional and must not fail the session.
@@ -154,7 +162,9 @@ internal sealed partial class DesktopSessionHost
             binding = _booruBinding;
         }
         if (binding != null) binding.AvailabilityChanged -= OnBooruAvailabilityChanged;
-        Task stopped = StopComposedBooruAsync();
+        Task start;
+        lock (_booruSync) start = _booruStart;
+        Task stopped = Task.WhenAll(start, StopComposedBooruAsync());
         try { await stopped.WaitAsync(BooruStopWait).ConfigureAwait(false); }
         catch (TimeoutException) { _logger.Warning("The Danbooru watchers did not stop within {Seconds} s; the queue stops anyway.", BooruStopWait.TotalSeconds); }
         catch (Exception) { /* observed by the caller through the returned task */ }

@@ -235,7 +235,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             }
             if (State == DesktopSessionState.Ready) Updates.Start();
             if (State == DesktopSessionState.Ready) StartMediaTagReconcile();
-            if (State == DesktopSessionState.Ready) await StartBooruAfterReadyAsync().ConfigureAwait(false);
+            // In the background: recovering pending originals may wait for queue admission (paused queue, space gate).
+            if (State == DesktopSessionState.Ready) StartBooruInBackground();
         }
         catch (Exception exception)
         {
