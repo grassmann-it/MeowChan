@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
 using Avalonia.VisualTree;
@@ -62,14 +63,26 @@ public partial class MainWindow
 
     private async Task OpenMediaLibraryGalleryAsync(IReadOnlyList<MediaLibraryEntry> window, int start, Func<bool>? current = null)
     {
-        // Direct tile/selection opens have no menu guard of their own. Freeze the host and
-        // presentation before resolution yields, and keep any caller's frozen-menu request too.
+        // Direct tile/selection opens have no menu guard of their own. Keep the host's
+        // navigation revision and any caller's stricter frozen-menu guard throughout admission.
         Func<bool> hostCurrent = CaptureMediaPageMenuGuard();
-        MediaPage? page = _mediaPage;
-        object? rows = page?.Grid.ItemsSource;
-        bool Current() => hostCurrent() && ReferenceEquals(rows, page?.Grid.ItemsSource) && current?.Invoke() != false;
-        if (!Current() || start < 0 || start >= window.Count) return;
+        if (_mediaPage is not { } page || !hostCurrent() || current?.Invoke() == false
+            || start < 0 || start >= window.Count) return;
         MediaLibraryEntry chosen = window[start];
+        IReadOnlyList<MediaLibraryEntry> shown = page.ShownEntries;
+        MediaLibrarySort sort = page.Sort;
+        MediaLibraryFilter filter = page.CurrentFilter();
+        bool presentationCurrent = true;
+        void OnPresentationChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+        {
+            // Present() replaces the rows even for an unchanged local rebuild/user-data refresh.
+            // Freeze the logical entries, not the containers; a real change stays stale on return.
+            if (e.Property == ItemsControl.ItemsSourceProperty)
+                presentationCurrent &= page.Sort == sort && page.FilterError == null
+                    && filter == page.CurrentFilter() && shown.SequenceEqual(page.ShownEntries);
+        }
+        bool Current() => hostCurrent() && presentationCurrent && current?.Invoke() != false;
+        page.Grid.PropertyChanged += OnPresentationChanged;
         try
         {
             IReadOnlyList<GalleryEntry> entries = await MediaLibraryGallery.ResolveAsync(window, _session.OpenArchiveReaderAsync,
@@ -83,14 +96,15 @@ public partial class MainWindow
             }
             // The grid is the origin: closing the gallery returns focus to the selected tile, not to the page shell.
             // A still pending second restore of an earlier "Back to media" must not move selection and focus under the gallery.
-            page?.EndPendingReturn();
+            page.EndPendingReturn();
             if (!Current()) return;
-            await OpenMediaGalleryAsync(entries, first.EntryKey, page?.Grid, stillRequested: Current);
+            await OpenMediaGalleryAsync(entries, first.EntryKey, page.Grid, stillRequested: Current);
         }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
         {
             if (Current()) ShowNotification(Texts.T("notification.error"), Texts.T("media.galleryFailed"), NotificationType.Error, operation: "media.gallery");
         }
+        finally { page.Grid.PropertyChanged -= OnPresentationChanged; }
     }
 
     // The gallery is an overlay in this window, so closing it does not reactivate the window: favorite, rating and
