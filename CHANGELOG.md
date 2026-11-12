@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.1.0 — unreleased — Media page, own tags, Danbooru and plugin SDK 1.1.0
+
+- Draft, not published: no release date, package or verification. See the
+  [draft release notes](docs/releases/v1.1.0.md), which mark what is still pending.
+- Add a Media page over every saved file with filters, duplicate grouping by SHA-256,
+  multi-select tagging, gallery and original export, and a way back from the thread.
+- Add private own tags for threads and exact media versions, with Reader and gallery
+  editing, Archive tag filters, a Tag manager, cleanup protection and tag hand-over
+  when a source changes an attachment key.
+- Add the Danbooru source, read-only: tag search, single posts, watchers that continue
+  below a post id cursor, provenance and offline use. Not yet reachable in the integrated
+  source; default activation is undecided.
+- Add plugin SDK 1.1.0 (booru post search, blocked-declaration status) with a one-time
+  automatic transition for bundled plugins that only change the declared SDK version.
+- Bundle five further experimental chan sources (disabled by default) and two documented
+  technical blocks; stop passing the 2ch provider MD5 as an integrity expectation, so archived
+  2ch originals are fetched once more on re-check.
+- Accept picked or typed Archive source/board/state filters immediately; show archive status
+  as an overlay; open filters over the results; keep the Reader toolbar on one row.
+- Show the orange cat in the light theme and the grey cat in the dark theme; soften the light theme.
+- Upgrade: archive schema 5 to 12, media manifest 4 to 5, work journal pruning with one
+  backup, new `private-tags.json`, media index cache and `booru-catalog.json`.
+  Back up the whole profile first; there is no supported downgrade.
+
 ## 1.0.2 — 2026-10-31 — stability, media controls and startup recovery
 
 - Automatically activate compatible in-place rebuilds of already established bundled
