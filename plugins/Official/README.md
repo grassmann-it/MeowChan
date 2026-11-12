@@ -1,4 +1,4 @@
-# Official 4chan and 8kun source plugins
+# Official source plugins: 4chan, 8kun and Danbooru
 
 Each plugin is one complete editable `.cs` file and consumes only .NET framework
 references plus `MeowChan.PluginSdk`. Its project builds a precompiled assembly:
@@ -7,6 +7,13 @@ references plus `MeowChan.PluginSdk`. Its project builds a precompiled assembly:
 | --- | --- | --- | --- |
 | `4chan` | `meowchan.official.4chan` | `FourChan/FourChan.cs` | `MeowChan.Plugin.FourChan.dll` |
 | `8kun` | `meowchan.official.8kun` | `EightKun/EightKun.cs` | `MeowChan.Plugin.EightKun.dll` |
+| `danbooru` | `meowchan.official.danbooru` | `Danbooru/Danbooru.cs` | `MeowChan.Plugin.Danbooru.dll` |
+
+4chan and 8kun are board/thread sources. Danbooru is a booru post-search source
+(SDK 1.1.0, `IBooruSourcePlugin`, capability `PostSearch`): it has no URL routes, is
+not registered as a chan source by the desktop, and is verified by the same plugin
+package check. Its fixtures and the scenarios they cover are listed in the
+[booru test matrix](../../docs/development/booru-test-matrix.md).
 
 All board routes declare ASCII word identifiers and all thread routes declare
 decimal identifiers, matching the legacy URL grammar without worker IPC.

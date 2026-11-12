@@ -20,6 +20,21 @@ the production loader. Key coverage is **not** language-quality or complete-UI Q
 Future key additions require matching pack updates. The keys of `InlineTextCatalog` (formerly hard-coded English/German pairs in product code) were machine-translated into es/fr/ru and have had no human proofreading yet. Proper names and technical
 terms may legitimately match English.
 
+The es/fr/ru entries of `BooruStatusCatalog` (keys `booru.failure.*`,
+`booru.deferred.*`, `booru.watcher.*`, `booru.query.*`, `booru.post.*`,
+`booru.original.*`, `booru.rating.*`, `booru.tags.*`, `booru.tagCategory.*`,
+`booru.mediaRole.*`, `booru.finding.*`, `booru.field.*`, `booru.post.deleted`,
+`booru.post.banned`) and `plugins.capability.postSearch` are likewise **unreviewed
+machine translations**. They name Danbooru provider states, wait times after a rate
+limit and the fact that a missing original is not replaced by a smaller version, so
+they need qualified human review before these languages count as reviewed for the
+booru feature. Rating names (General, Sensitive, Questionable, Explicit) and tag
+categories follow Danbooru's own vocabulary and may legitimately resemble English.
+The English diagnostic messages that the host and the Danbooru plugin put in a
+failure are not shown to the user; `BooruMessages` maps their stable codes to these
+catalog texts. The plugin's own information text (`access`) is plugin-provided English
+and is not part of the catalogs. Texts of the booru screens (B6) use `booru.ui.*`.
+
 The es/fr/ru texts of the bundled repair/reselection review dialog's batch
 approval are likewise **unreviewed machine translations of consent texts**:
 `plugins.approval.submit`, `plugins.approval.submitOne`, `plugins.approval.reload`,

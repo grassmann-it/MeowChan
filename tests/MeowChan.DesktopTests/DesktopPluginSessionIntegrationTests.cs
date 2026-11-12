@@ -275,8 +275,9 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         Assert.True(File.Exists(Path.Combine(app, "plugin-compiler", "MeowChan.PluginCompiler" + suffix)));
         string[] manifests = Directory.GetFiles(Path.Combine(app, "plugins"), "*.plugin.json");
         // All seven named experimental adapters ship. AnonImageboards and GuroCx are documented technical blocks that register no source route.
-        Assert.Equal(23, manifests.Length);
-        foreach (string name in new[] { "SevenChan", "BbwChan", "AnonImageboards", "EightchanMoe", "GuroCx", "Fchan", "CapybaraChan" })
+        // Danbooru ships as the official post-search source (B8 packaging); it is not a chan board adapter.
+        Assert.Equal(24, manifests.Length);
+        foreach (string name in new[] { "SevenChan", "BbwChan", "AnonImageboards", "EightchanMoe", "GuroCx", "Fchan", "CapybaraChan", "Danbooru" })
             Assert.Contains(manifests, path => Path.GetFileName(path) == "MeowChan.Plugin." + name + ".plugin.json");
         string cache = Path.Combine(host.ProfileDirectory, "plugin-cache", "artifacts");
         int priorArtifacts = Directory.Exists(cache) ? Directory.GetDirectories(cache).Length : 0;
@@ -291,12 +292,14 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         Assert.True(host.State == DesktopSessionState.Ready, host.StartupError);
         Assert.NotNull(host.Plugins);
         Assert.Empty(host.Plugins.Warnings);
+        // A booru post-search source is served by the booru host services, never as a chan board adapter.
         Assert.Equal("2ch,4chan,8kun,bbwchan,capybarachan,eightchanmoe,endchan,fchan,kohlchan,lainchan,leftypol,sevenchan,sushichan,uboachan,wizchan,zzzchan", string.Join(",", host.Plugins.Sources.Select(source => source.Name).Order()));
         AssertNewSourceRouting(host);
         Assert.Empty(fixture.Requests);
         Assert.Equal(0, fixture.Unexpected);
         PluginProfileSnapshot profile = await host.Plugins.ProfileStore.ReadAsync();
-        Assert.Equal(23, profile.Plugins.Count);
+        // 23 delivered sources plus the official Danbooru post-search plugin.
+        Assert.Equal(24, profile.Plugins.Count);
         foreach (PluginActivationSnapshot plugin in profile.Plugins)
         {
             bool expectedEnabled = ExperimentalSourceActivationPolicy.InitiallyEnabled(plugin.PluginId)

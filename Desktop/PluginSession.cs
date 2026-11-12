@@ -202,6 +202,9 @@ internal sealed partial class PluginSession : IAsyncDisposable
             if (activation.Problem != null) warnings.Add(description.Name + ": " + activation.Problem);
             foreach (SourceDescription source in description.Sources)
             {
+                // A booru post-search source is served by the booru host services. It is never a chan board adapter,
+                // so it must not appear in the chan source registry, URL routing or board/thread watch paths.
+                if (source.Capabilities.HasFlag(SourceCapabilities.PostSearch)) continue;
                 string[] owners = descriptions.Where(item => item.Description.Sources.Any(value => value.SourceId == source.SourceId))
                     .Select(item => item.Activation.PluginId).Distinct(StringComparer.Ordinal).ToArray();
                 if (owners.Length > 1 && (!activated.SelectedSourceOwners.TryGetValue(source.SourceId, out string? selected) || selected != activation.PluginId)) continue;

@@ -143,12 +143,14 @@ internal static class PluginContentPresentation
             (SourceCapabilities.BoardCatalog, "plugins.capability.boardCatalog"),
             (SourceCapabilities.PostCapture, "plugins.capability.postCapture"),
             (SourceCapabilities.OriginalMedia, "plugins.capability.originalMedia"),
-            (SourceCapabilities.Previews, "plugins.capability.previews")
+            (SourceCapabilities.Previews, "plugins.capability.previews"),
+            (SourceCapabilities.PostSearch, "plugins.capability.postSearch")
         })
             if ((capabilities & flag) != 0) labels.Add(Texts.T(key));
 
         const SourceCapabilities known = SourceCapabilities.ThreadRead | SourceCapabilities.BoardCatalog |
-            SourceCapabilities.PostCapture | SourceCapabilities.OriginalMedia | SourceCapabilities.Previews;
+            SourceCapabilities.PostCapture | SourceCapabilities.OriginalMedia | SourceCapabilities.Previews |
+            SourceCapabilities.PostSearch;
         SourceCapabilities unknown = capabilities & ~known;
         if (unknown != SourceCapabilities.None)
             labels.Add(Texts.T("plugins.capability.unknown", "0x" + ((int)unknown).ToString("X", CultureInfo.InvariantCulture)));
