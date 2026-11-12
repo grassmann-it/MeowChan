@@ -8,6 +8,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Presenters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
@@ -247,6 +248,8 @@ internal static partial class SectionComparisonChecks
                     "Source-b task changed the plugin or a similarly named source draft.");
                 // Actual narrow Back button returns to same selected candidate; no page switch method counted.
                 scenario.Window.Width = 760; scenario.Window.Height = 500; await Settle();
+                // The page reacts to the native size change; the Back button exists once it has switched presentation.
+                await Program.WaitUntilAsync(() => Math.Abs(scenario.Window.ClientSize.Width - 760) <= 1 && page.FindControl<Button>("PluginBack")!.IsEffectivelyVisible);
                 await scenario.ScrollToControl(page.FindControl<Button>("PluginBack")!);
                 await scenario.Click(page.FindControl<Button>("PluginBack")!);
                 Require(page.FindControl<Grid>("PluginListPane")!.IsEffectivelyVisible && page.Selected?.Key == Candidate,
@@ -258,7 +261,9 @@ internal static partial class SectionComparisonChecks
                 SectionDescriptor oldSection = scenario.Controller.Sections.Single(s => s.Id == sourceB);
                 var oldTarget = oldSection.ResolveTarget();
                 Require(oldTarget != null, "Source-b removal fixture did not start with an existing target.");
-                scenario.Window.Width = 1100; scenario.Window.Height = 760; page.Select(Candidate); await Settle(); scenario.Reproject();
+                scenario.Window.Width = 1100; scenario.Window.Height = 760;
+                await Program.WaitUntilAsync(() => Math.Abs(scenario.Window.ClientSize.Width - 1100) <= 1 && !page.FindControl<Button>("PluginBack")!.IsVisible);
+                page.Select(Candidate); await Settle(); scenario.Reproject();
                 if (variant != "A") await scenario.OpenContents();
                 var removed = description with { Sources = description.Sources.Where(s => s.SourceId != "source-b").ToArray() };
                 PluginProfileSnapshot previous = await store.ReadAsync();
@@ -390,7 +395,6 @@ internal static partial class SectionComparisonChecks
             }
             else Window.Content = page;
             navigation.SizeChanged += (_, _) => ApplyWidth();
-            navigation.PropertyChanged += (_, e) => { if (e.Property == Visual.IsVisibleProperty && _variant == "A" && navigation.IsVisible) navigation.IsVisible = false; };
             Window.Closed += (_, _) => _closed.TrySetResult();
         }
         public async Task PrepareAsync()
@@ -412,7 +416,10 @@ internal static partial class SectionComparisonChecks
             _changingContent = true;
             try
             {
-                Navigation.IsVisible = _variant != "A";
+                // Variant A withholds the contents without writing the product's own IsVisible: the page
+                // re-evaluates that flag on every layout pass, and a competing writer re-queues it forever.
+                Navigation.IsVisible = true;
+                WithholdNavigation(_variant == "A");
                 if (_variant != "C") { Navigation.Content = _originalContent; _anchor = null; return; }
                 var anchor = new TestAnchor { TargetContainer = Scroll, Navigate = Navigation.Navigate };
                 foreach (SectionDescriptor section in Controller.Sections)
@@ -425,6 +432,18 @@ internal static partial class SectionComparisonChecks
                 anchor.Loaded += (_, _) => anchor.InvalidatePositions();
             }
             finally { _changingContent = false; }
+        }
+        private void WithholdNavigation(bool withheld)
+        {
+            if (withheld)
+            {
+                Navigation.Height = 0; Navigation.Opacity = 0; Navigation.IsEnabled = false; Navigation.IsHitTestVisible = false;
+                Navigation.ClipToBounds = true;
+                return;
+            }
+            Navigation.ClearValue(Layoutable.HeightProperty); Navigation.ClearValue(Visual.OpacityProperty);
+            Navigation.ClearValue(InputElement.IsEnabledProperty); Navigation.ClearValue(InputElement.IsHitTestVisibleProperty);
+            Navigation.ClearValue(Visual.ClipToBoundsProperty);
         }
         private void ApplyWidth()
         {
@@ -445,7 +464,18 @@ internal static partial class SectionComparisonChecks
             Expect("Reach exact section " + id + "; keep same draft and do not commit.");
             if (_variant == "A")
             {
-                await ScrollToControl(section.ResolveTarget() ?? throw new InvalidOperationException("Missing baseline target " + id));
+                Control baseline = section.ResolveTarget() ?? throw new InvalidOperationException("Missing baseline target " + id);
+                // Wide Settings show one category page at a time. Without the contents control, the reader
+                // reaches a heading on a hidden page by choosing that page, never by the control under comparison.
+                bool Reachable() => baseline.IsAttachedToVisualTree() && baseline.IsEffectivelyVisible && baseline.Bounds.Width > 0 && baseline.Bounds.Height > 0;
+                if (!Reachable())
+                {
+                    section.Open?.Invoke();
+                    // A page that was hidden has no template or layout until the next layout pass.
+                    await Program.WaitUntilAsync(() => { Window.UpdateLayout(); return Reachable(); });
+                    await Settle();
+                }
+                await ScrollToControl(baseline);
             }
             else
             {
@@ -494,7 +524,9 @@ internal static partial class SectionComparisonChecks
                 if (Math.Abs(Scroll.Offset.Y - before) < 0.1)
                     throw new InvalidOperationException("Actual routed page/wheel input did not move this scroller; no fabricated scroll count or direct offset replacement.");
             }
-            Require(InViewport(control), "Control unreachable by bounded routed page/wheel scroll: " + control.Name);
+            Require(InViewport(control), "Control unreachable by bounded routed page/wheel scroll: " + control.Name
+                + $" [bounds={control.Bounds} inScroller={control.GetVisualAncestors().Contains(Scroll)} atScroller={control.TranslatePoint(default, Scroll)}"
+                + $" atWindow={control.TranslatePoint(default, Window)} viewport={Scroll.Viewport} offset={Scroll.Offset} extent={Scroll.Extent} window={Window.Bounds}]");
         }
         private bool InViewport(Control target)
         {
