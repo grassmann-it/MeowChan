@@ -45,6 +45,32 @@ public sealed partial class BooruOriginalQueueTests
     }
 
     [Fact]
+    public async Task StopAfterAPauseInterruptedTheTransferEndsTheOwnerAndKeepsTheRequest()
+    {
+        using TempDirectory directory = new();
+        FakeCdn cdn = new() { Gate = new SemaphoreSlim(0) };
+        BooruPostClaim post = Post("105", Bytes(20), cdn);
+        await using (Session session = new(directory.Path, cdn))
+        {
+            BooruOriginalAdmission admission = await session.Booru.AdmitAsync(post, BooruFindingKind.OneShot);
+            await TestWait.UntilAsync(() => cdn.Requests.Count == 1);
+            // The pause interrupts the running transfer and re-queues the same job; that reports nothing.
+            await session.Queue.SetPausedAsync(true);
+            Assert.False(admission.Completion.IsCompleted);
+
+            await session.Queue.StopAllAsync().WaitAsync(TestWait.Timeout);
+
+            Assert.Equal(BooruOriginalDownloadState.Interrupted, (await admission.Completion.WaitAsync(TestWait.Timeout)).State);
+            Assert.Equal("105", Assert.Single(session.Booru.GetPendingOriginals()).PostId);
+        }
+
+        cdn.Gate.Release();
+        await using Session reopened = new(directory.Path, cdn);
+        BooruOriginalAdmission recovered = Assert.Single(await reopened.Booru.RecoverPendingAsync());
+        Assert.Equal(BooruOriginalDownloadState.Linked, (await recovered.Completion.WaitAsync(TestWait.Timeout)).State);
+    }
+
+    [Fact]
     public async Task StopDuringAnAdmissionWaitEndsTheAdmissionWithoutRecordingARequest()
     {
         using TempDirectory directory = new();

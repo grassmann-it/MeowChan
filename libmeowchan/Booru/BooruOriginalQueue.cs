@@ -225,7 +225,7 @@ internal sealed class BooruOriginalQueue
             }
             catch (Exception exception)
             {
-                // Nothing was written for this record, so it stays pending for the next recovery.
+                // This record keeps its stored intent; the others are still recovered.
                 BooruOriginalDownloadOutcome interrupted = new(BooruOriginalDownloadState.Interrupted, record.PostId,
                     Failure: exception.Message);
                 admission = new(BooruOriginalAdmissionStatus.NotAdmitted, record.PostId, Task.FromResult(interrupted));
