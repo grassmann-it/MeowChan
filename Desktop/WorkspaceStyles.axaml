@@ -230,6 +230,14 @@
     </Style>
     <Style Selector="DataGridCell"><Setter Property="Padding" Value="12,0" /><Setter Property="ClipToBounds" Value="True" /></Style>
     <Style Selector="DataGridRow:selected"><Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /></Style>
+    <!-- LW-06 R1/N4a: selection is never the tint alone. A 3-px accent bar like the active reader post;
+         on rows it is drawn on the background layer behind the cells, so cells do not move. -->
+    <Style Selector="DataGridRow:selected /template/ Border#BackgroundBorder">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="BorderThickness" Value="3,0,0,0" />
+    </Style>
+    <Style Selector="ListBox.workspace-selection-bar ListBoxItem:selected /template/ ContentPresenter">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="BorderThickness" Value="3,0,0,0" />
+    </Style>
 
     <!-- Opt-in composition roles; native templates, selection and automation stay
          with Semi/Ursa and the existing controls. Do not nest sections for decoration. -->

@@ -112,7 +112,7 @@
                 </Border>
                 <Border x:Name="ArchiveResultsSurface" Grid.Row="1" Classes="panel">
                     <Grid RowDefinitions="*,Auto">
-                        <ListBox x:Name="ArchiveThreads" SelectionMode="Multiple" SelectionChanged="OnThreadSelected" DoubleTapped="OnThreadDoubleTapped" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox x:Name="ArchiveThreads" Classes="workspace-selection-bar" SelectionMode="Multiple" SelectionChanged="OnThreadSelected" DoubleTapped="OnThreadDoubleTapped" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                             <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
                             <ListBox.ItemTemplate>
                                 <DataTemplate x:DataType="desktop:ArchiveThreadRow">
@@ -390,7 +390,7 @@
                                                 <DataGridTextColumn Width="130" MinWidth="100" Binding="{Binding RatingLabel, DataType=desktop:ArchiveAssetRow}" />
                                             </DataGrid.Columns>
                                         </DataGrid>
-                                        <ListBox x:Name="ArchiveMediaTiles" IsVisible="False" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped">
+                                        <ListBox x:Name="ArchiveMediaTiles" Classes="workspace-selection-bar" IsVisible="False" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped">
                                             <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="VerticalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
                                             <ListBox.ItemsPanel><ItemsPanelTemplate><desktop:MediaTilePanel /></ItemsPanelTemplate></ListBox.ItemsPanel>
                                             <ListBox.ItemTemplate><DataTemplate x:DataType="desktop:ArchiveAssetRow">

@@ -44,7 +44,7 @@ public sealed partial class MediaPage : UserControl
     private readonly CheckBox _missing = new() { Name = "MediaShowMissing" };
     private readonly Button _refresh = new() { Name = "MediaRefresh" };
     private readonly TextBlock _status = new() { Name = "MediaStatus", TextWrapping = Avalonia.Media.TextWrapping.Wrap };
-    private readonly ListBox _grid = new() { Name = "MediaGrid", SelectionMode = SelectionMode.Multiple };
+    private readonly ListBox _grid = new() { Name = "MediaGrid", SelectionMode = SelectionMode.Multiple, Classes = { "workspace-selection-bar" } };
     private readonly TextBlock _empty = new() { Name = "MediaEmpty", TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(8, 40, 8, 8), IsVisible = false, Classes = { "muted" } };
     // An empty library points back to where media comes from; a filter that matches nothing shows only its sentence.
     private readonly Button _goDownloads = new() { Name = "MediaGoDownloads", Classes = { "primary" } };
