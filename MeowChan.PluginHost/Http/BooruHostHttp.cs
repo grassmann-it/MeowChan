@@ -62,6 +62,8 @@ public sealed class BooruHostHttp : IDisposable
         if (issues.Count > 0) return Failure("http-request", issues[0].Message);
         if (request.Method != HostHttpMethod.Get)
             return Failure("http-request", "Booru metadata accepts GET requests only.");
+        if (!IsAllowedEndpoint(request.Url, source))
+            return Failure("http-request", "The booru endpoint is not on the provider allowlist.");
         if (HasForbiddenTransportDefaults())
             return Failure("http-request", "The booru transport contains host-owned credentials.");
         if (job.IsExpired) return Failure("booru-budget", "The booru job budget is exhausted.");
@@ -132,24 +134,10 @@ public sealed class BooruHostHttp : IDisposable
                 if (response.RequestMessage?.RequestUri is Uri actual && actual != request.Url)
                     return Failure("http-redirect", "Metadata redirects are not followed.");
 
-                byte[] body = await ReadBodyAsync(response.Content, window, cancellationToken).ConfigureAwait(false);
                 int status = (int)response.StatusCode;
+                // Decide on redirects, cooldowns and retries before any body byte is read.
                 if (status is >= 300 and <= 399)
                     return Failure("http-redirect", "Metadata redirects are not followed.", status);
-                if (status is 502 or 503 && !retried)
-                {
-                    retried = true;
-                    DateTimeOffset retryAt = RetryAt(response.Headers.RetryAfter, _clock.GetUtcNow());
-                    if (retryAt >= job.Deadline || job.IsExpired)
-                        return Failure("booru-budget", "The booru job budget is exhausted.", status);
-                    await DelayUntilAsync(retryAt, cancellationToken).ConfigureAwait(false);
-                    if (!job.IsOpen || job.IsExpired) return Failure("booru-budget", "The booru job budget is exhausted.", status);
-                    if (!job.TryReserveSend()) return Failure("booru-budget", "The booru job send budget is exhausted.", status);
-                    state.NextStart = _clock.GetUtcNow() + MinimumStartSpacing;
-                    response.Dispose();
-                    response = null;
-                    continue;
-                }
                 if (status == 429)
                 {
                     DateTimeOffset cooldown = CooldownUntil(response.Headers.RetryAfter, _clock.GetUtcNow());
@@ -157,7 +145,22 @@ public sealed class BooruHostHttp : IDisposable
                         if (cooldown > state.CooldownUntil) state.CooldownUntil = cooldown;
                     return new HostHttpDeferred(cooldown, "booru-cooldown", status);
                 }
+                if (status is 502 or 503 && !retried)
+                {
+                    retried = true;
+                    DateTimeOffset retryAt = RetryAt(response.Headers.RetryAfter, _clock.GetUtcNow());
+                    if (retryAt >= job.Deadline || job.IsExpired)
+                        return Failure("booru-budget", "The booru job budget is exhausted.", status);
+                    response.Dispose();
+                    response = null;
+                    await DelayUntilAsync(retryAt, cancellationToken).ConfigureAwait(false);
+                    if (!job.IsOpen || job.IsExpired) return Failure("booru-budget", "The booru job budget is exhausted.", status);
+                    if (!job.TryReserveSend()) return Failure("booru-budget", "The booru job send budget is exhausted.", status);
+                    state.NextStart = _clock.GetUtcNow() + MinimumStartSpacing;
+                    continue;
+                }
 
+                byte[] body = await ReadBodyAsync(response.Content, window, cancellationToken).ConfigureAwait(false);
                 return new HostHttpResponse(status, request.Url, ReadHeaders(response), body,
                     new SourceValidators(response.Headers.ETag?.ToString(), response.Content.Headers.LastModified));
             }
@@ -301,6 +304,54 @@ public sealed class BooruHostHttp : IDisposable
             // failed before entering it, release the raw memory stream here.
             if (decoded is MemoryStream memory && memory != null) memory.Dispose();
         }
+    }
+
+    private static bool IsAllowedEndpoint(Uri uri, SourceDescription source)
+    {
+        if (!uri.IsAbsoluteUri || uri.Scheme != Uri.UriSchemeHttps || uri.UserInfo.Length != 0
+            || uri.Fragment.Length != 0 || !uri.IsDefaultPort) return false;
+        if (!string.Equals(source.SourceId, "danbooru", StringComparison.Ordinal)) return true;
+
+        string path = uri.AbsolutePath;
+        if (path == "/posts.json") return IsValidSearchQuery(uri.Query);
+        if (!path.StartsWith("/posts/", StringComparison.Ordinal) || !path.EndsWith(".json", StringComparison.Ordinal)
+            || uri.Query.Length != 0) return false;
+        string id = path[7..^5];
+        return id.Length is > 0 and <= 18 && id[0] != '0' && id.All(char.IsAsciiDigit);
+    }
+
+    private static bool IsValidSearchQuery(string query)
+    {
+        if (query.Length == 0) return true;
+        HashSet<string> names = new(StringComparer.Ordinal);
+        foreach (string part in query[1..].Split('&'))
+        {
+            int equals = part.IndexOf('=');
+            if (equals <= 0) return false;
+            string name, value;
+            try
+            {
+                name = Uri.UnescapeDataString(part[..equals]);
+                value = Uri.UnescapeDataString(part[(equals + 1)..]);
+            }
+            catch (UriFormatException) { return false; }
+            if (!names.Add(name) || name is not ("tags" or "page" or "limit")) return false;
+            switch (name)
+            {
+                case "tags":
+                    if (!MeowChan.Booru.DanbooruTagQuery.TryParse(value, out _, out _)) return false;
+                    break;
+                case "page":
+                    if (!int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int page)
+                        || page is < 1 or > MaximumSearchPage) return false;
+                    break;
+                default:
+                    if (!int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int limit)
+                        || limit is < 1 or > MaximumSearchLimit) return false;
+                    break;
+            }
+        }
+        return true;
     }
 
     private bool HasForbiddenTransportDefaults() =>

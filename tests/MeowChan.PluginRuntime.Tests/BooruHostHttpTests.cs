@@ -378,6 +378,80 @@ public sealed class BooruHostHttpTests
         finally { services.CloseJob(job); }
     }
 
+    [Theory]
+    [InlineData("https://danbooru.test/users.json")]
+    [InlineData("https://danbooru.test/posts.json/extra")]
+    [InlineData("https://danbooru.test/posts/0.json")]
+    [InlineData("https://danbooru.test/posts/01.json")]
+    [InlineData("https://danbooru.test/posts/-5.json")]
+    [InlineData("https://danbooru.test/posts/abc.json")]
+    [InlineData("https://danbooru.test/posts/1234567890123456789.json")]
+    [InlineData("https://danbooru.test/posts/5.json?x=1")]
+    [InlineData("https://danbooru.test/posts/5")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=6&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=0&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=1&limit=21")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=1&limit=20&only=id")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&tags=dog")]
+    [InlineData("https://danbooru.test/posts.json?tags=a+b+c+d&page=1&limit=20")]
+    [InlineData("https://danbooru.test:8443/posts.json")]
+    [InlineData("http://danbooru.test/posts.json")]
+    public async Task NonAllowlistedDanbooruEndpointsNeverReachTransport(string url)
+    {
+        int sends = 0;
+        using HttpClient transport = new(new Handler((request, _) => { ++sends; return Task.FromResult(Response(HttpStatusCode.OK, "{}")); }));
+        using BooruHostHttp http = new(transport, new RequestPolicyState(), [Source()]);
+        BooruHostServices services = new(new Inner(), http);
+        BooruJob job = services.OpenJob();
+        try
+        {
+            HostHttpFailure result = Assert.IsType<HostHttpFailure>(await services.SendHttpAsync(
+                new("danbooru", HostHttpMethod.Get, new(url)), job.Operation, default));
+            Assert.Equal("http-request", result.Failure.Code);
+            Assert.Equal(0, sends);
+        }
+        finally { services.CloseJob(job); }
+    }
+
+    [Theory]
+    [InlineData("https://danbooru.test/posts.json")]
+    [InlineData("https://danbooru.test/posts.json?tags=rating%3Ag%20cat_ears&page=5&limit=20")]
+    [InlineData("https://danbooru.test/posts/12345.json")]
+    public async Task AllowlistedDanbooruEndpointsReachTransport(string url)
+    {
+        int sends = 0;
+        using HttpClient transport = new(new Handler((request, _) => { ++sends; return Task.FromResult(Response(HttpStatusCode.OK, "{}")); }));
+        using BooruHostHttp http = new(transport, new RequestPolicyState(), [Source()]);
+        BooruHostServices services = new(new Inner(), http);
+        BooruJob job = services.OpenJob();
+        try
+        {
+            Assert.IsType<HostHttpResponse>(await services.SendHttpAsync(new("danbooru", HostHttpMethod.Get, new(url)), job.Operation, default));
+            Assert.Equal(1, sends);
+        }
+        finally { services.CloseJob(job); }
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Redirect)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    public async Task RedirectAndCooldownDecisionsReadNoBodyBytes(HttpStatusCode status)
+    {
+        TrackingContent content = new();
+        using HttpClient transport = new(new Handler((request, _) =>
+            Task.FromResult(new HttpResponseMessage(status) { Content = content })));
+        using BooruHostHttp http = new(transport, new RequestPolicyState(), [Source()]);
+        BooruHostServices services = new(new Inner(), http);
+        BooruJob job = services.OpenJob();
+        try
+        {
+            HostHttpResult result = await services.SendHttpAsync(Get(), job.Operation, default);
+            Assert.True(result is HostHttpFailure or HostHttpDeferred);
+            Assert.False(content.StreamOpened);
+        }
+        finally { services.CloseJob(job); }
+    }
+
     private static HostHttpRequest Get() => new("danbooru", HostHttpMethod.Get, new("https://danbooru.test/posts.json"));
     private static SourceDescription Source() => new("danbooru", "Danbooru", new("https://danbooru.test/"),
         SourceCapabilities.PostSearch, [], [new("danbooru.test", HttpHostPurpose.Metadata)], new("1", []));
@@ -432,6 +506,14 @@ public sealed class BooruHostHttpTests
         protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) => stream.WriteAsync(bytes).AsTask();
         protected override bool TryComputeLength(out long length) { length = 0; return false; }
         protected override Task<Stream> CreateContentReadStreamAsync() => Task.FromResult<Stream>(new MemoryStream(bytes, writable: false));
+    }
+
+    private sealed class TrackingContent : HttpContent
+    {
+        internal bool StreamOpened { get; private set; }
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) => Task.CompletedTask;
+        protected override bool TryComputeLength(out long length) { length = 0; return false; }
+        protected override Task<Stream> CreateContentReadStreamAsync() { StreamOpened = true; return Task.FromResult<Stream>(new MemoryStream()); }
     }
 
     private sealed class BlockingContent : HttpContent
