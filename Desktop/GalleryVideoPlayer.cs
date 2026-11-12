@@ -81,6 +81,8 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private bool _audioAvailable;
     private int _audioTracks = -1;
     private int _audioRefreshPending;
+    // Time ticks re-probe audio only until the current play epoch has settled it.
+    private readonly VideoAudioProbeSchedule _audioProbe = new();
 
     internal event Action<int>? VolumeChanged;
     internal event Action<bool>? LoopChanged;
@@ -284,7 +286,8 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         bool HasPlayback, bool HasEngine, bool Disposed, int ReleasedStreams, int CleanupFailures,
         int SurfaceFrames = 0, bool SurfaceNonUniform = false, bool LoopEnabled = false, int LoopRestarts = 0,
         bool Muted = false, int Volume = 0, long Length = 0, bool Seekable = false,
-        int AudioTracks = -1, bool AudioAvailable = false, int DecodedAudio = 0, int PlayedAudioBuffers = -1);
+        int AudioTracks = -1, bool AudioAvailable = false, int DecodedAudio = 0, int PlayedAudioBuffers = -1,
+        long AudioTicks = 0, long AudioProbeRequests = 0, long AudioProbes = 0, long AudioProbePresentations = 0, bool AudioSettled = false);
 
     internal Task<PlaybackEvidence> InspectPlaybackAsync(string? snapshotPath = null) => Task.Run(async () =>
     {
@@ -301,12 +304,14 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
             if (snapshotPath != null && !playback.Player.TakeSnapshot(0, snapshotPath, 0, 0))
                 throw new InvalidOperationException("The native video output rejected the frame snapshot.");
             int audioTracks = playback.Player.AudioTrackCount, volume = playback.Player.Volume;
+            var probes = _audioProbe.Counts;
             return new PlaybackEvidence(playback.Player.State.ToString(), playback.Player.Time,
                 stats.DecodedVideo, stats.DisplayedPictures, true, _engine != null, IsDisposed,
                 _releasedStreams, _cleanupFailures, playback.Surface?.PresentedFrames ?? 0, playback.Surface?.NonUniform ?? false,
                 _intent.LoopEnabled, _loopRestarts, playback.Player.Mute, volume,
                 playback.Player.Length, playback.Player.IsSeekable, audioTracks,
-                VideoAudioAvailability.IsAvailable(audioTracks, volume, stats.PlayedAudioBuffers), stats.DecodedAudio, stats.PlayedAudioBuffers);
+                VideoAudioAvailability.IsAvailable(audioTracks, volume, stats.PlayedAudioBuffers), stats.DecodedAudio, stats.PlayedAudioBuffers,
+                probes.Ticks, probes.Requests, probes.Probes, probes.Presentations, probes.Settled);
         }
         finally { _operations.Release(); }
     });
@@ -566,7 +571,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _timeline.Reset(generation);
         _isPlaying = false; _ended = false; _canSeek = _knownSeekable = false;
         _muteIntent.BeginMedia();
-        _audioAvailable = false; _audioTracks = -1;
+        _audioAvailable = false; _audioTracks = -1; _audioProbe.BeginMedia();
         RefreshTransportPresentation();
         _volumeIntent.Request(generation, (int)_volume.Value);
         EnableTransport(false); _length = 0; UpdateTime(0);
@@ -608,12 +613,17 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 }
                 _lifetime.Cleanup.Owns("native operation, player/drawable, callback roots, media/input, verified stream, engine");
                 MediaPlayer ownedPlayer = player;
-                player.Playing += (_, _) => PostIntent(generation, intent =>
+                player.Playing += (_, _) =>
                 {
-                    if (!_intent.MarkPlaying(intent)) return;
-                    _isPlaying = true; _ended = false; _status.Text = string.Empty; EnableTransport(true); RefreshTransportPresentation();
-                    _ = RefreshAudioStateAsync(generation, ownedPlayer);
-                });
+                    // Start, resume, repeat and replay may (re)create the output and reset mute.
+                    _audioProbe.Invalidate();
+                    PostIntent(generation, intent =>
+                    {
+                        if (!_intent.MarkPlaying(intent)) return;
+                        _isPlaying = true; _ended = false; _status.Text = string.Empty; EnableTransport(true); RefreshTransportPresentation();
+                        _ = RefreshAudioStateAsync(generation, ownedPlayer);
+                    });
+                };
                 player.Paused += (_, _) => PostIntent(generation, intent =>
                 { if (intent.Mode == VideoPlaybackMode.Paused) { _isPlaying = false; RefreshTransportPresentation(); } });
                 player.Stopped += (_, _) => PostIntent(generation, intent =>
@@ -641,12 +651,18 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                     {
                         if (!_ended && _timeline.Observe(generation, revision, args.Time))
                             RenderTime();
-                        _ = RefreshAudioStateAsync(generation, ownedPlayer);
+                        if (_audioProbe.Tick()) _ = RefreshAudioStateAsync(generation, ownedPlayer);
                     });
                 };
-                player.ESAdded += (_, _) => _ = RefreshAudioStateAsync(generation, ownedPlayer);
-                player.ESDeleted += (_, _) => _ = RefreshAudioStateAsync(generation, ownedPlayer);
-                player.ESSelected += (_, _) => _ = RefreshAudioStateAsync(generation, ownedPlayer);
+                void TrackChanged()
+                {
+                    // Invalidate before requesting: a probe in flight may have read the old track list.
+                    _audioProbe.Invalidate();
+                    _ = RefreshAudioStateAsync(generation, ownedPlayer);
+                }
+                player.ESAdded += (_, _) => TrackChanged();
+                player.ESDeleted += (_, _) => TrackChanged();
+                player.ESSelected += (_, _) => TrackChanged();
                 player.EndReached += (_, _) =>
                 {
                     // A seek to the terminal position is an interaction, not slideshow progress.
@@ -897,12 +913,14 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     }
 
     // A track list/output may become available only after Playing. Query on our
-    // native worker after track changes, and retry while initial audio is unknown.
+    // native worker after track changes, and retry on time ticks until the play
+    // epoch is settled (see VideoAudioProbeSchedule).
     // A nonnegative cached volume does NOT prove an output exists (Windows can
     // return 0/100 while mmdevice reports no default endpoint). Require actual
     // played audio buffers; muted-but-functional outputs still render buffers.
     private async Task RefreshAudioStateAsync(long generation, MediaPlayer expectedPlayer)
     {
+        _audioProbe.CountRequest();
         if (Interlocked.CompareExchange(ref _audioRefreshPending, 1, 0) != 0) return;
         try
         {
@@ -912,8 +930,11 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 try
                 {
                     if (!IsCurrent(generation) || !ReferenceEquals(_playback?.Player, expectedPlayer)) return;
+                    // Observe the epoch before native state, so a later track/playing event always wins.
+                    long epoch = _audioProbe.Observe();
                     int tracks = expectedPlayer.AudioTrackCount, volume = expectedPlayer.Volume;
-                    bool available = VideoAudioAvailability.IsAvailable(tracks, volume, _playback!.Media.Statistics.PlayedAudioBuffers);
+                    int played = _playback!.Media.Statistics.PlayedAudioBuffers;
+                    bool available = VideoAudioAvailability.IsAvailable(tracks, volume, played);
                     // A volume edit can arrive during backend construction, before the audio
                     // output is ready. Apply it on readiness instead of losing the latest value.
                     VideoVolumeRequest requestedVolume = _volumeIntent.Current;
@@ -925,9 +946,13 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                     if (available) ApplyMute(expectedPlayer);
                     Post(generation, () =>
                     {
+                        _audioProbe.Record(epoch, tracks, available, played);
+                        // The presentation reads only these two values from a probe. Every other
+                        // input (mute, loop, play state, language, shortcuts) refreshes it itself.
+                        bool changed = tracks != _audioTracks || available != _audioAvailable;
                         _audioTracks = tracks; _audioAvailable = available;
                         _mute.IsEnabled = _volume.IsEnabled = _playPause.IsEnabled && available;
-                        RefreshTransportPresentation();
+                        if (changed) { _audioProbe.CountPresentation(); RefreshTransportPresentation(); }
                     });
                 }
                 catch (Exception) { /* Playback/error lifecycle owns backend failure reporting. */ }
@@ -1527,4 +1552,58 @@ internal static class VideoAudioAvailability
 {
     internal static bool IsAvailable(int tracks, int volume, int playedAudioBuffers)
         => tracks > 0 && volume >= 0 && playedAudioBuffers > 0;
+}
+
+/// <summary>
+/// Decides whether a time tick must re-probe native audio state. Native track and Playing
+/// callbacks only call <see cref="Invalidate"/>; all other members run on the UI thread, in
+/// probe completion order. An epoch is settled when the media has no audio track, or when two
+/// available probes of that epoch saw played buffers grow: the output then rendered after the
+/// epoch began, so the probe that saw it already reapplied volume and mute to the live output.
+/// Present but silent tracks never settle (an output may still start), so they keep the
+/// previous per-tick behavior.
+/// </summary>
+internal sealed class VideoAudioProbeSchedule
+{
+    private long _epoch;
+    private long _settledAt = -1, _baselineAt = -1;
+    private int _baselineBuffers;
+    private long _ticks, _requests, _probes, _presentations;
+
+    internal void Invalidate() => Interlocked.Increment(ref _epoch);
+    internal long Observe() => Interlocked.Read(ref _epoch);
+    internal bool IsSettled => _settledAt == Interlocked.Read(ref _epoch);
+
+    internal void BeginMedia()
+    {
+        _settledAt = _baselineAt = -1;
+        Interlocked.Exchange(ref _ticks, 0); Interlocked.Exchange(ref _requests, 0);
+        Interlocked.Exchange(ref _probes, 0); Interlocked.Exchange(ref _presentations, 0);
+    }
+
+    // Returns whether this time tick must probe.
+    internal bool Tick()
+    {
+        Interlocked.Increment(ref _ticks);
+        return !IsSettled;
+    }
+
+    internal void Record(long epoch, int tracks, bool available, int playedBuffers)
+    {
+        Interlocked.Increment(ref _probes);
+        _settledAt = -1;
+        if (tracks == 0) { _settledAt = epoch; return; }
+        if (!available) { _baselineAt = -1; return; }
+        if (_baselineAt == epoch && playedBuffers > _baselineBuffers) { _settledAt = epoch; return; }
+        // First available sample of this epoch, or stale statistics of a replaced input.
+        _baselineAt = epoch; _baselineBuffers = playedBuffers;
+    }
+
+    internal void CountRequest() => Interlocked.Increment(ref _requests);
+    internal void CountPresentation() => Interlocked.Increment(ref _presentations);
+    // Evidence only: time ticks, probe requests, completed probes and probe-caused presentations.
+    // Settled is read off the UI thread here, so it is a racy snapshot for evidence only.
+    internal (long Ticks, long Requests, long Probes, long Presentations, bool Settled) Counts =>
+        (Interlocked.Read(ref _ticks), Interlocked.Read(ref _requests), Interlocked.Read(ref _probes),
+            Interlocked.Read(ref _presentations), Volatile.Read(ref _settledAt) == Interlocked.Read(ref _epoch));
 }
