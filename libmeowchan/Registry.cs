@@ -54,6 +54,9 @@ public sealed partial class Registry : IAsyncDisposable
         new Dictionary<string, ThreadWorkSnapshot>(StringComparer.Ordinal));
     private readonly Dictionary<ResourceKey, WorkResource> _workResources = new();
     private readonly ThreadContentRuntime? _contentRuntime;
+    // Optional until a profile is prepared; once bound, this is the profile-owned
+    // additive Booru catalog used by the later search/queue slices.
+    private BooruCatalogStore? _booruCatalog;
     private string _outputDirectory;
     private TimeSpan _threadInterval;
     private TimeSpan _boardInterval;
@@ -187,6 +190,8 @@ public sealed partial class Registry : IAsyncDisposable
     public bool IsPaused => _queue.IsPaused;
     /// <summary>Cumulative received media bytes for the current session, including failed attempts.</summary>
     public long ReceivedMediaBytes => _queue.ReceivedMediaBytes;
+    /// <summary>Profile-bound additive Booru metadata store, available after producer preparation.</summary>
+    internal BooruCatalogStore? BooruCatalog => _booruCatalog;
     public void SetPaused(bool paused) => SetPausedAsync(paused).GetAwaiter().GetResult();
 
     public async Task SetPausedAsync(bool paused)

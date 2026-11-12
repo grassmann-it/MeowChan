@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using MeowChan.Archive;
 using MeowChan.Boards.Base;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
@@ -41,6 +42,7 @@ public sealed partial class Registry
                 throw new InvalidOperationException("Registry already prepared, activated or stopping.");
             ValidateStartupComposition(lease);
             _queue.ValidateProfileLeaseBinding(lease);
+            _booruCatalog ??= new BooruCatalogStore(lease.ProfileDirectory, lease);
             lease.ClaimStartupOwner(this);
             _queue.BindProfileLease(lease);
             _producerLease = lease;
@@ -53,7 +55,7 @@ public sealed partial class Registry
 
     private ProfileLease? BoundProfileLease => _producerLease ?? (_workStore as WorkStateStore)?.ProfileLease
         ?? (_sessionStore as SessionStore)?.ProfileLease ?? _boardAdmission?.ProfileLease
-        ?? _contentRuntime?.ProfileLease;
+        ?? _contentRuntime?.ProfileLease ?? _booruCatalog?.ProfileLease;
 
     private void ValidateRegistryAdmission(ProfileAdmissionToken? admission)
     {
