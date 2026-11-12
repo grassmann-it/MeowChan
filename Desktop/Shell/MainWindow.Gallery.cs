@@ -169,7 +169,7 @@ public partial class MainWindow
         }
         _galleryCancellation = new CancellationTokenSource();
         // A gallery opened from the Medien grid closes back to it (CloseGallery focuses the tile), so its close action says so.
-        _gallery = new GalleryViewer { ClosesToMedia = origin != null && ReferenceEquals(origin, _mediaPage?.Grid) };
+        _gallery = new GalleryViewer { ClosesToMedia = origin != null && ReferenceEquals(origin, _mediaPage?.Grid), ProviderContext = BooruGalleryContext };
         UpdateMediaReturn(); // the gallery owns the way back while it is open
         GalleryViewer diagnosticOwner = _gallery;
         _gallery.DiagnosticNotice += notice =>

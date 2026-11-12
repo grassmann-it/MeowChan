@@ -32,6 +32,18 @@ internal sealed partial class DesktopSessionHost
         Volatile.Write(ref _passiveFavorites, new(entries, entries.Select(entry => entry.Key).ToFrozenSet()));
     }
 
+    /// <summary>
+    /// The local Booru catalog for read-only views (media page, gallery, favorites). Null when it cannot be read; an
+    /// unreadable or newer catalog is never turned into "no posts". Nothing here reaches a provider.
+    /// </summary>
+    internal BooruCatalogSnapshot? ReadBooruCatalog()
+    {
+        if (_disposed || _registry.BooruCatalog is not { } store) return null;
+        try { return store.Read(); }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException)
+        { return null; }
+    }
+
     /// <summary>Passive immutable index. Loading and writes belong to the background owner.</summary>
     internal IReadOnlyList<FavoriteEntry> GetFavorites()
     {
@@ -131,6 +143,11 @@ internal sealed partial class DesktopSessionHost
                         .ConfigureAwait(false);
                     directories.AddRange(archived);
                 }
+                // A downloaded provider post is no archived thread: its folder is the one the catalog linked to its original.
+                if (BooruMediaIdentity.TryGetPostId(group.Key, out string booruPost) && ReadBooruCatalog() is { } booru
+                    && booru.Posts.FirstOrDefault(post => post.SourceId == BooruMediaIdentity.Source && post.PostId == booruPost) is { } booruRecord
+                    && BooruMediaProjection.DirectoryOf(booruRecord) is { } booruDirectory)
+                    directories.Add(booruDirectory);
                 try
                 {
                     directories.Add(StorageLayout.GetThreadDirectory(Config.DownloadPath,

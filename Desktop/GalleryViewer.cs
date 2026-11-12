@@ -186,6 +186,11 @@ internal sealed partial class GalleryViewer : UserControl
     internal event Action<GalleryEntry>? ExportOriginalRequested;
     internal event Action<GalleryEntry>? ShowInFolderRequested;
     internal event Action<GalleryEntry>? DetailsRequested;
+    /// <summary>
+    /// Extra context lines for an entry that is not a chan post (a downloaded provider medium), or null. The owner supplies
+    /// them from local data; the viewer only shows them in place of the "no post" line.
+    /// </summary>
+    internal Func<GalleryEntry, IReadOnlyList<string>?>? ProviderContext { get; set; }
     internal event Action<int>? VideoVolumeChanged;
 
     internal bool IsOverlayOpen => _helpOpen || _contextOpen || IsFavoriteConfirmOpen;
@@ -1121,7 +1126,13 @@ internal sealed partial class GalleryViewer : UserControl
                 };
                 _context.Children.Add(selector);
             }
-            if (entry.Post is not { } post) { AddContext(Texts.T("gallery.noPost")); return; }
+            if (entry.Post is not { } post)
+            {
+                IReadOnlyList<string>? provider = ProviderContext?.Invoke(entry);
+                if (provider == null) AddContext(Texts.T("gallery.noPost"));
+                else foreach (string line in provider) AddContext(line);
+                return;
+            }
             AddContext("#" + post.PostId + " · " + ArchivePresentation.PlainText(post.Author) + " · " + post.PostedAt?.ToString("g", Texts.Culture));
             AddContext(ArchivePresentation.PlainText(post.Subject));
             AddContext(ArchivePresentation.PlainText(post.Html));

@@ -67,7 +67,7 @@ internal static class MediaLibrarySelection
 }
 
 /// <summary>Why one occurrence cannot take a media tag.</summary>
-internal enum MediaTagBlock { None, NotSaved, NoPostVersion }
+internal enum MediaTagBlock { None, NotSaved, NoPostVersion, ProviderMedium }
 
 /// <summary>
 /// One occurrence offered to the tag dialog and the exact tag subject it would be written to (null: not taggable).
@@ -76,7 +76,8 @@ internal enum MediaTagBlock { None, NotSaved, NoPostVersion }
 internal sealed record MediaTagCandidate(MediaLibraryEntry Entry, MediaTagSubject? Subject)
 {
     internal MediaTagBlock Block => Subject != null ? MediaTagBlock.None
-        : Entry.Presence != MediaLibraryPresence.Present ? MediaTagBlock.NotSaved : MediaTagBlock.NoPostVersion;
+        : Entry.Presence != MediaLibraryPresence.Present ? MediaTagBlock.NotSaved
+        : Entry.BooruPostId != null ? MediaTagBlock.ProviderMedium : MediaTagBlock.NoPostVersion;
 }
 
 /// <summary>

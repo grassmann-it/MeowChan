@@ -39,6 +39,12 @@ The scheduler, port and window codes of the Danbooru window (`BooruCodeCatalog`,
 (`booru.ui.watcher.restart*`, `booru.ui.watcher.msg.restarted`) are unreviewed machine
 translations in es/fr/ru as well.
 
+The es/fr/ru entries of `BooruMediaCatalog` (keys `booru.media.*`: source badge, post
+details of downloaded Danbooru media, provider data and source tags shown apart from
+the user's own tags, finding labels and the statement that own tags are not available
+for provider media yet) are likewise **unreviewed machine translations**. Provider
+names and the word Danbooru legitimately match English.
+
 The es/fr/ru texts of the bundled repair/reselection review dialog's batch
 approval are likewise **unreviewed machine translations of consent texts**:
 `plugins.approval.submit`, `plugins.approval.submitOne`, `plugins.approval.reload`,

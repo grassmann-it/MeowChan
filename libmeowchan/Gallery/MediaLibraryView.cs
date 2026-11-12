@@ -85,19 +85,32 @@ internal static class MediaLibraryGallery
 {
     internal static async Task<IReadOnlyList<GalleryEntry>> ResolveAsync(IReadOnlyList<MediaLibraryEntry> entries,
         Func<CancellationToken, Task<ArchiveReader>> openReader,
-        Func<string, CancellationToken, Task<MediaAssetSnapshot>> openManifest, CancellationToken cancellationToken = default)
+        Func<string, CancellationToken, Task<MediaAssetSnapshot>> openManifest, CancellationToken cancellationToken = default,
+        Func<BooruCatalogSnapshot?>? readBooruCatalog = null)
     {
         ArgumentNullException.ThrowIfNull(entries);
         Dictionary<(ResourceId, string, string, string?, int?), GalleryEntry> found = new();
-        await using ArchiveReader reader = await openReader(cancellationToken).ConfigureAwait(false);
-        foreach (ResourceId thread in entries.Where(entry => entry.Presence == MediaLibraryPresence.Present)
-            .Select(entry => entry.Thread).Distinct())
+        Dictionary<MediaLibraryEntry, GalleryEntry> booru = new();
+        BooruCatalogSnapshot? catalog = null;
+        bool catalogRead = false;
+        foreach (MediaLibraryEntry provider in entries.Where(entry => entry.BooruPostId != null && entry.Presence == MediaLibraryPresence.Present))
+        {
+            if (!catalogRead) { catalog = readBooruCatalog == null ? null : ReadCatalog(readBooruCatalog); catalogRead = true; }
+            if (await BooruMediaGallery.ResolveAsync(provider, catalog, openManifest, cancellationToken).ConfigureAwait(false) is { } resolved)
+                booru.TryAdd(provider, resolved);
+        }
+        ResourceId[] archived = entries.Where(entry => entry.Presence == MediaLibraryPresence.Present && entry.BooruPostId == null)
+            .Select(entry => entry.Thread).Distinct().ToArray();
+        // Provider media need no archive catalog, so a profile without one still resolves them.
+        await using ArchiveReader? reader = archived.Length == 0 && entries.Any(entry => entry.BooruPostId != null)
+            ? null : await openReader(cancellationToken).ConfigureAwait(false);
+        foreach (ResourceId thread in archived)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ArchivedThreadView? view = await reader.ReadThreadAsync(thread, cancellationToken).ConfigureAwait(false);
+            ArchivedThreadView? view = await reader!.ReadThreadAsync(thread, cancellationToken).ConfigureAwait(false);
             if (view == null) continue;
             List<MediaAssetSnapshot> manifests = new();
-            foreach (string directory in (await reader.GetMediaDirectoriesAsync(thread, cancellationToken).ConfigureAwait(false)).Distinct(StringComparer.Ordinal))
+            foreach (string directory in (await reader!.GetMediaDirectoriesAsync(thread, cancellationToken).ConfigureAwait(false)).Distinct(StringComparer.Ordinal))
             {
                 try { manifests.Add(await openManifest(directory, cancellationToken).ConfigureAwait(false)); }
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException) { }
@@ -107,9 +120,19 @@ internal static class MediaLibraryGallery
         }
         List<GalleryEntry> result = new();
         foreach (MediaLibraryEntry entry in entries)
+        {
+            if (entry.BooruPostId != null) { if (booru.TryGetValue(entry, out GalleryEntry? provider)) result.Add(provider); continue; }
             if (entry.Presence == MediaLibraryPresence.Present && entry.Directory != null && entry.AssetId != null
                 && found.TryGetValue((entry.Thread, entry.Directory, entry.AssetId, entry.PostId, entry.Position), out GalleryEntry? match))
                 result.Add(match);
+        }
         return result;
+    }
+
+    // An unreadable catalog resolves nothing for provider media: they are left out, never guessed.
+    private static BooruCatalogSnapshot? ReadCatalog(Func<BooruCatalogSnapshot?> read)
+    {
+        try { return read(); }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException) { return null; }
     }
 }

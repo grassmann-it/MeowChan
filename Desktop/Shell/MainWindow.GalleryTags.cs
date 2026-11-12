@@ -24,8 +24,8 @@ public partial class MainWindow
         MediaTagSubject? target = MediaTagSubjects.Of(current, out GalleryMediaTagUnavailable reason);
         if (target == null)
         {
-            _gallery.SetMediaTags(null, Texts.T(reason == GalleryMediaTagUnavailable.NoPostVersion
-                ? "tags.media.boundElsewhere" : "tags.media.unsupported"));
+            _gallery.SetMediaTags(null, Texts.T(BooruMediaIdentity.IsBooruThread(current.Key.Thread) ? "booru.media.tags.unavailable"
+                : reason == GalleryMediaTagUnavailable.NoPostVersion ? "tags.media.boundElsewhere" : "tags.media.unsupported"));
             return;
         }
         PrivateTagLoadSnapshot loaded = _session.GetPublishedPrivateTagSnapshot();

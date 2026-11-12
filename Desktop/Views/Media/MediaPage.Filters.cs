@@ -271,9 +271,9 @@ public sealed partial class MediaPage
         string? selected = (_sourceFilter.SelectedItem as Choice)?.Value;
         List<Choice> options = new[] { new Choice(null, Texts.T("media.filter.anySource")) }
             .Concat(entries.Select(entry => entry.Thread.Source).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
-                .Select(source => new Choice(source, source))).ToList();
+                .Select(source => new Choice(source, SourceLabel(source)))).ToList();
         if (selected != null && !options.Any(option => option.Value == selected))
-            options.Add(new Choice(selected, UnavailableOption(selected)));
+            options.Add(new Choice(selected, UnavailableOption(SourceLabel(selected))));
         bool localizing = _localizing;
         _localizing = true;
         try
@@ -284,6 +284,9 @@ public sealed partial class MediaPage
         finally { _localizing = localizing; }
         RenderBoardOptions();
     }
+
+    // The provider source is shown by its name; chan sources keep their identifier.
+    private static string SourceLabel(string source) => source == BooruMediaIdentity.Source ? Texts.T("booru.media.source") : source;
 
     private void RenderBoardOptions()
     {

@@ -148,6 +148,7 @@ internal sealed class MediaSelectionTagDialog : Window
         {
             MediaTagBlock.NotSaved => text + " — " + Texts.T("media.tile.missing"),
             MediaTagBlock.NoPostVersion => text + " — " + Texts.T("tags.media.boundElsewhere"),
+            MediaTagBlock.ProviderMedium => text + " — " + Texts.T("booru.media.tags.unavailable"),
             _ => text
         };
     }

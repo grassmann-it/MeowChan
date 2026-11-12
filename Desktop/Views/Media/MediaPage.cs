@@ -9,6 +9,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media.Imaging;
@@ -68,6 +69,15 @@ public sealed partial class MediaPage : UserControl
     // the page means menu construction never resolves a selected row at invocation time.
     internal Func<string, MediaLibraryEntry, Func<bool>, Task>? ExecuteMediaMenuActionAsync { get; set; }
     internal Func<string, MediaLibraryEntry, string?>? MediaMenuActionUnavailableReason { get; set; }
+    /// <summary>
+    /// Read-only access to the local Booru catalog (downloaded provider posts). Null: the page shows archived media only.
+    /// An unreadable catalog (the function returns null) keeps the provider media the previous index showed.
+    /// </summary>
+    internal Func<BooruCatalogSnapshot?>? ReadBooruCatalog { get; set; }
+    /// <summary>Opens a provider post page; the shell supplies the browser launcher, tests a recorder.</summary>
+    internal Func<Uri, Task>? OpenProviderPage { get; set; }
+    /// <summary>Copies a provider post address to the clipboard; the default uses this page's clipboard.</summary>
+    internal Func<Uri, Task>? CopyProviderPage { get; set; }
     internal Func<MediaLibraryEntry, Func<bool>, Task>? EditTagsForMenuAsync { get; set; }
     internal ContextMenu? MediaMenu { get; private set; }
     internal Task BuildTask { get; private set; } = Task.CompletedTask;
@@ -148,8 +158,9 @@ public sealed partial class MediaPage : UserControl
         try
         {
             MediaLibrarySnapshot? previous = force ? null : _snapshot;
+            Func<BooruCatalogSnapshot?>? readBooru = ReadBooruCatalog;
             MediaLibrarySnapshot built = await Task.Run(() => MediaLibraryIndexBuilder.BuildAsync(_openReader, _openManifest,
-                previous, progress, building.Token), building.Token);
+                previous, progress, building.Token, readBooru), building.Token);
             if (!ReferenceEquals(_building, building)) return;
             _snapshot = built;
             if (_cachePath != null)
@@ -208,6 +219,8 @@ public sealed partial class MediaPage : UserControl
         if (_progress is { } progress && progress.ThreadsTotal > 0) parts.Add(Texts.T("media.indexing", progress.ThreadsDone, progress.ThreadsTotal));
         if (_snapshot != null) parts.Add(_filterActive && !_filterFailed ? Texts.T("media.filter.count", _shown.Count, _unfiltered)
             : missing > 0 ? Texts.T("media.countMissing", _shown.Count, threads, missing) : Texts.T("media.count", _shown.Count, threads));
+        if (_snapshot != null && _snapshot.Entries.Count(entry => entry.BooruPostId != null) is > 0 and int provider)
+            parts.Add(Texts.T("booru.media.statusCount", provider));
         if (_snapshot is { Complete: false } && _building == null) parts.Add(Texts.T("media.incomplete"));
         if (_failed) parts.Add(Texts.T("media.failed"));
         if (_snapshot == null && _building == null && !_failed && !_available) parts.Add(Texts.T("media.notReady"));
@@ -280,6 +293,40 @@ public sealed partial class MediaPage : UserControl
     internal async Task EditSelectedTagsAsync()
     {
         if (SelectedTiles.Count == 1 && SelectedRow is { State.CanEditMediaTags: true } row && EditTags != null) await EditTags(row.Entry);
+    }
+
+    /// <summary>The post address of a provider medium as the catalog states it, validated; null for any other entry.</summary>
+    internal Uri? ProviderPostUrl(MediaLibraryEntry entry)
+    {
+        if (entry.BooruPostId is not { } postId) return null;
+        BooruPostRecord? record = null;
+        try { record = ReadBooruCatalog?.Invoke()?.Posts.FirstOrDefault(post => post.SourceId == BooruMediaIdentity.Source && post.PostId == postId); }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException) { }
+        return BooruMediaIdentity.PostUrl(postId, record?.Post.PostUrl);
+    }
+
+    internal async Task OpenProviderPostAsync(MediaLibraryEntry entry)
+    {
+        if (ProviderPostUrl(entry) is not { } url) return;
+        try
+        {
+            await (OpenProviderPage?.Invoke(url) ?? ExternalLauncher.OpenAsync(url.AbsoluteUri));
+            ShowSelectionNote(null);
+        }
+        catch (Exception error) when (error is not OutOfMemoryException) { ShowSelectionNote(Texts.T("booru.media.openFailed")); }
+    }
+
+    internal async Task CopyProviderPostAsync(MediaLibraryEntry entry)
+    {
+        if (ProviderPostUrl(entry) is not { } url) return;
+        try
+        {
+            if (CopyProviderPage != null) await CopyProviderPage(url);
+            else if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard) await clipboard.SetTextAsync(url.AbsoluteUri);
+            else throw new InvalidOperationException("The clipboard is unavailable.");
+            ShowSelectionNote(Texts.T("booru.media.copied"));
+        }
+        catch (Exception error) when (error is not OutOfMemoryException) { ShowSelectionNote(Texts.T("booru.media.copyFailed")); }
     }
 
     internal async Task ShowSelectedInThreadAsync()
@@ -462,6 +509,11 @@ public sealed partial class MediaPage : UserControl
                 present && ExecuteMediaMenuActionAsync != null, Current, Texts.T("media.selection.reason.unavailable")));
             items.Add(CommandMenuItem(entry, "media.details", () => ExecuteMediaActionAsync("media.details", entry, Current),
                 present && ExecuteMediaMenuActionAsync != null, Current, Texts.T("archive.notSaved")));
+            if (entry.BooruPostId != null)
+            {
+                items.Add(LocalizedMenuItem("booru.media.openPost", _ => OpenProviderPostAsync(entry), () => single && Current()));
+                items.Add(LocalizedMenuItem("booru.media.copyPost", _ => CopyProviderPostAsync(entry), () => single && Current()));
+            }
             items.Add(new Separator());
             items.Add(CommandMenuItem(entry, "gallery.show-in-thread", () => ShowInThread == null || entry.PostId == null
                     ? Task.CompletedTask : ShowInThread(entry),
@@ -512,7 +564,8 @@ public sealed partial class MediaPage : UserControl
     // Only reached when the shared resolver offered no target: a loose view of a file that is shown bound elsewhere
     // (or whose thread has a damaged manifest), or an invalid identity.
     private static string UnboundTagReason(MediaLibraryEntry entry) =>
-        entry.AttachmentRevisionKey == null && entry.LocalSlot == null
+        entry.BooruPostId != null ? Texts.T("booru.media.tags.unavailable")
+        : entry.AttachmentRevisionKey == null && entry.LocalSlot == null
             ? Texts.T("tags.media.boundElsewhere") : Texts.T("tags.media.unsupported");
 
     private MenuItem CommandMenuItem(MediaLibraryEntry entry, string id, Func<Task> action, bool available, Func<bool> current, string reason)

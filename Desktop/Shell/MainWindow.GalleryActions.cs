@@ -6,6 +6,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
 using MeowChan.Desktop;
@@ -106,6 +107,11 @@ public partial class MainWindow
     private async Task ShowGalleryDetailsAsync(GalleryEntry entry)
     {
         var origin = FocusManager?.GetFocusedElement() as Control;
+        if (BooruMediaIdentity.TryGetPostId(entry.Key.Thread, out string booruPost))
+        {
+            await ShowBooruMediaDetailsAsync(entry, booruPost, origin);
+            return;
+        }
         Window dialog = new()
         {
             Name = "GalleryDetailsDialog", Title = CommandCatalog.Label("thread.details"), Width = 600, Height = 360,
@@ -130,5 +136,57 @@ public partial class MainWindow
         dialog.KeyDown += (_, key) => { if (key.Key == Key.Escape) { key.Handled = true; dialog.Close(); } };
         await dialog.ShowDialog(this);
         if (origin?.IsEffectivelyVisible == true) origin.Focus();
+    }
+}
+
+public partial class MainWindow
+{
+    internal BooruMediaDetailsDialog? BooruDetailsWindow { get; private set; }
+    // Test seams: no browser is ever started and the clipboard is only touched when the shell has one.
+    internal Func<Uri, Task>? OpenProviderPageForTests { get; set; }
+
+    // Context lines of the gallery panel for a downloaded provider medium: source, post and the provider's own rating.
+    private IReadOnlyList<string>? BooruGalleryContext(GalleryEntry entry)
+    {
+        if (!BooruMediaIdentity.TryGetPostId(entry.Key.Thread, out string postId)) return null;
+        List<string> lines = new() { Texts.T("booru.media.tile.post", postId) };
+        try
+        {
+            if (_session.ReadBooruCatalog() is { } catalog && BooruMediaProjection.Find(catalog, postId) is { } details)
+            {
+                lines.Add(Texts.T("booru.rating.label") + ": " + (details.RatingKnown ? BooruMessages.Rating(details.Rating) : Texts.T("booru.field.absent")));
+                if (details.Tags.Count > 0) lines.Add(Texts.T("booru.media.gallery.tags", details.Tags.Count));
+            }
+        }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException) { }
+        return lines;
+    }
+
+    // The same details for a downloaded provider medium from the media page and from the gallery. Local data only.
+    private async Task ShowBooruMediaDetailsAsync(GalleryEntry entry, string postId, Control? origin)
+    {
+        BooruMediaDetails? details = null;
+        try { if (_session.ReadBooruCatalog() is { } catalog) details = BooruMediaProjection.Find(catalog, postId, localFilePresent: true); }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException) { }
+        string[] file =
+        {
+            entry.Asset.OriginalFileName ?? entry.Asset.RequestedFileName,
+            MediaProvenanceText.LocalSize(entry.Asset.Length),
+            "SHA-256: " + entry.Asset.Sha256
+        };
+        BooruMediaDetailsDialog dialog = new(postId, file, details,
+            url => OpenProviderPageForTests?.Invoke(url) ?? ExternalLauncher.OpenAsync(url.AbsoluteUri),
+            async url =>
+            {
+                if (Clipboard == null) throw new InvalidOperationException("Clipboard is unavailable.");
+                await Clipboard.SetTextAsync(url.AbsoluteUri);
+            });
+        BooruDetailsWindow = dialog;
+        try { await dialog.ShowDialog(this); }
+        finally
+        {
+            BooruDetailsWindow = null;
+            if (!_isClosing && origin?.IsEffectivelyVisible == true) origin.Focus();
+        }
     }
 }

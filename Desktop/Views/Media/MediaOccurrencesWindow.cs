@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -16,7 +17,7 @@ namespace MeowChan.Desktop;
 internal sealed class MediaOccurrencesWindow : Window
 {
     internal MediaOccurrencesWindow(MediaLibraryTile tile, Func<MediaLibraryEntry, string> tagsOf, Func<MediaLibraryEntry, bool> canJump,
-        Action<MediaLibraryEntry> showInThread)
+        Action<MediaLibraryEntry> showInThread, Func<MediaLibraryEntry, string?>? providerOf = null)
     {
         Name = "MediaOccurrences";
         Title = Texts.T("media.occurrences.title", tile.Entry.Name ?? tile.Entry.MediaId ?? string.Empty);
@@ -32,17 +33,23 @@ internal sealed class MediaOccurrencesWindow : Window
         {
             string board = Texts.T("media.filter.boardOfSource", entry.Thread.Board, entry.Thread.Source);
             string thread = string.IsNullOrWhiteSpace(entry.ThreadTitle) ? "#" + entry.Thread.Thread : entry.ThreadTitle;
-            TextBlock where = new() { Name = "MediaOccurrenceWhere", Text = board + " · " + thread, TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+            // A provider medium is told apart by its source and post, and lists every finding that brought it here.
+            string? provider = entry.BooruPostId == null ? null : providerOf?.Invoke(entry);
+            TextBlock where = new() { Name = "MediaOccurrenceWhere", TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                Text = entry.BooruPostId == null ? board + " · " + thread : Texts.T("booru.media.badge") + " · " + Texts.T("booru.media.tile.post", entry.BooruPostId) };
             where.Classes.Add("section-title");
             TextBlock file = new() { Name = "MediaOccurrenceFile", TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                Text = string.Join(" · ", new[] { entry.Name ?? entry.MediaId ?? string.Empty, entry.PostId == null ? Texts.T("media.tile.unassigned") : "#" + entry.PostId }) };
+                Text = string.Join(" · ", new[] { entry.Name ?? entry.MediaId ?? string.Empty,
+                    entry.BooruPostId != null ? string.Empty : entry.PostId == null ? Texts.T("media.tile.unassigned") : "#" + entry.PostId }.Where(part => part.Length > 0)) };
             TextBlock tags = new() { Name = "MediaOccurrenceTags", Text = tagsOf(entry), TextWrapping = Avalonia.Media.TextWrapping.Wrap };
-            foreach (TextBlock text in new[] { file, tags }) text.Classes.Add("workspace-meta");
+            TextBlock claims = new() { Name = "MediaOccurrenceFindings", Text = provider ?? string.Empty, TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                IsVisible = !string.IsNullOrEmpty(provider) };
+            foreach (TextBlock text in new[] { file, tags, claims }) text.Classes.Add("workspace-meta");
             Button show = new() { Name = "MediaOccurrenceShow", Content = Texts.T("media.showInThread"), IsEnabled = canJump(entry),
                 HorizontalAlignment = HorizontalAlignment.Left };
             show.Click += (_, _) => showInThread(entry);
-            string description = string.Join(Environment.NewLine, where.Text, file.Text, tags.Text);
-            StackPanel row = new() { Name = "MediaOccurrence", Spacing = 4, Children = { where, file, tags, show } };
+            string description = string.Join(Environment.NewLine, new[] { where.Text, file.Text, tags.Text, claims.Text }.Where(part => !string.IsNullOrEmpty(part)));
+            StackPanel row = new() { Name = "MediaOccurrence", Spacing = 4, Children = { where, file, claims, tags, show } };
             AutomationProperties.SetName(row, description);
             rows.Children.Add(new Border { Child = row, Padding = new Thickness(8), Classes = { "panel" } });
         }

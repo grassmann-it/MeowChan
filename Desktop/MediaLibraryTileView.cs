@@ -26,9 +26,12 @@ internal sealed record MediaLibraryTileRow(MediaLibraryTile Tile, int Index, Fun
     /// <summary>The occurrence the tile shows; gallery, thumbnail and "show in thread" use it.</summary>
     public MediaLibraryEntry Entry => Tile.Entry;
     public string Name => Entry.Name ?? Entry.MediaId ?? string.Empty;
-    public string ThreadLabel => Texts.T("media.tile.thread", string.IsNullOrWhiteSpace(Entry.ThreadTitle) ? "#" + Entry.Thread.Thread : Entry.ThreadTitle);
+    /// <summary>True for a downloaded provider medium (Danbooru): it has a post of the provider, not a chan thread.</summary>
+    public bool IsProviderMedium => Entry.BooruPostId != null;
+    public string ThreadLabel => IsProviderMedium ? Texts.T("booru.media.tile.post", Entry.BooruPostId!)
+        : Texts.T("media.tile.thread", string.IsNullOrWhiteSpace(Entry.ThreadTitle) ? "#" + Entry.Thread.Thread : Entry.ThreadTitle);
     public string Detail => Entry.Presence == MediaLibraryPresence.Missing ? Texts.T("media.tile.missing")
-        : Entry.Unassigned ? Texts.T("media.tile.unassigned")
+        : Entry.Unassigned && !IsProviderMedium ? Texts.T("media.tile.unassigned")
         : Entry.Length is long length ? (length / 1_000_000d).ToString("0.###", Texts.Culture) + " MB" : string.Empty;
     public string DetailWithState => State is { } state && MediaLibraryStateText.Compact(state, Tile.IsGroup) is { Length: > 0 } compact
         ? (Detail.Length == 0 ? compact : Detail + " · " + compact) : Detail;
@@ -64,6 +67,10 @@ internal sealed class MediaLibraryTileView : UserControl
     private readonly Border _selectedMark = new() { Name = "MediaTileSelected", IsVisible = false, Padding = new Thickness(5, 1), CornerRadius = new CornerRadius(8),
         HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 2, 0),
         Child = new TextBlock { Text = "✓", FontWeight = FontWeight.Bold, FontSize = 12 } };
+    // Downloaded provider media carry a small source badge next to the preview, so they are told apart without opening anything.
+    private readonly Border _providerBadge = new() { Name = "MediaTileProvider", IsVisible = false, Padding = new Thickness(5, 1), CornerRadius = new CornerRadius(8),
+        HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(2, 2, 0, 0),
+        Child = new TextBlock { FontWeight = FontWeight.SemiBold, FontSize = 11 } };
     private readonly TextBlock _favorite = new() { Name = "MediaTileFavorite", MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 11, IsVisible = false };
     private IDisposable? _selection;
     private Bitmap? _bitmap;
@@ -89,7 +96,11 @@ internal sealed class MediaLibraryTileView : UserControl
         Grid preview = new() { Height = 120, MaxWidth = 174 };
         _selectedMark[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Accent");
         ((TextBlock)_selectedMark.Child!)[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Background");
-        preview.Children.Add(_image); preview.Children.Add(_placeholder); preview.Children.Add(_selectedMark);
+        _providerBadge[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.AccentSurface");
+        _providerBadge[!Border.BorderBrushProperty] = new DynamicResourceExtension("Workspace.Border");
+        _providerBadge.BorderThickness = new Thickness(1);
+        ((TextBlock)_providerBadge.Child!)[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
+        preview.Children.Add(_image); preview.Children.Add(_placeholder); preview.Children.Add(_providerBadge); preview.Children.Add(_selectedMark);
         Grid grid = new() { Margin = new Thickness(6, 6, 6, 4), RowDefinitions = new RowDefinitions("120,Auto,Auto,Auto,Auto"), RowSpacing = 3 };
         grid.Children.Add(preview);
         grid.Children.Add(_name); Grid.SetRow(_name, 1);
@@ -144,6 +155,8 @@ internal sealed class MediaLibraryTileView : UserControl
         MediaLibraryTileRow? row = DataContext as MediaLibraryTileRow;
         _name.Text = row?.Name;
         _thread.Text = row?.ThreadLabel;
+        _providerBadge.IsVisible = row?.IsProviderMedium == true;
+        ((TextBlock)_providerBadge.Child!).Text = _providerBadge.IsVisible ? Texts.T("booru.media.badge") : null;
         string threadHint = row == null ? string.Empty : Texts.T("media.filter.threadHint", row.ThreadLabel);
         ToolTip.SetTip(_threadLink, threadHint);
         AutomationProperties.SetName(_threadLink, threadHint);
@@ -157,7 +170,7 @@ internal sealed class MediaLibraryTileView : UserControl
         ToolTip.SetTip(_duplicatesLink, duplicatesHint);
         AutomationProperties.SetName(_duplicatesLink, duplicatesHint);
         _placeholder.Text = row?.Entry.Presence == MediaLibraryPresence.Missing ? Texts.T("media.tile.missing") : string.Empty;
-        string description = row == null ? string.Empty : string.Join(Environment.NewLine, new[] { row.Name, row.ThreadLabel, row.Duplicates, row.FavoriteLabel, row.Detail, row.StateDescription }.Where(part => part.Length > 0));
+        string description = row == null ? string.Empty : string.Join(Environment.NewLine, new[] { row.Name, row.IsProviderMedium ? Texts.T("booru.media.badge") : string.Empty, row.ThreadLabel, row.Duplicates, row.FavoriteLabel, row.Detail, row.StateDescription }.Where(part => part.Length > 0));
         ToolTip.SetTip(this, description);
         AutomationProperties.SetName(this, description);
     }

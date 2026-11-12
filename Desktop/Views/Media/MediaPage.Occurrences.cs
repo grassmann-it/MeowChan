@@ -2,6 +2,8 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using System.IO;
+using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
@@ -22,11 +24,28 @@ public sealed partial class MediaPage
         ArgumentNullException.ThrowIfNull(tile);
         if (_lifetime.IsCancellationRequested) return;
         _occurrences?.Close();
+        // One catalog read per window; each provider occurrence lists the findings that brought it here.
+        BooruCatalogSnapshot? catalog = tile.Occurrences.Any(entry => entry.BooruPostId != null) ? SafeReadBooruCatalog() : null;
         MediaOccurrencesWindow window = new(tile, OccurrenceTags, entry => entry.PostId != null && ShowInThread != null,
-            entry => _ = ShowOccurrenceInThreadAsync(entry));
+            entry => _ = ShowOccurrenceInThreadAsync(entry), entry => ProviderFindings(catalog, entry));
         _occurrences = window;
         window.Closed += (_, _) => { if (ReferenceEquals(_occurrences, window)) _occurrences = null; };
         if (_owner != null) window.Show(_owner); else window.Show();
+    }
+
+    private BooruCatalogSnapshot? SafeReadBooruCatalog()
+    {
+        try { return ReadBooruCatalog?.Invoke(); }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException) { return null; }
+    }
+
+    // "Findings: Found by a search; Found by a watcher ×2". Several claims on one saved file are listed, never merged away.
+    private static string? ProviderFindings(BooruCatalogSnapshot? catalog, MediaLibraryEntry entry)
+    {
+        if (catalog == null || entry.BooruPostId == null || BooruMediaProjection.Find(catalog, entry.BooruPostId) is not { } details) return null;
+        string[] kinds = details.Findings.GroupBy(finding => finding.Kind).OrderBy(group => group.Key)
+            .Select(group => BooruMessages.Finding(group.Key) + (group.Count() > 1 ? " ×" + group.Count() : string.Empty)).ToArray();
+        return kinds.Length == 0 ? null : Texts.T("booru.media.occurrence.findings", string.Join("; ", kinds));
     }
 
     private async Task ShowOccurrenceInThreadAsync(MediaLibraryEntry entry)

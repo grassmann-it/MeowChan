@@ -25,7 +25,15 @@ internal sealed record MediaLibraryEntry(
     string? PostId, long? PostOrdinal, DateTimeOffset? PostedAt, int? Position, string? AttachmentRevisionKey,
     string? Directory, string? AssetId, string? Sha256, long? Length,
     string? MediaId, string Variant, string? Name, SavedMediaKind Kind,
-    MediaLibraryPresence Presence, bool Unassigned, bool Historical, string? LocalSlot = null);
+    MediaLibraryPresence Presence, bool Unassigned, bool Historical, string? LocalSlot = null)
+{
+    /// <summary>
+    /// The Danbooru post id when this is a downloaded provider medium (see <see cref="BooruMediaIdentity"/>), else null.
+    /// Additive projection field: such an entry has no chan post, no bound version and no local tag slot, and carries no
+    /// provider claims itself; the claims are read from the Booru catalog when a view needs them.
+    /// </summary>
+    internal string? BooruPostId { get; init; }
+}
 
 /// <summary>What one thread's entries were derived from; equal state means the entries can be reused.</summary>
 internal sealed record MediaLibraryThreadState(ResourceId Thread, long Revision,
@@ -73,7 +81,7 @@ internal static class MediaLibraryIndexBuilder
         Func<CancellationToken, Task<ArchiveReader>> openReader,
         Func<string, CancellationToken, Task<MediaAssetSnapshot>> openManifest,
         MediaLibrarySnapshot? previous = null, IProgress<MediaLibraryProgress>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, Func<BooruCatalogSnapshot?>? readBooruCatalog = null)
     {
         ArgumentNullException.ThrowIfNull(openReader);
         ArgumentNullException.ThrowIfNull(openManifest);
@@ -86,9 +94,15 @@ internal static class MediaLibraryIndexBuilder
         List<MediaLibraryThreadState> states = new();
         List<string> warnings = new();
         bool complete = true;
-        await using ArchiveReader reader = await openReader(cancellationToken).ConfigureAwait(false);
+        // A profile whose archive catalog does not exist yet can still hold downloaded provider media (Danbooru does not
+        // create archived threads), so a missing catalog only counts when there is nothing else to show.
+        ArchiveReader? reader = null;
+        FileNotFoundException? noArchive = null;
+        try { reader = await openReader(cancellationToken).ConfigureAwait(false); }
+        catch (FileNotFoundException error) when (readBooruCatalog != null) { noArchive = error; }
+        await using ArchiveReader? readerGuard = reader;
         List<ArchiveThreadSummary> threads = new();
-        for (int offset = 0; ; offset += ThreadPageSize)
+        for (int offset = 0; reader != null; offset += ThreadPageSize)
         {
             cancellationToken.ThrowIfCancellationRequested();
             ArchiveThreadPage page = await reader.ListThreadsAsync(offset, ThreadPageSize, cancellationToken).ConfigureAwait(false);
@@ -103,7 +117,7 @@ internal static class MediaLibraryIndexBuilder
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                IReadOnlyList<string> directories = await reader.GetMediaDirectoriesAsync(summary.Id, cancellationToken).ConfigureAwait(false);
+                IReadOnlyList<string> directories = await reader!.GetMediaDirectoriesAsync(summary.Id, cancellationToken).ConfigureAwait(false);
                 List<MediaAssetSnapshot> manifests = new();
                 List<MediaLibraryManifestState> manifestStates = new();
                 bool threadComplete = true;
@@ -134,7 +148,7 @@ internal static class MediaLibraryIndexBuilder
                 }
                 else
                 {
-                    ArchivedThreadView? view = await reader.ReadThreadAsync(summary.Id, cancellationToken).ConfigureAwait(false);
+                    ArchivedThreadView? view = await reader!.ReadThreadAsync(summary.Id, cancellationToken).ConfigureAwait(false);
                     if (view == null) { done++; continue; } // Removed between listing and reading.
                     entries.AddRange(EntriesOf(view, manifests));
                 }
@@ -151,6 +165,27 @@ internal static class MediaLibraryIndexBuilder
             done++;
             progress?.Report(new(done, threads.Count, reused));
         }
+        // Downloaded provider posts are always derived again from the local catalog (cheap, no thread revision to reuse).
+        // An unreadable catalog keeps what the previous index showed instead of making the local media vanish.
+        if (readBooruCatalog != null)
+        {
+            BooruCatalogSnapshot? booru = null;
+            try { booru = readBooruCatalog(); }
+            catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException) { }
+            if (booru == null)
+            {
+                entries.AddRange((previous?.Entries ?? Array.Empty<MediaLibraryEntry>()).Where(entry => entry.BooruPostId != null));
+                complete = false;
+                warnings.Add("Danbooru: the local catalog could not be read.");
+            }
+            else
+            {
+                (IReadOnlyList<MediaLibraryEntry> posts, int unreadable) = await BooruMediaProjection.EntriesAsync(booru, openManifest, cancellationToken).ConfigureAwait(false);
+                entries.AddRange(posts);
+                if (unreadable > 0) { complete = false; warnings.Add("Danbooru: " + unreadable + " media folder(s) could not be read."); }
+            }
+        }
+        if (noArchive != null && entries.Count == 0) throw noArchive;
         return new MediaLibrarySnapshot(entries, states, warnings, complete);
     }
 
