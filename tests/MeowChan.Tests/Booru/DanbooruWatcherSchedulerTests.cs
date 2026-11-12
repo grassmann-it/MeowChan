@@ -348,6 +348,66 @@ public sealed class DanbooruWatcherSchedulerTests
         Assert.Equal(DanbooruWatcherActivity.Error, scheduler.GetStatus(id)!.Activity);
     }
 
+    [Theory]
+    [InlineData("repeated", "cursor_did_not_advance")]
+    [InlineData("at-cursor", "cursor_did_not_advance")]
+    [InlineData("empty", "empty_page_did_not_advance")]
+    public async Task ACursorPageThatDoesNotMoveBelowItsCursorStopsVisiblyKeepsTheCursorAndResumesWithoutGaps(
+        string shape, string expectedCode)
+    {
+        using TempDirectory directory = new();
+        SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock);
+        CountingAdmission admission = new();
+        search.Publish("cat", 100);
+        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        scheduler.Load();
+        string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
+        await scheduler.RunNextAsync();
+        search.Publish("cat", Range(140, 40)); // 140..101: two full new pages, then the known post 100
+        clock.Advance(Interval);
+        search.Next((_, _) => null); // the newest page answers normally (140..121)
+        // A misbehaving provider answers the page below 121 with posts that are not below the cursor, or
+        // with an empty page although the results did not end.
+        search.Next((query, before) => new DanbooruWatcherSearchSnapshot(query, before, shape switch
+        {
+            "repeated" => Range(125, 20).Select(FakeDanbooruSearch.MinimalClaim).ToArray(),
+            "at-cursor" => Range(121, 20).Select(FakeDanbooruSearch.MinimalClaim).ToArray(),
+            _ => []
+        }, false));
+
+        DanbooruWatcherCheckSummary failed = (await scheduler.RunNextAsync())!;
+        Assert.Equal(DanbooruWatcherCheckKind.Failed, failed.Kind);
+        Assert.Equal(expectedCode, failed.Code);
+        Assert.Equal(new string?[] { null, null, "121" }, search.Cursors);
+        Assert.Equal(20, admission.QueuedCount); // only the newest page, nothing from the rejected page
+        BooruWatcherRecord stored = profile.Catalog.Read().Watchers.Single();
+        Assert.Equal("Error", stored.State);
+        Assert.Equal("121", stored.CursorBeforePostId);
+        Assert.Equal(expectedCode, scheduler.GetStatus(id)!.ErrorCode);
+        Assert.Equal(DanbooruWatcherActivity.Error, scheduler.GetStatus(id)!.Activity);
+
+        // The error survives a restart with its cursor and is never retried automatically.
+        await scheduler.DisposeAsync();
+        await profile.DisposeAsync();
+        await using SchedulerProfile reopened = new(directory.Path);
+        DanbooruWatcherScheduler restarted = new(reopened.Catalog, search, admission, clock, Options());
+        restarted.Load();
+        clock.Advance(Interval);
+        Assert.Null(await restarted.RunNextAsync());
+        Assert.Equal(3, search.CallCount);
+
+        // An explicit resume continues below the stored cursor: no gap, no duplicate, one HWM.
+        restarted.Resume(id);
+        DanbooruWatcherCheckSummary resumed = (await restarted.RunNextAsync())!;
+        Assert.Equal(DanbooruWatcherCheckKind.Completed, resumed.Kind);
+        Assert.Equal("121", search.Cursors[3]);
+        Assert.Equal(40, admission.QueuedCount);
+        Assert.All(admission.PerPost.Values, count => Assert.Equal(1, count));
+        Assert.Equal("140", reopened.Catalog.Read().Watchers.Single().HighWaterMark);
+    }
+
     [Fact]
     public async Task RestartFromNowAcceptsAGapNonDestructively()
     {
@@ -823,7 +883,8 @@ public sealed class DanbooruWatcherSchedulerTests
         DanbooruWatcherCheckSummary check = (await scheduler.RunNextAsync())!;
         Assert.Equal(DanbooruWatcherCheckKind.Completed, check.Kind);
         Assert.Equal(4, check.PagesRead);
-        Assert.Equal([null, "141", "121", "101"], search.Cursors.Skip(1).ToArray());
+        // The newest page, then every later page below the lowest id seen so far (page=b<id>).
+        Assert.Equal(new string?[] { null, "141", "121", "101" }, search.Calls.Skip(1).Select(call => call.Before).ToArray());
         Assert.Equal([1, 2, 2, 2, 2], search.CallSessions.ToArray());
         Assert.Equal(2, search.SessionsOpened);
         Assert.Equal(2, search.SessionsDisposed);

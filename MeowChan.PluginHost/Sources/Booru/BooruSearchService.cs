@@ -52,11 +52,13 @@ public sealed class BooruSearchService
     public async Task<BooruSearchResult> SearchBeforeAsync(IPluginWorkerClient worker, string sourceId,
         string userQuery, string beforePostId, CancellationToken cancellationToken = default)
     {
+        if (beforePostId is null)
+            return new BooruSearchFailure(sourceId, new FailureDetail(InvalidCursorCode, InvalidCursorMessage));
         using BooruSearchScope scope = OpenScope();
         return await SearchBeforeAsync(worker, sourceId, userQuery, beforePostId, scope, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>One page below <paramref name="beforePostId"/> inside a caller-owned scope.</summary>
+    /// <summary>One cursor page inside a caller-owned scope; it shares the scope's send and time budget.</summary>
     public Task<BooruSearchResult> SearchBeforeAsync(IPluginWorkerClient worker, string sourceId,
         string userQuery, string beforePostId, BooruSearchScope scope, CancellationToken cancellationToken = default)
     {

@@ -102,16 +102,18 @@ public sealed class BooruCheckScopeTests
         BooruWatcherSearchPort port = new(rig.Search, rig.Services, _ => Task.FromResult<IPluginWorkerClient?>(rig.Worker), rig.Clock);
         IDanbooruWatcherSearchPort core = port;
 
+        // The newest page and then cursor pages below it, more than the five numbered pages: one check, one id.
+        string?[] cursors = [null, "9000", "8000", "7000", "6000", "5000", "4000"];
         IDanbooruWatcherSearchSession check = core.OpenCheck();
-        // Five pages of one check (the source has no decimal order, so each is a newest-page request).
-        const int pages = 5;
-        for (int page = 1; page <= pages; ++page)
+        foreach (string? cursor in cursors)
         {
-            Assert.IsType<DanbooruWatcherSearchSnapshot>(await check.SearchAsync("cat", null, default));
+            DanbooruWatcherSearchSnapshot page = Assert.IsType<DanbooruWatcherSearchSnapshot>(await check.SearchAsync("cat", cursor, default));
+            Assert.Equal(cursor, page.BeforePostId);
             rig.Clock.Advance(TimeSpan.FromSeconds(1));
         }
         string checkId = rig.Worker.Operations.Select(operation => operation.ResourceId).Distinct().Single();
-        Assert.Equal(pages, rig.Worker.Operations.Count);
+        Assert.Equal(cursors.Length, rig.Worker.Operations.Count);
+        Assert.Equal(["1", "b9000", "b8000", "b7000", "b6000", "b5000", "b4000"], rig.Pages);
         Assert.StartsWith(BooruJob.ResourcePrefix, checkId, StringComparison.Ordinal);
         Assert.All(rig.Worker.Operations, operation => Assert.Equal(1, operation.Generation));
         check.Dispose();
@@ -135,17 +137,19 @@ public sealed class BooruCheckScopeTests
         using IDanbooruWatcherSearchSession check = ((IDanbooruWatcherSearchPort)port).OpenCheck();
         for (int index = 0; index < BooruHostHttp.MaximumSendsPerJob; ++index)
         {
-            Assert.IsType<DanbooruWatcherSearchSnapshot>(await check.SearchAsync("cat", null, default));
+            Assert.IsType<DanbooruWatcherSearchSnapshot>(await check.SearchAsync("cat",
+                index == 0 ? null : (10_000 - index).ToString(System.Globalization.CultureInfo.InvariantCulture), default));
             rig.Clock.Advance(TimeSpan.FromSeconds(1));
         }
         DanbooruWatcherSearchDeferred deferred = Assert.IsType<DanbooruWatcherSearchDeferred>(
-            await check.SearchAsync("cat", null, default));
+            await check.SearchAsync("cat", "42", default));
         Assert.Equal("booru-budget", deferred.ReasonCode);
         Assert.Equal(BooruHostHttp.MaximumSendsPerJob, rig.Sends);
     }
 
     private static SourceDescription DanbooruSource() => new("danbooru", "Danbooru", new("https://danbooru.test/"),
-        SourceCapabilities.PostSearch, [], [new("danbooru.test", HttpHostPurpose.Metadata)], new("1", []));
+        SourceCapabilities.PostSearch, [], [new("danbooru.test", HttpHostPurpose.Metadata)], new("1", []),
+        PostOrderKind.DecimalPostId);
 
     private sealed class Rig : IDisposable
     {
@@ -167,6 +171,9 @@ public sealed class BooruCheckScopeTests
         internal BooruSearchService Search { get; }
         internal RecordingWorker Worker { get; }
         internal int Sends => Volatile.Read(ref _sends);
+        private readonly List<string> _pages = new();
+        /// <summary>The raw <c>page</c> value of every request that reached the transport, in order.</summary>
+        internal string[] Pages { get { lock (_pages) return _pages.ToArray(); } }
 
         public void Dispose() { _http.Dispose(); _transport.Dispose(); }
 
@@ -175,6 +182,9 @@ public sealed class BooruCheckScopeTests
             protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
             {
                 Interlocked.Increment(ref owner._sends);
+                string page = request.RequestUri!.Query.TrimStart('?').Split('&')
+                    .Single(part => part.StartsWith("page=", StringComparison.Ordinal))["page=".Length..];
+                lock (owner._pages) owner._pages.Add(page);
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
                 {
                     Content = new StringContent("[]", Encoding.UTF8, "application/json")
@@ -198,7 +208,7 @@ public sealed class BooruCheckScopeTests
         {
             lock (_operations) _operations.Add(operation);
             HostHttpResult result = await services.SendHttpAsync(new HostHttpRequest(request.SourceId, HostHttpMethod.Get,
-                new($"https://danbooru.test/posts.json?tags={Uri.EscapeDataString(request.Query)}&page={request.Page}&limit={request.Limit}"),
+                new($"https://danbooru.test/posts.json?tags={Uri.EscapeDataString(request.Query)}&page={(request.BeforePostId is null ? request.Page.ToString(System.Globalization.CultureInfo.InvariantCulture) : "b" + request.BeforePostId)}&limit={request.Limit}"),
                 new Dictionary<string, string>()), operation, cancellationToken);
             switch (result)
             {

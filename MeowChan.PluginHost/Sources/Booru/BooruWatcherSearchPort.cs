@@ -12,8 +12,8 @@ namespace MeowChan.PluginHost.Sources.Booru;
 /// a continuation is requested below a post id (<c>page=b&lt;id&gt;</c>), never by page number. It adds no
 /// HTTP, pacing, retry or cooldown logic of its own; it only classifies results for the core watcher
 /// scheduler. One <see cref="IDanbooruWatcherSearchPort.OpenCheck"/> session owns one host operation scope
-/// (<see cref="BooruSearchScope"/>): all pages of one watcher check share one job resource id, the 20-send
-/// budget and the 120 s lifetime instead of opening a fresh job per page.
+/// (<see cref="BooruSearchScope"/>): all pages of one watcher check, numbered or cursor, share one job
+/// resource id, the 20-send budget and the 120 s lifetime instead of opening a fresh job per page.
 /// <list type="bullet">
 /// <item>snapshot → validated core claims (<see cref="BooruClaimMapper"/>), newest first as delivered;</item>
 /// <item>deferred (429 cooldown, 502/503 after the host retry) → provider retry time;</item>
