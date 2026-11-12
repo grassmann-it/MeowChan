@@ -255,6 +255,14 @@ public partial class SettingsEditor
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GallerySlideshowSecondsHelp)));
     }
 
+    // The visible field error is what explains a failed save. It can sit well below its input (hints,
+    // preview and check button in between), so a small window or large text would otherwise keep it off
+    // screen while only the input's own row was revealed.
+    private TextBlock? VisibleFieldError(Control input)
+        => input.Name != null && this.FindControl<TextBlock>(input.Name + "Error") is { IsVisible: true } error ? error : null;
+
+    private Control FieldRevealTarget(Control input) => VisibleFieldError(input) ?? input.Parent as Control ?? input;
+
     private bool FinishFieldValidation(bool focusError = true)
     {
         if (_firstInvalidInput == null) return true;
@@ -282,6 +290,8 @@ public partial class SettingsEditor
             if (numeric != null)
                 numeric.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(text => text.Name == "PART_TextBox")?.Focus();
             else first.Focus();
+            // Focusing scrolls the input itself into view; the error line must win when both cannot fit.
+            VisibleFieldError(first)?.BringIntoView();
         }, DispatcherPriority.Loaded);
         return false;
     }

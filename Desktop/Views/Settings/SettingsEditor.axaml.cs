@@ -534,7 +534,7 @@ namespace MeowChan
                 if (!_suppressPassiveErrorReveal && revealRevision == _errorRevealRevision && !_isClosed && IsVisible && HasError && SettingsError.IsAttachedToVisualTree() && SettingsError.Bounds.Height > 0)
                 {
                     if (_firstInvalidInput != null)
-                        (_firstInvalidInput.Parent as Control ?? _firstInvalidInput).BringIntoView();
+                        FieldRevealTarget(_firstInvalidInput).BringIntoView();
                     else
                         SettingsError.BringIntoView();
                 }
