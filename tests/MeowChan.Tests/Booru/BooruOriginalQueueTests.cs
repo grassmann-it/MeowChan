@@ -35,8 +35,9 @@ public sealed partial class BooruOriginalQueueTests
 
             Assert.Equal(BooruOriginalDownloadState.Linked, outcome.State);
             Assert.Equal(1, links);
-            // Claim, one-shot finding, the durable request intent and exactly one asset link.
-            Assert.Equal(4, catalogWrites);
+            // One write for claim, one-shot finding and the durable request intent, and exactly one asset link
+            // (before the single-write admission: four writes).
+            Assert.Equal(2, catalogWrites);
             Assert.Equal(Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(), outcome.Sha256);
             Assert.Equal(bytes.Length, outcome.Length);
             Assert.Equal(bytes, File.ReadAllBytes(outcome.LocalPath!));

@@ -263,8 +263,11 @@ public sealed class BooruCatalogStoreTests
         using TempDirectory directory = new();
         using ProfileLease lease = ProfileLease.Acquire(directory.Path);
         string path = Path.Combine(directory.Path, BooruCatalogStore.FileName);
-        File.WriteAllText(path, new string('x', BooruCatalogStore.MaximumDocumentBytes + 1));
-        Assert.Throws<InvalidDataException>(() => new BooruCatalogStore(directory.Path, lease).Read());
+        // Sparse: the length check runs before any byte is read or parsed.
+        using (FileStream file = File.Create(path)) file.SetLength(BooruCatalogStore.MaximumDocumentBytes + 1L);
+        BooruCatalogStore store = new(directory.Path, lease);
+        Assert.Throws<InvalidDataException>(() => store.Read());
+        Assert.Equal(0, store.Counters.FullReads);
     }
 
     [Fact]
@@ -344,6 +347,80 @@ public sealed class BooruCatalogStoreTests
         BooruPostRecord linked = store.SetOriginalIntent("danbooru", "60", BooruOriginalIntent.Linked);
         Assert.Equal(("asset-60", BooruOriginalIntent.Linked), (linked.LocalAssetId, linked.OriginalIntent));
         Assert.Equal(0, writes);
+    }
+
+    [Fact]
+    public void ReadsReuseTheValidatedSnapshotUntilTheFileChangesUnderneath()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        BooruCatalogStore store = new(directory.Path, lease);
+        store.UpsertPost(Post("70"), DateTimeOffset.UtcNow);
+        BooruCatalogSnapshot first = store.Read();
+        BooruCatalogStoreCounters warm = store.Counters;
+        Assert.Same(first, store.Read());
+        Assert.NotNull(store.TryGetPost("danbooru", "70"));
+        Assert.Null(store.TryGetPost("danbooru", "71"));
+        Assert.Equal(warm.FullReads, store.Counters.FullReads);
+        Assert.Equal(warm.CachedReads + 3, store.Counters.CachedReads);
+        // The cached snapshot is immutable for every reader.
+        Assert.Throws<NotSupportedException>(() => ((IList<BooruPostRecord>)first.Posts)[0] = first.Posts[0]);
+
+        // Another writer (here: a restored copy with one more post) replaces the file: the next read parses it.
+        string text = File.ReadAllText(store.FilePath);
+        BooruCatalogStore other = new(directory.Path, lease);
+        other.UpsertPost(Post("71"), DateTimeOffset.UtcNow);
+        Assert.Equal(2, store.Read().Posts.Count);
+        Assert.Equal(warm.FullReads + 1, store.Counters.FullReads);
+
+        // Damage underneath is never hidden by the cache: the read fails closed, and keeps failing.
+        File.WriteAllText(store.FilePath, text.Replace("\"schemaVersion\": 1", "\"schemaVersion\": 99"));
+        Assert.Throws<InvalidDataException>(() => store.Read());
+        Assert.Throws<InvalidDataException>(() => store.TryGetPost("danbooru", "70"));
+        Assert.Throws<InvalidDataException>(() => store.UpsertPost(Post("72"), DateTimeOffset.UtcNow));
+    }
+
+    [Fact]
+    public void AFailedWriteDropsTheCacheAndKeepsTheLastDurableDocument()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        BooruCatalogStore store = new(directory.Path, lease);
+        store.UpsertPost(Post("80"), DateTimeOffset.UtcNow);
+        store.BeforeAdmittedMutationForTests = _ => throw new IOException("synthetic catalog failure");
+        Assert.Throws<IOException>(() => store.UpsertPost(Post("81"), DateTimeOffset.UtcNow));
+        store.BeforeAdmittedMutationForTests = null;
+        long reads = store.Counters.FullReads;
+        Assert.Equal("80", Assert.Single(store.Read().Posts).PostId);
+        Assert.Equal(reads + 1, store.Counters.FullReads);
+        Assert.Null(store.TryGetPost("danbooru", "81"));
+        // The rebuilt indexes keep appending at the right place.
+        store.UpsertPost(Post("81"), DateTimeOffset.UtcNow);
+        store.AddFinding("danbooru", "81", BooruFindingKind.Search, null, "cat", DateTimeOffset.UtcNow);
+        Assert.Equal(["80", "81"], store.Read().Posts.Select(post => post.PostId).ToArray());
+        Assert.Single(store.TryGetPost("danbooru", "81")!.Findings);
+        Assert.Equal(["80", "81"], new BooruCatalogStore(directory.Path, lease).Read().Posts.Select(post => post.PostId).ToArray());
+    }
+
+    [Fact]
+    public void RecordObservationWritesClaimFindingAndIntentOnceAndRejectsLinkedWithoutAsset()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        BooruCatalogStore store = new(directory.Path, lease);
+        int writes = 0;
+        store.AfterAdmittedMutationForTests = _ => writes++;
+        BooruPostRecord seen = store.RecordObservation(CompletePost("90"), DateTimeOffset.UtcNow, BooruFindingKind.Watcher, "w1", "cat",
+            merged => merged.OriginalIntent == BooruOriginalIntent.None ? BooruOriginalIntent.Requested : null);
+        Assert.Equal(1, writes);
+        Assert.Equal(BooruOriginalIntent.Requested, seen.OriginalIntent);
+        Assert.Equal("w1", Assert.Single(seen.Findings).WatcherId);
+        Assert.Equal(seen, Assert.Single(store.Read().Posts));
+
+        Assert.Throws<ArgumentException>(() => store.RecordObservation(CompletePost("90"), DateTimeOffset.UtcNow,
+            BooruFindingKind.Search, null, "cat", _ => BooruOriginalIntent.Linked));
+        Assert.Equal(1, writes);
+        Assert.Single(Assert.Single(store.Read().Posts).Findings);
     }
 
     [Fact]

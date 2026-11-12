@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Archive;
@@ -35,13 +34,12 @@ internal sealed class DanbooruWatcherQueueAdmission : IDanbooruWatcherAdmissionP
     {
         ArgumentNullException.ThrowIfNull(post);
         cancellationToken.ThrowIfCancellationRequested();
-        BooruPostRecord? existing = _catalog.Read().Posts.FirstOrDefault(item =>
-            item.SourceId == post.SourceId && item.PostId == post.PostId);
+        BooruPostRecord? existing = _catalog.TryGetPost(post.SourceId, post.PostId);
         if (existing is { OriginalIntent: BooruOriginalIntent.Cancelled })
         {
-            DateTimeOffset now = _time.GetUtcNow();
-            _catalog.UpsertPost(post, now, cancellationToken);
-            _catalog.AddFinding(post.SourceId, post.PostId, BooruFindingKind.Watcher, watcherId, query, now, cancellationToken);
+            // Claim and watcher finding in one write; the stored cancellation is left as it is.
+            _catalog.RecordObservation(post, _time.GetUtcNow(), BooruFindingKind.Watcher, watcherId, query,
+                cancellationToken: cancellationToken);
             return DanbooruWatcherAdmissionResult.KeptCancelled;
         }
 

@@ -182,11 +182,9 @@ internal sealed class BooruOriginalQueue
     {
         ArgumentNullException.ThrowIfNull(post);
         cancellationToken.ThrowIfCancellationRequested();
-        DateTimeOffset now = _timeProvider.GetUtcNow();
-        _catalog.UpsertPost(post, now, cancellationToken);
-        _catalog.AddFinding(post.SourceId, post.PostId, kind, watcherId, query, now, cancellationToken);
         AdmissionMode mode = kind == BooruFindingKind.Watcher ? AdmissionMode.WatcherRequest : AdmissionMode.Request;
-        return (await AdmitStoredAsync(post.PostId, mode, cancellationToken).ConfigureAwait(false))!;
+        Observation observation = new(post, kind, watcherId, query, _timeProvider.GetUtcNow());
+        return (await AdmitStoredAsync(post.PostId, mode, cancellationToken, observation).ConfigureAwait(false))!;
     }
 
     /// <summary>Re-admits a stored post without adding a finding, e.g. after a visible failure or cancel.</summary>
@@ -314,15 +312,40 @@ internal sealed class BooruOriginalQueue
         return true;
     }
 
-    private BooruPostRecord? FindRecord(string postId) => _catalog.Read().Posts.FirstOrDefault(item =>
-        item.SourceId == DanbooruPostReference.ProviderId && item.PostId == postId);
+    private BooruPostRecord? FindRecord(string postId) => _catalog.TryGetPost(DanbooruPostReference.ProviderId, postId);
+
+    /// <summary>The claim and finding an explicit request stores in the same write as its intent.</summary>
+    private sealed record Observation(BooruPostClaim Post, BooruFindingKind Kind, string? WatcherId, string? Query,
+        DateTimeOffset ObservedAtUtc);
+
+    private enum AdmissionStep { AlreadyLinked, AlreadyQueued, NotPending, KeptCancelled, Unavailable, Admit }
+
+    /// <summary>
+    /// The admission decision for a stored (or just merged) record. Pure: it reads only its arguments, so it may run
+    /// inside the catalog's write lock. A linked record wins over an owner that is just finishing its link.
+    /// </summary>
+    private AdmissionStep Decide(BooruPostRecord record, AdmissionMode mode, PostOwner? existing,
+        out BooruOriginalDownloadPlan? plan, out BooruOriginalSelectionError error)
+    {
+        plan = null;
+        error = default;
+        if (record.LocalAssetId != null) return AdmissionStep.AlreadyLinked;
+        if (existing != null) return AdmissionStep.AlreadyQueued;
+        if (mode == AdmissionMode.Recover && !record.HasPendingOriginal) return AdmissionStep.NotPending;
+        // Nothing is written for a kept cancellation: the stored cancellation stays the durable decision.
+        if (mode == AdmissionMode.WatcherRequest && record.OriginalIntent == BooruOriginalIntent.Cancelled)
+            return AdmissionStep.KeptCancelled;
+        // An explicit retry overrides a previously recorded terminal outcome (unavailable/not admitted/cancelled):
+        // the plan below records either Unavailable or the write-ahead Requested over it.
+        return TryPlan(record.Post, out plan, out error) ? AdmissionStep.Admit : AdmissionStep.Unavailable;
+    }
 
     /// <summary>
     /// Starts one admission from the current stored record. Null only for <see cref="AdmissionMode.Recover"/>
     /// when the record is no longer pending.
     /// </summary>
     private async Task<BooruOriginalAdmission?> AdmitStoredAsync(string postId, AdmissionMode mode,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, Observation? observation = null)
     {
         PostOwner? owner = null;
         BooruOriginalAdmission? immediate = null;
@@ -330,56 +353,79 @@ internal sealed class BooruOriginalQueue
         await _admissionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            BooruPostRecord record = FindRecord(postId)
-                ?? throw new InvalidOperationException("The provider post is not stored locally.");
-            if (record.LocalAssetId != null)
-            {
-                BooruOriginalDownloadOutcome linked = new(BooruOriginalDownloadState.Linked, postId,
-                    AssetId: record.LocalAssetId, LocalPath: record.LocalPath);
-                return new(BooruOriginalAdmissionStatus.AlreadyLinked, postId, Task.FromResult(linked));
-            }
+            PostOwner? existing;
             lock (_sync)
             {
-                if (_active.TryGetValue(postId, out PostOwner? existing)
-                    || _acceptedAwaitingIntent.TryGetValue(postId, out existing))
-                    return new(BooruOriginalAdmissionStatus.AlreadyQueued, postId, existing.Completion);
+                if (!_active.TryGetValue(postId, out existing)) _acceptedAwaitingIntent.TryGetValue(postId, out existing);
             }
-            if (mode == AdmissionMode.Recover && !record.HasPendingOriginal) return null;
-            if (mode == AdmissionMode.WatcherRequest && record.OriginalIntent == BooruOriginalIntent.Cancelled)
+            AdmissionStep step = AdmissionStep.NotPending;
+            BooruOriginalDownloadPlan? plan = null;
+            BooruOriginalSelectionError error = default;
+            bool wasRequested = false;
+            BooruPostRecord record;
+            if (observation is { } seen)
             {
-                // Nothing is written: the stored cancellation stays the durable decision.
-                BooruOriginalDownloadOutcome kept = new(BooruOriginalDownloadState.Cancelled, postId);
-                return new(BooruOriginalAdmissionStatus.NotAdmitted, postId, Task.FromResult(kept));
-            }
-            // An explicit retry overrides a previously recorded terminal outcome (unavailable/not admitted/cancelled):
-            // the plan below records either Unavailable or the write-ahead Requested over it.
-            bool wasRequested = record.OriginalIntent == BooruOriginalIntent.Requested;
-            if (!TryPlan(record.Post, out BooruOriginalDownloadPlan? plan, out BooruOriginalSelectionError error))
-            {
-                _catalog.SetOriginalIntent(DanbooruPostReference.ProviderId, postId,
-                    BooruOriginalIntent.Unavailable, cancellationToken);
-                BooruOriginalDownloadOutcome unavailable = new(BooruOriginalDownloadState.Unavailable, postId, error);
-                immediate = new(BooruOriginalAdmissionStatus.Unavailable, postId, Task.FromResult(unavailable), error);
-                // Do not invoke observers while _admissionGate is held; an observer may retry synchronously.
-                publishAfterGate = unavailable;
+                // One durable write for the claim, its finding and the decided intent (write-ahead Requested or
+                // Unavailable). The decision runs on the merged record inside the catalog write.
+                record = _catalog.RecordObservation(seen.Post, seen.ObservedAtUtc, seen.Kind, seen.WatcherId, seen.Query,
+                    merged =>
+                    {
+                        wasRequested = merged.OriginalIntent == BooruOriginalIntent.Requested;
+                        step = Decide(merged, mode, existing, out plan, out error);
+                        return step switch
+                        {
+                            AdmissionStep.Unavailable => BooruOriginalIntent.Unavailable,
+                            AdmissionStep.Admit when !wasRequested => BooruOriginalIntent.Requested,
+                            _ => null
+                        };
+                    }, cancellationToken);
             }
             else
             {
+                record = FindRecord(postId) ?? throw new InvalidOperationException("The provider post is not stored locally.");
+                wasRequested = record.OriginalIntent == BooruOriginalIntent.Requested;
+                step = Decide(record, mode, existing, out plan, out error);
+                if (step == AdmissionStep.Unavailable)
+                    _catalog.SetOriginalIntent(DanbooruPostReference.ProviderId, postId,
+                        BooruOriginalIntent.Unavailable, cancellationToken);
                 // Write-ahead: the explicit request is durable before it becomes visible as Queued and before
                 // the queue may start the transfer. A process crash between the queue accept and the
                 // acknowledgement therefore leaves a Requested record that recovery re-admits, exactly like an
                 // interrupted request, instead of an accepted (possibly already transferring) job whose request
                 // silently vanishes. Every decision this admission still reaches replaces it: a refusal records
                 // NotAdmitted, a cancel Cancelled, a link Linked, before the admission or cancel returns.
-                if (!wasRequested)
+                else if (step == AdmissionStep.Admit && !wasRequested)
                     _catalog.SetOriginalIntent(DanbooruPostReference.ProviderId, postId,
                         BooruOriginalIntent.Requested, cancellationToken);
-                owner = new PostOwner(this, _provider, plan!, wasRequested);
-                lock (_sync)
-                {
-                    _active.Add(postId, owner);
-                    _outcomes[postId] = new(BooruOriginalDownloadState.Queued, postId);
-                }
+            }
+
+            switch (step)
+            {
+                case AdmissionStep.AlreadyLinked:
+                    BooruOriginalDownloadOutcome linked = new(BooruOriginalDownloadState.Linked, postId,
+                        AssetId: record.LocalAssetId, LocalPath: record.LocalPath);
+                    return new(BooruOriginalAdmissionStatus.AlreadyLinked, postId, Task.FromResult(linked));
+                case AdmissionStep.AlreadyQueued:
+                    return new(BooruOriginalAdmissionStatus.AlreadyQueued, postId, existing!.Completion);
+                case AdmissionStep.NotPending:
+                    return null;
+                case AdmissionStep.KeptCancelled:
+                    BooruOriginalDownloadOutcome kept = new(BooruOriginalDownloadState.Cancelled, postId);
+                    return new(BooruOriginalAdmissionStatus.NotAdmitted, postId, Task.FromResult(kept));
+                case AdmissionStep.Unavailable:
+                    BooruOriginalDownloadOutcome unavailable = new(BooruOriginalDownloadState.Unavailable, postId, error);
+                    immediate = new(BooruOriginalAdmissionStatus.Unavailable, postId, Task.FromResult(unavailable), error);
+                    // Do not invoke observers while _admissionGate is held; an observer may retry synchronously.
+                    publishAfterGate = unavailable;
+                    break;
+                default:
+                    owner = new PostOwner(this, _provider, plan!, wasRequested);
+                    lock (_sync)
+                    {
+                        _active.Add(postId, owner);
+                        _outcomes[postId] = new(BooruOriginalDownloadState.Queued, postId);
+                    }
+                    break;
             }
         }
         finally { _admissionGate.Release(); }
@@ -423,7 +469,7 @@ internal sealed class BooruOriginalQueue
 
         lock (_sync) _acceptedAwaitingIntent[postId] = owner;
         if (AfterQueueAcceptedForTests is { } hook) await hook(postId).ConfigureAwait(false);
-        RecordAccepted(owner);
+        await RecordAcceptedAsync(owner).ConfigureAwait(false);
         return new(BooruOriginalAdmissionStatus.Queued, postId, owner.Completion);
     }
 
@@ -432,12 +478,12 @@ internal sealed class BooruOriginalQueue
     /// have ended while the accept was returning: a cancel or link has recorded its own terminal intent and is
     /// never overwritten, while a failure or stop still leaves the accepted request pending.
     /// </summary>
-    private void RecordAccepted(PostOwner owner)
+    private async Task RecordAcceptedAsync(PostOwner owner)
     {
         // Serialize the durable acknowledgement with CancelStoredRequest. Without this fence, a fast failure
         // can remove the owner, a later cancel can persist Cancelled, and this delayed acknowledgement can
-        // resurrect the request as Requested after the cancel has returned.
-        _admissionGate.Wait();
+        // resurrect the request as Requested after the cancel has returned. The gate is awaited, never blocked on.
+        await _admissionGate.WaitAsync().ConfigureAwait(false);
         bool acknowledged = false;
         try
         {

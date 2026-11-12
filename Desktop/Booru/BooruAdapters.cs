@@ -123,14 +123,8 @@ internal static class BooruCatalogReadMapper
 
     internal static ImmutableArray<BooruWatcherView> Watchers(BooruCatalogSnapshot snapshot, string sourceId)
     {
-        Dictionary<string, (int Hits, int Loaded)> hits = new(StringComparer.Ordinal);
-        foreach (BooruPostRecord post in snapshot.Posts.Where(post => post.SourceId == sourceId))
-            foreach (string watcherId in post.Findings.Where(finding => finding.Kind == BooruFindingKind.Watcher
-                && finding.WatcherId is not null).Select(finding => finding.WatcherId!).Distinct(StringComparer.Ordinal))
-            {
-                (int found, int loaded) = hits.GetValueOrDefault(watcherId);
-                hits[watcherId] = (found + 1, loaded + (post.LocalAssetId is null ? 0 : 1));
-            }
+        // Findings by watcher, computed once per catalog version by the store (not on every list refresh).
+        IReadOnlyDictionary<string, (int Hits, int Loaded)> hits = BooruCatalogStore.WatcherFindingCounts(snapshot, sourceId);
         return snapshot.Watchers
             .Where(record => record.SourceId == sourceId)
             .Select(record =>

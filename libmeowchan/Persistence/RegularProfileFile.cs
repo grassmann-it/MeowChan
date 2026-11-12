@@ -29,6 +29,39 @@ internal static class RegularProfileFile
         return OperatingSystem.IsWindows() ? OpenWindows(path) : OpenUnix(path);
     }
 
+    /// <summary>
+    /// The identity of a regular file at <paramref name="path"/> without following a final link, for cache
+    /// validation only: device, inode, size, modification and status-change time on Unix; size, last-write and
+    /// creation time on Windows. Null when the entry is missing, is not a regular file or cannot be inspected; a
+    /// caller then reads the file through <see cref="OpenRead"/>, which reports the precise failure.
+    /// </summary>
+    internal static RegularProfileFileIdentity? TryGetIdentity(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                FileInfo info = new(path);
+                if (!info.Exists || (info.Attributes & (FileAttributes.ReparsePoint | FileAttributes.Directory
+                        | FileAttributes.Device)) != 0)
+                    return null;
+                return new(0, 0, info.Length, info.LastWriteTimeUtc.Ticks, 0, info.CreationTimeUtc.Ticks, 0);
+            }
+            if ((!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+                || RuntimeInformation.ProcessArchitecture is not (Architecture.X64 or Architecture.Arm64))
+                return null;
+            if (UnixLStat(path, out FileStatus status) != 0 || (status.Mode & UnixSpecialFileMask) != UnixRegularFileMode)
+                return null;
+            return new(status.Dev, status.Ino, status.Size, status.MTime, status.MTimeNsec, status.CTime, status.CTimeNsec);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException
+            or DllNotFoundException or EntryPointNotFoundException or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
     private static FileStream OpenWindows(string path)
     {
         // Inspect the opened object itself, never a second path lookup. Opening
@@ -213,3 +246,7 @@ internal static class RegularProfileFile
         internal uint UserFlags;
     }
 }
+
+/// <summary>Cache-validation identity of a regular profile file (see <see cref="RegularProfileFile.TryGetIdentity"/>).</summary>
+internal readonly record struct RegularProfileFileIdentity(long Device, long Inode, long Size,
+    long ModifiedSeconds, long ModifiedNanoseconds, long ChangedSeconds, long ChangedNanoseconds);

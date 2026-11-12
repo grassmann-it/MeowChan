@@ -208,7 +208,8 @@ public partial class MainWindow
     private async Task ShowBooruMediaDetailsAsync(GalleryEntry entry, string postId, Control? origin)
     {
         BooruMediaDetails? details = null;
-        try { if (_session.ReadBooruCatalog() is { } catalog) details = BooruMediaProjection.Find(catalog, postId, localFilePresent: true); }
+        // Off the UI thread: a cold catalog cache parses the whole file once.
+        try { if (await Task.Run(_session.ReadBooruCatalog) is { } catalog) details = BooruMediaProjection.Find(catalog, postId, localFilePresent: true); }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException) { }
         string[] file =
         {

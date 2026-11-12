@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -220,12 +221,25 @@ internal sealed record BooruCatalogSnapshot(
         Array.Empty<BooruPostRecord>(), Array.Empty<BooruWatcherRecord>());
 }
 
+/// <summary>Read/write counters of one store instance (measurement in tests; never used for decisions).</summary>
+internal readonly record struct BooruCatalogStoreCounters(long FullReads, long Writes, long CachedReads);
+
 /// <summary>
 /// Profile-owned additive storage for Booru claims and watchers. The file is deliberately separate
 /// from the archive/session stores so an old profile can be opened without rewriting existing data.
 /// Every mutation is guarded by the exact profile lease and its store-writer admission; reads are
 /// passive but still use the live lease. Invalid or newer data fails closed instead of becoming an
 /// empty catalog.
+/// <para>
+/// Caching: the last validated, frozen (immutable) snapshot is kept together with the identity of the
+/// file it came from (device, inode, size, modification and change time on Unix). A read reuses it only
+/// while the file on disk still has exactly that identity; any other change underneath (another writer,
+/// a restored copy, damage) makes the next read parse and validate the file again, failing closed as
+/// before. The store's own successful write replaces the cache with the snapshot it wrote; a failed
+/// write drops it. Because the cached snapshot was validated, a mutation validates only the records it
+/// changes (identity uniqueness is kept by the indexes); that is the same rule set the full validation
+/// applies per record, so the written document satisfies exactly the old fail-closed checks.
+/// </para>
 /// </summary>
 internal sealed class BooruCatalogStore
 {
@@ -245,10 +259,17 @@ internal sealed class BooruCatalogStore
     /// </summary>
     internal const int MaximumWatcherPage = 1_000_000;
 
+    private static readonly ConditionalWeakTable<BooruCatalogSnapshot, Dictionary<string, IReadOnlyDictionary<string, (int Hits, int Loaded)>>>
+        WatcherCounts = new();
+
     private readonly object _sync = new();
     private readonly ProfileLease _lease;
     private readonly string _path;
     private readonly JsonSerializerOptions _json;
+    private Cache? _cache;
+    private long _fullReads;
+    private long _writes;
+    private long _cachedReads;
 
     internal BooruCatalogStore(string profileDirectory, ProfileLease lease)
     {
@@ -263,13 +284,61 @@ internal sealed class BooruCatalogStore
     internal string FilePath => _path;
     internal ProfileLease ProfileLease => _lease;
 
+    internal BooruCatalogStoreCounters Counters => new(Interlocked.Read(ref _fullReads), Interlocked.Read(ref _writes),
+        Interlocked.Read(ref _cachedReads));
+
     // These are instance-only test observers. They never grant authority and run while the
     // accepted store-writer token is pinned, immediately around the actual replacement.
     internal Action<ProfileAdmissionToken>? BeforeAdmittedMutationForTests { get; set; }
     internal Action<ProfileAdmissionToken>? AfterAdmittedMutationForTests { get; set; }
 
-    /// <summary>Passively reads the current catalog under the live profile lease.</summary>
-    internal BooruCatalogSnapshot Read() => _lease.RunExclusive(ReadCore);
+    /// <summary>Passively reads the current catalog under the live profile lease. The snapshot is immutable.</summary>
+    internal BooruCatalogSnapshot Read() => _lease.RunExclusive(() =>
+    {
+        lock (_sync) return LoadLocked().Snapshot;
+    });
+
+    /// <summary>One stored post by identity (indexed lookup), or null.</summary>
+    internal BooruPostRecord? TryGetPost(string sourceId, string postId) => _lease.RunExclusive(() =>
+    {
+        lock (_sync)
+        {
+            Cache cache = LoadLocked();
+            return cache.Posts.TryGetValue(PostKey(sourceId, postId), out int index) ? cache.Snapshot.Posts[index] : null;
+        }
+    });
+
+    /// <summary>
+    /// Findings by watcher: per watcher id, the number of posts of <paramref name="sourceId"/> it found and how many of
+    /// them are linked to a local asset. Computed once per catalog version (snapshot instance) and then reused.
+    /// </summary>
+    internal static IReadOnlyDictionary<string, (int Hits, int Loaded)> WatcherFindingCounts(BooruCatalogSnapshot snapshot,
+        string sourceId)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        Dictionary<string, IReadOnlyDictionary<string, (int Hits, int Loaded)>> bySource = WatcherCounts.GetValue(snapshot,
+            _ => new Dictionary<string, IReadOnlyDictionary<string, (int Hits, int Loaded)>>(StringComparer.Ordinal));
+        lock (bySource)
+        {
+            if (bySource.TryGetValue(sourceId, out IReadOnlyDictionary<string, (int Hits, int Loaded)>? known)) return known;
+            Dictionary<string, (int Hits, int Loaded)> counts = new(StringComparer.Ordinal);
+            HashSet<string> seen = new(StringComparer.Ordinal);
+            foreach (BooruPostRecord post in snapshot.Posts)
+            {
+                if (post.SourceId != sourceId) continue;
+                seen.Clear();
+                foreach (BooruFinding finding in post.Findings)
+                {
+                    if (finding.Kind != BooruFindingKind.Watcher || finding.WatcherId is not { } watcherId || !seen.Add(watcherId))
+                        continue;
+                    (int found, int loaded) = counts.GetValueOrDefault(watcherId);
+                    counts[watcherId] = (found + 1, loaded + (post.LocalAssetId is null ? 0 : 1));
+                }
+            }
+            bySource[sourceId] = counts;
+            return counts;
+        }
+    }
 
     internal BooruPostRecord UpsertPost(BooruPostClaim post, DateTimeOffset observedAtUtc,
         CancellationToken cancellationToken = default)
@@ -288,26 +357,14 @@ internal sealed class BooruCatalogStore
         ValidatePostClaim(post);
         return _lease.RunStoreWrite(admission, () =>
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            BooruCatalogSnapshot snapshot = ReadLocked();
-            BooruPostClaim frozenPost = FreezeClaim(post);
-            List<BooruPostRecord> posts = snapshot.Posts.ToList();
-            int index = posts.FindIndex(item => item.SourceId == frozenPost.SourceId && item.PostId == frozenPost.PostId);
-            DateTimeOffset observed = observedAtUtc.ToUniversalTime();
-            BooruPostRecord next = index < 0
-                ? new(frozenPost.SourceId, frozenPost.PostId, frozenPost, observed, observed)
-                : FreezePostRecord(posts[index] with
-                {
-                    // Provider search and single-post responses may expose different
-                    // presence subsets. Do not let a less complete later observation
-                    // erase fields already retained from a richer claim.
-                    Post = MergeClaims(posts[index].Post, frozenPost),
-                    FirstSeenAtUtc = Earliest(posts[index].FirstSeenAtUtc, observed),
-                    LastSeenAtUtc = Latest(posts[index].LastSeenAtUtc, observed)
-                });
-            if (index < 0) posts.Add(next); else posts[index] = next;
-            WriteLocked(snapshot with { Posts = FreezePosts(posts) }, admission, cancellationToken);
-            return next;
+            lock (_sync)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Cache cache = LoadLocked();
+                int index = IndexOf(cache, post.SourceId, post.PostId);
+                BooruPostRecord next = Merged(cache, index, FreezeClaim(post), observedAtUtc.ToUniversalTime());
+                return WritePostLocked(cache, index, next, admission, cancellationToken);
+            }
         });
     }
 
@@ -331,43 +388,55 @@ internal sealed class BooruCatalogStore
         ValidateFindingArguments(sourceId, postId, kind, watcherId, query);
         return _lease.RunStoreWrite(admission, () =>
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            BooruCatalogSnapshot snapshot = ReadLocked();
-            List<BooruPostRecord> posts = snapshot.Posts.ToList();
-            int index = posts.FindIndex(item => item.SourceId == sourceId && item.PostId == postId);
-            if (index < 0) throw new InvalidOperationException("A provider post must be stored before its finding.");
-            BooruPostRecord current = posts[index];
-            string findingId = FindingIdentity(sourceId, postId, kind, watcherId, query);
-            DateTimeOffset observed = foundAtUtc.ToUniversalTime();
-            if (current.Findings.Any(item => item.FindingId == findingId))
+            lock (_sync)
             {
-                BooruPostRecord observedAgain = FreezePostRecord(current with
-                {
-                    FirstSeenAtUtc = Earliest(current.FirstSeenAtUtc, observed),
-                    LastSeenAtUtc = Latest(current.LastSeenAtUtc, observed)
-                });
-                if (observedAgain.FirstSeenAtUtc != current.FirstSeenAtUtc
-                    || observedAgain.LastSeenAtUtc != current.LastSeenAtUtc)
-                {
-                    posts[index] = observedAgain;
-                    WriteLocked(snapshot with { Posts = FreezePosts(posts) }, admission, cancellationToken);
-                }
-                return observedAgain;
+                cancellationToken.ThrowIfCancellationRequested();
+                Cache cache = LoadLocked();
+                int index = IndexOf(cache, sourceId, postId);
+                if (index < 0) throw new InvalidOperationException("A provider post must be stored before its finding.");
+                BooruPostRecord current = cache.Snapshot.Posts[index];
+                BooruPostRecord next = WithFinding(current, kind, watcherId, query, foundAtUtc.ToUniversalTime());
+                // An identical finding only widens the observation range; nothing to write when that is unchanged.
+                if (next.Findings.Count == current.Findings.Count && next.FirstSeenAtUtc == current.FirstSeenAtUtc
+                    && next.LastSeenAtUtc == current.LastSeenAtUtc)
+                    return next;
+                return WritePostLocked(cache, index, next, admission, cancellationToken);
             }
+        });
+    }
 
-            if (current.Findings.Count >= MaximumFindings)
-                throw new InvalidDataException("The Booru post has too many findings.");
-            List<BooruFinding> findings = current.Findings.ToList();
-            findings.Add(new(findingId, kind, watcherId, query, observed));
-            BooruPostRecord next = FreezePostRecord(current with
+    /// <summary>
+    /// One explicit observation in a single durable write: the claim is merged (as <see cref="UpsertPost"/>), the
+    /// finding is added (as <see cref="AddFinding"/>) and, if <paramref name="decideIntent"/> returns a value, the
+    /// original intent is set (as <see cref="SetOriginalIntent"/>) on the merged record. The callback runs inside
+    /// the store's write lock: it must be fast, must not take other locks and must not call the store. A crash
+    /// leaves either the previous document or all three changes, never a claim whose request is missing.
+    /// </summary>
+    internal BooruPostRecord RecordObservation(BooruPostClaim post, DateTimeOffset observedAtUtc, BooruFindingKind kind,
+        string? watcherId, string? query, Func<BooruPostRecord, BooruOriginalIntent?>? decideIntent = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(post);
+        ValidatePostClaim(post);
+        ValidateFindingArguments(post.SourceId, post.PostId, kind, watcherId, query);
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+        return _lease.RunStoreWrite(admission, () =>
+        {
+            lock (_sync)
             {
-                FirstSeenAtUtc = Earliest(current.FirstSeenAtUtc, observed),
-                LastSeenAtUtc = Latest(current.LastSeenAtUtc, observed),
-                Findings = FreezeFindings(findings)
-            });
-            posts[index] = next;
-            WriteLocked(snapshot with { Posts = FreezePosts(posts) }, admission, cancellationToken);
-            return next;
+                cancellationToken.ThrowIfCancellationRequested();
+                Cache cache = LoadLocked();
+                int index = IndexOf(cache, post.SourceId, post.PostId);
+                DateTimeOffset observed = observedAtUtc.ToUniversalTime();
+                BooruPostRecord next = WithFinding(Merged(cache, index, FreezeClaim(post), observed), kind, watcherId, query, observed);
+                if (decideIntent?.Invoke(next) is BooruOriginalIntent intent)
+                {
+                    if (!Enum.IsDefined(intent)) throw new ArgumentOutOfRangeException(nameof(decideIntent));
+                    RejectLinkedWithoutAsset(next, intent);
+                    next = next with { OriginalIntent = intent };
+                }
+                return WritePostLocked(cache, index, next, admission, cancellationToken);
+            }
         });
     }
 
@@ -389,21 +458,21 @@ internal sealed class BooruCatalogStore
         ValidateOptionalText(localPath, nameof(localPath), 4096);
         return _lease.RunStoreWrite(admission, () =>
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            BooruCatalogSnapshot snapshot = ReadLocked();
-            List<BooruPostRecord> posts = snapshot.Posts.ToList();
-            int index = posts.FindIndex(item => item.SourceId == sourceId && item.PostId == postId);
-            if (index < 0) throw new InvalidOperationException("A provider post must be stored before its asset link.");
-            // A committed link is a terminal intent; anything else would look pending after a restart.
-            BooruPostRecord next = FreezePostRecord(posts[index] with
+            lock (_sync)
             {
-                LocalAssetId = assetId,
-                LocalPath = localPath,
-                OriginalIntent = BooruOriginalIntent.Linked
-            });
-            posts[index] = next;
-            WriteLocked(snapshot with { Posts = FreezePosts(posts) }, admission, cancellationToken);
-            return next;
+                cancellationToken.ThrowIfCancellationRequested();
+                Cache cache = LoadLocked();
+                int index = IndexOf(cache, sourceId, postId);
+                if (index < 0) throw new InvalidOperationException("A provider post must be stored before its asset link.");
+                // A committed link is a terminal intent; anything else would look pending after a restart.
+                BooruPostRecord next = cache.Snapshot.Posts[index] with
+                {
+                    LocalAssetId = assetId,
+                    LocalPath = localPath,
+                    OriginalIntent = BooruOriginalIntent.Linked
+                };
+                return WritePostLocked(cache, index, next, admission, cancellationToken);
+            }
         });
     }
 
@@ -427,21 +496,17 @@ internal sealed class BooruCatalogStore
         if (!Enum.IsDefined(intent)) throw new ArgumentOutOfRangeException(nameof(intent));
         return _lease.RunStoreWrite(admission, () =>
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            BooruCatalogSnapshot snapshot = ReadLocked();
-            List<BooruPostRecord> posts = snapshot.Posts.ToList();
-            int index = posts.FindIndex(item => item.SourceId == sourceId && item.PostId == postId);
-            if (index < 0) throw new InvalidOperationException("A provider post must be stored before its download intent.");
-            BooruPostRecord current = posts[index];
-            // Linked is only ever reached through LinkLocalAssetAdmitted, which records the committed asset in the
-            // same write. Claiming it here without an asset is a caller error, not corrupt storage.
-            if (intent == BooruOriginalIntent.Linked && current.LocalAssetId == null)
-                throw new ArgumentException("A linked original needs a committed local asset; use LinkLocalAsset.", nameof(intent));
-            if (current.OriginalIntent == intent) return current;
-            BooruPostRecord updated = FreezePostRecord(current with { OriginalIntent = intent });
-            posts[index] = updated;
-            WriteLocked(snapshot with { Posts = FreezePosts(posts) }, admission, cancellationToken);
-            return updated;
+            lock (_sync)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Cache cache = LoadLocked();
+                int index = IndexOf(cache, sourceId, postId);
+                if (index < 0) throw new InvalidOperationException("A provider post must be stored before its download intent.");
+                BooruPostRecord current = cache.Snapshot.Posts[index];
+                RejectLinkedWithoutAsset(current, intent);
+                if (current.OriginalIntent == intent) return current;
+                return WritePostLocked(cache, index, current with { OriginalIntent = intent }, admission, cancellationToken);
+            }
         });
     }
 
@@ -461,14 +526,14 @@ internal sealed class BooruCatalogStore
         ValidateWatcher(watcher);
         return _lease.RunStoreWrite(admission, () =>
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            BooruCatalogSnapshot snapshot = ReadLocked();
-            List<BooruWatcherRecord> watchers = snapshot.Watchers.ToList();
-            BooruWatcherRecord canonical = FreezeWatcher(watcher);
-            int index = watchers.FindIndex(item => item.WatcherId == canonical.WatcherId);
-            if (index < 0) watchers.Add(canonical); else watchers[index] = canonical;
-            WriteLocked(snapshot with { Watchers = FreezeWatchers(watchers) }, admission, cancellationToken);
-            return canonical;
+            lock (_sync)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Cache cache = LoadLocked();
+                BooruWatcherRecord canonical = FreezeWatcher(watcher);
+                int index = cache.Watchers.TryGetValue(canonical.WatcherId, out int found) ? found : -1;
+                return WriteWatcherLocked(cache, index, canonical, admission, cancellationToken);
+            }
         });
     }
 
@@ -486,27 +551,28 @@ internal sealed class BooruCatalogStore
         ValidateRequiredText(watcherId, nameof(watcherId), 128);
         return _lease.RunStoreWrite(admission, () =>
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            BooruCatalogSnapshot snapshot = ReadLocked();
-            List<BooruWatcherRecord> watchers = snapshot.Watchers.ToList();
-            int index = watchers.FindIndex(item => item.WatcherId == watcherId);
-            if (index < 0) return false;
-            watchers[index] = FreezeWatcher(watchers[index] with
+            lock (_sync)
             {
-                State = "Removed",
-                CooldownUntilUtc = null,
-                ErrorCode = null,
-                // Mirrors DanbooruWatcher.Remove: observation stops and traversal progress is dropped;
-                // known ids, high-water mark and the watcher's configured limits remain.
-                NextPage = 0,
-                CursorBeforePostId = null,
-                CheckStartHighWaterMark = null,
-                CheckStartHighWaterMarkCaptured = false,
-                PagesCheckedInRun = 0,
-                BudgetLimited = false
-            });
-            WriteLocked(snapshot with { Watchers = FreezeWatchers(watchers) }, admission, cancellationToken);
-            return true;
+                cancellationToken.ThrowIfCancellationRequested();
+                Cache cache = LoadLocked();
+                if (!cache.Watchers.TryGetValue(watcherId, out int index)) return false;
+                BooruWatcherRecord removed = FreezeWatcher(cache.Snapshot.Watchers[index] with
+                {
+                    State = "Removed",
+                    CooldownUntilUtc = null,
+                    ErrorCode = null,
+                    // Mirrors DanbooruWatcher.Remove: observation stops and traversal progress is dropped;
+                    // known ids, high-water mark and the watcher's configured limits remain.
+                    NextPage = 0,
+                    CursorBeforePostId = null,
+                    CheckStartHighWaterMark = null,
+                    CheckStartHighWaterMarkCaptured = false,
+                    PagesCheckedInRun = 0,
+                    BudgetLimited = false
+                });
+                WriteWatcherLocked(cache, index, removed, admission, cancellationToken);
+                return true;
+            }
         });
     }
 
@@ -524,21 +590,153 @@ internal sealed class BooruCatalogStore
         return options;
     }
 
-    private BooruCatalogSnapshot ReadCore()
+    /// <summary>
+    /// A validated, frozen snapshot plus its lookup indexes. The indexes belong to exactly one live cache entry; a
+    /// successful write extends them for the next entry, a failed write discards the whole entry.
+    /// </summary>
+    private sealed class Cache
     {
-        lock (_sync)
+        internal Cache(BooruCatalogSnapshot snapshot, long documentBytes, RegularProfileFileIdentity? identity)
         {
-            try { return Parse(ReadBounded(_path)); }
-            catch (FileNotFoundException) { return BooruCatalogSnapshot.Empty; }
+            Snapshot = snapshot;
+            DocumentBytes = documentBytes;
+            Identity = identity;
+            Posts = new Dictionary<string, int>(snapshot.Posts.Count, StringComparer.Ordinal);
+            for (int index = 0; index < snapshot.Posts.Count; index++)
+                Posts[PostKey(snapshot.Posts[index].SourceId, snapshot.Posts[index].PostId)] = index;
+            Watchers = new Dictionary<string, int>(snapshot.Watchers.Count, StringComparer.Ordinal);
+            for (int index = 0; index < snapshot.Watchers.Count; index++)
+                Watchers[snapshot.Watchers[index].WatcherId] = index;
+        }
+
+        private Cache(BooruCatalogSnapshot snapshot, long documentBytes, RegularProfileFileIdentity? identity,
+            Dictionary<string, int> posts, Dictionary<string, int> watchers)
+        {
+            Snapshot = snapshot;
+            DocumentBytes = documentBytes;
+            Identity = identity;
+            Posts = posts;
+            Watchers = watchers;
+        }
+
+        internal BooruCatalogSnapshot Snapshot { get; }
+        internal long DocumentBytes { get; }
+        /// <summary>Null: this entry is not reusable (missing file, or the file changed while it was read).</summary>
+        internal RegularProfileFileIdentity? Identity { get; }
+        internal Dictionary<string, int> Posts { get; }
+        internal Dictionary<string, int> Watchers { get; }
+
+        /// <summary>The entry after a successful write; this entry is no longer used afterwards.</summary>
+        internal Cache Next(BooruCatalogSnapshot snapshot, long documentBytes, RegularProfileFileIdentity? identity,
+            string? addedPostKey, string? addedWatcherId)
+        {
+            if (addedPostKey is not null) Posts.Add(addedPostKey, snapshot.Posts.Count - 1);
+            if (addedWatcherId is not null) Watchers.Add(addedWatcherId, snapshot.Watchers.Count - 1);
+            return new Cache(snapshot, documentBytes, identity, Posts, Watchers);
         }
     }
 
-    private BooruCatalogSnapshot ReadLocked() => ReadCore();
+    /// <summary>Caller holds the lease monitor and <see cref="_sync"/>.</summary>
+    private Cache LoadLocked()
+    {
+        RegularProfileFileIdentity? before = RegularProfileFile.TryGetIdentity(_path);
+        if (before is { } current && _cache is { Identity: { } cached } hit && cached == current)
+        {
+            Interlocked.Increment(ref _cachedReads);
+            return hit;
+        }
 
-    private void WriteLocked(BooruCatalogSnapshot snapshot, ProfileAdmissionToken admission,
+        _cache = null;
+        byte[] bytes;
+        try { bytes = ReadBounded(_path); }
+        catch (FileNotFoundException) { return new Cache(BooruCatalogSnapshot.Empty, 0, null); }
+        Interlocked.Increment(ref _fullReads);
+        BooruCatalogSnapshot snapshot = Parse(bytes);
+        // Only an entry whose file did not change while it was read may be reused.
+        RegularProfileFileIdentity? after = RegularProfileFile.TryGetIdentity(_path);
+        Cache loaded = new(snapshot, bytes.Length, before is { } stable && after == stable ? stable : null);
+        if (loaded.Identity is not null) _cache = loaded;
+        return loaded;
+    }
+
+    private static int IndexOf(Cache cache, string sourceId, string postId) =>
+        cache.Posts.TryGetValue(PostKey(sourceId, postId), out int index) ? index : -1;
+
+    /// <summary>The stored record with <paramref name="claim"/> merged in, or a new record (index -1).</summary>
+    private static BooruPostRecord Merged(Cache cache, int index, BooruPostClaim claim, DateTimeOffset observed)
+    {
+        if (index < 0) return new(claim.SourceId, claim.PostId, claim, observed, observed);
+        BooruPostRecord current = cache.Snapshot.Posts[index];
+        return current with
+        {
+            // Provider search and single-post responses may expose different
+            // presence subsets. Do not let a less complete later observation
+            // erase fields already retained from a richer claim.
+            Post = MergeClaims(current.Post, claim),
+            FirstSeenAtUtc = Earliest(current.FirstSeenAtUtc, observed),
+            LastSeenAtUtc = Latest(current.LastSeenAtUtc, observed)
+        };
+    }
+
+    private static BooruPostRecord WithFinding(BooruPostRecord current, BooruFindingKind kind, string? watcherId,
+        string? query, DateTimeOffset observed)
+    {
+        string findingId = FindingIdentity(current.SourceId, current.PostId, kind, watcherId, query);
+        BooruPostRecord widened = current with
+        {
+            FirstSeenAtUtc = Earliest(current.FirstSeenAtUtc, observed),
+            LastSeenAtUtc = Latest(current.LastSeenAtUtc, observed)
+        };
+        if (current.Findings.Any(item => item.FindingId == findingId)) return widened;
+        if (current.Findings.Count >= MaximumFindings)
+            throw new InvalidDataException("The Booru post has too many findings.");
+        return widened with { Findings = FreezeFindings(current.Findings.Append(new(findingId, kind, watcherId, query, observed))) };
+    }
+
+    private static void RejectLinkedWithoutAsset(BooruPostRecord record, BooruOriginalIntent intent)
+    {
+        // Linked is only ever reached through LinkLocalAssetAdmitted, which records the committed asset in the
+        // same write. Claiming it here without an asset is a caller error, not corrupt storage.
+        if (intent == BooruOriginalIntent.Linked && record.LocalAssetId == null)
+            throw new ArgumentException("A linked original needs a committed local asset; use LinkLocalAsset.", nameof(intent));
+    }
+
+    /// <summary>Replaces (or appends, index -1) one post and writes the document. Caller holds the write lock.</summary>
+    private BooruPostRecord WritePostLocked(Cache cache, int index, BooruPostRecord next, ProfileAdmissionToken admission,
         CancellationToken cancellationToken)
     {
-        ValidateSnapshot(snapshot);
+        BooruPostRecord frozen = FreezePostRecord(next);
+        // The cached snapshot is validated; the changed record is validated by the same per-record rules, and the
+        // index keeps the identity unique (a new identity is appended, a known one replaced in place).
+        ValidatePostRecord(frozen);
+        BooruPostRecord[] posts = CopyWith(cache.Snapshot.Posts, index, frozen);
+        WriteLocked(cache, cache.Snapshot with { Posts = Array.AsReadOnly(posts) },
+            index < 0 ? PostKey(frozen.SourceId, frozen.PostId) : null, null, admission, cancellationToken);
+        return frozen;
+    }
+
+    /// <summary>Replaces (or appends, index -1) one watcher and writes the document. Caller holds the write lock.</summary>
+    private BooruWatcherRecord WriteWatcherLocked(Cache cache, int index, BooruWatcherRecord canonical,
+        ProfileAdmissionToken admission, CancellationToken cancellationToken)
+    {
+        ValidateStoredWatcher(canonical);
+        BooruWatcherRecord[] watchers = CopyWith(cache.Snapshot.Watchers, index, canonical);
+        WriteLocked(cache, cache.Snapshot with { Watchers = Array.AsReadOnly(watchers) },
+            null, index < 0 ? canonical.WatcherId : null, admission, cancellationToken);
+        return canonical;
+    }
+
+    private static T[] CopyWith<T>(IReadOnlyList<T> current, int index, T value)
+    {
+        T[] result = new T[index < 0 ? current.Count + 1 : current.Count];
+        for (int item = 0; item < current.Count; item++) result[item] = current[item];
+        result[index < 0 ? current.Count : index] = value;
+        return result;
+    }
+
+    private void WriteLocked(Cache previous, BooruCatalogSnapshot snapshot, string? addedPostKey, string? addedWatcherId,
+        ProfileAdmissionToken admission, CancellationToken cancellationToken)
+    {
         cancellationToken.ThrowIfCancellationRequested();
         byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(snapshot, _json);
         if (bytes.Length > MaximumDocumentBytes)
@@ -547,6 +745,8 @@ internal sealed class BooruCatalogStore
         string directory = Path.GetDirectoryName(_path)!;
         Directory.CreateDirectory(directory);
         string temporary = Path.Combine(directory, $".{FileName}.{Guid.NewGuid():N}.tmp");
+        // Whatever happens from here, the cached entry may no longer describe the file.
+        _cache = null;
         try
         {
             using (FileStream stream = new(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None,
@@ -558,7 +758,9 @@ internal sealed class BooruCatalogStore
             cancellationToken.ThrowIfCancellationRequested();
             BeforeAdmittedMutationForTests?.Invoke(admission);
             File.Move(temporary, _path, overwrite: true);
+            Interlocked.Increment(ref _writes);
             AfterAdmittedMutationForTests?.Invoke(admission);
+            _cache = previous.Next(snapshot, bytes.Length, RegularProfileFile.TryGetIdentity(_path), addedPostKey, addedWatcherId);
         }
         finally
         {
@@ -608,13 +810,19 @@ internal sealed class BooruCatalogStore
         foreach (BooruWatcherRecord? watcher in snapshot.Watchers)
         {
             if (watcher is null) throw new InvalidDataException("The Booru catalog contains a null watcher.");
-            ValidateWatcher(watcher);
-            string[] canonical = CanonicalIds(watcher.KnownPostIds);
-            if (!watcher.KnownPostIds.SequenceEqual(canonical, StringComparer.Ordinal))
-                throw new InvalidDataException("The Booru catalog contains non-canonical watcher post ids.");
+            ValidateStoredWatcher(watcher);
             if (!watcherKeys.Add(watcher.WatcherId))
                 throw new InvalidDataException("The Booru catalog contains duplicate watchers.");
         }
+    }
+
+    /// <summary>The per-record watcher rules of <see cref="ValidateSnapshot"/> (identity uniqueness is checked by the caller).</summary>
+    private static void ValidateStoredWatcher(BooruWatcherRecord watcher)
+    {
+        ValidateWatcher(watcher);
+        string[] canonical = CanonicalIds(watcher.KnownPostIds);
+        if (!watcher.KnownPostIds.SequenceEqual(canonical, StringComparer.Ordinal))
+            throw new InvalidDataException("The Booru catalog contains non-canonical watcher post ids.");
     }
 
     private static void ValidatePostRecord(BooruPostRecord post)
