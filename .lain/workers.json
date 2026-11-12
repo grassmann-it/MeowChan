@@ -71,6 +71,14 @@
         "route-6759a359fa0b5789dff2e7e871a5c4ee"
       ],
       "contextMode": "native"
+    },
+    {
+      "name": "ux103-abo-astra-xhigh",
+      "routeIds": [
+        "route-4a77563646f99022600e90ec4559a485"
+      ],
+      "reasoningEffort": "xhigh",
+      "contextMode": "native"
     }
   ],
   "costPolicy": "configured"
