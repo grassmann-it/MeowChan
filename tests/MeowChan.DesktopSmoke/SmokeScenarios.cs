@@ -85,7 +85,8 @@ internal static partial class SmokeScenarios
         Nested("plugin-reselection", "MEOWCHAN_PLUGIN_RESELECTION_ONLY", "--plugins"),
         Mode("archive-cleanup", "archive cleanup: private preview, explicit confirmation, real deletion, durable invariants and controlled failures"),
         Mode("shell-load", "shell load: bounded offline gallery/load fixture, separate process watchdog, correlated UI/commit/resource measurements"),
-        Root("startup-first-frame", "MEOWCHAN_STARTUP_FIRST_FRAME_ONLY", "startup first frame: isolated timing separations and post-startup managed navigation probes; no latency SLO or physical-presentation claim"),
+        Root("startup-first-frame", "MEOWCHAN_STARTUP_FIRST_FRAME_ONLY", "startup first frame: isolated timing separations and post-startup managed navigation probes; no latency SLO or physical-presentation claim")
+            with { NightlySkip = "measurement run: needs a fresh absolute MEOWCHAN_STARTUP_FIRST_FRAME_REPORT path per process" },
         Root("startup-preview", "MEOWCHAN_STARTUP_PREVIEW_ONLY"),
         Root("interrupted-startup", "MEOWCHAN_INTERRUPTED_STARTUP_ONLY"),
         Root("diagnostic-evidence", "MEOWCHAN_DIAGNOSTIC_EVIDENCE_ONLY", "diagnostic evidence: native controls with synthetic snapshots, passive facts/waiting/language refresh; managed input and copy delegate, no live network or OS clipboard/Windows/macOS acceptance"),
