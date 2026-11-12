@@ -32,12 +32,18 @@ internal sealed partial class DesktopSessionHost
         Volatile.Write(ref _passiveFavorites, new(entries, entries.Select(entry => entry.Key).ToFrozenSet()));
     }
 
+    private int _booruCatalogReads;
+
+    /// <summary>Number of catalog reads so far; lets tests prove that one resolution reads the document once.</summary>
+    internal int BooruCatalogReads => Volatile.Read(ref _booruCatalogReads);
+
     /// <summary>
     /// The local Booru catalog for read-only views (media page, gallery, favorites). Null when it cannot be read; an
     /// unreadable or newer catalog is never turned into "no posts". Nothing here reaches a provider.
     /// </summary>
     internal BooruCatalogSnapshot? ReadBooruCatalog()
     {
+        Interlocked.Increment(ref _booruCatalogReads);
         if (_disposed || _registry.BooruCatalog is not { } store) return null;
         try { return store.Read(); }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException)
@@ -127,6 +133,10 @@ internal sealed partial class DesktopSessionHost
 
         Dictionary<FavoriteAssetKey, FavoriteExportAsset> found = new();
         ArchiveReader? reader = null;
+        // The catalog is one JSON document that is parsed and validated whole on every read: read it once for all provider
+        // posts of this resolution (and not at all when no favorite is a provider post), never once per favorite group.
+        BooruCatalogSnapshot? booruCatalog = null;
+        bool booruCatalogRead = false;
         try
         {
             try { reader = await OpenArchiveReaderAsync(token).ConfigureAwait(false); }
@@ -144,10 +154,13 @@ internal sealed partial class DesktopSessionHost
                     directories.AddRange(archived);
                 }
                 // A downloaded provider post is no archived thread: its folder is the one the catalog linked to its original.
-                if (BooruMediaIdentity.TryGetPostId(group.Key, out string booruPost) && ReadBooruCatalog() is { } booru
-                    && booru.Posts.FirstOrDefault(post => post.SourceId == BooruMediaIdentity.Source && post.PostId == booruPost) is { } booruRecord
-                    && BooruMediaProjection.DirectoryOf(booruRecord) is { } booruDirectory)
-                    directories.Add(booruDirectory);
+                if (BooruMediaIdentity.TryGetPostId(group.Key, out string booruPost))
+                {
+                    if (!booruCatalogRead) { booruCatalog = ReadBooruCatalog(); booruCatalogRead = true; }
+                    if (booruCatalog?.Posts.FirstOrDefault(post => post.SourceId == BooruMediaIdentity.Source && post.PostId == booruPost) is { } booruRecord
+                        && BooruMediaProjection.DirectoryOf(booruRecord) is { } booruDirectory)
+                        directories.Add(booruDirectory);
+                }
                 try
                 {
                     directories.Add(StorageLayout.GetThreadDirectory(Config.DownloadPath,
