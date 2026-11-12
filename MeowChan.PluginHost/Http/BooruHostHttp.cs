@@ -335,6 +335,8 @@ public sealed class BooruHostHttp : IDisposable
         catch (BooruBodyTooLargeException) { throw; }
         catch (BooruEncodingException) { throw; }
         catch (InvalidDataException exception) { throw new BooruEncodingException(exception); }
+        // BrotliStream reports corrupt input as InvalidOperationException, not InvalidDataException.
+        catch (InvalidOperationException exception) { throw new BooruEncodingException(exception); }
         finally
         {
             // The using above disposes the outermost decoder. If decoder construction
