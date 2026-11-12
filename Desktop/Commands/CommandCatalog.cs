@@ -68,6 +68,7 @@ public static class CommandCatalog
         new("plugins.actions", "plugins.actions", "Actions", "Aktionen", "more-horizontal", null, CommandScope.Settings, new[] { "plugins" }),
         new("updates.check", "updates.check", "Check for updates", "Nach Updates suchen", "refresh-cw", null, CommandScope.Application | CommandScope.Settings, new[] { "app-menu", "about" }),
         new("navigation.plugins", "command.navigation.plugins", "Plugins", "Plugins", "tool", null, CommandScope.Application, new[] { "footer", "app-menu", "tools-menu", "sources" }),
+        new("booru.open", "booru.ui.command.open", "Danbooru search and watchers…", "Danbooru-Suche und Watcher …", "search", null, CommandScope.Application, new[] { "app-menu", "tools-menu" }),
         new("navigation.settings", "command.navigation.settings", "Settings", "Einstellungen", "settings", "Primary+,", CommandScope.Application, new[] { "footer", "app-menu" }),
         new("navigation.about", "command.navigation.about", "About MeowChan", "Über MeowChan", "info", null, CommandScope.Settings | CommandScope.Application, new[] { "app-menu", "settings:planned" }),
         new("navigation.tools-menu", "command.navigation.tools-menu", "Tools", "Werkzeuge", "tool", null, CommandScope.Application, new[] { "footer" }),

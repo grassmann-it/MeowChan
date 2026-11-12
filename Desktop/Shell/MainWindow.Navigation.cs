@@ -164,6 +164,7 @@ public partial class MainWindow
         InitializeMediaPage();
         InitializeReadingResume();
         InitializePostBookmarks();
+        InitializeBooru();
         _sourcesPage = new SourcesPage(OpenDiagnosticWatch, source =>
         {
             if (NavigateWorkspace(WorkspacePage.Rules)) _rulesPage.EditScope(Rules.MediaRuleScope.ForSource(source));
