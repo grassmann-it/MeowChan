@@ -131,6 +131,7 @@ namespace MeowChan
         private decimal? _booruCatalogMiB;
         private decimal? _privateTagLimit;
         private decimal? _privateTagFileMiB;
+        private decimal? _mediaIndexCacheMiB;
 
 
         public IReadOnlyList<SettingsChoice> ThemeChoices { get; private set; } = Array.Empty<SettingsChoice>();
@@ -222,6 +223,7 @@ namespace MeowChan
             BooruCatalogMiB = config.BooruCatalogLimitMiB;
             PrivateTagLimit = config.PrivateTagLimit;
             PrivateTagFileMiB = config.PrivateTagFileLimitMiB;
+            MediaIndexCacheMiB = config.MediaIndexCacheLimitMiB;
 
             RefreshChoices(config.Theme, config.WorkspaceMode, config.Language);
             DataContext = this;
@@ -239,6 +241,7 @@ namespace MeowChan
             ResetNumber(BooruCatalogMiBInput, BooruCatalogMiB!.Value);
             ResetNumber(PrivateTagLimitInput, PrivateTagLimit!.Value);
             ResetNumber(PrivateTagFileMiBInput, PrivateTagFileMiB!.Value);
+            ResetNumber(MediaIndexCacheMiBInput, MediaIndexCacheMiB!.Value);
             ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
 
             Texts.Changed += OnLanguageChanged;
@@ -286,6 +289,9 @@ namespace MeowChan
         public string PrivateTagFileMiBLabel => Texts.T("budgets.privateTagFile");
         public string PrivateTagFileMiBHint => Texts.T("budgets.privateTagFileHint");
         public decimal? PrivateTagFileMiB { get => _privateTagFileMiB; set => SetField(ref _privateTagFileMiB, value, nameof(PrivateTagFileMiB)); }
+        public string MediaIndexCacheMiBLabel => Texts.T("budgets.mediaIndexCache");
+        public string MediaIndexCacheMiBHint => Texts.T("budgets.mediaIndexCacheHint");
+        public decimal? MediaIndexCacheMiB { get => _mediaIndexCacheMiB; set => SetField(ref _mediaIndexCacheMiB, value, nameof(MediaIndexCacheMiB)); }
 
         public string SettingsTitle => Texts.T("settings.title");
         public string SettingsSubtitle => Texts.T("settings.subtitle");
@@ -642,6 +648,7 @@ namespace MeowChan
             BooruCatalogMiB = _config.BooruCatalogLimitMiB;
             PrivateTagLimit = _config.PrivateTagLimit;
             PrivateTagFileMiB = _config.PrivateTagFileLimitMiB;
+            MediaIndexCacheMiB = _config.MediaIndexCacheLimitMiB;
 
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
@@ -656,6 +663,7 @@ namespace MeowChan
             ResetNumber(BooruCatalogMiBInput, BooruCatalogMiB!.Value);
             ResetNumber(PrivateTagLimitInput, PrivateTagLimit!.Value);
             ResetNumber(PrivateTagFileMiBInput, PrivateTagFileMiB!.Value);
+            ResetNumber(MediaIndexCacheMiBInput, MediaIndexCacheMiB!.Value);
             ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
 
             SetErrorMessage(null);
@@ -736,7 +744,7 @@ namespace MeowChan
                     nameof(BudgetRestartHint), nameof(ProductionWorkersLabel), nameof(WorkerIdleMinutesLabel), nameof(SourceHeapMiBLabel),
                     nameof(FilterHeapMiBLabel), nameof(BooruCatalogMiBLabel), nameof(BooruCatalogMiBHint), nameof(BooruCatalogMiBHelp),
                     nameof(PrivateTagLimitLabel), nameof(PrivateTagLimitHint), nameof(PrivateTagLimitHelp),
-                    nameof(PrivateTagFileMiBLabel), nameof(PrivateTagFileMiBHint), nameof(PrivateTagFileMiBHelp), nameof(SettingsTitle), nameof(SettingsSubtitle), nameof(DownloadsTitle),
+                    nameof(PrivateTagFileMiBLabel), nameof(PrivateTagFileMiBHint), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBLabel), nameof(MediaIndexCacheMiBHint), nameof(MediaIndexCacheMiBHelp), nameof(SettingsTitle), nameof(SettingsSubtitle), nameof(DownloadsTitle),
                     nameof(InterfaceTitle), nameof(ReadingMediaTitle), nameof(ReadingFontSizeLabel), nameof(VideoAutoplayLabel),
                     nameof(VideoStartMutedLabel), nameof(VideoVolumeLabel), nameof(ShowShortcutHelpLabel), nameof(AboutLabel),
                     nameof(GalleryPlaybackTitle), nameof(GalleryPlaybackModeLabel), nameof(GallerySlideshowSecondsLabel), nameof(GallerySlideshowSecondsHelp),
@@ -969,6 +977,7 @@ namespace MeowChan
                 candidate.BooruCatalogLimitMiB = GetInteger(BooruCatalogMiB, BooruCatalogMiBLabel, Config.BooruCatalogMinimumLimitMiB, Config.BooruCatalogMaximumLimitMiB);
                 candidate.PrivateTagLimit = GetInteger(PrivateTagLimit, PrivateTagLimitLabel, Config.PrivateTagMinimumLimit, Config.PrivateTagMaximumLimit);
                 candidate.PrivateTagFileLimitMiB = GetInteger(PrivateTagFileMiB, PrivateTagFileMiBLabel, Config.PrivateTagFileMinimumLimitMiB, Config.PrivateTagFileMaximumLimitMiB);
+                candidate.MediaIndexCacheLimitMiB = GetInteger(MediaIndexCacheMiB, MediaIndexCacheMiBLabel, Config.MediaIndexCacheMinimumLimitMiB, Config.MediaIndexCacheMaximumLimitMiB);
 
                 if (!BandwidthLimiterMB.HasValue || BandwidthLimiterMB.Value <= 0)
                 {
@@ -1056,6 +1065,7 @@ namespace MeowChan
             BooruCatalogMiB = _config.BooruCatalogLimitMiB;
             PrivateTagLimit = _config.PrivateTagLimit;
             PrivateTagFileMiB = _config.PrivateTagFileLimitMiB;
+            MediaIndexCacheMiB = _config.MediaIndexCacheLimitMiB;
 
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
@@ -1070,6 +1080,7 @@ namespace MeowChan
             ResetNumber(BooruCatalogMiBInput, BooruCatalogMiB!.Value);
             ResetNumber(PrivateTagLimitInput, PrivateTagLimit!.Value);
             ResetNumber(PrivateTagFileMiBInput, PrivateTagFileMiB!.Value);
+            ResetNumber(MediaIndexCacheMiBInput, MediaIndexCacheMiB!.Value);
             ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
 
         }

@@ -152,15 +152,22 @@ internal static partial class MediaPageChecks
         }
         finally { page.EndLifetime(); window.Close(); }
 
-        // A new page shows the cached index immediately, before its own update finishes.
+        // A new page reads the cached index in the background (the UI thread is not blocked and says so), shows it, and
+        // does not write the unchanged index back.
         MediaPage again = new(host.OpenArchiveReaderAsync, cachePath: cache);
         Window second = new() { Width = 900, Height = 700, Content = again, ShowInTaskbar = false };
         try
         {
             second.Show(owner);
+            DateTime written = File.GetLastWriteTimeUtc(cache);
             Task update = again.ActivateAsync();
-            Require(again.Snapshot != null && again.ShownEntries.Count == 3, "Cached index was not shown right away.");
+            Require(again.LoadingCache && again.Snapshot == null && C<TextBlock>(again, "MediaStatus").Text!.Contains(Texts.T("media.cache.loading")),
+                "The cached index was not loading in the background: " + C<TextBlock>(again, "MediaStatus").Text);
+            await UntilAsync(() => again.Snapshot != null);
+            Require(again.ShownEntries.Count == 3, "Cached index was not shown.");
             await update.WaitAsync(Deadline);
+            Require(again.CacheFile is { Writes: 0, SkippedWrites: 1 } && File.GetLastWriteTimeUtc(cache) == written,
+                "The unchanged index was written again.");
         }
         finally { again.EndLifetime(); second.Close(); }
     }

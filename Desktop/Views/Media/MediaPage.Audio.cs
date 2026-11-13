@@ -33,8 +33,8 @@ public sealed partial class MediaPage
 
     private bool SoundFilterActive => _soundFilter.SelectedIndex > 0;
 
-    private string? AudioCachePath => _cachePath == null ? null
-        : Path.Combine(Path.GetDirectoryName(Path.GetFullPath(_cachePath))!, MediaAudioCache.FileName);
+    private string? AudioCachePath => _cacheFile?.Path is not { } cachePath ? null
+        : Path.Combine(Path.GetDirectoryName(Path.GetFullPath(cachePath))!, MediaAudioCache.FileName);
 
     /// <summary>Starts (or restarts, for a newer index) the low-priority sound check of the videos in the index.</summary>
     private void StartAudioProbe(MediaLibrarySnapshot snapshot)
@@ -84,14 +84,8 @@ public sealed partial class MediaPage
     private Stream? OpenForAudioProbe(MediaLibraryEntry entry, CancellationToken token)
     {
         if (entry.Directory == null || entry.AssetId == null) return null;
-        Task<MediaAssetSnapshot> manifestTask;
-        lock (_manifests)
-        {
-            if (!_manifests.TryGetValue(entry.Directory, out manifestTask!))
-                _manifests[entry.Directory] = manifestTask = _openManifest(entry.Directory, _lifetime.Token);
-        }
         MediaAssetSnapshot manifest;
-        try { manifest = manifestTask.WaitAsync(token).GetAwaiter().GetResult(); }
+        try { manifest = _manifests.OpenAsync(entry.Directory, token).GetAwaiter().GetResult(); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException) { return null; }
         // Only the file the index recorded: same hash in the manifest and the same length on disk.
         return MediaLibraryAudioScanner.OpenForProbe(manifest.FindById(entry.AssetId), entry.Sha256, entry.Length);

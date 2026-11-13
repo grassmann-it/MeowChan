@@ -37,7 +37,7 @@ public sealed record MediaCommitResult(string Path, long Length, string Sha256, 
 /// </summary>
 public sealed partial class MediaStore
 {
-    private const string ManifestFileName = ".meowchan-manifest.json";
+    internal const string ManifestFileName = ".meowchan-manifest.json";
     private const string LegacyManifestFileName = ".ochan-manifest.json";
     private const string DirectoryLeaseFileName = ".meowchan-store.lock";
     private const string LegacyDirectoryLeaseFileName = ".ochan-store.lock";

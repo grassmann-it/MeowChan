@@ -164,9 +164,34 @@ internal static class BooruMediaProjection
     internal static async Task<(IReadOnlyList<MediaLibraryEntry> Entries, int Unreadable)> EntriesAsync(BooruCatalogSnapshot catalog,
         Func<string, CancellationToken, Task<MediaAssetSnapshot>> openManifest, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(openManifest);
+        Result result = await EntriesAsync(catalog, new MediaManifestCache(openManifest, identity: false), null, cancellationToken).ConfigureAwait(false);
+        return (result.Entries, result.Unreadable);
+    }
+
+    /// <summary>The provider entries, the number of unreadable media folders and the manifests the entries were derived from.</summary>
+    internal sealed record Result(IReadOnlyList<MediaLibraryEntry> Entries, int Unreadable, IReadOnlyList<MediaLibraryManifestState> Manifests);
+
+    /// <summary>
+    /// As above, through <paramref name="manifests"/>. A saved post whose media folder, local asset and manifest file identity
+    /// are the same as in <paramref name="previous"/> keeps its previous entry (with the catalog's current first/last seen
+    /// times) without the manifest being opened: equal identity means equal bytes, so the lookup would find the same record.
+    /// </summary>
+    internal static async Task<Result> EntriesAsync(BooruCatalogSnapshot catalog, MediaManifestCache manifests, MediaLibrarySnapshot? previous,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(catalog);
+        ArgumentNullException.ThrowIfNull(manifests);
+        Dictionary<string, MediaLibraryManifestState> priorManifests = new(StringComparer.Ordinal);
+        Dictionary<string, MediaLibraryEntry> priorEntries = new(StringComparer.Ordinal);
+        if (previous != null && manifests.UsesIdentity)
+        {
+            foreach (MediaLibraryManifestState state in previous.ProviderManifests) priorManifests.TryAdd(state.Directory, state);
+            foreach (MediaLibraryEntry entry in previous.Entries)
+                if (entry.BooruPostId is { } id) priorEntries.TryAdd(id, entry);
+        }
         List<MediaLibraryEntry> entries = new();
+        Dictionary<string, MediaLibraryManifestState> states = new(StringComparer.Ordinal);
         int unreadable = 0;
         foreach (BooruPostRecord record in catalog.Posts.Where(post => post.SourceId == BooruMediaIdentity.Source && post.LocalAssetId != null)
             .OrderBy(post => post, Comparer<BooruPostRecord>.Create((left, right) => DanbooruPostReference.ComparePostIds(left.PostId, right.PostId))))
@@ -178,14 +203,30 @@ internal static class BooruMediaProjection
             string? directory = DirectoryOf(record);
             if (directory != null)
             {
-                try { manifest = await openManifest(directory, cancellationToken).ConfigureAwait(false); }
+                if (priorManifests.TryGetValue(directory, out MediaLibraryManifestState? prior) && prior is { Generation: not null, Identity: { } identity }
+                    && priorEntries.TryGetValue(record.PostId, out MediaLibraryEntry? kept)
+                    && kept is { Presence: MediaLibraryPresence.Present } && kept.Directory == directory && kept.AssetId == record.LocalAssetId
+                    && manifests.Probe(directory) == identity)
+                {
+                    entries.Add(kept.FirstSeenAt == record.FirstSeenAtUtc && kept.LastCapturedAt == record.LastSeenAtUtc ? kept
+                        : kept with { FirstSeenAt = record.FirstSeenAtUtc, LastCapturedAt = record.LastSeenAtUtc });
+                    states.TryAdd(directory, prior);
+                    continue;
+                }
+                try
+                {
+                    MediaManifestRead read = await manifests.ReadAsync(directory, cancellationToken).ConfigureAwait(false);
+                    manifest = read.Snapshot;
+                    states.TryAdd(directory, new MediaLibraryManifestState(directory, manifest.Generation) { Identity = read.Identity });
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException) { unreadable++; }
                 if (manifest is { Status: MediaManifestStatus.Available }
                     && manifest.FindById(record.LocalAssetId!) is { } found && IsTheOriginalOf(found, record.PostId)) asset = found;
             }
             entries.Add(EntryOf(record, directory, asset));
         }
-        return (entries, unreadable);
+        return new(entries, unreadable, states.Values.ToArray());
     }
 
     // The manifest record must be exactly the original the queue saved for this post, not any file in that folder.

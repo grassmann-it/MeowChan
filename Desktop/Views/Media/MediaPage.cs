@@ -34,9 +34,10 @@ public sealed partial class MediaPage : UserControl
 {
     private readonly Func<CancellationToken, Task<ArchiveReader>> _openReader;
     private readonly Func<string, CancellationToken, Task<MediaAssetSnapshot>> _openManifest;
-    private readonly string? _cachePath;
+    private readonly MediaLibraryIndexCacheFile? _cacheFile;
     private readonly CancellationTokenSource _lifetime = new();
-    private readonly Dictionary<string, Task<MediaAssetSnapshot>> _manifests = new(StringComparer.Ordinal);
+    // Manifest views of this page (thumbnails, sound check) that the index build may reuse; see MediaManifestCache.
+    private readonly MediaManifestCache _manifests;
     private readonly TextBlock _title = new() { Classes = { "section-title" } };
     private readonly TextBlock _subtitle = new() { TextWrapping = Avalonia.Media.TextWrapping.Wrap, Classes = { "muted" } };
     private readonly ComboBox _sort = new() { Name = "MediaSort", MinWidth = 160 };
@@ -56,6 +57,13 @@ public sealed partial class MediaPage : UserControl
     private IReadOnlyList<MediaLibraryTile> _tiles = Array.Empty<MediaLibraryTile>();
     private MediaLibraryProgress? _progress;
     private CancellationTokenSource? _building;
+    // The saved index is read once per page, off the UI thread; while it loads the status says so.
+    private bool _cacheTried;
+    private bool _loadingCache;
+    private MediaLibraryIndexCacheWrite? _cacheWrite;
+    // Counts the status line needs on every update, computed once per presentation or index instead of per progress tick.
+    private int _shownMissing;
+    private int _providerEntries;
     private bool _failed;
     private bool _localizing;
     private bool _available;
@@ -90,6 +98,16 @@ public sealed partial class MediaPage : UserControl
     internal ContextMenu? MediaMenu => _mediaMenuPresenter.Menu;
     internal MediaMenuSession? MediaMenuSession => _mediaMenuPresenter.Session;
     internal Task BuildTask { get; private set; } = Task.CompletedTask;
+    /// <summary>At most this often does a running build update the status line (the build reports once per thread).</summary>
+    internal static readonly TimeSpan ProgressInterval = TimeSpan.FromMilliseconds(100);
+    /// <summary>Write limit of the saved index in bytes; the shell reads the setting each time. Null: the default limit.</summary>
+    internal Func<long>? CacheLimitBytes { get; set; }
+    /// <summary>Reads the saved index; tests replace it to hold the load open.</summary>
+    internal Func<MediaLibraryIndexCacheFile, CancellationToken, Task<MediaLibrarySnapshot?>> LoadCache { get; set; } =
+        (file, token) => file.LoadAsync(token);
+    internal MediaLibraryIndexCacheFile? CacheFile => _cacheFile;
+    internal bool LoadingCache => _loadingCache;
+    internal MediaLibraryIndexCacheWrite? LastCacheWrite => _cacheWrite;
     /// <summary>One entry per tile: the occurrence each tile shows. Gallery windows are made from this list.</summary>
     internal IReadOnlyList<MediaLibraryEntry> ShownEntries => _shown;
     internal IReadOnlyList<MediaLibraryTile> Tiles => _tiles;
@@ -101,7 +119,9 @@ public sealed partial class MediaPage : UserControl
     {
         _openReader = openReader ?? throw new ArgumentNullException(nameof(openReader));
         _openManifest = openManifest ?? MediaAssetReader.OpenAsync;
-        _cachePath = cachePath;
+        // Only the real manifest reader is checked by file identity; a supplied opener keeps the per-build behavior.
+        _manifests = new MediaManifestCache(openManifest, _lifetime.Token);
+        _cacheFile = cachePath == null ? null : new MediaLibraryIndexCacheFile(cachePath);
         Name = "MediaPage";
         WrapPanel tools = new() { ItemSpacing = 6, LineSpacing = 4 };
         foreach (Control control in new Control[] { _filters, _sort, _shuffle, _missing, _refresh, _exportAll }) { control.VerticalAlignment = VerticalAlignment.Center; tools.Children.Add(control); }
@@ -146,18 +166,22 @@ public sealed partial class MediaPage : UserControl
 
     internal MediaLibrarySort Sort => _sort.SelectedIndex switch { 1 => MediaLibrarySort.Newest, 2 => MediaLibrarySort.Random, _ => MediaLibrarySort.ByThread };
 
-    /// <summary>Shows the cached index at once, then brings it up to date in the background.</summary>
+    /// <summary>
+    /// Shows the saved index as soon as it is read (in the background; the page stays responsive and says that it is
+    /// loading), then brings it up to date in the background.
+    /// </summary>
     internal Task ActivateAsync()
     {
         RefreshUserData();
         UpdateSearchTip();
         if (_building != null) return BuildTask;
-        if (_snapshot == null && _cachePath != null && MediaLibraryIndexCache.Load(_cachePath) is { } cached)
-        {
-            _snapshot = cached;
-            Present();
-        }
         return BuildTask = BuildAsync(force: false);
+    }
+
+    private void SetSnapshot(MediaLibrarySnapshot snapshot)
+    {
+        _snapshot = snapshot;
+        _providerEntries = snapshot.Entries.Count(entry => entry.BooruPostId != null);
     }
 
     private async Task BuildAsync(bool force)
@@ -167,23 +191,48 @@ public sealed partial class MediaPage : UserControl
         CancellationTokenSource building = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _building = building;
         _failed = false;
-        lock (_manifests) _manifests.Clear(); // Files may have changed: thumbnails re-open their manifests.
-        Progress<MediaLibraryProgress> progress = new(value => { if (ReferenceEquals(_building, building)) { _progress = value; UpdateStatus(); } });
+        _manifests.Invalidate(); // Files may have changed: earlier manifest views must prove their file identity again.
+        Progress<MediaLibraryProgress> posted = new(value => { if (ReferenceEquals(_building, building)) { _progress = value; UpdateStatusText(); } });
+        // The build reports once per thread; the status line needs at most a few updates per second (and the last one).
+        ThrottledProgress<MediaLibraryProgress> progress = new(posted, ProgressInterval, value => value.ThreadsDone >= value.ThreadsTotal);
         UpdateStatus();
         try
         {
+            if (!force && _snapshot == null && _cacheFile is { } cacheFile && !_cacheTried)
+            {
+                _cacheTried = true;
+                _loadingCache = true;
+                UpdateStatus();
+                MediaLibrarySnapshot? cached;
+                Func<MediaLibraryIndexCacheFile, CancellationToken, Task<MediaLibrarySnapshot?>> load = LoadCache;
+                try { cached = await Task.Run(() => load(cacheFile, building.Token), building.Token); }
+                finally { _loadingCache = false; }
+                if (!ReferenceEquals(_building, building)) return;
+                if (cached != null && _snapshot == null)
+                {
+                    SetSnapshot(cached);
+                    Present();
+                }
+                else UpdateStatus();
+            }
             MediaLibrarySnapshot? previous = force ? null : _snapshot;
             Func<BooruCatalogSnapshot?>? readBooru = ReadBooruCatalog;
-            MediaLibrarySnapshot built = await Task.Run(() => MediaLibraryIndexBuilder.BuildAsync(_openReader, _openManifest,
+            // A refresh reads every manifest again (no reuse of kept views); identities are still recorded for the next open.
+            MediaManifestCache manifests = force ? new MediaManifestCache(_manifests.UsesIdentity ? null : _openManifest, building.Token) : _manifests;
+            MediaLibrarySnapshot built = await Task.Run(() => MediaLibraryIndexBuilder.BuildAsync(_openReader, manifests,
                 previous, progress, building.Token, readBooru), building.Token);
             if (!ReferenceEquals(_building, building)) return;
-            _snapshot = built;
-            if (_cachePath != null)
-            {
-                try { await Task.Run(() => MediaLibraryIndexCache.Save(_cachePath, built, building.Token), building.Token); }
-                catch (Exception error) when (error is IOException or UnauthorizedAccessException) { } // A cache is optional.
-            }
+            SetSnapshot(built);
+            _progress = null;
             Present();
+            if (_cacheFile is { } file)
+            {
+                long limit = CacheLimitBytes?.Invoke() ?? MediaLibraryIndexCache.DefaultLimitBytes;
+                // Written only when the index differs from what the file holds; otherwise this is a comparison in memory.
+                try { _cacheWrite = await Task.Run(() => file.SaveAsync(built, limit, building.Token), building.Token); }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException) { } // A cache is optional.
+                if (!ReferenceEquals(_building, building)) return;
+            }
             StartAudioProbe(built);
         }
         catch (OperationCanceledException) when (building.IsCancellationRequested) { }
@@ -214,6 +263,7 @@ public sealed partial class MediaPage : UserControl
         // Filter the occurrences first; a tile of equal bytes stays when any of its occurrences passed.
         _tiles = MediaLibraryGrouping.Build(all, ApplyFilter(all), Sort, includeMissing, _seed, _userData.IsFavorite);
         _shown = _tiles.Select(tile => tile.Entry).ToArray();
+        _shownMissing = _shown.Count(entry => entry.Presence == MediaLibraryPresence.Missing);
         _unfiltered = _filterActive ? MediaLibraryGrouping.CountTiles(all, includeMissing) : _shown.Count;
         // Own state is read from the data this presentation was built with, so a row never mixes two reads.
         MediaLibraryUserData userData = _userData;
@@ -232,18 +282,7 @@ public sealed partial class MediaPage : UserControl
 
     private void UpdateStatus()
     {
-        int threads = _snapshot?.Threads.Count ?? 0;
-        int missing = _shown.Count(entry => entry.Presence == MediaLibraryPresence.Missing);
-        List<string> parts = new();
-        if (_progress is { } progress && progress.ThreadsTotal > 0) parts.Add(Texts.T("media.indexing", progress.ThreadsDone, progress.ThreadsTotal));
-        if (_snapshot != null) parts.Add(_filterActive && !_filterFailed ? Texts.T("media.filter.count", _shown.Count, _unfiltered)
-            : missing > 0 ? Texts.Count("media.countMissing", threads, _shown.Count, threads, missing) : Texts.Count("media.count", threads, _shown.Count, threads));
-        if (_snapshot != null && _snapshot.Entries.Count(entry => entry.BooruPostId != null) is > 0 and int provider)
-            parts.Add(Texts.T("booru.media.statusCount", provider));
-        if (_snapshot is { Complete: false } && _building == null) parts.Add(Texts.T("media.incomplete"));
-        if (_failed) parts.Add(Texts.T("media.failed"));
-        if (_snapshot == null && _building == null && !_failed && !_available) parts.Add(Texts.T("media.notReady"));
-        _status.Text = string.Join(" · ", parts);
+        UpdateStatusText();
         _empty.Text = Texts.T(_filterActive ? "media.filter.noMatch" : "media.empty");
         // A refused filter explains itself above the grid; the grid stays empty.
         bool showEmpty = _snapshot != null && _shown.Count == 0 && _building == null && !_filterFailed;
@@ -257,21 +296,46 @@ public sealed partial class MediaPage : UserControl
         UpdateSelectionBar();
     }
 
+    // The status line alone: what a progress tick changes. Every count in it is kept, so a tick costs no pass over the index.
+    private void UpdateStatusText()
+    {
+        int threads = _snapshot?.Threads.Count ?? 0;
+        int missing = _shownMissing;
+        List<string> parts = new();
+        if (_loadingCache) parts.Add(Texts.T("media.cache.loading"));
+        if (_progress is { } progress && progress.ThreadsTotal > 0) parts.Add(Texts.T("media.indexing", progress.ThreadsDone, progress.ThreadsTotal));
+        if (_snapshot != null) parts.Add(_filterActive && !_filterFailed ? Texts.T("media.filter.count", _shown.Count, _unfiltered)
+            : missing > 0 ? Texts.Count("media.countMissing", threads, _shown.Count, threads, missing) : Texts.Count("media.count", threads, _shown.Count, threads));
+        if (_snapshot != null && _providerEntries is > 0 and int provider)
+            parts.Add(Texts.T("booru.media.statusCount", provider));
+        if (_snapshot is { Complete: false } && _building == null) parts.Add(Texts.T("media.incomplete"));
+        if (_failed) parts.Add(Texts.T("media.failed"));
+        if (_snapshot == null && _building == null && !_failed && !_available) parts.Add(Texts.T("media.notReady"));
+        if (CacheLimitNote() is { } note) parts.Add(note);
+        _status.Text = string.Join(" · ", parts);
+    }
+
+    // The saved index has a write limit (a setting); near it and above it the page says so instead of silently rebuilding.
+    private string? CacheLimitNote()
+    {
+        if (_cacheWrite is not { } write) return null;
+        string Size(long bytes) => (bytes / (1024.0 * 1024.0)).ToString("0.#", Texts.Culture) + " MiB";
+        string setting = Texts.T("budgets.mediaIndexCache"), category = Texts.T("budgets.advanced");
+        return write.Status switch
+        {
+            MediaLibraryIndexCacheWriteStatus.TooManyEntries => Texts.T("media.cache.tooMany", MediaLibraryIndexCache.MaximumEntries.ToString("N0", Texts.Culture)),
+            MediaLibraryIndexCacheWriteStatus.TooLarge => Texts.T("media.cache.overLimit", Size(write.LimitBytes), setting, category),
+            _ when write.NearOrOverLimit => Texts.T("media.cache.nearLimit", Size(write.Bytes), Size(write.LimitBytes), setting, category),
+            _ => null
+        };
+    }
+
     internal string PosterCacheDirectory { get; set; } = System.IO.Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1");
 
     private Task<Bitmap?> LoadThumbnailAsync(MediaLibraryTile tile, CancellationToken token) =>
         MediaTileThumbnails.LoadAsync(tile, OpenManifestAsync, PosterCacheDirectory, token);
 
-    private Task<MediaAssetSnapshot> OpenManifestAsync(string directory, CancellationToken token)
-    {
-        Task<MediaAssetSnapshot> manifestTask;
-        lock (_manifests)
-        {
-            if (!_manifests.TryGetValue(directory, out manifestTask!))
-                _manifests[directory] = manifestTask = _openManifest(directory, _lifetime.Token);
-        }
-        return manifestTask.WaitAsync(token);
-    }
+    private Task<MediaAssetSnapshot> OpenManifestAsync(string directory, CancellationToken token) => _manifests.OpenAsync(directory, token);
 
     private MediaLibraryTileRow? SelectedRow => _grid.SelectedItem as MediaLibraryTileRow;
 

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Archive;
+using MeowChan.Persistence;
 using MeowChan.Storage;
 
 namespace MeowChan.Gallery;
@@ -40,7 +41,15 @@ internal sealed record MediaLibraryThreadState(ResourceId Thread, long Revision,
     IReadOnlyList<MediaLibraryManifestState> Manifests, bool Complete);
 
 /// <summary>A media directory and the manifest generation it had when read (null: missing or unreadable).</summary>
-internal sealed record MediaLibraryManifestState(string Directory, string? Generation);
+internal sealed record MediaLibraryManifestState(string Directory, string? Generation)
+{
+    /// <summary>
+    /// The identity of the manifest file whose bytes had <see cref="Generation"/> (see <see cref="MediaManifestRead"/>), or
+    /// null when it could not be pinned. A later build that sees the same identity knows the generation without reading
+    /// and hashing the manifest again. Part of the value: equal states also agree about what can be skipped.
+    /// </summary>
+    internal RegularProfileFileIdentity? Identity { get; init; }
+}
 
 internal sealed record MediaLibraryProgress(int ThreadsDone, int ThreadsTotal, int Reused);
 
@@ -48,12 +57,13 @@ internal sealed record MediaLibraryProgress(int ThreadsDone, int ThreadsTotal, i
 internal sealed class MediaLibrarySnapshot
 {
     internal MediaLibrarySnapshot(IEnumerable<MediaLibraryEntry> entries, IEnumerable<MediaLibraryThreadState> threads,
-        IEnumerable<string> warnings, bool complete)
+        IEnumerable<string> warnings, bool complete, IEnumerable<MediaLibraryManifestState>? providerManifests = null)
     {
         Entries = Array.AsReadOnly(entries.ToArray());
         Threads = Array.AsReadOnly(threads.ToArray());
         Warnings = Array.AsReadOnly(warnings.ToArray());
         Complete = complete;
+        ProviderManifests = Array.AsReadOnly(providerManifests?.ToArray() ?? Array.Empty<MediaLibraryManifestState>());
     }
 
     internal static MediaLibrarySnapshot Empty { get; } = new(Array.Empty<MediaLibraryEntry>(),
@@ -65,6 +75,40 @@ internal sealed class MediaLibrarySnapshot
     internal IReadOnlyList<string> Warnings { get; }
     /// <summary>False when the build was cancelled or a thread could not be read completely.</summary>
     internal bool Complete { get; }
+    /// <summary>
+    /// The manifests the downloaded provider entries were derived from (one per media folder, with identity), so the
+    /// next build can keep a provider entry whose manifest file did not change. Not shown anywhere; empty when unknown.
+    /// </summary>
+    internal IReadOnlyList<MediaLibraryManifestState> ProviderManifests { get; }
+
+    /// <summary>
+    /// Whether two indexes hold the same entries in the same order and the same derivation states (warnings are not
+    /// persisted and do not count). Decides whether the cache file needs to be written again.
+    /// </summary>
+    internal static bool SameContent(MediaLibrarySnapshot? left, MediaLibrarySnapshot? right)
+    {
+        if (ReferenceEquals(left, right)) return true;
+        if (left == null || right == null || left.Entries.Count != right.Entries.Count || left.Threads.Count != right.Threads.Count
+            || left.ProviderManifests.Count != right.ProviderManifests.Count) return false;
+        for (int index = 0; index < left.Entries.Count; index++)
+            if (!ReferenceEquals(left.Entries[index], right.Entries[index]) && left.Entries[index] != right.Entries[index]) return false;
+        for (int index = 0; index < left.Threads.Count; index++)
+            if (!SameState(left.Threads[index], right.Threads[index])) return false;
+        return SameManifests(left.ProviderManifests, right.ProviderManifests);
+    }
+
+    private static bool SameState(MediaLibraryThreadState left, MediaLibraryThreadState right) =>
+        ReferenceEquals(left, right) || left.Thread == right.Thread && left.Revision == right.Revision && left.Complete == right.Complete
+            && SameManifests(left.Manifests, right.Manifests);
+
+    private static bool SameManifests(IReadOnlyList<MediaLibraryManifestState> left, IReadOnlyList<MediaLibraryManifestState> right)
+    {
+        if (ReferenceEquals(left, right)) return true;
+        if (left.Count != right.Count) return false;
+        for (int index = 0; index < left.Count; index++)
+            if (left[index] != right[index]) return false;
+        return true;
+    }
 }
 
 /// <summary>
@@ -77,14 +121,33 @@ internal static class MediaLibraryIndexBuilder
 {
     internal const int ThreadPageSize = 200;
 
-    internal static async Task<MediaLibrarySnapshot> BuildAsync(
+    /// <summary>
+    /// Builds with a plain manifest opener: every manifest is read and hashed, as the builder always did; no file
+    /// identity is recorded or used.
+    /// </summary>
+    internal static Task<MediaLibrarySnapshot> BuildAsync(
         Func<CancellationToken, Task<ArchiveReader>> openReader,
         Func<string, CancellationToken, Task<MediaAssetSnapshot>> openManifest,
         MediaLibrarySnapshot? previous = null, IProgress<MediaLibraryProgress>? progress = null,
         CancellationToken cancellationToken = default, Func<BooruCatalogSnapshot?>? readBooruCatalog = null)
     {
-        ArgumentNullException.ThrowIfNull(openReader);
         ArgumentNullException.ThrowIfNull(openManifest);
+        return BuildAsync(openReader, new MediaManifestCache(openManifest, identity: false), previous, progress, cancellationToken, readBooruCatalog);
+    }
+
+    /// <summary>
+    /// Builds through <paramref name="manifests"/>. When it pins manifest file identities, a thread whose catalog revision,
+    /// media folders and every manifest file identity equal the previous complete state is reused without opening any
+    /// manifest; the result is the same as reading them, because equal identity means equal bytes and so equal generation.
+    /// </summary>
+    internal static async Task<MediaLibrarySnapshot> BuildAsync(
+        Func<CancellationToken, Task<ArchiveReader>> openReader,
+        MediaManifestCache manifests,
+        MediaLibrarySnapshot? previous = null, IProgress<MediaLibraryProgress>? progress = null,
+        CancellationToken cancellationToken = default, Func<BooruCatalogSnapshot?>? readBooruCatalog = null)
+    {
+        ArgumentNullException.ThrowIfNull(openReader);
+        ArgumentNullException.ThrowIfNull(manifests);
         Dictionary<ResourceId, MediaLibraryThreadState> priorStates = previous?.Threads
             .Where(state => state.Complete).ToDictionary(state => state.Thread) ?? new();
         ILookup<ResourceId, MediaLibraryEntry> priorEntries = (previous?.Entries ?? Array.Empty<MediaLibraryEntry>())
@@ -117,18 +180,31 @@ internal static class MediaLibraryIndexBuilder
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                IReadOnlyList<string> directories = await reader!.GetMediaDirectoriesAsync(summary.Id, cancellationToken).ConfigureAwait(false);
-                List<MediaAssetSnapshot> manifests = new();
+                string[] directories = (await reader!.GetMediaDirectoriesAsync(summary.Id, cancellationToken).ConfigureAwait(false))
+                    .Distinct(StringComparer.Ordinal).ToArray();
+                priorStates.TryGetValue(summary.Id, out MediaLibraryThreadState? prior);
+                if (prior != null && prior.Revision == summary.Revision && Unchanged(prior, directories, manifests, cancellationToken))
+                {
+                    // Same catalog revision, same folders, every manifest file untouched since it was read: nothing to open.
+                    entries.AddRange(priorEntries[summary.Id]);
+                    states.Add(prior);
+                    reused++;
+                    done++;
+                    progress?.Report(new(done, threads.Count, reused));
+                    continue;
+                }
+                List<MediaAssetSnapshot> threadManifests = new();
                 List<MediaLibraryManifestState> manifestStates = new();
                 bool threadComplete = true;
-                foreach (string directory in directories.Distinct(StringComparer.Ordinal))
+                foreach (string directory in directories)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     try
                     {
-                        MediaAssetSnapshot manifest = await openManifest(directory, cancellationToken).ConfigureAwait(false);
-                        manifests.Add(manifest);
-                        manifestStates.Add(new(directory, manifest.Generation));
+                        MediaManifestRead read = await manifests.ReadAsync(directory, cancellationToken).ConfigureAwait(false);
+                        MediaAssetSnapshot manifest = read.Snapshot;
+                        threadManifests.Add(manifest);
+                        manifestStates.Add(new(directory, manifest.Generation) { Identity = read.Identity });
                         if (manifest.Status == MediaManifestStatus.Corrupt) { threadComplete = false; warnings.Add(Describe(summary.Id) + ": media manifest is damaged."); }
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
@@ -141,7 +217,7 @@ internal static class MediaLibraryIndexBuilder
                     }
                 }
                 MediaLibraryThreadState state = new(summary.Id, summary.Revision, manifestStates.AsReadOnly(), threadComplete);
-                if (threadComplete && priorStates.TryGetValue(summary.Id, out MediaLibraryThreadState? prior) && SameState(prior, state))
+                if (threadComplete && prior != null && SameState(prior, state))
                 {
                     entries.AddRange(priorEntries[summary.Id]);
                     reused++;
@@ -150,7 +226,7 @@ internal static class MediaLibraryIndexBuilder
                 {
                     ArchivedThreadView? view = await reader!.ReadThreadAsync(summary.Id, cancellationToken).ConfigureAwait(false);
                     if (view == null) { done++; continue; } // Removed between listing and reading.
-                    entries.AddRange(EntriesOf(view, manifests));
+                    entries.AddRange(EntriesOf(view, threadManifests));
                 }
                 if (!threadComplete) complete = false;
                 states.Add(state);
@@ -167,6 +243,7 @@ internal static class MediaLibraryIndexBuilder
         }
         // Downloaded provider posts are always derived again from the local catalog (cheap, no thread revision to reuse).
         // An unreadable catalog keeps what the previous index showed instead of making the local media vanish.
+        IReadOnlyList<MediaLibraryManifestState> providerManifests = Array.Empty<MediaLibraryManifestState>();
         if (readBooruCatalog != null)
         {
             BooruCatalogSnapshot? booru = null;
@@ -175,23 +252,44 @@ internal static class MediaLibraryIndexBuilder
             if (booru == null)
             {
                 entries.AddRange((previous?.Entries ?? Array.Empty<MediaLibraryEntry>()).Where(entry => entry.BooruPostId != null));
+                providerManifests = previous?.ProviderManifests ?? providerManifests;
                 complete = false;
                 warnings.Add("Danbooru: the local catalog could not be read.");
             }
             else
             {
-                (IReadOnlyList<MediaLibraryEntry> posts, int unreadable) = await BooruMediaProjection.EntriesAsync(booru, openManifest, cancellationToken).ConfigureAwait(false);
-                entries.AddRange(posts);
+                BooruMediaProjection.Result projected = await BooruMediaProjection.EntriesAsync(booru, manifests, previous, cancellationToken).ConfigureAwait(false);
+                entries.AddRange(projected.Entries);
+                providerManifests = projected.Manifests;
+                int unreadable = projected.Unreadable;
                 if (unreadable > 0) { complete = false; warnings.Add("Danbooru: " + unreadable + " media folder(s) could not be read."); }
             }
         }
         if (noArchive != null && entries.Count == 0) throw noArchive;
-        return new MediaLibrarySnapshot(entries, states, warnings, complete);
+        return new MediaLibrarySnapshot(entries, states, warnings, complete, providerManifests);
     }
 
+    // Reuse by generation: the identity is bookkeeping about how the generation was learned, not part of what was read.
     private static bool SameState(MediaLibraryThreadState prior, MediaLibraryThreadState current) =>
         prior.Revision == current.Revision && prior.Manifests.Count == current.Manifests.Count
-        && prior.Manifests.Zip(current.Manifests).All(pair => pair.First == pair.Second && pair.First.Generation != null);
+        && prior.Manifests.Zip(current.Manifests).All(pair => pair.First.Directory == pair.Second.Directory
+            && pair.First.Generation == pair.Second.Generation && pair.First.Generation != null);
+
+    // True only when every folder is the same as before, in the same order, and each manifest file still has the identity
+    // it had while the recorded generation was read. Anything unknown (no identity, a custom opener) means "read it".
+    private static bool Unchanged(MediaLibraryThreadState prior, IReadOnlyList<string> directories, MediaManifestCache manifests,
+        CancellationToken cancellationToken)
+    {
+        if (!manifests.UsesIdentity || prior.Manifests.Count != directories.Count) return false;
+        for (int index = 0; index < directories.Count; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            MediaLibraryManifestState state = prior.Manifests[index];
+            if (!string.Equals(state.Directory, directories[index], StringComparison.Ordinal) || state.Generation == null
+                || state.Identity is not { } identity || manifests.Probe(directories[index]) != identity) return false;
+        }
+        return true;
+    }
 
     private static string Describe(ResourceId id) => id.Source + " /" + id.Board + "/ " + id.Thread;
 

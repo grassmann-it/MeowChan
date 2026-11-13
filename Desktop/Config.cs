@@ -139,6 +139,14 @@ namespace MeowChan
         internal const int PrivateTagFileDefaultLimitMiB = Tags.PrivateTagLimits.DefaultDocumentLimitBytes / (1024 * 1024);
         internal const int PrivateTagFileMinimumLimitMiB = Tags.PrivateTagLimits.MinimumDocumentLimitBytes / (1024 * 1024);
         internal const int PrivateTagFileMaximumLimitMiB = Tags.PrivateTagLimits.MaximumDocumentLimitBytes / (1024 * 1024);
+        /// <summary>
+        /// Write limit of the saved media page index (cache/media-index-v1.json) in MiB. A larger index is not saved and the
+        /// page says so; lowering the limit deletes nothing and a larger saved index stays readable up to the fixed ceiling.
+        /// </summary>
+        public int MediaIndexCacheLimitMiB { get; set; } = MediaIndexCacheDefaultLimitMiB;
+        internal const int MediaIndexCacheDefaultLimitMiB = (int)(Gallery.MediaLibraryIndexCache.DefaultLimitBytes / (1024 * 1024));
+        internal const int MediaIndexCacheMinimumLimitMiB = (int)(Gallery.MediaLibraryIndexCache.MinimumLimitBytes / (1024 * 1024));
+        internal const int MediaIndexCacheMaximumLimitMiB = (int)(Gallery.MediaLibraryIndexCache.MaximumBytes / (1024 * 1024));
 
         public string? PluginEditorExecutable { get; set; }
         public string[] PluginEditorArguments { get; set; } = ["{file}"];
@@ -518,6 +526,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(PrivateTagLimit), "The own tag limit must be between 1024 and 20000.");
             if (PrivateTagFileLimitMiB is < PrivateTagFileMinimumLimitMiB or > PrivateTagFileMaximumLimitMiB)
                 throw new ArgumentOutOfRangeException(nameof(PrivateTagFileLimitMiB), "The own tag file limit must be between 8 and 128 MiB.");
+            if (MediaIndexCacheLimitMiB is < MediaIndexCacheMinimumLimitMiB or > MediaIndexCacheMaximumLimitMiB)
+                throw new ArgumentOutOfRangeException(nameof(MediaIndexCacheLimitMiB), "The media index cache limit must be between 16 and 1024 MiB.");
             if (PluginEditorExecutable is { Length: > 4096 } || PluginEditorExecutable?.Any(char.IsControl) == true
                 || PluginEditorArguments == null || PluginEditorArguments.Length > 32
                 || PluginEditorArguments.Any(value => value == null || value.Length > 4096 || value.Any(char.IsControl)))
@@ -578,6 +588,7 @@ namespace MeowChan
                 BooruCatalogLimitMiB = BooruCatalogLimitMiB,
                 PrivateTagLimit = PrivateTagLimit,
                 PrivateTagFileLimitMiB = PrivateTagFileLimitMiB,
+                MediaIndexCacheLimitMiB = MediaIndexCacheLimitMiB,
 
                 ShortcutBindings = ShortcutBindings.Clone(),
                 PluginEditorExecutable = PluginEditorExecutable,
@@ -672,6 +683,7 @@ namespace MeowChan
             BooruCatalogLimitMiB = source.BooruCatalogLimitMiB;
             PrivateTagLimit = source.PrivateTagLimit;
             PrivateTagFileLimitMiB = source.PrivateTagFileLimitMiB;
+            MediaIndexCacheLimitMiB = source.MediaIndexCacheLimitMiB;
 
             ShortcutBindings = source.ShortcutBindings.Clone();
             Theme = source.Theme;
@@ -730,6 +742,7 @@ namespace MeowChan
             BooruCatalogLimitMiB = source.BooruCatalogLimitMiB;
             PrivateTagLimit = source.PrivateTagLimit;
             PrivateTagFileLimitMiB = source.PrivateTagFileLimitMiB;
+            MediaIndexCacheLimitMiB = source.MediaIndexCacheLimitMiB;
 
             ShortcutBindings = source.ShortcutBindings.Clone();
             Theme = source.Theme;

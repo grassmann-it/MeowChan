@@ -210,9 +210,10 @@ public sealed class MediaLibraryIndexTests
         Assert.Equal(2, progress.Last().Reused);
 
         string valid = await File.ReadAllTextAsync(path);
-        // Version 3 is current (local tag slots, provider post ids); an older document or a newer one is no cache and rebuilds.
-        Assert.Contains("\"Version\":3", valid);
-        foreach (string damaged in new[] { "{bad", valid.Replace("\"Version\":3", "\"Version\":4"), valid.Replace("\"Version\":3", "\"Version\":2"),
+        // Version 4 is current (manifest file identities); version 3 is still read; an older or a newer document is no cache and rebuilds.
+        Assert.Contains("\"Version\":4", valid);
+        Assert.NotNull(MediaLibraryIndexCache.Load(path));
+        foreach (string damaged in new[] { "{bad", valid.Replace("\"Version\":4", "\"Version\":5"), valid.Replace("\"Version\":4", "\"Version\":2"),
                      valid.Replace("\"Threads\":[", "\"Extra\":1,\"Threads\":["),
                      valid.Replace("\"Sha\":\"" + Sha(Shared) + "\"", "\"Sha\":\"nothex\"") })
         {

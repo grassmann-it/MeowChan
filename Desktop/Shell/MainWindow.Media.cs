@@ -42,6 +42,7 @@ public partial class MainWindow
             ExecuteMediaMenuActionAsync = ExecuteMediaLibraryMenuActionAsync,
             ReadUserData = ReadMediaLibraryUserData,
             ReadBooruCatalog = _session.ReadBooruCatalog,
+            CacheLimitBytes = () => (long)_session.Config.MediaIndexCacheLimitMiB * 1024 * 1024,
             TagServices = new(_session.GetPublishedPrivateTagSnapshot,
                 (name, subjects, expectedRevision, token) => _session.DefineAndSetMediaSubjectTagsAsync(name, subjects, expectedRevision, token),
                 (tag, subjects, assigned, expectedRevision, token) => _session.SetMediaSubjectTagsAsync(tag, subjects, assigned, expectedRevision, token)),

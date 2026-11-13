@@ -226,7 +226,7 @@ public sealed class BooruMediaProjectionTests
 
         // A new process: no provider, no network, only the files the profile holds.
         string json = await File.ReadAllTextAsync(cache);
-        Assert.Contains("\"Version\":3", json);
+        Assert.Contains("\"Version\":4", json);
         Assert.Contains("\"Bp\":\"123\"", json);
         MediaLibrarySnapshot? loaded = MediaLibraryIndexCache.Load(cache);
         Assert.NotNull(loaded);
@@ -255,6 +255,48 @@ public sealed class BooruMediaProjectionTests
     }
 
     [Fact]
+    public async Task AnUnchangedProviderManifestIsNotOpenedAgainAndTheEntryFollowsTheCatalog()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        BooruCatalogStore store = new(temp.Path, lease);
+        store.UpsertPost(Claim("123"), Observed);
+        await SaveAsync(temp.Path, store, "123", Png);
+        string manifestPath = Path.Combine(temp.Path, "media", "danbooru", "123", ".meowchan-manifest.json");
+        if (RegularProfileFile.TryGetIdentity(manifestPath) == null) return; // No file identities here: every manifest is read.
+        int opens = 0;
+        MediaManifestCache Counting() => new((directory, token) => { opens++; return MediaAssetReader.OpenAsync(directory, token); }, identity: true);
+        Task<MediaLibrarySnapshot> Pinned(MediaLibrarySnapshot? previous) =>
+            MediaLibraryIndexBuilder.BuildAsync(token => ArchiveReader.OpenAsync(temp.Path, token), Counting(), previous, readBooruCatalog: () => store.Read());
+
+        MediaLibrarySnapshot first = await Pinned(null);
+        Assert.Equal(1, opens);
+        Assert.NotNull(Assert.Single(first.ProviderManifests).Identity);
+        Assert.Equal((await BuildAsync(temp.Path, store)).Entries, first.Entries);
+
+        opens = 0;
+        MediaLibraryIndexCache.Save(Path.Combine(temp.Path, "c.json"), first);
+        MediaLibrarySnapshot second = await Pinned(MediaLibraryIndexCache.Load(Path.Combine(temp.Path, "c.json")));
+        Assert.Equal(0, opens);
+        Assert.Equal(first.Entries, second.Entries);
+
+        // The catalog sees the post again later: the kept entry takes the catalog's times, exactly like a full read.
+        store.UpsertPost(Claim("123"), Observed.AddDays(1));
+        opens = 0;
+        MediaLibrarySnapshot third = await Pinned(second);
+        Assert.Equal(0, opens);
+        Assert.Equal((await BuildAsync(temp.Path, store)).Entries, third.Entries);
+
+        // A replaced original changes the manifest file: read again.
+        await SaveAsync(temp.Path, store, "123", OtherPng);
+        opens = 0;
+        MediaLibrarySnapshot fourth = await Pinned(third);
+        Assert.Equal(1, opens);
+        Assert.Equal((await BuildAsync(temp.Path, store)).Entries, fourth.Entries);
+        Assert.Equal(MediaLibraryIndexTests.Sha(OtherPng), Assert.Single(fourth.Entries).Sha256);
+    }
+
+    [Fact]
     public async Task DamagedOrForgedBooruCacheEntriesAreRejectedAndRebuilt()
     {
         using TempDirectory temp = new();
@@ -269,10 +311,10 @@ public sealed class BooruMediaProjectionTests
         string valid = await File.ReadAllTextAsync(cache);
         Assert.NotNull(MediaLibraryIndexCache.Load(cache));
 
-        // An older (v2) cache has no provider media and a newer one is unknown: both mean rebuild.
+        // An older (v2) cache has no provider media and a newer one (v5) is unknown: both mean rebuild.
         foreach (string damaged in new[]
                  {
-                     valid.Replace("\"Version\":3", "\"Version\":2"), valid.Replace("\"Version\":3", "\"Version\":4"),
+                     valid.Replace("\"Version\":4", "\"Version\":2"), valid.Replace("\"Version\":4", "\"Version\":5"),
                      valid.Replace("\"Bp\":\"123\"", "\"Bp\":\"124\""), valid.Replace("\"Bp\":\"123\"", "\"Bp\":\"01\""),
                      valid.Replace("\"Bp\":\"123\"", "\"Bp\":\"x\""), valid.Replace("\"Bp\":\"123\"", "\"Bp\":\"123\",\"Pos\":0")
                  })

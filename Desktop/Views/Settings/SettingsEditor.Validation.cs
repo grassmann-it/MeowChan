@@ -134,13 +134,14 @@ public partial class SettingsEditor
     public string BooruCatalogMiBHelp => FieldHelp(nameof(BooruCatalogMiBInput), Texts.T("settings.unitMiB") + ". " + BooruCatalogMiBHint);
     public string PrivateTagLimitHelp => FieldHelp(nameof(PrivateTagLimitInput), Texts.T("settings.unitCount") + ". " + PrivateTagLimitHint);
     public string PrivateTagFileMiBHelp => FieldHelp(nameof(PrivateTagFileMiBInput), Texts.T("settings.unitMiB") + ". " + PrivateTagFileMiBHint);
+    public string MediaIndexCacheMiBHelp => FieldHelp(nameof(MediaIndexCacheMiBInput), Texts.T("settings.unitMiB") + ". " + MediaIndexCacheMiBHint);
 
     private void NotifyFieldHelpChanged()
     {
         foreach (string property in new[] { nameof(DownloadPathHelp), nameof(RecheckTimerHelp), nameof(BandwidthInputHelp),
             nameof(ParallelDownloadsHelp), nameof(ParallelDownloadsSafetyHelp), nameof(ReserveInputHelp), nameof(ProductionWorkersHelp),
             nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp), nameof(BooruCatalogMiBHelp),
-            nameof(PrivateTagLimitHelp), nameof(PrivateTagFileMiBHelp) })
+            nameof(PrivateTagLimitHelp), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBHelp) })
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
     }
 
@@ -180,6 +181,8 @@ public partial class SettingsEditor
             Config.PrivateTagMinimumLimit, Config.PrivateTagMaximumLimit, true);
         yield return (PrivateTagFileMiBInput, PrivateTagFileMiB, PrivateTagFileMiBLabel, Texts.T("settings.unitMiB"),
             Config.PrivateTagFileMinimumLimitMiB, Config.PrivateTagFileMaximumLimitMiB, true);
+        yield return (MediaIndexCacheMiBInput, MediaIndexCacheMiB, MediaIndexCacheMiBLabel, Texts.T("settings.unitMiB"),
+            Config.MediaIndexCacheMinimumLimitMiB, Config.MediaIndexCacheMaximumLimitMiB, true);
     }
 
     private void ClearFieldErrors()
