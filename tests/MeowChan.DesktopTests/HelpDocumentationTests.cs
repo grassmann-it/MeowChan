@@ -9,6 +9,7 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Import;
 using MeowChan.PluginHost.Http;
+using MeowChan.Persistence;
 using MeowChan.Tags;
 
 namespace MeowChan.DesktopTests;
@@ -39,6 +40,8 @@ public sealed class HelpDocumentationTests
             { "Post bookmarks", c.PostBookmarkLimit, Config.PostBookmarkLimitMinimum, Config.PostBookmarkLimitMaximum },
             { "Saved searches", c.SavedSearchLimit, Config.SavedSearchLimitMinimum, Config.SavedSearchLimitMaximum },
             { "Reader groups", c.ReaderGroupLimit, Config.ReaderGroupLimitMinimum, Config.ReaderGroupLimitMaximum },
+            { "Post filter rules", ProfileStoreLimits.DefaultPostFilterRules, ProfileStoreLimits.MinimumPostFilterRules, ProfileStoreLimits.PostFilterRuleCeiling },
+            { "Individually hidden posts", ProfileStoreLimits.DefaultHiddenPosts, ProfileStoreLimits.MinimumHiddenPosts, ProfileStoreLimits.HiddenPostCeiling },
             { "Sources page: watch rows per source", c.SourcesWatchPreviewRows, Config.SourcesWatchPreviewRowsMinimum, Config.SourcesWatchPreviewRowsMaximum },
             { "Ask before “Export all matches” above (files)", c.ExportConfirmFiles, Config.ExportConfirmFilesMinimum, Config.ExportConfirmFilesMaximum },
             { "Ask before “Export all matches” above (GiB)", c.ExportConfirmGiB, Config.ExportConfirmGiBMinimum, Config.ExportConfirmGiBMaximum },
@@ -76,7 +79,7 @@ public sealed class HelpDocumentationTests
 
     [Theory]
     [MemberData(nameof(Limits))]
-    public void DocumentedDefaultAndAllowedRangeMatchConfig(string setting, int defaultValue, int minimum, int maximum)
+    public void DocumentedDefaultAndAllowedRangeMatchSettingsContracts(string setting, int defaultValue, int minimum, int maximum)
     {
         string[] row = Assert.Single(LimitRows(), row => row[0] == setting);
         Assert.Equal(defaultValue, Number(row[1]));
@@ -119,7 +122,9 @@ public sealed class HelpDocumentationTests
         string text = Read(Help);
         Assert.Contains("**Show as conversation**", text);
         Assert.Contains("**View → Post filters…**", text);
-        Assert.Contains("settings page for changing the reader", text);
+        Assert.Contains("### Reader display settings", text);
+        Assert.DoesNotContain("not wired in yet", text);
+        Assert.DoesNotContain("not additional Settings choices", text);
         Assert.Contains("translated for English, German", text);
         Assert.Contains("Simplified Chinese", text);
         Assert.Contains("**Plugins → Review bundled repairs**", text);
@@ -131,13 +136,89 @@ public sealed class HelpDocumentationTests
     public void ReaderDisplayDefaultsAndLinkLengthMatchTheImplementedSeams()
     {
         string cards = Plain(Section(Read(Help), "Reading posts as cards"));
-        AssertNumber(cards, @"Pages contain (?<value>\d+) posts", ArchivePage.ReaderPageSizeDefault);
-        AssertNumber(cards, @"widths default to (?<value>\d+) pixels", ReaderDisplayPreferences.ReaderThumbnailWidthDefault);
-        AssertNumber(cards, @"and (?<value>\d+) pixels in the large reader",
+        string display = Plain(Section(Read(Help), "Reader display settings"));
+        AssertNumber(display, @"widths default to (?<value>\d+) pixels", ReaderDisplayPreferences.ReaderThumbnailWidthDefault);
+        AssertNumber(display, @"and (?<value>\d+) pixels in the large reader",
             ReaderDisplayPreferences.EffectiveThumbnailWidth(ReaderDisplayPreferences.ReaderThumbnailWidthDefault, true));
         AssertNumber(cards, @"longer than (?<value>\d+) UTF-16 code units", ReaderExternalLink.MaxLength);
-        Assert.Contains("not additional Settings choices in this checkout", cards);
         Assert.Contains("only for this app session, not after a restart", cards);
+    }
+
+    public static TheoryData<string, string, int, int, int> ReaderAndGalleryLimits() => new()
+    {
+        // P1 persists these component contracts. Referencing the components also allows this
+        // docs-only branch to compile before the separate P1 implementation is integrated.
+        { "Reader display settings", "Preview image width (px)", ReaderDisplayPreferences.ReaderThumbnailWidthDefault, ReaderDisplayPreferences.ReaderThumbnailWidthMinimum, ReaderDisplayPreferences.ReaderThumbnailWidthMaximum },
+        { "Reader display settings", "Fold long posts above (lines)", ReaderDisplayLimits.FoldLinesDefault, ReaderDisplayLimits.FoldLinesMinimum, ReaderDisplayLimits.FoldLinesMaximum },
+        { "Reader display settings", "Lines in quote previews", ReaderDisplayLimits.PreviewLinesDefault, ReaderDisplayLimits.PreviewLinesMinimum, ReaderDisplayLimits.PreviewLinesMaximum },
+        { "Reader display settings", "Quote preview delay (ms)", ReaderDisplayLimits.PreviewDelayDefault, ReaderDisplayLimits.PreviewDelayMinimum, ReaderDisplayLimits.PreviewDelayMaximum },
+        { "Reader display settings", "Reply cards per step", ReaderDisplayLimits.ReplyStepDefault, ReaderDisplayLimits.ReplyStepMinimum, ReaderDisplayLimits.ReplyStepMaximum },
+        { "Reader display settings", "Lines per reply card", ReaderDisplayLimits.ReplyLinesDefault, ReaderDisplayLimits.ReplyLinesMinimum, ReaderDisplayLimits.ReplyLinesMaximum },
+        { "Reader display settings", "Posts per reader page", ArchivePage.ReaderPageSizeDefault, ArchivePage.ReaderPageSizeMinimum, ArchivePage.ReaderPageSizeMaximum },
+        { "Reader display settings", "Maximum conversation indentation depth", ReaderConversationTree.DepthDefault, ReaderConversationTree.DepthMinimum, ReaderConversationTree.DepthMaximum },
+        { "Gallery Fit enlargement", "Maximum enlargement (%)", GalleryFitPreferences.MaxUpscalePercentDefault, GalleryFitPreferences.MaxUpscalePercentMinimum, GalleryFitPreferences.MaxUpscalePercentMaximum }
+    };
+
+    [Theory]
+    [MemberData(nameof(ReaderAndGalleryLimits))]
+    public void ReaderAndGalleryDefaultsAndRangesMatchTheirComponentContracts(string heading, string setting, int defaultValue, int minimum, int maximum)
+    {
+        string[] row = Assert.Single(TableRows(heading), row => row[0] == setting);
+        Assert.Equal(defaultValue, Number(row[1]));
+        Match range = Capture(row[2], @"^(?<minimum>\d+) to (?<maximum>\d+)$");
+        Assert.Equal(minimum, Number(range.Groups["minimum"].Value));
+        Assert.Equal(maximum, Number(range.Groups["maximum"].Value));
+        Assert.InRange(defaultValue, minimum, maximum);
+    }
+
+    [Fact]
+    public void ReaderP1NumericTablesCoverAllElevenFieldsWithoutDuplicates()
+    {
+        // Eight reader numbers, the gallery cap, and the two post-filter store limits.
+        foreach (string heading in new[] { "Reader display settings", "Gallery Fit enlargement" })
+            Assert.Equal(ReaderAndGalleryLimits().Where(row => (string)row[0] == heading).Select(row => (string)row[1]).Order(StringComparer.Ordinal),
+                TableRows(heading).Select(row => row[0]).Order(StringComparer.Ordinal));
+        Assert.Equal(11, ReaderAndGalleryLimits().Count + Limits().Count(row => (string)row[0] is "Post filter rules" or "Individually hidden posts"));
+    }
+
+    [Fact]
+    public void ReaderChoicesAndDisplayOnlyBoundariesAreDocumented()
+    {
+        string display = Plain(Section(Read(Help), "Reader display settings"));
+        Assert.Equal(new[] { "System", "Long", "SinceOp", "RelativeToNow" }, Enum.GetNames<ReaderDateStyle>());
+        Assert.Equal(new[] { "Hide", "Hover", "Always" }, Enum.GetNames<ReaderSpoilerMode>());
+        Assert.Equal(ReaderDateStyle.System, new ReaderDisplayPreferences().ReaderDateStyle);
+        Assert.Equal(ReaderSpoilerMode.Hide, ReaderDisplayLimits.ClampSpoilerMode((ReaderSpoilerMode)(-1)));
+        Assert.Contains("System format (default), Weekday and seconds, Since opening post and Relative to now", display);
+        Assert.Contains("Keep hidden (default), Show on hover and Always show", display);
+        Assert.Contains("current reading position in view", display);
+        Assert.Contains("not the archive thread-list page size", display);
+        Assert.Contains("not refreshed by a timer", display);
+        Assert.Contains("Changes stay in the Settings draft until Save succeeds", display);
+        Assert.Contains("Discard draft restores the saved values", display);
+        Assert.Contains("a failed save does not apply the draft", display);
+
+        string reading = Plain(Section(Read(Help), "Images, search and navigation"));
+        Assert.Contains("The conversation switch is session-only", reading);
+        Assert.Contains("deeper replies stay visible at the last indentation level", reading);
+        Assert.Contains("not a provider conversation function and sends no requests", reading);
+        Assert.DoesNotContain("depth limit is not yet available", reading);
+    }
+
+    [Fact]
+    public void UnlimitedGalleryGuidanceKeepsTheCapWithoutApplyingIt()
+    {
+        string gallery = Plain(Section(Read(Help), "Gallery Fit enlargement"));
+        GalleryFitPreferences defaults = new();
+        Assert.False(defaults.Limit);
+        Assert.Equal(GalleryFitPreferences.MaxUpscalePercentDefault, defaults.MaxUpscalePercent);
+        Assert.Null(defaults.MaxUpscale(1));
+        Assert.Contains("No limit (default) or Up to a limit", gallery);
+        Assert.Contains("manual zoom is not capped", gallery);
+        Assert.Contains("does not erase a valid percentage", gallery);
+        Assert.Contains("does not use it to constrain Fit", gallery);
+        Assert.Contains("the last saved valid value is kept instead", gallery);
+        Assert.Contains("Discard draft restores the saved choice and percentage", gallery);
     }
 
     [Fact]
@@ -193,6 +274,7 @@ public sealed class HelpDocumentationTests
         Assert.DoesNotContain("exactly one request", help);
         Assert.Contains("auch bei einer pausierten Beobachtung", guide);
         Assert.DoesNotContain("genau eine Anfrage", guide);
+        Assert.Contains("Jetzt prüfen ist kein Fortsetzen", guide);
     }
 
     [Fact]
@@ -298,6 +380,7 @@ public sealed class HelpDocumentationTests
         AssertNumber(text, @"Schreibgrenze von (?<value>\d+) MiB", new Config().BooruCatalogLimitMiB);
         AssertNumber(text, @"auf (?<value>\d+) bis \d+ MiB", Config.BooruCatalogMinimumLimitMiB);
         AssertNumber(text, @"auf \d+ bis (?<value>\d+) MiB", Config.BooruCatalogMaximumLimitMiB);
+        AssertNumber(text, @"Lesedeckel von (?<value>\d+) MiB", BooruCatalogStore.MaximumDocumentBytes / (1024 * 1024));
         AssertNumber(text, @"mindestens (?<value>\d+) Sekunden", BooruHostHttp.MinimumCooldown.TotalSeconds);
         AssertNumber(text, @"höchstens (?<value>\d+) Stunden", BooruHostHttp.MaximumCooldown.TotalHours);
     }

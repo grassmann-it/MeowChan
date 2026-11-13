@@ -487,6 +487,8 @@ of the limit; do not delete their files to get past an error.
 | Post bookmarks | 10000 | 1000 to 100000 |
 | Saved searches | 500 | 50 to 5000 |
 | Reader groups | 500 | 50 to 5000 |
+| Post filter rules | 200 | 20 to 2000 |
+| Individually hidden posts | 10000 | 1000 to 100000 |
 | Sources page: watch rows per source | 8 | 3 to 200 |
 | Ask before “Export all matches” above (files) | 500 | 10 to 100000 |
 | Ask before “Export all matches” above (GiB) | 2 | 1 to 1024 |
@@ -529,8 +531,8 @@ the rest is checked again when needed; lowering it does not delete video files.
 Some fixed technical limits protect individual records and parsers: bookmark
 notes hold at most 8000 Unicode codepoints; reader groups have at most 1000
 threads each and 20000 memberships in total. Bookmark, saved-search and
-reader-group files are bounded at 32, 8 and 16 MiB respectively. Favorites,
-thread favorites and ratings are read up to 500000 entries and 128 MiB. The
+reader-group files are bounded at 32, 8 and 16 MiB respectively. The post-filter
+file has a fixed 32 MiB ceiling. Favorites, thread favorites and ratings are read up to 500000 entries and 128 MiB. The
 Danbooru, own-tag and import catalogs are read up to 128 MiB even when the
 configured write limit is lower; the saved media index is read up to 1 GiB.
 A video poster is at most 4 MiB and is generated for videos up to 512 MiB.
@@ -683,8 +685,12 @@ instead of remaining at Loading.
 Use **View** in the reader toolbar to switch on **Hide media** or **Only posts with media** for this session. The
 switches apply to every thread in the reader. A deliberate jump to a hidden post (for example through a quote, find,
 bookmark or reading position) shows it temporarily; **Hide again** hides it once more. **Show as conversation** places
-replies beneath the earlier post they quote, with indentation; the opening post stays first and the separate reply
-counter is omitted in this mode. The conversation switch is session-only; its depth limit is not yet available in Settings.
+replies beneath the most recent eligible earlier quoted post, with indentation; the opening post stays first and the separate reply
+counter is omitted in this mode. A reply is nested only when its earlier non-opening-post quotes belong to one
+ancestor chain; quotes across unrelated branches stay at the root level. Quotes of the opening post or later posts
+do not choose a parent. The conversation switch is session-only. **Maximum conversation indentation depth** in
+Settings controls indentation, not which posts are kept: deeper replies stay visible at the last indentation level.
+This only reorders locally captured posts for display; it is not a provider conversation function and sends no requests.
 
 The app header and window controls remain available above the large reader
 and gallery.
@@ -801,8 +807,9 @@ In the post text, lines starting with `>` are green. Clicking `>>number` jumps t
 that post, and the target flashes once. A quote of the opening post is followed by
 “(OP)”; a quote into another thread is followed by “(other thread)”. Pointing at a
 quote outlines its target when that post is visible on the current page. Quotes of
-posts that were not captured are struck through. Spoilers stay hidden until you click them or press Enter or Space;
-that reveals every spoiler of that post, and they stay revealed. Code is shown in a
+posts that were not captured are struck through. By default, spoilers stay hidden until you click them or press Enter or Space;
+that reveals every spoiler of that post, and they stay revealed. The **Spoilers** setting also offers **Show on hover**
+and **Always show**; a click in hover mode keeps the spoiler revealed. Code is shown in a
 monospace font, external links are underlined. The portable HTML export remains a
 separate offline rendering of saved posts.
 
@@ -816,25 +823,28 @@ confirmations only for this app session, not after a restart. Opening a link
 leaves local reading and can contact that website.
 
 When the pointer rests briefly on a quote, or a quote button has focus and you press
-Space, a preview of the quoted post appears with at most eight lines or 420
-characters. Escape closes it, and Space on the quote button closes it again; Enter
+Space, a preview of the quoted post appears. The default pointer delay is 300 ms; the
+preview shows at most eight lines or 420 characters by default. Its line limit and
+pointer delay are configurable in Settings. Escape closes it, and Space on the
+quote button closes it again; Enter
 on the quote button jumps there instead. The preview shows only posts of this thread
 that are captured locally; a quote into another thread or of an uncaptured post
 shows none.
 
-A post with more than 24 lines is folded to 18 lines and fades out at the bottom.
+By default, a post with more than 24 lines is folded to 18 lines and fades out at the bottom.
+**Fold long posts above (lines)** changes the threshold; the folded excerpt shows three quarters of that value, rounded.
 **Show more (… lines)** unfolds it, **Show less** folds it again; MeowChan remembers
 this per post for as long as the thread is open. The thread find unfolds a post with
 a hit by itself.
 
-The **Replies: …** counter in the header opens the replies as indented cards, five
-at a time; **Show more replies** loads five more. Clicking the counter again closes
+The **Replies: …** counter in the header opens the replies as indented cards. By
+default it shows five at a time; **Show more replies** loads another batch. Clicking the counter again closes
 them, and reopening reuses what was already loaded. A post without replies shows no
 counter. Replies always come from the saved posts; the source is never queried for
-them. The integrated 1.1 reader currently uses these display defaults; the settings page for changing the reader
-limits and modes is not wired in yet. Pages contain 50 posts; dates use the system-style format, with the full
-date in a tooltip. Preview widths default to 240 pixels in the embedded reader and 360 pixels in the large reader.
-These defaults are not additional Settings choices in this checkout.
+them. Five cards per step is the default; **Reply cards per step** changes the batch size,
+and **Lines per reply card** limits each excerpt (four lines by default). The character
+budgets scale with the line limits: quote previews allow about 52.5 characters per line,
+reply cards 65. These are excerpts, not limits on the stored post text.
 
 **View → Post filters…** can match post text, subject, file name or MD5 and then hide, replace with a placeholder or
 highlight matching posts. You can also hide one post from its post menu, optionally with its replies, and show it again.
@@ -845,6 +855,59 @@ When you return to a thread through **Continue reading** or load new posts with
 first new post. Once you have scrolled past the line, **Back to last read** in the
 reader toolbar takes you back to it. A thread you open from the list and a refresh
 through **Follow live** start without a line.
+
+### Reader display settings
+
+Settings → **Reading & media** contains **Display** and **Long posts and previews**.
+Changes stay in the Settings draft until **Save** succeeds; then they apply to the
+open reader and are kept for this profile. **Discard draft** restores the saved
+values. Changing categories or the interface language keeps the draft. Invalid
+numeric input prevents saving and identifies the field to correct; a failed save
+does not apply the draft.
+
+| Setting | Default | Allowed |
+| --- | --- | --- |
+| Preview image width (px) | 240 | 120 to 480 |
+| Fold long posts above (lines) | 24 | 8 to 400 |
+| Lines in quote previews | 8 | 3 to 40 |
+| Quote preview delay (ms) | 300 | 0 to 2000 |
+| Reply cards per step | 5 | 1 to 50 |
+| Lines per reply card | 4 | 1 to 20 |
+| Posts per reader page | 50 | 20 to 200 |
+| Maximum conversation indentation depth | 6 | 1 to 16 |
+
+Preview widths default to 240 pixels in the embedded reader and 360 pixels in the
+large reader, which uses 1.5 times the configured width. **Posts per reader page**
+changes the reader's paging, not the archive thread-list page size. It keeps the
+current reading position in view; conversation subtrees can span pages.
+
+**Date and time format** offers **System format** (default), **Weekday and seconds**,
+**Since opening post** and **Relative to now**. The exact local date remains in the
+tooltip. If the opening post has no timestamp, **Since opening post** falls back to
+System format; a post with no timestamp has no date text. Relative text is calculated
+when the page is rendered, not refreshed by a timer.
+
+**Spoilers** offers **Keep hidden** (default), **Show on hover** and **Always show**.
+The conversation switch itself stays under **View** and is not a saved preference.
+Post-filter rule and individually hidden-post limits are under **Storage and limits**,
+not here; lowering them keeps existing entries and only prevents growth beyond the limit.
+
+### Gallery Fit enlargement
+
+Under Settings → **Reading & media → Gallery & playback**, **Enlarge small images
+when fitting** offers **No limit** (default) or **Up to a limit**. With no limit,
+Fit may enlarge a small image to fill the available viewport. With a limit, Fit
+stops at the configured percentage; manual zoom is not capped by this setting.
+
+| Setting | Default | Allowed |
+| --- | --- | --- |
+| Maximum enlargement (%) | 200 | 100 to 1600 |
+
+The percentage field is available only with **Up to a limit**. Choosing **No limit**
+does not erase a valid percentage: **Save** keeps it for when you enable the limit
+again, but does not use it to constrain Fit while **No limit** is selected. An invalid
+hidden percentage does not block an unrelated save; the last saved valid value is
+kept instead. **Discard draft** restores the saved choice and percentage.
 
 ### Archive filters and saved searches
 

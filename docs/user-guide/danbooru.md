@@ -87,9 +87,9 @@ nicht einfach durch eine verschobene Seitennummer übersprungen.
 
 **Jetzt prüfen** führt eine einmalige begrenzte Prüfung unabhängig vom Zeitplan
 aus. Eine pausierte Suchbeobachtung bleibt danach pausiert und wird nicht erneut
-automatisch eingeplant. Eine Prüfung kann durch Seitennavigation und begrenzte
-Wiederholungen mehrere HTTP-Anfragen benötigen, auch bei einer pausierten
-Beobachtung. Eine entfernte Suchbeobachtung oder eine Beobachtung im
+automatisch eingeplant; **Jetzt prüfen** ist kein **Fortsetzen**. Eine Prüfung kann
+durch Seitennavigation und begrenzte Wiederholungen mehrere HTTP-Anfragen
+benötigen, auch bei einer pausierten Beobachtung. Eine entfernte Suchbeobachtung oder eine Beobachtung im
 Provider-Cooldown sendet nichts.
 **Pause** beendet automatische Prüfungen; schon eingereihte Originale folgen den
 normalen Warteschlangenregeln. **Fortsetzen** umgeht keinen Cooldown; die globale
@@ -128,12 +128,12 @@ nicht überschrieben. Das ersetzt kein vollständiges Profilbackup. Siehe die
 [Backup-Hinweise](../Help.md#own-tag-v1-backup-and-110-local-data).
 
 Der lokale Danbooru-Katalog mit Posts, Fundstellen und Suchbeobachtungen hat
-eine Schreibgrenze von **32 MiB**. Unter **Einstellungen → Speicher und Grenzen**
+standardmäßig eine Schreibgrenze von **32 MiB**. Unter **Einstellungen → Speicher und Grenzen**
 lässt sie sich auf **8 bis 128 MiB** setzen. Ab 75 % warnt der Beobachtungsbereich
 im Danbooru-Fenster und nennt die Einstellung. Eine kleinere Grenze löscht keinen
 vorhandenen Katalog; sie verhindert nur weiteres Wachstum, bis wieder Platz unter
-der Grenze vorhanden ist. Der feste technische Lesedeckel bleibt unabhängig von
-dieser Einstellung bestehen.
+der Grenze vorhanden ist. Der feste technische Lesedeckel von **128 MiB** bleibt
+unabhängig von dieser Schreibgrenze bestehen.
 
 Danbooru ist in dieser Ausbaustufe read-only:
 
