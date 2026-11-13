@@ -208,6 +208,42 @@ class PluginPackagingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'assembly hash'):
             PACKAGE.verify(self.root, 'linux-x64')
 
+    def rewrite_manifest(self, **changes):
+        name = PACKAGE.PLUGINS[0]
+        path = self.root / 'plugins' / (name + '.plugin.json')
+        data = json.loads(path.read_text())
+        data.update(changes)
+        path.write_text(json.dumps(data))
+
+    def test_manifest_binding_mismatches_are_rejected(self):
+        cases = (
+            ({'SdkFingerprint': '0' * 64}, 'build/SDK fingerprint'),
+            ({'CompilerFingerprint': '1' * 64}, 'build/SDK fingerprint'),
+            ({'AssemblyRelativePath': 'assemblies/Other.dll'}, 'declared package identity'),
+            ({'Resources': ['x']}, 'schema/resources'),
+            ({'SchemaVersion': 2}, 'schema/resources'),
+        )
+        for changes, message in cases:
+            with self.subTest(changes=changes), tempfile.TemporaryDirectory(dir=self.root) as directory:
+                outer = self.root; self.root = Path(directory).resolve()
+                try:
+                    self.fixture()
+                    self.rewrite_manifest(**changes)
+                    with self.assertRaisesRegex(ValueError, message):
+                        PACKAGE.verify(self.root, 'linux-x64')
+                finally:
+                    self.root = outer
+
+    def test_missing_manifest_and_worker_sdk_drift_are_rejected(self):
+        self.fixture()
+        (self.root / 'plugins' / (PACKAGE.PLUGINS[0] + '.plugin.json')).unlink()
+        with self.assertRaisesRegex(ValueError, 'manifests differ'):
+            PACKAGE.verify(self.root, 'linux-x64')
+        self.fixture()
+        self.put('plugin-worker/MeowChan.PluginSdk.dll', b'drifted sdk')
+        with self.assertRaisesRegex(ValueError, 'Worker SDK'):
+            PACKAGE.verify(self.root, 'linux-x64')
+
     def test_changed_compiler_references_are_rejected(self):
         self.fixture()
         self.put('plugin-compiler/references/System.Runtime.dll', b'modified')
