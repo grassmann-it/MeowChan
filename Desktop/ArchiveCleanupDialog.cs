@@ -85,6 +85,7 @@ internal sealed class ArchiveCleanupDialog : Window
         _openThreads = openThreads; _openFolder = openFolder;
         _lifetime = CancellationTokenSource.CreateLinkedTokenSource(lifetime);
         Name = "ArchiveCleanupDialog"; Width = 820; Height = 700; MinWidth = 360; MinHeight = 380;
+        DialogFit.OnOpen(this);
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         NameScope names = new(); NameScope.SetNameScope(this, names);
         T Named<T>(T control, string suffix) where T : Control

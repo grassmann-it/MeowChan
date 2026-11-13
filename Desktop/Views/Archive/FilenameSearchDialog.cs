@@ -195,6 +195,7 @@ internal sealed class FilenameSearchDialog : Window
         _session = new(readerFactory);
         Name = "FilenameSearchDialog";
         Width = 820; Height = 680; MinWidth = 360; MinHeight = 380;
+        DialogFit.OnOpen(this);
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         WindowChrome.Apply(this);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");

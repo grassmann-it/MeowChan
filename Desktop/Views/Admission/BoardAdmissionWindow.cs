@@ -88,6 +88,7 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
     {
         _preview = preview;
         Title = Texts.T("wizard.title"); Width = 980; Height = 720; MinWidth = 640; MinHeight = 600;
+        MeowChan.Desktop.DialogFit.OnOpen(this);
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         // Shared dialog frame: title and task stay fixed, the rules help and board tabs scroll,
         // the batch summary and joint actions stay fixed. Catalog failures stay tab-local next

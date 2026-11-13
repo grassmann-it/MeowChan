@@ -6,7 +6,8 @@ namespace MeowChan.DesktopTests;
 /// <summary>
 /// M5 across the product: a secondary window that opens at a fixed size taller than a scaled screen is fitted at its
 /// first open, so its footer stays reachable. AccessibilityAuditTests covers the computation; this keeps the windows
-/// that were fitted in the audit from losing it again, and watches the opening heights of the others.
+/// that were fitted from losing it again, and requires it of every window that opens at least as tall as the smallest one.
+/// A fit may lower a window's minimum on a small screen; the body then scrolls and the footer with Close stays in view.
 /// </summary>
 public sealed class DialogFitCoverageTests
 {
@@ -21,6 +22,10 @@ public sealed class DialogFitCoverageTests
         "Desktop/Views/Booru/BooruWorkbenchWindow.cs",
         "Desktop/Views/Media/BooruMediaDetailsDialog.cs",
         "Desktop/Views/Media/MediaSelectionTagDialog.cs",
+        "Desktop/ArchiveCleanupDialog.cs",
+        "Desktop/Views/Admission/BoardAdmissionWindow.cs",
+        "Desktop/Views/Archive/FilenameSearchDialog.cs",
+        "Desktop/Views/Media/ManualImportDialog.cs",
     };
 
     [Theory]
@@ -30,6 +35,10 @@ public sealed class DialogFitCoverageTests
     [InlineData("Desktop/Views/Booru/BooruWorkbenchWindow.cs")]
     [InlineData("Desktop/Views/Media/BooruMediaDetailsDialog.cs")]
     [InlineData("Desktop/Views/Media/MediaSelectionTagDialog.cs")]
+    [InlineData("Desktop/ArchiveCleanupDialog.cs")]
+    [InlineData("Desktop/Views/Admission/BoardAdmissionWindow.cs")]
+    [InlineData("Desktop/Views/Archive/FilenameSearchDialog.cs")]
+    [InlineData("Desktop/Views/Media/ManualImportDialog.cs")]
     public void TheWindowsOfTheAuditStillFitThemselvesToTheScreen(string path) =>
         Assert.Matches(@"DialogFit\.OnOpen\(this\)", File.ReadAllText(Source(path)));
 
@@ -47,10 +56,7 @@ public sealed class DialogFitCoverageTests
             .Where(file => Path.GetFileName(file) != "DialogFit.cs" && File.ReadAllText(file).Contains("DialogFit.Compute(", StringComparison.Ordinal)));
     }
 
-    [Fact(Skip = "BUG: four windows open taller than the smallest fitted one (About, 660 dip) without DialogFit: "
-        + "ArchiveCleanupDialog 700, BoardAdmissionWindow 720 (minimum 600), FilenameSearchDialog 680, ManualImportDialog 720. "
-        + "At 150 or 200 percent scaling on a 1080p screen their footer opens below the working area, which is what M5 fixed "
-        + "for the six windows above. Adding DialogFit.OnOpen(this) to them is a product decision, not a test change.")]
+    [Fact]
     public void EveryWindowThatOpensTallerThanTheSmallestFittedOneIsFitted()
     {
         List<string> unfitted = new();
@@ -65,6 +71,17 @@ public sealed class DialogFitCoverageTests
                 unfitted.Add(relative + " (" + height + ")");
         }
         Assert.Empty(unfitted);
+    }
+
+    [Fact]
+    public void TheImportDialogKeepsItsFooterOutsideTheScrollingBodySoALoweredMinimumScrolls()
+    {
+        string source = File.ReadAllText(Source("Desktop/Views/Media/ManualImportDialog.cs"));
+        Assert.Contains("RowDefinitions = new RowDefinitions(\"Auto,*,Auto\")", source);
+        Assert.Matches(@"ScrollViewer scroll = new\(\) \{ Content = body,", source);
+        Assert.Contains("Grid.SetRow(scroll, 1);", source);
+        Assert.Contains("Grid.SetRow(footer, 2);", source);
+        Assert.Contains("footer.Children.Add(_close);", source);
     }
 
     // The window's own opening height: from the XAML root for a XAML window, else from the constructor assignment.

@@ -94,6 +94,7 @@ internal sealed class ManualImportDialog : Window
         Name = "ManualImportDialog";
         Width = 640; Height = 720; MinWidth = 420; MinHeight = 560;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        DialogFit.OnOpen(this);
         WindowChrome.Apply(this);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
