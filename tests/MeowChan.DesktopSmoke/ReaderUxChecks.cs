@@ -257,7 +257,7 @@ internal static class ReaderUxChecks
             savedAsset.Manifest, savedAsset.Asset, null, null, false, true);
         string? retainedAnchor = TopPost(page);
         string? retainedSelection = SelectedPost(page);
-        await window.OpenMediaGalleryAsync(new[] { unassigned }, unassigned.EntryKey);
+        await window.OpenMediaGalleryLaidOutAsync(new[] { unassigned }, unassigned.EntryKey);
         viewer = (GalleryViewer)gallery.Content!;
         Require(viewer.CaptureState().PostId == null, "Unassigned medium acquired an invented post association.");
         Click(GalleryButton(viewer, "GalleryClose"));

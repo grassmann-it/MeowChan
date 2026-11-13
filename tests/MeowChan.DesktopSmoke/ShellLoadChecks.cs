@@ -154,7 +154,7 @@ internal static class ShellLoadChecks
             if (scenario is "held" or "downloads") await app.Transport.MediaRequested.WaitAsync(Timeout);
 
             GalleryEntry[] entries = ShellLoadFixture.Entries;
-            await window.OpenMediaGalleryAsync(entries, entries[0].EntryKey);
+            await window.OpenMediaGalleryLaidOutAsync(entries, entries[0].EntryKey);
             galleryOpen = true;
             GalleryViewer viewer = (GalleryViewer)window.FindControl<ContentControl>("GalleryHost")!.Content!;
             await Program.WaitUntilAsync(() => Control<Image>(viewer, "GalleryImage").Source is Bitmap);
@@ -310,7 +310,7 @@ internal static class ShellLoadChecks
         {
             GalleryEntry entry = ShellLoadFixture.Entries[index];
             // Open the same real shell navigation surface at the requested frozen identity.
-            if (stage != "before") await window.OpenMediaGalleryAsync(ShellLoadFixture.Entries, entry.EntryKey);
+            if (stage != "before") await window.OpenMediaGalleryLaidOutAsync(ShellLoadFixture.Entries, entry.EntryKey);
             viewer = (GalleryViewer)window.FindControl<ContentControl>("GalleryHost")!.Content!;
             await Program.WaitUntilAsync(() => viewer.CaptureState().Key == entry.Key && Control<Image>(viewer, "GalleryImage").Source is Bitmap);
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Render);

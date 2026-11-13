@@ -118,7 +118,7 @@ internal static class ArchivePageChecks
             "The inline reply expander did not show its empty local result.");
         Require(page.FindControl<ListBox>("ArchivePosts")!.ItemsSource!.Cast<ArchivePostRow>().Single().RepliesExpanded,
             "The quote excursion setup lost its expanded inline replies before opening the gallery.");
-        await window.OpenMediaGalleryAsync(new[] { quotedEntry }, quotedEntry.EntryKey, focusOrigin);
+        await window.OpenMediaGalleryLaidOutAsync(new[] { quotedEntry }, quotedEntry.EntryKey, focusOrigin);
         GalleryViewer quoteViewer = (GalleryViewer)gallery.Content!;
         // The previous gallery may have persisted an open context. A blind toggle would close
         // it, while retained hidden quote controls still appear in GetVisualDescendants().

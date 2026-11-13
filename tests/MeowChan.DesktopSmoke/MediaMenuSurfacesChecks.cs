@@ -362,7 +362,7 @@ internal static class MediaMenuSurfacesChecks
         string fixtures = Path.Combine(shell.SessionHost.ProfileDirectory, "media-menu-gallery-fixture");
         GalleryEntry boundFixture = await GalleryMediaTagChecks.BoundAsync(Path.Combine(fixtures, "bound"));
         GalleryEntry looseFixture = await GalleryMediaTagChecks.UnboundAsync(Path.Combine(fixtures, "loose"));
-        await shell.OpenMediaGalleryAsync([boundFixture, looseFixture], boundFixture.EntryKey);
+        await shell.OpenMediaGalleryLaidOutAsync([boundFixture, looseFixture], boundFixture.EntryKey);
         await UntilAsync(() => host.Content is GalleryViewer);
         viewer = (GalleryViewer)host.Content!;
         await UntilAsync(() => viewer.CurrentEntry != null && viewer.TagsButton.IsEffectivelyEnabled);
@@ -407,7 +407,7 @@ internal static class MediaMenuSurfacesChecks
         shell.CopyTextForTests = text => { copied = text; return Task.CompletedTask; };
         try
         {
-            await shell.OpenMediaGalleryAsync([pdf], pdf.EntryKey);
+            await shell.OpenMediaGalleryLaidOutAsync([pdf], pdf.EntryKey);
             ContentControl host = shell.FindControl<ContentControl>("GalleryHost")!;
             await UntilAsync(() => host.Content is GalleryViewer);
             GalleryViewer viewer = (GalleryViewer)host.Content!;

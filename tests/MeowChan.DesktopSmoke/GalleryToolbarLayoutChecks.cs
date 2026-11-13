@@ -36,7 +36,7 @@ internal static class GalleryToolbarLayoutChecks
             Texts.SetLanguage("en");
             GalleryEntry first = await EntryAsync(Path.Combine(root, "one"), "first.png", "1", "81", 0);
             GalleryEntry second = await EntryAsync(Path.Combine(root, "two"), "second.png", "2", "82", 1);
-            await window.OpenMediaGalleryAsync([first, second], first.EntryKey);
+            await window.OpenMediaGalleryLaidOutAsync([first, second], first.EntryKey);
             ContentControl host = window.FindControl<ContentControl>("GalleryHost")!;
             await UntilAsync(() => host.Content is GalleryViewer);
             GalleryViewer viewer = (GalleryViewer)host.Content!;

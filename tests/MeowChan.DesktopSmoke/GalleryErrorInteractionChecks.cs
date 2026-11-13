@@ -422,7 +422,7 @@ internal static partial class GalleryPlaybackFeatureChecks
             ShellErrorStopTimers(shell);
             await UntilAsync(() => host.PreferenceWriteCounts.Active == 0 && host.PreferenceWriteCounts.Pending == 0,
                 "Child shell startup preferences did not drain.");
-            await shell.OpenMediaGalleryAsync([clip], clip.EntryKey).WaitAsync(Deadline);
+            await shell.OpenMediaGalleryLaidOutAsync([clip], clip.EntryKey).WaitAsync(Deadline);
             GalleryViewer viewer = ShellErrorField<GalleryViewer>(shell, "_gallery");
             GalleryVideoPlayer player = Player(viewer);
             long? lastReadinessLog = null;
