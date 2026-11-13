@@ -26,13 +26,16 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
     private readonly BooruOriginalQueue _originals;
     private readonly BooruCatalogStore _catalog;
     private readonly string _sourceId;
+    private readonly BooruPortAvailabilityGate _availability;
     private int _disposed;
 
-    internal BooruOriginalQueuePort(BooruOriginalQueue originals, BooruCatalogStore catalog, string sourceId)
+    internal BooruOriginalQueuePort(BooruOriginalQueue originals, BooruCatalogStore catalog, string sourceId,
+        BooruPortAvailabilityGate? availability = null)
     {
         _originals = originals ?? throw new ArgumentNullException(nameof(originals));
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _sourceId = sourceId;
+        _availability = availability ?? new BooruPortAvailabilityGate();
         _originals.OutcomeChanged += OnOutcomeChanged;
     }
 
@@ -48,6 +51,8 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
         cancellationToken.ThrowIfCancellationRequested();
         if (!string.Equals(post.SourceId, _sourceId, StringComparison.Ordinal))
             return new BooruLoadResult(BooruLoadStatus.Failed, BooruCodes.BooruSource);
+        using BooruPortAvailabilityGate.Lease? operation = _availability.TryEnter(cancellationToken);
+        if (Volatile.Read(ref _disposed) != 0 || operation == null) return Unavailable();
         // Decided from the validated provider claim before anything is stored or queued.
         if (post.OriginalAccess == BooruOriginalAccess.NotOffered) return new BooruLoadResult(BooruLoadStatus.NoOriginal);
         if (post.OriginalAccess == BooruOriginalAccess.Restricted) return new BooruLoadResult(BooruLoadStatus.Restricted);
@@ -58,26 +63,36 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
             return new BooruLoadResult(BooruLoadStatus.Failed, BooruCodes.MalformedPost);
         }
         BooruFindingKind kind = origin == BooruLoadOrigin.OneShot ? BooruFindingKind.OneShot : BooruFindingKind.Search;
-        BooruOriginalAdmission admission;
+        BooruOriginalAdmission? admission;
         try
         {
             // The admission writes the catalog synchronously before its first await: never on the UI thread.
-            admission = await Task.Run(() => _originals.AdmitAsync(claim, kind, query: Provenance(kind, query),
-                cancellationToken: cancellationToken), cancellationToken)
-                .ConfigureAwait(false);
+            admission = await Task.Run(async () =>
+            {
+                if (!operation.TryStart(() => _originals.AdmitAsync(claim, kind, query: Provenance(kind, query),
+                    cancellationToken: operation.Token), out Task<BooruOriginalAdmission> pending)) return null;
+                return await pending.ConfigureAwait(false);
+            }, operation.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (OperationCanceledException) when (!operation.IsCurrent) { return Unavailable(); }
         catch (Exception exception) when (exception is InvalidOperationException or IOException or UnauthorizedAccessException
             or InvalidDataException or ObjectDisposedException or OperationCanceledException)
         {
+            if (!operation.IsCurrent) return Unavailable();
             Log.Warning(exception, "Danbooru original admission failed for post {PostId}", post.PostId);
             return new BooruLoadResult(BooruLoadStatus.Failed, BooruCodes.NotAdmitted);
         }
+        // An accepted job stays with the queue even if its acknowledgement arrives after revocation. Never cancel
+        // the post owner or reinterpret its durable intent here; only discard the stale UI completion.
+        if (admission == null || !operation.IsCurrent) return Unavailable();
         BooruLoadResult result = Map(admission);
         // The catalog changed (claim, finding, intent) even when the queue raised nothing yet.
         RaiseLocalStatesChanged();
         return result;
     }
+
+    private static BooruLoadResult Unavailable() => new(BooruLoadStatus.Failed, BooruCodes.SourceUnavailable);
 
     /// <summary>
     /// The query a search finding keeps: only the canonical provider query the catalog itself accepts. Anything else (a
@@ -148,7 +163,8 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
 /// </summary>
 internal sealed class BooruSchedulerWatcherPort : IBooruWatcherPort, IDisposable
 {
-    private readonly DanbooruWatcherScheduler _scheduler;
+    private volatile DanbooruWatcherScheduler _scheduler;
+    private readonly BooruPortAvailabilityGate _availability;
     private readonly BooruCatalogStore? _catalog;
     private readonly string _sourceId;
     private readonly object _noticeGate = new();
@@ -156,9 +172,10 @@ internal sealed class BooruSchedulerWatcherPort : IBooruWatcherPort, IDisposable
     private int _disposed;
 
     internal BooruSchedulerWatcherPort(DanbooruWatcherScheduler scheduler, BooruCatalogStore? catalog = null,
-        string sourceId = DanbooruPostReference.ProviderId)
+        string sourceId = DanbooruPostReference.ProviderId, BooruPortAvailabilityGate? availability = null)
     {
         _scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
+        _availability = availability ?? new BooruPortAvailabilityGate();
         _catalog = catalog;
         _sourceId = sourceId;
         _scheduler.Changed += OnSchedulerChanged;
@@ -213,28 +230,72 @@ internal sealed class BooruSchedulerWatcherPort : IBooruWatcherPort, IDisposable
             stored?.LatestPostId);
     }
 
+    // Called only with availability closed and the old host physically drained. Escaped UI handles stay valid,
+    // but no old scheduler or manual-request queue is revived; the shared OriginalQueue is never replaced.
+    internal void ReplaceScheduler(DanbooruWatcherScheduler scheduler)
+    {
+        _scheduler.Changed -= OnSchedulerChanged;
+        _scheduler = scheduler;
+        lock (_noticeGate) _reported.Clear();
+        if (Volatile.Read(ref _disposed) == 0) _scheduler.Changed += OnSchedulerChanged;
+    }
+
     public Task<BooruWatcherCommandResult> CreateAsync(string canonicalQuery, CancellationToken cancellationToken) =>
-        Task.Run(() => Command(_scheduler.AddWatcher(canonicalQuery)), cancellationToken);
+        Mutate(scheduler => scheduler.AddWatcher(canonicalQuery), cancellationToken);
 
     public async Task<BooruWatcherCommandResult> CheckNowAsync(string watcherId, CancellationToken cancellationToken)
     {
-        DanbooruWatcherCheckSummary summary = await Task.Run(() => _scheduler.CheckNowAsync(watcherId), cancellationToken)
-            .WaitAsync(cancellationToken).ConfigureAwait(false);
-        return Check(summary);
+        using BooruPortAvailabilityGate.Lease? operation = _availability.TryEnter(cancellationToken);
+        if (Volatile.Read(ref _disposed) != 0 || operation == null) return Unavailable();
+        try
+        {
+            // Queue registration itself must be fenced, not merely the caller's wait. Disable also stops/drains
+            // this scheduler in composition, so a cancelled wait cannot leave a queued check for re-enable.
+            var registration = await Task.Run(() =>
+            {
+                bool accepted = operation.TryStart(() => _scheduler.CheckNowAsync(watcherId),
+                    out Task<DanbooruWatcherCheckSummary> task);
+                return (accepted, task);
+            }, operation.Token).ConfigureAwait(false);
+            if (!registration.accepted) return Unavailable();
+            DanbooruWatcherCheckSummary summary = await registration.task.WaitAsync(operation.Token).ConfigureAwait(false);
+            return operation.IsCurrent ? Check(summary) : Unavailable();
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && !operation.IsCurrent)
+        { return Unavailable(); }
     }
 
     public Task<BooruWatcherCommandResult> PauseAsync(string watcherId, CancellationToken cancellationToken) =>
-        Task.Run(() => Command(_scheduler.Pause(watcherId)), cancellationToken);
+        Mutate(scheduler => scheduler.Pause(watcherId), cancellationToken);
 
     public Task<BooruWatcherCommandResult> ResumeAsync(string watcherId, CancellationToken cancellationToken) =>
-        Task.Run(() => Command(_scheduler.Resume(watcherId)), cancellationToken);
+        Mutate(scheduler => scheduler.Resume(watcherId), cancellationToken);
 
     /// <summary>Removes the observation only; posts, findings and local media stay (scheduler/catalog contract).</summary>
     public Task<BooruWatcherCommandResult> RemoveAsync(string watcherId, CancellationToken cancellationToken) =>
-        Task.Run(() => Command(_scheduler.Remove(watcherId)), cancellationToken);
+        Mutate(scheduler => scheduler.Remove(watcherId), cancellationToken);
 
     public Task<BooruWatcherCommandResult> RestartFromNowAsync(string watcherId, CancellationToken cancellationToken) =>
-        Task.Run(() => Command(_scheduler.RestartFromNow(watcherId)), cancellationToken);
+        Mutate(scheduler => scheduler.RestartFromNow(watcherId), cancellationToken);
+
+    private async Task<BooruWatcherCommandResult> Mutate(Func<DanbooruWatcherScheduler, DanbooruWatcherCommandResult> command,
+        CancellationToken cancellationToken)
+    {
+        using BooruPortAvailabilityGate.Lease? operation = _availability.TryEnter(cancellationToken);
+        if (Volatile.Read(ref _disposed) != 0 || operation == null) return Unavailable();
+        try
+        {
+            BooruWatcherCommandResult result = await Task.Run(() =>
+                operation.TryStart(() => Command(command(_scheduler)), out BooruWatcherCommandResult value)
+                    ? value : Unavailable(), operation.Token).ConfigureAwait(false);
+            return operation.IsCurrent ? result : Unavailable();
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && !operation.IsCurrent)
+        { return Unavailable(); }
+    }
+
+    private static BooruWatcherCommandResult Unavailable() =>
+        new(BooruWatcherCommandStatus.Failed, BooruCodes.SourceUnavailable);
 
     /// <summary>Read-only: size, post count and configured limit of the profile's catalog (cached; no parse while unchanged).</summary>
     public Task<BooruCatalogUsageView?> GetCatalogUsageAsync(CancellationToken cancellationToken) => _catalog is not { } catalog
@@ -272,7 +333,7 @@ internal sealed class BooruSchedulerWatcherPort : IBooruWatcherPort, IDisposable
 
     private void OnSchedulerChanged()
     {
-        if (Volatile.Read(ref _disposed) != 0) return;
+        if (Volatile.Read(ref _disposed) != 0 || !_availability.IsAvailable) return;
         try { Changed?.Invoke(); }
         catch (Exception exception) { Log.Error(exception, "Danbooru watcher observer failed"); }
         ReportFinishedChecks();
@@ -329,19 +390,36 @@ internal sealed class BooruSchedulerWatcherPort : IBooruWatcherPort, IDisposable
 /// <summary>Preview bytes only through <see cref="BooruPreviewHttp"/> (declared preview hosts, GET, no redirects, bounded).</summary>
 internal sealed class BooruHostPreviewPort : IBooruPreviewPort
 {
-    private readonly BooruPreviewHttp _http;
+    private readonly Func<BooruPreviewHttp> _http;
     private readonly string _sourceId;
+    private readonly BooruPortAvailabilityGate _availability;
 
-    internal BooruHostPreviewPort(BooruPreviewHttp http, string sourceId)
+    internal BooruHostPreviewPort(BooruPreviewHttp http, string sourceId, BooruPortAvailabilityGate? availability = null,
+        Func<BooruPreviewHttp>? currentHttp = null)
     {
-        _http = http ?? throw new ArgumentNullException(nameof(http));
+        ArgumentNullException.ThrowIfNull(http);
+        _http = currentHttp ?? (() => http);
         _sourceId = sourceId;
+        _availability = availability ?? new BooruPortAvailabilityGate();
     }
 
-    public Task<byte[]?> LoadPreviewAsync(BooruPostView post, CancellationToken cancellationToken) =>
-        post is null || post.PreviewUrl is null || !string.Equals(post.SourceId, _sourceId, StringComparison.Ordinal)
-            ? Task.FromResult<byte[]?>(null)
-            : _http.LoadAsync(post.PreviewUrl, cancellationToken);
+    public async Task<byte[]?> LoadPreviewAsync(BooruPostView post, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (post is null || post.PreviewUrl is null || !string.Equals(post.SourceId, _sourceId, StringComparison.Ordinal))
+            return null;
+        using BooruPortAvailabilityGate.Lease? operation = _availability.TryEnter(cancellationToken);
+        if (operation == null) return null;
+        try
+        {
+            if (!operation.TryStart(() => _http().LoadAsync(post.PreviewUrl, operation.Token), out Task<byte[]?> pending))
+                return null;
+            byte[]? bytes = await pending.ConfigureAwait(false);
+            return operation.IsCurrent ? bytes : null;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && !operation.IsCurrent)
+        { return null; }
+    }
 }
 
 /// <summary>Points the window's code seam at the shared booru message catalog (B8) so codes read as sentences.</summary>

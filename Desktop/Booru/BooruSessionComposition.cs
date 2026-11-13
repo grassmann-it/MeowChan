@@ -6,6 +6,7 @@ using MeowChan.Archive;
 using MeowChan.Booru;
 using MeowChan.Downloader;
 using MeowChan.Http;
+using MeowChan.Persistence;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginHost.Http;
 using MeowChan.PluginHost.Sources.Booru;
@@ -69,16 +70,29 @@ internal sealed class BooruProviderBinding
 internal sealed class BooruSessionComposition : IAsyncDisposable
 {
     private readonly HttpClient _mediaClient;
-    private readonly BooruPreviewHttp _previewHttp;
+    private BooruPreviewHttp _previewHttp;
     private readonly BooruOriginalQueuePort _queuePort;
     private readonly BooruSchedulerWatcherPort _watcherPort;
     private readonly BooruProviderBinding _binding;
+    private readonly BooruPortAvailabilityGate _availability;
+    private readonly SemaphoreSlim _lifecycle = new(1, 1);
+    private readonly TaskCompletionSource _stopCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TimeProvider? _clock;
+    private readonly DanbooruWatcherSchedulerOptions? _options;
+    private bool _started;
+    private bool _watcherStopped;
+    private int _enabled;
     private int _stopped;
 
     private BooruSessionComposition(BooruProviderBinding binding, DownloadQueue queue, BooruCatalogStore catalog,
         string outputRoot, TimeProvider? clock, DanbooruWatcherSchedulerOptions? options)
     {
         _binding = binding;
+        _clock = clock;
+        _options = options;
+        _enabled = binding.IsEnabled() ? 1 : 0;
+        _availability = new BooruPortAvailabilityGate(() => binding.IsEnabled()
+            && catalog.ProfileLease.Admission.Phase == ProfileAdmissionPhase.Ready);
         Catalog = catalog;
         Search = new BooruSearchService(binding.Services);
         _mediaClient = binding.CreateOriginalMediaClient();
@@ -86,16 +100,18 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
         {
             Originals = new BooruOriginalQueue(queue, catalog, outputRoot, _mediaClient, timeProvider: clock);
             SearchPort = new BooruWatcherSearchPort(Search, binding.Services, binding.GetWorkerAsync, clock);
-            WatcherHost = new DanbooruWatcherHost(catalog, Originals, SearchPort, clock, options);
+            WatcherHost = CreateWatcherHost();
             _previewHttp = new BooruPreviewHttp(binding.Transport, binding.Source, timeProvider: clock);
-            _queuePort = new BooruOriginalQueuePort(Originals, catalog, binding.Source.SourceId);
-            _watcherPort = new BooruSchedulerWatcherPort(WatcherHost.Scheduler, catalog, binding.Source.SourceId);
+            _queuePort = new BooruOriginalQueuePort(Originals, catalog, binding.Source.SourceId, _availability);
+            _watcherPort = new BooruSchedulerWatcherPort(WatcherHost.Scheduler, catalog, binding.Source.SourceId, _availability);
             Services = new BooruWorkbenchServices(
                 new BooruHostSearchAdapter(Search, binding.GetWorkerAsync, binding.Source.SourceId, binding.Source.Name),
-                _queuePort, _watcherPort, new BooruHostPreviewPort(_previewHttp, binding.Source.SourceId), clock);
+                _queuePort, _watcherPort, new BooruHostPreviewPort(_previewHttp, binding.Source.SourceId, _availability, () => _previewHttp), clock);
+            _binding.AvailabilityChanged += OnAvailabilityChanged;
         }
         catch
         {
+            _availability.Close(terminal: true);
             _mediaClient.Dispose();
             throw;
         }
@@ -105,12 +121,12 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
     internal BooruSearchService Search { get; }
     internal BooruOriginalQueue Originals { get; }
     internal BooruWatcherSearchPort SearchPort { get; }
-    internal DanbooruWatcherHost WatcherHost { get; }
+    internal DanbooruWatcherHost WatcherHost { get; private set; }
     internal BooruWorkbenchServices Services { get; }
     internal BooruPreviewHttp Previews => _previewHttp;
 
-    /// <summary>True while the plugin is enabled; a disabled plugin hides the window entry.</summary>
-    internal bool IsAvailable => Volatile.Read(ref _stopped) == 0 && _binding.IsEnabled();
+    /// <summary>Also closed while a disabled generation is draining; old handles use the same gate.</summary>
+    internal bool IsAvailable => _availability.IsAvailable;
 
     internal static BooruSessionComposition Create(BooruProviderBinding binding, DownloadQueue queue, BooruCatalogStore catalog,
         string outputRoot, TimeProvider? clock = null, DanbooruWatcherSchedulerOptions? options = null)
@@ -126,18 +142,112 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
     /// <see cref="DanbooruWatcherHost.StartAsync"/>: load and recover stored watchers, re-admit pending originals from
     /// local data (no provider request), then start the scheduler loop.
     /// </summary>
-    internal Task StartAsync(CancellationToken cancellationToken) => WatcherHost.StartAsync(cancellationToken);
+    internal async Task StartAsync(CancellationToken cancellationToken)
+    {
+        await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_started || Volatile.Read(ref _stopped) != 0) return;
+            _started = true;
+            using BooruPortAvailabilityGate.Lease? start = _availability.TryEnter(cancellationToken);
+            if (start != null && start.TryStart(() => WatcherHost.StartAsync(start.Token), out Task pending))
+                await pending.ConfigureAwait(false);
+        }
+        catch { _started = false; throw; }
+        finally { _lifecycle.Release(); }
+    }
 
-    /// <summary>Cancels a running check and stops the loop while the profile still accepts writes. Idempotent.</summary>
+    private DanbooruWatcherHost CreateWatcherHost() => new(Catalog, Originals,
+        new BooruAvailabilityWatcherSearchPort(SearchPort, _availability), _clock, _options);
+
+    private void OnAvailabilityChanged()
+    {
+        int enabled = _binding.IsEnabled() ? 1 : 0;
+        if (Interlocked.Exchange(ref _enabled, enabled) == enabled) return;
+        // Revocation is synchronous even if Start/Stop currently owns the lifecycle lane. Disposing the old
+        // preview cache prevents an uncooperative old HTTP completion from populating the next generation.
+        _availability.Close();
+        _previewHttp.Dispose();
+        _ = RefreshAvailabilityAsync();
+    }
+
+    private async Task RefreshAvailabilityAsync()
+    {
+        await _lifecycle.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (Volatile.Read(ref _stopped) != 0 || _availability.IsStopped || _availability.IsAvailable) return;
+            if (!_watcherStopped)
+            {
+                await WatcherHost.StopAsync().ConfigureAwait(false);
+                _watcherStopped = true;
+            }
+            await _availability.DrainAsync().ConfigureAwait(false);
+            if (Volatile.Read(ref _stopped) != 0 || _availability.IsStopped || !_binding.IsEnabled()) return;
+            // StopAsync is terminal in B5. Recreate only its lifecycle owner, after a real drain, over the SAME
+            // OriginalQueue/catalog/search services. Never reuse pending manual requests from the disabled run.
+            WatcherHost = CreateWatcherHost();
+            _watcherPort.ReplaceScheduler(WatcherHost.Scheduler);
+            _watcherStopped = false;
+            _previewHttp = new BooruPreviewHttp(_binding.Transport, _binding.Source, timeProvider: _clock);
+            _availability.Open();
+            if (_started)
+            {
+                using BooruPortAvailabilityGate.Lease? start = _availability.TryEnter(CancellationToken.None);
+                if (start != null && start.TryStart(() => WatcherHost.StartAsync(start.Token), out Task pending))
+                    await pending.ConfigureAwait(false);
+            }
+        }
+        catch (Exception exception)
+        {
+            _availability.Close();
+            _previewHttp.Dispose();
+            Log.Warning(exception, "Danbooru availability transition failed; ports remain unavailable");
+        }
+        finally { _lifecycle.Release(); }
+    }
+
+    /// <summary>
+    /// Synchronous terminal cut for the session's shutdown ingress. No lifecycle wait or transport release; StopAsync
+    /// still owns physical drain. May be called before the asynchronous engine-stop worker reaches this composition.
+    /// </summary>
+    internal void ClosePortIngress()
+    {
+        _availability.Close(terminal: true);
+        _previewHttp.Dispose();
+    }
+
+    /// <summary>Revokes escaped ports synchronously, then drains the watcher generation. Idempotent.</summary>
     internal async Task StopAsync()
     {
-        if (Interlocked.Exchange(ref _stopped, 1) != 0) return;
-        try { await WatcherHost.StopAsync().ConfigureAwait(false); }
-        finally
+        if (Interlocked.Exchange(ref _stopped, 1) != 0)
         {
-            _queuePort.Dispose();
-            _watcherPort.Dispose();
-            _previewHttp.Dispose();
+            await _stopCompletion.Task.ConfigureAwait(false);
+            return;
+        }
+        try
+        {
+            _binding.AvailabilityChanged -= OnAvailabilityChanged;
+            ClosePortIngress();
+            await _lifecycle.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                await WatcherHost.StopAsync().ConfigureAwait(false);
+                await _availability.DrainAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                _queuePort.Dispose();
+                _watcherPort.Dispose();
+                _previewHttp.Dispose();
+                _lifecycle.Release();
+            }
+            _stopCompletion.TrySetResult();
+        }
+        catch (Exception exception)
+        {
+            _stopCompletion.TrySetException(exception);
+            throw;
         }
     }
 
