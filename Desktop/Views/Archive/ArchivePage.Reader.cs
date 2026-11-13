@@ -319,7 +319,11 @@ public partial class ArchivePage
         // ScrollIntoView realizes a virtualized target. Its measured height can
         // replace an estimate on the next layout; retry only while the request
         // remains current, and correct offsets only after layout has settled.
-        for (int pass = 0; pass < 4; pass++)
+        // A position that is already right is confirmed by one more layout: the neighbours realized around a
+        // freshly scrolled-to target (a new page, the last item of a list) can still move it afterwards.
+        bool confirmed = false;
+        double? requestedOffset = null;
+        for (int pass = 0; pass < 8; pass++)
         {
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
             if (!IsCurrent()) return;
@@ -328,7 +332,11 @@ public partial class ArchivePage
             ++_readerLayoutRevision;
             posts.SelectedItem = row;
             posts.UpdateLayout();
-            if (pass == 0 || posts.ContainerFromItem(row) == null) posts.ScrollIntoView(row);
+            // An offset the virtualizer did not keep (it re-estimates the extent around the realized items) is not retried
+            // blindly: bring the target into view again so it is realized where the viewport is.
+            bool offsetLost = requestedOffset is double requested
+                && Math.Abs((posts.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault()?.Offset.Y ?? requested) - requested) > 1;
+            if (pass == 0 || offsetLost || posts.ContainerFromItem(row) == null) posts.ScrollIntoView(row);
             posts.UpdateLayout();
             if (posts.ContainerFromItem(row) is not Control container) continue;
             ScrollViewer? scroll = posts.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
@@ -339,6 +347,13 @@ public partial class ArchivePage
             if (Math.Abs(offset - scroll.Offset.Y) > 1)
             {
                 scroll.Offset = new Vector(scroll.Offset.X, offset);
+                requestedOffset = offset;
+                confirmed = false;
+                continue;
+            }
+            if (!confirmed && pass < 7)
+            {
+                confirmed = true;
                 continue;
             }
             // Focus must not cause a second competing BringIntoView request.
