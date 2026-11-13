@@ -12,7 +12,7 @@ using MeowChan.Testing;
 
 namespace MeowChan.DesktopSmoke;
 
-// Invoked by the private CX-03 smoke integration; shares the existing media fixture helpers.
+// Part of the media-page scenario (MediaPageChecks.RunAsync); shares the existing media fixture helpers.
 internal static partial class MediaPageChecks
 {
     internal static async Task Cx03MediaFilterClosureAsync(MainWindow owner)

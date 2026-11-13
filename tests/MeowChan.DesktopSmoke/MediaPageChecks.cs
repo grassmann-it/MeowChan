@@ -65,6 +65,7 @@ internal static partial class MediaPageChecks
             await PageJourneyAsync(owner, profile);
             await FilterJourneyAsync(owner, profile);
             await FilterSurfaceAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-filter-surface-"));
+            await Cx03MediaFilterClosureAsync(owner);
             await OwnStateJourneyAsync(owner, profile);
             await DuplicateJourneyAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-duplicates-"));
             await SelectionJourneyAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-selection-"));
