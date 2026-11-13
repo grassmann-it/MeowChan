@@ -47,7 +47,11 @@ internal enum HtmlExportText
     WarningManifestUnavailable,
     WarningDirectoryUnreadable,
     WarningManifestInvalid,
-    PostNumber
+    PostNumber,
+    Theme,
+    ThemeSystem,
+    ThemeLight,
+    ThemeDark
 }
 
 /// <summary>Small, dependency-free localization surface for generated HTML framing text.</summary>
@@ -95,7 +99,11 @@ internal sealed class HtmlExportLocalization
         [HtmlExportText.WarningManifestUnavailable] = "A saved media manifest is unavailable.",
         [HtmlExportText.WarningDirectoryUnreadable] = "A saved media directory could not be read.",
         [HtmlExportText.WarningManifestInvalid] = "The media manifest is invalid; no assets were inferred or repaired.",
-        [HtmlExportText.PostNumber] = "No. {0}"
+        [HtmlExportText.PostNumber] = "No. {0}",
+        [HtmlExportText.Theme] = "Theme",
+        [HtmlExportText.ThemeSystem] = "System",
+        [HtmlExportText.ThemeLight] = "Light",
+        [HtmlExportText.ThemeDark] = "Dark"
     };
 
     private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<HtmlExportText, string>> Translations =
@@ -143,7 +151,11 @@ internal sealed class HtmlExportLocalization
                 [HtmlExportText.WarningManifestUnavailable] = "Ein gespeichertes Medienmanifest ist nicht verfügbar.",
                 [HtmlExportText.WarningDirectoryUnreadable] = "Ein gespeichertes Medienverzeichnis konnte nicht gelesen werden.",
                 [HtmlExportText.WarningManifestInvalid] = "Das Medienmanifest ist ungültig; es wurden keine Medien abgeleitet oder repariert.",
-                [HtmlExportText.PostNumber] = "Nr. {0}"
+                [HtmlExportText.PostNumber] = "Nr. {0}",
+                [HtmlExportText.Theme] = "Farbschema",
+                [HtmlExportText.ThemeSystem] = "Systemvorgabe",
+                [HtmlExportText.ThemeLight] = "Hell",
+                [HtmlExportText.ThemeDark] = "Dunkel"
             },
             ["es"] = new Dictionary<HtmlExportText, string>
             {
@@ -187,7 +199,11 @@ internal sealed class HtmlExportLocalization
                 [HtmlExportText.WarningManifestUnavailable] = "El manifiesto de medios guardado no está disponible.",
                 [HtmlExportText.WarningDirectoryUnreadable] = "No se pudo leer un directorio de medios guardado.",
                 [HtmlExportText.WarningManifestInvalid] = "El manifiesto de medios no es válido; no se dedujeron ni repararon archivos multimedia.",
-                [HtmlExportText.PostNumber] = "N.º {0}"
+                [HtmlExportText.PostNumber] = "N.º {0}",
+                [HtmlExportText.Theme] = "Tema",
+                [HtmlExportText.ThemeSystem] = "Sistema",
+                [HtmlExportText.ThemeLight] = "Claro",
+                [HtmlExportText.ThemeDark] = "Oscuro"
             },
             ["fr"] = new Dictionary<HtmlExportText, string>
             {
@@ -231,7 +247,11 @@ internal sealed class HtmlExportLocalization
                 [HtmlExportText.WarningManifestUnavailable] = "Un manifeste de médias enregistré est indisponible.",
                 [HtmlExportText.WarningDirectoryUnreadable] = "Un répertoire de médias enregistré n’a pas pu être lu.",
                 [HtmlExportText.WarningManifestInvalid] = "Le manifeste des médias est invalide ; aucun média n’a été déduit ni réparé.",
-                [HtmlExportText.PostNumber] = "N° {0}"
+                [HtmlExportText.PostNumber] = "N° {0}",
+                [HtmlExportText.Theme] = "Thème",
+                [HtmlExportText.ThemeSystem] = "Système",
+                [HtmlExportText.ThemeLight] = "Clair",
+                [HtmlExportText.ThemeDark] = "Sombre"
             },
             ["ru"] = new Dictionary<HtmlExportText, string>
             {
@@ -275,7 +295,11 @@ internal sealed class HtmlExportLocalization
                 [HtmlExportText.WarningManifestUnavailable] = "Сохранённый манифест медиафайлов недоступен.",
                 [HtmlExportText.WarningDirectoryUnreadable] = "Не удалось прочитать сохранённый каталог медиафайлов.",
                 [HtmlExportText.WarningManifestInvalid] = "Манифест медиафайлов недействителен; файлы не восстанавливались и не определялись по косвенным признакам.",
-                [HtmlExportText.PostNumber] = "№ {0}"
+                [HtmlExportText.PostNumber] = "№ {0}",
+                [HtmlExportText.Theme] = "Тема",
+                [HtmlExportText.ThemeSystem] = "Системная",
+                [HtmlExportText.ThemeLight] = "Светлая",
+                [HtmlExportText.ThemeDark] = "Тёмная"
             }
         };
 

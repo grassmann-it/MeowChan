@@ -60,6 +60,36 @@ public sealed class ArchiveHtmlExportFormattingTests
             Assert.Contains(rule, css);
     }
 
+    // Light/dark without script: three radio inputs precede the page wrapper, "System" (prefers-color-scheme) is the
+    // default, the header labels are their click targets and the sheet re-declares the palette for the checked input.
+    [Fact]
+    public async Task ThePageCarriesAScriptFreeThemeSwitchThatDefaultsToTheSystemScheme()
+    {
+        using TempDirectory directory = new();
+        ArchiveHtmlExportResult export = await ExportAsync(directory.Path, "de");
+        string html = await File.ReadAllTextAsync(export.IndexPath);
+        string css = await File.ReadAllTextAsync(Path.Combine(export.Directory, "style.css"));
+
+        int body = html.IndexOf("<body>", StringComparison.Ordinal), page = html.IndexOf("<div class=\"page\">", StringComparison.Ordinal);
+        string inputs = html[(body + "<body>".Length)..page];
+        Assert.Equal("<input class=\"toggle\" type=\"radio\" name=\"theme\" id=\"theme-system\" checked aria-label=\"Farbschema: Systemvorgabe\">"
+            + "<input class=\"toggle\" type=\"radio\" name=\"theme\" id=\"theme-light\" aria-label=\"Farbschema: Hell\">"
+            + "<input class=\"toggle\" type=\"radio\" name=\"theme\" id=\"theme-dark\" aria-label=\"Farbschema: Dunkel\">", inputs);
+        foreach (string id in new[] { "theme-system", "theme-light", "theme-dark" })
+        {
+            Assert.Contains("<label for=\"" + id + "\">", html);
+            Assert.Contains("#" + id + ":checked~.page label[for=" + id + "]", css);
+            Assert.Contains("#" + id + ":focus-visible~.page label[for=" + id + "]", css);
+        }
+        Assert.Contains(".page,#theme-dark:checked~.page{color-scheme:dark;", css);
+        Assert.Contains("@media (prefers-color-scheme:light){html{background:#e3dfd8}.page{color-scheme:light;", css);
+        Assert.Contains("#theme-light:checked~.page{color-scheme:light;", css);
+        // The inputs stay focusable (never display:none) and need no :has() support.
+        Assert.Contains(".toggle{position:fixed;top:0;left:0;width:1px;height:1px;margin:0;opacity:0;pointer-events:none}", css);
+        Assert.DoesNotContain(":has(", css);
+        Assert.DoesNotContain("<script", html);
+    }
+
     [Fact]
     public async Task AReferenceToAPostThatWasNeverCapturedIsStruckThroughInTheTextAndTheLiveOneIsNot()
     {

@@ -166,7 +166,7 @@ public static class ArchiveHtmlExporter
         await using FileStream output = new(Path.Combine(stage, pagePath), FileMode.CreateNew, FileAccess.Write, FileShare.None,
             81920, FileOptions.Asynchronous);
         await using StreamWriter html = new(output, new UTF8Encoding(false));
-        await html.WriteLineAsync("<!doctype html><html lang=\"" + text.Language + "\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"" + ContentSecurityPolicy + "\"><title>" + Encode(view.Summary.Title) + "</title><link rel=\"stylesheet\" href=\"" + Encode(cssReference) + "\"></head><body><div class=\"page\"><header class=\"top\"><div class=\"bar\"><div class=\"heading\"><h1>" + Encode(view.Summary.Title) + "</h1><p class=\"source\">" + Encode(view.Summary.Id.Source + " /" + view.Summary.Id.Board + "/ " + view.Summary.Id.Thread) + "</p></div></div><p class=\"meta\">"
+        await html.WriteLineAsync("<!doctype html><html lang=\"" + text.Language + "\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"" + ContentSecurityPolicy + "\"><title>" + Encode(view.Summary.Title) + "</title><link rel=\"stylesheet\" href=\"" + Encode(cssReference) + "\"></head><body>" + HtmlExportChrome.ThemeInputs(text) + "<div class=\"page\"><header class=\"top\"><div class=\"bar\"><div class=\"heading\"><h1>" + Encode(view.Summary.Title) + "</h1><p class=\"source\">" + Encode(view.Summary.Id.Source + " /" + view.Summary.Id.Board + "/ " + view.Summary.Id.Thread) + "</p></div><div class=\"controls\">" + HtmlExportChrome.ThemeSwitch(text) + "</div></div><p class=\"meta\">"
             + text.Html(HtmlExportText.LastCapture, view.Summary.LastCapturedAt?.ToString("u", CultureInfo.InvariantCulture) ?? text.Get(HtmlExportText.NoPosts))
             + "</p><p class=\"meta\">" + text.Html(HtmlExportText.Retention) + " "
             + text.Html(quoteResolver == null ? HtmlExportText.ExternalThreads : HtmlExportText.UncapturedReferences) + "</p></header><main>");
@@ -395,9 +395,13 @@ public static class ArchiveHtmlExporter
     // Noto Sans (the reader's body font) and Inter (the UI font) are used when installed, never downloaded, so the sheet
     // has no url(), @import or @font-face. Reply posts are boxes that fit their content up to a maximum width; the opening
     // post sits directly on the page. Dark is the default, the light palette follows a light system scheme; print is light.
+    // The manual theme switch (HtmlExportChrome) needs no script: the radio inputs precede .page, so "#theme-dark:checked~.page"
+    // re-declares the palette. The palette therefore lives on .page, not :root; each palette is written twice (system and manual).
     internal const string Css = """
         /* MeowChan HTML export. Colours: Desktop/WorkspaceStyles.axaml (Dark and Light theme dictionaries). */
-        :root{color-scheme:dark;
+        :root{color-scheme:dark light}
+        html{background:#121416}
+        .page,#theme-dark:checked~.page{color-scheme:dark;
         --bg:#121416;/* Workspace.Background */--panel:#1b1e22;/* Workspace.Panel */--raised:#24282d;/* Workspace.Raised */
         --border:#2d3239;/* Workspace.Border */--card:#20242a;/* Workspace.Card */--edge:#5a636e;/* Workspace.CardEdge */
         --text:#eef1f4;/* Workspace.Text */--muted:#a4adb8;/* Workspace.Muted */--accent:#6aa7ff;/* Workspace.Accent */
@@ -408,7 +412,7 @@ public static class ArchiveHtmlExporter
         --ui:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
         --read:"Noto Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
         --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}
-        @media (prefers-color-scheme:light){:root{color-scheme:light;
+        @media (prefers-color-scheme:light){html{background:#e3dfd8}.page{color-scheme:light;
         --bg:#e3dfd8;/* Workspace.Background */--panel:#efece6;/* Workspace.Panel */--raised:#dbd5cb;/* Workspace.Raised */
         --border:#a89f92;/* Workspace.Border */--card:#faf7f1;/* Workspace.Card */--edge:#7a7062;/* Workspace.CardEdge */
         --text:#1a1a1a;/* Workspace.Text */--muted:#575148;/* Workspace.Muted */--accent:#803b06;/* Workspace.Accent */
@@ -416,7 +420,14 @@ public static class ArchiveHtmlExporter
         --greentext:#386217;/* Workspace.ReaderGreentext */--code:#ece7dd;/* Workspace.ReaderCodeSurface */
         --spoiler:#d3cdc2;/* Workspace.ReaderSpoiler */--warning:#795100;/* Workspace.Warning */
         --scrim:rgba(0,0,0,.2);/* Workspace.Scrim #33000000 */--shadow:0 4px 16px rgba(0,0,0,.15)/* Workspace.Shadow.Overlay */}}
-        html{background:var(--bg)}
+        #theme-light:checked~.page{color-scheme:light;
+        --bg:#e3dfd8;/* Workspace.Background */--panel:#efece6;/* Workspace.Panel */--raised:#dbd5cb;/* Workspace.Raised */
+        --border:#a89f92;/* Workspace.Border */--card:#faf7f1;/* Workspace.Card */--edge:#7a7062;/* Workspace.CardEdge */
+        --text:#1a1a1a;/* Workspace.Text */--muted:#575148;/* Workspace.Muted */--accent:#803b06;/* Workspace.Accent */
+        --accent-surface:#e7d4be;/* Workspace.AccentSurface */--hover:#d2cabe;/* Workspace.Hover */
+        --greentext:#386217;/* Workspace.ReaderGreentext */--code:#ece7dd;/* Workspace.ReaderCodeSurface */
+        --spoiler:#d3cdc2;/* Workspace.ReaderSpoiler */--warning:#795100;/* Workspace.Warning */
+        --scrim:rgba(0,0,0,.2);/* Workspace.Scrim #33000000 */--shadow:0 4px 16px rgba(0,0,0,.15)/* Workspace.Shadow.Overlay */}
         body{margin:0}
         .page{min-height:100vh;box-sizing:border-box;background:var(--bg);color:var(--text);font:15px/1.5 var(--ui);-webkit-text-size-adjust:100%;text-size-adjust:100%}
         .page>*{max-width:72rem;margin-left:auto;margin-right:auto}
@@ -425,6 +436,16 @@ public static class ArchiveHtmlExporter
         a{color:var(--accent);overflow-wrap:anywhere}
         :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
         .meta{color:var(--muted);font-size:.8125rem}
+        .toggle{position:fixed;top:0;left:0;width:1px;height:1px;margin:0;opacity:0;pointer-events:none}
+        .controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+        .switch{display:inline-flex;align-items:center;gap:8px;font-size:.8125rem}
+        .switch-name{color:var(--muted)}
+        .segments{display:inline-flex;background:var(--raised);border:1px solid var(--edge);border-radius:5px;overflow:hidden}
+        .segments label{padding:3px 10px;line-height:1.5;color:var(--text);cursor:pointer;user-select:none;-webkit-user-select:none}
+        .segments label+label{border-left:1px solid var(--edge)}
+        .segments label:hover{background:var(--hover)}
+        #theme-system:checked~.page label[for=theme-system],#theme-light:checked~.page label[for=theme-light],#theme-dark:checked~.page label[for=theme-dark]{background:var(--accent-surface);box-shadow:inset 0 -2px 0 var(--accent);font-weight:600}
+        #theme-system:focus-visible~.page label[for=theme-system],#theme-light:focus-visible~.page label[for=theme-light],#theme-dark:focus-visible~.page label[for=theme-dark]{outline:2px solid var(--accent);outline-offset:-2px}
         header.top,footer{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px 20px}
         header.top{margin-bottom:24px}
         header.top p{margin:4px 0 0}
@@ -476,10 +497,11 @@ public static class ArchiveHtmlExporter
         @media print{
         /* Print is always the light palette on white paper, whatever the screen theme. */
         :root{color-scheme:light}
-        .page{--bg:#fff;--panel:#fff;--card:#fff;--edge:#a89f92;--border:#a89f92;--text:#000;--muted:#575148;--accent:#803b06;
+        .page,#theme-light:checked~.page,#theme-dark:checked~.page{color-scheme:light;--bg:#fff;--panel:#fff;--card:#fff;--edge:#a89f92;--border:#a89f92;--text:#000;--muted:#575148;--accent:#803b06;
         --greentext:#386217;--code:#ece7dd;--spoiler:#ece7dd;--warning:#795100;padding:0;min-height:0;font-size:11pt}
         html{background:#fff}
         .page>*{max-width:none}
+        .controls{display:none}
         article{break-inside:avoid-page}
         .post-head,.file{break-inside:avoid}
         .spoiler{color:inherit}
