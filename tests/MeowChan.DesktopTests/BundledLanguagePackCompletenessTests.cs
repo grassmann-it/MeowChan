@@ -17,7 +17,7 @@ public sealed class BundledLanguagePackCompletenessTests : IDisposable
 
     // The packs this working copy must ship. A pack that another branch adds (pt-BR, cs, ja, it, pl, ko) is covered
     // by the discovery-driven theories below as soon as its file exists; add it here when it is merged.
-    private static readonly string[] RequiredCodes = { "es", "fr", "ru", "zh-Hans" };
+    private static readonly string[] RequiredCodes = { "es", "fr", "ru", "zh-Hans", "ja" };
 
     // File name (= code) and chooser name of every bundled preview, including the packs written on other branches.
     // Packs/README.md lists the same table; a pack whose code is here must carry exactly this name.

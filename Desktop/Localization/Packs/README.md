@@ -185,3 +185,28 @@ media menu gives for actions it cannot offer, the summary item, the selection no
 posts line of the details) are **unreviewed machine translations**. They word the same
 causes on every surface (archive, media page, gallery); en and de are the built-in
 reference.
+
+### Japanese glossary (`ja.json`)
+
+`ja.json` (`ja` · 日本語 (Untested)) is an **unreviewed AI-authored translation** with
+no native or layout review. Sentences and messages use polite です/ます form; labels,
+buttons and menus use short noun style. Japanese has no plural variants, so the pack
+carries no `.one`/`.few` keys. Fixed terms:
+
+| English | Japanese | Note |
+| --- | --- | --- |
+| post | 投稿 | Imageboard and Danbooru alike; レス is not used |
+| thread / board | スレッド / 板 | |
+| watch, watcher | 監視 | ウォッチ is not used |
+| archive / media / gallery / reader | アーカイブ / メディア / ギャラリー / リーダー | |
+| download / import / export | ダウンロード / インポート / エクスポート | Pasted URLs: 取り込み |
+| tag / own tag / source tag | タグ / 独自タグ / ソースタグ | |
+| plugin / settings / profile | プラグイン / 設定 / プロファイル | |
+| favorite / rating / bookmark | お気に入り / 評価 / ブックマーク | Danbooru rating names stay English |
+| spoiler | ネタバレ | |
+| Storage and limits | 保存容量と上限 | "Raise X under Y" → `Y の「X」を引き上げてください` |
+| free-space reserve | 空き容量の予約 | |
+| batch (import) | バッチ | |
+
+Booru, Danbooru, MeowChan, keyboard keys and units stay unchanged. Japanese sentences
+use full-width 、。「」？！ and （）; label colons stay half-width (`ラベル: {0}`).
