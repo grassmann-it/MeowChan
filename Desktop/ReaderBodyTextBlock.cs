@@ -2,7 +2,10 @@ using System;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Automation;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls.Documents;
+using System.Text;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
@@ -109,6 +112,46 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
 
     internal bool HasHiddenSpoilers => Document is { HasSpoilers: true } && !SpoilersRevealed;
 
+    /// <summary>
+    /// What a screen reader gets while spoilers are hidden: the post text with every hidden spoiler replaced by one neutral
+    /// "Spoiler, hidden" (the painted text only hides the pixels; the accessibility tree must hide the words too).
+    /// After the reveal, and for a body without spoilers, the real text is exposed as before.
+    /// </summary>
+    internal string AccessibleText()
+    {
+        if (!HasHiddenSpoilers || Document is not { } document) return PlainText;
+        string placeholder = Localization.Texts.T("reader.spoilerHidden");
+        StringBuilder text = new(document.Text.Length);
+        bool inSpoiler = false;
+        foreach (ReaderBodySegment segment in document.Segments)
+        {
+            if (segment.IsSpoiler)
+            {
+                if (!inSpoiler) text.Append(placeholder);
+                inSpoiler = true;
+                continue;
+            }
+            inSpoiler = false;
+            text.Append(document.Text, segment.Start, segment.Length);
+        }
+        return text.ToString();
+    }
+
+    // The peer answers with the current language at every query; the property only announces that the name changed
+    // (a screen reader that already read the hidden name learns when the real text becomes available).
+    private void UpdateAccessibleName()
+    {
+        if (HasHiddenSpoilers) AutomationProperties.SetName(this, AccessibleText());
+        else ClearValue(AutomationProperties.NameProperty);
+    }
+
+    protected override AutomationPeer OnCreateAutomationPeer() => new BodyPeer(this);
+
+    private sealed class BodyPeer(ReaderBodyTextBlock owner) : TextBlockAutomationPeer(owner)
+    {
+        protected override string? GetNameCore() => owner.HasHiddenSpoilers ? owner.AccessibleText() : base.GetNameCore();
+    }
+
     public event EventHandler<ReaderQuoteHoverEventArgs>? QuoteHover
     {
         add => AddHandler(QuoteHoverEvent, value);
@@ -166,7 +209,11 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
         base.OnPropertyChanged(change);
         if (change.Property == IsTextOnlyProperty || change.Property == FontSizeProperty) UpdateReadingMetrics();
         if (change.Property == DocumentProperty) ShowDocument(change.GetNewValue<ReaderBodyDocument?>());
-        else if (change.Property == SpoilersRevealedProperty && Document is { IsFormatted: true }) Render(Document);
+        else if (change.Property == SpoilersRevealedProperty && Document is { IsFormatted: true })
+        {
+            Render(Document);
+        }
+        if (change.Property == DocumentProperty || change.Property == SpoilersRevealedProperty) UpdateAccessibleName();
     }
 
     private void UpdateReadingMetrics()

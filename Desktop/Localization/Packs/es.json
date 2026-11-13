@@ -2865,6 +2865,7 @@
     "reader.unreadLine.one": "{0} publicación nueva desde la última vez",
     "reader.foldMore": "Mostrar más ({0} líneas)",
     "reader.foldLess": "Mostrar menos",
+    "reader.spoilerHidden": "Spoiler, oculto",
     "reader.foldMore.one": "Mostrar más ({0} línea)",
     "archive.postsCount.one": "{0} publicación capturada",
     "archive.captured.one": "Última captura: {0} · {1} publicación",

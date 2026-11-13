@@ -2865,6 +2865,7 @@
     "reader.unreadLine.one": "Новый пост с прошлого раза: {0}",
     "reader.foldMore": "Показать ещё ({0} строк)",
     "reader.foldLess": "Свернуть",
+    "reader.spoilerHidden": "Спойлер, скрыт",
     "reader.foldMore.one": "Показать ещё ({0} строка)",
     "reader.foldMore.few": "Показать ещё ({0} строки)",
     "archive.postsCount.one": "Захваченных постов: {0}",

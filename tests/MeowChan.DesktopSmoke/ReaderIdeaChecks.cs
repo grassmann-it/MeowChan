@@ -119,11 +119,19 @@ internal static class ReaderIdeaChecks
         Require((secret.Foreground as ISolidColorBrush)?.Color == spoiler && (secret.Background as ISolidColorBrush)?.Color == spoiler && body.HasHiddenSpoilers,
             "The spoiler was not collapsed to its area.");
         Program.CaptureWindow(fixture.Window, "smoke-reader-i13-formatting-hidden.png");
+        // A hidden spoiler is hidden for screen readers too: one neutral name instead of the words, the real text after the reveal.
+        Avalonia.Automation.Peers.AutomationPeer peer = Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(body);
+        string hiddenName = peer.GetName();
+        Require(!hiddenName.Contains("the secret") && hiddenName.Contains(MeowChan.Desktop.Localization.Texts.T("reader.spoilerHidden"))
+            && hiddenName.Contains("is saved"), "The hidden spoiler text was exposed to screen readers: " + hiddenName);
         body.Focus(NavigationMethod.Tab);
         body.RaiseEvent(KeyEvent(InputElement.KeyDownEvent, Avalonia.Input.Key.Enter, body));
         await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
         Require(row.SpoilersRevealed && !body.HasHiddenSpoilers && (RunWith("the secret").Foreground as ISolidColorBrush)?.Color != spoiler,
             "Enter did not show the spoiler.");
+        string shownName = peer.GetName();
+        Require(shownName.Contains("the secret") && !shownName.Contains(MeowChan.Desktop.Localization.Texts.T("reader.spoilerHidden")),
+            "The revealed spoiler text was not exposed to screen readers: " + shownName);
         Program.CaptureWindow(fixture.Window, "smoke-reader-i13-formatting-shown.png");
         Console.WriteLine("SMOKE reader I13: dead reference, spoiler (Enter), code, external link and plain reference styles passed.");
     }

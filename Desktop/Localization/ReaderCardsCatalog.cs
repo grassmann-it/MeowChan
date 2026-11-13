@@ -17,5 +17,6 @@ internal static class ReaderCardsCatalog
         ("reader.unreadReturn", "Back to last read", "Zurück zum Lesestand"),
         ("reader.foldMore", "Show more ({0} lines)", "Mehr anzeigen ({0} Zeilen)"),
         ("reader.foldLess", "Show less", "Weniger anzeigen"),
+        ("reader.spoilerHidden", "Spoiler, hidden", "Spoiler, verborgen"),
     };
 }

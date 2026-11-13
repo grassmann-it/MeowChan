@@ -2865,6 +2865,7 @@
     "reader.unreadLine.one": "{0} nouveau message depuis la dernière fois",
     "reader.foldMore": "Afficher plus ({0} lignes)",
     "reader.foldLess": "Afficher moins",
+    "reader.spoilerHidden": "Divulgâcheur, masqué",
     "reader.foldMore.one": "Afficher plus ({0} ligne)",
     "archive.postsCount.one": "{0} message capturé",
     "archive.captured.one": "Dernière capture : {0} · {1} message",
