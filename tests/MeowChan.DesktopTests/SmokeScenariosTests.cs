@@ -30,6 +30,24 @@ public sealed class SmokeScenariosTests
         Assert.Equal(SmokeSelectors.NormalMode, Assert.Single(SmokeScenarios.All, entry => entry.Selector.Length == 0).Id);
     }
 
+    // B9: the offline Search -> Preview -> Queue GUI journeys must stay in the nightly registry sweep
+    // (never skipped, standalone, no extra environment) and must claim an offline run.
+    [Theory]
+    [InlineData("booru-workbench", "MEOWCHAN_BOORU_WORKBENCH_ONLY")]
+    [InlineData("booru-composition", "MEOWCHAN_BOORU_COMPOSITION_ONLY")]
+    [InlineData("booru-media", "MEOWCHAN_BOORU_MEDIA_ONLY")]
+    public void BooruGuiJourneysStayInTheNightlyRegistryAsStandaloneOfflineRuns(string id, string selector)
+    {
+        SmokeScenario entry = Assert.Single(SmokeScenarios.All, candidate => candidate.Id == id);
+        Assert.Equal(SmokeScenarioKind.Root, entry.Kind);
+        Assert.Equal(selector, entry.Selector);
+        Assert.Null(entry.NightlySkip);
+        Assert.Empty(entry.Requires);
+        Assert.Empty(entry.NightlyEnvironment);
+        string claim = entry.Pass!(_ => null);
+        Assert.Matches("(?i)no (live provider|network|socket)", claim);
+    }
+
     [Fact]
     public void EachKindHasTheSelectorShapeAndClaimItsDispatchNeeds()
     {
