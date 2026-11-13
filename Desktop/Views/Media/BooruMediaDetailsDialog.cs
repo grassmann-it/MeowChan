@@ -56,6 +56,7 @@ internal sealed class BooruMediaDetailsDialog : Window
         Title = Texts.T("booru.media.detail.title", postId);
         Width = 640; Height = 620; MinWidth = 380; MinHeight = 320;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        DialogFit.OnOpen(this);
 
         TextBlock heading = new() { Name = "BooruDetailsHeading", Text = Title, TextWrapping = TextWrapping.Wrap };
         heading.Classes.Add("section-title");
