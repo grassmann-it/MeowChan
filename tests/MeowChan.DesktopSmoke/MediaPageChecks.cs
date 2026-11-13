@@ -81,7 +81,7 @@ internal static partial class MediaPageChecks
             await AudioJourneyAsync(owner, audioProfile);
             Console.WriteLine("SMOKE media sound [en]: three videos (real MP4 with sound, real MP4 without, bytes no probe can decide) are probed in the background from their headers; 'with sound' shows exactly one, 'without sound' exactly one, the undecidable one is counted as not checked and never shown or called silent; a sound choice sets the type to videos and another type drops it; reset clears it; results are cached and a second page starts from the cache.");
             Console.WriteLine("SMOKE media videos [en]: a video tile shows the local reader poster (cache keyed by verified bytes), also when it is a grouped tile; nothing fetched.");
-            Console.WriteLine("SMOKE media page [en]: index build, saved/missing toggle, three orders, verified thumbnail, gallery window, show in thread, cache reuse, own state on tiles (favorite, rating, media vs thread tags, unknown wording, tag edit reload, language switch), 'N without tags' status link (counts bound and loose files, applies the filter, removable chip, focus on the grid, thread tags count as tags, combines with type, reset), filters (thread and media tags all/any/exclude, without own tags, favorites, rating, type, name, source, board, thread chip, reset, deleted tag refused), duplicates (same bytes in three threads: one tile, 'in 3 threads' hint, details with three occurrences and their own tags, jump into a thread, filter matches by one occurrence, gallery gets one entry per tile), selection (click, Ctrl+click, Shift+click, Ctrl+A, Esc, check mark on selected tiles, three tiles tagged and untagged with one occurrence of a duplicate deselected, gallery with exactly the selection, export of exactly their originals, selection kept or dropped by filters and order, actions disabled while building), export all (exactly the originals of the tiles the filter shows, independent of the selection; question above a lowered limit with confirm, cancel, Esc and dropped by a filter change; disabled with a reason without tiles and while building), navigation button in Simple and Tools menu in Barebones checked.");
+            Console.WriteLine("SMOKE media page [en]: index build, saved/missing toggle, three orders, verified thumbnail, gallery window, show in thread, cache reuse, own state on tiles (favorite, rating, media vs thread tags, unknown wording, tag edit reload, language switch), tag chips on tiles (media and thread tag, named, fit the cell, Enter and click filter by the tag, focus back on the grid), 'N without tags' status link (counts bound and loose files, applies the filter, removable chip, focus on the grid, thread tags count as tags, combines with type, reset), filters (thread and media tags all/any/exclude, without own tags, favorites, rating, type, name, source, board, thread chip, reset, deleted tag refused), duplicates (same bytes in three threads: one tile, 'in 3 threads' hint, details with three occurrences and their own tags, jump into a thread, filter matches by one occurrence, gallery gets one entry per tile), selection (click, Ctrl+click, Shift+click, Ctrl+A, Esc, check mark on selected tiles, three tiles tagged and untagged with one occurrence of a duplicate deselected, gallery with exactly the selection, export of exactly their originals, selection kept or dropped by filters and order, actions disabled while building), export all (exactly the originals of the tiles the filter shows, independent of the selection; question above a lowered limit with confirm, cancel, Esc and dropped by a filter change; disabled with a reason without tiles and while building), navigation button in Simple and Tools menu in Barebones checked.");
         }
         finally { Texts.SetLanguage(language); }
     }
@@ -336,6 +336,33 @@ internal static partial class MediaPageChecks
                 Require(s3.TagsKnown && s3.CanEditMediaTags && s3.TagSubject is MediaTagSubject.Local && s3.MediaTags.Count == 0
                     && s3.ThreadTags.SequenceEqual(new[] { "rpt" }), "A loose file must be taggable as a local file and start untagged.");
                 Require(Row(one).DetailWithState.Contains('★') && Row(two).DetailWithState.Contains("4/5"), "The tile line must show favorite and rating.");
+
+                // T2: own tags are chips beside the thread link; a chip filters by its tag (a thread tag reaches the whole thread),
+                // a second chip narrows further, and the chip in the filter row removes it again.
+                Button chip = null!;
+                await UntilAsync(() => (chip = page.GetVisualDescendants().OfType<Button>().FirstOrDefault(button => button.Name == "MediaTileTag"
+                    && button.IsEffectivelyVisible && button.DataContext is MediaLibraryTileRow row && row.Entry == two)!) != null);
+                Require((chip.Content as TextBlock)?.Text == "keep" && Equals(ToolTip.GetTip(chip), Texts.T("media.tile.tagHint", "keep"))
+                    && Avalonia.Automation.AutomationProperties.GetName(chip) == Texts.T("media.tile.tagHint", "keep"), "The media tag chip is not named.");
+                // The chip row shares the tile's cell; nothing is clipped or pushed under the next tile.
+                MediaLibraryTileView chipTile = chip.FindAncestorOfType<MediaLibraryTileView>()!;
+                Point? chipEnd = chip.TranslatePoint(new Point(chip.Bounds.Width, chip.Bounds.Height), chipTile);
+                Require(chipEnd is { } end && end.Y <= chipTile.Bounds.Height && end.X <= chipTile.Bounds.Width
+                    && (chipTile.Content as Control)!.DesiredSize.Height <= MediaLibraryTileView.TileHeight, "The tag chip must fit inside its tile: " + chipEnd);
+                Program.CaptureWindow(window, "smoke-media-tag-chips.png");
+                Require(chip.Focus(), "A tag chip must take keyboard focus.");
+                chip.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+                Require(page.ShownEntries.SequenceEqual(new[] { two }) && page.FilterChips.Children.Count == 1, "Enter on the tag chip did not filter by it.");
+                await UntilAsync(() => window.FocusManager?.GetFocusedElement() is Visual focused && focused.GetSelfAndVisualAncestors().Contains(page.Grid));
+                RemoveChip(page.FilterChips, 0);
+                Button threadTag = null!;
+                await UntilAsync(() => (threadTag = page.GetVisualDescendants().OfType<Button>().FirstOrDefault(button => button.Name == "MediaTileTag"
+                    && button.IsEffectivelyVisible && button.DataContext is MediaLibraryTileRow row && row.Entry == one)!) != null);
+                Require((threadTag.Content as TextBlock)?.Text == "rpt", "The thread tag must show as a chip as well.");
+                threadTag.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Require(page.ShownEntries.Count == 2 && page.ShownEntries.All(entry => entry.Thread == A), "The thread tag chip must reach the whole thread.");
+                C<Button>(page, "MediaFilterReset").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Require(page.ShownEntries.Count == 3, "Reset did not clear the chip filter.");
 
                 // The tile carries the same text as a tooltip and as its automation name.
                 MediaLibraryTileView tile = null!;

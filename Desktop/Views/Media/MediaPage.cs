@@ -111,7 +111,8 @@ public sealed partial class MediaPage : UserControl
         Border filterSurface = BuildFilterSurface(BuildFilterRow());
         header.Children.Add(_filterChips); header.Children.Add(_filterError); header.Children.Add(BuildStatusRow(_status)); header.Children.Add(BuildExportAllAsk()); header.Children.Add(BuildSelectionBar());
         _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { ItemHeight = MediaLibraryTileView.TileHeight });
-        _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThreadFilter = FilterToThread, ShowOccurrences = ShowOccurrences });
+        _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThreadFilter = FilterToThread,
+            TagFilter = FilterToTag, ShowOccurrences = ShowOccurrences });
         ScrollViewer.SetHorizontalScrollBarVisibility(_grid, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
         Panel body = new();
         _emptyActions.Children.Add(_goDownloads); _emptyActions.Children.Add(_goArchive);

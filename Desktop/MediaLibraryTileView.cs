@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,6 +13,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
+using MeowChan.Tags;
 
 namespace MeowChan.Desktop;
 
@@ -35,6 +37,10 @@ internal sealed record MediaLibraryTileRow(MediaLibraryTile Tile, int Index, Fun
         : Entry.Length is long length ? (length / 1_000_000d).ToString("0.###", Texts.Culture) + " MB" : string.Empty;
     public string DetailWithState => State is { } state && MediaLibraryStateText.Compact(state, Tile.IsGroup) is { Length: > 0 } compact
         ? (Detail.Length == 0 ? compact : Detail + " · " + compact) : Detail;
+    /// <summary>The own tags the tile offers as filter chips (media tags first, then thread tags); empty when unknown or none.</summary>
+    public IReadOnlyList<PrivateTagDefinition> TagChips => State?.CarriedTags ?? Array.Empty<PrivateTagDefinition>();
+    /// <summary>How many chips fit beside what else the row shows: a grouped tile shares its row with the group favorite.</summary>
+    public int ShownTagChips => Math.Min(TagChips.Count, Tile.IsGroup ? 1 : 2);
     /// <summary>Favorite state over every saved occurrence of the bytes; only a grouped tile has one to report.</summary>
     public string FavoriteLabel => Tile.IsGroup ? MediaLibraryStateText.Favorite(Tile.Favorite) : string.Empty;
     /// <summary>"in N threads" for equal bytes found elsewhere; empty for a single occurrence.</summary>
@@ -74,6 +80,10 @@ internal sealed class MediaLibraryTileView : UserControl
         HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(2, 2, 0, 0),
         Child = new TextBlock { FontWeight = FontWeight.SemiBold, FontSize = 11 } };
     private readonly TextBlock _favorite = new() { Name = "MediaTileFavorite", MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 11, IsVisible = false };
+    // Own tags act like the thread label beside them: each chip filters the page to that tag. The row is the favorite row of grouped tiles,
+    // so the cell keeps its height; what does not fit is summarized as "+N" with the names in its tooltip.
+    private readonly Button[] _tagChips = new Button[2];
+    private readonly TextBlock _moreTags = new() { Name = "MediaTileMoreTags", MaxLines = 1, FontSize = 11, IsVisible = false, VerticalAlignment = VerticalAlignment.Center };
     private IDisposable? _selection;
     private Bitmap? _bitmap;
     /// <summary>True while the tile shows a verified thumbnail or video poster.</summary>
@@ -86,10 +96,12 @@ internal sealed class MediaLibraryTileView : UserControl
     internal Func<MediaLibraryTile, CancellationToken, Task<Bitmap?>>? ThumbnailLoader { get; set; }
     /// <summary>Set by the page: shows only the media of the tile's thread.</summary>
     internal Action<MediaLibraryEntry>? ThreadFilter { get; set; }
+    /// <summary>Set by the page: shows only the media that carry this own tag.</summary>
+    internal Action<Guid>? TagFilter { get; set; }
     /// <summary>Set by the page: lists every occurrence of the tile's bytes.</summary>
     internal Action<MediaLibraryTile>? ShowOccurrences { get; set; }
 
-    /// <summary>Taller than an archive cell: preview, name, thread, footer and the favorite row of grouped tiles plus margins. The page's panel uses it as cell height.</summary>
+    /// <summary>Taller than an archive cell: preview, name, thread, footer and the favorite/tag row plus margins. The page's panel uses it as cell height.</summary>
     internal const double TileHeight = 226;
 
     public MediaLibraryTileView()
@@ -119,8 +131,19 @@ internal sealed class MediaLibraryTileView : UserControl
         foreach (Control part in new Control[] { _duplicatesLink, _detail }) part.VerticalAlignment = VerticalAlignment.Center;
         WrapPanel footer = new() { ItemSpacing = 6, LineSpacing = 0, Children = { _duplicatesLink, _detail } };
         grid.Children.Add(footer); Grid.SetRow(footer, 3);
-        grid.Children.Add(_favorite); Grid.SetRow(_favorite, 4);
-        foreach (TextBlock text in new[] { _thread, _detail, _duplicates, _favorite }) text.Classes.Add("workspace-meta");
+        TagRow tags = new() { Name = "MediaTileTags", ClipToBounds = true, Children = { _favorite } };
+        for (int index = 0; index < _tagChips.Length; index++)
+        {
+            Button chip = _tagChips[index] = new Button { Name = "MediaTileTag", Padding = new Thickness(0), MinHeight = 0,
+                Classes = { "link" }, IsVisible = false, VerticalAlignment = VerticalAlignment.Center,
+                Content = new TextBlock { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 11, Classes = { "workspace-meta" } } };
+            chip.Click += (_, e) => { e.Handled = true; if (chip.Tag is PrivateTagDefinition tag) TagFilter?.Invoke(tag.Id.Value); };
+            tags.Children.Add(chip);
+        }
+        tags.Children.Add(_moreTags);
+        _favorite.VerticalAlignment = VerticalAlignment.Center;
+        grid.Children.Add(tags); Grid.SetRow(tags, 4);
+        foreach (TextBlock text in new[] { _thread, _detail, _duplicates, _favorite, _moreTags }) text.Classes.Add("workspace-meta");
         Content = grid;
         DataContextChanged += (_, _) => { Reset(); Present(); if (_visible) _ = LoadAsync(); };
         EffectiveViewportChanged += (_, e) =>
@@ -168,6 +191,7 @@ internal sealed class MediaLibraryTileView : UserControl
         _duplicatesLink.IsVisible = duplicates.Length > 0;
         _favorite.Text = row?.FavoriteLabel;
         _favorite.IsVisible = !string.IsNullOrEmpty(_favorite.Text);
+        PresentTags(row);
         string duplicatesHint = row == null || duplicates.Length == 0 ? string.Empty : Texts.T("media.tile.duplicatesHint", row.Tile.Occurrences.Count);
         ToolTip.SetTip(_duplicatesLink, duplicatesHint);
         AutomationProperties.SetName(_duplicatesLink, duplicatesHint);
@@ -175,6 +199,71 @@ internal sealed class MediaLibraryTileView : UserControl
         string description = row == null ? string.Empty : string.Join(Environment.NewLine, new[] { row.Name, row.IsProviderMedium ? Texts.T("booru.media.badge") : string.Empty, row.ThreadLabel, row.Duplicates, row.FavoriteLabel, row.Detail, row.StateDescription }.Where(part => part.Length > 0));
         ToolTip.SetTip(this, description);
         AutomationProperties.SetName(this, description);
+    }
+
+    private void PresentTags(MediaLibraryTileRow? row)
+    {
+        IReadOnlyList<PrivateTagDefinition> tags = row?.TagChips ?? Array.Empty<PrivateTagDefinition>();
+        int shown = row?.ShownTagChips ?? 0;
+        // Beside the group favorite there is room for one chip; the favorite gives up width before the chip does.
+        _favorite.MaxWidth = shown > 0 ? 80 : double.PositiveInfinity;
+        for (int index = 0; index < _tagChips.Length; index++)
+        {
+            Button chip = _tagChips[index];
+            PrivateTagDefinition? tag = index < shown ? tags[index] : null;
+            chip.Tag = tag;
+            chip.IsVisible = tag != null;
+            ((TextBlock)chip.Content!).Text = tag?.Name.Display;
+            string hint = tag == null ? string.Empty : Texts.T("media.tile.tagHint", tag.Name.Display);
+            ToolTip.SetTip(chip, tag == null ? null : hint);
+            AutomationProperties.SetName(chip, hint);
+        }
+        int more = tags.Count - shown;
+        _moreTags.IsVisible = more > 0;
+        _moreTags.Text = more > 0 ? "+" + more.ToString(Texts.Culture) : null;
+        string moreHint = more > 0 ? Texts.T("media.tile.moreTags", string.Join(", ", tags.Skip(shown).Select(tag => tag.Name.Display))) : string.Empty;
+        ToolTip.SetTip(_moreTags, more > 0 ? moreHint : null);
+        AutomationProperties.SetName(_moreTags, moreHint);
+    }
+
+    /// <summary>
+    /// One line: the favorite and the "+N" summary keep their width, the chips share what is left and trim their names, so a long tag
+    /// never pushes another part out of the tile.
+    /// </summary>
+    private sealed class TagRow : Panel
+    {
+        private const double Spacing = 6;
+
+        protected override Size MeasureOverride(Size availableSize)
+        {
+            Control[] visible = Children.Where(child => child.IsVisible).ToArray();
+            double left = Math.Max(0, availableSize.Width - Spacing * Math.Max(0, visible.Length - 1)), height = 0;
+            foreach (Control child in visible.Where(child => child is not Button))
+            {
+                child.Measure(new Size(left, availableSize.Height));
+                left = Math.Max(0, left - child.DesiredSize.Width);
+            }
+            Button[] chips = visible.OfType<Button>().ToArray();
+            for (int index = 0; index < chips.Length; index++)
+            {
+                chips[index].Measure(new Size(left / (chips.Length - index), availableSize.Height));
+                left = Math.Max(0, left - chips[index].DesiredSize.Width);
+            }
+            foreach (Control child in visible) height = Math.Max(height, child.DesiredSize.Height);
+            double width = visible.Sum(child => child.DesiredSize.Width) + Spacing * Math.Max(0, visible.Length - 1);
+            return new Size(double.IsInfinity(availableSize.Width) ? width : Math.Min(width, availableSize.Width), height);
+        }
+
+        protected override Size ArrangeOverride(Size finalSize)
+        {
+            double x = 0;
+            foreach (Control child in Children.Where(child => child.IsVisible))
+            {
+                child.Arrange(new Rect(x, 0, child.DesiredSize.Width, finalSize.Height));
+                x += child.DesiredSize.Width + Spacing;
+            }
+            return finalSize;
+        }
     }
 
     private async Task LoadAsync()

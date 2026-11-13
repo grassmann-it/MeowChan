@@ -210,4 +210,17 @@ public sealed class MediaLibraryFilterTests
         Assert.False(untagged.IsFor(all, Data()));
         Assert.False(untagged.IsFor(all.ToArray(), data));
     }
+
+    [Fact]
+    public void CarriedTagsListMediaTagsFirstThenThreadTagsEachOnce()
+    {
+        MediaLibraryEntry entry = Entry("a", "1", 'a');
+        MediaLibraryUserData data = Data(threads: [new(new TagId(Rpt), entry.Thread), new(new TagId(Cute), entry.Thread)],
+            media: [MediaTag(Bad, entry), MediaTag(Cute, entry)]);
+        MediaLibraryEntryState state = MediaLibraryEntryState.Of(entry, data);
+        // Vocabulary order inside each part: rpt, cute, bad.
+        Assert.Equal(new[] { "cute", "bad", "rpt" }, state.CarriedTags.Select(tag => tag.Name.Display));
+        Assert.Equal(data.TagsOf(entry).Order(), state.CarriedTags.Select(tag => tag.Id.Value).Order());
+        Assert.Empty(MediaLibraryEntryState.Of(entry, MediaLibraryUserData.Unavailable).CarriedTags);
+    }
 }

@@ -220,6 +220,16 @@ public sealed partial class MediaPage
         if (focused) FocusGrid();
     }
 
+    /// <summary>A tag chip of a tile: only media that carry this tag, added to the tags already included.</summary>
+    internal void FilterToTag(Guid id)
+    {
+        // A shown tile never carries an excluded tag, so a chip can only be new or already included.
+        if (_includeTags.Contains(id) || _excludeTags.Contains(id) || _userData.TagSnapshot?.Find(new TagId(id)) == null) return;
+        bool focused = FocusWithin(_grid);
+        if (!IncludeOrExclude(id, include: true)) return;
+        if (focused) FocusGrid();
+    }
+
     /// <summary>Thread as a meta tag: only the media of this thread.</summary>
     internal void FilterToThread(MediaLibraryEntry entry)
     {
@@ -253,7 +263,11 @@ public sealed partial class MediaPage
 
     private void AddTag(bool include)
     {
-        if (_tagChoice.SelectedItem is not TagOption { Id: Guid id }) return;
+        if (_tagChoice.SelectedItem is TagOption { Id: Guid id }) IncludeOrExclude(id, include);
+    }
+
+    private bool IncludeOrExclude(Guid id, bool include)
+    {
         try
         {
             _ = new ArchiveTagFilter(include ? _includeTags.Append(id) : _includeTags, include ? _excludeTags : _excludeTags.Append(id));
@@ -262,11 +276,12 @@ public sealed partial class MediaPage
         {
             _filterError.Text = Texts.T("media.filter.error.tooManyTags");
             _filterError.IsVisible = true;
-            return;
+            return false;
         }
         (include ? _includeTags : _excludeTags).Add(id);
         RenderTagOptions();
         FilterEdited();
+        return true;
     }
 
     private string TagLabel(Guid id) => _userData.TagSnapshot?.Find(new TagId(id))?.Name.Display ?? Texts.T("tags.filter.deleted");
