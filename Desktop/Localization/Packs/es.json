@@ -2858,6 +2858,7 @@
     "reader.copyFailed": "El portapapeles no está disponible; no se copió nada.",
     "reader.replyCount": "Respuestas: {0}",
     "reader.quotedPosts": "Publicaciones citadas",
+    "reader.quoteNotCaptured": "(no guardado)",
     "archive.postsCount.one": "{0} publicación capturada",
     "archive.captured.one": "Última captura: {0} · {1} publicación",
     "archive.delete.deleted.one": "Se eliminó {0} hilo.",

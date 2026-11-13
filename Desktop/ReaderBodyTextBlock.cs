@@ -8,6 +8,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
+using MeowChan.Archive;
 
 namespace MeowChan.Desktop;
 
@@ -33,6 +34,9 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     public static readonly StyledProperty<ReaderBodyDocument?> DocumentProperty =
         AvaloniaProperty.Register<ReaderBodyTextBlock, ReaderBodyDocument?>(nameof(Document));
 
+    public static readonly StyledProperty<bool> SpoilersRevealedProperty =
+        AvaloniaProperty.Register<ReaderBodyTextBlock, bool>(nameof(SpoilersRevealed), defaultBindingMode: Avalonia.Data.BindingMode.TwoWay);
+
     public static readonly RoutedEvent<ReaderQuoteInvokedEventArgs> QuoteInvokedEvent =
         RoutedEvent.Register<ReaderBodyTextBlock, ReaderQuoteInvokedEventArgs>(nameof(QuoteInvoked), RoutingStrategies.Bubble);
 
@@ -48,6 +52,15 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
         set => SetValue(DocumentProperty, value);
     }
 
+    /// <summary>Spoilers of this post are shown (one reveal for all of them; the owning post keeps the state).</summary>
+    public bool SpoilersRevealed
+    {
+        get => GetValue(SpoilersRevealedProperty);
+        set => SetValue(SpoilersRevealedProperty, value);
+    }
+
+    internal bool HasHiddenSpoilers => Document is { HasSpoilers: true } && !SpoilersRevealed;
+
     public event EventHandler<ReaderQuoteInvokedEventArgs>? QuoteInvoked
     {
         add => AddHandler(QuoteInvokedEvent, value);
@@ -60,6 +73,7 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     // Reading line height follows the reading size (13/15/18 px -> 19/22/26 px), never a fixed gap.
     internal static double ReadingLineHeight(double fontSize) => Math.Round(fontSize * 1.45);
 
+    private static readonly FontFamily CodeFont = new("monospace");
     private ReaderBodySegment? _pressedQuote;
     private bool _linkCursor;
 
@@ -70,6 +84,7 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
         base.OnPropertyChanged(change);
         if (change.Property == IsTextOnlyProperty || change.Property == FontSizeProperty) UpdateReadingMetrics();
         if (change.Property == DocumentProperty) ShowDocument(change.GetNewValue<ReaderBodyDocument?>());
+        else if (change.Property == SpoilersRevealedProperty && Document is { IsFormatted: true }) Render(Document);
     }
 
     private void UpdateReadingMetrics()
@@ -92,37 +107,75 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
             Text = document?.Text;
             return;
         }
+        Render(document);
+    }
+
+    // Runs over the document text. Links and references are colour (references) and underline (external links);
+    // a hidden spoiler paints its text in its own surface colour, so the area keeps its size and stays selectable.
+    private void Render(ReaderBodyDocument document)
+    {
         Text = null;
         InlineCollection inlines = new();
         foreach (ReaderBodySegment segment in document.Segments)
         {
             Run run = new(document.Text.Substring(segment.Start, segment.Length));
-            if (segment.Kind == ReaderBodySegmentKind.Greentext)
-                run[!TextElement.ForegroundProperty] = new DynamicResourceExtension("Workspace.ReaderGreentext");
-            else if (segment.Kind == ReaderBodySegmentKind.Quote)
+            switch (segment.Kind)
+            {
+                case ReaderBodySegmentKind.Greentext:
+                    run[!TextElement.ForegroundProperty] = new DynamicResourceExtension("Workspace.ReaderGreentext");
+                    break;
+                case ReaderBodySegmentKind.Quote:
+                    run[!TextElement.ForegroundProperty] = new DynamicResourceExtension("Workspace.Accent");
+                    break;
+                case ReaderBodySegmentKind.DeadQuote:
+                    run[!TextElement.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted");
+                    run.TextDecorations = Avalonia.Media.TextDecorations.Strikethrough;
+                    break;
+                case ReaderBodySegmentKind.DeadNote:
+                    run[!TextElement.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted");
+                    run.FontStyle = FontStyle.Italic;
+                    break;
+            }
+            if ((segment.Style & ArchiveTextStyle.Link) != 0 && segment.Kind is ReaderBodySegmentKind.Text or ReaderBodySegmentKind.Greentext)
             {
                 run[!TextElement.ForegroundProperty] = new DynamicResourceExtension("Workspace.Accent");
                 run.TextDecorations = Avalonia.Media.TextDecorations.Underline;
+            }
+            if ((segment.Style & ArchiveTextStyle.Code) != 0)
+            {
+                run.FontFamily = CodeFont;
+                run[!TextElement.BackgroundProperty] = new DynamicResourceExtension("Workspace.ReaderCodeSurface");
+            }
+            if (segment.IsSpoiler)
+            {
+                run[!TextElement.BackgroundProperty] = new DynamicResourceExtension("Workspace.ReaderSpoiler");
+                if (!SpoilersRevealed) run[!TextElement.ForegroundProperty] = new DynamicResourceExtension("Workspace.ReaderSpoiler");
             }
             inlines.Add(run);
         }
         Inlines = inlines;
     }
 
-    internal ReaderBodySegment? QuoteAt(Point point)
+    internal ReaderBodySegment? SegmentAt(Point point)
     {
         if (Document is not { IsFormatted: true } document) return null;
         TextHitTestResult hit = TextLayout.HitTestPoint(new Point(point.X - Padding.Left, point.Y - Padding.Top));
         if (!hit.IsInside) return null;
         int index = hit.CharacterHit.FirstCharacterIndex;
-        return document.Segments.FirstOrDefault(segment => segment.Kind == ReaderBodySegmentKind.Quote
-            && index >= segment.Start && index < segment.End);
+        return document.Segments.FirstOrDefault(segment => index >= segment.Start && index < segment.End);
     }
+
+    // A reference (also a dead one: its click reports that the post was not captured).
+    internal ReaderBodySegment? QuoteAt(Point point) => SegmentAt(point) is { Quote: not null } segment ? segment : null;
+
+    // The reveal comes first: a reference inside a hidden spoiler cannot be clicked before the text is shown.
+    private ReaderBodySegment? ActionAt(Point point) => SegmentAt(point) is { } segment
+        && (segment is { IsSpoiler: true } && !SpoilersRevealed || segment.Quote != null) ? segment : null;
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         PointerPoint point = e.GetCurrentPoint(this);
-        _pressedQuote = point.Properties.IsLeftButtonPressed && e.ClickCount == 1 ? QuoteAt(point.Position) : null;
+        _pressedQuote = point.Properties.IsLeftButtonPressed && e.ClickCount == 1 ? ActionAt(point.Position) : null;
         base.OnPointerPressed(e);
     }
 
@@ -132,16 +185,29 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
         ReaderBodySegment? pressed = _pressedQuote;
         _pressedQuote = null;
         // A drag that selected text is a selection, not a link click.
-        if (pressed?.Quote == null || e.InitialPressMouseButton != MouseButton.Left || SelectionStart != SelectionEnd
-            || !ReferenceEquals(QuoteAt(e.GetPosition(this)), pressed)) return;
+        if (pressed == null || e.InitialPressMouseButton != MouseButton.Left || SelectionStart != SelectionEnd
+            || !ReferenceEquals(ActionAt(e.GetPosition(this)), pressed)) return;
         e.Handled = true;
-        RaiseEvent(new ReaderQuoteInvokedEventArgs(QuoteInvokedEvent, pressed.Quote));
+        if (pressed.IsSpoiler && !SpoilersRevealed) { SpoilersRevealed = true; SetLinkCursor(false); }
+        else if (pressed.Quote != null) RaiseEvent(new ReaderQuoteInvokedEventArgs(QuoteInvokedEvent, pressed.Quote));
+    }
+
+    // Enter or Space on the focused body shows its spoilers (inline text has no focusable parts of its own).
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.Key is Key.Enter or Key.Space && e.KeyModifiers == KeyModifiers.None && HasHiddenSpoilers)
+        {
+            SpoilersRevealed = true;
+            e.Handled = true;
+            return;
+        }
+        base.OnKeyDown(e);
     }
 
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
-        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) SetLinkCursor(QuoteAt(e.GetPosition(this)) != null);
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) SetLinkCursor(ActionAt(e.GetPosition(this)) != null);
     }
 
     protected override void OnPointerExited(PointerEventArgs e)

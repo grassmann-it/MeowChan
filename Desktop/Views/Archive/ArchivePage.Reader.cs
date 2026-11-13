@@ -622,6 +622,8 @@ public partial class ArchivePage
 
     private bool TryActivateReaderMedia(KeyEventArgs e)
     {
+        // Enter or Space on a body with hidden spoilers shows them first (the body handles the key itself).
+        if (e.Source is ReaderBodyTextBlock { HasHiddenSpoilers: true }) return false;
         if (e.Handled || e.Source is not Control source || !IsReaderMediaGesture(e, ShortcutService.Current)
             || ArchivePosts.SelectedItem is not ArchivePostRow post
             || !ReaderMediaContextIsCurrent(source, post)) return false;

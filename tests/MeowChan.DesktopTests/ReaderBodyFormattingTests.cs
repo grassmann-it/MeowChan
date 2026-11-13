@@ -72,4 +72,62 @@ public sealed class ReaderBodyFormattingTests
         Assert.False(row.HasUnplacedQuotes);
         Assert.Equal(row.Body, row.BodyDocument.Text);
     }
+
+    [Fact]
+    public void ReferenceToAnUncapturedPostIsDeadAndGetsItsNoteBehindTheLabel()
+    {
+        ArchiveQuoteRow live = Quote(">>101"), dead = Quote(">>999") with { IsDead = true };
+        string text = "see >>101 and >>999 now";
+        ReaderBodyDocument document = ReaderBodyFormatting.Format(text, [live, dead], deadNote: " (not captured)");
+        Assert.Equal("see >>101 and >>999 (not captured) now", document.Text);
+        Assert.Equal(string.Concat(document.Segments.Select(segment => document.Text.Substring(segment.Start, segment.Length))), document.Text);
+        ReaderBodySegment deadSegment = Assert.Single(document.Segments, segment => segment.Kind == ReaderBodySegmentKind.DeadQuote);
+        Assert.Equal(">>999", document.Text.Substring(deadSegment.Start, deadSegment.Length));
+        Assert.Same(dead, deadSegment.Quote); // A click still reports that the post is not captured.
+        ReaderBodySegment note = Assert.Single(document.Segments, segment => segment.Kind == ReaderBodySegmentKind.DeadNote);
+        Assert.Equal(" (not captured)", document.Text.Substring(note.Start, note.Length));
+        Assert.Null(note.Quote);
+        Assert.Single(document.Segments, segment => segment.Kind == ReaderBodySegmentKind.Quote); // The live reference is untouched.
+        Assert.False(document.HasUnplacedQuotes);
+        // The same text without a note keeps the plain body exactly.
+        Assert.Equal(text, ReaderBodyFormatting.Format(text, [live, dead]).Text);
+    }
+
+    [Fact]
+    public void SpoilerCodeAndLinkRangesStyleTheTextWithoutChangingIt()
+    {
+        string text = "a secret b code c https://example.org/x. d";
+        ArchiveTextMark[] marks = [new(ArchiveTextMarkKind.Spoiler, 2, 6), new(ArchiveTextMarkKind.Code, 11, 4)];
+        ReaderBodyDocument document = ReaderBodyFormatting.Format(text, [], marks);
+        Assert.Equal(text, document.Text);
+        Assert.True(document.IsFormatted && document.HasSpoilers);
+        string Styled(ArchiveTextStyle style) => string.Concat(document.Segments.Where(segment => (segment.Style & style) != 0)
+            .Select(segment => document.Text.Substring(segment.Start, segment.Length)));
+        Assert.Equal("secret", Styled(ArchiveTextStyle.Spoiler));
+        Assert.Equal("code", Styled(ArchiveTextStyle.Code));
+        Assert.Equal("https://example.org/x", Styled(ArchiveTextStyle.Link)); // The sentence dot stays outside.
+        Assert.False(ReaderBodyFormatting.Format("no marks here", [], []).IsFormatted);
+    }
+
+    [Fact]
+    public void ReferenceInsideASpoilerKeepsBothTheLinkAndTheHiddenStyle()
+    {
+        ArchiveQuoteRow quote = Quote(">>101");
+        ReaderBodyDocument document = ReaderBodyFormatting.Format("x >>101 y", [quote], [new(ArchiveTextMarkKind.Spoiler, 0, 9)]);
+        ReaderBodySegment link = Assert.Single(document.Segments, segment => segment.Kind == ReaderBodySegmentKind.Quote);
+        Assert.True(link.IsSpoiler);
+        Assert.All(document.Segments, segment => Assert.True(segment.IsSpoiler));
+    }
+
+    [Fact]
+    public void PostRowMarksDeadReferencesWithTheCatalogNote()
+    {
+        ArchivePostRow row = new("105", "", ">>101\nok", Array.Empty<ArchiveAttachmentRow>())
+        { Quotes = [Quote(">>101") with { IsDead = true }] };
+        Assert.Contains(row.BodyDocument.Segments, segment => segment.Kind == ReaderBodySegmentKind.DeadNote);
+        Assert.StartsWith(">>101 (", row.BodyDocument.Text, StringComparison.Ordinal);
+        Assert.False(row.SpoilersRevealed);
+        row.SpoilersRevealed = true;
+        Assert.True(row.SpoilersRevealed);
+    }
 }

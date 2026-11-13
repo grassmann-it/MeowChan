@@ -33,6 +33,10 @@
                     <SolidColorBrush x:Key="Workspace.ReaderPostEdge">#5A636E</SolidColorBrush>
                     <!-- Greentext ('>' lines) in post bodies: 8.29:1 on the card, 6.69:1 on the active card. -->
                     <SolidColorBrush x:Key="Workspace.ReaderGreentext">#9CCB6A</SolidColorBrush>
+                    <!-- Code runs sit on a darker area than the card; a spoiler is one area that hides its text in its own
+                         colour until it is shown (text 9:1, accent 4.8:1 and greentext 5.7:1 on it once shown). -->
+                    <SolidColorBrush x:Key="Workspace.ReaderCodeSurface">#171A1E</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ReaderSpoiler">#333A42</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Hover">#30363E</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.OnAccent">#121416</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentHover">#8ABBFF</SolidColorBrush>
@@ -114,6 +118,8 @@
                     <!-- Greentext: the study's #3F6D1A fell to 4.26:1 on the active card (AccentSurface); #386217
                          is 6.71:1 on the card, 4.97:1 on the active card and 5.40:1 on the page (opening post). -->
                     <SolidColorBrush x:Key="Workspace.ReaderGreentext">#386217</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ReaderCodeSurface">#ECE7DD</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ReaderSpoiler">#D3CDC2</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Hover">#D2CABE</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.OnAccent">#FFFFFF</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentHover">#9A4B0B</SolidColorBrush>

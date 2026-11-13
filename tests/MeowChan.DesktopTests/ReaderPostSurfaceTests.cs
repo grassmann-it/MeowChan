@@ -242,6 +242,25 @@ public sealed class ReaderPostSurfaceTests
             Assert.True(Contrast(green, Resource(dictionary, surface).Value) >= 4.5, $"{theme}: greentext on {surface}");
     }
 
+    [Theory]
+    [InlineData("Dark")]
+    [InlineData("Light")]
+    public void SpoilerAndCodeSurfacesKeepEveryInlineColourReadable(string theme)
+    {
+        XElement dictionary = Theme(theme);
+        string spoiler = Resource(dictionary, "Workspace.ReaderSpoiler").Value, code = Resource(dictionary, "Workspace.ReaderCodeSurface").Value;
+        // A shown spoiler keeps text, references (accent), greentext and the muted dead-reference colour readable;
+        // a hidden one is the same colour twice, so it must still be an area against the card.
+        foreach (string text in new[] { "Workspace.Text", "Workspace.Accent", "Workspace.ReaderGreentext" })
+        {
+            Assert.True(Contrast(Resource(dictionary, text).Value, spoiler) >= 4.5, $"{theme}: {text} on the spoiler");
+            Assert.True(Contrast(Resource(dictionary, text).Value, code) >= 4.5, $"{theme}: {text} on code");
+        }
+        Assert.True(Contrast(Resource(dictionary, "Workspace.Muted").Value, code) >= 4.5, $"{theme}: muted on code");
+        Assert.True(Contrast(spoiler, Resource(dictionary, "Workspace.ReaderPostSurface").Value) >= 1.3, $"{theme}: the spoiler area against the card");
+        Assert.True(Contrast(code, Resource(dictionary, "Workspace.ReaderPostSurface").Value) >= 1.1, $"{theme}: the code area against the card");
+    }
+
     [Fact]
     public void OpeningPostSitsOnThePageAndBecomesTheActiveCardWhenSelected()
     {

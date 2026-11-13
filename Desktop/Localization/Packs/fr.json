@@ -2858,6 +2858,7 @@
     "reader.copyFailed": "Le presse-papiers n’est pas disponible ; rien n’a été copié.",
     "reader.replyCount": "Réponses : {0}",
     "reader.quotedPosts": "Messages cités",
+    "reader.quoteNotCaptured": "(non enregistré)",
     "archive.postsCount.one": "{0} message capturé",
     "archive.captured.one": "Dernière capture : {0} · {1} message",
     "archive.delete.deleted.one": "{0} fil supprimé.",

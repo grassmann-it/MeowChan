@@ -98,9 +98,20 @@ internal sealed record ArchivePostRow(string Id, string Subject, string Body,
     public bool HasAttachments => Attachments.Count > 0;
     public bool IsTextOnly => !HasAttachments;
     public IReadOnlyList<ArchiveQuoteRow> Quotes { get; init; } = Array.Empty<ArchiveQuoteRow>();
+    // Spoiler, code and external-link ranges of Body (set with Quotes; empty for unformatted posts).
+    public IReadOnlyList<ArchiveTextMark> Marks { get; init; } = Array.Empty<ArchiveTextMark>();
     private ReaderBodyDocument? _bodyDocument;
-    // Greentext and inline >>No. over the unchanged plain Body (built once, after Quotes is set).
-    public ReaderBodyDocument BodyDocument => _bodyDocument ??= ReaderBodyFormatting.Format(Body, Quotes);
+    // Greentext, spoilers, code, links and inline >>No. over the plain Body (built once, after Quotes is set).
+    // A reference to a post that was never captured is struck through and followed by a short note.
+    public ReaderBodyDocument BodyDocument => _bodyDocument ??= ReaderBodyFormatting.Format(Body, Quotes, Marks,
+        " " + Texts.T("reader.quoteNotCaptured"));
+    private bool _spoilersRevealed;
+    // One reveal per post and session; the recycled body control shows whatever the post says.
+    public bool SpoilersRevealed
+    {
+        get => _spoilersRevealed;
+        set { if (_spoilersRevealed == value) return; _spoilersRevealed = value; Changed(nameof(SpoilersRevealed)); }
+    }
     // Only a reference the text does not contain keeps its visible button; the row is otherwise the
     // keyboard/screen-reader path for the inline references and opens on keyboard focus.
     public bool HasUnplacedQuotes => BodyDocument.HasUnplacedQuotes;
@@ -164,6 +175,8 @@ internal sealed record ArchivePostRow(string Id, string Subject, string Body,
 }
 internal sealed record ArchiveQuoteRow(ArchiveQuote Quote, bool Backlink = false, ResourceId? ReaderThread = null)
 {
+    // The quoted post is in the open thread's identity but was never captured (checked once when the page is built).
+    public bool IsDead { get; init; }
     public string AccessibleLabel => Backlink ? Quote.Origin.Thread.Source + " /" + Quote.Origin.Thread.Board + "/ "
         + Quote.Origin.Thread.Thread + " · #" + Quote.Origin.PostId : Quote.Label;
     public string Label => Backlink && ReaderThread == Quote.Origin.Thread ? "#" + Quote.Origin.PostId : AccessibleLabel;

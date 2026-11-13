@@ -68,6 +68,7 @@ internal static partial class SmokeScenarios
         Nested("pagination-focus", "MEOWCHAN_PAGINATION_FOCUS_ONLY", "MEOWCHAN_READER_SHORTCUT_CONTEXTS_ONLY"),
         Alternative("reader-groups", "MEOWCHAN_READER_GROUPS_ONLY", "--reader-ux"),
         Alternative("reader-returns", "MEOWCHAN_READER_RETURNS_ONLY", "--reader-ux"),
+        Alternative("reader-ideas", "MEOWCHAN_READER_IDEAS_ONLY", "--reader-ux"),
         Alternative("reader-stability", "MEOWCHAN_READER_STABILITY_ONLY", "--reader-ux"),
         Alternative("reader-navigation", "MEOWCHAN_READER_NAVIGATION_ONLY", "--reader-ux"),
         // The registry run uses the first requirement; under --reader-ux it acts only with READER_GROUPS.

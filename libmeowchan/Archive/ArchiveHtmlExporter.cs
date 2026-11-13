@@ -177,9 +177,14 @@ public static class ArchiveHtmlExporter
         foreach (CapturedPost post in view.Posts)
         {
             token.ThrowIfCancellationRequested();
+            IReadOnlyList<ArchiveQuote> quotes = ArchiveQuoteParser.Parse(view.Summary.Id, view.Summary.Url, post);
+            // Same-thread references to posts that were never captured are struck through in the text, like in the reader.
+            HashSet<string> dead = quotes.Where(quote => quote.Target is { } target && target.Thread == view.Summary.Id && !capturedIds.Contains(target.PostId))
+                .Select(quote => quote.Label).ToHashSet(StringComparer.Ordinal);
+            (string bodyText, IReadOnlyList<ArchiveTextMark> bodyMarks) = ArchiveText.PlainTextWithMarks(post.Html);
             await html.WriteLineAsync("<article id=\"" + PostAnchor(post.PostId) + "\"" + (post.PostId == openingPost ? " class=\"op\"" : "") + "><h2>#" + Encode(post.PostId) + " " + Encode(post.Subject) + "</h2><p class=\"meta\">" + Encode(post.Author)
-                + " " + Encode(post.PostedAt?.ToString("u", CultureInfo.InvariantCulture)) + (post.IsDeleted ? " · " + text.Html(HtmlExportText.Removed) : "") + "</p><div class=\"body\">" + BodyHtml(ArchiveText.PlainText(post.Html)) + "</div>");
-            foreach (ArchiveQuote quote in ArchiveQuoteParser.Parse(view.Summary.Id, view.Summary.Url, post))
+                + " " + Encode(post.PostedAt?.ToString("u", CultureInfo.InvariantCulture)) + (post.IsDeleted ? " · " + text.Html(HtmlExportText.Removed) : "") + "</p><div class=\"body\">" + BodyHtml(bodyText, bodyMarks, dead, "(" + text.Get(HtmlExportText.PostNotCaptured) + ")") + "</div>");
+            foreach (ArchiveQuote quote in quotes)
             {
                 string? quotePath = quoteResolver == null
                     ? quote.Target?.Thread == view.Summary.Id && capturedIds.Contains(quote.Target.PostId) ? "#" + PostAnchor(quote.Target.PostId) : null
@@ -320,17 +325,49 @@ public static class ArchiveHtmlExporter
         }
     }
     internal static string Encode(string? text) => WebUtility.HtmlEncode(text ?? string.Empty);
-    // Greentext lines as spans inside the pre-wrapped body; every character stays encoded text.
-    internal static string BodyHtml(string plain)
+    // The body is the plain text in styled spans (greentext, spoilers, code, external links, struck-through dead
+    // references); every character stays encoded text and the spans cover it exactly once.
+    internal static string BodyHtml(string plain, IReadOnlyList<ArchiveTextMark>? marks = null,
+        IReadOnlySet<string>? deadReferences = null, string? deadNote = null)
     {
         StringBuilder body = new(plain.Length + 32);
-        foreach (string line in plain.Split('\n'))
+        foreach (ArchiveTextRun run in ArchiveBodyRuns.Split(plain, marks))
         {
-            if (body.Length > 0) body.Append('\n');
-            if (ArchiveText.IsGreentextLine(line)) body.Append("<span class=\"greentext\">").Append(Encode(line)).Append("</span>");
-            else body.Append(Encode(line));
+            string slice = plain.Substring(run.Start, run.Length);
+            if (run.Style == ArchiveTextStyle.None) { AppendReferences(body, slice, deadReferences, deadNote); continue; }
+            // The line break stays outside the spans.
+            string core = slice.TrimEnd('\n');
+            string breaks = slice[core.Length..];
+            List<string> classes = new();
+            if ((run.Style & ArchiveTextStyle.Spoiler) != 0) classes.Add("spoiler\" tabindex=\"0");
+            if ((run.Style & ArchiveTextStyle.Code) != 0) classes.Add("code");
+            if ((run.Style & ArchiveTextStyle.Link) != 0) classes.Add("link");
+            if ((run.Style & ArchiveTextStyle.Greentext) != 0) classes.Add("greentext");
+            foreach (string name in classes) body.Append("<span class=\"").Append(name).Append("\">");
+            AppendReferences(body, core, deadReferences, deadNote);
+            for (int index = 0; index < classes.Count; index++) body.Append("</span>");
+            body.Append(breaks);
         }
         return body.ToString();
+    }
+
+    private static void AppendReferences(StringBuilder body, string text, IReadOnlySet<string>? dead, string? note)
+    {
+        int written = 0;
+        if (dead is { Count: > 0 })
+            for (int index = 0; index + 1 < text.Length; index++)
+            {
+                if (text[index] != '>' || text[index + 1] != '>' || index > 0 && text[index - 1] == '>') continue;
+                string? label = dead.Where(candidate => text.AsSpan(index).StartsWith(candidate, StringComparison.Ordinal)
+                    && !(index + candidate.Length < text.Length && char.IsLetterOrDigit(text[index + candidate.Length])))
+                    .OrderByDescending(candidate => candidate.Length).FirstOrDefault();
+                if (label == null) continue;
+                body.Append(Encode(text[written..index])).Append("<s class=\"dead\">").Append(Encode(label)).Append("</s>");
+                if (!string.IsNullOrEmpty(note)) body.Append(" <span class=\"note\">").Append(Encode(note)).Append("</span>");
+                written = index + label.Length;
+                index = written - 1;
+            }
+        body.Append(Encode(text[written..]));
     }
     internal static string PostAnchor(string id) => "p-" + Convert.ToHexString(Encoding.UTF8.GetBytes(id)).ToLowerInvariant();
     private static string SafeExtension(string path) => Path.GetExtension(path).ToLowerInvariant() switch
@@ -342,7 +379,8 @@ public static class ArchiveHtmlExporter
         body{max-width:960px;margin:auto;padding:24px}header,footer,article{background:#20242a;border:1px solid #5a636e;border-radius:4px;padding:20px;margin-bottom:16px}
         article.op{background:transparent;border-color:transparent}
         h1,h2{overflow-wrap:anywhere}h2{font-size:1.05rem}.body{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.45}.meta{color:#a4adb8;font-size:.85rem}.greentext{color:#9ccb6a}
-        a{color:#6aa7ff;overflow-wrap:anywhere}.quote,.omission{display:block;margin:8px 0}.omission{color:#e8be72;font-size:.9rem}figure{margin:16px 0}img,video{display:block;max-width:100%;max-height:600px}figcaption{overflow-wrap:anywhere}
-        @media (prefers-color-scheme:light){:root{background:#e3dfd8;color:#1a1a1a}header,footer,article{background:#faf7f1;border-color:#7a7062}article.op{background:transparent;border-color:transparent}.meta{color:#575148}.greentext{color:#386217}a{color:#803b06}.omission{color:#795100}}
+        .link{color:#6aa7ff;text-decoration:underline}.code{font-family:ui-monospace,Menlo,Consolas,monospace;background:#171a1e;border-radius:2px}.dead{color:#a4adb8}.note{color:#a4adb8;font-style:italic}.spoiler{background:#333a42;color:#333a42;border-radius:2px;cursor:pointer}.spoiler *{color:inherit}.spoiler:hover,.spoiler:focus{color:inherit}
+        a{color:#6aa7ff;overflow-wrap:anywhere}.quote{text-decoration:none}.quote,.omission{display:block;margin:8px 0}.omission{color:#e8be72;font-size:.9rem}figure{margin:16px 0}img,video{display:block;max-width:100%;max-height:600px}figcaption{overflow-wrap:anywhere}
+        @media (prefers-color-scheme:light){:root{background:#e3dfd8;color:#1a1a1a}header,footer,article{background:#faf7f1;border-color:#7a7062}article.op{background:transparent;border-color:transparent}.meta{color:#575148}.greentext{color:#386217}a,.link{color:#803b06}.code{background:#ece7dd}.dead,.note{color:#575148}.spoiler{background:#d3cdc2;color:#d3cdc2}.spoiler:hover,.spoiler:focus{color:inherit}.omission{color:#795100}}
         """;
 }

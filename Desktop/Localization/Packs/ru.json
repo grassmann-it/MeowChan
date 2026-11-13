@@ -2858,6 +2858,7 @@
     "reader.copyFailed": "Буфер обмена недоступен; ничего не скопировано.",
     "reader.replyCount": "Ответов: {0}",
     "reader.quotedPosts": "Цитируемые посты",
+    "reader.quoteNotCaptured": "(не сохранён)",
     "archive.postsCount.one": "Захваченных постов: {0}",
     "archive.captured.one": "Последний захват: {0} · {1} пост",
     "archive.captured.few": "Последний захват: {0} · {1} поста",

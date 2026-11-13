@@ -488,9 +488,13 @@ public partial class ArchivePage : UserControl
         if (_thread != null)
         {
             string? openingPost = ArchivePresentation.OpeningPostId(_thread);
+            Dictionary<string, bool> capturedIds = new(StringComparer.Ordinal);
+            bool IsDead(ArchiveQuote quote) => quote.Target is { } target && target.Thread == _thread.Summary.Id
+                && !(capturedIds.TryGetValue(target.PostId, out bool captured) ? captured
+                    : capturedIds[target.PostId] = _thread.FindPostIndex(target.PostId) >= 0);
             ArchivePostRow[] posts = _thread.GetPosts(_postOffset, PageSize).Select(post =>
             {
-                string text = ArchivePresentation.PlainText(post.Html);
+                (string text, IReadOnlyList<ArchiveTextMark> marks) = ArchiveText.PlainTextWithMarks(post.Html);
                 if (text.Length > 65536) text = text[..65536] + "\n\n" + Texts.T("archive.displayLimit");
                 return new ArchivePostRow(post.PostId, post.Subject ?? string.Empty, text,
                     Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment => CreateAttachmentRow(_thread.Summary.Id, attachment, post.PostId, _mediaReady.Task)).ToArray()))
@@ -499,8 +503,9 @@ public partial class ArchivePage : UserControl
                     Posted = post.PostedAt?.ToLocalTime().ToString("g", Texts.Culture) ?? string.Empty,
                     IsDeleted = post.IsDeleted,
                     IsOpeningPost = post.PostId == openingPost,
+                    Marks = marks,
                     Quotes = Array.AsReadOnly(ArchiveQuoteParser.Parse(_thread.Summary.Id, _thread.Summary.Url, post)
-                        .Select(quote => new ArchiveQuoteRow(quote)).ToArray())
+                        .Select(quote => new ArchiveQuoteRow(quote) { IsDead = IsDead(quote) }).ToArray())
                 };
             }).ToArray();
             ListBox postList = ArchivePosts;

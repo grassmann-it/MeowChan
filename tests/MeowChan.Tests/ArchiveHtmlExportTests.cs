@@ -683,6 +683,57 @@ public sealed class ArchiveHtmlExportTests
         Assert.Contains("font:16px/1.5 \"Noto Sans\",system-ui,sans-serif", ArchiveHtmlExporter.Css);
     }
 
+    [Fact]
+    public void BodyStylesSpoilersCodeLinksAndDeadReferencesLikeTheReader()
+    {
+        string text = "a secret b code >>9 gone https://x.example/p c";
+        ArchiveTextMark[] marks = [new(ArchiveTextMarkKind.Spoiler, 2, 6), new(ArchiveTextMarkKind.Code, 11, 4)];
+        string html = ArchiveHtmlExporter.BodyHtml(text, marks, new HashSet<string> { ">>9" }, "(Post not captured)");
+        Assert.Equal("a <span class=\"spoiler\" tabindex=\"0\">secret</span> b <span class=\"code\">code</span> "
+            + "<s class=\"dead\">&gt;&gt;9</s> <span class=\"note\">(Post not captured)</span> gone "
+            + "<span class=\"link\">https://x.example/p</span> c", html);
+        // A spoiler over a greentext line keeps the line break outside both spans.
+        Assert.Equal("<span class=\"spoiler\" tabindex=\"0\"><span class=\"greentext\">&gt;x</span></span>\ny",
+            ArchiveHtmlExporter.BodyHtml(">x\ny", [new ArchiveTextMark(ArchiveTextMarkKind.Spoiler, 0, 3)]));
+        Assert.Contains(".spoiler:hover,.spoiler:focus{color:inherit}", ArchiveHtmlExporter.Css);
+        Assert.Contains(".link{color:#6aa7ff;text-decoration:underline}", ArchiveHtmlExporter.Css);
+        Assert.Contains(".quote{text-decoration:none}", ArchiveHtmlExporter.Css);
+    }
+
+    [Fact]
+    public void PlainTextWithMarksKeepsTheTextAndFindsSpoilersCodeAndExternalLinks()
+    {
+        string[] samples =
+        [
+            "<p>Hello <s>spoiler &amp; text</s> end</p>",
+            "<a href=\"#p9\" class=\"quotelink\">&gt;&gt;9</a><br>see <a href=\"https://example.org/a?b=1\">link</a>",
+            "<pre class=\"prettyprint\">int x = 1;\nint y;</pre>after",
+            "  <span class=\"spoiler\">hidden</span>  ",
+            "<a href=\"https://boards.4chan.org/g/thread/1#p2\">&gt;&gt;2</a> <code>c</code>",
+            "<s>unclosed spoiler",
+            "plain text only",
+            "<s>&#xE001;</s> weird",
+        ];
+        foreach (string html in samples)
+        {
+            (string text, IReadOnlyList<ArchiveTextMark> marks) = ArchiveText.PlainTextWithMarks(html);
+            Assert.Equal(ArchiveText.PlainText(html), text);
+            Assert.All(marks, mark => Assert.True(mark.Start >= 0 && mark.Length > 0 && mark.Start + mark.Length <= text.Length));
+        }
+        (string body, IReadOnlyList<ArchiveTextMark> found) = ArchiveText.PlainTextWithMarks(samples[1]);
+        ArchiveTextMark link = Assert.Single(found);
+        Assert.Equal(ArchiveTextMarkKind.Link, link.Kind);
+        Assert.Equal("link", body.Substring(link.Start, link.Length)); // The >>9 anchor is internal: no mark.
+        (string spoilerText, IReadOnlyList<ArchiveTextMark> spoilers) = ArchiveText.PlainTextWithMarks(samples[3]);
+        ArchiveTextMark spoiler = Assert.Single(spoilers);
+        Assert.Equal("hidden", spoilerText.Substring(spoiler.Start, spoiler.Length));
+        (string codeText, IReadOnlyList<ArchiveTextMark> code) = ArchiveText.PlainTextWithMarks(samples[2]);
+        Assert.Equal("int x = 1;\nint y;", codeText.Substring(code.Single().Start, code.Single().Length));
+        Assert.Empty(ArchiveText.PlainTextWithMarks(samples[6]).Marks);
+        Assert.Empty(ArchiveText.PlainTextWithMarks(samples[4]).Marks.Where(mark => mark.Kind == ArchiveTextMarkKind.Link));
+        Assert.Equal("c", ArchiveText.PlainTextWithMarks(samples[4]).Text[^1..]);
+    }
+
     private sealed class InlineProgress(Action<ArchiveHtmlExportProgress> report) : IProgress<ArchiveHtmlExportProgress>
     { public void Report(ArchiveHtmlExportProgress value) => report(value); }
     private static CapturedThreadSnapshot Snapshot(string media) => new(Id, "https://boards.4chan.org/g/thread/123", "<Title> & stuff",

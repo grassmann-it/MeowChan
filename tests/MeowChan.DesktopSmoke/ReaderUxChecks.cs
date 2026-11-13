@@ -97,6 +97,11 @@ internal static class ReaderUxChecks
             await ReaderGroupChecks.RunAsync(window);
             return;
         }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_IDEAS_ONLY") == "1")
+        {
+            await ReaderIdeaChecks.RunAsync(window);
+            return;
+        }
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_RETURNS_ONLY") == "1")
         {
             await ReaderReturnChecks.RunAsync(window);
@@ -142,6 +147,7 @@ internal static class ReaderUxChecks
         await CheckDetachedReaderIconsAsync(window, page, reader);
         await CheckReaderThreadFavoritesAsync(window, page);
         await ReaderInteractionChecks.RunAsync(window, page);
+        await ReaderIdeaChecks.RunAsync(window);
         await ReaderNavigationOverlayChecks.RunAsync(window, page);
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_NAVIGATION_ONLY") == "1")
         {
