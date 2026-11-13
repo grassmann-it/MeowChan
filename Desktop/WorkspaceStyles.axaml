@@ -553,24 +553,52 @@
     <Style Selector="Button.window-caption">
         <Setter Property="Width" Value="{StaticResource Workspace.Size.Caption}" /><Setter Property="MinHeight" Value="0" />
         <Setter Property="Padding" Value="0" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.None}" />
-        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
         <Setter Property="VerticalAlignment" Value="Stretch" />
     </Style>
+    <!-- UX review 2026-11-13: the caption hover fill alone is 1.37:1 (Dark) / 1.38:1 (Light) on the bar; the 1-px edge reserved above
+         (transparent at rest, inside the square button, nothing moves) shows ControlBorder on hover and the accent when pressed. -->
+    <Style Selector="Button.window-caption:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
+    <Style Selector="Button.window-caption:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+    </Style>
     <Style Selector="Button.window-close:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.window-close:pressed /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="#C42B1C" /><Setter Property="Foreground" Value="White" />
+        <Setter Property="Background" Value="#C42B1C" /><Setter Property="Foreground" Value="White" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.CaptionCloseEdge}" />
     </Style>
     <Style Selector="Path.window-caption-icon">
         <Setter Property="Width" Value="{StaticResource Workspace.Size.IconCaption}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.IconCaption}" />
         <Setter Property="Stroke" Value="{Binding $parent[Button].Foreground}" /><Setter Property="StrokeThickness" Value="1" />
         <Setter Property="IsHitTestVisible" Value="False" />
     </Style>
-    <Style Selector="Button.nav"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="Padding" Value="12,8" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Nav}" /></Style>
     <!-- Thin rule between the footer groups; decorative, so it stays on the decorative border colour. -->
     <Style Selector="Border.nav-separator"><Setter Property="Background" Value="{DynamicResource Workspace.Border}" /></Style>
-    <Style Selector="Button.nav.selected"><Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" /></Style>
+    <!-- Footer navigation (UX review 2026-11-13: the hover fill alone was 1.37:1 / 1.38:1 on the bar with a Muted label, the selected item
+         only Raised, 1.13:1 / 1.24:1). Every item reserves a 1-px edge (transparent at rest; padding 11,7 keeps the 12,8 inset, so nothing
+         moves). Hover: Hover fill, ControlBorder edge (3.34:1 / 3.37:1 on Hover, 4.59:1 / 4.64:1 on the bar), label and icon Text.
+         Pressed: AccentSurface with the accent edge. Selected: AccentSurface and a 3-px accent bar at the bottom edge like the tab pipe
+         (5.14:1 / 5.72:1 on the fill, 6.84:1 / 7.00:1 on the bar; padding 12,8,12,5 keeps the inset), label Text, icon Accent; selected
+         and hovered keeps the bar. -->
+    <Style Selector="Button.nav"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="Padding" Value="11,7" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Nav}" /></Style>
+    <Style Selector="Button.nav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
+    <Style Selector="Button.nav:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+    </Style>
+    <Style Selector="Button.nav.selected">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="BorderThickness" Value="0,0,0,3" /><Setter Property="Padding" Value="12,8,12,5" />
+    </Style>
+    <Style Selector="Button.nav.selected:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.nav.selected:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+    </Style>
     <Style Selector="Button.nav TextBlock"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /></Style>
+    <Style Selector="Button.nav:pointerover TextBlock"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
     <Style Selector="Button.nav.selected TextBlock"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
     <Style Selector="Button.nav Path"><Setter Property="Stroke" Value="{DynamicResource Workspace.Muted}" /></Style>
+    <Style Selector="Button.nav:pointerover Path"><Setter Property="Stroke" Value="{DynamicResource Workspace.Text}" /></Style>
     <Style Selector="Button.nav.selected Path"><Setter Property="Stroke" Value="{DynamicResource Workspace.Accent}" /></Style>
     <Style Selector="TextBox, ComboBox, NumericUpDown"><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" /></Style>
     <!-- Semi's translucent dark-blue selection has little contrast on dark fields.
@@ -596,6 +624,11 @@
     </Style>
     <Style Selector="DataGridCell"><Setter Property="Padding" Value="12,0" /><Setter Property="ClipToBounds" Value="True" /></Style>
     <Style Selector="DataGridRow:selected"><Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /></Style>
+    <!-- UX review 2026-11-13: a hovered row is the Hover fill with a 1-px ControlBorder start edge (the fill alone was 1.13:1 / 1.24:1); drawn
+         on the background layer like the selection bar below, so cells do not move. The selected bar wins over it. -->
+    <Style Selector="DataGridRow:pointerover /template/ Border#BackgroundBorder">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /><Setter Property="BorderThickness" Value="1,0,0,0" />
+    </Style>
     <!-- LW-06 R1/N4a: selection is never the tint alone. A 3-px accent bar like the active reader post;
          on rows it is drawn on the background layer behind the cells, so cells do not move. -->
     <Style Selector="DataGridRow:selected /template/ Border#BackgroundBorder">
@@ -603,6 +636,29 @@
     </Style>
     <Style Selector="ListBox.workspace-selection-bar ListBoxItem:selected /template/ ContentPresenter">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="BorderThickness" Value="3,0,0,0" />
+    </Style>
+    <!-- Rows of menus, drop-downs and plain lists (UX review 2026-11-13). Semi's rows had a translucent hover (1.09:1 to 1.42:1) and no edge.
+         Each row reserves a 1-px edge, transparent at rest; the padding gives it back (Semi's 16,8 menu and 12,8 drop-down/list insets), so
+         rows keep their size. Hover (menus: the highlighted row, :selected, also by keyboard) shows it in ControlBorder (3.34:1 / 3.37:1 on
+         Hover, 4.59:1 / 4.64:1 on Overlay), pressed in the accent. A chosen drop-down or list row is AccentSurface with a 3-px accent bar at its
+         start edge (5.14:1 / 5.72:1), never the tint alone. Lists with their own row design (reader posts, tile grids, chip lists, the
+         selection-bar lists above) keep it. Template parts checked against Semi 12.1.0.1: MenuItem Border#PART_LayoutRoot, ComboBoxItem and
+         ListBoxItem ContentPresenter#PART_ContentPresenter, each binding BorderBrush, BorderThickness and Padding from the row. -->
+    <Style Selector="MenuItem"><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="15,7" /></Style>
+    <Style Selector="Menu > MenuItem"><Setter Property="Padding" Value="15,0" /></Style>
+    <Style Selector="MenuItem:selected"><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /></Style>
+    <Style Selector="MenuItem:pressed"><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /></Style>
+    <Style Selector="ComboBoxItem, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width) ListBoxItem:not(.chip-item)">
+        <Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="11,7" />
+    </Style>
+    <Style Selector="ComboBoxItem:pointerover, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width) ListBoxItem:not(.chip-item):pointerover">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
+    <Style Selector="ComboBoxItem:pressed, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width) ListBoxItem:not(.chip-item):pressed">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+    </Style>
+    <Style Selector="ComboBoxItem:selected, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width) ListBoxItem:not(.chip-item):selected">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="BorderThickness" Value="3,0,0,0" /><Setter Property="Padding" Value="9,8,12,8" />
     </Style>
 
     <!-- Opt-in composition roles; native templates, selection and automation stay
@@ -679,60 +735,67 @@
         <Setter Property="BorderThickness" Value="0" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.None}" />
         <Setter Property="Padding" Value="12,8" />
     </Style>
+    <!-- Media controls and gallery overflow rows reserve a 1-px edge (transparent at rest, the padding gives it back): ControlBorder on hover,
+         the accent when pressed or checked (UX review 2026-11-13; the fill alone was 1.37:1 / 1.38:1). -->
     <Style Selector="Button.media-control, ToggleButton.media-control">
-        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
         <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
+    <Style Selector="Button.media-control"><Setter Property="Padding" Value="9,4" /></Style>
+    <Style Selector="ToggleButton.media-control"><Setter Property="Padding" Value="11,0" /></Style>
     <!-- Gallery "⋯" menu: the rare toolbar commands as full-width rows (lead mark, label, shortcut). The check of the two
          overlay choices is drawn by the row itself, so the toggle's own checked fill is switched off here. -->
     <Style Selector="FlyoutPresenter.gallery-overflow">
         <Setter Property="Padding" Value="4" /><Setter Property="MinWidth" Value="300" /><Setter Property="MaxWidth" Value="440" />
-        <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Overlay}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
     </Style>
     <Style Selector="Button.gallery-overflow-item, ToggleButton.gallery-overflow-item">
-        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
         <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
-        <Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="10,3" /><Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="9,2" /><Setter Property="FontWeight" Value="Normal" />
     </Style>
     <Style Selector="Button.gallery-overflow-item:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-overflow-item:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.gallery-overflow-item:focus-visible /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-overflow-item:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
     <Style Selector="ToggleButton.gallery-overflow-item:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-overflow-item:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
     <Style Selector="ToggleButton.gallery-overflow-item:checked:not(:pointerover):not(:focus-visible) /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style Selector="Button.gallery-overflow-item:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-overflow-item:pressed /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
     </Style>
+    <!-- Disabled rows are Muted text on the overlay (7.37:1 / 6.66:1), no extra dimming: the earlier 0.6 opacity put them at 3.54:1 / 2.72:1. -->
     <Style Selector="Button.gallery-overflow-item:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-overflow-item:disabled /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
-        <Setter Property="Opacity" Value="0.6" />
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
     <Style Selector="Button.media-play">
         <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
     </Style>
     <Style Selector="Button.media-control:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.media-control:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
     <Style Selector="ToggleButton.media-control:checked /template/ ContentPresenter#PART_ContentPresenter, Button.media-control:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.media-control:pressed /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" />
     </Style>
     <Style Selector="ToggleButton.media-control:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.AccentHover}" />
     </Style>
     <Style Selector="Button.media-control:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.media-control:disabled /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
-        <Setter Property="Opacity" Value="0.6" />
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
     <Style Selector="Slider.media-slider">
         <Setter Property="Background" Value="{DynamicResource Workspace.ControlBorder}" />
@@ -905,6 +968,7 @@
     </Style>
     <Style Selector="ursa|SelectionListItem.workspace-list-card:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource ButtonDefaultPointeroverBackground}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
     </Style>
     <!-- Ursa makes the selected item bold and light-on-accent; a selected card keeps its text as it is, as on the Sources list. -->
     <Style Selector="ursa|SelectionListItem.workspace-list-card:selected, ursa|SelectionListItem.workspace-list-card:selected:pointerover">
