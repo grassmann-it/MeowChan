@@ -20,11 +20,14 @@ using MeowChan.Tags;
 //   write-local-tag  tag one real manifest asset as a loose file at STORE level (version 1 -> 2, v1 backup). The
 //                    synthetic profile has no loose file, so host revalidation does not apply; reported as such.
 //   readback         read-only open that also reports the tag state (an offline restart after the writes).
+//   media-index      builds the media page index the way MediaPage does and saves the cache file
+//                    (profile/cache/media-index-v1.json), then reads it back. A 1.0.2 profile has no cache file,
+//                    so this is the cold first build, not a v3 -> v4 migration.
 if (args.Length is not (2 or 3)) throw new ArgumentException("Expected existing released profile, new result file and optional mode.");
 string profile = Path.GetFullPath(args[0]);
 string result = Path.GetFullPath(args[1]);
 string mode = args.Length == 3 ? args[2] : "observe";
-if (mode is not ("observe" or "write-host" or "write-local-tag" or "readback"))
+if (mode is not ("observe" or "write-host" or "write-local-tag" or "readback" or "media-index"))
     throw new ArgumentException("Unknown mode: " + mode);
 const string ThreadTagName = "ap04-thread-tag";
 const string LocalTagName = "ap04-local-tag";
@@ -97,6 +100,7 @@ try
     }
     plugins = await PluginsAsync(host, deadline);
     if (mode == "write-host") writes = await WriteHostAsync(host, threadIds, deadline);
+    if (mode == "media-index") writes = await MediaIndexAsync(host, profile, deadline);
     if (mode != "observe") hostTags = HostTags(host, threadIds);
 }
 catch (Exception error)
@@ -125,7 +129,14 @@ using (ProfileLease lease = ProfileLease.Acquire(profile))
         MediaFavorites = new FavoriteStore(profile, lease).List(),
         Ratings = new MediaRatingStore(profile, lease).List(),
         ThreadFavorites = new ThreadFavoriteStore(profile, lease).ReadSnapshot(),
-        Bookmarks = PostBookmarkStore.ReadOnly(profile, lease)
+        Bookmarks = PostBookmarkStore.ReadOnly(profile, lease),
+        // Stores the released 1.0.2 profile also carries; the upgrade must keep them readable, not only present.
+        SavedSearches = SavedSearches(profile, lease),
+        ReaderGroups = await ReaderGroupsAsync(profile, lease, deadline),
+        // Every setting as the upgraded profile reads it, next to the documented defaults of this build, so a new
+        // setting that silently became 0 instead of its default is visible.
+        AllSettings = AllSettings(Config.LoadConfig(profile, lease)),
+        DefaultSettings = AllSettings(new Config())
     };
     if (mode == "write-local-tag")
     {
@@ -241,6 +252,68 @@ static object StoreTags(string profile, ProfileLease lease, IReadOnlyList<Resour
         ThreadAssignments = snapshot.ThreadAssignments.Count, MediaAssignments = snapshot.MediaAssignments.Count,
         LocalAssignments = snapshot.LocalAssignments.Count,
         ThreadTags = threadIds.Select(id => new { Thread = id, Tags = snapshot.TagsOf(id).Select(tag => tag.Name.Display).ToArray() }).ToArray()
+    };
+}
+
+static object SavedSearches(string profile, ProfileLease lease)
+{
+    SavedArchiveSearchSnapshot snapshot = new SavedArchiveSearchStore(profile, lease).Load();
+    return new
+    {
+        State = snapshot.State.ToString(), snapshot.Error, snapshot.Revision, Count = snapshot.Searches.Count,
+        Searches = snapshot.Searches.Select(search => new { search.Id, search.Name, search.CanApply, search.UnsupportedReason,
+            Text = search.Definition?.Text, Sources = search.Definition?.Sources }).ToArray()
+    };
+}
+
+static async Task<object> ReaderGroupsAsync(string profile, ProfileLease lease, TimeSpan deadline)
+{
+    ReaderGroupsLoadResult loaded = await new ReaderGroupStore(profile, lease).LoadAsync().WaitAsync(deadline);
+    return new
+    {
+        State = loaded.State.ToString(), loaded.Error, Revision = loaded.Snapshot?.Revision,
+        Count = loaded.Snapshot?.Groups.Count,
+        Groups = loaded.Snapshot?.Groups.Select(group => new { group.Id, group.Name, Members = group.Members.ToArray() }).ToArray()
+    };
+}
+
+// Every simple public setting by name. Complex members (dictionaries, layout profiles) are left out on purpose:
+// the file comparison already covers them byte for byte.
+static SortedDictionary<string, object?> AllSettings(Config settings)
+{
+    SortedDictionary<string, object?> values = new(StringComparer.Ordinal);
+    foreach (PropertyInfo property in typeof(Config).GetProperties(BindingFlags.Public | BindingFlags.Instance))
+    {
+        if (property.GetIndexParameters().Length != 0 || !property.CanRead) continue;
+        Type type = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
+        if (!type.IsPrimitive && !type.IsEnum && type != typeof(string) && type != typeof(decimal)) continue;
+        object? value = property.GetValue(settings);
+        values[property.Name] = value is Enum ? value.ToString() : value;
+    }
+    return values;
+}
+
+static async Task<object> MediaIndexAsync(DesktopSessionHost host, string profile, TimeSpan deadline)
+{
+    // The same build and save the media page performs on its first open.
+    string path = Path.Combine(profile, "cache", MeowChan.Gallery.MediaLibraryIndexCache.FileName);
+    bool existedBefore = File.Exists(path);
+    MeowChan.Gallery.MediaLibrarySnapshot built = await MeowChan.Gallery.MediaLibraryIndexBuilder
+        .BuildAsync(host.OpenArchiveReaderAsync, MediaAssetReader.OpenAsync).WaitAsync(deadline);
+    Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+    MeowChan.Gallery.MediaLibraryIndexCacheWrite write = await MeowChan.Gallery.MediaLibraryIndexCache
+        .SaveAsync(path, built, host.Config.MediaIndexCacheLimitMiB * 1024L * 1024).WaitAsync(deadline);
+    MeowChan.Gallery.MediaLibraryIndexCacheRead? read = await MeowChan.Gallery.MediaLibraryIndexCache.LoadAsync(path).WaitAsync(deadline);
+    using JsonDocument document = JsonDocument.Parse(File.ReadAllBytes(path));
+    return new
+    {
+        CacheFile = Path.GetRelativePath(profile, path).Replace(Path.DirectorySeparatorChar, '/'),
+        ExistedBefore = existedBefore, WrittenVersion = document.RootElement.GetProperty("Version").GetInt32(),
+        Status = write.Status.ToString(), write.Bytes, write.LimitBytes,
+        BuiltEntries = built.Entries.Count, BuiltThreads = built.Threads.Count,
+        ReadBackEntries = read?.Snapshot.Entries.Count, ReadBackThreads = read?.Snapshot.Threads.Count,
+        Files = built.Entries.Select(entry => entry.Name + "|" + entry.Sha256 + "|" + entry.Length)
+            .OrderBy(name => name, StringComparer.Ordinal).ToArray()
     };
 }
 

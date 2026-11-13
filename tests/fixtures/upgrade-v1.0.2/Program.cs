@@ -89,6 +89,31 @@ using (ProfileLease lease = ProfileLease.Acquire(profile))
         bookmarks.Upsert(new(favorite.Key.Thread, "124"), "SYNTHETIC 1.0.2 retained reply\nNo personal content.",
             bookmarks.Read().Revision, expectedExists: false);
     }
+    // Released saved searches and reader groups, written through the pinned 1.0.2 stores only.
+    SavedArchiveSearchStore searchStore = new(profile, lease);
+    SavedArchiveSearchSnapshot searchState = searchStore.Load();
+    if (!searchState.CanWrite || searchState.Searches.Count != 0) throw new Exception("Saved searches not empty/writable.");
+    searchState = searchStore.Create(Guid.Parse("1a0251a0-0000-4000-8000-000000000001"), "SYNTHETIC 1.0.2 retained 4chan search",
+        new ArchiveSearchSpec("retained", new[] { "4chan" }), searchState.Revision);
+    searchState = searchStore.Create(Guid.Parse("1a0251a0-0000-4000-8000-000000000002"), "SYNTHETIC 1.0.2 retained 8kun search",
+        new ArchiveSearchSpec("reply", boards: new[] { new ArchiveBoardConstraint("8kun", "g") }), searchState.Revision);
+    ReaderGroupStore groupStore = new(profile, lease);
+    ReaderGroupsLoadResult groupsLoaded = await groupStore.LoadAsync();
+    if (!groupsLoaded.CanWrite || groupsLoaded.Snapshot!.Groups.Count != 0) throw new Exception("Reader groups not empty/writable.");
+    ReaderGroupsSnapshot savedGroups = await groupStore.SaveAsync(new ReaderGroupsSnapshot(1, groupsLoaded.Snapshot.Revision, new[]
+    {
+        new ReaderGroup(Guid.Parse("1a0251a0-0000-4000-8000-000000000011"), "SYNTHETIC 1.0.2 both sources",
+            new[] { new ResourceId("4chan", "g", "123"), new ResourceId("8kun", "g", "123") }),
+        new ReaderGroup(Guid.Parse("1a0251a0-0000-4000-8000-000000000012"), "SYNTHETIC 1.0.2 single source",
+            new[] { new ResourceId("8kun", "g", "123") })
+    }), groupsLoaded.Snapshot.Revision);
+    SavedArchiveSearchSnapshot searchReadback = new SavedArchiveSearchStore(profile, lease).Load();
+    ReaderGroupsLoadResult groupReadback = await new ReaderGroupStore(profile, lease).LoadAsync();
+    if (searchReadback.Searches.Count != 2 || !searchReadback.Searches.All(entry => entry.CanApply) ||
+        searchReadback.Revision != searchState.Revision ||
+        groupReadback.Snapshot!.Groups.Count != 2 || groupReadback.Snapshot.Revision != savedGroups.Revision ||
+        groupReadback.Snapshot.Groups.Sum(group => group.Members.Count) != 3)
+        throw new Exception("Saved search/reader group persistence mismatch.");
     SessionLoadResult watch = await new SessionStore(profile, lease).LoadAsync();
     if (watch.Recovered || watch.Snapshot.ThreadUrls.Length != 2 ||
         !Fixture.Urls.All(url => watch.Snapshot.ThreadUrls.Contains(url))) throw new Exception("Watch persistence mismatch.");
@@ -108,6 +133,7 @@ using (ProfileLease lease = ProfileLease.Acquire(profile))
     }
     inventory = new { MediaFavorites = store.List(), ThreadFavorites = threadFavorites.ReadSnapshot(),
         Ratings = ratings.List(), Bookmarks = bookmarks.Read(), Watch = watch.Snapshot,
+        SavedSearches = searchReadback, ReaderGroups = groupReadback.Snapshot,
         Settings = new { settings.DownloadsPaused, settings.VideoVolume, settings.VideoStartMuted,
             settings.GalleryContextOpen, settings.AutomaticUpdateChecks, settings.DownloadPath,
             settings.LastExportDirectory, settings.ArchiveThreadLayout, settings.ArchiveSplitWidth, settings.WindowWidth } };
