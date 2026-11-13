@@ -117,6 +117,9 @@ public sealed class EffectiveShortcutBindings
         ["archive.next-page"] = 2, ["media.return"] = 2,
         // New in revision 2: find next / previous in the large reader.
         ["reader.find-next"] = 2, ["reader.find-previous"] = 2,
+        // New single keys and chords of the gallery and the media page.
+        ["gallery.slideshow-toggle"] = 2, ["media.details"] = 2, ["media.rating.edit"] = 2,
+        ["media.export-original"] = 2, ["media.show-in-folder"] = 2,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     /// <summary>Whether an issue deserves the startup warning: only what silences or blocks a binding
@@ -182,6 +185,7 @@ public sealed class EffectiveShortcutBindings
             "archive.previous-page" => Of("Primary+Alt+Left", "Alt+PageUp"),
             "archive.next-page" => Of("Primary+Alt+Right", "Alt+PageDown"),
             "media.return" => Of("Primary+Left"),
+            "media.details" => Of("I", "Primary+I"),
             "reader.find-next" => Of("Primary+G", "F3"),
             "reader.find-previous" => Of("Primary+Shift+G", "Shift+F3"),
             _ => null
@@ -327,6 +331,9 @@ public sealed class EffectiveShortcutBindings
         if (id == "media.rating.remove-selected") return new[] { "dialog:media-ratings-manager" };
         if (id == "media.rating.cleanup-retry") return new[] { "dialog:archive-deletion" };
         if (id == "media.rating.edit") return new[] { "media", "reader", "gallery" };
+        // Ctrl+O is one gesture with two readings: the folder of the selected thread (archive, downloads) and, in the media
+        // page and the gallery, the folder of the shown medium (media.show-in-folder). Neither claims the other's page.
+        if (id == "location.open-folder") return new[] { "archive", "dialog", "downloads" };
         if (id == "media.rating.clear" || id.StartsWith("media.rating.set-", StringComparison.Ordinal))
             return new[] { "media", "reader", "gallery", "dialog:media-rating" };
         if (id.StartsWith("navigation.") || id is "session.pause" or "window.fullscreen" or "input.focus-url" or "viewer.shortcut-help") return new[] { "shell" };

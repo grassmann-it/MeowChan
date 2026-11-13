@@ -447,6 +447,14 @@ public sealed partial class MediaPage : UserControl
                 await EditTagsByShortcutAsync();
                 return;
             }
+            // Rating, details, export and folder of the medium (menu commands): the same actions and gates as the tile menu.
+            foreach (string id in MediaShortcutCommands)
+                if (CommandBindings.Matches(e, id))
+                {
+                    e.Handled = true;
+                    await RunMediaCommandByShortcutAsync(id);
+                    return;
+                }
             if (e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None || SelectedRow == null) return;
             e.Handled = true;
             // Several selected tiles open together; one opens around itself.
@@ -465,6 +473,20 @@ public sealed partial class MediaPage : UserControl
         MediaLibraryEntry entry = row.Entry;
         if (EditTagsForMenuAsync != null) await EditTagsForMenuAsync(entry, Current);
         else await ExecuteMediaActionAsync("media.tags.edit", entry, Current);
+    }
+
+    private static readonly string[] MediaShortcutCommands = { "media.rating.edit", "media.details", "media.export-original", "media.show-in-folder" };
+
+    /// <summary>The shortcut for a menu command of one medium. Export with several selected tiles exports the selection;
+    /// the others need exactly one saved tile, like the menu entries they stand for.</summary>
+    internal async Task RunMediaCommandByShortcutAsync(string id)
+    {
+        if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy || ExecuteMediaMenuActionAsync == null) return;
+        if (id == "media.export-original" && SelectedTiles.Count > 1) { await ExportSelectionAsync(); return; }
+        if (SelectedTiles.Count != 1 || SelectedRow is not { } row || row.Entry.Presence != MediaLibraryPresence.Present) return;
+        if (id == "media.rating.edit" && row.State?.RatingKnown != true) return;
+        bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
+        await ExecuteMediaActionAsync(id, row.Entry, Current);
     }
 
     internal void InitializeSharedMediaMenus()
