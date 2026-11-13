@@ -302,6 +302,7 @@ internal sealed class BooruCatalogStore
     private long _fullReads;
     private long _writes;
     private long _cachedReads;
+    private bool _sweptTemporaries;
 
     internal BooruCatalogStore(string profileDirectory, ProfileLease lease)
     {
@@ -695,6 +696,11 @@ internal sealed class BooruCatalogStore
     /// <summary>Caller holds the lease monitor and <see cref="_sync"/>.</summary>
     private Cache LoadLocked()
     {
+        if (!_sweptTemporaries)
+        {
+            _sweptTemporaries = true;
+            SweepOrphanedTemporaries();
+        }
         RegularProfileFileIdentity? before = RegularProfileFile.TryGetIdentity(_path);
         if (before is { } current && _cache is { Identity: { } cached } hit && cached == current)
         {
@@ -850,6 +856,46 @@ internal sealed class BooruCatalogStore
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
         }
+    }
+
+    /// <summary>
+    /// Deletes temporary catalog files that a crash between creating the temporary and moving it over the catalog left
+    /// behind (up to one document each). Runs once per store on its first load, under the lease monitor, so no write of
+    /// this profile is in flight. Only the exact <c>.booru-catalog.json.&lt;32 hex&gt;.tmp</c> regular files are removed.
+    /// </summary>
+    private void SweepOrphanedTemporaries()
+    {
+        string directory = Path.GetDirectoryName(_path)!;
+        string prefix = $".{FileName}.";
+        try
+        {
+            foreach (string candidate in Directory.EnumerateFiles(directory, prefix + "*.tmp"))
+            {
+                string name = Path.GetFileName(candidate);
+                if (!IsTemporaryName(name, prefix)) continue;
+                try
+                {
+                    if ((File.GetAttributes(candidate) & (FileAttributes.Directory | FileAttributes.ReparsePoint)) == 0)
+                        File.Delete(candidate);
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    private static bool IsTemporaryName(string name, string prefix)
+    {
+        const string suffix = ".tmp";
+        if (name.Length != prefix.Length + 32 + suffix.Length
+            || !name.StartsWith(prefix, StringComparison.Ordinal)
+            || !name.EndsWith(suffix, StringComparison.Ordinal))
+            return false;
+        foreach (char value in name.AsSpan(prefix.Length, 32))
+            if (!char.IsAsciiHexDigitLower(value) && !char.IsAsciiDigit(value)) return false;
+        return true;
     }
 
     private BooruCatalogSnapshot Parse(byte[] bytes)

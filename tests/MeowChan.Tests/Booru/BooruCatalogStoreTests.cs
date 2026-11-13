@@ -468,6 +468,47 @@ public sealed class BooruCatalogStoreTests
         Assert.DoesNotContain(Directory.EnumerateFiles(directory.Path), path => path.EndsWith(".tmp", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void TheFirstLoadSweepsOrphanedTemporaryCatalogFilesAndOnlyThose()
+    {
+        using TempDirectory directory = new();
+        string orphan = Path.Combine(directory.Path, $".{BooruCatalogStore.FileName}.{Guid.NewGuid():N}.tmp");
+        string second = Path.Combine(directory.Path, $".{BooruCatalogStore.FileName}.{Guid.NewGuid():N}.tmp");
+        // Look alike but are not this store's temporaries.
+        string[] others =
+        [
+            Path.Combine(directory.Path, $".{BooruCatalogStore.FileName}.{Guid.NewGuid():N}.bak"),
+            Path.Combine(directory.Path, $".{BooruCatalogStore.FileName}.notaguid.tmp"),
+            Path.Combine(directory.Path, $".{BooruCatalogStore.FileName}.{Guid.NewGuid():N}x.tmp"),
+            Path.Combine(directory.Path, $".{BooruCatalogStore.FileName}.{Guid.NewGuid():N}.TMP"),
+            Path.Combine(directory.Path, $"{BooruCatalogStore.FileName}.{Guid.NewGuid():N}.tmp"),
+            Path.Combine(directory.Path, $".other.json.{Guid.NewGuid():N}.tmp"),
+            Path.Combine(directory.Path, $".{BooruCatalogStore.FileName}.{Guid.NewGuid():N}.tmp.keep")
+        ];
+        foreach (string path in new[] { orphan, second }.Concat(others)) File.WriteAllText(path, "partial");
+        // A directory with a matching name is never touched.
+        string nested = Path.Combine(directory.Path, $".{BooruCatalogStore.FileName}.{Guid.NewGuid():N}.tmp");
+        Directory.CreateDirectory(nested);
+
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        BooruCatalogStore store = new(directory.Path, lease);
+        Assert.True(File.Exists(orphan));
+        Assert.Empty(store.Read().Posts);
+
+        Assert.False(File.Exists(orphan));
+        Assert.False(File.Exists(second));
+        Assert.All(others, path => Assert.True(File.Exists(path), path));
+        Assert.True(Directory.Exists(nested));
+        // A write after the sweep still works and leaves no temporary behind.
+        store.UpsertPost(Post("60"), DateTimeOffset.UtcNow);
+        Assert.Equal("60", Assert.Single(store.Read().Posts).PostId);
+        Assert.DoesNotContain(Directory.EnumerateFiles(directory.Path), path => IsTemporary(Path.GetFileName(path)));
+    }
+
+    private static bool IsTemporary(string name) =>
+        name.StartsWith("." + BooruCatalogStore.FileName + ".", StringComparison.Ordinal) && name.EndsWith(".tmp", StringComparison.Ordinal)
+        && name.Length == BooruCatalogStore.FileName.Length + 2 + 32 + 4;
+
     private static BooruPostClaim Post(string id) => new("danbooru", id, BooruPostClaimPresence.Tags,
         $"https://danbooru.donmai.us/posts/{id}", Tags: Array.Empty<BooruPostClaimTag>());
 
