@@ -1,15 +1,16 @@
 # Using MeowChan
 
 MeowChan watches imageboard boards or threads, saves selected original media,
-and optionally captures posts for local reading and search. This guide describes
-**MeowChan 1.0.2**. See the [1.0.2 release notes](releases/v1.0.2.md) for
-packages and upgrade details.
+and optionally captures posts for local reading and search. This guide follows the
+**unreleased MeowChan 1.1.0 development line**. For the published 1.0.2 behavior,
+use the [1.0.2 guide](https://github.com/grassmann-it/MeowChan/blob/v1.0.2/docs/Help.md)
+and [release notes](releases/v1.0.2.md). Features below describe the integrated
+development checkout, not a claim that 1.1.0 packages have passed release acceptance.
 
-For the unreleased development checkout, see the current collection-workflow
-preview ([English](user-guide/collection-workflow-preview.en.md) /
-[Deutsch](user-guide/collection-workflow-preview.md)). Its inventory-only transfer
-preview is not an import or merge workflow; the guide distinguishes implemented
-controls from planned Booru, tagging, relocation and transfer work.
+For the separate collection-workflow and transfer preview, see
+[English](user-guide/collection-workflow-preview.en.md) /
+[Deutsch](user-guide/collection-workflow-preview.md). Inspecting a transfer package
+is not the same as [importing your own files](#importing-your-own-files).
 
 The supplied source plugins support 4chan, 8kun, Lainchan, Kohlchan,
 Wizchan, Endchan, 2ch, Leftypol, Uboachan, ZZZchan and SushiChan. Open **Plugins**
@@ -32,22 +33,43 @@ If an older build's update check fails after the repository move, open the
 that still use the previous API address cannot follow its repository-transfer
 redirect; updating the source does not change already installed applications.
 
+When MeowChan finds a new version, a quiet notice **MeowChan … is available** appears
+once per start with **Release notes**, **Later** and **Skip this version**. The same
+version is not announced again during the same start, so **Later** holds until the
+next start; a skipped version is not announced automatically again. The notice
+stays away when you have turned information popups off. When automatic update checks are off, it
+appears only after your own **Check for updates**.
+
+Independently of the notice, the footer shows **Version … available** for as long as
+a newer version is known, and the tray has the same entry. MeowChan downloads and
+installs nothing: the release notes open in your browser. **Check for updates** in
+the menu asks at any time and also reveals a version you skipped earlier.
+
+For testing, `MEOWCHAN_UPDATE_SIMULATE=<version>` makes
+every check answer as if that version were the latest release: nothing is requested
+and nothing is written to `update-state.json`; the next start without the variable
+behaves as if it never happened. `MEOWCHAN_DISABLE_UPDATE_CHECK=1` still wins.
+
 ## From a package to an offline picture
 
-1. Choose the package for your OS and CPU on the [1.0.2 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.2). Extract the **whole** archive, including native libraries and notices. Start `MeowChan.exe` on Windows, `MeowChan` from a Linux archive, or the executable Linux AppImage. On macOS, open the DMG, drag `MeowChan.app` to Applications, and launch it there. Desktop packages include .NET; source builds require the pinned .NET 10 SDK. Linux requires glibc and X11/XWayland with native graphics/font dependencies. The macOS apps are ad-hoc signed and not notarized; see [macOS first-launch guidance](macos-signing.md) for manual approval in Privacy & Security. See [platform requirements](platform-support.md).
+1. For the published 1.0.2 build, choose the package for your OS and CPU on the [1.0.2 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.2). Extract the **whole** archive, including native libraries and notices. Start `MeowChan.exe` on Windows, `MeowChan` from a Linux archive, or the executable Linux AppImage. On macOS, open the DMG, drag `MeowChan.app` to Applications, and launch it there. Desktop packages include .NET; source builds require the pinned .NET 10 SDK. Linux requires glibc and X11/XWayland with native graphics/font dependencies. The macOS apps are ad-hoc signed and not notarized; see [macOS first-launch guidance](macos-signing.md) for manual approval in Privacy & Security. See [platform requirements](platform-support.md). The 1.1.0 development line has no published package yet.
 2. Open Settings, choose your download folder and media rules, and Save. Changing the folder affects newly admitted watches; existing watches keep their assigned folders, including threads later found by an already watched board.
 3. Paste a thread or board URL into Downloads and choose Add. Commas and newlines separate multiple URLs. Enter imports; Shift+Enter inserts a newline. Each URL receives its own result. Sources lists the registered adapters and their capabilities; registration does not prove the site is currently reachable.
 4. Let media download. Progress means **saved / selected media**, with rule exclusions separate. A living thread remains watched even at 100%. New watches capture posts by default; older restored watches can be media-only until capture is explicitly enabled. Pause now requests a full pause of source checks and active transfers. The Pausing state remains until cancellation has quiesced; Resume retries unfinished work.
 5. Open Archive. Select the thread to inspect it, double-click its card or row to open the large reader, or right-click for **Read posts**, **Open in gallery** and **Export as HTML**. Downloads thread rows also open the reader on double-click; use Shift+Enter or the context menu for the gallery; board rows retain their details action. Opening local content never initiates a download. Saved media remain usable offline; post reading requires captured posts.
 
 The header shows download speed from received media bytes. Wider windows also show
-a compact speed-history graph. This is separate from saved/selected media progress.
+a compact network/disk-history graph; click it to open **Statistics**. This is
+separate from saved/selected media progress and is not system-wide traffic.
 
 ### Desktop view defaults
 
-MeowChan starts new profiles in **Barebones**; missing or invalid view
-preferences also fall back to Barebones. Saved **Barebones**, **Simple** and
-**Advanced** choices remain unchanged. Use the footer view selector to switch.
+A new profile (an absent or empty profile folder) starts in **Simple**, so
+Archive and Media are footer buttons from the first start. An existing profile
+whose settings have no view mode, or whose view preference is invalid, falls
+back to **Barebones**. A valid saved **Barebones**, **Simple** or **Advanced**
+choice, including one recovered from a valid settings backup, remains unchanged.
+Use the footer view selector to switch.
 
 In 1.0, **Tools** contains only destinations that are not already shown in the
 footer. Advanced shows all destinations, including Plugins, directly when there
@@ -61,11 +83,13 @@ the archive list, use the app-menu entry to check the reading-position state.
 ### Language packs
 
 In Settings, choose **Language** and Save. Alongside English and German, the app
-bundles **Español (Untested)**, **Français (Untested)** and **Русский (Untested)**;
-no separate pack download is needed. These preview translations are untested;
-missing translations fall back to English. Catalog coverage is not complete-UI
-localization: some legacy and vendor controls still use English. See the
-[bundled-pack limitations](../Desktop/Localization/Packs/README.md#known-english-surfaces).
+bundles **Español, Français, Русский, 简体中文, 日本語, 한국어, Português (Brasil),
+Čeština, Italiano and Polski**; every one is marked **Untested**. No separate pack
+download is needed. These are AI-authored preview translations, not qualified
+linguistic or native-UI reviews; missing translations fall back to English.
+Catalog coverage is not complete-UI localization: some legacy and vendor controls
+still use English. Linux users need suitable installed CJK fonts for the CJK packs.
+See the [bundled-pack limitations](../Desktop/Localization/Packs/README.md#known-english-surfaces).
 
 ### Clipboard URL monitor
 
@@ -82,16 +106,19 @@ while the main window is hidden or minimized; some reader/gallery views also
 suppress them. The monitor never forces the app to the foreground.
 
 Supported board/thread URLs that are not already watched appear in a passive
-banner, not an automatically opened popup. Texts longer than 65,536 UTF-16 code
-units (64 Ki characters, not bytes) are not evaluated. For shorter texts, only
-the first 32 HTTP(S) URL candidates are visited; invalid or unsupported candidates
-can use that budget. The platform clipboard read may already have materialized
-the full text before this length check. Detection alone adds no watches and
-starts no downloads. Click **Add URLs (Enter)**, or focus that button and press
-Enter/Space, to submit the offer through the normal Add flow. Enter in the preview
-or another field does not accept the suggestion. **Dismiss**, or Escape inside
-the suggestion panel, rejects it. The confirmed list is the displayed frozen
-batch, without a second clipboard read.
+banner, not an automatically opened popup. By default, texts larger than 64 KiB
+(measured as UTF-8) and more than the first 32 HTTP(S) URL candidates are not
+searched, but both limits are configurable in Settings → **Storage and limits**
+(**Clipboard: text searched (KiB)** and **Clipboard: URLs checked per read**).
+The allowed ranges are 4–4096 KiB and 1–500 URLs. Invalid or unsupported
+candidates can use the URL budget. The platform clipboard read may already have
+materialized the full text before the size check. A skipped text or truncated
+URL batch has an explanatory notice. Detection alone adds no watches and starts
+no downloads. Click **Add URLs (Enter)**, or focus that button and press
+Enter/Space, to submit the offer through the normal Add flow. Enter in the
+preview or another field does not accept the suggestion. **Dismiss**, or Escape
+inside the suggestion panel, rejects it. The confirmed list is the displayed
+frozen batch, without a second clipboard read.
 
 The monitor does not keep a persistent clipboard history. This is not a blanket
 claim that no URL can occur in diagnostics: if optional performance diagnostics
@@ -143,6 +170,95 @@ including the setting for bypassing future previews, before any watch is added.
 Bypassing future previews remains a separate explicit setting. Policies/exclusions
 persist independently of Save URLs on exit.
 
+### Danbooru search and watchers
+
+Danbooru is a public, read-only post-search source, not a board source. Open
+**Danbooru search and watchers…** from the app menu. Its plugin must be enabled
+and available under **Plugins**. Merely opening the window sends no new search;
+previously saved active watchers still follow their schedule.
+
+#### Search and one-shot originals
+
+Choose **Tag search**, enter up to two tags and one optional `rating:` term, and
+press **Search**. Positive and negative (`-tag`) occurrences both count toward the
+two-tag limit. MeowChan normalizes separators to spaces but adds no hidden terms
+or automatic `g,s` filter. A search is limited to at most 5 pages of 20 posts;
+use **Previous page** and **Next page**, or refine the query. The displayed sent
+query belongs to those results, not to an unsubmitted edit in the input.
+
+Choose **Post link or ID** and **Look up post** for a single Danbooru post.
+Looking it up shows provider metadata and previews; it does not create a watcher
+or load the original. **Load original** explicitly hands an available original
+to the normal download queue. Post addresses submitted through Downloads → Add
+perform that lookup and original admission as a one-shot in one action. A search
+address or site address only opens and prefills the window. In a batch with
+several search addresses, only the last one prefills the window; the others are
+reported as unused.
+
+`safebooru.donmai.us` links refer to Danbooru, not another shipped provider. A
+Safebooru search visibly prefills `rating:g` when no rating term was supplied;
+you can remove it before **Search**. This is an explicit address-derived term,
+not a hidden filter on ordinary Danbooru searches. A post link refers to the
+same post regardless of the alias or attached search context.
+
+A card's **Open post in browser** and **Copy link** actions use its canonical
+provider post page. These deliberate browser actions leave the local app and
+can access the provider. Preview and sample variants never silently replace a
+missing, restricted or withdrawn original. The displayed reason explains why
+**Load original** is unavailable. Provider size/hash verification still applies.
+Already queued or saved posts are not admitted as a second active download;
+additional search, one-shot and watcher findings retain their provenance.
+
+#### Saved watchers
+
+- **Create.** Saves the explicit query. The first successful check establishes a
+  baseline **from now**; it does not download the historical result list.
+  Automatic checks normally run once an hour while the app and source are ready.
+- **Check now.** Requests one bounded check independent of that interval. A
+  paused watcher stays paused afterwards and schedules no automatic follow-up.
+  This is one check, not a promise of exactly one HTTP request: paging and bounded
+  retries still apply. Removed watchers and provider cooldowns do not send.
+- **Pause and Resume.** Pause stops automatic checks for this watcher; originals
+  already admitted follow the ordinary queue rules. Resume enables the schedule
+  again without bypassing a cooldown. Global session Pause also gates requests.
+- **More new posts than one check covers.** Each check reads no more than 5 pages
+  of 20 posts. If its budget runs out, a saved post-ID cursor continues below the
+  oldest post read on a later check. A partial check is not reported as complete.
+- **Remove.** Ends that watcher, but keeps downloaded media, provider metadata,
+  findings and your own tags. Creating a watcher later creates a new observation.
+
+Automatic checks that queue new originals can show an information notification
+with the watcher name and admitted count. This follows the information-popup
+setting; it is not a notification for every provider hit.
+
+#### Waiting, local data and offline use
+
+Metadata sends start at least one second apart. HTTP 429 causes a provider-wide
+pause of at least 60 seconds; longer `Retry-After` values are honored up to a
+24-hour cap. HTTP 502/503 permits at most one retry, no earlier than two seconds
+after the failed response. A longer `Retry-After` is honored only within the
+operation budget. A metadata operation has at most 20 sends
+including retries, a 120-second lifetime and a 15-second deadline per response.
+Metadata response limits are 2 MiB on the wire and 4 MiB decoded. These are fixed
+transport safeguards, not a promise that a search always returns 100 posts.
+
+The local Danbooru catalog has a configurable write limit of 32 MiB by default,
+8–128 MiB under **Storage and limits**, with a warning at 75 %. Lowering it does
+not delete data or prevent reading an otherwise valid existing catalog. Growth
+can be refused until you raise the setting. Storage failures are distinct from
+provider cooldowns and must not be dismissed by deleting the catalog.
+
+After a successful original download, use **Media**, the gallery and favorites
+offline. Provider, post ID/link, score, rating, source tags/categories and findings
+remain available after restart. A new search or watcher check needs a connection;
+a failed remote request does not erase the local library. Source tags stay separate
+from your own tags and provider ratings from your local 1–5 rating.
+
+This release line has no provider login, uploads, remote voting/tag edits,
+unbounded history download, pools or HTML-scraping fallback. Only Danbooru is in
+this post-search workflow. See the [Danbooru guide (German)](user-guide/danbooru.md)
+for the same lifecycle in German.
+
 ### Additional sources and image filters
 
 The eight supplied Experimental sources start disabled on first registration;
@@ -172,7 +288,8 @@ Removing a watch preserves its archive; removed board threads stay excluded from
 discovery until reactivated. Disabled context actions explain why they are
 unavailable; Archive also provides **Why are actions unavailable?**.
 
-These shortcuts apply when the relevant list has focus. Ctrl means Command on macOS:
+These shortcuts apply when the relevant list has focus. These are Windows/Linux defaults; Ctrl normally means Command on macOS.
+The platform-specific exceptions are listed below:
 
 | Key | Action |
 | --- | --- |
@@ -182,34 +299,46 @@ These shortcuts apply when the relevant list has focus. Ctrl means Command on ma
 | Delete | Remove selected watches |
 | Shift+Delete | Permanently delete selected Archive threads and their local media (confirmation required) |
 | F5 / Shift+F5 | Check eligible selected watches / retry their missing media |
-| Ctrl+R | Edit the lead entry's media rules |
-| Ctrl+Shift+R | Open the focused board's **Thread filters…** wizard (Board list only) |
-| Ctrl+O / Ctrl+Shift+O | Open the lead entry's folder / source in the browser |
-| Shift+F10 | Open the list context menu |
-| Ctrl+A | Select all entries in the focused Downloads list, or all entries on the current Archive results page |
-| Alt+PageUp / Alt+PageDown | Previous / next Archive results page, only with focus in the results list |
+| Ctrl+R | Open the lead entry's **Media rules…** |
+| Ctrl+T | Open the lead thread's **Tags…** in Archive or the reader; edit media tags on Media or in the gallery |
+| Ctrl+D | Favorite or unfavorite the thread in Archive or the reader |
+| Ctrl+Shift+F | Open a board's **Thread filters…**; in the Archive, **Filters and sorting** |
+| Ctrl+O / Ctrl+Shift+O | Open the lead entry's folder / open its source in the browser |
+| Shift+F10 or the Menu key | Open the list's context menu |
+| Ctrl+A | Select all entries in the focused Downloads list, all entries on the current Archive results page, or all media |
+| Alt+PageUp / Alt+PageDown | Previous / next results page, only with focus in the results list |
 
 On the Media page, T (or **Show in thread** in the tile's menu) opens the selected
 tile's post in the Archive; in the gallery, T does the same for the shown file.
-After a jump from the Media page the Archive shows **Back to media**; it and
-Alt+Left (Option+Left on macOS) return to the same Media view with its filters,
-order, selection and scroll position. A tile that is no longer shown there is
-named in a note, not replaced by another one. A file without a post offers no jump.
+After a jump from the Media page the Archive shows **Back to media**; that entry and
+Alt+Left (Command+Left on macOS) return to the same Media view with its filters,
+order, selection and scroll position. A tile that is no longer shown there is named
+in a note, not replaced by another one. A file without a post offers no jump.
+
+In the gallery, **S** starts or pauses the slideshow. In the gallery and on the Media page,
+**I** opens the media details, **R** the rating, **Ctrl+E** the export of the
+original and **Ctrl+O** the file in its folder. In the large reader, **F3** and
+**Ctrl+G** find the next hit, **Shift+F3** and **Ctrl+Shift+G** the previous one.
 
 Text fields and embedded controls retain their own keys. Across the workspace,
-Ctrl+L focuses URL input, Ctrl+, opens Settings, and Ctrl+F focuses the local
-Downloads search or Archive search on the active page. Ctrl+1 through Ctrl+5 open
-Downloads, Archive, Rules, Sources and Diagnostics in that order. Ctrl+Shift+P
-uses the same session Pause / Resume action as the header button; it remains
+Ctrl+L focuses the URL input, Ctrl+, opens Settings and Ctrl+F focuses the active
+page's local search field. Ctrl+1 through Ctrl+8 open Downloads, Archive, Media,
+Rules, Sources, Diagnostics, Plugins and Statistics in exactly that order; the footer, the menus
+and the F1 help use the same order, and every footer button names its shortcut in
+its tooltip. Ctrl+Shift+P pauses and resumes like the header button; it remains
 unavailable while a pause transition is in progress. These direct page and pause
 shortcuts leave native inputs, dialogs and open overlays in control and retain
-unsaved page drafts. F1 shows the commands for the current context, including
-selection scope and availability. Ctrl+V imports URLs only in Downloads outside
-native controls; inside the URL field it pastes editable text normally. F11 toggles real window fullscreen
-in Downloads, Archive, reader and gallery; it preserves the current workspace and
-returns to the previous normal or maximized window. Escape dismisses the active
-menu, help or dialog first, then leaves fullscreen before closing a gallery or
+unsaved drafts. F1 shows the commands for the current context, including selection
+scope and availability. Ctrl+V imports URLs only in Downloads outside native
+controls; inside the URL field it pastes text normally. F11 toggles real window
+fullscreen in Downloads, Archive, reader and gallery. Escape dismisses the active
+menu, help or dialog first, then leaves fullscreen, and only then closes a gallery or
 reader. Modal dialogs retain their own input.
+
+If letter keys trigger actions by mistake, for example with speech input, turn off
+**Standard single-key shortcuts (letters, digits, + and −)** under **Keyboard
+shortcuts** in Settings. Shortcuts with Ctrl or ⌘, the F-keys, Enter, Space and the
+arrow keys stay, and so do your own bindings.
 
 ### Customizing shortcuts
 
@@ -229,6 +358,42 @@ their normal roles; the operating system may intercept a combination. A custom
 binding still needs the action's normal context and selection. Menus, tooltips
 and F1 help show the active bindings; the table above lists defaults.
 
+### Shortcuts and the menu bar on macOS
+
+On macOS, MeowChan has a native menu bar: the application menu with **About**,
+**Settings** and **Quit**, plus **File**, **Edit** (containing **Find**), **View**,
+**Go**, **Window** and **Help**. **View** lists the main pages in footer order. The
+menu bar shows only shortcuts with ⌘, Control or Option; single keys belong to the
+page that owns them and do not appear there. Commands that mean something different
+per page (find, back, paging) are a single entry: it triggers the gesture, and focus
+decides what happens.
+
+Some defaults differ from Windows and Linux because macOS expects them that way:
+⌘⌫ (the delete key above Return) removes from the watch list, ⌘⇧⌫ deletes
+permanently, ⌘I shows details, ⌘⌥R checks now, ⌘⌥⇧R retries missing media, ⌘⌥← and
+⌘⌥→ page, ⌘← goes back, ⌘G and ⌘⇧G find next and previous, ⌘M minimizes and ⌃⌘F
+toggles fullscreen. The keyboard help opens with ⌘⇧? or ⇧? as well as F1. The
+Windows and Linux keys (⌦, F5, F11 …) stay as additional bindings, so no action is
+reachable only through Fn; F-keys are shown as “F5 (Fn)”. Shortcuts are displayed in
+Apple notation.
+
+### Enter and Escape in dialogs and search fields
+
+In a search field, Escape first clears the text without closing the window, dialog
+or search bar around it. A second Escape in the empty field leaves the field or
+closes the search. Enter does not belong to the field: it triggers the action the
+field belongs to, such as search, find next or add.
+
+In the dialogs described below, Enter invokes the available primary action and
+Escape cancels or leaves the current edit. Multiline editors keep their own keys. In the first-run setup window, Enter inside an input accepts and
+Escape chooses **Later**; both apply only while the window is idle, and Escape never
+accepts anything. In **Saved searches**, Enter in the name field confirms creating
+or renaming while that button is available; Escape cancels the edit first and closes
+the dialog only after that. In the export dialog, Enter in the destination field
+starts the export; in the SHA-256 search, Enter in the hash field starts the search
+as soon as the button is available. These shortcuts never bypass a disabled action or confirm a destructive operation
+without its required acknowledgement.
+
 ### Rule templates
 
 In Rules, each effective media-type or size value names its own origin. **Open
@@ -238,10 +403,12 @@ when returning to their scope; navigation does not save or retry downloads.
 Built-in defaults have no stored rule to open. Saving rules does not automatically
 reconsider recorded media selections or exclusions, or delete previously saved files.
 
-Maximum file sizes use decimal MB (1 MB = 1,000,000 bytes). Provider sizes guide
-preselection; an unknown size is initially eligible. Downloaded bytes must also
-stay within the effective limit for that medium. Allowing provider size or MD5
-differences for a source does not relax this limit.
+Maximum file sizes and rule values use binary units: **KiB, MiB and GiB** (1 MiB =
+1,048,576 bytes). Provider sizes guide preselection; an unknown size is initially
+eligible. Downloaded bytes must also stay within the effective limit for that
+medium. Allowing provider size or MD5 differences for a source does not relax this
+limit. Previously saved rule limits keep their stored byte value; changing the
+unit label does not silently resize them.
 
 In 1.0, open **Rule templates** in Rules. **Create from draft** opens a template
 editor: name it, choose whether to include media selection, size limit and/or
@@ -285,6 +452,77 @@ preempted, paused work stays paused, and source limits still apply. **Normal
 priority** removes the boost. Priority is session-local and belongs to the exact
 watch, not to any later watch with the same URL.
 
+### Storage and limits
+
+Settings → **Storage and limits** contains configurable catalog, collection,
+cache and import limits. Sizes use binary units (1 KiB = 1024 bytes, 1 MiB =
+1024 KiB, 1 GiB = 1024 MiB). **Save** applies the draft. These limits are not a
+quota for all media on disk; download file-size rules and free-space reserve are
+separate.
+
+Lowering a collection or catalog write limit does not delete stored data or make
+an otherwise valid existing store unreadable. New entries or growth beyond the
+limit are refused. Corrupt or newer stores can still block changes independently
+of the limit; do not delete their files to get past an error.
+
+| Setting | Default | Allowed |
+| --- | --- | --- |
+| Free-space reserve (GiB) | 1 | 0 to 65536 |
+| Danbooru catalog limit (MiB) | 32 | 8 to 128 |
+| Own tag limit | 1024 | 256 to 20000 |
+| Own tag file limit (MiB) | 32 | 8 to 128 |
+| Favorites and ratings: entries per list | 50000 | 10000 to 500000 |
+| Favorites and ratings: file size (MiB) | 8 | 1 to 128 |
+| Post bookmarks | 10000 | 1000 to 100000 |
+| Saved searches | 500 | 50 to 5000 |
+| Reader groups | 500 | 50 to 5000 |
+| Sources page: watch rows per source | 8 | 3 to 200 |
+| Ask before “Export all matches” above (files) | 500 | 10 to 100000 |
+| Ask before “Export all matches” above (GiB) | 2 | 1 to 1024 |
+| Video preview cache size (MiB) | 512 | 16 to 8192 |
+| Video preview cache: files | 2048 | 32 to 50000 |
+| Sound check cache: size (MiB) | 64 | 16 to 128 |
+| Sound check cache: videos | 400000 | 50000 to 1000000 |
+| Media previews kept in memory | 384 | 32 to 8192 |
+| Media index cache limit (MiB) | 256 | 16 to 1024 |
+| Media index cache: entries | 1000000 | 100000 to 5000000 |
+| Media index cache: threads | 200000 | 20000 to 1000000 |
+| Clipboard: URLs checked per read | 32 | 1 to 500 |
+| Clipboard: text searched (KiB) | 64 | 4 to 4096 |
+| Import: files per batch | 2000 | 1 to 20000 |
+| Import: size per batch (GiB) | 50 | 1 to 16384 |
+| Import: largest single file (MiB) | 4096 | 1 to 1048576 |
+| Import: files in total | 50000 | 1 to 500000 |
+| Import: number of batches | 100000 | 1000 to 1000000 |
+| Import: tags per batch | 32 | 1 to 256 |
+| Import: catalog file size (MiB) | 32 | 1 to 128 |
+
+At 75 % utilization, the relevant status line warns for favorites, thread
+favorites, ratings, the Danbooru catalog or the saved media index. The message
+names the setting that can be raised.
+
+Cache and confirmation limits behave differently from collection limits. A full
+video-preview cache evicts old **derived previews**, never saved originals; the
+in-memory thumbnail cache drops least-recently-used previews. If a media index is
+too large to save, Media rebuilds it after a restart. The **Export all matches…**
+thresholds ask before a large copy; confirming does not silently truncate its
+selection, but missing files, errors or cancellation can still prevent copies.
+
+The sound-check cache remembers whether a video has sound for the Media filter.
+Both its byte and entry limits apply. When it cannot keep every derived answer,
+the rest is checked again when needed; lowering it does not delete video files.
+
+Some fixed technical limits protect individual records and parsers: bookmark
+notes hold at most 8000 Unicode codepoints; reader groups have at most 1000
+threads each and 20000 memberships in total. Bookmark, saved-search and
+reader-group files are bounded at 32, 8 and 16 MiB respectively. Favorites,
+thread favorites and ratings are read up to 500000 entries and 128 MiB. The
+Danbooru, own-tag and import catalogs are read up to 128 MiB even when the
+configured write limit is lower; the saved media index is read up to 1 GiB.
+A video poster is at most 4 MiB and is generated for videos up to 512 MiB.
+A selected original export (favorites or selection) is bounded at 50000 entries.
+The gallery's image/GIF decoder limits remain separate, as described below.
+
 ### Settings and session messages
 
 Settings shows one category at a time, with its navigation beside the content.
@@ -308,6 +546,70 @@ entry/count intact. Another source or failure still has its own message. Clearin
 Diagnostics does not re-enable acknowledged messages. Passive popup expiry does
 not acknowledge a failure. Unstructured provider errors still distinguish their
 exact diagnostic text; changed error details can represent a separate occurrence.
+
+### Statistics and disk traffic
+
+Open **Statistics** with Ctrl+8 (Command+8 on macOS), from **Tools** or the app
+menu, or by clicking the header graph. It shows measured network and media-disk
+traffic, history and rows per source. These are MeowChan's own counters, including
+media transfers, imports and integrity reads, not operating-system totals.
+Thumbnail and archive-file I/O are not counted. Disk rate combines reads and
+writes; retries or failed transfers can contribute bytes without a saved file.
+**Reset statistics** asks for confirmation before clearing the counters, not media.
+
+Settings → **Behavior → Statistics** controls the sampling and persistence:
+
+| Setting | Default | Allowed |
+| --- | --- | --- |
+| Statistics update interval (milliseconds) | 1000 | 500 to 10000 |
+| Graph length (readings) | 120 | 30 to 3600 |
+| Update interval in the tray (milliseconds) | 5000 | 2000 to 60000 |
+| Days of statistics kept | 30 | 1 to 365 |
+| Statistics saving interval (minutes) | 5 | 1 to 60 |
+| Most sources in the statistics | 64 | 8 to 256 |
+
+At the defaults, 120 readings at one second cover two minutes. When the window is
+hidden, sampling needs active downloads and the statistics tooltip option; hidden
+and idle does not run the sampling timer. The tray's statistics tooltip and its
+two menu lines can each be disabled. The menu lines open Statistics.
+
+**Keep statistics on this computer** is on by default. It saves daily totals in
+`io-stats.json` in the profile, at the configured interval when changed and at
+exit. With it off, totals last for the session and an existing file remains
+untouched. Retention includes today; older days are pruned on load and at midnight.
+Further sources beyond the row limit are grouped as **Other sources**.
+**Header graph → Automatic** shows network and disk in Advanced, network only in
+other views; the Statistics page always shows both. These controls do not alter
+provider limits, download rules or the saved-media progress count.
+
+### Animations
+
+The **Animations** setting decides whether short fades, hover transitions, chip and
+overlay changes and the motion of notifications are played. **Follow system** uses
+your operating system's reduced-motion setting, **On** always plays them, **Off**
+shows everything immediately. Progress bars and loading indicators keep running in
+every case. The environment variables `MEOWCHAN_MOTION=off` or `on` and
+`MEOWCHAN_REDUCED_MOTION=1` or `0` take precedence over the setting.
+
+### Accessibility
+
+For screen readers, page titles are level-1 headings and section titles level-2
+headings, so you can jump from heading to heading.
+
+A hidden spoiler is announced only as **Spoiler, hidden**; its real text is read
+only after you reveal it. Tiles on the Media page carry named values rather than
+only a symbol: the media kind (**GIF**, **Video**, **File**), **Not saved**,
+**No post** or **No media tags yet**; a rating is announced as “term: value”.
+Dialog error strips expose live announcements to accessibility clients.
+
+Keyboard focus is drawn as two rings, a colored one outside and one in the
+background color inside, to help keep it distinguishable in both themes.
+Selected chips, tiles and the chosen category in Settings are also recognizable
+by shape, not only by color: chips get an outline, tiles a drawn check mark, the
+category a bar.
+
+These semantics do not establish screen-reader compatibility on every platform;
+Windows, macOS and Linux accessibility acceptance remain separate checks.
 
 ## Linux packages and startup
 
@@ -354,9 +656,11 @@ follows newly saved posts to the end without starting any network work. It waits
 while a gallery or export dialog is open. Changing threads or removing the watch
 turns following off. Repeated source polls without new posts show no notice.
 
-Expand **Replies to #…** on a post to see its local reply count and captured reply
-links inline. Replies load in pages of 20; **More replies** appends another page.
-Opening a reply uses saved posts only and never fetches the source.
+Settings → **Reading & media → Post width** selects **Fit to content** (the
+default), **Centered column** or **Full width**. Fit makes each card only as wide
+as its text and pictures need, up to the reading width; Centered column uses the
+reading-width column, and Full width uses the available reader width. Saving the
+choice applies it to the open reader.
 
 The reader reserves space for previews so loading images do not keep shifting posts. Refreshing the same thread
 retains the current reading position. If a preview cannot finish loading, it reports “The preview could not be loaded.”
@@ -459,6 +763,53 @@ Double-clicking one result thread opens only that thread. Changing filters or
 new archive arrivals does not silently replace an already opened sequence;
 close and reopen to take a new result snapshot.
 
+### Reading posts as cards
+
+The reader shows every post as a card; the opening post sits directly on the page.
+A card's header is a single line with subject, name, date and number. Clicking the
+number (**No. …**) copies `>>number` for quoting. Thumbnails lie flat under a file
+line with name and size.
+
+In the post text, lines starting with `>` are green. Clicking `>>number` jumps to
+that post, and the target flashes once. Quotes of posts that were not captured are
+struck through. Spoilers stay hidden until you click them or press Enter or Space;
+that reveals every spoiler of that post, and they stay revealed. Code is shown in a
+monospace font, external links are underlined. The portable HTML export remains a
+separate offline rendering of saved posts.
+
+Click an external link, or select it in the focused post text and press Enter,
+to review its full address with the ASCII (punycode) host highlighted. The
+confirmation initially focuses **Cancel**, so repeated Enter does not open the
+browser by accident; choose **Open** deliberately. Only valid HTTP(S) addresses
+without embedded user credentials become links. Addresses longer than 2048 UTF-16
+code units stay plain text. **Do not ask again this session** skips subsequent
+confirmations only for this app session, not after a restart. Opening a link
+leaves local reading and can contact that website.
+
+When the pointer rests briefly on a quote, or a quote button has focus and you press
+Space, a preview of the quoted post appears with at most eight lines or 420
+characters. Escape closes it, and Space on the quote button closes it again; Enter
+on the quote button jumps there instead. The preview shows only posts of this thread
+that are captured locally; a quote into another thread or of an uncaptured post
+shows none.
+
+A post with more than 24 lines is folded to 18 lines and fades out at the bottom.
+**Show more (… lines)** unfolds it, **Show less** folds it again; MeowChan remembers
+this per post for as long as the thread is open. The thread find unfolds a post with
+a hit by itself.
+
+The **Replies: …** counter in the header opens the replies as indented cards, five
+at a time; **Show more replies** loads five more. Clicking the counter again closes
+them, and reopening reuses what was already loaded. A post without replies shows no
+counter. Replies always come from the saved posts; the source is never queried for
+them.
+
+When you return to a thread through **Continue reading** or load new posts with
+**Show new posts**, a thin line with **… new posts since last time** marks the
+first new post. Once you have scrolled past the line, **Back to last read** in the
+reader toolbar takes you back to it. A thread you open from the list and a refresh
+through **Follow live** start without a line.
+
 ### Archive filters and saved searches
 
 In the 1.0 Archive, open **Filters and sorting**. Source and board fields offer
@@ -493,6 +844,11 @@ a definition and **Apply search** to run it against the current local archive,
 starting on page 1. Confirm replacement if you have an unsearched draft. The same
 definition may find different threads later. **Rename**, **Replace with applied
 search…** and **Delete search…** manage definitions; deleting one keeps the archive.
+
+In the name field, Enter confirms creating or renaming. When no search is saved
+yet, the dialog says so and points to **Save applied search…**; when searches exist
+but none is selected, it explains that you need to select one first. How many
+searches you can save is set by the **Saved searches** setting.
 
 ### Reader groups
 
@@ -545,6 +901,46 @@ or 80 million source pixels are refused by the gallery. Fit decoding is bounded 
 more memory. Corrupt, missing, unsupported or unverifiable files show a reason.
 The verified originals remain on disk even when preview is unavailable. These
 viewer limits are separate from download rules and do not cap total archive size.
+
+### Own tags and the shared media menu
+
+Right-click a media tile, attachment or the shown gallery file to get the same
+core menu: gallery, original export, show in folder, favorite, rating, media tags
+and details, with source/post actions when that item has them. Disabled actions
+explain their requirements instead of inventing a post for an unbound file.
+Selection commands are marked separately from actions on the clicked file.
+
+Your own tags can be attached to threads and to individual media, including
+older loose media without a captured post. They stay local. A thread's tags and
+a medium's tags are distinct; a matching tag filter may include media through
+their thread, but **Without media tags** counts only tags assigned to the media
+itself. Danbooru source tags do not count as your own tags. Click the untagged
+count on Media, or use that filter, to start tagging those items.
+
+**Tags…** opens the thread's tags from Archive; **Edit media tags…** opens the
+media's tags. The dialog has a search field, selection counts for group tagging,
+and **Undo** for the last dialog edit. Tag-name suggestions put your own tags
+first and Danbooru source tags in a separate group. Choosing a source tag as an
+own tag creates a local tag; it does not edit Danbooru. Clicking a tag chip on a
+media tile filters the view by that tag.
+
+Tagging an older loose file records that local occurrence/revision. Equal file
+bytes alone do not merge tags between unrelated files. Back up the profile's
+`private-tags.json` with its media; the one-time v1 backup described below is not
+a replacement for a complete backup.
+
+### Several files in a thread's media tab
+
+In a thread's media tab you select several files as on the Media page: Ctrl/Cmd+click
+adds a file, Shift+click or Shift with the arrow keys selects a range, Ctrl/Cmd+A
+selects all, Escape clears the selection. A status line says how many files are
+selected.
+
+With two or more files selected, **Tag together…**, **Selection as gallery**,
+**Export originals…** and **Clear selection** act on all of them. Every other
+command still acts on exactly the file you clicked, and the gallery opens at it.
+The context menu acts on the focused file; only its selection actions act on all
+selected files.
 
 ### Favorites and original-file export
 
@@ -645,6 +1041,36 @@ Removing monitoring retains captured posts and saved files. Disabling **Save URL
 on exit** prevents automatic watch restoration from both the URL list and retained
 work state; it does not erase the archive.
 
+## Importing your own files
+
+You can bring your own files into your media library. Choose **Import files…** from
+the menu or drop files and folders onto the window. In the dialog you collect the
+selection with **Add files…** and **Add folder…**; **Include subfolders** and **Also
+other files (PDF, ZIP, audio)** widen it. Other files are kept without a preview.
+
+MeowChan first looks through the selection and checks every file by SHA-256. The
+list shows for each file whether it is new, already there, selected twice, not
+supported, an other file that is switched off, too large, not readable or skipped (a
+link, or already inside the download folder). When not all media could be read, the
+dialog says that the duplicate check is incomplete. **Stop check** only stops the
+looking through.
+
+Give the batch a name (up to 200 characters) and, if you like, own tags, then start
+the import. New files are copied into the `meowchan-import/` folder in your download
+folder; files you already have are only linked. Your originals are never moved or
+changed. **Stop after current file** ends the run; files already copied stay
+imported. Afterwards, **Show batch** takes you to the Media page.
+
+Imported files are ordinary local media: they appear on the Media page under
+**Own imports**, in the gallery and among the favorites, and can be tagged and
+rated like everything else. The import checks the required space and free-space
+reserve before copying; changes in available space or other write failures can
+still interrupt a run. When a selection hits a limit, the dialog names the
+setting under **Storage and limits** that you can raise.
+
+For backups, keep the profile (including `local-imports.json`), the
+`meowchan-import/` folder, and any existing media to which the catalog links.
+
 ## Clean up small archive threads
 
 In 1.0, open **Archive** → **Clean up archive…** (German:
@@ -725,6 +1151,11 @@ another machine for portable offline reading. Keep its metadata file for future
 association and updates. A failure to open the system folder does not invalidate
 an otherwise successful export. Exports are not a full profile backup.
 
+Exported pages have a **Theme** switch (**System**, **Light**, **Dark**) in their
+header. It works without scripts and returns to System after a reload. **About**
+shows source/thread details, counts, timestamps, the exporting MeowChan version
+and credits. These HTML controls are independent of the desktop theme.
+
 ### Combined export of selected threads
 
 Export a multi-selection as one offline folder: `index.html` is the landing page,
@@ -772,7 +1203,7 @@ downgrade of data changed by 1.0. If you need the
 an untouched profile or restore a pre-upgrade backup to a separate location;
 keep the 1.0 data for investigating the problem.
 
-**1.0.2 plugin-state transition:** the current source can write a v2
+**Plugin-state transition introduced in 1.0.2:** the current source can write a v2
 plugin-state envelope that 1.0.0/1.0.1 do not read. Before replacing an existing
 validated v1 state—even during startup observation—it retains the original bytes
 as `plugin-state/state.pre-v2.json` plus a `.sha256` digest. This is an immutable
@@ -786,6 +1217,22 @@ into an unrelated or actively running profile.
 New durable work state records retries, source end and watch intent independently
 of captured posts. Never delete its files to dismiss a failure; preserve a backup
 and inspect the reported recovery error.
+
+### Own-tag v1 backup and 1.1.0 local data
+
+On the first write that actually upgrades an existing own-tag v1 document to v2
+by committing local-media data, MeowChan keeps its exact previous bytes as
+`private-tags.v1.bak` in the profile. Merely reading v1 does not rewrite it.
+The one-time file is not rotated by later writes, unlike the ordinary `.bak`;
+an existing entry at that path is never overwritten. A profile already created
+as v2 cannot manufacture an old v1 copy. This is **not a full-profile backup**
+and does not make downgrading a modified profile supported.
+
+Before trying 1.1.0, retain a complete separate 1.0.2 profile/media backup. Preserve
+the Booru catalog, private tags, import catalog and imported media with the rest
+of the profile and media roots. To go back, close all writers and restore a
+matching pre-upgrade backup to a separate location, not pieces of an active
+1.1.0 profile.
 
 ### In-place bundled-plugin rebuilds
 
