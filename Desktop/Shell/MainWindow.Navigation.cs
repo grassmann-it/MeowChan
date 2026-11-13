@@ -222,8 +222,7 @@ public partial class MainWindow
                 _sourcesPage = new SourcesPage(OpenDiagnosticWatch, source =>
                 {
                     if (NavigateWorkspace(WorkspacePage.Rules)) _rulesPage!.EditScope(Rules.MediaRuleScope.ForSource(source));
-                }, () => NavigateWorkspace(WorkspacePage.Diagnostics), () => NavigateWorkspace(WorkspacePage.Downloads),
-                    (input, observeModal) => SubmitInputAsync(input, observeModal));
+                }, () => NavigateWorkspace(WorkspacePage.Diagnostics), GoToDownloads);
                 _sourcesPage.BusyChanged += OnSettingsBusyChanged;
                 SourcesPageHost.Content = _sourcesPage;
                 return true;

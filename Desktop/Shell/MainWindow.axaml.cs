@@ -536,14 +536,14 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task<bool> SubmitInputAsync(string? input, Action<Window>? observeExperimentalModal = null)
+    private async Task<bool> SubmitInputAsync(string? input)
     {
         if (!_restoreCompleted || _isClosing) return false;
         _admissionResults.Clear();
         bool allAccepted = true;
         try
         {
-            allAccepted = await SubmitAdmissionBatchAsync(input, observeExperimentalModal);
+            allAccepted = await SubmitAdmissionBatchAsync(input);
             if (_admissionResults.Count == 0 && !_isClosing && !_admissionBatchCanceled && !_admissionBooruOpened)
             {
                 bool fromClipboard = string.IsNullOrWhiteSpace(input);

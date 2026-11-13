@@ -145,7 +145,7 @@ public partial class MainWindow
     }
 
     private async Task<IReadOnlyDictionary<int, string>> FilterExperimentalAdmissionsAsync(IReadOnlyList<string> entries,
-        Action<Window>? observeExperimentalModal = null, IEnumerable<int>? ignoredIndexes = null)
+        IEnumerable<int>? ignoredIndexes = null)
     {
         var skipped = new Dictionary<int, string>();
         HashSet<int> ignored = ignoredIndexes is null ? new() : new(ignoredIndexes);
@@ -187,7 +187,6 @@ public partial class MainWindow
             {
                 var dialog = new ExperimentalActivationDialog(current.Target, _session.ActivateAndAllowExperimentalSourceAsync);
                 _experimentalAdmissionFocusReturn?.Observe(dialog);
-                observeExperimentalModal?.Invoke(dialog);
                 ExperimentalActivationDecision? decision = await dialog.ShowDialog<ExperimentalActivationDecision?>(this);
                 RefreshSourcesPage();
                 if (_isClosing) throw new OperationCanceledException();

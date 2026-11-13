@@ -76,7 +76,7 @@ internal static class Alpha2CopyChecks
             Provider(NoPolicy, "Source without policy"), Provider(Inactive, "Inactive discussion source")
         ];
         SourcesPage sources = new(_ => { navigationCalls++; return false; }, _ => navigationCalls++,
-            () => navigationCalls++, () => navigationCalls++, _ => { submitCalls++; return Task.FromResult(false); })
+            () => navigationCalls++, () => submitCalls++)
         {
             GetSourceMediaIntegrityPolicies = Policies,
             SetSourceMediaIntegrityPermission = SaveAsync,

@@ -67,21 +67,27 @@ internal static class SourcesChecks
                 && window.RulesPage.SelectedScopeChoice?.Scope == MeowChan.Rules.MediaRuleScope.ForSource(selectedSource.SourceId),
                 "The productive Sources page did not open the shared canonical source rule editor.");
             window.FindControl<MenuItem>("SourcesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-            livePage.FindControl<TextBox>("SourceUrlInput")!.Text = "https://unknown.invalid/g/thread/123";
-            livePage.FindControl<Button>("SourceAddButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await Program.WaitUntilAsync(() => !livePage.IsBusy
-                && !string.IsNullOrEmpty(livePage.FindControl<TextBlock>("SourceUrlResult")!.Text));
+            // The page no longer admits anything itself: its button goes to Downloads and focuses the URL field there,
+            // and the shared admission/reporting path runs from that field exactly as for any pasted link.
+            Button handoff = livePage.FindControl<Button>("SourceAddToDownloadsButton")!;
+            Require(handoff.IsEffectivelyEnabled, "The productive Sources page did not offer its add-in-Downloads button.");
+            handoff.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            TextBox downloadsInput = window.FindControl<TextBox>("UrlInput")!;
+            await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Downloads && downloadsInput.IsFocused);
+            Require(string.IsNullOrEmpty(downloadsInput.Text),
+                "The Sources hand-off prefilled the Downloads field; a base URL would not be a valid thread link.");
+            downloadsInput.Text = "https://unknown.invalid/g/thread/123";
+            window.FindControl<Button>("AddUrlButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Program.WaitUntilAsync(() => window.FindControl<StackPanel>("AdmissionResultRows")!.Children.OfType<TextBox>().Any());
             TextBox report = window.FindControl<StackPanel>("AdmissionResultRows")!.Children.OfType<TextBox>().Single();
             Require(report.Text?.Contains(Texts.T("admission.unsupported")) == true
-                && livePage.FindControl<TextBox>("SourceUrlInput")!.Text == "https://unknown.invalid/g/thread/123",
-                "The productive source URL action did not use the shared admission/reporting path.");
-            livePage.FindControl<TextBox>("SourceUrlInput")!.Text = string.Empty;
+                && downloadsInput.Text == "https://unknown.invalid/g/thread/123",
+                "The Downloads field did not use the shared admission/reporting path for a link entered after the Sources hand-off.");
+            downloadsInput.Text = string.Empty;
         }
         string? editedSource = null;
-        string? submitted = null;
-        int submissions = 0;
-        SourcesPage page = new SourcesPage(_ => false, source => editedSource = source, () => { }, () => { }, input =>
-        { submitted = input; submissions++; return Task.FromResult(false); });
+        int handoffs = 0;
+        SourcesPage page = new SourcesPage(_ => false, source => editedSource = source, () => { }, () => handoffs++);
         host.Content = page;
         DesktopThreadEntry thread = SnapshotFixtures.Thread(991, "123", "Source fixture") with
         {
@@ -116,7 +122,6 @@ internal static class SourcesChecks
                 {
                     Texts.SetLanguage(language);
                     page.Refresh(providers, view, true);
-                    page.FindControl<TextBox>("SourceUrlInput")!.Text = "https://unknown.invalid/g/thread/123";
                     Button firstSource = (Button)page.FindControl<StackPanel>("SourceCards")!.Children[0];
                     Require(firstSource.Content is StackPanel && !firstSource.GetVisualDescendants().OfType<Button>().Any(),
                         "Source row still requires a separate Select button.");
@@ -135,9 +140,8 @@ internal static class SourcesChecks
                             "Narrow row activation did not open details.");
                         page.FindControl<Button>("SourceBackButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-                        Require(firstSource.IsFocused && page.FindControl<StackPanel>("SourcesListPane")!.IsVisible
-                            && page.FindControl<TextBox>("SourceUrlInput")!.Text == "https://unknown.invalid/g/thread/123",
-                            "Narrow Back did not restore source focus and URL draft.");
+                        Require(firstSource.IsFocused && page.FindControl<StackPanel>("SourcesListPane")!.IsVisible,
+                            "Narrow Back did not restore source focus.");
                         firstSource.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     }
                     await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -150,8 +154,7 @@ internal static class SourcesChecks
                         Texts.T("sources.website", "https://boards.4chan.org/"));
                     RequireIconLabel(page.FindControl<Button>("SourceRulesButton")!, Texts.T("sources.rules"));
                     RequireIconLabel(page.FindControl<Button>("SourceDiagnosticsButton")!, Texts.T("sources.diagnostics"));
-                    RequireIconLabel(page.FindControl<Button>("SourceDownloadsButton")!, Texts.T("nav.downloads"));
-                    RequireIconLabel(page.FindControl<Button>("SourceAddButton")!, Texts.T("action.add"));
+                    RequireIconLabel(page.FindControl<Button>("SourceAddToDownloadsButton")!, Texts.T("sources.addInDownloads"));
                     RequireIconLabel(page.FindControl<Button>("SourceOpenWatchButton")!, Texts.T("diagnostics.openWatch"));
                     page.FindControl<ScrollViewer>("SourcesScroll")!.ScrollToHome();
                     await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -159,9 +162,9 @@ internal static class SourcesChecks
                     if (mode == "Simple") await CaptureBothThemesAsync(window, $"smoke-sources-{mode.ToLowerInvariant()}-{language}");
                     page.FindControl<Button>("SourceRulesButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     Require(editedSource == "4chan", "Source rules targeted a display label instead of canonical source identity.");
-                    page.FindControl<Button>("SourceAddButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                    Require(submitted == "https://unknown.invalid/g/thread/123"
-                        && page.FindControl<TextBox>("SourceUrlInput")!.Text == submitted, "Admission did not preserve rejected URL text.");
+                    int handoffsBefore = handoffs;
+                    page.FindControl<Button>("SourceAddToDownloadsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Require(handoffs == handoffsBefore + 1, "The add-in-Downloads button did not hand over to Downloads exactly once.");
                     page.Refresh(providers, view, true);
                     DataGrid watches = page.FindControl<DataGrid>("SourceWatchesGrid")!;
                     watches.BringIntoView();
@@ -178,10 +181,9 @@ internal static class SourcesChecks
                     if (mode == "Simple") await CaptureBothThemesAsync(window, $"smoke-sources-details-{mode.ToLowerInvariant()}-{language}");
                     page.Refresh(providers, view with { Threads = [] }, true);
                     Require(!page.FindControl<Button>("SourceOpenWatchButton")!.IsEnabled, "Removed watch left navigation enabled.");
-                    Require(page.FindControl<TextBox>("SourceUrlInput")!.Text == submitted, "Refresh lost the retained URL draft.");
                 }
             }
-            Require(submissions == 6, "Opening or refreshing Sources caused unsolicited admissions.");
+            Require(handoffs == 6, "Opening or refreshing Sources navigated to Downloads without a click on its button.");
             await CheckNavigationAsync(window, wide: false);
             // Native Windows desktops can be narrower than the requested 1280 DIP.
             // Exercise wide navigation only where the actual working area permits it.
@@ -217,17 +219,13 @@ internal static class SourcesChecks
                 page.FindControl<Button>("SourceBackButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 window.Width = targetWidth;
                 await Program.WaitUntilAsync(() => page.FindControl<Border>("SourceDetailsPanel")!.IsEffectivelyVisible);
-                TextBox url = page.FindControl<TextBox>("SourceUrlInput")!;
-                url.Focus();
+                Button handoffButton = page.FindControl<Button>("SourceAddToDownloadsButton")!;
+                handoffButton.Focus();
                 window.Width = 760;
                 await Program.WaitUntilAsync(() => selectedSource.IsFocused && page.FindControl<StackPanel>("SourcesListPane")!.IsVisible);
-                Require(url.Text == submitted, "Responsive focus recovery changed the source URL draft.");
                 window.Width = targetWidth;
                 await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - targetWidth) <= 1);
             }
-            await CheckSubmitFocusAsync(host, providers, view);
-            await CheckOwnedModalReturnDeactivationAsync(window, host, providers, view, externalDeactivation: false);
-            await CheckOwnedModalReturnDeactivationAsync(window, host, providers, view);
             await CheckNavigationAsync(window, wide: targetWidth >= 1120);
             page.Refresh([], view, true);
             Require(page.FindControl<TextBlock>("SourcesEmpty")!.IsVisible && !page.FindControl<Border>("SourceDetailsPanel")!.IsVisible,
@@ -241,7 +239,7 @@ internal static class SourcesChecks
             window.Width = width; window.Height = height;
             window.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         }
-        Console.WriteLine("SMOKE sources: passive capabilities, current cooldowns, exact watch actions, shared admission drafts and compact EN/DE views passed.");
+        Console.WriteLine("SMOKE sources: passive capabilities, current cooldowns, exact watch actions, the Downloads hand-off and compact EN/DE views passed.");
     }
     // Light and dark captures of the same state; the page itself has no theme-specific logic, so this is evidence only.
     private static async Task CaptureBothThemesAsync(MainWindow window, string name)
@@ -291,180 +289,6 @@ internal static class SourcesChecks
             await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - restoreWidth) <= 1);
             page.Refresh(providers, view, true);
             page.SelectSource("thread-only");
-        }
-    }
-    private static async Task CheckSubmitFocusAsync(ContentControl host,
-        ProviderDescriptor[] providers, DesktopSessionView view)
-    {
-        object? original = host.Content;
-        Func<Task<bool>> result = () => Task.FromResult(false);
-        int submits = 0;
-        SourcesPage fixture = new(_ => false, _ => { }, () => { }, () => { }, _ => { submits++; return result(); });
-        host.Content = fixture;
-        try
-        {
-            fixture.Refresh(providers, view, true);
-            fixture.SelectSource("4chan");
-            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-            TextBox editor = fixture.FindControl<TextBox>("SourceUrlInput")!;
-            async Task EnterAsync()
-            {
-                editor.Text = "retained rejected URL";
-                editor.BringIntoView();
-                Require(editor.Focus(), "Source submit focus fixture could not focus its actual editor.");
-                editor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
-                await Program.WaitUntilAsync(() => !fixture.IsBusy);
-                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-            }
-            await EnterAsync();
-            Require(submits == 1 && editor.IsFocused && editor.Text == "retained rejected URL",
-                "Rejected ordinary Enter must submit once and restore the retained URL editor.");
-            result = () => Task.FromException<bool>(new InvalidOperationException("Expected submit focus fixture failure"));
-            await EnterAsync();
-            Require(submits == 2 && editor.IsFocused && editor.Text == "retained rejected URL"
-                && fixture.FindControl<Ursa.Controls.Banner>("SourcesActionErrorBanner")!.IsVisible,
-                "A failed source submit did not retain its editor focus and local error.");
-            result = () => Task.FromResult(true);
-            await EnterAsync();
-            Require(submits == 3 && editor.Text == string.Empty && !editor.IsFocused,
-                "Accepted source submit must retain its existing clear/no-restore behavior.");
-
-            TaskCompletionSource<bool> pending = new();
-            result = () => pending.Task;
-            editor.Text = "delayed rejected URL"; editor.BringIntoView(); editor.Focus();
-            editor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
-            Require(fixture.IsBusy && !editor.IsEnabled, "Delayed submit did not enter its guarded busy state.");
-            Button laterChoice = fixture.FindControl<Button>("SourcePluginButton")!;
-            // The fixture has no plugin callback; a focusable sibling outside the
-            // busy source guards is the genuine later keyboard decision.
-            fixture.OpenPluginSettings = _ => { };
-            fixture.Refresh(providers, view, true);
-            Require(laterChoice.Focus(), "The later focus choice was not reachable.");
-            pending.SetResult(false);
-            await Program.WaitUntilAsync(() => !fixture.IsBusy);
-            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-            Require(submits == 4 && laterChoice.IsFocused && editor.Text == "delayed rejected URL",
-                "A rejected source submit stole focus from a later user choice.");
-
-            pending = new(); result = () => pending.Task;
-            editor.BringIntoView(); editor.Focus();
-            editor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
-            fixture.SelectSource("thread-only"); fixture.SelectSource("4chan");
-            pending.SetResult(false);
-            await Program.WaitUntilAsync(() => !fixture.IsBusy);
-            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-            Require(submits == 5 && !editor.IsFocused && editor.Text == "delayed rejected URL",
-                "A stale submit restored focus after a source identity changed away and back.");
-
-            pending = new(); result = () => pending.Task;
-            editor.BringIntoView(); editor.Focus();
-            editor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
-            host.Content = original;
-            host.Content = fixture;
-            pending.SetResult(false);
-            await Program.WaitUntilAsync(() => !fixture.IsBusy);
-            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-            Require(submits == 6 && !editor.IsFocused && editor.Text == "delayed rejected URL",
-                "A stale submit restored focus after its source page detached and reattached.");
-        }
-        finally { fixture.EndLifetime(); host.Content = original; }
-    }
-    private static async Task CheckOwnedModalReturnDeactivationAsync(MainWindow window, ContentControl host,
-        ProviderDescriptor[] providers, DesktopSessionView view, bool externalDeactivation = true)
-    {
-        object? original = host.Content;
-        TaskCompletionSource<bool> outcome = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        Window? ownedModal = null;
-        Window external = new() { Width = 320, Height = 180, Title = "External activation fixture",
-            Content = new TextBlock { Text = "Separate native activation", Margin = new Thickness(16) } };
-        bool modalClosed = false, sawInitialOwnerDeactivation = false, sawExternalOwnerDeactivation = false;
-        int postClosedOwnerActivations = 0, newerOwnerFocusEvents = 0;
-        bool externalShown = false;
-        void OnOwnerActivated(object? sender, EventArgs args)
-        {
-            if (modalClosed) postClosedOwnerActivations++;
-            Console.WriteLine($"SMOKE owned-modal owner activated: closed={modalClosed}, postClosed={postClosedOwnerActivations}, external={externalShown}.");
-        }
-        void OnOwnerDeactivated(object? sender, EventArgs args)
-        {
-            if (!modalClosed) sawInitialOwnerDeactivation = true;
-            if (externalShown) sawExternalOwnerDeactivation = true;
-            Console.WriteLine($"SMOKE owned-modal owner deactivated: closed={modalClosed}, postClosed={postClosedOwnerActivations}, external={externalShown}, nativeOwner={X11WindowActivation.OwnsNativeFocus(window)}.");
-        }
-        void OnOwnerFocus(object? sender, FocusChangedEventArgs args) => newerOwnerFocusEvents++;
-        SourcesPage fixture = new(_ => false, _ => { }, () => { }, () => { }, async (_, observeModal) =>
-        {
-            ownedModal = new Window { Width = 320, Height = 180, Title = "Owned admission fixture",
-                Content = new TextBlock { Text = "Controlled rejected admission", Margin = new Thickness(16) } };
-            observeModal(ownedModal);
-            ownedModal.Closed += (_, _) => modalClosed = true;
-            await ownedModal.ShowDialog<object?>(window);
-            // Keep submit busy through the later external activation/return so
-            // fallback cannot finish before the negative lifetime transition.
-            return await outcome.Task;
-        });
-        host.Content = fixture;
-        try
-        {
-            fixture.Refresh(providers, view, true); fixture.SelectSource("4chan");
-            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-            TextBox editor = fixture.FindControl<TextBox>("SourceUrlInput")!;
-            editor.Text = "retained owned-modal URL"; editor.BringIntoView();
-            Require(editor.Focus(), "Owned-modal return fixture could not focus its real editor.");
-            window.Activated += OnOwnerActivated; window.Deactivated += OnOwnerDeactivated;
-            window.AddHandler(InputElement.GotFocusEvent, OnOwnerFocus, RoutingStrategies.Bubble, handledEventsToo: true);
-            editor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
-            await Program.WaitUntilAsync(() => ownedModal is { IsVisible: true } && fixture.IsBusy && !editor.IsEnabled);
-            ownedModal!.Activate();
-            await Program.WaitUntilAsync(() => ownedModal.IsActive && !window.IsActive && sawInitialOwnerDeactivation);
-            ownedModal.Close();
-            Console.WriteLine($"SMOKE owned-modal closed: closed={modalClosed}, visible={ownedModal.IsVisible}, ownerActive={window.IsActive}, postClosed={postClosedOwnerActivations}.");
-            // Some native backends return activation before Closed and produce
-            // no second bounce. That already-active return is equally valid.
-            await Program.WaitUntilAsync(() => modalClosed && !ownedModal.IsVisible && window.IsActive);
-            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-            Require(fixture.IsBusy && !editor.IsEnabled && newerOwnerFocusEvents == 0
-                && fixture.HasPendingSubmitFocusRestore,
-                "The controlled submit completed or gained newer owner focus before the external deactivation premise.");
-            if (!externalDeactivation)
-            {
-                outcome.SetResult(false);
-                await Program.WaitUntilAsync(() => !fixture.IsBusy && editor.IsEnabled && editor.IsFocused);
-                Require(editor.Text == "retained owned-modal URL", "The owned-modal focus return changed the URL draft.");
-                Console.WriteLine("SMOKE owned-modal positive return: actual close/activation retained the claim and restored the rejected editor with its draft.");
-                return;
-            }
-            externalShown = true; external.Show(window); external.Activate();
-            await Program.WaitUntilAsync(() => external.IsActive && !window.IsActive && sawExternalOwnerDeactivation);
-            Require(!fixture.HasPendingSubmitFocusRestore,
-                "The actual external deactivation left the rejected submit's focus claim alive.");
-            Require(newerOwnerFocusEvents == 0,
-                "A newer owner focus choice masked the external deactivation guard under test.");
-            int beforeExternalReturn = postClosedOwnerActivations;
-            external.Close();
-            await Program.WaitUntilAsync(() => !external.IsVisible && window.IsActive
-                && postClosedOwnerActivations > beforeExternalReturn);
-            // Explicitly establish the negative null-focus premise before submit
-            // completion. Focus(null) raises no GotFocus and cannot itself cancel
-            // this claim; the preceding external deactivation must have done so.
-            window.FocusManager!.Focus(null);
-            Require(fixture.IsBusy && !editor.IsEnabled && newerOwnerFocusEvents == 0
-                && window.FocusManager.GetFocusedElement() == null,
-                "The external-return no-newer-focus/null premise was not established.");
-            outcome.SetResult(false);
-            await Program.WaitUntilAsync(() => !fixture.IsBusy && editor.IsEnabled);
-            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-            Require(window.IsActive && !editor.IsFocused && window.FocusManager.GetFocusedElement() == null
-                && editor.Text == "retained owned-modal URL",
-                "A later external deactivation after the owned-modal return revived the rejected editor's focus claim.");
-            Console.WriteLine($"SMOKE owned-modal external deactivation: normal Closed, already-active or post-Closed owner return ({postClosedOwnerActivations} activations), later external deactivation cancels a live claim; native return without newer GotFocus retains null focus after rejection.");
-        }
-        finally
-        {
-            window.Activated -= OnOwnerActivated; window.Deactivated -= OnOwnerDeactivated;
-            window.RemoveHandler(InputElement.GotFocusEvent, OnOwnerFocus);
-            outcome.TrySetResult(false); ownedModal?.Close(); external.Close();
-            fixture.EndLifetime(); host.Content = original;
         }
     }
     private static async Task CheckNavigationAsync(MainWindow window, bool wide)

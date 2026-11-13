@@ -30,7 +30,7 @@ public partial class MainWindow
         => new(urls.Distinct(StringComparer.Ordinal).ToDictionary(url => url,
             url => new BoardAdmissionPolicy(Array.Empty<ThreadTextRule>(), readPolicy(url).Exceptions), StringComparer.Ordinal), true);
 
-    private async Task<bool> SubmitAdmissionBatchAsync(string? input, Action<Window>? observeExperimentalModal = null)
+    private async Task<bool> SubmitAdmissionBatchAsync(string? input)
     {
         _admissionBatchCanceled = false;
         _admissionBooruOpened = false;
@@ -38,7 +38,7 @@ public partial class MainWindow
         await AddInput.SubmitAsync(input, ReadClipboardAsync, url => { entries.Add(url); return Task.CompletedTask; });
         // Danbooru addresses are read as text first: they never reach the chan registry, its logs or the board dialog.
         IReadOnlyDictionary<int, DanbooruAddress> booru = RecognizeBooruAddresses(entries);
-        IReadOnlyDictionary<int, string> skipped = await FilterExperimentalAdmissionsAsync(entries, observeExperimentalModal, booru.Keys);
+        IReadOnlyDictionary<int, string> skipped = await FilterExperimentalAdmissionsAsync(entries, booru.Keys);
         var boardUrls = new HashSet<string>(StringComparer.Ordinal);
         for (int index = 0; index < entries.Count; index++)
         {

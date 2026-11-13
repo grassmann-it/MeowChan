@@ -41,7 +41,7 @@ internal static class NativeImeChecks
         Texts.SetLanguage(language);
         await PresentationChecks.SwitchModeAsync(owner, "Advanced");
         owner.Width = 1100; owner.Height = 800;
-        int sourceSubmits = 0, appliedSearchChanges = 0;
+        int downloadSubmits = 0, appliedSearchChanges = 0;
         ArchivePage archive = owner.ArchivePage;
         FieldInfo searchGeneration = typeof(ArchivePage).GetField("_searchValidationGeneration", BindingFlags.Instance | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("The observed real search-generation field is missing.");
@@ -49,15 +49,14 @@ internal static class NativeImeChecks
         archive.AppliedSearchChanged += OnAppliedSearchChanged;
         void OnAppliedSearchChanged() => appliedSearchChanges++;
         ContentControl pluginHost = owner.FindControl<ContentControl>("PluginsPageHost")!;
-        ContentControl sourceHost = owner.FindControl<ContentControl>("SourcesPageHost")!;
-        object? originalPlugins = pluginHost.Content, originalSources = sourceHost.Content;
+        object? originalPlugins = pluginHost.Content;
         PluginUxFixture fixture = await PluginUxFixture.CreateAsync(Path.Combine(owner.SessionHost.ProfileDirectory, "ime-plugin-fixture"));
         PluginsPage plugins = new(); plugins.Attach(fixture.Services);
-        SourcesPage sources = new(_ => false, _ => { }, () => { }, () => { }, _ =>
-        {
-            sourceSubmits++;
-            return Task.FromResult(false); // Observe the real submit boundary without network or a watch.
-        });
+        // The Sources page has no URL field any more; the field that takes links is the Downloads one. An Enter that the
+        // product's own handler accepted as a submit is counted at the real boundary, without network or a watch.
+        TextBox downloadUrl = owner.FindControl<TextBox>("UrlInput")!;
+        void CountSubmitEnter(object? sender, KeyEventArgs e) { if (e.Key == Key.Enter && e.Handled) downloadSubmits++; }
+        downloadUrl.AddHandler(InputElement.KeyDownEvent, CountSubmitEnter, RoutingStrategies.Tunnel, handledEventsToo: true);
         try
         {
             pluginHost.Content = plugins;
@@ -72,17 +71,13 @@ internal static class NativeImeChecks
             if (fixture.ForbiddenCalls != 0 || (await fixture.Store.ReadAsync()).Revision != profileRevision)
                 throw new InvalidOperationException("IME input unexpectedly executed a plugin operation or persisted settings.");
 
-            sourceHost.Content = sources;
-            sources.Refresh([new("ime-fixture", "IME fixture source", new Uri("https://ime.example.test/"),
-                ProviderCapabilities.ThreadWatch, ["ime.example.test"], "fixture", true)], owner.SessionHost.GetView(), true);
-            sources.SelectSource("ime-fixture"); Navigate("SourcesMenuItem");
-            TextBox sourceUrl = sources.FindControl<TextBox>("SourceUrlInput")!;
-            sourceUrl.Text = "";
-            await ObserveAsync("source-url-commit", sourceUrl);
-            await ObserveAsync("source-url-cancel", sourceUrl);
-            if (sourceSubmits != 0) throw new InvalidOperationException("Composition commit/cancel prematurely submitted a source URL.");
-            await ObserveAsync("source-url-normal-enter", sourceUrl);
-            if (sourceSubmits != 1) throw new InvalidOperationException("The separate non-composition Enter did not cross exactly one real submit boundary.");
+            owner.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            downloadUrl.Text = "";
+            await ObserveAsync("download-url-commit", downloadUrl);
+            await ObserveAsync("download-url-cancel", downloadUrl);
+            if (downloadSubmits != 0) throw new InvalidOperationException("Composition commit/cancel prematurely submitted a download URL.");
+            await ObserveAsync("download-url-normal-enter", downloadUrl);
+            if (downloadSubmits != 1) throw new InvalidOperationException("The separate non-composition Enter did not cross exactly one real submit boundary.");
 
             Navigate("ArchiveMenuItem");
             await Program.WaitUntilAsync(() => !archive.IsBusy && archive.AppliedSearchSpec != null);
@@ -116,15 +111,16 @@ internal static class NativeImeChecks
                 throw new InvalidOperationException("IME observation unexpectedly created work/media or invoked plugin services.");
             File.WriteAllText(Path.Combine(directory, "checkpoint-complete.json"), JsonSerializer.Serialize(new
             {
-                processId = Environment.ProcessId, sourceDigest = digest, language, sourceSubmits, appliedSearchChanges,
+                processId = Environment.ProcessId, sourceDigest = digest, language, downloadSubmits, appliedSearchChanges,
                 scope = "Read-only product-state checkpoints completed; no IME PASS. Require independent real engine preedit/commit/lookup trace and observed UI evidence."
             }));
         }
         finally
         {
             archive.AppliedSearchChanged -= OnAppliedSearchChanged;
-            plugins.EndLifetime(); sources.EndLifetime();
-            pluginHost.Content = originalPlugins; sourceHost.Content = originalSources;
+            downloadUrl.RemoveHandler(InputElement.KeyDownEvent, CountSubmitEnter);
+            plugins.EndLifetime();
+            pluginHost.Content = originalPlugins;
         }
 
         void Navigate(string menu) => owner.FindControl<MenuItem>(menu)!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
@@ -159,7 +155,7 @@ internal static class NativeImeChecks
                     selected = suggestion.SelectedItem as IdentitySuggestion,
                     items = suggestion.ItemsSource?.OfType<IdentitySuggestion>().ToArray()
                 } : null,
-                sourceSubmitCount = sourceSubmits, appliedSearchChanges, draftSources = archive.DraftSources.ToArray(),
+                downloadSubmitCount = downloadSubmits, appliedSearchChanges, draftSources = archive.DraftSources.ToArray(),
                 searchValidationGeneration = ReadSearchGeneration(),
                 searchBusy = archive.IsBusy,
                 appliedSearch = archive.AppliedSearchSpec is { } spec ? ArchiveSearchSpecJson.Serialize(spec) : null,

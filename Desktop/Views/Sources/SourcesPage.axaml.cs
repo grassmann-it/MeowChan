@@ -22,8 +22,7 @@ public partial class SourcesPage : UserControl
     private readonly Func<DiagnosticTarget, bool>? _openWatch;
     private readonly Action<string>? _editRules;
     private readonly Action? _openDiagnostics;
-    private readonly Action? _openDownloads;
-    private readonly Func<string, Action<Window>, Task<bool>>? _submit;
+    private readonly Action? _addToDownloads;
     private IReadOnlyList<SourceRow> _rows = Array.Empty<SourceRow>();
     private sealed record SourceCard(Button Control, TextBlock Name, TextBlock Address, TextBlock Observation);
     private sealed record SourceMediaIntegritySaveError(string PluginOwnerId, string SourceId, string Message);
@@ -33,10 +32,6 @@ public partial class SourcesPage : UserControl
     private bool _available;
     private bool _busy;
     private bool _ended;
-    private bool _hasUrlResult;
-    private long _sourceSelectionRevision;
-    private Action? _cancelSubmitFocusRestore;
-    internal bool HasPendingSubmitFocusRestore => _cancelSubmitFocusRestore != null;
     private bool _showDetails;
     private bool _narrow;
     internal Action<string>? OpenPluginSettings { get; set; }
@@ -48,26 +43,21 @@ public partial class SourcesPage : UserControl
     public SourcesPage()
     {
         InitializeComponent(); InitializeContextMenus();
-        DetachedFromVisualTree += (_, _) => _cancelSubmitFocusRestore?.Invoke();
     }
-    internal SourcesPage(Func<DiagnosticTarget, bool> openWatch, Action<string> editRules,
-        Action openDiagnostics, Action openDownloads, Func<string, Task<bool>> submit)
-        : this(openWatch, editRules, openDiagnostics, openDownloads, (input, _) => submit(input)) { }
 
+    /// <param name="addToDownloads">Goes to Downloads and focuses its URL field; the Sources page itself admits nothing.</param>
     internal SourcesPage(Func<DiagnosticTarget, bool> openWatch, Action<string> editRules,
-        Action openDiagnostics, Action openDownloads, Func<string, Action<Window>, Task<bool>> submit) : this()
+        Action openDiagnostics, Action addToDownloads) : this()
     {
         _openWatch = openWatch;
         _editRules = editRules;
         _openDiagnostics = openDiagnostics;
-        _openDownloads = openDownloads;
-        _submit = submit;
+        _addToDownloads = addToDownloads;
     }
 
     internal void Refresh(IReadOnlyList<ProviderDescriptor> providers, DesktopSessionView view, bool available)
     {
         if (_ended) return;
-        if (view.State != DesktopSessionState.Ready) _cancelSubmitFocusRestore?.Invoke();
         _available = available;
         _rows = SourcesSnapshot.From(providers, view, GetSourceMediaIntegrityPolicies?.Invoke());
         if (!_rows.Any(row => row.Id == _selectedId)) SetSelectedSource(_rows.FirstOrDefault()?.Id);
@@ -118,9 +108,7 @@ public partial class SourcesPage : UserControl
     private void SetSelectedSource(string? sourceId)
     {
         if (_selectedId == sourceId) return;
-        _cancelSubmitFocusRestore?.Invoke();
         _selectedId = sourceId;
-        _sourceSelectionRevision++;
     }
 
     private SourceRow? Selected => _rows.FirstOrDefault(row => row.Id == _selectedId);
@@ -159,8 +147,11 @@ public partial class SourcesPage : UserControl
         CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceBackButton")!, "sources.back", Texts.T("nav.sources"));
         CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceRulesButton")!, "rules.edit-scope", Texts.T("sources.rules"));
         CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceDiagnosticsButton")!, "navigation.diagnostics", Texts.T("sources.diagnostics"));
-        CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceDownloadsButton")!, "navigation.downloads", Texts.T("nav.downloads"));
-        CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceAddButton")!, "watch.add-url", Texts.T("action.add"));
+        Button addToDownloads = this.FindControl<Button>("SourceAddToDownloadsButton")!;
+        CommandBindings.ApplyLabeled(addToDownloads, "input.focus-url", Texts.T("sources.addInDownloads"));
+        // The explanation belongs to the hover, not to a sentence on the page; the shortcut stays visible.
+        ToolTip.SetTip(addToDownloads, Texts.T("sources.addInDownloadsHint")
+            + (CommandCatalog.ShortcutDisplay("input.focus-url") is string shortcut ? " (" + shortcut + ")" : string.Empty));
         CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceOpenWatchButton")!, "watch.show-in-downloads", Texts.T("diagnostics.openWatch"));
         if (row == null) return;
         this.FindControl<Button>("SourcePluginButton")!.Content = Texts.T("plugins.manageSource");
@@ -195,8 +186,6 @@ public partial class SourcesPage : UserControl
         this.FindControl<TextBlock>("SourceCaptureAvailability")!.Text = Texts.T(row.Descriptor.CaptureAvailable
             ? "sources.captureAvailable" : "sources.captureUnavailable");
         this.FindControl<TextBlock>("SourceWatchSummary")!.Text = row.Summary;
-        this.FindControl<TextBox>("SourceUrlInput")!.PlaceholderText = Texts.T("downloads.urlPlaceholder");
-        this.FindControl<TextBlock>("SourceUrlResult")!.Text = _hasUrlResult ? Texts.T("sources.urlResult") : string.Empty;
         DataGrid grid = this.FindControl<DataGrid>("SourceWatchesGrid")!;
         if (grid.ItemsSource is not IReadOnlyList<SourceWatchRow> displayed || !displayed.SequenceEqual(row.Watches))
         {
@@ -207,9 +196,8 @@ public partial class SourcesPage : UserControl
         grid.Columns[0].Header = Texts.T("diagnostics.resource");
         grid.Columns[1].Header = Texts.T("sources.work");
         grid.Columns[2].Header = Texts.T("sources.observation");
-        foreach (string name in new[] { "SourceRulesButton", "SourceDiagnosticsButton", "SourceDownloadsButton", "SourceAddButton" })
+        foreach (string name in new[] { "SourceRulesButton", "SourceDiagnosticsButton", "SourceAddToDownloadsButton" })
             this.FindControl<Button>(name)!.IsEnabled = _available && !_busy;
-        this.FindControl<TextBox>("SourceUrlInput")!.IsEnabled = _available && !_busy;
         RefreshWatchSelection();
     }
 
@@ -346,218 +334,15 @@ public partial class SourcesPage : UserControl
         catch (Exception exception) { if (!_ended && _selectedId == row.Id) SetActionError(exception.Message); }
     }
     private void OnDiagnosticsClick(object? sender, RoutedEventArgs e) { if (_available && !_busy) _openDiagnostics?.Invoke(); }
-    private void OnDownloadsClick(object? sender, RoutedEventArgs e) { if (_available && !_busy) _openDownloads?.Invoke(); }
     private void OnOpenWatchClick(object? sender, RoutedEventArgs e)
     {
         if (!_available || _busy || SelectedWatch == null) return;
         if (_openWatch?.Invoke(SelectedWatch.Target) != true)
             SetActionError(Texts.T("diagnostics.removed"));
     }
-    private async void OnAddClick(object? sender, RoutedEventArgs e) => await SubmitAsync();
-    private async void OnUrlKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Enter) return;
-        e.Handled = true;
-        await SubmitAsync();
-    }
-    private async Task SubmitAsync()
-    {
-        if (_ended || !_available || _busy || _submit == null) return;
-        _cancelSubmitFocusRestore?.Invoke();
-        TextBox editor = this.FindControl<TextBox>("SourceUrlInput")!;
-        string input = editor.Text ?? string.Empty;
-        Button submitButton = this.FindControl<Button>("SourceAddButton")!;
-        // A real Add click may focus the button before its busy disable.
-        TopLevel? owner = editor.IsKeyboardFocusWithin || submitButton.IsKeyboardFocusWithin
-            ? TopLevel.GetTopLevel(editor) : null;
-        long selectionRevision = _sourceSelectionRevision;
-        bool accepted = false;
-        bool newerInput = false;
-        bool observing = owner != null;
-        Window? ownerWindow = owner as Window;
-        Window? admissionModal = null;
-        bool sawAdmissionModal = false;
-        bool modalOwnerDeactivated = false;
-        bool awaitingAdmissionOwnerActivation = false;
-        TaskCompletionSource? ownerActivation = null;
-        List<Action> stopModalObservers = new();
-        void StopObserving()
-        {
-            if (!observing) return;
-            observing = false;
-            owner?.RemoveHandler(GotFocusEvent, OnNewFocus);
-            owner?.RemoveHandler(PointerPressedEvent, OnNewPointer);
-            owner?.RemoveHandler(KeyDownEvent, OnNewKey);
-            if (ownerWindow != null)
-            {
-                ownerWindow.Deactivated -= OnOwnerDeactivated;
-                ownerWindow.Activated -= OnOwnerActivated;
-                ownerWindow.Closing -= OnOwnerClosing;
-                ownerWindow.PropertyChanged -= OnOwnerPropertyChanged;
-            }
-            editor.PropertyChanged -= OnEditorPropertyChanged;
-            foreach (Action stop in stopModalObservers) stop();
-            stopModalObservers.Clear();
-            if (_cancelSubmitFocusRestore == CancelFocusRestore) _cancelSubmitFocusRestore = null;
-        }
-        void CancelFocusRestore()
-        {
-            newerInput = true;
-            ownerActivation?.TrySetResult();
-            StopObserving();
-        }
-        void OnOwnerActivated(object? sender, EventArgs e)
-        {
-            // Close can raise a managed owner activation before Modal.Closed,
-            // followed by a native deactivation/activation bounce. Only the
-            // first activation after the exact normal Closed ends its return.
-            if (admissionModal == null) awaitingAdmissionOwnerActivation = false;
-            ownerActivation?.TrySetResult();
-        }
-        void OnOwnerDeactivated(object? sender, EventArgs e)
-        {
-            if (admissionModal != null) modalOwnerDeactivated = true;
-            else if (X11WindowActivation.OwnsNativeFocus(ownerWindow))
-            {
-                // X11 can deliver an old modal-return FocusOut after Closed.
-                // Exempt only a positively attributed stale report, never an
-                // arbitrary first external deactivation after the modal.
-                awaitingAdmissionOwnerActivation = true;
-            }
-            else CancelFocusRestore();
-        }
-        void OnOwnerClosing(object? sender, WindowClosingEventArgs e) => CancelFocusRestore();
-        void OnOwnerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
-        {
-            if (e.Property == IsVisibleProperty && ownerWindow is { IsVisible: false }
-                || e.Property == Window.WindowStateProperty && ownerWindow is { WindowState: WindowState.Minimized })
-                CancelFocusRestore();
-        }
-        void OnEditorPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
-        {
-            if (e.Property == TextBox.TextProperty) CancelFocusRestore();
-        }
-        void ObserveAdmissionModal(Window modal)
-        {
-            // This callback belongs to this exact submit operation. Cancellation
-            // must never attach new observers or revive a stale focus claim.
-            if (!observing) return;
-            sawAdmissionModal = true;
-            admissionModal = modal;
-            modalOwnerDeactivated = false;
-            awaitingAdmissionOwnerActivation = false;
-            WindowClosingEventArgs? closing = null;
-            void OnOpened(object? sender, EventArgs e)
-            {
-                if (!ReferenceEquals(modal.Owner, ownerWindow)) CancelFocusRestore();
-            }
-            void OnClosing(object? sender, WindowClosingEventArgs e) => closing = e;
-            void OnDeactivated(object? sender, EventArgs e)
-            {
-                // Keep the original args so a later handler's canceled Closing
-                // cannot make an external activation look like a normal close.
-                if (closing is not { Cancel: false }) CancelFocusRestore();
-            }
-            void OnClosed(object? sender, EventArgs e)
-            {
-                if (!observing || !ReferenceEquals(admissionModal, modal)) return;
-                admissionModal = null;
-                // No timer or blanket deactivation exemption: this one normal
-                // owned-modal return lasts only until its next owner activation.
-                awaitingAdmissionOwnerActivation = closing is { Cancel: false } && modalOwnerDeactivated
-                    && ownerWindow is { IsActive: false };
-            }
-            modal.Opened += OnOpened;
-            modal.Closing += OnClosing;
-            modal.Deactivated += OnDeactivated;
-            modal.Closed += OnClosed;
-            stopModalObservers.Add(() =>
-            {
-                modal.Opened -= OnOpened;
-                modal.Closing -= OnClosing;
-                modal.Deactivated -= OnDeactivated;
-                modal.Closed -= OnClosed;
-            });
-        }
-        void OnNewFocus(object? sender, FocusChangedEventArgs e) => CancelFocusRestore();
-        void OnNewPointer(object? sender, PointerPressedEventArgs e) => CancelFocusRestore();
-        void OnNewKey(object? sender, KeyEventArgs e) => CancelFocusRestore();
-        // Disabling the busy editor clears native focus. Remember later choices,
-        // including focus that subsequently moves to null, until completion.
-        owner?.AddHandler(GotFocusEvent, OnNewFocus, RoutingStrategies.Bubble, handledEventsToo: true);
-        owner?.AddHandler(PointerPressedEvent, OnNewPointer, RoutingStrategies.Tunnel, handledEventsToo: true);
-        owner?.AddHandler(KeyDownEvent, OnNewKey, RoutingStrategies.Tunnel, handledEventsToo: true);
-        if (ownerWindow != null)
-        {
-            ownerWindow.Deactivated += OnOwnerDeactivated;
-            ownerWindow.Activated += OnOwnerActivated;
-            ownerWindow.Closing += OnOwnerClosing;
-            ownerWindow.PropertyChanged += OnOwnerPropertyChanged;
-        }
-        if (observing)
-        {
-            editor.PropertyChanged += OnEditorPropertyChanged;
-            _cancelSubmitFocusRestore = CancelFocusRestore;
-        }
-        try
-        {
-            SetActionError(null);
-            _busy = true; BusyChanged?.Invoke(this, EventArgs.Empty); RenderDetails();
-            try
-            {
-                accepted = await _submit(input, ObserveAdmissionModal);
-                if (_ended) return;
-                _hasUrlResult = true;
-                if (accepted && editor.Text == input) editor.Text = string.Empty;
-            }
-            catch (Exception exception)
-            {
-                if (!_ended) SetActionError(exception.Message);
-            }
-            finally
-            {
-                _busy = false;
-                if (!_ended) { BusyChanged?.Invoke(this, EventArgs.Empty); RenderDetails(); }
-            }
-            if (!accepted && owner != null)
-            {
-                bool RestoreInputOrAwaitOwnerActivation()
-                {
-                    if (_ended || _busy || !_available || newerInput || selectionRevision != _sourceSelectionRevision
-                        || editor.Text != input || !IsEffectivelyVisible || !editor.IsEffectivelyVisible
-                        || !editor.IsEffectivelyEnabled || !ReferenceEquals(TopLevel.GetTopLevel(editor), owner)
-                        || owner is Window { IsVisible: false } or Window { IsEnabled: false }) return false;
-                    if (owner is Window { IsActive: false })
-                    {
-                        if (!sawAdmissionModal || !awaitingAdmissionOwnerActivation
-                            || !X11WindowActivation.OwnsNativeFocus(ownerWindow)) return false;
-                        // Recheck at Loaded: the owner may have become inactive
-                        // since submit completion. Preserve only this exact return
-                        // until its first activation or permanent cancellation.
-                        ownerActivation = new(TaskCreationOptions.RunContinuationsAsynchronously);
-                        return true;
-                    }
-                    var focus = owner.FocusManager?.GetFocusedElement();
-                    if (focus != null && !ReferenceEquals(focus, editor)) return false;
-                    editor.BringIntoView();
-                    editor.Focus();
-                    return false;
-                }
-                bool awaitingOwner = await Dispatcher.UIThread.InvokeAsync(RestoreInputOrAwaitOwnerActivation, DispatcherPriority.Loaded);
-                if (awaitingOwner)
-                {
-                    await ownerActivation!.Task;
-                    // The event clears the one-shot return or cancellation sets
-                    // newerInput. This callback cannot start another owner wait.
-                    await Dispatcher.UIThread.InvokeAsync(() => { RestoreInputOrAwaitOwnerActivation(); }, DispatcherPriority.Loaded);
-                }
-            }
-        }
-        finally { StopObserving(); }
-    }
+    private void OnAddToDownloadsClick(object? sender, RoutedEventArgs e) { if (_available && !_busy) _addToDownloads?.Invoke(); }
     internal void EndLifetime()
     {
         _ended = true; _available = false; BusyChanged = null;
-        _cancelSubmitFocusRestore?.Invoke();
     }
 }

@@ -54,20 +54,11 @@
                         </StackPanel>
                     </Expander>
                     <WrapPanel Classes="workspace-toolbar">
-                        <Button x:Name="SourcePluginButton" Click="OnPluginClick" />
+                        <Button x:Name="SourceAddToDownloadsButton" Click="OnAddToDownloadsClick" />
                         <Button x:Name="SourceRulesButton" Tag="sources.rules" Classes="localized" Click="OnRulesClick" />
+                        <Button x:Name="SourcePluginButton" Click="OnPluginClick" />
                         <Button x:Name="SourceDiagnosticsButton" Tag="sources.diagnostics" Classes="localized" Click="OnDiagnosticsClick" />
                     </WrapPanel>
-                    <StackPanel Classes="workspace-field">
-                        <TextBlock x:Name="SourceUrlLabel" Tag="detail.url" Classes="workspace-field-label localized" />
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                            <TextBox AutomationProperties.LabeledBy="{Binding ElementName=SourceUrlLabel}" x:Name="SourceUrlInput" KeyDown="OnUrlKeyDown" />
-                            <Button x:Name="SourceAddButton" Grid.Column="1" Tag="action.add" Classes="primary localized" Click="OnAddClick" />
-                        </Grid>
-                        <TextBlock Tag="sources.urlHint" Classes="workspace-help localized" TextWrapping="Wrap" />
-                        <TextBlock x:Name="SourceUrlResult" Classes="workspace-help" TextWrapping="Wrap" />
-                    </StackPanel>
-                    <Button x:Name="SourceDownloadsButton" Tag="nav.downloads" Classes="localized" HorizontalAlignment="Left" Click="OnDownloadsClick" />
                     <TextBlock Tag="sources.watches" Classes="section-title localized" />
                     <TextBlock x:Name="SourceWatchSummary" Classes="workspace-help" TextWrapping="Wrap" />
                     <DataGrid x:Name="SourceWatchesGrid" AutoGenerateColumns="False" IsReadOnly="True"
