@@ -15,7 +15,7 @@ public sealed class PaletteContrastTests
     private static readonly string[] TextSurfaces =
     {
         "Workspace.Background", "Workspace.Panel", "Workspace.Raised", "Workspace.Card", "Workspace.Hover", "Workspace.Overlay",
-        "Workspace.AccentSurface", "Workspace.ChipSurface", "Workspace.ReaderPostSurface", "Workspace.ReaderCodeSurface", "Workspace.ReaderSpoiler"
+        "Workspace.AccentSurface", "Workspace.ChipSurface", "Workspace.ReaderCodeSurface", "Workspace.ReaderSpoiler"
     };
 
     [Theory, InlineData("Dark"), InlineData("Light")]
@@ -35,7 +35,7 @@ public sealed class PaletteContrastTests
     public void LinksAccentAndTextOnAccentReadAsText(string theme)
     {
         foreach (string surface in new[] { "Workspace.Background", "Workspace.Panel", "Workspace.Raised", "Workspace.Card", "Workspace.Hover",
-                     "Workspace.AccentSurface", "Workspace.ChipSurface", "Workspace.ReaderPostSurface", "Workspace.ReaderCodeSurface", "Workspace.ReaderSpoiler" })
+                     "Workspace.AccentSurface", "Workspace.ChipSurface", "Workspace.ReaderCodeSurface", "Workspace.ReaderSpoiler" })
             AssertContrast(theme, "Workspace.Accent", surface, 4.5);
         AssertContrast(theme, "Workspace.OnAccent", "Workspace.Accent", 4.5);
         AssertContrast(theme, "Workspace.OnAccent", "Workspace.AccentHover", 4.5);
@@ -71,7 +71,7 @@ public sealed class PaletteContrastTests
         }
         AssertContrast(theme, "Workspace.ControlBorder", "Workspace.AccentSurface", 3.0);
         AssertContrast(theme, "Workspace.Background", "Workspace.Accent", 3.0); // inner focus ring on the accent fill
-        AssertContrast(theme, "Workspace.ReaderPostEdge", "Workspace.ReaderPage", 3.0);
+        AssertContrast(theme, "Workspace.CardEdge", "Workspace.Background", 3.0); // reader post cards are workspace cards on the page (D3)
         // The field outlines Semi leaves invisible are set to the interactive outline in both themes.
         foreach (string key in new[] { "TextBoxDefaultBorderBrush", "TextBoxPointeroverBorderBrush", "ComboBoxSelectorBorderBrush", "ComboBoxSelectorPointeroverBorderBrush" })
             Assert.Equal(Color(theme, "Workspace.ControlBorder"), Color(theme, key));
@@ -81,12 +81,12 @@ public sealed class PaletteContrastTests
     [Theory, InlineData("Dark"), InlineData("Light")]
     public void ReaderInlineColoursReadOnEveryPostSurface(string theme)
     {
-        foreach (string surface in new[] { "Workspace.ReaderPostSurface", "Workspace.AccentSurface", "Workspace.ReaderPage", "Workspace.ReaderCodeSurface", "Workspace.ReaderSpoiler" })
+        foreach (string surface in new[] { "Workspace.Card", "Workspace.AccentSurface", "Workspace.Background", "Workspace.ReaderCodeSurface", "Workspace.ReaderSpoiler" })
             AssertContrast(theme, "Workspace.ReaderGreentext", surface, 4.5);
         foreach (string text in new[] { "Workspace.Text", "Workspace.Muted", "Workspace.Accent" })
         {
             AssertContrast(theme, text, "Workspace.ReaderCodeSurface", 4.5);
-            AssertContrast(theme, text, "Workspace.ReaderPostSurface", 4.5); // dead references and notes use Muted
+            AssertContrast(theme, text, "Workspace.Card", 4.5); // dead references and notes use Muted; a post is a Card
         }
     }
 
