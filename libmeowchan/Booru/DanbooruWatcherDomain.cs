@@ -338,12 +338,26 @@ internal sealed record DanbooruWatcher
     {
         if (watcher.State == DanbooruWatcherState.Removed)
             return Reject(watcher, "watcher_removed");
-        if (watcher.State == DanbooruWatcherState.Paused)
+        if (watcher.State == DanbooruWatcherState.Paused
+            || watcher.State == DanbooruWatcherState.Cooldown && watcher.ResumeState == DanbooruWatcherState.Paused)
             return Reject(watcher, "watcher_already_paused");
+
+        // A provider cooldown is durable scheduling state, not merely a transient activity label. When the
+        // user pauses during that wait, retain the retry fence and keep the aggregate in Cooldown while the
+        // scheduler projects it as Paused. Otherwise a restart loses the provider's retry time and Resume
+        // either sends early or has to invent a new cooldown (CX2-R2).
+        if (watcher.State == DanbooruWatcherState.Cooldown && watcher.CooldownUntilUtc is not null)
+            return new DanbooruWatcherTransition(watcher with
+            {
+                ResumeState = DanbooruWatcherState.Paused,
+                Progress = watcher.Progress with { PagesCheckedInRun = 0, BudgetLimited = false }
+            }, true);
+
         return new DanbooruWatcherTransition(watcher with
         {
             State = DanbooruWatcherState.Paused,
             ResumeState = DanbooruWatcherState.Paused,
+            ErrorCode = null,
             CooldownUntilUtc = null,
             Progress = watcher.Progress with { PagesCheckedInRun = 0, BudgetLimited = false }
         }, true);
@@ -355,8 +369,24 @@ internal sealed record DanbooruWatcher
             return Reject(watcher, "watcher_removed");
         if (watcher.State == DanbooruWatcherState.Checking)
             return Reject(watcher, "check_already_running");
+
+        // Resume a user-paused cooldown without discarding the provider's retry time. The watcher remains
+        // Cooldown until that instant, but the pause target is now Active so it may be scheduled afterwards.
+        if (watcher.State == DanbooruWatcherState.Cooldown && watcher.ResumeState == DanbooruWatcherState.Paused)
+        {
+            if (watcher.CooldownUntilUtc is { } retryAt && nowUtc.ToUniversalTime() < retryAt)
+                return new DanbooruWatcherTransition(watcher with { ResumeState = DanbooruWatcherState.Active }, true);
+            return new DanbooruWatcherTransition(watcher with
+            {
+                State = DanbooruWatcherState.Active,
+                ResumeState = DanbooruWatcherState.Active,
+                CooldownUntilUtc = null,
+                ErrorCode = null
+            }, true);
+        }
+
         if (watcher.State == DanbooruWatcherState.Cooldown
-            && watcher.CooldownUntilUtc is { } retryAt && nowUtc.ToUniversalTime() < retryAt)
+            && watcher.CooldownUntilUtc is { } retry && nowUtc.ToUniversalTime() < retry)
             return Reject(watcher, "cooldown_active");
         if (watcher.State == DanbooruWatcherState.Active)
             return Reject(watcher, "watcher_already_active");

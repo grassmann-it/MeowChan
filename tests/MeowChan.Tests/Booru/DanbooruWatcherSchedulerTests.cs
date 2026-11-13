@@ -558,6 +558,60 @@ public sealed class DanbooruWatcherSchedulerTests
     }
 
     [Fact]
+    public async Task APausedWatcherKeepsTheProviderWaitAcrossARestartAndResumesIntoIt()
+    {
+        // CX2-R2: Pause cleared CooldownUntilUtc, the only durable copy of the provider's retry time. After a
+        // restart Load found no Cooldown record, nothing restored the wait, and after Resume the next check asked
+        // the provider again long before the time it had named.
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock);
+        CountingAdmission admission = new();
+        search.Publish("cat", 100);
+        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        scheduler.Load();
+        string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
+        DateTimeOffset retryAt = T0 + TimeSpan.FromMinutes(30);
+        search.Next((_, _) => new DanbooruWatcherSearchDeferred(retryAt, "booru-cooldown", 429));
+        Assert.Equal(DanbooruWatcherCheckKind.Deferred, (await scheduler.RunNextAsync())!.Kind);
+
+        DanbooruWatcherCommandResult paused = scheduler.Pause(id);
+        Assert.True(paused.Accepted, paused.Code);
+        Assert.Equal(DanbooruWatcherActivity.Paused, paused.Watcher!.Activity);
+        Assert.Null(paused.Watcher.NextCheckAtUtc);
+        Assert.Equal("watcher_already_paused", scheduler.Pause(id).Code);
+        BooruWatcherRecord stored = Assert.Single(profile.Catalog.Read().Watchers);
+        Assert.Equal("Cooldown", stored.State);
+        Assert.Equal("Paused", stored.ResumeState);
+        Assert.Equal(retryAt, stored.CooldownUntilUtc);
+
+        // Five minutes later the app restarts; the transport cooldown is gone with the process.
+        clock.Advance(TimeSpan.FromMinutes(5));
+        DanbooruWatcherScheduler restarted = new(profile.Catalog, search, admission, clock, Options());
+        restarted.Load();
+        Assert.Equal(retryAt, restarted.GetSnapshot().ProviderCooldownUntilUtc);
+        Assert.Equal(DanbooruWatcherActivity.Paused, restarted.GetStatus(id)!.Activity);
+
+        // Resume goes back into the wait instead of being refused or asking early.
+        DanbooruWatcherCommandResult resumed = restarted.Resume(id);
+        Assert.True(resumed.Accepted, resumed.Code);
+        Assert.Equal(DanbooruWatcherActivity.Cooldown, resumed.Watcher!.Activity);
+        Assert.Equal(DanbooruWatcherState.Active, resumed.Watcher.ResumeState);
+        Assert.Equal(retryAt, resumed.Watcher.NextCheckAtUtc);
+        Assert.Null(await restarted.RunNextAsync());
+        DanbooruWatcherCheckSummary refused = await restarted.CheckNowAsync(id);
+        Assert.Equal("provider_cooldown", refused.Code);
+        Assert.Equal(retryAt, refused.RetryAtUtc);
+        Assert.Equal(1, search.CallCount);
+
+        clock.Advance(retryAt - clock.GetUtcNow());
+        Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, (await restarted.RunNextAsync())!.Kind);
+        Assert.Equal(2, search.CallCount);
+        Assert.Equal(DanbooruWatcherState.Active, restarted.GetStatus(id)!.State);
+    }
+
+    [Fact]
     public async Task ShortProviderRetryTimesAreRaisedToTheDeferralFloor()
     {
         using TempDirectory directory = new();
@@ -811,6 +865,132 @@ public sealed class DanbooruWatcherSchedulerTests
     }
 
     [Fact]
+    public async Task PausingAnErrorWatcherClearsTheErrorAndPersists()
+    {
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock);
+        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        scheduler.Load();
+        string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
+        search.Next((_, _) => new DanbooruWatcherSearchFailed("access-denied", 403));
+
+        DanbooruWatcherCheckSummary failed = (await scheduler.RunNextAsync())!;
+        Assert.Equal(DanbooruWatcherCheckKind.Failed, failed.Kind);
+        Assert.Equal("access-denied", failed.Code);
+        Assert.Equal(DanbooruWatcherState.Error, scheduler.GetStatus(id)!.State);
+
+        DanbooruWatcherCommandResult paused = scheduler.Pause(id);
+        Assert.True(paused.Accepted, paused.Code);
+        Assert.Equal(DanbooruWatcherState.Paused, scheduler.GetStatus(id)!.State);
+        BooruWatcherRecord stored = profile.Catalog.Read().Watchers.Single(watcher => watcher.WatcherId == id);
+        Assert.Equal("Paused", stored.State);
+        Assert.Null(stored.ErrorCode);
+    }
+
+    [Fact]
+    public async Task AutomaticStartPersistenceFailureBacksOffInsteadOfSpinning()
+    {
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock);
+        DanbooruWatcherSchedulerOptions options = Options();
+        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, options);
+        scheduler.Load();
+        scheduler.AddWatcher("cat");
+
+        // Fail only the next scheduler mutation after the watcher has been created.  This models a
+        // full catalog, a lost lease or a transient disk failure at the begin-check persist.
+        int persistFailures = 0;
+        profile.Catalog.BeforeAdmittedMutationForTests = _ =>
+        {
+            if (Interlocked.Exchange(ref persistFailures, 1) == 0)
+            {
+                // Model a slow synchronous catalog write without sleeping: the failure is observed
+                // after the configured retry interval has already elapsed.
+                clock.Advance(options.UnavailableRetry + TimeSpan.FromSeconds(1));
+                throw new IOException("disk");
+            }
+        };
+        DanbooruWatcherCheckSummary failed = (await scheduler.RunNextAsync())!;
+        Assert.Equal(DanbooruWatcherCheckKind.Rejected, failed.Kind);
+        Assert.Equal("persist_failed", failed.Code);
+        Assert.Equal(0, search.CallCount);
+
+        // The watcher is still due, but the automatic path must wait for the visible backoff rather
+        // than immediately retrying the same non-provider operation.
+        Assert.Null(await scheduler.RunNextAsync());
+        Assert.Equal(0, search.CallCount);
+
+        // The quiet period starts when the failed write returns, not when the attempt began.
+        clock.Advance(options.UnavailableRetry - TimeSpan.FromSeconds(1));
+        Assert.Null(await scheduler.RunNextAsync());
+        Assert.Equal(0, search.CallCount);
+
+        clock.Advance(TimeSpan.FromSeconds(1));
+        Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, (await scheduler.RunNextAsync())!.Kind);
+        Assert.Equal(1, search.CallCount);
+    }
+
+    [Fact]
+    public async Task ALocalPersistBackoffIsNoProviderCooldownAndLeavesManualChecksPossible()
+    {
+        // CX2-R1: the backoff after a failed begin-check write landed on the provider-wide _backoffUntil. Every
+        // watcher then showed a provider cooldown and CheckNowAsync was refused with provider_cooldown ("Danbooru
+        // asked MeowChan to wait") although the cause was local, and the one action that would show the real cause
+        // was blocked for the whole retry period.
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock);
+        search.Publish("cat", 10);
+        DanbooruWatcherSchedulerOptions options = Options();
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, options);
+        scheduler.Load();
+        string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
+
+        int failures = 2; // the automatic start, then the first manual check
+        profile.Catalog.BeforeAdmittedMutationForTests = _ =>
+        {
+            if (Interlocked.Decrement(ref failures) >= 0) throw new IOException("disk");
+        };
+        DanbooruWatcherCheckSummary automatic = (await scheduler.RunNextAsync())!;
+        Assert.Equal("persist_failed", automatic.Code);
+        Assert.False(automatic.Manual);
+
+        // Automatic starts keep quiet, but nothing claims a provider pause.
+        Assert.Null(await scheduler.RunNextAsync());
+        DanbooruWatcherSchedulerSnapshot snapshot = scheduler.GetSnapshot();
+        Assert.Null(snapshot.ProviderCooldownUntilUtc);
+        DanbooruWatcherStatus status = Assert.Single(snapshot.Watchers);
+        Assert.Equal(DanbooruWatcherActivity.Scheduled, status.Activity);
+        Assert.Null(status.CooldownUntilUtc);
+        Assert.Equal(T0 + options.UnavailableRetry, status.NextCheckAtUtc);
+
+        // A manual check is accepted and fails honestly while the store still refuses the write ...
+        Task<DanbooruWatcherCheckSummary> stillBroken = scheduler.CheckNowAsync(id);
+        Assert.False(stillBroken.IsCompleted, "The manual check was refused before it could run.");
+        Assert.Equal(DanbooruWatcherCheckKind.Rejected, (await scheduler.RunNextAsync())!.Kind);
+        DanbooruWatcherCheckSummary honest = await stillBroken.WaitAsync(TestWait.Timeout);
+        Assert.Equal("persist_failed", honest.Code);
+        Assert.True(honest.Manual);
+        Assert.Equal(0, search.CallCount);
+
+        // ... and runs once the store is writable again; that write also ends the local backoff.
+        Task<DanbooruWatcherCheckSummary> repaired = scheduler.CheckNowAsync(id);
+        Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, (await scheduler.RunNextAsync())!.Kind);
+        Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, (await repaired.WaitAsync(TestWait.Timeout)).Kind);
+        Assert.Equal(1, search.CallCount);
+        Assert.Equal(T0 + Interval, scheduler.GetStatus(id)!.NextCheckAtUtc);
+        search.Publish("dog", 20);
+        scheduler.AddWatcher("dog");
+        Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, (await scheduler.RunNextAsync())!.Kind);
+        Assert.Equal(2, search.CallCount);
+    }
+
+    [Fact]
     public async Task NonRetryableFailureKeepsTheWatcherInErrorUntilResume()
     {
         using TempDirectory directory = new();
@@ -860,6 +1040,30 @@ public sealed class DanbooruWatcherSchedulerTests
         Assert.Equal(2, replay.NewPosts);
         Assert.Equal(2, admission.QueuedCount);
         Assert.Equal("102", profile.Catalog.Read().Watchers.Single().HighWaterMark);
+    }
+
+    [Fact]
+    public async Task EveryProviderRequestOfABaselineAndAMultiPageCatchUpCarriesExactlyTheUsersQuery()
+    {
+        // No implicit rating, order or other token may reach the provider on any page of any check.
+        const string query = "cat -bird";
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock);
+        search.Publish(query, 100);
+        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        scheduler.Load();
+        scheduler.AddWatcher(query);
+
+        await scheduler.RunNextAsync();
+        search.Publish(query, Range(160, 60));
+        clock.Advance(Interval);
+        DanbooruWatcherCheckSummary check = (await scheduler.RunNextAsync())!;
+
+        Assert.True(check.PagesRead > 1);
+        Assert.True(search.Calls.Count > 2);
+        Assert.All(search.Calls, call => Assert.Equal(query, call.Query));
     }
 
     [Fact]
@@ -944,6 +1148,120 @@ public sealed class DanbooruWatcherSchedulerTests
     }
 
     [Fact]
+    public async Task ACancellationFromAForeignTokenDuringAPageIsSourceUnavailableNotAStuckCheck()
+    {
+        // PluginWorkerClient links the caller's token with the worker lifetime: a worker stop, eviction or
+        // plugin deactivation mid-page throws an OperationCanceledException whose token is not the check's.
+        // Before the fix it passed both filters, left the persisted watcher in Checking and so blocked the
+        // selection of every watcher until the next restart (CX-R1).
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock);
+        DanbooruWatcherSchedulerOptions options = Options();
+        search.Publish("cat", 100);
+        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, options);
+        scheduler.Load();
+        string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
+        search.Hold = (_, _, _) => throw new OperationCanceledException("worker lifetime ended");
+
+        DanbooruWatcherCheckSummary summary = (await scheduler.RunNextAsync().WaitAsync(TestWait.Timeout))!;
+        Assert.Equal(DanbooruWatcherCheckKind.SourceUnavailable, summary.Kind);
+        Assert.Equal("source_unavailable", summary.Code);
+        Assert.Null(scheduler.GetSnapshot().CheckingWatcherId);
+        DanbooruWatcherStatus status = scheduler.GetStatus(id)!;
+        Assert.Equal(DanbooruWatcherState.Active, status.State);
+        Assert.NotEqual(DanbooruWatcherActivity.Checking, status.Activity);
+        Assert.Equal("Active", profile.Catalog.Read().Watchers.Single().State);
+        Assert.Equal(1, search.SessionsDisposed);
+
+        // Answered, not parked: the backoff rejects the manual check now and the loop retries after it.
+        search.Hold = null;
+        DanbooruWatcherCheckSummary manual = await scheduler.CheckNowAsync(id).WaitAsync(TestWait.Timeout);
+        Assert.Equal(DanbooruWatcherCheckKind.Rejected, manual.Kind);
+        clock.Advance(options.UnavailableRetry);
+        Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, (await scheduler.RunNextAsync())!.Kind);
+        Assert.Equal(2, search.CallCount);
+    }
+
+    [Fact]
+    public async Task TheLoopAnswersAManualRequestAndFreesTheWatcherWhenItsCheckEndsInAForeignCancellation()
+    {
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock);
+        search.Publish("cat", 100);
+        search.Publish("dog", 200);
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        scheduler.Load();
+        string cat = scheduler.AddWatcher("cat").Watcher!.WatcherId;
+        string dog = scheduler.AddWatcher("dog").Watcher!.WatcherId;
+        search.Hold = (query, _, _) => query == "cat" ? throw new OperationCanceledException("worker lifetime ended") : Task.CompletedTask;
+        // Manual first, before the loop exists: the loop's first pick is the manual request for "cat".
+        Task<DanbooruWatcherCheckSummary> manual = scheduler.CheckNowAsync(cat);
+        TaskCompletionSource catLeftChecking = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        scheduler.Changed += () =>
+        {
+            if (scheduler.GetStatus(cat) is { } status && status.Activity != DanbooruWatcherActivity.Checking
+                && status.LastCheck is not null)
+                catLeftChecking.TrySetResult();
+        };
+        await scheduler.StartAsync();
+
+        DanbooruWatcherCheckSummary answered = await manual.WaitAsync(TestWait.Timeout);
+        Assert.Equal(DanbooruWatcherCheckKind.SourceUnavailable, answered.Kind);
+        await catLeftChecking.Task.WaitAsync(TestWait.Timeout);
+        await scheduler.StopAsync();
+
+        Assert.Null(scheduler.GetSnapshot().CheckingWatcherId);
+        Assert.Equal(DanbooruWatcherState.Active, scheduler.GetStatus(cat)!.State);
+        Assert.Equal(DanbooruWatcherState.Active, scheduler.GetStatus(dog)!.State);
+        Assert.All(profile.Catalog.Read().Watchers, record => Assert.Equal("Active", record.State));
+        // The unavailable search path backs the whole provider off; no further request was sent meanwhile.
+        Assert.Equal(1, search.CallCount);
+    }
+
+    [Fact]
+    public async Task ADefectInsideACheckStopsTheWatcherVisiblyInsteadOfLeavingItChecking()
+    {
+        // Any other exception (here: a fault raised on the scheduler's own clock read after the page arrived)
+        // must end the check with a visible Error that Resume clears; the watcher must never stay Checking.
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock);
+        search.Publish("cat", 100);
+        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        scheduler.Load();
+        string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
+        int armed = 0;
+        search.Hold = (_, _, _) => { Interlocked.CompareExchange(ref armed, 1, 0); return Task.CompletedTask; };
+        clock.OnGetUtcNow = () =>
+        {
+            // The first time read after the page was answered is the scheduler's, under its lock.
+            if (Interlocked.CompareExchange(ref armed, 2, 1) == 1) throw new InvalidOperationException("defect");
+        };
+
+        DanbooruWatcherCheckSummary summary = (await scheduler.RunNextAsync().WaitAsync(TestWait.Timeout))!;
+        Assert.Equal(DanbooruWatcherCheckKind.Failed, summary.Kind);
+        Assert.Equal("check_faulted", summary.Code);
+        Assert.Null(scheduler.GetSnapshot().CheckingWatcherId);
+        DanbooruWatcherStatus status = scheduler.GetStatus(id)!;
+        Assert.Equal(DanbooruWatcherState.Error, status.State);
+        Assert.Equal("check_faulted", status.ErrorCode);
+        Assert.Same(summary, status.LastCheck);
+        BooruWatcherRecord stored = profile.Catalog.Read().Watchers.Single();
+        Assert.Equal("Error", stored.State);
+        Assert.Equal("check_faulted", stored.ErrorCode);
+        Assert.Equal(1, search.SessionsDisposed);
+
+        Assert.True(scheduler.Resume(id).Accepted);
+        Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, (await scheduler.RunNextAsync())!.Kind);
+        Assert.Equal(2, search.CallCount);
+    }
+
+    [Fact]
     public async Task UserCancelledOriginalIsNotRequeuedByAWatcherButItsFindingIsKept()
     {
         using TempDirectory directory = new();
@@ -984,8 +1302,10 @@ public sealed class DanbooruWatcherSchedulerTests
         clock.Advance(spacing);
         await TestWait.UntilAsync(() => search.CallCount == 2 && clock.PendingTimers > 0);
         Assert.Equal(2, search.CallCount);
+        // Nothing is due yet. Wait (on a condition, not on real time) until the loop is idle on its timer again,
+        // then the call count must be unchanged (CX-R6).
         clock.Advance(Interval - spacing - TimeSpan.FromSeconds(1));
-        await Task.Delay(50);
+        await TestWait.UntilAsync(() => clock.PendingTimers > 0);
         Assert.Equal(2, search.CallCount);
         for (int round = 0; round < 3; round++)
         {
@@ -1011,30 +1331,195 @@ public sealed class DanbooruWatcherSchedulerTests
     [Fact]
     public async Task ConcurrentManualChecksAndTheLoopNeverOverlap()
     {
+        // CX-R6: no real-time polling or sleeping, and no reliance on thread order. Every search call announces its
+        // start and waits for an explicit release; the number of releases already given is recorded at every start,
+        // so a call that starts while an earlier one is still held shows up as a wrong count whatever the load.
         using TempDirectory directory = new();
         await using SchedulerProfile profile = new(directory.Path);
         SchedulerClock clock = new(T0);
         FakeDanbooruSearch search = new(clock);
         foreach (string query in new[] { "a", "b", "c" }) search.Publish(query, 10);
         SemaphoreSlim release = new(0);
-        search.Hold = async (_, _, token) => await release.WaitAsync(token);
-        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
-        scheduler.Load();
-        string[] ids = new[] { "a", "b", "c" }.Select(query => scheduler.AddWatcher(query).Watcher!.WatcherId).ToArray();
-        await scheduler.StartAsync();
-        Task<DanbooruWatcherCheckSummary>[] manual = ids.Select(scheduler.CheckNowAsync).ToArray();
-        for (int index = 0; index < 3; index++)
+        SemaphoreSlim started = new(0);
+        List<int> releasesBeforeStart = new();
+        int releases = 0;
+        search.Hold = async (_, _, token) =>
         {
-            await TestWait.UntilAsync(() => search.CallCount == index + 1);
-            await Task.Delay(20);
-            Assert.Equal(index + 1, search.CallCount);
+            lock (releasesBeforeStart) releasesBeforeStart.Add(Volatile.Read(ref releases));
+            started.Release();
+            await release.WaitAsync(token);
+        };
+        async Task AwaitStartAsync() =>
+            Assert.True(await started.WaitAsync(TestWait.Timeout), "No further search call started.");
+        void ReleaseOne()
+        {
+            Interlocked.Increment(ref releases);
             release.Release();
         }
-        await Task.WhenAll(manual).WaitAsync(TestWait.Timeout);
+        async Task ReleaseNextAsync()
+        {
+            await AwaitStartAsync();
+            ReleaseOne();
+        }
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        scheduler.Load();
+        string[] queries = { "a", "b", "c" };
+        string[] ids = queries.Select(query => scheduler.AddWatcher(query).Watcher!.WatcherId).ToArray();
+
+        // Phase 1, manual first: requests queued after Load and before StartAsync are served before any automatic
+        // selection, in request order. That ordering is deterministic; a request issued after StartAsync races the
+        // first pick by design.
+        Task<DanbooruWatcherCheckSummary>[] manual = ids.Select(scheduler.CheckNowAsync).ToArray();
+        await scheduler.StartAsync();
+        for (int index = 0; index < 3; index++) await ReleaseNextAsync();
+        DanbooruWatcherCheckSummary[] baselines = await Task.WhenAll(manual).WaitAsync(TestWait.Timeout);
+        Assert.All(baselines, summary => Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, summary.Kind));
+        Assert.Equal(queries, search.Calls.Select(call => call.Query));
+
+        // Phase 2, manual requests while the loop runs an automatic check: the running watcher is refused, the
+        // other two are served one after another and are then no longer due, so no further call follows.
+        clock.Advance(Interval);
+        await AwaitStartAsync();
+        int running = Array.IndexOf(queries, search.Calls[3].Query);
+        Task<DanbooruWatcherCheckSummary>[] during = ids.Select(scheduler.CheckNowAsync).ToArray();
+        Assert.True(during[running].IsCompleted, "A manual request for the running watcher was queued.");
+        DanbooruWatcherCheckSummary refused = await during[running];
+        Assert.Equal(DanbooruWatcherCheckKind.Rejected, refused.Kind);
+        Assert.Equal("check_already_running", refused.Code);
+        ReleaseOne();
+        for (int index = 0; index < 2; index++) await ReleaseNextAsync();
+        DanbooruWatcherCheckSummary[] served = await Task.WhenAll(during).WaitAsync(TestWait.Timeout);
+        Assert.Equal(2, served.Count(summary => summary.Kind == DanbooruWatcherCheckKind.Completed && summary.Manual));
+        await TestWait.UntilAsync(() => scheduler.GetSnapshot().CheckingWatcherId is null && clock.PendingTimers > 0);
         await scheduler.StopAsync();
+
+        lock (releasesBeforeStart) Assert.Equal(Enumerable.Range(0, 6), releasesBeforeStart);
         Assert.Equal(1, search.MaxConcurrent);
-        Assert.Equal(3, search.CallCount);
-        Assert.Equal(3, search.Calls.Select(call => call.Query).Distinct().Count());
+        Assert.Equal(6, search.CallCount);
+        Assert.Equal(queries, search.Calls.Skip(3).Select(call => call.Query).Order());
+    }
+
+    [Fact]
+    public async Task ManualRequestForAWatcherAlreadyPickedForACheckIsRejectedNotQueuedAgain()
+    {
+        // The loop (or a direct step) picks a watcher under the lock and only later registers the running
+        // check. A manual request for the same watcher in that gap must see the check as already running;
+        // otherwise it queues and the watcher is checked a second time right after the first check.
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock);
+        search.Publish("cat", 10);
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        scheduler.Load();
+        string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
+
+        using ManualResetEventSlim proceed = new(false);
+        Task<DanbooruWatcherCheckSummary?> step = ParkAStepBetweenPickAndRegistration(scheduler, clock, proceed,
+            out Task parked);
+        await parked.WaitAsync(TestWait.Timeout);
+
+        Task<DanbooruWatcherCheckSummary> manual = scheduler.CheckNowAsync(id);
+        bool completedImmediately = manual.IsCompleted;
+        proceed.Set();
+        DanbooruWatcherCheckSummary? first = await step.WaitAsync(TestWait.Timeout);
+
+        Assert.True(completedImmediately, "The manual request was queued behind the check that was already picked.");
+        DanbooruWatcherCheckSummary rejected = await manual;
+        Assert.Equal(DanbooruWatcherCheckKind.Rejected, rejected.Kind);
+        Assert.Equal("check_already_running", rejected.Code);
+        Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, first!.Kind);
+        Assert.Null(await scheduler.RunNextAsync());
+        Assert.Equal(1, search.CallCount);
+    }
+
+    [Fact]
+    public async Task ADirectStepWhileAnotherStepIsBetweenPickAndRegistrationRunsNothing()
+    {
+        // CX-R10: RunNextAsync checked _running under the lock, RunCheckAsync set it without checking again.
+        // A second step in the gap used to start a second check of the same (or another) watcher: two
+        // checks in flight, the first no longer cancellable through Pause/Remove.
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock);
+        search.Publish("cat", 10);
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        scheduler.Load();
+        scheduler.AddWatcher("cat");
+
+        using ManualResetEventSlim proceed = new(false);
+        Task<DanbooruWatcherCheckSummary?> step = ParkAStepBetweenPickAndRegistration(scheduler, clock, proceed,
+            out Task parked);
+        await parked.WaitAsync(TestWait.Timeout);
+
+        DanbooruWatcherCheckSummary? second = await scheduler.RunNextAsync().WaitAsync(TestWait.Timeout);
+        proceed.Set();
+        DanbooruWatcherCheckSummary? first = await step.WaitAsync(TestWait.Timeout);
+
+        Assert.Null(second);
+        Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, first!.Kind);
+        Assert.Equal(1, search.CallCount);
+        Assert.Equal(1, search.MaxConcurrent);
+        Assert.Null(await scheduler.RunNextAsync());
+    }
+
+    [Fact]
+    public async Task AStepThatPickedWorkBeforeStopSendsNothingAfterIt()
+    {
+        // CX-R10: StopAsync can run between the pick and the registration of the check. It found no running
+        // check to cancel or drain, and RunCheckAsync did not look at _stopping, so the step started a check
+        // (and sent) after StopAsync had returned and the profile could be released.
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock);
+        search.Publish("cat", 10);
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        scheduler.Load();
+        string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
+
+        using ManualResetEventSlim proceed = new(false);
+        Task<DanbooruWatcherCheckSummary?> step = ParkAStepBetweenPickAndRegistration(scheduler, clock, proceed,
+            out Task parked);
+        await parked.WaitAsync(TestWait.Timeout);
+
+        await scheduler.StopAsync().WaitAsync(TestWait.Timeout);
+        proceed.Set();
+        DanbooruWatcherCheckSummary? late = await step.WaitAsync(TestWait.Timeout);
+
+        Assert.Equal(DanbooruWatcherCheckKind.Rejected, late!.Kind);
+        Assert.Equal("scheduler_stopped", late.Code);
+        Assert.Equal(0, search.CallCount);
+        Assert.Equal(0, search.SessionsOpened);
+        Assert.Null(scheduler.GetSnapshot().CheckingWatcherId);
+        Assert.Equal("Active", profile.Catalog.Read().Watchers.Single(watcher => watcher.WatcherId == id).State);
+    }
+
+    /// <summary>
+    /// Starts a direct step on its own thread and parks it after the pick and before the running check is
+    /// registered. The first time read of the step picks the work (under the lock); the second read is the
+    /// start time of the check, after the pick. The probe parks the stepping thread on that second read.
+    /// </summary>
+    private static Task<DanbooruWatcherCheckSummary?> ParkAStepBetweenPickAndRegistration(DanbooruWatcherScheduler scheduler,
+        SchedulerClock clock, ManualResetEventSlim proceed, out Task parked)
+    {
+        TaskCompletionSource parkedSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int stepThread = -1;
+        int reads = 0;
+        clock.OnGetUtcNow = () =>
+        {
+            if (Environment.CurrentManagedThreadId != Volatile.Read(ref stepThread)) return;
+            if (Interlocked.Increment(ref reads) != 2) return;
+            parkedSignal.TrySetResult();
+            proceed.Wait(TestWait.Timeout);
+        };
+        parked = parkedSignal.Task;
+        return Task.Run(() =>
+        {
+            Volatile.Write(ref stepThread, Environment.CurrentManagedThreadId);
+            return scheduler.RunNextAsync();
+        });
     }
 
     [Fact]
@@ -1077,6 +1562,83 @@ public sealed class DanbooruWatcherSchedulerTests
         Assert.Equal(DanbooruWatcherCheckKind.Completed, (await restarted.RunNextAsync())!.Kind);
         Assert.Equal(40, admission.QueuedCount);
         Assert.All(admission.PerPost.Values, count => Assert.Equal(1, count));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StopCancelsAndDrainsADirectCheckBeforeReturning(bool startLoopDuringCheck)
+    {
+        // CX-R10 (from 5bb7c1b7): a direct step started before the loop has a token that is not linked to the
+        // lifetime. StopAsync used to return while that check kept sending, after the profile was released.
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock);
+        CountingAdmission admission = new();
+        search.Publish("cat", 100);
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        scheduler.Load();
+        scheduler.AddWatcher("cat");
+        await scheduler.RunNextAsync();
+        search.Publish("cat", Range(140, 40));
+        clock.Advance(Interval);
+
+        TaskCompletionSource onPage2 = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource cancelled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource releaseCleanup = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        search.Hold = async (_, before, token) =>
+        {
+            if (before != "121") return;
+            onPage2.TrySetResult();
+            try { await Task.Delay(Timeout.Infinite, token); }
+            finally
+            {
+                cancelled.TrySetResult();
+                // Model asynchronous transport cleanup: cancellation alone is not a drain.
+                await releaseCleanup.Task;
+            }
+        };
+        using CancellationTokenSource fallback = new();
+        Task<DanbooruWatcherCheckSummary?> running = scheduler.RunNextAsync(fallback.Token);
+        try
+        {
+            await onPage2.Task.WaitAsync(TestWait.Timeout);
+            if (startLoopDuringCheck) await scheduler.StartAsync();
+            Task stopping = scheduler.StopAsync();
+            Assert.False(stopping.IsCompleted);
+            await cancelled.Task.WaitAsync(TestWait.Timeout);
+            Assert.False(stopping.IsCompleted);
+            releaseCleanup.TrySetResult();
+            await stopping.WaitAsync(TestWait.Timeout);
+
+            // Stop itself, not a later await of RunNextAsync, must guarantee durable recovery.
+            Assert.Null(scheduler.GetSnapshot().CheckingWatcherId);
+            Assert.Equal(search.SessionsOpened, search.SessionsDisposed);
+            BooruWatcherRecord stored = Assert.Single(profile.Catalog.Read().Watchers);
+            Assert.Equal("Active", stored.State);
+            Assert.Equal(2, stored.NextPage);
+            Assert.Equal("121", stored.CursorBeforePostId);
+            Assert.Equal("100", stored.CheckStartHighWaterMark);
+            Assert.Equal(20, admission.QueuedCount);
+            Assert.Equal(DanbooruWatcherCheckKind.Cancelled, (await running.WaitAsync(TestWait.Timeout))!.Kind);
+            clock.Advance(Interval);
+            Assert.Null(await scheduler.RunNextAsync());
+
+            search.Hold = null;
+            await using DanbooruWatcherScheduler restarted = new(profile.Catalog, search, admission, clock, Options());
+            restarted.Load();
+            Assert.Equal(DanbooruWatcherCheckKind.Completed, (await restarted.RunNextAsync())!.Kind);
+            Assert.Equal("121", search.Calls[3].Before);
+            Assert.Equal(40, admission.QueuedCount);
+            Assert.All(admission.PerPost.Values, count => Assert.Equal(1, count));
+        }
+        finally
+        {
+            fallback.Cancel();
+            releaseCleanup.TrySetResult();
+            await running.WaitAsync(TestWait.Timeout);
+        }
     }
 
     [Fact]

@@ -44,8 +44,16 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     private readonly List<ManualRequest> _manual = new();
     private TaskCompletionSource _wake = NewSignal();
     private DateTimeOffset? _backoffUntil;
+    // Quiet time for automatic starts after a local write failure (disk full, lease lost, rights). Kept apart
+    // from the provider backoff on purpose (CX2-R1): it is not a provider pause, it never blocks a manual check
+    // (which then fails honestly with persist_failed), and the next successful write ends it.
+    private DateTimeOffset? _persistBackoffUntil;
     private DateTimeOffset? _lastAutomaticStart;
     private RunningCheck? _running;
+    // The watcher picked for the next check, held from the pick until the check has finished. The pick and
+    // the registration of _running are separate critical sections; without this claim a manual request (or
+    // a direct step) in between sees neither a running check nor a queued one and starts a second check.
+    private string? _claimed;
     private CancellationTokenSource? _lifetime;
     private Task _loop = Task.CompletedTask;
     private bool _loaded;
@@ -160,12 +168,14 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     {
         CancellationTokenSource? lifetime;
         Task loop;
+        RunningCheck? running;
         List<ManualRequest> pending;
         lock (_sync)
         {
             _stopping = true;
             lifetime = _lifetime;
             loop = _loop;
+            running = _running;
             pending = _manual.ToList();
             _manual.Clear();
             _wake.TrySetResult();
@@ -175,8 +185,15 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                 "scheduler_stopped", manual: true));
         try { lifetime?.Cancel(); }
         catch (ObjectDisposedException) { }
+        // A direct RunNextAsync may have started before the loop (or without one), so its token need not
+        // be linked to this lifetime. Cancel and drain that check itself before the profile is released:
+        // its cancellation recovery and session disposal must have finished first. No check can register
+        // after _stopping was set (RunCheckAsync re-checks it under the same lock).
+        try { running?.Cancellation.Cancel(); }
+        catch (ObjectDisposedException) { }
         try { await loop.ConfigureAwait(false); }
         catch (OperationCanceledException) { }
+        if (running != null) await running.Completion.Task.ConfigureAwait(false);
         lock (_sync)
         {
             if (ReferenceEquals(_lifetime, lifetime))
@@ -228,7 +245,8 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
             if (_removed.Contains(watcherId)) return Task.FromResult(Rejected("watcher_removed", now, true));
             if (!_watchers.TryGetValue(watcherId, out DanbooruWatcher? watcher))
                 return Task.FromResult(Rejected("watcher_not_found", now, true));
-            if (_running?.WatcherId == watcherId) return Task.FromResult(Rejected("check_already_running", now, true));
+            if (_running?.WatcherId == watcherId || _claimed == watcherId)
+                return Task.FromResult(Rejected("check_already_running", now, true));
             ManualRequest? queued = _manual.FirstOrDefault(item => item.WatcherId == watcherId);
             if (queued != null) return queued.Completion.Task;
             if (Gate(watcher, now, manual: true) is { } rejection) return Task.FromResult(rejection);
@@ -311,30 +329,64 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
         CancellationTokenSource? lifetime;
         lock (_sync)
         {
-            if (_stopping || !_loaded || _fault != null || _running != null) return null;
+            if (_stopping || !_loaded || _fault != null || _running != null || _claimed != null) return null;
             work = PickWorkLocked(_time.GetUtcNow(), out _);
+            if (work is { } picked) _claimed = picked.WatcherId;
             lifetime = _lifetime;
         }
         if (work is not { } item) return null;
-        // A direct step must also stop when the scheduler stops, otherwise an out-of-loop check keeps
-        // sending after StopAsync (and after the profile lease is gone).
-        using CancellationTokenSource linked = lifetime is null
-            ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
-            : CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetime.Token);
-        DanbooruWatcherCheckSummary summary = await RunCheckAsync(item.WatcherId, item.Manual, linked.Token)
-            .ConfigureAwait(false);
-        item.Request?.Completion.TrySetResult(summary);
+        DanbooruWatcherCheckSummary? summary = null;
+        try
+        {
+            // A direct step must also stop when the scheduler stops, otherwise an out-of-loop check keeps
+            // sending after StopAsync (and after the profile lease is gone).
+            using CancellationTokenSource linked = lifetime is null
+                ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
+                : CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetime.Token);
+            try
+            {
+                summary = await RunCheckAsync(item.WatcherId, item.Manual, linked.Token).ConfigureAwait(false);
+            }
+            finally
+            {
+                CompleteRequest(item.Request, summary, linked.Token);
+            }
+        }
+        finally
+        {
+            ReleaseClaim(item.WatcherId);
+        }
         RaiseChanged();
         return summary;
     }
 
+    /// <summary>Frees the single check slot and wakes the loop, which does not pick while a slot is taken.</summary>
+    private void ReleaseClaim(string watcherId)
+    {
+        lock (_sync)
+        {
+            if (_claimed == watcherId) _claimed = null;
+            _wake.TrySetResult();
+        }
+    }
+
+    /// <summary>
+    /// A dequeued manual request is answered exactly once, also when the check itself throws; otherwise the
+    /// caller of <see cref="CheckNowAsync"/> (the UI button) waits for ever (CX-R1).
+    /// </summary>
+    private void CompleteRequest(ManualRequest? request, DanbooruWatcherCheckSummary? summary, CancellationToken stop)
+    {
+        if (request is null) return;
+        request.Completion.TrySetResult(summary ?? (stop.IsCancellationRequested
+            ? Ended(DanbooruWatcherCheckKind.Cancelled, request.RequestedAtUtc, "scheduler_stopped", manual: true)
+            : Ended(DanbooruWatcherCheckKind.Failed, request.RequestedAtUtc, "check_faulted", manual: true)));
+    }
+
     private async Task RunLoopAsync(CancellationToken stop)
     {
-        // Give commands issued immediately after StartAsync a scheduling turn to enqueue manual
-        // requests before the first automatic selection.  Without this hand-off, the background
-        // loop can claim a due watcher before the caller's synchronous CheckNowAsync calls reach
-        // _manual, defeating the documented manual-first startup semantics.
-        await Task.Yield();
+        // Manual-first is an ordering guarantee only for requests queued before StartAsync (CheckNowAsync
+        // works after Load); a request issued after StartAsync races the first pick by design. When the
+        // loop wins, the claim answers the request with check_already_running instead of a second check.
         while (!stop.IsCancellationRequested)
         {
             Task wake;
@@ -345,15 +397,33 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                 if (_stopping) return;
                 if (_wake.Task.IsCompleted) _wake = NewSignal();
                 wake = _wake.Task;
-                work = PickWorkLocked(_time.GetUtcNow(), out wakeAt);
+                if (_running != null || _claimed != null)
+                {
+                    // A direct step holds the single check slot. Picking now would either start a second
+                    // check or, rejected by RunCheckAsync, spin on a due watcher; its ReleaseClaim wakes us.
+                    work = null;
+                    wakeAt = null;
+                }
+                else
+                {
+                    work = PickWorkLocked(_time.GetUtcNow(), out wakeAt);
+                    if (work is { } picked) _claimed = picked.WatcherId;
+                }
             }
             try
             {
                 if (work is { } item)
                 {
-                    DanbooruWatcherCheckSummary summary = await RunCheckAsync(item.WatcherId, item.Manual, stop)
-                        .ConfigureAwait(false);
-                    item.Request?.Completion.TrySetResult(summary);
+                    DanbooruWatcherCheckSummary? summary = null;
+                    try
+                    {
+                        summary = await RunCheckAsync(item.WatcherId, item.Manual, stop).ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        CompleteRequest(item.Request, summary, stop);
+                        ReleaseClaim(item.WatcherId);
+                    }
                     RaiseChanged();
                     continue;
                 }
@@ -410,7 +480,12 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
 
         if (cooldown is { } until && until > now)
         {
-            wakeAt = until;
+            wakeAt = _persistBackoffUntil is { } local && local > until ? local : until;
+            return null;
+        }
+        if (_persistBackoffUntil is { } quiet && quiet > now)
+        {
+            wakeAt = quiet;
             return null;
         }
         if (_lastAutomaticStart is { } last && last + _options.CheckStartSpacing > now)
@@ -438,19 +513,34 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
         DateTimeOffset started = _time.GetUtcNow();
         CheckCounters counters = new();
         CancellationTokenSource check;
+        RunningCheck running;
         DanbooruWatcher current;
         lock (_sync)
         {
+            // Re-checked here because the pick (RunNextAsync, loop) and this registration are separate
+            // critical sections (CX-R10). StopAsync may have run in between: nothing may start after it.
+            // The claim keeps two picks apart for all known callers; the _running check keeps "at most one
+            // running check" true for any future caller as well.
+            if (_stopping) return Rejected("scheduler_stopped", started, manual);
+            if (_running != null) return Rejected("check_already_running", started, manual);
             if (!_watchers.TryGetValue(watcherId, out DanbooruWatcher? watcher))
                 return Rejected(_removed.Contains(watcherId) ? "watcher_removed" : "watcher_not_found", started, manual);
             if (Gate(watcher, started, manual) is { } rejection) return Record(watcherId, rejection);
             DanbooruWatcherTransition begin = DanbooruWatcher.BeginCheck(watcher, started, manual);
             if (!begin.Accepted) return Record(watcherId, Rejected(begin.RejectionCode ?? "rejected", started, manual));
             if (!TryPersistLocked(begin.Watcher, out DanbooruWatcher? stored))
+            {
+                // An automatic start that cannot be made durable must not be selected again on the
+                // next loop turn.  The watcher remains due, so without this backoff a full catalog or a
+                // transient disk/lease failure spins and serializes the same state over and over without
+                // ever reaching the provider.  It is a local backoff, not the provider's (CX2-R1).
+                if (!manual)
+                    _persistBackoffUntil = Max(_persistBackoffUntil, _time.GetUtcNow() + _options.UnavailableRetry);
                 return Record(watcherId, Rejected("persist_failed", started, manual));
+            }
             current = stored!;
             check = CancellationTokenSource.CreateLinkedTokenSource(stop);
-            _running = new RunningCheck(watcherId, check);
+            _running = running = new RunningCheck(watcherId, check);
             if (!manual) _lastAutomaticStart = started;
         }
         RaiseChanged();
@@ -463,14 +553,47 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                 session).ConfigureAwait(false);
             return Record(watcherId, summary);
         }
+        catch (Exception exception)
+        {
+            // No exception may leave the watcher in the persisted Checking state: SelectNext skips every
+            // watcher while one is Checking and BeginCheck refuses manual checks for it, so a single escaped
+            // exception would stall all watchers until the next restart (CX-R1). The known trigger is an
+            // OperationCanceledException from a token that is not this check's (plugin worker lifetime);
+            // RunPagesAsync maps that one per call, this is the last line for everything else.
+            return Record(watcherId, FaultRun(watcherId, running, started, counters, manual,
+                cancelled: exception is OperationCanceledException && check.IsCancellationRequested));
+        }
         finally
         {
             lock (_sync)
             {
-                if (ReferenceEquals(_running?.Cancellation, check)) _running = null;
+                check.Dispose();
+                running.Completion.TrySetResult();
+                if (ReferenceEquals(_running, running)) _running = null;
             }
-            check.Dispose();
         }
+    }
+
+    /// <summary>
+    /// Terminal transition for a check that ended in an exception instead of a result. Only the watcher
+    /// instance of this very check is touched; a Pause/Remove that already moved it on wins.
+    /// </summary>
+    private DanbooruWatcherCheckSummary FaultRun(string watcherId, RunningCheck running, DateTimeOffset started,
+        CheckCounters counters, bool manual, bool cancelled)
+    {
+        lock (_sync)
+        {
+            if (ReferenceEquals(_running, running) && _watchers.TryGetValue(watcherId, out DanbooruWatcher? live)
+                && live.State == DanbooruWatcherState.Checking)
+            {
+                CommitWithoutRequestLocked(cancelled
+                    ? DanbooruWatcher.CancelCheck(live).Watcher
+                    : DanbooruWatcher.ApplyError(live, "check_faulted", _time.GetUtcNow()).Watcher);
+            }
+        }
+        return cancelled
+            ? Cancelled(started, counters, manual, "cancelled")
+            : Summary(DanbooruWatcherCheckKind.Failed, started, counters, "check_faulted", manual);
     }
 
     /// <summary>Opens the check's search session on the first request, so a check that never sends opens nothing.</summary>
@@ -521,7 +644,15 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
             {
                 return CancelRun(watcherId, current, started, counters, manual);
             }
-            catch (Exception exception) when (exception is not OperationCanceledException)
+            catch (OperationCanceledException)
+            {
+                // Cancelled by a token that is not this check's: the plugin worker lifetime ended (stop,
+                // eviction, plugin disabled) while the page was in flight. That is neither a provider answer
+                // nor a defect, so the search path counts as unavailable: the watcher returns to its resume
+                // target and the scheduler backs off instead of stalling in Checking (CX-R1).
+                outcome = new DanbooruWatcherSearchUnavailable("source_unavailable");
+            }
+            catch (Exception)
             {
                 outcome = new DanbooruWatcherSearchFailed("search_port_fault");
             }
@@ -602,10 +733,11 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                 {
                     return CancelRun(watcherId, current, started, counters, manual);
                 }
-                catch (Exception exception) when (exception is not OperationCanceledException)
+                catch (Exception)
                 {
-                    // The post could not be recorded: do not advance past it. The watcher stops visibly and
-                    // the same page is replayed (idempotently) after Resume or a manual check.
+                    // The post could not be recorded (also when the queue's own lifetime cancelled the
+                    // admission): do not advance past it. The watcher stops visibly and the same page is
+                    // replayed (idempotently) after Resume or a manual check.
                     lock (_sync)
                     {
                         if (IsCurrentLocked(watcherId, current))
@@ -747,6 +879,8 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
         if (compact.State == DanbooruWatcherState.Removed) _watchers.Remove(compact.WatcherId);
         else _watchers[compact.WatcherId] = compact;
         stored = compact;
+        // The store accepts writes again (e.g. a manual check after the user freed disk space).
+        _persistBackoffUntil = null;
         return true;
     }
 
@@ -755,6 +889,8 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
         DateTimeOffset? providerCooldown = ProviderCooldownLocked(now);
         DateTimeOffset? next = DanbooruWatcherSchedule.NextCheckAtUtc(watcher, _options.Interval, now);
         if (next is { } due && providerCooldown is { } cooling && cooling > due) next = cooling;
+        // A local write backoff only moves the next automatic check; it is not shown as a provider cooldown.
+        if (next is { } planned && _persistBackoffUntil is { } quiet && quiet > now && quiet > planned) next = quiet;
         DanbooruWatcherActivity activity;
         if (_running?.WatcherId == watcher.WatcherId || watcher.State == DanbooruWatcherState.Checking)
             activity = DanbooruWatcherActivity.Checking;
@@ -764,6 +900,10 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
             activity = watcher.State switch
             {
                 DanbooruWatcherState.Paused => DanbooruWatcherActivity.Paused,
+                // Paused during (or by) a provider wait: the user paused it, the retry time stays in
+                // CooldownUntilUtc and keeps the provider wait across restarts (CX2-R2).
+                DanbooruWatcherState.Cooldown when watcher.ResumeState == DanbooruWatcherState.Paused
+                    => DanbooruWatcherActivity.Paused,
                 DanbooruWatcherState.Error => DanbooruWatcherActivity.Error,
                 DanbooruWatcherState.Cooldown => DanbooruWatcherActivity.Cooldown,
                 _ when providerCooldown is not null => DanbooruWatcherActivity.Cooldown,
@@ -834,7 +974,11 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
         catch (Exception) { /* Observers never change scheduling. */ }
     }
 
-    private sealed record RunningCheck(string WatcherId, CancellationTokenSource Cancellation);
+    private sealed record RunningCheck(string WatcherId, CancellationTokenSource Cancellation)
+    {
+        /// <summary>Set once the check has fully ended (terminal state committed, session disposed).</summary>
+        internal TaskCompletionSource Completion { get; } = NewSignal();
+    }
 
     private sealed class ManualRequest(string watcherId, DateTimeOffset requestedAtUtc)
     {

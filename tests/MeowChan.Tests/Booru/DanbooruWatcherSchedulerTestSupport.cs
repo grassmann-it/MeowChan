@@ -18,7 +18,14 @@ internal sealed class SchedulerClock : TimeProvider
 
     internal SchedulerClock(DateTimeOffset start) => _now = start;
 
-    public override DateTimeOffset GetUtcNow() { lock (_gate) return _now; }
+    /// <summary>Optional probe run on every read of the time, outside the clock's own lock (tests that need to park a caller).</summary>
+    internal Action? OnGetUtcNow { get; set; }
+
+    public override DateTimeOffset GetUtcNow()
+    {
+        OnGetUtcNow?.Invoke();
+        lock (_gate) return _now;
+    }
 
     internal int PendingTimers { get { lock (_gate) return _timers.Count(timer => !timer.Disposed && timer.Due != null); } }
 
