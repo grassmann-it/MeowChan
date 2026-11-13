@@ -43,6 +43,17 @@ public sealed class ShortcutBindingsSection
         using var document = JsonDocument.Parse(root.ToJsonString());
         return new(document.RootElement);
     }
+    /// <summary>The accessibility switch for the standard single-character shortcuts; on unless the profile says false.
+    /// Stored as an additive top-level field, so the schema version stays 1 and older builds keep it as unknown data.</summary>
+    public bool SingleKeyShortcuts => !(Raw.ValueKind == JsonValueKind.Object && Raw.TryGetProperty("SingleKeyShortcuts", out var v) && v.ValueKind == JsonValueKind.False);
+    public ShortcutBindingsSection WithSingleKeyShortcuts(bool enabled)
+    {
+        if (!IsEditable) throw new InvalidOperationException("This shortcut schema is read-only.");
+        var root = JsonNode.Parse(Raw.GetRawText())!.AsObject();
+        if (enabled) root.Remove("SingleKeyShortcuts"); else root["SingleKeyShortcuts"] = false;
+        using var document = JsonDocument.Parse(root.ToJsonString());
+        return new(document.RootElement);
+    }
     public ShortcutBindingsSection ResetKnown()
     {
         var result = this;

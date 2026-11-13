@@ -123,11 +123,13 @@ public sealed class EffectiveShortcutBindings
         => issue.BlocksSave || issue.Reason?.Code == "unsupportedSchema";
     public long Version { get; } = System.Threading.Interlocked.Increment(ref _nextVersion);
     public ShortcutPlatform Platform { get; }
+    /// <summary>False when the profile switched the standard single-character shortcuts off.</summary>
+    public bool SingleKeyShortcuts { get; }
     public IReadOnlyList<ShortcutIssue> Issues { get; }
     public IReadOnlyDictionary<string, IReadOnlyList<ShortcutGesture>> Gestures { get; }
     public IReadOnlyDictionary<string, IReadOnlyList<ShortcutGesture>> RequestedGestures { get; }
-    private EffectiveShortcutBindings(ShortcutPlatform platform, Dictionary<string, IReadOnlyList<ShortcutGesture>> gestures, List<ShortcutIssue> issues, Dictionary<string, IReadOnlyList<ShortcutGesture>> requested)
-    { Platform = platform; Gestures = new ReadOnlyDictionary<string, IReadOnlyList<ShortcutGesture>>(gestures); Issues = issues.AsReadOnly(); RequestedGestures = new ReadOnlyDictionary<string, IReadOnlyList<ShortcutGesture>>(requested); }
+    private EffectiveShortcutBindings(ShortcutPlatform platform, Dictionary<string, IReadOnlyList<ShortcutGesture>> gestures, List<ShortcutIssue> issues, Dictionary<string, IReadOnlyList<ShortcutGesture>> requested, bool singleKeys)
+    { Platform = platform; SingleKeyShortcuts = singleKeys; Gestures = new ReadOnlyDictionary<string, IReadOnlyList<ShortcutGesture>>(gestures); Issues = issues.AsReadOnly(); RequestedGestures = new ReadOnlyDictionary<string, IReadOnlyList<ShortcutGesture>>(requested); }
     public static ShortcutPlatform CurrentPlatform => OperatingSystem.IsMacOS() ? ShortcutPlatform.MacOS : OperatingSystem.IsWindows() ? ShortcutPlatform.Windows : ShortcutPlatform.Linux;
     public IReadOnlyList<ShortcutGesture> For(string id) => Gestures.TryGetValue(id, out var value) ? value : Array.Empty<ShortcutGesture>();
     public string? Display(string id) => For(id).Count == 0 ? null : string.Join(" / ", For(id).Select(g => g.Display(Platform)));
@@ -180,6 +182,17 @@ public sealed class EffectiveShortcutBindings
         };
     }
 
+    /// <summary>A bare character key (letter, digit, +/−, typed symbol), alone or with Shift: what a switch for
+    /// single-key shortcuts turns off. Enter, Space, arrows, Delete, F-keys and every gesture with Ctrl/Alt/⌘ stay.</summary>
+    public static bool IsSingleCharacterKey(ShortcutGesture gesture)
+    {
+        if (gesture.Modifiers.Any(m => m != "Shift")) return false;
+        string key = gesture.Key;
+        return gesture.Symbol != null || key.Length == 1 && char.IsAsciiLetter(key[0])
+            || key.Length == 2 && key[0] == 'D' && char.IsAsciiDigit(key[1])
+            || key.Length == 7 && key.StartsWith("NumPad", StringComparison.Ordinal) && char.IsAsciiDigit(key[6])
+            || key is "Add" or "Subtract" or "Multiply" or "Divide" or "OemPlus" or "OemMinus" or "OemComma" or "OemPeriod" or "OemQuestion";
+    }
     public static string? InvalidReason(ShortcutGesture gesture, ShortcutPlatform platform)
         => InvalidIssueReason(gesture, platform)?.LegacyMessage;
     internal static ShortcutIssueReason? InvalidIssueReason(ShortcutGesture gesture, ShortcutPlatform platform)
@@ -204,6 +217,11 @@ public sealed class EffectiveShortcutBindings
     {
         var os = platform ?? CurrentPlatform;
         var values = CommandCatalog.All.ToDictionary(c => c.Id, c => Defaults(c, os), StringComparer.Ordinal);
+        // Optional accessibility switch (WCAG 2.1.4): standard single-key gestures off. Saved bindings are the user's own and stay.
+        bool singleKeys = section?.SingleKeyShortcuts ?? true;
+        if (!singleKeys)
+            foreach (string id in values.Keys.ToArray())
+                values[id] = values[id].Where(g => !IsSingleCharacterKey(g)).ToList().AsReadOnly();
         var issues = new List<ShortcutIssue>();
         section ??= new();
         if (!section.IsEditable) issues.Add(ShortcutIssue.FromReason("", new("unsupportedSchema", "Unsupported shortcut schema; defaults active / Unbekanntes Kürzelschema; Standards aktiv"), blocksSave: false));
@@ -278,7 +296,7 @@ public sealed class EffectiveShortcutBindings
                 }
         }
         foreach (var pair in rejected) values[pair.Key] = Array.AsReadOnly(values[pair.Key].Where(g => !pair.Value.Contains(g)).ToArray());
-        return new(os, values, issues, requested);
+        return new(os, values, issues, requested, singleKeys);
     }
     public static bool Equivalent(ShortcutGesture a, ShortcutGesture b, ShortcutPlatform platform)
     { var x = a.Resolve(platform); var y = b.Resolve(platform); return x.KeyModifiers == y.KeyModifiers && (x.Key == y.Key || a.Symbol != null && a.Symbol == b.Symbol); }

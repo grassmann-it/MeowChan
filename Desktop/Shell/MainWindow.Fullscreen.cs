@@ -728,7 +728,9 @@ public partial class MainWindow
         if (_largeReaderOpen && _archivePage?.ReaderShowsPosts == true)
             sections.Insert(0, Texts.T("help.reader.mediaActivation"));
         ShellHelpText.Text = string.Join(Environment.NewLine + Environment.NewLine, sections)
-            + Environment.NewLine + Environment.NewLine + Texts.T("help.escape");
+            + Environment.NewLine + Environment.NewLine
+            + (ShortcutService.Current.SingleKeyShortcuts ? string.Empty : Texts.T("help.singleKeysOff") + Environment.NewLine + Environment.NewLine)
+            + Texts.T("help.escape");
         help.MaxHeight = Math.Max(180, ClientSize.Height - 40);
         help.IsVisible = true;
         ShellHelpClose.Focus();

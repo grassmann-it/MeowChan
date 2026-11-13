@@ -28,6 +28,9 @@ public sealed class ShortcutEditor : UserControl
     private readonly TextBlock _errors = new() { TextWrapping = TextWrapping.Wrap };
     private readonly KeyGestureInput _capture = new() { MinHeight = 36, HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly CheckBox _explicit = new();
+    // WCAG 2.1.4: the standard single-character shortcuts can be switched off as a whole.
+    private readonly CheckBox _singleKeys = new() { Name = "SettingsShortcutsSingleKeys" };
+    private bool _syncingSingleKeys;
     private readonly TextBlock _pendingLabel = new() { TextWrapping = TextWrapping.Wrap };
     // Refresh presentation in place: removing a focused control releases capture.
     private readonly List<Action> _frameTexts = new();
@@ -62,6 +65,12 @@ public sealed class ShortcutEditor : UserControl
         _capture.LostFocus += (_, _) => StopCapture();
         _errors.LostFocus += (_, _) => CancelValidationViewportReveal();
         _explicit.IsCheckedChanged += (_, _) => ReadCapture();
+        _singleKeys.IsCheckedChanged += (_, _) =>
+        {
+            if (_syncingSingleKeys || !Draft.IsEditable || (_singleKeys.IsChecked == true) == Draft.SingleKeyShortcuts) return;
+            Draft = Draft.WithSingleKeyShortcuts(_singleKeys.IsChecked == true);
+            Changed();
+        };
         DetachedFromVisualTree += (_, _) => { _validationFocusRequest++; CancelValidationViewportReveal(); StopCapture(); };
         AttachedToVisualTree += (_, _) => { Texts.Changed += OnLanguageChanged; Localize(); };
         DetachedFromVisualTree += (_, _) => Texts.Changed -= OnLanguageChanged;
@@ -156,6 +165,9 @@ public sealed class ShortcutEditor : UserControl
         // pending explanation below the viewport without changing focus.
         QueueValidationViewportReveal(request);
         _heading.Text = Texts.T("shortcuts.title");
+        _singleKeys.Content = Texts.T("settings.shortcutsEditor.singleKeys");
+        AutomationProperties.SetName(_singleKeys, _singleKeys.Content.ToString());
+        AutomationProperties.SetHelpText(_singleKeys, Texts.T("settings.shortcutsEditor.singleKeys.help"));
         _search.PlaceholderText = Texts.T("settings.shortcutsEditor.search");
         AutomationProperties.SetName(_search, _search.PlaceholderText?.ToString());
         AutomationProperties.SetName(_actions, Texts.T("settings.shortcutsEditor.actions"));
@@ -296,6 +308,10 @@ public sealed class ShortcutEditor : UserControl
         var hint = LocalizedText(() => Texts.T("settings.shortcutsEditor.hint"), _frameTexts);
         hint.Classes.Add("workspace-help");
         _root.Children.Add(hint);
+        _root.Children.Add(_singleKeys);
+        var singleKeysHelp = LocalizedText(() => Texts.T("settings.shortcutsEditor.singleKeys.help"), _frameTexts);
+        singleKeysHelp.Classes.Add("workspace-help");
+        _root.Children.Add(singleKeysHelp);
         _root.Children.Add(_search);
         var tableHeader = new Grid { ColumnDefinitions = new ColumnDefinitions("2*,*,*"), ColumnSpacing = 12, Margin = new Thickness(12, 0) };
         foreach (var (label, column) in new (Func<string>, int)[] { (() => Texts.T("settings.shortcutsEditor.action"), 0), (() => Texts.T("settings.shortcutsEditor.context"), 1), (() => Texts.T("settings.shortcutsEditor.effectiveBinding"), 2) })
@@ -316,6 +332,9 @@ public sealed class ShortcutEditor : UserControl
     {
         _rowTexts.Clear();
         _reset.IsEnabled = Draft.IsEditable;
+        _syncingSingleKeys = true;
+        try { _singleKeys.IsChecked = Draft.SingleKeyShortcuts; _singleKeys.IsEnabled = Draft.IsEditable; }
+        finally { _syncingSingleKeys = false; }
         string query = _search.Text?.Trim() ?? "";
         var snapshot = EffectiveShortcutBindings.Build(Draft);
         var items = CommandCatalog.All.Select(command =>

@@ -61,6 +61,8 @@ internal static class R08dSettingsCatalog
         ("shortcuts.warning", "Some shortcuts could not be activated. Review Keyboard shortcuts in Settings; existing data was preserved.", "Einige Tastenkürzel konnten nicht aktiviert werden. Prüfe Tastenkürzel in den Einstellungen; vorhandene Daten bleiben erhalten."),
         ("shortcuts.title", "Keyboard shortcuts", "Tastenkürzel"),
         ("settings.shortcutsEditor.hint", "Bindings apply after Save in every view. Text editing, Tab and Escape remain available. System shortcuts may intercept keys.", "Belegungen gelten nach Speichern in jeder Ansicht. Texteingabe, Tab und Escape bleiben verfügbar. Systemkürzel können Tasten abfangen."),
+        ("settings.shortcutsEditor.singleKeys", "Standard single-key shortcuts (letters, digits, + and −)", "Standard-Einzeltasten (Buchstaben, Ziffern, + und −)"),
+        ("settings.shortcutsEditor.singleKeys.help", "Turn this off if letter keys trigger actions by mistake, for example with speech input. Shortcuts with Ctrl or ⌘, the F-keys, Enter, Space and the arrow keys stay. Your own bindings are not changed.", "Ausschalten, wenn Buchstabentasten versehentlich Aktionen auslösen, etwa bei Spracheingabe. Kürzel mit Strg oder ⌘, die F-Tasten, Enter, Leertaste und die Pfeiltasten bleiben. Eigene Belegungen ändern sich nicht."),
         ("settings.shortcutsEditor.search", "Search action, context or shortcut", "Aktion, Bereich oder Kürzel suchen"),
         ("settings.shortcutsEditor.actions", "Actions and shortcuts", "Aktionen und Tastenkürzel"),
         ("settings.shortcutsEditor.action", "Action", "Aktion"),
