@@ -18,7 +18,8 @@ namespace MeowChan;
 
 // Reader ideas I1: a preview of the quoted post while the pointer rests on an inline >>No. or a quote button has the
 // focus, and a one-time highlight of the post a jump lands on. One preview at a time, built lazily from the thread's
-// post index: no cost per post, nothing is stored.
+// post index: no cost per post, nothing is stored. P3 adds one outline overlay on the quoted post while the pointer or
+// the keyboard focus rests on a reference (only when that post's container is realized and in view).
 public partial class ArchivePage
 {
     internal const int QuotePreviewMaxLines = 8;
@@ -75,6 +76,18 @@ public partial class ArchivePage
         posts.AddHandler(PointerWheelChangedEvent, (_, _) => CloseQuotePreview(), RoutingStrategies.Tunnel, handledEventsToo: true);
         posts.AddHandler(PointerPressedEvent, (_, _) => CloseQuotePreview(), RoutingStrategies.Tunnel, handledEventsToo: true);
         QuotePreviewPopup.Closed += (_, _) => _quotePreviewRow = null;
+        // The outline is placed in list coordinates: scrolling removes it; a change of extent or size (images, text layout)
+        // only moves the target, so it is placed again for the reference that is still hovered.
+        posts.AddHandler(ScrollViewer.ScrollChangedEvent, (_, e) =>
+        {
+            if (!ReaderQuoteHighlight.IsVisible) return;
+            if (e is ScrollChangedEventArgs { OffsetDelta: { X: 0, Y: 0 } } && _quotePreviewRow is { } row) ShowQuoteHighlight(row);
+            else HideQuoteHighlight();
+        }, RoutingStrategies.Bubble);
+        posts.SizeChanged += (_, _) =>
+        {
+            if (ReaderQuoteHighlight.IsVisible && _quotePreviewRow is { } row) ShowQuoteHighlight(row);
+        };
     }
 
     // Only the quote buttons of a post's own reference row preview; reply buttons and others keep their plain behaviour.
@@ -110,6 +123,7 @@ public partial class ArchivePage
         _quotePreviewRow = row;
         _quotePreviewTarget = target;
         _quotePreviewArea = area;
+        ShowQuoteHighlight(row);
         if (immediate) { ShowQuotePreview(); return; }
         _quotePreviewTimer ??= new DispatcherTimer { Interval = QuotePreviewDelay };
         _quotePreviewTimer.Tick -= OnQuotePreviewTimer;
@@ -126,6 +140,7 @@ public partial class ArchivePage
     internal void CloseQuotePreview()
     {
         _quotePreviewTimer?.Stop();
+        HideQuoteHighlight();
         if (QuotePreviewPopup.IsOpen) QuotePreviewPopup.IsOpen = false;
         _quotePreviewRow = null;
         _quotePreviewTarget = null;
@@ -139,6 +154,34 @@ public partial class ArchivePage
         if (target == null || target.Thread != _thread.Summary.Id) return null;
         int index = _thread.FindPostIndex(target.PostId);
         return index < 0 ? null : _thread.GetPosts(index, 1).FirstOrDefault();
+    }
+
+    internal bool IsQuoteHighlightVisible => ReaderQuoteHighlight.IsVisible;
+
+    private void HideQuoteHighlight()
+    {
+        if (ReaderQuoteHighlight.IsVisible) ReaderQuoteHighlight.IsVisible = false;
+    }
+
+    // Outlines the quoted post with the accent colour: one overlay, no animation, placed from the realized container of the
+    // target and clipped to what the list shows. A target that is on another page, not realized or scrolled out of view
+    // gets no outline.
+    private void ShowQuoteHighlight(ArchiveQuoteRow row)
+    {
+        Border outline = ReaderQuoteHighlight;
+        outline.IsVisible = false;
+        ListBox posts = ArchivePosts;
+        ArchivePostId? target = row.Backlink ? row.Quote.Origin : row.Quote.Target;
+        if (_ended || _thread == null || row.IsDead || target == null || target.Thread != _thread.Summary.Id
+            || posts.ItemsSource?.Cast<ArchivePostRow>().FirstOrDefault(item => item.Id == target.PostId) is not { } item
+            || posts.ContainerFromItem(item) is not Control container || !container.IsEffectivelyVisible || outline.Parent is not Visual host
+            || container.TranslatePoint(default, host) is not Point origin || posts.TranslatePoint(default, host) is not Point listOrigin) return;
+        Rect visible = new Rect(origin, container.Bounds.Size).Intersect(new Rect(listOrigin, posts.Bounds.Size));
+        if (visible.Width < 1 || visible.Height < 1) return;
+        outline.Margin = new Thickness(visible.X, visible.Y, 0, 0);
+        outline.Width = visible.Width;
+        outline.Height = visible.Height;
+        outline.IsVisible = true;
     }
 
     private void ShowQuotePreview()

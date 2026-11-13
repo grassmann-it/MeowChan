@@ -45,6 +45,7 @@ internal static class ReaderIdeaChecks
     {
         await CheckFormattingAsync(owner);
         await CheckQuotePreviewAsync(owner);
+        await CheckQuoteMarksAsync(owner);
         await CheckUnreadLineAsync(owner);
         await CheckFoldAsync(owner);
         await CheckLinksAsync(owner);
@@ -231,6 +232,73 @@ internal static class ReaderIdeaChecks
         }
         finally { Environment.SetEnvironmentVariable("MEOWCHAN_REDUCED_MOTION", null); }
         Console.WriteLine("SMOKE reader I1: delayed hover/focus preview, one at a time, dead reference, Space/Escape and the jump highlight passed.");
+    }
+
+
+    // P3: "(OP)" and "(other thread)" behind a reference, and the outline of the quoted post while its reference is hovered.
+    // The outline needs the target's container: none on another page, none when it is not realized or scrolled out of view.
+    private static async Task CheckQuoteMarksAsync(MainWindow owner)
+    {
+        await using Fixture fixture = await OpenAsync(owner, "320", _=> Enumerable.Concat(
+        [
+            new CapturedPost("320", 0, PostFieldPresence.All, Subject: "Opening", Html: "<p>The opening post.</p>"),
+            new CapturedPost("321", 1, PostFieldPresence.All, Html: "<a href='#p320' class='quotelink'>&gt;&gt;320</a> to the opening post, and <a href='/g/thread/777#p778' class='quotelink'>&gt;&gt;778</a> elsewhere, and <a href='#p999' class='quotelink'>&gt;&gt;999</a> missing"),
+            new CapturedPost("322", 2, PostFieldPresence.All, Html: "<a href='#p321' class='quotelink'>&gt;&gt;321</a> an ordinary reply")
+        ], Enumerable.Range(323, 70).Select((number, index) => new CapturedPost(number.ToString(), 3 + index, PostFieldPresence.All,
+            Html: "<p>Filler " + number + "<br>second line<br>third line</p>"))).ToArray());
+        ArchivePage page = fixture.Page;
+        ListBox list = fixture.List;
+        ArchivePostRow[] rows = list.ItemsSource!.Cast<ArchivePostRow>().ToArray();
+        ArchivePostRow reply = rows.Single(row => row.Id == "321");
+        await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
+        string op = MeowChan.Desktop.Localization.Texts.T("reader.quote.opMarker"), cross = MeowChan.Desktop.Localization.Texts.T("reader.quote.crossMarker");
+        ReaderBodyTextBlock body = Body(fixture, "321");
+        Require(body.PlainText.Contains(">>320 " + op + " to") && body.PlainText.Contains(">>778 " + cross + " elsewhere") && !body.PlainText.Contains(">>999 " + op),
+            "The reference markers were not shown: " + body.PlainText);
+        Require(!Body(fixture, "322").PlainText.Contains(op) && !Body(fixture, "322").PlainText.Contains(cross), "An ordinary reference got a marker.");
+        Run marker = body.Inlines!.OfType<Run>().First(run => run.Text == " " + op);
+        Require((marker.Foreground as ISolidColorBrush)?.Color == Token(fixture.Window, "Workspace.Muted"), "The marker was not drawn in the muted colour.");
+        Border outline = page.FindControl<Border>("ReaderQuoteHighlight")!;
+        Require(!outline.IsVisible && !outline.IsHitTestVisible, "The outline was visible without a hovered reference.");
+        Program.CaptureWindow(fixture.Window, "smoke-reader-p3-quote-marks.png");
+
+        // Hover: the target (here the realized opening post) is outlined at once, before the preview delay.
+        ArchiveQuoteRow toOpening = reply.Quotes.Single(quote => quote.TargetsOpeningPost);
+        body.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, toOpening, new Rect(0, 0, 40, 18)));
+        Require(outline.IsVisible && page.IsQuoteHighlightVisible && outline.Width > 100 && outline.Height > 20 && outline.BorderThickness.Left == 2,
+            "The target post was not outlined on hover.");
+        // Same on a post that is not the selected one, so the outline is not confused with the selection frame.
+        body.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, null, default));
+        ArchiveQuoteRow toReply = rows.Single(row => row.Id == "322").Quotes.Single();
+        Body(fixture, "322").RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, toReply, new Rect(0, 0, 40, 18)));
+        Require(outline.IsVisible, "The reply target was not outlined.");
+        Program.CaptureWindow(fixture.Window, "smoke-reader-p3-quote-outline.png");
+        Body(fixture, "322").RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, null, default));
+        body.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, toOpening, new Rect(0, 0, 40, 18)));
+        await Program.WaitUntilAsync(() => page.IsQuotePreviewOpen, () => "no preview after hover");
+        Require(outline.IsVisible, "The outline vanished when the preview opened.");
+        body.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, null, default));
+        Require(!outline.IsVisible, "Leaving the reference did not remove the outline.");
+
+        // References to a dead post or another thread have no target in the list: no outline.
+        body.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, reply.Quotes.Single(quote => quote.IsCrossThread), new Rect(0, 0, 40, 18)));
+        body.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, reply.Quotes.Single(quote => quote.IsDead), new Rect(0, 0, 40, 18)));
+        Require(!outline.IsVisible, "A dead or foreign reference was outlined.");
+
+        // Scrolling away removes the outline; a target that is no longer realized or in view is not outlined.
+        body.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, toOpening, new Rect(0, 0, 40, 18)));
+        Require(outline.IsVisible, "The outline did not come back.");
+        ScrollViewer scroll = ListScroll(fixture);
+        scroll.Offset = new Vector(0, scroll.Offset.Y + 120);
+        await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
+        Require(!outline.IsVisible, "Scrolling did not remove the outline.");
+        page.CloseQuotePreview();
+        scroll.Offset = new Vector(0, scroll.Extent.Height);
+        await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
+        page.RequestQuotePreview(toOpening, Body(fixture, rows[^1].Id), new Rect(0, 0, 40, 18), immediate: false);
+        Require(!outline.IsVisible, "A target scrolled out of view was outlined.");
+        page.CloseQuotePreview();
+        Console.WriteLine("SMOKE reader P3: reference markers and the target outline (on hover, hidden on scroll/leave, none without a visible target) passed.");
     }
 
 

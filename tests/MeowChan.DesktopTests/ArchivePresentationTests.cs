@@ -135,4 +135,45 @@ public sealed class ArchivePresentationTests
         Assert.Equal("<script>literal markup</script>", ArchivePresentation.PlainText("&lt;script&gt;literal markup&lt;/script&gt;"));
         Assert.Equal(string.Empty, ArchivePresentation.PlainText(null));
     }
+
+    [Fact]
+    public void ReferenceRowsMarkTheOpeningPostAndAnotherThread()
+    {
+        MeowChan.ResourceId thread = new("4chan", "g", "123"), other = new("4chan", "g", "999");
+        ArchiveQuoteRow Row(MeowChan.ResourceId target, string post, bool backlink = false) => new(
+            new ArchiveQuote(new ArchivePostId(thread, "124"), new ArchivePostId(target, post), ">>" + post, null), backlink);
+        string op = MeowChan.Desktop.Localization.Texts.T("reader.quote.opMarker"), cross = MeowChan.Desktop.Localization.Texts.T("reader.quote.crossMarker");
+
+        ArchiveQuoteRow opening = Row(thread, "123");
+        Assert.True(opening.TargetsOpeningPost);
+        Assert.False(opening.IsCrossThread);
+        Assert.Equal(">>123 " + op, opening.Label);
+        Assert.Equal(">>123, " + MeowChan.Desktop.Localization.Texts.T("reader.quote.opAccessible"), opening.AccessibleLabel);
+
+        ArchiveQuoteRow reply = Row(thread, "124");
+        Assert.False(reply.TargetsOpeningPost || reply.IsCrossThread);
+        Assert.Equal(">>124", reply.Label);
+        Assert.Equal(">>124", reply.AccessibleLabel);
+
+        // Another thread: marked as such, also when the target is that thread's opening post.
+        ArchiveQuoteRow foreign = Row(other, "50"), foreignOp = Row(other, "999");
+        Assert.True(foreign.IsCrossThread && !foreign.TargetsOpeningPost);
+        Assert.Equal(">>50 " + cross, foreign.Label);
+        Assert.Contains(MeowChan.Desktop.Localization.Texts.T("reader.quote.crossAccessible"), foreign.AccessibleLabel);
+        Assert.True(foreignOp.TargetsOpeningPost && foreignOp.IsCrossThread);
+        Assert.Equal(">>999 " + cross, foreignOp.Label);
+
+        // Backlinks keep their compact form; a source other than 4chan/8kun has no opening-post number; no target, no marker.
+        Assert.Equal("#124", (Row(thread, "123", backlink: true) with { ReaderThread = thread }).Label);
+        Assert.False(Row(other, "123", backlink: true).TargetsOpeningPost || Row(other, "999", backlink: true).IsCrossThread);
+        MeowChan.ResourceId booru = new("other", "b", "5");
+        ArchiveQuoteRow unnumbered = new(new ArchiveQuote(new ArchivePostId(booru, "6"), new ArchivePostId(booru, "5"), ">>5", null));
+        Assert.False(unnumbered.TargetsOpeningPost);
+        Assert.Equal(">>5", unnumbered.Label);
+        ArchiveQuoteRow untargeted = new(new ArchiveQuote(new ArchivePostId(thread, "124"), null, ">>77", null));
+        Assert.Equal(">>77", untargeted.Label);
+        // A label the source already marked is not marked twice.
+        ArchiveQuoteRow own = new(new ArchiveQuote(new ArchivePostId(thread, "124"), new ArchivePostId(thread, "123"), ">>123 (OP)", null));
+        Assert.Equal(">>123 (OP)", own.Label);
+    }
 }
