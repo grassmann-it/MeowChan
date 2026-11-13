@@ -72,10 +72,26 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     public static readonly RoutedEvent<ReaderQuoteHoverEventArgs> QuoteHoverEvent =
         RoutedEvent.Register<ReaderBodyTextBlock, ReaderQuoteHoverEventArgs>(nameof(QuoteHover), RoutingStrategies.Bubble);
 
-    /// <summary>A body over this many lines is folded until the post is expanded (presentation, not a resource limit).</summary>
-    internal const int FoldThresholdLines = 24;
-    /// <summary>The lines a folded body shows.</summary>
-    internal const int FoldVisibleLines = 18;
+    /// <summary>
+    /// How spoilers are painted. Inherited, so one value set on the post list (or the reader pane) reaches every body;
+    /// an undefined value counts as <see cref="ReaderSpoilerMode.Hide"/>.
+    /// </summary>
+    public static readonly AttachedProperty<ReaderSpoilerMode> SpoilerModeProperty =
+        AvaloniaProperty.RegisterAttached<ReaderBodyTextBlock, Control, ReaderSpoilerMode>("SpoilerMode", ReaderSpoilerMode.Hide,
+            inherits: true, coerce: (_, value) => ReaderDisplayLimits.ClampSpoilerMode(value));
+
+    /// <summary>
+    /// A body over this many lines is folded until the post is expanded (presentation, not a resource limit). Inherited and
+    /// clamped to <see cref="ReaderDisplayLimits.FoldLinesMinimum"/>..<see cref="ReaderDisplayLimits.FoldLinesMaximum"/>.
+    /// </summary>
+    public static readonly AttachedProperty<int> FoldThresholdLinesProperty =
+        AvaloniaProperty.RegisterAttached<ReaderBodyTextBlock, Control, int>("FoldThresholdLines", ReaderDisplayLimits.FoldLinesDefault,
+            inherits: true, coerce: (_, value) => ReaderDisplayLimits.ClampFoldLines(value));
+
+    public static ReaderSpoilerMode GetSpoilerMode(Control control) => control.GetValue(SpoilerModeProperty);
+    public static void SetSpoilerMode(Control control, ReaderSpoilerMode value) => control.SetValue(SpoilerModeProperty, value);
+    public static int GetFoldThresholdLines(Control control) => control.GetValue(FoldThresholdLinesProperty);
+    public static void SetFoldThresholdLines(Control control, int value) => control.SetValue(FoldThresholdLinesProperty, value);
 
     // Fade of the last lines of a folded body: the surface behind (card, active card or page) shows through.
     private static readonly IBrush FoldFade = new LinearGradientBrush
@@ -85,7 +101,15 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     }.ToImmutable();
 
     private int _lineCount;
+    private bool _foldableReported;
+    private bool _spoilersHovered;
     private string _foldLabel = string.Empty;
+
+    /// <summary>The current fold threshold (clamped), in wrapped lines.</summary>
+    internal int FoldThresholdLines => GetValue(FoldThresholdLinesProperty);
+    /// <summary>The lines a folded body shows: three quarters of the threshold.</summary>
+    internal int FoldVisibleLines => ReaderDisplayLimits.FoldVisibleLines(FoldThresholdLines);
+    internal ReaderSpoilerMode SpoilerMode => GetValue(SpoilerModeProperty);
 
     /// <summary>The long body is shown in full (the owning post keeps this for the session).</summary>
     public bool Expanded
@@ -119,32 +143,42 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
         set => SetValue(SpoilersRevealedProperty, value);
     }
 
-    internal bool HasHiddenSpoilers => Document is { HasSpoilers: true } && !SpoilersRevealed;
+    /// <summary>The spoilers are painted readable: revealed by the post, always shown by the mode, or shown while the pointer is over the body in hover mode.</summary>
+    internal bool SpoilersShown => ReaderSpoilerPolicy.Shown(SpoilerMode, SpoilersRevealed, _spoilersHovered);
+
+    internal bool HasHiddenSpoilers => Document is { HasSpoilers: true } && !SpoilersShown;
+
+    /// <summary>A click on a spoiler that is not yet revealed for good keeps it shown (not needed when the mode shows everything anyway).</summary>
+    private bool SpoilerClickReveals => ReaderSpoilerPolicy.ClickReveals(SpoilerMode, SpoilersRevealed);
+
+    /// <summary>The pointer entered or left the body (the hover mode shows every spoiler of the post while it is inside).</summary>
+    internal void SetSpoilerHover(bool hovered)
+    {
+        if (_spoilersHovered == hovered) return;
+        _spoilersHovered = hovered;
+        if (SpoilerMode == ReaderSpoilerMode.Hover) RefreshSpoilers();
+    }
+
+    // Only the painting and the accessible name depend on the spoiler state; the selection stays.
+    private void RefreshSpoilers()
+    {
+        if (Document is not { HasSpoilers: true }) return;
+        if (Document.IsFormatted)
+        {
+            int start = SelectionStart, end = SelectionEnd;
+            Render(Document);
+            if (start != end) { SelectionStart = start; SelectionEnd = end; }
+        }
+        UpdateAccessibleName();
+    }
 
     /// <summary>
     /// What a screen reader gets while spoilers are hidden: the post text with every hidden spoiler replaced by one neutral
     /// "Spoiler, hidden" (the painted text only hides the pixels; the accessibility tree must hide the words too).
     /// After the reveal, and for a body without spoilers, the real text is exposed as before.
     /// </summary>
-    internal string AccessibleText()
-    {
-        if (!HasHiddenSpoilers || Document is not { } document) return PlainText;
-        string placeholder = Localization.Texts.T("reader.spoilerHidden");
-        StringBuilder text = new(document.Text.Length);
-        bool inSpoiler = false;
-        foreach (ReaderBodySegment segment in document.Segments)
-        {
-            if (segment.IsSpoiler)
-            {
-                if (!inSpoiler) text.Append(placeholder);
-                inSpoiler = true;
-                continue;
-            }
-            inSpoiler = false;
-            text.Append(document.Text, segment.Start, segment.Length);
-        }
-        return text.ToString();
-    }
+    internal string AccessibleText() => Document is not { } document ? PlainText
+        : ReaderSpoilerPolicy.AccessibleText(document, SpoilersShown, Localization.Texts.T("reader.spoilerHidden"));
 
     // The peer answers with the current language at every query; the property only announces that the name changed
     // (a screen reader that already read the hidden name learns when the real text becomes available).
@@ -190,7 +224,7 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     private ArchiveQuoteRow? _hoverQuote;
     private bool _linkCursor;
 
-    static ReaderBodyTextBlock() => AffectsMeasure<ReaderBodyTextBlock>(ExpandedProperty);
+    static ReaderBodyTextBlock() => AffectsMeasure<ReaderBodyTextBlock>(ExpandedProperty, FoldThresholdLinesProperty);
 
     public ReaderBodyTextBlock() => UpdateReadingMetrics();
 
@@ -198,15 +232,17 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     protected override Size MeasureOverride(Size availableSize)
     {
         Size size = base.MeasureOverride(availableSize);
-        int lines = TextLayout.TextLines.Count;
-        bool wasFoldable = IsFoldable;
-        if (lines != _lineCount)
+        _lineCount = TextLayout.TextLines.Count; // Bindings read the getter when the change is raised.
+        bool foldable = IsFoldable; // Also changes when only the threshold moved.
+        if (foldable != _foldableReported)
         {
-            _lineCount = lines; // Bindings read the getter when the change is raised.
-            RaisePropertyChanged(IsFoldableProperty, wasFoldable, IsFoldable);
+            bool previousFoldable = _foldableReported;
+            _foldableReported = foldable;
+            RaisePropertyChanged(IsFoldableProperty, previousFoldable, foldable);
         }
+        int visibleLines = FoldVisibleLines;
         string label = !IsFoldable ? string.Empty : Expanded ? Localization.Texts.T("reader.foldLess")
-            : Localization.Texts.Count("reader.foldMore", _lineCount - FoldVisibleLines);
+            : Localization.Texts.Count("reader.foldMore", _lineCount - visibleLines);
         if (label != _foldLabel)
         {
             string previous = _foldLabel;
@@ -216,7 +252,7 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
         bool folded = IsFolded;
         if (ClipToBounds != folded) ClipToBounds = folded;
         if ((OpacityMask != null) != folded) OpacityMask = folded ? FoldFade : null;
-        return folded ? new Size(size.Width, Math.Min(size.Height, FoldVisibleLines * LineHeight)) : size;
+        return folded ? new Size(size.Width, Math.Min(size.Height, visibleLines * LineHeight)) : size;
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -224,11 +260,12 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
         base.OnPropertyChanged(change);
         if (change.Property == IsTextOnlyProperty || change.Property == FontSizeProperty) UpdateReadingMetrics();
         if (change.Property == DocumentProperty) ShowDocument(change.GetNewValue<ReaderBodyDocument?>());
-        else if (change.Property == SpoilersRevealedProperty && Document is { IsFormatted: true })
+        else if ((change.Property == SpoilersRevealedProperty || change.Property == SpoilerModeProperty) && Document is { IsFormatted: true })
         {
             Render(Document);
         }
-        if (change.Property == DocumentProperty || change.Property == SpoilersRevealedProperty) UpdateAccessibleName();
+        if (change.Property == DocumentProperty || change.Property == SpoilersRevealedProperty || change.Property == SpoilerModeProperty)
+            UpdateAccessibleName();
     }
 
     private void UpdateReadingMetrics()
@@ -243,6 +280,7 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     {
         _pressedQuote = null;
         _hoverQuote = null;
+        _spoilersHovered = false; // A recycled body starts a new post; its pointer state is unknown until the next enter.
         SetLinkCursor(false);
         SelectionStart = SelectionEnd = 0;
         if (document is not { IsFormatted: true })
@@ -297,7 +335,7 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
             if (segment.IsSpoiler)
             {
                 run[!TextElement.BackgroundProperty] = new DynamicResourceExtension("Workspace.ReaderSpoiler");
-                if (!SpoilersRevealed) run[!TextElement.ForegroundProperty] = new DynamicResourceExtension("Workspace.ReaderSpoiler");
+                if (!SpoilersShown) run[!TextElement.ForegroundProperty] = new DynamicResourceExtension("Workspace.ReaderSpoiler");
             }
             inlines.Add(run);
         }
@@ -318,7 +356,12 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
 
     // The reveal comes first: a reference inside a hidden spoiler cannot be clicked before the text is shown.
     private ReaderBodySegment? ActionAt(Point point) => SegmentAt(point) is { } segment
-        && (segment.LinkNeedsReveal && !SpoilersRevealed || segment is { IsSpoiler: true } && !SpoilersRevealed || segment.Quote != null || segment.Link != null) ? segment : null;
+        && (ClickRevealsSegment(segment) || segment.Quote != null || segment.Link != null) ? segment : null;
+
+    // A click on a spoiler keeps it shown (unless the mode shows it anyway); a link that sits in or spans a hidden spoiler
+    // is revealed first and opened by the next click.
+    private bool ClickRevealsSegment(ReaderBodySegment segment) =>
+        segment.IsSpoiler ? SpoilerClickReveals : segment.LinkNeedsReveal && !SpoilersShown;
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
@@ -336,9 +379,9 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
         if (pressed == null || e.InitialPressMouseButton != MouseButton.Left || SelectionStart != SelectionEnd
             || !ReferenceEquals(ActionAt(e.GetPosition(this)), pressed)) return;
         e.Handled = true;
-        if ((pressed.IsSpoiler || pressed.LinkNeedsReveal) && !SpoilersRevealed) { SpoilersRevealed = true; SetLinkCursor(false); }
+        if (ClickRevealsSegment(pressed)) { SpoilersRevealed = true; SetLinkCursor(false); }
         else if (pressed.Quote != null) RaiseEvent(new ReaderQuoteInvokedEventArgs(QuoteInvokedEvent, pressed.Quote));
-        else if (ReaderExternalLink.ForActivation(pressed, SpoilersRevealed, SelectionStart != SelectionEnd) is { } link)
+        else if (ReaderExternalLink.ForActivation(pressed, SpoilersShown, SelectionStart != SelectionEnd) is { } link)
             RaiseEvent(new ReaderLinkInvokedEventArgs(LinkInvokedEvent, link));
     }
 
@@ -354,7 +397,7 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
         // Enter opens (after its confirmation) the link inside the selection, or the only link of the body; on a post with
         // media and no selection it stays the media key and reaches the reader.
         if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && !HasHiddenSpoilers
-            && ReaderExternalLink.ForKeyboard(Document, SelectionStart, SelectionEnd, SpoilersRevealed,
+            && ReaderExternalLink.ForKeyboard(Document, SelectionStart, SelectionEnd, SpoilersShown,
                 DataContext is ArchivePostRow { HasActivatableMedia: true }) is { } keyboardLink)
         {
             e.Handled = true;
@@ -373,9 +416,16 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
         SetHoverQuote(QuoteAt(position));
     }
 
+    protected override void OnPointerEntered(PointerEventArgs e)
+    {
+        base.OnPointerEntered(e);
+        SetSpoilerHover(true);
+    }
+
     protected override void OnPointerExited(PointerEventArgs e)
     {
         base.OnPointerExited(e);
+        SetSpoilerHover(false);
         SetLinkCursor(false);
         SetHoverQuote(null);
     }

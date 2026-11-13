@@ -49,6 +49,7 @@ internal static class ReaderIdeaChecks
         await CheckUnreadLineAsync(owner);
         await CheckFoldAsync(owner);
         await CheckLinksAsync(owner);
+        await CheckDisplayLimitsAsync(owner);
     }
 
     private static async Task<Fixture> OpenAsync(MainWindow owner, string thread, Func<int, CapturedPost[]> posts, int initialCount = int.MaxValue)
@@ -383,13 +384,13 @@ internal static class ReaderIdeaChecks
         await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
         ReaderBodyTextBlock body = Body(fixture, "331");
         Button FoldButton(string id) => Container(fixture, id).GetVisualDescendants().OfType<Button>().Single(button => button.Classes.Contains("reader-fold"));
-        double visible = ReaderBodyTextBlock.FoldVisibleLines * body.LineHeight;
+        double visible = body.FoldVisibleLines * body.LineHeight;
         Require(body.IsFoldable && body.IsFolded && body.LineCount >= 40 && Math.Abs(body.Bounds.Height - visible) < 1.5 && body.OpacityMask != null && body.ClipToBounds,
-            $"The long post was not folded to {ReaderBodyTextBlock.FoldVisibleLines} lines: lines={body.LineCount}, height={body.Bounds.Height}, expected {visible}");
+            $"The long post was not folded to {body.FoldVisibleLines} lines: lines={body.LineCount}, height={body.Bounds.Height}, expected {visible}");
         Button more = FoldButton("331");
         await Program.WaitUntilAsync(() => more.IsEffectivelyVisible, () => "the fold button never became visible");
-        Require(more.IsEffectivelyVisible && more.IsVisible && Equals(more.Content, MeowChan.Desktop.Localization.Texts.Count("reader.foldMore", body.LineCount - ReaderBodyTextBlock.FoldVisibleLines)),
-            $"The fold button did not name the hidden lines: {more.Content} / visible={more.IsEffectivelyVisible} / expected {MeowChan.Desktop.Localization.Texts.Count("reader.foldMore", body.LineCount - ReaderBodyTextBlock.FoldVisibleLines)}");
+        Require(more.IsEffectivelyVisible && more.IsVisible && Equals(more.Content, MeowChan.Desktop.Localization.Texts.Count("reader.foldMore", body.LineCount - body.FoldVisibleLines)),
+            $"The fold button did not name the hidden lines: {more.Content} / visible={more.IsEffectivelyVisible} / expected {MeowChan.Desktop.Localization.Texts.Count("reader.foldMore", body.LineCount - body.FoldVisibleLines)}");
         Program.CaptureWindow(fixture.Window, "smoke-reader-i6-folded.png");
         Require(!FoldButton("332").IsVisible, "A short post offered a fold button.");
         double foldedHeight = Container(fixture, "331").Bounds.Height;
@@ -418,6 +419,145 @@ internal static class ReaderIdeaChecks
         await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
         Require(!Body(fixture, "333").IsFolded, "The post with the hit stayed folded.");
         Console.WriteLine("SMOKE reader I6: fold to 18 lines with fade and count, unfold, remembered state and find expansion passed.");
+    }
+
+    // P5 part A: spoiler modes, the fold threshold and the preview/reply limits are clamped properties; the defaults keep
+    // today's behaviour and a changed value reaches the realized posts (inherited properties, no rebuild of the page).
+    private static async Task CheckDisplayLimitsAsync(MainWindow owner)
+    {
+        await using Fixture fixture = await OpenAsync(owner, "360", _=>
+        [
+            new("360", 0, PostFieldPresence.All, Html: "<p>" + string.Join("<br>", Enumerable.Range(1, 12).Select(line => "Opening line " + line)) + "</p>"),
+            new("361", 1, PostFieldPresence.All, Html: "<p>before <s>the secret</s> after</p>"),
+            new("362", 2, PostFieldPresence.All, Html: "<p>" + string.Join("<br>", Enumerable.Range(1, 30).Select(line => "Long post line " + line + ".")) + "</p>"),
+            new("363", 3, PostFieldPresence.All, Html: "<a href='#p360' class='quotelink'>&gt;&gt;360</a> a reply")
+        ]);
+        ArchivePage page = fixture.Page;
+        ListBox list = fixture.List;
+        ArchivePostRow[] rows = list.ItemsSource!.Cast<ArchivePostRow>().ToArray();
+        async Task Layout() => await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
+        async Task<ReaderBodyTextBlock> Realize(string id)
+        {
+            ArchivePostRow row = rows.Single(item => item.Id == id);
+            list.ScrollIntoView(row);
+            await Program.WaitUntilAsync(() => list.GetVisualDescendants().OfType<ListBoxItem>().Any(item => ReferenceEquals(item.DataContext, row)));
+            await Layout();
+            return Body(fixture, id);
+        }
+
+        // Defaults are today's behaviour.
+        Require(page.ReaderSpoilerModePreference == ReaderSpoilerMode.Hide && page.ReaderFoldLinesPreference == 24 && page.QuotePreviewMaxLines == 8
+            && page.QuotePreviewMaxCharacters == 420 && page.QuotePreviewDelay == TimeSpan.FromMilliseconds(300) && page.InlineReplyPageSize == 5
+            && page.ReplyCardMaxLines == 4 && page.ReplyCardMaxCharacters == 260, "A default reader limit differs from the old fixed value.");
+
+        // Spoilers: hidden / while the pointer is over the post / always; a click (reveal) keeps them; an invalid value means hidden.
+        ReaderBodyTextBlock secretBody = await Realize("361");
+        Color spoiler = Token(fixture.Window, "Workspace.ReaderSpoiler");
+        Run Secret() => secretBody.Inlines!.OfType<Run>().Single(run => run.Text != null && run.Text.Contains("the secret"));
+        bool Painted() => (Secret().Foreground as ISolidColorBrush)?.Color != spoiler; // true = readable
+        string Name() => Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(secretBody).GetName();
+        string hiddenText = MeowChan.Desktop.Localization.Texts.T("reader.spoilerHidden");
+        Require(secretBody.SpoilerMode == ReaderSpoilerMode.Hide && !Painted() && secretBody.HasHiddenSpoilers && !Name().Contains("the secret") && Name().Contains(hiddenText),
+            "Hide mode did not hide the spoiler from the paint and the accessible name.");
+        secretBody.SetSpoilerHover(true);
+        Require(!Painted() && secretBody.HasHiddenSpoilers, "The pointer over the post showed a spoiler in hide mode.");
+        secretBody.SetSpoilerHover(false);
+
+        page.ReaderSpoilerModePreference = ReaderSpoilerMode.Always;
+        await Layout();
+        Require(secretBody.SpoilerMode == ReaderSpoilerMode.Always && Painted() && !secretBody.HasHiddenSpoilers && Name().Contains("the secret") && !Name().Contains(hiddenText),
+            "Always mode did not show the spoiler and its accessible text.");
+        Require(!rows.Single(row => row.Id == "361").SpoilersRevealed, "Showing every spoiler changed the post's own reveal state.");
+        Program.CaptureWindow(fixture.Window, "smoke-reader-p5a-spoiler-always.png");
+
+        page.ReaderSpoilerModePreference = ReaderSpoilerMode.Hover;
+        await Layout();
+        Require(secretBody.SpoilerMode == ReaderSpoilerMode.Hover && !Painted() && !Name().Contains("the secret"), "Hover mode showed the spoiler without the pointer.");
+        secretBody.SetSpoilerHover(true);
+        await Layout();
+        Require(Painted() && !secretBody.HasHiddenSpoilers && Name().Contains("the secret"), "Hover mode did not show the spoiler while the pointer is over the post.");
+        Program.CaptureWindow(fixture.Window, "smoke-reader-p5a-spoiler-hover.png");
+        secretBody.SetSpoilerHover(false);
+        await Layout();
+        Require(!Painted() && secretBody.HasHiddenSpoilers && !Name().Contains("the secret"), "Hover mode kept the spoiler after the pointer left.");
+        secretBody.SetSpoilerHover(true);
+        secretBody.SpoilersRevealed = true; // what a click on the spoiler does
+        secretBody.SetSpoilerHover(false);
+        await Layout();
+        Require(rows.Single(row => row.Id == "361").SpoilersRevealed && Painted() && Name().Contains("the secret"), "A click did not keep the spoiler shown after the pointer left.");
+        rows.Single(row => row.Id == "361").SpoilersRevealed = false;
+        page.ReaderSpoilerModePreference = (ReaderSpoilerMode)9;
+        await Layout();
+        Require(page.ReaderSpoilerModePreference == ReaderSpoilerMode.Hide && secretBody.SpoilerMode == ReaderSpoilerMode.Hide && !Painted(),
+            "An undefined spoiler mode did not fall back to hidden.");
+
+        // Fold threshold: clamped 8..400, three quarters stay visible, the page follows without a rebuild.
+        ReaderBodyTextBlock longBody = await Realize("362");
+        Require(longBody.FoldThresholdLines == 24 && longBody.FoldVisibleLines == 18 && longBody.IsFolded
+            && Math.Abs(longBody.Bounds.Height - 18 * longBody.LineHeight) < 1.5, "The default fold changed: " + longBody.Bounds.Height);
+        page.ReaderFoldLinesPreference = 40;
+        await Layout();
+        Require(page.ReaderFoldLinesPreference == 40 && longBody.FoldThresholdLines == 40 && !longBody.IsFoldable && !longBody.IsFolded && longBody.OpacityMask == null
+            && longBody.Bounds.Height >= 30 * longBody.LineHeight - 1, "A threshold above the post length still folded it: " + longBody.Bounds.Height);
+        page.ReaderFoldLinesPreference = 10;
+        await Layout();
+        Require(longBody.FoldThresholdLines == 10 && longBody.FoldVisibleLines == 8 && longBody.IsFoldable && longBody.IsFolded
+            && Math.Abs(longBody.Bounds.Height - 8 * longBody.LineHeight) < 1.5, "A threshold of 10 did not show 8 lines: " + longBody.Bounds.Height);
+        Button more = Container(fixture, "362").GetVisualDescendants().OfType<Button>().Single(button => button.Classes.Contains("reader-fold"));
+        await Program.WaitUntilAsync(() => more.IsEffectivelyVisible && Equals(more.Content, MeowChan.Desktop.Localization.Texts.Count("reader.foldMore", longBody.LineCount - 8)),
+            () => "the fold button did not follow the threshold: " + more.Content);
+        Program.CaptureWindow(fixture.Window, "smoke-reader-p5a-fold-10.png");
+        page.ReaderFoldLinesPreference = 2;
+        Require(page.ReaderFoldLinesPreference == 8, "The fold threshold was not clamped up to 8.");
+        page.ReaderFoldLinesPreference = 100000;
+        Require(page.ReaderFoldLinesPreference == 400, "The fold threshold was not clamped down to 400.");
+        page.ReaderFoldLinesPreference = 24;
+        await Layout();
+        Require(longBody.IsFolded && Math.Abs(longBody.Bounds.Height - 18 * longBody.LineHeight) < 1.5, "Restoring 24 did not restore the old fold.");
+
+        // Preview lines, characters and delay: clamped; lines and delay change what the user sees.
+        page.QuotePreviewMaxLines = 1;
+        Require(page.QuotePreviewMaxLines == 3 && page.QuotePreviewMaxCharacters == 158, "Preview lines were not clamped up to 3.");
+        page.QuotePreviewMaxLines = 1000;
+        Require(page.QuotePreviewMaxLines == 40 && page.QuotePreviewMaxCharacters == 2100, "Preview lines were not clamped down to 40.");
+        page.QuotePreviewDelayMilliseconds = -7;
+        Require(page.QuotePreviewDelayMilliseconds == 0 && page.QuotePreviewDelay == TimeSpan.Zero, "A negative preview delay was not clamped to 0.");
+        page.QuotePreviewDelayMilliseconds = 99999;
+        Require(page.QuotePreviewDelayMilliseconds == 2000, "The preview delay was not clamped down to 2000 ms.");
+        ArchivePostRow reply = rows.Single(row => row.Id == "363");
+        ReaderBodyTextBlock replyBody = await Realize("363");
+        Popup popup = page.FindControl<Popup>("QuotePreviewPopup")!;
+        TextBlock previewBody = page.FindControl<TextBlock>("QuotePreviewBody")!;
+        page.QuotePreviewMaxLines = 3;
+        page.QuotePreviewDelayMilliseconds = 1200;
+        replyBody.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, reply.Quotes[0], new Rect(0, 0, 40, 18)));
+        await Task.Delay(500); // the old fixed delay of 300 ms would have opened it by now
+        Require(!page.IsQuotePreviewOpen && page.IsQuotePreviewPending, "A longer preview delay did not hold the preview back.");
+        await Program.WaitUntilAsync(() => page.IsQuotePreviewOpen, () => "no preview after the longer delay");
+        Require(previewBody.Text!.Split('\n').Length == 3 && previewBody.Text.EndsWith("…", StringComparison.Ordinal) && previewBody.Text.StartsWith("Opening line 1", StringComparison.Ordinal),
+            "The preview did not keep exactly 3 lines: " + previewBody.Text);
+        replyBody.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, null, default));
+        page.QuotePreviewDelayMilliseconds = 0;
+        page.QuotePreviewMaxLines = 10;
+        replyBody.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, reply.Quotes[0], new Rect(0, 0, 40, 18)));
+        await Program.WaitUntilAsync(() => page.IsQuotePreviewOpen, () => "no preview with a delay of 0");
+        Require(previewBody.Text!.Split('\n').Length == 10, "The preview did not keep 10 lines: " + previewBody.Text);
+        replyBody.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, null, default));
+        page.QuotePreviewMaxLines = ReaderDisplayLimits.PreviewLinesDefault;
+        page.QuotePreviewDelayMilliseconds = ReaderDisplayLimits.PreviewDelayDefault;
+
+        // Reply cards: clamped step and lines (characters follow the lines).
+        page.InlineReplyPageSize = 0;
+        Require(page.InlineReplyPageSize == 1, "The reply step was not clamped up to 1.");
+        page.InlineReplyPageSize = 5000;
+        Require(page.InlineReplyPageSize == 50, "The reply step was not clamped down to 50.");
+        page.ReplyCardMaxLines = 0;
+        Require(page.ReplyCardMaxLines == 1 && page.ReplyCardMaxCharacters == 65, "Reply card lines were not clamped up to 1.");
+        page.ReplyCardMaxLines = 999;
+        Require(page.ReplyCardMaxLines == 20 && page.ReplyCardMaxCharacters == 1300, "Reply card lines were not clamped down to 20.");
+        page.InlineReplyPageSize = ReaderDisplayLimits.ReplyStepDefault;
+        page.ReplyCardMaxLines = ReaderDisplayLimits.ReplyLinesDefault;
+        Console.WriteLine("SMOKE reader P5A: spoiler modes (hide/hover/always, click keeps, invalid = hide), fold threshold, preview lines/delay and reply limits passed.");
     }
 
     // External links: a click or Enter asks first (full address, host in ASCII form highlighted); only http(s) without user

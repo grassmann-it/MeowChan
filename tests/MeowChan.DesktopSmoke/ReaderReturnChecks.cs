@@ -53,7 +53,7 @@ internal static class ReaderReturnChecks
             await Flush(window);
             Button counter = list.GetVisualDescendants().OfType<Button>().Single(item => item.Classes.Contains("reader-reply-toggle") && ReferenceEquals(item.DataContext, opening));
             Click(counter);
-            await Program.WaitUntilAsync(() => opening.Replies.Count == ArchivePage.InlineReplyPageSize && !opening.RepliesLoading);
+            await Program.WaitUntilAsync(() => opening.Replies.Count == ReaderDisplayLimits.ReplyStepDefault && !opening.RepliesLoading);
             while (opening.HasMoreReplies)
             {
                 int before = opening.Replies.Count;

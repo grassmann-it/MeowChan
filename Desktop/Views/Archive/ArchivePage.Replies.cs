@@ -14,10 +14,7 @@ namespace MeowChan;
 
 public partial class ArchivePage
 {
-    /// <summary>Reply cards shown at once under a post; "Show more replies" adds this many again.</summary>
-    internal const int InlineReplyPageSize = 5;
-    internal const int ReplyCardMaxLines = 4;
-    internal const int ReplyCardMaxCharacters = 260;
+    // InlineReplyPageSize, ReplyCardMaxLines and ReplyCardMaxCharacters are clamped instance properties (ArchivePage.ReaderLimits.cs).
     private CancellationTokenSource? _inlineRepliesCancellation;
     private int _inlineRepliesRequest;
     private ArchivePostRow[] _inlineReplyRows = Array.Empty<ArchivePostRow>();

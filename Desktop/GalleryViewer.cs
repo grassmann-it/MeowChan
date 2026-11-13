@@ -1294,7 +1294,7 @@ internal sealed partial class GalleryViewer : UserControl
         ApplyTransform(); if (_manualZoom) _ = EnsureDetailAsync();
     }
     private double CurrentFit => _info == null ? 1 : GalleryGeometry.Fit(_info.Width, _info.Height,
-        _viewport.Bounds.Width, _viewport.Bounds.Height, DisplayScale);
+        _viewport.Bounds.Width, _viewport.Bounds.Height, DisplayScale, FitUpscaleCap);
     private void ActualPixels() { if (_info == null) return; _zoom = 1; _manualZoom = _actualZoom = true; _panX = _panY = 0; ApplyTransform(); _ = EnsureDetailAsync(); }
     private void FitIfAutomatic()
     {
@@ -1307,7 +1307,7 @@ internal sealed partial class GalleryViewer : UserControl
     {
         if (_info == null) return;
         _manualZoom = _actualZoom = false; _panX = _panY = 0;
-        _zoom = GalleryGeometry.Fit(_info.Width, _info.Height, _viewport.Bounds.Width, _viewport.Bounds.Height, DisplayScale);
+        _zoom = GalleryGeometry.Fit(_info.Width, _info.Height, _viewport.Bounds.Width, _viewport.Bounds.Height, DisplayScale, FitUpscaleCap);
         ApplyTransform();
         _ = RequestDecodeAsync(CurrentFitRequest(), debounce: !retry, retry: retry);
     }
