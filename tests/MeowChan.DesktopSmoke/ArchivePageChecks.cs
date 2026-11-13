@@ -112,9 +112,7 @@ internal static class ArchivePageChecks
         ArchivePostRow replyTarget = page.FindControl<ListBox>("ArchivePosts")!.ItemsSource!
             .Cast<ArchivePostRow>().Single();
         await Program.WaitUntilAsync(() => replyTarget.BacklinkCount == 0);
-        Expander replies = window.GetVisualDescendants().OfType<Expander>()
-            .Single(expander => ReferenceEquals(expander.DataContext, replyTarget));
-        replies.IsExpanded = true;
+        await page.SetRepliesExpandedAsync(replyTarget, true); // A confirmed zero offers no counter; the state itself is what this check keeps.
         await Program.WaitUntilAsync(() => replyTarget.RepliesLoaded && !replyTarget.RepliesLoading);
         Require(replyTarget.Replies.Count == 0 && replyTarget.RepliesExpanded,
             "The inline reply expander did not show its empty local result.");

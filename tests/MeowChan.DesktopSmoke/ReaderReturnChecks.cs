@@ -51,12 +51,16 @@ internal static class ReaderReturnChecks
             ArchivePostRow opening = Rows().Single(row => row.Id == "7100");
             await Program.WaitUntilAsync(() => opening.BacklinkCount == 35);
             await Flush(window);
-            Expander expander = list.GetVisualDescendants().OfType<Expander>().Single(item => ReferenceEquals(item.DataContext, opening));
-            expander.IsExpanded = true;
-            await Program.WaitUntilAsync(() => opening.Replies.Count == 20 && !opening.RepliesLoading);
-            Button more = expander.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, opening.MoreRepliesLabel));
-            Click(more);
-            await Program.WaitUntilAsync(() => opening.Replies.Count == 35 && !opening.RepliesLoading);
+            Button counter = list.GetVisualDescendants().OfType<Button>().Single(item => item.Classes.Contains("reader-reply-toggle") && ReferenceEquals(item.DataContext, opening));
+            Click(counter);
+            await Program.WaitUntilAsync(() => opening.Replies.Count == ArchivePage.InlineReplyPageSize && !opening.RepliesLoading);
+            while (opening.HasMoreReplies)
+            {
+                int before = opening.Replies.Count;
+                Click(list.GetVisualDescendants().OfType<Button>().Single(button => ReferenceEquals(button.DataContext, opening) && Equals(button.Content, opening.MoreRepliesLabel) && button.IsEffectivelyVisible));
+                await Program.WaitUntilAsync(() => opening.Replies.Count > before && !opening.RepliesLoading);
+            }
+            Require(opening.Replies.Count == 35, "The reply pages did not add up to 35.");
             await Flush(window);
             ScrollViewer scroll = list.GetVisualDescendants().OfType<ScrollViewer>().First();
             // Leave the opening post partially above the viewport while its >20
@@ -72,7 +76,7 @@ internal static class ReaderReturnChecks
             await Flush(window);
             ArchivePostRow restored = Rows().Single(row => row.Id == "7100");
             Require(restored.RepliesLoaded && restored.Replies.Count == 35 && !restored.HasMoreReplies
-                && restored.Replies[^1].Quote.Origin.PostId == "7135", "Quote Back lost expanded reply pages above the 20-item boundary.");
+                && restored.Replies[^1].Quote.Origin.PostId == "7135", "Quote Back lost expanded reply pages above the first page.");
             await Program.WaitUntilAsync(() => Math.Abs(Top(list, "7100") - top) < 2);
             Require((list.SelectedItem as ArchivePostRow)?.Id == "7100", "Quote Back lost the selected opening post.");
             Console.WriteLine($"SMOKE reader return F5: expanded35 replies restored, origin top={top:F2}, actual={Top(list, "7100"):F2}.");

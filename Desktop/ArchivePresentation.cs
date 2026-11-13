@@ -137,9 +137,12 @@ internal sealed record ArchivePostRow(string Id, string Subject, string Body,
     private int _repliesOffset;
     private string? _repliesError;
     public int? BacklinkCount => _backlinkCount;
-    // Header summary only; the expander below the text stays the detailed, interactive source.
+    // The header counter is the toggle for the nested reply cards below the text.
     public bool HasBacklinks => _backlinkCount > 0;
-    public string BacklinkCountLabel => Texts.T("reader.replyCount", (_backlinkCount ?? 0).ToString(Texts.Culture));
+    // Shown for a known count above zero, and for a failed load so a local retry stays possible.
+    public bool HasReplyToggle => HasBacklinks || HasRepliesError;
+    public string ReplyToggleLabel => Texts.T("reader.repliesToggle");
+    public string BacklinkCountLabel => Texts.T("reader.replyCount", _backlinkCount?.ToString(Texts.Culture) ?? "…");
     public string BacklinksLabel => Texts.T("archive.backlinks", Id) + " · " +
         (_backlinkCount?.ToString(Texts.Culture) ?? "…");
     // Only a confirmed, successful zero is non-interactive. Unknown/error states
@@ -167,19 +170,19 @@ internal sealed record ArchivePostRow(string Id, string Subject, string Body,
     {
         _backlinkCount = count;
         Changed(nameof(BacklinkCount), nameof(BacklinksLabel), nameof(HasMoreReplies), nameof(RepliesPageLabel),
-            nameof(HasConfirmedNoReplies), nameof(CanExpandReplies), nameof(HasBacklinks), nameof(BacklinkCountLabel));
+            nameof(HasConfirmedNoReplies), nameof(CanExpandReplies), nameof(HasBacklinks), nameof(HasReplyToggle), nameof(BacklinkCountLabel));
     }
     public void SetReplies(IReadOnlyList<ArchiveQuoteRow> replies, int total, int offset)
     {
         _replies = replies; _repliesOffset = offset; _repliesError = null; _repliesLoaded = true;
         SetBacklinkCount(total);
         Changed(nameof(Replies), nameof(RepliesOffset), nameof(RepliesLoaded), nameof(HasMoreReplies), nameof(RepliesPageLabel),
-            nameof(RepliesError), nameof(HasRepliesError));
+            nameof(RepliesError), nameof(HasRepliesError), nameof(HasReplyToggle));
     }
     public void SetRepliesLoading(bool loading)
     { _repliesLoading = loading; Changed(nameof(RepliesLoading), nameof(HasConfirmedNoReplies), nameof(CanExpandReplies)); }
     public void SetRepliesError(string? error)
-    { _repliesError = error; Changed(nameof(RepliesError), nameof(HasRepliesError), nameof(HasConfirmedNoReplies), nameof(CanExpandReplies)); }
+    { _repliesError = error; Changed(nameof(RepliesError), nameof(HasRepliesError), nameof(HasConfirmedNoReplies), nameof(CanExpandReplies), nameof(HasReplyToggle)); }
     private void Changed(params string[] names)
     {
         foreach (string name in names) PropertyChanged?.Invoke(this,
@@ -190,6 +193,11 @@ internal sealed record ArchiveQuoteRow(ArchiveQuote Quote, bool Backlink = false
 {
     // The quoted post is in the open thread's identity but was never captured (checked once when the page is built).
     public bool IsDead { get; init; }
+    // A reply of the open thread shown as a nested card: "No. 101 · name · date" and the first lines of its text.
+    public string? ReplyHeader { get; init; }
+    public string ReplyExcerpt { get; init; } = string.Empty;
+    public bool HasReplyExcerpt => ReplyExcerpt.Length > 0;
+    public string ReplyCardHeader => ReplyHeader ?? Label;
     public string AccessibleLabel => Backlink ? Quote.Origin.Thread.Source + " /" + Quote.Origin.Thread.Board + "/ "
         + Quote.Origin.Thread.Thread + " · #" + Quote.Origin.PostId : Quote.Label;
     public string Label => Backlink && ReaderThread == Quote.Origin.Thread ? "#" + Quote.Origin.PostId : AccessibleLabel;

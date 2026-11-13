@@ -44,16 +44,19 @@ internal static class ReaderRepliesChecks
             ArchivePostRow target = list.ItemsSource!.Cast<ArchivePostRow>().Single(row => row.Id == "100");
             await Program.WaitUntilAsync(() => target.BacklinkCount == 25);
             ArchivePostRow zero = list.ItemsSource!.Cast<ArchivePostRow>().Single(row => row.Id == "125");
-            Require(zero.HasConfirmedNoReplies && !zero.CanExpandReplies,
-                "A confirmed zero remained an interactive expander.");
+            Require(zero.HasConfirmedNoReplies && !zero.CanExpandReplies && !zero.HasReplyToggle,
+                "A confirmed zero remained an interactive reply counter.");
             Require(target.Replies.Count == 0 && !target.RepliesLoaded,
                 "Collapsed replies loaded the backlink page eagerly.");
             Require(target.BacklinksLabel.Contains("25"), "Inline reply count was not displayed.");
             list.ScrollIntoView(target); list.UpdateLayout();
-            await Program.WaitUntilAsync(() => list.GetVisualDescendants().OfType<Expander>()
-                .Any(expander => ReferenceEquals(expander.DataContext, target)));
-            Expander inline = list.GetVisualDescendants().OfType<Expander>()
-                .Single(expander => ReferenceEquals(expander.DataContext, target));
+            await Program.WaitUntilAsync(() => list.GetVisualDescendants().OfType<Button>()
+                .Any(button => button.Classes.Contains("reader-reply-toggle") && ReferenceEquals(button.DataContext, target)));
+            Button toggle = list.GetVisualDescendants().OfType<Button>()
+                .Single(button => button.Classes.Contains("reader-reply-toggle") && ReferenceEquals(button.DataContext, target));
+            ListBoxItem inline = list.GetVisualDescendants().OfType<ListBoxItem>().Single(container => ReferenceEquals(container.DataContext, target));
+            Require(toggle.IsEffectivelyVisible && !list.GetVisualDescendants().OfType<Button>().Any(button => button.Classes.Contains("reader-reply-card")),
+                "The reply counter was missing or the reply cards were built while collapsed.");
             ReaderBodyTextBlock body = list.GetVisualDescendants().OfType<ReaderBodyTextBlock>()
                 .Single(block => ReferenceEquals(block.DataContext, target));
             page.ReadingFontSizePreference = 15;
@@ -91,33 +94,49 @@ internal static class ReaderRepliesChecks
                     "Keyboard focus was not independently outlined beside the active-post edge.");
                 Program.CaptureWindow(window, "smoke-reader-text-" + theme.Key + ".png");
             }
-            inline.IsExpanded = true;
-            await Program.WaitUntilAsync(() => target.Replies.Count == 20 && !target.RepliesLoading);
-            Require(target.HasMoreReplies && target.Replies[0].Quote.Origin.PostId == "101",
+            toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Program.WaitUntilAsync(() => target.Replies.Count == ArchivePage.InlineReplyPageSize && !target.RepliesLoading);
+            Require(target.RepliesExpanded && target.HasMoreReplies && target.Replies[0].Quote.Origin.PostId == "101",
                 "First inline reply page was not bounded or ordered.");
-            Button more = inline.GetVisualDescendants().OfType<Button>()
-                .Single(button => Equals(button.Content, target.MoreRepliesLabel));
-            more.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await Program.WaitUntilAsync(() => target.Replies.Count == 25 && !target.RepliesLoading);
-            Require(!target.HasMoreReplies && target.Replies[^1].Quote.Origin.PostId == "125",
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            Button[] cards = inline.GetVisualDescendants().OfType<Button>().Where(button => button.Classes.Contains("reader-reply-card")).ToArray();
+            Require(cards.Length == ArchivePage.InlineReplyPageSize, $"The first page showed {cards.Length} reply cards.");
+            Program.CaptureWindow(window, "smoke-reader-i2-replies.png");
+            while (target.HasMoreReplies)
+            {
+                int before = target.Replies.Count;
+                inline.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, target.MoreRepliesLabel) && button.IsEffectivelyVisible)
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await Program.WaitUntilAsync(() => target.Replies.Count > before && !target.RepliesLoading);
+            }
+            Require(target.Replies.Count == 25 && target.Replies[^1].Quote.Origin.PostId == "125",
                 "Additional inline replies were not appended once.");
             await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
-            Button[] replyButtons = inline.GetVisualDescendants().OfType<Button>()
-                .Where(button => button.DataContext is ArchiveQuoteRow).ToArray();
-            Require(replyButtons.Length == 25 && replyButtons.All(button =>
-                button.DataContext is ArchiveQuoteRow reply && Equals(button.Content, "#" + reply.Quote.Origin.PostId)
-                && AutomationProperties.GetName(button) == reply.AccessibleLabel
-                && Equals(ToolTip.GetTip(button), reply.AccessibleLabel)),
-                "Compact local backlinks lost their full accessible target identity.");
-            Require(replyButtons.Select(button => button.TranslatePoint(default, inline)!.Value.Y).Distinct().Count() > 1,
-                "Reply references did not wrap inside the available reading width.");
+            cards = inline.GetVisualDescendants().OfType<Button>().Where(button => button.Classes.Contains("reader-reply-card")).ToArray();
+            Require(cards.Length == 25 && cards.All(button =>
+                button.DataContext is ArchiveQuoteRow reply && AutomationProperties.GetName(button) == reply.AccessibleLabel
+                && Equals(ToolTip.GetTip(button), reply.AccessibleLabel) && reply.ReplyCardHeader.Contains(reply.Quote.Origin.PostId)
+                && reply.ReplyExcerpt.Contains("reply " + reply.Quote.Origin.PostId)
+                && button.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == reply.ReplyExcerpt)),
+                "Reply cards lost their full accessible target identity, header or excerpt.");
+            Require(cards.Select(button => button.TranslatePoint(default, inline)!.Value.Y).Distinct().Count() == 25
+                && cards.All(button => button.Bounds.Width > 200 && button.Bounds.Width <= inline.Bounds.Width),
+                "Reply cards did not stack inside the available reading width.");
             Program.CaptureWindow(window, "smoke-reader-compact-replies.png");
-            Button firstReply = inline.GetVisualDescendants().OfType<Button>()
-                .First(button => Equals(button.Content, target.Replies[0].Label));
+            // The counter closes the cards again without dropping what was loaded, and reopens them without a reload.
+            toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            Require(!target.RepliesExpanded && target.Replies.Count == 25 && cards.All(button => !button.IsEffectivelyVisible),
+                "The reply counter did not collapse the cards.");
+            toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            Require(target.RepliesExpanded && !target.RepliesLoading && target.Replies.Count == 25 && cards.All(button => button.IsEffectivelyVisible),
+                "Reopening the replies reloaded or hid them.");
+            Button firstReply = cards.First(button => ReferenceEquals(button.DataContext, target.Replies[0]));
             firstReply.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Program.WaitUntilAsync(() => list.SelectedItem is ArchivePostRow { Id: "101" });
             Require(page.CurrentThread?.Summary.Id == id, "Inline backlink navigation left the local thread.");
-            Console.WriteLine("SMOKE reader replies: collapsed count, bounded 20-item inline page, more replies and quote navigation passed.");
+            Console.WriteLine("SMOKE reader replies: collapsed count, bounded 5-card inline page, more replies and quote navigation passed.");
             await CheckPostCardsAsync(window, page, id);
         }
         finally

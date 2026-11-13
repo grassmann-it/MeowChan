@@ -102,6 +102,11 @@ internal static class ReaderUxChecks
             await ReaderIdeaChecks.RunAsync(window);
             return;
         }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_REPLIES_ONLY") == "1")
+        {
+            await ReaderRepliesChecks.RunAsync(window);
+            return;
+        }
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_RETURNS_ONLY") == "1")
         {
             await ReaderReturnChecks.RunAsync(window);

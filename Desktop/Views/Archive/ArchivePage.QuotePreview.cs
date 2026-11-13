@@ -163,14 +163,16 @@ public partial class ArchivePage
     }
 
     /// <summary>The first lines of a post, at most <see cref="QuotePreviewMaxLines"/> lines and <see cref="QuotePreviewMaxCharacters"/> characters, with the ellipsis attached to the last word.</summary>
-    internal static string ShortenQuotePreview(string text)
+    internal static string ShortenQuotePreview(string text) => ShortenText(text, QuotePreviewMaxLines, QuotePreviewMaxCharacters);
+
+    internal static string ShortenText(string text, int maxLines, int maxCharacters)
     {
         string[] lines = text.Split('\n');
-        string result = string.Join("\n", lines.Take(QuotePreviewMaxLines)).TrimEnd();
-        bool cut = lines.Length > QuotePreviewMaxLines;
-        if (result.Length > QuotePreviewMaxCharacters)
+        string result = string.Join("\n", lines.Take(maxLines)).TrimEnd();
+        bool cut = lines.Length > maxLines;
+        if (result.Length > maxCharacters)
         {
-            result = result[..QuotePreviewMaxCharacters];
+            result = result[..maxCharacters];
             if (char.IsHighSurrogate(result[^1])) result = result[..^1];
             cut = true;
         }

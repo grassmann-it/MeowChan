@@ -1,3 +1,4 @@
+using MeowChan.Archive;
 using MeowChan.Desktop;
 
 namespace MeowChan.DesktopTests;
@@ -65,5 +66,35 @@ public sealed class ReaderIdeasTests
         row.Expanded = false;
         row.Expanded = true;
         Assert.Equal([false, true], reported);
+    }
+    [Fact]
+    public void ReplyToggleAppearsForRepliesAndForAFailedLoadOnly()
+    {
+        ArchivePostRow row = new("1", "", "text", Array.Empty<ArchiveAttachmentRow>());
+        Assert.False(row.HasReplyToggle); // No count yet.
+        row.SetBacklinkCount(0);
+        Assert.False(row.HasReplyToggle); // A confirmed zero has nothing to open.
+        row.SetBacklinkCount(3);
+        Assert.True(row.HasReplyToggle);
+        Assert.Contains("3", row.BacklinkCountLabel);
+        ArchivePostRow failed = new("2", "", "text", Array.Empty<ArchiveAttachmentRow>());
+        failed.SetRepliesError("boom");
+        Assert.True(failed.HasReplyToggle); // A retry stays possible.
+        Assert.Equal(5, ArchivePage.InlineReplyPageSize);
+    }
+
+    [Fact]
+    public void ReplyCardShowsTheHeaderOrTheReferenceAndOnlyARealExcerpt()
+    {
+        ArchivePostId origin = new(new ResourceId("4chan", "g", "100"), "101");
+        ArchiveQuote quote = new(origin, new ArchivePostId(origin.Thread, "100"), ">>100", null);
+        ArchiveQuoteRow plain = new(quote, true, origin.Thread);
+        Assert.Equal(plain.Label, plain.ReplyCardHeader);
+        Assert.False(plain.HasReplyExcerpt);
+        ArchiveQuoteRow card = plain with { ReplyHeader = "No. 101 · anon", ReplyExcerpt = "first lines" };
+        Assert.Equal("No. 101 · anon", card.ReplyCardHeader);
+        Assert.True(card.HasReplyExcerpt);
+        string cut = ArchivePage.ShortenText(string.Join("\n", Enumerable.Range(1, 9).Select(n => "line " + n)), ArchivePage.ReplyCardMaxLines, ArchivePage.ReplyCardMaxCharacters);
+        Assert.Equal("line 1\nline 2\nline 3\nline 4…", cut);
     }
 }

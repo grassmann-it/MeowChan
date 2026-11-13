@@ -2857,6 +2857,7 @@
     "reader.postNumberCopied": "Se copió >>{0} al portapapeles.",
     "reader.copyFailed": "El portapapeles no está disponible; no se copió nada.",
     "reader.replyCount": "Respuestas: {0}",
+    "reader.repliesToggle": "Mostrar u ocultar las respuestas",
     "reader.quotedPosts": "Publicaciones citadas",
     "reader.quoteNotCaptured": "(no guardado)",
     "reader.unreadLine": "{0} publicaciones nuevas desde la última vez",

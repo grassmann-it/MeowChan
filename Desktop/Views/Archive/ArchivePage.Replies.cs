@@ -7,13 +7,17 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
 
 namespace MeowChan;
 
 public partial class ArchivePage
 {
-    private const int InlineReplyPageSize = 20;
+    /// <summary>Reply cards shown at once under a post; "Show more replies" adds this many again.</summary>
+    internal const int InlineReplyPageSize = 5;
+    internal const int ReplyCardMaxLines = 4;
+    internal const int ReplyCardMaxCharacters = 260;
     private CancellationTokenSource? _inlineRepliesCancellation;
     private int _inlineRepliesRequest;
     private ArchivePostRow[] _inlineReplyRows = Array.Empty<ArchivePostRow>();
@@ -70,12 +74,17 @@ public partial class ArchivePage
         => !_ended && request == _inlineRepliesRequest && ReferenceEquals(rows, _inlineReplyRows)
             && _thread?.Summary.Id == thread;
 
-    private async void OnRepliesExpanded(object? sender, RoutedEventArgs e)
+    // The header counter opens and closes the nested reply cards; the first opening loads the first page.
+    private async void OnReplyToggleClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is not Expander { DataContext: ArchivePostRow row } || row.RepliesLoaded) return;
-        await LoadInlineRepliesAsync(row);
+        if (sender is Button { DataContext: ArchivePostRow row }) await SetRepliesExpandedAsync(row, !row.RepliesExpanded);
     }
-    private void OnRepliesCollapsed(object? sender, RoutedEventArgs e) { }
+
+    internal async Task SetRepliesExpandedAsync(ArchivePostRow row, bool open)
+    {
+        row.RepliesExpanded = open;
+        if (open && !row.RepliesLoaded) await LoadInlineRepliesAsync(row);
+    }
     private async void OnMoreRepliesClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Button { DataContext: ArchivePostRow row }) await LoadInlineRepliesAsync(row);
@@ -97,7 +106,7 @@ public partial class ArchivePage
             ArchiveQuotePage page = await reader.GetBacklinksAsync(new ArchivePostId(thread, row.Id),
                 row.Replies.Count, InlineReplyPageSize, token);
             if (!InlineReplyPageCurrent(rows, thread, request)) return;
-            row.SetReplies(Array.AsReadOnly(row.Replies.Concat(page.Items.Select(quote => new ArchiveQuoteRow(quote, true, thread))).ToArray()),
+            row.SetReplies(Array.AsReadOnly(row.Replies.Concat(page.Items.Select(quote => ReplyCard(quote, thread))).ToArray()),
                 page.TotalCount, page.Offset);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -106,5 +115,22 @@ public partial class ArchivePage
             if (InlineReplyPageCurrent(rows, thread, request)) row.SetRepliesError(exception.Message);
         }
         finally { if (InlineReplyPageCurrent(rows, thread, request)) row.SetRepliesLoading(false); }
+    }
+
+    // A reply of this thread becomes a card with its header and the first lines of its text; a reply from another
+    // thread (or one that was never captured) keeps the plain reference.
+    private ArchiveQuoteRow ReplyCard(ArchiveQuote quote, ResourceId thread)
+    {
+        ArchiveQuoteRow row = new(quote, true, thread);
+        if (PreviewPost(row) is not { } post) return row;
+        string header = string.Join(" \u00B7 ", new[]
+        {
+            Texts.T("reader.postNumber", post.PostId), post.Author ?? string.Empty,
+            post.PostedAt?.ToLocalTime().ToString("g", Texts.Culture) ?? string.Empty
+        }.Where(part => part.Length > 0));
+        string excerpt = ShortenText(ArchivePresentation.PlainText(post.Html), ReplyCardMaxLines, ReplyCardMaxCharacters);
+        if (excerpt.Length == 0 && post.Attachments?.FirstOrDefault(attachment => !string.IsNullOrEmpty(attachment.OriginalFileName)) is { } file)
+            excerpt = file.OriginalFileName!;
+        return row with { ReplyHeader = header, ReplyExcerpt = excerpt };
     }
 }

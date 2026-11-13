@@ -2857,6 +2857,7 @@
     "reader.postNumberCopied": ">>{0} copié dans le presse-papiers.",
     "reader.copyFailed": "Le presse-papiers n’est pas disponible ; rien n’a été copié.",
     "reader.replyCount": "Réponses : {0}",
+    "reader.repliesToggle": "Afficher ou masquer les réponses",
     "reader.quotedPosts": "Messages cités",
     "reader.quoteNotCaptured": "(non enregistré)",
     "reader.unreadLine": "{0} nouveaux messages depuis la dernière fois",

@@ -2857,6 +2857,7 @@
     "reader.postNumberCopied": ">>{0} скопировано в буфер обмена.",
     "reader.copyFailed": "Буфер обмена недоступен; ничего не скопировано.",
     "reader.replyCount": "Ответов: {0}",
+    "reader.repliesToggle": "Показать или скрыть ответы",
     "reader.quotedPosts": "Цитируемые посты",
     "reader.quoteNotCaptured": "(не сохранён)",
     "reader.unreadLine": "Новых постов с прошлого раза: {0}",

@@ -280,13 +280,12 @@ internal static class ShowcaseCaptures
         await CaptureAsync(window, "v0.9.0-reader.png");
         ListBox postsList = page.FindControl<ListBox>("ArchivePosts")!;
         ArchivePostRow openingPost = postsList.ItemsSource!.Cast<ArchivePostRow>().First();
-        Expander replies = reader.GetVisualDescendants().OfType<Expander>()
-            .First(expander => ReferenceEquals(expander.DataContext, openingPost));
-        replies.IsExpanded = true;
+        ListBoxItem replies = reader.GetVisualDescendants().OfType<ListBoxItem>()
+            .First(item => ReferenceEquals(item.DataContext, openingPost));
+        replies.GetVisualDescendants().OfType<Button>().First(button => button.Classes.Contains("reader-reply-toggle"))
+            .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await Program.WaitUntilAsync(() => openingPost.RepliesLoaded && openingPost.Replies.Count > 0
             && replies.IsEffectivelyVisible);
-        // Avalonia's Expander animates its reveal after the reply data is loaded.
-        // Capturing when only the first button appears clips later replies.
         await Task.Delay(350);
         replies.BringIntoView();
         ScrollViewer repliesViewport = postsList.GetVisualDescendants().OfType<ScrollViewer>().Single();
@@ -297,7 +296,7 @@ internal static class ShowcaseCaptures
         {
             window.UpdateLayout();
             Button[] buttons = replies.GetVisualDescendants().OfType<Button>()
-                .Where(button => button.DataContext is ArchiveQuoteRow).ToArray();
+                .Where(button => button.Classes.Contains("reader-reply-card")).ToArray();
             if (buttons.Length != openingPost.Replies.Count ||
                 buttons.Any(button => !button.IsEffectivelyVisible || button.Bounds.Width <= 0 || button.Bounds.Height <= 0
                     || !FitsInside(button, replies) || !FitsInViewport(button, repliesViewport)))

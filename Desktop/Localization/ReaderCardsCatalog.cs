@@ -10,6 +10,7 @@ internal static class ReaderCardsCatalog
         ("reader.postNumberCopied", "Copied >>{0} to the clipboard.", ">>{0} in die Zwischenablage kopiert."),
         ("reader.copyFailed", "The clipboard is unavailable; nothing was copied.", "Die Zwischenablage ist nicht verfügbar; nichts wurde kopiert."),
         ("reader.replyCount", "Replies: {0}", "Antworten: {0}"),
+        ("reader.repliesToggle", "Show or hide the replies", "Antworten ein- oder ausblenden"),
         ("reader.quotedPosts", "Quoted posts", "Zitierte Posts"),
         ("reader.quoteNotCaptured", "(not captured)", "(nicht erfasst)"),
         ("reader.unreadLine", "{0} new posts since last time", "{0} neue Posts seit zuletzt"),

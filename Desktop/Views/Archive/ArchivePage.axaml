@@ -362,6 +362,20 @@
                                                     <Setter Property="ClipToBounds" Value="True" />
                                                 </Style>
                                                 <!-- Reference buttons (keyboard quote row, expanded backlinks) read as links, not raised buttons. -->
+                                                <Style Selector="Button.reader-reply-toggle">
+                                                    <Setter Property="Padding" Value="4,0" />
+                                                    <Setter Property="MinHeight" Value="0" />
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Setter Property="BorderThickness" Value="0" />
+                                                </Style>
+                                                <Style Selector="Button.reader-reply-card">
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.ReaderCodeSurface}" />
+                                                    <Setter Property="BorderThickness" Value="0" />
+                                                    <Setter Property="CornerRadius" Value="4" />
+                                                    <Setter Property="Padding" Value="10,6" />
+                                                    <Setter Property="MinHeight" Value="0" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+                                                </Style>
                                                 <Style Selector="Button.reader-quote">
                                                     <Setter Property="Background" Value="Transparent" />
                                                     <Setter Property="BorderThickness" Value="0" />
@@ -379,7 +393,7 @@
                                                             <Rectangle Grid.Column="1" Height="2" Fill="{DynamicResource Workspace.Accent}" VerticalAlignment="Center" />
                                                         </Grid>
                                                         <!-- One header line: Subject · Name · Date · No.; the number copies ">>No.".
-                                                             The reply count sits at the right; the expander below stays the source. -->
+                                                             The reply counter at the right opens the nested reply cards below the text. -->
                                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                                                             <WrapPanel ItemSpacing="8" LineSpacing="2" VerticalAlignment="Center">
                                                                 <TextBlock Text="{Binding Subject}" IsVisible="{Binding HasSubject}" Classes="section-title" TextWrapping="Wrap" VerticalAlignment="Center" />
@@ -389,8 +403,17 @@
                                                                         AutomationProperties.Name="{Binding CopyNumberLabel}" Click="OnCopyPostNumberClick" VerticalAlignment="Center" />
                                                                 <TextBlock Text="{Binding RemovedLabel}" IsVisible="{Binding IsDeleted}" Classes="workspace-meta" VerticalAlignment="Center" />
                                                             </WrapPanel>
-                                                            <TextBlock Grid.Column="1" Text="{Binding BacklinkCountLabel}" IsVisible="{Binding HasBacklinks}" Classes="workspace-meta"
-                                                                       ToolTip.Tip="{Binding BacklinksLabel}" VerticalAlignment="Center" />
+                                                            <Button Grid.Column="1" Classes="link reader-reply-toggle" IsVisible="{Binding HasReplyToggle}"
+                                                                    ToolTip.Tip="{Binding ReplyToggleLabel}" AutomationProperties.Name="{Binding ReplyToggleLabel}"
+                                                                    Click="OnReplyToggleClick" VerticalAlignment="Center">
+                                                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                                                    <TextBlock Text="{Binding BacklinkCountLabel}" Classes="workspace-meta" VerticalAlignment="Center" />
+                                                                    <Path Classes="reader-reply-chevron" Data="M 0,0 L 3.5,3.5 L 7,0" Stroke="{DynamicResource Workspace.Muted}" StrokeThickness="1.4"
+                                                                          IsVisible="{Binding !RepliesExpanded}" VerticalAlignment="Center" />
+                                                                    <Path Classes="reader-reply-chevron" Data="M 0,3.5 L 3.5,0 L 7,3.5" Stroke="{DynamicResource Workspace.Muted}" StrokeThickness="1.4"
+                                                                          IsVisible="{Binding RepliesExpanded}" VerticalAlignment="Center" />
+                                                                </StackPanel>
+                                                            </Button>
                                                         </Grid>
                                                         <desktop:ReaderPostLayout>
                                                             <ItemsControl ItemsSource="{Binding Attachments}" IsVisible="{Binding HasAttachments}" HorizontalAlignment="Left">
@@ -421,25 +444,32 @@
                                                                         </ItemsControl.ItemTemplate>
                                                                     </ItemsControl>
                                                                 </StackPanel>
-                                                                <TextBlock Text="{Binding BacklinksLabel}" IsVisible="{Binding HasConfirmedNoReplies}" Classes="muted" FontSize="12" />
-                                                                <Expander Header="{Binding BacklinksLabel}" IsVisible="{Binding CanExpandReplies}" IsExpanded="{Binding RepliesExpanded, Mode=TwoWay}"
-                                                                          Expanded="OnRepliesExpanded" Collapsed="OnRepliesCollapsed" HorizontalAlignment="Left" MinHeight="0" Padding="0">
-                                                                    <StackPanel Margin="12,4,0,4" Spacing="4">
-                                                                        <ItemsControl ItemsSource="{Binding Replies}">
-                                                                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                                                                            <ItemsControl.ItemTemplate>
-                                                                                <DataTemplate x:DataType="desktop:ArchiveQuoteRow">
-                                                                                    <Button Classes="reader-quote" Content="{Binding Label}" ToolTip.Tip="{Binding AccessibleLabel}" AutomationProperties.Name="{Binding AccessibleLabel}" commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick" Margin="0,2,6,2" HorizontalAlignment="Left" />
-                                                                                </DataTemplate>
-                                                                            </ItemsControl.ItemTemplate>
-                                                                        </ItemsControl>
-                                                                        <TextBlock Text="{Binding RepliesLoadingLabel}" IsVisible="{Binding RepliesLoading}" Classes="muted" />
-                                                                        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasMoreReplies}">
-                                                                            <Button Content="{Binding MoreRepliesLabel}" commands:CommandPresentation.Id="reader.show-replies" Click="OnMoreRepliesClick" />
-                                                                            <TextBlock Text="{Binding RepliesPageLabel}" VerticalAlignment="Center" Classes="muted" />
-                                                                        </StackPanel>
+                                                                <!-- I2: replies as nested cards, one level deep: a left rail, the header and the first lines of each reply.
+                                                                     The header counter above opens and closes them; "Show more replies" adds the next five. -->
+                                                                <StackPanel IsVisible="{Binding RepliesExpanded}" Margin="10,2,0,2" Spacing="6">
+                                                                    <ItemsControl ItemsSource="{Binding Replies}">
+                                                                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="6" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate x:DataType="desktop:ArchiveQuoteRow">
+                                                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                                                    <Rectangle Width="3" RadiusX="1.5" RadiusY="1.5" Fill="{DynamicResource Workspace.Accent}" Opacity="0.55" />
+                                                                                    <Button Grid.Column="1" Classes="reader-reply-card" ToolTip.Tip="{Binding AccessibleLabel}" AutomationProperties.Name="{Binding AccessibleLabel}"
+                                                                                            commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
+                                                                                        <StackPanel Spacing="2">
+                                                                                            <TextBlock Text="{Binding ReplyCardHeader}" Classes="workspace-meta" TextWrapping="Wrap" />
+                                                                                            <TextBlock Text="{Binding ReplyExcerpt}" IsVisible="{Binding HasReplyExcerpt}" TextWrapping="Wrap" />
+                                                                                        </StackPanel>
+                                                                                    </Button>
+                                                                                </Grid>
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                    <TextBlock Text="{Binding RepliesLoadingLabel}" IsVisible="{Binding RepliesLoading}" Classes="muted" />
+                                                                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasMoreReplies}">
+                                                                        <Button Content="{Binding MoreRepliesLabel}" commands:CommandPresentation.Id="reader.show-replies" Click="OnMoreRepliesClick" />
+                                                                        <TextBlock Text="{Binding RepliesPageLabel}" VerticalAlignment="Center" Classes="muted" />
                                                                     </StackPanel>
-                                                                </Expander>
+                                                                </StackPanel>
                                                                 <TextBlock Text="{Binding RepliesError}" IsVisible="{Binding HasRepliesError}" TextWrapping="Wrap" Foreground="{DynamicResource Workspace.Error}" />
                                                             </StackPanel>
                                                         </desktop:ReaderPostLayout>

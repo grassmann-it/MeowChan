@@ -157,10 +157,11 @@ public sealed class ReaderPostSurfaceTests
         Assert.Equal("{Binding CopyNumberLabel}", (string?)number.Attribute("AutomationProperties.Name"));
         Assert.Equal("{Binding CopyNumberLabel}", (string?)number.Attribute("ToolTip.Tip"));
         Assert.Equal("24", Setting(PostStyle("Button.reader-post-number"), "MinHeight"));
-        XElement count = Assert.Single(header.Elements(A + "TextBlock"));
-        Assert.Equal("1", (string?)count.Attribute("Grid.Column"));
-        Assert.Equal("{Binding BacklinkCountLabel}", (string?)count.Attribute("Text"));
-        Assert.Equal("{Binding HasBacklinks}", (string?)count.Attribute("IsVisible"));
+        // The reply counter at the right is the toggle for the nested reply cards (I2).
+        XElement counter = Assert.Single(header.Elements(A + "Button"));
+        Assert.Equal("1", (string?)counter.Attribute("Grid.Column"));
+        Assert.Equal("{Binding HasReplyToggle}", (string?)counter.Attribute("IsVisible"));
+        Assert.Equal("{Binding BacklinkCountLabel}", (string?)Assert.Single(counter.Descendants(A + "TextBlock")).Attribute("Text"));
         Assert.DoesNotContain(PostRoot().Descendants(), element => (string?)element.Attribute("Text") == "{Binding Header}");
     }
 
@@ -191,8 +192,14 @@ public sealed class ReaderPostSurfaceTests
         XElement root = PostRoot();
         XElement[] quoteButtons = root.Descendants(A + "Button").Where(element =>
             (string?)element.Attribute("Click") == "OnQuoteClick").ToArray();
-        Assert.Equal(2, quoteButtons.Length); // Keyboard quote row and expanded backlink templates.
-        foreach (XElement button in quoteButtons)
+        Assert.Equal(2, quoteButtons.Length); // Keyboard quote row and the nested reply cards.
+        XElement card = Assert.Single(quoteButtons, button => ((string?)button.Attribute("Classes"))?.Contains("reader-reply-card") == true);
+        Assert.Equal("{Binding AccessibleLabel}", (string?)card.Attribute("ToolTip.Tip"));
+        Assert.Equal("{Binding AccessibleLabel}", (string?)card.Attribute("AutomationProperties.Name"));
+        Assert.Equal("reader.open-quote", Assert.Single(card.Attributes().Where(attribute => attribute.Name.LocalName == "CommandPresentation.Id")).Value);
+        Assert.Contains(card.Descendants(A + "TextBlock"), text => (string?)text.Attribute("Text") == "{Binding ReplyCardHeader}");
+        Assert.Contains(card.Descendants(A + "TextBlock"), text => (string?)text.Attribute("Text") == "{Binding ReplyExcerpt}");
+        foreach (XElement button in quoteButtons.Where(button => button != card))
         {
             Assert.Equal("{Binding Label}", (string?)button.Attribute("Content"));
             Assert.Equal("{Binding AccessibleLabel}", (string?)button.Attribute("ToolTip.Tip"));
@@ -203,12 +210,16 @@ public sealed class ReaderPostSurfaceTests
         foreach (string binding in new[] { "{Binding Quotes}", "{Binding Replies}" })
             Assert.Single(root.Descendants(A + "ItemsControl").Where(element =>
                 (string?)element.Attribute("ItemsSource") == binding));
-        XElement backlinks = Assert.Single(root.Descendants(A + "Expander"));
-        Assert.Equal("{Binding BacklinksLabel}", (string?)backlinks.Attribute("Header"));
-        Assert.Equal("{Binding CanExpandReplies}", (string?)backlinks.Attribute("IsVisible"));
-        Assert.Equal("{Binding RepliesExpanded, Mode=TwoWay}", (string?)backlinks.Attribute("IsExpanded"));
-        Assert.Equal("OnRepliesExpanded", (string?)backlinks.Attribute("Expanded"));
-        Assert.Equal("OnRepliesCollapsed", (string?)backlinks.Attribute("Collapsed"));
+        Assert.Empty(root.Descendants(A + "Expander")); // The header counter replaced the expander (I2).
+        XElement toggle = Assert.Single(root.Descendants(A + "Button"), button => ((string?)button.Attribute("Classes"))?.Contains("reader-reply-toggle") == true);
+        Assert.Equal("{Binding HasReplyToggle}", (string?)toggle.Attribute("IsVisible"));
+        Assert.Equal("OnReplyToggleClick", (string?)toggle.Attribute("Click"));
+        Assert.Equal("{Binding ReplyToggleLabel}", (string?)toggle.Attribute("AutomationProperties.Name"));
+        Assert.Equal("{Binding ReplyToggleLabel}", (string?)toggle.Attribute("ToolTip.Tip"));
+        Assert.Contains(toggle.Descendants(A + "TextBlock"), text => (string?)text.Attribute("Text") == "{Binding BacklinkCountLabel}");
+        XElement cards = Assert.Single(root.Descendants(A + "StackPanel"), panel => (string?)panel.Attribute("IsVisible") == "{Binding RepliesExpanded}");
+        Assert.Contains(cards.Descendants(A + "Rectangle"), rail => (string?)rail.Attribute("Width") == "3"); // The left rail.
+        Assert.Contains(cards.Descendants(A + "Button"), more => (string?)more.Attribute("Click") == "OnMoreRepliesClick");
     }
 
     [Fact]
@@ -225,11 +236,10 @@ public sealed class ReaderPostSurfaceTests
         // Collapsed only while neither focused nor needed for an unplaced reference.
         XElement collapsed = PostStyle("ItemsControl.reader-quote-keys:not(:focus-within):not(.reader-quotes-visible)");
         Assert.Equal("0", Setting(collapsed, "MaxHeight"));
-        // Reading order: text, then quotes, then backlinks.
-        XElement[] order = root.Descendants().Where(element => element == body || element == keys
-            || element.Name == A + "Expander").ToArray();
-        Assert.Equal(new[] { body, keys }, order.Take(2));
-        Assert.Equal(A + "Expander", order[2].Name);
+        // Reading order: text, then quotes, then the nested replies.
+        XElement replies = Assert.Single(root.Descendants(A + "StackPanel"), panel => (string?)panel.Attribute("IsVisible") == "{Binding RepliesExpanded}");
+        XElement[] order = root.Descendants().Where(element => element == body || element == keys || element == replies).ToArray();
+        Assert.Equal(new[] { body, keys, replies }, order);
     }
 
     [Theory]
