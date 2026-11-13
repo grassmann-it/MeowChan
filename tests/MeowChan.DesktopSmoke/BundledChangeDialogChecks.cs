@@ -22,6 +22,7 @@ internal static class BundledChangeDialogChecks
 {
     internal static async Task RunAsync(MainWindow owner)
     {
+        using IDisposable clipboardScope = PluginNativeRepairHelper.IsolateClipboard();
         PluginUxFixture fixture = await PluginUxFixture.CreateAsync(Path.Combine(Config.GetConfigDirectory(), "bundled-change-dialog"));
         RecordingStore store = new(fixture);
         var original = fixture.Services;
@@ -90,6 +91,8 @@ internal static class BundledChangeDialogChecks
                 store.Malformed = false;
 
                 modal = await OpenAsync(owner, page);
+                Require(!Save(modal).IsEnabled && Changes(modal).IsChecked == false && Rights(modal).IsChecked == false,
+                    "Consent leaked across canceled/malformed modal openings.");
                 PluginSettingsEditor plugin = modal.GetVisualDescendants().OfType<PluginSettingsEditor>().Single(e => e.Draft.Scope == SettingScope.Plugin);
                 PluginSettingsEditor source = modal.GetVisualDescendants().OfType<PluginSettingsEditor>().Single(e => e.Draft.Scope == SettingScope.Source);
                 TextBox label = (TextBox)plugin.FindField("label")!;
@@ -102,7 +105,7 @@ internal static class BundledChangeDialogChecks
                 {
                     await ClickAsync(modal, input, Changes(modal));
                     await ClickAsync(modal, input, Rights(modal));
-                    limit.Text = "1.5"; // Same synchronous text path used by native typing; no draft API shortcuts.
+                    await PluginNativeRepairHelper.ReplaceTextAsync(modal, input, limit, "1.5");
                     await ClickAsync(modal, input, Save(modal));
                     await Program.WaitUntilAsync(() => limit.IsFocused, () =>
                         "Invalid source integer must own native focus, not the first (valid) plugin editor; focused=" +
@@ -115,7 +118,8 @@ internal static class BundledChangeDialogChecks
                         "Invalid source field has no visible validation message.");
                     Program.CaptureWindow(modal, "smoke-bundled-change-invalid-field-" + current + ".png");
                     // Correct the very same controls in the very same owned modal, not a settings-page detour.
-                    limit.Text = "23"; label.Text = "corrected label ü";
+                    await PluginNativeRepairHelper.ReplaceTextAsync(modal, input, limit, "23");
+                    await PluginNativeRepairHelper.ReplaceTextAsync(modal, input, label, "corrected label ü");
                     Require(ReferenceEquals(limit, source.FindField("limit")) && modal.IsVisible, "Correction replaced the modal/editor.");
                     VerifyReviewEvidence(modal, store);
                     Program.CaptureWindow(modal, "smoke-bundled-change-ready-" + current + ".png");
@@ -155,7 +159,7 @@ internal static class BundledChangeDialogChecks
                 Require(untouched.SequenceEqual(afterReview) && fixture.ForbiddenCalls == 0,
                     "Review mutated the underlying catalog or invoked plugin execution/network services.");
                 Console.WriteLine("PLUGIN_CHANGE_REVIEW " + JsonSerializer.Serialize(new { result = "pass", language = current,
-                    nativeOwnedModal = true, invalidSourceFocus = true, sameModalCorrection = true, exactChangeDispatch = true, pendingOnly = true }));
+                    nativeOwnedModal = true, nativeConfigurationPaste = true, invalidSourceFocus = true, sameModalCorrection = true, exactChangeDispatch = true, pendingOnly = true }));
             }
         }
         finally { page.EndLifetime(); host.Content = previous; Texts.SetLanguage(language); }
@@ -191,13 +195,8 @@ internal static class BundledChangeDialogChecks
         Require(ReferenceEquals(modal.Owner, owner) && page.IsBusy, "Review is not the attached page's owned modal.");
         return modal;
     }
-    private static async Task ClickAsync(Window modal, MediaNativeInput input, Control control)
-    {
-        await Program.WaitUntilAsync(() => { modal.UpdateLayout(); control.BringIntoView(); modal.UpdateLayout();
-            Point? point = control.TranslatePoint(default, modal);
-            return point is { } p && p.Y >= 0 && p.Y + control.Bounds.Height <= modal.ClientSize.Height && control.Bounds.Width > 0; });
-        await input.ClickAsync(control); await Settle();
-    }
+    private static Task ClickAsync(Window modal, MediaNativeInput input, Control control) =>
+        PluginNativeRepairHelper.ClickAsync(modal, input, control);
     private static async Task ClosedAsync(PluginsPage page, Window modal) => await Program.WaitUntilAsync(() => !modal.IsVisible && !page.IsBusy);
     private static async Task Settle() => await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }

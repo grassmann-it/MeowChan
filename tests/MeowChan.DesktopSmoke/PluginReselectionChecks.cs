@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Threading;
@@ -24,6 +25,7 @@ internal static class PluginReselectionChecks
 {
     internal static async Task RunAsync(MainWindow owner)
     {
+        using IDisposable clipboardScope = PluginNativeRepairHelper.IsolateClipboard();
         PluginUxFixture fixture = await PluginUxFixture.CreateAsync(Path.Combine(Config.GetConfigDirectory(), "reselection-ui"));
         RecordingStore store = new(fixture.Store);
         var original = fixture.Services;
@@ -331,8 +333,7 @@ internal static class PluginReselectionChecks
         foreach (Expander details in new[] { technical, configurationDetails })
         {
             Require(!details.IsExpanded, "Technical details should not overwhelm the initial repair review.");
-            ToggleButton header = details.GetVisualDescendants().OfType<ToggleButton>()
-                .Single(button => ReferenceEquals(button.TemplatedParent, details));
+            ToggleButton header = PluginNativeRepairHelper.ExpanderHeader(details);
             await ClickAsync(modal, input, header);
             await Program.WaitUntilAsync(() => details.IsExpanded && (details.Content as Control)?.IsEffectivelyVisible == true);
         }
@@ -348,6 +349,7 @@ internal static class PluginReselectionChecks
             configuration.Text == RecordingStore.Configuration && configuration.Text == store.Row.ConfigurationJson &&
             configuration.IsEffectivelyVisible && AutomationProperties.GetName(configuration) == Texts.T("plugins.reselection.configuration"),
             "Full exact configuration is not read-only, copyable and reviewable.");
+        await PluginNativeRepairHelper.VerifyRawConfigurationCopyAsync(modal, input, configuration, RecordingStore.Configuration);
         Require(labels.Contains(Texts.T("plugins.reselection.backup")) && labels.Contains(Texts.T("plugins.reselection.policy")), "Safety/backup explanation missing.");
         Require(labels.Contains(Texts.T("plugins.reselection.blocked.pinned")), "Blocked reason is not localized.");
         foreach (BundledCandidateRepair repair in store.RepairRows.Where(row => !row.CanReauthorize))
@@ -357,8 +359,7 @@ internal static class PluginReselectionChecks
         // A second native click must return to the compact decision without discarding any review data.
         foreach (Expander details in new[] { configurationDetails, technical })
         {
-            ToggleButton header = details.GetVisualDescendants().OfType<ToggleButton>()
-                .Single(button => ReferenceEquals(button.TemplatedParent, details));
+            ToggleButton header = PluginNativeRepairHelper.ExpanderHeader(details);
             await ClickAsync(modal, input, header);
             await Program.WaitUntilAsync(() => !details.IsExpanded);
         }
@@ -384,13 +385,8 @@ internal static class PluginReselectionChecks
     private static Button ReauthorizeConfirm(Window modal, string id) => Buttons(modal).Single(b => AutomationProperties.GetName(b) == Texts.T("plugins.repair.reauthorize.confirmNamed", id));
     private static CheckBox Ack(Button confirm) => ((StackPanel)confirm.Parent!).Children.OfType<CheckBox>().Single();
     private static Button Cancel(Window modal) => Buttons(modal).Single(b => Equals(b.Content, Texts.T("plugins.repair.cancel")));
-    private static async Task ClickAsync(Window window, MediaNativeInput input, Control control)
-    {
-        await Program.WaitUntilAsync(() => { window.UpdateLayout(); control.BringIntoView(); window.UpdateLayout();
-            Point? point = control.TranslatePoint(default, window);
-            return point is { } p && p.Y >= 0 && p.Y + control.Bounds.Height <= window.ClientSize.Height && control.Bounds.Width > 0; });
-        await input.ClickAsync(control); await Settle();
-    }
+    private static Task ClickAsync(Window window, MediaNativeInput input, Control control) =>
+        PluginNativeRepairHelper.ClickAsync(window, input, control);
     private static Button ById(Window modal, string id) => Buttons(modal).Single(b => AutomationProperties.GetAutomationId(b) == id);
     private static async Task SavedAsync(PluginsPage page, Window modal)
     {
@@ -417,7 +413,8 @@ internal static class PluginReselectionChecks
         Require(string.IsNullOrEmpty(issue.Text) && !strip.IsVisible && AutomationProperties.GetLiveSetting(issue) == AutomationLiveSetting.Assertive,
             "Error strip shows or repeats a neutral message: " + text);
     }
-    // One right-aligned row at the default width, Close/Reload/Submit, with exactly one primary action.
+    // One right-aligned row at the default width. Submit disappears after all actionable
+    // rows are consumed; Close/Reload must remain reachable, with Close the sole primary action.
     private static bool VerifyFooter(Window modal, bool closePrimary, bool requireOneRow = true)
     {
         modal.UpdateLayout();
@@ -426,14 +423,18 @@ internal static class PluginReselectionChecks
         Button close = ById(modal, "BundledApprovalClose"), reload = ById(modal, "BundledApprovalReload"), submit = ById(modal, "BundledApprovalSubmit");
         Rect Box(Control c) => new(c.TranslatePoint(default, footer)!.Value, c.Bounds.Size);
         Rect footerBox = new Rect(footer.Bounds.Size).Inflate(0.5);
-        foreach (Button button in new[] { close, reload, submit })
-            Require(footerBox.Contains(Box(button)) && button.Bounds.Width > 0, "Footer button is clipped or hidden: " + AutomationProperties.GetAutomationId(button));
-        bool oneRow = Math.Abs(Box(close).Y - Box(reload).Y) < 1 && Math.Abs(Box(reload).Y - Box(submit).Y) < 1 &&
-            Box(close).X < Box(reload).X && Box(reload).X < Box(submit).X;
+        Require(closePrimary ? !submit.IsVisible && !submit.IsEnabled : submit.IsEffectivelyVisible,
+            "Submit must be visible during review and hidden/disabled once no actionable rows remain.");
+        Button[] visibleActions = closePrimary ? [close, reload] : [close, reload, submit];
+        foreach (Button button in visibleActions)
+            Require(button.IsEffectivelyVisible && footerBox.Contains(Box(button)) && button.Bounds.Width > 0 && button.Bounds.Height > 0,
+                "Footer button is clipped or hidden: " + AutomationProperties.GetAutomationId(button));
+        bool oneRow = visibleActions.Zip(visibleActions.Skip(1)).All(pair =>
+            Math.Abs(Box(pair.First).Y - Box(pair.Second).Y) < 1 && Box(pair.First).Right <= Box(pair.Second).X);
         if (requireOneRow)
         {
             Require(oneRow, "Footer buttons do not share one ordered row.");
-            Require(footerBox.Right - Box(submit).Right < 40, "Footer row is not right-aligned.");
+            Require(footerBox.Right - Box(visibleActions[^1]).Right < 40, "Footer row is not right-aligned.");
         }
         Require(actions.Classes.Contains("workspace-actions"), "Footer row does not use the shared action-row style.");
         Require(submit.Classes.Contains("primary") == !closePrimary && close.Classes.Contains("primary") == closePrimary &&
