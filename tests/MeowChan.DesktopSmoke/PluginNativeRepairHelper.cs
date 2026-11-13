@@ -34,10 +34,12 @@ internal static class PluginNativeRepairHelper
     internal static ToggleButton ExpanderHeader(Expander expander)
     {
         expander.ApplyTemplate();
-        // Semi's header can be wrapped by another template. Match its nearest expander,
-        // as PluginUxChecks/PluginSettingsFormChecks do, excluding nested settings headers.
+        // The expanded configuration contains TextBox template toggles as well. Their
+        // nearest Expander is the same, but they are not this Expander's header. Match
+        // the actual Semi header part and owner; retain Single so ambiguity stays a failure.
         ToggleButton header = expander.GetVisualDescendants().OfType<ToggleButton>()
-            .Single(toggle => ReferenceEquals(toggle.GetVisualAncestors().OfType<Expander>().FirstOrDefault(), expander));
+            .Single(toggle => toggle.Name == "ExpanderHeader" &&
+                ReferenceEquals(toggle.GetVisualAncestors().OfType<Expander>().FirstOrDefault(), expander));
         Console.WriteLine("PLUGIN_REPAIR_HEADER " + JsonSerializer.Serialize(new {
             id = AutomationProperties.GetAutomationId(expander), header.Name,
             templatedParent = header.TemplatedParent?.GetType().Name,
