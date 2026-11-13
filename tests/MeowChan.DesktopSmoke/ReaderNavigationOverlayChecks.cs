@@ -378,7 +378,7 @@ internal static class ReaderNavigationOverlayChecks
     private static bool ClippedSizeAtLeast(double actual, double minimum) => actual >= minimum - GeometryEpsilonDip;
 
     // Overflow candidates by usefulness: the trailing ones move into More first.
-    private static readonly string[] ReaderToolbarOverflowOrder = ["ReaderFindOpen", "ArchiveReaderFullscreen", "ArchiveHistoryBack", "ReaderFilenameSearchOpen", "ReaderHashSearchOpen", "ExportArchiveButton"];
+    private static readonly string[] ReaderToolbarOverflowOrder = ["ReaderFindOpen", "ReaderViewOpen", "ArchiveReaderFullscreen", "ArchiveHistoryBack", "ReaderFilenameSearchOpen", "ReaderHashSearchOpen", "ExportArchiveButton"];
 
     private static void CheckToolbarGeometry(MainWindow window, ArchivePage page, ActionToolBar toolbar)
     {

@@ -56,11 +56,13 @@ public partial class ArchivePage
 
     private bool IsPastUnreadLine()
     {
-        if (_thread == null || _unreadFirstNewId == null || ArchivePosts.ItemsSource is not ArchivePostRow[] rows) return false;
-        int line = _thread.FindPostIndex(_unreadFirstNewId);
+        if (_thread == null || _unreadFirstNewId == null || ArchivePosts.ItemsSource is not ArchivePostRow[] rows
+            || Projection is not { } shown) return false;
+        // Positions in the shown order: the line sits on the first shown post at or after the first new one.
+        int line = shown.PositionOf(_unreadFirstNewId);
         if (line < 0) return false;
         if (line < _postOffset) return true; // The line is on an earlier page of posts.
-        if (line >= _postOffset + PageSize) return false;
+        if (line >= _postOffset + ReaderPageSize) return false;
         // The post that carries the line is asked directly: no walk over the realized cards on every scroll event.
         int index = line - _postOffset;
         if (index < 0 || index >= rows.Length || rows[index].Id != _unreadFirstNewId)

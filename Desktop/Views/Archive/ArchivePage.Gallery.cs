@@ -385,13 +385,21 @@ public partial class ArchivePage
 
     internal void ShowPost(string postId) => ShowPost(postId, null);
 
-    private void ShowPost(string postId, FilenameSearchOwner? filenameNavigation)
+    // An explicit jump (find, filename search, gallery): a post the view hides is revealed first.
+    private void ShowPost(string postId, FilenameSearchOwner? filenameNavigation) => ShowPost(postId, filenameNavigation, reveal: true);
+
+    private void ShowPost(string postId, FilenameSearchOwner? filenameNavigation, bool reveal)
     {
         if (!ReferenceEquals(_filenameSearchOwner, filenameNavigation)) InvalidateFilenameSearch();
         if (_thread == null) return;
-        int index = _thread.FindPostIndex(postId);
+        if (_thread.FindPostIndex(postId) < 0) return;
+        if (reveal) RevealPostNow(postId);
+        // Pages are cut from the shown order; a view still being prepared puts its page at the post when it is ready.
+        if (Projection is not { } projection) { _projectionPagePost = postId; return; }
+        int index = projection.NearestPosition(postId);
         if (index < 0) return;
-        int offset = index / PageSize * PageSize;
+        postId = projection[index].Post.PostId;
+        int offset = index / ReaderPageSize * ReaderPageSize;
         // Moving within a page keeps realized controls, pending previews and their geometry.
         if (offset != _postOffset || ArchivePosts.ItemsSource is not IEnumerable<ArchivePostRow> current
             || !current.Any(post => post.Id == postId))
