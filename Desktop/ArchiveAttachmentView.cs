@@ -203,7 +203,7 @@ public sealed class ArchiveAttachmentView : UserControl
             pending = row.LoadThumbnail(loading.Token);
             Bitmap? bitmap = await pending.WaitAsync(LoadTimeout, loading.Token);
             if (request != _request || loading.IsCancellationRequested || !_visible)
-            { bitmap?.Dispose(); return; }
+            { if (bitmap != null) MediaTileThumbnails.Release(bitmap); return; }
             UpdateLabel();
             _bitmap = bitmap;
             _image.Source = bitmap;
@@ -240,7 +240,7 @@ public sealed class ArchiveAttachmentView : UserControl
 
     private static async Task DisposeLateAsync(Task<Bitmap?> pending)
     {
-        try { (await pending)?.Dispose(); }
+        try { if (await pending is { } late) MediaTileThumbnails.Release(late); }
         catch (Exception) { } // The visible request already reports the original failure/cancellation.
     }
 
@@ -257,7 +257,7 @@ public sealed class ArchiveAttachmentView : UserControl
         ++_request;
         CancelPendingLoad();
         _image.Source = null; _image.IsVisible = false;
-        _bitmap?.Dispose(); _bitmap = null;
+        if (_bitmap != null) MediaTileThumbnails.Release(_bitmap); _bitmap = null;
         _status.IsVisible = true;
     }
 }
