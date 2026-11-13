@@ -240,6 +240,7 @@ internal static partial class SmokeScenarios
         ["post-bookmark-comparison"] = new(SmokeStage.AfterCommandRefresh, mainWindow => PostBookmarkComparisonChecks.RunAsync(mainWindow)),
         ["post-bookmarks"] = new(SmokeStage.AfterCommandRefresh, mainWindow => PostBookmarkChecks.RunAsync(mainWindow)),
         ["command-contrast"] = new(SmokeStage.AfterCommandRefresh, mainWindow => CommandButtonContrastChecks.RunAsync(mainWindow)),
+        ["hover-contrast"] = new(SmokeStage.AfterCommandRefresh, mainWindow => HoverContrastChecks.RunAsync(mainWindow)),
         ["action-dynamic"] = new(SmokeStage.AfterCommandRefresh, mainWindow => ActionToolBarDynamicChecks.RunAsync(mainWindow)),
         ["action-overflow"] = new(SmokeStage.AfterCommandRefresh, mainWindow => ActionToolBarPresentationChecks.RunAsync(mainWindow)),
         ["download-search"] = new(SmokeStage.AfterCommandRefresh, mainWindow => DownloadSearchChecks.RunAsync(mainWindow)),

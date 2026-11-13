@@ -213,6 +213,7 @@ internal static partial class SmokeScenarios
         Root("post-bookmark-comparison", "MEOWCHAN_POST_BOOKMARK_COMPARISON_ONLY"),
         Root("post-bookmarks", "MEOWCHAN_POST_BOOKMARKS_ONLY"),
         Root("command-contrast", "MEOWCHAN_COMMAND_CONTRAST_ONLY"),
+        Root("hover-contrast", "MEOWCHAN_HOVER_CONTRAST_ONLY", "hover contrast: footer navigation hover/selected, work-view selector and drop-down, Tools menu, columns context menu and a settings drop-down in Light and Dark; rendered text 4.5:1, state boundaries 3:1"),
         Root("action-dynamic", "MEOWCHAN_ACTION_DYNAMIC_ONLY"),
         Root("action-overflow", "MEOWCHAN_ACTION_OVERFLOW_ONLY") with { NightlySkip = Provenance },
         Root("download-search", "MEOWCHAN_DOWNLOAD_SEARCH_ONLY"),
