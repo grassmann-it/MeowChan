@@ -165,6 +165,8 @@ internal static class PostFilterProfileTransfer
         ArgumentNullException.ThrowIfNull(snapshot);
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            ValidateSnapshot(snapshot, cancellationToken);
             PostFilterSnapshot restored = target.RestoreSnapshot(snapshot.AsStoreSnapshot(), expectedRevision, cancellationToken);
             return new(restored, PostFilterTransferError.None);
         }

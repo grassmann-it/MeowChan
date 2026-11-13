@@ -56,7 +56,9 @@ internal sealed class PostFilterStore
     private PostFilterSnapshot LoadCore()
     {
         _recoverySource = null; _recoveryIdentity = null;
-        try { return _current = Read(_path, missingIsEmpty: true); }
+        // A missing primary is empty only when there is no backup either. Otherwise
+        // exporting or replacing an "empty" store would silently discard recoverable policy.
+        try { return _current = Read(_path, missingIsEmpty: false); }
         catch (Exception error) when (IsReadError(error))
         {
             try
@@ -68,6 +70,10 @@ internal sealed class PostFilterStore
                     _recoveryIdentity = FileIdentity(_path);
                     return _current = backup with { State = PostFilterStoreState.RecoveryAvailable, Error = error.Message };
                 }
+            }
+            catch (FileNotFoundException) when (error is FileNotFoundException)
+            {
+                return _current = PostFilterSnapshot.Empty(PostFilterStoreState.Ready);
             }
             catch (Exception backupError) when (IsReadError(backupError)) { }
             return _current = PostFilterSnapshot.Empty(PostFilterStoreState.Failed, error.Message);
@@ -375,8 +381,12 @@ internal sealed class PostFilterStore
 
     private static string FileIdentity(string path)
     {
-        using FileStream stream = Open(path);
-        return Convert.ToHexString(SHA256.HashData(stream));
+        try
+        {
+            using FileStream stream = Open(path);
+            return Convert.ToHexString(SHA256.HashData(stream));
+        }
+        catch (FileNotFoundException) { return "missing"; }
     }
 
     // The system messages of open failures name the full profile path, and load errors reach the dialog's text.
