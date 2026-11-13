@@ -119,6 +119,8 @@ internal static class InlineTextCatalog
         ("archive.delete.shared", "Shared with other threads: ", "Gemeinsam mit anderen Threads verwendet: "),
         ("archive.delete.blocked", "This selection cannot be fully deleted. Review the details or select fewer threads.", "Diese Auswahl kann nicht vollständig gelöscht werden. Bitte Details prüfen oder die Auswahl einschränken."),
         ("archive.delete.tagRetry", "Retry tag cleanup", "Tagbereinigung wiederholen"),
+        ("archive.delete.cleanupRetryFailed", "The cleanup could not be completed. The deleted threads stay deleted; you can retry the cleanup. Details: {0}", "Die Bereinigung konnte nicht abgeschlossen werden. Die gelöschten Threads bleiben gelöscht; die Bereinigung lässt sich erneut versuchen. Details: {0}"),
+        ("archive.delete.failed", "The deletion could not be completed. Entries already deleted stay deleted, the rest are unchanged. Check the archive and try again; details: {0}", "Das Löschen konnte nicht abgeschlossen werden. Bereits gelöschte Einträge bleiben gelöscht, die übrigen sind unverändert. Archiv prüfen und erneut versuchen; Details: {0}"),
         ("archive.delete.tagsCleaned", "Tag assignments of the deleted threads were removed. The tags themselves were kept.", "Tagzuordnungen der gelöschten Threads wurden entfernt. Die Tags selbst bleiben erhalten."),
         ("archive.delete.ratingsCleaned", "Ratings cleaned up. No further archive files were deleted.", "Bewertungen bereinigt. Es wurden keine weiteren Archivdateien gelöscht."),
         ("archive.delete.deleting", "Deleting local data…", "Lokale Daten werden gelöscht…"),

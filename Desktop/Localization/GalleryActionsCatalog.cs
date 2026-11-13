@@ -14,6 +14,7 @@ internal static class GalleryActionsCatalog
         ("gallery.fileOnly.typeUnknown", "file", "Datei"),
         ("gallery.fileOnly.blocked", "This file type could run as a program, so it is not opened from here. Show it in its folder instead.", "Dieser Dateityp könnte als Programm laufen und wird deshalb nicht von hier geöffnet. Stattdessen im Ordner anzeigen."),
         ("gallery.fileOnly.missing", "The saved file is not on disk any more.", "Die gespeicherte Datei liegt nicht mehr auf dem Datenträger."),
+        ("gallery.actionFailed", "The action could not be carried out. Nothing was changed. Try again; details: {0}", "Die Aktion konnte nicht ausgeführt werden. Es wurde nichts geändert. Erneut versuchen; Details: {0}"),
         ("media.copyPath.done", "Path copied", "Pfad kopiert"),
         ("media.copyPath.failed", "The path could not be copied to the clipboard.", "Der Pfad konnte nicht in die Zwischenablage kopiert werden."),
         ("post.copy.textDone", "Post text copied", "Post-Text kopiert"),

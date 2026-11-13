@@ -556,7 +556,8 @@ public partial class MainWindow : Window
         }
         catch (DesktopSessionBusyException exception)
         {
-            ShowNotification(Texts.T("notification.error"), exception.Message, NotificationType.Error,
+            Log.Warning(exception, "The session was busy while adding URLs.");
+            ShowNotification(Texts.T("notification.error"), Texts.T("admission.sessionBusy"), NotificationType.Error,
                 context: MeowChan.Booru.DanbooruAddress.RedactForLog(input), operation: "admission.busy");
             return false;
         }

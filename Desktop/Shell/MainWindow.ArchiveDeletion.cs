@@ -110,7 +110,7 @@ public partial class MainWindow
                     failure.Text = string.Empty;
                     status.Text = Texts.T("archive.delete.ratingsCleaned");
                 }
-                catch (Exception error) { status.Text = string.Empty; failure.Text = error.Message; }
+                catch (Exception error) { status.Text = string.Empty; failure.Text = Texts.T("archive.delete.cleanupRetryFailed", error.Message); }
                 finally { executing = false; ratingRetry.IsEnabled = cancel.IsEnabled = true; }
             }
             ratingRetry.Click += async (_, _) => await RetryRatingsAsync();
@@ -126,7 +126,7 @@ public partial class MainWindow
                     failure.Text = string.Empty;
                     status.Text = Texts.T("archive.delete.tagsCleaned");
                 }
-                catch (Exception error) { status.Text = string.Empty; failure.Text = error.Message; }
+                catch (Exception error) { status.Text = string.Empty; failure.Text = Texts.T("archive.delete.cleanupRetryFailed", error.Message); }
                 finally { executing = false; tagRetry.IsEnabled = cancel.IsEnabled = true; }
             }
             tagRetry.Click += async (_, _) => await RetryTagsAsync();
@@ -168,9 +168,9 @@ public partial class MainWindow
                 catch (Exception error) when (error is not OutOfMemoryException)
                 {
                     status.Text = string.Empty;
-                    failure.Text = error.Message;
-                    localError(error.Message);
-                    ShowNotification(Texts.T("notification.error"), error.Message, NotificationType.Error, context: string.Join(",", ids.Select(id => id.ToString())), operation: "archive.delete");
+                    failure.Text = Texts.T("archive.delete.failed", error.Message);
+                    localError(Texts.T("archive.delete.failed", error.Message));
+                    ShowNotification(Texts.T("notification.error"), Texts.T("archive.delete.failed", error.Message), NotificationType.Error, context: string.Join(",", ids.Select(id => id.ToString())), operation: "archive.delete");
                 }
                 finally { executing = false; cancel.IsEnabled = true; cancel.Content = Texts.T("action.close"); }
             };
@@ -181,8 +181,8 @@ public partial class MainWindow
         {
             if (!_isClosing)
             {
-                localError(error.Message);
-                ShowNotification(Texts.T("notification.error"), error.Message, NotificationType.Error, context: string.Join(",", ids.Select(id => id.ToString())), operation: "archive.delete");
+                localError(Texts.T("archive.delete.failed", error.Message));
+                ShowNotification(Texts.T("notification.error"), Texts.T("archive.delete.failed", error.Message), NotificationType.Error, context: string.Join(",", ids.Select(id => id.ToString())), operation: "archive.delete");
             }
         }
         finally

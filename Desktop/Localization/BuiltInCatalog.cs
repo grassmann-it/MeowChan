@@ -317,6 +317,7 @@ internal static class BuiltInCatalog
         ("admission.showInListHidden", "This entry is hidden by the current search. Clear the search to show it.", "Dieser Eintrag ist durch die aktuelle Suche ausgeblendet. Suche leeren, um ihn zu zeigen."),
         ("admission.results", "Import results", "Importergebnisse"),
         ("admission.empty", "No URLs found in the input.", "Keine URLs in der Eingabe gefunden."),
+        ("admission.sessionBusy", "URLs cannot be added right now because the session is still busy. Try again in a moment.", "URLs können gerade nicht hinzugefügt werden, weil die Sitzung noch beschäftigt ist. In einem Moment erneut versuchen."),
         ("about.title", "About MeowChan", "Über MeowChan"),
         ("about.logoDescription", "MeowChan logo: Simba (orange cat) and Mila (grey cat)", "MeowChan-Logo: Simba (orangefarbene Katze) und Mila (graue Katze)"),
         ("about.description", "MeowChan downloads and archives imageboard media and posts, with sources supplied by plugins.", "MeowChan lädt und archiviert Imageboard-Medien und Posts mit Quellen aus Plugins."),

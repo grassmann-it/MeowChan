@@ -128,7 +128,7 @@ public partial class MainWindow
         try { await command(); }
         catch (OperationCanceledException) when (_isClosing) { }
         catch (Exception error) when (error is not OutOfMemoryException)
-        { if (!_isClosing) ShowNotification(Texts.T("notification.error"), error.Message, NotificationType.Error, context: context, operation: "gallery.action"); }
+        { if (!_isClosing) ShowNotification(Texts.T("notification.error"), Texts.T("gallery.actionFailed", error.Message), NotificationType.Error, context: context, operation: "gallery.action"); }
     }
 
     private Task ToggleGalleryFavoriteAsync(GalleryEntry entry)
