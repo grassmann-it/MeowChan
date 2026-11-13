@@ -22,6 +22,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import stat
 import subprocess
 import sys
 
@@ -99,14 +100,58 @@ def require_fresh_outputs(root):
 
 
 def tree_files(directory):
-    base = Path(directory)
-    require(base.is_dir() and not base.is_symlink(), 'not an ordinary directory: ' + str(directory))
+    base = ordinary_path(directory, 'directory')
+    require(base.is_dir(), 'not an ordinary directory: ' + str(directory))
     files = {}
     for path in sorted(base.rglob('*')):
         require(not path.is_symlink(), 'link in hashed tree: ' + str(path))
-        if path.is_file() and path.suffix not in SKIP_SUFFIXES:
-            files[path.relative_to(base).as_posix()] = digest_file(path)
+        require(path.is_file() or path.is_dir(), 'special file in hashed tree: ' + str(path))
+        if path.is_file():
+            metadata = path.stat()
+            require(stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1,
+                    'hardlink or non-regular file in hashed tree: ' + str(path))
+            if path.suffix not in SKIP_SUFFIXES:
+                files[path.relative_to(base).as_posix()] = digest_file(path)
     require(files, 'no files below ' + str(directory))
+    return files
+
+
+def ordinary_path(path, kind):
+    """Return an absolute path whose existing components contain no symlink.
+
+    Checking only the final path is insufficient for an artifact root: ``root/link/file``
+    can otherwise move the evidence outside the root between identity and verification.
+    The release inputs are immutable files/directories, so refusing symlink components is
+    the deliberately boring, fail-closed rule here.
+    """
+    path = Path(path)
+    absolute = Path(os.path.abspath(path))
+    current = Path(absolute.root)
+    for part in absolute.parts[1:]:
+        current /= part
+        require(not current.is_symlink(), f'{kind} path contains a symlink: {current}')
+    if kind in ('directory', 'package directory', 'artifact root'):
+        require(absolute.is_dir(), 'not an ordinary directory: ' + str(path))
+    else:
+        metadata = absolute.stat() if absolute.is_file() else None
+        require(metadata is not None and stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1,
+                f'{kind} must be a single-link regular file: {path}')
+    return absolute
+
+
+def artifact_files(directory):
+    """Inventory every file in a package root, including files not named in its manifest."""
+    base = ordinary_path(directory, 'artifact root')
+    files = {}
+    for path in sorted(base.rglob('*')):
+        require(not path.is_symlink(), 'link in artifact root: ' + str(path))
+        require(path.is_file() or path.is_dir(), 'special file in artifact root: ' + str(path))
+        if path.is_file():
+            metadata = path.stat()
+            require(stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1,
+                    'hardlink or non-regular file in artifact root: ' + str(path))
+            files[path.relative_to(base).as_posix()] = digest_file(path)
+    require(files, 'artifact root is empty: ' + str(directory))
     return files
 
 
@@ -118,30 +163,41 @@ def summary_digest(files):
 
 
 def parse_sha256sums(path):
+    source = ordinary_path(path, 'SHA256SUMS')
     result = {}
-    for line in Path(path).read_text(encoding='utf-8').splitlines():
+    for line in source.read_text(encoding='utf-8').splitlines():
         if not line.strip():
             continue
         match = re.fullmatch(r'([0-9a-fA-F]{64}) [ *](.+)', line)
         require(match, 'malformed SHA256SUMS line')
-        require(match.group(2) not in result, 'duplicate SHA256SUMS entry: ' + match.group(2))
-        result[match.group(2)] = match.group(1).lower()
+        name = match.group(2)
+        parts = name.split('/')
+        require(not name.startswith('/') and '\\' not in name and all(part not in ('', '.', '..') for part in parts),
+                'unsafe SHA256SUMS path: ' + name)
+        require(name not in result, 'duplicate SHA256SUMS entry: ' + name)
+        result[name] = match.group(1).lower()
     return result
 
 
 def package_set(directory, commit, version, rid='linux-x64', sha256sums=None):
     """Verify the Linux package manifest of a stable-candidate run against the commit and recompute every checksum."""
-    base = Path(directory)
+    base = ordinary_path(directory, 'package directory')
     manifest_path = base / f'{rid}-package-manifest.json'
     require(manifest_path.is_file() and not manifest_path.is_symlink(), 'package manifest missing: ' + manifest_path.name)
+    manifest_metadata = manifest_path.stat()
+    require(stat.S_ISREG(manifest_metadata.st_mode) and manifest_metadata.st_nlink == 1,
+            'package manifest must be a single-link regular file: ' + manifest_path.name)
     manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+    require(isinstance(manifest, dict), 'package manifest must be a JSON object')
     require(manifest.get('schema') == PACKAGE_SCHEMA and manifest.get('runtime') == rid, 'package manifest schema/runtime mismatch')
     require(manifest.get('source_commit') == commit,
             f"package manifest source_commit {manifest.get('source_commit')} is not the candidate {commit}")
     require(manifest.get('version') == version, f"package manifest version {manifest.get('version')} is not {version}")
+    require(SHA256.fullmatch(str(manifest.get('apphost_sha256', ''))), 'package manifest apphost_sha256 is missing or malformed')
     rows = manifest.get('artifacts')
     require(isinstance(rows, list) and len(rows) == 3, 'package manifest must list three artifacts')
-    sums = parse_sha256sums(sha256sums) if sha256sums else None
+    sums_path = ordinary_path(sha256sums, 'SHA256SUMS') if sha256sums else None
+    sums = parse_sha256sums(sums_path) if sums_path else None
     artifacts = []
     for flavor, suffix in FLAVORS:
         found = [row for row in rows if isinstance(row, dict) and row.get('flavor') == flavor]
@@ -149,17 +205,31 @@ def package_set(directory, commit, version, rid='linux-x64', sha256sums=None):
         require(len(found) == 1 and found[0].get('file') == name, 'package artifact missing: ' + name)
         path = base / name
         require(path.is_file() and not path.is_symlink(), 'package file missing: ' + name)
+        metadata = path.stat()
+        require(stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1,
+                'package file must be a single-link regular file: ' + name)
         actual = digest_file(path)
         require(SHA256.fullmatch(str(found[0].get('sha256'))) and actual == found[0]['sha256'], 'package checksum mismatch: ' + name)
-        require(found[0].get('bytes') == path.stat().st_size, 'package size mismatch: ' + name)
+        require(type(found[0].get('bytes')) is int and found[0]['bytes'] == path.stat().st_size,
+                'package size mismatch: ' + name)
         if sums is not None:
             require(sums.get(name) == actual, 'SHA256SUMS does not list the same checksum for ' + name)
         artifacts.append({'file': name, 'flavor': flavor, 'sha256': actual, 'bytes': path.stat().st_size})
+    root_files = artifact_files(base)
+    expected_root_files = {manifest_path.name, *(artifact['file'] for artifact in artifacts)}
+    if sums_path is not None and sums_path.parent == base:
+        expected_root_files.add(sums_path.name)
+    require(set(root_files) == expected_root_files,
+            'package artifact root inventory differs from its manifest: '
+            + f" missing={sorted(expected_root_files - set(root_files))} extra={sorted(set(root_files) - expected_root_files)}")
+    require({path.relative_to(base).as_posix() for path in base.iterdir()} == expected_root_files,
+            'package artifact root contains an unexpected directory or nested path')
     return {'directory': str(base), 'runtime': rid, 'manifest': manifest_path.name, 'manifest_sha256': digest_file(manifest_path),
             'apphost_sha256': manifest.get('apphost_sha256'), 'artifacts': artifacts,
+            'artifact_root': {'files': root_files, 'sha256': summary_digest(root_files)},
             'sha256sums_checked': sums is not None,
-            'sha256sums': str(Path(sha256sums).absolute()) if sums is not None else None,
-            'sha256sums_sha256': digest_file(sha256sums) if sums is not None else None}
+            'sha256sums': str(sums_path) if sums is not None else None,
+            'sha256sums_sha256': digest_file(sums_path) if sums is not None else None}
 
 
 def identity(root, expected_sha, package_dir=None, rid='linux-x64', sha256sums=None):
@@ -207,6 +277,7 @@ def verify(root, candidate):
             current = package_set(package['directory'], candidate['commit'], candidate['version'], package['runtime'],
                                   package.get('sha256sums'))
             if (current['manifest_sha256'] != package['manifest_sha256'] or current['artifacts'] != package['artifacts']
+                    or current.get('artifact_root') != package.get('artifact_root')
                     or current['sha256sums_sha256'] != package.get('sha256sums_sha256')):
                 problems.append('package files changed after recording')
         except (ValueError, OSError) as error:

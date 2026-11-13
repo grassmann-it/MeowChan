@@ -132,6 +132,59 @@ class DesktopPackageTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'missing or empty'):
                     package.validate_payload(root)
 
+    @unittest.skipIf(os.name == 'nt', 'POSIX hardlink fixture')
+    def test_payload_hardlinks_are_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = payload(Path(temporary) / 'publish')
+            source = root / 'outside-source.bin'
+            source.write_bytes(b'outside')
+            os.link(source, root / 'copied-hardlink.bin')
+            with self.assertRaisesRegex(ValueError, 'hardlink'):
+                package.validate_payload(root)
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX symlink fixture')
+    def test_payload_root_parent_symlink_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = payload(Path(temporary) / 'publish')
+            alias = Path(temporary) / 'publish-alias'
+            alias.symlink_to(root, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, 'root path contains a symlink'):
+                package.validate_payload(alias)
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX hardlink fixture')
+    def test_bundled_license_hardlinks_are_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.bundled_linux(Path(temporary) / 'publish')
+            source = root / 'license-outside.bin'
+            source.write_bytes(b'outside')
+            license_path = root / 'linux-video-licenses/copyright/libvlc5'
+            license_path.unlink()
+            os.link(source, license_path)
+            inventory = json.loads((root / 'linux-video-runtime-inventory.json').read_text())
+            inventory['license_files']['copyright/libvlc5'] = hashlib.sha256(source.read_bytes()).hexdigest()
+            (root / 'linux-video-runtime-inventory.json').write_text(json.dumps(inventory))
+            with self.assertRaisesRegex(ValueError, 'hardlink'):
+                package.validate(root, 'linux-x64')
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX symlink fixture')
+    def test_build_profile_and_nested_link_artifacts_are_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            for relative in ('bin/stray.dll', 'obj/project.assets.json', 'profiles/local/state.json'):
+                with self.subTest(relative=relative):
+                    root = payload(Path(temporary) / relative.replace('/', '_'))
+                    path = root / relative
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(b'generated')
+                    with self.assertRaisesRegex(ValueError, 'artifact'):
+                        package.validate_payload(root)
+            root = payload(Path(temporary) / 'nested-link')
+            target = root / 'LICENSE'
+            link = root / 'native/subtree/link'
+            link.parent.mkdir(parents=True)
+            link.symlink_to(target)
+            with self.assertRaisesRegex(ValueError, 'symlink'):
+                package.validate_payload(root)
+
     def test_repository_docs_and_developer_outputs_are_rejected(self):
         files = ('README.md', 'CHANGELOG.md', 'MeowChan.pdb', 'MeowChan.xml', 'libmeowchan.pdb', 'libmeowchan.xml',
                  'docs/Help.md', 'docs/macos-signing.md', 'docs/releases/v0.9.0.md', 'docs/screenshots/desktop.png')

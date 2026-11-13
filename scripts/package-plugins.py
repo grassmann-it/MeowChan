@@ -7,6 +7,7 @@ restore graph owns all helper/plugin dependencies; verification never repairs a 
 import argparse
 import hashlib
 import json
+import os
 import re
 import stat
 import struct
@@ -26,6 +27,39 @@ SOURCES = ('Lainchan.cs', 'Kohlchan.cs', 'ImageDimensionsFilter.cs', 'Wizchan.cs
            'Fchan.cs', 'GuroCx.cs')
 OPTIONS = 'net10.0;csharp14;release;deterministic;nullable=enable;unsafe=false;generators=none;v1'
 HASH = re.compile(r'[0-9a-f]{64}\Z')
+FORBIDDEN_PAYLOAD_COMPONENTS = frozenset(('bin', 'obj', '.git', '.vs', 'profile', 'profiles'))
+PLUGIN_MANIFEST_KEYS = frozenset(('SchemaVersion', 'AssemblyRelativePath', 'AssemblySha256',
+                                  'SdkFingerprint', 'CompilerFingerprint', 'Resources'))
+
+
+def _reject_payload_component(relative, label='package'):
+    parts = Path(relative).parts
+    forbidden = next((part for part in parts if part.casefold() in FORBIDDEN_PAYLOAD_COMPONENTS), None)
+    if forbidden is not None:
+        raise ValueError(f'{label} contains a build or profile artifact: {relative}')
+
+
+def _ordinary_directory(path, label='package root'):
+    """Return a directory whose path components cannot redirect outside the payload."""
+    absolute = Path(os.path.abspath(path))
+    current = Path(absolute.root)
+    for part in absolute.parts[1:]:
+        current /= part
+        if current.is_symlink():
+            raise ValueError(f'{label} path contains a symlink: {current}')
+    if not absolute.is_dir():
+        raise ValueError(f'{label} must be a regular directory: {path}')
+    return absolute
+
+
+def _require_single_link_file(path, label):
+    if not path.exists() and not path.is_symlink():
+        raise ValueError(f'Missing package file: {path}')
+    if path.is_symlink() or not path.is_file():
+        raise ValueError(f'{label} is not a regular file: {path}')
+    mode = path.stat().st_mode
+    if not stat.S_ISREG(mode) or path.stat().st_nlink != 1:
+        raise ValueError(f'{label} must be a single-link regular file: {path}')
 
 
 def regular(root, relative, maximum=128 * 1024 * 1024):
@@ -34,12 +68,14 @@ def regular(root, relative, maximum=128 * 1024 * 1024):
     parts = relative.split('/')
     if any(part in ('', '.', '..') for part in parts):
         raise ValueError('Package path escapes or is not normalized: ' + relative)
+    _reject_payload_component(relative)
     current = Path(root)
     for part in parts:
         current = current / part
         if current.is_symlink():
             raise ValueError('Plugin package paths cannot traverse symlinks: ' + relative)
-    if not current.exists() or not stat.S_ISREG(current.stat().st_mode) or not 0 < current.stat().st_size <= maximum:
+    _require_single_link_file(current, 'Package file')
+    if not 0 < current.stat().st_size <= maximum:
         raise ValueError('Missing, empty, oversized or special package file: ' + relative)
     return current
 
@@ -130,16 +166,18 @@ def verify_toolchain(root):
 def verify(root, runtime, development=False):
     if runtime not in RUNTIMES:
         raise ValueError('Unsupported plugin package runtime')
-    root = Path(root).resolve(strict=True)
-    if not root.is_dir():
-        raise ValueError('Plugin package root must be a directory')
+    root = _ordinary_directory(root)
     for subtree in ('plugin-worker', 'plugin-compiler', 'plugins'):
         directory = root / subtree
         if directory.is_symlink() or not directory.is_dir():
             raise ValueError('Required regular plugin directory missing: ' + subtree)
         for path in directory.rglob('*'):
+            relative = path.relative_to(root).as_posix()
+            _reject_payload_component(relative)
             if path.is_symlink() or not (path.is_file() or path.is_dir()):
-                raise ValueError('Plugin payload contains a link or special file: ' + str(path))
+                raise ValueError('Plugin payload contains a link or special file: ' + relative)
+            if path.is_file() and path.stat().st_nlink != 1:
+                raise ValueError('Plugin payload contains a hardlink: ' + relative)
     for directory, name in (('plugin-worker', 'MeowChan.PluginWorker'), ('plugin-compiler', 'MeowChan.PluginCompiler')):
         helper = root / directory
         native_architecture(regular(helper, name + ('.exe' if runtime.startswith('win-') else '')), runtime)
@@ -155,25 +193,46 @@ def verify(root, runtime, development=False):
             for filename in native:
                 regular(helper, filename)
     toolchain = verify_toolchain(root)
-    manifests = {path.name for path in (root / 'plugins').glob('*.plugin.json')}
-    expected = {name + '.plugin.json' for name in PLUGINS}
-    if manifests != expected:
+    plugin_root = root / 'plugins'
+    expected_manifests = {name + '.plugin.json' for name in PLUGINS}
+    expected_assemblies = {'assemblies/' + name + '.dll' for name in PLUGINS}
+    expected_sources = {'sources/' + name for name in SOURCES}
+    expected_files = expected_manifests | expected_assemblies | expected_sources
+    actual_files = {path.relative_to(plugin_root).as_posix() for path in plugin_root.rglob('*') if path.is_file()}
+    actual_dirs = {path.relative_to(plugin_root).as_posix() for path in plugin_root.rglob('*') if path.is_dir()}
+    if actual_dirs != {'assemblies', 'sources'}:
+        missing = sorted({'assemblies', 'sources'} - actual_dirs)
+        extra = sorted(actual_dirs - {'assemblies', 'sources'})
+        detail = f' missing={missing}' if missing else ''
+        detail += f' extra={extra}' if extra else ''
+        raise ValueError('Plugin directory inventory differs from the required inventory.' + detail)
+    actual_manifests = {path.name for path in plugin_root.glob('*.plugin.json')}
+    if actual_manifests != expected_manifests:
         raise ValueError('Shipped plugin manifests differ from the required plugin inventory')
+    if actual_files != expected_files:
+        missing = sorted(expected_files - actual_files)
+        extra = sorted(actual_files - expected_files)
+        detail = f' missing={missing}' if missing else ''
+        detail += f' extra={extra}' if extra else ''
+        raise ValueError('Missing or extra shipped plugin files differ from the required plugin inventory.' + detail)
     for name in PLUGINS:
-        bundle = json_file(root / 'plugins', name + '.plugin.json')
+        manifest_name = name + '.plugin.json'
+        bundle = json_file(plugin_root, manifest_name)
+        if set(bundle) != PLUGIN_MANIFEST_KEYS:
+            raise ValueError('Unexpected shipped plugin manifest fields: ' + name)
         if bundle.get('SchemaVersion') != 1 or bundle.get('Resources') != []:
             raise ValueError('Unexpected shipped plugin manifest schema/resources: ' + name)
         if bundle.get('AssemblyRelativePath') != 'assemblies/' + name + '.dll':
             raise ValueError('Plugin assembly path differs from its declared package identity: ' + name)
-        assembly = regular(root / 'plugins', bundle['AssemblyRelativePath'], 32 * 1024 * 1024)
+        if not HASH.fullmatch(str(bundle.get('AssemblySha256', ''))) or not HASH.fullmatch(str(bundle.get('SdkFingerprint', ''))) or not HASH.fullmatch(str(bundle.get('CompilerFingerprint', ''))):
+            raise ValueError('Plugin manifest contains an invalid checksum or fingerprint: ' + name)
+        assembly = regular(plugin_root, bundle['AssemblyRelativePath'], 32 * 1024 * 1024)
         if digest(assembly) != bundle.get('AssemblySha256'):
             raise ValueError('Plugin assembly hash differs: ' + name)
         if bundle.get('SdkFingerprint') != toolchain['SdkFingerprint'] or bundle.get('CompilerFingerprint') != toolchain['CompilerFingerprint']:
             raise ValueError('Plugin build/SDK fingerprint differs: ' + name)
-    if any(path.is_file() and path.name not in expected for path in (root / 'plugins').iterdir()):
-        raise ValueError('Shipped plugin root contains an unintended installation candidate')
     for name in SOURCES:
-        regular(root / 'plugins', 'sources/' + name, 4 * 1024 * 1024)
+        regular(plugin_root, 'sources/' + name, 4 * 1024 * 1024)
     for deps in root.glob('*.deps.json'):
         libraries = json_file(root, deps.name).get('libraries', {})
         if any(name.startswith(('Microsoft.CodeAnalysis', 'MeowChan.PluginCompiler/', 'MeowChan.PluginWorker/')) for name in libraries):

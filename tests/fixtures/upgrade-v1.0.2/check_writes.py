@@ -138,6 +138,20 @@ def check_writes(profile, results, writes, revision, version):
     rotating = profile / 'private-tags.json.bak'
     rotating_note = 'rotating-bak=v1' if rotating.is_file() and rotating.read_bytes() == v1_bytes else 'rotating-bak=other'
 
+    # The final byte comparison alone cannot show that a later start did not rotate the
+    # permanent backup and restore the old bytes before the check.  The runner records the
+    # same digest immediately after conversion and after each of the two read-back processes.
+    observations_path = writes / 'backup-observations.json'
+    require(observations_path.is_file() and not observations_path.is_symlink(),
+            'missing permanent-backup observations')
+    observations = load(observations_path)
+    require(isinstance(observations, list) and [row.get('stage') for row in observations]
+            == ['after-conversion', 'readback-1', 'readback-2'],
+            'permanent-backup observations do not cover conversion and both restarts')
+    expected_observation = {'bytes': len(v1_bytes), 'sha256': digest(v1_bytes)}
+    require(all({key: row.get(key) for key in ('bytes', 'sha256')} == expected_observation
+                 for row in observations), 'permanent v1 backup changed between observed starts')
+
     # Read-back restarts: everything written is readable, nothing else moved.
     expected_tags = sorted([THREAD_TAG, LOCAL_TAG])
     for index, readback in enumerate(readbacks, 1):

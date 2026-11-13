@@ -8,7 +8,9 @@ import argparse
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
+import os
 import re
+import stat
 
 
 LEGAL_DOCS = (
@@ -24,25 +26,55 @@ LEGAL_FILES = ('LICENSE', 'THIRD-PARTY-NOTICES.md', *(f'docs/{name}' for name in
 FORBIDDEN_ROOT_DOCUMENTS = frozenset(('readme.md', 'changelog.md'))
 FORBIDDEN_REPOSITORY_ROOTS = frozenset(('desktop', 'libmeowchan', 'tests', 'samples'))
 FORBIDDEN_DEVELOPER_FILES = frozenset(('meowchan.pdb', 'meowchan.xml', 'libmeowchan.pdb', 'libmeowchan.xml'))
+FORBIDDEN_PAYLOAD_COMPONENTS = frozenset(('bin', 'obj', '.git', '.vs', 'profile', 'profiles'))
 RUNTIMES = ('win-x64', 'win-arm64', 'linux-x64', 'linux-arm64', 'osx-x64', 'osx-arm64')
 
 
 def require_file(root: Path, relative: str) -> int:
     path = root / relative
+    # A first-level symlink is the intentional macOS Contents/MacOS alias.  A
+    # link deeper in the payload is never a legal file input.
+    if path.is_symlink() and len(Path(relative).parts) > 1:
+        raise ValueError('Nested desktop package symlink is not allowed: ' + relative)
     if not path.is_file() or path.stat().st_size == 0:
         raise ValueError('Required desktop package file missing or empty: ' + relative)
-    return path.stat().st_size
+    metadata = path.stat()
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+        raise ValueError('Required desktop package file is not a single-link regular file: ' + relative)
+    return metadata.st_size
+
+
+def _ordinary_directory(path: Path) -> Path:
+    absolute = Path(os.path.abspath(path))
+    current = Path(absolute.root)
+    for part in absolute.parts[1:]:
+        current /= part
+        if current.is_symlink():
+            raise ValueError('Desktop package root path contains a symlink: ' + str(current))
+    if not absolute.is_dir():
+        raise ValueError('Desktop package root must be a directory')
+    return absolute
 
 
 def validate_payload(root: Path) -> dict:
     """Validate legal/docs layout independent of RID; follow legitimate Mac aliases."""
-    root = Path(root).resolve(strict=True)
-    if not root.is_dir():
-        raise ValueError('Desktop package root must be a directory')
+    root = _ordinary_directory(Path(root))
     for entry in root.iterdir():
         name = entry.name.casefold()
         if name in FORBIDDEN_ROOT_DOCUMENTS or name in FORBIDDEN_REPOSITORY_ROOTS or name in FORBIDDEN_DEVELOPER_FILES:
             raise ValueError('Repository/development artifact in desktop package: ' + entry.name)
+    for path in root.rglob('*'):
+        relative = path.relative_to(root)
+        if any(part.casefold() in FORBIDDEN_PAYLOAD_COMPONENTS for part in relative.parts):
+            raise ValueError('Build or profile artifact in desktop package: ' + relative.as_posix())
+        # The macOS packaging script intentionally presents Contents/MacOS as a
+        # symlinked alias view. Nested links are never part of a publish payload.
+        if path.is_symlink() and len(relative.parts) > 1:
+            raise ValueError('Nested desktop package symlink is not allowed: ' + relative.as_posix())
+        if not path.is_symlink() and not (path.is_file() or path.is_dir()):
+            raise ValueError('Desktop package contains a special file: ' + relative.as_posix())
+        if path.is_file() and not path.is_symlink() and path.stat().st_nlink != 1:
+            raise ValueError('Desktop package contains a hardlink: ' + relative.as_posix())
     legal_bytes = sum(require_file(root, relative) for relative in LEGAL_FILES)
     documentation = root / 'docs'
     actual = {entry.name for entry in documentation.iterdir()}
@@ -112,6 +144,9 @@ def validate_linux_notices(root: Path, runtime: str) -> dict:
             if current.is_symlink():
                 raise ValueError('Bundled Linux license path cannot contain symlinks')
         size = require_file(legal_root, name)
+        current_stat = current.stat()
+        if current_stat.st_nlink != 1:
+            raise ValueError('Bundled Linux license tree contains a hardlink: ' + name)
         total += size
         if size > 64 * 1024 * 1024 or total > 256 * 1024 * 1024:
             raise ValueError('Bundled Linux license inventory exceeds its byte limit')

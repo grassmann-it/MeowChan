@@ -9,6 +9,8 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
+import socket
 from pathlib import Path
 import shutil
 import subprocess
@@ -165,6 +167,98 @@ class CandidateTests(unittest.TestCase):
             sums.unlink()
             self.assertTrue(cand.verify(temp, candidate), 'a vanished SHA256SUMS is a problem, not a crash')
 
+    def test_package_root_inventory_detects_unlisted_file_and_manifest_mutation(self):
+        with tempfile.TemporaryDirectory() as temp, tempfile.TemporaryDirectory() as packages:
+            sha = make_repo(temp)
+            self.make_packages(packages, sha)
+            candidate = cand.identity(temp, sha, packages)
+            (Path(packages) / 'unlisted-dependency-artifact').write_bytes(b'not in the manifest')
+            self.assertTrue(any('package artifact root inventory' in problem for problem in cand.verify(temp, candidate)))
+            (Path(packages) / 'unlisted-dependency-artifact').unlink()
+            manifest = Path(packages) / 'linux-x64-package-manifest.json'
+            manifest.write_text(manifest.read_text().replace('"version": "1.1.0"', '"version": "1.1.0"\n'))
+            self.assertIn('package files changed after recording', cand.verify(temp, candidate))
+
+    def test_package_root_inventory_rejects_unknown_files_and_directories_at_identity(self):
+        with tempfile.TemporaryDirectory() as temp, tempfile.TemporaryDirectory() as packages:
+            sha = make_repo(temp)
+            self.make_packages(packages, sha)
+            (Path(packages) / 'unknown-public-asset').write_bytes(b'not part of the three formats')
+            with self.assertRaisesRegex(ValueError, 'root inventory'):
+                cand.package_set(packages, sha, '1.1.0')
+
+            (Path(packages) / 'unknown-public-asset').unlink()
+            (Path(packages) / 'empty-directory').mkdir()
+            with self.assertRaisesRegex(ValueError, 'unexpected directory'):
+                cand.package_set(packages, sha, '1.1.0')
+
+    @unittest.skipUnless(hasattr(os, 'link'), 'hardlink mutation requires POSIX')
+    def test_package_and_build_artifact_inputs_reject_hardlinks(self):
+        with tempfile.TemporaryDirectory() as temp, tempfile.TemporaryDirectory() as packages:
+            sha = make_repo(temp)
+            self.make_packages(packages, sha)
+            source = Path(packages) / 'outside-artifact'
+            source.write_bytes(b'outside')
+            linked = Path(packages) / 'MeowChan-1.1.0-linux-x64.AppImage'
+            linked.unlink()
+            os.link(source, linked)
+            with self.assertRaisesRegex(ValueError, 'single-link|hardlink'):
+                cand.package_set(packages, sha, '1.1.0')
+
+            with tempfile.TemporaryDirectory() as built:
+                build_source = Path(built) / 'outside.dll'
+                build_source.write_bytes(b'outside')
+                os.link(build_source, Path(built) / 'MeowChan.dll')
+                with self.assertRaisesRegex(ValueError, 'hardlink'):
+                    cand.tree_files(built)
+
+    def test_sha256sums_rejects_traversal_and_missing_package_entries(self):
+        with tempfile.TemporaryDirectory() as temp, tempfile.TemporaryDirectory() as packages:
+            sha = make_repo(temp)
+            rows = self.make_packages(packages, sha)
+            sums = Path(packages) / 'SHA256SUMS'
+            sums.write_text(''.join(f"{row['sha256']}  {row['file']}\n" for row in rows[:-1]) +
+                            f"{'a' * 64}  ../outside\n")
+            with self.assertRaisesRegex(ValueError, 'unsafe SHA256SUMS path'):
+                cand.package_set(packages, sha, '1.1.0', sha256sums=sums)
+            sums.write_text(''.join(f"{row['sha256']}  {row['file']}\n" for row in rows[:-1]))
+            with self.assertRaisesRegex(ValueError, 'SHA256SUMS'):
+                cand.package_set(packages, sha, '1.1.0', sha256sums=sums)
+
+    def test_package_and_build_roots_reject_symlink_components(self):
+        with tempfile.TemporaryDirectory() as temp:
+            parent = Path(temp)
+            actual = parent / 'actual'
+            actual.mkdir()
+            self.make_packages(actual, SHA)
+            (actual / 'SHA256SUMS').write_text('')
+            link = parent / 'alias'
+            link.symlink_to(actual, target_is_directory=True)
+            for probe in (lambda: cand.package_set(link, SHA, '1.1.0'),
+                          lambda: cand.tree_files(link),
+                          lambda: cand.parse_sha256sums(link / 'SHA256SUMS')):
+                with self.subTest(probe=probe), self.assertRaisesRegex(ValueError, 'symlink'):
+                    probe()
+
+    @unittest.skipUnless(hasattr(os, 'mkfifo'), 'FIFO mutation requires POSIX')
+    def test_fifo_is_not_silently_omitted_from_artifact_or_build_inventory(self):
+        with tempfile.TemporaryDirectory() as temp, tempfile.TemporaryDirectory() as packages:
+            sha = make_repo(temp)
+            self.make_packages(packages, sha)
+            candidate = cand.identity(temp, sha, packages)
+            os.mkfifo(Path(packages) / 'unexpected.pipe')
+            self.assertTrue(any('special file' in problem for problem in cand.verify(temp, candidate)))
+            with self.assertRaisesRegex(ValueError, 'special file'):
+                cand.tree_files(packages)
+
+    @unittest.skipUnless(hasattr(socket, 'AF_UNIX'), 'Unix socket mutation requires AF_UNIX')
+    def test_socket_is_not_silently_omitted_from_package_inventory(self):
+        with tempfile.TemporaryDirectory() as temp, socket.socket(socket.AF_UNIX) as server:
+            self.make_packages(temp, SHA)
+            server.bind(str(Path(temp) / 'unexpected.sock'))
+            with self.assertRaisesRegex(ValueError, 'special file'):
+                cand.artifact_files(temp)
+
     def test_package_checksum_reaches_the_report_prefix(self):
         with tempfile.TemporaryDirectory() as temp, tempfile.TemporaryDirectory() as packages:
             sha = make_repo(temp)
@@ -195,6 +289,13 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual('INCOMPLETE', run.verdict(skipped, [], True, True))
         self.assertEqual('INCOMPLETE', run.verdict(skipped, [], False, False))
 
+    def test_verdict_rejects_missing_or_reordered_steps_even_when_all_are_green(self):
+        records = self.records()
+        self.assertEqual('INCOMPLETE', run.verdict(records[:-1], [], True, True))
+        reordered = list(records)
+        reordered[0], reordered[1] = reordered[1], reordered[0]
+        self.assertEqual('INCOMPLETE', run.verdict(reordered, [], True, True))
+
     def test_source_only_report_is_never_a_pass(self):
         tokens = {'commit': SHA, 'bin': 'b' * 16, 'pkg': 'none'}
         result = run.verdict(self.records(), [], False, False)
@@ -213,6 +314,16 @@ class RunnerTests(unittest.TestCase):
         failing = run.render(tokens, self.records(), ['worktree is dirty (1 entries)'], 'FAIL', '/x')
         self.assertTrue(all('candidate=' in line for line in failing))
         self.assertIn('step=final-verify status=FAIL', '\n'.join(failing))
+
+    def test_report_separates_source_upgrade_from_unexecuted_package_start(self):
+        tokens = {'commit': SHA, 'bin': 'b' * 16, 'pkg': 'c' * 16}
+        lines = run.render(tokens, self.records(), [], 'PASS', '/x')
+        joined = '\n'.join(lines)
+        self.assertIn('source-upgrade evidence only', joined)
+        self.assertIn('packaged-release verification was not executed', joined)
+        incomplete = run.render(tokens, self.records()[:-1], [], 'INCOMPLETE', '/x')
+        self.assertIn('status=NOT-RUN', '\n'.join(incomplete))
+        self.assertNotIn('step=final-verify status=PASS', '\n'.join(incomplete))
 
     def test_trx_outcomes_are_read_by_test_name(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -321,6 +432,16 @@ class RunnerTests(unittest.TestCase):
                     run.run(ctx, 'busy-free', ctx.heavy(['sh', '-c', 'exit 3']), timeout=30)
                 self.assertIn('EXIT 0', run.run(ctx, 'free', ctx.heavy(['true']), timeout=30))
 
+    def test_dotnet_restore_is_offline_locked_and_smokes_are_serialized(self):
+        class Args:
+            root, candidate_sha, out, no_netns, lock_wait = ROOT, SHA, run.ALLOWED_OUT / 'r-cmd', True, 1
+        ctx = run.Context(Args())
+        restore = list(map(str, ctx.restore('fixture.csproj')))
+        self.assertIn('--locked-mode', restore)
+        self.assertIn('-p:UseSharedCompilation=false', restore)
+        self.assertEqual('flock', ctx.consumer_command(Path('/tmp/result.json'), 'readback')[0])
+        self.assertEqual('flock', ctx.test_command()[0])
+
     def test_dry_run_prints_every_step_and_writes_nothing(self):
         target = run.ALLOWED_OUT / 'ut-dry'
         code, out, _ = self.invoke('--candidate-sha', SHA, '--out', str(target), '--dry-run')
@@ -400,6 +521,11 @@ class PostCheckTests(unittest.TestCase):
         (self.profile / 'private-tags.json').write_bytes(v2)
         (self.profile / 'private-tags.json.bak').write_bytes(self.v1)
         (self.profile / cw.V1_BACKUP).write_bytes(self.v1)
+        (self.writes / 'backup-observations.json').write_text(json.dumps([
+            {'stage': 'after-conversion', 'bytes': len(self.v1), 'sha256': sha256(self.v1)},
+            {'stage': 'readback-1', 'bytes': len(self.v1), 'sha256': sha256(self.v1)},
+            {'stage': 'readback-2', 'bytes': len(self.v1), 'sha256': sha256(self.v1)},
+        ]))
         tag = {'Name': cw.THREAD_TAG, 'Id': 'x', 'Thread': self.THREAD, 'DefinedChanged': True, 'AssignedChanged': True,
                'Revision': 2, 'FormatVersion': 1}
         (self.writes / 'write-host.json').write_text(json.dumps(cycle(
@@ -439,6 +565,13 @@ class PostCheckTests(unittest.TestCase):
             self.check()
         (self.profile / cw.V1_BACKUP).unlink()
         with self.assertRaisesRegex(ValueError, 'does not exist'):
+            self.check()
+
+    def test_backup_observations_must_cover_both_readbacks(self):
+        observations = json.loads((self.writes / 'backup-observations.json').read_text())
+        observations.pop()
+        (self.writes / 'backup-observations.json').write_text(json.dumps(observations))
+        with self.assertRaisesRegex(ValueError, 'observations do not cover'):
             self.check()
 
     def test_conversion_must_produce_version_two_and_leave_no_temporary_file(self):
