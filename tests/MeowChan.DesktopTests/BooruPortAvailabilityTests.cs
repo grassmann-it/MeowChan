@@ -416,6 +416,7 @@ public sealed class BooruPortAvailabilityTests
             profile = _lease.ProfileDirectory;
             Queue = new DownloadQueue(1, 1L << 30);
             Queue.ConfigureWorkState(new WorkStateStore(profile, _lease));
+            Queue.BindProfileLease(_lease);
             Catalog = new BooruCatalogStore(profile, _lease);
             Catalog.Read();
             _lease.Admission.CompleteStartup();
