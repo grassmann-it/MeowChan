@@ -733,6 +733,20 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                 {
                     return CancelRun(watcherId, current, started, counters, manual);
                 }
+                catch (BooruCatalogPersistenceException)
+                {
+                    // The catalog write failed at the admission boundary. Do not advance past the post: the
+                    // stored high-water mark/cursor stays at the last durable page. Automatic checks get the
+                    // same local quiet period as other persistence failures; manual Check Now remains allowed.
+                    lock (_sync)
+                    {
+                        if (!manual)
+                            _persistBackoffUntil = Max(_persistBackoffUntil, _time.GetUtcNow() + _options.UnavailableRetry);
+                        if (IsCurrentLocked(watcherId, current))
+                            CommitWithoutRequestLocked(DanbooruWatcher.ApplyError(current, "persist_failed", _time.GetUtcNow()).Watcher);
+                    }
+                    return Summary(DanbooruWatcherCheckKind.Failed, started, counters, "persist_failed", manual);
+                }
                 catch (Exception)
                 {
                     // The post could not be recorded (also when the queue's own lifetime cancelled the
