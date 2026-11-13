@@ -2296,7 +2296,7 @@
     "media.group.favorite.unknown": "Favorito: desconocido",
     "media.tags.edit": "Editar etiquetas del medio…",
     "media.state.favorite": "Favorito: {0}",
-    "media.state.rating": "Tu valoración: {0}",
+    "media.state.rating": "Su valoración: {0}",
     "media.state.mediaTags": "Etiquetas del medio: {0}",
     "media.state.threadTags": "Etiquetas del hilo: {0}",
     "media.state.yes": "sí",
