@@ -94,6 +94,12 @@ namespace MeowChan
         public int RecheckTimer { get; set; } = 60;
         public bool SaveUrlsOnExit { get; set; } = true;
         public bool ShowBoardAdmissionWizard { get; set; } = true;
+        /// <summary>
+        /// One-time notice (plan AP5 question 3): a profile that existed before the work views reduced every page is told once that
+        /// Barebones and Simple now show fewer tools. Loading a stored profile whose file lacks the field turns it on; a new
+        /// profile and every in-memory configuration start false, and dismissing or acting on the notice saves false.
+        /// </summary>
+        public bool WorkViewNoticePending { get; set; }
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool RememberReadingPosition { get; set; }
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
@@ -953,6 +959,7 @@ namespace MeowChan
                 RecheckTimer = RecheckTimer,
                 SaveUrlsOnExit = SaveUrlsOnExit,
                 ShowBoardAdmissionWizard = ShowBoardAdmissionWizard,
+                WorkViewNoticePending = WorkViewNoticePending,
                 RememberReadingPosition = RememberReadingPosition,
                 MonitorClipboardUrls = MonitorClipboardUrls,
                 DownloadsPaused = DownloadsPaused,
@@ -1104,6 +1111,7 @@ namespace MeowChan
             RecheckTimer = source.RecheckTimer;
             SaveUrlsOnExit = source.SaveUrlsOnExit;
             ShowBoardAdmissionWizard = source.ShowBoardAdmissionWizard;
+            WorkViewNoticePending = source.WorkViewNoticePending;
             RememberReadingPosition = source.RememberReadingPosition;
             MonitorClipboardUrls = source.MonitorClipboardUrls;
             DownloadsPaused = source.DownloadsPaused;
@@ -1531,6 +1539,9 @@ namespace MeowChan
                     }
                     if (!document.RootElement.TryGetProperty(nameof(DownloadPath), out _))
                         config.DownloadPath = GetDefaultDownloadPath("oChan");
+                    // A profile saved before the field existed predates the reduced work views: tell it once.
+                    if (!document.RootElement.TryGetProperty(nameof(WorkViewNoticePending), out _))
+                        config.WorkViewNoticePending = true;
                 }
                 // These three limits had no maximum before 1.1.0. A larger value an older version saved keeps the
                 // file loadable and is reduced to today's maximum, which is also what was effective for parallel downloads.

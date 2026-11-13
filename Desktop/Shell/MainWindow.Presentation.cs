@@ -285,6 +285,7 @@ public partial class MainWindow
         UrlInput.PlaceholderText = Texts.T("downloads.urlPlaceholder");
         AutomationProperties.SetName(UrlInput, Texts.T("downloads.urlPlaceholder"));
         RefreshWorkspaceModeDescriptions();
+        RefreshWorkViewNotice();
         AutomationProperties.SetName(WorkspaceModeComboBox, Texts.T("shell.mode"));
         ToolTip.SetTip(WorkspaceModeComboBox, Texts.T("shell.mode"));
         SetupInspectorLocalActions();

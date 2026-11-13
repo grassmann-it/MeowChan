@@ -18,6 +18,7 @@ using MeowChan.Admission;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan;
 
@@ -37,6 +38,7 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
         public HashSet<string> Reactivated = new(StringComparer.Ordinal);
         public List<PreviewRow> Rows = new();
         public required StackPanel RulePanel;
+        public Expander? RulesSection; // only where the view folds the text rules (Barebones)
         public required TextBlock Summary;
         public required TextBlock Matches;
         public required Button Reinclude;
@@ -73,6 +75,7 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
         }
     }
     private readonly List<Draft> _drafts = new();
+    private readonly WorkView _view;
     private readonly Func<string, CancellationToken, Task<BoardAdmissionPreview>> _preview;
     private readonly CancellationTokenSource _cancel = new();
     private readonly Button _apply;
@@ -83,10 +86,16 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
     private bool _disposed;
     private bool _closing;
 
+    /// <summary>
+    /// <paramref name="view"/> is the work view the dialog opens in (plan AP5 §1.14): only the text rules fold, and only in
+    /// Barebones; the board list, the preview with its counts and reasons and Apply/Cancel never change. The default is
+    /// the unreduced layout.
+    /// </summary>
     public BoardAdmissionWindow(IEnumerable<string> urls, Func<string, BoardAdmissionPolicy> readPolicy,
-        Func<string, CancellationToken, Task<BoardAdmissionPreview>> preview, bool showWizard)
+        Func<string, CancellationToken, Task<BoardAdmissionPreview>> preview, bool showWizard, WorkView view = WorkView.Simple)
     {
         _preview = preview;
+        _view = view;
         Title = Texts.T("wizard.title"); Width = 980; Height = 720; MinWidth = 640; MinHeight = 600;
         MeowChan.Desktop.DialogFit.OnOpen(this);
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -117,7 +126,11 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
             _drafts.Add(draft);
             var header = new StackPanel { Spacing = 8 };
             header.Children.Add(new SelectableTextBlock { Text = url, Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap });
-            header.Children.Add(Localized(new TextBlock { Classes = { "section-title" } }, c => c.Text = Texts.T("wizard.rulesTitle")));
+            // The rules block (title, add/clear, hint, rule rows). Where the view folds it, the title becomes the section header.
+            var rulesBlock = new StackPanel { Spacing = 8 };
+            bool foldRules = WorkViewPolicy.Resolve(RulesSectionId, _view) == Presence.Collapsed;
+            if (!foldRules)
+                header.Children.Add(Localized(new TextBlock { Classes = { "section-title" } }, c => c.Text = Texts.T("wizard.rulesTitle")));
             var add = Localized(new Button { Name = "BoardAdmissionAddRule" }, c =>
             {
                 c.Content = Texts.T("wizard.ruleAdd");
@@ -133,9 +146,19 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
             clear.Click += (_, _) => ClearTextRules(draft);
             var ruleActions = new WrapPanel { Orientation = Orientation.Horizontal, Classes = { "workspace-toolbar" } };
             ruleActions.Children.Add(add); ruleActions.Children.Add(clear);
-            header.Children.Add(ruleActions);
-            header.Children.Add(Localized(Help(string.Empty), c => c.Text = Texts.T("wizard.clearTextRulesHint")));
-            header.Children.Add(new ScrollViewer { Content = rulePanel, MaxHeight = 180 });
+            rulesBlock.Children.Add(ruleActions);
+            rulesBlock.Children.Add(Localized(Help(string.Empty), c => c.Text = Texts.T("wizard.clearTextRulesHint")));
+            rulesBlock.Children.Add(new ScrollViewer { Content = rulePanel, MaxHeight = 180 });
+            if (foldRules)
+            {
+                // R6: rules already in use (a saved policy) open the section; it is closed only when there is nothing to see.
+                var section = new Expander { Name = "BoardAdmissionTextRules", Content = rulesBlock, HorizontalAlignment = HorizontalAlignment.Stretch };
+                WorkViewElement.SetId(section, RulesSectionId);
+                draft.RulesSection = section;
+                WorkViewPresenter.ApplyExpander(section, _view, viewChanged: true, nonDefaultState: draft.Initial.Rules.Count > 0);
+                header.Children.Add(section);
+            }
+            else header.Children.Add(rulesBlock);
             var previewHeader = new StackPanel { Spacing = 8 };
             previewHeader.Children.Add(Localized(new TextBlock { Classes = { "section-title" } }, c => c.Text = Texts.T("wizard.previewTitle")));
             previewHeader.Children.Add(status); previewHeader.Children.Add(summary); previewHeader.Children.Add(matches); previewHeader.Children.Add(reinclude);
@@ -345,10 +368,22 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
     private static BoardAdmissionPolicy Policy(Draft draft) => new(draft.Editors
         .Select(editor => new ThreadTextRule(((Choice<ThreadTextField>)editor.Field.SelectedItem!).Value,
             ((Choice<ThreadTextAction>)editor.Action.SelectedItem!).Value, editor.Text.Text ?? string.Empty)), draft.Exceptions);
+    private const string RulesSectionId = "dialogs.board-admission.text-rules";
+
+    // The folded text-rules section names how many rules it holds (R6) and opens by itself when a rule needs attention.
+    private void RefreshRulesSection(Draft draft, bool valid)
+    {
+        if (draft.RulesSection is not { } section) return;
+        int count = draft.Editors.Count;
+        section.Header = Texts.T("wizard.rulesTitle") + (count > 0 ? " · " + Texts.T("workview.activeCount", count) : string.Empty);
+        if (!valid) section.IsExpanded = true;
+    }
+
     private void Refresh(Draft draft)
     {
         if (_applyingTexts || _closing || _disposed) return;
         bool valid = RulesValid(draft);
+        RefreshRulesSection(draft, valid);
         foreach (RuleEditor editor in draft.Editors)
         {
             bool invalid = string.IsNullOrWhiteSpace(editor.Text.Text);

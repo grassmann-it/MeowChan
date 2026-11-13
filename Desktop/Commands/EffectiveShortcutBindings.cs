@@ -364,7 +364,7 @@ public sealed class EffectiveShortcutBindings
         if (id == "location.open-folder") return new[] { "archive", "dialog", "downloads" };
         if (id == "media.rating.clear" || id.StartsWith("media.rating.set-", StringComparison.Ordinal))
             return new[] { "media", "reader", "gallery", "dialog:media-rating" };
-        if (id.StartsWith("navigation.") || id is "session.pause" or "window.fullscreen" or "input.focus-url" or "viewer.shortcut-help") return new[] { "shell" };
+        if (id.StartsWith("navigation.") || id is "session.pause" or "window.fullscreen" or "input.focus-url" or "viewer.shortcut-help" or "workspace.view-cycle") return new[] { "shell" };
         // The large reader owns thread find; the archive search box is not reachable from it.
         if (id is "reader.find" or "reader.find-next" or "reader.find-previous") return new[] { "large-reader" };
         if (id == "input.focus-search") return new[] { "archive", "reader", "about" };

@@ -28,6 +28,7 @@ public sealed class ActionToolBar : ToolBar
     private Popup? _popup;
     private Control? _lastOverflowFocus;
     private int _focusRepairRevision;
+    private int _overflowCount;
     private Control[] _generatedItems = Array.Empty<Control>();
     internal ActionToolBarPanel? DirectHost;
     /// <summary>Detached parking panel for <see cref="OmittedProperty"/> items: neither in the bar nor in its overflow.</summary>
@@ -175,13 +176,18 @@ public sealed class ActionToolBar : ToolBar
         RefreshOverflowLabel();
     }
 
+    /// <summary>R7: the overflow button is named "More" and announces how many actions it holds ("More, 5 actions").</summary>
     public void RefreshOverflowLabel()
     {
         if (More == null) return;
-        string label = Localization.Texts.T("downloads.more");
-        ToolTip.SetTip(More, label);
-        AutomationProperties.SetName(More, label);
+        ToolTip.SetTip(More, Localization.Texts.T("workview.more"));
+        AutomationProperties.SetName(More, OverflowAccessibleName(_overflowCount));
     }
+
+    /// <summary>The accessible name of the overflow button for <paramref name="count"/> reduced actions.</summary>
+    internal static string OverflowAccessibleName(int count) => count > 0
+        ? Localization.Texts.Count("workview.moreCount", count)
+        : Localization.Texts.T("workview.more");
 
     internal double MoreWidth()
     {
@@ -197,9 +203,15 @@ public sealed class ActionToolBar : ToolBar
         return More.DesiredSize.Width;
     }
 
-    internal void SetOverflow(bool hasItems)
+    internal void SetOverflow(int count)
     {
+        bool hasItems = count > 0;
         PseudoClasses.Set(PC_Overflow, hasItems);
+        if (count != _overflowCount)
+        {
+            _overflowCount = count;
+            RefreshOverflowLabel();
+        }
         if (!hasItems && More is ToggleButton more && (more.IsChecked == true || more.IsKeyboardFocusWithin))
         {
             more.IsChecked = false;
@@ -297,7 +309,7 @@ public sealed class ActionToolBarPanel : StackPanel
             if (overflow[i]) _overflow.Add(items[i]);
             if (ActionToolBar.GetOmitted(items[i])) _omitted.Add(items[i]);
         }
-        owner.SetOverflow(_overflow.Count > 0);
+        owner.SetOverflow(_overflow.Count);
         return new Size(items.Where((c, i) => visible[i] && !_overflow.Contains(c)).Sum(c => c.DesiredSize.Width),
             items.Where((c, i) => visible[i]).Select(c => c.DesiredSize.Height).DefaultIfEmpty().Max());
     }

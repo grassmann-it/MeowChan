@@ -14,6 +14,7 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Gallery;
+using MeowChan.Admission;
 using MeowChan.Interfaces;
 
 namespace MeowChan.DesktopSmoke;
@@ -79,6 +80,7 @@ internal static class WorkViewCaptures
             CheckRegistrations(window);
             await ShortcutProbeAsync(window);
             await ViewCycleProbeAsync(window);
+            if (pages.Contains("dialogs")) await NoticeChecksAsync(window, output);
             foreach (string language in Languages)
             {
                 await FooterNavigationChecks.PersistLanguageAsync(window, language);
@@ -103,6 +105,7 @@ internal static class WorkViewCaptures
                                 if (page == "downloads") CheckShellAndDownloads(window, view);
                                 CheckSectionsAndMore(window, page, view);
                                 if (page == "settings") WorkViewSettingsChecks.CheckGroups(window, view);
+                                if (page == "dialogs") CheckExportOptions(window, view);
                                 string file = $"smoke-wv-{page}-{view.ToLowerInvariant()}-{theme.ToLowerInvariant()}-{language}-{w:0}x{h:0}.png";
                                 Program.CaptureWindow(window, file, output);
                                 if (page == "settings") WorkViewSettingsChecks.ProbeSearch(window, view);
@@ -112,6 +115,9 @@ internal static class WorkViewCaptures
                                     await WorkViewArchiveChecks.CaptureFilterSurfaceAsync(window, view, file.Replace("smoke-wv-archive-", "smoke-wv-archive-filters-"), output);
                                 }
                                 cells.Add(new(page, view, theme, language, sizeName, file, $"{window.ClientSize.Width:0}x{window.ClientSize.Height:0}"));
+                                // The second dialog of the plan (§1.14): the board admission, opened in this view over the export card's page.
+                                if (page == "dialogs" && sizeName == "wide")
+                                    cells.Add(await CaptureBoardAdmissionAsync(window, view, theme, language, output));
                             }
                             if (page == "reader" && view == "Advanced" && theme == "Light") await ReaderExportWidthCheckAsync(window);
                         }
@@ -129,7 +135,9 @@ internal static class WorkViewCaptures
             await PresentationChecks.SwitchModeAsync(window, modeBefore);
             if (rows != null) await rows.DisposeAsync();
         }
-        int expected = pages.Length * Languages.Length * Sizes.Length * (matrix == "full" ? Views.Length * Themes.Length : Views.Length + 1);
+        int perPage = matrix == "full" ? Views.Length * Themes.Length : Views.Length + 1;
+        int expected = pages.Length * Languages.Length * Sizes.Length * perPage
+            + (pages.Contains("dialogs") ? Languages.Length * perPage : 0); // one board-admission capture per dialogs cell at the wide size
         if (cells.Count != expected)
             throw new InvalidOperationException($"The work-view matrix wrote {cells.Count} captures instead of {expected}.");
         Console.WriteLine($"SMOKE work-views: {cells.Count} captures of {string.Join(", ", pages)} ({matrix}); index in {output}.");
@@ -401,6 +409,58 @@ internal static class WorkViewCaptures
         Console.WriteLine($"SMOKE work-views {scene}: app menu complete, view group checked {checkedViews}, header neutral.");
     }
 
+    // ---- One-time notice for existing profiles (plan AP5 question 3) ----
+
+    // Dismiss and "Switch to Advanced" settle the notice for good; the saved view stays as it was unless Advanced is chosen;
+    // a profile already in Advanced never sees it. The fixture profile is a new one (flag false), so each step sets the flag.
+    private static async Task NoticeChecksAsync(MainWindow window, string output)
+    {
+        string modeBefore = window.SessionHost.Config.WorkspaceMode, languageBefore = window.SessionHost.Config.Language;
+        Border panel = window.FindControl<Border>("WorkViewNoticePanel")!;
+        Button advanced = window.FindControl<Button>("WorkViewNoticeAdvanced")!, dismiss = window.FindControl<Button>("WorkViewNoticeDismiss")!;
+        async Task ArmAsync(string mode)
+        {
+            await PresentationChecks.SwitchModeAsync(window, mode);
+            await window.SessionHost.SaveViewPreferencesAsync(config => config.WorkViewNoticePending = true);
+            await Dispatcher.UIThread.InvokeAsync(window.RefreshWorkViewNotice);
+        }
+        try
+        {
+            await FooterNavigationChecks.PersistLanguageAsync(window, "en");
+            await EnterAsync(window, "downloads");
+            // Existing profile in Simple: the notice names the change and offers both buttons.
+            await ArmAsync("Simple");
+            if (!panel.IsVisible || window.FindControl<TextBlock>("WorkViewNoticeText")!.Text != Texts.T("workview.notice.text")
+                || advanced.Content as string != Texts.T("workview.notice.switchAdvanced") || dismiss.Content as string != Texts.T("workview.notice.dismiss"))
+                throw new InvalidOperationException("The work-view notice is not shown with its text and both actions for an existing Simple profile.");
+            await SettleAsync(window, "downloads");
+            Program.CaptureWindow(window, "smoke-wv-notice-simple-en.png", output);
+            Click(dismiss);
+            await Program.WaitUntilAsync(() => !panel.IsVisible && !window.SessionHost.Config.WorkViewNoticePending);
+            if (window.SessionHost.Config.WorkspaceMode != "Simple")
+                throw new InvalidOperationException("Dismissing the work-view notice changed the saved view.");
+            // Existing profile in Barebones: the second button switches to Advanced and settles the notice.
+            await ArmAsync("Barebones");
+            if (!panel.IsVisible) throw new InvalidOperationException("The work-view notice is not shown for an existing Barebones profile.");
+            await SettleAsync(window, "downloads");
+            Program.CaptureWindow(window, "smoke-wv-notice-barebones-en.png", output);
+            Click(advanced);
+            await Program.WaitUntilAsync(() => !panel.IsVisible && !window.SessionHost.Config.WorkViewNoticePending
+                && window.SessionHost.Config.WorkspaceMode == "Advanced");
+            // Advanced reduces nothing: no notice, and the flag settles by itself.
+            await ArmAsync("Advanced");
+            if (panel.IsVisible) throw new InvalidOperationException("The work-view notice is shown in Advanced.");
+            await Program.WaitUntilAsync(() => !window.SessionHost.Config.WorkViewNoticePending);
+            Console.WriteLine("SMOKE work-views notice: shown once for Simple and Barebones, dismiss keeps the view, the switch lands in Advanced, Advanced never shows it.");
+        }
+        finally
+        {
+            await window.SessionHost.SaveViewPreferencesAsync(config => config.WorkViewNoticePending = false);
+            await PresentationChecks.SwitchModeAsync(window, modeBefore);
+            await FooterNavigationChecks.PersistLanguageAsync(window, languageBefore);
+        }
+    }
+
     // ---- Policy self-checks (plan §3.3) ----
 
     // No orphaned rows: every control-backed row of the policy is registered by a control of this window.
@@ -413,6 +473,8 @@ internal static class WorkViewCaptures
         string[] orphaned = WorkViewPolicy.Entries
             .Where(entry => entry.Kind is WorkViewKind.Action or WorkViewKind.Element or WorkViewKind.Section
                 && !LazyPages.Contains(entry.Page) // built on first visit: CheckPageRegistrations runs after entering them
+                // The dialogs' sections are built when a dialog opens; the dialogs cells check them against the open dialog.
+                && entry.Page != WorkViewPage.Dialogs
                 && !entry.Id.EndsWith(".other", StringComparison.Ordinal) && !registered.Contains(entry.Id))
             .Select(entry => entry.Id).ToArray();
         if (orphaned.Length > 0)
@@ -589,6 +651,78 @@ internal static class WorkViewCaptures
                     throw new InvalidOperationException($"plugins/{viewName}: the More button is {(more.IsVisible ? "shown" : "hidden")} but the view {(moved ? "moved" : "moved no")} header action(s) under it.");
                 break;
         }
+    }
+
+    // The export card keeps format, scope, target, media and the primary actions direct in every view; its extras section (known
+    // exports, update mode, older exports, backup) is folded as the policy says for this view and reset when the view changed (R13).
+    private static void CheckExportOptions(MainWindow window, string view)
+    {
+        WorkView workView = WorkViewSetting.Parse(view);
+        Border dialog = ExportDialog(window.ArchivePage) ?? throw new InvalidOperationException("The export dialog is not on the page.");
+        Expander options = dialog.GetVisualDescendants().OfType<Expander>().SingleOrDefault(expander => expander.Name == "ArchiveExportMoreOptions")
+            ?? throw new InvalidOperationException("dialogs/" + view + ": the export dialog has no extras section.");
+        if (WorkViewElement.GetId(options) != "dialogs.export.options")
+            throw new InvalidOperationException("dialogs/" + view + ": the export extras section is not registered as dialogs.export.options.");
+        bool shouldBeOpen = WorkViewPolicy.Resolve("dialogs.export.options", workView) != Presence.Collapsed;
+        if (options.IsExpanded != shouldBeOpen)
+            throw new InvalidOperationException($"dialogs/{view}: the export extras section is {(options.IsExpanded ? "open" : "closed")}, the policy says {(shouldBeOpen ? "open" : "closed")}.");
+        foreach (string name in new[] { "ArchiveExportFormatField", "ArchiveExportScopeField", "ArchiveExportDestination", "ArchiveExportBrowse", "ArchiveExportMedia", "ArchiveExportStart", "ArchiveExportClose" })
+            if (dialog.GetVisualDescendants().OfType<Control>().FirstOrDefault(control => control.Name == name) is not { IsEffectivelyVisible: true })
+                throw new InvalidOperationException($"dialogs/{view}: {name} is not directly visible in the export dialog.");
+        Console.WriteLine($"SMOKE work-views dialogs: view={view}; export extras {(options.IsExpanded ? "open" : "closed")} as the policy says; format, scope, target and actions direct.");
+    }
+
+    // Opens the board admission over the window in this view (offline fixture, no network): board list, preview counts and
+    // Apply/Cancel are always there; the text rules are a closed section in Barebones and the plain block otherwise.
+    private static async Task<Cell> CaptureBoardAdmissionAsync(MainWindow window, string view, string theme, string language, string output)
+    {
+        WorkView workView = WorkViewSetting.Parse(view);
+        const string board = "https://boards.4chan.org/g/";
+        BoardAdmissionPolicy policy = new([]);
+        Task<BoardAdmissionPreview> Preview(string url, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            return Task.FromResult(new BoardAdmissionPreview(url, "Offline fixture", policy, new BoardCatalogThread[]
+            {
+                new("1", url + "thread/1", "Landscape sketchbook", "A readable opening post"),
+                new("2", url + "thread/2", "Coastal light", "Another opening post")
+            }));
+        }
+        BoardAdmissionWindow modal = new([board], _ => policy, Preview, showWizard: true, workView);
+        Task<BoardAdmissionSelection?> result = modal.ShowDialog<BoardAdmissionSelection?>(window);
+        try
+        {
+            await Program.WaitUntilAsync(() => modal.GetVisualDescendants().OfType<Button>().Any(button => button.Name == "BoardAdmissionApply" && button.IsEnabled));
+            Expander? rules = modal.GetVisualDescendants().OfType<Expander>().FirstOrDefault(expander => expander.Name == "BoardAdmissionTextRules");
+            bool folded = WorkViewPolicy.Resolve("dialogs.board-admission.text-rules", workView) == Presence.Collapsed;
+            if (folded != (rules != null) || rules is { IsExpanded: true })
+                throw new InvalidOperationException($"dialogs-board/{view}: the text rules are {(rules == null ? "a plain block" : rules.IsExpanded ? "an open section" : "a closed section")}, the policy says {(folded ? "a closed section" : "a plain block")}.");
+            if (rules != null && WorkViewElement.GetId(rules) != "dialogs.board-admission.text-rules")
+                throw new InvalidOperationException($"dialogs-board/{view}: the text-rules section is not registered as dialogs.board-admission.text-rules.");
+            foreach (string name in new[] { "BoardAdmissionTabs", "BoardAdmissionPreview", "BoardAdmissionApply", "BoardAdmissionCancel", "BoardAdmissionDirectFuture" })
+                if (modal.GetVisualDescendants().OfType<Control>().FirstOrDefault(control => control.Name == name) is not { IsEffectivelyVisible: true })
+                    throw new InvalidOperationException($"dialogs-board/{view}: {name} is not directly visible in the board admission.");
+            Button add = modal.GetVisualDescendants().OfType<Button>().First(button => button.Name == "BoardAdmissionAddRule");
+            if (add.IsEffectivelyVisible == folded)
+                throw new InvalidOperationException($"dialogs-board/{view}: the add-rule action is {(add.IsEffectivelyVisible ? "visible" : "hidden")} but the section is {(folded ? "folded" : "plain")}.");
+            string file = $"smoke-wv-dialogs-board-{view.ToLowerInvariant()}-{theme.ToLowerInvariant()}-{language}-wide.png";
+            await Settle(modal);
+            Program.CaptureWindow(modal, file, output);
+            Console.WriteLine($"SMOKE work-views dialogs: view={view}; board admission text rules {(folded ? "folded" : "plain")} as the policy says; preview, Apply and Cancel direct.");
+            return new("dialogs-board", view, theme, language, "wide", file, $"{modal.ClientSize.Width:0}x{modal.ClientSize.Height:0}");
+        }
+        finally
+        {
+            Click(modal.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "BoardAdmissionCancel"));
+            if (await result != null) throw new InvalidOperationException("Cancel committed a detached board admission draft.");
+        }
+    }
+
+    private static async Task Settle(Window window)
+    {
+        for (int pass = 0; pass < 3; pass++)
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+        await Task.Delay(300);
     }
 
     // ---- Fixture, helpers, index ----

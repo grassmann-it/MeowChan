@@ -10,8 +10,7 @@ public sealed class WorkViewPolicyTests
     // Pages whose partial is still empty after the foundation; each page package (WV3–WV9) removes its page here.
     private static readonly WorkViewPage[] PagesWithoutRowsYet =
     [
-        WorkViewPage.Gallery,
-        WorkViewPage.Dialogs
+        WorkViewPage.Gallery
     ];
 
     [Fact]

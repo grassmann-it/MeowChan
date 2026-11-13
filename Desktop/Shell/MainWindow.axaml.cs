@@ -449,6 +449,7 @@ public partial class MainWindow : Window
                     Texts.T("restore.failure", _session.StartupError ?? string.Empty), NotificationType.Error, operation: "session.restore");
             }
             UpdateInteractionState();
+            RefreshWorkViewNotice();
             TryOfferFirstRunSetup();
         });
         // The restore body has returned from its existing UI continuation, independently of any
@@ -1290,12 +1291,14 @@ public partial class MainWindow : Window
     {
         bool themeChanged = candidate.Theme != _config.Theme;
         bool modeChanged = candidate.WorkspaceMode != _config.WorkspaceMode;
+        bool noticeChanged = candidate.WorkViewNoticePending != _config.WorkViewNoticePending;
         try
         {
             await _session.SaveViewPreferencesAsync(current =>
             {
                 if (themeChanged) current.Theme = candidate.Theme;
                 if (modeChanged) current.WorkspaceMode = candidate.WorkspaceMode;
+                if (noticeChanged) current.WorkViewNoticePending = candidate.WorkViewNoticePending;
             });
             ApplyAppearance();
             _settingsEditor?.RefreshConfirmedAppearance(themeChanged, modeChanged);
