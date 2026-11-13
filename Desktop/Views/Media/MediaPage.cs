@@ -150,6 +150,7 @@ public sealed partial class MediaPage : UserControl
     internal Task ActivateAsync()
     {
         RefreshUserData();
+        UpdateSearchTip();
         if (_building != null) return BuildTask;
         if (_snapshot == null && _cachePath != null && MediaLibraryIndexCache.Load(_cachePath) is { } cached)
         {
@@ -198,8 +199,12 @@ public sealed partial class MediaPage : UserControl
         }
     }
 
+    /// <summary>How often the grid has been rebuilt; lets a test see that typing does not rebuild it per keystroke.</summary>
+    internal int PresentCount { get; private set; }
+
     private void Present()
     {
+        PresentCount++;
         InvalidateSharedMediaMenu();
         DismissExportAllAsk(); // A pending "export all" question was about tiles that may no longer be shown.
         // Selected tiles that are still shown stay selected; the others drop out (see MediaPage.Selection.cs).
@@ -247,6 +252,7 @@ public sealed partial class MediaPage : UserControl
         _emptyActions.IsVisible = showEmpty && !_filterActive;
         _refresh.IsEnabled = !_lifetime.IsCancellationRequested;
         UpdateUntaggedLink();
+        UpdateSearchResult();
         UpdateFilterToggle();
         UpdateSelectionBar();
     }
@@ -617,6 +623,7 @@ public sealed partial class MediaPage : UserControl
         if (_lifetime.IsCancellationRequested) return;
         InvalidateSharedMediaMenu();
         _lifetime.Cancel();
+        _nameFilter.CancelPendingQuery();
         _building?.Cancel();
         Texts.Changed -= OnLanguageChanged;
         _occurrences?.Close();

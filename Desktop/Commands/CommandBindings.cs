@@ -384,7 +384,7 @@ public static class CommandBindings
     {
         bool functionKey = e.Key >= Key.F1 && e.Key <= Key.F24;
         bool primaryModifier = (e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Meta)) != 0;
-        return (id is "input.focus-url" or "input.focus-search" or "input.focus-download-search" or "navigation.settings")
+        return (id is "input.focus-url" or "input.focus-search" or "input.focus-download-search" or "input.focus-media-search" or "navigation.settings")
             && (primaryModifier || functionKey)
             || (id is "window.fullscreen" or "viewer.shortcut-help") && functionKey;
     }

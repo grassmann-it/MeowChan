@@ -47,7 +47,7 @@ public sealed class ReaderThreadFindUiTests
     {
         string xaml = Source("Desktop/Views/Archive/ArchivePage.axaml");
         string queryElement = System.Text.RegularExpressions.Regex.Match(xaml,
-            "<TextBox[^>]*x:Name=\"ReaderFindQuery\"[^>]*>").Value;
+            "<(?:controls:SearchBox|TextBox)[^>]*x:Name=\"ReaderFindQuery\"[^>]*>").Value;
         Assert.NotEmpty(queryElement);
         Assert.DoesNotContain("MaxLength=", queryElement);
         Assert.DoesNotContain("KeyDown=\"OnThreadFindKeyDown\"", xaml);

@@ -694,6 +694,7 @@ public partial class MainWindow
                 if (target.Retriable.Length > 0) ids.Insert(0, "watch.retry-media");
             }
         }
+        if (_selectedPage == WorkspacePage.Media && !_largeReaderOpen) ids.Insert(0, "input.focus-media-search");
         if (_selectedPage == WorkspacePage.Archive && !_largeReaderOpen)
             ids.InsertRange(0, new[] { "input.focus-search", "archive.select-page", "menu.context-open",
                 "archive.previous-page", "archive.next-page", "export.open-all-results-html-dialog", "archive.delete-permanently" });
@@ -753,6 +754,8 @@ public partial class MainWindow
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
         {
             // Popups/editors own their first Escape; never cascade a handled key.
+            // A search field with text takes its first Escape to clear itself (SearchBox); nothing around it reacts to that key.
+            if (MeowChan.Desktop.Controls.SearchBox.OwnsEscape(e.Source)) return;
             if (e.Source is Visual inputVisual && inputVisual.GetSelfAndVisualAncestors().Any(v => v is Ursa.Controls.AutoCompleteBox)) return;
             if (e.Source is Control control && control.GetLogicalAncestors().Prepend(control).OfType<ComboBox>().Any(combo => combo.IsDropDownOpen)) return;
             if (DismissShellMenu() || DismissShellHelp() || (_gallery != null && !_gallerySuspended && _gallery.TryDismissOverlay()) ||
@@ -839,6 +842,8 @@ public partial class MainWindow
         }
         else if (CommandBindings.Matches(e, "input.focus-search") && _selectedPage == WorkspacePage.Archive && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
         { e.Handled = true; _archivePage?.FindControl<TextBox>("ArchiveSearchText")?.Focus(); }
+        else if (CommandBindings.Matches(e, "input.focus-media-search") && _selectedPage == WorkspacePage.Media && _mediaPage != null && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
+        { e.Handled = true; _mediaPage.FocusSearch(); }
     }
 
     internal bool CanExecuteShellPowerCommand(object? source, Key key) => _workspaceInitialized && _restoreCompleted

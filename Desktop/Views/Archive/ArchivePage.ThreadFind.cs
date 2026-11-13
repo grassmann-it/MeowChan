@@ -10,6 +10,7 @@ using Avalonia.VisualTree;
 using System.Linq;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Commands;
 
@@ -142,6 +143,8 @@ public partial class ArchivePage
             || !ReaderFindBar.IsVisible || !IsThreadFindSource(e.Source)) return;
         int gesture = ThreadFindGesture(e.Key, e.KeyModifiers);
         if (gesture == 0) return; // Space, Tab, modified Enter/Escape retain native ownership.
+        // The first Escape empties a typed query (SearchBox); only Escape in an empty query or on a button closes the bar.
+        if (gesture == 2 && SearchBox.OwnsEscape(e.Source)) return;
         e.Handled = true;
         if (gesture == 2) CloseThreadFind();
         else if (gesture == 1 && FocusedFindButton(e.Source) is { } button)

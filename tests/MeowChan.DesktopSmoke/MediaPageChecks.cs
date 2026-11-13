@@ -12,6 +12,7 @@ using MeowChan.Archive;
 using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
@@ -264,9 +265,23 @@ internal static partial class MediaPageChecks
             Require(page.ShownEntries.Count == 0, "PNG files are not GIFs.");
             kind.SelectedIndex = (int)MediaLibraryKindFilter.Image;
             Require(page.ShownEntries.Count == 3, "Image filter lost files.");
-            TextBox name = C<TextBox>(page, "MediaNameFilter");
+            SearchBox name = C<SearchBox>(page, "MediaNameFilter");
             name.Text = "  TWO ";
             await UntilAsync(() => Shown() == "200:200"); // TextChanged arrives after a dispatcher turn.
+            // Over a large index typing waits for the last keystroke: one rebuild for a burst, results unchanged.
+            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            page.SearchImmediateEntries = 0;
+            int presented = page.PresentCount;
+            name.Text = "t"; name.Text = "tw"; name.Text = "two";
+            Require(page.PresentCount == presented && name.IsQueryPending, "A burst of keystrokes must not rebuild the grid before the delay.");
+            await UntilAsync(() => Shown() == "200:200" && !name.IsQueryPending);
+            Require(page.PresentCount == presented + 1, "The burst must rebuild the grid once: " + (page.PresentCount - presented));
+            Require(name.ResultText == Texts.T("search.count", 1), "The field must show the hit count: " + name.ResultText);
+            name.ClearAndFocus();
+            Require(name.Text == string.Empty && page.ShownEntries.Count == 3 && name.ResultText == null, "Clearing must apply at once.");
+            page.SearchImmediateEntries = 2000;
+            name.Text = "  TWO ";
+            await UntilAsync(() => Shown() == "200:200");
             reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Require(name.Text == string.Empty && kind.SelectedIndex == 0, "Reset did not clear name and type.");
             Require(source.Items.Count == 2 && source.Items[1]!.ToString() == "media-fixture", "Source choice must list the archived source.");

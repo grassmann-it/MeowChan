@@ -54,6 +54,13 @@ public partial class ArchivePage
     {
         GetBoardSuggestionSource = () => (ArchiveBoardScope.SelectedItem as BoardScope)?.Source;
         ArchiveSearchText.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty) DraftEdited("text"); };
+        // Escape empties the typed draft (the applied search stays until "Search"); a second Escape moves on to the results.
+        ArchiveSearchText.ExitRequested += (_, e) =>
+        {
+            if (!ArchiveThreads.IsEffectivelyVisible || ArchiveThreads.ItemCount == 0) return;
+            ArchiveThreads.Focus();
+            e.Handled = true;
+        };
         foreach (var entry in new[] { ("ArchiveSourceFilter", "source"), ("ArchiveBoardFilter", "board") })
             Control<Control>(entry.Item1).PropertyChanged += (_, e) => { if (e.Property.Name == "Text") DraftEdited(entry.Item2); };
         foreach (var entry in new[] { ("ArchiveStateFilter", "state"), ("ArchiveCaptureFilter", "capture"),

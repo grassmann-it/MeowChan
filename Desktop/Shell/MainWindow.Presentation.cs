@@ -38,6 +38,8 @@ public partial class MainWindow
         if (_workspaceInitialized) return;
         _workspaceInitialized = true;
         _workspaceRefresh = new CoalescedUiUpdate(RefreshWorkspace);
+        // Escape clears the typed search first (SearchBox); in an empty field it closes the search bar.
+        DownloadSearchInput.ExitRequested += (_, e) => { if (_downloadSearchOpen) { OnDownloadSearchClose(DownloadSearchInput, new RoutedEventArgs()); e.Handled = true; } };
         UrlList.CollectionChanged += OnWorkspaceCollectionChanged;
         BoardsList.CollectionChanged += OnWorkspaceCollectionChanged;
         Texts.Changed += OnWorkspaceLanguageChanged;

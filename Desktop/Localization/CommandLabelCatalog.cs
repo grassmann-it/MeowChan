@@ -153,6 +153,7 @@ internal static class CommandLabelCatalog
         ("command.viewer.shortcut-help", "Keyboard shortcuts", "Tastaturhilfe"),
         ("command.viewer.shortcut-hints", "Show / hide shortcut hints", "Kurzhilfe anzeigen / ausblenden"),
         ("command.input.focus-search", "Focus search", "Suche fokussieren"),
+        ("command.input.focus-media-search", "Search media", "Medien durchsuchen"),
         ("command.archive.clear-filter", "Remove filter", "Filter entfernen"),
         ("command.table.choose-columns", "Choose columns…", "Spalten auswählen…"),
         ("command.table.reset-layout", "Reset view layout", "Ansicht zurücksetzen"),

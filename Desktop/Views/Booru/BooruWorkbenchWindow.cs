@@ -81,7 +81,8 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     private readonly TabItem _searchTab = new();
     private readonly TabItem _watchersTab = new();
     private readonly ComboBox _mode = new() { Name = ModeName, MinWidth = 170 };
-    private readonly TextBox _input = new() { Name = InputName, AcceptsReturn = false };
+    // Escape empties the typed query first (SearchBox); in an empty field it closes the window as before. No debounce: a search goes out only on "Search".
+    private readonly SearchBox _input = new() { Name = InputName, AcceptsReturn = false };
     private readonly Button _submit = new() { Name = SubmitName };
     private readonly Button _cancel = new() { Name = CancelName };
     private readonly SelectableTextBlock _queryLine = new() { Name = QueryName, Classes = { "workspace-meta", "mono" } };

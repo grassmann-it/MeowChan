@@ -5,8 +5,12 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Layout;
+using Avalonia.Threading;
 using MeowChan.Archive;
+using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Tags;
@@ -18,7 +22,12 @@ namespace MeowChan;
 // explanation; it is never dropped, because that would silently show more than asked for.
 public sealed partial class MediaPage
 {
-    private readonly TextBox _nameFilter = new() { Name = "MediaNameFilter", MinWidth = 180, MaxLength = MediaLibraryFilter.MaximumNameLength };
+    // Over a large index every keystroke would filter, sort and group again on the UI thread: the name waits 200 ms
+    // after the last edit. Up to SearchImmediateEntries entries filtering is cheap and follows every keystroke.
+    private static readonly TimeSpan NameFilterDebounce = TimeSpan.FromMilliseconds(200);
+    private int _searchImmediateEntries = 2000;
+    internal int SearchImmediateEntries { get => _searchImmediateEntries; set { _searchImmediateEntries = value; UpdateSearchResult(); } }
+    private readonly SearchBox _nameFilter = new() { Name = "MediaNameFilter", MinWidth = 180, MaxLength = MediaLibraryFilter.MaximumNameLength };
     private readonly ComboBox _kindFilter = new() { Name = "MediaKindFilter", MinWidth = 130 };
     private readonly ComboBox _sourceFilter = new() { Name = "MediaSourceFilter", MinWidth = 130 };
     private readonly ComboBox _boardFilter = new() { Name = "MediaBoardFilter", MinWidth = 130 };
@@ -65,7 +74,7 @@ public sealed partial class MediaPage
         AutomationProperties.SetLiveSetting(_filterError, AutomationLiveSetting.Assertive);
         _filterReset.IsEnabled = false;
         _tagInclude.IsEnabled = _tagExclude.IsEnabled = false;
-        _nameFilter.TextChanged += (_, _) => FilterEdited();
+        _nameFilter.QueryChanged += (_, _) => { if (!_lifetime.IsCancellationRequested) FilterEdited(); };
         foreach (ComboBox combo in new[] { _minRating, _tagMode })
             combo.SelectionChanged += (_, _) => FilterEdited();
         // A sound choice implies videos: it sets the type to Videos, and choosing another type drops the sound choice.
@@ -103,6 +112,8 @@ public sealed partial class MediaPage
     private void FilterEdited()
     {
         if (_localizing) return;
+        // This pass reads the name as typed; a debounced run for the same text would only repeat it.
+        _nameFilter.CancelPendingQuery();
         RenderFilterChips();
         Present();
     }
@@ -243,7 +254,7 @@ public sealed partial class MediaPage
         _localizing = true;
         try
         {
-            _nameFilter.Text = string.Empty;
+            _nameFilter.SetTextSilently(string.Empty);
             _kindFilter.SelectedIndex = 0;
             _soundFilter.SelectedIndex = 0;
             _sourceFilter.SelectedIndex = 0;
@@ -398,7 +409,8 @@ public sealed partial class MediaPage
             SetKeys(_tagMode, "tags.filter.matchAll", "tags.filter.matchAny");
         }
         finally { _localizing = localizing; }
-        _nameFilter.Watermark = Texts.T("media.filter.name");
+        _nameFilter.PlaceholderText = Texts.T("media.filter.name");
+        UpdateSearchTip();
         _favoritesOnly.Content = Texts.T("media.filter.favorites");
         _withoutMediaTags.Content = Texts.T("media.filter.withoutTags");
         ToolTip.SetTip(_withoutMediaTags, Texts.T("media.filter.withoutTagsHint"));
@@ -421,6 +433,34 @@ public sealed partial class MediaPage
         RenderSourceOptions();
         RenderTagOptions();
         RenderFilterChips();
+    }
+
+    /// <summary>Primary+F: opens the filter surface and puts the caret in the file name field.</summary>
+    internal void FocusSearch()
+    {
+        if (_lifetime.IsCancellationRequested) return;
+        _filters.IsExpanded = true;
+        void Focus()
+        {
+            if (_lifetime.IsCancellationRequested || !_nameFilter.IsEffectivelyVisible) return;
+            _nameFilter.Focus(NavigationMethod.Tab);
+            _nameFilter.SelectAll();
+        }
+        // The surface becomes visible with the expander change; its field can take focus once that is laid out.
+        if (_nameFilter.IsEffectivelyVisible) Focus();
+        else Dispatcher.UIThread.Post(Focus, DispatcherPriority.Loaded);
+    }
+
+    internal SearchBox NameFilterBox => _nameFilter;
+
+    // The shortcut in the tooltip follows the user's current binding.
+    private void UpdateSearchTip() => ToolTip.SetTip(_nameFilter, CommandBindings.Tooltip("input.focus-media-search"));
+
+    // The count belongs to the text that produced it: none for an empty name or a refused filter.
+    private void UpdateSearchResult()
+    {
+        _nameFilter.Debounce = (_snapshot?.Entries.Count ?? 0) > SearchImmediateEntries ? NameFilterDebounce : TimeSpan.Zero;
+        _nameFilter.ResultText = string.IsNullOrEmpty(_nameFilter.Text) || _filterFailed || _snapshot == null ? null : Texts.T("search.count", _shown.Count);
     }
 
     // Sets another filter combo without that combo's own change reaction.

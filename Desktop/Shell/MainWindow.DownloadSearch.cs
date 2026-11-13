@@ -175,7 +175,8 @@ public partial class MainWindow
         DownloadSearchBar.IsVisible = _downloadSearchOpen || active;
         DownloadSearchInput.IsVisible = _downloadSearchOpen;
         DownloadSearchClose.IsVisible = _downloadSearchOpen;
-        DownloadSearchClear.IsVisible = active;
+        // While the field is shown its own clear button is the way to empty it; the bar button covers the folded bar.
+        DownloadSearchClear.IsVisible = active && !_downloadSearchOpen;
         TextBlock summary = DownloadSearchSummary;
         Grid.SetColumn(summary, _downloadSearchOpen ? 1 : 0);
         Grid.SetColumnSpan(summary, _downloadSearchOpen ? 1 : 2);

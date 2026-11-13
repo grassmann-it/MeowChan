@@ -1,6 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:commands="clr-namespace:MeowChan.Desktop.Commands"
-             xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:ursa="https://irihi.tech/ursa" x:Class="MeowChan.ArchivePage" SizeChanged="OnSizeChanged">
+             xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:controls="clr-namespace:MeowChan.Desktop.Controls" xmlns:ursa="https://irihi.tech/ursa" x:Class="MeowChan.ArchivePage" SizeChanged="OnSizeChanged">
     <Grid x:Name="ArchiveRoot" Margin="12" RowDefinitions="Auto,*,Auto" RowSpacing="8">
         <Grid x:Name="ArchivePageHeader" ColumnDefinitions="*,Auto" ColumnSpacing="12">
             <StackPanel Spacing="5">
@@ -25,7 +25,7 @@
                 </Grid.RowDefinitions>
                 <ScrollViewer x:Name="ArchiveSearchPanelScroll" MaxHeight="260" HorizontalScrollBarVisibility="Disabled"><Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="6">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                        <TextBox x:Name="ArchiveSearchText" MaxLength="512" KeyDown="OnSearchKeyDown" />
+                        <controls:SearchBox x:Name="ArchiveSearchText" MaxLength="512" KeyDown="OnSearchKeyDown" />
                         <Button x:Name="SearchArchiveButton" Grid.Column="1" Tag="archive.search" Classes="localized" Click="OnSearchClick" />
                     </Grid>
                     <!-- P2: the expander stays the filter toggle (command, IsExpanded, draft marker);
@@ -244,7 +244,7 @@
                     <TextBlock x:Name="ReaderGroupAvailabilityMessage" IsVisible="False" TextWrapping="Wrap" />
                     <StackPanel x:Name="ReaderFindBar" IsVisible="False" Spacing="4">
                         <WrapPanel ItemSpacing="6" LineSpacing="4">
-                            <TextBox x:Name="ReaderFindQuery" Width="240" TextChanged="OnThreadFindQueryChanged" />
+                            <controls:SearchBox x:Name="ReaderFindQuery" Width="240" TextChanged="OnThreadFindQueryChanged" />
                             <Button x:Name="ReaderFindPrevious" Click="OnPreviousThreadFind" />
                             <Button x:Name="ReaderFindNext" Click="OnNextThreadFind" />
                             <Button x:Name="ReaderFindRetry" Click="OnRetryThreadFind" IsVisible="False" />

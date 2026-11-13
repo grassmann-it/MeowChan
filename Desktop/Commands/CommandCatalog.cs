@@ -198,6 +198,7 @@ public static class CommandCatalog
         new("viewer.shortcut-help", "command.viewer.shortcut-help", "Keyboard shortcuts", "Tastaturhilfe", "help-circle", "F1", CommandScope.Reader | CommandScope.Gallery, new[] { "reader", "gallery", "workspace" }),
         new("viewer.shortcut-hints", "command.viewer.shortcut-hints", "Show / hide shortcut hints", "Kurzhilfe anzeigen / ausblenden", "help-circle", null, CommandScope.Reader | CommandScope.Gallery | CommandScope.Media | CommandScope.Settings, new[] { "reader", "gallery", "settings-reading-media" }),
         new("input.focus-search", "command.input.focus-search", "Focus search", "Suche fokussieren", "search", "Primary+F", CommandScope.Archive | CommandScope.Reader, new[] { "archive", "license-reader", "active-search-context" }),
+        new("input.focus-media-search", "command.input.focus-media-search", "Search media", "Medien durchsuchen", "search", "Primary+F", CommandScope.Media, new[] { "media" }),
         new("archive.clear-filter", "command.archive.clear-filter", "Remove filter", "Filter entfernen", "x", null, CommandScope.Archive, new[] { "archive-active-filter-chip" }),
         new("table.choose-columns", "command.table.choose-columns", "Choose columns…", "Spalten auswählen…", "columns", null, CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-table", "archive-table" }),
         new("table.reset-layout", "command.table.reset-layout", "Reset view layout", "Ansicht zurücksetzen", "rotate-ccw", null, CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-table", "archive-table", "split-layout" }),
@@ -299,6 +300,7 @@ public static class CommandCatalog
             "watch.import-clipboard" => Texts.T("command.scope.watch.import-clipboard"),
             "input.focus-download-search" => Texts.T("command.scope.input.focus-download-search"),
             "input.focus-search" => Texts.T("command.scope.input.focus-search"),
+            "input.focus-media-search" => Texts.T("command.scope.input.focus-media-search"),
             "export.open-all-results-html-dialog" => Texts.T("command.scope.export.open-all-results-html-dialog"),
             "navigation.downloads" or "navigation.archive" or "navigation.media" or "navigation.rules" or "navigation.sources" or "navigation.diagnostics" or "session.pause"
                 => Texts.T("command.scope.navigation.generic"),
