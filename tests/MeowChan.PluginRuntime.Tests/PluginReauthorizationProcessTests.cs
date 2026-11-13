@@ -159,8 +159,14 @@ public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output)
         var backups = probe.BackupFiles();
         await probe.Run("delete-target");
         var restart = await probe.Run("start-B");
-        AssertBlocked(seed, restart);
+        // A persisted Active snapshot is not proof the bytes still exist. Startup is
+        // supplied a successful inventory observation here; the real runtime hash/open
+        // boundary must refuse use, without inventing a new store persistence policy.
+        Assert.Equal(consent.TargetExecution, Plugin(restart).Active!.ExecutionRevision);
+        Assert.Equal("PluginWorkerException", restart.Rejection);
+        AssertRetained(seed, restart);
         Assert.Null(restart.WorkerPid);
+        Assert.Null(restart.Text);
         Assert.Equal(0, restart.ImageReads);
         Assert.Equal(backups, probe.BackupFiles());
     }

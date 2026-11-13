@@ -98,6 +98,8 @@ if (phase.StartsWith("start-", StringComparison.Ordinal) && Plugin(final) is { E
     Services services = new(final);
     string workspace = Path.Combine(root, "workers"); Directory.CreateDirectory(workspace);
     string dotnet = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "/usr/share/dotnet/dotnet";
+    try
+    {
     await using (var worker = await manager.StartAsync(new(dotnet, [workerPath], workspace), active.Artifact, active.Configuration, services, cancellationToken: lifetime.Token))
     {
         workerPid = worker.Snapshot.ProcessId;
@@ -115,8 +117,10 @@ if (phase.StartsWith("start-", StringComparison.Ordinal) && Plugin(final) is { E
             throw new InvalidDataException("Approved exact grant did not reach the synthetic image service.");
         imageReads = services.ImageReads; httpRequests = services.HttpRequests;
     }
+    }
+    catch (PluginWorkerException error) { rejection = error.GetType().Name; }
     // Disposal must have reaped this privately owned worker before reporting success.
-    try { using var child = Process.GetProcessById(workerPid!.Value); if (!child.HasExited) throw new InvalidOperationException("Worker still running."); }
+    try { if (workerPid is int pid) { using var child = Process.GetProcessById(pid); if (!child.HasExited) throw new InvalidOperationException("Worker still running."); } }
     catch (ArgumentException) { }
     if (Directory.EnumerateDirectories(workspace).Any()) throw new InvalidOperationException("Worker workspace leaked.");
 }
