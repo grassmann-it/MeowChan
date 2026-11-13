@@ -195,7 +195,7 @@ public partial class ArchivePage
         }, () => DeletePermanentlyRequested != null, count: () => ids.Length);
         if (ids.Length > 1)
         {
-            string count = string.Format(Texts.T("archive.command.selectionCount"), ids.Length);
+            string count = Texts.T("archive.command.selectionCount", ids.Length);
             menu.Items.Add(new Separator());
             // Keep the explanatory prose compact even when the menu theme adds
             // the shared shortcut column to this shortcut-free row.

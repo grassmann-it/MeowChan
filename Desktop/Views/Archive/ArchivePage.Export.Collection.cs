@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -73,7 +74,7 @@ public partial class ArchivePage
         ? FreshCollectionExportDestination(parent, _exportMembers!.Length) : FreshExportDestination(parent, id);
     internal static string FreshCollectionExportDestination(string parent, int count)
     {
-        string stem = Path.Combine(parent, "meowchan-collection-" + count + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss"));
+        string stem = Path.Combine(parent, "meowchan-collection-" + count + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture));
         string candidate = stem;
         for (int suffix = 2; Directory.Exists(candidate) || File.Exists(candidate); suffix++) candidate = stem + "-" + suffix;
         return candidate;

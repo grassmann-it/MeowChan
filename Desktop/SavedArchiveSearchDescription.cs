@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using MeowChan.Archive;
 using MeowChan.Desktop.Localization;
@@ -21,7 +22,7 @@ internal static class SavedArchiveSearchDescription
         Add("savedSearch.work", Texts.T("savedSearch.work." + spec.WorkFilter));
         Add("savedSearch.sort", Texts.T("savedSearch.sort." + spec.Sort));
         if (spec.DateRange is { } date)
-            Add("savedSearch.date", (date.StartDate?.ToString("yyyy-MM-dd") ?? "…") + " – " + (date.EndDate?.ToString("yyyy-MM-dd") ?? "…") + " · " + date.TimeZoneId);
+            Add("savedSearch.date", (date.StartDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "…") + " – " + (date.EndDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "…") + " · " + date.TimeZoneId);
         if (spec.Tags is { } tags)
         {
             // References are IDs; a tag that no longer exists is named as deleted, never left out.

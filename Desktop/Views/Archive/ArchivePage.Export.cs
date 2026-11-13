@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -126,7 +127,7 @@ public partial class ArchivePage
     {
         string identity = id.Source + "-" + id.Board + "-" + id.Thread;
         string safe = new(identity.Select(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_' ? character : '_').Take(120).ToArray());
-        string stem = Path.Combine(parent, "meowchan-" + safe + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss"));
+        string stem = Path.Combine(parent, "meowchan-" + safe + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture));
         string candidate = stem;
         for (int suffix = 2; Directory.Exists(candidate) || File.Exists(candidate); suffix++) candidate = stem + "-" + suffix;
         return candidate;
