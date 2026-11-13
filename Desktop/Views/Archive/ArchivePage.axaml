@@ -626,7 +626,7 @@
                                 </Grid>
                             </TabItem>
                         </TabControl>
-                        <WrapPanel x:Name="ReaderNavigation" IsVisible="False" HorizontalAlignment="Right"
+                        <WrapPanel x:Name="ReaderNavigation" Classes="reader-cross" IsVisible="False" HorizontalAlignment="Right"
                                    VerticalAlignment="Bottom" Margin="0,0,24,56" ZIndex="1">
                             <!-- The cross is an overlay above the content: the raised backdrop is only painted (not hit-tested), and the
                                  button grid has no background, so a click anywhere but on one of the four buttons reaches the content below. -->

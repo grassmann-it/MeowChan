@@ -996,6 +996,10 @@
             </Transitions>
         </Setter>
     </Style>
+    <!-- The reader arrow cross fades in and out with the pointer's idle state (Fade 120 ms); under reduced motion it switches at once. -->
+    <Style Selector=":is(TopLevel):not(.motion-off) WrapPanel.reader-cross">
+        <Setter Property="Transitions"><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.12" /></Transitions></Setter>
+    </Style>
     <!-- A filter chip appears with a short fade (the tag bar's own chips are rebuilt often and tile chips are recycled: no fade there). -->
     <Style Selector=":is(TopLevel):not(.motion-off) ursa|ClosableTag.chip.chip-filter">
         <Style.Animations>
