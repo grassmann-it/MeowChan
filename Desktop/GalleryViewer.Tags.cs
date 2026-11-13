@@ -17,8 +17,14 @@ internal sealed partial class GalleryViewer
     internal event Action<GalleryEntry>? TagsRequested;
     internal Button TagsButton => _tagsButton;
 
-    private void CreateTagsButton(Panel media) =>
-        _tagsButton = Command(media, "GalleryTags", Texts.T("tags.media.button"), RequestTags);
+    // A row of the "⋯" menu; its label is the live tag count, so it has no static command label.
+    private void CreateTagsButton(Panel menu)
+    {
+        _tagsButton = new Button { Name = "GalleryTags" };
+        _tagsButton.Click += (_, _) => RequestTags();
+        AddOverflowItem(_tagsButton, "media.tags.edit", host: menu);
+        UpdateTagsButton();
+    }
 
     private void RequestTags()
     {
@@ -52,7 +58,7 @@ internal sealed partial class GalleryViewer
         if (_tagsButton == null) return;
         int count = _tagNames?.Count ?? 0;
         string label = count > 0 ? Texts.T("tags.media.buttonCount", count) : Texts.T("tags.media.button");
-        _tagsButton.Content = label;
+        SetButtonLabel(_tagsButton, label);
         string tip = _tagNames == null ? _tagsUnavailableReason ?? Texts.T("tags.media.button")
             : count > 0 ? Texts.T("tags.rowLabel", string.Join(", ", _tagNames)) : Texts.T("tags.media.hint");
         ToolTip.SetTip(_tagsButton, tip);

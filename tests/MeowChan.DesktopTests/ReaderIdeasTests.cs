@@ -12,11 +12,11 @@ public sealed class ReaderIdeasTests
         Assert.Equal("short\ntext", ArchivePage.ShortenQuotePreview("short\ntext"));
         string many = string.Join("\n", Enumerable.Range(1, 12).Select(number => "line " + number));
         string shortened = ArchivePage.ShortenQuotePreview(many);
-        Assert.Equal(ArchivePage.QuotePreviewMaxLines, shortened.Split('\n').Length);
+        Assert.Equal(ReaderDisplayLimits.PreviewLinesDefault, shortened.Split('\n').Length);
         Assert.EndsWith("line 8…", shortened);
-        string longLine = new('x', ArchivePage.QuotePreviewMaxCharacters + 50);
+        string longLine = new('x', ReaderDisplayLimits.PreviewCharacters(ReaderDisplayLimits.PreviewLinesDefault) + 50);
         string cut = ArchivePage.ShortenQuotePreview(longLine);
-        Assert.Equal(ArchivePage.QuotePreviewMaxCharacters + 1, cut.Length);
+        Assert.Equal(ReaderDisplayLimits.PreviewCharacters(ReaderDisplayLimits.PreviewLinesDefault) + 1, cut.Length);
         Assert.EndsWith("x…", cut);
         string emoji = string.Concat(Enumerable.Repeat("a😀", 300)); // Never cut a surrogate pair in half.
         Assert.False(char.IsHighSurrogate(ArchivePage.ShortenQuotePreview(emoji)[^2]));
@@ -56,8 +56,8 @@ public sealed class ReaderIdeasTests
     [Fact]
     public void FoldShowsEighteenOfMoreThanTwentyFourLinesAndReportsExpansion()
     {
-        Assert.Equal(24, ReaderBodyTextBlock.FoldThresholdLines);
-        Assert.Equal(18, ReaderBodyTextBlock.FoldVisibleLines);
+        Assert.Equal(24, ReaderDisplayLimits.FoldLinesDefault);
+        Assert.Equal(18, ReaderDisplayLimits.FoldVisibleLines(ReaderDisplayLimits.FoldLinesDefault));
         List<bool> reported = [];
         ArchivePostRow row = new("1", "", "text", Array.Empty<ArchiveAttachmentRow>()) { StartExpanded = true, ExpandedChanged = reported.Add };
         Assert.True(row.Expanded);
@@ -80,7 +80,7 @@ public sealed class ReaderIdeasTests
         ArchivePostRow failed = new("2", "", "text", Array.Empty<ArchiveAttachmentRow>());
         failed.SetRepliesError("boom");
         Assert.True(failed.HasReplyToggle); // A retry stays possible.
-        Assert.Equal(5, ArchivePage.InlineReplyPageSize);
+        Assert.Equal(5, ReaderDisplayLimits.ReplyStepDefault);
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public sealed class ReaderIdeasTests
         ArchiveQuoteRow card = plain with { ReplyHeader = "No. 101 · anon", ReplyExcerpt = "first lines" };
         Assert.Equal("No. 101 · anon", card.ReplyCardHeader);
         Assert.True(card.HasReplyExcerpt);
-        string cut = ArchivePage.ShortenText(string.Join("\n", Enumerable.Range(1, 9).Select(n => "line " + n)), ArchivePage.ReplyCardMaxLines, ArchivePage.ReplyCardMaxCharacters);
+        string cut = ArchivePage.ShortenText(string.Join("\n", Enumerable.Range(1, 9).Select(n => "line " + n)), ReaderDisplayLimits.ReplyLinesDefault, ReaderDisplayLimits.ReplyCharacters(ReaderDisplayLimits.ReplyLinesDefault));
         Assert.Equal("line 1\nline 2\nline 3\nline 4…", cut);
     }
 }

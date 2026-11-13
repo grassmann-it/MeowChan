@@ -372,13 +372,13 @@
                                     </WrapPanel>
                                     <StackPanel Spacing="8">
                                         <WrapPanel x:Name="InspectorLocalActions" Classes="workspace-toolbar" Orientation="Horizontal" IsVisible="False">
-                                            <Button x:Name="InspectorReadPosts" Classes="subtle" Click="OnInspectorReadPosts" />
-                                            <Button x:Name="InspectorGallery" Classes="subtle" Click="OnInspectorGallery" />
-                                            <Button x:Name="InspectorHtmlExport" Classes="subtle" Click="OnInspectorHtmlExport" />
+                                            <Button x:Name="InspectorReadPosts" Classes="subtle ghost" Click="OnInspectorReadPosts" />
+                                            <Button x:Name="InspectorGallery" Classes="subtle ghost" Click="OnInspectorGallery" />
+                                            <Button x:Name="InspectorHtmlExport" Classes="subtle ghost" Click="OnInspectorHtmlExport" />
                                         </WrapPanel>
                                         <WrapPanel Classes="workspace-toolbar" Orientation="Horizontal">
-                                            <Button x:Name="InspectorOpenFolderButton" Tag="action.openFolder" Classes="localized subtle" Content="Open folder" Click="OnInspectorOpenFolderClick" />
-                                            <Button x:Name="InspectorOpenBrowserButton" Tag="action.openBrowser" Classes="localized subtle" Content="Open in browser" Click="OnInspectorOpenBrowserClick" />
+                                            <Button x:Name="InspectorOpenFolderButton" Tag="action.openFolder" Classes="localized subtle ghost" Content="Open folder" Click="OnInspectorOpenFolderClick" />
+                                            <Button x:Name="InspectorOpenBrowserButton" Tag="action.openBrowser" Classes="localized subtle ghost" Content="Open in browser" Click="OnInspectorOpenBrowserClick" />
                                         </WrapPanel>
                                     </StackPanel>
                                     <StackPanel x:Name="InspectorMediaSection" Classes="workspace-section-header">

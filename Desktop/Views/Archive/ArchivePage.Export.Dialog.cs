@@ -90,8 +90,6 @@ public partial class ArchivePage
         TextBox destination = ExportName(new TextBox { MaxLength = 32768, HorizontalAlignment = HorizontalAlignment.Stretch }, "ArchiveExportDestination");
         Avalonia.Automation.AutomationProperties.SetLabeledBy(destination, targetLabel); content.Children.Add(destination);
         Button browse = ExportName(new Button(), "ArchiveExportBrowse"); browse.Click += OnExportBrowse; content.Children.Add(browse);
-        TextBlock optionsLabel = ExportName(new TextBlock(), "ArchiveExportOptionsLabel");
-        optionsLabel.Classes.Add("section-title"); content.Children.Add(optionsLabel);
         content.Children.Add(ExportName(new CheckBox { IsChecked = true }, "ArchiveExportMedia"));
         Grid statusLine = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8 };
         statusLine.Children.Add(ExportName(new Ursa.Controls.LoadingIcon { Width = 16, Height = 16, IsVisible = false, Focusable = false }, "ArchiveExportLoading"));
@@ -180,7 +178,6 @@ public partial class ArchivePage
         RenderExportErrorText();
         UpdateExportSummary();
         Control<TextBlock>("ArchiveExportTargetLabel").Text = Texts.T("export.target");
-        Control<TextBlock>("ArchiveExportOptionsLabel").Text = Texts.T("export.options");
         Control<Expander>("ArchiveExportScopeDetails").Header = Texts.T("export.scopeDetails");
         Control<TextBlock>("ArchiveExportTitle").Text = Texts.T(_exportAllResults ? "export.resultsTitle" : "archive.export");
         Control<TextBlock>("ArchiveExportHint").Text = Texts.T(_exportAllResults ? "export.resultsHint" : IsCollectionExport ? "export.collectionHint" : "export.hint");

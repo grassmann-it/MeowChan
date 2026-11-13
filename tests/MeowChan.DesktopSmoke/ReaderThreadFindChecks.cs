@@ -108,9 +108,14 @@ internal static class ReaderThreadFindChecks
             CheckHit(1, 8);
             Click("ReaderFindPrevious");
             CheckHit(2, 26); // wrap, two occurrences in one post remain distinct
+            // SearchBox: the first Escape empties the typed query and keeps the bar; the second closes it.
             Dispatch(Key.Escape);
-            Require(!C<StackPanel>("ReaderFindBar").IsVisible, "Own-bar Escape did not close.");
-            Console.WriteLine($"SMOKE reader-find journey [{language}]: offline404/651, count/exact excerpt, offscreen ShowPost, own-bar managed Enter/ShiftEnter/Escape checked.");
+            Require(string.IsNullOrEmpty(query.Text) && C<StackPanel>("ReaderFindBar").IsVisible,
+                "First own-bar Escape did not clear the typed query while keeping the bar open.");
+            Dispatch(Key.Escape);
+            Require(!C<StackPanel>("ReaderFindBar").IsVisible, "Own-bar Escape in an empty query did not close.");
+            query.Text = Needle; // the closed bar's query seeds the next sections exactly as before the clear-first Escape
+            Console.WriteLine($"SMOKE reader-find journey [{language}]: offline404/651, count/exact excerpt, offscreen ShowPost, own-bar managed Enter/ShiftEnter/Escape (clear, then close) checked.");
 
             await InputBoundariesAsync();
 
@@ -409,6 +414,17 @@ internal static class ReaderThreadFindChecks
                     object? pane = reader.Content;
                     WindowState state = shell.WindowState;
                     int beforeRoute = routedAtShell;
+                    TextBox findQuery = C<TextBox>("ReaderFindQuery");
+                    if (sourceName == "ReaderFindQuery")
+                    {
+                        // SearchBox: with a typed query the first Escape only clears it; the bar, reader and shell stay.
+                        await SendAsync(findQuery, Key.Escape);
+                        Require(routedAtShell == beforeRoute + 1 && string.IsNullOrEmpty(findQuery.Text)
+                            && C<StackPanel>("ReaderFindBar").IsVisible && reader.IsVisible
+                            && ReferenceEquals(page.CurrentThread, snapshot) && shell.WindowState == state && unexpectedClicks == 0,
+                            "First Escape in a typed find query did not just clear it.");
+                        beforeRoute = routedAtShell;
+                    }
                     await SendAsync(C<Control>(sourceName), Key.Escape);
                     Require(routedAtShell == beforeRoute + 1
                         && !C<StackPanel>("ReaderFindBar").IsVisible && reader.IsVisible
@@ -428,7 +444,7 @@ internal static class ReaderThreadFindChecks
                     }
                     else Require(!reader.IsVisible, "Second Escape did not close the normal large reader.");
                     await UntilAsync(() => !reader.IsVisible && !page.IsBusy);
-                    Console.WriteLine($"SMOKE reader-find shell-escape [{language}]: source={sourceName}; fullscreen={fullscreen}; first closes only bar, second preserves shell dismissal. Managed events only.");
+                    Console.WriteLine($"SMOKE reader-find shell-escape [{language}]: source={sourceName}; fullscreen={fullscreen}; query: clear then close the bar; close button: closes only the bar; the next Escape preserves shell dismissal. Managed events only.");
                 }
             }
             finally

@@ -301,6 +301,9 @@ public static class CommandCatalog
         return gestures.Count == 0 ? null : string.Join(" / ", gestures.Select(g => g.Display(platform)));
     }
 
+    /// <summary>The shortcut works outside inputs and overlays, when the action is available: the common case that the shortcut help states once.</summary>
+    internal static bool HasGenericScope(string id) => id == "session.pause" || MainPageOrder.Contains(id);
+
     public static string? ScopeHint(string id, CommandScope context = CommandScope.None)
     {
         if (context == CommandScope.Reader && id == "gallery.open")
@@ -318,8 +321,7 @@ public static class CommandCatalog
             "input.focus-search" => Texts.T("command.scope.input.focus-search"),
             "input.focus-media-search" => Texts.T("command.scope.input.focus-media-search"),
             "export.open-all-results-html-dialog" => Texts.T("command.scope.export.open-all-results-html-dialog"),
-            "session.pause" => Texts.T("command.scope.navigation.generic"),
-            _ when MainPageOrder.Contains(id) => Texts.T("command.scope.navigation.generic"),
+            _ when HasGenericScope(id) => Texts.T("command.scope.navigation.generic"),
             _ => null
         };
     }

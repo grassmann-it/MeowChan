@@ -12,7 +12,7 @@ internal static class ReaderCardsCatalog
         ("reader.replyCount", "Replies: {0}", "Antworten: {0}"),
         ("reader.link.title", "Open this link in your browser?", "Diesen Link im Browser öffnen?"),
         ("reader.link.hint", "The address is shown as your browser reads it. Only open links you trust.", "Die Adresse steht so da, wie dein Browser sie liest. Öffne nur Links, denen du vertraust."),
-        ("reader.link.remember", "Don't ask again this session", "Für diese Sitzung nicht mehr fragen"),
+        ("reader.link.remember", "Don't ask again for any link this session", "Für diese Sitzung bei keinem Link mehr fragen"),
         ("reader.link.open", "Open", "Öffnen"),
         ("reader.link.openNamed", "Open {0}", "{0} öffnen"),
         ("reader.link.failed", "The link could not be opened. Check that a default web browser is set up.", "Der Link konnte nicht geöffnet werden. Prüfe, ob ein Standardbrowser eingerichtet ist."),

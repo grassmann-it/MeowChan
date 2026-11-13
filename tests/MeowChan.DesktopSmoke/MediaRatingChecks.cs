@@ -430,7 +430,11 @@ internal static partial class MediaRatingChecks
         GalleryEntry[] entries = Field<List<GalleryEntry>>(_window, "_galleryEntries").ToArray();
         Require(order.SequenceEqual(entries.Select(entry => entry.Asset.AssetId)), "Gallery did not freeze visible order");
         int index = Field<int>(_window, "_galleryIndex");
-        Click(Find<Button>(viewer, "GalleryRating"), "Edit frozen current gallery identity");
+        // Rating is a "⋯" menu row: open the menu, then invoke the real row.
+        viewer.SetOverflowOpen(true);
+        Button ratingRow = viewer.GetGalleryVisualDescendants().OfType<Button>().Single(c => c.Name == "GalleryRating");
+        await Program.WaitUntilAsync(() => viewer.IsOverflowOpen && ratingRow.IsEffectivelyVisible);
+        Click(ratingRow, "Edit frozen current gallery identity");
         await Program.WaitUntilAsync(() => _window.OwnedWindows.OfType<MediaRatingDialog>().Any());
         MediaRatingDialog dialog = _window.OwnedWindows.OfType<MediaRatingDialog>().Single();
         await Commit(dialog, Row(1), 1); await Close(dialog);

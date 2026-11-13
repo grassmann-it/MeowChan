@@ -241,6 +241,22 @@ public sealed class MotionPolicyTests
         Assert.Equal(expected, OsMotionSignal.CombineLinux(kde, portal));
 
     [Theory]
+    [InlineData(true, false, true, "kdeglobals (")]
+    [InlineData(false, true, true, "settings portal (")]
+    [InlineData(true, true, true, "kdeglobals and settings portal")]
+    [InlineData(false, false, false, "kdeglobals and settings portal")]
+    [InlineData(null, true, true, "settings portal")]
+    [InlineData(true, null, true, "kdeglobals")]
+    public void LinuxStatusNamesTheSourceThatDecidedNotJustThePortal(bool? kde, bool? portal, bool reduced, string sourceStart)
+    {
+        // B8-R11: KDE "Instant" plus a GTK portal that says "enabled" is reduced motion, decided by KDE.
+        OsMotionStatus status = OsMotionSignal.LinuxStatus(kde, portal);
+        Assert.Equal(reduced, status.Reduced);
+        Assert.StartsWith(sourceStart, status.Source, StringComparison.Ordinal);
+        Assert.Equal(OsMotionSignal.CombineLinux(kde, portal), status.Reduced);
+    }
+
+    [Theory]
     [InlineData("[KDE]\nAnimationDurationFactor=0\n", true)]
     [InlineData("[KDE]\nAnimationDurationFactor=0.5\n", false)]
     [InlineData("[General]\nAnimationDurationFactor=0\n[KDE]\nSingleClick=false\n", null)]

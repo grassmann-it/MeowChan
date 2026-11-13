@@ -28,6 +28,8 @@ public sealed class ProfileStoreLimitsTests
         Assert.Equal(10_000, limits.Bookmarks);
         Assert.Equal(500, limits.SavedSearches);
         Assert.Equal(500, limits.ReaderGroups);
+        Assert.Equal(200, limits.PostFilterRules);
+        Assert.Equal(10_000, limits.HiddenPosts);
     }
 
     [Fact]

@@ -7,7 +7,7 @@ namespace MeowChan.Persistence;
 /// <summary>What a refused write ran into; the desktop turns it into a localized sentence that names the setting.</summary>
 internal enum PrivateStoreLimitKind
 {
-    FavoriteEntries, FavoriteFile, Bookmarks, SavedSearches, ReaderGroups
+    FavoriteEntries, FavoriteFile, Bookmarks, SavedSearches, ReaderGroups, PostFilterRules, HiddenPosts
 }
 
 /// <summary>
@@ -76,11 +76,23 @@ internal sealed class ProfileStoreLimits
     internal const int MinimumReaderGroups = 50;
     internal const int ReaderGroupCeiling = 5_000;
 
+    /// <summary>Post filter rules. Default 200. The 512-codepoint pattern and the 32 MiB file stay fixed.</summary>
+    internal const int DefaultPostFilterRules = 200;
+    internal const int MinimumPostFilterRules = 20;
+    internal const int PostFilterRuleCeiling = 2_000;
+
+    /// <summary>Individually hidden posts. Default 10,000. The 32 MiB file stays fixed.</summary>
+    internal const int DefaultHiddenPosts = 10_000;
+    internal const int MinimumHiddenPosts = 1_000;
+    internal const int HiddenPostCeiling = 100_000;
+
     private int _favoriteEntries = DefaultFavoriteEntries;
     private long _favoriteFileBytes = DefaultFavoriteFileBytes;
     private int _bookmarks = DefaultBookmarks;
     private int _savedSearches = DefaultSavedSearches;
     private int _readerGroups = DefaultReaderGroups;
+    private int _postFilterRules = DefaultPostFilterRules;
+    private int _hiddenPosts = DefaultHiddenPosts;
 
     /// <summary>Most entries a write may leave in a favorite or rating list; a new entry at or above it is refused.</summary>
     internal int FavoriteEntries
@@ -115,6 +127,20 @@ internal sealed class ProfileStoreLimits
     {
         get => Volatile.Read(ref _readerGroups);
         set => Volatile.Write(ref _readerGroups, Checked(value, MinimumReaderGroups, ReaderGroupCeiling));
+    }
+
+    /// <summary>Most post filter rules a write may leave.</summary>
+    internal int PostFilterRules
+    {
+        get => Volatile.Read(ref _postFilterRules);
+        set => Volatile.Write(ref _postFilterRules, Checked(value, MinimumPostFilterRules, PostFilterRuleCeiling));
+    }
+
+    /// <summary>Most individually hidden posts a write may leave.</summary>
+    internal int HiddenPosts
+    {
+        get => Volatile.Read(ref _hiddenPosts);
+        set => Volatile.Write(ref _hiddenPosts, Checked(value, MinimumHiddenPosts, HiddenPostCeiling));
     }
 
     /// <summary>Current size of a file, or 0 when it is missing or unreadable; a write that does not grow a file is never refused.</summary>

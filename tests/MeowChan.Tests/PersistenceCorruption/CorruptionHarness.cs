@@ -515,6 +515,7 @@ public sealed class OversizedStoreFileTests(ITestOutputHelper log)
         ["ratings"] = () => new MediaRatingStoreAdapter(),
         ["post-bookmarks"] = () => new PostBookmarkStoreAdapter(),
         ["saved-searches"] = () => new SavedArchiveSearchStoreAdapter(),
+        ["post-filters"] = () => new PostFilterStoreAdapter(),
         ["reader-groups"] = () => new ReaderGroupStoreAdapter(),
         ["booru-catalog"] = () => new BooruCatalogAdapter(),
         ["private-tags-v1"] = () => new PrivateTagStoreAdapter(),

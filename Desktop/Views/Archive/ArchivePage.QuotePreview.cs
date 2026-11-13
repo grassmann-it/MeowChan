@@ -22,9 +22,7 @@ namespace MeowChan;
 // the keyboard focus rests on a reference (only when that post's container is realized and in view).
 public partial class ArchivePage
 {
-    internal const int QuotePreviewMaxLines = 8;
-    internal const int QuotePreviewMaxCharacters = 420;
-    internal static readonly TimeSpan QuotePreviewDelay = TimeSpan.FromMilliseconds(300);
+    // QuotePreviewMaxLines, QuotePreviewMaxCharacters and QuotePreviewDelay are clamped instance properties (ArchivePage.ReaderLimits.cs).
 
     private DispatcherTimer? _quotePreviewTimer;
     private ArchiveQuoteRow? _quotePreviewRow;
@@ -195,13 +193,15 @@ public partial class ArchivePage
         QuotePreviewBody.Text = body;
         QuotePreviewBody.IsVisible = body.Length > 0;
         Avalonia.Automation.AutomationProperties.SetName(QuotePreviewPopup, header + (body.Length > 0 ? ": " + body : string.Empty));
+        UpdateQuotePreviewFilterNote(post);
         QuotePreviewPopup.PlacementTarget = target;
         QuotePreviewPopup.PlacementRect = _quotePreviewArea.Width > 0 ? _quotePreviewArea : null;
         QuotePreviewPopup.IsOpen = true;
     }
 
-    /// <summary>The first lines of a post, at most <see cref="QuotePreviewMaxLines"/> lines and <see cref="QuotePreviewMaxCharacters"/> characters, with the ellipsis attached to the last word.</summary>
-    internal static string ShortenQuotePreview(string text) => ShortenText(text, QuotePreviewMaxLines, QuotePreviewMaxCharacters);
+    /// <summary>The first lines of a post, at most <paramref name="maxLines"/> lines (clamped; the default is the preview's default) and the characters that belong to them, with the ellipsis attached to the last word.</summary>
+    internal static string ShortenQuotePreview(string text, int maxLines = ReaderDisplayLimits.PreviewLinesDefault) =>
+        ShortenText(text, ReaderDisplayLimits.ClampPreviewLines(maxLines), ReaderDisplayLimits.PreviewCharacters(maxLines));
 
     internal static string ShortenText(string text, int maxLines, int maxCharacters)
     {

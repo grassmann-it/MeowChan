@@ -197,9 +197,29 @@ internal static class OsMotionSignal
     /// <summary>Linux: reduced when the KDE setting or the portal says so; unknown sources count as "allowed".</summary>
     internal static bool CombineLinux(bool? kdeReduced, bool? portalReduced) => kdeReduced == true || portalReduced == true;
 
+    /// <summary>
+    /// What the Linux status says when both sources are known: the combined answer, and which source decided it, so Diagnostics
+    /// and the startup summary never report a portal "enabled" for a motion that KDE's "Instant" switched off.
+    /// </summary>
+    internal static OsMotionStatus LinuxStatus(bool? kdeReduced, bool? portalReduced)
+    {
+        bool reduced = CombineLinux(kdeReduced, portalReduced);
+        string source = (kdeReduced, portalReduced) switch
+        {
+            (null, _) => "settings portal",
+            (_, null) => "kdeglobals",
+            var (kde, portal) when kde == portal => "kdeglobals and settings portal",
+            (true, _) => "kdeglobals (the settings portal allows animations, but either source reduces)",
+            _ => "settings portal (kdeglobals allows animations, but either source reduces)"
+        };
+        return OsMotionStatus.FromValue(source, reduced);
+    }
+
+    /// <summary>Takes the portal's answer, records the combined state once and returns the combined reduction.</summary>
     private static bool PortalSays(bool enabled)
     {
         _portalReduced = ReducedFromEnableAnimations(enabled);
+        Record(LinuxStatus(_kdeReduced, _portalReduced));
         return CombineLinux(_kdeReduced, _portalReduced);
     }
 
@@ -222,7 +242,6 @@ internal static class OsMotionSignal
                 static (message, _) => ReadBoolVariant(message), null).WaitAsync(timeout.Token);
             if (initial is { } enabled)
             {
-                Record(OsMotionStatus.FromValue("settings portal", ReducedFromEnableAnimations(enabled)));
                 Dispatcher.UIThread.Post(() => changed(PortalSays(enabled)));
             }
             else RecordUnavailableUnlessDetected("settings portal", "enable-animations is not a boolean");
@@ -236,7 +255,6 @@ internal static class OsMotionSignal
                 {
                     if (exception == null && value.Namespace == PortalNamespace && value.Key == PortalKey && value.Value is { } now)
                     {
-                        Record(OsMotionStatus.FromValue("settings portal", ReducedFromEnableAnimations(now)));
                         Dispatcher.UIThread.Post(() => changed(PortalSays(now)));
                     }
                 }, ObserverFlags.None, null, null, false).AsTask().WaitAsync(timeout.Token);

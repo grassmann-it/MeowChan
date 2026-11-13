@@ -281,6 +281,7 @@ public partial class ArchivePage
         Control<ComboBox>("ArchiveExportHistory").IsVisible = known;
         Control<TextBlock>("ArchiveExportHistoryLabel").IsVisible = known;
         Control<Button>("ArchiveExportPrevious").IsVisible = known;
+        Control<Button>("ArchiveExportAssociate").IsVisible = known;
         Control<RadioButton>("ArchiveExportNew").IsVisible = known;
         Control<RadioButton>("ArchiveExportUpdate").IsVisible = known;
         Control<ComboBox>("ArchiveExportHistory").IsEnabled = ready;

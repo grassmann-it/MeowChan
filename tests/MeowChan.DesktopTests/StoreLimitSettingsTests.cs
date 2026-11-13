@@ -156,6 +156,8 @@ public sealed class StoreLimitSettingsTests
                 (PrivateStoreLimitKind.Bookmarks, 10_000, "budgets.postBookmarks", "10"),
                 (PrivateStoreLimitKind.SavedSearches, 500, "budgets.savedSearches", "500"),
                 (PrivateStoreLimitKind.ReaderGroups, 500, "budgets.readerGroups", "500"),
+                (PrivateStoreLimitKind.PostFilterRules, 200, "budgets.postFilterRules", "200"),
+                (PrivateStoreLimitKind.HiddenPosts, 10_000, "budgets.hiddenPosts", "10"),
             };
             foreach (string language in Languages)
             {

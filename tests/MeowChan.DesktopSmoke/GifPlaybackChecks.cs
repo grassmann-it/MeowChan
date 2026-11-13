@@ -283,7 +283,8 @@ internal static partial class GalleryPlaybackFeatureChecks
             GalleryGifPlayback same = GifOwner(viewer);
             await native.ClickAsync(Find<Button>(viewer, "GalleryActual"));
             Require(viewer.CaptureState().ActualZoom, "GIF lost 1:1 zoom.");
-            await native.ClickAsync(Find<Button>(viewer, "GalleryPlus"));
+            // Zoom in is a "⋯" menu row (kept open on use); invoke the real row command without the popup.
+            Find<Button>(viewer, "GalleryPlus").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Require(viewer.CaptureState().ManualZoom, "GIF lost manual zoom.");
             await native.ClickAsync(Find<Button>(viewer, "GalleryFit"));
             Require(!viewer.CaptureState().ManualZoom && ReferenceEquals(same, GifOwner(viewer)), "Fit/zoom replaced or reset the GIF owner.");

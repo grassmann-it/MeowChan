@@ -533,11 +533,14 @@ public partial class MainWindow
             Grid feedbackLayout = ShellFeedbackLayout;
             ScrollViewer shellError = ShellActionErrorScroll;
             Button diagnostics = ShellFeedbackDiagnosticsButton;
-            Grid.SetColumnSpan(shellError, retainedErrorLayout ? 1 : 2);
-            Grid.SetColumn(diagnostics, retainedErrorLayout ? 1 : 0);
-            Grid.SetRow(diagnostics, retainedErrorLayout ? 0 : 1);
-            feedbackLayout.RowSpacing = retainedErrorLayout ? 0 : 4;
-            feedbackLayout.ColumnSpacing = retainedErrorLayout ? 8 : 0;
+            // The action sits beside the message at every height (UX round 3); only a very narrow window stacks it below.
+            bool feedbackBeside = ShellFeedbackPlacement.ActionBeside(Bounds.Width);
+            Grid.SetColumnSpan(shellError, feedbackBeside ? 1 : 2);
+            Grid.SetColumn(diagnostics, feedbackBeside ? 1 : 0);
+            Grid.SetRow(diagnostics, feedbackBeside ? 0 : 1);
+            diagnostics.VerticalAlignment = feedbackBeside ? Avalonia.Layout.VerticalAlignment.Top : Avalonia.Layout.VerticalAlignment.Stretch;
+            feedbackLayout.RowSpacing = feedbackBeside ? 0 : 4;
+            feedbackLayout.ColumnSpacing = feedbackBeside ? 8 : 0;
             shellError.MaxHeight = retainedErrorLayout ? 32 : 64;
             ShellActionErrorBanner.Padding = retainedErrorLayout ? new Thickness(8, 4) : new Thickness(12);
             WorkspaceHeading.IsVisible = !reducedChrome;

@@ -14,7 +14,7 @@ internal static class MediaProvenanceText
         _ => string.Empty
     };
 
-    internal static string LocalSize(long length) => Texts.T("media.provenance.localSize", length);
+    internal static string LocalSize(long length) => Texts.T("media.provenance.localSize", length, SizeText.Format(length));
 
     internal static string Context(MediaAttachmentBinding? binding)
     {
@@ -23,7 +23,7 @@ internal static class MediaProvenanceText
         string text = Summary(binding);
         void Add(string line) => text += (text.Length == 0 ? "" : Environment.NewLine) + line;
         if (provider.ExpectedSize is long size)
-            Add(Texts.T("media.provenance.sourceSize", size));
+            Add(Texts.T("media.provenance.sourceSize", size, SizeText.Format(size)));
         if (provider.ProviderSizeHint is MediaProviderSizeHint hint)
             Add(Texts.T("media.provenance.sizeHint", hint.RawValue, hint.UnitLabel, hint.Precision));
         return text;
