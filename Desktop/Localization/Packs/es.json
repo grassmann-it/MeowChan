@@ -2481,6 +2481,7 @@
     "booru.failure.too-many-posts": "El proveedor devolvió más publicaciones de las solicitadas.",
     "booru.failure.invalid-cursor": "El punto de continuación de esta búsqueda no es válido para esta fuente.",
     "booru.failure.unexpected-order": "El proveedor no enumeró las publicaciones de la más reciente a la más antigua.",
+    "booru.failure.stopped": "La fuente se desactivó mientras la búsqueda estaba en curso. Vuelve a activarla y repite la búsqueda.",
     "booru.failure.httpStatus": "El proveedor respondió con un estado inesperado (HTTP {0}).",
     "booru.failure.unknown": "La solicitud falló ({0}).",
     "booru.deferred.booru-cooldown": "El proveedor pidió a MeowChan que espere. La siguiente solicitud es posible a partir de {0:g}.",

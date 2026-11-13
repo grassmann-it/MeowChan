@@ -89,6 +89,8 @@ public sealed class BooruStatusCatalogTests : IDisposable
         };
         Regex failure = new(@"(?:Failure|Failed|FailureDetail)\(\s*""(?<code>[a-z0-9_-]+)""", RegexOptions.CultureInvariant);
         Regex deferred = new(@"""(?<code>booru-cooldown|provider-[a-z-]+)""", RegexOptions.CultureInvariant);
+        // Codes held in named constants (InvalidQueryCode, WorkerStoppedCode, ...) reach the window just the same.
+        Regex constant = new(@"const string \w+Code = ""(?<code>[a-z0-9_-]+)""", RegexOptions.CultureInvariant);
         HashSet<string> codes = new(StringComparer.Ordinal) { "invalid_query", "post_id" /* BooruSearchService public constants */ };
         HashSet<string> reasons = new(StringComparer.Ordinal);
         foreach (string file in files)
@@ -96,10 +98,12 @@ public sealed class BooruStatusCatalogTests : IDisposable
             string text = File.ReadAllText(Path.Combine(root, file));
             foreach (Match match in failure.Matches(text)) codes.Add(match.Groups["code"].Value);
             foreach (Match match in deferred.Matches(text)) reasons.Add(match.Groups["code"].Value);
+            foreach (Match match in constant.Matches(text)) codes.Add(match.Groups["code"].Value);
         }
         Assert.NotEmpty(codes);
         Assert.Contains("booru-budget", codes);
         Assert.Contains("not-found", codes);
+        Assert.Contains("stopped", codes); // MS-R1: the search facade's "worker switched off mid-call" outcome
         Assert.Contains("booru-cooldown", reasons);
         Assert.Contains("provider-throttled", reasons);
         foreach (string language in Languages)

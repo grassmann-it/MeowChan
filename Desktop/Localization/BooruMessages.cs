@@ -43,7 +43,9 @@ internal static class BooruMessages
         ["too-many-posts"] = "booru.failure.too-many-posts",
         ["invalid-cursor"] = "booru.failure.invalid-cursor",
         ["invalid_cursor"] = "booru.failure.invalid-cursor",
-        ["unexpected-order"] = "booru.failure.unexpected-order"
+        ["unexpected-order"] = "booru.failure.unexpected-order",
+        // The worker was switched off or stopped mid-call (BooruSearchService.WorkerStoppedCode).
+        ["stopped"] = "booru.failure.stopped"
     };
 
     private static readonly IReadOnlyDictionary<string, string> DeferredKeys = new Dictionary<string, string>(StringComparer.Ordinal)

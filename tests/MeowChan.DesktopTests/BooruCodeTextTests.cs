@@ -81,6 +81,8 @@ public sealed class BooruCodeTextTests : IDisposable
         // Host failure codes keep their B8 texts; an unknown code stays short instead of nesting a sentence.
         Assert.Equal(BooruMessages.Failure("http-network"), BooruCodeTexts.Localized("http-network"));
         Assert.Equal("some_new_code", BooruCodeTexts.Localized("some_new_code"));
+        // MS-R1: a plugin switched off during a search reaches the search window as "stopped", which needs a sentence.
+        Assert.Equal(BuiltInCatalog.English["booru.failure.stopped"], BooruCodeTexts.Localized("stopped"));
     }
 
     [Fact]

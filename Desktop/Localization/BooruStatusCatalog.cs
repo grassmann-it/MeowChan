@@ -36,6 +36,7 @@ internal static class BooruStatusCatalog
         ("booru.failure.too-many-posts", "The provider returned more posts than requested.", "Der Anbieter hat mehr Posts geliefert als angefragt."),
         ("booru.failure.invalid-cursor", "The continuation point of this search is not valid for this source.", "Der Fortsetzungspunkt dieser Suche ist für diese Quelle nicht gültig."),
         ("booru.failure.unexpected-order", "The provider did not list the posts newest first.", "Der Anbieter hat die Posts nicht mit den neuesten zuerst aufgelistet."),
+        ("booru.failure.stopped", "The source was switched off while the search was running. Turn it on again and repeat the search.", "Die Quelle wurde während der Suche ausgeschaltet. Schalte sie wieder ein und starte die Suche erneut."),
         ("booru.failure.httpStatus", "The provider answered with an unexpected status (HTTP {0}).", "Der Anbieter hat mit einem unerwarteten Status geantwortet (HTTP {0})."),
         ("booru.failure.unknown", "The request failed ({0}).", "Die Anfrage ist fehlgeschlagen ({0})."),
         ("booru.deferred.booru-cooldown", "The provider asked MeowChan to wait. The next request is possible at {0:g}.", "Der Anbieter hat MeowChan um Wartezeit gebeten. Die nächste Anfrage ist ab {0:g} möglich."),

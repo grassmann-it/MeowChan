@@ -2481,6 +2481,7 @@
     "booru.failure.too-many-posts": "Le fournisseur a renvoyé plus de publications que demandé.",
     "booru.failure.invalid-cursor": "Le point de reprise de cette recherche n’est pas valide pour cette source.",
     "booru.failure.unexpected-order": "Le fournisseur n’a pas listé les publications de la plus récente à la plus ancienne.",
+    "booru.failure.stopped": "La source a été désactivée pendant la recherche. Réactivez-la et relancez la recherche.",
     "booru.failure.httpStatus": "Le fournisseur a répondu avec un statut inattendu (HTTP {0}).",
     "booru.failure.unknown": "La requête a échoué ({0}).",
     "booru.deferred.booru-cooldown": "Le fournisseur a demandé à MeowChan d'attendre. La prochaine requête est possible à partir de {0:g}.",
