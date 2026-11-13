@@ -196,6 +196,9 @@ internal static class ReaderRepliesChecks
         ListBoxItem opItem = Container(opening), replyItem = Container(reply);
         Require(!opItem.IsSelected && !replyItem.IsSelected && !opItem.IsKeyboardFocusWithin && !replyItem.IsKeyboardFocusWithin,
             "Inactive-card fixture retained selection or focus: selected=" + (list.SelectedItem as ArchivePostRow)?.Id);
+        // Quote navigation briefly paints a jump flash above the list. Let that transient finish
+        // naturally before capturing the actual inactive surfaces; do not hide or restyle it.
+        await Program.WaitUntilAsync(() => !page.FindControl<Border>("ReaderJumpFlash")!.IsVisible);
         Program.CaptureWindow(window, "smoke-reader-cards-inactive-" + window.ActualThemeVariant.Key + ".png");
         Require(opItem.Classes.Contains("reader-op") && Surface(opItem) == Colors.Transparent
             && (Presenter(opItem).BorderBrush as ISolidColorBrush)?.Color == Colors.Transparent
@@ -288,10 +291,11 @@ internal static class ReaderRepliesChecks
                 && (Presenter(selectedItem).BorderBrush as ISolidColorBrush)?.Color == Token("Workspace.Accent")
                 && Presenter(selectedItem).BorderThickness == new Thickness(3, 2, 2, 2),
                 "The selected post lost its separate keyboard-focus edge: " + CardDetails(selectedItem));
+            await Program.WaitUntilAsync(() => !page.FindControl<Border>("ReaderJumpFlash")!.IsVisible);
             Program.CaptureWindow(window, "smoke-reader-cards-focused-" + postId + "-" + window.ActualThemeVariant.Key + ".png");
         }
         Program.CaptureWindow(window, "smoke-reader-cards-" + window.ActualThemeVariant.Key + ".png");
-        Console.WriteLine("SMOKE reader cards: OP on page, reply card tokens, header count and number copy, inline >>No. hit-test/navigation, keyboard quote row, Noto Sans body passed.");
+        Console.WriteLine("SMOKE reader cards (" + window.ActualThemeVariant.Key + "): OP on page, reply card tokens, header count and number copy, inline >>No. hit-test/navigation, keyboard quote row, Noto Sans body passed.");
     }
 
     private static void Require(bool condition, string message)
