@@ -126,7 +126,6 @@ internal static class PostFilterProfileTransfer
             return new(result, PostFilterTransferError.None);
         }
         catch (OperationCanceledException) { throw; }
-        catch (UnsupportedTransferVersionException) { return new(null, PostFilterTransferError.UnsupportedVersion); }
         catch (Exception error) when (error is JsonException or DecoderFallbackException or InvalidDataException
             or ArgumentException or InvalidOperationException or FormatException or OverflowException
             or KeyNotFoundException or NotSupportedException)
@@ -458,5 +457,4 @@ internal static class PostFilterProfileTransfer
     }
     private static string Field(PostFilterField field) => field switch { PostFilterField.Subject => "subject", PostFilterField.Filename => "filename", PostFilterField.Md5 => "md5", _ => "text" };
     private static string Action(PostFilterAction action) => action switch { PostFilterAction.Stub => "stub", PostFilterAction.Highlight => "highlight", _ => "hide" };
-    private sealed class UnsupportedTransferVersionException : Exception;
 }
