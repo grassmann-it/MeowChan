@@ -111,7 +111,7 @@ public sealed class EffectiveShortcutBindings
     {
         ["video.volume-up"] = 1, ["video.volume-down"] = 1, ["favorites.add"] = 1, ["favorites.remove"] = 1,
         ["navigation.media"] = 2, ["navigation.rules"] = 2, ["navigation.sources"] = 2, ["navigation.diagnostics"] = 2,
-        ["navigation.plugins"] = 2, ["input.focus-media-search"] = 2,
+        ["navigation.plugins"] = 2, ["navigation.statistics"] = 2, ["input.focus-media-search"] = 2,
         ["thread.favorite-toggle"] = 2, ["thread.tags"] = 2, ["media.tags.edit"] = 2,
         ["archive.filters-toggle"] = 2, ["board.filters"] = 2, ["media.select-all"] = 2, ["menu.context-open"] = 2,
         // macOS standards of revision 2 (Defaults(command, MacOS)).

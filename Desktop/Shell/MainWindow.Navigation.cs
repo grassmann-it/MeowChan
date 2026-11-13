@@ -15,14 +15,14 @@ namespace MeowChan;
 
 public partial class MainWindow
 {
-    internal enum WorkspacePage { Downloads, Archive, Rules, Sources, Diagnostics, Settings, Plugins, Media }
+    internal enum WorkspacePage { Downloads, Archive, Rules, Sources, Diagnostics, Settings, Plugins, Media, Statistics }
     /// <summary>The workspace page behind a main-page command of <see cref="MainPageOrder"/>.</summary>
     internal static WorkspacePage PageFor(string commandId) => commandId switch
     {
         "navigation.downloads" => WorkspacePage.Downloads, "navigation.archive" => WorkspacePage.Archive,
         "navigation.media" => WorkspacePage.Media, "navigation.rules" => WorkspacePage.Rules,
         "navigation.sources" => WorkspacePage.Sources, "navigation.diagnostics" => WorkspacePage.Diagnostics,
-        "navigation.plugins" => WorkspacePage.Plugins,
+        "navigation.plugins" => WorkspacePage.Plugins, "navigation.statistics" => WorkspacePage.Statistics,
         _ => throw new ArgumentOutOfRangeException(nameof(commandId), commandId, "Not a main page.")
     };
     private SettingsEditor? _settingsEditor;
@@ -31,6 +31,7 @@ public partial class MainWindow
     private ArchivePage? _archivePage;
     private SourcesPage? _sourcesPage;
     private PluginsPage? _pluginsPage;
+    private StatisticsPage? _statisticsPage;
     private WorkspacePage _selectedPage;
     private int _mediaPageNavigationRevision;
     // Built after the first frame; asking for the page is reason enough to build it now.
@@ -231,6 +232,7 @@ public partial class MainWindow
                 return true;
             case 4:
                 InitializePluginPage();
+                InitializeStatisticsPage();
                 // The registrations the constructor used to install, now that their owners exist.
                 RegisterSectionCommands();
                 RegisterRuleTemplateCommands();
@@ -307,6 +309,7 @@ public partial class MainWindow
         }
         ++_readingResumeNavigationRevision;
         if (page != WorkspacePage.Plugins) _pluginsPage?.Deactivate();
+        if (page != WorkspacePage.Statistics) _statisticsPage?.Deactivate();
         if (_selectedPage == WorkspacePage.Rules && page != WorkspacePage.Rules) _rulesPage?.DeactivateRuleDecisions();
         _selectedPage = page;
         WorkspaceBody.IsVisible = page == WorkspacePage.Downloads;
@@ -317,6 +320,7 @@ public partial class MainWindow
         MediaPageHost.IsVisible = page == WorkspacePage.Media;
         SourcesPageHost.IsVisible = page == WorkspacePage.Sources;
         PluginsPageHost.IsVisible = page == WorkspacePage.Plugins;
+        StatisticsPageHost.IsVisible = page == WorkspacePage.Statistics;
         DownloadsNavigationButton.Classes.Set("selected", page == WorkspacePage.Downloads);
         SettingsNavigationButton.Classes.Set("selected", page == WorkspacePage.Settings);
         DiagnosticsNavigationButton.Classes.Set("selected", page == WorkspacePage.Diagnostics);
@@ -325,11 +329,14 @@ public partial class MainWindow
         MediaNavigationButton.Classes.Set("selected", page == WorkspacePage.Media);
         SourcesNavigationButton.Classes.Set("selected", page == WorkspacePage.Sources);
         PluginsNavigationButton.Classes.Set("selected", page == WorkspacePage.Plugins);
+        StatisticsNavigationButton.Classes.Set("selected", page == WorkspacePage.Statistics);
         RefreshStartupPreview(); // The historical preview belongs to the Downloads page only.
         UpdatePageNavigation();
         RefreshReadingResumePresentation();
         if (page == WorkspacePage.Sources) RefreshSourcesPage();
         if (page == WorkspacePage.Plugins) _ = _pluginsPage?.ActivateAsync();
+        UpdateSpeedSamplingState(); // the page claims samples while it is shown, and gives them up when left
+        if (page == WorkspacePage.Statistics) ShowStatisticsPage();
         if (page == WorkspacePage.Settings)
         {
             _settingsEditor?.RevealCurrentError();
@@ -559,6 +566,7 @@ public partial class MainWindow
         DisposeUpdates();
         DisposeMacMenu();
         _pluginsPage?.EndLifetime();
+        _statisticsPage?.EndLifetime();
         _diagnosticsPage?.EndLifetime();
         if (_sourcesPage != null) { _sourcesPage.BusyChanged -= OnSettingsBusyChanged; _sourcesPage.EndLifetime(); }
         _archivePage?.EndLifetime();

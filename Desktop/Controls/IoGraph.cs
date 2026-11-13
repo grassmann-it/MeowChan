@@ -71,13 +71,14 @@ public sealed class IoGraph : Control
     public static readonly StyledProperty<IBrush?> FillProperty = AvaloniaProperty.Register<IoGraph, IBrush?>(nameof(Fill));
     public static readonly StyledProperty<IBrush?> DiskStrokeProperty = AvaloniaProperty.Register<IoGraph, IBrush?>(nameof(DiskStroke));
     public static readonly StyledProperty<IBrush?> GuideStrokeProperty = AvaloniaProperty.Register<IoGraph, IBrush?>(nameof(GuideStroke));
+    public static readonly StyledProperty<bool> ShowDiskProperty = AvaloniaProperty.Register<IoGraph, bool>(nameof(ShowDisk), true);
     public static readonly StyledProperty<double> LineThicknessProperty = AvaloniaProperty.Register<IoGraph, double>(nameof(LineThickness), 1.3);
 
     private float[] _network = [];
     private float[] _disk = [];
     private int _capacity = 1;
 
-    static IoGraph() => AffectsRender<IoGraph>(StrokeProperty, FillProperty, DiskStrokeProperty, GuideStrokeProperty, LineThicknessProperty);
+    static IoGraph() => AffectsRender<IoGraph>(StrokeProperty, FillProperty, DiskStrokeProperty, GuideStrokeProperty, LineThicknessProperty, ShowDiskProperty);
 
     /// <summary>Network line and baseline.</summary>
     public IBrush? Stroke { get => GetValue(StrokeProperty); set => SetValue(StrokeProperty, value); }
@@ -87,6 +88,8 @@ public sealed class IoGraph : Control
     public IBrush? DiskStroke { get => GetValue(DiskStrokeProperty); set => SetValue(DiskStrokeProperty, value); }
     /// <summary>Optional horizontal guides at half and full scale (the statistics page); none when null.</summary>
     public IBrush? GuideStroke { get => GetValue(GuideStrokeProperty); set => SetValue(GuideStrokeProperty, value); }
+    /// <summary>Whether the dashed disk row is drawn. When it is not, the scale follows the network row alone.</summary>
+    public bool ShowDisk { get => GetValue(ShowDiskProperty); set => SetValue(ShowDiskProperty, value); }
     public double LineThickness { get => GetValue(LineThicknessProperty); set => SetValue(LineThicknessProperty, value); }
 
     /// <summary>The top of the scale used by the last drawing input, in bytes per second.</summary>
@@ -98,8 +101,16 @@ public sealed class IoGraph : Control
         _network = series.NetDown;
         _disk = IoGraphGeometry.DiskTotals(series);
         _capacity = Math.Max(series.Capacity, series.Count);
-        Peak = IoGraphGeometry.Peak(_network, _disk);
+        UpdatePeak();
         InvalidateVisual();
+    }
+
+    private void UpdatePeak() => Peak = IoGraphGeometry.Peak(_network, ShowDisk ? _disk : []);
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == ShowDiskProperty) UpdatePeak();
     }
 
     public override void Render(DrawingContext context)
@@ -119,7 +130,7 @@ public sealed class IoGraph : Control
         context.DrawLine(new Pen(Stroke, 0.4), new Point(1, bottom), new Point(width + 1, bottom));
         if (_network.Length < 2) return;
         Point[] network = IoGraphGeometry.Points(_network, _capacity, width, height, Peak, 1, bottom);
-        Point[] disk = IoGraphGeometry.Points(_disk, _capacity, width, height, Peak, 1, bottom);
+        Point[] disk = ShowDisk ? IoGraphGeometry.Points(_disk, _capacity, width, height, Peak, 1, bottom) : [];
         if (network.Length < 2) return;
         StreamGeometry area = new();
         using (StreamGeometryContext path = area.Open())
@@ -132,7 +143,7 @@ public sealed class IoGraph : Control
         context.DrawGeometry(Fill, null, area);
         context.DrawGeometry(null, new Pen(Stroke, thickness), Line(network));
         // The dashed row goes last so it stays readable over the area.
-        context.DrawGeometry(null, new Pen(DiskStroke, thickness, new DashStyle([3, 2], 0)), Line(disk));
+        if (disk.Length >= 2) context.DrawGeometry(null, new Pen(DiskStroke, thickness, new DashStyle([3, 2], 0)), Line(disk));
     }
 
     private static StreamGeometry Line(Point[] points)

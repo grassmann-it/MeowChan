@@ -503,6 +503,19 @@
                     <CheckBox x:Name="RestoreSessionInput" Content="{Binding RestoreSessionLabel}" IsChecked="{Binding SaveUrlsOnExit, Mode=TwoWay}" />
                     <CheckBox x:Name="CloseToTrayInput" Content="{Binding CloseToTrayLabel}" IsChecked="{Binding CloseToTray, Mode=TwoWay}" />
                     <CheckBox x:Name="MinimizeToTrayInput" Content="{Binding MinimizeToTrayLabel}" IsChecked="{Binding MinimizeToTray, Mode=TwoWay}" />
+                    <StackPanel x:Name="StatsHeaderGraphBlock" Spacing="6" Margin="0,14,0,0">
+                        <TextBlock x:Name="StatsHeaderGraphHeading" Text="{Binding StatsHeaderGraphBlockTitle}" Classes="section-title" />
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                            <StackPanel VerticalAlignment="Center" Spacing="3">
+                                <TextBlock x:Name="StatsHeaderGraphFieldLabel" Text="{Binding StatsHeaderGraphLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding StatsHeaderGraphHint}" Classes="muted workspace-help" />
+                            </StackPanel>
+                            <ComboBox x:Name="StatsHeaderGraphInput" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=StatsHeaderGraphFieldLabel}" AutomationProperties.Name="{Binding StatsHeaderGraphLabel}" AutomationProperties.HelpText="{Binding StatsHeaderGraphHint}" Grid.Column="1" HorizontalAlignment="Stretch"
+                                      ItemsSource="{Binding StatsHeaderGraphChoices}" SelectedItem="{Binding SelectedStatsHeaderGraph, Mode=TwoWay}">
+                                <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </Grid>
+                    </StackPanel>
                     <TextBlock Text="{Binding SupportedSources}" Classes="muted workspace-help" />
                     <Button x:Name="AboutSettingsButton" Click="OnAboutButtonClick" HorizontalAlignment="Left" />
                 </StackPanel>

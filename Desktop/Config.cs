@@ -254,6 +254,14 @@ namespace MeowChan
         /// <summary>Most sources (rows and keys per day); further sources are summed into one "other" row.</summary>
         public int StatsMaxSources { get; set; } = StatsMaxSourcesDefault;
         internal const int StatsMaxSourcesDefault = 64, StatsMaxSourcesMinimum = 8, StatsMaxSourcesMaximum = 256;
+        /// <summary>What the graph in the header shows: "Auto" (network and disk in the Advanced view, network only otherwise), "Network" or "NetworkAndDisk". The statistics page always shows both.</summary>
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string StatsHeaderGraph
+        {
+            get => _statsHeaderGraph;
+            set => _statsHeaderGraph = Desktop.Stats.IoStatsDisplay.NormalizeHeaderGraph(value);
+        }
+        private string _statsHeaderGraph = Desktop.Stats.IoStatsDisplay.HeaderGraphAuto;
 
         // Manual import limits (contract manual-import-v1 §4). Every limit is a setting; the stores enforce technical ceilings.
         /// <summary>Most files (new and already present) one import batch may hold.</summary>
@@ -839,6 +847,7 @@ namespace MeowChan
                 StatsRetentionDays = StatsRetentionDays,
                 StatsPersistIntervalMinutes = StatsPersistIntervalMinutes,
                 StatsMaxSources = StatsMaxSources,
+                StatsHeaderGraph = StatsHeaderGraph,
                 ImportMaxFilesPerBatch = ImportMaxFilesPerBatch,
                 ImportMaxBatchGiB = ImportMaxBatchGiB,
                 ImportMaxFileMiB = ImportMaxFileMiB,
@@ -968,6 +977,7 @@ namespace MeowChan
             StatsRetentionDays = source.StatsRetentionDays;
             StatsPersistIntervalMinutes = source.StatsPersistIntervalMinutes;
             StatsMaxSources = source.StatsMaxSources;
+            StatsHeaderGraph = source.StatsHeaderGraph;
             ImportMaxFilesPerBatch = source.ImportMaxFilesPerBatch;
             ImportMaxBatchGiB = source.ImportMaxBatchGiB;
             ImportMaxFileMiB = source.ImportMaxFileMiB;
@@ -1061,6 +1071,7 @@ namespace MeowChan
             StatsRetentionDays = source.StatsRetentionDays;
             StatsPersistIntervalMinutes = source.StatsPersistIntervalMinutes;
             StatsMaxSources = source.StatsMaxSources;
+            StatsHeaderGraph = source.StatsHeaderGraph;
             ImportMaxFilesPerBatch = source.ImportMaxFilesPerBatch;
             ImportMaxBatchGiB = source.ImportMaxBatchGiB;
             ImportMaxFileMiB = source.ImportMaxFileMiB;

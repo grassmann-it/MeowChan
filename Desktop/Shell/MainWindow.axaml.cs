@@ -262,6 +262,7 @@ public partial class MainWindow : Window
         RulesNavigationButton.IsEnabled = navigationReady;
         SourcesNavigationButton.IsEnabled = navigationReady;
         PluginsNavigationButton.IsEnabled = navigationReady;
+        StatisticsNavigationButton.IsEnabled = navigationReady;
         RefreshReadingResumeState();
         SourcesMenuItem.IsEnabled = navigationReady;
         ArchiveMenuItem.IsEnabled = earlyPages;
@@ -1243,6 +1244,7 @@ public partial class MainWindow : Window
         MeowChan.Desktop.Motion.MotionPolicy.SetSetting(_config.Animations);
         Texts.SetLanguage(_config.Language);
         ApplyWorkspacePreferences();
+        ApplyHeaderGraphMode();
         ApplyGalleryPreferences();
     }
 

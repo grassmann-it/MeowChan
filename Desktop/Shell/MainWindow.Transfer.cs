@@ -20,6 +20,7 @@ public partial class MainWindow
     private IoStatsSubscription? _ioClaim;
     private CoalescedUiUpdate? _ioUpdate;
     private string? _graphDescription;
+    private bool _headerShowsDisk = true;
 
     /// <summary>The claim this window currently holds on the statistics hub (None while nothing needs samples).</summary>
     internal IoStatsVisibility IoStatsClaim => _ioClaim?.Visibility ?? IoStatsVisibility.None;
@@ -31,8 +32,25 @@ public partial class MainWindow
         _ioClaim = _ioStats.Subscribe(IoStatsVisibility.None);
         _ioStats.Sampled += OnIoStatsSampled;
         PropertyChanged += OnSpeedWindowPropertyChanged;
+        ApplyHeaderGraphMode();
         ApplyIoSnapshot(force: true);
         UpdateSpeedSamplingState();
+    }
+
+    /// <summary>
+    /// Sets what the header graph draws from the setting and the work view: "Auto" draws network and disk in the Advanced
+    /// view and the network only in Simple and Barebones, so a view switch updates it at once. The name follows what is drawn.
+    /// </summary>
+    private void ApplyHeaderGraphMode()
+    {
+        bool disk = IoStatsDisplay.HeaderShowsDisk(_config.StatsHeaderGraph, _config.WorkspaceMode);
+        if (disk == _headerShowsDisk && TransferDiskLabel.IsVisible == disk) return;
+        _headerShowsDisk = disk;
+        TransferSpeedGraph.ShowDisk = disk;
+        TransferDiskIcon.IsVisible = disk;
+        TransferDiskLabel.IsVisible = disk;
+        _graphDescription = null; // the sentence names the disk only while it is drawn
+        if (_ioStats != null) ApplyIoSnapshot(force: true);
     }
 
     private void StopSpeedSampling()
@@ -57,7 +75,7 @@ public partial class MainWindow
     private void UpdateSpeedSamplingState()
     {
         if (_ioClaim == null || _ioStats == null) return;
-        IoStatsVisibility want = IoStatsDisplay.Claim(SpeedSamplingWanted, TransferSpeed.IsVisible, pageVisible: false);
+        IoStatsVisibility want = IoStatsDisplay.Claim(SpeedSamplingWanted, TransferSpeed.IsVisible, _selectedPage == WorkspacePage.Statistics);
         if (_ioClaim.Visibility == want) return;
         _ioClaim.Visibility = want;
         // A fresh window starts from the hub's cleared history: show it now instead of waiting a whole interval.
@@ -76,9 +94,10 @@ public partial class MainWindow
         IoStatsSnapshot snapshot = hub.Snapshot();
         if (TransferSpeedGraph.IsVisible) TransferSpeedGraph.SetSeries(snapshot.Series);
         TransferSpeedLabel.Text = "↓ " + ByteUnits.Rate(snapshot.Rate.NetDown);
-        TransferDiskLabel.Text = ByteUnits.Rate(IoStatsDisplay.DiskRate(snapshot.Rate));
+        if (_headerShowsDisk) TransferDiskLabel.Text = ByteUnits.Rate(IoStatsDisplay.DiskRate(snapshot.Rate));
+        if (_selectedPage == WorkspacePage.Statistics) _statisticsPage?.Apply(snapshot);
         // Set the name and tip only when the sentence changes: no live region, so nothing is read out every second.
-        string description = IoStatsDisplay.GraphDescription(snapshot.Rate, snapshot.Activity);
+        string description = IoStatsDisplay.GraphDescription(snapshot.Rate, snapshot.Activity, _headerShowsDisk);
         if (!string.Equals(description, _graphDescription, StringComparison.Ordinal))
         {
             _graphDescription = description;

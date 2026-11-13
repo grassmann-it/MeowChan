@@ -34,7 +34,7 @@
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                         <!-- Network and disk on one surface. A button, so keyboard and screen reader reach it: the name is the
                              current values and a click opens the statistics page. The inner parts are not exposed separately. -->
-                        <Button x:Name="TransferSpeed" Classes="subtle header-graph" VerticalAlignment="Center">
+                        <Button x:Name="TransferSpeed" Classes="subtle header-graph" VerticalAlignment="Center" Click="OnTransferSpeedClick">
                             <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="8" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
                                 <controls:IoGraph x:Name="TransferSpeedGraph" Width="96" Height="28" IsHitTestVisible="False"
                                                   Stroke="{DynamicResource Workspace.Accent}" Fill="{DynamicResource Workspace.AccentSurface}"
@@ -71,6 +71,7 @@
                             <MenuItem x:Name="SourcesMenuItem" Tag="nav.sources" Classes="localized" Header="Sources" Click="OnSourcesNavigationClick" />
                             <MenuItem x:Name="DiagnosticsMenuItem" Tag="nav.diagnostics" Classes="localized" Header="Diagnostics" Click="OnDiagnosticsNavigationClick" />
                             <MenuItem x:Name="PluginsMenuItem" Tag="nav.plugins" Classes="localized" Header="Plugins" Click="OnPluginsNavigationClick" />
+                            <MenuItem x:Name="StatisticsMenuItem" Tag="nav.statistics" Classes="localized" Header="Statistics" Click="OnStatisticsNavigationClick" />
                             <MenuItem x:Name="PauseMenuItem" Header="Pause downloads" Click="OnPauseClick" />
                             <MenuItem x:Name="SettingsMenuItem" Tag="nav.settings" Classes="localized" Header="Settings" />
                             <MenuItem x:Name="AboutMenuItem" Tag="nav.about" Classes="localized" Header="About" />
@@ -422,6 +423,7 @@
         <ContentControl Grid.Row="2" x:Name="MediaPageHost" IsVisible="False" />
         <ContentControl Grid.Row="2" x:Name="SourcesPageHost" IsVisible="False" />
         <ContentControl Grid.Row="2" x:Name="PluginsPageHost" IsVisible="False" />
+        <ContentControl Grid.Row="2" x:Name="StatisticsPageHost" IsVisible="False" />
         </Grid>
         <Border Grid.Row="2" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="20,0">
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12" VerticalAlignment="Center">
@@ -452,6 +454,7 @@
                     </StackPanel>
                 </Button>
                 <Button x:Name="PluginsNavigationButton" Classes="nav" Content="Plugins" Click="OnPluginsNavigationClick" />
+                <Button x:Name="StatisticsNavigationButton" Classes="nav localized" Tag="nav.statistics" Content="Statistics" Click="OnStatisticsNavigationClick" />
                 <Button x:Name="ToolsNavigationButton" Classes="nav localized" Tag="nav.tools" Content="Tools">
                     <Button.Flyout>
                         <MenuFlyout>
@@ -461,6 +464,7 @@
                             <MenuItem Tag="nav.sources" Classes="localized" Header="Sources" Click="OnSourcesNavigationClick" />
                             <MenuItem Tag="nav.diagnostics" Classes="localized" Header="Diagnostics" Click="OnDiagnosticsNavigationClick" />
                             <MenuItem Tag="nav.plugins" Classes="localized" Header="Plugins" Click="OnPluginsNavigationClick" />
+                            <MenuItem Tag="nav.statistics" Classes="localized" Header="Statistics" Click="OnStatisticsNavigationClick" />
                         </MenuFlyout>
                     </Button.Flyout>
                 </Button>

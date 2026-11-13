@@ -33,6 +33,37 @@ internal static class IoStatsDisplay
     internal static string GraphDescription(IoRates rate, IoActivity activity, CultureInfo? culture = null) =>
         Texts.T("stats.graph.name", ByteUnits.Rate(rate.NetDown, culture), ByteUnits.Rate(DiskRate(rate), culture), activity.Active);
 
+    /// <summary>The values of <c>Config.StatsHeaderGraph</c>.</summary>
+    internal const string HeaderGraphAuto = "Auto", HeaderGraphNetwork = "Network", HeaderGraphNetworkAndDisk = "NetworkAndDisk";
+
+    /// <summary>Maps any text to one of the three values; anything unknown is <see cref="HeaderGraphAuto"/>.</summary>
+    internal static string NormalizeHeaderGraph(string? value)
+    {
+        string? text = value?.Trim();
+        return string.Equals(text, HeaderGraphNetwork, StringComparison.OrdinalIgnoreCase) ? HeaderGraphNetwork
+            : string.Equals(text, HeaderGraphNetworkAndDisk, StringComparison.OrdinalIgnoreCase) ? HeaderGraphNetworkAndDisk
+            : HeaderGraphAuto;
+    }
+
+    /// <summary>
+    /// Whether the header graph draws the disk row: always for "NetworkAndDisk", never for "Network", and for "Auto" only in
+    /// the Advanced work view (Simple and Barebones show the network only). The statistics page always shows both.
+    /// </summary>
+    internal static bool HeaderShowsDisk(string? setting, string? workspaceMode) => NormalizeHeaderGraph(setting) switch
+    {
+        HeaderGraphNetworkAndDisk => true,
+        HeaderGraphNetwork => false,
+        _ => string.Equals(workspaceMode?.Trim(), "Advanced", StringComparison.OrdinalIgnoreCase)
+    };
+
+    /// <summary>The graph sentence for a header that draws the network row only (no disk value is named).</summary>
+    internal static string GraphDescriptionNetworkOnly(IoRates rate, IoActivity activity, CultureInfo? culture = null) =>
+        Texts.T("stats.graph.nameNet", ByteUnits.Rate(rate.NetDown, culture), activity.Active);
+
+    /// <summary>The graph sentence of the header for what it draws.</summary>
+    internal static string GraphDescription(IoRates rate, IoActivity activity, bool showDisk, CultureInfo? culture = null) =>
+        showDisk ? GraphDescription(rate, activity, culture) : GraphDescriptionNetworkOnly(rate, activity, culture);
+
     /// <summary>The seconds one history of <paramref name="samples"/> samples covers at the given sampling interval.</summary>
     internal static int HistorySeconds(int samples, int sampleIntervalMs) =>
         (int)Math.Round(Math.Max(samples, 0) * (double)Math.Max(sampleIntervalMs, 0) / 1000.0, MidpointRounding.AwayFromZero);
@@ -42,7 +73,10 @@ internal static class IoStatsDisplay
     {
         if (!double.IsFinite(perSecond) || perSecond < 0) perSecond = 0;
         CultureInfo format = culture ?? Texts.Culture;
-        return perSecond < 10 ? perSecond.ToString("0.0", format) : Math.Round(perSecond, MidpointRounding.AwayFromZero).ToString("0", format);
+        // 9.96 rounds to 10.0 at one decimal: that already belongs to the whole-number form.
+        return Math.Round(perSecond, 1, MidpointRounding.AwayFromZero) < 10
+            ? perSecond.ToString("0.0", format)
+            : Math.Round(perSecond, MidpointRounding.AwayFromZero).ToString("0", format);
     }
 
     /// <summary>

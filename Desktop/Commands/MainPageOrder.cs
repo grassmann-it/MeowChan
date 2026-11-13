@@ -14,7 +14,7 @@ public static class MainPageOrder
     public static IReadOnlyList<string> CommandIds { get; } = Array.AsReadOnly(new[]
     {
         "navigation.downloads", "navigation.archive", "navigation.media", "navigation.rules",
-        "navigation.sources", "navigation.diagnostics", "navigation.plugins",
+        "navigation.sources", "navigation.diagnostics", "navigation.plugins", "navigation.statistics",
     });
     public static bool Contains(string commandId) => CommandIds.Contains(commandId, StringComparer.Ordinal);
     /// <summary>1-based position, which is also the default digit shortcut; null for other commands.</summary>
@@ -30,7 +30,7 @@ public static class MainPageOrder
     /// <summary>Pages that leave the footer for the Tools flyout first when the window is narrow.</summary>
     public static IReadOnlyList<string> OverflowOrder { get; } = Array.AsReadOnly(new[]
     {
-        "navigation.diagnostics", "navigation.sources", "navigation.plugins", "navigation.rules",
+        "navigation.statistics", "navigation.diagnostics", "navigation.sources", "navigation.plugins", "navigation.rules",
         "navigation.media", "navigation.archive",
     });
 }

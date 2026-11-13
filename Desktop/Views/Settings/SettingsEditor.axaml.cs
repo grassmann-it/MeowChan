@@ -990,13 +990,14 @@ namespace MeowChan
             string language = SelectedLanguage?.Code ?? _config.Language;
             string readingFontSize = SelectedReadingFontSize?.Value ?? _config.ReadingFontSize;
             string animations = SelectedAnimations?.Value ?? _config.Animations;
+            string statsHeaderGraph = SelectedStatsHeaderGraph?.Value ?? _config.StatsHeaderGraph;
             bool wasRefreshing = _refreshingLanguageLabels;
             _refreshingLanguageLabels = true;
-            try { RefreshChoices(theme, mode, language, readingFontSize, animations); }
+            try { RefreshChoices(theme, mode, language, readingFontSize, animations, statsHeaderGraph); }
             finally { _refreshingLanguageLabels = wasRefreshing; }
         }
 
-        private void RefreshChoices(string theme, string mode, string language, string? readingFontSize = null, string? animations = null)
+        private void RefreshChoices(string theme, string mode, string language, string? readingFontSize = null, string? animations = null, string? statsHeaderGraph = null)
         {
             ThemeChoices = new SettingsChoice[]
             {
@@ -1050,6 +1051,7 @@ namespace MeowChan
             SelectedReadingFontSize = ReadingFontSizeChoices.First(item => item.Value == (readingFontSize ?? _config.ReadingFontSize));
             SelectedWorkspaceMode = WorkspaceChoices.First(item => item.Value == mode);
             SelectedLanguage = LanguageChoices.First(item => string.Equals(item.Code, language, StringComparison.OrdinalIgnoreCase));
+            RefreshStatsHeaderGraphChoices(statsHeaderGraph ?? _config.StatsHeaderGraph);
         }
 
         private void OnCancelButtonClick(object? sender, RoutedEventArgs e)
@@ -1146,6 +1148,7 @@ namespace MeowChan
                 candidate.CloseToTray = CloseToTray;
                 candidate.Theme = SelectedTheme?.Value ?? _config.Theme;
                 candidate.Animations = SelectedAnimations?.Value ?? _config.Animations;
+                candidate.StatsHeaderGraph = SelectedStatsHeaderGraph?.Value ?? _config.StatsHeaderGraph;
                 candidate.Language = SelectedLanguage?.Code ?? _config.Language;
                 candidate.WorkspaceMode = SelectedWorkspaceMode?.Value ?? _config.WorkspaceMode;
                 if (CompactDensity != _initialCompactDensity)
@@ -1418,7 +1421,7 @@ namespace MeowChan
                 field = value;
                 bool rebindingChoice = _refreshingLanguageLabels && propertyName is
                     nameof(SelectedTheme) or nameof(SelectedAnimations) or nameof(SelectedWorkspaceMode) or nameof(SelectedLanguage) or
-                    nameof(SelectedReadingFontSize) or nameof(SelectedGalleryPlaybackMode);
+                    nameof(SelectedReadingFontSize) or nameof(SelectedGalleryPlaybackMode) or nameof(SelectedStatsHeaderGraph);
                 if (!rebindingChoice && propertyName is not (nameof(IsBusy) or nameof(ErrorMessage) or nameof(ErrorDetails) or nameof(StatusMessage)))
                 {
                     _draftRevision++;
