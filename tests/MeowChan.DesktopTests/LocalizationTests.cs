@@ -30,6 +30,32 @@ public sealed class LocalizationTests : IDisposable
         Assert.Equal("Barebones", Texts.T("mode.barebones"));
     }
 
+    [Fact]
+    public void CultureIsResolvedOncePerLanguageAndFollowsLanguageChanges()
+    {
+        Texts.SetLanguage("de");
+        Assert.Same(Texts.Culture, Texts.Culture);
+        Assert.Equal("de", Texts.Culture.Name);
+
+        Texts.SetLanguage("en");
+        Assert.Equal("en", Texts.Culture.Name);
+    }
+
+    [Fact]
+    public void ActiveLanguageWinsAndEnglishIsUsedOnlyForMissingKeysOrBrokenFormats()
+    {
+        Texts.SetLanguage("de");
+
+        Assert.Equal("1 / 8 gespeichert / ausgewählt (12,5 %)", Texts.T("progress.media", 1, 8, 12.5));
+        Assert.Equal("no.such.key", Texts.T("no.such.key"));
+        Assert.Equal("no.such.key", Texts.T("no.such.key", 1));
+        // Mismatched arguments fall back to the English text, which stays unformatted when it cannot be formatted either.
+        Assert.Equal("{0} / {1} media", Texts.T("progress.mediaOf", 1));
+        Assert.Equal("1 / 2 Medien", Texts.T("progress.mediaOf", 1, 2));
+        Texts.SetLanguage("en");
+        Assert.Equal("{0} / {1} media", Texts.T("progress.mediaOf", 1));
+    }
+
     [Theory]
     [InlineData("en")]
     [InlineData("de")]

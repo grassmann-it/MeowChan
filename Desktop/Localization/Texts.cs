@@ -22,7 +22,11 @@ public sealed record LanguageInfo(string Code, string NativeName)
 /// </summary>
 public static class Texts
 {
-    private sealed record Catalog(LanguageInfo Info, IReadOnlyDictionary<string, string> Strings);
+    // The culture is resolved once when the catalog is built, so formatting never looks it up per call.
+    private sealed record Catalog(LanguageInfo Info, IReadOnlyDictionary<string, string> Strings)
+    {
+        public CultureInfo Culture { get; } = CultureInfo.GetCultureInfo(Info.Code);
+    }
     private sealed record State(IReadOnlyDictionary<string, Catalog> Catalogs,
         IReadOnlyList<LanguageInfo> Languages, IReadOnlyList<string> Warnings, string Language);
 
@@ -30,12 +34,20 @@ public static class Texts
     // Defensive bound for any pack, bundled or user-supplied. The built-in catalog passed 1,950 keys in
     // 1.0.3, so the former 2,000 would have rejected the bundled packs; file size stays bounded above.
     private const int MaximumPackKeys = 4000;
+    private static readonly CultureInfo EnglishCulture = CultureInfo.GetCultureInfo("en");
     private static readonly object Gate = new object();
     private static State _state = CreateBuiltIns();
 
     public static event EventHandler? Changed;
     public static string Language => Volatile.Read(ref _state).Language;
-    public static CultureInfo Culture => CultureInfo.GetCultureInfo(Language);
+    public static CultureInfo Culture
+    {
+        get
+        {
+            State state = Volatile.Read(ref _state);
+            return state.Catalogs[state.Language].Culture;
+        }
+    }
     public static IReadOnlyList<LanguageInfo> Languages => Volatile.Read(ref _state).Languages;
     public static IReadOnlyList<string> Warnings => Volatile.Read(ref _state).Warnings;
 
@@ -145,9 +157,21 @@ public static class Texts
     public static string T(string key, params object?[] arguments)
     {
         State state = Volatile.Read(ref _state);
-        string fallback = state.Catalogs["en"].Strings.GetValueOrDefault(key) ?? key;
-        string value = state.Catalogs[state.Language].Strings.GetValueOrDefault(key) ?? fallback;
-        return arguments.Length == 0 ? value : FormatSafely(state.Language, value, fallback, arguments);
+        Catalog current = state.Catalogs[state.Language];
+        // The active language first; English only when it lacks the key.
+        if (!current.Strings.TryGetValue(key, out string? value))
+            value = state.Catalogs["en"].Strings.GetValueOrDefault(key) ?? key;
+        if (arguments.Length == 0)
+            return value;
+        try
+        {
+            return string.Format(current.Culture, value, arguments);
+        }
+        catch (FormatException)
+        {
+            // A caller with mismatched arguments must not break the entire desktop.
+            return FormatEnglishFallback(state.Catalogs["en"].Strings.GetValueOrDefault(key) ?? key, arguments);
+        }
     }
 
     /// <summary>
@@ -169,21 +193,26 @@ public static class Texts
         string fallback = english.GetValueOrDefault(PluralRules.Variant(key, PluralRules.Category("en", count))) ?? english.GetValueOrDefault(key) ?? key;
         string value = (category != PluralRules.Other ? source.GetValueOrDefault(PluralRules.Variant(key, category)) : null)
             ?? source.GetValueOrDefault(key) ?? fallback;
-        return FormatSafely(state.Language, value, fallback, arguments.Length == 0 ? new object?[] { count } : arguments);
+        return FormatSafely(state.Catalogs[state.Language].Culture, value, fallback, arguments.Length == 0 ? new object?[] { count } : arguments);
     }
 
-    private static string FormatSafely(string language, string value, string fallback, object?[] arguments)
+    private static string FormatSafely(CultureInfo culture, string value, string fallback, object?[] arguments)
     {
         try
         {
-            return string.Format(CultureInfo.GetCultureInfo(language), value, arguments);
+            return string.Format(culture, value, arguments);
         }
         catch (FormatException)
         {
             // A caller with mismatched arguments must not break the entire desktop.
-            try { return string.Format(CultureInfo.GetCultureInfo("en"), fallback, arguments); }
-            catch (FormatException) { return fallback; }
+            return FormatEnglishFallback(fallback, arguments);
         }
+    }
+
+    private static string FormatEnglishFallback(string fallback, object?[] arguments)
+    {
+        try { return string.Format(EnglishCulture, fallback, arguments); }
+        catch (FormatException) { return fallback; }
     }
 
     public static bool IsValidLanguageCode(string? code) => code != null && code.Length <= 35 &&
