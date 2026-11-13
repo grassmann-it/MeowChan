@@ -30,6 +30,11 @@ namespace MeowChan.DesktopSmoke;
 // allocations and the PerformanceDiagnostics phases that ended inside it. Only functional preconditions throw.
 internal static class MediaScaleBenchmark
 {
+    private static int AvailableTags(MediaTagDialog dialog) => dialog.TagList.Rows.Count(row => !row.IsHeader);
+
+    private static int AssignedTags(MediaTagDialog dialog) =>
+        dialog.TagList.Rows.Count(row => !row.IsHeader && row.State == TagToggleState.All);
+
     private static readonly TimeSpan Long = TimeSpan.FromMinutes(25);
     private static readonly TimeSpan Short = TimeSpan.FromMinutes(5);
     private static MediaScaleTier _tier = MediaScaleTier.S;
@@ -200,24 +205,27 @@ internal static class MediaScaleBenchmark
             double visible = watch.Elapsed.TotalMilliseconds;
             await SettleAsync();
             return (sync, new { visibleMs = visible, settledMs = watch.Elapsed.TotalMilliseconds,
-                availableButtons = dialog.AvailablePanel.Children.Count, assigned = dialog.AssignedPanel.Children.OfType<Button>().Count() });
+                listedTags = AvailableTags(dialog), assigned = AssignedTags(dialog), realizedRows = dialog.TagList.GetRealizedContainers().Count() });
         });
         await recorder.StepAsync("8 tags", "add one existing tag", async () =>
         {
-            // Chips are buttons; an empty list shows one 'none' text instead.
-            int assigned = dialog.AssignedPanel.Children.OfType<Button>().Count();
+            // The dialog lists every tag once as a toggle row; offering one means pressing Space on an unticked row.
+            int assigned = AssignedTags(dialog);
             long revision = dialog.Session.Snapshot?.Revision ?? -1;
-            Button offered = dialog.AvailablePanel.Children.OfType<Button>().First(button => button.IsEffectivelyEnabled);
-            string label = (offered.Content as TextBlock)?.Text ?? offered.Content?.ToString() ?? "?";
+            TagToggleRow offered = dialog.TagList.Rows.First(row => !row.IsHeader && row.State == TagToggleState.None);
+            string label = offered.Tag?.Name.Display ?? "?";
+            dialog.TagList.Focus(offered);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            Control target = dialog.TagList.ContainerFromItem(offered) ?? dialog.TagList;
             bool wasBusy = dialog.Session.Busy;
             Stopwatch watch = Stopwatch.StartNew();
-            double sync = Sync(() => offered.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)));
+            double sync = Sync(() => target.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Space }));
             // A refused write ends with a message instead of a new revision; both end the step.
             await UntilAsync(() => !dialog.Session.Busy && (dialog.Session.Snapshot?.Revision > revision || dialog.Session.MessageKey != null),
                 Short, "tag saved (busy=" + wasBusy + ", button '" + label + "')");
             double saved = watch.Elapsed.TotalMilliseconds;
             bool written = dialog.Session.Snapshot?.Revision > revision;
-            if (written) await UntilAsync(() => dialog.AssignedPanel.Children.OfType<Button>().Count() > assigned, Long, "dialog refreshed");
+            if (written) await UntilAsync(() => AssignedTags(dialog) > assigned, Long, "dialog refreshed");
             double refreshed = watch.Elapsed.TotalMilliseconds;
             await SettleAsync();
             return (sync, new { written, message = dialog.Session.MessageKey, tag = label, savedMs = saved, dialogRefreshedMs = refreshed,

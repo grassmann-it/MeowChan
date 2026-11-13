@@ -51,7 +51,8 @@ public sealed class MediaScaleBenchmarkTests(ITestOutputHelper output)
         long fileBytes = new FileInfo(Path.Combine(directory.Path, PrivateTagStore.FileName)).Length;
         List<PrivateTagWritePhase> phases = new();
         using ProfileLease lease = ProfileLease.Acquire(directory.Path);
-        PrivateTagStore store = new(directory.Path, lease) { WritePhaseForTests = phases.Add };
+        // The own-tag count is a setting (default 1024); the benchmark measures the technical ceiling, so it raises it.
+        PrivateTagStore store = new(directory.Path, lease, new PrivateTagLimits { TagLimit = PrivateTagLimits.MaximumTagLimit }) { WritePhaseForTests = phases.Add };
 
         // First read includes JIT; the second is the steady state the app pays on every snapshot read.
         Sample first = Measure(() => store.ReadSnapshot());
@@ -63,23 +64,31 @@ public sealed class MediaScaleBenchmarkTests(ITestOutputHelper output)
 
         // One user write: Mutate = parse primary + parse .bak check + serialize + fsync replace. A full vocabulary
         // (the store's definition limit) cannot take a new tag, so it renames one instead: the same write path.
-        bool full = snapshot.Tags.Count >= PrivateTagStore.MaximumTags;
+        bool full = snapshot.Tags.Count >= store.Limits.TagLimit;
         Sample define = Measure(() => _ = full ? store.Rename(snapshot.Tags[^1].Id, "bench-renamed-tag") : store.Define("bench-new-tag"));
         int definePhases = phases.Count;
         Sample assign = Measure(() => store.SetThread(snapshot.Tags[0].Id, MediaScaleFixture.ThreadId(1 % tier.Threads), true));
         long afterBytes = new FileInfo(Path.Combine(directory.Path, PrivateTagStore.FileName)).Length;
         Report("private-tags", tier, new
         {
-            requestedTags = tier.RequestedTags, tags = tier.Tags, tagLimit = PrivateTagStore.MaximumTags, firstWrite = full ? "rename" : "define",
+            requestedTags = tier.RequestedTags, tags = tier.Tags, tagLimit = store.Limits.TagLimit, firstWrite = full ? "rename" : "define",
             threadAssignments = threads, mediaAssignments = media, generateMs = generated, fileBytes, afterBytes,
             readSnapshotFirst = first, readSnapshotSteady = second, defineWrite = define, writePhasesPerDefine = definePhases,
             setThreadWrite = assign, backupExists = File.Exists(Path.Combine(directory.Path, PrivateTagStore.FileName + ".bak"))
         });
     }
 
+    // The benchmark measures the writer itself, so it runs with the technical ceilings instead of the user's limits.
+    private static async Task SaveCacheAsync(string path, MediaLibrarySnapshot snapshot)
+    {
+        MediaLibraryIndexCacheWrite write = await MediaLibraryIndexCache.SaveAsync(path, snapshot, MediaLibraryIndexCache.MaximumBytes,
+            MediaLibraryIndexCache.EntryCeiling, MediaLibraryIndexCache.ThreadCeiling);
+        Assert.True(write.Status is MediaLibraryIndexCacheWriteStatus.Written or MediaLibraryIndexCacheWriteStatus.Unchanged, write.Status.ToString());
+    }
+
     [MediaScaleBenchmarkFact]
     [Trait("Category", "MediaScaleBenchmark")]
-    public void MediaIndexCacheSaveAndLoad()
+    public async Task MediaIndexCacheSaveAndLoad()
     {
         MediaScaleTier tier = MediaScaleTier.FromEnvironment();
         using TempDirectory directory = new();
@@ -87,12 +96,12 @@ public sealed class MediaScaleBenchmarkTests(ITestOutputHelper output)
         MediaLibrarySnapshot snapshot = SyntheticSnapshot(directory.Path, tier);
         double synthesized = build.Elapsed.TotalMilliseconds;
         string path = Path.Combine(directory.Path, "cache", MediaLibraryIndexCache.FileName);
-        Sample saveFirst = Measure(() => MediaLibraryIndexCache.Save(path, snapshot));
+        Sample saveFirst = await MeasureAsync(() => SaveCacheAsync(path, snapshot));
         long bytes = new FileInfo(path).Length;
-        Sample saveSecond = Measure(() => MediaLibraryIndexCache.Save(path, snapshot));
+        Sample saveSecond = await MeasureAsync(() => SaveCacheAsync(path, snapshot));
         MediaLibrarySnapshot? loaded = null;
-        Sample loadFirst = Measure(() => loaded = MediaLibraryIndexCache.Load(path));
-        Sample loadSecond = Measure(() => loaded = MediaLibraryIndexCache.Load(path));
+        Sample loadFirst = await MeasureAsync(async () => loaded = (await MediaLibraryIndexCache.LoadAsync(path))?.Snapshot);
+        Sample loadSecond = await MeasureAsync(async () => loaded = (await MediaLibraryIndexCache.LoadAsync(path))?.Snapshot);
         Assert.NotNull(loaded);
         Assert.Equal(snapshot.Entries.Count, loaded!.Entries.Count);
         Report("index-cache", tier, new
