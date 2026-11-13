@@ -67,6 +67,12 @@ internal static class FilterPointerSelectionChecks
                 $"field={field.Name}; text={field.Text}; open={field.IsDropDownOpen}; focus={field.IsKeyboardFocusWithin}; "
                 + $"items=[{string.Join(",", field.ItemsSource?.OfType<IdentitySuggestion>().Select(item => item.Source + ":" + item.Value) ?? [])}]; "
                 + $"draftSources=[{string.Join(",", page.DraftSources)}]; retry={page.FindControl<Button>("ArchiveRetrySuggestions")!.IsVisible}";
+            source.PropertyChanged += (_, change) =>
+            {
+                if (change.Property.Name == nameof(source.ItemsSource) && source.Text == "2"
+                    && source.ItemsSource?.OfType<IdentitySuggestion>().Any() != true)
+                    Console.WriteLine($"SMOKE source items cleared: {SuggestionState(source)}; stack={Environment.StackTrace}");
+            };
             source.LoadCompleted += error => Console.WriteLine($"SMOKE source load: error={error}; {SuggestionState(source)}");
             board.LoadCompleted += error => Console.WriteLine($"SMOKE board load: error={error}; {SuggestionState(board)}");
 
