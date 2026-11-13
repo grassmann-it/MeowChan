@@ -154,7 +154,7 @@ public sealed class StatsHeaderGraphTests : IDisposable
     {
         string[] keys =
         [
-            "stats.headerGraph.block", "stats.headerGraph.label", "stats.headerGraph.hint",
+            "stats.headerGraph.label", "stats.headerGraph.hint",
             "stats.headerGraph.auto", "stats.headerGraph.network", "stats.headerGraph.networkAndDisk"
         ];
         foreach (string language in new[] { "en", "de", "es", "fr", "ru" })

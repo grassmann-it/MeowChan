@@ -14,8 +14,7 @@ public partial class MainWindow
 {
     private TrayStatsPresenter? _trayStats;
 
-    // The statistics page belongs to the statistics work package; its merge adds
-    // "partial void ShowStatisticsFromTray() => ShowStatistics();". Until then a click only brings the window back.
+    // Implemented in Shell/MainWindow.StatisticsTray.cs: a click on a statistics line opens the statistics page.
     partial void ShowStatisticsFromTray();
 
     private bool TrayWindowShown => IsVisible && WindowState != WindowState.Minimized;

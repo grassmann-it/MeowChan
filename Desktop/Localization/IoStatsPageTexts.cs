@@ -9,7 +9,6 @@ internal static class IoStatsPageTexts
         ("command.navigation.statistics", "Statistics", "Statistik"),
         ("stats.graph.name", "Network download {0}, disk {1}, active downloads: {2}. Opens the statistics.", "Netzwerk herunter {0}, Datenträger {1}, aktive Downloads: {2}. Öffnet die Statistik."),
         ("stats.graph.nameNet", "Network download {0}, active downloads: {1}. Opens the statistics.", "Netzwerk herunter {0}, aktive Downloads: {1}. Öffnet die Statistik."),
-        ("stats.headerGraph.block", "Statistics", "Statistik"),
         ("stats.headerGraph.label", "Header graph", "Graph in der Kopfleiste"),
         ("stats.headerGraph.hint", "Chooses what the graph at the top shows. Automatic: network and disk in the Advanced view, network only otherwise.", "Legt fest, was der Graph oben zeigt. Automatisch: Netz und Datenträger in der erweiterten Ansicht, sonst nur das Netz."),
         ("stats.headerGraph.auto", "Automatic", "Automatisch"),

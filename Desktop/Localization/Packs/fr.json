@@ -1280,7 +1280,6 @@
     "command.navigation.statistics": "Statistiques",
     "stats.graph.name": "Réseau en réception {0}, disque {1}, téléchargements actifs : {2}. Ouvre les statistiques.",
     "stats.graph.nameNet": "Réseau en réception {0}, téléchargements actifs : {1}. Ouvre les statistiques.",
-    "stats.headerGraph.block": "Statistiques",
     "stats.headerGraph.label": "Graphique de l’en-tête",
     "stats.headerGraph.hint": "Définit ce que montre le graphique en haut. Automatique : réseau et disque dans la vue avancée, sinon le réseau seul.",
     "stats.headerGraph.auto": "Automatique",

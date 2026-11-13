@@ -15,7 +15,6 @@ public partial class SettingsEditor
 {
     private SettingsChoice? _selectedStatsHeaderGraph;
 
-    public string StatsHeaderGraphBlockTitle => Texts.T("stats.headerGraph.block");
     public string StatsHeaderGraphLabel => Texts.T("stats.headerGraph.label");
     public string StatsHeaderGraphHint => Texts.T("stats.headerGraph.hint");
     public IReadOnlyList<SettingsChoice> StatsHeaderGraphChoices { get; private set; } = Array.Empty<SettingsChoice>();
@@ -35,7 +34,7 @@ public partial class SettingsEditor
             new(IoStatsDisplay.HeaderGraphNetwork, Texts.T("stats.headerGraph.network")),
             new(IoStatsDisplay.HeaderGraphNetworkAndDisk, Texts.T("stats.headerGraph.networkAndDisk"))
         };
-        foreach (string property in new[] { nameof(StatsHeaderGraphBlockTitle), nameof(StatsHeaderGraphLabel), nameof(StatsHeaderGraphHint), nameof(StatsHeaderGraphChoices) })
+        foreach (string property in new[] { nameof(StatsHeaderGraphLabel), nameof(StatsHeaderGraphHint), nameof(StatsHeaderGraphChoices) })
             RaiseStatsHeaderGraphChanged(property);
         string normalized = IoStatsDisplay.NormalizeHeaderGraph(value);
         SelectedStatsHeaderGraph = StatsHeaderGraphChoices.First(item => item.Value == normalized);
