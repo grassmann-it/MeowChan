@@ -6,7 +6,7 @@ namespace MeowChan.Http;
 
 /// <summary>
 /// Monotonic byte and request counters of one source. Every field is written with <see cref="System.Threading.Interlocked"/>
-/// and must be read with <see cref="System.Threading.Volatile.Read(ref long)"/>. Raw bytes only: formatting belongs to the consumer.
+/// and must be read with <c>Volatile.Read</c>. Raw bytes only: formatting belongs to the consumer.
 /// </summary>
 internal sealed class SourceCounters
 {
