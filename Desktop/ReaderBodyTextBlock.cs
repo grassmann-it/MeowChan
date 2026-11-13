@@ -276,6 +276,9 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
                     run[!TextElement.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted");
                     run.TextDecorations = Avalonia.Media.TextDecorations.Strikethrough;
                     break;
+                case ReaderBodySegmentKind.QuoteMarker:
+                    run[!TextElement.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted");
+                    break;
                 case ReaderBodySegmentKind.DeadNote:
                     run[!TextElement.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted");
                     run.FontStyle = FontStyle.Italic;

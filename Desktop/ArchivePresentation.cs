@@ -191,9 +191,22 @@ internal sealed record ArchiveQuoteRow(ArchiveQuote Quote, bool Backlink = false
     public string ReplyExcerpt { get; init; } = string.Empty;
     public bool HasReplyExcerpt => ReplyExcerpt.Length > 0;
     public string ReplyCardHeader => ReplyHeader ?? Label;
+    // 4chan and 8kun number the opening post with the thread number, so the target is exactly the opening post of its thread;
+    // other sources get no such marker. A backlink is a reply to the open post, not a reference of it, and carries no marker.
+    public bool TargetsOpeningPost => !Backlink && Quote.Target is { Thread.Source: "4chan" or "8kun" } target && target.PostId == target.Thread.Thread;
+    public bool IsCrossThread => !Backlink && Quote.Target is { } target && target.Thread != Quote.Origin.Thread;
+    // "(OP)" or "(other thread)" behind a reference; another thread's opening post is marked as the other thread only.
+    // A source that already writes such a marker into the label of its anchor keeps its own.
+    public string Marker => Choose("reader.quote.opMarker", "reader.quote.crossMarker");
+    public string MarkerAccessible => Choose("reader.quote.opAccessible", "reader.quote.crossAccessible");
+    private string Choose(string opKey, string crossKey) => IsCrossThread
+        ? Quote.Label.Contains('\u2192') || Quote.Label.Contains("(cross", StringComparison.OrdinalIgnoreCase) ? string.Empty : Texts.T(crossKey)
+        : TargetsOpeningPost && !Quote.Label.Contains("(OP)", StringComparison.OrdinalIgnoreCase) ? Texts.T(opKey) : string.Empty;
     public string AccessibleLabel => Backlink ? Quote.Origin.Thread.Source + " /" + Quote.Origin.Thread.Board + "/ "
-        + Quote.Origin.Thread.Thread + " · #" + Quote.Origin.PostId : Quote.Label;
-    public string Label => Backlink && ReaderThread == Quote.Origin.Thread ? "#" + Quote.Origin.PostId : AccessibleLabel;
+        + Quote.Origin.Thread.Thread + " · #" + Quote.Origin.PostId
+        : MarkerAccessible is { Length: > 0 } accessible ? Quote.Label + ", " + accessible : Quote.Label;
+    public string Label => Backlink ? ReaderThread == Quote.Origin.Thread ? "#" + Quote.Origin.PostId : AccessibleLabel
+        : Marker is { Length: > 0 } marker ? Quote.Label + " " + marker : Quote.Label;
 }
 
 internal sealed record ArchiveAssetRow(MediaAssetSnapshot Manifest, MediaAssetReference Asset) : System.ComponentModel.INotifyPropertyChanged

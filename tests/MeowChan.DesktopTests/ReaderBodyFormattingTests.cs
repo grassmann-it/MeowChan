@@ -1,5 +1,6 @@
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
 
@@ -129,5 +130,68 @@ public sealed class ReaderBodyFormattingTests
         Assert.False(row.SpoilersRevealed);
         row.SpoilersRevealed = true;
         Assert.True(row.SpoilersRevealed);
+    }
+
+    private static readonly ResourceId OtherThread = new("4chan", "g", "200");
+
+    // P3: the target of the reference decides the marker.
+    private static ArchiveQuoteRow QuoteTo(string label, ResourceId thread, string postId) => new(new ArchiveQuote(
+        new ArchivePostId(Thread, "105"), new ArchivePostId(thread, postId), label, null));
+
+    [Fact]
+    public void MarkerStandsBehindTheReferenceAndTheTextBetweenStaysIntact()
+    {
+        ArchiveQuoteRow op = QuoteTo(">>100", Thread, "100"), plain = Quote(">>101");
+        string marker = Texts.T("reader.quote.opMarker");
+        Assert.NotEmpty(marker);
+        ReaderBodyDocument document = ReaderBodyFormatting.Format("see >>100 and >>101.", [op, plain]);
+        Assert.Equal("see >>100 " + marker + " and >>101.", document.Text);
+        Assert.Equal(document.Text, Join(document));
+        ReaderBodySegment quote = Assert.Single(document.Segments, segment => ReferenceEquals(segment.Quote, op));
+        Assert.Equal(">>100", document.Text.Substring(quote.Start, quote.Length));
+        ReaderBodySegment mark = Assert.Single(document.Segments, segment => segment.Kind == ReaderBodySegmentKind.QuoteMarker);
+        Assert.Equal(" " + marker, document.Text.Substring(mark.Start, mark.Length));
+        Assert.Equal(quote.End, mark.Start);
+        Assert.Null(mark.Quote); // Neither hover nor click addresses the marker.
+        Assert.Single(document.Segments, segment => ReferenceEquals(segment.Quote, plain)); // The unmarked reference is untouched.
+        Assert.False(document.HasUnplacedQuotes);
+    }
+
+    [Fact]
+    public void LongestLabelWinsAndEachMarkerFollowsItsOwnReference()
+    {
+        ArchiveQuoteRow shortOp = QuoteTo(">>100", Thread, "100"), longer = QuoteTo(">>1001", OtherThread, "1001");
+        ReaderBodyDocument document = ReaderBodyFormatting.Format(">>1001 then >>100", [shortOp, longer]);
+        string cross = Texts.T("reader.quote.crossMarker"), op = Texts.T("reader.quote.opMarker");
+        Assert.Equal(">>1001 " + cross + " then >>100 " + op, document.Text);
+        Assert.Equal(2, document.Segments.Count(segment => segment.Kind == ReaderBodySegmentKind.QuoteMarker));
+    }
+
+    [Fact]
+    public void DeadReferenceGetsItsMarkerBeforeTheNote()
+    {
+        ArchiveQuoteRow dead = QuoteTo(">>100", Thread, "100") with { IsDead = true };
+        string marker = Texts.T("reader.quote.opMarker");
+        ReaderBodyDocument document = ReaderBodyFormatting.Format("x >>100 y", [dead], deadNote: " (gone)");
+        Assert.Equal("x >>100 " + marker + " (gone) y", document.Text);
+        Assert.Equal(document.Text, Join(document));
+        ReaderBodySegment[] kinds = document.Segments.SkipWhile(segment => segment.Kind != ReaderBodySegmentKind.DeadQuote).Take(3).ToArray();
+        Assert.Equal([ReaderBodySegmentKind.DeadQuote, ReaderBodySegmentKind.QuoteMarker, ReaderBodySegmentKind.DeadNote], kinds.Select(segment => segment.Kind));
+    }
+
+    [Fact]
+    public void MarkerInsideASpoilerIsHiddenWithIt()
+    {
+        ReaderBodyDocument document = ReaderBodyFormatting.Format("x >>100 y", [QuoteTo(">>100", Thread, "100")], [new(ArchiveTextMarkKind.Spoiler, 0, 7)]);
+        ReaderBodySegment mark = Assert.Single(document.Segments, segment => segment.Kind == ReaderBodySegmentKind.QuoteMarker);
+        Assert.True(mark.IsSpoiler);
+        Assert.Equal(document.Text, Join(document));
+    }
+
+    [Fact]
+    public void CopiedBodyTextCarriesTheMarkerLikeAnyDisplayedText()
+    {
+        ArchivePostRow row = new("105", "", ">>100\nok", Array.Empty<ArchiveAttachmentRow>()) { Quotes = [QuoteTo(">>100", Thread, "100")] };
+        Assert.StartsWith(">>100 " + Texts.T("reader.quote.opMarker") + "\n", row.BodyDocument.Text, StringComparison.Ordinal);
     }
 }

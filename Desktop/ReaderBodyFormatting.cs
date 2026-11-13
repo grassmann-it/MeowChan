@@ -6,7 +6,7 @@ using MeowChan.Archive;
 
 namespace MeowChan.Desktop;
 
-internal enum ReaderBodySegmentKind { Text, Greentext, Quote, DeadQuote, DeadNote }
+internal enum ReaderBodySegmentKind { Text, Greentext, Quote, DeadQuote, DeadNote, QuoteMarker }
 
 /// <summary>
 /// A contiguous slice of the document text; segments cover the text exactly once. <see cref="Style"/> carries
@@ -22,8 +22,9 @@ internal sealed record ReaderBodySegment(ReaderBodySegmentKind Kind, int Start, 
 
 /// <summary>
 /// Imageboard formatting of a plain post body: greentext lines, inline <c>&gt;&gt;No.</c> references, references to
-/// posts that were never captured (struck through, followed by a short note), spoilers, code and external links.
-/// Text is the plain post body; only a dead reference gets its note inserted behind it, so selection, copy and
+/// posts that were never captured (struck through, followed by a short note), a "(OP)" or "(other thread)" marker behind a
+/// reference to an opening post or another thread, spoilers, code and external links.
+/// Text is the plain post body; only a dead reference gets its note, and a marked reference its marker, inserted behind it, so selection, copy and
 /// hit-testing always address the displayed text. The reader find works on the thread index, not on this text.
 /// </summary>
 internal sealed record ReaderBodyDocument(string Text, IReadOnlyList<ReaderBodySegment> Segments, bool HasUnplacedQuotes)
@@ -90,6 +91,12 @@ internal static class ReaderBodyFormatting
                 : (style & ArchiveTextStyle.Greentext) != 0 ? ReaderBodySegmentKind.Greentext : ReaderBodySegmentKind.Text;
             segments.Add(new ReaderBodySegment(kind, shown.Length, end - start, reference?.Row, flags, link));
             shown.Append(text, start, end - start);
+            // "(OP)" / "(other thread)" behind the last piece of a reference, before the note of a dead one.
+            if (reference != null && end == reference.Value.End && reference.Value.Row.Marker is { Length: > 0 } marker)
+            {
+                segments.Add(new ReaderBodySegment(ReaderBodySegmentKind.QuoteMarker, shown.Length, marker.Length + 1, null, flags & ~ArchiveTextStyle.Link));
+                shown.Append(' ').Append(marker);
+            }
             if (kind == ReaderBodySegmentKind.DeadQuote && end == reference!.Value.End && !string.IsNullOrEmpty(deadNote))
             {
                 segments.Add(new ReaderBodySegment(ReaderBodySegmentKind.DeadNote, shown.Length, deadNote.Length, null, flags & ~ArchiveTextStyle.Link));
