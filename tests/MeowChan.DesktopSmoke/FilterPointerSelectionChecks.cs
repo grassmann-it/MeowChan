@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -81,27 +82,89 @@ internal static class FilterPointerSelectionChecks
                 return row;
             }
 
-            // Native source click: it must add the draft identity, keep the applied search untouched,
-            // and return focus to the editor. It must not be confused with clicking Add or Search.
-            await TypeWithNativeFocusAsync(source, sourceInput, "2");
-            Control sourceRow = await SuggestionRowAsync(source, "2ch", null);
-            // Observe the real event order: the platform can move focus before the routed press.
-            string SourceState() => $"text={source.Text}; open={source.IsDropDownOpen}; draft=[{string.Join(",", page.DraftSources)}]; editorFocus={sourceInput.IsKeyboardFocusWithin}";
-            string ControlName(object? value) => value is Control control ? control.GetType().Name + ":" + control.Name : value?.GetType().Name ?? "null";
-            source.LostFocus += (_, e) => Console.WriteLine($"SMOKE pointer trace focus -> {ControlName(e.NewFocusedElement)}; {SourceState()}");
-            var sourcePopupList = sourceRow.GetVisualAncestors().OfType<SelectingItemsControl>().First();
-            object? attached = typeof(IdentitySuggestionBox).GetField("_popupList", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.GetValue(source);
-            Console.WriteLine($"SMOKE pointer trace attachment matches={ReferenceEquals(attached, sourcePopupList)}; list={ControlName(sourcePopupList)}; row={ControlName(sourceRow)}");
-            sourcePopupList.AddHandler(InputElement.PointerPressedEvent, (_, e) => Console.WriteLine($"SMOKE pointer trace press {e.Route}; source={ControlName(e.Source)}; {SourceState()}"), RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
-            sourcePopupList.AddHandler(InputElement.PointerReleasedEvent, (_, e) => Console.WriteLine($"SMOKE pointer trace release {e.Route}; source={ControlName(e.Source)}; {SourceState()}"), RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
-            await native.ClickAsync(sourceRow);
-            Console.WriteLine($"SMOKE source after native click: text={source.Text}; open={source.IsDropDownOpen}; draft=[{string.Join(",", page.DraftSources)}]; editorFocus={sourceInput.IsKeyboardFocusWithin}");
+            int sourceAccepts = 0;
+            source.CandidateAccepted += _ => ++sourceAccepts;
+            async Task<IPointer> PressSourceAsync()
+            {
+                await TypeWithNativeFocusAsync(source, sourceInput, "2");
+                if (!source.IsDropDownOpen) await native.KeyAsync(MediaNativeInput.Down);
+                Control row = await SuggestionRowAsync(source, "2ch", null);
+                var list = row.GetVisualAncestors().OfType<SelectingItemsControl>().First();
+                IPointer? pointer = null;
+                void Pressed(object? _, PointerPressedEventArgs e) => pointer = e.Pointer;
+                list.AddHandler(InputElement.PointerPressedEvent, Pressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+                try
+                {
+                    await native.MoveAsync(row);
+                    await native.ButtonAsync(true);
+                    Require(pointer != null && ReferenceEquals(pointer.Captured, list), "Suggestion press did not own pointer capture.");
+                    Require(source.IsDropDownOpen && source.Text == "2" && sourceAccepts == 0
+                        && page.DraftSources.Count == 0 && sourceInput.IsKeyboardFocusWithin,
+                        "Suggestion press changed the draft, accepted prematurely or dismissed the popup.");
+                    return pointer!;
+                }
+                finally { list.RemoveHandler(InputElement.PointerPressedEvent, Pressed); }
+            }
+            void RequireSourceNotAccepted(string action)
+            {
+                Require(sourceAccepts == 0 && page.DraftSources.Count == 0 && source.Text == "2"
+                    && source.AcceptedCandidate == null && ReferenceEquals(page.AppliedSearchSpec, applied),
+                    action + " accepted a cancelled/stale suggestion or applied Search.");
+            }
+
+            // A release must not revive a dismissed gesture, even if its row existed on press.
+            IPointer held = await PressSourceAsync();
+            await native.KeyAsync(MediaNativeInput.Escape);
+            await native.ButtonAsync(false);
+            RequireSourceNotAccepted("Escape between press and release");
+            Require(held.Captured == null && !source.IsDropDownOpen, "Escape retained capture or reopened suggestions.");
+
+            held = await PressSourceAsync();
+            source.InvalidateIdentityContext();
+            await native.ButtonAsync(false);
+            RequireSourceNotAccepted("Context invalidation between press and release");
+            Require(held.Captured == null && !source.IsDropDownOpen, "Context invalidation retained capture.");
+
+            held = await PressSourceAsync();
+            await native.MoveAsync(boardInput);
+            await native.ButtonAsync(false);
+            RequireSourceNotAccepted("Drag outside the pressed row");
+            Require(held.Captured == null, "Outside release retained capture.");
+            await native.KeyAsync(MediaNativeInput.Escape);
+
+            held = await PressSourceAsync();
+            held.Capture(boardInput); // Real capture-loss transition during an OS mouse gesture.
+            await native.ButtonAsync(false);
+            if (ReferenceEquals(held.Captured, boardInput)) held.Capture(null);
+            RequireSourceNotAccepted("Capture stolen between press and release");
+            await native.KeyAsync(MediaNativeInput.Escape);
+
+            // A genuine same-row release adds exactly one draft identity, not an implicit Search.
+            held = await PressSourceAsync();
+            await native.ButtonAsync(false);
             await Program.WaitUntilAsync(() => page.DraftSources.Contains("2ch", StringComparer.Ordinal)
                 && !source.IsDropDownOpen && source.Text == "" && sourceInput.IsKeyboardFocusWithin);
+            Require(sourceAccepts == 1 && held.Captured == null, "Same-row release did not accept exactly once and clear capture.");
             Require(ReferenceEquals(page.AppliedSearchSpec, applied), "Native source selection executed Search instead of adding a draft filter.");
 
             // The board row carries its qualifying source. This is the same native pointer path,
             // followed by a keyboard Enter comparison for the second board.
+            // Dragging from one suggestion to another must not commit either identity.
+            int boardAccepts = 0;
+            board.CandidateAccepted += _ => ++boardAccepts;
+            await TypeWithNativeFocusAsync(board, boardInput, "");
+            if (!board.IsDropDownOpen) await native.KeyAsync(MediaNativeInput.Down);
+            Control fromRow = await SuggestionRowAsync(board, "g", "2ch");
+            Control otherRow = await SuggestionRowAsync(board, "pol", "2ch");
+            await native.MoveAsync(fromRow);
+            await native.ButtonAsync(true);
+            Require(boardAccepts == 0 && board.IsDropDownOpen, "Board press accepted before release.");
+            await native.MoveAsync(otherRow);
+            await native.ButtonAsync(false);
+            Require(boardAccepts == 0 && page.DraftBoards.Count == 0 && board.Text == "",
+                "Dragging across board rows committed the wrong identity.");
+            await native.KeyAsync(MediaNativeInput.Escape);
+
             await TypeWithNativeFocusAsync(board, boardInput, "g");
             Control boardRow = await SuggestionRowAsync(board, "g", "2ch");
             await native.ClickAsync(boardRow);
@@ -116,6 +179,7 @@ internal static class FilterPointerSelectionChecks
             await native.KeyAsync(MediaNativeInput.Enter);
             await Program.WaitUntilAsync(() => page.DraftBoards.Contains(new ArchiveBoardConstraint("2ch", "pol"))
                 && !board.IsDropDownOpen && board.Text == "");
+            Require(boardAccepts == 2, "Board mouse/Enter acceptance was duplicated or lost.");
             Require(ReferenceEquals(page.AppliedSearchSpec, applied), "Board Enter unexpectedly executed Search.");
 
             // A free value remains draft text when the list is dismissed; accepting a suggestion is
@@ -142,7 +206,7 @@ internal static class FilterPointerSelectionChecks
                 && page.FindControl<WrapPanel>("ArchiveDraftStates")!.Children.Count == 1);
             Require(ReferenceEquals(page.AppliedSearchSpec, applied), "Native state selection executed Search.");
 
-            Console.WriteLine("SMOKE filter pointer selection: native MediaNativeInput clicks adopted Archive source/board suggestions and state ComboBox choices; Enter matched board adoption; free text, draft/applied separation and no implicit Search passed.");
+            Console.WriteLine("SMOKE filter pointer selection: native press/release adopted Archive source/board and state choices exactly once; Escape, context invalidation, outside/cross-row drag and capture loss did not accept; Enter, free text and draft/applied separation passed.");
         }
         finally
         {

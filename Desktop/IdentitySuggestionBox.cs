@@ -80,7 +80,6 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
         };
         LostFocus += (_, e) =>
         {
-            if (_pointerInPopup) return;
             if (e.NewFocusedElement is Control next && (this.IsVisualAncestorOf(next)
                 || next.DataContext is IdentitySuggestion
                 || next.GetVisualAncestors().OfType<ListBoxItem>().Any(x => x.DataContext is IdentitySuggestion))) return;
@@ -94,6 +93,7 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
             // here would drop a list selection, which makes the base control write the OLD search text back
             // into the editor (and mutates the list inside a selection update). Close now, repopulate right
             // after this change has completed and before any further input is processed.
+            CancelPointerGesture();
             int revision = ++_revision;
             _request?.Cancel();
             IsDropDownOpen = false;
@@ -109,7 +109,11 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
         if (SelectionAdapter != null) SelectionAdapter.Commit += OnCommit;
         AttachPopupPointer(e.NameScope.Find<SelectingItemsControl>("PART_SelectingItemsControl"));
     }
-    private void OnCommit(object? sender, RoutedEventArgs e) => AcceptCandidate();
+    private void OnCommit(object? sender, RoutedEventArgs e)
+    {
+        // The pointer gesture owns its commit; the adapter must not accept on press or twice.
+        if (!_pointerInPopup) AcceptCandidate();
+    }
     private void AcceptCandidate() => Accept((SelectionAdapter?.SelectedItem ?? SelectedItem) as IdentitySuggestion);
     private void Accept(IdentitySuggestion? item)
     {
@@ -122,62 +126,94 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
         }
         Dismiss();
     }
-    // A mouse click must not depend on the popup adapter's Commit or on the editor keeping focus:
-    // the popup may take focus on press, which would otherwise dismiss the list before the release.
+    // Own a mouse gesture before ListBox focus/selection handling can close the popup.
+    // A captured release accepts only the same still-current row, never a row dismissed
+    // by Escape, a scope change, a new request, retemplating or capture loss.
     private SelectingItemsControl? _popupList;
-    private bool _pointerInPopup;
-    // Keep the row captured on press. The popup's selection adapter may close and
-    // detach its row before the native release reaches us; looking at e.Source on
-    // release then loses the only identity the user actually clicked.
+    private IPointer? _popupPointer;
+    private ListBoxItem? _pointerRow;
     private IdentitySuggestion? _pointerCandidate;
+    private int _pointerRevision;
+    private bool _pointerInPopup => _popupPointer != null;
     private bool _restoringFocus;
     private void AttachPopupPointer(SelectingItemsControl? list)
     {
+        CancelPointerGesture();
         if (_popupList != null)
         {
             _popupList.RemoveHandler(PointerPressedEvent, OnPopupPressed);
             _popupList.RemoveHandler(PointerReleasedEvent, OnPopupReleased);
+            _popupList.RemoveHandler(PointerCaptureLostEvent, OnPopupCaptureLost);
         }
         _popupList = list;
         if (list == null) return;
-        list.AddHandler(PointerPressedEvent, OnPopupPressed, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
-        list.AddHandler(PointerReleasedEvent, OnPopupReleased, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
+        list.AddHandler(PointerPressedEvent, OnPopupPressed, RoutingStrategies.Tunnel);
+        list.AddHandler(PointerReleasedEvent, OnPopupReleased, RoutingStrategies.Tunnel);
+        list.AddHandler(PointerCaptureLostEvent, OnPopupCaptureLost);
     }
+    private static ListBoxItem? SuggestionRowAt(object? source)
+        => (source as Visual)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>().FirstOrDefault();
     private static IdentitySuggestion? SuggestionAt(object? source)
-        => (source as Visual)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>().FirstOrDefault()?.DataContext as IdentitySuggestion;
+        => SuggestionRowAt(source)?.DataContext as IdentitySuggestion;
+    private bool IsCurrentCandidate(IdentitySuggestion item)
+        => ItemsSource?.Cast<object>().Any(candidate => ReferenceEquals(candidate, item)) == true;
     private void OnPopupPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (!e.GetCurrentPoint(null).Properties.IsLeftButtonPressed || SuggestionAt(e.Source) is not { } item) return;
-        _pointerInPopup = true;
+        if (e.Pointer.Type != PointerType.Mouse
+            || e.GetCurrentPoint(null).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed
+            || _popupList == null || !IsDropDownOpen || _ended || _suppressed
+            || SuggestionRowAt(e.Source) is not { DataContext: IdentitySuggestion item } row
+            || !_popupList.IsVisualAncestorOf(row) || !IsCurrentCandidate(item)) return;
+        CancelPointerGesture();
+        _popupPointer = e.Pointer;
+        _pointerRow = row;
         _pointerCandidate = item;
+        _pointerRevision = _revision;
+        e.Handled = true;
+        e.PreventGestureRecognition();
+        e.Pointer.Capture(_popupList);
+        if (!ReferenceEquals(e.Pointer.Captured, _popupList)) CancelPointerGesture();
     }
     private void OnPopupReleased(object? sender, PointerReleasedEventArgs e)
     {
-        bool pressedHere = _pointerInPopup;
-        IdentitySuggestion? pressedItem = _pointerCandidate;
-        _pointerInPopup = false;
-        _pointerCandidate = null;
-        // _pointerInPopup is set only for a left-button press. Keep the release
-        // path independent of the platform's InitialPressMouseButton bookkeeping.
-        if (!pressedHere) return;
-        // Retain the press-time item when the popup already detached it during
-        // selection/focus handling, but do not turn a drag across rows into a
-        // selection of a different row.
-        IdentitySuggestion? releasedItem = SuggestionAt(e.Source);
-        if (releasedItem != null && pressedItem != null && !ReferenceEquals(releasedItem, pressedItem)) return;
-        IdentitySuggestion? item = pressedItem ?? releasedItem;
-        if (item == null) return;
-        // Ursa can dismiss the popup on press after changing focus but before the
-        // release. Let the release commit the captured row in that case.
-        if (!ReferenceEquals(AcceptedCandidate, item)) _suppressed = false;
+        if (!ReferenceEquals(e.Pointer, _popupPointer)) return;
+        e.Handled = true;
+        IdentitySuggestion? item = _pointerCandidate;
+        ListBoxItem? row = _pointerRow;
+        bool accept = e.InitialPressMouseButton == MouseButton.Left
+            && !_ended && !_suppressed && IsDropDownOpen && _pointerRevision == _revision
+            && item != null && IsCurrentCandidate(item)
+            && _popupList != null && ReferenceEquals(e.Pointer.Captured, _popupList)
+            && row != null && ReferenceEquals(row.DataContext, item)
+            && row.IsEffectivelyVisible && _popupList.IsVisualAncestorOf(row)
+            && new Rect(row.Bounds.Size).Contains(e.GetPosition(row))
+            && new Rect(_popupList.Bounds.Size).Contains(e.GetPosition(_popupList));
+        CancelPointerGesture();
+        if (!accept) return;
         Accept(item);
-        // The press moved focus into the popup, which Accept just closed; hand it back to the editor
-        // without letting the focus event reopen the list for the accepted value.
+        // Suppress repopulation if a template moves focus during popup closure.
         if (this.GetVisualDescendants().OfType<TextBox>().FirstOrDefault() is { IsKeyboardFocusWithin: false } editor)
         {
             _restoringFocus = true;
             try { editor.Focus(); } finally { _restoringFocus = false; }
         }
+    }
+    private void OnPopupCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        if (ReferenceEquals(e.Pointer, _popupPointer)) CancelPointerGesture();
+    }
+    private void CancelPointerGesture()
+    {
+        IPointer? pointer = _popupPointer;
+        _popupPointer = null;
+        _pointerRow = null;
+        _pointerCandidate = null;
+        if (pointer != null && ReferenceEquals(pointer.Captured, _popupList)) pointer.Capture(null);
+    }
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        Dismiss();
+        base.OnDetachedFromVisualTree(e);
     }
     private void OnInputKey(object? sender, KeyEventArgs e)
     {
@@ -221,10 +257,7 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
     internal void Dismiss()
     {
         ++_revision; _suppressed = true;
-        // Do not erase the press-time candidate while a popup click is in flight.
-        // Some templates close/detach the popup on press; release still has to
-        // commit that same candidate.
-        if (!_pointerInPopup) _pointerCandidate = null;
+        CancelPointerGesture();
         _request?.Cancel(); _request?.Dispose(); _request = null;
         IsDropDownOpen = false;
         if (!ClearItems()) Avalonia.Threading.Dispatcher.UIThread.Post(() => { if (_suppressed) ClearItems(); }, Avalonia.Threading.DispatcherPriority.Input);
@@ -254,6 +287,7 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
     }
     internal async Task PopulateAsync()
     {
+        CancelPointerGesture();
         ++_revision;
         int revision = _revision;
         _request?.Cancel(); _request?.Dispose();
