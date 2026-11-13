@@ -2903,6 +2903,8 @@
     "booru.watcher.problem.watcher_record_invalid": "Uložené sledování se nepodařilo obnovit, proto neběží žádné sledování. Nic nebylo smazáno; po kontrole složky profilu restartujte MeowChan.",
     "booru.watcher.problem.persist_failed": "Změnu se nepodařilo uložit do tohoto profilu. Zkontrolujte volné místo na disku a oprávnění složky a zkuste to znovu.",
     "booru.watcher.problem.scheduler_stopped": "MeowChan se zavírá; sledování se už nekontrolují.",
+    "booru.watcher.problem.session_paused": "Relace je pozastavena; sledování se automaticky nekontrolují, dokud ji neobnovíte. „Zkontrolovat nyní“ stále funguje.",
+    "booru.watcher.problem.profile_suspended": "Profil je zaneprázdněn údržbou; sledování poté pokračují.",
     "booru.watcher.problem.scheduler_not_started": "Sledování se ještě spouštějí. Zkuste to za chvíli znovu.",
     "booru.watcher.problem.invalid_query": "Toto hledání nelze sledovat. Použijte jeden nebo dva štítky Danbooru.",
     "booru.watcher.problem.watcher_exists": "Sledování pro přesně toto hledání už existuje.",

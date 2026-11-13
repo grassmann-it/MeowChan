@@ -3132,6 +3132,8 @@
     "booru.watcher.problem.watcher_record_invalid": "Не удалось восстановить сохранённое наблюдение, поэтому ни одно не работает. Ничего не удалено; проверьте папку профиля и перезапустите MeowChan.",
     "booru.watcher.problem.persist_failed": "Не удалось сохранить изменение в этом профиле. Проверьте свободное место и права на папку и повторите попытку.",
     "booru.watcher.problem.scheduler_stopped": "MeowChan закрывается; наблюдения больше не проверяются.",
+    "booru.watcher.problem.session_paused": "Сессия приостановлена; наблюдения не проверяются автоматически, пока вы не возобновите работу. «Проверить сейчас» по-прежнему работает.",
+    "booru.watcher.problem.profile_suspended": "Профиль занят шагом обслуживания; наблюдения продолжатся после него.",
     "booru.watcher.problem.scheduler_not_started": "Наблюдения ещё запускаются. Повторите попытку через мгновение.",
     "booru.watcher.problem.invalid_query": "Эту поисковую строку нельзя наблюдать. Используйте один или два тега Danbooru.",
     "booru.watcher.problem.watcher_exists": "Для именно этого поиска уже есть наблюдение.",

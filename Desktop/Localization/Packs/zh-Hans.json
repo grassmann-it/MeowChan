@@ -2968,6 +2968,8 @@
     "booru.watcher.problem.watcher_record_invalid": "无法恢复一个已存储的关注器，因此没有关注器在运行。未删除任何内容；请检查配置文件夹后重新启动 MeowChan。",
     "booru.watcher.problem.persist_failed": "无法在此配置文件中保存更改。请检查可用磁盘空间和文件夹权限，然后重试。",
     "booru.watcher.problem.scheduler_stopped": "MeowChan 正在关闭；不再检查关注器。",
+    "booru.watcher.problem.session_paused": "本次会话已暂停；恢复之前，关注器不会自动检查。“立即检查”仍然可用。",
+    "booru.watcher.problem.profile_suspended": "配置文件正在执行维护步骤；之后关注器会继续运行。",
     "booru.watcher.problem.scheduler_not_started": "关注器仍在启动中。请稍后重试。",
     "booru.watcher.problem.invalid_query": "无法关注此搜索。请使用一个或两个 Danbooru 标签。",
     "booru.watcher.problem.watcher_exists": "已存在与此搜索完全相同的关注器。",

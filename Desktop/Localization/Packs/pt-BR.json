@@ -2890,6 +2890,8 @@
     "booru.watcher.problem.watcher_record_invalid": "Não foi possível restaurar um monitor armazenado, então nenhum monitor está em execução. Nada foi excluído; reinicie o MeowChan depois de verificar a pasta do perfil.",
     "booru.watcher.problem.persist_failed": "Não foi possível salvar a alteração neste perfil. Verifique o espaço livre em disco e as permissões da pasta e tente de novo.",
     "booru.watcher.problem.scheduler_stopped": "O MeowChan está fechando; os monitores não são mais verificados.",
+    "booru.watcher.problem.session_paused": "A sessão está em pausa; os monitores não verificam automaticamente até você retomar. “Verificar agora” continua funcionando.",
+    "booru.watcher.problem.profile_suspended": "O perfil está ocupado com uma etapa de manutenção; os monitores continuam depois.",
     "booru.watcher.problem.scheduler_not_started": "Os monitores ainda estão iniciando. Tente de novo em instantes.",
     "booru.watcher.problem.invalid_query": "Esta pesquisa não pode ser monitorada. Use uma ou duas tags do Danbooru.",
     "booru.watcher.problem.watcher_exists": "Já existe um monitor para exatamente esta pesquisa.",

@@ -2906,6 +2906,8 @@
     "booru.watcher.problem.watcher_record_invalid": "Nie udało się przywrócić zapisanej obserwacji, więc żadna obserwacja nie działa. Niczego nie usunięto; uruchom MeowChan ponownie po sprawdzeniu folderu profilu.",
     "booru.watcher.problem.persist_failed": "Nie udało się zapisać zmiany w tym profilu. Sprawdź wolne miejsce na dysku i uprawnienia folderu, a następnie spróbuj ponownie.",
     "booru.watcher.problem.scheduler_stopped": "MeowChan jest zamykany; obserwacje nie są już sprawdzane.",
+    "booru.watcher.problem.session_paused": "Sesja jest wstrzymana; obserwacje nie są sprawdzane automatycznie, dopóki jej nie wznowisz. „Sprawdź teraz” nadal działa.",
+    "booru.watcher.problem.profile_suspended": "Profil jest zajęty krokiem konserwacji; obserwacje będą kontynuowane potem.",
     "booru.watcher.problem.scheduler_not_started": "Obserwacje jeszcze się uruchamiają. Spróbuj ponownie za chwilę.",
     "booru.watcher.problem.invalid_query": "Tego wyszukiwania nie można obserwować. Użyj jednego lub dwóch tagów Danbooru.",
     "booru.watcher.problem.watcher_exists": "Obserwacja dokładnie tego wyszukiwania już istnieje.",

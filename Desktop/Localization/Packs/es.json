@@ -3128,6 +3128,8 @@
     "booru.watcher.problem.watcher_record_invalid": "No se pudo restaurar un vigilante guardado, así que no se ejecuta ninguno. No se borró nada; revisa la carpeta del perfil y reinicia MeowChan.",
     "booru.watcher.problem.persist_failed": "No se pudo guardar el cambio en este perfil. Comprueba el espacio libre y los permisos de la carpeta e inténtalo de nuevo.",
     "booru.watcher.problem.scheduler_stopped": "MeowChan se está cerrando; los vigilantes ya no se comprueban.",
+    "booru.watcher.problem.session_paused": "La sesión está en pausa; los vigilantes no comprueban de forma automática hasta que la reanude. «Comprobar ahora» sigue funcionando.",
+    "booru.watcher.problem.profile_suspended": "El perfil está ocupado con un paso de mantenimiento; los vigilantes continúan después.",
     "booru.watcher.problem.scheduler_not_started": "Los vigilantes aún se están iniciando. Inténtalo de nuevo en un momento.",
     "booru.watcher.problem.invalid_query": "Esta búsqueda no se puede vigilar. Usa una o dos etiquetas de Danbooru.",
     "booru.watcher.problem.watcher_exists": "Ya existe un vigilante para exactamente esta búsqueda.",

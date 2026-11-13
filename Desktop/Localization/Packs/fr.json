@@ -3128,6 +3128,8 @@
     "booru.watcher.problem.watcher_record_invalid": "Une veille enregistrée n'a pas pu être restaurée ; aucune veille ne fonctionne. Rien n'a été supprimé ; vérifiez le dossier du profil et redémarrez MeowChan.",
     "booru.watcher.problem.persist_failed": "La modification n'a pas pu être enregistrée dans ce profil. Vérifiez l'espace libre et les droits du dossier, puis réessayez.",
     "booru.watcher.problem.scheduler_stopped": "MeowChan se ferme ; les veilles ne sont plus vérifiées.",
+    "booru.watcher.problem.session_paused": "La session est en pause ; les veilles ne se vérifient pas automatiquement tant que vous ne reprenez pas. « Vérifier maintenant » fonctionne toujours.",
+    "booru.watcher.problem.profile_suspended": "Le profil est occupé par une étape de maintenance ; les veilles reprennent ensuite.",
     "booru.watcher.problem.scheduler_not_started": "Les veilles démarrent encore. Réessayez dans un instant.",
     "booru.watcher.problem.invalid_query": "Cette recherche ne peut pas être surveillée. Utilisez une ou deux étiquettes Danbooru.",
     "booru.watcher.problem.watcher_exists": "Une veille existe déjà pour exactement cette recherche.",

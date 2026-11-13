@@ -18,6 +18,8 @@ namespace MeowChan.Desktop.Booru
         internal const string WatcherRecordInvalid = "watcher_record_invalid";
         internal const string PersistFailed = "persist_failed";
         internal const string SchedulerStopped = "scheduler_stopped";
+        internal const string SessionPaused = "session_paused";
+        internal const string ProfileSuspended = "profile_suspended";
         internal const string SchedulerNotStarted = "scheduler_not_started";
         internal const string InvalidQuery = "invalid_query";
         internal const string WatcherExists = "watcher_exists";
@@ -72,7 +74,7 @@ namespace MeowChan.Desktop.Booru
         /// <summary>Codes whose text lives under <c>booru.watcher.problem.*</c> (domain texts on goal plus <see cref="BooruCodeCatalog"/>).</summary>
         internal static readonly IReadOnlyList<string> All =
         [
-            CatalogUnreadable, WatcherRecordInvalid, PersistFailed, SchedulerStopped, SchedulerNotStarted, InvalidQuery,
+            CatalogUnreadable, WatcherRecordInvalid, PersistFailed, SchedulerStopped, SessionPaused, ProfileSuspended, SchedulerNotStarted, InvalidQuery,
             WatcherExists, WatcherNotFound, WatcherRemoved, Rejected, Superseded, Cancelled, ContinuationBlocked,
             SearchResultMissing, SearchPortFault, ForeignPost, PageRejected, ProviderDeferred, SourceUnavailable, ProviderError,
             SearchResultUnknown, AdmissionFailed, ProviderCooldown, WatcherError, CheckFaulted, CheckAlreadyRunning, CooldownActive,
@@ -111,6 +113,10 @@ namespace MeowChan.Desktop.Localization
             (P + "persist_failed", "The change could not be saved in this profile. Check free disk space and folder permissions, then try again.",
                 "Die Änderung konnte in diesem Profil nicht gespeichert werden. Prüfe freien Speicherplatz und Ordnerrechte und versuche es erneut."),
             (P + "scheduler_stopped", "MeowChan is closing; watchers are no longer checked.", "MeowChan wird beendet; Suchbeobachtungen werden nicht mehr geprüft."),
+            (P + "session_paused", "Downloads are paused for this session; watchers do not check automatically until you resume. Check now still works.",
+                "Die Sitzung ist pausiert; Suchbeobachtungen prüfen erst nach dem Fortsetzen wieder automatisch. „Jetzt prüfen“ funktioniert weiterhin."),
+            (P + "profile_suspended", "The profile is busy with a maintenance step; watchers continue afterwards.",
+                "Das Profil führt gerade einen Wartungsschritt aus; die Suchbeobachtungen laufen danach weiter."),
             (P + "scheduler_not_started", "Watchers are still starting. Try again in a moment.", "Die Suchbeobachtungen starten noch. Versuche es gleich noch einmal."),
             (P + "invalid_query", "This search cannot be watched. Use one or two Danbooru tags.", "Diese Suche kann nicht beobachtet werden. Verwende ein oder zwei Danbooru-Tags."),
             (P + "watcher_exists", "A watcher for exactly this search already exists.", "Für genau diese Suche gibt es bereits eine Suchbeobachtung."),

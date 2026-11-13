@@ -2890,6 +2890,8 @@
     "booru.watcher.problem.watcher_record_invalid": "Un monitoraggio salvato non ha potuto essere ripristinato, quindi nessun monitoraggio è in esecuzione. Non è stato eliminato nulla; riavvia MeowChan dopo aver controllato la cartella del profilo.",
     "booru.watcher.problem.persist_failed": "Impossibile salvare la modifica in questo profilo. Controlla lo spazio libero su disco e i permessi della cartella, poi riprova.",
     "booru.watcher.problem.scheduler_stopped": "MeowChan si sta chiudendo; i monitoraggi non vengono più controllati.",
+    "booru.watcher.problem.session_paused": "La sessione è in pausa; i monitoraggi non vengono controllati automaticamente finché non riprendi. «Controlla ora» continua a funzionare.",
+    "booru.watcher.problem.profile_suspended": "Il profilo è occupato con un passaggio di manutenzione; i monitoraggi proseguono dopo.",
     "booru.watcher.problem.scheduler_not_started": "I monitoraggi sono ancora in fase di avvio. Riprova tra un momento.",
     "booru.watcher.problem.invalid_query": "Questa ricerca non può essere monitorata. Usa uno o due tag Danbooru.",
     "booru.watcher.problem.watcher_exists": "Esiste già un monitoraggio per esattamente questa ricerca.",
