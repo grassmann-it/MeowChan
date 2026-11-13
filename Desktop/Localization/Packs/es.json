@@ -1393,6 +1393,7 @@
     "plugins.experimentalHint": "Fuentes experimentales: {0}. Puede haber diferencias del proveedor; la primera activación pregunta una vez. Los permisos se gestionan en Fuentes.",
     "plugins.classificationTitle": "Clasificación de fuentes",
     "plugins.subtitle": "Fuentes y filtros de imágenes de este perfil.",
+    "plugins.count": "Complementos: {0}",
     "plugins.localStatusHint": "El estado y las descripciones de los complementos no indican la disponibilidad de los sitios web.",
     "plugins.directoryDetails": "Carpeta de complementos y diagnóstico",
     "plugins.author": "Por {0}",

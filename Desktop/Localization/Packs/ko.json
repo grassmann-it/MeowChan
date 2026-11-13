@@ -1239,6 +1239,7 @@
     "plugins.experimentalHint": "실험적 소스: {0}. 제공자 측 차이가 있을 수 있으며 첫 활성화 시 한 번 확인을 요청합니다. 권한은 소스에서 관리합니다.",
     "plugins.classificationTitle": "소스 분류",
     "plugins.subtitle": "이 프로필의 소스와 이미지 필터입니다.",
+    "plugins.count": "플러그인 {0}개",
     "plugins.localStatusHint": "플러그인 상태와 설명은 웹사이트의 접속 가능 여부를 나타내지 않습니다.",
     "plugins.directoryDetails": "플러그인 폴더 및 진단",
     "plugins.author": "제작: {0}",

@@ -1239,6 +1239,7 @@
     "plugins.experimentalHint": "实验性来源：{0}。可能存在提供方差异；首次激活时会询问一次。权限在“来源”中管理。",
     "plugins.classificationTitle": "来源分类",
     "plugins.subtitle": "此配置文件中的来源和图片过滤器。",
+    "plugins.count": "{0} 个插件",
     "plugins.localStatusHint": "插件状态和描述并不表示网站是否可用。",
     "plugins.directoryDetails": "插件文件夹和诊断",
     "plugins.author": "作者：{0}",

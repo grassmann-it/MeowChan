@@ -968,6 +968,7 @@
     "plugins.experimentalHint": "Źródła eksperymentalne: {0}. Możliwe są różnice u dostawcy; pierwsza aktywacja pyta jednorazowo. Uprawnieniami zarządzasz w sekcji Źródła.",
     "plugins.classificationTitle": "Klasyfikacja źródeł",
     "plugins.subtitle": "Źródła i filtry obrazów w tym profilu.",
+    "plugins.count": "Wtyczki: {0}",
     "plugins.localStatusHint": "Stan i opisy wtyczek nie świadczą o dostępności strony internetowej.",
     "plugins.directoryDetails": "Folder wtyczek i diagnostyka",
     "plugins.author": "Autor: {0}",

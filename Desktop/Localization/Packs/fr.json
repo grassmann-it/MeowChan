@@ -1393,6 +1393,7 @@
     "plugins.experimentalHint": "Sources expérimentales : {0}. Des écarts du fournisseur sont possibles ; la première activation demande une confirmation. Les autorisations se gèrent dans Sources.",
     "plugins.classificationTitle": "Classification de la source",
     "plugins.subtitle": "Sources et filtres d’images de ce profil.",
+    "plugins.count": "Extensions : {0}",
     "plugins.localStatusHint": "L’état et la description des extensions n’indiquent pas la disponibilité des sites web.",
     "plugins.directoryDetails": "Dossier des extensions et diagnostic",
     "plugins.author": "Par {0}",

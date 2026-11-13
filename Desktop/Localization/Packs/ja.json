@@ -1239,6 +1239,7 @@
     "plugins.experimentalHint": "試験的なソース: {0}。プロバイダー側の差異が起こり得ます。初回の有効化時に一度だけ確認します。許可は「ソース」で管理します。",
     "plugins.classificationTitle": "ソースの分類",
     "plugins.subtitle": "このプロファイルのソースと画像フィルターです。",
+    "plugins.count": "プラグイン {0}件",
     "plugins.localStatusHint": "プラグインの状態と説明は、ウェブサイトが利用できるかどうかを示すものではありません。",
     "plugins.directoryDetails": "プラグインフォルダーと診断",
     "plugins.author": "作者: {0}",

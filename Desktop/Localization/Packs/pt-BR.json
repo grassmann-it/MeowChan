@@ -958,6 +958,7 @@
     "plugins.experimentalHint": "Fontes experimentais: {0}. Divergências do provedor são possíveis; a primeira ativação pergunta uma vez. As permissões são gerenciadas em Fontes.",
     "plugins.classificationTitle": "Classificação da fonte",
     "plugins.subtitle": "Fontes e filtros de imagem neste perfil.",
+    "plugins.count": "Plugins: {0}",
     "plugins.localStatusHint": "O status e as descrições dos plugins não indicam a disponibilidade de um site.",
     "plugins.directoryDetails": "Pasta de plugins e diagnóstico",
     "plugins.author": "Por {0}",

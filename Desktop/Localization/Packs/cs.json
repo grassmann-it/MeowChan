@@ -968,6 +968,7 @@
     "plugins.experimentalHint": "Experimentální zdroje: {0}. Odchylky poskytovatele jsou možné; první aktivace se jednou zeptá. Oprávnění se spravují ve Zdrojích.",
     "plugins.classificationTitle": "Klasifikace zdroje",
     "plugins.subtitle": "Zdroje a filtry obrázků v tomto profilu.",
+    "plugins.count": "Pluginy: {0}",
     "plugins.localStatusHint": "Stav a popisy pluginů nevypovídají o dostupnosti webu.",
     "plugins.directoryDetails": "Složka pluginů a diagnostika",
     "plugins.author": "Autor: {0}",
