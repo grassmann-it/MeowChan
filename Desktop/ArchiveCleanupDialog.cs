@@ -33,7 +33,7 @@ internal sealed class ArchiveCleanupDialog : Window
     private readonly TextBlock _selectionSummary = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _error = new() { TextWrapping = TextWrapping.Wrap };
-    private readonly TextBox _search = new();
+    private readonly MeowChan.Desktop.Controls.SearchBox _search = new();
     private readonly ComboBox _filter = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly ListBox _list = new();
     private readonly StackPanel _inventoryControls = new() { Spacing = 8 };

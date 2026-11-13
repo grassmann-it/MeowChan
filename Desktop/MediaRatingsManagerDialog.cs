@@ -37,7 +37,7 @@ internal sealed class MediaRatingsManagerDialog : Window
     }
     private readonly DesktopSessionHost _host;
     private IReadOnlyList<MediaRatingEntry> _entries = Array.Empty<MediaRatingEntry>();
-    private readonly TextBox _search = new() { Name = "MediaRatingsSearch" };
+    private readonly MeowChan.Desktop.Controls.SearchBox _search = new() { Name = "MediaRatingsSearch" };
     private readonly ListBox _list = new() { Name = "MediaRatingsList" };
     private readonly TextBox _identity = new() { Name = "MediaRatingsIdentity", IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _summary = new() { Name = "MediaRatingsSummary", TextWrapping = TextWrapping.Wrap };

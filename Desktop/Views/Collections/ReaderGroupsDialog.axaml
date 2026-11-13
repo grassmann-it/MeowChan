@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:controls="clr-namespace:MeowChan.Desktop.Controls"
         x:Class="MeowChan.ReaderGroupsDialog" Width="720" Height="620" MinWidth="480" MinHeight="480"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
   <Grid Margin="16" RowDefinitions="Auto,*,Auto" RowSpacing="12">
@@ -17,7 +17,7 @@
           <ListBox x:Name="GroupMembers" Height="160" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
           <WrapPanel x:Name="MemberActions" ItemSpacing="8" LineSpacing="8" />
           <TextBlock x:Name="GroupSearchLabel" Classes="section-title" Margin="0,8,0,0" TextWrapping="Wrap" />
-          <TextBox x:Name="GroupSearch" MaxLength="512" />
+          <controls:SearchBox x:Name="GroupSearch" MaxLength="512" />
           <TextBlock x:Name="GroupSearchStatus" Classes="workspace-meta" TextWrapping="Wrap" />
           <ListBox x:Name="GroupCandidates" Height="140" SelectionMode="Multiple" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
           <WrapPanel x:Name="CandidateActions" ItemSpacing="8" LineSpacing="8" />

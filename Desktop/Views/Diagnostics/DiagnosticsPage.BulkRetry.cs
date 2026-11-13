@@ -106,6 +106,15 @@ public partial class DiagnosticsPage
         this.FindControl<TextBlock>("DiagnosticsEmpty")!.IsVisible = visible.All(entry => entry.Kind == DiagnosticKind.Information);
     }
 
+    /// <summary>Primary+F on the Diagnostics page (AP2): the message filter is the page's search field.</summary>
+    internal void FocusSearch()
+    {
+        TextBox text = this.FindControl<TextBox>("DiagnosticTextFilter")!;
+        if (!text.IsEffectivelyVisible) return;
+        text.Focus(Avalonia.Input.NavigationMethod.Tab);
+        text.SelectAll();
+    }
+
     private void RefreshDiagnosticFilterLabels()
     {
         ComboBox sources = this.FindControl<ComboBox>("DiagnosticSourceFilter")!;
@@ -113,6 +122,7 @@ public partial class DiagnosticsPage
         AutomationProperties.SetName(sources, Texts.T("sources.title"));
         AutomationProperties.SetName(text, Texts.T("diagnostics.filterText"));
         text.PlaceholderText = Texts.T("diagnostics.filterText");
+        ToolTip.SetTip(text, MeowChan.Desktop.Commands.CommandBindings.Tooltip("input.focus-diagnostics-search"));
         this.FindControl<CheckBox>("DiagnosticProblemsOnly")!.Content = Texts.T("diagnostics.onlyProblems");
         // Preserve the wrapping TextBlock content; Refresh localizes it using the latest language.
         AutomationProperties.SetName(this.FindControl<CheckBox>("DiagnosticIncludeWaiting")!, Texts.T("diagnostics.includeWaiting"));

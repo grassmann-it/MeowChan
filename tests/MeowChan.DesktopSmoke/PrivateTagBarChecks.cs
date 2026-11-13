@@ -703,9 +703,11 @@ internal static class PrivateTagBarChecks
         Require(TagCell(f, secondRow) == "navy" && secondRow.TagsText == "Tags: navy" && TagCell(f, firstRow) == "", "Table column did not follow the rename: " + TagCell(f, secondRow));
         Require(ReferenceEquals(f.C<DataGrid>("ArchiveThreadTable").ItemsSource, f.C<ListBox>("ArchiveThreads").ItemsSource)
             && f.C<ListBox>("ArchiveThreads").ItemsSource!.Cast<ArchiveThreadRow>().Contains(secondRow), "Rename reloaded the list.");
-        // SHA-256 search is reachable from the reader, for exactly this thread's one media inventory.
-        Button hash = f.C<Button>("ReaderHashSearchOpen");
-        Require(hash.IsEffectivelyEnabled && Equals(hash.Content, Texts.T("reader.hashSearch.open")), "Hash search entry is missing or disabled.");
+        // SHA-256 search is reachable from the reader, for exactly this thread's one media inventory:
+        // AP2 makes it the SHA-256 scope of the reader find bar (empty draft opens the dialog idle).
+        Button hash = UnifiedSearchEntry.ReaderScope(page, MeowChan.Desktop.Controls.SearchScope.Sha256);
+        Require(hash.IsEffectivelyEnabled && Equals(hash.Content, Texts.T("archive.search"))
+            && f.C<TextBlock>("ReaderFindStatus").Text == Texts.T("search.scope.hash.hint"), "Hash search scope is missing or disabled.");
         f.Click(hash);
         await UntilAsync(() => page.MediaHashSearchWindow?.IsVisible == true);
         Require(!hash.IsEffectivelyEnabled && !f.C<Button>("ReaderTagManage").IsEffectivelyEnabled, "A second dialog could be opened over the hash search.");

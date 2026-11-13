@@ -58,14 +58,47 @@ public partial class ArchivePage
     }
     private bool CanOpenSavedSearches() => _savedSearchHost?.State == DesktopSessionState.Ready && _available && !_ended && !IsFilenameSearchOpen && !_savedSearchDialogOpen;
     private void RouteSavedSearchCommand(object? sender, KeyEventArgs e) => _savedSearchRouter?.Route(e);
-    private void OnSaveCurrentSearchClick(object? sender, RoutedEventArgs e) => _ = OpenSavedSearchesAsync(true);
-    private void OnSavedSearchesClick(object? sender, RoutedEventArgs e) => _ = OpenSavedSearchesAsync(false);
+    private void OnSavedSearchesClick(object? sender, RoutedEventArgs e) => RunSavedSearchMenu(false);
+    // AP2: one split button. Its main part opens the saved searches; its arrow menu holds
+    // "Save applied search…" and, for completeness, "Saved searches…".
+    private MenuItem? _saveCurrentSearchItem, _openSavedSearchesItem;
+    internal MenuItem SaveCurrentSearchMenuItem => EnsureSavedSearchMenu().Save;
+    internal MenuItem OpenSavedSearchesMenuItem => EnsureSavedSearchMenu().Open;
+    private (MenuItem Save, MenuItem Open) EnsureSavedSearchMenu()
+    {
+        if (_saveCurrentSearchItem != null && _openSavedSearchesItem != null) return (_saveCurrentSearchItem, _openSavedSearchesItem);
+        _saveCurrentSearchItem = CommandBindings.CreateMenuItem("archive.saved-searches.save-current", () => RunSavedSearchMenu(true),
+            () => CanOpenSavedSearches() && CanSaveCurrentSearch);
+        _saveCurrentSearchItem.Name = "ArchiveSaveSearch";
+        _openSavedSearchesItem = CommandBindings.CreateMenuItem("archive.saved-searches.open-manager", () => RunSavedSearchMenu(false),
+            CanOpenSavedSearches);
+        _openSavedSearchesItem.Name = "ArchiveSavedSearchesOpen";
+        MenuFlyout menu = (MenuFlyout)ArchiveSavedSearches.Flyout!;
+        menu.Items.Add(_saveCurrentSearchItem);
+        menu.Items.Add(_openSavedSearchesItem);
+        ArchiveSavedSearches.TemplateApplied += (_, e) =>
+        {
+            // The arrow part names itself, so assistive technology does not read a bare "button".
+            if (e.NameScope.Find<Button>("PART_SecondaryButton") is { } more)
+            {
+                AutomationProperties.SetName(more, MeowChan.Desktop.Localization.Texts.T("savedSearch.split.more"));
+                ToolTip.SetTip(more, MeowChan.Desktop.Localization.Texts.T("savedSearch.split.more"));
+            }
+        };
+        return (_saveCurrentSearchItem, _openSavedSearchesItem);
+    }
+    private void RunSavedSearchMenu(bool saveCurrent)
+    {
+        // A menu entry inside the toolbar overflow closes that overflow before the dialog takes over.
+        if (ArchiveResultActions.More is { IsChecked: true } more) more.IsChecked = false;
+        _ = OpenSavedSearchesAsync(saveCurrent);
+    }
     private async Task OpenSavedSearchesAsync(bool saveCurrent)
     {
         if (!CanOpenSavedSearches() || _savedSearchHost == null || TopLevel.GetTopLevel(this) is not Window owner) return;
         ArchiveSearchSpec? frozen = saveCurrent ? CaptureAppliedSearch() : null;
         if (saveCurrent && frozen == null) return;
-        Control restore = Control<Button>(saveCurrent ? "ArchiveSaveSearch" : "ArchiveSavedSearches");
+        Control restore = ActionOriginFocusTarget(ArchiveSavedSearches) ?? ArchiveSavedSearches;
         _savedSearchDialogOpen = true; RefreshSavedSearchActions();
         try
         {
@@ -89,12 +122,25 @@ public partial class ArchivePage
     private void RefreshSavedSearchActions()
     {
         UpdateFilenameSearchActions();
-        foreach (var item in new[] { ("ArchiveSaveSearch", "save-current"), ("ArchiveSavedSearches", "open-manager") })
-        {
-            Button button = Control<Button>(item.Item1);
-            CommandBindings.Apply(button, "archive.saved-searches." + item.Item2);
-            button.IsEnabled = CanOpenSavedSearches() && (item.Item2 != "save-current" || CanSaveCurrentSearch);
-            AutomationProperties.SetHelpText(button, CommandBindings.Tooltip("archive.saved-searches." + item.Item2));
-        }
+        (MenuItem save, MenuItem open) = EnsureSavedSearchMenu();
+        CommandBindings.Apply(save, "archive.saved-searches.save-current");
+        CommandBindings.Apply(open, "archive.saved-searches.open-manager");
+        CommandBindings.Refresh(save);
+        CommandBindings.Refresh(open);
+        ApplySavedSearchSplit();
+    }
+    // The split button is no Button, so it gets the catalog label, tooltip and help text here.
+    private void ApplySavedSearchSplit()
+    {
+        const string id = "archive.saved-searches.open-manager";
+        SplitButton split = ArchiveSavedSearches;
+        EnsureSavedSearchMenu();
+        string label = CommandCatalog.Label(id);
+        if (!Equals(split.Content, label)) split.Content = label;
+        string tip = CommandBindings.Tooltip(id) + " · " + CommandCatalog.Label("archive.saved-searches.save-current");
+        ToolTip.SetTip(split, tip);
+        AutomationProperties.SetName(split, label);
+        AutomationProperties.SetHelpText(split, tip);
+        split.IsEnabled = CanOpenSavedSearches();
     }
 }

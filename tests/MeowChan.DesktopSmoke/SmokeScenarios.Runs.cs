@@ -84,6 +84,7 @@ internal static partial class SmokeScenarios
         ["reader-find"] = new(SmokeStage.Ready, mainWindow => ReaderThreadFindChecks.RunAsync(mainWindow)),
         ["filename-search"] = new(SmokeStage.Ready, mainWindow => FilenameSearchChecks.RunAsync(mainWindow)),
         ["media-hash-search"] = new(SmokeStage.Ready, mainWindow => MediaHashSearchChecks.RunAsync(mainWindow)),
+        ["unified-search"] = new(SmokeStage.Ready, mainWindow => UnifiedSearchChecks.RunAsync(mainWindow)),
         ["filename-search-host"] = new(SmokeStage.Ready, async mainWindow =>
         {
             await FilenameSearchHostNavigationChecks.RunAsync(mainWindow);

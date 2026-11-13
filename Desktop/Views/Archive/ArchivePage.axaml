@@ -24,9 +24,14 @@
                     <RowDefinition Height="2*" />
                 </Grid.RowDefinitions>
                 <ScrollViewer x:Name="ArchiveSearchPanelScroll" MaxHeight="260" HorizontalScrollBarVisibility="Disabled"><Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="0">
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                        <controls:SearchBox x:Name="ArchiveSearchText" MaxLength="512" KeyDown="OnSearchKeyDown" />
-                        <Button x:Name="SearchArchiveButton" Grid.Column="1" Tag="archive.search" Classes="localized" Click="OnSearchClick" />
+                    <!-- AP2: one search field with a scope chip (Text / File name / SHA-256), the same placement as in the
+                         reader find bar. Each scope keeps its own draft in its own box; only the chosen one is shown. -->
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                        <controls:SearchScopeChip x:Name="ArchiveSearchScope" />
+                        <controls:SearchBox x:Name="ArchiveSearchText" Grid.Column="1" MaxLength="512" KeyDown="OnSearchKeyDown" />
+                        <controls:SearchBox x:Name="ArchiveFilenameQuery" Grid.Column="1" MaxLength="512" IsVisible="False" />
+                        <controls:SearchBox x:Name="ArchiveHashQuery" Grid.Column="1" MaxLength="256" IsVisible="False" />
+                        <Button x:Name="SearchArchiveButton" Grid.Column="2" Tag="archive.search" Classes="localized" Click="OnSearchClick" />
                     </Grid>
                     <!-- P2: the expander stays the filter toggle (command, IsExpanded, draft marker);
                          its fields open as ArchiveFilterSurface over the results instead of
@@ -40,6 +45,8 @@
                     </Expander>
                     <WrapPanel x:Name="ArchiveAppliedFilters" Grid.Row="2" ItemSpacing="6" LineSpacing="6" />
                     <StackPanel x:Name="ArchiveSearchErrorHost" Grid.Row="3" Spacing="8">
+                        <controls:SearchCarryOffer x:Name="ArchiveSearchCarryOffer" />
+                        <TextBlock x:Name="ArchiveSearchScopeHint" TextWrapping="Wrap" IsVisible="False" Classes="workspace-help" AutomationProperties.LiveSetting="Polite" />
                         <TextBlock x:Name="ArchiveSearchError" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                         <Button x:Name="ArchiveRetrySearch" Click="OnRetrySearch" IsVisible="False" HorizontalAlignment="Left" />
                     </StackPanel>
@@ -51,11 +58,12 @@
                         <Button x:Name="ArchiveResultsGallery" Tag="gallery.results" Classes="localized" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveThreadColumnsButton" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" IsVisible="False" />
                         <Button x:Name="ArchiveFavoritesOverview" Content="Favorites" ursa:ToolBar.OverflowMode="AsNeeded" />
-                        <Button x:Name="ArchiveFilenameSearchOpen" Click="OnFilenameSearchClick" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveResultsExport" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveReaderGroups" Content="Reader groups" Click="OnReaderGroupsClick" />
-                        <Button x:Name="ArchiveSaveSearch" Click="OnSaveCurrentSearchClick" />
-                        <Button x:Name="ArchiveSavedSearches" Click="OnSavedSearchesClick" />
+                        <!-- AP2: saving and opening saved searches are one split button; the arrow holds "Save applied search…". -->
+                        <SplitButton x:Name="ArchiveSavedSearches" Click="OnSavedSearchesClick" ursa:ToolBar.OverflowMode="AsNeeded">
+                            <SplitButton.Flyout><MenuFlyout Placement="BottomEdgeAlignedLeft" /></SplitButton.Flyout>
+                        </SplitButton>
                     </desktop:ActionToolBar>
                 </Grid></ScrollViewer>
                 <!-- P2: local filter surface anchored over the result list. Same controls and
@@ -253,20 +261,25 @@
                     <!-- Overflow candidates by usefulness (find in thread first, export last): later ones move into More first. -->
                     <Button x:Name="ArchiveReaderFullscreen" ursa:ToolBar.OverflowMode="AsNeeded" Content="Full screen" Click="OnReaderFullscreenClick" />
                     <Button x:Name="ArchiveHistoryBack" ursa:ToolBar.OverflowMode="AsNeeded" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
-                    <Button x:Name="ReaderFilenameSearchOpen" ursa:ToolBar.OverflowMode="AsNeeded" Click="OnFilenameSearchClick" />
-                    <Button x:Name="ReaderHashSearchOpen" ursa:ToolBar.OverflowMode="AsNeeded" Click="OnHashSearchClick" />
                     <Button x:Name="ExportArchiveButton" ursa:ToolBar.OverflowMode="AsNeeded" Tag="archive.export" Classes="localized" Click="OnExportClick" />
                     </desktop:ActionToolBar>
                     <TextBlock x:Name="ReaderGroupAvailabilityMessage" IsVisible="False" TextWrapping="Wrap" />
                     <StackPanel x:Name="ReaderFindBar" IsVisible="False" Spacing="4">
+                        <!-- AP2: the same scope chip as the archive field; File name and SHA-256 open their result
+                             dialogs on Enter or Search, Text finds in the open thread as before. -->
                         <WrapPanel ItemSpacing="6" LineSpacing="4">
+                            <controls:SearchScopeChip x:Name="ReaderFindScope" />
                             <controls:SearchBox x:Name="ReaderFindQuery" Width="240" TextChanged="OnThreadFindQueryChanged" />
+                            <controls:SearchBox x:Name="ReaderFilenameQuery" Width="240" MaxLength="512" IsVisible="False" />
+                            <controls:SearchBox x:Name="ReaderHashQuery" Width="240" MaxLength="256" IsVisible="False" />
+                            <Button x:Name="ReaderFindSearch" IsVisible="False" Click="OnReaderScopeSearchClick" />
                             <Button x:Name="ReaderFindPrevious" Click="OnPreviousThreadFind" />
                             <Button x:Name="ReaderFindNext" Click="OnNextThreadFind" />
                             <Button x:Name="ReaderFindRetry" Click="OnRetryThreadFind" IsVisible="False" />
                             <Button x:Name="ReaderFindClose" Click="OnCloseThreadFind" />
                         </WrapPanel>
                         <TextBlock x:Name="ReaderFindStatus" TextWrapping="Wrap" />
+                        <controls:SearchCarryOffer x:Name="ReaderFindCarryOffer" />
                         <TextBlock x:Name="ReaderFindExcerpt" TextWrapping="Wrap" />
                     </StackPanel>
                     <!-- Own thread tags: inline like reader find, always bound to the open thread. -->

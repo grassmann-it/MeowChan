@@ -60,6 +60,13 @@ public partial class ArchivePage
         ActionToolBar toolbar = ArchiveResultActions;
         foreach (object? item in toolbar.Items)
         {
+            if (item is SplitButton split)
+            {
+                // AP2: the saved-searches split button overflows like every other feature action.
+                ToolBar.SetOverflowMode(split, _archiveColumnMode == "Barebones" ? OverflowMode.Always : OverflowMode.AsNeeded);
+                if (split.Name == "ArchiveSavedSearches") ApplySavedSearchSplit();
+                continue;
+            }
             if (item is not Button button) continue;
             // All future feature actions participate, including saved searches and
             // reader groups. Never is reserved for the compact view selection.
@@ -72,8 +79,6 @@ public partial class ArchivePage
             // created before the current language or hosted outside MainWindow.
             string? featureId = button.Name switch
             {
-                "ArchiveSaveSearch" => "archive.saved-searches.save-current",
-                "ArchiveSavedSearches" => "archive.saved-searches.open-manager",
                 "ArchiveReaderGroups" => "reader-groups.open-manager",
                 "ArchivePostBookmarks" => "post-bookmarks.open-manager",
                 _ => null

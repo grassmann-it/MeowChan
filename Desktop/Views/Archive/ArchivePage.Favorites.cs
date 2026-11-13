@@ -58,7 +58,7 @@ public partial class ArchivePage
             Texts.T("viewer.favorites.current"), Texts.T("viewer.favorites.selected"),
             Texts.T("viewer.favorites.filtered"), Texts.T("viewer.favorites.all")
         }, SelectedIndex = restore?.Scope ?? 3, MinWidth = 210 };
-        TextBox search = new() { Text = restore?.Search, Name = "FavoritesSearch", PlaceholderText = Texts.T("viewer.favorites.search"), MinWidth = 180 };
+        TextBox search = new MeowChan.Desktop.Controls.SearchBox { Text = restore?.Search, Name = "FavoritesSearch", PlaceholderText = Texts.T("viewer.favorites.search"), MinWidth = 180 };
         TextBlock summary = new() { Name = "FavoritesSummary", TextWrapping = TextWrapping.Wrap };
         TextBlock empty = new() { Name = "FavoritesEmpty", TextWrapping = TextWrapping.Wrap, IsVisible = false };
         Button clearSearch = new() { Name = "FavoritesClearSearch", Content = Texts.T("viewer.favorites.clearSearch"),

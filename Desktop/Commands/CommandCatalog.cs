@@ -205,6 +205,7 @@ public static class CommandCatalog
         new("input.focus-search", "command.input.focus-search", "Focus search", "Suche fokussieren", "search", "Primary+F", CommandScope.Archive | CommandScope.Reader, new[] { "archive", "license-reader", "active-search-context" }),
         new("input.focus-media-search", "command.input.focus-media-search", "Search media", "Medien durchsuchen", "search", "Primary+F", CommandScope.Media, new[] { "media" }),
         new("input.focus-settings-search", "command.input.focus-settings-search", "Search settings", "Einstellungen durchsuchen", "search", "Primary+F", CommandScope.Settings, new[] { "settings" }, new[] { "settings" }),
+        new("input.focus-diagnostics-search", "command.input.focus-diagnostics-search", "Search diagnostics", "Diagnose durchsuchen", "search", "Primary+F", CommandScope.Diagnostics, new[] { "diagnostics" }),
         new("archive.clear-filter", "command.archive.clear-filter", "Remove filter", "Filter entfernen", "x", null, CommandScope.Archive, new[] { "archive-active-filter-chip" }),
         new("table.choose-columns", "command.table.choose-columns", "Choose columns…", "Spalten auswählen…", "columns", null, CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-table", "archive-table" }),
         new("table.reset-layout", "command.table.reset-layout", "Reset view layout", "Ansicht zurücksetzen", "rotate-ccw", null, CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-table", "archive-table", "split-layout" }),
@@ -322,6 +323,7 @@ public static class CommandCatalog
             "input.focus-download-search" => Texts.T("command.scope.input.focus-download-search"),
             "input.focus-search" => Texts.T("command.scope.input.focus-search"),
             "input.focus-media-search" => Texts.T("command.scope.input.focus-media-search"),
+            "input.focus-diagnostics-search" => Texts.T("command.scope.input.focus-diagnostics-search"),
             "export.open-all-results-html-dialog" => Texts.T("command.scope.export.open-all-results-html-dialog"),
             _ when HasGenericScope(id) => Texts.T("command.scope.navigation.generic"),
             _ => null

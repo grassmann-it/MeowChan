@@ -240,7 +240,7 @@ public partial class ArchivePage
         { e.Handled = true; OpenArchiveKeyboardMenu(list); return; }
         if (e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift) { e.Handled = true; return; }
         if (MatchesArchiveCommand(e, "input.focus-search"))
-        { e.Handled = true; ArchiveSearchText.Focus(); return; }
+        { e.Handled = true; FocusArchiveTextSearch(); return; }
         // The list owns these navigation gestures. The generic command guard
         // deliberately leaves navigation keys to native lists, so resolve here
         // after the list-source/editor shielding above.

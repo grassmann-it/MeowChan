@@ -52,7 +52,13 @@ public partial class MainWindow
                 (name, subjects, expectedRevision, token) => _session.DefineAndSetMediaSubjectTagsAsync(name, subjects, expectedRevision, token),
                 (tag, subjects, assigned, expectedRevision, token) => _session.SetMediaSubjectTagsAsync(tag, subjects, assigned, expectedRevision, token)),
             ExportOriginals = ExportMediaLibraryOriginalsAsync,
-            GoToDownloadsRequested = GoToDownloads
+            GoToDownloadsRequested = GoToDownloads,
+            // AP2 search carry-over: Media file name search -> the archive field's File name scope.
+            SearchInArchiveRequested = query =>
+            {
+                if (NavigateWorkspace(WorkspacePage.Archive))
+                    _archivePage?.ReceiveCarriedSearch(MeowChan.Desktop.Controls.SearchScope.FileName, query, Texts.T("nav.media"));
+            }
         };
         _mediaPage.InitializeSharedMediaMenus();
         MediaPageHost.Content = _mediaPage;

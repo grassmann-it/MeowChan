@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:desktop="clr-namespace:MeowChan.Desktop"
+             xmlns:controls="clr-namespace:MeowChan.Desktop.Controls"
              xmlns:feedback="clr-namespace:MeowChan.Desktop.Feedback"
              x:Class="MeowChan.DiagnosticsPage" SizeChanged="OnDiagnosticPageSizeChanged">
     <UserControl.Styles>
@@ -23,7 +24,7 @@
                 </Grid>
                 <WrapPanel Classes="workspace-toolbar">
                     <ComboBox x:Name="DiagnosticSourceFilter" MinWidth="140" MaxWidth="230" SelectionChanged="OnDiagnosticFilterChanged" />
-                    <TextBox x:Name="DiagnosticTextFilter" Width="210" TextChanged="OnDiagnosticFilterChanged" />
+                    <controls:SearchBox x:Name="DiagnosticTextFilter" Width="210" TextChanged="OnDiagnosticFilterChanged" />
                     <CheckBox x:Name="DiagnosticProblemsOnly" IsCheckedChanged="OnDiagnosticFilterChanged" />
                     <CheckBox x:Name="DiagnosticIncludeWaiting" IsChecked="False" MaxWidth="280"
                               IsCheckedChanged="OnDiagnosticFilterChanged">

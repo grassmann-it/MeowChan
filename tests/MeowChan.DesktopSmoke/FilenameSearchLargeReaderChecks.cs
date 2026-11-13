@@ -48,7 +48,7 @@ internal static class FilenameSearchLargeReaderChecks
             && before.FindPostIndex(Post) == 250 && rows.SequenceEqual(new[] { Post })
             && selected is ArchivePostRow { Id: Post }, "Nontrivial original revision/page/selection missing.");
         if (scenario == "tab-return") f.DelayReturn = f.Hold();
-        Click(f.Named<Button>("ReaderFilenameSearchOpen"));
+        Click(UnifiedSearchEntry.ReaderScope(f.Page, MeowChan.Desktop.Controls.SearchScope.FileName)); // AP2 product entry
         Task run = f.Page.FilenameSearchTask;
         FilenameSearchDialog dialog = await f.Shown.Task.WaitAsync(Deadline);
         Require(f.Page.IsFilenameSearchOpen && f.Page.IsReaderDialogOpen && !run.IsCompleted
@@ -311,7 +311,7 @@ internal static class FilenameSearchLargeReaderChecks
                     && f.Pane.IsEffectivelyVisible && ReferenceEquals(TopLevel.GetTopLevel(f.Pane), f.ReaderWindow)
                     && !ReferenceEquals(TopLevel.GetTopLevel(f.Page), f.ReaderWindow)
                     && f.Named<Button>("ArchiveCloseReader").IsVisible
-                    && f.Named<Button>("ReaderFilenameSearchOpen").IsEffectivelyVisible,
+                    && f.Named<Button>("ReaderFindOpen").IsEffectivelyVisible,
                     "Production detached large-reader surface not actually attached/reachable.");
                 return f;
             }

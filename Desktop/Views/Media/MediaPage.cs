@@ -142,7 +142,7 @@ public sealed partial class MediaPage : UserControl
         _cacheFile = cachePath == null ? null : new MediaLibraryIndexCacheFile(cachePath);
         Name = "MediaPage";
         WrapPanel tools = new() { Classes = { "workspace-toolbar" } };
-        foreach (Control control in new Control[] { _filters, _sort, _shuffle, _missing, _refresh, _exportAll })
+        foreach (Control control in new Control[] { _searchScope, _nameFilter, _filters, _sort, _shuffle, _missing, _refresh, _exportAll })
         {
             control.VerticalAlignment = VerticalAlignment.Center;
             // Buttons match the 32 dip combo box beside them (Workspace.Size.Input) instead of sitting 1 dip inside its edges at 30 (G3).
@@ -151,7 +151,7 @@ public sealed partial class MediaPage : UserControl
         }
         StackPanel header = new() { Spacing = 4, Margin = new Thickness(12, 8, 12, 4) };
         header.Children.Add(_title); header.Children.Add(_headerBody);
-        _headerBody.Children.Add(_subtitle); _headerBody.Children.Add(tools);
+        _headerBody.Children.Add(_subtitle); _headerBody.Children.Add(tools); _headerBody.Children.Add(_searchCarryOffer);
         // The filter fields open as a surface over the grid (MediaPage.FilterSurface.cs); what is applied stays in the header.
         Border filterSurface = BuildFilterSurface(BuildFilterRow());
         _headerBody.Children.Add(BuildFilterChipRow()); _headerBody.Children.Add(_filterError); _headerBody.Children.Add(BuildStatusRow(_status));

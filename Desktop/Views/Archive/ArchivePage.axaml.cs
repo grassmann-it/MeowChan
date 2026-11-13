@@ -118,7 +118,7 @@ public partial class ArchivePage : UserControl
 
     public ArchivePage()
     {
-        InitializeComponent(); InitializeThreadFind(); InitializePostPageKeys(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeMediaSelection(); InitializeThreadFavoriteCommands(); InitializePrivateTags(); InitializeStatusOverlay(); InitializeReaderToolbarIcons();
+        InitializeComponent(); InitializeThreadFind(); InitializeUnifiedSearch(); InitializePostPageKeys(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeMediaSelection(); InitializeThreadFavoriteCommands(); InitializePrivateTags(); InitializeStatusOverlay(); InitializeReaderToolbarIcons();
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         ArchivePosts.AutoScrollToSelectedItem = false;
         ArchiveMediaTiles.AutoScrollToSelectedItem = false;
@@ -654,7 +654,7 @@ public partial class ArchivePage : UserControl
         UpdateReaderNavigation();
         bool ready = _available && !_busy && !_ended && !IsFilenameSearchOpen;
         bool readReady = CanRead && !_busy && !_ended && !IsFilenameSearchOpen; // list/search/paging/reading only
-        SearchArchiveButton.IsEnabled = readReady;
+        SearchArchiveButton.IsEnabled = ArchiveScope == MeowChan.Desktop.Controls.SearchScope.Text ? readReady : CanRunArchiveScope;
         UpdateSearchActions(readReady);
         RefreshArchiveSearchContext();
         ArchiveResetFilters.IsEnabled = readReady;
@@ -1084,6 +1084,7 @@ public partial class ArchivePage : UserControl
             if (control is Button button) button.Content = Texts.T(key);
         }
         LocalizeThreadFind();
+        LocalizeUnifiedSearch();
         LocalizeReaderView();
         LocalizePrivateTags();
         LocalizeExport();

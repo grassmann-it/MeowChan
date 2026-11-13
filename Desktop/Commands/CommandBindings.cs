@@ -417,7 +417,7 @@ public static class CommandBindings
         // macOS full screen (⌃⌘F) and help (⌘?) have no F-key: two or more modifiers, one of them Ctrl/⌘, cannot be typed text.
         bool chorded = primaryModifier && System.Numerics.BitOperations.PopCount(
             (uint)(e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Meta | KeyModifiers.Alt | KeyModifiers.Shift))) >= 2;
-        return (id is "input.focus-url" or "input.focus-search" or "input.focus-download-search" or "input.focus-media-search" or "input.focus-settings-search" or "navigation.settings")
+        return (id is "input.focus-url" or "input.focus-search" or "input.focus-download-search" or "input.focus-media-search" or "input.focus-settings-search" or "input.focus-diagnostics-search" or "navigation.settings")
             && (primaryModifier || functionKey)
             || (id is "window.fullscreen" or "viewer.shortcut-help") && (functionKey || chorded);
     }

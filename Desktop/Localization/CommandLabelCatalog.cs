@@ -158,6 +158,7 @@ internal static class CommandLabelCatalog
         ("command.input.focus-search", "Focus search", "Suche fokussieren"),
         ("command.input.focus-media-search", "Search media", "Medien durchsuchen"),
         ("command.input.focus-settings-search", "Search settings", "Einstellungen durchsuchen"),
+        ("command.input.focus-diagnostics-search", "Search diagnostics", "Diagnose durchsuchen"),
         ("command.archive.clear-filter", "Remove filter", "Filter entfernen"),
         ("command.table.choose-columns", "Choose columns…", "Spalten auswählen…"),
         ("command.table.reset-layout", "Reset view layout", "Ansicht zurücksetzen"),

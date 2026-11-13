@@ -65,8 +65,10 @@ internal static class ActionToolBarPresentationChecks
             Require(page.FindControl<ListBox>("ArchiveThreads")!.ItemCount == 1, "Real local archive fixture did not load.");
             var downloads = owner.FindControl<ActionToolBar>("WorkspaceListActions")!;
             var archive = page.FindControl<ActionToolBar>("ArchiveResultActions")!;
-            Require(new[] { "ArchiveSaveSearch", "ArchiveSavedSearches", "ArchiveReaderGroups" }
-                .All(name => archive.Items.OfType<Button>().Any(b => b.Name == name)), "Integrated feature actions missing.");
+            Require(archive.Items.OfType<Button>().Any(b => b.Name == "ArchiveReaderGroups")
+                && archive.Items.OfType<SplitButton>().Any(b => b.Name == "ArchiveSavedSearches")
+                && !archive.Items.OfType<Control>().Any(b => b.Name is "ArchiveSaveSearch" or "ArchiveFilenameSearchOpen"),
+                "Integrated feature actions missing, or the AP2 saved-search split / file name scope regressed.");
             var identities = downloads.Items.Concat(archive.Items).OfType<Button>().ToDictionary(b => b, b => b.Command);
             var cases = from nextLanguage in new[] { "en", "de" }
                         from nextTheme in new[] { "Dark", "Light" }
@@ -263,8 +265,6 @@ internal static class ActionToolBarPresentationChecks
         {
             string? id = button.Name switch
             {
-                "ArchiveSaveSearch" => "archive.saved-searches.save-current",
-                "ArchiveSavedSearches" => "archive.saved-searches.open-manager",
                 "ArchiveReaderGroups" => "reader-groups.open-manager",
                 "ArchivePostBookmarks" => "post-bookmarks.open-manager",
                 "ArchiveResultsGallery" => "gallery.open-results",
@@ -275,6 +275,12 @@ internal static class ActionToolBarPresentationChecks
             if (id != null)
                 Require(Label(button) == CommandCatalog.Label(id) && AutomationProperties.GetName(button) == CommandCatalog.Label(id),
                     "Actual action content/automation locale mismatch: " + button.Name);
+        }
+        foreach (SplitButton split in toolbar.Items.OfType<SplitButton>().Where(split => split.IsVisible))
+        {
+            string label = CommandCatalog.Label("archive.saved-searches.open-manager");
+            Require(Equals(split.Content, label) && AutomationProperties.GetName(split) == label,
+                "Actual split action content/automation locale mismatch: " + split.Name);
         }
     }
 

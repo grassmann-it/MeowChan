@@ -91,7 +91,12 @@ public partial class ArchivePage
         }
         finally { _localizingSearchOptions = false; }
     }
-    private async void OnSearchClick(object? sender, RoutedEventArgs e) => await ApplySearchAsync();
+    private async void OnSearchClick(object? sender, RoutedEventArgs e)
+    {
+        // AP2: in the File name and SHA-256 scopes the one Search button opens that scope's results.
+        if (ArchiveScope != MeowChan.Desktop.Controls.SearchScope.Text) { RunArchiveScope(ArchiveScopedBox); return; }
+        await ApplySearchAsync();
+    }
     private async void OnSearchKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter) return;

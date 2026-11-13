@@ -702,6 +702,7 @@ public partial class MainWindow
             }
         }
         if (_selectedPage == WorkspacePage.Media && !_largeReaderOpen) ids.Insert(0, "input.focus-media-search");
+        if (_selectedPage == WorkspacePage.Diagnostics && !_largeReaderOpen) ids.Insert(0, "input.focus-diagnostics-search");
         if (_selectedPage == WorkspacePage.Archive && !_largeReaderOpen)
             ids.InsertRange(0, new[] { "input.focus-search", "archive.select-page", "menu.context-open",
                 "archive.previous-page", "archive.next-page", "export.open-all-results-html-dialog", "archive.delete-permanently" });
@@ -851,9 +852,12 @@ public partial class MainWindow
             NavigateWorkspace(WorkspacePage.Settings);
         }
         else if (CommandBindings.Matches(e, "input.focus-search") && _selectedPage == WorkspacePage.Archive && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
-        { e.Handled = true; _archivePage?.FindControl<TextBox>("ArchiveSearchText")?.Focus(); }
+        { e.Handled = true; _archivePage?.FocusArchiveTextSearch(); }
         else if (CommandBindings.Matches(e, "input.focus-media-search") && _selectedPage == WorkspacePage.Media && _mediaPage != null && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
         { e.Handled = true; _mediaPage.FocusSearch(); }
+        // AP2: the diagnostics message filter is the same search field and takes Primary+F like the other pages.
+        else if (CommandBindings.Matches(e, "input.focus-diagnostics-search") && _selectedPage == WorkspacePage.Diagnostics && _diagnosticsPage != null && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
+        { e.Handled = true; _diagnosticsPage.FocusSearch(); }
     }
 
     internal bool CanExecuteShellPowerCommand(object? source, Key key) => _workspaceInitialized && _restoreCompleted

@@ -190,9 +190,18 @@ internal sealed class FilenameSearchDialog : Window
     private bool _terminated;
     internal FilenameSearchSession Session => _session;
     // Await ShowDialog<ArchiveFilenameHit?>(owner). Explicit selection returns the SAME metadata hit.
-    internal FilenameSearchDialog(Func<CancellationToken, Task<ArchiveReader>> readerFactory)
+    private readonly bool _searchOnOpen;
+    // initialQuery: the draft of the scoped search field (AP2). A non-empty draft is searched once when the
+    // dialog opens, exactly as if Search had been chosen; the dialog's own field stays editable.
+    internal FilenameSearchDialog(Func<CancellationToken, Task<ArchiveReader>> readerFactory, string? initialQuery = null)
     {
         _session = new(readerFactory);
+        if (!string.IsNullOrEmpty(initialQuery))
+        {
+            _query.Text = initialQuery;
+            _session.Edit(initialQuery);
+            _searchOnOpen = true;
+        }
         Name = "FilenameSearchDialog";
         Width = 820; Height = 680; MinWidth = 360; MinHeight = 380;
         DialogFit.OnOpen(this);
@@ -235,7 +244,11 @@ internal sealed class FilenameSearchDialog : Window
         _session.Changed += OnChanged; Texts.Changed += OnLanguageChanged;
         Refresh();
     }
-    private void OnOpened(object? sender, EventArgs e) { _chrome.Attach(this); _query.Focus(); }
+    private void OnOpened(object? sender, EventArgs e)
+    {
+        _chrome.Attach(this); _query.Focus();
+        if (_searchOnOpen) _ = _session.SearchAsync();
+    }
     private void OnQueryChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
         // TextChanged may be deferred. Revoke old rows/selection and cancel the current

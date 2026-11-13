@@ -166,7 +166,7 @@ public partial class ArchivePage
         {
             var tags = ArchiveAppliedFilters.Children.OfType<ClosableTag>().ToArray();
             if (tags.Length > 0) tags[Math.Clamp(focusIndex, 0, tags.Length - 1)].Focus();
-            else ArchiveSearchText.Focus();
+            else ArchiveScopedBox.Focus();
         }
         return success;
     }

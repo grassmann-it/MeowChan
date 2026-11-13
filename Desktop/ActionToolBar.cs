@@ -188,7 +188,9 @@ public sealed class ActionToolBar : ToolBar
     {
         // A columns action opens a nested ContextMenu; keep its parent popup.
         // A dialog/gallery action owns its new focus, so closing must not steal it.
-        if (e.Source is Button button && button.ContextMenu?.IsOpen != true && More != null)
+        // A split button's arrow opens its flyout menu from inside the overflow; keep the parent popup too.
+        if (e.Source is Button button && button.ContextMenu?.IsOpen != true && More != null
+            && !(button.TemplatedParent is SplitButton && button.Name == "PART_SecondaryButton"))
             More.IsChecked = false;
     }
 

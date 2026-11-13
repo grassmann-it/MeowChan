@@ -49,6 +49,6 @@ public partial class ArchivePage
         WriteSearchDraft(reset);
         _showReader = false; UpdateLayoutMode();
         await LoadListAsync(NewListLoad(ArchiveSearchRequest.Create(reset)));
-        ArchiveSearchText.Focus();
+        ArchiveScopedBox.Focus();
     }
 }

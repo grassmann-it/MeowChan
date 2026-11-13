@@ -166,6 +166,11 @@ public partial class MainWindow
         _archivePage.OpenReaderRequested = OpenLargeReader;
         _archivePage.CloseReaderRequested = () => CloseLargeReader();
         _archivePage.GoToDownloadsRequested = GoToDownloads;
+        // AP2 search carry-over: Archive (or the reader) -> Media file name search.
+        _archivePage.SearchInMediaRequested = query =>
+        {
+            if (NavigateWorkspace(WorkspacePage.Media)) _mediaPage?.ReceiveCarriedSearch(query, Texts.T("nav.archive"));
+        };
         _archivePage.OpenGallery = (id, key, origin) => OpenGalleryAsync(id, key, origin);
         _archivePage.OpenMediaGallery = (entries, start, origin) => OpenMediaGalleryAsync(entries, start, origin);
         _archivePage.OpenResultsGallery = (query, workFilter, origin) => OpenSearchGalleryAsync(query, workFilter, origin);
