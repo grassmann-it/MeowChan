@@ -15,6 +15,12 @@ using MeowChan.Archive;
 
 namespace MeowChan.Desktop;
 
+/// <summary>A click or Enter on an external link; carries the validated address only.</summary>
+internal sealed class ReaderLinkInvokedEventArgs(RoutedEvent routedEvent, Uri uri) : RoutedEventArgs(routedEvent)
+{
+    public Uri Uri { get; } = uri;
+}
+
 internal sealed class ReaderQuoteInvokedEventArgs(RoutedEvent routedEvent, ArchiveQuoteRow quote) : RoutedEventArgs(routedEvent)
 {
     public ArchiveQuoteRow Quote { get; } = quote;
@@ -50,6 +56,9 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
 
     public static readonly RoutedEvent<ReaderQuoteInvokedEventArgs> QuoteInvokedEvent =
         RoutedEvent.Register<ReaderBodyTextBlock, ReaderQuoteInvokedEventArgs>(nameof(QuoteInvoked), RoutingStrategies.Bubble);
+
+    public static readonly RoutedEvent<ReaderLinkInvokedEventArgs> LinkInvokedEvent =
+        RoutedEvent.Register<ReaderBodyTextBlock, ReaderLinkInvokedEventArgs>(nameof(LinkInvoked), RoutingStrategies.Bubble);
 
     public static readonly StyledProperty<bool> ExpandedProperty =
         AvaloniaProperty.Register<ReaderBodyTextBlock, bool>(nameof(Expanded), defaultBindingMode: Avalonia.Data.BindingMode.TwoWay);
@@ -156,6 +165,12 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     {
         add => AddHandler(QuoteHoverEvent, value);
         remove => RemoveHandler(QuoteHoverEvent, value);
+    }
+
+    public event EventHandler<ReaderLinkInvokedEventArgs>? LinkInvoked
+    {
+        add => AddHandler(LinkInvokedEvent, value);
+        remove => RemoveHandler(LinkInvokedEvent, value);
     }
 
     public event EventHandler<ReaderQuoteInvokedEventArgs>? QuoteInvoked
@@ -266,7 +281,7 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
                     run.FontStyle = FontStyle.Italic;
                     break;
             }
-            if ((segment.Style & ArchiveTextStyle.Link) != 0 && segment.Kind is ReaderBodySegmentKind.Text or ReaderBodySegmentKind.Greentext)
+            if (segment.Link != null && segment.Kind is ReaderBodySegmentKind.Text or ReaderBodySegmentKind.Greentext)
             {
                 run[!TextElement.ForegroundProperty] = new DynamicResourceExtension("Workspace.Accent");
                 run.TextDecorations = Avalonia.Media.TextDecorations.Underline;
@@ -300,7 +315,7 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
 
     // The reveal comes first: a reference inside a hidden spoiler cannot be clicked before the text is shown.
     private ReaderBodySegment? ActionAt(Point point) => SegmentAt(point) is { } segment
-        && (segment is { IsSpoiler: true } && !SpoilersRevealed || segment.Quote != null) ? segment : null;
+        && (segment is { IsSpoiler: true } && !SpoilersRevealed || segment.Quote != null || segment.Link != null) ? segment : null;
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
@@ -320,6 +335,8 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
         e.Handled = true;
         if (pressed.IsSpoiler && !SpoilersRevealed) { SpoilersRevealed = true; SetLinkCursor(false); }
         else if (pressed.Quote != null) RaiseEvent(new ReaderQuoteInvokedEventArgs(QuoteInvokedEvent, pressed.Quote));
+        else if (ReaderExternalLink.ForActivation(pressed, SpoilersRevealed, SelectionStart != SelectionEnd) is { } link)
+            RaiseEvent(new ReaderLinkInvokedEventArgs(LinkInvokedEvent, link));
     }
 
     // Enter or Space on the focused body shows its spoilers (inline text has no focusable parts of its own).
@@ -329,6 +346,14 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
         {
             SpoilersRevealed = true;
             e.Handled = true;
+            return;
+        }
+        // Enter opens (after its confirmation) the link inside the selection, or the only link of the body.
+        if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && !HasHiddenSpoilers
+            && ReaderExternalLink.ForKeyboard(Document, SelectionStart, SelectionEnd, SpoilersRevealed) is { } keyboardLink)
+        {
+            e.Handled = true;
+            RaiseEvent(new ReaderLinkInvokedEventArgs(LinkInvokedEvent, keyboardLink));
             return;
         }
         base.OnKeyDown(e);

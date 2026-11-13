@@ -46,6 +46,7 @@ internal static class ReaderIdeaChecks
         await CheckQuotePreviewAsync(owner);
         await CheckUnreadLineAsync(owner);
         await CheckFoldAsync(owner);
+        await CheckLinksAsync(owner);
     }
 
     private static async Task<Fixture> OpenAsync(MainWindow owner, string thread, Func<int, CapturedPost[]> posts, int initialCount = int.MaxValue)
@@ -109,8 +110,9 @@ internal static class ReaderIdeaChecks
         Require(live.TextDecorations == null && (live.Foreground as ISolidColorBrush)?.Color == Token(fixture.Window, "Workspace.Accent"),
             "An internal reference was not colour only.");
         Run site = RunWith("the site");
-        Require(site.TextDecorations == TextDecorations.Underline && RunWith("https://example.org/b").TextDecorations == TextDecorations.Underline,
-            "External links were not underlined.");
+        // Only an address is a link (it opens its visible text): the label "the site" stays plain even over an anchor.
+        Require(site.TextDecorations == null && RunWith("https://example.org/b").TextDecorations == TextDecorations.Underline,
+            "External links were not underlined, or a label that is no address was.");
         Run code = RunWith("x = 1;");
         Require(code.FontFamily.Name == "monospace" && (code.Background as ISolidColorBrush)?.Color == Token(fixture.Window, "Workspace.ReaderCodeSurface"),
             "Code did not use monospace on its surface.");
@@ -340,6 +342,101 @@ internal static class ReaderIdeaChecks
         await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
         Require(!Body(fixture, "333").IsFolded, "The post with the hit stayed folded.");
         Console.WriteLine("SMOKE reader I6: fold to 18 lines with fade and count, unfold, remembered state and find expansion passed.");
+    }
+
+    // External links: a click or Enter asks first (full address, host in ASCII form highlighted); only http(s) without user
+    // information, only its visible text; hover, focus and a hidden spoiler never open; the session choice is not saved.
+    // Nothing is launched here: the seam records the address that would be.
+    private static async Task CheckLinksAsync(MainWindow owner)
+    {
+        await using Fixture fixture = await OpenAsync(owner, "350", _ =>
+        [
+            new("350", 0, PostFieldPresence.All, Html: "<p>Opening post</p>"),
+            new("351", 1, PostFieldPresence.All, Html: "<p>one link https://example.org/page?q=1 only</p>"),
+            new("352", 2, PostFieldPresence.All, Html: "<p>two links https://first.example/a and https://second.example/b</p>"),
+            new("353", 3, PostFieldPresence.All, Html: "<p>not links: http://user@evil.example/x and <a href='https://real.example/'>the site</a> and ftp://files.example/f</p>"),
+            new("354", 4, PostFieldPresence.All, Html: "<p>look-alike https://b\u00FCcher.example/p</p>"),
+            new("355", 5, PostFieldPresence.All, Html: "<p><s>hidden https://spoiler.example/x</s></p>")
+        ]);
+        ArchivePage page = fixture.Page;
+        List<Uri> launched = [];
+        page.ExternalLinkLauncher = uri => { launched.Add(uri); return Task.CompletedTask; };
+        async Task<ReaderBodyTextBlock> Realize(string id)
+        {
+            ArchivePostRow row = fixture.List.ItemsSource!.Cast<ArchivePostRow>().Single(post => post.Id == id);
+            fixture.List.ScrollIntoView(row);
+            await Program.WaitUntilAsync(() => fixture.List.GetVisualDescendants().OfType<ListBoxItem>().Any(item => ReferenceEquals(item.DataContext, row)));
+            await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
+            return Body(fixture, id);
+        }
+        async Task Enter(ReaderBodyTextBlock body)
+        {
+            body.Focus(NavigationMethod.Tab);
+            body.RaiseEvent(KeyEvent(InputElement.KeyDownEvent, Avalonia.Input.Key.Enter, body));
+            await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
+        }
+        Button Named(string name) => page.FindControl<Button>(name)!;
+
+        // Focus alone, and an Enter with two links and no selection, open nothing.
+        ReaderBodyTextBlock two = await Realize("352");
+        two.Focus(NavigationMethod.Tab);
+        await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
+        Require(!page.IsExternalLinkDialogOpen && launched.Count == 0, "Focusing a body with links opened a dialog or a link.");
+        await Enter(two);
+        Require(!page.IsExternalLinkDialogOpen && launched.Count == 0, "Enter without a selection picked one of two links.");
+        // The selection chooses: the link inside it opens (after its confirmation).
+        int second = two.PlainText.IndexOf("https://second.example/b", StringComparison.Ordinal);
+        two.SelectionStart = second; two.SelectionEnd = second + 5;
+        await Enter(two);
+        Require(page.IsExternalLinkDialogOpen && page.PendingExternalLink == new Uri("https://second.example/b") && launched.Count == 0,
+            "A selection inside the second link did not ask about exactly that address.");
+        Require(page.FindControl<SelectableTextBlock>("ReaderLinkUrl")!.Inlines!.OfType<Run>().Any(run => run.Text == "second.example" && run.FontWeight == FontWeight.Bold),
+            "The confirmation did not highlight the host.");
+        Named("ReaderLinkCancel").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Require(!page.IsExternalLinkDialogOpen && launched.Count == 0, "Cancel left the dialog open or launched the link.");
+        two.SelectionStart = two.SelectionEnd = 0;
+
+        // Only addresses that are http(s), without user information, and only their visible text, are links.
+        ReaderBodyTextBlock plain = await Realize("353");
+        ReaderBodyDocument plainDocument = fixture.List.ItemsSource!.Cast<ArchivePostRow>().Single(post => post.Id == "353").BodyDocument;
+        Require(plainDocument.Segments.All(segment => segment.Link == null) && plain.Inlines!.OfType<Run>().All(run => run.TextDecorations != TextDecorations.Underline),
+            "Userinfo, ftp or a link label that is not an address became a link.");
+        await Enter(plain);
+        Require(!page.IsExternalLinkDialogOpen && launched.Count == 0, "Enter opened something that is not a link.");
+
+        // A look-alike host is shown in its ASCII form, highlighted.
+        ReaderBodyTextBlock lookAlike = await Realize("354");
+        await Enter(lookAlike);
+        Require(page.IsExternalLinkDialogOpen && page.FindControl<SelectableTextBlock>("ReaderLinkUrl")!.Inlines!.OfType<Run>().Any(run =>
+            run.Text == "xn--bcher-kva.example" && run.FontWeight == FontWeight.Bold), "The confirmation did not show the host in punycode.");
+        page.CloseExternalLinkDialog();
+
+        // A link inside a hidden spoiler: Enter reveals first and opens nothing; the next Enter asks.
+        ReaderBodyTextBlock spoiler = await Realize("355");
+        Require(spoiler.HasHiddenSpoilers, "The spoiler fixture was not hidden.");
+        await Enter(spoiler);
+        Require(!spoiler.HasHiddenSpoilers && !page.IsExternalLinkDialogOpen && launched.Count == 0, "Enter opened a link inside a hidden spoiler.");
+        await Enter(spoiler);
+        Require(page.IsExternalLinkDialogOpen && page.PendingExternalLink == new Uri("https://spoiler.example/x"), "A revealed link did not ask on Enter.");
+        // Escape cancels through the reader key handling.
+        spoiler.RaiseEvent(KeyEvent(InputElement.KeyDownEvent, Avalonia.Input.Key.Escape, spoiler));
+        page.TryDismissOverlay();
+        Require(!page.IsExternalLinkDialogOpen && launched.Count == 0, "Escape did not cancel the confirmation.");
+
+        // Open, and not asking again this session (not persisted: only this page remembers it).
+        ReaderBodyTextBlock one = await Realize("351");
+        await Enter(one);
+        Require(page.IsExternalLinkDialogOpen && page.PendingExternalLink == new Uri("https://example.org/page?q=1") && !page.ExternalLinksTrusted, "The single link did not ask first.");
+        page.FindControl<CheckBox>("ReaderLinkRemember")!.IsChecked = true;
+        Program.CaptureWindow(fixture.Window, "smoke-reader-links-confirmation.png");
+        Named("ReaderLinkOpen").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        Require(!page.IsExternalLinkDialogOpen && launched.SequenceEqual([new Uri("https://example.org/page?q=1")]) && page.ExternalLinksTrusted,
+            "Open did not hand exactly the validated address to the launcher.");
+        await Enter(one);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        Require(!page.IsExternalLinkDialogOpen && launched.Count == 2, "After the session choice the link did not open without asking.");
+        Console.WriteLine("SMOKE reader links: confirmation with highlighted punycode host, selection and sole-link Enter, spoiler, userinfo, session choice and seam passed.");
     }
 
     private static void Require(bool condition, string message)

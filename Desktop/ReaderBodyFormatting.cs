@@ -10,10 +10,11 @@ internal enum ReaderBodySegmentKind { Text, Greentext, Quote, DeadQuote, DeadNot
 
 /// <summary>
 /// A contiguous slice of the document text; segments cover the text exactly once. <see cref="Style"/> carries
-/// the spoiler, code and link flags (never Greentext, which is the kind).
+/// the spoiler, code and link flags (never Greentext, which is the kind). <see cref="Link"/> is the address a link
+/// opens: its visible text parsed as an absolute http(s) address; a link text that is anything else is plain text.
 /// </summary>
 internal sealed record ReaderBodySegment(ReaderBodySegmentKind Kind, int Start, int Length, ArchiveQuoteRow? Quote = null,
-    ArchiveTextStyle Style = ArchiveTextStyle.None)
+    ArchiveTextStyle Style = ArchiveTextStyle.None, Uri? Link = null)
 {
     public int End => Start + Length;
     public bool IsSpoiler => (Style & ArchiveTextStyle.Spoiler) != 0;
@@ -77,13 +78,21 @@ internal static class ReaderBodyFormatting
             (int Start, int End, ArchiveQuoteRow Row)? reference = referenceIndex < references.Count && references[referenceIndex].Start <= start
                 ? references[referenceIndex] : null;
             ArchiveTextStyle flags = style & ~ArchiveTextStyle.Greentext;
+            Uri? link = null;
+            if ((flags & ArchiveTextStyle.Link) != 0)
+            {
+                // The whole link run is the visible text, however references or other cuts divide it into segments.
+                ArchiveTextRun linkRun = runs[runIndex];
+                link = ReaderExternalLink.Parse(text.Substring(linkRun.Start, linkRun.Length));
+                if (link == null) flags &= ~ArchiveTextStyle.Link;
+            }
             ReaderBodySegmentKind kind = reference != null ? reference.Value.Row.IsDead ? ReaderBodySegmentKind.DeadQuote : ReaderBodySegmentKind.Quote
                 : (style & ArchiveTextStyle.Greentext) != 0 ? ReaderBodySegmentKind.Greentext : ReaderBodySegmentKind.Text;
-            segments.Add(new ReaderBodySegment(kind, shown.Length, end - start, reference?.Row, flags));
+            segments.Add(new ReaderBodySegment(kind, shown.Length, end - start, reference?.Row, flags, link));
             shown.Append(text, start, end - start);
             if (kind == ReaderBodySegmentKind.DeadQuote && end == reference!.Value.End && !string.IsNullOrEmpty(deadNote))
             {
-                segments.Add(new ReaderBodySegment(ReaderBodySegmentKind.DeadNote, shown.Length, deadNote.Length, null, flags));
+                segments.Add(new ReaderBodySegment(ReaderBodySegmentKind.DeadNote, shown.Length, deadNote.Length, null, flags & ~ArchiveTextStyle.Link));
                 shown.Append(deadNote);
             }
         }
@@ -92,7 +101,7 @@ internal static class ReaderBodyFormatting
         foreach (ReaderBodySegment segment in segments)
         {
             if (merged.Count > 0 && merged[^1] is { Kind: ReaderBodySegmentKind.Text or ReaderBodySegmentKind.Greentext } previous
-                && previous.Kind == segment.Kind && previous.Style == segment.Style)
+                && previous.Kind == segment.Kind && previous.Style == segment.Style && previous.Link == segment.Link)
                 merged[^1] = previous with { Length = previous.Length + segment.Length };
             else merged.Add(segment);
         }

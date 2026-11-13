@@ -430,7 +430,7 @@
                                                                     <!-- The Semi text theme sets FontSize locally; explicitly honor the reader preference.
                                                                          Greentext and >>No. are runs over the plain text; a click on >>No. opens it like the buttons. -->
                                                                     <desktop:ReaderBodyTextBlock x:Name="PostBody" Classes="reader-body" Document="{Binding BodyDocument}" SpoilersRevealed="{Binding SpoilersRevealed, Mode=TwoWay}" Expanded="{Binding Expanded, Mode=TwoWay}" IsTextOnly="{Binding IsTextOnly}" FontSize="{Binding $parent[ListBox].FontSize}"
-                                                                                                 TextWrapping="Wrap" QuoteInvoked="OnInlineQuoteInvoked" QuoteHover="OnInlineQuoteHover" />
+                                                                                                 TextWrapping="Wrap" QuoteInvoked="OnInlineQuoteInvoked" LinkInvoked="OnInlineLinkInvoked" QuoteHover="OnInlineQuoteHover" />
                                                                     <!-- A body over 24 lines shows 18 and a fade; this button unfolds it (and folds it again). -->
                                                                     <Button Classes="reader-quote reader-fold" IsVisible="{Binding #PostBody.IsFoldable}" Content="{Binding #PostBody.FoldLabel}"
                                                                             Click="OnFoldToggleClick" HorizontalAlignment="Left" />
@@ -494,6 +494,22 @@
                                                 </StackPanel>
                                             </Border>
                                         </Popup>
+                                        <!-- An external link opens only after this confirmation: the full address, its host in ASCII form and highlighted. -->
+                                        <Border x:Name="ReaderLinkDialog" IsVisible="False" Background="#A6000000" ZIndex="5">
+                                            <Border Background="{DynamicResource Workspace.ReaderPostSurface}" BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="1"
+                                                    CornerRadius="4" Padding="16" MaxWidth="520" Margin="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <StackPanel Spacing="10">
+                                                    <TextBlock x:Name="ReaderLinkTitle" Classes="section-title" TextWrapping="Wrap" />
+                                                    <SelectableTextBlock x:Name="ReaderLinkUrl" TextWrapping="Wrap" />
+                                                    <TextBlock x:Name="ReaderLinkHint" Classes="workspace-meta" TextWrapping="Wrap" />
+                                                    <CheckBox x:Name="ReaderLinkRemember" />
+                                                    <WrapPanel HorizontalAlignment="Right" ItemSpacing="8" LineSpacing="6">
+                                                        <Button x:Name="ReaderLinkCancel" Click="OnReaderLinkCancel" />
+                                                        <Button x:Name="ReaderLinkOpen" Classes="accent" Click="OnReaderLinkOpen" />
+                                                    </WrapPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </Border>
                                     </Grid>
                                     <Grid x:Name="ArchivePostNavigation" Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto" HorizontalAlignment="Center" Margin="8" ColumnSpacing="8">
                                         <Button x:Name="PreviousPostsButton" Tag="archive.previous" Classes="localized" Click="OnPreviousPosts" />

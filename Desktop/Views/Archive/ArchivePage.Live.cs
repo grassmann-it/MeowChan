@@ -41,6 +41,7 @@ public partial class ArchivePage
         ReaderFollowLive.Content = CommandCatalog.Label("watch.follow-live");
         ReaderShowNewPosts.Content = CommandCatalog.Label("reader.show-new-posts");
         LocalizeReaderUnread();
+        LocalizeReaderLink();
         UpdateReaderUpdateControls();
     }
 

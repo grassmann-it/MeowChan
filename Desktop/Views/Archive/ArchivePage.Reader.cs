@@ -28,6 +28,7 @@ public partial class ArchivePage
     internal bool IsReaderDialogOpen => IsFilenameSearchOpen || _urlTextExportBusy || ArchiveExportDialog.IsVisible || _cleanupDialog != null;
     internal bool TryDismissOverlay(object? source = null)
     {
+        if (IsExternalLinkDialogOpen) { CloseExternalLinkDialog(); return true; }
         if (IsFilenameSearchOpen) { InvalidateFilenameSearch(); return true; }
         if (_urlTextExportBusy) return true; // Never route URLtext dismissal into HTML state.
         if (_cleanupDialog != null) { _cleanupDialog.RequestClose(); return true; }
@@ -477,6 +478,12 @@ public partial class ArchivePage
     {
         if (IsThreadFindSource(e.Source)) return;
         if (e.Handled || ShortcutService.IsCapturing || !_largeReader || IsReaderDialogOpen) return;
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && IsExternalLinkDialogOpen)
+        {
+            e.Handled = true;
+            CloseExternalLinkDialog();
+            return;
+        }
         // An open quote preview is dismissed first: Escape must not also close the reader.
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && IsQuotePreviewOpen)
         {
