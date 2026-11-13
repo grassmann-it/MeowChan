@@ -46,7 +46,7 @@
   HTML export follows the same cards, colours and greentext.
 - Reader: rest the pointer on a quote, or focus it and press Space, to preview the quoted post
   (Esc closes it, Enter jumps there) and see the target flash after a jump. A line marks where new
-  posts begin ("N new posts since last time") and **Back to last read** returns to it. Posts over
+  posts begin ("N new posts since your last visit", a divider across the card width) and **Back to last read** returns to it. Posts over
   24 lines fold to 18 with **Show more** (remembered per post; find opens them). The reply counter
   in the header opens the replies as nested cards, five more at a time. References to posts that
   were not captured are struck through, spoilers stay hidden until you click them or press
@@ -107,8 +107,8 @@
 - Make the remaining amount and size limits settings under **Storage and limits**:
   entries per favorite/thread-favorite/rating list (default 50000) and their file size
   (8 MiB), post bookmarks (10000), saved searches (500), reader groups (500), the question
-  before "Export all matches" (500 files or 2 GiB), the video preview cache (128 MiB,
-  256 files), the seven import limits (including 32 tags per batch and 100000 batches) and
+  before "Export all matches" (500 files or 2 GiB), the video preview cache (512 MiB,
+  2048 files), the seven import limits (including 32 tags per batch and 100000 batches) and
   the media index cache (256 MiB, 1000000 entries, 200000 threads). Lowering a limit deletes
   nothing; a full list names the setting in the user's language, and the status bar warns
   from 75 % of the favorites, thread favorites and ratings limits and of the media index
@@ -135,7 +135,7 @@
 - Accept picked or typed Archive source/board/state filters immediately; show archive status
   as an overlay; open filters over the results; keep the Reader toolbar on one row.
 - Show the orange cat in the light theme and the grey cat in the dark theme; soften the light theme
-  (palette corrections pending).
+  (the palette corrections follow below).
 - Show the theme-appropriate cat in the header and both cats side by side in the About window for documentation
   and credits (window, tray and dialog icons keep following the theme), and credit the photographer of both cats (Simba, orange; Mila, grey),
   Alexander Huxel · Webentwicklung Huxel, in THIRD-PARTY-NOTICES, the README and About > Credits.
@@ -182,6 +182,67 @@
   the Danbooru window now use one format ("1,5 MiB" in German, "1.5 MiB" in English). The size
   limit of a Rules editor is entered in MiB; saved rules keep their exact byte count, so an old
   "10 MB" rule now shows as 9.536743 MiB. A language pack may be 2 MiB.
+- Add seven bundled UI languages next to English, German, Spanish, French and Russian: Simplified
+  Chinese (简体中文), Japanese (日本語), Korean (한국어), Brazilian Portuguese (Português (Brasil)),
+  Czech (Čeština), Italian (Italiano) and Polish (Polski). They are AI-authored translation
+  previews that no native speaker has reviewed, so the chooser marks each one **(Untested)**;
+  missing texts fall back to English, and the saved language is never changed on its own. Counted
+  texts follow each language's plural rules (Czech and Polish have separate forms for 2 to 4).
+  Chinese, Japanese and Korean use the fonts of your system, with the regional glyph shapes of the
+  chosen language first; nothing is bundled, so **Linux needs Noto Sans CJK installed**
+  (`noto-fonts-cjk`, `fonts-noto-cjk`).
+- Correct the colour palettes (Light and Dark) against measured contrast: Dark buttons, text and
+  combo boxes get an outline of at least 3:1; error and success colours stay apart for red-green
+  colour vision (Dark error is coral, Light success a clear green); the empty progress track is
+  visible in Light, and the Dark progress fill is the accent blue again; the gallery overlay and
+  the export backdrop follow the theme (the Light export backdrop is 40 percent dark, so the
+  dialog card stands out). Contrast of the key pairs is pinned by a unit test; a measurement of
+  the whole app on a real display is still open.
+- Redesign the Sources page: maturity, maintenance and status show as chips on the list instead of
+  a chain of words (only where a source deviates, for example **Experimental**), the list is sorted
+  stable, unclassified, experimental, then by name, and the selection is a bar. A source's watches
+  are listed in two lines each (address, then status) without an inner scroll area; the list shows
+  8 by default and **Show all n in Downloads** continues (setting **Sources page: watch rows per source**, 3 to
+  200). The URL field is gone from the page: **Add in Downloads** opens Downloads with its URL
+  field focused.
+- Fill the remaining gaps in the settings under **Storage and limits**: the clipboard monitor's
+  URL count (default 32, 1 to 500) and text size (default 64 KiB, 4 to 4096 KiB) are settings, and
+  the suggestion says when URLs were skipped or a text was too large to search; bandwidth
+  (up to 100000 MiB/s), parallel downloads (up to 256) and the free-space reserve (up to
+  65536 GiB) have a maximum, and a larger value saved by an older version is reduced instead of
+  marking the file damaged; the favorite file limit can go down to 1 MiB and the own tag limit down
+  to 256. The page says once that a lower limit deletes nothing; hints, errors and the waiting
+  line of the free-space reserve name the setting, and the preview cache hint states its real
+  memory cost. A 33rd archive filter tag is refused with a sentence in your language.
+- Polish the interface in a second review round: Archive filter fields carry a label above them
+  and short placeholders; the favorite button shows a filled star for a marked file and puts a
+  failed write in its tooltip; the board wizard shows one count line per board; Diagnostics turns
+  off watch actions for a removed result; the Plugins page header moves under the title in narrow
+  windows and a failed plugin step shows a sentence with the next step; the URL-format example for
+  a mistyped link uses a neutral 4chan address; the German texts say Strg and Umschalt in shortcuts,
+  "experimentell" and "Anker"; the empty Downloads boards state offers the clipboard import; saved
+  searches, the date field (which shows its pattern in your language) and the SHA-256 search
+  explain themselves in plain words; the cleanup, board admission, filename search, import and
+  reader group windows fit small screens; screen readers get names for the license list, the URL
+  import report and the board preview. Reader cards with media use the card width as one block,
+  and the navigation cross rests at 40 percent over the content. Danbooru results and watchers are
+  cards, dialog headings and counters use one type step and tabular figures, and popups share
+  one shadow and corner radius.
+- Make external links in a reader post clickable: a link opens only after a confirmation shows its
+  full address (the host in its ASCII form, highlighted); hover, focus, a text selection or a hidden
+  spoiler never open it, and "Don't ask again this session" is not saved. The HTML export keeps
+  plain links.
+- **Animations: Off** now also reaches menus, flyouts and popups, and a theme change no longer
+  cross-fades colours.
+- Speed up more starts and returns: the plugin pipeline begins reading the profile and describing
+  plugins while the window comes up (the plugin start probe), the plugin profile file is no longer
+  rewritten by a start that changes nothing, the Media page shows stored sound results at once
+  and keeps its place when you return while the list is still being filled, post lookup in an
+  archived thread uses a cached index, and a verified file is remembered by its full file identity,
+  so a swapped file of the same size and date is checked again.
+<!-- TODO(b10): stack b10 (statistics, network/disk rates and tray lines, Rules page rework,
+     HTML export themes, link confirmation hardening, post width setting, audio probe limits)
+     is not in goal yet. Describe it here once it has landed; do not describe it before. -->
 - Upgrade: archive schema 5 to 12, media manifest 4 to 5 (6 for imported representations),
   work journal pruning with one backup and a `user_version` stamp, new `private-tags.json`,
   media index cache (version 4; version 3 files are still read, so there is no cold rebuild
