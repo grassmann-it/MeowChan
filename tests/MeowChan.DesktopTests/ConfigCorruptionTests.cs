@@ -277,6 +277,42 @@ public sealed class ConfigCorruptionTests
         finally { Directory.Delete(outside, recursive: true); }
     }
 
+    // The read ceiling is inclusive (a file of exactly 4 MiB is read, one byte more is damaged) and has a write side.
+    [Fact]
+    public void ASettingsFileOfExactlyTheCeilingIsReadAndOneByteMoreIsDamage()
+    {
+        using Profile profile = new();
+        string good = Encoding.UTF8.GetString(profile.GoodPrimary).TrimEnd();
+        string exact = good[..^1] + new string(' ', Config.SettingsFileCeilingBytes - good.Length) + "}";
+        File.WriteAllText(profile.Primary, exact);
+        Assert.Equal(Config.SettingsFileCeilingBytes, new FileInfo(profile.Primary).Length);
+        Assert.Equal(ProfileOrigin.ExistingValid, Load(profile.Directory).Origin);
+
+        File.WriteAllText(profile.Primary, exact[..^1] + " }");
+        Assert.Equal(Config.SettingsFileCeilingBytes + 1L, new FileInfo(profile.Primary).Length);
+        Config oversized = Load(profile.Directory);
+        Assert.Equal(ProfileOrigin.BackupRecovery, oversized.Origin);
+        Assert.Equal(16, oversized.BooruCatalogLimitMiB);
+    }
+
+    [Fact]
+    public void SettingsLargerThanTheReadCeilingAreRefusedBeforeAnythingIsWritten()
+    {
+        using Profile profile = new();
+        Config config = Load(profile.Directory);
+        string[] names = profile.Names();
+        using System.Text.Json.JsonDocument huge = System.Text.Json.JsonDocument.Parse("{\"SchemaVersion\":1,\"Overrides\":{},\"Note\":\"" + new string('x', Config.SettingsFileCeilingBytes) + "\"}");
+        config.ShortcutBindings = new Desktop.Commands.ShortcutBindingsSection(huge.RootElement);
+
+        Assert.Throws<InvalidDataException>(() => config.SaveConfig(profile.Directory));
+
+        Assert.Equal(names, profile.Names());
+        Assert.Equal(profile.GoodPrimary, File.ReadAllBytes(profile.Primary));
+        Assert.Equal(profile.GoodBackup, File.ReadAllBytes(profile.Backup));
+        // The profile still starts: what was refused was never written.
+        Assert.Equal(ProfileOrigin.ExistingValid, Load(profile.Directory).Origin);
+    }
+
     [Fact]
     public void ASettingsFileJustBelowTheCeilingIsStillRead()
     {

@@ -1156,6 +1156,9 @@ namespace MeowChan
             DownloadPath = Path.GetFullPath(DownloadPath, _relativePathBaseDirectory);
             if (Origin == ProfileOrigin.ConfirmedNew && FirstRunSetupVersion == 0) FirstRunSetupPending = true;
             string json = JsonSerializer.Serialize(this, ConfigJsonContext.Default.Config);
+            // The read side judges a larger file damaged without reading it; never write one that the next start would refuse.
+            if (System.Text.Encoding.UTF8.GetByteCount(json) > SettingsFileCeilingBytes)
+                throw new InvalidDataException($"The settings are larger than their fixed {SettingsFileCeilingBytes / (1024 * 1024)} MiB file ceiling; nothing was written.");
 
             LoadStatus currentStatus = TryRead(filePath, _relativePathBaseDirectory, out _, out _);
             string backupPath = filePath + ".bak";
