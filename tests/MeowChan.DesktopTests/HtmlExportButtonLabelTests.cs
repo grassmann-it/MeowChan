@@ -14,11 +14,11 @@ public sealed class HtmlExportButtonLabelTests : IDisposable
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage(_language); }
 
     [Theory]
-    [InlineData("en", "Export as HTML…")]
-    [InlineData("de", "Als HTML exportieren…")]
-    [InlineData("es", "Exportar como HTML…")]
-    [InlineData("fr", "Exporter en HTML…")]
-    [InlineData("ru", "Экспортировать в HTML…")]
+    [InlineData("en", "Export…")]
+    [InlineData("de", "Exportieren…")]
+    [InlineData("es", "Exportar…")]
+    [InlineData("fr", "Exporter…")]
+    [InlineData("ru", "Экспортировать…")]
     public void ProductionCommandContentAndIconLabelUseTheWholeCatalogTitle(string language, string expected)
     {
         Texts.SetLanguage(language);
@@ -42,11 +42,11 @@ public sealed class HtmlExportButtonLabelTests : IDisposable
     }
 
     [Theory]
-    [InlineData("en", "Export all 123 results as HTML…")]
-    [InlineData("de", "Alle 123 Treffer als HTML exportieren…")]
-    [InlineData("es", "Exportar los 123 resultados como HTML…")]
-    [InlineData("fr", "Exporter les 123 résultats en HTML…")]
-    [InlineData("ru", "Экспортировать все 123 результатов в HTML…")]
+    [InlineData("en", "Export all 123 results…")]
+    [InlineData("de", "Alle 123 Treffer exportieren…")]
+    [InlineData("es", "Exportar los 123 resultados…")]
+    [InlineData("fr", "Exporter les 123 résultats…")]
+    [InlineData("ru", "Экспортировать все 123 результатов…")]
     public void ResultsProductionContentUsesTheFullCountBearingTitle(string language, string expected)
     {
         Texts.SetLanguage(language);
@@ -76,10 +76,10 @@ public sealed class HtmlExportButtonLabelTests : IDisposable
         button.Command = command;
         Texts.SetLanguage("en");
         ArchivePage.ApplyResultsExportLabel(button, 1);
-        Assert.Equal("Export all 1 results as HTML…", button.Content);
+        Assert.Equal("Export all 1 results…", button.Content);
         Texts.SetLanguage("de");
         ArchivePage.ApplyResultsExportLabel(button, 42);
-        Assert.Equal("Alle 42 Treffer als HTML exportieren…", button.Content);
+        Assert.Equal("Alle 42 Treffer exportieren…", button.Content);
         Assert.Same(command, button.Command);
     }
 }

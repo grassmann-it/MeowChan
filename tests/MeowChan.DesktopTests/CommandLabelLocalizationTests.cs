@@ -94,7 +94,7 @@ public sealed class CommandLabelLocalizationTests : IDisposable
             ("sections.open-navigation", "Navigate sections", "Abschnitte öffnen", "Navegar por las secciones", "Naviguer dans les sections", "Перейти к разделам"),
             ("sections.go-to", "Go to selected section", "Ausgewählten Abschnitt öffnen", "Ir a la sección seleccionada", "Accéder à la section sélectionnée", "Перейти к выбранному разделу"),
             ("appearance.theme", "Change theme", "Farbschema wechseln", "Cambiar tema", "Changer de thème", "Изменить тему"),
-            ("export.open-html-dialog", "Export as HTML…", "Als HTML exportieren…", "Exportar como HTML…", "Exporter en HTML…", "Экспортировать в HTML…"),
+            ("export.open-html-dialog", "Export…", "Exportieren…", "Exportar…", "Exporter…", "Экспортировать…"),
             ("gallery.actual-size", "1:1", "1:1", "1:1", "1:1", "1:1")
         };
         foreach (var label in labels)

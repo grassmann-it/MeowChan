@@ -54,7 +54,7 @@ internal static class HtmlExportButtonLabelChecks
                     Texts.SetLanguage(code);
                     Require(Texts.Language == code, code + ": bundled language did not become effective.");
                     if (code is "es" or "fr" or "ru")
-                        Require(CommandCatalog.Label("export.open-html-dialog") != "Export as HTML…",
+                        Require(CommandCatalog.Label("export.open-html-dialog") != "Export…",
                             code + ": HTML export command silently fell back to English; bundled pack coverage is not exercised.");
                     await SettleAsync(owner);
                     inspector.BringIntoView();
@@ -87,7 +87,7 @@ internal static class HtmlExportButtonLabelChecks
                 Texts.SetLanguage(code);
                 Require(Texts.Language == code, code + ": bundled language did not become effective for archive export.");
                 if (code is "es" or "fr" or "ru")
-                    Require(CommandCatalog.Label("export.open-html-dialog") != "Export as HTML…",
+                    Require(CommandCatalog.Label("export.open-html-dialog") != "Export…",
                         code + ": archive export silently fell back to English.");
                 await page.ReaderLocalizationTask;
                 await SettleAsync(host);
@@ -99,12 +99,13 @@ internal static class HtmlExportButtonLabelChecks
                 await SettleAsync(host);
                 string expected = Texts.T("export.resultsAction", 1);
                 CheckButton(results, expected, code + "/results-overflow");
+                // AP7: the button opens the one Export dialog with "all matches" preselected (no one-item menu).
                 SmokeActionClick.Execute(results);
-                await Program.WaitUntilAsync(() => results.ContextMenu?.IsOpen == true);
-                MenuItem item = results.ContextMenu!.Items.OfType<MenuItem>().Single();
-                Require(Equals(item.Header, expected), "Results menu lost its full count-bearing title.");
+                await Program.WaitUntilAsync(() => page.FindControl<Border>("ArchiveExportDialog")!.IsVisible
+                    && page.CurrentExportScope == ArchivePage.ExportScope.AllResults);
                 Require(ReferenceEquals(results.Command, resultCommand), "Results label refresh replaced its command.");
-                results.ContextMenu.Close();
+                SmokeActionClick.Execute(page.FindControl<Button>("ArchiveExportClose")!);
+                await Program.WaitUntilAsync(() => !page.FindControl<Border>("ArchiveExportDialog")!.IsVisible);
                 toolbar.More.IsChecked = true;
                 await SettleAsync(host);
                 CapturePopup(results, "smoke-html-label-results-" + code + ".png");
@@ -123,7 +124,7 @@ internal static class HtmlExportButtonLabelChecks
                 Texts.SetLanguage(code);
                 Require(Texts.Language == code, code + ": bundled language did not become effective for large reader.");
                 if (code is "es" or "fr" or "ru")
-                    Require(CommandCatalog.Label("export.open-html-dialog") != "Export as HTML…",
+                    Require(CommandCatalog.Label("export.open-html-dialog") != "Export…",
                         code + ": large-reader export silently fell back to English.");
                 await page.ReaderLocalizationTask;
                 await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(host, size.Width, size.Height));

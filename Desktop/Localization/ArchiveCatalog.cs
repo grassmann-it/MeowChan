@@ -155,7 +155,7 @@ internal static class ArchiveCatalog
         ("gallery.sortName", "File name", "Dateiname"),
         ("gallery.sortSize", "File size", "Dateigröße"),
         ("gallery.sortVersion", "Saved version", "Gespeicherte Fassung"),
-        ("gallery.export", "Export as HTML…", "Als HTML exportieren…"),
+        ("gallery.export", "Export…", "Exportieren…"),
         ("archive.inlineUnsupported", "Saved attachment · click for details", "Gespeicherter Anhang · für Details anklicken"),
         ("archive.search", "Search", "Suchen"),
         ("archive.searchHint", "Search local posts and titles…", "Lokale Posts und Titel suchen…"),

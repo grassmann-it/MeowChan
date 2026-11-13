@@ -274,7 +274,7 @@ public partial class ArchivePage
     private async void OnThreadExportMenu(object? sender, RoutedEventArgs e)
     {
         ResourceId[] ids = FrozenArchiveSelection();
-        if (ids.Length > 0) await OpenExportForThreadsAsync(ids, ArchiveSelectionList);
+        if (ids.Length > 0) await OpenExportForThreadsAsync(ids, ArchiveSelectionList, offerResults: true);
     }
 
     private Control ThreadOrigin(ArchiveThreadRow row) =>

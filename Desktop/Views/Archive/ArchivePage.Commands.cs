@@ -162,12 +162,14 @@ public partial class ArchivePage
         if (ids.Length == 1)
             Add("thread.tags", async () => await OpenThreadTagsAsync(lead.Summary.Id), leadAction: true);
         menu.Items.Add(new Separator());
-        Add("export.open-html-dialog", async () => await OpenExportForThreadsAsync(ids, origin), count: () => ids.Length);
+        // Both export entries open the one Export dialog, preselected; "all matches" stays a switchable scope there.
+        Add("export.open-html-dialog", async () => await OpenExportForThreadsAsync(ids, origin, offerResults: true), count: () => ids.Length);
         // A URL-text export covers exactly one frozen thread. Offering it for a batch would show a
         // permanently disabled entry whose stated reason ("busy") does not explain the selection.
         if (ids.Length == 1)
         {
-            Add("export.open-urltext-dialog", async () => await OpenUrlTextExportForThreadAsync(ids[0], origin),
+            Add("export.open-urltext-dialog", async () => await OpenExportForThreadsAsync(new[] { ids[0] }, origin,
+                    offerResults: true, format: ExportFormat.LinkList),
                 () => CanOpenUrlTextExport, Texts.T("urltext.export.error.busy"));
         }
         Add("selection.copy-links", async () => { if (CopySelectedUrls != null) await CopySelectedUrls(urls); }, count: () => urls.Length);

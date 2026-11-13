@@ -111,7 +111,7 @@ internal static class MediaLibraryCatalog
         ("media.selection.tag.hint", "Add or remove one tag on the selected media", "Einen Tag für die ausgewählten Medien hinzufügen oder entfernen"),
         ("media.selection.gallery", "Selection as gallery", "Auswahl als Galerie"),
         ("media.selection.gallery.hint", "Open exactly the selected files in the gallery", "Genau die ausgewählten Dateien in der Galerie öffnen"),
-        ("media.selection.export", "Export originals…", "Originale exportieren…"),
+        ("media.selection.export", "Export…", "Exportieren…"),
         ("media.selection.export.hint", "Copy the originals of the selected files, one per tile", "Die Originale der ausgewählten Dateien kopieren, eines je Kachel"),
         ("media.selection.exportScope", "Selection", "Auswahl"),
         ("media.selection.clear", "Clear selection", "Auswahl aufheben"),

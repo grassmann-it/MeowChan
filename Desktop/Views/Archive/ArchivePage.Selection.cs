@@ -286,7 +286,7 @@ public partial class ArchivePage
         if (MatchesArchiveCommand(e, "selection.copy-links"))
         { e.Handled = true; await CopyArchiveSelectionAsync(); return; }
         if (MatchesArchiveCommand(e, "export.open-html-dialog"))
-        { e.Handled = true; ResourceId[] ids = FrozenArchiveSelection(); if (ids.Length > 0) await OpenExportForThreadsAsync(ids, list); return; }
+        { e.Handled = true; ResourceId[] ids = FrozenArchiveSelection(); if (ids.Length > 0) await OpenExportForThreadsAsync(ids, list, offerResults: true); return; }
         if (MatchesArchiveCommand(e, "archive.delete-permanently"))
         {
             e.Handled = true;
