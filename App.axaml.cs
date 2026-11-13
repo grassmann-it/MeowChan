@@ -17,8 +17,9 @@ public partial class App : Application
 {
     public override void Initialize()
     {
-        LinuxHarfBuzzBootstrap.EnsureLoaded();
-        AvaloniaXamlLoader.Load(this);
+        LinuxVideoPreflight.Begin();
+        using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.app.harfbuzz")) LinuxHarfBuzzBootstrap.EnsureLoaded();
+        using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.app.xaml")) AvaloniaXamlLoader.Load(this);
         MeowChan.Desktop.Controls.HeadingLevels.Install(Styles);
         ThemeLogo.FollowAllWindows();
         ApplyControlLanguage();
@@ -61,7 +62,7 @@ public partial class App : Application
             LinuxVideoPreflightResult? video = null;
             try
             {
-                video = LinuxVideoPreflight.Check();
+                using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.app.video-preflight")) video = LinuxVideoPreflight.CheckBegun();
                 if (!video.Success)
                 {
                     // No session or watches exist yet. Bootstrap messages use the OS

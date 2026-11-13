@@ -5,6 +5,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace MeowChan.Desktop;
 
@@ -36,6 +37,23 @@ internal static class LinuxVideoPreflight
     // Ubuntu 24.04 maintains VLC 3.0.20 with distribution patches. The APIs we
     // use predate this release; codec/output coverage is checked by package playback gates.
     internal const string MinimumVersion = "3.0.20";
+
+    private static readonly object BeginGate = new();
+    private static Task<LinuxVideoPreflightResult>? _begun;
+
+    // Starts the check on a pool thread, so its bundle hashing and engine probe overlap the XAML load and
+    // the window preparation that do not depend on it. The result still gates the first window: CheckBegun
+    // waits for it and rethrows what Check() would have thrown on the calling thread.
+    internal static void Begin()
+    {
+        lock (BeginGate) _begun ??= OperatingSystem.IsLinux() ? Task.Run(() => Check()) : Task.FromResult(Check());
+    }
+
+    internal static LinuxVideoPreflightResult CheckBegun()
+    {
+        Begin();
+        return _begun!.GetAwaiter().GetResult();
+    }
 
     // Validates the runtime's own policy instance: the native initializer and loader then
     // reuse this process's successful result instead of hashing the same bundle again.

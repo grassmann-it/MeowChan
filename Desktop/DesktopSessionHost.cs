@@ -82,11 +82,13 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         DownloadQueue? queue = null;
         try
         {
+            MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.host.ctor", "lease");
             _profileStartupAdmission = _profileLease.Admission.EnterStartupWriter();
             Config = global::MeowChan.Config.LoadConfig(_profileLease.ProfileDirectory, _profileLease);
             Config.EnsureOrdinaryWritesAllowed();
             _confirmedConfig = Config.Clone();
             Commands.ShortcutService.Publish(Config.ShortcutBindings);
+            MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.host.ctor", "config-done");
             ExportHistory = new ExportHistoryStore(_profileLease.ProfileDirectory, _profileLease);
             CollectionExportHistory = new CollectionExportHistoryStore(_profileLease.ProfileDirectory, _profileLease);
             _content = new ThreadContentRuntime(_profileLease.ProfileDirectory, _profileLease);
@@ -100,11 +102,13 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             queue.SetPaused(Config.DownloadsPaused);
             if (providers == null) Plugins = new PluginSession(_profileLease.ProfileDirectory, _profileLease, Config, queue, _logger,
                 pluginTransportFactory, GetOrCreateSourceMediaIntegrityPolicy, _commands);
+            MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.host.ctor", "plugin-session-done");
             IImageBoard[] sources = providers?.ToArray() ?? Array.Empty<IImageBoard>();
             ISessionStore store = sessionStoreFactory?.Invoke(_profileLease.ProfileDirectory, _profileLease)
                 ?? new SessionStore(_profileLease.ProfileDirectory, _profileLease);
             IWorkStateStore workStore = workStoreFactory?.Invoke(_profileLease.ProfileDirectory, _profileLease)
                 ?? new WorkStateStore(_profileLease.ProfileDirectory, _profileLease, _profileStartupAdmission);
+            MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.host.ctor", "stores-done");
             _registry = new Registry(sources, queue, Path.GetFullPath(Config.DownloadPath),
                 TimeSpan.FromSeconds(Config.RecheckTimer), Config.RecheckTimer, store, Config.SaveUrlsOnExit, _logger, _content, workStore);
             _registry.PrepareProfileProducers(_profileLease);
@@ -116,6 +120,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             queue.MediaTagsCarriedOver += OnMediaTagsCarriedOver;
             Updates = updateSessionFactory?.Invoke(_profileLease.ProfileDirectory, Config)
                 ?? new UpdateSession(_profileLease.ProfileDirectory, Config);
+            MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.host.ctor", "updates-done");
         }
         catch
         {
