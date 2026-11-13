@@ -65,35 +65,45 @@
                     <Grid RowDefinitions="*,Auto" RowSpacing="8">
                         <ScrollViewer x:Name="ArchiveFilterSurfaceScroll" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel x:Name="ArchiveFilterFields" Spacing="8" Margin="0,0,12,0">
+                                <!-- Every field has a visible label above it, like Settings; the placeholders stay short. -->
+                                <TextBlock x:Name="ArchiveSourceFilterLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                                    <desktop:IdentitySuggestionBox x:Name="ArchiveSourceFilter" KeyDown="OnSearchKeyDown" />
+                                    <desktop:IdentitySuggestionBox x:Name="ArchiveSourceFilter" KeyDown="OnSearchKeyDown" AutomationProperties.LabeledBy="{Binding #ArchiveSourceFilterLabel}" />
                                     <Button x:Name="ArchiveAddSource" Grid.Column="1" Click="OnAddSource" />
                                 </Grid>
                                 <WrapPanel x:Name="ArchiveDraftSources" ItemSpacing="6" LineSpacing="6" AutomationProperties.LiveSetting="Polite" />
+                                <TextBlock x:Name="ArchiveBoardFilterLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
                                 <ComboBox x:Name="ArchiveBoardScope" HorizontalAlignment="Stretch"  />
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                                    <desktop:IdentitySuggestionBox x:Name="ArchiveBoardFilter" KeyDown="OnSearchKeyDown" />
+                                    <desktop:IdentitySuggestionBox x:Name="ArchiveBoardFilter" KeyDown="OnSearchKeyDown" AutomationProperties.LabeledBy="{Binding #ArchiveBoardFilterLabel}" />
                                     <Button x:Name="ArchiveAddBoard" Grid.Column="1" Click="OnAddBoard" />
                                 </Grid>
                                 <WrapPanel x:Name="ArchiveDraftBoards" ItemSpacing="6" LineSpacing="6" AutomationProperties.LiveSetting="Polite" />
                                 <TextBlock x:Name="ArchiveSuggestionsHint" TextWrapping="Wrap" Classes="muted" FontSize="{StaticResource Workspace.Text.Caption}" />
                                 <Button x:Name="ArchiveRetrySuggestions" HorizontalAlignment="Left" IsVisible="False" />
                                 <!-- Choosing a state adds it at once; no separate Add step. -->
-                                <ComboBox x:Name="ArchiveStateFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
+                                <TextBlock x:Name="ArchiveStateFilterLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <ComboBox x:Name="ArchiveStateFilter" HorizontalAlignment="Stretch" SelectedIndex="0" AutomationProperties.LabeledBy="{Binding #ArchiveStateFilterLabel}" />
                                 <WrapPanel x:Name="ArchiveDraftStates" ItemSpacing="6" LineSpacing="6" AutomationProperties.LiveSetting="Polite" />
                                 <!-- Own tags: include, exclude, and how several included tags combine. -->
-                                <ComboBox x:Name="ArchiveTagChoice" HorizontalAlignment="Stretch" SelectedIndex="0" />
+                                <TextBlock x:Name="ArchiveTagChoiceLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <ComboBox x:Name="ArchiveTagChoice" HorizontalAlignment="Stretch" SelectedIndex="0" AutomationProperties.LabeledBy="{Binding #ArchiveTagChoiceLabel}" />
                                 <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
                                     <Button x:Name="ArchiveAddTagInclude" HorizontalAlignment="Stretch" Click="OnAddTagInclude" />
                                     <Button x:Name="ArchiveAddTagExclude" Grid.Column="1" HorizontalAlignment="Stretch" Click="OnAddTagExclude" />
                                 </Grid>
                                 <WrapPanel x:Name="ArchiveDraftTags" ItemSpacing="6" LineSpacing="6" />
-                                <ComboBox x:Name="ArchiveTagMode" HorizontalAlignment="Stretch" SelectedIndex="0" />
+                                <TextBlock x:Name="ArchiveTagModeLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <ComboBox x:Name="ArchiveTagMode" HorizontalAlignment="Stretch" SelectedIndex="0" AutomationProperties.LabeledBy="{Binding #ArchiveTagModeLabel}" />
                                 <Button x:Name="ArchiveTagManage" HorizontalAlignment="Left" Click="OnManageTags" />
-                                <ComboBox x:Name="ArchiveCaptureFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
-                                <ComboBox x:Name="ArchivePostsFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
-                                <ComboBox x:Name="ArchiveWorkFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
-                                <ComboBox x:Name="ArchiveSort" HorizontalAlignment="Stretch" SelectedIndex="0" />
+                                <TextBlock x:Name="ArchiveCaptureFilterLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <ComboBox x:Name="ArchiveCaptureFilter" HorizontalAlignment="Stretch" SelectedIndex="0" AutomationProperties.LabeledBy="{Binding #ArchiveCaptureFilterLabel}" />
+                                <TextBlock x:Name="ArchivePostsFilterLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <ComboBox x:Name="ArchivePostsFilter" HorizontalAlignment="Stretch" SelectedIndex="0" AutomationProperties.LabeledBy="{Binding #ArchivePostsFilterLabel}" />
+                                <TextBlock x:Name="ArchiveWorkFilterLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <ComboBox x:Name="ArchiveWorkFilter" HorizontalAlignment="Stretch" SelectedIndex="0" AutomationProperties.LabeledBy="{Binding #ArchiveWorkFilterLabel}" />
+                                <TextBlock x:Name="ArchiveSortLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <ComboBox x:Name="ArchiveSort" HorizontalAlignment="Stretch" SelectedIndex="0" AutomationProperties.LabeledBy="{Binding #ArchiveSortLabel}" />
                                 <TextBlock x:Name="ArchiveDateTitle" TextWrapping="Wrap" />
                                 <TextBlock x:Name="ArchiveDateFromLabel" />
                                 <desktop:ArchiveDateEditor x:Name="ArchiveStartDate" />

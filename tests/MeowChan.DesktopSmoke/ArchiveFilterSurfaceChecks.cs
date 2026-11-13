@@ -121,6 +121,15 @@ internal static class ArchiveFilterSurfaceChecks
         await Program.WaitUntilAsync(() => { host.UpdateLayout(); return Contains(Bounds(scroll), Bounds(page.FindControl<Button>("ArchiveUseDeviceZone")!)); });
         scroll.Offset = default;
         Require(last.Parent != null, state + ": filter fields lost their date hint.");
+        // UX round 2 #7: every filter field has a visible label above it and the same accessible name.
+        foreach (string field in new[] { "ArchiveSourceFilter", "ArchiveBoardFilter", "ArchiveStateFilter", "ArchiveTagChoice",
+            "ArchiveTagMode", "ArchiveCaptureFilter", "ArchivePostsFilter", "ArchiveWorkFilter", "ArchiveSort" })
+        {
+            TextBlock label = page.FindControl<TextBlock>(field + "Label")!;
+            Require(!string.IsNullOrWhiteSpace(label.Text)
+                && Avalonia.Automation.AutomationProperties.GetName(page.FindControl<Control>(field)!) == label.Text,
+                state + ": filter field " + field + " has no visible label or a different accessible name.");
+        }
         Program.CaptureWindow(host, $"smoke-archive-filter-surface-{(int)width}-{code}-{theme.ToString().ToLowerInvariant()}.png");
 
         // Tab stays inside the open surface; Escape closes it and returns to the toggle.

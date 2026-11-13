@@ -91,8 +91,10 @@ public partial class ArchivePage
     }
     private void UpdateSuggestionHint()
     {
-        AutomationProperties.SetName(ArchiveSourceFilter, Texts.T("archive.sourceFilter"));
-        AutomationProperties.SetName(ArchiveBoardFilter, Texts.T("archive.boardFilter"));
+        AutomationProperties.SetName(ArchiveSourceFilter, Texts.T("archive.filter.source"));
+        AutomationProperties.SetName(ArchiveBoardFilter, Texts.T("archive.filter.board"));
+        AutomationProperties.SetHelpText(ArchiveSourceFilter, Texts.T("archive.sourceFilter"));
+        AutomationProperties.SetHelpText(ArchiveBoardFilter, Texts.T("archive.boardFilter"));
         var hint = ArchiveSuggestionsHint;
         hint.Text = Texts.T(_suggestionsFailed ? "suggestions.unavailable" : "archive.suggestionsHint");
         ArchiveRetrySuggestions.Content = Texts.T("suggestions.retry");

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -55,8 +56,19 @@ public partial class ArchivePage
     {
         UpdateSuggestionHint();
         ArchiveSearchText.PlaceholderText = Texts.T("archive.searchHint");
-        ArchiveSourceFilter.PlaceholderText = Texts.T("archive.sourceFilter");
-        ArchiveBoardFilter.PlaceholderText = Texts.T("archive.boardFilter");
+        // Short placeholders; the visible label above each field names what it filters.
+        ArchiveSourceFilter.PlaceholderText = Texts.T("archive.filter.all");
+        ArchiveBoardFilter.PlaceholderText = Texts.T("archive.filter.all");
+        foreach ((string field, string key) in new[] {
+            ("ArchiveSourceFilter", "archive.filter.source"), ("ArchiveBoardFilter", "archive.filter.board"),
+            ("ArchiveStateFilter", "archive.filter.state"), ("ArchiveTagChoice", "tags.filter.label"),
+            ("ArchiveTagMode", "tags.filter.matchLabel"), ("ArchiveCaptureFilter", "archive.filter.capture"),
+            ("ArchivePostsFilter", "archive.filter.content"), ("ArchiveWorkFilter", "archive.filter.work"),
+            ("ArchiveSort", "archive.filter.sort") })
+        {
+            Control<TextBlock>(field + "Label").Text = Texts.T(key);
+            AutomationProperties.SetName(Control<Control>(field), Texts.T(key));
+        }
         ArchiveFilters.Header = Texts.T("archive.filters");
         SetOptions("ArchiveStateFilter", "archive.allStates", "archive.sourceActive", "archive.sourceArchived", "archive.sourceMissing");
         SetOptions("ArchiveCaptureFilter", "archive.allCapture", "archive.captureEnabled", "archive.captureDisabled");
