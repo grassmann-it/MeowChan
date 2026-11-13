@@ -175,6 +175,17 @@ public partial class ArchivePage
         }, DispatcherPriority.Input);
     }
 
+    /// <summary>The thread the Tags shortcut acts on: the thread read in the large reader, otherwise the one selected
+    /// thread (a batch has no Tags entry in the menu either). Null while the page cannot act.</summary>
+    internal ResourceId? ThreadTagsShortcutTarget => _ended || !_available || _busy || IsReaderDialogOpen ? null
+        : _largeReader ? _thread?.Summary.Id
+        : FrozenArchiveSelection() is { Length: 1 } single ? single[0] : null;
+
+    internal void OpenThreadTagsByShortcut()
+    {
+        if (ThreadTagsShortcutTarget is ResourceId id) _ = OpenThreadTagsAsync(id);
+    }
+
     private void OnCloseThreadTags(object? sender, RoutedEventArgs e) => CloseTagBar(focusOpen: true);
 
     private void CloseTagBar(bool focusOpen = false)

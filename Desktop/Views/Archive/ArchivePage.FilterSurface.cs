@@ -44,6 +44,12 @@ public partial class ArchivePage
         // Only a deliberate open from the toggle moves focus in; programmatic opens
         // (invalid draft reveal, commands) keep their own focus target.
         if (!FocusWithin(ArchiveFilters)) return;
+        FocusFirstFilterField();
+    }
+
+    private void FocusFirstFilterField()
+    {
+        Border surface = ArchiveFilterSurface;
         Dispatcher.UIThread.Post(() =>
         {
             if (_ended || !IsFilterSurfaceOpen || !surface.IsEffectivelyVisible) return;
@@ -51,6 +57,15 @@ public partial class ArchivePage
                 .FirstOrDefault(element => element.Focusable && element.IsEffectivelyEnabled && element.IsEffectivelyVisible)
                 ?.Focus(NavigationMethod.Tab);
         }, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>The filters shortcut: opens the filter surface and moves into it, or closes it and returns to the toggle.</summary>
+    internal void ToggleFilterSurfaceByShortcut()
+    {
+        if (_ended) return;
+        if (IsFilterSurfaceOpen) { CloseFilterSurface(restoreFocus: true); return; }
+        ArchiveFilters.IsExpanded = true;
+        FocusFirstFilterField();
     }
 
     internal void CloseFilterSurface(bool restoreFocus)

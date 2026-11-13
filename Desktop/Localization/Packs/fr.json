@@ -1869,6 +1869,7 @@
     "command.thread.read": "Lire les publications",
     "command.gallery.open": "Ouvrir dans la galerie",
     "command.media.open": "Ouvrir le média sélectionné",
+    "command.media.select-all": "Sélectionner tous les médias",
     "command.gallery.open-results": "Médias des fils correspondants",
     "command.thread.details": "Afficher les détails",
     "command.inspector.close": "Fermer les détails",

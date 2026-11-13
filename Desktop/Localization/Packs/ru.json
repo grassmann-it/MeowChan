@@ -1869,6 +1869,7 @@
     "command.thread.read": "Читать сообщения",
     "command.gallery.open": "Открыть в галерее",
     "command.media.open": "Открыть выбранный медиафайл",
+    "command.media.select-all": "Выбрать все медиафайлы",
     "command.gallery.open-results": "Медиафайлы из подходящих тредов",
     "command.thread.details": "Показать сведения",
     "command.inspector.close": "Закрыть сведения",

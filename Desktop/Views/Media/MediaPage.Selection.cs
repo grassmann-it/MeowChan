@@ -8,6 +8,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
@@ -66,7 +67,7 @@ public sealed partial class MediaPage
 
     internal void ClearSelection() => _grid.Selection.Clear();
 
-    // Escape clears and Ctrl/Cmd+A selects every shown tile; clicks and Shift/Ctrl ranges are the ListBox's own.
+    // Escape (fixed) clears and media.select-all (Ctrl/Cmd+A by default) selects every shown tile; clicks and Shift/Ctrl ranges are the ListBox's own.
     private bool OnSelectionKey(KeyEventArgs e)
     {
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && _exportAllAsk.IsVisible)
@@ -81,7 +82,7 @@ public sealed partial class MediaPage
             e.Handled = true;
             return true;
         }
-        if (e.Key == Key.A && e.KeyModifiers is KeyModifiers.Control or KeyModifiers.Meta && _tiles.Count > 0)
+        if (CommandBindings.Matches(e, "media.select-all") && _tiles.Count > 0)
         {
             _grid.Selection.SelectAll();
             e.Handled = true;

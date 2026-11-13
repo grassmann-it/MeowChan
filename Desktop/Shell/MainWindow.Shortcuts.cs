@@ -44,6 +44,26 @@ public partial class MainWindow
         }
     }
 
+    // Tags and the archive filter surface act on a target that exists several times (list rows, reader thread,
+    // tiles, gallery): each is resolved when the key is pressed, not taken from a visible button.
+    private void RegisterTagAndFilterCommands()
+    {
+        if (_shortcutRouter == null) return;
+        if (_archivePage is { } archive)
+        {
+            bool ArchiveActive() => _selectedPage == WorkspacePage.Archive && _gallery == null;
+            _shortcutRouter.Register(new CommandRegistration("thread.tags", archive, ArchiveActive,
+                () => archive.ThreadTagsShortcutTarget != null, archive.OpenThreadTagsByShortcut, Priority: 100));
+            _shortcutRouter.Register(new CommandRegistration("archive.filters-toggle", archive,
+                () => ArchiveActive() && !_largeReaderOpen, () => !archive.IsReaderDialogOpen,
+                archive.ToggleFilterSurfaceByShortcut, Priority: 100, AllowInTextInput: true));
+        }
+        if (_mediaPage is { } media)
+            _shortcutRouter.Register(new CommandRegistration("media.tags.edit", media,
+                () => _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null,
+                () => media.SelectedTiles.Count > 0, () => _ = media.EditTagsByShortcutAsync(), Priority: 100));
+    }
+
     private void RegisterRuleTemplateCommands()
     {
         if (_shortcutRouter == null || _rulesPage == null) return;

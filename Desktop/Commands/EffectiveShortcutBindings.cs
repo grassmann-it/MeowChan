@@ -33,7 +33,7 @@ public sealed record ShortcutGesture(string Key, IReadOnlyList<string> Modifiers
     {
         var resolved = Resolve(platform);
         string key = Key.StartsWith("D", StringComparison.Ordinal) && Key.Length == 2 && char.IsDigit(Key[1]) ? Key[1..] : Key;
-        key = key switch { "OemComma" => ",", "OemPlus" => "+", "OemMinus" => "−", _ => key };
+        key = key switch { "OemComma" => ",", "OemPlus" => "+", "OemMinus" => "−", "Apps" => "Menu", _ => key };
         string prefix = string.Join("+", Modifiers.Select(m => m == "Primary" ? platform == ShortcutPlatform.MacOS ? "⌘" : "Ctrl" : m == "Control" ? "Ctrl" : m));
         return prefix.Length == 0 ? Symbol ?? key : prefix + "+" + (Symbol ?? key);
     }
@@ -89,6 +89,8 @@ public sealed class EffectiveShortcutBindings
         ["video.volume-up"] = 1, ["video.volume-down"] = 1, ["favorites.add"] = 1, ["favorites.remove"] = 1,
         ["navigation.media"] = 2, ["navigation.rules"] = 2, ["navigation.sources"] = 2, ["navigation.diagnostics"] = 2,
         ["navigation.plugins"] = 2, ["input.focus-media-search"] = 2,
+        ["thread.favorite-toggle"] = 2, ["thread.tags"] = 2, ["media.tags.edit"] = 2,
+        ["archive.filters-toggle"] = 2, ["board.filters"] = 2, ["media.select-all"] = 2, ["menu.context-open"] = 2,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     /// <summary>Whether an issue deserves the startup warning: only what silences or blocks a binding
@@ -121,6 +123,7 @@ public sealed class EffectiveShortcutBindings
             case "gallery.zoom-in": list.Add(ShortcutGesture.Parse("Add")); list.Add(ShortcutGesture.Parse("Shift+OemPlus")); break;
             case "gallery.zoom-out": list.Add(ShortcutGesture.Parse("Subtract")); break;
             case "viewer.shortcut-help": list.Add(new("OemQuestion", new[] { "Shift" }, "?")); break;
+            case "menu.context-open": list.Add(ShortcutGesture.Parse("Apps")); break;
         }
         return list.AsReadOnly();
     }

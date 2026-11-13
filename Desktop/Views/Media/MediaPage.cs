@@ -440,12 +440,31 @@ public sealed partial class MediaPage : UserControl
                 if (SelectedTiles.Count == 1) await ShowSelectedInThreadAsync();
                 return;
             }
+            // media.tags.edit: several selected tiles tag together (the selection bar's action), one edits its own tags.
+            if (CommandBindings.Matches(e, "media.tags.edit"))
+            {
+                e.Handled = true;
+                await EditTagsByShortcutAsync();
+                return;
+            }
             if (e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None || SelectedRow == null) return;
             e.Handled = true;
             // Several selected tiles open together; one opens around itself.
             if (SelectedTiles.Count > 1) await OpenSelectionGalleryAsync(); else await OpenSelectedAsync();
         }
         catch (Exception error) when (UnhandledErrors.TryRecover(error, "media.grid.key")) { /* Logged and shown. */ }
+    }
+
+    /// <summary>The Tags shortcut: the same two paths as the menu (one tile) and the selection bar (several), with the same gates.</summary>
+    internal async Task EditTagsByShortcutAsync()
+    {
+        if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy) return;
+        if (SelectedTiles.Count > 1) { await TagSelectionAsync(); return; }
+        if (SelectedRow is not { } row || row.State?.CanEditMediaTags != true) return;
+        bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
+        MediaLibraryEntry entry = row.Entry;
+        if (EditTagsForMenuAsync != null) await EditTagsForMenuAsync(entry, Current);
+        else await ExecuteMediaActionAsync("media.tags.edit", entry, Current);
     }
 
     internal void InitializeSharedMediaMenus()

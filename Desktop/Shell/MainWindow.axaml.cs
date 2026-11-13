@@ -130,6 +130,7 @@ public partial class MainWindow : Window
             RegisterPostBookmarkCommands();
             RegisterSectionCommands();
             RegisterRuleTemplateCommands();
+            RegisterTagAndFilterCommands();
             WireWorkspaceCommands();
             InitializeSelectionCommands();
             InitializeStatusColumnRedundancy();

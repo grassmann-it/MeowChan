@@ -1187,6 +1187,7 @@ internal sealed partial class GalleryViewer : UserControl
         else if (CommandBindings.Matches(e, "gallery.zoom-in")) Zoom(1.1);
         else if (CommandBindings.Matches(e, "gallery.zoom-out")) Zoom(1 / 1.1);
         else if (CommandBindings.Matches(e, "gallery.close")) CloseRequested?.Invoke();
+        else if (CommandBindings.Matches(e, "media.tags.edit")) RequestTags();
         else if (CommandBindings.Matches(e, "media.show-in-folder")) { if (_entry != null) ShowInFolderRequested?.Invoke(_entry); }
         else if (CommandBindings.Matches(e, "media.copy-path")) { if (_entry != null) CopyPathRequested?.Invoke(_entry); }
         else if (CommandBindings.Matches(e, "media.open-external")) { if (_entry != null) OpenExternalRequested?.Invoke(_entry); }
