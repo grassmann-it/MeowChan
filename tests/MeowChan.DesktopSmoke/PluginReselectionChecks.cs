@@ -412,7 +412,8 @@ internal static class PluginReselectionChecks
         Require(string.IsNullOrEmpty(issue.Text) && !strip.IsVisible && AutomationProperties.GetLiveSetting(issue) == AutomationLiveSetting.Assertive,
             "Error strip shows or repeats a neutral message: " + text);
     }
-    // One right-aligned row at the default width, Close/Reload/Submit, with exactly one primary action.
+    // One right-aligned row at the default width. Submit disappears after all actionable
+    // rows are consumed; Close/Reload must remain reachable, with Close the sole primary action.
     private static bool VerifyFooter(Window modal, bool closePrimary, bool requireOneRow = true)
     {
         modal.UpdateLayout();
@@ -421,14 +422,18 @@ internal static class PluginReselectionChecks
         Button close = ById(modal, "BundledApprovalClose"), reload = ById(modal, "BundledApprovalReload"), submit = ById(modal, "BundledApprovalSubmit");
         Rect Box(Control c) => new(c.TranslatePoint(default, footer)!.Value, c.Bounds.Size);
         Rect footerBox = new Rect(footer.Bounds.Size).Inflate(0.5);
-        foreach (Button button in new[] { close, reload, submit })
-            Require(footerBox.Contains(Box(button)) && button.Bounds.Width > 0, "Footer button is clipped or hidden: " + AutomationProperties.GetAutomationId(button));
-        bool oneRow = Math.Abs(Box(close).Y - Box(reload).Y) < 1 && Math.Abs(Box(reload).Y - Box(submit).Y) < 1 &&
-            Box(close).X < Box(reload).X && Box(reload).X < Box(submit).X;
+        Require(closePrimary ? !submit.IsVisible && !submit.IsEnabled : submit.IsEffectivelyVisible,
+            "Submit must be visible during review and hidden/disabled once no actionable rows remain.");
+        Button[] visibleActions = closePrimary ? [close, reload] : [close, reload, submit];
+        foreach (Button button in visibleActions)
+            Require(button.IsEffectivelyVisible && footerBox.Contains(Box(button)) && button.Bounds.Width > 0 && button.Bounds.Height > 0,
+                "Footer button is clipped or hidden: " + AutomationProperties.GetAutomationId(button));
+        bool oneRow = visibleActions.Zip(visibleActions.Skip(1)).All(pair =>
+            Math.Abs(Box(pair.First).Y - Box(pair.Second).Y) < 1 && Box(pair.First).Right <= Box(pair.Second).X);
         if (requireOneRow)
         {
             Require(oneRow, "Footer buttons do not share one ordered row.");
-            Require(footerBox.Right - Box(submit).Right < 40, "Footer row is not right-aligned.");
+            Require(footerBox.Right - Box(visibleActions[^1]).Right < 40, "Footer row is not right-aligned.");
         }
         Require(actions.Classes.Contains("workspace-actions"), "Footer row does not use the shared action-row style.");
         Require(submit.Classes.Contains("primary") == !closePrimary && close.Classes.Contains("primary") == closePrimary &&
