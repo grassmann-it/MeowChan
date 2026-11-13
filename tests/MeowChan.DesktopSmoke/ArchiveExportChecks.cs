@@ -194,8 +194,11 @@ internal static class ArchiveExportChecks
                 Require(fixture.FindControl<Border>("ArchiveExportDialog")!.IsVisible, "Cancelling lookup closed the dialog before its work ended.");
                 fixture.FindControl<Button>("ArchiveExportLegacyFind")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 await Program.WaitUntilAsync(() => fixture.FindControl<Button>("ArchiveExportLegacyFind")!.IsEnabled);
-                Require(fixture.FindControl<TextBlock>("ArchiveExportStatus")!.Text!.StartsWith("Found ", StringComparison.Ordinal),
-                    "Retrying a cancelled legacy lookup reused its cancelled token.");
+                // The fixture folder holds no legacy candidate, so a live retry ends with the explained
+                // empty result. A reused cancelled token would instead end with the cancelled status.
+                string lookupStatus = fixture.FindControl<TextBlock>("ArchiveExportStatus")!.Text ?? string.Empty;
+                Require(lookupStatus == Texts.T("export.legacyNone"),
+                    "Retrying a cancelled legacy lookup reused its cancelled token. status=" + lookupStatus);
                 Console.WriteLine("SMOKE portable export index: " + Path.Combine(moved, "index.html"));
                 fixture.FindControl<Button>("ArchiveExportClose")!.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
                 Require(!fixture.FindControl<Border>("ArchiveExportDialog")!.IsVisible, "Export workflow did not close with Escape.");
