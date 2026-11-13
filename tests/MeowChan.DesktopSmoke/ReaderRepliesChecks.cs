@@ -6,6 +6,7 @@ using Avalonia.Controls.Presenters;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
@@ -117,6 +118,7 @@ internal static class ReaderRepliesChecks
             await Program.WaitUntilAsync(() => list.SelectedItem is ArchivePostRow { Id: "101" });
             Require(page.CurrentThread?.Summary.Id == id, "Inline backlink navigation left the local thread.");
             Console.WriteLine("SMOKE reader replies: collapsed count, bounded 20-item inline page, more replies and quote navigation passed.");
+            await CheckPostCardsAsync(window, page, id);
         }
         finally
         {
@@ -124,6 +126,89 @@ internal static class ReaderRepliesChecks
             window?.Close();
             Directory.Delete(profile, recursive: true);
         }
+    }
+
+    // Reader post cards (R1-R6): OP on the page and reply cards in their tokens, one-line header with the
+    // copyable number and reply count, inline >>No. hit-testing and navigation over unchanged plain text,
+    // the focus-revealed keyboard quote row, and the bundled reading font with its relative line height.
+    private static async Task CheckPostCardsAsync(Window window, ArchivePage page, ResourceId id)
+    {
+        ListBox list = page.FindControl<ListBox>("ArchivePosts")!;
+        // The preceding backlink navigation re-renders the page; read the settled rows.
+        await Program.WaitUntilAsync(() => !page.IsBusy && list.ItemsSource is ArchivePostRow[]);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        ArchivePostRow[] rows = list.ItemsSource!.Cast<ArchivePostRow>().ToArray();
+        ArchivePostRow opening = rows.Single(row => row.Id == "100"), reply = rows.Single(row => row.Id == "101"); // Realized right below the long OP.
+        Require(opening.IsOpeningPost && !reply.IsOpeningPost, "The thread-number post was not the only opening post.");
+        await Program.WaitUntilAsync(() => opening.BacklinkCount == 25);
+        ListBoxItem Container(ArchivePostRow row) => list.GetVisualDescendants().OfType<ListBoxItem>()
+            .Single(item => ReferenceEquals(item.DataContext, row));
+        // Neither the OP nor the sampled reply may be the active card; selection auto-scroll is asynchronous,
+        // so keep bringing the top of the thread into view until both rows are realized.
+        list.SelectedItem = rows.Single(row => row.Id == "120");
+        await Program.WaitUntilAsync(() =>
+        {
+            list.ScrollIntoView(opening); list.UpdateLayout();
+            return list.SelectedItem is ArchivePostRow { Id: not ("100" or "101") }
+                && list.GetVisualDescendants().OfType<ListBoxItem>().Any(item => ReferenceEquals(item.DataContext, opening))
+                && list.GetVisualDescendants().OfType<ListBoxItem>().Any(item => ReferenceEquals(item.DataContext, reply));
+        }, () => "selected=" + (list.SelectedItem as ArchivePostRow)?.Id + "; realized=" + string.Join(",", list.GetVisualDescendants()
+            .OfType<ListBoxItem>().Select(item => (item.DataContext as ArchivePostRow)?.Id)) + "; rows=" + string.Join(",", rows.Select(row => row.Id))
+            + "; source=" + ReferenceEquals(list.ItemsSource, rows) + "/" + (list.ItemsSource as ArchivePostRow[])?.Length);
+        await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+        Color Token(string key) => Application.Current!.TryGetResource(key, window.ActualThemeVariant, out object? value)
+            && value is ISolidColorBrush brush ? brush.Color : throw new InvalidOperationException("Missing token " + key);
+        Color? Surface(ListBoxItem item) => (item.GetVisualDescendants().OfType<ContentPresenter>().First().Background as ISolidColorBrush)?.Color;
+        ListBoxItem opItem = Container(opening), replyItem = Container(reply);
+        Require(opItem.Classes.Contains("reader-op") && Surface(opItem) == Colors.Transparent,
+            "The opening post did not sit directly on the page: " + Surface(opItem));
+        Require(!replyItem.Classes.Contains("reader-op") && Surface(replyItem) == Token("Workspace.ReaderPostSurface")
+            && (replyItem.GetVisualDescendants().OfType<ContentPresenter>().First().BorderBrush as ISolidColorBrush)?.Color == Token("Workspace.ReaderPostEdge"),
+            "A reply was not a card with its edge: " + Surface(replyItem));
+        Require((list.Background as ISolidColorBrush)?.Color == Token("Workspace.ReaderPage"), "The post list was not on the page tone.");
+        Require(opItem.GetVisualDescendants().OfType<TextBlock>().Any(text => text.IsEffectivelyVisible && text.Text == opening.BacklinkCountLabel),
+            "The reply count was not shown in the opening post header.");
+
+        ReaderBodyTextBlock body = replyItem.GetVisualDescendants().OfType<ReaderBodyTextBlock>().Single();
+        Require(body.Text == null && body.Inlines is { Count: 2 } && body.PlainText == reply.Body,
+            "The reply body was not rendered as runs over its plain text.");
+        Require(body.LineHeight == Math.Round(body.FontSize * 1.45), "The reading line height did not follow the font size.");
+        Require(FontManager.Current.TryGetGlyphTypeface(new Typeface(body.FontFamily), out var glyphs)
+            && glyphs!.FamilyName == "Noto Sans", "The post body did not resolve the bundled Noto Sans: " + body.FontFamily);
+        body.SelectionStart = 0; body.SelectionEnd = reply.Body.Length;
+        Require(body.SelectedText == reply.Body, "Selecting a formatted body did not copy its plain text: " + body.SelectedText);
+        body.SelectionStart = body.SelectionEnd = 0;
+        Rect caret = body.TextLayout.HitTestTextPosition(2);
+        ReaderBodySegment? link = body.QuoteAt(new Point(caret.X + 1, caret.Y + caret.Height / 2));
+        Rect plain = body.TextLayout.HitTestTextPosition(reply.Body.Length - 2);
+        Require(link?.Quote == reply.Quotes[0] && body.QuoteAt(new Point(plain.X + 1, plain.Y + plain.Height / 2)) == null,
+            "Inline >>100 hit-testing did not map to its quote: " + caret);
+
+        ItemsControl keys = replyItem.GetVisualDescendants().OfType<ItemsControl>().Single(control => control.Classes.Contains("reader-quote-keys"));
+        Button key = keys.GetVisualDescendants().OfType<Button>().Single();
+        Require(keys.Bounds.Height == 0 && key.IsEffectivelyVisible && AutomationProperties.GetName(key) == reply.Quotes[0].AccessibleLabel,
+            "The keyboard quote row was not collapsed while unfocused: " + keys.Bounds);
+        key.Focus(NavigationMethod.Tab);
+        await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+        Require(keys.Bounds.Height > 0 && key.Bounds.Height >= 24, "Keyboard focus did not reveal the quote row: " + keys.Bounds);
+        Program.CaptureWindow(window, "smoke-reader-cards-keyboard-quote.png");
+
+        string? copied = null;
+        page.CopyPostReference = text => { copied = text; return Task.CompletedTask; };
+        Button number = replyItem.GetVisualDescendants().OfType<Button>().Single(button => button.Classes.Contains("reader-post-number"));
+        Require(Equals(number.Content, reply.NumberLabel) && AutomationProperties.GetName(number) == reply.CopyNumberLabel,
+            "The post number was not a labelled link.");
+        number.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Program.WaitUntilAsync(() => copied != null);
+        Require(copied == ">>101" && page.FindControl<TextBlock>("ArchiveMessage")!.Text
+            == MeowChan.Desktop.Localization.Texts.T("reader.postNumberCopied", "101"), "The post number did not copy >>No. with feedback: " + copied);
+        page.CopyPostReference = null;
+
+        body.RaiseEvent(new ReaderQuoteInvokedEventArgs(ReaderBodyTextBlock.QuoteInvokedEvent, link!.Quote!));
+        await Program.WaitUntilAsync(() => list.SelectedItem is ArchivePostRow { Id: "100" } && !page.IsBusy);
+        Require(page.CurrentThread?.Summary.Id == id, "Inline >>100 navigation left the local thread.");
+        Program.CaptureWindow(window, "smoke-reader-cards-" + window.ActualThemeVariant.Key + ".png");
+        Console.WriteLine("SMOKE reader cards: OP on page, reply card tokens, header count and number copy, inline >>No. hit-test/navigation, keyboard quote row, Noto Sans body passed.");
     }
 
     private static void Require(bool condition, string message)

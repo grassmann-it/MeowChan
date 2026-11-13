@@ -54,7 +54,9 @@ internal static class ShowcaseData
                 string firstPostId = (900000001L + index * 100L).ToString(System.Globalization.CultureInfo.InvariantCulture);
                 string body = post == 0
                     ? "A landscape study in light, shape and colour.<br>Warm evening light meets cool mountain silhouettes. Fine horizontal strokes suggest reflections on the lake.<br>Original artwork from the demo sketchbook, saved locally for offline reading."
-                    : $"<a href='#p{firstPostId}'>&gt;&gt;{firstPostId}</a><br>Another view from the landscape sketchbook. Layered ridgelines, soft reflections and a quiet evening sky.";
+                    : $"<a href='#p{firstPostId}'>&gt;&gt;{firstPostId}</a><br>Another view from the landscape sketchbook. Layered ridgelines, soft reflections and a quiet evening sky."
+                        // One greentext line, so reader and export captures show the imageboard formatting.
+                        + (post == 2 ? "<br><span class='quote'>&gt;the same lake, one hour later</span>" : string.Empty);
                 posts.Add(new CapturedPost(postId, post, PostFieldPresence.All, Epoch.AddMinutes(index + post),
                     Subjects[art], "Demo artist", body, Attachments:
                     [new CapturedAttachment(0, mediaId, Url: mediaUrl.AbsoluteUri, OriginalFileName: name,

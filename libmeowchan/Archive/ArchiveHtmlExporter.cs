@@ -171,11 +171,14 @@ public static class ArchiveHtmlExporter
             + "</p><p>" + text.Html(HtmlExportText.Retention) + " "
             + text.Html(quoteResolver == null ? HtmlExportText.ExternalThreads : HtmlExportText.UncapturedReferences) + "</p></header><main>");
         if (quoteResolver != null) await html.WriteLineAsync("<nav><a href=\"../index.html\">" + text.Html(HtmlExportText.CollectionStart) + "</a></nav>");
+        // Like the reader: the opening post is the thread number on 4chan/8kun, else the first captured post.
+        string? openingPost = view.Summary.Id.Thread is { } threadNumber && view.FindPostIndex(threadNumber) >= 0 ? threadNumber
+            : view.Summary.Id.Source is "4chan" or "8kun" || view.PostCount == 0 ? null : view.Posts[0].PostId;
         foreach (CapturedPost post in view.Posts)
         {
             token.ThrowIfCancellationRequested();
-            await html.WriteLineAsync("<article id=\"" + PostAnchor(post.PostId) + "\"><h2>#" + Encode(post.PostId) + " " + Encode(post.Subject) + "</h2><p class=\"meta\">" + Encode(post.Author)
-                + " " + Encode(post.PostedAt?.ToString("u", CultureInfo.InvariantCulture)) + (post.IsDeleted ? " · " + text.Html(HtmlExportText.Removed) : "") + "</p><div class=\"body\">" + Encode(ArchiveText.PlainText(post.Html)) + "</div>");
+            await html.WriteLineAsync("<article id=\"" + PostAnchor(post.PostId) + "\"" + (post.PostId == openingPost ? " class=\"op\"" : "") + "><h2>#" + Encode(post.PostId) + " " + Encode(post.Subject) + "</h2><p class=\"meta\">" + Encode(post.Author)
+                + " " + Encode(post.PostedAt?.ToString("u", CultureInfo.InvariantCulture)) + (post.IsDeleted ? " · " + text.Html(HtmlExportText.Removed) : "") + "</p><div class=\"body\">" + BodyHtml(ArchiveText.PlainText(post.Html)) + "</div>");
             foreach (ArchiveQuote quote in ArchiveQuoteParser.Parse(view.Summary.Id, view.Summary.Url, post))
             {
                 string? quotePath = quoteResolver == null
@@ -317,13 +320,29 @@ public static class ArchiveHtmlExporter
         }
     }
     internal static string Encode(string? text) => WebUtility.HtmlEncode(text ?? string.Empty);
+    // Greentext lines as spans inside the pre-wrapped body; every character stays encoded text.
+    internal static string BodyHtml(string plain)
+    {
+        StringBuilder body = new(plain.Length + 32);
+        foreach (string line in plain.Split('\n'))
+        {
+            if (body.Length > 0) body.Append('\n');
+            if (ArchiveText.IsGreentextLine(line)) body.Append("<span class=\"greentext\">").Append(Encode(line)).Append("</span>");
+            else body.Append(Encode(line));
+        }
+        return body.ToString();
+    }
     internal static string PostAnchor(string id) => "p-" + Convert.ToHexString(Encoding.UTF8.GetBytes(id)).ToLowerInvariant();
     private static string SafeExtension(string path) => Path.GetExtension(path).ToLowerInvariant() switch
     { ".png" => ".png", ".jpg" => ".jpg", ".jpeg" => ".jpeg", ".gif" => ".gif", ".webp" => ".webp", ".bmp" => ".bmp", ".webm" => ".webm", ".mp4" => ".mp4", _ => ".bin" };
+    // Reader cards (study 2026-11-13): cards on the page tone with an edge >= 3:1 against the page, the
+    // opening post directly on the page, greentext; dark by default, the light palette for light schemes.
     internal const string Css = """
-        :root{color-scheme:dark light;font:16px/1.5 "Noto Sans",system-ui,sans-serif;background:#15181c;color:#e0e3e6}
-        body{max-width:960px;margin:auto;padding:24px}header,footer,article{background:#20242a;border:1px solid #363b44;border-radius:6px;padding:20px;margin-bottom:16px}
-        h1,h2{overflow-wrap:anywhere}h2{font-size:1.05rem}.body{white-space:pre-wrap;overflow-wrap:anywhere}.meta{color:#aab2be;font-size:.85rem}
-        a{color:#88b8ff;overflow-wrap:anywhere}.quote,.omission{display:block;margin:8px 0}.omission{color:#e9bc7d;font-size:.9rem}figure{margin:16px 0}img,video{display:block;max-width:100%;max-height:600px}figcaption{overflow-wrap:anywhere}
+        :root{color-scheme:dark light;font:16px/1.5 "Noto Sans",system-ui,sans-serif;background:#121416;color:#eef1f4}
+        body{max-width:960px;margin:auto;padding:24px}header,footer,article{background:#20242a;border:1px solid #5a636e;border-radius:4px;padding:20px;margin-bottom:16px}
+        article.op{background:transparent;border-color:transparent}
+        h1,h2{overflow-wrap:anywhere}h2{font-size:1.05rem}.body{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.45}.meta{color:#a4adb8;font-size:.85rem}.greentext{color:#9ccb6a}
+        a{color:#6aa7ff;overflow-wrap:anywhere}.quote,.omission{display:block;margin:8px 0}.omission{color:#e8be72;font-size:.9rem}figure{margin:16px 0}img,video{display:block;max-width:100%;max-height:600px}figcaption{overflow-wrap:anywhere}
+        @media (prefers-color-scheme:light){:root{background:#e3dfd8;color:#1a1a1a}header,footer,article{background:#faf7f1;border-color:#7a7062}article.op{background:transparent;border-color:transparent}.meta{color:#575148}.greentext{color:#386217}a{color:#803b06}.omission{color:#795100}}
         """;
 }

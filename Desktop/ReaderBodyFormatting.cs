@@ -23,11 +23,8 @@ internal sealed record ReaderBodyDocument(string Text, IReadOnlyList<ReaderBodyS
 
 internal static class ReaderBodyFormatting
 {
-    // ">>123" and ">>>/board/" start a reference, not greentext.
-    internal static bool IsReferenceStart(ReadOnlySpan<char> text) => text.Length > 2 && text[0] == '>' && text[1] == '>'
-        && (char.IsAsciiDigit(text[2]) || text[2] == '>');
-
-    internal static bool IsGreentextLine(ReadOnlySpan<char> line) => line.Length > 0 && line[0] == '>' && !IsReferenceStart(line);
+    // Shared with the HTML export: ">>123" and ">>>/board/" start a reference, not greentext.
+    internal static bool IsGreentextLine(ReadOnlySpan<char> line) => MeowChan.Archive.ArchiveText.IsGreentextLine(line);
 
     internal static ReaderBodyDocument Format(string text, IReadOnlyList<ArchiveQuoteRow> quotes)
     {

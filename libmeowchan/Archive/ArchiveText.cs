@@ -12,6 +12,11 @@ public static class ArchiveText
 
     internal static string WithoutActiveContent(string? html) => Process(html, true);
 
+    /// <summary>Imageboard greentext: a plain-text line starting with one '&gt;'. "&gt;&gt;123" and
+    /// "&gt;&gt;&gt;/board/" start a reference instead.</summary>
+    internal static bool IsGreentextLine(ReadOnlySpan<char> line) => line.Length > 0 && line[0] == '>'
+        && !(line.Length > 2 && line[1] == '>' && (char.IsAsciiDigit(line[2]) || line[2] == '>'));
+
     // A linear, quote-aware pass avoids regex timeouts on large captured posts. Escaped markup
     // is decoded afterward and stays visible text; actual script/style/comment content is omitted.
     private static string Process(string? html, bool keepTags)

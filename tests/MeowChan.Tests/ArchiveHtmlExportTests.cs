@@ -44,6 +44,8 @@ public sealed class ArchiveHtmlExportTests
         Assert.DoesNotContain("https://", html);
         Assert.Contains("Content-Security-Policy", html);
         Assert.Contains("Removed at source", html);
+        Assert.Contains("<article id=\"p-313233\" class=\"op\">", html); // The thread-number post is the OP.
+        Assert.Contains("<article id=\"p-313234\">", html);
         Assert.Equal(Bytes, await File.ReadAllBytesAsync(Assert.Single(Directory.GetFiles(Path.Combine(moved, "media")))));
         Assert.True(File.Exists(Path.Combine(moved, "style.css")));
         Assert.Empty(Directory.GetDirectories(directory.Path, ".meowchan-export-*"));
@@ -668,6 +670,17 @@ public sealed class ArchiveHtmlExportTests
         Assert.True(File.Exists(journal));
         Assert.Equal(before.ObservedFingerprint, (await ArchiveHtmlExporter.InspectAsync(backup, Id)).ObservedFingerprint);
         Assert.Equal(damaged.ObservedFingerprint, (await ArchiveHtmlExporter.InspectAsync(destination, Id)).ObservedFingerprint);
+    }
+
+    [Fact]
+    public void BodyMarksGreentextLinesAndKeepsEveryCharacterEncoded()
+    {
+        Assert.Equal("<span class=\"greentext\">&gt;be me</span>\n&gt;&gt;123 reply\n<span class=\"greentext\">&gt;&lt;b&gt;x</span>\nplain &amp; text",
+            ArchiveHtmlExporter.BodyHtml(">be me\n>>123 reply\n><b>x\nplain & text"));
+        Assert.Equal("&gt;&gt;&gt;/g/ board", ArchiveHtmlExporter.BodyHtml(">>>/g/ board"));
+        Assert.Contains(".greentext{color:#9ccb6a}", ArchiveHtmlExporter.Css);
+        Assert.Contains("@media (prefers-color-scheme:light)", ArchiveHtmlExporter.Css);
+        Assert.Contains("font:16px/1.5 \"Noto Sans\",system-ui,sans-serif", ArchiveHtmlExporter.Css);
     }
 
     private sealed class InlineProgress(Action<ArchiveHtmlExportProgress> report) : IProgress<ArchiveHtmlExportProgress>
