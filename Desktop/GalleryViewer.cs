@@ -109,7 +109,7 @@ internal sealed partial class GalleryViewer : UserControl
     private TopLevel? _scaleOwner;
     // Instance seam keeps controlled decodes isolated from other viewers.
     internal Func<GalleryEntry, GalleryDecodeRequest, CancellationToken,
-        Task<(Bitmap Bitmap, GalleryImageInfo Info)>> DecodeImageAsync { get; set; } = GalleryImageDecoder.DecodeAsync;
+        Task<(Bitmap Bitmap, GalleryImageInfo Info)>> DecodeImageAsync { get; set; } = GalleryImageCache.DecodeAsync;
     private Bitmap? _fitBitmap;
     private Bitmap? _highBitmap;
     private GalleryImageInfo? _info;
@@ -915,6 +915,9 @@ internal sealed partial class GalleryViewer : UserControl
         await RequestDecodeAsync(CurrentFitRequest(), debounce: false);
     }
 
+    /// <summary>The display-size target the viewer decodes for now; the preloader decodes the neighbors at the same size.</summary>
+    internal GalleryDecodeRequest.Fit PreloadFitRequest => CurrentFitRequest();
+
     private GalleryDecodeRequest.Fit CurrentFitRequest()
     {
         Size available = _viewport.Bounds.Size;
@@ -1337,7 +1340,7 @@ internal sealed partial class GalleryViewer : UserControl
     {
         if (bitmap == null) return;
         using var measurement = PerformanceDiagnostics.Measure("gallery.bitmap.dispose", request, asset: key?.AssetId, epoch: _diagnosticEpoch, revision: revision);
-        bitmap.Dispose();
+        GalleryImageCache.Shared.Release(bitmap); // Kept display-size images stay in the cache; any other bitmap is disposed.
     }
     private void ClearBitmaps()
     {

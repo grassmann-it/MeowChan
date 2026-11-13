@@ -391,6 +391,7 @@ public partial class MainWindow
         GalleryViewer? viewer = _gallery;
         if (viewer == null || _galleryCancellation == null || _galleryIndex >= _galleryEntries.Count) return;
         UpdateGalleryPosition();
+        CancelGalleryPreload(); // the user moved on: whatever was decoding around the previous image stops
         GalleryEntry entry = _galleryEntries[_galleryIndex];
         Task showing = viewer.ShowAsync(entry, _galleryEntries, _galleryAssociationsRevision, _galleryCancellation.Token);
         // Selection is admitted synchronously; read its saved favorite before slow decoding
@@ -399,7 +400,10 @@ public partial class MainWindow
             RefreshGalleryFavorite();
         await showing;
         if (ReferenceEquals(_gallery, viewer) && _galleryIndex < _galleryEntries.Count && _galleryEntries[_galleryIndex].EntryKey == entry.EntryKey)
+        {
             RefreshGalleryFavorite();
+            StartGalleryPreload(viewer);
+        }
     }
 
     private void UpdateGalleryPosition()
@@ -492,6 +496,7 @@ public partial class MainWindow
         _gallerySuspended = false;
         _galleryVisitedReader = false;
         if (_archivePage != null) { _archivePage.ShowGalleryReturn(false); _archivePage.GalleryReturn = null; }
+        CancelGalleryPreload();
         ++_galleryRequest;
         _galleryCancellation?.Cancel(); _galleryCancellation?.Dispose(); _galleryCancellation = null;
         GalleryViewer? retiring = _gallery;

@@ -79,14 +79,36 @@ internal static class GalleryImageDecoder
         return info;
     }
 
+    // Foreground decodes (the shown image) waiting for the single decoder; background decodes (preloading) let them go first.
+    private static int _foregroundWaiting;
+
     internal static Task<(Bitmap Bitmap, GalleryImageInfo Info)> DecodeAsync(GalleryEntry entry,
-        GalleryDecodeRequest request, CancellationToken cancellationToken) => Task.Run(async () =>
+        GalleryDecodeRequest request, CancellationToken cancellationToken) => DecodeCoreAsync(entry, request, background: false, cancellationToken);
+
+    /// <summary>
+    /// A decode for the preloader: it starts only while no decode of the shown image is waiting, does not report to
+    /// <see cref="DecodeStarted"/> and never queues ahead of a foreground decode. A decode already running is not interrupted.
+    /// </summary>
+    internal static Task<(Bitmap Bitmap, GalleryImageInfo Info)> DecodeBackgroundAsync(GalleryEntry entry,
+        GalleryDecodeRequest request, CancellationToken cancellationToken) => DecodeCoreAsync(entry, request, background: true, cancellationToken);
+
+    private static Task<(Bitmap Bitmap, GalleryImageInfo Info)> DecodeCoreAsync(GalleryEntry entry,
+        GalleryDecodeRequest request, bool background, CancellationToken cancellationToken) => Task.Run(async () =>
     {
-        using (PerformanceDiagnostics.Measure("gallery.decoder.gate-wait", asset: entry.Asset.AssetId))
-            await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        if (background)
+        {
+            while (Volatile.Read(ref _foregroundWaiting) > 0) await Task.Delay(20, cancellationToken).ConfigureAwait(false);
+        }
+        else Interlocked.Increment(ref _foregroundWaiting);
         try
         {
-            DecodeStarted?.Invoke(request);
+            using (PerformanceDiagnostics.Measure("gallery.decoder.gate-wait", asset: entry.Asset.AssetId))
+                await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally { if (!background) Interlocked.Decrement(ref _foregroundWaiting); }
+        try
+        {
+            if (!background) DecodeStarted?.Invoke(request);
             if (entry.Asset.Length > MaximumBytes) throw new InvalidDataException(Localization.Texts.T("gallery.image.error.fileLimit"));
             await using Stream stream = await entry.Manifest.OpenVerifiedReadAsync(entry.Asset.AssetId, cancellationToken).ConfigureAwait(false);
             GalleryImageInfo info;

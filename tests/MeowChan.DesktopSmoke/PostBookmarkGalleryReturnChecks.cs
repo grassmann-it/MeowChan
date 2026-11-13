@@ -75,6 +75,7 @@ internal static class PostBookmarkGalleryReturnChecks
                 "Shell bookmark fixture did not establish A's partial reader anchor.");
 
             // Open and move through actual controls. No shell flags or return delegates are fabricated.
+            GalleryImageCache.Shared.Clear(); // an earlier scenario may have kept this fixture's image: the controlled decode must happen
             TaskCompletionSource decoding = new(TaskCreationOptions.RunContinuationsAsynchronously);
             GalleryImageDecoder.DecodeStarted = _ =>
             {
