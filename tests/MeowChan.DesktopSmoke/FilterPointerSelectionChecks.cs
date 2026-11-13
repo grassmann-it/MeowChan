@@ -216,12 +216,24 @@ internal static class FilterPointerSelectionChecks
             await Program.WaitUntilAsync(() => state.IsDropDownOpen);
             Popup statePopup = state.GetVisualDescendants().OfType<Popup>().FirstOrDefault()
                 ?? throw new InvalidOperationException("Archive state popup is missing.");
-            ComboBoxItem active = statePopup.Child?.GetVisualDescendants().OfType<ComboBoxItem>()
-                .FirstOrDefault(item => item.Content?.ToString() == "Active")
-                ?? throw new InvalidOperationException("Archive active-state row is not realized.");
+            // The source-state label is descriptive ("Source last seen active"), not simply "Active".
+            // Popup open and row realization are separate layout turns; observe the real localized row,
+            // never assign SelectedIndex or substitute a routed event for the native mouse pick.
+            string activeLabel = Texts.T("archive.sourceActive");
+            ComboBoxItem? ActiveRow() => statePopup.Child?.GetVisualDescendants().OfType<ComboBoxItem>()
+                .FirstOrDefault(item => item.Content?.ToString() == activeLabel
+                    && item.IsEffectivelyVisible && item.Bounds.Width > 0 && item.Bounds.Height > 0);
+            await Program.WaitUntilAsync(() => ActiveRow() != null,
+                () => $"Archive state popup open={statePopup.IsOpen}; expected={activeLabel}; rows=["
+                    + string.Join(",", statePopup.Child?.GetVisualDescendants().OfType<ComboBoxItem>()
+                        .Select(item => $"{item.Content}:{item.Bounds}:{item.IsEffectivelyVisible}") ?? []) + "]");
+            ComboBoxItem active = ActiveRow() ?? throw new InvalidOperationException("Archive active-state row is not realized.");
             await native.ClickAsync(active);
             await Program.WaitUntilAsync(() => !state.IsDropDownOpen && state.SelectedIndex == 0
                 && page.FindControl<WrapPanel>("ArchiveDraftStates")!.Children.Count == 1);
+            Require(page.FindControl<WrapPanel>("ArchiveDraftStates")!.Children
+                .OfType<Ursa.Controls.ClosableTag>().Single().Content is TextBlock { Text: var chipText }
+                && chipText == activeLabel, "Native state selection did not add exactly the active-state chip.");
             Require(ReferenceEquals(page.AppliedSearchSpec, applied), "Native state selection executed Search.");
 
             Console.WriteLine("SMOKE filter pointer selection: native press/release adopted Archive source/board and state choices exactly once; Escape, context invalidation, outside/cross-row drag and capture loss did not accept; Enter, free text and draft/applied separation passed.");
