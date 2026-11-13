@@ -191,7 +191,7 @@ public partial class MainWindow : Window
             ShowNotification(Texts.T("notification.settings"), _config.LoadWarning, NotificationType.Warning, operation: "config.load");
         }
 
-        if (EffectiveShortcutBindings.Build(_config.ShortcutBindings).Issues.Count > 0)
+        if (EffectiveShortcutBindings.Build(_config.ShortcutBindings).Issues.Any(EffectiveShortcutBindings.NeedsStartupWarning))
             ShowNotification(Texts.T("shortcuts.title"), Texts.T("shortcuts.warning"), NotificationType.Warning);
 
         foreach (string warning in Texts.Warnings)

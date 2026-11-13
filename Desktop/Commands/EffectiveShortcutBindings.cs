@@ -77,10 +77,24 @@ internal sealed class ShortcutIssueReason
 public sealed class EffectiveShortcutBindings
 {
     private static long _nextVersion;
-    private static readonly string[] AdditiveDefaultCommandIds =
+    /// <summary>Revision of the default table. Raise it, and list the command in
+    /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
+    public const int DefaultsRevision = 2;
+    /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
+    /// bindings may already exist, with the revision that did it. A new default on such a command yields to
+    /// a saved binding of another command instead of silencing both; entries are never removed because a
+    /// saved binding can date from any earlier revision (including frozen "add another shortcut" lists).</summary>
+    private static readonly IReadOnlyDictionary<string, int> DefaultChangedInRevision = new Dictionary<string, int>(StringComparer.Ordinal)
     {
-        "video.volume-up", "video.volume-down", "favorites.add", "favorites.remove", "navigation.media", "input.focus-media-search"
+        ["video.volume-up"] = 1, ["video.volume-down"] = 1, ["favorites.add"] = 1, ["favorites.remove"] = 1,
+        ["navigation.media"] = 2, ["navigation.rules"] = 2, ["navigation.sources"] = 2, ["navigation.diagnostics"] = 2,
+        ["navigation.plugins"] = 2, ["input.focus-media-search"] = 2,
     };
+    public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
+    /// <summary>Whether an issue deserves the startup warning: only what silences or blocks a binding
+    /// (never the informational yield, unknown or not-implemented entries).</summary>
+    public static bool NeedsStartupWarning(ShortcutIssue issue)
+        => issue.BlocksSave || issue.Reason?.Code == "unsupportedSchema";
     public long Version { get; } = System.Threading.Interlocked.Increment(ref _nextVersion);
     public ShortcutPlatform Platform { get; }
     public IReadOnlyList<ShortcutIssue> Issues { get; }
@@ -164,14 +178,14 @@ public sealed class EffectiveShortcutBindings
                 { issues.Add(ShortcutIssue.FromReason(entry.Name, ShortcutIssueReason.FromException(ex))); }
             }
         }
-        // These new defaults did not exist in older profiles. They must not disable an
+        // New or changed defaults did not exist in older profiles. They must not disable an
         // existing explicit effective gesture merely by being introduced on upgrade.
         // This is deliberately NOT a general priority rule: two explicit bindings (or
         // existing conflicts) still receive the ordinary symmetric conflict rejection.
         if (section.IsEditable)
-        foreach (string id in AdditiveDefaultCommandIds)
+        foreach (string id in DefaultChangedInRevision.Keys)
         {
-            if (section.HasOverride(id)) continue;
+            if (section.HasOverride(id) || !values.ContainsKey(id)) continue;
             var retained = new List<ShortcutGesture>();
             foreach (ShortcutGesture gesture in values[id])
             {
