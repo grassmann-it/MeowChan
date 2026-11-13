@@ -76,7 +76,7 @@ public sealed class PreferenceStartupSafetyTests
         loaded.CopyFrom(new Config());
         Assert.Throws<InvalidOperationException>(() => loaded.SaveConfig(directory.Path));
         Assert.Throws<InvalidOperationException>(() => new Config().SaveConfig(directory.Path));
-        Assert.Throws<InvalidOperationException>(() => new DesktopSessionHost(directory.Path, Array.Empty<IImageBoard>()));
+        Assert.Throws<SettingsRecoveryRequiredException>(() => new DesktopSessionHost(directory.Path, Array.Empty<IImageBoard>()));
         Assert.Equal(document, File.ReadAllText(settings));
         Assert.False(File.Exists(Path.Combine(directory.Path, "archive.db")));
         using ProfileLease next = ProfileLease.Acquire(directory.Path);

@@ -27,6 +27,9 @@ internal static class Program
     private static bool _closed;
     private static Exception? _failure;
     private static bool _lockedProfileMode;
+    // --locked-profile with MEOWCHAN_LOCKED_PROFILE_CAUSE=damaged-settings: instead of a conflicting lease, settings.json is
+    // damaged next to a good backup, and the startup-error window must explain the situation in the saved language.
+    private static bool _damagedSettingsCause;
     private static bool _noTrayMode;
     private static bool _trayFailureMode;
     private static bool _downloadSessionMode;
@@ -172,6 +175,8 @@ internal static class Program
         Environment.SetEnvironmentVariable("MEOWCHAN_PROFILE", null);
         Environment.SetEnvironmentVariable("MEOWCHAN_PROFILE", profile);
         _lockedProfileMode = args.Contains("--locked-profile", StringComparer.Ordinal);
+        _damagedSettingsCause = _lockedProfileMode
+            && Environment.GetEnvironmentVariable("MEOWCHAN_LOCKED_PROFILE_CAUSE") == "damaged-settings";
         _noTrayMode = args.Contains("--no-tray", StringComparer.Ordinal);
         _trayFailureMode = args.Contains("--tray-failure", StringComparer.Ordinal);
         _downloadSessionMode = args.Contains("--download-session", StringComparer.Ordinal);
@@ -206,7 +211,16 @@ internal static class Program
             if (_galleryCloseOnly)
                 config.WorkspaceMode = "Advanced";
             _run?.Configure?.Invoke(config);
+            if (_damagedSettingsCause) config.Language = Environment.GetEnvironmentVariable("MEOWCHAN_LOCKED_PROFILE_LANGUAGE") ?? "en";
             if ((!_readingPositionMode && !_savedSearchesOnly && keptStartupProfile == null) || !File.Exists(Path.Combine(profile, "settings.json"))) config.SaveConfig();
+            if (_damagedSettingsCause)
+            {
+                // A second save leaves the first generation as settings.json.bak; the primary then loses its second half.
+                config.SaveConfig();
+                string primary = Path.Combine(profile, "settings.json");
+                byte[] good = File.ReadAllBytes(primary);
+                File.WriteAllBytes(primary, good[..(good.Length / 2)]);
+            }
             // Marker files are data too: initialize an owned empty profile first.
             if (_readingPositionMode && Environment.GetEnvironmentVariable("MEOWCHAN_READING_TEST_PROFILE") is { Length: > 0 })
                 File.WriteAllText(Path.Combine(profile, ".reading-smoke-profile"), "Disposable reading-position test profile");
@@ -230,7 +244,7 @@ internal static class Program
                     VideoGalleryChecks.SeedAsync(profile, fixture).GetAwaiter().GetResult();
             }
             if (_run?.Seed != null) _run.Seed(profile).GetAwaiter().GetResult();
-            using ProfileLease? conflictingLease = _lockedProfileMode ? ProfileLease.Acquire(profile) : null;
+            using ProfileLease? conflictingLease = _lockedProfileMode && !_damagedSettingsCause ? ProfileLease.Acquire(profile) : null;
             Avalonia.Logging.Logger.Sink = sink;
             Console.WriteLine("SMOKE isolated profile: " + profile);
             AppBuilder appBuilder = (_run?.App != null ? _run.App()
@@ -334,10 +348,24 @@ internal static class Program
             {
                 if (window is not StartupErrorWindow)
                     throw new InvalidOperationException("A conflicting profile did not produce StartupErrorWindow.");
+                string expectedText = _damagedSettingsCause ? "settings.json.bak" : "Another MeowChan instance";
                 await WaitUntilAsync(() => window.GetVisualDescendants().OfType<TextBlock>()
-                    .Any(block => block.IsVisible && block.Text?.Contains("Another MeowChan instance", StringComparison.Ordinal) == true));
-                CaptureWindow(window, "smoke-startup-error.png");
-                Button exit = window.GetVisualDescendants().OfType<Button>().Single(button => button.Content as string == "Exit");
+                    .Any(block => block.IsVisible && block.Text?.Contains(expectedText, StringComparison.Ordinal) == true));
+                if (_damagedSettingsCause)
+                {
+                    string shown = window.GetVisualDescendants().OfType<TextBlock>().First(block => block.Text?.Contains(expectedText, StringComparison.Ordinal) == true).Text!;
+                    string language = Environment.GetEnvironmentVariable("MEOWCHAN_LOCKED_PROFILE_LANGUAGE") ?? "en";
+                    if (MeowChan.Desktop.Localization.Texts.Language != language)
+                        throw new InvalidOperationException("The startup window did not use the saved language " + language + ".");
+                    if (shown != MeowChan.Desktop.Localization.Texts.T("settings.startup.backup", "settings.json", "settings.json.bak", Config.GetConfigDirectory()))
+                        throw new InvalidOperationException("The startup window did not show the localized settings text: " + shown);
+                    if (shown.Contains("BackupRecovery", StringComparison.Ordinal) || shown.Contains("settings.startup", StringComparison.Ordinal))
+                        throw new InvalidOperationException("The startup window shows a technical name.");
+                }
+                CaptureWindow(window, _damagedSettingsCause ? "smoke-startup-error-settings-"
+                    + (Environment.GetEnvironmentVariable("MEOWCHAN_LOCKED_PROFILE_LANGUAGE") ?? "en") + ".png" : "smoke-startup-error.png");
+                string exitLabel = MeowChan.Desktop.Localization.Texts.T("action.exit");
+                Button exit = window.GetVisualDescendants().OfType<Button>().Single(button => button.Content as string == exitLabel);
                 _checksPassed = true;
                 exit.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 return;

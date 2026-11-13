@@ -95,6 +95,14 @@ public partial class App : Application
                     main.Closed += (_, _) => UnhandledErrors.Presenter = null;
                 }
             }
+            catch (SettingsRecoveryRequiredException recovery)
+            {
+                // No settings are in force, so the language is the readable backup's or the operating system's.
+                Log.Error(recovery, "Desktop startup stopped: the settings of the profile need a recovery decision.");
+                Texts.Initialize();
+                Texts.SetLanguage(SettingsRecoveryRequiredException.StartupLanguage(recovery.SavedLanguage, CultureInfo.CurrentUICulture));
+                ShowStartupFailure(desktop, recovery.LocalizedMessage());
+            }
             catch (Exception exception)
             {
                 Log.Error(exception, "Desktop startup failed.");
