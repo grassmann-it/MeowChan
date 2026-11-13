@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -13,6 +14,23 @@ namespace MeowChan.DesktopSmoke;
 /// <summary>Native repair-dialog input on the runner's private Xvfb, never a personal clipboard/display.</summary>
 internal static class PluginNativeRepairHelper
 {
+    internal static IDisposable IsolateClipboard()
+    {
+        RequirePrivateXvfb();
+        // Program installs ClipboardChecks' write-only fixture globally. Scope a read/write
+        // fixture for genuine TextBox paste/copy; never bypass isolation with a system clipboard.
+        IDisposable scope = AvaloniaLocator.EnterScope();
+        try
+        {
+            AvaloniaLocator.CurrentMutable.Bind<IClipboard>().ToConstant(new RepairClipboard());
+            return scope;
+        }
+        catch { scope.Dispose(); throw; }
+    }
+
+    private static IClipboard ClipboardFor(Window modal) => modal.Clipboard is RepairClipboard clipboard ? clipboard :
+        throw new InvalidOperationException("Repair modal is not using its scoped fixture clipboard.");
+
     internal static ToggleButton ExpanderHeader(Expander expander)
     {
         expander.ApplyTemplate();
@@ -51,8 +69,8 @@ internal static class PluginNativeRepairHelper
         await ClickAsync(modal, input, field);
         Require(field.IsFocused, "Native click did not focus the repair field.");
         // Paste through actual OS shortcuts, including Unicode, instead of assigning Text/Draft
-        // or invoking a private UI method. Only this private display's clipboard is touched.
-        await modal.Clipboard!.SetTextAsync(text);
+        // or invoking a private UI method. The scoped clipboard never delegates to the OS.
+        await ClipboardFor(modal).SetTextAsync(text);
         await ControlKeyAsync(modal, input, 'a');
         await ControlKeyAsync(modal, input, 'v');
         await Program.WaitUntilAsync(() => field.Text == text,
@@ -65,15 +83,36 @@ internal static class PluginNativeRepairHelper
         Require(field.IsReadOnly, "Configuration evidence must remain read-only.");
         await ClickAsync(modal, input, field);
         Require(field.IsFocused, "Read-only configuration is not keyboard reachable.");
-        await modal.Clipboard!.SetTextAsync("not the configuration");
+        IClipboard clipboard = ClipboardFor(modal);
+        await clipboard.SetTextAsync("not the configuration");
         await ControlKeyAsync(modal, input, 'a');
         await ControlKeyAsync(modal, input, 'c');
-        string? copied = await modal.Clipboard.TryGetTextAsync();
+        string? copied = await clipboard.TryGetTextAsync();
         Require(copied == expected && field.Text == expected, "Native copy changed, truncated or prefixed the raw configuration JSON.");
         using JsonDocument document = JsonDocument.Parse(copied!);
         Require(document.RootElement.ValueKind == JsonValueKind.Object, "Copied configuration is not a JSON object.");
         Console.WriteLine("PLUGIN_REPAIR_RAW_COPY " + JsonSerializer.Serialize(new { result = "pass", characters = copied!.Length,
-            nativeSelectAllAndCopy = true, exactUnicodeAndWhitespace = true, noPrefix = true }));
+            nativeSelectAllAndCopy = true, clipboard = "scoped fixture, not OS", exactUnicodeAndWhitespace = true, noPrefix = true }));
+    }
+
+    private sealed class RepairClipboard : IClipboard
+    {
+        private string? _text;
+        public Task<IAsyncDataTransfer?> TryGetDataAsync()
+        {
+            if (_text is null) return Task.FromResult<IAsyncDataTransfer?>(null);
+            DataTransfer data = new();
+            data.Add(DataTransferItem.Create(DataFormat.Text, _text));
+            return Task.FromResult<IAsyncDataTransfer?>(data);
+        }
+        public async Task SetDataAsync(IAsyncDataTransfer? dataTransfer)
+        {
+            try { _text = dataTransfer is null ? null : await dataTransfer.TryGetTextAsync(); }
+            finally { dataTransfer?.Dispose(); }
+        }
+        public Task ClearAsync() { _text = null; return Task.CompletedTask; }
+        public Task FlushAsync() => Task.CompletedTask;
+        public Task<IAsyncDataTransfer?> TryGetInProcessDataAsync() => TryGetDataAsync();
     }
 
     // MediaNativeInput has Ctrl+Shift chords for media commands, not ordinary Ctrl+A/C/V.

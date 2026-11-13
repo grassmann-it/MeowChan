@@ -25,6 +25,7 @@ internal static class PluginReselectionChecks
 {
     internal static async Task RunAsync(MainWindow owner)
     {
+        using IDisposable clipboardScope = PluginNativeRepairHelper.IsolateClipboard();
         PluginUxFixture fixture = await PluginUxFixture.CreateAsync(Path.Combine(Config.GetConfigDirectory(), "reselection-ui"));
         RecordingStore store = new(fixture.Store);
         var original = fixture.Services;

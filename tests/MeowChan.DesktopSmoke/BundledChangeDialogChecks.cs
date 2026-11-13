@@ -22,6 +22,7 @@ internal static class BundledChangeDialogChecks
 {
     internal static async Task RunAsync(MainWindow owner)
     {
+        using IDisposable clipboardScope = PluginNativeRepairHelper.IsolateClipboard();
         PluginUxFixture fixture = await PluginUxFixture.CreateAsync(Path.Combine(Config.GetConfigDirectory(), "bundled-change-dialog"));
         RecordingStore store = new(fixture);
         var original = fixture.Services;
