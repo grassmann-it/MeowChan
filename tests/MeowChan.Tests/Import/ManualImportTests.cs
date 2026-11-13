@@ -547,6 +547,70 @@ public sealed class ManualImportTests
             () => ManualImportCatalogSnapshot.Empty), check => Assert.Equal(LocalMediaCheck.Missing, check));
     }
 
+    [Fact]
+    public async Task UnchangedImportBatchesAreKeptByManifestIdentityAndNeverPinnedInTheCache()
+    {
+        using Fixture fixture = new();
+        fixture.Write("a.png", Png);
+        ManualImportPlan plan = await fixture.PlanAsync();
+        using ProfileAdmissionToken admission = fixture.Lease.Admission.EnterStoreWriter();
+        ManualImportBatch first = (await fixture.Executor().ExecuteAsync(plan, new ManualImportOptions("One", Array.Empty<string>()),
+            fixture.Downloads, admission, null, default)).Batch;
+        fixture.Write("b.jpg", Jpg);
+        ManualImportBatch second = (await fixture.Executor().ExecuteAsync(await fixture.PlanAsync(request: new ManualImportRequest(new[] { Path.Combine(fixture.Source, "b.jpg") })),
+            new ManualImportOptions("Two", Array.Empty<string>()), fixture.Downloads, admission, null, default)).Batch;
+        int opens = 0;
+        MediaManifestCache manifests = new((directory, token) => { opens++; return MediaAssetReader.OpenAsync(directory, token); }, identity: true);
+        Task<MediaLibrarySnapshot> Build(MediaLibrarySnapshot? previous) => MediaLibraryIndexBuilder.BuildAsync(
+            token => ArchiveReader.OpenAsync(fixture.Profile, token), manifests, previous, readImportCatalog: () => fixture.Store.Read());
+
+        MediaLibrarySnapshot cold = await Build(null);
+        Assert.Equal(2, cold.Entries.Count);
+        Assert.Equal(2, opens);
+        Assert.Equal(2, cold.ProviderManifests.Count);
+        Assert.All(cold.ProviderManifests, state => Assert.NotNull(state.Identity));
+
+        // Nothing changed: nothing is opened again, and the entries are the very same objects.
+        manifests.Invalidate();
+        MediaLibrarySnapshot warm = await Build(cold);
+        Assert.Equal(2, opens);
+        Assert.All(warm.Entries.Zip(cold.Entries), pair => Assert.Same(pair.Second, pair.First));
+        Assert.True(MediaLibrarySnapshot.SameContent(cold, warm));
+
+        // The saved index carries the batch manifest identities, so a restart keeps them too.
+        string cache = Path.Combine(fixture.Temp.Path, "media-index.json");
+        MediaLibraryIndexCacheSync.Save(cache, warm);
+        MediaLibrarySnapshot loaded = MediaLibraryIndexCacheSync.Load(cache)!;
+        Assert.True(MediaLibrarySnapshot.SameContent(warm, loaded));
+        manifests.Invalidate();
+        await Build(loaded);
+        Assert.Equal(2, opens);
+
+        // A manifest that changed is read again (and only that one).
+        string manifestPath = Path.Combine(first.Directory, MediaStore.ManifestFileName);
+        File.AppendAllText(manifestPath, " ");
+        manifests.Invalidate();
+        MediaLibrarySnapshot after = await Build(warm);
+        Assert.Equal(3, opens);
+        Assert.Equal(2, after.Entries.Count);
+        Assert.All(after.Entries, entry => Assert.Equal(MediaLibraryPresence.Present, entry.Presence));
+        Assert.Equal(2, after.ProviderManifests.Count);
+
+        // A renamed batch changes what its entries derive from the catalog: they are rebuilt, not kept stale.
+        ManualImportCatalogSnapshot catalog = fixture.Store.Read();
+        fixture.Store.PutBatchAdmitted(second with { Name = "Renamed" }, catalog.Revision, admission);
+        manifests.Invalidate();
+        MediaLibrarySnapshot renamed = await Build(after);
+        Assert.Contains(renamed.Entries, entry => entry.ThreadTitle == "Renamed");
+
+        // Pinning: the index build never keeps a batch manifest in the page's cache.
+        Assert.Equal(0, KeptCount(manifests));
+    }
+
+    private static int KeptCount(MediaManifestCache cache) =>
+        ((System.Collections.IDictionary)typeof(MediaManifestCache).GetField("_slots", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(cache)!).Count;
+
     private sealed class SynchronousProgress<T>(Action<T> report) : IProgress<T>
     {
         public void Report(T value) => report(value);

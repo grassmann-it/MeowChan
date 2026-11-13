@@ -86,8 +86,8 @@ internal sealed class MediaLibrarySnapshot
     /// <summary>False when the build was cancelled or a thread could not be read completely.</summary>
     internal bool Complete { get; }
     /// <summary>
-    /// The manifests the downloaded provider entries were derived from (one per media folder, with identity), so the
-    /// next build can keep a provider entry whose manifest file did not change. Not shown anywhere; empty when unknown.
+    /// The manifests the downloaded provider entries and the manually imported batches were derived from (one per media
+    /// folder, with identity, stored in the same list), so the next build can keep an entry whose manifest file did not change. Not shown anywhere; empty when unknown.
     /// </summary>
     internal IReadOnlyList<MediaLibraryManifestState> ProviderManifests { get; }
 
@@ -294,9 +294,13 @@ internal static class MediaLibraryIndexBuilder
             }
             else
             {
-                (IReadOnlyList<MediaLibraryEntry> imported, int unreadable) = await ManualImportMediaProjection.EntriesAsync(imports, manifests.OpenAsync, cancellationToken).ConfigureAwait(false);
-                entries.AddRange(imported);
-                if (unreadable > 0) { complete = false; warnings.Add("Imports: " + unreadable + " media folder(s) could not be read."); }
+                ManualImportMediaProjection.Result imported = await ManualImportMediaProjection.EntriesAsync(imports, manifests, previous, cancellationToken).ConfigureAwait(false);
+                entries.AddRange(imported.Entries);
+                // The manifest states of the batches ride along with the provider manifests (the same list in the cache file);
+                // a folder is named once, so a state kept from the previous index never doubles one that was just read.
+                HashSet<string> importFolders = imported.Manifests.Select(state => state.Directory).ToHashSet(StringComparer.Ordinal);
+                providerManifests = providerManifests.Where(state => !importFolders.Contains(state.Directory)).Concat(imported.Manifests).ToArray();
+                if (imported.Unreadable > 0) { complete = false; warnings.Add("Imports: " + imported.Unreadable + " media folder(s) could not be read."); }
             }
         }
         if (noArchive != null && entries.Count == 0) throw noArchive;
