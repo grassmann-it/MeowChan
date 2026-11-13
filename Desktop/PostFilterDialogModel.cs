@@ -9,18 +9,24 @@ using MeowChan.Persistence;
 
 namespace MeowChan.Desktop;
 
-internal enum PostFilterScope { All, Source, Board }
+/// <summary><see cref="Kept"/> exists only while a rule is edited whose scope is neither of the open thread's: the form then keeps that scope.</summary>
+internal enum PostFilterScope { All, Source, Board, Kept }
 
 /// <summary>
 /// What the post filter dialog shows and does, without any control: the draft of a new rule with its validation, the
-/// stored rules and individually hidden posts, and the changes, each made through the shared
+/// stored rules and individually hidden posts (a rule can be loaded into the draft, edited and saved in place), and the changes, each made through the shared
 /// <see cref="PostFilterSession"/> against the revision the dialog shows. Every outcome ends in <see cref="Status"/>.
 /// </summary>
 internal sealed class PostFilterDialogModel
 {
     private readonly PostFilterSession _session;
     private readonly ResourceId? _context;
+    private readonly PostFilterScope[] _baseScopes;
     private int _busy;
+    private Guid? _editingId;
+    private bool _editEnabled = true;
+    private string? _editSource, _editBoard;
+    private bool _keepScope;
 
     internal sealed record RuleRow(PostFilterRule Rule, string Label, string Details, bool Supported);
     internal sealed record HiddenRow(HiddenPost Post, string Label);
@@ -30,7 +36,7 @@ internal sealed class PostFilterDialogModel
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _context = context;
-        Scopes = context == null ? new[] { PostFilterScope.All } : new[] { PostFilterScope.All, PostFilterScope.Source, PostFilterScope.Board };
+        _baseScopes = context == null ? new[] { PostFilterScope.All } : new[] { PostFilterScope.All, PostFilterScope.Source, PostFilterScope.Board };
     }
 
     internal event EventHandler? Changed;
@@ -42,7 +48,7 @@ internal sealed class PostFilterDialogModel
     internal PostFilterAction Action { get; set; } = PostFilterAction.Stub;
     internal bool Replies { get; set; }
     internal PostFilterScope Scope { get; set; } = PostFilterScope.All;
-    internal IReadOnlyList<PostFilterScope> Scopes { get; }
+    internal IReadOnlyList<PostFilterScope> Scopes => IsEditing && _keepScope ? _baseScopes.Append(PostFilterScope.Kept).ToArray() : _baseScopes;
 
     /// <summary>MD5 always compares the whole value; "Also hide replies" does not apply to highlighting.</summary>
     internal bool MatchSelectable => Field != PostFilterField.Md5;
@@ -63,14 +69,108 @@ internal sealed class PostFilterDialogModel
 
     internal bool IsBusy => Volatile.Read(ref _busy) != 0;
     internal bool CanWrite => _session.Current?.CanWrite == true;
-    internal bool CanAdd => !IsBusy && CanWrite && Pattern.Length > 0 && DraftError == null;
+    private bool DraftReady => !IsBusy && CanWrite && Pattern.Length > 0 && DraftError == null;
+
+    /// <summary>The draft can be added as a new rule (not while a rule is being edited).</summary>
+    internal bool CanAdd => !IsEditing && DraftReady;
+
+    /// <summary>The draft can replace the rule being edited.</summary>
+    internal bool CanSave => IsEditing && DraftReady;
 
     internal PostFilterRuleDraft Draft()
     {
-        string? source = Scope != PostFilterScope.All ? _context?.Source : null;
-        string? board = Scope == PostFilterScope.Board ? _context?.Board : null;
+        bool kept = Scope == PostFilterScope.Kept && IsEditing;
+        string? source = kept ? _editSource : Scope is PostFilterScope.Source or PostFilterScope.Board ? _context?.Source : null;
+        string? board = kept ? _editBoard : Scope == PostFilterScope.Board ? _context?.Board : null;
         return new PostFilterRuleDraft(Field, Field == PostFilterField.Md5 ? PostFilterMatch.Exact : Match, Pattern, Action,
-            RepliesSelectable && Replies, source, board);
+            RepliesSelectable && Replies, source, board, IsEditing ? _editEnabled : true);
+    }
+
+    // ---- Editing a rule -----------------------------------------------------------------------------------------------
+    /// <summary>The stored rule the draft edits; null in add mode, and again when that rule is gone from the (newer) list.</summary>
+    internal PostFilterRule? EditingRule
+    {
+        get
+        {
+            if (_editingId is not { } id) return null;
+            PostFilterRule? rule = _session.Current?.Rules.FirstOrDefault(candidate => candidate.Id == id);
+            if (rule == null) EndEdit();
+            return rule;
+        }
+    }
+
+    internal bool IsEditing => EditingRule != null;
+
+    /// <summary>The label of the edited rule as the list shows it, for the "Editing: …" line.</summary>
+    internal string? EditingLabel => EditingRule is { } rule ? Row(rule).Label : null;
+
+    /// <summary>
+    /// Loads a rule into the draft; a following <see cref="SaveEditAsync"/> replaces it in place (same ID and place, enabled state kept).
+    /// A rule this version cannot interpret stays read-only: nothing is loaded and the status says why.
+    /// </summary>
+    internal bool BeginEdit(Guid id)
+    {
+        if (IsBusy) return false;
+        PostFilterRule? rule = _session.Current?.Rules.FirstOrDefault(candidate => candidate.Id == id);
+        if (rule == null) return false;
+        if (!CanWrite) { Report(StoreNotice, error: true); return false; }
+        if (!rule.CanApply) { Report(Texts.T("postFilter.editUnsupported"), error: true); return false; }
+        _editingId = id;
+        _editEnabled = rule.Enabled;
+        _editSource = rule.Source;
+        _editBoard = rule.Board;
+        Field = rule.Field;
+        Match = rule.Match;
+        Pattern = rule.Pattern;
+        Action = rule.Action;
+        Replies = rule.Replies;
+        // The scope choices belong to the open thread; a rule for something else keeps its own scope.
+        PostFilterScope scope = rule.Source == null ? PostFilterScope.All
+            : _context != null && rule.Source == _context.Source && rule.Board == null ? PostFilterScope.Source
+            : _context != null && rule.Source == _context.Source && rule.Board == _context.Board ? PostFilterScope.Board
+            : PostFilterScope.Kept;
+        _keepScope = scope == PostFilterScope.Kept;
+        Scope = scope;
+        Report(null, error: false);
+        return true;
+    }
+
+    /// <summary>Back to adding a rule; the form is emptied, what the user typed is not kept.</summary>
+    internal void CancelEdit()
+    {
+        if (!IsEditing) return;
+        EndEdit();
+        Pattern = string.Empty;
+        Report(null, error: false);
+    }
+
+    private void EndEdit()
+    {
+        _editingId = null;
+        _editEnabled = true;
+        _editSource = _editBoard = null;
+        _keepScope = false;
+        if (Scope == PostFilterScope.Kept) Scope = PostFilterScope.All;
+    }
+
+    /// <summary>
+    /// Replaces the edited rule with the draft; true when it was stored (edit mode is left and the pattern cleared). A duplicate
+    /// of another rule, a revision conflict or a failure leaves the draft as it is, with the sentence in <see cref="Status"/>.
+    /// </summary>
+    internal async Task<bool> SaveEditAsync(CancellationToken token = default)
+    {
+        if (EditingRule is not { } rule) return false;
+        if (!CanSave) { Report(DraftError ?? (CanWrite ? null : StoreNotice), error: true); return false; }
+        bool saved = false;
+        await RunAsync(async () =>
+        {
+            await _session.ReplaceRuleAsync(rule.Id, Draft(), token);
+            EndEdit();
+            Pattern = string.Empty;
+            saved = true;
+            return Texts.T("postFilter.saved");
+        });
+        return saved;
     }
 
     // ---- What is stored -----------------------------------------------------------------------------------------------
@@ -115,6 +215,7 @@ internal sealed class PostFilterDialogModel
     {
         PostFilterScope.Source when _context != null => Texts.T("postFilter.scope.source", _context.Source),
         PostFilterScope.Board when _context != null => Texts.T("postFilter.scope.board", _context.Source + " /" + _context.Board + "/"),
+        PostFilterScope.Kept when EditingRule is { } rule => RuleScopeLabel(rule),
         _ => Texts.T("postFilter.scope.all")
     };
 

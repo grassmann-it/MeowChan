@@ -29,6 +29,13 @@ internal sealed partial class DesktopSessionHost
             PostFilterCommandAsync(store => store.AddRuleAdmitted(id, frozen, revision, admission, token), token, admission));
     }
 
+    internal Task<PostFilterSnapshot> ReplacePostFilterRuleAsync(Guid id, PostFilterRuleDraft draft, long revision, CancellationToken token = default)
+    {
+        PostFilterRuleDraft frozen = PostFilterRules.Normalize(draft);
+        return RunInteractiveWithAdmissionAsync(nameof(ReplacePostFilterRuleAsync), id.ToString(), admission =>
+            PostFilterCommandAsync(store => store.ReplaceRuleAdmitted(id, frozen, revision, admission, token), token, admission));
+    }
+
     internal Task<PostFilterSnapshot> SetPostFilterRuleEnabledAsync(Guid id, bool enabled, long revision, CancellationToken token = default)
         => RunInteractiveWithAdmissionAsync(nameof(SetPostFilterRuleEnabledAsync), id.ToString(), admission =>
             PostFilterCommandAsync(store => store.SetRuleEnabledAdmitted(id, enabled, revision, admission, token), token, admission));
@@ -85,6 +92,8 @@ internal sealed partial class DesktopSessionHost
         public Task<PostFilterSnapshot> RecoverAsync(long revision, CancellationToken token) => host.RecoverPostFiltersAsync(revision, token);
         public Task<PostFilterSnapshot> AddRuleAsync(Guid id, PostFilterRuleDraft draft, long revision, CancellationToken token) =>
             host.AddPostFilterRuleAsync(id, draft, revision, token);
+        public Task<PostFilterSnapshot> ReplaceRuleAsync(Guid id, PostFilterRuleDraft draft, long revision, CancellationToken token) =>
+            host.ReplacePostFilterRuleAsync(id, draft, revision, token);
         public Task<PostFilterSnapshot> SetRuleEnabledAsync(Guid id, bool enabled, long revision, CancellationToken token) =>
             host.SetPostFilterRuleEnabledAsync(id, enabled, revision, token);
         public Task<PostFilterSnapshot> RemoveRuleAsync(Guid id, long revision, CancellationToken token) => host.RemovePostFilterRuleAsync(id, revision, token);

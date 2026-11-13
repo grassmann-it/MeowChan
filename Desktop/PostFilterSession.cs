@@ -15,6 +15,7 @@ internal interface IPostFilterService
     Task<PostFilterSnapshot> LoadAsync(CancellationToken token);
     Task<PostFilterSnapshot> RecoverAsync(long revision, CancellationToken token);
     Task<PostFilterSnapshot> AddRuleAsync(Guid id, PostFilterRuleDraft draft, long revision, CancellationToken token);
+    Task<PostFilterSnapshot> ReplaceRuleAsync(Guid id, PostFilterRuleDraft draft, long revision, CancellationToken token);
     Task<PostFilterSnapshot> SetRuleEnabledAsync(Guid id, bool enabled, long revision, CancellationToken token);
     Task<PostFilterSnapshot> RemoveRuleAsync(Guid id, long revision, CancellationToken token);
     Task<PostFilterSnapshot> SetHiddenPostsActionAsync(HiddenPostsAction action, long revision, CancellationToken token);
@@ -73,6 +74,13 @@ internal sealed class PostFilterSession
         PostFilterRuleDraft normalized = PostFilterRules.Normalize(draft);
         Guid id = Guid.NewGuid();
         return MutateAsync((revision, ct) => _service.AddRuleAsync(id, normalized, revision, ct), token);
+    }
+
+    /// <summary>Replaces the content of a rule, keeping its ID and place; the duplicate check leaves the rule itself out.</summary>
+    internal Task<PostFilterSnapshot> ReplaceRuleAsync(Guid id, PostFilterRuleDraft draft, CancellationToken token = default)
+    {
+        PostFilterRuleDraft normalized = PostFilterRules.Normalize(draft);
+        return MutateAsync((revision, ct) => _service.ReplaceRuleAsync(id, normalized, revision, ct), token);
     }
 
     internal Task<PostFilterSnapshot> SetRuleEnabledAsync(Guid id, bool enabled, CancellationToken token = default) =>

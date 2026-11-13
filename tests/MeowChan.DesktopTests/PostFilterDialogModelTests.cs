@@ -19,6 +19,8 @@ public sealed class PostFilterDialogModelTests
         public Task<PostFilterSnapshot> RecoverAsync(long revision, CancellationToken token) => Run(() => store.Recover(revision, token));
         public Task<PostFilterSnapshot> AddRuleAsync(Guid id, PostFilterRuleDraft draft, long revision, CancellationToken token) =>
             Run(() => store.AddRule(id, draft, revision, token));
+        public Task<PostFilterSnapshot> ReplaceRuleAsync(Guid id, PostFilterRuleDraft draft, long revision, CancellationToken token) =>
+            Run(() => store.ReplaceRule(id, draft, revision, token));
         public Task<PostFilterSnapshot> SetRuleEnabledAsync(Guid id, bool enabled, long revision, CancellationToken token) =>
             Run(() => store.SetRuleEnabled(id, enabled, revision, token));
         public Task<PostFilterSnapshot> RemoveRuleAsync(Guid id, long revision, CancellationToken token) => Run(() => store.RemoveRule(id, revision, token));
@@ -159,6 +161,257 @@ public sealed class PostFilterDialogModelTests
         Assert.DoesNotContain(model.Rules, row => row.Rule.Id == second.Id);
     }
 
+    private static async Task<PostFilterDialogModel> Added(PostFilterSession session, ResourceId? context, params string[] patterns)
+    {
+        PostFilterDialogModel model = new(session, context);
+        foreach (string pattern in patterns)
+        {
+            model.Pattern = pattern;
+            Assert.True(await model.AddAsync(), model.Status);
+        }
+        return model;
+    }
+
+    [Fact]
+    public async Task EditingARuleLoadsItIntoTheFormAndSavingReplacesItInPlace()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        (PostFilterSession session, _) = Open(lease, directory.Path);
+        await session.LoadAsync();
+        PostFilterDialogModel model = new(session, Thread);
+        model.Pattern = "first";
+        Assert.True(await model.AddAsync());
+        model.Pattern = "Second One";
+        model.Field = PostFilterField.Subject;
+        model.Match = PostFilterMatch.Exact;
+        model.Action = PostFilterAction.Hide;
+        model.Replies = true;
+        model.Scope = PostFilterScope.Source;
+        Assert.True(await model.AddAsync());
+        model.Pattern = "third";
+        Assert.True(await model.AddAsync());
+        Guid[] order = model.Rules.Select(row => row.Rule.Id).ToArray();
+        Guid second = order[1];
+        await model.SetEnabledAsync(second, false);
+        Assert.False(model.IsEditing);
+        Assert.False(model.CanSave);
+
+        // Begin: the rule's fields are in the form, adding is not possible, saving is.
+        model.Pattern = "left over";
+        Assert.True(model.BeginEdit(second));
+        Assert.True(model.IsEditing);
+        Assert.Equal(second, model.EditingRule!.Id);
+        Assert.Equal((PostFilterField.Subject, PostFilterMatch.Exact, "Second One", PostFilterAction.Hide, true, PostFilterScope.Source),
+            (model.Field, model.Match, model.Pattern, model.Action, model.Replies, model.Scope));
+        Assert.Contains("Second One", model.EditingLabel);
+        Assert.False(model.CanAdd);
+        Assert.True(model.CanSave);
+        Assert.Null(model.Status);
+        Assert.Equal(new[] { PostFilterScope.All, PostFilterScope.Source, PostFilterScope.Board }, model.Scopes);
+
+        // Save: same ID, same place, the switched-off state is kept, the form returns to adding.
+        model.Pattern = "Second Edited";
+        model.Action = PostFilterAction.Highlight;
+        model.Scope = PostFilterScope.Board;
+        Assert.True(await model.SaveEditAsync());
+        Assert.False(model.IsEditing);
+        Assert.Equal(string.Empty, model.Pattern);
+        Assert.Equal(Texts.T("postFilter.saved"), model.Status);
+        Assert.False(model.StatusIsError);
+        Assert.Equal(order, model.Rules.Select(row => row.Rule.Id).ToArray());
+        PostFilterRule edited = model.Rules[1].Rule;
+        Assert.Equal((PostFilterField.Subject, PostFilterMatch.Exact, "Second Edited", PostFilterAction.Highlight, false, "4chan", "g", false),
+            (edited.Field, edited.Match, edited.Pattern, edited.Action, edited.Replies, edited.Source, edited.Board, edited.Enabled));
+        Assert.Equal("first", model.Rules[0].Rule.Pattern);
+        Assert.Equal("third", model.Rules[2].Rule.Pattern);
+        Assert.True(model.CanAdd == false); // The pattern is empty again.
+
+        // Cancel: nothing is stored, the form is empty and adds again.
+        Assert.True(model.BeginEdit(order[0]));
+        model.Pattern = "typed but cancelled";
+        model.CancelEdit();
+        Assert.False(model.IsEditing);
+        Assert.Equal(string.Empty, model.Pattern);
+        Assert.Equal("first", model.Rules[0].Rule.Pattern);
+        Assert.Equal(3, model.Rules.Count);
+        model.Pattern = "fourth";
+        Assert.True(model.CanAdd);
+        Assert.True(await model.AddAsync());
+        Assert.Equal(4, model.Rules.Count);
+
+        // Saving without editing and an invalid edit do nothing.
+        Assert.False(await model.SaveEditAsync());
+        Assert.True(model.BeginEdit(order[2]));
+        model.Pattern = "   ";
+        Assert.False(model.CanSave);
+        Assert.False(await model.SaveEditAsync());
+        Assert.True(model.StatusIsError);
+        Assert.Equal("third", model.Rules[2].Rule.Pattern);
+        Assert.True(model.IsEditing);
+    }
+
+    [Fact]
+    public async Task EditingKeepsTheScopeOfARuleThatBelongsToAnotherThreadAndWorksWithoutAThread()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        (PostFilterSession session, _) = Open(lease, directory.Path);
+        await session.LoadAsync();
+        await session.AddRuleAsync(new PostFilterRuleDraft(PostFilterField.Text, PostFilterMatch.Contains, "elsewhere", PostFilterAction.Stub, false, "4chan", "v"));
+        await session.AddRuleAsync(new PostFilterRuleDraft(PostFilterField.Text, PostFilterMatch.Contains, "whole source", PostFilterAction.Stub, false, "4chan"));
+        PostFilterDialogModel model = new(session, Thread); // 4chan /g/
+        Guid board = model.Rules[0].Rule.Id, source = model.Rules[1].Rule.Id;
+        Assert.True(model.BeginEdit(board));
+        Assert.Equal(PostFilterScope.Kept, model.Scope);
+        Assert.Equal(new[] { PostFilterScope.All, PostFilterScope.Source, PostFilterScope.Board, PostFilterScope.Kept }, model.Scopes);
+        Assert.Equal(PostFilterDialogModel.RuleScopeLabel(model.EditingRule!), model.ScopeLabel(PostFilterScope.Kept));
+        model.Pattern = "elsewhere 2";
+        Assert.True(await model.SaveEditAsync());
+        Assert.Equal(("4chan", "v"), (model.Rules[0].Rule.Source, model.Rules[0].Rule.Board));
+        Assert.Equal(new[] { PostFilterScope.All, PostFilterScope.Source, PostFilterScope.Board }, model.Scopes);
+
+        // A source-wide rule of the open thread's source is the dialog's own "Only this source".
+        Assert.True(model.BeginEdit(source));
+        Assert.Equal(PostFilterScope.Source, model.Scope);
+        model.CancelEdit();
+
+        // Without an open thread only "Everywhere" can be chosen, so a scoped rule keeps its scope.
+        PostFilterDialogModel detached = new(session, null);
+        Assert.True(detached.BeginEdit(source));
+        Assert.Equal(PostFilterScope.Kept, detached.Scope);
+        detached.Pattern = "whole source 2";
+        detached.Action = PostFilterAction.Hide;
+        Assert.True(await detached.SaveEditAsync());
+        Assert.Equal(("4chan", (string?)null, PostFilterAction.Hide), (detached.Rules[1].Rule.Source, detached.Rules[1].Rule.Board, detached.Rules[1].Rule.Action));
+        Assert.Equal(new[] { PostFilterScope.All }, detached.Scopes);
+    }
+
+    [Fact]
+    public async Task EditingIntoAnotherRuleIsADuplicateButOwnTextInOtherCaseIsNot()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        (PostFilterSession session, PostFilterStore store) = Open(lease, directory.Path);
+        await session.LoadAsync();
+        PostFilterDialogModel model = await Added(session, Thread, "alpha", "beta");
+        Guid alpha = model.Rules[0].Rule.Id, beta = model.Rules[1].Rule.Id;
+        long revision = session.Current!.Revision;
+
+        Assert.True(model.BeginEdit(beta));
+        model.Pattern = "ALPHA";
+        Assert.False(await model.SaveEditAsync());
+        Assert.Equal(Texts.T("postFilter.duplicate"), model.Status);
+        Assert.True(model.StatusIsError);
+        Assert.True(model.IsEditing);
+        Assert.Equal("ALPHA", model.Pattern); // Kept for correcting it.
+        Assert.Equal(revision, store.Load().Revision);
+        Assert.Equal(new[] { "alpha", "beta" }, model.Rules.Select(row => row.Rule.Pattern).ToArray());
+
+        // Another scope is another rule.
+        model.Scope = PostFilterScope.Board;
+        Assert.True(await model.SaveEditAsync());
+        Assert.False(model.StatusIsError);
+        Assert.Equal(("ALPHA", "g"), (model.Rules[1].Rule.Pattern, model.Rules[1].Rule.Board));
+
+        // A rule does not collide with itself: only the case of its own text (and its action) changes.
+        Assert.True(model.BeginEdit(alpha));
+        model.Pattern = "ALPHA";
+        model.Action = PostFilterAction.Hide;
+        Assert.True(await model.SaveEditAsync());
+        Assert.Equal(("ALPHA", PostFilterAction.Hide), (model.Rules[0].Rule.Pattern, model.Rules[0].Rule.Action));
+    }
+
+    [Fact]
+    public async Task EditingAtTheLimitStillWorksAndAConflictKeepsTheDraftOrEndsTheEdit()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        lease.StoreLimits.PostFilterRules = ProfileStoreLimits.MinimumPostFilterRules;
+        (PostFilterSession session, PostFilterStore store) = Open(lease, directory.Path);
+        await session.LoadAsync();
+        PostFilterDialogModel model = new(session, Thread);
+        for (int index = 0; index < ProfileStoreLimits.MinimumPostFilterRules; index++)
+        {
+            model.Pattern = "rule " + index;
+            Assert.True(await model.AddAsync(), model.Status);
+        }
+        PostFilterRule first = model.Rules[0].Rule, second = model.Rules[1].Rule, third = model.Rules[2].Rule;
+        model.Pattern = "one too many";
+        Assert.False(await model.AddAsync());
+        Assert.Contains(Texts.T("budgets.postFilterRules"), model.Status);
+        model.Pattern = string.Empty;
+
+        // A full list does not stop editing: the count stays.
+        Assert.True(model.BeginEdit(first.Id));
+        model.Pattern = "rule 0 edited";
+        Assert.True(await model.SaveEditAsync(), model.Status);
+        Assert.Equal(ProfileStoreLimits.MinimumPostFilterRules, model.Rules.Count);
+
+        // Another writer changed the file; the edited rule is still there: refused, newer list shown, draft kept, retry works.
+        Assert.True(model.BeginEdit(second.Id));
+        model.Pattern = "rule 1 edited";
+        PostFilterSnapshot external = store.RemoveRule(third.Id, session.Current!.Revision);
+        Assert.False(await model.SaveEditAsync());
+        Assert.Equal(Texts.T("postFilter.conflict"), model.Status);
+        Assert.True(model.StatusIsError);
+        Assert.Equal(external.Revision, session.Current!.Revision);
+        Assert.True(model.IsEditing);
+        Assert.Equal("rule 1 edited", model.Pattern);
+        Assert.DoesNotContain(model.Rules, row => row.Rule.Id == third.Id);
+        Assert.True(await model.SaveEditAsync());
+        Assert.Equal("rule 1 edited", model.Rules.Single(row => row.Rule.Id == second.Id).Rule.Pattern);
+
+        // The edited rule itself was removed by the other writer: the edit ends, the newer list is shown.
+        Assert.True(model.BeginEdit(model.Rules[2].Rule.Id));
+        Guid doomed = model.EditingRule!.Id;
+        model.Pattern = "doomed";
+        store.RemoveRule(doomed, session.Current!.Revision);
+        Assert.False(await model.SaveEditAsync());
+        Assert.Equal(Texts.T("postFilter.conflict"), model.Status);
+        Assert.False(model.IsEditing);
+        Assert.Equal(PostFilterScope.All, model.Scope);
+        Assert.DoesNotContain(model.Rules, row => row.Rule.Id == doomed);
+        Assert.False(await model.SaveEditAsync());
+    }
+
+    [Fact]
+    public async Task ARuleFromANewerVersionStaysReadOnlyWithAHint()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        Guid regexId = Guid.NewGuid(), knownId = Guid.NewGuid();
+        File.WriteAllText(Path.Combine(directory.Path, PostFilterStore.FileName),
+            "{\"schemaVersion\":1,\"revision\":5,\"hiddenPostsAction\":\"stub\",\"rules\":[" +
+            "{\"id\":\"" + regexId + "\",\"enabled\":true,\"field\":\"text\",\"match\":\"regex\",\"pattern\":\"^a+$\",\"action\":\"hide\",\"replies\":false,\"flags\":\"i\"}," +
+            "{\"id\":\"" + knownId + "\",\"enabled\":true,\"field\":\"text\",\"match\":\"contains\",\"pattern\":\"abc\",\"action\":\"hide\",\"replies\":false}],\"hiddenPosts\":[]}");
+        (PostFilterSession session, _) = Open(lease, directory.Path);
+        await session.LoadAsync();
+        PostFilterDialogModel model = new(session, Thread);
+        Assert.False(model.Rules[0].Supported);
+        model.Pattern = "typed";
+        Assert.False(model.BeginEdit(regexId));
+        Assert.False(model.IsEditing);
+        Assert.Equal(Texts.T("postFilter.editUnsupported"), model.Status);
+        Assert.True(model.StatusIsError);
+        Assert.Equal("typed", model.Pattern); // The form was not touched.
+        Assert.False(await model.SaveEditAsync());
+
+        // A supported rule next to it still edits, and the unsupported one is kept as it was.
+        Assert.True(model.BeginEdit(knownId));
+        Assert.Null(model.Status);
+        model.Pattern = "abcd";
+        Assert.True(await model.SaveEditAsync());
+        Assert.False(model.Rules[0].Supported);
+        Assert.Equal("abcd", model.Rules[1].Rule.Pattern);
+        Assert.Contains("^a+$", File.ReadAllText(Path.Combine(directory.Path, PostFilterStore.FileName)));
+
+        // Unknown rules and a store that cannot be written are not editable either.
+        Assert.False(model.BeginEdit(Guid.NewGuid()));
+        PostFilterDialogModel notLoaded = new(new PostFilterSession(new FailingService()), Thread);
+        Assert.False(notLoaded.BeginEdit(knownId));
+    }
+
     [Fact]
     public async Task HiddenPostsSurviveARestartAndShowAgainFromTheDialog()
     {
@@ -257,6 +510,7 @@ public sealed class PostFilterDialogModelTests
         public Task<PostFilterSnapshot> LoadAsync(CancellationToken token) => Fail();
         public Task<PostFilterSnapshot> RecoverAsync(long revision, CancellationToken token) => Fail();
         public Task<PostFilterSnapshot> AddRuleAsync(Guid id, PostFilterRuleDraft draft, long revision, CancellationToken token) => Fail();
+        public Task<PostFilterSnapshot> ReplaceRuleAsync(Guid id, PostFilterRuleDraft draft, long revision, CancellationToken token) => Fail();
         public Task<PostFilterSnapshot> SetRuleEnabledAsync(Guid id, bool enabled, long revision, CancellationToken token) => Fail();
         public Task<PostFilterSnapshot> RemoveRuleAsync(Guid id, long revision, CancellationToken token) => Fail();
         public Task<PostFilterSnapshot> SetHiddenPostsActionAsync(HiddenPostsAction action, long revision, CancellationToken token) => Fail();

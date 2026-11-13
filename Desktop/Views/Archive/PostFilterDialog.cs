@@ -21,7 +21,7 @@ using MeowChan.Persistence;
 namespace MeowChan;
 
 /// <summary>
-/// "Post filters…" (plan P2): the rules (add, switch on and off, remove) and the individually hidden posts (show again,
+/// "Post filters…" (plan P2): the rules (add, edit, switch on and off, remove) and the individually hidden posts (show again,
 /// placeholder or hide completely). A code dialog like the hash search; all logic is in <see cref="PostFilterDialogModel"/>.
 /// </summary>
 internal sealed class PostFilterDialog : Window
@@ -55,7 +55,10 @@ internal sealed class PostFilterDialog : Window
     private readonly CheckBox _replies = new() { Name = "PostFilterReplies" };
     private readonly TextBlock _scopeLabel = Label("PostFilterScopeLabel");
     private readonly ComboBox _scope = new() { Name = "PostFilterScope", MinWidth = 160 };
+    private readonly TextBlock _editing = Label("PostFilterEditing");
     private readonly Button _add = new() { Name = "PostFilterAdd" };
+    private readonly Button _save = new() { Name = "PostFilterSave" };
+    private readonly Button _cancelEdit = new() { Name = "PostFilterCancelEdit" };
     private readonly StackPanel _rules = new() { Name = "PostFilterRules", Spacing = 6 };
     private readonly TextBlock _hiddenActionLabel = Label("PostFilterHiddenActionLabel");
     private readonly ComboBox _hiddenAction = new() { Name = "PostFilterHiddenAction", MinWidth = 200 };
@@ -80,6 +83,8 @@ internal sealed class PostFilterDialog : Window
         _hint.Classes.Add("muted");
         _patternHint.Classes.Add("muted");
         _draftError.Classes.Add("workspace-error");
+        _editing.Classes.Add("muted");
+        AutomationProperties.SetLiveSetting(_editing, AutomationLiveSetting.Polite);
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
         AutomationProperties.SetLiveSetting(_draftError, AutomationLiveSetting.Assertive);
 
@@ -90,9 +95,11 @@ internal sealed class PostFilterDialog : Window
         WrapPanel choices = new() { ItemSpacing = 12, LineSpacing = 8 };
         choices.Children.Add(Pair(_fieldLabel, _field)); choices.Children.Add(Pair(_matchLabel, _match));
         choices.Children.Add(Pair(_actionLabel, _action)); choices.Children.Add(Pair(_scopeLabel, _scope));
+        WrapPanel draftButtons = new() { ItemSpacing = 8, LineSpacing = 8 };
+        draftButtons.Children.Add(_add); draftButtons.Children.Add(_save); draftButtons.Children.Add(_cancelEdit);
         StackPanel draft = new() { Spacing = 6 };
-        draft.Children.Add(_patternLabel); draft.Children.Add(_pattern); draft.Children.Add(_patternHint); draft.Children.Add(_draftError);
-        draft.Children.Add(choices); draft.Children.Add(_replies); draft.Children.Add(_add);
+        draft.Children.Add(_editing); draft.Children.Add(_patternLabel); draft.Children.Add(_pattern); draft.Children.Add(_patternHint); draft.Children.Add(_draftError);
+        draft.Children.Add(choices); draft.Children.Add(_replies); draft.Children.Add(draftButtons);
         StackPanel rulesPage = new() { Spacing = 12, Margin = new Thickness(0, 8, 0, 0) };
         rulesPage.Children.Add(draft); rulesPage.Children.Add(new Separator()); rulesPage.Children.Add(_rules);
         _rulesTab.Content = rulesPage;
@@ -122,6 +129,8 @@ internal sealed class PostFilterDialog : Window
         _replies.IsCheckedChanged += (_, _) => { if (!_refreshing) _model.Replies = _replies.IsChecked == true; };
         _pattern.PropertyChanged += OnPatternChanged;
         _add.Click += async (_, _) => await AddAsync();
+        _save.Click += async (_, _) => await SaveAsync();
+        _cancelEdit.Click += (_, _) => CancelEdit();
         _recover.Click += async (_, _) => await _model.RecoverAsync(_lifetime);
         _close.Click += (_, _) => Close();
         _model.Changed += OnModelChanged;
@@ -147,6 +156,25 @@ internal sealed class PostFilterDialog : Window
         if (await _model.AddAsync(_lifetime) && !_closed) { _pattern.Text = string.Empty; _pattern.Focus(); }
     }
 
+    private async Task SaveAsync()
+    {
+        if (await _model.SaveEditAsync(_lifetime) && !_closed) _pattern.Focus();
+    }
+
+    private void CancelEdit()
+    {
+        _model.CancelEdit();
+        if (!_closed) _pattern.Focus();
+    }
+
+    private void BeginEdit(Guid id)
+    {
+        if (!_model.BeginEdit(id) || _closed) return;
+        _tabs.SelectedItem = _rulesTab;
+        _pattern.Focus();
+        _pattern.CaretIndex = _pattern.Text?.Length ?? 0;
+    }
+
     private void OnPatternChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
         if (_refreshing || e.Property != TextBox.TextProperty) return;
@@ -156,10 +184,14 @@ internal sealed class PostFilterDialog : Window
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape) { e.Handled = true; Close(); }
-        // Enter in the search text is the keyboard form of "Add rule".
-        else if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && ReferenceEquals(e.Source, _pattern) && _model.CanAdd)
-        { e.Handled = true; _ = AddAsync(); }
+        // Escape first leaves the edit of a rule (back to adding one), and only then closes the dialog.
+        if (e.Key == Key.Escape) { e.Handled = true; if (_model.IsEditing) CancelEdit(); else Close(); }
+        // Enter in the search text is the keyboard form of "Add rule", or of "Save changes" while a rule is edited.
+        else if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && ReferenceEquals(e.Source, _pattern))
+        {
+            if (_model.CanSave) { e.Handled = true; _ = SaveAsync(); }
+            else if (_model.CanAdd) { e.Handled = true; _ = AddAsync(); }
+        }
     }
 
     private void OnModelChanged(object? sender, EventArgs e)
@@ -188,7 +220,13 @@ internal sealed class PostFilterDialog : Window
         string? error = _model.DraftError;
         _draftError.Text = error ?? string.Empty;
         _draftError.IsVisible = error != null;
+        bool editing = _model.IsEditing;
+        _add.IsVisible = !editing;
         _add.IsEnabled = _model.CanAdd;
+        _save.IsVisible = editing;
+        _save.IsEnabled = _model.CanSave;
+        _cancelEdit.IsVisible = editing;
+        _cancelEdit.IsEnabled = !_model.IsBusy;
     }
 
     internal void Refresh()
@@ -229,6 +267,11 @@ internal sealed class PostFilterDialog : Window
             _replies.IsChecked = _model.Replies && _model.RepliesSelectable;
             _replies.IsEnabled = _model.RepliesSelectable;
             ButtonText(_add, Texts.T("postFilter.add"));
+            ButtonText(_save, Texts.T("postFilter.save"));
+            ButtonText(_cancelEdit, Texts.T("postFilter.cancelEdit"));
+            string? editingLabel = _model.EditingLabel;
+            _editing.Text = editingLabel == null ? string.Empty : Texts.T("postFilter.editing", editingLabel);
+            _editing.IsVisible = editingLabel != null;
             RefreshDraft();
             bool idle = !_model.IsBusy && _model.CanWrite;
             RenderRules(idle);
@@ -248,6 +291,7 @@ internal sealed class PostFilterDialog : Window
         _rules.Children.Clear();
         IReadOnlyList<PostFilterDialogModel.RuleRow> rows = _model.Rules;
         if (rows.Count == 0) { _rules.Children.Add(new TextBlock { Text = Texts.T("postFilter.noRules"), Classes = { "muted" } }); return; }
+        Guid? editingId = _model.EditingRule?.Id;
         foreach (PostFilterDialogModel.RuleRow row in rows)
         {
             Guid id = row.Rule.Id;
@@ -258,15 +302,26 @@ internal sealed class PostFilterDialog : Window
             };
             AutomationProperties.SetName(enabled, Texts.T("postFilter.enabled") + ": " + row.Label);
             enabled.IsCheckedChanged += (_, _) => { if (!_refreshing) _ = _model.SetEnabledAsync(id, enabled.IsChecked == true, _lifetime); };
+            Button edit = new() { Content = Texts.T("postFilter.edit"), IsEnabled = idle && row.Supported && editingId != id, Tag = id, VerticalAlignment = VerticalAlignment.Center };
+            AutomationProperties.SetName(edit, Texts.T("postFilter.edit") + ": " + row.Label);
+            if (!row.Supported)
+            {
+                // Read-only rule: the disabled button says why, for the pointer and for screen readers.
+                ToolTip.SetTip(edit, Texts.T("postFilter.editUnsupported"));
+                AutomationProperties.SetHelpText(edit, Texts.T("postFilter.editUnsupported"));
+            }
+            edit.Click += (_, _) => BeginEdit(id);
             Button remove = new() { Content = Texts.T("postFilter.remove"), IsEnabled = idle, Tag = id, VerticalAlignment = VerticalAlignment.Center };
             AutomationProperties.SetName(remove, Texts.T("postFilter.remove") + ": " + row.Label);
             remove.Click += async (_, _) => await _model.RemoveAsync(id, _lifetime);
+            StackPanel buttons = new() { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
+            buttons.Children.Add(edit); buttons.Children.Add(remove);
             TextBlock details = new() { Text = row.Details, TextWrapping = TextWrapping.Wrap, Classes = { "muted" } };
             StackPanel text = new() { Spacing = 2 };
             text.Children.Add(enabled); text.Children.Add(details);
             Grid line = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Tag = id };
             line.Children.Add(text);
-            line.Children.Add(remove); Grid.SetColumn(remove, 1);
+            line.Children.Add(buttons); Grid.SetColumn(buttons, 1);
             _rules.Children.Add(line);
         }
     }

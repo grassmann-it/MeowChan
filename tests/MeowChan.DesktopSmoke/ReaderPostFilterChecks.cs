@@ -46,6 +46,8 @@ internal static partial class ReaderPostFilterChecks
         public Task<PostFilterSnapshot> RecoverAsync(long revision, CancellationToken token) => Task.Run(() => store.Recover(revision, token), token);
         public Task<PostFilterSnapshot> AddRuleAsync(Guid id, PostFilterRuleDraft draft, long revision, CancellationToken token) =>
             Task.Run(() => store.AddRule(id, draft, revision, token), token);
+        public Task<PostFilterSnapshot> ReplaceRuleAsync(Guid id, PostFilterRuleDraft draft, long revision, CancellationToken token) =>
+            Task.Run(() => store.ReplaceRule(id, draft, revision, token), token);
         public Task<PostFilterSnapshot> SetRuleEnabledAsync(Guid id, bool enabled, long revision, CancellationToken token) =>
             Task.Run(() => store.SetRuleEnabled(id, enabled, revision, token), token);
         public Task<PostFilterSnapshot> RemoveRuleAsync(Guid id, long revision, CancellationToken token) => Task.Run(() => store.RemoveRule(id, revision, token), token);
