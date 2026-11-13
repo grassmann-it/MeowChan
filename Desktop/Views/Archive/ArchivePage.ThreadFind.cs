@@ -162,17 +162,6 @@ public partial class ArchivePage
         else MoveThreadFind(gesture == 1);
     }
 
-    // F3 / Ctrl+G (⌘G) and Shift+F3 / Ctrl+Shift+G (⇧⌘G): next and previous hit while the find bar is open,
-    // also from inside the query box. Never opens the bar and never takes focus.
-    private bool TryMoveThreadFindByShortcut(KeyEventArgs e)
-    {
-        bool forward = CommandBindings.Matches(e, "reader.find-next");
-        if (!forward && !CommandBindings.Matches(e, "reader.find-previous")) return false;
-        e.Handled = true;
-        MoveThreadFind(forward);
-        return true;
-    }
-
     private static Button? FocusedFindButton(object? source) => (source as Avalonia.Visual)?
         .GetSelfAndVisualAncestors().OfType<Button>().FirstOrDefault(b => b.Name?.StartsWith("ReaderFind", StringComparison.Ordinal) == true);
 

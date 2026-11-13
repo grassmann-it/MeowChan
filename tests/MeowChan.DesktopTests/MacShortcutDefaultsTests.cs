@@ -42,7 +42,7 @@ public sealed class MacShortcutDefaultsTests
     {
         var help = EffectiveShortcutBindings.Defaults(CommandCatalog.Get("viewer.shortcut-help"), ShortcutPlatform.MacOS);
         Assert.Equal(new[] { "⌘?", "?", "F1 (Fn)" }, help.Select(g => g.Display(ShortcutPlatform.MacOS)));
-        Assert.Equal("F1 / ?", string.Join(" / ", EffectiveShortcutBindings.Defaults(CommandCatalog.Get("viewer.shortcut-help"), ShortcutPlatform.Linux)
+        Assert.Equal("F1 / Shift+?", string.Join(" / ", EffectiveShortcutBindings.Defaults(CommandCatalog.Get("viewer.shortcut-help"), ShortcutPlatform.Linux)
             .Select(g => g.Display(ShortcutPlatform.Linux))));
     }
 

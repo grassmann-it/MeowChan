@@ -37,11 +37,13 @@ public sealed class PowerUserCommandTests
         Assert.Equal("Alt+Left", CommandCatalog.ShortcutDisplay("media.return", false));
         Assert.True(CommandBindings.Matches(new KeyEventArgs { Key = Key.Left, KeyModifiers = KeyModifiers.Alt }, "media.return"));
         Assert.False(CommandBindings.Matches(new KeyEventArgs { Key = Key.Left }, "media.return"));
-        Assert.NotEqual(CommandCatalog.Get("media.return").Shortcut, CommandCatalog.Get("reader.history-back").Shortcut);
+        // One Back gesture for three commands that never apply together (their execution contexts differ).
+        Assert.Equal(CommandCatalog.Get("media.return").Shortcut, CommandCatalog.Get("reader.history-back").Shortcut);
+        Assert.Equal(CommandCatalog.Get("media.return").Shortcut, CommandCatalog.Get("gallery.return").Shortcut);
         Assert.Equal(CommandScope.Downloads, CommandCatalog.Get("input.focus-download-search").Scope);
         Assert.Equal(CommandScope.Archive, CommandCatalog.Get("archive.previous-page").Scope);
         Assert.Equal(CommandScope.Archive, CommandCatalog.Get("archive.next-page").Scope);
-        Assert.Equal("Alt+PageUp", CommandCatalog.ShortcutDisplay("archive.previous-page", true));
+        Assert.Equal("⌥⇞", CommandCatalog.ShortcutDisplay("archive.previous-page", true));
         Assert.Equal("Alt+PageDown", CommandCatalog.ShortcutDisplay("archive.next-page", false));
         Assert.False(CommandBindings.Matches(new KeyEventArgs { Key = Key.PageDown }, "archive.next-page"));
         Assert.Null(CommandCatalog.Get("export.open-all-results-html-dialog").Shortcut);

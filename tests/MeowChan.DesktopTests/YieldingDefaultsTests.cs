@@ -72,16 +72,16 @@ public sealed class YieldingDefaultsTests
     [InlineData(ShortcutPlatform.MacOS)]
     public void AnyYieldingDefaultGivesWayToASavedBindingOnItsKeyWithoutBlockingOrRewriting(ShortcutPlatform platform)
     {
-        foreach (string id in EffectiveShortcutBindings.YieldingDefaultCommandIds)
+        foreach (string id in EffectiveShortcutBindings.YieldingDefaultCommandIds.Where(id => EffectiveShortcutBindings.YieldsOn(id, platform)))
         {
             var command = CommandCatalog.Get(id);
             foreach (var gesture in EffectiveShortcutBindings.Defaults(command, platform))
             {
                 // About has no default of its own and, being a shell command, overlaps every non-modal context.
                 const string owner = "navigation.about";
-                // A gesture another stable default already owns in the same context is an ordinary conflict, not a yield.
-                if (CommandCatalog.All.Any(c => c.Id != id && !EffectiveShortcutBindings.YieldingDefaultCommandIds.Contains(c.Id)
-                    && EffectiveShortcutBindings.ContextsOverlap(id, c.Id)
+                // A gesture another stable default already owns where the saved binding applies is an ordinary conflict, not a yield.
+                if (CommandCatalog.All.Any(c => c.Id != id && !EffectiveShortcutBindings.YieldsOn(c.Id, platform)
+                    && EffectiveShortcutBindings.ContextsOverlap(owner, c.Id)
                     && EffectiveShortcutBindings.Defaults(c, platform).Any(g => EffectiveShortcutBindings.Equivalent(g, gesture, platform)))) continue;
                 var section = new ShortcutBindingsSection().Set(owner, [gesture]);
                 string before = section.Raw.GetRawText();

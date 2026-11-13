@@ -511,6 +511,17 @@ public partial class ArchivePage
         await (ReaderNavigationTask = NavigateReaderAsync(post, thread));
     }
 
+    // F3 / Ctrl+G (⌘G) and Shift+F3 / Ctrl+Shift+G (⇧⌘G): next and previous hit while the find bar is open,
+    // also from inside the query box. Never opens the bar and never takes focus.
+    private bool TryMoveThreadFindByShortcut(KeyEventArgs e)
+    {
+        bool forward = CommandBindings.Matches(e, "reader.find-next");
+        if (!forward && !CommandBindings.Matches(e, "reader.find-previous")) return false;
+        e.Handled = true;
+        MoveThreadFind(forward);
+        return true;
+    }
+
     // The results-page gesture (Alt+PageUp/PageDown, Option-Command-arrows on macOS) also pages the thread's posts and the
     // backlinks inside the reader: pagination.previous/next share it and never apply where the results list has the focus.
     private bool TryPageByShortcut(KeyEventArgs e)

@@ -125,6 +125,16 @@ public sealed class EffectiveShortcutBindings
         ["window.minimize"] = 2,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
+    // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
+    // and keeps the ordinary symmetric conflict rule.
+    private static readonly HashSet<string> MacOnlyDefaultChanges = new(StringComparer.Ordinal)
+    {
+        "window.fullscreen", "viewer.shortcut-help", "watch.remove", "archive.delete-permanently", "thread.details",
+        "watch.check", "watch.retry-media", "archive.previous-page", "archive.next-page", "media.return", "window.minimize"
+    };
+    /// <summary>Whether the default of <paramref name="id"/> yields to saved bindings on <paramref name="platform"/>.</summary>
+    public static bool YieldsOn(string id, ShortcutPlatform platform) =>
+        DefaultChangedInRevision.ContainsKey(id) && (platform == ShortcutPlatform.MacOS || !MacOnlyDefaultChanges.Contains(id));
     /// <summary>Whether an issue deserves the startup warning: only what silences or blocks a binding
     /// (never the informational yield, unknown or not-implemented entries).</summary>
     public static bool NeedsStartupWarning(ShortcutIssue issue)
@@ -275,7 +285,7 @@ public sealed class EffectiveShortcutBindings
         if (section.IsEditable)
         foreach (string id in DefaultChangedInRevision.Keys)
         {
-            if (section.HasOverride(id) || !values.ContainsKey(id)) continue;
+            if (section.HasOverride(id) || !values.ContainsKey(id) || !YieldsOn(id, os)) continue;
             var retained = new List<ShortcutGesture>();
             foreach (ShortcutGesture gesture in values[id])
             {
