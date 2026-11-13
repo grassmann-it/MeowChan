@@ -250,6 +250,7 @@ public partial class MainWindow : Window
         }
         AddUrlButton.IsEnabled = ready && !_importing;
         ThreadsEmptyImportButton.IsEnabled = ready && !_importing;
+        BoardsEmptyImportButton.IsEnabled = ready && !_importing;
         UrlInput.IsEnabled = ready;
         SettingsMenuItem.IsEnabled = earlyPages;
         DownloadsNavigationButton.IsEnabled = earlyPages;

@@ -299,9 +299,15 @@
                         <!-- ContextMenu for right-clicking on a row -->
                         <DataGrid.ContextMenu><ContextMenu /></DataGrid.ContextMenu>
                     </DataGrid>
-                                    <TextBlock x:Name="BoardsEmptyState" Tag="downloads.boardsEmpty" Classes="localized muted"
-                                               VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center"
-                                               MaxWidth="360" Margin="28" TextWrapping="Wrap" IsHitTestVisible="False" />
+                                    <!-- Same next step as the Threads state: the URL on the clipboard is imported (a board URL discovers its threads). -->
+                                    <StackPanel x:Name="BoardsEmptyPanel" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                MaxWidth="360" Margin="28" Spacing="12">
+                                        <TextBlock x:Name="BoardsEmptyState" Tag="downloads.boardsEmpty" Classes="localized muted"
+                                                   HorizontalAlignment="Center" TextAlignment="Center"
+                                                   TextWrapping="Wrap" IsHitTestVisible="False" />
+                                        <Button x:Name="BoardsEmptyImportButton" Classes="primary" HorizontalAlignment="Center"
+                                                Click="OnEmptyStateImportClick" />
+                                    </StackPanel>
                                 </Grid>
                         <desktop:ActionToolBar x:Name="WorkspaceListActions" Grid.Column="1"
                                     HorizontalAlignment="Stretch" VerticalAlignment="Center" Margin="8,0,8,0">

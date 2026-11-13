@@ -293,6 +293,7 @@ public partial class MainWindow
         LocalizeDownloadsColumnsButton();
         CommandBindings.ApplyLabeled(AddUrlButton, "watch.add-url", Texts.T("action.add"));
         CommandBindings.Apply(ThreadsEmptyImportButton, "watch.import-clipboard", iconWithLabel: true);
+        CommandBindings.Apply(BoardsEmptyImportButton, "watch.import-clipboard", iconWithLabel: true);
         CommandBindings.ApplyLabeled(DownloadSearchButton, "input.focus-download-search", Texts.T("downloads.search"));
         CommandBindings.ApplyLabeled(CopyAllUrlsButton, "watch.copy-all-links", Texts.T("downloads.copySessionUrls", UrlList.Count + BoardsList.Count));
         CommandBindings.ApplyLabeled(InspectorOpenFolderButton, "location.open-folder", Texts.T("action.openFolder"));

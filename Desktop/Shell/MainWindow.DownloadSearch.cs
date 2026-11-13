@@ -208,6 +208,8 @@ public partial class MainWindow
         // The next step is offered only for a truly empty, current list; not for a search without hits or a pending claim.
         ThreadsEmptyImportButton.IsVisible = ThreadsEmptyState.IsVisible && current && !active;
         BoardsEmptyState.IsVisible = VisibleBoards.Count == 0;
+        BoardsEmptyPanel.IsVisible = BoardsEmptyState.IsVisible;
+        BoardsEmptyImportButton.IsVisible = BoardsEmptyState.IsVisible && current && !active;
         TextBox input = DownloadSearchInput;
         input.PlaceholderText = Texts.T("downloads.searchPlaceholder");
         AutomationProperties.SetName(input, Texts.T("downloads.searchPlaceholder"));
