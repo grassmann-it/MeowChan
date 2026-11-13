@@ -84,11 +84,14 @@ internal static class SourcesChecks
                 "The Sources hand-off prefilled the Downloads field; a base URL would not be a valid thread link.");
             downloadsInput.Text = "https://unknown.invalid/g/thread/123";
             window.FindControl<Button>("AddUrlButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await Program.WaitUntilAsync(() => window.FindControl<StackPanel>("AdmissionResultRows")!.Children.OfType<TextBox>().Any());
-            TextBox report = window.FindControl<StackPanel>("AdmissionResultRows")!.Children.OfType<TextBox>().Single();
+            // An earlier scenario may have left its report in the rows; wait for the one of this link.
+            await Program.WaitUntilAsync(() => window.FindControl<StackPanel>("AdmissionResultRows")!.Children.OfType<TextBox>()
+                .Any(row => row.Text?.Contains(Texts.T("admission.unsupported")) == true));
+            TextBox report = window.FindControl<StackPanel>("AdmissionResultRows")!.Children.OfType<TextBox>()
+                .Single(row => row.Text?.Contains(Texts.T("admission.unsupported")) == true);
             Require(report.Text?.Contains(Texts.T("admission.unsupported")) == true
                 && downloadsInput.Text == "https://unknown.invalid/g/thread/123",
-                "The Downloads field did not use the shared admission/reporting path for a link entered after the Sources hand-off.");
+                "The Downloads field did not use the shared admission/reporting path for a link entered after the Sources hand-off: report=\"" + report.Text + "\" input=\"" + downloadsInput.Text + "\".");
             downloadsInput.Text = string.Empty;
         }
         string? editedSource = null;
