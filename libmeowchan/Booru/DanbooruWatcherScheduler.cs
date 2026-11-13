@@ -330,6 +330,11 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
 
     private async Task RunLoopAsync(CancellationToken stop)
     {
+        // Give commands issued immediately after StartAsync a scheduling turn to enqueue manual
+        // requests before the first automatic selection.  Without this hand-off, the background
+        // loop can claim a due watcher before the caller's synchronous CheckNowAsync calls reach
+        // _manual, defeating the documented manual-first startup semantics.
+        await Task.Yield();
         while (!stop.IsCancellationRequested)
         {
             Task wake;
