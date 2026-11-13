@@ -33,23 +33,25 @@ internal sealed class BooruCatalogAdapter : StoreAdapter
     internal override void Mutate(string directory, ProfileLease lease) =>
         new BooruCatalogStore(directory, lease).UpsertPost(Post("3"), DateTimeOffset.Parse("2026-11-12T13:00:00Z"));
 
-    internal override IReadOnlyDictionary<string, string> KnownBugs => new Dictionary<string, string>
-    {
-        ["primary:duplicate-array-property-different-value"] =
-            "BUG: BooruCatalogStore accepts a repeated posts property and keeps the last one, so a duplicate silently empties "
-            + "the catalog instead of being rejected."
-    };
 }
 
 public sealed class BooruCatalogCorruptionTests(ITestOutputHelper log) : StoreCorruptionTests(log)
 {
     internal override StoreAdapter Adapter { get; } = new BooruCatalogAdapter();
 
-    [Fact(Skip = "BUG: booru-catalog.json is parsed without a duplicate-property check, so a document whose posts property appears twice "
-        + "reads as the last (empty) one. The store reports the emptied catalog as good data although it has no backup and is "
-        + "documented to fail closed, and the next write persists it. Its sibling stores reject this (FavoriteStore.CheckObject at "
-        + "libmeowchan/Favorites/FavoriteStore.cs:334-345, SavedArchiveSearchStore.CheckDuplicates at "
-        + "libmeowchan/Persistence/SavedArchiveSearchStore.cs:279-284).")]
+    // A repeated property fails closed: the read throws and the catalog is never written over.
+    [Fact]
     public void ARepeatedPostsPropertyNeverSilentlyEmptiesTheCatalog() =>
-        CorruptionScenarios.DamagedPrimary(new BooruCatalogAdapter(), "duplicate-array-property-different-value", null, "bug");
+        CorruptionScenarios.DamagedPrimary(new BooruCatalogAdapter(), "duplicate-array-property-different-value", null, "duplicate");
+
+    [Fact]
+    public void FilesWrittenByTheStoreStillLoad()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        BooruCatalogAdapter adapter = new();
+        adapter.Seed(temp.Path, lease);
+        adapter.Mutate(temp.Path, lease);
+        Assert.Equal(ReadKind.Data, adapter.Read(temp.Path, lease).Kind);
+    }
 }

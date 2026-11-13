@@ -922,6 +922,10 @@ internal sealed class BooruCatalogStore
             throw new InvalidDataException("The Booru catalog exceeds its bounded size.");
         try
         {
+            // Fails closed like any other damage: the serializer keeps the last of two equal names, so a second "posts"
+            // would replace the whole catalog with an empty one, and this store has no backup to fall back to.
+            if (JsonDuplicateProperties.Any(bytes, _json.MaxDepth))
+                throw new InvalidDataException("The Booru catalog repeats a property.");
             BooruCatalogSnapshot value = JsonSerializer.Deserialize<BooruCatalogSnapshot>(bytes, _json)
                 ?? throw new InvalidDataException("The Booru catalog is empty.");
             ValidateSnapshot(value);
