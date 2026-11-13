@@ -1,0 +1,48 @@
+namespace MeowChan.Desktop.Localization;
+
+internal static class ReaderSettingsCatalog
+{
+    internal static readonly (string Key, string English, string German)[] Entries =
+    {
+        ("settings.reader.thumbnailWidth", "Preview image width (px)", "Breite der Vorschaubilder (px)"),
+        ("settings.reader.thumbnailWidth.hint", "The large reader uses 1.5 times this width.", "Der große Reader verwendet das 1,5-Fache dieser Breite."),
+        ("settings.reader.foldLines", "Fold long posts above (lines)", "Lange Posts kürzen ab (Zeilen)"),
+        ("settings.reader.foldLines.hint", "Expand a post to read all its text.", "Klappe einen Post auf, um den ganzen Text zu lesen."),
+        ("settings.reader.previewLines", "Lines in quote previews", "Zeilen in der Zitatvorschau"),
+        ("settings.reader.previewLines.hint", "Limits the excerpt shown when hovering a quote.", "Begrenzt den Ausschnitt beim Überfahren eines Zitats."),
+        ("settings.reader.previewDelay", "Quote preview delay (ms)", "Verzögerung der Zitatvorschau (ms)"),
+        ("settings.reader.previewDelay.hint", "How long the pointer rests on a quote before the preview opens.", "So lange bleibt der Zeiger auf einem Zitat, bevor sich die Vorschau öffnet."),
+        ("settings.reader.replyStep", "Reply cards per step", "Antwortkarten je Schritt"),
+        ("settings.reader.replyStep.hint", "“Show more replies” adds this many cards.", "„Weitere Antworten“ ergänzt so viele Karten."),
+        ("settings.reader.replyLines", "Lines per reply card", "Zeilen je Antwortkarte"),
+        ("settings.reader.replyLines.hint", "Limits the text excerpt in each reply card.", "Begrenzt den Textausschnitt jeder Antwortkarte."),
+        ("settings.reader.pageSize", "Posts per reader page", "Posts je Readerseite"),
+        ("settings.reader.pageSize.hint", "Changing this keeps the current reading position in view.", "Eine Änderung hält die aktuelle Lesestelle im Blick."),
+        ("settings.reader.threadingDepth", "Maximum conversation indentation depth", "Maximale Einrücktiefe der Gesprächsansicht"),
+        ("settings.reader.threadingDepth.hint", "Deeper replies remain visible at the last indentation level.", "Tiefere Antworten bleiben auf der letzten Einrückstufe sichtbar."),
+        ("settings.gallery.fitUpscalePercent", "Maximum enlargement (%)", "Höchstens vergrößern auf (%)"),
+        ("settings.gallery.fitUpscalePercent.hint", "Only limits Fit; manual zoom remains unrestricted.", "Begrenzt nur Einpassen; manueller Zoom bleibt frei."),
+        ("settings.limits.postFilterRules", "Post filter rules", "Postfilter-Regeln"),
+        ("settings.limits.postFilterRules.hint", "Lowering the limit preserves existing rules and only stops growth. The fixed file ceiling is 32 MiB.", "Eine niedrigere Grenze erhält vorhandene Regeln und stoppt nur das Wachstum. Die feste Dateidecke beträgt 32 MiB."),
+        ("settings.limits.hiddenPosts", "Individually hidden posts", "Einzeln ausgeblendete Posts"),
+        ("settings.limits.hiddenPosts.hint", "Lowering the limit preserves existing hidden posts and only stops growth.", "Eine niedrigere Grenze erhält bereits ausgeblendete Posts und stoppt nur das Wachstum."),
+        ("settings.reader.display", "Display", "Darstellung"),
+        ("settings.reader.longPosts", "Long posts and previews", "Lange Posts und Vorschauen"),
+        ("settings.reader.range", "Allowed: {0} to {1}.", "Erlaubt: {0} bis {1}."),
+        ("settings.reader.dateStyle", "Date and time format", "Zeitangaben"),
+        ("settings.reader.dateStyle.hint", "The exact date remains available in the tooltip.", "Das genaue Datum bleibt im Tooltip verfügbar."),
+        ("settings.reader.dateStyle.system", "System format", "Systemformat"),
+        ("settings.reader.dateStyle.long", "Weekday and seconds", "Mit Wochentag und Sekunden"),
+        ("settings.reader.dateStyle.sinceOp", "Since opening post", "Abstand zum Eröffnungspost"),
+        ("settings.reader.dateStyle.relative", "Relative to now", "Relativ zu jetzt"),
+        ("settings.reader.spoilers", "Spoilers", "Spoiler"),
+        ("settings.reader.spoilers.hint", "Choose how spoiler text is revealed.", "Wähle, wie Spoilertext sichtbar wird."),
+        ("settings.reader.spoilers.hide", "Keep hidden", "Verborgen lassen"),
+        ("settings.reader.spoilers.hover", "Show on hover", "Beim Überfahren zeigen"),
+        ("settings.reader.spoilers.always", "Always show", "Immer zeigen"),
+        ("settings.gallery.fitUpscale", "Enlarge small images when fitting", "Kleine Bilder beim Einpassen vergrößern"),
+        ("settings.gallery.fitUpscale.hint", "Choose whether Fit may fill the viewport or stop at the configured enlargement.", "Wähle, ob Einpassen die Fläche ausfüllen darf oder bei der eingestellten Vergrößerung stoppt."),
+        ("settings.gallery.fitUpscale.unlimited", "No limit", "Ohne Grenze"),
+        ("settings.gallery.fitUpscale.limited", "Up to a limit", "Bis zu einer Grenze"),
+    };
+}

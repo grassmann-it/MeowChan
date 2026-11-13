@@ -114,6 +114,7 @@
                 </StackPanel>
                 <StackPanel x:Name="SettingsReadingMediaPage" Spacing="8" IsEnabled="{Binding IsEditable}" IsVisible="False">
                     <TextBlock x:Name="SettingsReadingMediaHeading" Text="{Binding ReadingMediaTitle}" Classes="section-title" />
+                    <TextBlock x:Name="ReaderDisplayHeading" Text="{Binding ReaderDisplayTitle}" Classes="workspace-field-label" FontWeight="SemiBold" TextWrapping="Wrap" />
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                             <TextBlock x:Name="ReadingFontSizeFieldLabel" Text="{Binding ReadingFontSizeLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
@@ -133,6 +134,108 @@
                             </ComboBox>
                         </Grid>
                     </Border>
+                    <StackPanel Spacing="4">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                            <TextBlock x:Name="ReaderThumbnailWidthFieldLabel" Text="{Binding ReaderThumbnailWidthLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="ReaderThumbnailWidthInput" Value="{Binding ReaderThumbnailWidth, Mode=TwoWay}" Minimum="{Binding ReaderThumbnailWidthMinimum}" Maximum="{Binding ReaderThumbnailWidthMaximum}" Increment="10" AutomationProperties.LabeledBy="{Binding ElementName=ReaderThumbnailWidthFieldLabel}" AutomationProperties.Name="{Binding ReaderThumbnailWidthLabel}" AutomationProperties.HelpText="{Binding ReaderThumbnailWidthHelp}" />
+                                <TextBlock x:Name="ReaderThumbnailWidthInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding ReaderThumbnailWidthHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                        <StackPanel VerticalAlignment="Center" Spacing="3">
+                            <TextBlock x:Name="ReaderDateStyleFieldLabel" Text="{Binding ReaderDateStyleLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding ReaderDateStyleHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <ComboBox x:Name="ReaderDateStyleInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding ReaderDateStyleChoices}" SelectedItem="{Binding SelectedReaderDateStyle, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=ReaderDateStyleFieldLabel}" AutomationProperties.Name="{Binding ReaderDateStyleLabel}" AutomationProperties.HelpText="{Binding ReaderDateStyleHint}">
+                            <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </Grid>
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                        <StackPanel VerticalAlignment="Center" Spacing="3">
+                            <TextBlock x:Name="ReaderSpoilersFieldLabel" Text="{Binding ReaderSpoilersLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding ReaderSpoilersHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <ComboBox x:Name="ReaderSpoilersInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding ReaderSpoilersChoices}" SelectedItem="{Binding SelectedReaderSpoilers, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=ReaderSpoilersFieldLabel}" AutomationProperties.Name="{Binding ReaderSpoilersLabel}" AutomationProperties.HelpText="{Binding ReaderSpoilersHint}">
+                            <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </Grid>
+                    <Expander x:Name="ReaderLongPostsSettings" Header="{Binding ReaderLongPostsTitle}" IsExpanded="False" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <StackPanel Spacing="8">
+                            <StackPanel Spacing="4">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                                    <TextBlock x:Name="ReaderFoldLinesFieldLabel" Text="{Binding ReaderFoldLinesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="ReaderFoldLinesInput" Value="{Binding ReaderFoldLines, Mode=TwoWay}" Minimum="{Binding ReaderFoldLinesMinimum}" Maximum="{Binding ReaderFoldLinesMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReaderFoldLinesFieldLabel}" AutomationProperties.Name="{Binding ReaderFoldLinesLabel}" AutomationProperties.HelpText="{Binding ReaderFoldLinesHelp}" />
+                                        <TextBlock x:Name="ReaderFoldLinesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding ReaderFoldLinesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                                    <TextBlock x:Name="ReaderPreviewLinesFieldLabel" Text="{Binding ReaderPreviewLinesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="ReaderPreviewLinesInput" Value="{Binding ReaderPreviewLines, Mode=TwoWay}" Minimum="{Binding ReaderPreviewLinesMinimum}" Maximum="{Binding ReaderPreviewLinesMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReaderPreviewLinesFieldLabel}" AutomationProperties.Name="{Binding ReaderPreviewLinesLabel}" AutomationProperties.HelpText="{Binding ReaderPreviewLinesHelp}" />
+                                        <TextBlock x:Name="ReaderPreviewLinesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding ReaderPreviewLinesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                                    <TextBlock x:Name="ReaderPreviewDelayMsFieldLabel" Text="{Binding ReaderPreviewDelayMsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="ReaderPreviewDelayMsInput" Value="{Binding ReaderPreviewDelayMs, Mode=TwoWay}" Minimum="{Binding ReaderPreviewDelayMsMinimum}" Maximum="{Binding ReaderPreviewDelayMsMaximum}" Increment="50" AutomationProperties.LabeledBy="{Binding ElementName=ReaderPreviewDelayMsFieldLabel}" AutomationProperties.Name="{Binding ReaderPreviewDelayMsLabel}" AutomationProperties.HelpText="{Binding ReaderPreviewDelayMsHelp}" />
+                                        <TextBlock x:Name="ReaderPreviewDelayMsInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding ReaderPreviewDelayMsHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                                    <TextBlock x:Name="ReaderReplyStepFieldLabel" Text="{Binding ReaderReplyStepLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="ReaderReplyStepInput" Value="{Binding ReaderReplyStep, Mode=TwoWay}" Minimum="{Binding ReaderReplyStepMinimum}" Maximum="{Binding ReaderReplyStepMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReaderReplyStepFieldLabel}" AutomationProperties.Name="{Binding ReaderReplyStepLabel}" AutomationProperties.HelpText="{Binding ReaderReplyStepHelp}" />
+                                        <TextBlock x:Name="ReaderReplyStepInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding ReaderReplyStepHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                                    <TextBlock x:Name="ReaderReplyLinesFieldLabel" Text="{Binding ReaderReplyLinesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="ReaderReplyLinesInput" Value="{Binding ReaderReplyLines, Mode=TwoWay}" Minimum="{Binding ReaderReplyLinesMinimum}" Maximum="{Binding ReaderReplyLinesMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReaderReplyLinesFieldLabel}" AutomationProperties.Name="{Binding ReaderReplyLinesLabel}" AutomationProperties.HelpText="{Binding ReaderReplyLinesHelp}" />
+                                        <TextBlock x:Name="ReaderReplyLinesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding ReaderReplyLinesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                                    <TextBlock x:Name="ReaderPageSizeFieldLabel" Text="{Binding ReaderPageSizeLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="ReaderPageSizeInput" Value="{Binding ReaderPageSize, Mode=TwoWay}" Minimum="{Binding ReaderPageSizeMinimum}" Maximum="{Binding ReaderPageSizeMaximum}" Increment="10" AutomationProperties.LabeledBy="{Binding ElementName=ReaderPageSizeFieldLabel}" AutomationProperties.Name="{Binding ReaderPageSizeLabel}" AutomationProperties.HelpText="{Binding ReaderPageSizeHelp}" />
+                                        <TextBlock x:Name="ReaderPageSizeInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding ReaderPageSizeHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                                    <TextBlock x:Name="ReaderThreadingDepthFieldLabel" Text="{Binding ReaderThreadingDepthLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="ReaderThreadingDepthInput" Value="{Binding ReaderThreadingDepth, Mode=TwoWay}" Minimum="{Binding ReaderThreadingDepthMinimum}" Maximum="{Binding ReaderThreadingDepthMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReaderThreadingDepthFieldLabel}" AutomationProperties.Name="{Binding ReaderThreadingDepthLabel}" AutomationProperties.HelpText="{Binding ReaderThreadingDepthHelp}" />
+                                        <TextBlock x:Name="ReaderThreadingDepthInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding ReaderThreadingDepthHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Expander>
                     <TextBlock x:Name="SettingsGalleryPlaybackHeading" Text="{Binding GalleryPlaybackTitle}" Classes="section-title" Margin="0,14,0,0" />
                     <TextBlock Text="{Binding GalleryPlaybackProfileHelp}" Classes="muted workspace-help" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
@@ -153,6 +256,25 @@
                             <TextBlock x:Name="GallerySlideshowSecondsInputError" IsVisible="False" Classes="error workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
                         </StackPanel>
                     </Grid>
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                        <StackPanel VerticalAlignment="Center" Spacing="3">
+                            <TextBlock x:Name="GalleryFitUpscaleFieldLabel" Text="{Binding GalleryFitUpscaleLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding GalleryFitUpscaleHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <ComboBox x:Name="GalleryFitUpscaleInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding GalleryFitUpscaleChoices}" SelectedItem="{Binding SelectedGalleryFitUpscale, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=GalleryFitUpscaleFieldLabel}" AutomationProperties.Name="{Binding GalleryFitUpscaleLabel}" AutomationProperties.HelpText="{Binding GalleryFitUpscaleHint}">
+                            <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </Grid>
+                    <StackPanel Spacing="4" IsVisible="{Binding IsGalleryFitLimited}">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                            <TextBlock x:Name="GalleryFitMaxUpscalePercentFieldLabel" Text="{Binding GalleryFitMaxUpscalePercentLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="GalleryFitMaxUpscalePercentInput" Value="{Binding GalleryFitMaxUpscalePercent, Mode=TwoWay}" Minimum="{Binding GalleryFitMaxUpscalePercentMinimum}" Maximum="{Binding GalleryFitMaxUpscalePercentMaximum}" Increment="25" IsEnabled="{Binding IsGalleryFitLimited}" AutomationProperties.LabeledBy="{Binding ElementName=GalleryFitMaxUpscalePercentFieldLabel}" AutomationProperties.Name="{Binding GalleryFitMaxUpscalePercentLabel}" AutomationProperties.HelpText="{Binding GalleryFitMaxUpscalePercentHelp}" />
+                                <TextBlock x:Name="GalleryFitMaxUpscalePercentInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding GalleryFitMaxUpscalePercentHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    </StackPanel>
                     <CheckBox x:Name="GalleryMediaFocusInput" IsChecked="{Binding GalleryMediaFocus, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryMediaFocusLabel}"><TextBlock Text="{Binding GalleryMediaFocusLabel}" TextWrapping="Wrap" /></CheckBox>
                     <StackPanel Spacing="8">
                         <CheckBox x:Name="GalleryOverlayControlsInput" IsChecked="{Binding GalleryOverlayControls, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryOverlayControlsLabel}" AutomationProperties.HelpText="{Binding GalleryOverlayHelp}"><TextBlock Text="{Binding GalleryOverlayControlsLabel}" TextWrapping="Wrap" /></CheckBox>
@@ -338,6 +460,26 @@
                             </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding SourcesWatchPreviewRowsHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <StackPanel Spacing="4">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                            <TextBlock x:Name="PostFilterRuleLimitFieldLabel" Text="{Binding PostFilterRuleLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="PostFilterRuleLimitInput" Value="{Binding PostFilterRuleLimit, Mode=TwoWay}" Minimum="{Binding PostFilterRuleLimitMinimum}" Maximum="{Binding PostFilterRuleLimitMaximum}" Increment="10" AutomationProperties.LabeledBy="{Binding ElementName=PostFilterRuleLimitFieldLabel}" AutomationProperties.Name="{Binding PostFilterRuleLimitLabel}" AutomationProperties.HelpText="{Binding PostFilterRuleLimitHelp}" />
+                                <TextBlock x:Name="PostFilterRuleLimitInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding PostFilterRuleLimitHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                            <TextBlock x:Name="HiddenPostLimitFieldLabel" Text="{Binding HiddenPostLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="HiddenPostLimitInput" Value="{Binding HiddenPostLimit, Mode=TwoWay}" Minimum="{Binding HiddenPostLimitMinimum}" Maximum="{Binding HiddenPostLimitMaximum}" Increment="1000" AutomationProperties.LabeledBy="{Binding ElementName=HiddenPostLimitFieldLabel}" AutomationProperties.Name="{Binding HiddenPostLimitLabel}" AutomationProperties.HelpText="{Binding HiddenPostLimitHelp}" />
+                                <TextBlock x:Name="HiddenPostLimitInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding HiddenPostLimitHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    </StackPanel>
                     <TextBlock x:Name="LimitsPreviewsHeading" Text="{Binding PreviewsGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,14,0,0" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ExportConfirmFilesFieldLabel" Text="{Binding ExportConfirmFilesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />

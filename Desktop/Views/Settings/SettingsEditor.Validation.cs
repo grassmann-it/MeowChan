@@ -172,6 +172,7 @@ public partial class SettingsEditor
             nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitHelp), nameof(SourcesWatchPreviewRowsHelp), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitHelp), nameof(AudioProbeCacheLimitMiBHelp), nameof(AudioProbeCacheEntriesHelp), nameof(ThumbnailCacheTilesHelp), nameof(GalleryImageCacheMiBHelp), nameof(GalleryPreloadAheadHelp), nameof(GalleryPreloadBehindHelp), nameof(ClipboardUrlLimitHelp), nameof(ClipboardTextLimitKiBHelp), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesHelp), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsHelp) })
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
         NotifyStatisticsHelpChanged();
+        NotifyReaderHelpChanged();
     }
 
     private void SetFieldErrorHelp(Control input, Func<string> message)
@@ -267,6 +268,7 @@ public partial class SettingsEditor
         yield return (ImportCatalogLimitMiBInput, ImportCatalogLimitMiB, ImportCatalogLimitMiBLabel, Texts.T("settings.unitMiB"),
             Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum, true);
         foreach (var field in StatisticsNumericFields()) yield return field;
+        foreach (var field in ReaderNumericFields()) yield return field;
     }
 
     private void ClearFieldErrors()
@@ -289,6 +291,7 @@ public partial class SettingsEditor
 
     private static string FieldLabelWithUnit(string label, string unit)
     {
+        if (string.IsNullOrWhiteSpace(unit)) return label;
         string suffix = "(" + unit + ")";
         // Help can spell out a unit and also provide its abbreviation, e.g. MiB/s.
         int abbreviation = unit.LastIndexOf('(');

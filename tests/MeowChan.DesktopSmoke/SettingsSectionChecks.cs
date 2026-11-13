@@ -64,9 +64,12 @@ internal static class SettingsSectionChecks
     internal static Task OpenFieldAsync(SettingsEditor editor, string field) => OpenAsync(editor, field switch
     {
         "WorkspaceModeInput" or "LanguageInput" or "ThemeInput" or "CompactDensityInput" => "settings.interface",
-        "VideoVolumeInput" or "ReadingFontSizeInput" or "RememberReadingPositionInput" or "ForgetReadingPositionButton" => "settings.reading-media",
+        "VideoVolumeInput" or "ReadingFontSizeInput" or "RememberReadingPositionInput" or "ForgetReadingPositionButton"
+            or "ReaderThumbnailWidthInput" or "ReaderDateStyleInput" or "ReaderSpoilersInput" or "ReaderFoldLinesInput"
+            or "ReaderPreviewLinesInput" or "ReaderPreviewDelayMsInput" or "ReaderReplyStepInput" or "ReaderReplyLinesInput"
+            or "ReaderPageSizeInput" or "ReaderThreadingDepthInput" or "GalleryFitUpscaleInput" or "GalleryFitMaxUpscalePercentInput" => "settings.reading-media",
         "ReserveInput" or "ProductionWorkersInput" or "WorkerIdleMinutesInput" or "SourceHeapMiBInput" or "FilterHeapMiBInput"
-            or "PrivateTagLimitInput" or "PrivateTagFileMiBInput" or "MediaIndexCacheMiBInput"
+            or "PrivateTagLimitInput" or "PrivateTagFileMiBInput" or "MediaIndexCacheMiBInput" or "PostFilterRuleLimitInput" or "HiddenPostLimitInput"
             or "FavoriteEntryLimitInput" or "FavoriteFileLimitMiBInput" or "PostBookmarkLimitInput" or "SavedSearchLimitInput" or "ReaderGroupLimitInput" or "SourcesWatchPreviewRowsInput" or "ExportConfirmFilesInput" or "ExportConfirmGiBInput" or "PosterCacheLimitMiBInput" or "PosterCacheFileLimitInput" or "AudioProbeCacheLimitMiBInput" or "AudioProbeCacheEntriesInput" or "ThumbnailCacheTilesInput" or "GalleryImageCacheMiBInput" or "GalleryPreloadAheadInput" or "GalleryPreloadBehindInput" or "ClipboardUrlLimitInput" or "ClipboardTextLimitKiBInput" or "ImportMaxFilesPerBatchInput" or "ImportMaxBatchGiBInput" or "ImportMaxFileMiBInput" or "ImportMaxTotalFilesInput" or "ImportCatalogLimitMiBInput" or "ImportMaxTagsPerBatchInput" or "ImportMaxBatchesInput" or "MediaIndexMaxEntriesInput" or "MediaIndexMaxThreadsInput" => "settings.worker-budgets",
         "AboutSettingsButton" => "settings.behavior",
         "DownloadPathInput" or "BrowseButton" or "RecheckTimerInput" or "BandwidthInput" or "ParallelDownloadsInput" => "settings.downloads",

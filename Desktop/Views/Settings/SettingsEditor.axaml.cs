@@ -284,6 +284,7 @@ namespace MeowChan
             ImportCatalogLimitMiB = config.ImportCatalogLimitMiB;
 
             LoadStatisticsDraft(config);
+            LoadReaderDraft(config);
             RefreshChoices(config.Theme, config.WorkspaceMode, config.Language);
             DataContext = this;
             ApplyCommandIcons();
@@ -865,6 +866,7 @@ namespace MeowChan
             ImportCatalogLimitMiB = _config.ImportCatalogLimitMiB;
 
             LoadStatisticsDraft(_config);
+            LoadReaderDraft(_config);
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
@@ -1008,6 +1010,7 @@ namespace MeowChan
                 })
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
                 RaiseStatisticsTextsChanged();
+                RaiseReaderTextsChanged();
                 _refreshingLanguageLabels = true;
                 try
                 {
@@ -1113,6 +1116,7 @@ namespace MeowChan
             SelectedWorkspaceMode = WorkspaceChoices.First(item => item.Value == mode);
             SelectedLanguage = LanguageChoices.First(item => string.Equals(item.Code, language, StringComparison.OrdinalIgnoreCase));
             RefreshStatsHeaderGraphChoices(statsHeaderGraph ?? _config.StatsHeaderGraph);
+            RefreshReaderChoiceLabels();
         }
 
         private void OnCancelButtonClick(object? sender, RoutedEventArgs e)
@@ -1272,6 +1276,7 @@ namespace MeowChan
                 candidate.MediaIndexMaxThreads = GetInteger(MediaIndexMaxThreads, MediaIndexMaxThreadsLabel, Config.MediaIndexMaxThreadsMinimum, Config.MediaIndexMaxThreadsMaximum);
                 candidate.ImportCatalogLimitMiB = GetInteger(ImportCatalogLimitMiB, ImportCatalogLimitMiBLabel, Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum);
                 ApplyStatisticsDraft(candidate, _config);
+                ApplyReaderDraft(candidate);
 
                 if (!BandwidthLimiterMB.HasValue || BandwidthLimiterMB.Value <= 0)
                 {
@@ -1389,6 +1394,7 @@ namespace MeowChan
             ImportCatalogLimitMiB = _config.ImportCatalogLimitMiB;
 
             LoadStatisticsDraft(_config);
+            LoadReaderDraft(_config);
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
@@ -1500,7 +1506,7 @@ namespace MeowChan
                 field = value;
                 bool rebindingChoice = _refreshingLanguageLabels && propertyName is
                     nameof(SelectedTheme) or nameof(SelectedAnimations) or nameof(SelectedWorkspaceMode) or nameof(SelectedLanguage) or
-                    nameof(SelectedReadingFontSize) or nameof(SelectedReaderPostWidth) or nameof(SelectedGalleryPlaybackMode) or nameof(SelectedStatsHeaderGraph);
+                    nameof(SelectedReadingFontSize) or nameof(SelectedReaderPostWidth) or nameof(SelectedGalleryPlaybackMode) or nameof(SelectedStatsHeaderGraph) or nameof(SelectedReaderDateStyle) or nameof(SelectedReaderSpoilers) or nameof(SelectedGalleryFitUpscale);
                 if (!rebindingChoice && propertyName is not (nameof(IsBusy) or nameof(ErrorMessage) or nameof(ErrorDetails) or nameof(StatusMessage)))
                 {
                     _draftRevision++;

@@ -65,11 +65,56 @@ public sealed class ReaderSettingsPersistenceTests
     public void AbsentOrUnknownPresentationChoicesKeepTheOldBehavior()
     {
         Config old = JsonSerializer.Deserialize<Config>("{}")!;
+        foreach (object[] row in Numbers()) Assert.Equal(row[1], typeof(Config).GetProperty((string)row[0])!.GetValue(old));
         Assert.Equal(ReaderDateStyle.System, ReaderSettingsPreferences.DateStyle(old));
         Assert.Equal(ReaderSpoilerMode.Hide, ReaderSettingsPreferences.Spoilers(old));
         Assert.False(ReaderSettingsPreferences.Gallery(old).Limit);
         Config invalid = JsonSerializer.Deserialize<Config>("{\"ReaderDateStyle\":\"unknown\",\"ReaderSpoilers\":\"unknown\"}")!;
         Assert.Equal("System", invalid.ReaderDateStyle); Assert.Equal("Hide", invalid.ReaderSpoilers);
+    }
+
+    [Fact]
+    public async Task FailedSaveDoesNotPublishReaderDraftOrChangeLiveStoreLimitsAndCanBeRetried()
+    {
+        using TempDirectory directory = new();
+        Config initial = new() { AutomaticUpdateChecks = false, SaveUrlsOnExit = false,
+            DownloadPath = Path.Combine(directory.Path, "media") };
+        initial.SaveConfig(directory.Path);
+        await using DesktopSessionHost host = new(directory.Path, Array.Empty<IImageBoard>());
+        await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(15));
+        Config draft = host.Config.Clone();
+        foreach (object[] row in Numbers()) typeof(Config).GetProperty((string)row[0])!.SetValue(draft, row[3]);
+        draft.ReaderDateStyle = "Long";
+        draft.ReaderSpoilers = "Always";
+        draft.GalleryFitUpscaleLimited = true;
+        string path = Path.Combine(directory.Path, "settings.json");
+        byte[] saved = File.ReadAllBytes(path);
+        File.Delete(path);
+        Directory.CreateDirectory(path); // Deterministic write failure; no permission/root assumptions.
+        try
+        {
+            await Assert.ThrowsAnyAsync<Exception>(() => host.ApplySettingsAsync(draft).WaitAsync(TimeSpan.FromSeconds(15)));
+            foreach (object[] row in Numbers()) Assert.Equal(row[1], typeof(Config).GetProperty((string)row[0])!.GetValue(host.Config));
+            Assert.Equal("System", host.Config.ReaderDateStyle);
+            Assert.Equal("Hide", host.Config.ReaderSpoilers);
+            Assert.False(host.Config.GalleryFitUpscaleLimited);
+            Assert.Equal(initial.PostFilterRuleLimit, host.StoreLimits.PostFilterRules);
+            Assert.Equal(initial.HiddenPostLimit, host.StoreLimits.HiddenPosts);
+        }
+        finally
+        {
+            Directory.Delete(path);
+            File.WriteAllBytes(path, saved);
+        }
+        await host.ApplySettingsAsync(draft).WaitAsync(TimeSpan.FromSeconds(15));
+        Config reloaded = Config.LoadConfig(directory.Path);
+        foreach (object[] row in Numbers())
+        {
+            Assert.Equal(row[3], typeof(Config).GetProperty((string)row[0])!.GetValue(host.Config));
+            Assert.Equal(row[3], typeof(Config).GetProperty((string)row[0])!.GetValue(reloaded));
+        }
+        Assert.Equal(draft.PostFilterRuleLimit, host.StoreLimits.PostFilterRules);
+        Assert.Equal(draft.HiddenPostLimit, host.StoreLimits.HiddenPosts);
     }
 
     [Fact]
