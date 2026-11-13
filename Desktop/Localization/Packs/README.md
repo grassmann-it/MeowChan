@@ -277,3 +277,34 @@ noun and `<key>.one`/`<key>.few` for the `limit.*` texts; other counted cs texts
 count-agnostic "Label: {0}" form. pt-BR adds `<key>.one` (0 and 1) for the `limit.*` texts.
 Size units in rules and budget texts are MiB/KiB, as in English. Both packs need qualified
 native review before they can count as reviewed.
+
+## Italian (`it`) glossary
+
+`it.json` (`Italiano (Untested)`) is an AI-authored preview like es/fr/ru, without
+qualified human review. It addresses the user with the informal *tu*, uses «…» for
+quoted UI names, the ellipsis character … and the typographic apostrophe ’.
+
+| English | Italian | Note |
+| --- | --- | --- |
+| post | post (m., invariable) | One term for imageboard archive/reader and Danbooru; no domain split, because Italian imageboard and booru users both say *post*. |
+| thread / board | thread / board (m., invariable) | Community usage; *discussione* is not used. |
+| archive | archivio | |
+| media / media file | media (m. pl., invariable) / file multimediale | |
+| gallery / reader | galleria / lettore | Reader groups: *gruppi di lettura*. |
+| watch, watcher (thread and Danbooru) | monitoraggio; verb *monitorare* | *Watched threads* = *thread monitorati*. |
+| download | download (m.); verb *scaricare* | |
+| tag / own tags | tag (m., invariable) / tag personali | Danbooru source tags: *tag della fonte*. |
+| plugin / source | plugin / fonte | |
+| settings | Impostazioni | |
+| Storage and limits | Archiviazione e limiti | |
+| favorite(s) | preferito / preferiti | |
+| rating (own 1–5 stars) | valutazione | |
+| rating (Danbooru content rating) | classificazione | Kept apart from the user’s own star rating, as es/fr do. The query term `rating:` and its values g/s/q/e stay unchanged. |
+| capture | acquisizione / acquisire | |
+| bookmark / saved search | segnalibro / ricerca salvata | |
+| Booru, Danbooru | unchanged | |
+
+Plural variants: Italian uses one/other. The pack carries every English `.one`
+key and additionally `.one` for `limit.favoriteEntries`, `limit.postBookmarks`,
+`limit.savedSearches` and `limit.readerGroups` (as ru does), because the noun after
+the number changes in the singular. No `.few` keys.
