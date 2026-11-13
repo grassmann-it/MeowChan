@@ -356,7 +356,7 @@ public sealed class HelpDocumentationTests
     public void DanbooruDisabledPluginAndGapRestartGuidanceMatchesTheShippedTexts()
     {
         (string Key, string English, string German)[] ui = BooruUiCatalog.Entries;
-        (string Key, string English, string German)[] codes = MeowChan.Desktop.Booru.BooruCodeCatalog.Entries;
+        (string Key, string English, string German)[] codes = MeowChan.Desktop.Localization.BooruCodeCatalog.Entries;
         (string Key, string English, string German) unavailable = Assert.Single(codes, entry => entry.Key == "booru.watcher.problem.source_unavailable");
         (string Key, string English, string German) closing = Assert.Single(codes, entry => entry.Key == "booru.watcher.problem.scheduler_stopped");
         (string Key, string English, string German) blocked = Assert.Single(codes, entry => entry.Key == "booru.watcher.problem.continuation_blocked");
