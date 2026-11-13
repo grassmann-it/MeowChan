@@ -63,10 +63,18 @@ internal static class FilterPointerSelectionChecks
                 await Program.WaitUntilAsync(() => field.Text == text && field.IsKeyboardFocusWithin);
             }
 
+            string SuggestionState(IdentitySuggestionBox field) =>
+                $"field={field.Name}; text={field.Text}; open={field.IsDropDownOpen}; focus={field.IsKeyboardFocusWithin}; "
+                + $"items=[{string.Join(",", field.ItemsSource?.OfType<IdentitySuggestion>().Select(item => item.Source + ":" + item.Value) ?? [])}]; "
+                + $"draftSources=[{string.Join(",", page.DraftSources)}]; retry={page.FindControl<Button>("ArchiveRetrySuggestions")!.IsVisible}";
+            source.LoadCompleted += error => Console.WriteLine($"SMOKE source load: error={error}; {SuggestionState(source)}");
+            board.LoadCompleted += error => Console.WriteLine($"SMOKE board load: error={error}; {SuggestionState(board)}");
+
             async Task<Control> SuggestionRowAsync(IdentitySuggestionBox field, string value, string? sourceValue)
             {
                 await Program.WaitUntilAsync(() => field.IsDropDownOpen && field.ItemsSource?.Cast<IdentitySuggestion>()
-                    .Any(item => item.Value == value && item.Source == sourceValue) == true);
+                    .Any(item => item.Value == value && item.Source == sourceValue) == true,
+                    () => SuggestionState(field));
                 Popup popup = field.GetVisualDescendants().OfType<Popup>().FirstOrDefault()
                     ?? throw new InvalidOperationException(field.Name + " suggestion popup is missing.");
                 SelectingItemsControl list = popup.Child as SelectingItemsControl
@@ -86,8 +94,11 @@ internal static class FilterPointerSelectionChecks
             source.CandidateAccepted += _ => ++sourceAccepts;
             async Task<IPointer> PressSourceAsync()
             {
+                bool unchanged = sourceInput.Text == "2";
                 await TypeWithNativeFocusAsync(source, sourceInput, "2");
-                if (!source.IsDropDownOpen) await native.KeyAsync(MediaNativeInput.Down);
+                // New text already has an asynchronous population queued. Do not race it
+                // with an extra open command; only unchanged text needs explicit reopening.
+                if (unchanged && !source.IsDropDownOpen) await native.KeyAsync(MediaNativeInput.Down);
                 Control row = await SuggestionRowAsync(source, "2ch", null);
                 var list = row.GetVisualAncestors().OfType<SelectingItemsControl>().First();
                 IPointer? pointer = null;
@@ -153,7 +164,6 @@ internal static class FilterPointerSelectionChecks
             int boardAccepts = 0;
             board.CandidateAccepted += _ => ++boardAccepts;
             await TypeWithNativeFocusAsync(board, boardInput, "");
-            if (!board.IsDropDownOpen) await native.KeyAsync(MediaNativeInput.Down);
             Control fromRow = await SuggestionRowAsync(board, "g", "2ch");
             Control otherRow = await SuggestionRowAsync(board, "pol", "2ch");
             await native.MoveAsync(fromRow);
