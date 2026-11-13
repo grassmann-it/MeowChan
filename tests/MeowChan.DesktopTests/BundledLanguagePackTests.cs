@@ -11,6 +11,48 @@ public sealed class BundledLanguagePackTests : IDisposable
     public void Dispose() => Reset();
     private static void Reset() { Texts.Initialize(); Texts.SetLanguage("en"); }
 
+    [Theory]
+    [InlineData("es")]
+    [InlineData("fr")]
+    [InlineData("ru")]
+    public void BundledPackStaysWellBelowTheLoaderCeilings(string code)
+    {
+        // The loader would refuse a pack at the ceiling and the language would silently vanish from the choice.
+        // This fails at 75 % so the ceilings are raised, with a reason, long before that happens.
+        using Stream stream = typeof(Texts).Assembly.GetManifestResourceStream("MeowChan.Desktop.Localization.Packs." + code + ".json")!;
+        Assert.True(stream.Length <= Texts.MaximumPackBytes * 3 / 4,
+            code + " pack is " + stream.Length + " bytes of " + Texts.MaximumPackBytes + " allowed; raise the ceiling in Texts.cs.");
+        using JsonDocument document = JsonDocument.Parse(stream);
+        int keys = document.RootElement.GetProperty("strings").EnumerateObject().Count();
+        Assert.True(keys <= Texts.MaximumPackKeys * 3 / 4,
+            code + " pack has " + keys + " keys of " + Texts.MaximumPackKeys + " allowed; raise the ceiling in Texts.cs.");
+    }
+
+    [Fact]
+    public void BuiltInCatalogStaysWellBelowTheKeyCeilingAPackMustFit()
+    {
+        Assert.True(BuiltInCatalog.English.Count <= Texts.MaximumPackKeys * 3 / 4,
+            "The English catalog has " + BuiltInCatalog.English.Count + " keys of " + Texts.MaximumPackKeys + " a pack may hold.");
+    }
+
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(1, false)]
+    public void PackAtTheKeyCeilingLoadsAndOneKeyMoreIsRejectedWithAWarning(int extra, bool loads)
+    {
+        using TempDirectory directory = new();
+        System.Text.StringBuilder json = new("{\"schemaVersion\":1,\"code\":\"it\",\"nativeName\":\"Italiano\",\"strings\":{\"action.close\":\"Chiudi\"");
+        for (int index = 1; index < Texts.MaximumPackKeys + extra; index++)
+            json.Append(",\"future.key.").Append(index).Append("\":\"x\"");
+        json.Append("}}");
+        File.WriteAllText(Path.Combine(directory.Path, "it.json"), json.ToString());
+
+        Texts.Initialize(directory.Path);
+
+        Assert.Equal(loads, Texts.Languages.Any(language => language.Code == "it"));
+        Assert.Equal(loads ? 0 : 1, Texts.Warnings.Count(warning => warning.StartsWith("it.json:", StringComparison.Ordinal)));
+    }
+
     [Fact]
     public void DefaultInitializationIncludesBundlesWithoutSelectingOneOrWritingFiles()
     {

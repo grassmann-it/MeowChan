@@ -30,10 +30,15 @@ public static class Texts
     private sealed record State(IReadOnlyDictionary<string, Catalog> Catalogs,
         IReadOnlyList<LanguageInfo> Languages, IReadOnlyList<string> Warnings, string Language);
 
-    private const int MaximumPackBytes = 2_000_000;
-    // Defensive bound for any pack, bundled or user-supplied. The built-in catalog passed 1,950 keys in
-    // 1.0.3, so the former 2,000 would have rejected the bundled packs; file size stays bounded above.
-    private const int MaximumPackKeys = 4000;
+    // Fixed technical ceilings for any pack, bundled or user-supplied. They are not user settings: they keep a
+    // malformed or hostile file from costing unbounded memory and parse time at startup. The byte ceiling is the
+    // real memory guard; the key ceiling stops a file of countless tiny entries that stays under the byte ceiling.
+    // The bundled packs hold about 2,900 keys in about 250-340 KB, so 8,000 keys / 2 MB leaves room for the
+    // catalog to roughly 2.7x its size. A bundled pack that exceeds a ceiling is rejected with a warning and its
+    // language silently disappears from the choice, so BundledLanguagePackTests fail once a pack passes 75 % of
+    // either ceiling, long before the loader would refuse it. Raise a ceiling together with that test's reason.
+    internal const int MaximumPackBytes = 2_000_000;
+    internal const int MaximumPackKeys = 8000;
     private static readonly CultureInfo EnglishCulture = CultureInfo.GetCultureInfo("en");
     private static readonly object Gate = new object();
     private static State _state = CreateBuiltIns();
