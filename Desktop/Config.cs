@@ -288,6 +288,70 @@ namespace MeowChan
         internal const int GalleryPreloadBehindMinimum = 0;
         internal const int GalleryPreloadBehindMaximum = 20;
 
+        // Reader P1: persisted values share the component limits, keep old defaults and are applied only after save.
+        // Reading clamps these preference values; a newly edited candidate must pass Validate without coercion.
+        public int ReaderThumbnailWidth { get; set; } = ReaderThumbnailWidthDefault;
+        internal const int ReaderThumbnailWidthDefault = ReaderDisplayPreferences.ReaderThumbnailWidthDefault;
+        internal const int ReaderThumbnailWidthMinimum = ReaderDisplayPreferences.ReaderThumbnailWidthMinimum;
+        internal const int ReaderThumbnailWidthMaximum = ReaderDisplayPreferences.ReaderThumbnailWidthMaximum;
+        public int ReaderFoldLines { get; set; } = ReaderFoldLinesDefault;
+        internal const int ReaderFoldLinesDefault = ReaderDisplayLimits.FoldLinesDefault;
+        internal const int ReaderFoldLinesMinimum = ReaderDisplayLimits.FoldLinesMinimum;
+        internal const int ReaderFoldLinesMaximum = ReaderDisplayLimits.FoldLinesMaximum;
+        public int ReaderPreviewLines { get; set; } = ReaderPreviewLinesDefault;
+        internal const int ReaderPreviewLinesDefault = ReaderDisplayLimits.PreviewLinesDefault;
+        internal const int ReaderPreviewLinesMinimum = ReaderDisplayLimits.PreviewLinesMinimum;
+        internal const int ReaderPreviewLinesMaximum = ReaderDisplayLimits.PreviewLinesMaximum;
+        public int ReaderPreviewDelayMs { get; set; } = ReaderPreviewDelayMsDefault;
+        internal const int ReaderPreviewDelayMsDefault = ReaderDisplayLimits.PreviewDelayDefault;
+        internal const int ReaderPreviewDelayMsMinimum = ReaderDisplayLimits.PreviewDelayMinimum;
+        internal const int ReaderPreviewDelayMsMaximum = ReaderDisplayLimits.PreviewDelayMaximum;
+        public int ReaderReplyStep { get; set; } = ReaderReplyStepDefault;
+        internal const int ReaderReplyStepDefault = ReaderDisplayLimits.ReplyStepDefault;
+        internal const int ReaderReplyStepMinimum = ReaderDisplayLimits.ReplyStepMinimum;
+        internal const int ReaderReplyStepMaximum = ReaderDisplayLimits.ReplyStepMaximum;
+        public int ReaderReplyLines { get; set; } = ReaderReplyLinesDefault;
+        internal const int ReaderReplyLinesDefault = ReaderDisplayLimits.ReplyLinesDefault;
+        internal const int ReaderReplyLinesMinimum = ReaderDisplayLimits.ReplyLinesMinimum;
+        internal const int ReaderReplyLinesMaximum = ReaderDisplayLimits.ReplyLinesMaximum;
+        public int ReaderPageSize { get; set; } = ReaderPageSizeDefault;
+        internal const int ReaderPageSizeDefault = ArchivePage.ReaderPageSizeDefault;
+        internal const int ReaderPageSizeMinimum = ArchivePage.ReaderPageSizeMinimum;
+        internal const int ReaderPageSizeMaximum = ArchivePage.ReaderPageSizeMaximum;
+        public int ReaderThreadingDepth { get; set; } = ReaderThreadingDepthDefault;
+        internal const int ReaderThreadingDepthDefault = ReaderConversationTree.DepthDefault;
+        internal const int ReaderThreadingDepthMinimum = ReaderConversationTree.DepthMinimum;
+        internal const int ReaderThreadingDepthMaximum = ReaderConversationTree.DepthMaximum;
+        public int GalleryFitMaxUpscalePercent { get; set; } = GalleryFitMaxUpscalePercentDefault;
+        internal const int GalleryFitMaxUpscalePercentDefault = GalleryFitPreferences.MaxUpscalePercentDefault;
+        internal const int GalleryFitMaxUpscalePercentMinimum = GalleryFitPreferences.MaxUpscalePercentMinimum;
+        internal const int GalleryFitMaxUpscalePercentMaximum = GalleryFitPreferences.MaxUpscalePercentMaximum;
+        public int PostFilterRuleLimit { get; set; } = PostFilterRuleLimitDefault;
+        internal const int PostFilterRuleLimitDefault = ProfileStoreLimits.DefaultPostFilterRules;
+        internal const int PostFilterRuleLimitMinimum = ProfileStoreLimits.MinimumPostFilterRules;
+        internal const int PostFilterRuleLimitMaximum = ProfileStoreLimits.PostFilterRuleCeiling;
+        public int HiddenPostLimit { get; set; } = HiddenPostLimitDefault;
+        internal const int HiddenPostLimitDefault = ProfileStoreLimits.DefaultHiddenPosts;
+        internal const int HiddenPostLimitMinimum = ProfileStoreLimits.MinimumHiddenPosts;
+        internal const int HiddenPostLimitMaximum = ProfileStoreLimits.HiddenPostCeiling;
+        private string _readerDateStyle = "System", _readerSpoilers = "Hide";
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string ReaderDateStyle
+        {
+            get => _readerDateStyle;
+            set => _readerDateStyle = Enum.TryParse(value?.Trim(), true, out Desktop.ReaderDateStyle style) && Enum.IsDefined(style)
+                ? style.ToString() : "System";
+        }
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string ReaderSpoilers
+        {
+            get => _readerSpoilers;
+            set => _readerSpoilers = Enum.TryParse(value?.Trim(), true, out ReaderSpoilerMode mode) && Enum.IsDefined(mode)
+                ? mode.ToString() : "Hide";
+        }
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool GalleryFitUpscaleLimited { get; set; }
+
         // Manual import limits (contract manual-import-v1 §4). Every limit is a setting; the stores enforce technical ceilings.
         /// <summary>Most files (new and already present) one import batch may hold.</summary>
         public int ImportMaxFilesPerBatch { get; set; } = Import.ManualImportLimits.DefaultMaximumFiles;
@@ -382,6 +446,18 @@ namespace MeowChan
         {
             // Couple only after all legacy keys have been read, independent of JSON order.
             NormalizeGalleryControls();
+            ReaderThumbnailWidth = Math.Clamp(ReaderThumbnailWidth, ReaderThumbnailWidthMinimum, ReaderThumbnailWidthMaximum);
+            ReaderFoldLines = Math.Clamp(ReaderFoldLines, ReaderFoldLinesMinimum, ReaderFoldLinesMaximum);
+            ReaderPreviewLines = Math.Clamp(ReaderPreviewLines, ReaderPreviewLinesMinimum, ReaderPreviewLinesMaximum);
+            ReaderPreviewDelayMs = Math.Clamp(ReaderPreviewDelayMs, ReaderPreviewDelayMsMinimum, ReaderPreviewDelayMsMaximum);
+            ReaderReplyStep = Math.Clamp(ReaderReplyStep, ReaderReplyStepMinimum, ReaderReplyStepMaximum);
+            ReaderReplyLines = Math.Clamp(ReaderReplyLines, ReaderReplyLinesMinimum, ReaderReplyLinesMaximum);
+            ReaderPageSize = Math.Clamp(ReaderPageSize, ReaderPageSizeMinimum, ReaderPageSizeMaximum);
+            ReaderThreadingDepth = Math.Clamp(ReaderThreadingDepth, ReaderThreadingDepthMinimum, ReaderThreadingDepthMaximum);
+            GalleryFitMaxUpscalePercent = Math.Clamp(GalleryFitMaxUpscalePercent, GalleryFitMaxUpscalePercentMinimum, GalleryFitMaxUpscalePercentMaximum);
+            PostFilterRuleLimit = Math.Clamp(PostFilterRuleLimit, PostFilterRuleLimitMinimum, PostFilterRuleLimitMaximum);
+            HiddenPostLimit = Math.Clamp(HiddenPostLimit, HiddenPostLimitMinimum, HiddenPostLimitMaximum);
+
             // The new profiles win even if a hand-edited file places legacy active
             // preference fields after LayoutProfiles.
             if (_deserializedLayoutProfiles == null) return;
@@ -795,6 +871,28 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(GalleryPreloadAhead), "GalleryPreloadAhead is outside its supported range (" + GalleryPreloadAheadMinimum + " to " + GalleryPreloadAheadMaximum + ").");
             if (GalleryPreloadBehind is < GalleryPreloadBehindMinimum or > GalleryPreloadBehindMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryPreloadBehind), "GalleryPreloadBehind is outside its supported range (" + GalleryPreloadBehindMinimum + " to " + GalleryPreloadBehindMaximum + ").");
+            if (ReaderThumbnailWidth is < ReaderThumbnailWidthMinimum or > ReaderThumbnailWidthMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderThumbnailWidth), "ReaderThumbnailWidth is outside its supported range.");
+            if (ReaderFoldLines is < ReaderFoldLinesMinimum or > ReaderFoldLinesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderFoldLines), "ReaderFoldLines is outside its supported range.");
+            if (ReaderPreviewLines is < ReaderPreviewLinesMinimum or > ReaderPreviewLinesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderPreviewLines), "ReaderPreviewLines is outside its supported range.");
+            if (ReaderPreviewDelayMs is < ReaderPreviewDelayMsMinimum or > ReaderPreviewDelayMsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderPreviewDelayMs), "ReaderPreviewDelayMs is outside its supported range.");
+            if (ReaderReplyStep is < ReaderReplyStepMinimum or > ReaderReplyStepMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderReplyStep), "ReaderReplyStep is outside its supported range.");
+            if (ReaderReplyLines is < ReaderReplyLinesMinimum or > ReaderReplyLinesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderReplyLines), "ReaderReplyLines is outside its supported range.");
+            if (ReaderPageSize is < ReaderPageSizeMinimum or > ReaderPageSizeMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderPageSize), "ReaderPageSize is outside its supported range.");
+            if (ReaderThreadingDepth is < ReaderThreadingDepthMinimum or > ReaderThreadingDepthMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderThreadingDepth), "ReaderThreadingDepth is outside its supported range.");
+            if (GalleryFitMaxUpscalePercent is < GalleryFitMaxUpscalePercentMinimum or > GalleryFitMaxUpscalePercentMaximum)
+                throw new ArgumentOutOfRangeException(nameof(GalleryFitMaxUpscalePercent), "GalleryFitMaxUpscalePercent is outside its supported range.");
+            if (PostFilterRuleLimit is < PostFilterRuleLimitMinimum or > PostFilterRuleLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(PostFilterRuleLimit), "PostFilterRuleLimit is outside its supported range.");
+            if (HiddenPostLimit is < HiddenPostLimitMinimum or > HiddenPostLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(HiddenPostLimit), "HiddenPostLimit is outside its supported range.");
             if (ImportMaxFilesPerBatch is < ImportMaxFilesPerBatchMinimum or > ImportMaxFilesPerBatchMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ImportMaxFilesPerBatch), "ImportMaxFilesPerBatch is outside its supported range (" + ImportMaxFilesPerBatchMinimum + " to " + ImportMaxFilesPerBatchMaximum + ").");
             if (ImportMaxBatchGiB is < ImportMaxBatchGiBMinimum or > ImportMaxBatchGiBMaximum)
@@ -911,6 +1009,20 @@ namespace MeowChan
                 MediaIndexMaxEntries = MediaIndexMaxEntries,
                 MediaIndexMaxThreads = MediaIndexMaxThreads,
                 ImportCatalogLimitMiB = ImportCatalogLimitMiB,
+                ReaderThumbnailWidth = ReaderThumbnailWidth,
+                ReaderFoldLines = ReaderFoldLines,
+                ReaderPreviewLines = ReaderPreviewLines,
+                ReaderPreviewDelayMs = ReaderPreviewDelayMs,
+                ReaderReplyStep = ReaderReplyStep,
+                ReaderReplyLines = ReaderReplyLines,
+                ReaderPageSize = ReaderPageSize,
+                ReaderThreadingDepth = ReaderThreadingDepth,
+                GalleryFitMaxUpscalePercent = GalleryFitMaxUpscalePercent,
+                PostFilterRuleLimit = PostFilterRuleLimit,
+                HiddenPostLimit = HiddenPostLimit,
+                ReaderDateStyle = ReaderDateStyle,
+                ReaderSpoilers = ReaderSpoilers,
+                GalleryFitUpscaleLimited = GalleryFitUpscaleLimited,
 
                 ShortcutBindings = ShortcutBindings.Clone(),
                 PluginEditorExecutable = PluginEditorExecutable,
@@ -1047,6 +1159,20 @@ namespace MeowChan
             MediaIndexMaxEntries = source.MediaIndexMaxEntries;
             MediaIndexMaxThreads = source.MediaIndexMaxThreads;
             ImportCatalogLimitMiB = source.ImportCatalogLimitMiB;
+            ReaderThumbnailWidth = source.ReaderThumbnailWidth;
+            ReaderFoldLines = source.ReaderFoldLines;
+            ReaderPreviewLines = source.ReaderPreviewLines;
+            ReaderPreviewDelayMs = source.ReaderPreviewDelayMs;
+            ReaderReplyStep = source.ReaderReplyStep;
+            ReaderReplyLines = source.ReaderReplyLines;
+            ReaderPageSize = source.ReaderPageSize;
+            ReaderThreadingDepth = source.ReaderThreadingDepth;
+            GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
+            PostFilterRuleLimit = source.PostFilterRuleLimit;
+            HiddenPostLimit = source.HiddenPostLimit;
+            ReaderDateStyle = source.ReaderDateStyle;
+            ReaderSpoilers = source.ReaderSpoilers;
+            GalleryFitUpscaleLimited = source.GalleryFitUpscaleLimited;
 
             ShortcutBindings = source.ShortcutBindings.Clone();
             Theme = source.Theme;
@@ -1147,6 +1273,20 @@ namespace MeowChan
             MediaIndexMaxEntries = source.MediaIndexMaxEntries;
             MediaIndexMaxThreads = source.MediaIndexMaxThreads;
             ImportCatalogLimitMiB = source.ImportCatalogLimitMiB;
+            ReaderThumbnailWidth = source.ReaderThumbnailWidth;
+            ReaderFoldLines = source.ReaderFoldLines;
+            ReaderPreviewLines = source.ReaderPreviewLines;
+            ReaderPreviewDelayMs = source.ReaderPreviewDelayMs;
+            ReaderReplyStep = source.ReaderReplyStep;
+            ReaderReplyLines = source.ReaderReplyLines;
+            ReaderPageSize = source.ReaderPageSize;
+            ReaderThreadingDepth = source.ReaderThreadingDepth;
+            GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
+            PostFilterRuleLimit = source.PostFilterRuleLimit;
+            HiddenPostLimit = source.HiddenPostLimit;
+            ReaderDateStyle = source.ReaderDateStyle;
+            ReaderSpoilers = source.ReaderSpoilers;
+            GalleryFitUpscaleLimited = source.GalleryFitUpscaleLimited;
 
             ShortcutBindings = source.ShortcutBindings.Clone();
             Theme = source.Theme;

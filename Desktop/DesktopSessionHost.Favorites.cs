@@ -68,6 +68,8 @@ internal sealed partial class DesktopSessionHost
         limits.Bookmarks = Config.PostBookmarkLimit;
         limits.SavedSearches = Config.SavedSearchLimit;
         limits.ReaderGroups = Config.ReaderGroupLimit;
+        limits.PostFilterRules = Config.PostFilterRuleLimit;
+        limits.HiddenPosts = Config.HiddenPostLimit;
         VideoPosterCache.Configure((long)Config.PosterCacheLimitMiB * 1024 * 1024, Config.PosterCacheFileLimit);
         MediaTileThumbnails.Configure(Config.ThumbnailCacheTiles);
         GalleryImageCache.Configure(Config.GalleryImageCacheMiB, Config.GalleryPreloadAhead, Config.GalleryPreloadBehind);
