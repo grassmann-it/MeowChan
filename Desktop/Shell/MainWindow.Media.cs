@@ -62,6 +62,9 @@ public partial class MainWindow
             ManageMediaRatingsAsync = ManageMediaRatingsAsync
         };
         _mediaPage.InitializeSharedMediaMenus();
+        // Work views (WV5): the page applies the window's view now and again whenever the window applies another one.
+        _mediaPage.ApplyWorkView(ConfiguredWorkView, viewChanged: true);
+        _workViews.Changed += (_, view) => _mediaPage?.ApplyWorkView(view, viewChanged: true);
         MediaPageHost.Content = _mediaPage;
     }
 

@@ -12,6 +12,7 @@ using MeowChan.Archive;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Gallery;
 using MeowChan.Tags;
 
@@ -71,7 +72,7 @@ public sealed partial class MediaPage
     {
         WrapPanel row = new() { ItemSpacing = 8, LineSpacing = 6 };
         foreach (Control control in new Control[] { _kindFilter, _soundFilter, _sourceFilter, _boardFilter, _favoritesOnly, _withoutMediaTags, _minRating,
-            _tagChoice, _tagInclude, _tagExclude, _tagMode, _filterReset, _audioNote })
+            _tagChoice, _tagInclude, _tagExclude, _tagMode, _filterReset, _moreFilters, _audioNote })
         { control.VerticalAlignment = VerticalAlignment.Center; row.Children.Add(control); }
         AutomationProperties.SetLiveSetting(_filterError, AutomationLiveSetting.Assertive);
         _filterReset.IsEnabled = false;
@@ -169,8 +170,9 @@ public sealed partial class MediaPage
     private void UpdateUntaggedLink()
     {
         int count = _untaggedTiles ?? 0;
-        _untaggedLink.IsVisible = _snapshot != null && !_filterFailed && count > 0;
-        if (!_untaggedLink.IsVisible) return;
+        bool shown = _snapshot != null && !_filterFailed && count > 0;
+        WorkViewGate.Apply(_untaggedLink, _workView, shown); // the view may leave the count out (Barebones); state is `shown`
+        if (!shown) return;
         _untaggedText.Text = Texts.T("media.untagged.count", count);
         string hint = Texts.T("media.untagged.hint", count);
         ToolTip.SetTip(_untaggedLink, hint);

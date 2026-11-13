@@ -121,6 +121,7 @@ public sealed partial class MediaPage
         _emptyReset.Content = Texts.T("media.filter.reset");
         List<FilterChip> chips = ActiveFilterChips();
         ActiveFilterCount = chips.Count;
+        RefreshWorkView(); // an active filter keeps its field shown in every view (R6)
         _filterChips.IsVisible = _filterResetAll.IsVisible = chips.Count > 0;
         // An unchanged row is kept as it is: a late text event must not rebuild the chips under the keyboard focus.
         string[] rendered = chips.Select(chip => chip.Key + "\u0001" + chip.Label).ToArray();

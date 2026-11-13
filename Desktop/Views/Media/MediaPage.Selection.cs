@@ -48,7 +48,7 @@ public sealed partial class MediaPage
         AutomationProperties.SetLiveSetting(_selectionNote, AutomationLiveSetting.Polite);
         // The action row exists only while something is selected: the counter and the actions share one line (the how-to is the tag action's tooltip).
         _selectionRow.IsVisible = false;
-        foreach (Control control in new Control[] { _selectionText, _selTag, _selGallery, _selExport, _selClear })
+        foreach (Control control in new Control[] { _selectionText, _selTag, _selGallery, _selExport, _selMore, _selClear })
         { control.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center; _selectionRow.Children.Add(control); }
         _selTag.Click += async (_, _) => await TagSelectionAsync();
         _selGallery.Click += async (_, _) => await OpenSelectionGalleryAsync();
@@ -121,6 +121,7 @@ public sealed partial class MediaPage
         SetAction(_selExport, ready && ExportOriginals != null, reason, ExportOriginals != null, "media.selection.export.hint");
         _selClear.IsEnabled = count > 0;
         UpdateExportAll();
+        RefreshWorkView();
         if (count == 0 && !_selectionBusy) ShowSelectionNote(null);
     }
 

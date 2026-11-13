@@ -167,6 +167,7 @@ public sealed partial class MediaPage : UserControl
             if (control is Button) control.MinHeight = 32;
             tools.Children.Add(control);
         }
+        tools.Children.Add(_more); // WV5: what the work view moves off the header (MediaPage.WorkView.cs)
         StackPanel header = new() { Spacing = 4, Margin = new Thickness(12, 8, 12, 4) };
         header.Children.Add(_title); header.Children.Add(_headerBody);
         _headerBody.Children.Add(_subtitle); _headerBody.Children.Add(tools); _headerBody.Children.Add(_searchCarryOffer);
@@ -194,7 +195,7 @@ public sealed partial class MediaPage : UserControl
 
         _sort.SelectionChanged += (_, _) => { if (!_localizing) Present(); };
         _shuffle.Click += (_, _) => { _seed = unchecked(_seed * 31 + 17); Present(); };
-        _missing.IsCheckedChanged += (_, _) => { if (!_localizing) Present(); };
+        _missing.IsCheckedChanged += (_, _) => { if (!_localizing) { RefreshWorkView(); Present(); } };
         _refresh.Click += (_, _) => BuildTask = BuildAsync(force: true);
         _manageRatings.Click += async (_, _) => await ManageRatingsAsync();
         _goDownloads.Click += (_, _) => GoToDownloadsRequested?.Invoke();
@@ -203,6 +204,7 @@ public sealed partial class MediaPage : UserControl
         _grid.AddHandler(KeyDownEvent, OnSelectAllWhilePresenting, RoutingStrategies.Tunnel);
         _grid.SelectionChanged += (_, _) => { if (_restoring) return; _selectionStamp++; ShowSelectionNote(null); UpdateSelectionBar(); };
         InstallReturnInterruption();
+        RegisterWorkViewIds();
         Texts.Changed += OnLanguageChanged;
         Localize();
     }
@@ -521,7 +523,7 @@ public sealed partial class MediaPage : UserControl
             SelectIndexes(restored);
         }
         finally { _restoring = false; }
-        _shuffle.IsVisible = Sort == MediaLibrarySort.Random;
+        RefreshWorkView(); // the shuffle button follows the random order (state) and the view (placement)
         UpdateStatus();
     }
 
@@ -1016,6 +1018,7 @@ public sealed partial class MediaPage : UserControl
         _shuffle.Content = Texts.T("media.shuffle");
         _missing.Content = Texts.T("media.showMissing");
         _refresh.Content = Texts.T("media.refresh");
+        LocalizeWorkView();
         CommandBindings.Apply(_manageRatings, "media.rating.manage");
         _manageRatings.IsEnabled = !_lifetime.IsCancellationRequested && ManageMediaRatingsAsync != null;
         CommandBindings.ApplyLabeled(_goDownloads, "navigation.downloads", Texts.T("nav.goDownloads"));

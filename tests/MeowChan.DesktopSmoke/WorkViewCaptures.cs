@@ -13,6 +13,7 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
+using MeowChan.Gallery;
 using MeowChan.Interfaces;
 
 namespace MeowChan.DesktopSmoke;
@@ -343,10 +344,42 @@ internal static class WorkViewCaptures
         Console.WriteLine($"SMOKE work-views registrations: {registered.Count} ids registered, no orphaned policy row.");
     }
 
+    // The media page has no ActionToolBar: its header and selection bar keep what the view reduces under their own "More"
+    // (MediaPage.WorkView.cs). Every id of the page is on the surface exactly as the policy says (no filter is active in this
+    // fixture, so R6 raises nothing), and More holds exactly the policy's overflow rows in policy order (WV5).
+    private static void CheckMediaPage(MainWindow window, WorkView workView, string view)
+    {
+        MediaPage page = window.MediaPageForTests ?? throw new InvalidOperationException("media/" + view + ": the media page does not exist.");
+        if (page.CurrentWorkView != workView)
+            throw new InvalidOperationException($"media/{view}: the page applied {page.CurrentWorkView}.");
+        // Visibility of these follows page state or is derived from the lists below.
+        string[] derived = ["media.toolbar.more", "media.selection.more", "media.toolbar.shuffle", "media.status.untagged", "media.filter.more"];
+        Control[] controls = WorkViewElement.For(WorkViewPage.Media).Where(control => control.FindLogicalAncestorOfType<MediaPage>() == page).ToArray();
+        foreach (Control control in controls)
+        {
+            string id = WorkViewElement.GetId(control)!;
+            if (derived.Contains(id)) continue;
+            bool expected = WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve(id, workView));
+            if (control.IsVisible != expected)
+                throw new InvalidOperationException($"media/{view}: {control.Name ?? id} is {(control.IsVisible ? "shown" : "hidden")} but {id} says {WorkViewPolicy.Resolve(id, workView)}.");
+        }
+        string[] header = ["media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.missing", "media.toolbar.export-all", "media.toolbar.manage-ratings"];
+        string[] expectedMore = header.Where(id => WorkViewPolicy.Resolve(id, workView) == Presence.Overflow
+                && (id != "media.toolbar.shuffle" || page.Sort == MediaLibrarySort.Random))
+            .OrderBy(id => WorkViewPolicy.Get(id).OverflowOrder).ToArray();
+        if (!page.HeaderMoreIds.SequenceEqual(expectedMore))
+            throw new InvalidOperationException($"media/{view}: More holds [{string.Join(", ", page.HeaderMoreIds)}], the policy says [{string.Join(", ", expectedMore)}].");
+        Button more = page.GetLogicalDescendants().OfType<Button>().First(button => button.Name == "MediaMore");
+        if (more.IsVisible != (expectedMore.Length > 0))
+            throw new InvalidOperationException($"media/{view}: the More button is {(more.IsVisible ? "shown" : "hidden")} for {expectedMore.Length} entries.");
+        Console.WriteLine($"SMOKE work-views media: view={view}; More=[{string.Join(", ", page.HeaderMoreIds)}].");
+    }
+
     // The toolbar items of the visible surfaces are placed as the policy says for this view.
     private static void CheckPresence(MainWindow window, string page, string view)
     {
         WorkView workView = WorkViewSetting.Parse(view);
+        if (page == "media") CheckMediaPage(window, workView, view);
         foreach (ActionToolBar toolbar in window.GetVisualDescendants().OfType<ActionToolBar>().Where(toolbar => toolbar.IsEffectivelyVisible))
         {
             string? fallback = toolbar.Name == "ArchiveResultActions" ? "archive.results.other" : null;
