@@ -26,12 +26,15 @@ internal static class IoStatsDisplay
         return string.IsNullOrWhiteSpace(name) ? key : name;
     }
 
-    /// <summary>The disk rate of the header: what MeowChan writes plus what it reads back.</summary>
-    internal static double DiskRate(IoRates rate) => rate.DiskWrite + rate.DiskRead;
+    /// <summary>
+    /// The disk rate of the header: only what MeowChan writes (what it archives). Reading back local files (gallery,
+    /// thumbnails, verification) would dwarf it; it stays on the statistics page.
+    /// </summary>
+    internal static double HeaderDiskRate(IoRates rate) => rate.DiskWrite;
 
     /// <summary>The one sentence of the graph button, for the screen reader and the tooltip. Binary units, current language.</summary>
     internal static string GraphDescription(IoRates rate, IoActivity activity, CultureInfo? culture = null) =>
-        Texts.T("stats.graph.name", ByteUnits.Rate(rate.NetDown, culture), ByteUnits.Rate(DiskRate(rate), culture), activity.Active);
+        Texts.T("stats.graph.name", ByteUnits.Rate(rate.NetDown, culture), ByteUnits.Rate(HeaderDiskRate(rate), culture), activity.Active);
 
     /// <summary>The values of <c>Config.StatsHeaderGraph</c>.</summary>
     internal const string HeaderGraphAuto = "Auto", HeaderGraphNetwork = "Network", HeaderGraphNetworkAndDisk = "NetworkAndDisk";
@@ -47,7 +50,7 @@ internal static class IoStatsDisplay
 
     /// <summary>
     /// Whether the header graph draws the disk row: always for "NetworkAndDisk", never for "Network", and for "Auto" only in
-    /// the Advanced work view (Simple and Barebones show the network only). The statistics page always shows both.
+    /// the Advanced work view (Simple and Barebones show the network only). The statistics page always shows all rows.
     /// </summary>
     internal static bool HeaderShowsDisk(string? setting, string? workspaceMode) => NormalizeHeaderGraph(setting) switch
     {

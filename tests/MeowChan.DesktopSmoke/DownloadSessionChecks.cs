@@ -167,7 +167,7 @@ internal static class DownloadSessionChecks
             Require(initial.SessionHost.ReceivedMediaBytes == DownloadSessionTransport.Payload.Length,
                 "Session transfer telemetry did not count the actual media response body.");
             // This fixture owns its transport, so the network meter is bypassed on purpose; the media store still counts
-            // the file it wrote, and the header graph shows that as the disk rate.
+            // the file it wrote, and the header graph shows that as the disk write rate.
             await Program.WaitUntilAsync(() => initial.FindControl<TextBlock>("TransferSpeedLabel")!.Text is string speed
                 && speed.StartsWith("↓ ", StringComparison.Ordinal)
                 && initial.FindControl<TextBlock>("TransferDiskLabel")!.Text is string disk && disk.EndsWith("/s", StringComparison.Ordinal) && disk != "0 B/s");

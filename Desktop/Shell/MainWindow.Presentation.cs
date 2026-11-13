@@ -100,6 +100,7 @@ public partial class MainWindow
         if (TransferSpeedGraph.IsVisible != showGraph || TransferSpeed.IsVisible != showSpeed)
         {
             TransferSpeedGraph.IsVisible = showGraph;
+            TransferDiskGraph.IsVisible = showGraph;
             TransferSpeed.IsVisible = showSpeed;
             UpdateSpeedSamplingState();
             _ioUpdate?.RequestImmediate(); // a graph that just appeared needs its history now

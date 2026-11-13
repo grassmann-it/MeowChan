@@ -7,30 +7,53 @@ using MeowChan.Desktop.Stats;
 namespace MeowChan.Desktop.Controls;
 
 /// <summary>
-/// The pure geometry of <see cref="IoGraph"/>: the shared scale and the sample positions. Kept apart from drawing so the
-/// scale rule (one peak for both rows, never below the minimum) and the thinning of long histories can be tested.
+/// The pure geometry of <see cref="IoGraph"/>: the scale of one row and the sample positions. Kept apart from drawing so the
+/// scale rule (one stable maximum per row, never below the minimum) and the thinning of long histories can be tested.
 /// </summary>
 internal static class IoGraphGeometry
 {
-    /// <summary>The smallest top of the scale: 64 KiB/s, so a trickle does not fill the graph.</summary>
+    /// <summary>The smallest top of a row's scale: 64 KiB/s, so a trickle does not fill the graph.</summary>
     internal const double DefaultMinimumPeak = 65536;
 
-    /// <summary>The largest of both rows and <paramref name="minimumPeak"/>. Both rows share this one scale.</summary>
-    internal static double Peak(ReadOnlySpan<float> network, ReadOnlySpan<float> disk, double minimumPeak = DefaultMinimumPeak)
+    /// <summary>
+    /// How much of the remembered maximum survives one sample once the history no longer reaches it. 0.97 halves it in about
+    /// 23 samples, so a spike that leaves the history lets the scale sink slowly instead of jumping.
+    /// </summary>
+    internal const double DefaultDecay = 0.97;
+
+    /// <summary>The largest finite value of <paramref name="values"/>; zero for none.</summary>
+    internal static double Largest(ReadOnlySpan<float> values)
     {
-        double peak = Math.Max(minimumPeak, 1);
-        foreach (float value in network) if (float.IsFinite(value) && value > peak) peak = value;
-        foreach (float value in disk) if (float.IsFinite(value) && value > peak) peak = value;
-        return peak;
+        double largest = 0;
+        foreach (float value in values) if (float.IsFinite(value) && value > largest) largest = value;
+        return largest;
     }
 
-    /// <summary>The disk row: write plus read of every sample, in the same unit as the network row.</summary>
-    internal static float[] DiskTotals(IoSeries series)
+    /// <summary>
+    /// The maximum a row remembers: the largest visible value, or the previous maximum decayed by one sample, whichever is
+    /// larger. A new peak is followed at once; it sinks only after it left the visible history.
+    /// </summary>
+    internal static double Track(double previous, ReadOnlySpan<float> values, double decay = DefaultDecay)
     {
-        float[] total = new float[series.Count];
-        for (int i = 0; i < total.Length; i++) total[i] = series.DiskWrite[i] + series.DiskRead[i];
-        return total;
+        double remembered = double.IsFinite(previous) && previous > 0 ? previous * Math.Clamp(decay, 0, 1) : 0;
+        return Math.Max(Largest(values), remembered);
     }
+
+    /// <summary>
+    /// The top of a row's scale: the smallest <paramref name="minimumPeak"/> times a power of two that holds
+    /// <paramref name="tracked"/>. The scale moves in binary steps (64 KiB, 128 KiB, ... 1 MiB, 2 MiB), so it stays put
+    /// while the values wander and a drawn guide always sits on a round value.
+    /// </summary>
+    internal static double Scale(double tracked, double minimumPeak = DefaultMinimumPeak)
+    {
+        double scale = Math.Max(minimumPeak, 1);
+        if (!double.IsFinite(tracked)) return scale;
+        while (scale < tracked && scale < 1e15) scale *= 2;
+        return scale;
+    }
+
+    /// <summary>The scale of one row for a history seen once: <see cref="Scale"/> of its largest value.</summary>
+    internal static double Peak(ReadOnlySpan<float> values, double minimumPeak = DefaultMinimumPeak) => Scale(Largest(values), minimumPeak);
 
     /// <summary>
     /// Positions of one row inside <paramref name="width"/> by <paramref name="height"/>. The newest sample sits at the right
@@ -60,99 +83,119 @@ internal static class IoGraphGeometry
     }
 }
 
+/// <summary>The row of <see cref="IoSeries"/> an <see cref="IoGraph"/> draws.</summary>
+public enum IoGraphSource
+{
+    /// <summary>Network download.</summary>
+    NetDown,
+    /// <summary>Bytes MeowChan writes to disk (what it archives).</summary>
+    DiskWrite,
+    /// <summary>Bytes MeowChan reads back from disk.</summary>
+    DiskRead
+}
+
 /// <summary>
-/// The network and disk graph of the header and the statistics page: both rows on one shared scale. The network row is a
-/// filled area with a solid line, the disk row (write plus read) a dashed line, so the rows differ by form and not only by
-/// colour. It draws on <see cref="SetSeries"/> only, never on its own: no timer, no animation.
+/// One row of the header and the statistics page: a filled area with a solid line over its own history, on its own scale.
+/// There is no shared axis; each graph keeps a stable maximum (<see cref="IoGraphGeometry.Track"/>), and an idle row draws
+/// a quiet baseline instead of nothing. It draws on <see cref="SetSeries"/> only, never on its own: no timer, no animation,
+/// and the geometry is rebuilt only when the series or the size changed.
 /// </summary>
 public sealed class IoGraph : Control
 {
     public static readonly StyledProperty<IBrush?> StrokeProperty = AvaloniaProperty.Register<IoGraph, IBrush?>(nameof(Stroke));
     public static readonly StyledProperty<IBrush?> FillProperty = AvaloniaProperty.Register<IoGraph, IBrush?>(nameof(Fill));
-    public static readonly StyledProperty<IBrush?> DiskStrokeProperty = AvaloniaProperty.Register<IoGraph, IBrush?>(nameof(DiskStroke));
     public static readonly StyledProperty<IBrush?> GuideStrokeProperty = AvaloniaProperty.Register<IoGraph, IBrush?>(nameof(GuideStroke));
-    public static readonly StyledProperty<bool> ShowDiskProperty = AvaloniaProperty.Register<IoGraph, bool>(nameof(ShowDisk), true);
+    public static readonly StyledProperty<IoGraphSource> SourceProperty = AvaloniaProperty.Register<IoGraph, IoGraphSource>(nameof(Source));
     public static readonly StyledProperty<double> LineThicknessProperty = AvaloniaProperty.Register<IoGraph, double>(nameof(LineThickness), 1.3);
 
-    private float[] _network = [];
-    private float[] _disk = [];
+    private float[] _values = [];
     private int _capacity = 1;
+    private double _tracked;
+    private bool _idle = true;
+    private StreamGeometry? _area, _line;
+    private Size _geometrySize;
+    private bool _geometryDirty = true;
 
-    static IoGraph() => AffectsRender<IoGraph>(StrokeProperty, FillProperty, DiskStrokeProperty, GuideStrokeProperty, LineThicknessProperty, ShowDiskProperty);
+    static IoGraph() => AffectsRender<IoGraph>(StrokeProperty, FillProperty, GuideStrokeProperty, LineThicknessProperty, SourceProperty);
 
-    /// <summary>Network line and baseline.</summary>
+    /// <summary>The line and the baseline.</summary>
     public IBrush? Stroke { get => GetValue(StrokeProperty); set => SetValue(StrokeProperty, value); }
-    /// <summary>Network area.</summary>
+    /// <summary>The area under the line.</summary>
     public IBrush? Fill { get => GetValue(FillProperty); set => SetValue(FillProperty, value); }
-    /// <summary>Disk line; opaque, dashed.</summary>
-    public IBrush? DiskStroke { get => GetValue(DiskStrokeProperty); set => SetValue(DiskStrokeProperty, value); }
     /// <summary>Optional horizontal guides at half and full scale (the statistics page); none when null.</summary>
     public IBrush? GuideStroke { get => GetValue(GuideStrokeProperty); set => SetValue(GuideStrokeProperty, value); }
-    /// <summary>Whether the dashed disk row is drawn. When it is not, the scale follows the network row alone.</summary>
-    public bool ShowDisk { get => GetValue(ShowDiskProperty); set => SetValue(ShowDiskProperty, value); }
+    /// <summary>Which row of the series this graph draws.</summary>
+    public IoGraphSource Source { get => GetValue(SourceProperty); set => SetValue(SourceProperty, value); }
     public double LineThickness { get => GetValue(LineThicknessProperty); set => SetValue(LineThicknessProperty, value); }
 
     /// <summary>The top of the scale used by the last drawing input, in bytes per second.</summary>
     internal double Peak { get; private set; } = IoGraphGeometry.DefaultMinimumPeak;
-    internal int SampleCount => _network.Length;
+    internal int SampleCount => _values.Length;
+    /// <summary>Whether the history holds nothing but zeros (the graph then draws only its baseline).</summary>
+    internal bool IsIdle => _idle;
 
     internal void SetSeries(IoSeries series)
     {
-        _network = series.NetDown;
-        _disk = IoGraphGeometry.DiskTotals(series);
+        float[] values = Source switch { IoGraphSource.DiskWrite => series.DiskWrite, IoGraphSource.DiskRead => series.DiskRead, _ => series.NetDown };
+        // A history that got shorter (a reset) starts the scale again instead of sinking from the old maximum.
+        _tracked = IoGraphGeometry.Track(values.Length < _values.Length ? 0 : _tracked, values);
+        _values = values;
         _capacity = Math.Max(series.Capacity, series.Count);
-        UpdatePeak();
+        Peak = IoGraphGeometry.Scale(_tracked);
+        _idle = IoGraphGeometry.Largest(values) <= 0;
+        _geometryDirty = true;
         InvalidateVisual();
     }
-
-    private void UpdatePeak() => Peak = IoGraphGeometry.Peak(_network, ShowDisk ? _disk : []);
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
-        if (change.Property == ShowDiskProperty) UpdatePeak();
+        if (change.Property == SourceProperty) { _tracked = 0; _values = []; _idle = true; Peak = IoGraphGeometry.DefaultMinimumPeak; _geometryDirty = true; }
     }
 
     public override void Render(DrawingContext context)
     {
         base.Render(context);
         if (Bounds.Width <= 2 || Bounds.Height <= 2) return;
-        double thickness = LineThickness;
         double bottom = Bounds.Height - 1;
         double width = Bounds.Width - 2;
         double height = Bounds.Height - 3;
         if (GuideStroke is { } guide)
         {
             Pen guidePen = new(guide, 0.5);
-            foreach (double fraction in new[] { 0.5, 1.0 })
-                context.DrawLine(guidePen, new Point(1, bottom - fraction * height), new Point(width + 1, bottom - fraction * height));
+            context.DrawLine(guidePen, new Point(1, bottom - 0.5 * height), new Point(width + 1, bottom - 0.5 * height));
+            context.DrawLine(guidePen, new Point(1, bottom - height), new Point(width + 1, bottom - height));
         }
-        context.DrawLine(new Pen(Stroke, 0.4), new Point(1, bottom), new Point(width + 1, bottom));
-        if (_network.Length < 2) return;
-        Point[] network = IoGraphGeometry.Points(_network, _capacity, width, height, Peak, 1, bottom);
-        Point[] disk = ShowDisk ? IoGraphGeometry.Points(_disk, _capacity, width, height, Peak, 1, bottom) : [];
-        if (network.Length < 2) return;
+        // The baseline is always there; an idle row is only this thin, dimmed line, so "nothing happening" reads as calm and not broken.
+        using (context.PushOpacity(_idle ? 0.55 : 0.35))
+            context.DrawLine(new Pen(Stroke, 1), new Point(1, bottom), new Point(width + 1, bottom));
+        if (_idle || _values.Length < 2) return;
+        if (_geometryDirty || _geometrySize != Bounds.Size || _area == null || _line == null) BuildGeometry(width, height, bottom);
+        context.DrawGeometry(Fill, null, _area!);
+        context.DrawGeometry(null, new Pen(Stroke, LineThickness), _line!);
+    }
+
+    private void BuildGeometry(double width, double height, double bottom)
+    {
+        _geometryDirty = false;
+        _geometrySize = Bounds.Size;
+        Point[] points = IoGraphGeometry.Points(_values, _capacity, width, height, Peak, 1, bottom);
+        if (points.Length < 2) { _area = new StreamGeometry(); _line = new StreamGeometry(); return; }
         StreamGeometry area = new();
         using (StreamGeometryContext path = area.Open())
         {
-            path.BeginFigure(new Point(network[0].X, bottom), true);
-            foreach (Point point in network) path.LineTo(point);
-            path.LineTo(new Point(network[^1].X, bottom));
+            path.BeginFigure(new Point(points[0].X, bottom), true);
+            foreach (Point point in points) path.LineTo(point);
+            path.LineTo(new Point(points[^1].X, bottom));
             path.EndFigure(true);
         }
-        context.DrawGeometry(Fill, null, area);
-        context.DrawGeometry(null, new Pen(Stroke, thickness), Line(network));
-        // The dashed row goes last so it stays readable over the area.
-        if (disk.Length >= 2) context.DrawGeometry(null, new Pen(DiskStroke, thickness, new DashStyle([3, 2], 0)), Line(disk));
-    }
-
-    private static StreamGeometry Line(Point[] points)
-    {
         StreamGeometry line = new();
-        using StreamGeometryContext path = line.Open();
-        path.BeginFigure(points[0], false);
-        for (int i = 1; i < points.Length; i++) path.LineTo(points[i]);
-        path.EndFigure(false);
-        return line;
+        using (StreamGeometryContext path = line.Open())
+        {
+            path.BeginFigure(points[0], false);
+            for (int i = 1; i < points.Length; i++) path.LineTo(points[i]);
+            path.EndFigure(false);
+        }
+        (_area, _line) = (area, line);
     }
 }

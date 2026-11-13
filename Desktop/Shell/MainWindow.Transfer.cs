@@ -38,17 +38,15 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// Sets what the header graph draws from the setting and the work view: "Auto" draws network and disk in the Advanced
+    /// Sets what the header graph draws from the setting and the work view: "Auto" draws network and disk writing in the Advanced
     /// view and the network only in Simple and Barebones, so a view switch updates it at once. The name follows what is drawn.
     /// </summary>
     private void ApplyHeaderGraphMode()
     {
         bool disk = IoStatsDisplay.HeaderShowsDisk(_config.StatsHeaderGraph, _config.WorkspaceMode);
-        if (disk == _headerShowsDisk && TransferDiskLabel.IsVisible == disk) return;
+        if (disk == _headerShowsDisk && TransferDiskRow.IsVisible == disk) return;
         _headerShowsDisk = disk;
-        TransferSpeedGraph.ShowDisk = disk;
-        TransferDiskIcon.IsVisible = disk;
-        TransferDiskLabel.IsVisible = disk;
+        TransferDiskRow.IsVisible = disk;
         _graphDescription = null; // the sentence names the disk only while it is drawn
         if (_ioStats != null) ApplyIoSnapshot(force: true);
     }
@@ -92,9 +90,11 @@ public partial class MainWindow
         IoStatsHub? hub = _ioStats;
         if (_isClosing || hub == null || (!force && _ioClaim?.Visibility is null or IoStatsVisibility.None)) return;
         IoStatsSnapshot snapshot = hub.Snapshot();
+        // Each row has its own history and its own scale; the disk row is what MeowChan writes, never what it reads back.
         if (TransferSpeedGraph.IsVisible) TransferSpeedGraph.SetSeries(snapshot.Series);
+        if (_headerShowsDisk && TransferDiskGraph.IsVisible) TransferDiskGraph.SetSeries(snapshot.Series);
         TransferSpeedLabel.Text = "↓ " + ByteUnits.Rate(snapshot.Rate.NetDown);
-        if (_headerShowsDisk) TransferDiskLabel.Text = ByteUnits.Rate(IoStatsDisplay.DiskRate(snapshot.Rate));
+        if (_headerShowsDisk) TransferDiskLabel.Text = ByteUnits.Rate(IoStatsDisplay.HeaderDiskRate(snapshot.Rate));
         if (_selectedPage == WorkspacePage.Statistics) _statisticsPage?.Apply(snapshot);
         // Set the name and tip only when the sentence changes: no live region, so nothing is read out every second.
         string description = IoStatsDisplay.GraphDescription(snapshot.Rate, snapshot.Activity, _headerShowsDisk);

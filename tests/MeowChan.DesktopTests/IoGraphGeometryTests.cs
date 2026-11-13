@@ -15,34 +15,74 @@ public sealed class IoGraphGeometryTests
     [Fact]
     public void TheScaleNeverDropsBelowSixtyFourKibPerSecond()
     {
-        Assert.Equal(65536, IoGraphGeometry.Peak([], []));
-        Assert.Equal(65536, IoGraphGeometry.Peak([100f, 2000f], [5f]));
+        Assert.Equal(65536, IoGraphGeometry.Peak([]));
+        Assert.Equal(65536, IoGraphGeometry.Peak([100f, 2000f]));
+        Assert.Equal(65536, IoGraphGeometry.Scale(0));
+        Assert.Equal(65536, IoGraphGeometry.Scale(65536));
     }
 
     [Fact]
-    public void BothRowsShareOnePeakSoADiskRowAboveTheNetworkRowRaisesTheScaleForBoth()
+    public void TheScaleMovesInBinarySteps()
     {
-        float[] network = [1_000_000f, 500_000f];
-        float[] disk = [3_000_000f, 100f];
-        double peak = IoGraphGeometry.Peak(network, disk);
-        Assert.Equal(3_000_000, peak);
-        // The same peak places both rows: a value equal to the peak is at the top in either row, half of it halfway.
-        Assert.Equal(0, IoGraphGeometry.Points([3_000_000f, 3_000_000f], 2, 100, 50, peak, bottom: 50)[0].Y, 6);
-        Assert.Equal(25, IoGraphGeometry.Points([1_500_000f, 1_500_000f], 2, 100, 50, peak, bottom: 50)[1].Y, 6);
-        Assert.Equal(25, IoGraphGeometry.Points([1_500_000f, 1_500_000f], 2, 100, 50, peak, bottom: 50)[0].Y, 6);
+        Assert.Equal(131072, IoGraphGeometry.Scale(65537));
+        Assert.Equal(1_048_576, IoGraphGeometry.Scale(700_000));
+        Assert.Equal(1_048_576, IoGraphGeometry.Scale(1_048_576));
+        Assert.Equal(2_097_152, IoGraphGeometry.Scale(1_048_577));
+        Assert.Equal(4_194_304, IoGraphGeometry.Peak([3_000_000f, 100f]));
+    }
+
+    [Fact]
+    public void EveryRowHasItsOwnScaleSoALargeRowNeverFlattensASmallOne()
+    {
+        float[] network = [3_000_000f, 500_000f];
+        float[] write = [40_000f, 90_000f];
+        Assert.Equal(4_194_304, IoGraphGeometry.Peak(network));
+        Assert.Equal(131072, IoGraphGeometry.Peak(write));
+        // The 90 000 B/s of the write row reaches 69 percent of its own height, not the 2 percent a shared axis would give it.
+        double y = IoGraphGeometry.Points([90_000f, 90_000f], 2, 100, 100, IoGraphGeometry.Peak(write), bottom: 100)[0].Y;
+        Assert.Equal(100 - 90_000d / 131072 * 100, y, 6);
+        Assert.True(y < 40);
     }
 
     [Fact]
     public void ThePeakIgnoresNonFiniteValues()
     {
-        Assert.Equal(65536, IoGraphGeometry.Peak([float.NaN, float.PositiveInfinity], [float.NegativeInfinity]));
+        Assert.Equal(65536, IoGraphGeometry.Peak([float.NaN, float.PositiveInfinity, float.NegativeInfinity]));
+        Assert.Equal(65536, IoGraphGeometry.Scale(double.NaN));
+        Assert.Equal(65536, IoGraphGeometry.Scale(double.PositiveInfinity));
     }
 
     [Fact]
-    public void TheDiskRowIsWritePlusReadOfEverySample()
+    public void ANewPeakIsFollowedAtOnceAndASinkingOneDecaysSlowlyInsteadOfJumping()
     {
-        IoSeries series = new(capacity: 4, count: 3, netDown: [1, 2, 3], diskWrite: [10, 20, 30], diskRead: [1, 0, 5], requests: [0, 0, 0]);
-        Assert.Equal([11f, 20f, 35f], IoGraphGeometry.DiskTotals(series));
+        double tracked = IoGraphGeometry.Track(0, [10f, 8_000_000f, 10f]);
+        Assert.Equal(8_000_000d, tracked);
+        // The spike left the visible history: the remembered maximum sinks by the decay factor per sample, never in one jump.
+        float[] quiet = [100f, 200f];
+        double next = IoGraphGeometry.Track(tracked, quiet);
+        Assert.Equal(8_000_000d * IoGraphGeometry.DefaultDecay, next, 3);
+        Assert.Equal(IoGraphGeometry.Scale(tracked), IoGraphGeometry.Scale(next));          // one sample later the scale is unchanged
+        int samples = 0;
+        double previousScale = IoGraphGeometry.Scale(tracked);
+        double scaleNow = previousScale;
+        for (; samples < 2000 && scaleNow > IoGraphGeometry.DefaultMinimumPeak; samples++)
+        {
+            next = IoGraphGeometry.Track(next, quiet);
+            double scale = IoGraphGeometry.Scale(next);
+            Assert.True(scale == scaleNow || scale == scaleNow / 2, "the scale sinks one binary step at a time");
+            scaleNow = scale;
+        }
+        Assert.True(samples > 100, "a spike keeps its scale for a while: " + samples);
+        Assert.Equal(IoGraphGeometry.DefaultMinimumPeak, scaleNow);
+    }
+
+    [Fact]
+    public void ARiseDuringTheDecayWinsOverTheRememberedMaximum()
+    {
+        double tracked = IoGraphGeometry.Track(1_000_000, [2_000_000f]);
+        Assert.Equal(2_000_000d, tracked);
+        Assert.Equal(0, IoGraphGeometry.Track(double.NaN, []));
+        Assert.Equal(0, IoGraphGeometry.Track(-5, []));
     }
 
     [Fact]
@@ -79,17 +119,36 @@ public sealed class IoGraphGeometryTests
     [Theory]
     [InlineData("Dark")]
     [InlineData("Light")]
-    public void TheDiskRowIsOpaqueAndReachesThreeToOneAgainstEveryHeaderAndPageSurface(string theme)
+    public void EveryGraphStrokeIsOpaqueAndReachesThreeToOneAgainstEveryHeaderAndPageSurface(string theme)
     {
         XElement dictionary = Theme(theme);
-        string disk = Entry(dictionary, "Workspace.Stats.Disk").Value.Trim();
-        Assert.Matches("^#[0-9A-Fa-f]{6}$", disk);           // opaque: no alpha channel to lose against the surface
-        double diskLuminance = Luminance(disk);
-        foreach (string surface in new[] { "Workspace.Panel", "Workspace.Background", "Workspace.Card" })
-            Assert.True(Contrast(diskLuminance, Luminance(Entry(dictionary, surface).Value.Trim())) >= 3.0, theme + " on " + surface);
-        // The network row's own colour must clear it too; form (dashed against filled) tells the rows apart, not colour alone.
-        Assert.NotEqual(disk.ToLowerInvariant(), Entry(dictionary, "Workspace.Accent").Value.Trim().ToLowerInvariant());
-        Assert.True(Contrast(Luminance(Entry(dictionary, "Workspace.Accent").Value.Trim()), Luminance(Entry(dictionary, "Workspace.Panel").Value.Trim())) >= 3.0);
+        string[] strokes = ["Workspace.Accent", "Workspace.Stats.Disk", "Workspace.Stats.Read"];
+        foreach (string key in strokes)
+        {
+            string stroke = Entry(dictionary, key).Value.Trim();
+            Assert.Matches("^#[0-9A-Fa-f]{6}$", stroke);           // opaque: no alpha channel to lose against the surface
+            foreach (string surface in new[] { "Workspace.Panel", "Workspace.Background", "Workspace.Card" })
+                Assert.True(Contrast(Luminance(stroke), Luminance(Entry(dictionary, surface).Value.Trim())) >= 3.0, theme + " " + key + " on " + surface);
+        }
+        // Three different hues: the rows are also told apart by their separate rows and labels, but never share a colour.
+        Assert.Equal(strokes.Length, strokes.Select(key => Entry(dictionary, key).Value.Trim().ToLowerInvariant()).Distinct().Count());
+    }
+
+    [Theory]
+    [InlineData("Dark")]
+    [InlineData("Light")]
+    public void EveryGraphAreaIsOpaqueAndStaysUnderItsStrokeAndAboveTheSurface(string theme)
+    {
+        XElement dictionary = Theme(theme);
+        foreach ((string stroke, string area) in new[] { ("Workspace.Accent", "Workspace.AccentSurface"), ("Workspace.Stats.Disk", "Workspace.Stats.DiskSurface"), ("Workspace.Stats.Read", "Workspace.Stats.ReadSurface") })
+        {
+            string fill = Entry(dictionary, area).Value.Trim();
+            Assert.Matches("^#[0-9A-Fa-f]{6}$", fill);
+            // The line stays readable on its own area, and the area is visibly not the surface it sits on.
+            Assert.True(Contrast(Luminance(Entry(dictionary, stroke).Value.Trim()), Luminance(fill)) >= 3.0, theme + " " + stroke + " on " + area);
+            foreach (string surface in new[] { "Workspace.Panel", "Workspace.Card" })
+                Assert.True(Contrast(Luminance(fill), Luminance(Entry(dictionary, surface).Value.Trim())) >= 1.12, theme + " " + area + " against " + surface);
+        }
     }
 
     private static XElement Theme(string theme) => XDocument.Load(Source("Desktop/WorkspaceStyles.axaml")).Root!.Descendants()

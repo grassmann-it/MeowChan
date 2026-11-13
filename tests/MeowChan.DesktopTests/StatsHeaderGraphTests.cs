@@ -126,10 +126,10 @@ public sealed class StatsHeaderGraphTests : IDisposable
         IoActivity activity = new(3, 41, 0);
         string both = IoStatsDisplay.GraphDescription(rates, activity, showDisk: true, En);
         string network = IoStatsDisplay.GraphDescription(rates, activity, showDisk: false, En);
-        Assert.Equal("Network download 2.4 MiB/s, disk 1.9 MiB/s, active downloads: 3. Opens the statistics.", both);
+        Assert.Equal("Network download 2.4 MiB/s, disk written 1.5 MiB/s, active downloads: 3. Opens the statistics.", both);
         Assert.Equal("Network download 2.4 MiB/s, active downloads: 3. Opens the statistics.", network);
         Assert.DoesNotContain("disk", network, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("1.9", network);
+        Assert.DoesNotContain("1.5", network);
         Texts.SetLanguage("de");
         Assert.Equal("Netzwerk herunter 2,4 MiB/s, aktive Downloads: 3. Öffnet die Statistik.",
             IoStatsDisplay.GraphDescription(rates, activity, showDisk: false, CultureInfo.GetCultureInfo("de")));
@@ -175,11 +175,34 @@ public sealed class StatsHeaderGraphTests : IDisposable
     }
 
     [Fact]
-    public void TheScaleOfANetworkOnlyGraphIgnoresTheDisk()
+    public void TheGraphTextsExistInAllTwelveLanguagesWithTheirPlaceholdersAndTheOldOnesAreGone()
+    {
+        string[] languages = ["en", "de", "es", "fr", "ru", "zh-Hans", "ja", "ko", "pt-BR", "cs", "it", "pl"];
+        (string Key, int Placeholders)[] keys = [("stats.graph.name", 3), ("stats.graph.nameNet", 2), ("stats.graph.page.name", 3), ("stats.scale", 1), ("stats.history.note", 0)];
+        foreach (string language in languages)
+        {
+            Texts.SetLanguage(language);
+            foreach ((string key, int placeholders) in keys)
+            {
+                string text = Texts.T(key, "A", "B", "C");
+                Assert.NotEqual(key, text);
+                Assert.DoesNotContain("{", text);
+                foreach (string argument in new[] { "A", "B", "C" }.Take(placeholders))
+                    Assert.Contains(argument, text);
+            }
+            foreach (string removed in new[] { "stats.peak", "stats.legend.net", "stats.legend.disk" })
+                Assert.Equal(removed, Texts.T(removed));
+        }
+        Texts.SetLanguage("en");
+        Assert.Equal("Scale up to 2 MiB/s", Texts.T("stats.scale", "2 MiB/s"));
+    }
+
+    [Fact]
+    public void TheNetworkRowScaleIgnoresTheDiskRow()
     {
         float[] network = [1000f, 2000f];
         float[] disk = [4_000_000f, 1f];
-        Assert.Equal(4_000_000d, IoGraphGeometry.Peak(network, disk));
-        Assert.Equal(IoGraphGeometry.DefaultMinimumPeak, IoGraphGeometry.Peak(network, ReadOnlySpan<float>.Empty));
+        Assert.Equal(IoGraphGeometry.DefaultMinimumPeak, IoGraphGeometry.Peak(network));
+        Assert.Equal(4_194_304d, IoGraphGeometry.Peak(disk));
     }
 }

@@ -49,31 +49,50 @@
             </Border>
 
             <Border Classes="workspace-section">
-                <StackPanel Spacing="8">
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <StackPanel Spacing="10">
+                    <StackPanel Spacing="3">
                         <TextBlock x:Name="HistoryTitle" Classes="section-title" TextWrapping="Wrap" />
-                        <TextBlock x:Name="PeakText" Grid.Column="1" Classes="muted stats-num" />
-                    </Grid>
-                    <controls:IoGraph x:Name="StatisticsGraph" Height="150" HorizontalAlignment="Stretch" LineThickness="1.6"
-                                      Stroke="{DynamicResource Workspace.Accent}" Fill="{DynamicResource Workspace.AccentSurface}"
-                                      DiskStroke="{DynamicResource Workspace.Stats.Disk}" GuideStroke="{DynamicResource Workspace.Border}"
-                                      Focusable="False" />
-                    <!-- The legend repeats the two forms: a filled area with a solid line, and a dashed line. -->
-                    <WrapPanel ItemSpacing="24" LineSpacing="6">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock x:Name="HistoryNote" Classes="muted" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Spacing="3">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                             <Panel Width="30" Height="14" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
                                 <Path Data="M 0,13 L 0,4 L 30,4 L 30,13 Z" Fill="{DynamicResource Workspace.AccentSurface}" />
                                 <Path Data="M 0,4 L 30,4" Stroke="{DynamicResource Workspace.Accent}" StrokeThickness="1.6" />
                             </Panel>
-                            <TextBlock x:Name="LegendNet" Classes="muted" TextWrapping="Wrap" />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock x:Name="NetTitle" Grid.Column="1" TextTrimming="CharacterEllipsis" />
+                            <TextBlock x:Name="NetScale" Grid.Column="2" Classes="muted stats-num" />
+                        </Grid>
+                        <controls:IoGraph x:Name="NetGraph" Source="NetDown" Height="56" HorizontalAlignment="Stretch" LineThickness="1.6"
+                                          Stroke="{DynamicResource Workspace.Accent}" Fill="{DynamicResource Workspace.AccentSurface}" GuideStroke="{DynamicResource Workspace.Border}"
+                                          Focusable="False" />
+                    </StackPanel>
+                    <StackPanel Spacing="3">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                             <Panel Width="30" Height="14" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
-                                <Path Data="M 0,7 L 30,7" Stroke="{DynamicResource Workspace.Stats.Disk}" StrokeThickness="1.6" StrokeDashArray="3,2" />
+                                <Path Data="M 0,13 L 0,4 L 30,4 L 30,13 Z" Fill="{DynamicResource Workspace.Stats.DiskSurface}" />
+                                <Path Data="M 0,4 L 30,4" Stroke="{DynamicResource Workspace.Stats.Disk}" StrokeThickness="1.6" />
                             </Panel>
-                            <TextBlock x:Name="LegendDisk" Classes="muted" TextWrapping="Wrap" />
-                        </StackPanel>
-                    </WrapPanel>
+                            <TextBlock x:Name="DiskWriteTitle" Grid.Column="1" TextTrimming="CharacterEllipsis" />
+                            <TextBlock x:Name="DiskWriteScale" Grid.Column="2" Classes="muted stats-num" />
+                        </Grid>
+                        <controls:IoGraph x:Name="DiskWriteGraph" Source="DiskWrite" Height="56" HorizontalAlignment="Stretch" LineThickness="1.6"
+                                          Stroke="{DynamicResource Workspace.Stats.Disk}" Fill="{DynamicResource Workspace.Stats.DiskSurface}" GuideStroke="{DynamicResource Workspace.Border}"
+                                          Focusable="False" />
+                    </StackPanel>
+                    <StackPanel Spacing="3">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                            <Panel Width="30" Height="14" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+                                <Path Data="M 0,13 L 0,4 L 30,4 L 30,13 Z" Fill="{DynamicResource Workspace.Stats.ReadSurface}" />
+                                <Path Data="M 0,4 L 30,4" Stroke="{DynamicResource Workspace.Stats.Read}" StrokeThickness="1.6" />
+                            </Panel>
+                            <TextBlock x:Name="DiskReadTitle" Grid.Column="1" TextTrimming="CharacterEllipsis" />
+                            <TextBlock x:Name="DiskReadScale" Grid.Column="2" Classes="muted stats-num" />
+                        </Grid>
+                        <controls:IoGraph x:Name="DiskReadGraph" Source="DiskRead" Height="56" HorizontalAlignment="Stretch" LineThickness="1.6"
+                                          Stroke="{DynamicResource Workspace.Stats.Read}" Fill="{DynamicResource Workspace.Stats.ReadSurface}" GuideStroke="{DynamicResource Workspace.Border}"
+                                          Focusable="False" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
 

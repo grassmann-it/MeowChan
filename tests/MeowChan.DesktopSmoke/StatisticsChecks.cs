@@ -106,13 +106,14 @@ internal static class StatisticsChecks
 
     private static Button Speed(MainWindow window) => window.FindControl<Button>("TransferSpeed")!;
     private static IoGraph HeaderGraph(MainWindow window) => window.FindControl<IoGraph>("TransferSpeedGraph")!;
+    private static IoGraph HeaderDiskGraph(MainWindow window) => window.FindControl<IoGraph>("TransferDiskGraph")!;
     private static TextBlock DiskLabel(MainWindow window) => window.FindControl<TextBlock>("TransferDiskLabel")!;
 
     private static async Task RequireHeaderAsync(MainWindow window, bool disk, string scenario)
     {
-        await Program.WaitUntilAsync(() => DiskLabel(window).IsVisible == disk && HeaderGraph(window).ShowDisk == disk
+        await Program.WaitUntilAsync(() => DiskLabel(window).IsVisible == disk && window.FindControl<Control>("TransferDiskRow")!.IsVisible == disk
             && AutomationProperties.GetName(Speed(window)) is { Length: > 0 } name && name.Contains("disk", StringComparison.OrdinalIgnoreCase) == disk,
-            () => $"{scenario}: label {DiskLabel(window).IsVisible}, graph {HeaderGraph(window).ShowDisk}, name '{AutomationProperties.GetName(Speed(window))}'");
+            () => $"{scenario}: label {DiskLabel(window).IsVisible}, row {window.FindControl<Control>("TransferDiskRow")!.IsVisible}, name '{AutomationProperties.GetName(Speed(window))}'");
         string text = AutomationProperties.GetName(Speed(window))!;
         Require(Texts.T("stats.graph.name", "", "", 0).Length > 0 && ToolTip.GetTip(Speed(window)) as string == text,
             scenario + ": the tooltip differs from the accessible name.");
@@ -120,8 +121,16 @@ internal static class StatisticsChecks
             scenario + ": the disk value is " + (disk ? "missing" : "shown") + ".");
         // Barebones fits the window to its minimum, below the widths where the graph (1000) and the button (760) appear.
         if (window.Bounds.Width >= 1000)
+        {
             Require(HeaderGraph(window).IsEffectivelyVisible && HeaderGraph(window).SampleCount >= 8 && HeaderGraph(window).Bounds.Width > 0,
                 scenario + ": the header graph shows no history.");
+            // The disk row is its own graph with its own scale, drawing the write series only.
+            Require(HeaderGraph(window).Source == IoGraphSource.NetDown && HeaderDiskGraph(window).Source == IoGraphSource.DiskWrite,
+                scenario + ": a header row draws the wrong series.");
+            if (disk)
+                Require(HeaderDiskGraph(window).IsEffectivelyVisible && HeaderDiskGraph(window).SampleCount >= 8 && HeaderDiskGraph(window).Bounds.Width > 0,
+                    scenario + ": the disk row shows no history.");
+        }
         if (window.Bounds.Width >= 760)
             Require(Speed(window) is { IsEffectivelyEnabled: true, IsEffectivelyVisible: true } && Speed(window).IsTabStop,
                 scenario + ": the graph button cannot be reached.");
@@ -247,10 +256,16 @@ internal static class StatisticsChecks
         StatisticsRow first = page.Rows.Single(row => row.Key == Fixture);
         Require(first.Requests != "0" && first.Session.Contains('B') && first.Today.Length > 0 && first.Retained.Length > 0,
             "The fixture row shows no counted traffic: " + first.Session + " / " + first.Requests);
-        Require(page.Graph.ShowDisk && page.Graph.Peak > IoGraphGeometry.DefaultMinimumPeak,
-            "The page graph hides the disk row or never scaled up.");
-        // The page shows both rows whatever the header setting is.
-        Require(AutomationProperties.GetName(page.Graph) is { Length: > 0 }, "The page graph has no accessible name.");
+        Require(page.Graph.Source == IoGraphSource.NetDown && page.WriteGraph.Source == IoGraphSource.DiskWrite && page.ReadGraph.Source == IoGraphSource.DiskRead,
+            "The page graphs do not draw network, disk write and disk read.");
+        Require(page.Graph.Peak > IoGraphGeometry.DefaultMinimumPeak && page.WriteGraph.Peak > IoGraphGeometry.DefaultMinimumPeak
+            && page.Graph.Peak != page.WriteGraph.Peak && page.WriteGraph.SampleCount >= 8 && page.ReadGraph.SampleCount >= 8,
+            $"The page graphs never scaled up or share one scale: net {page.Graph.Peak}, write {page.WriteGraph.Peak}, read {page.ReadGraph.Peak}.");
+        // The page shows all rows whatever the header setting is, each with its own name.
+        foreach (IoGraph graph in new[] { page.Graph, page.WriteGraph, page.ReadGraph })
+            Require(AutomationProperties.GetName(graph) is { Length: > 0 }, "A page graph has no accessible name.");
+        Require(AutomationProperties.GetName(page.ReadGraph)!.StartsWith(Texts.T("stats.metric.diskRead"), StringComparison.Ordinal),
+            "The read graph is not named as the read series.");
         Require(page.ResetButton.IsEffectivelyVisible && page.ResetButton.IsEnabled, "Reset is not available.");
         Require(!page.IsResetConfirmationOpen, "The reset question is open before Reset was pressed.");
         await Settle(window);

@@ -44,15 +44,25 @@ public sealed class IoStatsDisplayTests : IDisposable
     public void TheGraphSentenceNamesNetworkDiskAndActiveDownloadsInBinaryUnits()
     {
         IoRates rates = new(NetDown: 2.4 * MiB, DiskWrite: 1.5 * MiB, DiskRead: 0.4 * MiB, Requests: 3);
-        Assert.Equal(1.9 * MiB, IoStatsDisplay.DiskRate(rates), 3);
-        Assert.Equal("Network download 2.4 MiB/s, disk 1.9 MiB/s, active downloads: 3. Opens the statistics.",
+        Assert.Equal(1.5 * MiB, IoStatsDisplay.HeaderDiskRate(rates), 3);          // what MeowChan writes, not what it reads back
+        Assert.Equal("Network download 2.4 MiB/s, disk written 1.5 MiB/s, active downloads: 3. Opens the statistics.",
             IoStatsDisplay.GraphDescription(rates, new IoActivity(3, 41, 0), En));
         Texts.SetLanguage("de");
-        Assert.Equal("Netzwerk herunter 2,4 MiB/s, Datenträger 1,9 MiB/s, aktive Downloads: 3. Öffnet die Statistik.",
+        Assert.Equal("Netzwerk herunter 2,4 MiB/s, auf Datenträger geschrieben 1,5 MiB/s, aktive Downloads: 3. Öffnet die Statistik.",
             IoStatsDisplay.GraphDescription(rates, new IoActivity(3, 41, 0), De));
         Texts.SetLanguage("en");
-        Assert.Equal("Network download 0 B/s, disk 0 B/s, active downloads: 0. Opens the statistics.",
+        Assert.Equal("Network download 0 B/s, disk written 0 B/s, active downloads: 0. Opens the statistics.",
             IoStatsDisplay.GraphDescription(IoRates.Zero, default, En));
+    }
+
+    [Fact]
+    public void ReadingBackFromDiskNeverChangesTheHeaderRateOrItsSentence()
+    {
+        IoRates quiet = new(NetDown: 1 * MiB, DiskWrite: 200 * 1024, DiskRead: 0, Requests: 1);
+        IoRates busyReading = quiet with { DiskRead = 80 * MiB };
+        Assert.Equal(IoStatsDisplay.HeaderDiskRate(quiet), IoStatsDisplay.HeaderDiskRate(busyReading));
+        Assert.Equal(IoStatsDisplay.GraphDescription(quiet, default, En), IoStatsDisplay.GraphDescription(busyReading, default, En));
+        Assert.DoesNotContain("80", IoStatsDisplay.GraphDescription(busyReading, default, En));
     }
 
     [Theory]
