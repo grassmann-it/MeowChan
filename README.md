@@ -275,6 +275,7 @@ If MeowChan helps you, you can voluntarily [support its development via PayPal](
 ## License
 
 The project uses Artistic License 2.0; see [LICENSE](LICENSE). Desktop dependency and asset notices are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Bundled fonts: Inter (via `Avalonia.Fonts.Inter`) for the interface and a Latin/Greek/Cyrillic subset of Noto Sans for post bodies; both are licensed under the SIL Open Font License 1.1, with the full text in the same file.
 
 Cat photos (Mila, grey; Simba, orange): [Alexander Huxel · Webentwicklung Huxel](https://webentwicklung-huxel.de/)
 ([Flickr](https://flickr.com/people/204852984@N05/)).

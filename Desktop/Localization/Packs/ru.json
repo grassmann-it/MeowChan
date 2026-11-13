@@ -1498,7 +1498,7 @@
     "about.donate": "Поддержать через PayPal",
     "about.copyFailed": "Не удалось скопировать версию: {0}",
     "about.videoCredits": "Воспроизведение видео: VideoLAN и участники LibVLCSharp.",
-    "about.uiCredits": "Интерфейс: Avalonia UI и его участники; шрифт Inter от Rasmus Andersson; Semi for Avalonia и Ursa от IRIHI Technology; SkiaSharp, HarfBuzzSharp и их участники.",
+    "about.uiCredits": "Интерфейс: Avalonia UI и его участники; шрифт Inter от Rasmus Andersson и Noto Sans (шрифт для чтения) от Noto Project Authors, оба по лицензии SIL Open Font License; Semi for Avalonia и Ursa от IRIHI Technology; SkiaSharp, HarfBuzzSharp и их участники.",
     "about.featherCredits": "Значки: Feather Icons от Cole Bemis и участников (MIT). Ревизия старых экспортов PNG неизвестна; новые ресурсы SVG — v4.29.2.",
     "about.photoCredit": "Логотипы с котами: Simba (рыжий) и Mila (серая), каждый получен из фотографии автора {0}. Они используются с разрешения фотографа для проектов Tom Graßmann при условии указания его имени; фотографии не охватываются лицензией MeowChan.",
     "about.logoSimba": "Simba, рыжий кот",

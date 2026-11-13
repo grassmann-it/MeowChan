@@ -1498,7 +1498,7 @@
     "about.donate": "Apoyar mediante PayPal",
     "about.copyFailed": "No se pudo copiar la versión: {0}",
     "about.videoCredits": "Reproducción de vídeo: VideoLAN y colaboradores de LibVLCSharp.",
-    "about.uiCredits": "Interfaz: Avalonia UI y sus colaboradores; tipografía Inter de Rasmus Andersson; Semi for Avalonia y Ursa de IRIHI Technology; SkiaSharp, HarfBuzzSharp y sus colaboradores.",
+    "about.uiCredits": "Interfaz: Avalonia UI y sus colaboradores; tipografía Inter de Rasmus Andersson y Noto Sans (fuente de lectura) de los Noto Project Authors, ambas con la SIL Open Font License; Semi for Avalonia y Ursa de IRIHI Technology; SkiaSharp, HarfBuzzSharp y sus colaboradores.",
     "about.featherCredits": "Iconos: Feather Icons de Cole Bemis y colaboradores (MIT). Se desconoce la revisión de las exportaciones PNG antiguas; los nuevos recursos SVG son v4.29.2.",
     "about.photoCredit": "Logotipos de gato: Simba (naranja) y Mila (gris), cada uno derivado de una fotografía de {0}. Se usan con el permiso del fotógrafo para los proyectos de Tom Graßmann, con la condición de citar su nombre; las fotografías no están cubiertas por la licencia de MeowChan.",
     "about.logoSimba": "Simba, gato naranja",
