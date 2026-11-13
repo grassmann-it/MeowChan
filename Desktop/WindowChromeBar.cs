@@ -19,8 +19,12 @@ namespace MeowChan.Desktop;
 // Built by WindowChrome.Frame or placed in XAML; it attaches to the window it is shown in.
 public sealed class WindowChromeBar : UserControl
 {
-    private static readonly Geometry MaximizeGeometry = Geometry.Parse(WindowChromePolicy.MaximizePath);
-    private static readonly Geometry RestoreGeometry = Geometry.Parse(WindowChromePolicy.RestorePath);
+    // Parsed on first use, never in a static initializer: Geometry.Parse needs the render platform, and a type
+    // initializer that throws without Avalonia would break every caller outside the UI (tests).
+    private static Geometry? _maximizeGeometry;
+    private static Geometry? _restoreGeometry;
+    private static Geometry MaximizeGeometry => _maximizeGeometry ??= Geometry.Parse(WindowChromePolicy.MaximizePath);
+    private static Geometry RestoreGeometry => _restoreGeometry ??= Geometry.Parse(WindowChromePolicy.RestorePath);
     private readonly TextBlock _title;
     private readonly Button _minimize;
     private readonly Button _maximize;

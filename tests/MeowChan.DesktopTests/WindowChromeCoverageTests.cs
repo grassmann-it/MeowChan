@@ -241,6 +241,15 @@ public sealed class WindowChromeCoverageTests
         Assert.Contains("WindowChrome.Apply(this);", File.ReadAllText(Source(path + ".cs")));
     }
 
+    [Fact]
+    public void CaptionBarTypeInitializerNeedsNoRenderPlatform()
+    {
+        // Geometry.Parse needs the render platform; a static initializer for it would make the type unusable outside
+        // the UI. The geometries are parsed on first use instead.
+        RuntimeHelpers.RunClassConstructor(typeof(WindowChromeBar).TypeHandle);
+        Assert.DoesNotMatch(@"static\s+(readonly\s+)?Geometry\s+\w+\s*=(?!>)", File.ReadAllText(Source("Desktop/WindowChromeBar.cs")));
+    }
+
     private static string Source(string path, [CallerFilePath] string sourcePath = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", path));
 }
