@@ -1,46 +1,52 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:plugins="using:MeowChan.Desktop.Plugins" xmlns:ursa="https://irihi.tech/ursa" x:Class="MeowChan.PluginsPage" SizeChanged="OnPageSizeChanged">
   <Grid RowDefinitions="Auto,*" Margin="12" RowSpacing="8">
-    <StackPanel Classes="workspace-page-header">
+    <!-- Spacing 0: each optional row brings its own 8 dip top margin, so hidden or empty rows add no gap above the list
+         (as on the Sources page, the list starts 8 dip under the subtitle). -->
+    <StackPanel Classes="workspace-page-header" Spacing="0">
       <!-- Below 900 dip the header actions move under the title, so the title and description keep the full width. -->
       <Grid x:Name="PluginsPageHeader" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12">
         <StackPanel Spacing="5" MinWidth="200">
           <TextBlock x:Name="PluginsTitle" Classes="page-title" />
           <TextBlock x:Name="PluginsSubtitle" TextWrapping="Wrap" Classes="muted" />
         </StackPanel>
-        <WrapPanel x:Name="PluginsHeaderActions" Grid.Column="1" VerticalAlignment="Top" ItemSpacing="8" LineSpacing="6">
+        <WrapPanel x:Name="PluginsHeaderActions" Grid.Column="1" VerticalAlignment="Top" ItemSpacing="8" LineSpacing="8">
+          <TextBlock x:Name="PluginsCount" Classes="muted" VerticalAlignment="Center" />
           <Button x:Name="PluginsRefresh" Click="OnRefreshClick" />
           <Button x:Name="PluginsFolder" Click="OnFolderClick" />
           <Button x:Name="PluginsReviewRepairs" Click="OnReviewBundledRepairsClick" />
         </WrapPanel>
       </Grid>
-      <StackPanel Orientation="Horizontal" Spacing="8">
-                        <ursa:LoadingIcon x:Name="PluginOperationLoading" Width="16" Height="16" VerticalAlignment="Center" IsVisible="False" Focusable="False" />
-                        <TextBlock x:Name="PluginTestStatus" VerticalAlignment="Center" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" /></StackPanel>
-      <Button x:Name="PluginCancel" Click="OnCancelClick" HorizontalAlignment="Left" IsVisible="False" />
-      <Expander x:Name="PluginInventoryProblems" IsVisible="False" HorizontalAlignment="Stretch">
+      <!-- The status row stays in the tree (its live region keeps announcing) but takes no height while it is empty. -->
+      <StackPanel x:Name="PluginStatusRow" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+        <ursa:LoadingIcon x:Name="PluginOperationLoading" Width="16" Height="16" VerticalAlignment="Center" IsVisible="False" Focusable="False" />
+        <TextBlock x:Name="PluginTestStatus" VerticalAlignment="Center" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+      </StackPanel>
+      <Button x:Name="PluginCancel" Click="OnCancelClick" HorizontalAlignment="Left" IsVisible="False" Margin="0,8,0,0" />
+      <Expander x:Name="PluginInventoryProblems" IsVisible="False" HorizontalAlignment="Stretch" Margin="0,8,0,0">
         <Expander.Header><ursa:Badge x:Name="PluginInventoryBadge" OverflowCount="2147483647"><TextBlock x:Name="PluginInventoryHeader" Margin="0,0,14,0" /></ursa:Badge></Expander.Header>
         <ScrollViewer MaxHeight="100"><TextBlock x:Name="PluginInventoryDiagnostics" TextWrapping="Wrap" /></ScrollViewer>
       </Expander>
-      <ursa:Banner x:Name="PluginErrorBanner" Type="Error" CanClose="False" IsVisible="False" HorizontalContentAlignment="Stretch">
+      <ursa:Banner x:Name="PluginErrorBanner" Type="Error" CanClose="False" IsVisible="False" HorizontalContentAlignment="Stretch" Margin="0,8,0,0">
         <ScrollViewer MaxHeight="96"><TextBlock x:Name="PluginPageError" TextWrapping="Wrap" Classes="error" AutomationProperties.LiveSetting="Assertive" /></ScrollViewer>
       </ursa:Banner>
     </StackPanel>
     <!-- List and detail as on the Sources page: a 280 dip column of cards beside one detail card. -->
     <Grid x:Name="PluginSplit" Grid.Row="1" ColumnDefinitions="280,*" ColumnSpacing="14">
-      <Grid x:Name="PluginListPane" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
-        <StackPanel Spacing="6">
+      <!-- The empty hint sits in the top stack: a hidden row of its own would still add the grid's row spacing twice. -->
+      <Grid x:Name="PluginListPane" RowDefinitions="Auto,*,Auto" RowSpacing="8">
+        <StackPanel Spacing="8">
           <ComboBox x:Name="PluginCategory" HorizontalAlignment="Stretch" SelectionChanged="OnCategoryChanged" />
           <Button x:Name="PluginListActions" Click="OnPluginListActionsClick" HorizontalAlignment="Left" />
+          <TextBlock x:Name="PluginsEmpty" TextWrapping="Wrap" Classes="muted" />
         </StackPanel>
-        <TextBlock x:Name="PluginsEmpty" Grid.Row="1" TextWrapping="Wrap" />
-        <ScrollViewer x:Name="PluginListScroll" Grid.Row="2">
+        <ScrollViewer x:Name="PluginListScroll" Grid.Row="1">
           <plugins:PluginSelectionList x:Name="PluginCards" Classes="workspace-card-list" SelectionChanged="OnPluginSelectionChanged">
             <plugins:PluginSelectionList.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="10" /></ItemsPanelTemplate></plugins:PluginSelectionList.ItemsPanel>
           </plugins:PluginSelectionList>
         </ScrollViewer>
-        <Expander x:Name="PluginDirectoryExpander" Grid.Row="3" HorizontalAlignment="Stretch">
-          <StackPanel Spacing="6" Margin="0,4,0,0">
+        <Expander x:Name="PluginDirectoryExpander" Grid.Row="2" HorizontalAlignment="Stretch">
+          <StackPanel Spacing="8" Margin="0,4,0,0">
             <TextBlock x:Name="PluginDirectory" TextWrapping="Wrap" Classes="muted" />
             <TextBlock x:Name="PluginLocalStatusHint" TextWrapping="Wrap" Classes="muted" />
           </StackPanel>
@@ -88,7 +94,7 @@
           <desktop:SectionNavigationControl x:Name="PluginSections" />
           <StackPanel x:Name="PluginSettings" Spacing="12" />
           <!-- The draft footer is a part of the card, set off by a rule, not a card in the card. -->
-          <Border Classes="workspace-card-footer">
+          <Border x:Name="PluginDraftFooter" Classes="workspace-card-footer">
             <StackPanel Classes="workspace-section-header">
               <TextBlock x:Name="PluginDraftStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
               <WrapPanel Classes="workspace-actions">

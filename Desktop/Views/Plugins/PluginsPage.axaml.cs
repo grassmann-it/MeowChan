@@ -103,6 +103,11 @@ public partial class PluginsPage : UserControl
         };
         C<SelectionList>("PluginCards").AddHandler(KeyDownEvent, OnPluginListKeyDown, RoutingStrategies.Tunnel);
         Texts.Changed += OnLanguageChanged;
+        // Layout only: an empty status row (no text, no spinner) takes no height and no gap; it is never hidden, so the live
+        // region stays in the tree and announces the next status as before.
+        C<TextBlock>("PluginTestStatus").PropertyChanged += (_, args) => { if (args.Property == TextBlock.TextProperty) FitStatusRow(); };
+        C<Ursa.Controls.LoadingIcon>("PluginOperationLoading").PropertyChanged += (_, args) => { if (args.Property == IsVisibleProperty) FitStatusRow(); };
+        FitStatusRow();
         _statusTimer.Tick += OnStatusTick;
         Localize();
     }
@@ -123,6 +128,13 @@ public partial class PluginsPage : UserControl
         else C<ComboBox>("PluginCategory").Focus();
     }
     private T C<T>(string name) where T : Control => this.FindControl<T>(name)!;
+    private void FitStatusRow()
+    {
+        bool empty = string.IsNullOrEmpty(C<TextBlock>("PluginTestStatus").Text) && !C<Ursa.Controls.LoadingIcon>("PluginOperationLoading").IsVisible;
+        StackPanel row = C<StackPanel>("PluginStatusRow");
+        row.MaxHeight = empty ? 0 : double.PositiveInfinity;
+        row.Margin = empty ? default : new Thickness(0, 8, 0, 0);
+    }
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
         // Invalidate consent synchronously, including same-language catalog reloads.
@@ -291,6 +303,9 @@ public partial class PluginsPage : UserControl
         C<TextBlock>("PluginsEmpty").IsVisible = _catalog != null && entries.Length == 0;
         C<TextBlock>("PluginsEmpty").Text = Texts.T(_catalog?.Entries.Count == 0 ? "plugins.noPlugins" : C<ComboBox>("PluginCategory").SelectedIndex switch
         { 1 => "plugins.emptySources", 2 => "plugins.emptyFilters", _ => "plugins.empty" });
+        // The header count, as on the Sources page: every plugin of the profile, whatever the category shows.
+        C<TextBlock>("PluginsCount").Text = _catalog == null ? string.Empty : Texts.T("plugins.count", _catalog.Entries.Count);
+        C<TextBlock>("PluginsCount").IsVisible = _catalog != null;
         int count = _catalog?.Diagnostics.Count ?? 0;
         C<Expander>("PluginInventoryProblems").IsVisible = count > 0;
         C<Badge>("PluginInventoryBadge").Header = count;
