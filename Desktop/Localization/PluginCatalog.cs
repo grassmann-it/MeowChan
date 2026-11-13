@@ -64,7 +64,7 @@ internal static class PluginCatalog
         ("plugins.sdkTransition.confirm", "Explicitly approve anyway", "Trotzdem ausdrücklich freigeben"),
         ("plugins.sdkTransition.cancel", "Cancel", "Abbrechen"),
         ("targets.category", "Download target", "Downloadziel"),
-        ("targets.freeSpace", "Waiting for reserved free space", "Warten auf freien Speicher oberhalb der Reserve"),
+        ("targets.freeSpace", "Waiting for reserved free space (“Free-space reserve (GiB)” under Settings → Storage and limits)", "Warten auf freien Speicher oberhalb der Reserve („Speicherplatzreserve (GiB)“ unter Einstellungen → Speicher und Grenzen)"),
         ("targets.diskFull", "Waiting: target is full", "Warten: Ziel ist voll"),
         ("targets.unavailable", "Waiting: target is unavailable", "Warten: Ziel ist nicht verfügbar"),
         ("targets.nextCheck", "Next local target check: {0:g}", "Nächste lokale Zielprüfung: {0:g}"),

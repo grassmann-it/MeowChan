@@ -1216,7 +1216,7 @@
     "plugins.sdkTransition.cancel": "Cancelar",
     "plugins.repair.blocked.configuration-incompatible": "Bloqueado: la configuración guardada no es válida para la compilación de destino.",
     "targets.category": "Destino de descarga",
-    "targets.freeSpace": "Esperando el espacio libre reservado",
+    "targets.freeSpace": "Esperando el espacio libre reservado («Reserva de espacio libre (GiB)» en Configuración → Almacenamiento y límites)",
     "targets.diskFull": "En espera: el destino está lleno",
     "targets.unavailable": "En espera: el destino no está disponible",
     "targets.nextCheck": "Próxima comprobación del destino local: {0:g}",

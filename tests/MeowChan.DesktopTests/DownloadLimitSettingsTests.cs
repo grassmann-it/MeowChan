@@ -113,6 +113,25 @@ public sealed class DownloadLimitSettingsTests
     }
 
     [Fact]
+    public void TheFreeSpaceWaitNamesTheReserveSettingAndItsPageInEveryLanguage()
+    {
+        Texts.Initialize(); // With the bundled packs, whatever an earlier test of the collection left loaded.
+        string previous = Texts.Language;
+        try
+        {
+            foreach (string language in Languages)
+            {
+                Texts.SetLanguage(language);
+                string wait = Texts.T("targets.freeSpace");
+                Assert.Contains(Texts.T("budgets.reserve"), wait);
+                Assert.Contains(Texts.T("settings.storageLimits"), wait);
+                Assert.Contains(Texts.T("settings.title"), wait);
+            }
+        }
+        finally { Texts.SetLanguage(previous); }
+    }
+
+    [Fact]
     public void TheMarkupBoundsMatchTheConfigurationAndTheHintsAreShown()
     {
         XDocument markup = XDocument.Load(Path.Combine(RepositoryRoot(), "Desktop/Views/Settings/SettingsEditor.axaml"));

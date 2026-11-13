@@ -1216,7 +1216,7 @@
     "plugins.sdkTransition.cancel": "Annuler",
     "plugins.repair.blocked.configuration-incompatible": "Bloqué : la configuration enregistrée n’est pas valide pour la version cible.",
     "targets.category": "Destination de téléchargement",
-    "targets.freeSpace": "En attente d’espace libre réservé",
+    "targets.freeSpace": "En attente d’espace libre réservé (« Réserve d’espace libre (GiB) » dans Paramètres → Stockage et limites)",
     "targets.diskFull": "En attente : la destination est pleine",
     "targets.unavailable": "En attente : la destination est indisponible",
     "targets.nextCheck": "Prochaine vérification locale des destinations : {0:g}",
