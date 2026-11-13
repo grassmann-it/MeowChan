@@ -20,7 +20,7 @@ public sealed class IoDirectionalPipelineTests
     {
         string sourceKey = "io-pipeline-upload-" + Guid.NewGuid().ToString("N");
         IoManualClock clock = new(Noon);
-        using IoStatsHub hub = new(new TransferMeterSource(), clock, Options);
+        using IoStatsHub hub = new(new SelectedSource(sourceKey), clock, Options);
         using IoStatsSubscription window = hub.Subscribe(IoStatsVisibility.Window);
 
         LocalHandler transport = new();
@@ -54,6 +54,17 @@ public sealed class IoDirectionalPipelineTests
         Assert.Equal([uploadedBytes / 2f], snapshot.Series.NetUp);
         Assert.Equal([0f], snapshot.Series.DiskWrite);
         Assert.Equal([0f], snapshot.Series.DiskRead);
+
+        // Two real sample instants produce a visible upload curve. Read the series from the actual hub,
+        // not a manually assembled graph fixture; a silent download must not hide this direction.
+        clock.Advance(TimeSpan.FromSeconds(2));
+        IoGraph graph = new() { Source = IoGraphSource.NetworkIo };
+        graph.SetSeries(hub.Snapshot().Series);
+        Assert.True(graph.HasTraffic);
+        Assert.Equal(0, graph.PrimaryTrafficPeak);
+        Assert.Equal(uploadedBytes / 2d, graph.SecondaryTrafficPeak);
+        Assert.Empty(graph.Layout(new Avalonia.Size(130, 17)).Primary);
+        Assert.Equal(2, graph.Layout(new Avalonia.Size(130, 17)).Secondary.Length);
     }
 
     [Fact]
@@ -61,7 +72,7 @@ public sealed class IoDirectionalPipelineTests
     {
         string sourceKey = "io-pipeline-disk-read-" + Guid.NewGuid().ToString("N");
         IoManualClock clock = new(Noon);
-        using IoStatsHub hub = new(new TransferMeterSource(), clock, Options);
+        using IoStatsHub hub = new(new SelectedSource(sourceKey), clock, Options);
         using IoStatsSubscription window = hub.Subscribe(IoStatsVisibility.Window);
 
         SourceCounters counters = TransferMeter.For(sourceKey);
@@ -84,6 +95,22 @@ public sealed class IoDirectionalPipelineTests
         Assert.Equal(0, graph.PrimaryTrafficPeak);
         Assert.Equal(readBytes / 2d, graph.SecondaryTrafficPeak);
         Assert.Equal(readBytes / 2d, graph.TrafficPeak); // max direction, never write + read or network + disk
+    }
+
+    // The production meter is process-wide and retains counters from other desktop tests. Keep the real
+    // TransferMeterSource mapper, but select this test's key AFTER it has read the real counters. A GUID
+    // alone does not isolate Snapshot.Total or its ring, and globally resetting counters would race other tests.
+    private sealed class SelectedSource(string key) : IIoCounterSource
+    {
+        private readonly TransferMeterSource source = new();
+
+        public void Read(List<IoCounterReading> into)
+        {
+            int start = into.Count;
+            source.Read(into);
+            for (int index = into.Count - 1; index >= start; index--)
+                if (!string.Equals(into[index].Key, key, StringComparison.Ordinal)) into.RemoveAt(index);
+        }
     }
 
     private static HttpRequestMessage Request(string sourceKey, HttpMethod method, HttpContent? content = null)

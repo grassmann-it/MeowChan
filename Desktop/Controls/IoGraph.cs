@@ -76,15 +76,15 @@ public enum IoGraphSource
 {
     /// <summary>Network download only.</summary>
     NetDown,
-    /// <summary>Network download (primary) and application request payload upload (secondary) under one network scale.</summary>
-    NetworkIo,
     DiskWrite,
     DiskRead,
     /// <summary>
     /// Two directions of the disk in one graph: writing as the primary series (solid line over its filled area) and reading as
     /// the secondary series (dashed line, no area), both under one shared disk scale that never includes the network.
     /// </summary>
-    DiskIo
+    DiskIo,
+    /// <summary>Network download (primary) and application request payload upload (secondary) under one network scale.</summary>
+    NetworkIo
 }
 
 /// <summary>

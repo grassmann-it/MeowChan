@@ -23,6 +23,16 @@ public sealed class IoGraphNetworkDirectionalTests
     private static IoGraph NetworkIo() => new() { Source = IoGraphSource.NetworkIo };
 
     [Fact]
+    public void AddingNetworkIoKeepsExistingSourceValuesStable()
+    {
+        Assert.Equal(0, (int)IoGraphSource.NetDown);
+        Assert.Equal(1, (int)IoGraphSource.DiskWrite);
+        Assert.Equal(2, (int)IoGraphSource.DiskRead);
+        Assert.Equal(3, (int)IoGraphSource.DiskIo);
+        Assert.Equal(4, (int)IoGraphSource.NetworkIo);
+    }
+
+    [Fact]
     public void DownloadAndUploadAreSeparateCurvesUnderOneNetworkScaleNotTheirSum()
     {
         float[] down = new float[10], up = new float[10];
