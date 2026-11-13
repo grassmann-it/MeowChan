@@ -57,7 +57,7 @@ internal static class BoardAdmissionContractChecks
         }, showWizard: true);
         Task<BoardAdmissionSelection?> result = modal.ShowDialog<BoardAdmissionSelection?>(owner);
         await Program.WaitUntilAsync(() => Find<Button>(modal, "BoardAdmissionApply").IsEnabled);
-        Require(Find<TextBlock>(modal, "BoardAdmissionTotal").Text == Texts.T("wizard.batchSummary", 2, 2, 2),
+        Require(Find<TextBlock>(modal, "BoardAdmissionTotal").Text == BoardAdmissionWindow.BatchReadyText(2, 2, 2),
             "Joint summary did not use both loaded catalog drafts.");
         foreach (int index in new[] { 0, 1 })
         {
@@ -79,7 +79,7 @@ internal static class BoardAdmissionContractChecks
         Require(Find<TextBox>(modal, "BoardAdmissionRuleText").Text == "dog", "Clearing the first board changed another board's rule.");
         await SelectTabAsync(modal, 0);
         Require(!modal.GetVisualDescendants().OfType<TextBox>().Any(text => text.Name == "BoardAdmissionRuleText"), "Tab switch restored cleared rules.");
-        Require(Find<TextBlock>(modal, "BoardAdmissionTotal").Text == Texts.T("wizard.batchSummary", 2, 2, 4),
+        Require(Find<TextBlock>(modal, "BoardAdmissionTotal").Text == BoardAdmissionWindow.BatchReadyText(2, 2, 4),
             "Joint summary did not follow the per-board explicit reactivations.");
         Click(Find<Button>(modal, "BoardAdmissionApply"));
         BoardAdmissionSelection accepted = await result ?? throw new InvalidOperationException("Explicit joint apply returned no selection.");
@@ -167,7 +167,7 @@ internal static class BoardAdmissionContractChecks
         Require(prepared.Text == "prepared while loading" && !apply.IsEnabled, "Retry discarded rules or enabled premature apply.");
         retryAttempt.SetResult(new(Other, "Empty successful fixture", Saved(Other), []));
         await Program.WaitUntilAsync(() => apply.IsEnabled);
-        Require(Find<TextBlock>(modal, "BoardAdmissionTotal").Text == Texts.T("wizard.batchSummary", 2, 2, 2),
+        Require(Find<TextBlock>(modal, "BoardAdmissionTotal").Text == BoardAdmissionWindow.BatchReadyText(2, 2, 2),
             "A valid empty catalog was excluded from the joint ready state.");
         Require(Find<TextBlock>(modal, "BoardAdmissionStatus").Text == Texts.T("wizard.empty")
             && prepared.Text == "prepared while loading", "Empty successful catalog was invalid or retry replaced the edited rule.");

@@ -38,7 +38,7 @@ internal static class BoardAdmissionChecks
             TextBox search = modal.GetVisualDescendants().OfType<TextBox>().Single(text => text.Name == "BoardAdmissionRuleText");
             search.Text = "cat";
             TextBlock summary = modal.GetVisualDescendants().OfType<TextBlock>().First(text => text.Name == "BoardAdmissionSummary");
-            await Program.WaitUntilAsync(() => summary.Text == Texts.T("wizard.summary", 0, 3));
+            await Program.WaitUntilAsync(() => summary.Text == Texts.Count("wizard.boardSummary", 3, 3, 0, 3));
             var list = modal.GetVisualDescendants().OfType<ListBox>().Single(control => control.Name == "BoardAdmissionPreview");
             // Catalog rows are virtualized. Scroll to the removed item and await
             // realization instead of assuming every catalog row has a visual.
@@ -48,7 +48,7 @@ internal static class BoardAdmissionChecks
             await Program.WaitUntilAsync(() => Removed() != null);
             CheckBox removed = Removed()!;
             removed.IsChecked = true;
-            await Program.WaitUntilAsync(() => summary.Text == Texts.T("wizard.summary", 1, 2));
+            await Program.WaitUntilAsync(() => summary.Text == Texts.Count("wizard.boardSummary", 3, 3, 1, 2));
             Program.CaptureWindow(modal, "smoke-board-admission-" + language + ".png");
             if (previews != loadedPreviews) throw new InvalidOperationException("Rule changes unexpectedly reloaded the catalog.");
             Click(modal.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "BoardAdmissionCancel"));
@@ -97,6 +97,9 @@ internal static class BoardAdmissionChecks
         if (!reinclude.IsEnabled) throw new InvalidOperationException("Matching excluded threads cannot be reactivated together.");
         Click(reinclude);
         await Program.WaitUntilAsync(() => Matches().Text == Texts.T("wizard.matches", 2, 0) && !reinclude.IsEnabled);
+        // UX round 2 #5: "include 0 matches" is not shown, but keeps its place so the list does not jump.
+        if (reinclude.Opacity != 0 || reinclude.IsHitTestVisible || !reinclude.IsVisible)
+            throw new InvalidOperationException("The empty bulk re-include action is still shown, or its removal moved the list.");
         Program.CaptureWindow(modal, "smoke-board-admission-removed-matches.png");
         Click(modal.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "BoardAdmissionApply"));
         var accepted = await result ?? throw new InvalidOperationException("Explicit reactivation was not accepted.");

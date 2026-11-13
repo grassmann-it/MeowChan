@@ -228,9 +228,9 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
                 RefreshCommandHelp(draft.Reinclude, "admission.reinclude");
                 draft.Status.Text = draft.Failure != null ? Texts.T("wizard.failed", draft.Failure)
                     : !draft.Loaded ? Texts.T("wizard.loading")
-                    : draft.Rows.Count == 0 ? Texts.T("wizard.empty") : Texts.T("wizard.loaded", draft.Rows.Count);
+                    : draft.Rows.Count == 0 ? Texts.T("wizard.empty") : Texts.T("wizard.previewLoaded");
                 // Refresh even hidden materialized action text.
-                draft.Reinclude.Content = Texts.T("wizard.reinclude", 0);
+                draft.Reinclude.Content = Texts.Count("wizard.reinclude", 0);
             }
         }
         finally { _applyingTexts = false; }
@@ -374,11 +374,15 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
                 var decision = policy.Evaluate(row.Thread, !draft.Reactivated.Contains(row.Thread.Url)); row.Update(decision);
                 if (decision.Included) included++;
             }
-            draft.Summary.Text = Texts.T("wizard.summary", included, draft.Rows.Count - included);
+            // One count line per board; the footer only adds the preview progress and the joint total.
+            draft.Summary.Text = Texts.Count("wizard.boardSummary", draft.Rows.Count, draft.Rows.Count, included, draft.Rows.Count - included);
             int removedMatches = draft.Rows.Count(row => Matches(row) && PreviouslyExcluded(draft, row));
             draft.Matches.Text = Texts.T("wizard.matches", draft.Rows.Count(Matches), removedMatches);
-            draft.Reinclude.Content = Texts.T("wizard.reinclude", removedMatches);
+            draft.Reinclude.Content = Texts.Count("wizard.reinclude", removedMatches);
             draft.Reinclude.IsEnabled = removedMatches > 0;
+            // With nothing to include again the action is not shown ("include 0 matches"), but it keeps its
+            // place: the list must not jump under the pointer when the last excluded match is ticked.
+            SetReincludeShown(draft.Reinclude, removedMatches > 0);
             PreviewRow[] ordered = draft.Rows.OrderByDescending(Matches).ThenByDescending(row => row.Included).ToArray();
             if (draft.List.ItemsSource is not IEnumerable<PreviewRow> current || !current.SequenceEqual(ordered))
                 draft.List.ItemsSource = ordered;
@@ -392,10 +396,19 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
         int loaded = _drafts.Count(draft => draft.Loaded);
         int invalid = _drafts.Count(draft => !RulesValid(draft));
         _total.Text = ready
-            ? Texts.T("wizard.batchSummary", loaded, _drafts.Count, _drafts.Sum(draft => draft.Rows.Count(row => row.Included)))
+            ? BatchReadyText(loaded, _drafts.Count, _drafts.Sum(draft => draft.Rows.Count(row => row.Included)))
             : Texts.T("wizard.batchPending", loaded, _drafts.Count, invalid);
         AutomationProperties.SetHelpText(_apply, ready ? Texts.T("wizard.applyHint") : _total.Text + " " + Texts.T("wizard.applyHint"));
     }
+    private static void SetReincludeShown(Button button, bool shown)
+    {
+        button.Opacity = shown ? 1 : 0;
+        button.IsHitTestVisible = shown;
+        button.Focusable = shown;
+        AutomationProperties.SetAccessibilityView(button, shown ? AccessibilityView.Default : AccessibilityView.Raw);
+    }
+    internal static string BatchReadyText(int loaded, int boards, int watched) =>
+        Texts.Count("wizard.batchReady", watched, loaded, boards, watched);
     private static bool PreviouslyExcluded(Draft draft, PreviewRow row) =>
         row.Thread.Suppressed && !draft.Reactivated.Contains(row.Thread.Url)
         || draft.Exceptions.TryGetValue(row.Thread.Url, out var choice) && choice == ThreadAdmissionException.Exclude;
@@ -431,7 +444,7 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
                 Reset = () => { draft.Exceptions.Remove(thread.Url); draft.Reactivated.Remove(thread.Url); Refresh(draft); }
             }).ToList();
             draft.List.ItemsSource = draft.Rows;
-            draft.Loaded = true; draft.Status.Text = draft.Rows.Count == 0 ? Texts.T("wizard.empty") : Texts.T("wizard.loaded", draft.Rows.Count);
+            draft.Loaded = true; draft.Status.Text = draft.Rows.Count == 0 ? Texts.T("wizard.empty") : Texts.T("wizard.previewLoaded");
             draft.Retry.IsVisible = false; draft.List.IsEnabled = true;
             Refresh(draft);
         }
