@@ -14,20 +14,31 @@ using MeowChan.Diagnostics;
 
 namespace MeowChan.Desktop;
 
-// Viewport eviction releases pixels, but never changes the post's reserved preview geometry.
+// Viewport eviction releases pixels; a loaded thumbnail may refine its bounded aspect-ratio geometry.
 public sealed class ArchiveAttachmentView : UserControl
 {
     private sealed class PreviewSlot : Grid
     {
         internal bool Large { get; set; }
+        internal int PreviewWidth { get; set; }
+        private PixelSize? _loadedSize;
+
+        internal void SetLoadedSize(PixelSize? size)
+        {
+            _loadedSize = size is { Width: > 0, Height: > 0 } ? size : null;
+            InvalidateMeasure();
+        }
+
         protected override Size MeasureOverride(Size availableSize)
         {
-            double maximumWidth = Large ? 360 : 240;
+            double maximumWidth = PreviewWidth > 0 ? PreviewWidth : (Large ? 360 : 240);
+            double maximumHeight = Large ? 280 : 180;
             double width = double.IsFinite(availableSize.Width) ? Math.Clamp(availableSize.Width, 1, maximumWidth) : maximumWidth;
-            // Keep room for the post text; full-size media remains available in the gallery. The capture records no pixel
-            // size, so the slot reserves a 16:9 box and the thumbnail sits at its top left: a card with media is as tall as
-            // its picture, not 60 dip taller with the thumbnail floating in the middle.
-            Size reserved = new(width, width * 9d / 16);
+            // Before a decoder result exists, reserve the historical 16:9 placeholder. Once it does, retain the image's
+            // aspect ratio and cap only its height at the old 4:3-style maximum. Stretch=Uniform then never distorts a
+            // portrait thumbnail and virtualization still gets a stable, bounded measure.
+            double height = PreviewHeight(width, maximumHeight, _loadedSize);
+            Size reserved = new(width, height);
             base.MeasureOverride(reserved);
             return reserved;
         }
@@ -58,6 +69,14 @@ public sealed class ArchiveAttachmentView : UserControl
     // A quiet slot surface only while no thumbnail is shown (loading, missing, unsupported).
     private readonly Border _placeholder = new() { CornerRadius = new CornerRadius(5), IsHitTestVisible = false };
     private readonly TextBlock _provenance = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12, IsVisible = false };
+    /// <summary>Bounded slot geometry used by the loader and directly by geometry tests.</summary>
+    internal static double PreviewHeight(double width, double maximumHeight, PixelSize? loadedSize)
+    {
+        if (loadedSize is { Width: > 0, Height: > 0 } size)
+            return Math.Min(maximumHeight, width * size.Height / size.Width);
+        return width * 9d / 16;
+    }
+
     private readonly Button _button;
     private readonly ArchiveFavoriteButton _favorite = new() { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
     /// <summary>
@@ -142,9 +161,11 @@ public sealed class ArchiveAttachmentView : UserControl
         _favorite.Configure(row?.FavoriteAvailable, row?.IsFavorite, row?.ToggleFavoriteAsync, row?.FavoriteError);
         bool large = row?.LargePreview == true;
         _slot.Large = large;
+        int imageWidth = row?.ThumbnailWidth > 0 ? row.ThumbnailWidth : (large ? 360 : 240);
+        _slot.PreviewWidth = imageWidth;
         _slot.InvalidateMeasure();
-        _label.MaxWidth = _status.MaxWidth = large ? 360 : 240;
-        _button.MaxWidth = large ? 368 : 248;
+        _label.MaxWidth = _status.MaxWidth = imageWidth;
+        _button.MaxWidth = imageWidth + 8;
         _button.HorizontalAlignment = large ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
         _label.Text = row?.FileLine ?? string.Empty;
         _provenance.Text = MediaProvenanceText.Summary(row?.Binding);
@@ -206,6 +227,7 @@ public sealed class ArchiveAttachmentView : UserControl
             { if (bitmap != null) MediaTileThumbnails.Release(bitmap); return; }
             UpdateLabel();
             _bitmap = bitmap;
+            _slot.SetLoadedSize(bitmap?.PixelSize);
             _image.Source = bitmap;
             _image.IsVisible = bitmap != null;
             _status.IsVisible = bitmap == null;
@@ -257,6 +279,7 @@ public sealed class ArchiveAttachmentView : UserControl
         ++_request;
         CancelPendingLoad();
         _image.Source = null; _image.IsVisible = false;
+        _slot.SetLoadedSize(null);
         if (_bitmap != null) MediaTileThumbnails.Release(_bitmap); _bitmap = null;
         _status.IsVisible = true;
     }
