@@ -74,10 +74,10 @@ may be reordered or repeated. For example, `{0}` cannot become `{1}` or `{0:N2}`
 the source's `{2:0.##}` must remain `{2:0.##}`. Literal braces use `{{` and `}}`.
 Strings are plain text: no XAML, HTML or executable expressions are interpreted.
 
-A file may be at most 2 MB, contain at most 8,000 string entries, and use at most
+A file may be at most 2 MiB (2,097,152 bytes), contain at most 8,000 string entries, and use at most
 10,000 characters per translation. These are fixed technical ceilings, not settings:
 the size limit bounds memory, the entry limit stops files of countless tiny entries.
-The bundled packs (about 2,900 entries, 250-340 KB) are tested against 75 % of both
+The bundled packs (about 2,900 entries, 250-340 KiB) are tested against 75 % of both
 ceilings so a growing catalog is noticed before the loader would refuse them. Empty values, unsupported schemas, malformed
 JSON, invalid placeholders and unknown metadata reject that file. Other valid
 packs and built-in languages remain usable. Warnings are exposed through

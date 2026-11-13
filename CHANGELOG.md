@@ -177,6 +177,11 @@
 - Improve screen reader and keyboard use: hidden spoilers get a neutral name until revealed,
   tiles and Danbooru facts have named values (type, untagged state, "term: value"), the quote
   buttons stay reachable with Tab after the post text.
+- Show every file size in binary units (KiB, MiB, GiB, TiB; 1 MiB = 1024 KiB), matching the
+  limit and bandwidth settings: tiles, export, import, the gallery file plate, attachments and
+  the Danbooru window now use one format ("1,5 MiB" in German, "1.5 MiB" in English). The size
+  limit of a Rules editor is entered in MiB; saved rules keep their exact byte count, so an old
+  "10 MB" rule now shows as 9.536743 MiB. A language pack may be 2 MiB.
 - Upgrade: archive schema 5 to 12, media manifest 4 to 5 (6 for imported representations),
   work journal pruning with one backup and a `user_version` stamp, new `private-tags.json`,
   media index cache (version 4; version 3 files are still read, so there is no cold rebuild

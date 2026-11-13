@@ -122,7 +122,7 @@ Console.WriteLine(effective.SizeLimit.Bytes);
 
 `SaveAsync` replaces the complete catalog. Supply `expectedRevision` for an editor so a stale draft cannot overwrite a newer save. The store writes `media_rules.json` atomically and activates the new revision only after the commit. A recoverable backup produces a load warning; unrecoverable or unsupported documents are preserved and reported to the caller.
 
-The size limit evaluates provider metadata, not transferred bytes: an unknown size is allowed with reason `AllowedUnknownSize`. An unknown extension is allowed only by `All`. The desktop editor uses decimal MB (1 MB = 1,000,000 bytes). Rules select downloads; they do not pause watches, delete files or enforce a transfer-byte budget.
+The size limit evaluates provider metadata, not transferred bytes: an unknown size is allowed with reason `AllowedUnknownSize`. An unknown extension is allowed only by `All`. The desktop editor takes the limit in MiB (1 MiB = 1,048,576 bytes); the rule itself stores whole bytes. Rules select downloads; they do not pause watches, delete files or enforce a transfer-byte budget.
 
 With content services attached, the first decision for `(source, board, thread, media ID, variant)` is committed in `archive.db` before queue admission. Its result, reason, rule revision and field origins survive restart and later rule changes. Refreshed source URLs and metadata do not silently reevaluate an existing decision. Previously saved media retain their selected intent; normal storage verification still decides whether their bytes need repair. Disabling post capture leaves these decisions active. A failed decision commit prevents that new admission and exposes a storage failure.
 

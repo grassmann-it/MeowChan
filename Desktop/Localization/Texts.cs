@@ -33,7 +33,7 @@ public static class Texts
     // Fixed technical ceilings for any pack, bundled or user-supplied. They are not user settings: they keep a
     // malformed or hostile file from costing unbounded memory and parse time at startup. The byte ceiling is the
     // real memory guard; the key ceiling stops a file of countless tiny entries that stays under the byte ceiling.
-    // The bundled packs hold about 2,900 keys in about 250-340 KB, so 8,000 keys / 2 MB leaves room for the
+    // The bundled packs hold about 2,900 keys in about 250-340 KiB, so 8,000 keys / 2 MiB leaves room for the
     // catalog to roughly 2.7x its size. A bundled pack that exceeds a ceiling is rejected with a warning and its
     // language silently disappears from the choice, so BundledLanguagePackTests fail once a pack passes 75 % of
     // either ceiling, long before the loader would refuse it. Raise a ceiling together with that test's reason.
@@ -270,7 +270,7 @@ public static class Texts
     private static Catalog ReadPack(Stream stream, IReadOnlyDictionary<string, string> english)
     {
         if (stream.Length > MaximumPackBytes)
-            throw new InvalidDataException("Language pack exceeds 2 MB.");
+            throw new InvalidDataException("Language pack exceeds 2 MiB.");
         using JsonDocument document = JsonDocument.Parse(stream, new JsonDocumentOptions { MaxDepth = 8 });
         if (document.RootElement.ValueKind != JsonValueKind.Object)
             throw new InvalidDataException("Language pack must be an object.");

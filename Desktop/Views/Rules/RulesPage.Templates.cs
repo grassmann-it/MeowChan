@@ -315,7 +315,7 @@ public partial class RulesPage
     {
         "types" => TypesModeChoices[(int)draft.TypesMode] + (draft.TypesMode == MediaTypeSelectionMode.Selected
             ? ": " + (draft.ExtensionInput.Tags.Count == 0 && draft.ExtensionInput.Rest.Length == 0 ? Texts.T("rules.noMedia") : string.Join(", ", draft.ExtensionInput.Tags) + " " + draft.ExtensionInput.Rest) : ""),
-        "size" => SizeModeChoices[(int)draft.SizeMode] + (draft.SizeMode == MediaSizeLimitMode.Limited ? ": " + draft.Megabytes + " MB" : ""),
+        "size" => SizeModeChoices[(int)draft.SizeMode] + (draft.SizeMode == MediaSizeLimitMode.Limited ? ": " + Texts.T("rules.sizeValue", draft.Megabytes) : ""),
         _ => FilterOwnDescription(draft)
     };
     private static string FilterOwnDescription(RuleDraft draft)
@@ -333,7 +333,7 @@ public partial class RulesPage
             MediaRule rule = BuildDraft(draft);
             EffectiveMediaRule effect = new MediaRuleResolver(new(draft.Baseline.Revision, draft.Baseline.Rules.Where(r => r.Scope != draft.Scope).Append(rule))).Resolve(draft.Scope);
             return (effect.Types.Mode == MediaTypeSelectionMode.All ? Texts.T("rules.allTypes") : effect.Types.Extensions.Count == 0 ? Texts.T("rules.noMedia") : string.Join(", ", effect.Types.Extensions))
-                + " · " + (effect.SizeLimit.Mode == MediaSizeLimitMode.Unlimited ? Texts.T("rules.unlimited") : FormatMegabytes(effect.SizeLimit.Bytes!.Value, Texts.Culture) + " MB")
+                + " · " + (effect.SizeLimit.Mode == MediaSizeLimitMode.Unlimited ? Texts.T("rules.unlimited") : Texts.T("rules.sizeValue", FormatMegabytes(effect.SizeLimit.Bytes!.Value, Texts.Culture)))
                 + " · " + Texts.T("rules.origin", FormatOrigin(effect.TypesOrigin)) + " / " + FormatOrigin(effect.SizeLimitOrigin);
         }
         catch (RuleInputException) { return Texts.T("templates.unknownEffect"); }

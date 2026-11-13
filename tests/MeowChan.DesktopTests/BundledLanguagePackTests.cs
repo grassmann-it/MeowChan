@@ -185,7 +185,7 @@ public sealed class BundledLanguagePackTests : IDisposable
         Texts.Initialize(directory.Path);
         Assert.Equal("fr", Texts.Language);
         Assert.Equal("Paramètres", Texts.T("settings.title"));
-        Assert.Contains("exceeds 2 MB", Assert.Single(Texts.Warnings));
+        Assert.Contains("exceeds 2 MiB", Assert.Single(Texts.Warnings));
         Assert.Equal(2_000_001L, new FileInfo(path).Length);
     }
 
