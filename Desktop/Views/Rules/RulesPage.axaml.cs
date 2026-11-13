@@ -165,8 +165,6 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     public string ExtensionsError => _draft.TypesMode == MediaTypeSelectionMode.Selected && _validationKey == "rules.invalidTypes" ? Texts.T("rules.invalidTypes") : string.Empty;
     public bool HasMegabytesError => _draft.SizeMode == MediaSizeLimitMode.Limited && _validationKey == "rules.invalidSize";
     public string MegabytesError => HasMegabytesError ? Texts.T("rules.invalidSize") : string.Empty;
-    public string DraftStateLabel => Texts.T(!_available || !_hasConfirmed ? "rules.unavailable" : _draft.Stale ? "rules.stale" : _draft.Dirty ? "rules.unsaved" :
-        FindRule(_confirmed, _draft.Scope) == null ? "rules.inherited" : "rules.confirmed");
     public bool HasTypeSelection => _draft.TypesMode == MediaTypeSelectionMode.Selected;
     public bool HasSizeLimit => _draft.SizeMode == MediaSizeLimitMode.Limited;
 
@@ -557,6 +555,8 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         double width = Math.Min(880, Math.Max(0, e.NewSize.Width - 60));
         RulesContent.Width = width;
         RulesHeader.Width = width;
+        // The footer content shares the 880 dip column of the body: status starts and the buttons end on its edges.
+        RulesFooter.Width = width;
         bool narrow = width < 700;
         foreach (Grid row in RulesContent.GetVisualDescendants().OfType<Grid>().Where(row => row.Classes.Contains("rule-row")))
         {

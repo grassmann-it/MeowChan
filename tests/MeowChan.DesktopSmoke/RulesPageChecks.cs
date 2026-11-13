@@ -129,6 +129,7 @@ internal static partial class RulesPageChecks
             await WaitLayoutAsync(window, () => PresentationChecks.MatchesRequestedSize(window, overviewWidth, overviewHeight)
                 && Fits(window, page.FindControl<Button>("SaveRuleButton")!));
             Program.CaptureWindow(window, "smoke-rules-board-inheritance.png");
+            RequireFooterOnContentColumn(window, page);
 
             page.EditScope(thread);
             await FlushAsync();
@@ -433,6 +434,22 @@ internal static partial class RulesPageChecks
             fixture.EndLifetime();
             host.Content = retained;
         }
+    }
+
+    /// <summary>The footer text starts on the body column and the buttons end on it (880 dip column, not the old 1088 grid).</summary>
+    private static void RequireFooterOnContentColumn(Window window, RulesPage page)
+    {
+        Control content = page.FindControl<Control>("RulesContent")!;
+        Control status = page.FindControl<Control>("RuleStatusText")!;
+        Control actions = page.FindControl<Control>("RulesFooterActions")!;
+        double contentLeft = content.TranslatePoint(new Point(0, 0), window)!.Value.X;
+        double contentRight = contentLeft + content.Bounds.Width;
+        double statusLeft = status.TranslatePoint(new Point(0, 0), window)!.Value.X;
+        double actionsRight = actions.TranslatePoint(new Point(actions.Bounds.Width, 0), window)!.Value.X;
+        Console.WriteLine($"SMOKE rules footer column: content={contentLeft:0.#}..{contentRight:0.#}; status starts {statusLeft:0.#}; actions end {actionsRight:0.#}.");
+        Require(Math.Abs(statusLeft - contentLeft) <= 2 && Math.Abs(actionsRight - contentRight) <= 2,
+            "The Rules footer is not aligned with the content column: content "
+            + $"{contentLeft:0.#}..{contentRight:0.#}, status {statusLeft:0.#}, actions end {actionsRight:0.#}.");
     }
 
     private static async Task SaveThroughButtonAsync(MainWindow window, RulesPage page)
