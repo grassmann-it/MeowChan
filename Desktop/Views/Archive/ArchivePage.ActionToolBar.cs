@@ -9,6 +9,7 @@ using Avalonia.Interactivity;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using Ursa.Controls;
+using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan;
 
@@ -70,10 +71,8 @@ public partial class ArchivePage
             if (item is not Button button) continue;
             // All future feature actions participate, including saved searches and
             // reader groups. Never is reserved for the compact view selection.
-            bool viewChoice = button.Name is "ArchiveLayoutList" or "ArchiveLayoutTable";
-            ToolBar.SetOverflowMode(button, viewChoice ? OverflowMode.Never
-                : _archiveColumnMode == "Barebones" && button.Name != "ArchiveResultsGallery"
-                    ? OverflowMode.Always : OverflowMode.AsNeeded);
+            // The List/Table choice is Required (never moves); items without an id use archive.results.other.
+            WorkViewPresenter.ApplyToolBarItem(button, ArchiveWorkView, "archive.results.other");
             CommandBindings.Refresh(button);
             // Feature actions must refresh with the page even when they were
             // created before the current language or hosted outside MainWindow.

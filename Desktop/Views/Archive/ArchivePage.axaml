@@ -1,6 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:commands="clr-namespace:MeowChan.Desktop.Commands"
-             xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:controls="clr-namespace:MeowChan.Desktop.Controls" xmlns:ursa="https://irihi.tech/ursa" x:Class="MeowChan.ArchivePage" SizeChanged="OnSizeChanged">
+             xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:controls="clr-namespace:MeowChan.Desktop.Controls" xmlns:ursa="https://irihi.tech/ursa" xmlns:wv="using:MeowChan.Desktop.WorkViews" x:Class="MeowChan.ArchivePage" SizeChanged="OnSizeChanged">
     <Grid x:Name="ArchiveRoot" Margin="{StaticResource Workspace.Inset.Page}" RowDefinitions="Auto,*,Auto" RowSpacing="8">
         <Grid x:Name="ArchivePageHeader" ColumnDefinitions="*,Auto" ColumnSpacing="12">
             <StackPanel Spacing="5">
@@ -54,9 +54,9 @@
                     <!-- 8-dip rhythm: the gaps are margins of what is shown (the empty rows between cost nothing), so the view
                          toggle sits 8 below "Filters and sorting" and 8 above the first card. -->
                     <desktop:ActionToolBar x:Name="ArchiveResultActions" Grid.Row="4" Margin="0,8,0,0">
-                        <ToggleButton x:Name="ArchiveLayoutList" Content="List" Classes="media-control" Padding="12,4" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="Never" />
-                        <ToggleButton x:Name="ArchiveLayoutTable" Content="Table" Classes="media-control" Padding="12,4" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="Never" />
-                        <Button x:Name="ArchiveResultsGallery" Tag="gallery.results" Classes="localized" ursa:ToolBar.OverflowMode="AsNeeded" />
+                        <ToggleButton x:Name="ArchiveLayoutList" wv:WorkViewElement.Id="archive.results.layout-list" Content="List" Classes="media-control" Padding="12,4" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="Never" />
+                        <ToggleButton x:Name="ArchiveLayoutTable" wv:WorkViewElement.Id="archive.results.layout-table" Content="Table" Classes="media-control" Padding="12,4" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="Never" />
+                        <Button x:Name="ArchiveResultsGallery" wv:WorkViewElement.Id="archive.results.gallery" Tag="gallery.results" Classes="localized" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveThreadColumnsButton" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" IsVisible="False" />
                         <Button x:Name="ArchiveFavoritesOverview" Content="Favorites" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveResultsExport" ursa:ToolBar.OverflowMode="AsNeeded" />

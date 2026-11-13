@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan;
 
@@ -370,7 +371,7 @@ public partial class MainWindow
         _measuringPageNavigation = true;
         try
         {
-            bool advanced = _config.WorkspaceMode == "Advanced";
+            WorkView view = ConfiguredWorkView;
             Button downloads = DownloadsNavigationButton;
             Button settings = SettingsNavigationButton;
             Button tools = ToolsNavigationButton;
@@ -389,9 +390,8 @@ public partial class MainWindow
                     item.Tag as string == destination.Tag && (ReferenceEquals(item, focusedBefore)
                         || item.IsKeyboardFocusWithin))).Select(destination => destination.Button).FirstOrDefault()
                 : null;
-            // Media sits with Archive: both are ordinary reading pages outside Barebones.
-            bool[] direct = destinations.Select(destination => destination.Page is WorkspacePage.Archive or WorkspacePage.Media
-                ? _config.WorkspaceMode != "Barebones" : advanced).ToArray();
+            // Media sits with Archive: both are ordinary reading pages outside Barebones (WorkViewPolicy.Shell).
+            bool[] direct = destinations.Select(destination => WorkViewPolicy.FooterDirect(destination.Id, view)).ToArray();
 
             // Measure the localized labels instead of guessing a breakpoint. Hidden
             // destinations move into Tools exactly once, including in compact Advanced.

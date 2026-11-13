@@ -7,6 +7,7 @@ using Avalonia.Interactivity;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using Serilog;
 
 namespace MeowChan;
@@ -29,7 +30,7 @@ public partial class MainWindow
         ContextMenu menu = new();
         foreach (DataGridColumn column in grid.Columns)
         {
-            if (IsAdvancedWorkColumn(column) && mode != "Advanced") continue;
+            if (!WorkViewPolicy.ColumnOffered(WorkViewPolicy.DownloadColumnId(gridName, column.SortMemberPath), ConfiguredWorkView)) continue;
             string key = gridName + "." + column.SortMemberPath;
             MenuItem item = new()
             {
@@ -148,7 +149,7 @@ public partial class MainWindow
                 if (_config.ColumnWidths.TryGetValue(key, out double width))
                     column.Width = new DataGridLength(width);
                 else if (gridName == "ThreadsDataGrid" && column.SortMemberPath == nameof(ThreadRow.Completion))
-                    column.Width = new DataGridLength(_config.WorkspaceMode == "Advanced" ? 140 : 300);
+                    column.Width = new DataGridLength(WorkViewDensity.DownloadCompletionWidth(ConfiguredWorkView));
                 else if (_defaultColumnWidths.TryGetValue(key, out DataGridLength defaultWidth))
                     column.Width = defaultWidth;
             }

@@ -8,6 +8,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Desktop.Commands;
 using Ursa.Controls;
 
@@ -72,14 +73,11 @@ public partial class MainWindow
     private void UpdateDownloadsHeaderLayout()
     {
         if (!_workspaceInitialized) return;
-        OverflowMode mode = _config.WorkspaceMode == "Barebones" ? OverflowMode.Always : OverflowMode.AsNeeded;
-        foreach (string name in new[] { "DownloadsColumnsButton", "CopyAllUrlsButton" })
-        {
-            Button button = WorkspaceControl<Button>(name);
-            ToolBar.SetOverflowMode(button, mode);
-            CommandBindings.Refresh(button);
-        }
+        // Only the items with a WorkViewElement.Id (Columns…, Copy URLs) follow the view; the others keep their XAML mode.
         ActionToolBar toolbar = WorkspaceListActions;
+        WorkViewPresenter.ApplyToolBar(toolbar, ConfiguredWorkView);
+        foreach (string name in new[] { "DownloadsColumnsButton", "CopyAllUrlsButton" })
+            CommandBindings.Refresh(WorkspaceControl<Button>(name));
         AutomationProperties.SetName(toolbar, Texts.T("downloads.title"));
         toolbar.RefreshOverflowLabel();
         toolbar.InvalidateMeasure();

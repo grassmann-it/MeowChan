@@ -23,6 +23,7 @@ using MeowChan.Gallery;
 using MeowChan.Storage;
 using SkiaSharp;
 using MeowChan.Diagnostics;
+using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan;
 
@@ -999,7 +1000,7 @@ public partial class ArchivePage : UserControl
         // Retain both tracks across size changes; replacing the definitions
         // during layout can invalidate Avalonia's in-progress measure ranges.
         split.ColumnDefinitions[0].Width = new GridLength(beside
-            ? (_archiveLayout == "Table" ? Math.Max(_archiveColumnMode == "Advanced" ? 900 : 650, _archiveSplitWidth) : _archiveSplitWidth) : 0);
+            ? (_archiveLayout == "Table" ? Math.Max(WorkViewDensity.ArchiveTableMinWidth(ArchiveWorkView), _archiveSplitWidth) : _archiveSplitWidth) : 0);
         split.ColumnDefinitions[1].Width = new GridLength(beside ? 6 : 0);
         split.ColumnSpacing = beside ? 6 : 0;
         // The shared footer row aligns both pane edges only side by side. Stacked,

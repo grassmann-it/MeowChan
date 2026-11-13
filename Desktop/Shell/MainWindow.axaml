@@ -1,6 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:local="clr-namespace:MeowChan" xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:controls="clr-namespace:MeowChan.Desktop.Controls" xmlns:ursa="https://irihi.tech/ursa"
+        xmlns:local="clr-namespace:MeowChan" xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:controls="clr-namespace:MeowChan.Desktop.Controls" xmlns:ursa="https://irihi.tech/ursa" xmlns:wv="using:MeowChan.Desktop.WorkViews"
         x:Class="MeowChan.MainWindow" x:DataType="local:MainWindow"
         Width="1380" Height="850" MinWidth="760" MinHeight="500"
         WindowDecorations="BorderOnly" ExtendClientAreaToDecorationsHint="True" ExtendClientAreaTitleBarHeightHint="{x:Static desktop:WorkspaceMetrics.TitleBarHeight}"
@@ -143,7 +143,7 @@
             </Grid>
         </Border>
         <Grid Grid.Row="2" x:Name="WorkspaceBody" RowDefinitions="Auto,Auto,*" Margin="{StaticResource Workspace.Inset.Page}" RowSpacing="8">
-            <Grid x:Name="WorkspaceHeading">
+            <Grid x:Name="WorkspaceHeading" wv:WorkViewElement.Id="downloads.header.heading">
                 <TextBlock Tag="downloads.title" Classes="localized page-title" Text="Downloads" />
             </Grid>
             <ScrollViewer x:Name="WorkspaceIntakeScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
@@ -162,7 +162,7 @@
                         <Button x:Name="AddUrlButton" Grid.Column="1" Classes="primary localized" Tag="action.add" Content="Add"
                                 MinWidth="100" MinHeight="{StaticResource Workspace.Size.InputProminent}" VerticalAlignment="Stretch" Click="OnAddUrl" />
                     </Grid>
-                    <TextBlock x:Name="UrlInputHint" Tag="downloads.inputHint" Classes="localized workspace-help" TextWrapping="Wrap" />
+                    <TextBlock x:Name="UrlInputHint" wv:WorkViewElement.Id="downloads.intake.url-hint" Tag="downloads.inputHint" Classes="localized workspace-help" TextWrapping="Wrap" />
                     <controls:WorkspaceBanner x:Name="AdmissionRepairPanel" IsVisible="False" Type="Error">
                         <ScrollViewer x:Name="AdmissionRepairScroll" MaxHeight="84" HorizontalScrollBarVisibility="Disabled"><SelectableTextBlock x:Name="AdmissionRepairText" TextWrapping="Wrap" FontSize="{StaticResource Workspace.Text.Meta}" /></ScrollViewer>
                     </controls:WorkspaceBanner>
@@ -341,8 +341,8 @@
                         <desktop:ActionToolBar x:Name="WorkspaceListActions" Grid.Column="1"
                                     HorizontalAlignment="Stretch" VerticalAlignment="Center" Margin="8,0,8,0">
                             <Button x:Name="DownloadSearchButton" Classes="localized subtle" Tag="downloads.search" Click="OnDownloadSearchClick" ursa:ToolBar.OverflowMode="Never" FontSize="{StaticResource Workspace.Text.Meta}" />
-                            <Button x:Name="DownloadsColumnsButton" Classes="subtle" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="{StaticResource Workspace.Text.Meta}" />
-                            <Button x:Name="CopyAllUrlsButton" Tag="action.copyAllUrls" Classes="localized subtle" Content="Copy URLs" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="{StaticResource Workspace.Text.Meta}" />
+                            <Button x:Name="DownloadsColumnsButton" wv:WorkViewElement.Id="downloads.toolbar.columns" Classes="subtle" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="{StaticResource Workspace.Text.Meta}" />
+                            <Button x:Name="CopyAllUrlsButton" wv:WorkViewElement.Id="downloads.toolbar.copy-urls" Tag="action.copyAllUrls" Classes="localized subtle" Content="Copy URLs" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="{StaticResource Workspace.Text.Meta}" />
                             <Button x:Name="DetailsToggleButton" Classes="subtle" Content="Details" Click="OnDetailsToggleClick" ursa:ToolBar.OverflowMode="Never" FontSize="{StaticResource Workspace.Text.Meta}" />
                         </desktop:ActionToolBar>
                         <Grid x:Name="DownloadSearchBar" Grid.Row="1" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6" Margin="8,2,8,6" IsVisible="False">
