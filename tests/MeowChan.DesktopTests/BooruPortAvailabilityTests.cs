@@ -65,6 +65,90 @@ public sealed class BooruPortAvailabilityTests
         Assert.Equal(0, f.Http.Originals);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task HeldSearchAndPostPortsRejectBeforeResolvingAWorker(bool readPost, bool stop)
+    {
+        await using Fixture f = new();
+        await f.StartAsync();
+        IBooruSearchPort held = f.Composition.Services.Search;
+        Assert.Equal(BooruCallStatus.Ok, await InvokeSearch(held, readPost));
+        int resolutions = f.WorkerResolutions, calls = f.Worker.Calls;
+        if (stop) f.Composition.ClosePortIngress();
+        else f.SetEnabled(false);
+
+        Assert.Equal(BooruCallStatus.Unavailable, await InvokeSearch(held, readPost));
+        Assert.Equal(resolutions, f.WorkerResolutions);
+        Assert.Equal(calls, f.Worker.Calls);
+        if (!stop)
+        {
+            f.SetEnabled(true);
+            await WaitAsync(() => f.Composition.IsAvailable);
+            Assert.Equal(BooruCallStatus.Ok, await InvokeSearch(held, readPost));
+            Assert.Equal(calls + 1, f.Worker.Calls);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AResolutionFromTheDisabledGenerationIsDrainedWithoutStartingAProviderJob(bool readPost)
+    {
+        await using Fixture f = new();
+        await f.StartAsync();
+        f.HoldWorkerResolution = true;
+        Task<BooruCallStatus> pending = InvokeSearch(f.Composition.Services.Search, readPost);
+        await f.WorkerResolutionEntered.Task.WaitAsync(Deadline);
+        f.SetEnabled(false);
+        f.SetEnabled(true);
+        Assert.True(f.WorkerResolutionToken.IsCancellationRequested);
+        Assert.False(f.Composition.IsAvailable);
+        Assert.False(pending.IsCompleted); // the old resolution still owns the availability lease
+        Assert.Equal(0, f.Worker.Calls);
+
+        f.HoldWorkerResolution = false;
+        f.ReleaseWorkerResolution.TrySetResult();
+        Assert.Equal(BooruCallStatus.Unavailable, await pending.WaitAsync(Deadline));
+        await WaitAsync(() => f.Composition.IsAvailable);
+        Assert.Equal(0, f.Worker.Calls);
+        Assert.Equal(BooruCallStatus.Ok, await InvokeSearch(f.Composition.Services.Search, readPost));
+        Assert.Equal(1, f.Worker.Calls);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task SearchAndPostRejectALateProviderPageButPreserveCallerCancellation(bool readPost, bool cancelCaller)
+    {
+        await using Fixture f = new();
+        await f.StartAsync();
+        using CancellationTokenSource caller = new();
+        f.Worker.Hold = true;
+        Task<BooruCallStatus> pending = InvokeSearch(f.Composition.Services.Search, readPost, caller.Token);
+        await f.Worker.Entered.Task.WaitAsync(Deadline);
+        if (cancelCaller) caller.Cancel();
+        f.Composition.ClosePortIngress();
+        Assert.True(f.Worker.Token.IsCancellationRequested);
+        if (cancelCaller) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(Deadline));
+        else Assert.Equal(BooruCallStatus.Unavailable, await pending.WaitAsync(Deadline));
+        f.Worker.Release.TrySetResult(); // the fake intentionally ignored cancellation; its result cannot escape
+        await f.Composition.StopAsync().WaitAsync(Deadline);
+        Assert.Equal(1, f.Worker.Calls);
+        Assert.Empty(f.Catalog.Read().Posts);
+        Assert.Equal(BooruCallStatus.Unavailable, await InvokeSearch(f.Composition.Services.Search, readPost));
+        Assert.Equal(1, f.WorkerResolutions);
+    }
+
+    private static async Task<BooruCallStatus> InvokeSearch(IBooruSearchPort port, bool readPost,
+        CancellationToken token = default) => readPost
+            ? (await port.ReadPostAsync("1", token).WaitAsync(Deadline)).Status
+            : (await port.SearchAsync("cat", 1, token).WaitAsync(Deadline)).Status;
+
     [Fact]
     public async Task ReenabledHostKeepsAutomaticChecksPausedButAllowsAnExplicitManualCheck()
     {
@@ -435,9 +519,28 @@ public sealed class BooruPortAvailabilityTests
             BooruHostServices services = new(new NoInnerHttp(), _metadata);
             Worker = new MemoryWorker();
             _binding = new BooruProviderBinding(source, services, _transport, policy,
-                _ => Task.FromResult<IPluginWorkerClient?>(_enabled ? Worker : null), () => _enabled);
+                ResolveWorkerAsync, () => _enabled);
             Composition = BooruSessionComposition.Create(_binding, Queue, Catalog, Path.Combine(_directory.Path, "media"), Producers);
             Composition.SyncSessionPause();
+        }
+
+        private int _workerResolutions;
+        internal int WorkerResolutions => Volatile.Read(ref _workerResolutions);
+        internal bool HoldWorkerResolution { get; set; }
+        internal TaskCompletionSource WorkerResolutionEntered { get; } = Signal();
+        internal TaskCompletionSource ReleaseWorkerResolution { get; } = Signal();
+        internal CancellationToken WorkerResolutionToken { get; private set; }
+
+        private async Task<IPluginWorkerClient?> ResolveWorkerAsync(CancellationToken token)
+        {
+            WorkerResolutionToken = token;
+            Interlocked.Increment(ref _workerResolutions);
+            if (HoldWorkerResolution)
+            {
+                WorkerResolutionEntered.TrySetResult();
+                await ReleaseWorkerResolution.Task; // deliberately uncooperative resolver
+            }
+            return _enabled ? Worker : null;
         }
 
         internal MemoryHttp Http { get; }
@@ -476,6 +579,7 @@ public sealed class BooruPortAvailabilityTests
         public async ValueTask DisposeAsync()
         {
             Http.ReleasePreviews.TrySetResult();
+            ReleaseWorkerResolution.TrySetResult();
             Worker.Release.TrySetResult();
             try
             {
@@ -545,6 +649,20 @@ public sealed class BooruPortAvailabilityTests
                     [Post("99").Post], true));
             }
             return new BooruSearchSnapshot(new BooruSearchPage("danbooru", request.Query, request.Page, [], true));
+        }
+
+        public async Task<BooruPostResult> ReadBooruPostAsync(BooruPostRequest request, PluginOperationContext operation,
+            CancellationToken cancellationToken = default)
+        {
+            Token = cancellationToken;
+            Interlocked.Increment(ref _calls);
+            if (Hold)
+            {
+                Entered.TrySetResult();
+                await Release.Task; // deliberate late post even after cancellation
+                Hold = false;
+            }
+            return new BooruPostSnapshot(Post(request.Post.PostId).Post);
         }
 
         public Task<CatalogReadResult> ReadCatalogAsync(CatalogReadRequest request, PluginOperationContext operation,
