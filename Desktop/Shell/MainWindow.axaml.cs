@@ -1053,9 +1053,19 @@ public partial class MainWindow : Window
     }
 
     private void OpenDirectory(string directory) => OpenDirectory(directory, null);
-    private void OpenDirectory(string directory, Action<string>? localError)
+    private async void OpenDirectory(string directory, Action<string>? localError)
     {
-        if (Directory.Exists(directory)) OpenTarget(directory, localError);
+        // The folder may sit on a network share that does not answer: probe off the UI thread. If the probe times
+        // out the folder is opened anyway, because the file manager runs out of process and reports its own failure.
+        DirectoryProbeResult probe;
+        try { probe = await DirectoryProbe.CheckAsync(directory); }
+        catch (Exception exception)
+        {
+            Log.Warning(exception, "Could not check {Directory} before opening it", directory);
+            probe = DirectoryProbeResult.Unknown;
+        }
+        if (_isClosing) return;
+        if (probe != DirectoryProbeResult.Missing) OpenTarget(directory, localError);
         else
         {
             localError?.Invoke(Texts.T("location.missing"));
