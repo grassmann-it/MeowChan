@@ -174,4 +174,13 @@ public sealed class DanbooruAddressTests
         Assert.DoesNotContain("secret", logged);
         Assert.DoesNotContain("donmai", logged);
     }
+
+    [Fact]
+    public void CanonicalTextNeverCarriesTheQuery()
+    {
+        Assert.Equal("https://danbooru.donmai.us/posts", Parse("https://danbooru.donmai.us/posts?tags=secret").CanonicalText);
+        Assert.Equal("https://safebooru.donmai.us/posts", Parse("https://safebooru.donmai.us/posts?tags=secret&page=2").CanonicalText);
+        Assert.Equal("https://danbooru.donmai.us/posts", Parse("https://danbooru.donmai.us/").CanonicalText);
+        Assert.Equal("https://safebooru.donmai.us/posts/77", Parse("https://safebooru.donmai.us/posts/77?q=secret").CanonicalText);
+    }
 }

@@ -8,6 +8,7 @@ using Avalonia.Threading;
 using MeowChan.Admission;
 using MeowChan.Booru;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Localization;
 using Serilog;
 
@@ -62,6 +63,7 @@ public partial class MainWindow
             await _session.ApplySettingsAsync(candidate);
         }
         bool allAccepted = skipped.Count == 0;
+        BooruAddressBatch booruPlan = BooruAddressBatch.Plan(booru.Where(item => item.Value.Kind != DanbooruAddressKind.Post).Select(item => item.Key));
         for (int index = 0; index < entries.Count; index++)
         {
             string url = entries[index];
@@ -74,7 +76,13 @@ public partial class MainWindow
             }
             if (booru.TryGetValue(index, out DanbooruAddress? address))
             {
-                allAccepted &= await AdmitBooruAddressAsync(url, address);
+                if (booruPlan.Ignored.Contains(index))
+                {
+                    ReportIgnoredBooruSearch(address);
+                    allAccepted = false;
+                    continue;
+                }
+                allAccepted &= await AdmitBooruAddressAsync(url, address, index == booruPlan.SearchIndex ? booruPlan.Ignored.Count : 0);
                 continue;
             }
             DesktopAdmissionResult? result;

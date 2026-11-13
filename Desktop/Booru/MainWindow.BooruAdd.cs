@@ -27,13 +27,17 @@ public partial class MainWindow
         return found;
     }
 
-    /// <summary>Handles one recognised address; true when it was accepted (post queued or already present, or the window opened).</summary>
-    private async Task<bool> AdmitBooruAddressAsync(string entry, DanbooruAddress address)
+    /// <summary>
+    /// Handles one recognised address; true when it was accepted (post queued or already present, or the window opened).
+    /// <paramref name="ignoredSearches"/> is the number of earlier search addresses of the same input that were not used;
+    /// the one toast of the search that is used names them.
+    /// </summary>
+    private async Task<bool> AdmitBooruAddressAsync(string entry, DanbooruAddress address, int ignoredSearches = 0)
     {
         BooruWorkbenchServices? services = CanOpenBooru ? _session.BooruServices : null;
         if (services is null)
         {
-            _admissionResults.Add(new AdmissionFeedback(entry, AdmissionStatus.Unsupported, Texts.T("booru.ui.add.disabled")));
+            _admissionResults.Add(new AdmissionFeedback(address.CanonicalText, AdmissionStatus.Unsupported, Texts.T("booru.ui.add.disabled")));
             return false;
         }
         if (address.Kind == DanbooruAddressKind.Post)
@@ -47,12 +51,17 @@ public partial class MainWindow
         string query = address.PrefilledQuery(out bool addedSafeRating);
         if (!UseAsBooruSearch(query))
         {
-            _admissionResults.Add(new AdmissionFeedback(entry, AdmissionStatus.Unsupported, Texts.T("booru.ui.add.disabled")));
+            _admissionResults.Add(new AdmissionFeedback(address.CanonicalText, AdmissionStatus.Unsupported, Texts.T("booru.ui.add.disabled")));
             return false;
         }
         _admissionBooruOpened = true;
-        ShowNotification(Texts.T("booru.ui.title"), Texts.T(addedSafeRating ? "booru.ui.add.openedSafe" : "booru.ui.add.opened"),
-            NotificationType.Information, operation: "booru.add.search");
+        string message = Texts.T(addedSafeRating ? "booru.ui.add.openedSafe" : "booru.ui.add.opened");
+        if (ignoredSearches > 0) message += " " + Texts.T("booru.ui.add.ignored", ignoredSearches);
+        ShowNotification(Texts.T("booru.ui.title"), message, NotificationType.Information, operation: "booru.add.search");
         return true;
     }
+
+    /// <summary>Lists a search address of this input that is not used because a later one is. Its query stays out of the text.</summary>
+    private void ReportIgnoredBooruSearch(DanbooruAddress address) =>
+        _admissionResults.Add(new AdmissionFeedback(address.CanonicalText, null, Texts.T("booru.ui.add.ignoredRow"), Skipped: true));
 }

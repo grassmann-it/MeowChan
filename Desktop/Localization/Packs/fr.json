@@ -2655,6 +2655,8 @@
     "booru.ui.add.disabled": "Aucune source activée ne gère cette adresse. Elle appartient à Danbooru, qui n’est pas activé dans ce profil : activez le module Danbooru sous Modules, puis ajoutez de nouveau l’adresse.",
     "booru.ui.add.opened": "La fenêtre Danbooru est ouverte avec la recherche de l’adresse. Rien n’est demandé tant que vous n’appuyez pas sur Rechercher.",
     "booru.ui.add.openedSafe": "La fenêtre Danbooru est ouverte avec la recherche de l’adresse. Safebooru est Danbooru en mode sûr ; le terme rating:g a donc été ajouté au champ de recherche. Supprimez-le pour chercher sans classification. Rien n’est demandé tant que vous n’appuyez pas sur Rechercher.",
+    "booru.ui.add.ignored": "Seule la dernière adresse de recherche de cette saisie a été utilisée. Adresses de recherche non utilisées : {0}.",
+    "booru.ui.add.ignoredRow": "Non utilisée : une saisie n’ouvre qu’une seule recherche, la dernière.",
     "booru.ui.add.post": "Publication Danbooru n° {0} : {1}",
     "booru.watcher.problem.catalog_unreadable": "Le fichier de données Danbooru de ce profil n'a pas pu être lu ; aucune veille ne fonctionne. Vos fichiers sont inchangés ; vérifiez le dossier du profil et redémarrez MeowChan.",
     "booru.watcher.problem.watcher_record_invalid": "Une veille enregistrée n'a pas pu être restaurée ; aucune veille ne fonctionne. Rien n'a été supprimé ; vérifiez le dossier du profil et redémarrez MeowChan.",

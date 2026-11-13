@@ -130,6 +130,16 @@ internal sealed record DanbooruAddress(DanbooruAddressKind Kind, string? PostId,
         return false;
     }
 
+    /// <summary>The address without its query, for feedback: the post page, or the post list of the same host.</summary>
+    internal string CanonicalText
+    {
+        get
+        {
+            string host = IsSafebooru ? DanbooruPostReference.SafebooruHost : DanbooruPostReference.MetadataHost;
+            return Kind == DanbooruAddressKind.Post ? $"https://{host}/posts/{PostId}" : $"https://{host}/posts";
+        }
+    }
+
     /// <summary>
     /// The text for the Danbooru search field. A Safebooru address adds the visible <see cref="SafeRatingTerm"/> unless the
     /// tags already carry a rating term; the user can delete it in the field. Nothing else is added or removed.

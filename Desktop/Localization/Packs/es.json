@@ -2655,6 +2655,8 @@
     "booru.ui.add.disabled": "Ninguna fuente activada gestiona esta dirección. Pertenece a Danbooru, que no está activado en este perfil: activa el complemento de Danbooru en Complementos y vuelve a añadir la dirección.",
     "booru.ui.add.opened": "La ventana de Danbooru está abierta con la búsqueda de la dirección. No se solicita nada hasta que pulses Buscar.",
     "booru.ui.add.openedSafe": "La ventana de Danbooru está abierta con la búsqueda de la dirección. Safebooru es Danbooru en modo seguro, por lo que se añadió el término rating:g al campo de búsqueda; bórralo para buscar sin clasificación. No se solicita nada hasta que pulses Buscar.",
+    "booru.ui.add.ignored": "Solo se usó la última dirección de búsqueda de esta entrada. Direcciones de búsqueda no usadas: {0}.",
+    "booru.ui.add.ignoredRow": "No usada: una entrada abre una sola búsqueda, la última.",
     "booru.ui.add.post": "Publicación #{0} de Danbooru: {1}",
     "booru.watcher.problem.catalog_unreadable": "No se pudo leer el archivo de datos de Danbooru de este perfil, así que no se ejecuta ningún vigilante. Tus archivos no han cambiado; revisa la carpeta del perfil y reinicia MeowChan.",
     "booru.watcher.problem.watcher_record_invalid": "No se pudo restaurar un vigilante guardado, así que no se ejecuta ninguno. No se borró nada; revisa la carpeta del perfil y reinicia MeowChan.",
