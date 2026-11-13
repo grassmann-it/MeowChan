@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "revision": 1,
+  "groups": [
+    {
+      "id": "1a0251a0-0000-4000-8000-000000000021",
+      "name": "first generation",
+      "members": [
+        {
+          "source": "4chan",
+          "board": "g",
+          "thread": "123"
+        }
+      ]
+    }
+  ]
+}
