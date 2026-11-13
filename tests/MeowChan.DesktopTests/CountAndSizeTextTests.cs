@@ -167,30 +167,45 @@ public sealed class CountAndSizeTextTests : IDisposable
     [Theory]
     [InlineData(-5L, "0 B")]
     [InlineData(0L, "0 B")]
+    [InlineData(1L, "1 B")]
     [InlineData(999L, "999 B")]
-    [InlineData(1_000L, "1 KB")]
-    [InlineData(1_500L, "1.5 KB")]
-    [InlineData(45_000L, "45 KB")]
-    [InlineData(999_499L, "999 KB")]
-    [InlineData(999_500L, "1 MB")]
-    [InlineData(1_234_567L, "1.2 MB")]
-    [InlineData(5_800_000L, "5.8 MB")]
-    [InlineData(999_949_999L, "999.9 MB")]
-    [InlineData(999_960_000L, "1 GB")]
-    [InlineData(2_500_000_000L, "2.5 GB")]
-    [InlineData(long.MaxValue, "9223372 TB")]
-    public void SizeTextUsesDecimalUnitsAndNeverRoundsASmallFileToZeroMegabytes(long bytes, string expected) =>
+    [InlineData(1_000L, "1000 B")]
+    [InlineData(1_023L, "1023 B")]
+    [InlineData(1_024L, "1 KiB")]
+    [InlineData(1_536L, "1.5 KiB")]
+    [InlineData(10_239L, "10 KiB")]
+    [InlineData(10_240L, "10 KiB")]
+    [InlineData(45_000L, "44 KiB")]
+    [InlineData(1_048_063L, "1023 KiB")]
+    [InlineData(1_048_064L, "1 MiB")]
+    [InlineData(1_048_576L, "1 MiB")]
+    [InlineData(1_572_864L, "1.5 MiB")]
+    [InlineData(5_800_000L, "5.5 MiB")]
+    [InlineData(1_072_693_248L, "1023 MiB")]
+    [InlineData(1_073_689_600L, "1 GiB")]
+    [InlineData(1_073_741_824L, "1 GiB")]
+    [InlineData(2_684_354_560L, "2.5 GiB")]
+    [InlineData(1_099_511_627_776L, "1 TiB")]
+    [InlineData(long.MaxValue, "8388608 TiB")]
+    public void SizeTextUsesBinaryUnitsAndNeverRoundsASmallFileToZeroMebibytes(long bytes, string expected) =>
         Assert.Equal(expected, SizeText.Format(bytes, CultureInfo.InvariantCulture));
 
     [Fact]
-    public void SizeTextFollowsTheSelectedLanguageAndTheLegacyHelperDelegatesToIt()
+    public void SizeTextFollowsTheSelectedLanguageButNeverTranslatesTheUnits()
     {
         Texts.SetLanguage("de");
-
-        Assert.Equal("1,2 MB", SizeText.Format(1_234_567));
-        Assert.Equal("1,2 MB", Utils.ToHumanReadableSize(1_234_567));
+        Assert.Equal("1,5 KiB", SizeText.Format(1_536));
+        Assert.Equal("1,5 MiB", SizeText.Format(1_572_864));
+        Assert.Equal("1 MiB", SizeText.Format(1_048_576));
+        Assert.Equal("2,5 GiB", SizeText.Format(2_684_354_560));
+        Assert.Equal("1023 B", SizeText.Format(1023));
         Texts.SetLanguage("en");
-        Assert.Equal("1.2 MB", SizeText.Format(1_234_567));
+        Assert.Equal("1.5 KiB", SizeText.Format(1_536));
+        Assert.Equal("1.5 MiB", SizeText.Format(1_572_864));
+        Assert.Equal("1 MiB", SizeText.Format(1_048_576));
+        Assert.Equal("2.5 GiB", SizeText.Format(2_684_354_560));
+        Assert.Equal("1,5 KiB", SizeText.Format(1_536, CultureInfo.GetCultureInfo("de-DE")));
+        Assert.Equal("1.5 KiB", SizeText.Format(1_536, CultureInfo.GetCultureInfo("en-US")));
     }
 
     private static string WithLanguage(string language, Func<string> action)

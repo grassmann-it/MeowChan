@@ -412,7 +412,7 @@ internal static class MediaMenuSurfacesChecks
             await UntilAsync(() => host.Content is GalleryViewer);
             GalleryViewer viewer = (GalleryViewer)host.Content!;
             await UntilAsync(() => viewer.CurrentEntry != null && viewer.FileOnlyShown);
-            string expected = Texts.T("gallery.fileOnly.body", Texts.T("gallery.fileOnly.type", "PDF"), Utils.ToHumanReadableSize(pdf.Asset.Length));
+            string expected = Texts.T("gallery.fileOnly.body", Texts.T("gallery.fileOnly.type", "PDF"), MeowChan.Desktop.SizeText.Format(pdf.Asset.Length));
             Require(viewer.FileOnlyTextValue == expected, "The viewer-less file plate says '" + viewer.FileOnlyTextValue + "' instead of '" + expected + "'.");
             Require(viewer.OpenExternalButton.IsEffectivelyEnabled && viewer.FileOnlyFolderButton.IsEffectivelyEnabled,
                 "The viewer-less file plate does not offer both ways forward.");

@@ -3,13 +3,6 @@ namespace MeowChan;
 using System;
 using System.IO;
 
-public static class Utils
-{
-    public static string ToHumanReadableSize(long bytes)
-    {
-        return MeowChan.Desktop.SizeText.Format(bytes);
-    }
-}
 public static class PathSanitizer
 {
     public static string SanitizePath(string path)

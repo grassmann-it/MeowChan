@@ -73,5 +73,5 @@ internal static class StoreLimitUsage
     internal static (string Text, string Tooltip)? Present(IReadOnlyList<Item> near) => near.Count == 0 ? null
         : (Describe(near[0]), string.Join(Environment.NewLine, near.Select(Describe)));
 
-    private static string Size(long bytes) => (bytes / (1024.0 * 1024)).ToString("0.#", Texts.Culture) + " MiB";
+    private static string Size(long bytes) => SizeText.Format(bytes);
 }

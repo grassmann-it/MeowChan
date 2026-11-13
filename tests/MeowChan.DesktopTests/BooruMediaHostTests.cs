@@ -162,7 +162,7 @@ public sealed class BooruMediaHostTests : IDisposable
     public void TileAndOccurrenceTextsNameTheProviderPostInsteadOfAnEmptyChanThread()
     {
         MediaLibraryEntry provider = new(BooruMediaIdentity.Thread("123"), "Danbooru #123", 0, Observed, Observed, null, null, null, null, null,
-            "/x", "asset", new string('a', 64), 1_500_000, "booru-danbooru-123", "original", "123.png", SavedMediaKind.Image,
+            "/x", "asset", new string('a', 64), 1_572_864, "booru-danbooru-123", "original", "123.png", SavedMediaKind.Image,
             MediaLibraryPresence.Present, true, false) { BooruPostId = "123" };
         MediaLibraryEntry chan = provider with { Thread = new("4chan", "g", "9"), ThreadTitle = "Thread", BooruPostId = null, Unassigned = false };
         foreach (string language in Languages)

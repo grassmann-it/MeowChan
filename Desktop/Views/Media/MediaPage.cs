@@ -520,7 +520,7 @@ public sealed partial class MediaPage : UserControl
     private string? CacheLimitNote()
     {
         if (_cacheWrite is not { } write) return null;
-        string Size(long bytes) => (bytes / (1024.0 * 1024.0)).ToString("0.#", Texts.Culture) + " MiB";
+        string Size(long bytes) => SizeText.Format(bytes);
         string setting = Texts.T("budgets.mediaIndexCache"), category = Texts.T("settings.storageLimits");
         return write.Status switch
         {

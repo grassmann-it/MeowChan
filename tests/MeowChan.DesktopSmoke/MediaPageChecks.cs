@@ -813,7 +813,7 @@ internal static partial class MediaPageChecks
             ClickRaise(exportAll);
             await UntilAsync(() => page.ExportAllAsking);
             TextBlock ask = C<TextBlock>(page, "MediaExportAllConfirmText");
-            // The three seeded originals are a few hundred bytes: the one size text (SizeText) names them in bytes, never "0 MB".
+            // The three seeded originals are a few hundred bytes: the one size text (SizeText) names them in bytes, never "0 MiB".
             Require(ask.Text!.Contains('3') && ask.Text.Contains(" B)") && exported.Count == done, "The question must name the count and the size and start nothing: " + ask.Text);
             ClickRaise(C<Button>(page, "MediaExportAllConfirmNo"));
             Require(!page.ExportAllAsking && exported.Count == done, "Cancel must close the question without exporting.");

@@ -862,7 +862,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         return corners;
     }
 
-    private static string Size(long bytes) => SizeText.FormatBinary(bytes);
+    private static string Size(long bytes) => SizeText.Format(bytes);
 
     private Control CreateTags(BooruPostView post)
     {

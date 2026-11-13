@@ -68,7 +68,7 @@ internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
     public string FileLine => (Attachment.OriginalFileName ?? Attachment.MediaId ?? string.Empty)
         + (Attachment.ExpectedSize is > 0 and long size ? " (" + FileSize(size) + ")" : string.Empty);
 
-    internal static string FileSize(long bytes) => SizeText.FormatBinary(bytes);
+    internal static string FileSize(long bytes) => SizeText.Format(bytes);
 }
 
 // One header line in imageboard order: Subject · Name · Date · No. (the number copies ">>No.").
