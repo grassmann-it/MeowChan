@@ -16,6 +16,15 @@ public sealed class BooruSearchService
     public const string InvalidCursorMessage = "The booru cursor is not accepted.";
     public const int SearchLimit = BooruHostHttp.MaximumSearchLimit;
 
+    /// <summary>
+    /// The worker call was invalidated without the caller asking for it: the worker client was disposed or
+    /// stopped while the call ran or before it started (plugin disabled at runtime, worker shut down). It is
+    /// the worker connection's own code for an invalidated call, so the watcher search port treats it as
+    /// "source unavailable" (no watcher state change) like every other worker-availability code.
+    /// </summary>
+    internal const string WorkerStoppedCode = "stopped";
+    private const string WorkerStoppedMessage = "The booru worker stopped before it answered.";
+
     private readonly BooruHostServices _services;
     private readonly IReadOnlyDictionary<string, SourceDescription> _sources;
 
@@ -109,6 +118,17 @@ public sealed class BooruSearchService
         {
             throw;
         }
+        catch (OperationCanceledException)
+        {
+            // Not the caller's cancellation: the worker client's own lifetime ended mid-call (see WorkerStoppedCode).
+            // Escaping as a cancellation would leave a watcher check without a terminal outcome and a search
+            // spinner without a result, because callers only settle the cancellations they requested.
+            return new BooruSearchFailure(sourceId, WorkerStopped());
+        }
+        catch (ObjectDisposedException)
+        {
+            return new BooruSearchFailure(sourceId, WorkerStopped());
+        }
         catch (PluginWorkerException exception)
         {
             return new BooruSearchFailure(sourceId, WorkerFailure(exception));
@@ -147,6 +167,14 @@ public sealed class BooruSearchService
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
+        }
+        catch (OperationCanceledException)
+        {
+            return new BooruPostFailure(post, WorkerStopped());
+        }
+        catch (ObjectDisposedException)
+        {
+            return new BooruPostFailure(post, WorkerStopped());
         }
         catch (PluginWorkerException exception)
         {
@@ -187,6 +215,8 @@ public sealed class BooruSearchService
     private static FailureDetail WorkerFailure(PluginWorkerException exception) =>
         new(exception.Code, "The booru worker did not return a usable result.", exception.FailureInfo.HttpStatusCode is not null
             ? (int)exception.FailureInfo.HttpStatusCode : null, exception.FailureInfo.RetryAt);
+
+    private static FailureDetail WorkerStopped() => new(WorkerStoppedCode, WorkerStoppedMessage);
 }
 
 /// <summary>
