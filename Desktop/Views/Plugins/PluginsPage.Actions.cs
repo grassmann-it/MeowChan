@@ -225,7 +225,6 @@ public partial class PluginsPage
     { if (_selectedKey is { } key) OpenPluginActionMenu(key, C<Button>("PluginMoreActions"), details: true); }
     private void OnPluginListActionsClick(object? sender, RoutedEventArgs e)
     { if (_selectedKey is { } key) OpenPluginActionMenu(key, C<Button>("PluginListActions")); }
-    private async void OnPluginSettingsActionClick(object? sender, RoutedEventArgs e) => await ExecutePluginControlActionAsync("PluginSettingsAction");
 
     private Control PluginActionOrigin(string key) => _cards.TryGetValue(key, out var card) && card.IsEffectivelyVisible
         ? card : this.FindControl<Button>("PluginMoreActions") ?? (Control)C<ComboBox>("PluginCategory");

@@ -97,7 +97,6 @@ internal sealed class MediaConflictsDialog : Window
 
     internal StackPanel RowsForTests => _rows;
     internal TextBlock StatusForTests => _status;
-    internal Task LoadForTestsAsync() => LoadAsync(append: false);
 
     private void OnLanguageChanged(object? sender, EventArgs e) => Avalonia.Threading.Dispatcher.UIThread.Post(Render);
 
