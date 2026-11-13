@@ -30,7 +30,8 @@ internal sealed record MediaScaleTier(string Name, int Threads, int MediaPerThre
 {
     internal static readonly MediaScaleTier S = new("S", 200, 100, 2_000, 500, 1_000, 500, 52);
     internal static readonly MediaScaleTier M = new("M", 1_000, 100, 10_000, 2_500, 5_000, 2_500, 52);
-    internal static readonly MediaScaleTier L = new("L", 2_000, 100, 20_000, 5_000, 10_000, 5_000, 52);
+    // 46 claim tags keep L at about 30 MiB, below the default 32 MiB catalog write limit (52 gave 33.3 MiB).
+    internal static readonly MediaScaleTier L = new("L", 2_000, 100, 20_000, 5_000, 10_000, 5_000, 46);
 
     internal const string Variable = "MEOWCHAN_MEDIA_SCALE";
 
