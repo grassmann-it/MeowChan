@@ -2247,6 +2247,8 @@
     "media.selection.tag.remove": "Quitar la etiqueta {0} de las {1} apariciones marcadas que la tienen",
     "media.selection.tag.add": "Añadir la etiqueta {0} a las {1} apariciones marcadas que no la tienen",
     "media.selection.tag.noneChosen": "Marque primero al menos una aparición.",
+    "archive.media.selection.name": "Selección en la pestaña Medios",
+    "archive.media.selection.help": "Ctrl/Cmd+clic añade un archivo, Mayús+clic o Mayús+flechas seleccionan un rango, Ctrl/Cmd+A selecciona todo, Esc borra la selección. El menú contextual actúa sobre el archivo enfocado; sus acciones de selección actúan sobre todos los archivos seleccionados.",
     "media.group.favorite.all": "Favorito: todos",
     "media.group.favorite.some": "Favorito: algunos",
     "media.group.favorite.none": "Favorito: ninguno",

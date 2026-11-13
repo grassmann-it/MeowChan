@@ -113,6 +113,8 @@ internal static class MediaLibraryCatalog
         ("media.selection.tag.remove", "Remove tag {0} from the {1} ticked occurrences that have it", "Tag {0} von den {1} angehakten Fundstellen entfernen, die ihn haben"),
         ("media.selection.tag.add", "Add tag {0} to the {1} ticked occurrences that lack it", "Tag {0} den {1} angehakten Fundstellen hinzufügen, die ihn noch nicht haben"),
         ("media.selection.tag.noneChosen", "Tick at least one occurrence first.", "Hake zuerst mindestens eine Fundstelle an."),
+        ("archive.media.selection.name", "Selection in the media tab", "Auswahl im Medien-Tab"),
+        ("archive.media.selection.help", "Ctrl/Cmd+click adds a file, Shift+click or Shift+arrow keys select a range, Ctrl/Cmd+A selects all, Esc clears the selection. The context menu acts on the focused file; its selection actions act on all selected files.", "Strg/Cmd+Klick fügt eine Datei hinzu, Umschalt+Klick oder Umschalt+Pfeiltasten wählen einen Bereich, Strg/Cmd+A alle, Esc hebt die Auswahl auf. Das Kontextmenü wirkt auf die fokussierte Datei; seine Auswahlaktionen wirken auf alle ausgewählten Dateien."),
         ("media.group.favorite.all", "Favorite: all", "Favorit: alle"),
         ("media.group.favorite.some", "Favorite: some", "Favorit: einige"),
         ("media.group.favorite.none", "Favorite: none", "Favorit: keine"),

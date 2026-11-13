@@ -114,7 +114,8 @@ public partial class ArchivePage
         if (asset == null && attachment == null && !e.TryGetPosition(this, out _))
         {
             Control? list = ancestors.FirstOrDefault(control => control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles");
-            asset = list switch { DataGrid grid => grid.SelectedItem as ArchiveAssetRow, ListBox tiles => tiles.SelectedItem as ArchiveAssetRow, _ => null };
+            // No pointer: the menu is for the focused file of the list (the Menu key or Shift+F10), which may be one of several selected.
+            asset = list == null ? null : SelectedMediaRow();
             origin = list;
         }
         string? postId = ancestors.Select(control => control.DataContext).OfType<ArchivePostRow>().FirstOrDefault()?.Id;
@@ -122,11 +123,20 @@ public partial class ArchivePage
         if (asset == null && attachment == null) return;
         if (_selectedThread == null || _thread == null || origin == null) return;
         e.Handled = true;
-        (ContextMenu menu, MediaMenuSession session) = BuildArchiveMediaMenu(asset, attachment, origin, postId, ArchiveMenuSurface(ancestors, attachment));
+        (ContextMenu menu, MediaMenuSession session) = BuildArchiveMediaMenu(asset, attachment, origin, postId, ArchiveMenuSurface(ancestors, attachment),
+            SeveralSelectedWith(asset, attachment));
         _mediaMenuPresenter.Show(menu, session, origin);
     }
 
     private readonly MediaMenuPresenter _mediaMenuPresenter = new();
+
+    // The selection the menu also offers its selection actions for: only when the file it opens on is one of several selected files.
+    private ArchiveAssetRow[]? SeveralSelectedWith(ArchiveAssetRow? asset, ArchiveAttachmentRow? attachment)
+    {
+        if (attachment != null || asset == null) return null;
+        IReadOnlyList<ArchiveAssetRow> selected = SelectedMediaRows();
+        return ArchiveMediaSelection.IsSeveral(selected, asset) ? selected.ToArray() : null;
+    }
 
     private static MediaMenuSurface ArchiveMenuSurface(Control[] ancestors, ArchiveAttachmentRow? attachment) =>
         attachment != null ? MediaMenuSurface.ArchiveInline
@@ -150,11 +160,11 @@ public partial class ArchivePage
         var origin = (Control?)attachmentView ?? owner;
         MediaMenuSurface surface = attachment != null ? MediaMenuSurface.ArchiveInline
             : owner.Name == "ArchiveMediaTiles" ? MediaMenuSurface.ArchiveTiles : MediaMenuSurface.ArchiveTable;
-        return CommandBindings.RouteMenuAction(BuildArchiveMediaMenu(asset, attachment, origin, postId, surface).Menu, e);
+        return CommandBindings.RouteMenuAction(BuildArchiveMediaMenu(asset, attachment, origin, postId, surface, SeveralSelectedWith(asset, attachment)).Menu, e);
     }
 
     private (ContextMenu Menu, MediaMenuSession Session) BuildArchiveMediaMenu(ArchiveAssetRow? asset, ArchiveAttachmentRow? attachment,
-        Control origin, string? postId, MediaMenuSurface surface)
+        Control origin, string? postId, MediaMenuSurface surface, ArchiveAssetRow[]? selection = null)
     {
         Action<string> reportError = CaptureActionErrorReporter();
         // Freeze the current manifest references and post association together. Neither
@@ -248,6 +258,21 @@ public partial class ArchivePage
         List<Control> context = new();
         if (postId != null && EditPostBookmark != null)
             context.Add(CreatePostBookmarkMenuItem(new MeowChan.Persistence.PostBookmarkKey(threadId, postId), origin));
+        if (selection is { Length: > 1 })
+        {
+            // The common section above acts on the file the menu opened on (and "open in gallery" starts at it); everything below
+            // acts on the whole selection, frozen now, exactly like the media page.
+            context.Add(MediaMenuBuilder.Note(Texts.T("media.menu.note.selection", selection.Length)));
+            string unavailable = Texts.T("media.selection.reason.unavailable");
+            context.Add(MediaMenuBuilder.ContextItem(session, "media.selection.tag", () => TagMediaSelectionAsync(thread, selection, entries, origin),
+                () => MediaTagServices != null && !_mediaSelectionBusy, Run, unavailable));
+            context.Add(MediaMenuBuilder.ContextItem(session, "media.selection.gallery", () => OpenMediaSelectionGalleryAsync(thread, selection, entries, origin),
+                () => OpenMediaGallery != null, Run, unavailable));
+            context.Add(MediaMenuBuilder.ContextItem(session, "media.selection.export", () => ExportMediaSelectionAsync(thread, selection, origin),
+                () => true, Run));
+            context.Add(MediaMenuBuilder.ContextItem(session, "media.selection.clear", () => { ClearMediaSelection(); return Task.CompletedTask; },
+                () => true, Run));
+        }
         ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, text => Message(text));
         return (menu, session);
     }

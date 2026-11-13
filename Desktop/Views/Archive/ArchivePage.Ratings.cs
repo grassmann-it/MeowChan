@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -47,12 +48,12 @@ public partial class ArchivePage
     internal void RefreshMediaRatings()
     {
         if (_ended) return;
-        ArchiveAssetRow? selected = (ArchiveMediaGrid.SelectedItem ?? ArchiveMediaTiles.SelectedItem) as ArchiveAssetRow;
+        IReadOnlyList<ArchiveAssetRow> selected = SelectedMediaRows();
         RenderMedia();
-        if (selected != null && !VisibleAssets().Contains(selected))
+        IReadOnlyList<ArchiveAssetRow> shown = VisibleAssets();
+        if (selected.Any(row => !shown.Contains(row)))
         {
-            ArchiveMediaGrid.SelectedItem = null;
-            ArchiveMediaTiles.SelectedItem = null;
+            // The files the filter no longer shows dropped out of the selection with the re-render; the others stay selected.
             Message(MediaRatingText.LocalizedFilterNoLongerMatches);
             ArchiveRatingFilter.Focus();
         }

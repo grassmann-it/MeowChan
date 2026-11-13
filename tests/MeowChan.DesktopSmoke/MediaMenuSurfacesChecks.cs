@@ -228,6 +228,7 @@ internal static class MediaMenuSurfacesChecks
                 "A loose archive file must say that it has no post.");
             if (useTiles) loose = Snapshot(page.ArchiveMediaMenu);
             page.ArchiveMediaMenu.Close();
+            await ArchiveSelectionJourneyAsync(shell, page, list, bound, looseRow, useTiles);
         }
 
         // Thread change retires an open menu: the open menu never acts on the new thread's rows.
@@ -256,6 +257,58 @@ internal static class MediaMenuSurfacesChecks
         open.Command!.Execute(null);
         page.ArchiveMediaMenu.Close();
         return (table, tiles, inline, loose);
+    }
+
+    // T3: several files selected in the thread's Media tab. Ctrl+A selects every shown file, the status line counts them, the menu keeps its
+    // common section on the clicked file and adds the selection actions, Esc clears. One selected file never shows the selection actions.
+    private static async Task ArchiveSelectionJourneyAsync(MainWindow shell, ArchivePage page, Control list, ArchiveAssetRow bound,
+        ArchiveAssetRow looseRow, bool useTiles)
+    {
+        string mode = useTiles ? "tiles" : "table";
+        list.Focus();
+        await KeyAsync(list, Key.A, KeyModifiers.Control);
+        Require(page.SelectedMediaRows().Count == 2, "Ctrl+A did not select both archive files in " + mode + " mode.");
+        WrapPanel bar = page.FindControl<WrapPanel>("ArchiveMediaSelectionBar")!;
+        TextBlock status = page.FindControl<TextBlock>("ArchiveMediaSelectionStatus")!;
+        Require(bar.IsVisible && status.Text == Texts.T("media.selection.count", 2), "The selection status is missing or wrong in " + mode + " mode: " + status.Text);
+
+        await RightClickAsync(await RowControlAsync(list, bound), shell);
+        ContextMenu menu = page.ArchiveMediaMenu ?? throw new InvalidOperationException("The archive menu did not open on a selected file.");
+        Require(page.SelectedMediaRows().Count == 2, "A right-click on a selected file collapsed the selection in " + mode + " mode.");
+        Require(page.ArchiveMediaMenuSession!.Target?.AssetId == bound.Asset.AssetId, "The menu is not frozen to the clicked file of the selection.");
+        string[] tags = menu.Items.OfType<MenuItem>().Select(item => item.Tag as string ?? string.Empty).ToArray();
+        foreach (string expected in new[] { "media.menu.note", "media.selection.tag", "media.selection.gallery", "media.selection.export", "media.selection.clear", "gallery.open" })
+            Require(tags.Contains(expected), "The menu on a selection lacks " + expected + " in " + mode + " mode: " + string.Join(",", tags));
+        MenuItem open = menu.Items.OfType<MenuItem>().Single(item => item.Tag as string == "gallery.open");
+        Require(open.IsEnabled, "Open in gallery must stay available on the focused file while several are selected.");
+        Require(menu.Items.OfType<MenuItem>().Single(item => item.Tag as string == "media.selection.export").IsEnabled
+            && menu.Items.OfType<MenuItem>().Single(item => item.Tag as string == "media.selection.gallery").IsEnabled, "The selection export and gallery must be available.");
+        Console.WriteLine("SMOKE media menu archive selection " + mode + ": " + string.Join(" | ", Snapshot(menu)));
+        MenuItem tag = menu.Items.OfType<MenuItem>().Single(item => item.Tag as string == "media.selection.tag");
+        if (tag.IsEnabled)
+        {
+            tag.Command!.Execute(null);
+            await UntilAsync(() => page.MediaSelectionTagWindow != null);
+            Require(((MediaSelectionTagDialog)page.MediaSelectionTagWindow!).Session.Candidates.Count >= 2, "Tag together did not list the occurrences of both selected files.");
+            page.MediaSelectionTagWindow!.Close();
+            await UntilAsync(() => page.MediaSelectionTagWindow == null);
+        }
+        menu.Close();
+        await IdleAsync();
+
+        list.Focus();
+        await KeyAsync(list, Key.Escape, KeyModifiers.None);
+        Require(page.SelectedMediaRows().Count == 0 && !bar.IsVisible, "Esc did not clear the selection in " + mode + " mode.");
+
+        // One selected file is just the current file: no selection actions, no status line.
+        if (list is ListBox box) box.SelectedItem = looseRow; else ((DataGrid)list).SelectedItem = looseRow;
+        await IdleAsync();
+        Require(!bar.IsVisible, "A single selected file must not show the selection status.");
+        await RightClickAsync(await RowControlAsync(list, looseRow), shell);
+        Require(!page.ArchiveMediaMenu!.Items.OfType<MenuItem>().Any(item => (item.Tag as string ?? string.Empty).StartsWith("media.selection.", StringComparison.Ordinal)),
+            "The menu on a single selected file offers selection actions.");
+        page.ArchiveMediaMenu.Close();
+        await IdleAsync();
     }
 
     private static async Task GalleryJourneyAsync(MainWindow shell, string[] mediaPageBound, string[] archiveTiles)

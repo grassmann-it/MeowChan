@@ -48,10 +48,6 @@ public partial class ArchivePage
     private void OnMediaReturnClick(object? sender, RoutedEventArgs e) => MediaReturn?.Invoke();
     internal void ShowGalleryError(string message) => Message(message, true);
 
-    private ArchiveAssetRow? SelectedMediaRow() => (_mediaTiles
-        ? ArchiveMediaTiles.SelectedItem
-        : ArchiveMediaGrid.SelectedItem) as ArchiveAssetRow;
-
     private static GalleryEntry[] BuildVisibleGalleryEntries(ArchivedThreadView thread,
         ArchiveAssetRow[] assets, ArchiveAssetRow[] visible)
     {
@@ -151,7 +147,7 @@ public partial class ArchivePage
         var listRows = (ArchiveThreads.ItemsSource as IEnumerable<ArchiveThreadRow>)?.ToArray() ?? Array.Empty<ArchiveThreadRow>();
         ResourceId[] listSelection = FrozenArchiveSelection();
         ResourceId? listLead = _archiveLeadId;
-        ArchiveAssetRow? mediaSelection = SelectedMediaRow();
+        ArchiveAssetRow[] mediaSelection = SelectedMediaRows().ToArray();
         MediaPosition? mediaPosition = CaptureMediaPosition();
         string? postSelection = (ArchivePosts.SelectedItem as ArchivePostRow)?.Id;
         InlineReplyState[] inlineReplies = CaptureInlineReplyState();
@@ -210,8 +206,7 @@ public partial class ArchivePage
             RenderThread(); UpdateLayoutMode();
             RestoreInlineReplyState(inlineReplies);
             ArchiveContentTabs.SelectedIndex = tab;
-            ArchiveMediaGrid.SelectedItem = mediaSelection;
-            ArchiveMediaTiles.SelectedItem = mediaSelection;
+            SetMediaSelection(mediaSelection);
             if (ArchivePosts.ItemsSource is IEnumerable<ArchivePostRow> posts)
                 ArchivePosts.SelectedItem = posts.FirstOrDefault(post => post.Id == postSelection);
             foreach (var item in scroll) item.View.Offset = item.Offset;

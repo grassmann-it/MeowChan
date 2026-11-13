@@ -2247,6 +2247,8 @@
     "media.selection.tag.remove": "Retirer le tag {0} des {1} occurrences cochées qui l’ont",
     "media.selection.tag.add": "Ajouter le tag {0} aux {1} occurrences cochées qui ne l’ont pas",
     "media.selection.tag.noneChosen": "Cochez d’abord au moins une occurrence.",
+    "archive.media.selection.name": "Sélection dans l’onglet Médias",
+    "archive.media.selection.help": "Ctrl/Cmd+clic ajoute un fichier, Maj+clic ou Maj+flèches sélectionnent une plage, Ctrl/Cmd+A sélectionne tout, Échap efface la sélection. Le menu contextuel agit sur le fichier ayant le focus ; ses actions de sélection agissent sur tous les fichiers sélectionnés.",
     "media.group.favorite.all": "Favori : tous",
     "media.group.favorite.some": "Favori : certains",
     "media.group.favorite.none": "Favori : aucun",

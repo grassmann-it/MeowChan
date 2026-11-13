@@ -118,7 +118,7 @@ public partial class ArchivePage : UserControl
 
     public ArchivePage()
     {
-        InitializeComponent(); InitializeThreadFind(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeThreadFavoriteCommands(); InitializePrivateTags(); InitializeStatusOverlay();
+        InitializeComponent(); InitializeThreadFind(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeMediaSelection(); InitializeThreadFavoriteCommands(); InitializePrivateTags(); InitializeStatusOverlay();
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         ArchivePosts.AutoScrollToSelectedItem = false;
         ArchiveMediaTiles.AutoScrollToSelectedItem = false;
@@ -569,6 +569,7 @@ public partial class ArchivePage : UserControl
         UpdateFilenameSearchActions();
         UpdateFeedbackVisuals();
         UpdateMediaRatingAction();
+        UpdateMediaSelectionBar();
         UpdateThreadFavoriteActions();
         UpdatePrivateTagActions();
         UpdateHashSearchAction();
@@ -845,10 +846,8 @@ public partial class ArchivePage : UserControl
     {
         if (_rebindingMedia) return;
         if (!_applyingMediaRestore && !IsPendingMediaSelectionEcho(sender)) ++_mediaPositionRequest;
-        if (sender is DataGrid && ArchiveMediaGrid.SelectedItem is ArchiveAssetRow gridRow)
-            ArchiveMediaTiles.SelectedItem = gridRow;
-        if (sender is ListBox && ArchiveMediaTiles.SelectedItem is ArchiveAssetRow tileRow)
-            ArchiveMediaGrid.SelectedItem = tileRow;
+        // Only the list that is shown is read; switching between list and tiles carries the selection over (RestoreMediaPosition).
+        if (sender is DataGrid && _mediaTiles || sender is ListBox && !_mediaTiles) return;
         UpdateActions();
     }
     private void OnSizeChanged(object? sender, SizeChangedEventArgs e)
@@ -1027,6 +1026,7 @@ public partial class ArchivePage : UserControl
         }
         finally { _localizingMediaChoices = false; }
         LocalizeMediaRatings();
+        LocalizeMediaSelection();
         if (this.FindControl<MenuItem>("ArchiveTableGalleryMenu") is MenuItem gallery) gallery.Header = Texts.T("gallery.open");
         if (this.FindControl<MenuItem>("ArchiveTableReadMenu") is MenuItem read) read.Header = Texts.T("gallery.read");
         if (this.FindControl<MenuItem>("ArchiveTableExportMenu") is MenuItem export) export.Header = Texts.T("gallery.export");
@@ -1043,6 +1043,7 @@ public partial class ArchivePage : UserControl
         CloseThreadFind();
         _ended = true;
         _mediaMenuPresenter.Invalidate();
+        EndMediaSelectionLifetime();
         StopObservingReaderMediaKeys();
         CancelArchiveMediaCounts();
         EndArchiveCleanupLifetime();

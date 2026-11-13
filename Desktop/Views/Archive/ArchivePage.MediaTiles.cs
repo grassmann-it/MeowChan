@@ -17,7 +17,7 @@ namespace MeowChan;
 public partial class ArchivePage
 {
     private readonly record struct MediaIdentity(ResourceId? Thread, string Directory, string Asset);
-    private sealed record MediaPosition(MediaIdentity[] Order, int Index, double Offset, MediaIdentity? Selection);
+    private sealed record MediaPosition(MediaIdentity[] Order, int Index, double Offset, MediaIdentity[] Selection);
     private IReadOnlyList<ArchiveAssetRow> _shownMedia = Array.Empty<ArchiveAssetRow>();
     private ResourceId? _shownMediaThread;
     private MediaPosition? _retainedMediaPosition;
@@ -25,7 +25,7 @@ public partial class ArchivePage
     private bool _rebindingMedia;
     private bool _mediaProjectionPending;
     private bool _applyingMediaRestore;
-    private MediaIdentity? _pendingMediaSelection;
+    private HashSet<MediaIdentity> _pendingMediaSelection = new();
     private int _pendingMediaSelectionRequest;
 
     // DataGrid can publish its initial SelectedItem event after applying its template.
@@ -33,9 +33,9 @@ public partial class ArchivePage
     private bool IsPendingMediaSelectionEcho(object? sender)
     {
         if (_pendingMediaSelectionRequest != _mediaPositionRequest) return false;
-        object? selected = sender is DataGrid ? ArchiveMediaGrid.SelectedItem : ArchiveMediaTiles.SelectedItem;
-        MediaIdentity? key = selected is ArchiveAssetRow row ? MediaKey(_shownMediaThread, row) : null;
-        return key == _pendingMediaSelection;
+        System.Collections.IList? selected = sender is DataGrid ? ArchiveMediaGrid.SelectedItems : ArchiveMediaTiles.SelectedItems;
+        HashSet<MediaIdentity> keys = selected?.OfType<ArchiveAssetRow>().Select(row => MediaKey(_shownMediaThread, row)).ToHashSet() ?? new();
+        return keys.SetEquals(_pendingMediaSelection);
     }
 
     private void InitializeMediaPositionInput()
@@ -105,7 +105,7 @@ public partial class ArchivePage
                 offset = Math.Max(0, MediaHeaderHeight(grid) - first.Point!.Value.Y);
             }
         }
-        MediaIdentity? selection = SelectedMediaRow() is { } selected ? MediaKey(_shownMediaThread, selected) : null;
+        MediaIdentity[] selection = SelectedMediaRows().Select(row => MediaKey(_shownMediaThread, row)).ToArray();
         return new MediaPosition(_shownMedia.Select(row => MediaKey(_shownMediaThread, row)).ToArray(), Math.Max(0, index), offset, selection);
     }
 
@@ -122,17 +122,19 @@ public partial class ArchivePage
             if (indices.TryGetValue(position.Order[old], out target)) { retained = true; break; }
         double retainedOffset = retained ? position.Offset : 0;
         target = Math.Clamp(target, 0, _shownMedia.Count - 1);
-        int selectedIndex = position.Selection is { } selected && indices.TryGetValue(selected, out int found) ? found : -1;
-        _pendingMediaSelection = selectedIndex >= 0 ? MediaKey(_shownMediaThread, _shownMedia[selectedIndex]) : null;
+        // Every selected file that is still shown stays selected (found by its bytes' identity); the others drop out.
+        ArchiveAssetRow[] selected = position.Selection.Where(indices.ContainsKey).Select(key => _shownMedia[indices[key]]).ToArray();
+        _pendingMediaSelection = selected.Select(row => MediaKey(_shownMediaThread, row)).ToHashSet();
         _pendingMediaSelectionRequest = request;
+        // The list that is not shown keeps no selection of its own: a switch between list and tiles restores it from here.
+        bool rebinding = _rebindingMedia;
         _rebindingMedia = true;
         try
         {
-            object? selection = selectedIndex >= 0 ? _shownMedia[selectedIndex] : null;
-            ArchiveMediaGrid.SelectedItem = selection;
-            ArchiveMediaTiles.SelectedItem = selection;
+            if (_mediaTiles) ArchiveMediaGrid.SelectedItems.Clear(); else ArchiveMediaTiles.Selection.Clear();
         }
-        finally { _rebindingMedia = false; }
+        finally { _rebindingMedia = rebinding; }
+        SetMediaSelection(selected);
         Dispatcher.UIThread.Post(() =>
         {
             if (_ended || request != _mediaPositionRequest || _shownMedia.Count == 0) return;

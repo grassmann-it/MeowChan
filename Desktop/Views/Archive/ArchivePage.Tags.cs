@@ -47,6 +47,7 @@ public partial class ArchivePage
         _definePrivateTag = host.DefinePrivateTagAsync;
         _setThreadTag = host.SetThreadTagAsync;
         _sourceTagSuggestions.Read = host.ReadBooruCatalog;
+        AttachMediaSelectionTags(host);
         _renamePrivateTag = host.RenamePrivateTagAsync;
         _deletePrivateTag = host.DeletePrivateTagAsync;
         _inspectLocalTagOrphans = host.InspectLocalMediaTagOrphansAsync;

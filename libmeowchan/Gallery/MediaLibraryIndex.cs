@@ -196,6 +196,23 @@ internal static class MediaLibraryIndexBuilder
     private static string Describe(ResourceId id) => id.Source + " /" + id.Board + "/ " + id.Thread;
 
     /// <summary>
+    /// The index entry of one gallery occurrence of a saved file. The thread's own media tab uses it to hand its selection to the
+    /// same tag dialog and export plan as the media page, so both describe an occurrence with exactly the same facts.
+    /// </summary>
+    internal static MediaLibraryEntry EntryOf(ArchiveThreadSummary summary, GalleryEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(summary);
+        ArgumentNullException.ThrowIfNull(entry);
+        CapturedPost? post = entry.Post;
+        return new MediaLibraryEntry(summary.Id, summary.Title, summary.Revision, summary.FirstSeenAt, summary.LastCapturedAt,
+            post?.PostId, post?.Ordinal, post?.PostedAt, entry.Attachment?.Position, entry.AttachmentResolution?.Binding?.Reference.RevisionKey,
+            entry.Manifest.Directory, entry.Asset.AssetId, entry.Asset.Sha256.ToLowerInvariant(), entry.Asset.Length,
+            entry.Asset.MediaIdentifier, entry.Asset.Variant, entry.Asset.OriginalFileName ?? Path.GetFileName(entry.Asset.Path),
+            entry.Kind, MediaLibraryPresence.Present, entry.Unassigned, entry.Historical,
+            entry.LocalTagEligible ? entry.Asset.RequestedFileName : null);
+    }
+
+    /// <summary>
     /// The occurrences of one thread: every attachment the gallery would show (current versions, all
     /// media kinds), every saved file without a post, and every captured attachment without a saved file.
     /// </summary>
@@ -211,12 +228,7 @@ internal static class MediaLibraryIndexBuilder
         {
             CapturedPost? post = entry.Post;
             if (post != null && entry.Attachment != null) found.Add((post.PostId, entry.Attachment.Position));
-            yield return new MediaLibraryEntry(summary.Id, summary.Title, summary.Revision, summary.FirstSeenAt, summary.LastCapturedAt,
-                post?.PostId, post?.Ordinal, post?.PostedAt, entry.Attachment?.Position, entry.AttachmentResolution?.Binding?.Reference.RevisionKey,
-                entry.Manifest.Directory, entry.Asset.AssetId, entry.Asset.Sha256.ToLowerInvariant(), entry.Asset.Length,
-                entry.Asset.MediaIdentifier, entry.Asset.Variant, entry.Asset.OriginalFileName ?? Path.GetFileName(entry.Asset.Path),
-                entry.Kind, MediaLibraryPresence.Present, entry.Unassigned, entry.Historical,
-                entry.LocalTagEligible ? entry.Asset.RequestedFileName : null);
+            yield return EntryOf(summary, entry);
         }
         foreach (CapturedPost post in posts.Values.OrderBy(post => post.Ordinal).ThenBy(post => post.PostId, StringComparer.Ordinal))
             foreach (CapturedAttachment attachment in (post.Attachments ?? Array.Empty<CapturedAttachment>()).OrderBy(item => item.Position))

@@ -458,7 +458,7 @@
                                         <ComboBox x:Name="ArchiveVersionScope" SelectedIndex="1" SelectionChanged="OnVersionScopeChanged" MinWidth="210" />
                                     </WrapPanel>
                                     <Grid x:Name="ArchiveMediaSurface" Grid.Row="1">
-                                        <DataGrid x:Name="ArchiveMediaGrid" IsReadOnly="True" AutoGenerateColumns="False" CanUserSortColumns="False" SelectionMode="Single" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped" GridLinesVisibility="None" PointerReleased="OnArchiveColumnsReleased">
+                                        <DataGrid x:Name="ArchiveMediaGrid" IsReadOnly="True" AutoGenerateColumns="False" CanUserSortColumns="False" SelectionMode="Extended" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped" GridLinesVisibility="None" PointerReleased="OnArchiveColumnsReleased">
                                             <DataGrid.Columns>
                                                 <DataGridTemplateColumn Width="*" MinWidth="220" SortMemberPath="Name"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveAssetRow"><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                                                 <DataGridTextColumn Width="85" MinWidth="70" Binding="{Binding Size, DataType=desktop:ArchiveAssetRow}" />
@@ -466,7 +466,7 @@
                                                 <DataGridTextColumn Width="130" MinWidth="100" Binding="{Binding RatingLabel, DataType=desktop:ArchiveAssetRow}" />
                                             </DataGrid.Columns>
                                         </DataGrid>
-                                        <ListBox x:Name="ArchiveMediaTiles" Classes="workspace-selection-bar" IsVisible="False" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped">
+                                        <ListBox x:Name="ArchiveMediaTiles" Classes="workspace-selection-bar" IsVisible="False" SelectionMode="Multiple" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped">
                                             <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="VerticalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
                                             <ListBox.ItemsPanel><ItemsPanelTemplate><desktop:MediaTilePanel /></ItemsPanelTemplate></ListBox.ItemsPanel>
                                             <ListBox.ItemTemplate><DataTemplate x:DataType="desktop:ArchiveAssetRow">
@@ -475,7 +475,15 @@
                                         </ListBox>
                                         <TextBlock x:Name="ArchiveNoMedia" Tag="archive.noMedia" Classes="muted localized" TextWrapping="Wrap" Margin="8,40,8,8" />
                                     </Grid>
-                                    <StackPanel x:Name="ArchiveMediaFooter" Grid.Row="2" Spacing="6"><TextBlock x:Name="ArchiveRatingStatus" Classes="error" TextWrapping="Wrap" IsVisible="False" /><WrapPanel HorizontalAlignment="Right" ItemSpacing="8" LineSpacing="6"><Button x:Name="ArchiveEditRatingButton" IsEnabled="False" Click="OnEditMediaRatingClick" /><Button x:Name="PreviewArchiveMediaButton" Tag="archive.preview" Classes="localized" Click="OnPreviewClick" /></WrapPanel></StackPanel>
+                                    <StackPanel x:Name="ArchiveMediaFooter" Grid.Row="2" Spacing="6"><TextBlock x:Name="ArchiveRatingStatus" Classes="error" TextWrapping="Wrap" IsVisible="False" />
+                                        <!-- T3: the selection status of the Media tab; shown from two selected files on. -->
+                                        <WrapPanel x:Name="ArchiveMediaSelectionBar" ItemSpacing="8" LineSpacing="6" IsVisible="False">
+                                            <TextBlock x:Name="ArchiveMediaSelectionStatus" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                            <Button x:Name="ArchiveMediaSelectionTag" Click="OnMediaSelectionTagClick" />
+                                            <Button x:Name="ArchiveMediaSelectionGallery" Click="OnMediaSelectionGalleryClick" />
+                                            <Button x:Name="ArchiveMediaSelectionExport" Click="OnMediaSelectionExportClick" />
+                                            <Button x:Name="ArchiveMediaSelectionClear" Click="OnMediaSelectionClearClick" />
+                                        </WrapPanel><WrapPanel HorizontalAlignment="Right" ItemSpacing="8" LineSpacing="6"><Button x:Name="ArchiveEditRatingButton" IsEnabled="False" Click="OnEditMediaRatingClick" /><Button x:Name="PreviewArchiveMediaButton" Tag="archive.preview" Classes="localized" Click="OnPreviewClick" /></WrapPanel></StackPanel>
                                 </Grid>
                             </TabItem>
                             <TabItem x:Name="ArchiveReferencesTab">
