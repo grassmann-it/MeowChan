@@ -625,6 +625,8 @@
     "savedSearch.name": "Nombre de la búsqueda",
     "savedSearch.empty": "Aún no hay búsquedas guardadas. Aplique una búsqueda en el archivo y guárdela aquí con «Guardar búsqueda aplicada…».",
     "savedSearch.choose": "Seleccione una búsqueda guardada para aplicarla, cambiarle el nombre, reemplazarla o eliminarla.",
+    "savedSearch.noApplied": "Aún no hay ninguna búsqueda aplicada en el archivo. Aplique primero una allí y guárdela después aquí.",
+    "savedSearch.captureBlocked": "El archivo no puede entregar su búsqueda ahora porque está ocupado o cerrado. Inténtelo de nuevo en un momento.",
     "savedSearch.unsupported": "No se puede aplicar esta definición.",
     "savedSearch.working": "Procesando…",
     "savedSearch.applyFailed": "La búsqueda no se aplicó. Siguen disponibles el resultado anterior y los campos de búsqueda. Cierre este diálogo para reintentarlo desde el archivo.",

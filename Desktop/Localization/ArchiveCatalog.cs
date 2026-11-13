@@ -44,6 +44,8 @@ internal static class ArchiveCatalog
         ("savedSearch.name", "Search name", "Name der Suche"),
         ("savedSearch.empty", "No saved searches yet. Apply a search in the archive, then save it here with “Save applied search…”.", "Noch keine gespeicherten Suchen. Wende im Archiv eine Suche an und speichere sie hier mit „Angewandte Suche speichern…“."),
         ("savedSearch.choose", "Select a saved search to apply, rename, replace or delete it.", "Wähle eine gespeicherte Suche, um sie anzuwenden, umzubenennen, zu ersetzen oder zu löschen."),
+        ("savedSearch.noApplied", "No search is applied in the archive yet. Apply a search there first, then save it here.", "Im Archiv ist noch keine Suche angewandt. Wende dort zuerst eine Suche an und speichere sie dann hier."),
+        ("savedSearch.captureBlocked", "The archive cannot hand over its search right now because it is busy or closed. Try again in a moment.", "Das Archiv kann seine Suche gerade nicht übergeben, weil es beschäftigt oder geschlossen ist. Versuche es gleich noch einmal."),
         ("savedSearch.unsupported", "This definition cannot be applied.", "Diese Definition kann nicht angewandt werden."),
         ("savedSearch.working", "Working…", "Vorgang läuft…"),
         ("savedSearch.applyFailed", "The search was not applied. The previous result and search fields remain available. Close this dialog to retry from the archive.", "Die Suche wurde nicht angewandt. Das vorherige Ergebnis und die Suchfelder bleiben erhalten. Zum Wiederholen im Archiv diesen Dialog schließen."),

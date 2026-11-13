@@ -224,6 +224,29 @@ public partial class SavedArchiveSearchesDialog : Window
     }
     private bool Ready => _host.State == DesktopSessionState.Ready;
     private bool CanCapture() => _snapshot?.CanWrite == true && _page.CanSaveCurrentSearch;
+    // A disabled action explains itself: why nothing can be saved, or that a search must be selected first.
+    private string? UnavailableReason(string suffix)
+    {
+        if (_snapshot == null || _snapshot.CanWrite != true && suffix is not "apply") return null;
+        bool needsCapture = suffix is "save-current" or "replace";
+        bool needsSelection = suffix is not "save-current";
+        if (needsSelection && Selected == null) return Texts.T("savedSearch.choose");
+        if (needsCapture && !_page.CanSaveCurrentSearch)
+            return Texts.T(_page.AppliedSearchSpec == null ? "savedSearch.noApplied" : "savedSearch.captureBlocked");
+        return null;
+    }
+    private void UpdateUnavailableHints()
+    {
+        foreach ((string id, string suffix) in new[] { ("SavedSearchCreate", "save-current"), ("SavedSearchApply", "apply"),
+            ("SavedSearchRename", "rename"), ("SavedSearchReplace", "replace"), ("SavedSearchDelete", "delete") })
+        {
+            Button button = Button(id);
+            string tip = CommandBindings.Tooltip("archive.saved-searches." + suffix, button.IsEnabled ? null : UnavailableReason(suffix));
+            ToolTip.SetTip(button, tip);
+            ToolTip.SetShowOnDisabled(button, true);
+            AutomationProperties.SetHelpText(button, tip);
+        }
+    }
     private bool CanEditSelection() => _snapshot?.CanWrite == true && Selected != null;
     private bool HasNameChanges() => (_edit is EditKind.Create or EditKind.Rename || _edit == EditKind.Discard && (_discardedEdit is EditKind.Create or EditKind.Rename)) && (NameInput.Text ?? "") != _initialName;
     private void Begin(EditKind kind, ArchiveSearchSpec? frozen = null, bool focusEditor = true)
@@ -392,7 +415,7 @@ public partial class SavedArchiveSearchesDialog : Window
         Button("SavedSearchReload").IsEnabled = idle && _edit == EditKind.None;
         Button("SavedSearchRecover").IsEnabled = idle && _edit == EditKind.None;
         Button("SavedSearchConfirm").IsEnabled = idle && _edit != EditKind.None && !TargetDeletedByConflict && (_edit == EditKind.Apply || _edit == EditKind.Discard || _snapshot?.CanWrite == true || _edit == EditKind.Recover && _snapshot?.State == SavedSearchStoreState.RecoveryAvailable);
-        Button("SavedSearchCancelEdit").Content = Texts.T(_working ? "savedSearch.cancelOperation" : _edit == EditKind.Discard ? "savedSearch.keepEditing" : "savedSearch.cancel");
+        Button("SavedSearchCancelEdit").Content = Texts.T(_working ? "savedSearch.cancelOperation" : _edit == EditKind.Discard ? "savedSearch.keepEditing" : "savedSearch.cancel");        UpdateUnavailableHints();
     }
     // Failures go to the local error strip between header and body; SavedSearchStatus keeps the
     // same text for its existing readers, other outcomes stay in the footer status line.
@@ -413,5 +436,6 @@ public partial class SavedArchiveSearchesDialog : Window
         foreach (var pair in new[] { ("SavedSearchCreate", "save-current"), ("SavedSearchApply", "apply"), ("SavedSearchRename", "rename"), ("SavedSearchReplace", "replace"), ("SavedSearchDelete", "delete") }) CommandBindings.Apply(Button(pair.Item1), "archive.saved-searches." + pair.Item2);
         Button("SavedSearchReload").Content = Texts.T("savedSearch.reload"); Button("SavedSearchRecover").Content = Texts.T("savedSearch.recover"); Button("SavedSearchClose").Content = Texts.T("savedSearch.close");
         AutomationProperties.SetName(List, Texts.T("savedSearch.title")); AutomationProperties.SetName(NameInput, Texts.T("savedSearch.name"));
+        UpdateUnavailableHints();
     }
 }

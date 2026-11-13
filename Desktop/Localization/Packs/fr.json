@@ -625,6 +625,8 @@
     "savedSearch.name": "Nom de la recherche",
     "savedSearch.empty": "Aucune recherche enregistrée pour l’instant. Appliquez une recherche dans l’archive, puis enregistrez-la ici avec « Enregistrer la recherche appliquée… ».",
     "savedSearch.choose": "Sélectionnez une recherche enregistrée pour l’appliquer, la renommer, la remplacer ou la supprimer.",
+    "savedSearch.noApplied": "Aucune recherche n’est encore appliquée dans l’archive. Appliquez-en d’abord une là-bas, puis enregistrez-la ici.",
+    "savedSearch.captureBlocked": "L’archive ne peut pas transmettre sa recherche pour le moment, car elle est occupée ou fermée. Réessayez dans un instant.",
     "savedSearch.unsupported": "Cette définition ne peut pas être appliquée.",
     "savedSearch.working": "Traitement…",
     "savedSearch.applyFailed": "La recherche n’a pas été appliquée. Le résultat précédent et les champs de recherche restent disponibles. Fermez cette boîte de dialogue pour réessayer depuis l’archive.",
