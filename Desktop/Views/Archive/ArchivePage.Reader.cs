@@ -316,7 +316,12 @@ public partial class ArchivePage
         if (_thread != null) RenderThread();
     }
 
-    internal Task FocusPostAsync(string postId) => FocusPostAsync(postId, null);
+    // The callers outside the page are explicit jumps (gallery "Show in thread", media return): reveal, then focus.
+    internal async Task FocusPostAsync(string postId)
+    {
+        await RevealPostAsync(postId);
+        await FocusPostAsync(postId, null);
+    }
     private async Task FocusPostAsync(string postId, int? interactionRevision, bool restoreFocus = true,
         ReaderFocusIntent? focusIntent = null)
     {
@@ -324,12 +329,29 @@ public partial class ArchivePage
         // yield. Validate before ShowPost changes the page or selection.
         if (_ended || IsFilenameSearchOpen || _thread?.FindPostIndex(postId) is not >= 0
             || (interactionRevision.HasValue && interactionRevision != _readerInteractionRevision)) return;
+        if (_projectionReady is { } preparing)
+        {
+            // A view that is still being prepared has no rows yet. The identity never waits here.
+            ResourceId? preparingThread = _thread?.Summary.Id;
+            int preparingContent = _contentRequest;
+            await preparing.Task;
+            if (_ended || IsFilenameSearchOpen || preparingContent != _contentRequest || _thread?.Summary.Id != preparingThread
+                || _thread?.FindPostIndex(postId) is not >= 0
+                || (interactionRevision.HasValue && interactionRevision != _readerInteractionRevision)) return;
+        }
+        // A post this view hides is no target of its own; the nearest shown post is (explicit jumps reveal first).
+        if (Projection is { } shownPosts && shownPosts.PositionOf(postId) < 0)
+        {
+            int nearest = shownPosts.NearestPosition(postId);
+            if (nearest < 0) return;
+            postId = shownPosts[nearest].Post.PostId;
+        }
         int focusRequest = ++_readerFocusRequest;
         focusIntent?.BeginFocus(focusRequest);
         ResourceId? threadId = _thread?.Summary.Id;
         int request = _contentRequest;
         _readerPostId = postId;
-        ShowPost(postId);
+        ShowPost(postId, null, reveal: false);
         UpdateReaderNavigation();
         ListBox posts = ArchivePosts;
         bool IsCurrent() => !_ended && focusRequest == _readerFocusRequest && request == _contentRequest
@@ -414,16 +436,17 @@ public partial class ArchivePage
         catch (Exception exception) { if (_largeReader && request == _readerScopeRequest) Message(exception.Message, true); }
     }
 
+    // The position of the reader's current post in the shown order (the thread index under the identity).
     private int ReaderPostIndex
     {
         get
         {
-            if (_thread == null) return -1;
+            if (_thread == null || Projection is not { } shown) return -1;
             string? selected = (ArchivePosts.SelectedItem as ArchivePostRow)?.Id;
-            int retained = _readerPostId == null ? -1 : _thread.FindPostIndex(_readerPostId);
-            return _thread.FindPostIndex(selected
-                ?? (retained >= _postOffset && retained < _postOffset + PageSize ? _readerPostId : null)
-                ?? _thread.GetPosts(_postOffset, 1).FirstOrDefault()?.PostId ?? string.Empty);
+            int retained = _readerPostId == null ? -1 : shown.PositionOf(_readerPostId);
+            return shown.PositionOf(selected
+                ?? (retained >= _postOffset && retained < _postOffset + ReaderPageSize ? _readerPostId : null)
+                ?? (_postOffset < shown.Count ? shown[_postOffset].Post.PostId : null) ?? string.Empty);
         }
     }
     private int ReaderThreadIndex => _thread == null ? -1 : Array.IndexOf(_readerThreads.ToArray(), _thread.Summary.Id);
@@ -435,7 +458,7 @@ public partial class ArchivePage
         int post = ReaderPostIndex;
         int thread = ReaderThreadIndex;
         ReaderPreviousPost.IsEnabled = !_busy && !IsFilenameSearchOpen && post > 0;
-        ReaderNextPost.IsEnabled = !_busy && !IsFilenameSearchOpen && post >= 0 && post + 1 < (_thread?.PostCount ?? 0);
+        ReaderNextPost.IsEnabled = !_busy && !IsFilenameSearchOpen && post >= 0 && post + 1 < ShownPostCount;
         ReaderPreviousThread.IsEnabled = !_busy && !IsFilenameSearchOpen && thread > 0 && (!_readerGroupScope || ReaderGroupTargetIndex(-1) >= 0);
         ReaderNextThread.IsEnabled = !_busy && !IsFilenameSearchOpen && thread >= 0 && thread + 1 < _readerThreads.Count
             && (!_readerGroupScope || ReaderGroupTargetIndex(1) < _readerThreads.Count);
@@ -807,15 +830,18 @@ public partial class ArchivePage
             else await LoadThreadAsync(target);
             if (!_largeReader || _ended || _thread?.Summary.Id != target) return;
             _readerPostId = null;
-            string? first = _thread?.GetPosts(0, 1).FirstOrDefault()?.PostId;
+            await AwaitProjectionAsync();
+            if (!_largeReader || _ended || _thread?.Summary.Id != target) return;
+            string? first = Projection is { Count: > 0 } shown ? shown[0].Post.PostId : null;
             if (first != null) await FocusPostAsync(first);
             else ArchiveCloseReader.Focus();
         }
-        else if (_thread != null)
+        else if (_thread != null && Projection is { } shown)
         {
+            // Up/Down follow the shown order: hidden posts are skipped, a conversation goes through its tree.
             int index = ReaderPostIndex + postDelta;
-            if (ReaderPostIndex < 0 || index < 0 || index >= _thread.PostCount) return;
-            await FocusPostAsync(_thread.GetPosts(index, 1).Single().PostId);
+            if (ReaderPostIndex < 0 || index < 0 || index >= shown.Count) return;
+            await FocusPostAsync(shown[index].Post.PostId);
         }
         UpdateReaderNavigation();
     }
@@ -876,7 +902,9 @@ public partial class ArchivePage
             .OrderBy(item => item.Top).FirstOrDefault();
         if (visible.Item?.DataContext is ArchivePostRow row)
             return new ReaderAnchor(_thread.Summary.Id, row.Id, visible.Top, selected);
-        string? post = (list.SelectedItem as ArchivePostRow)?.Id ?? _thread.GetPosts(_postOffset, 1).FirstOrDefault()?.PostId;
+        string? post = (list.SelectedItem as ArchivePostRow)?.Id
+            ?? (Projection is { } shown ? (_postOffset < shown.Count ? shown[_postOffset].Post.PostId : null)
+                : _thread.GetPosts(_postOffset, 1).FirstOrDefault()?.PostId);
         return post == null ? null : new ReaderAnchor(_thread.Summary.Id, post, 0, selected);
     }
 
@@ -884,12 +912,26 @@ public partial class ArchivePage
         ReaderFocusIntent? focusIntent = null)
     {
         if (_ended || _thread?.Summary.Id != anchor.Thread) return;
+        if (_projectionReady is { } preparing)
+        {
+            int preparingContent = _contentRequest;
+            await preparing.Task;
+            if (_ended || preparingContent != _contentRequest || _thread?.Summary.Id != anchor.Thread) return;
+        }
+        ReaderPostProjection? shown = Projection;
         if (_thread.FindPostIndex(anchor.PostId) < 0)
         {
-            string? fallback = _thread.GetPosts(Math.Min(_postOffset, Math.Max(0, _thread.PostCount - 1)), 1).FirstOrDefault()?.PostId;
-            Message(Texts.T(fallback == null ? "archive.noPosts" : "reader.anchorUnavailable"));
+            string? fallback = shown is { Count: > 0 } ? shown[Math.Min(_postOffset, shown.Count - 1)].Post.PostId : null;
+            Message(Texts.T(fallback != null ? "reader.anchorUnavailable" : _thread.PostCount == 0 ? "archive.noPosts" : "reader.view.empty"));
             if (fallback != null) await FocusPostAsync(fallback, _readerInteractionRevision, restoreFocus, focusIntent);
             return;
+        }
+        // A retained place in a post this view hides moves to the nearest shown post (it is no explicit jump).
+        if (shown != null && shown.PositionOf(anchor.PostId) < 0)
+        {
+            int nearest = shown.NearestPosition(anchor.PostId);
+            if (nearest < 0) return;
+            anchor = anchor with { PostId = shown[nearest].Post.PostId };
         }
         int request = _contentRequest;
         int interactionRevision = _readerInteractionRevision;

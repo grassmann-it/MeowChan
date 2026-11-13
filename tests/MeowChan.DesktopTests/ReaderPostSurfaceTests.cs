@@ -171,7 +171,8 @@ public sealed class ReaderPostSurfaceTests
         XElement layout = Assert.Single(root.Descendants(Desktop + "ReaderPostLayout"));
         XElement attachments = Assert.Single(layout.Elements(A + "ItemsControl"));
         Assert.Equal("{Binding Attachments}", (string?)attachments.Attribute("ItemsSource"));
-        Assert.Equal("{Binding HasAttachments}", (string?)attachments.Attribute("IsVisible"));
+        // "Hide media" (reader view) gives the slot way to a short line; without it the slot shows as before.
+        Assert.Equal("{Binding ShowsMedia}", (string?)attachments.Attribute("IsVisible"));
         XElement attachment = Assert.Single(attachments.Descendants(Desktop + "ArchiveAttachmentView"));
         Assert.Equal("0,2,0,8", (string?)attachment.Attribute("Margin"));
         XElement body = Assert.Single(layout.Descendants(Desktop + "ReaderBodyTextBlock"));

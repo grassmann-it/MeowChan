@@ -127,6 +127,7 @@ public partial class ArchivePage : UserControl
         InitializeArchivePresentation();
         InitializeFilterSurface();
         InitializeArchiveMediaCounts();
+        InitializeReaderView(); AttachPostFilter(); AttachConversationView();
     }
     internal ArchivePage(Func<CancellationToken, Task<ArchiveReader>> openReader,
         Func<ResourceId, bool, Task> setCapture, Action<string> openFolder,
@@ -377,8 +378,16 @@ public partial class ArchivePage : UserControl
                 MediaLoadTask = LoadMediaAsync(thread);
                 if (retainedAnchor != null) await RestoreReaderAnchorAsync(retainedAnchor, focusIntent: focusIntent);
                 else if (filenameNavigation == null && _largeReader && thread.PostCount > 0)
-                    await FocusPostAsync(thread.GetPosts(_postOffset, 1).First().PostId,
-                        resetPage ? null : _readerInteractionRevision, focusIntent: focusIntent);
+                {
+                    // The first post of the shown page; a view still being prepared is waited for (the identity is not).
+                    await AwaitProjectionAsync();
+                    if (_ended || request != _contentRequest) return;
+                    if (Projection is { Count: > 0 } shown)
+                        await FocusPostAsync(shown[Math.Min(_postOffset, shown.Count - 1)].Post.PostId,
+                            resetPage ? null : _readerInteractionRevision, focusIntent: focusIntent);
+                    else if (focusIntent != null) focusIntent.Restore(ArchiveCloseReader);
+                    else ArchiveCloseReader.Focus();
+                }
                 else if (filenameNavigation == null && _largeReader)
                 {
                     if (focusIntent != null) focusIntent.Restore(ArchiveCloseReader);
@@ -486,36 +495,38 @@ public partial class ArchivePage : UserControl
                 ThreadSourceState.NotFound => "archive.sourceMissing",
                 _ => "archive.sourceActive"
             });
-        ArchiveReaderStatus.Text = status;
+        ReaderPostProjection? projection = _thread != null ? ResolveProjection(out _) : null;
+        ArchiveReaderStatus.Text = status + ReaderViewStatus(projection);
         if (_thread != null)
         {
             string? openingPost = ArchivePresentation.OpeningPostId(_thread);
             (string? unreadFirst, int unreadCount) = UnreadBoundary();
-            _unreadFirstNewId = unreadFirst;
-            ResourceId threadId = _thread.Summary.Id;
-            Dictionary<string, bool> capturedIds = new(StringComparer.Ordinal);
-            bool IsDead(ArchiveQuote quote) => quote.Target is { } target && target.Thread == _thread.Summary.Id
-                && !(capturedIds.TryGetValue(target.PostId, out bool captured) ? captured
-                    : capturedIds[target.PostId] = _thread.FindPostIndex(target.PostId) >= 0);
-            ArchivePostRow[] posts = _thread.GetPosts(_postOffset, PageSize).Select(post =>
+            // The reading-mark line sits on the first shown post at or after the first new one; its count stays the thread's.
+            string? unreadCarrier = null;
+            if (unreadFirst != null && projection != null && projection.NearestPosition(unreadFirst) is >= 0 and var carrier
+                && projection[carrier].ThreadIndex >= _thread.FindPostIndex(unreadFirst))
+                unreadCarrier = projection[carrier].Post.PostId;
+            _unreadFirstNewId = unreadCarrier;
+            int pageSize = ReaderPageSize;
+            if (projection != null)
             {
-                (string text, IReadOnlyList<ArchiveTextMark> marks) = ArchiveText.PlainTextWithMarks(post.Html);
-                if (text.Length > 65536) text = text[..65536] + "\n\n" + Texts.T("archive.displayLimit");
-                return new ArchivePostRow(post.PostId, post.Subject ?? string.Empty, text,
-                    Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment => CreateAttachmentRow(_thread.Summary.Id, attachment, post.PostId, _mediaReady.Task)).ToArray()))
+                if (_projectionPagePost is { } pagePost)
                 {
-                    Author = post.Author ?? string.Empty,
-                    Posted = post.PostedAt?.ToLocalTime().ToString("g", Texts.Culture) ?? string.Empty,
-                    IsDeleted = post.IsDeleted,
-                    IsOpeningPost = post.PostId == openingPost,
-                    UnreadCount = post.PostId == unreadFirst ? unreadCount : 0,
-                    Marks = marks,
-                    StartExpanded = _expandedPosts.Contains((_thread.Summary.Id, post.PostId)),
-                    ExpandedChanged = open => SetPostExpanded(threadId, post.PostId, open),
-                    Quotes = Array.AsReadOnly(ArchiveQuoteParser.Parse(_thread.Summary.Id, _thread.Summary.Url, post)
-                        .Select(quote => new ArchiveQuoteRow(quote) { IsDead = IsDead(quote) }).ToArray())
-                };
-            }).ToArray();
+                    int position = projection.NearestPosition(pagePost);
+                    _postOffset = position >= 0 ? position / pageSize * pageSize : 0;
+                    _projectionPagePost = null;
+                }
+                else if (_postOffset > 0 && _postOffset >= projection.Count) _postOffset = Math.Max(0, (projection.Count - 1) / pageSize * pageSize);
+            }
+            Dictionary<string, bool> capturedIds = new(StringComparer.Ordinal);
+            ArchivedThreadView current = _thread;
+            bool IsDead(ArchiveQuote quote) => quote.Target is { } target && target.Thread == current.Summary.Id
+                && !(capturedIds.TryGetValue(target.PostId, out bool captured) ? captured
+                    : capturedIds[target.PostId] = current.FindPostIndex(target.PostId) >= 0);
+            PostRowContext context = new(current, openingPost, unreadCarrier, unreadCount, _readerView.HideMedia,
+                projection?.IsOrdered == true, IsDead);
+            ArchivePostRow[] posts = projection == null ? Array.Empty<ArchivePostRow>()
+                : projection.Page(_postOffset, pageSize).Select(entry => BuildPostRow(entry, context)).ToArray();
             ListBox postList = ArchivePosts;
             // A new page is a new index space. Do not carry its predecessor's
             // virtualized realization window and estimated item positions over.
@@ -527,9 +538,55 @@ public partial class ArchivePage : UserControl
             RefreshInlineReplies(posts);
         }
         else { ArchivePosts.ItemsSource = null; CancelInlineReplies(); _unreadFirstNewId = null; }
-        ArchiveNoPosts.IsVisible = _thread?.PostCount == 0;
+        // No captured text, a view still being prepared, or a view nothing passes.
+        string? noPosts = _thread == null ? null : _thread.PostCount == 0 ? "archive.noPosts"
+            : projection == null ? "reader.view.preparing" : projection.Count == 0 ? "reader.view.empty" : null;
+        TextBlock noPostsText = ArchiveNoPosts;
+        noPostsText.IsVisible = noPosts != null;
+        if (noPosts != null && !Equals(noPostsText.Tag, noPosts)) { noPostsText.Tag = noPosts; noPostsText.Text = Texts.T(noPosts); }
         Dispatcher.UIThread.Post(UpdateUnreadReturn, DispatcherPriority.Background);
         RenderMedia();
+        AnnounceProjection();
+    }
+
+    private readonly record struct PostRowContext(ArchivedThreadView Thread, string? OpeningPost, string? UnreadCarrier,
+        int UnreadCount, bool HideMedia, bool SuppressReplyToggle, Func<ArchiveQuote, bool> IsDead);
+
+    // One immutable row of a page. A placeholder keeps no attachments, so it never offers or loads media.
+    private ArchivePostRow BuildPostRow(ReaderPostEntry entry, PostRowContext context)
+    {
+        CapturedPost post = entry.Post;
+        ArchivedThreadView thread = context.Thread;
+        ResourceId threadId = thread.Summary.Id;
+        (string text, IReadOnlyList<ArchiveTextMark> marks) = ArchiveText.PlainTextWithMarks(post.Html);
+        if (text.Length > 65536) text = text[..65536] + "\n\n" + Texts.T("archive.displayLimit");
+        ReaderPostVerdict verdict = entry.Verdict;
+        bool stub = verdict.Visibility == ReaderPostVisibility.Stub;
+        IReadOnlyList<ArchiveAttachmentRow> attachments = stub ? Array.Empty<ArchiveAttachmentRow>()
+            : Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment => CreateAttachmentRow(threadId, attachment, post.PostId, _mediaReady.Task)).ToArray());
+        return new ArchivePostRow(post.PostId, post.Subject ?? string.Empty, text, attachments)
+        {
+            Author = post.Author ?? string.Empty,
+            Posted = ReaderDateText.Posted(post.PostedAt),
+            PostedFull = ReaderDateText.PostedFull(post.PostedAt),
+            IsDeleted = post.IsDeleted,
+            IsOpeningPost = post.PostId == context.OpeningPost,
+            UnreadCount = post.PostId == context.UnreadCarrier ? context.UnreadCount : 0,
+            Marks = marks,
+            StartExpanded = _expandedPosts.Contains((threadId, post.PostId)),
+            ExpandedChanged = open => SetPostExpanded(threadId, post.PostId, open),
+            Quotes = Array.AsReadOnly(ArchiveQuoteParser.Parse(threadId, thread.Summary.Url, post)
+                .Select(quote => new ArchiveQuoteRow(quote) { IsDead = context.IsDead(quote) }).ToArray()),
+            ThreadIndex = entry.ThreadIndex,
+            Depth = entry.Depth,
+            ParentId = entry.ParentIndex >= 0 && entry.ParentIndex < thread.PostCount ? thread.Posts[entry.ParentIndex].PostId : null,
+            IsStub = stub,
+            StubText = stub ? ReaderStubText(post.PostId, verdict.Reason) : string.Empty,
+            IsHighlighted = (verdict.Marks & ReaderPostMarks.Highlight) != 0,
+            IsRevealed = (verdict.Marks & ReaderPostMarks.Revealed) != 0,
+            MediaHidden = context.HideMedia && attachments.Count > 0,
+            SuppressReplyToggle = context.SuppressReplyToggle
+        };
     }
 
     private void RenderMedia()
@@ -603,9 +660,10 @@ public partial class ArchivePage : UserControl
         RefreshArchiveButton.IsEnabled = readReady;
         PreviousThreadsButton.IsEnabled = readReady && _listOffset > 0;
         NextThreadsButton.IsEnabled = readReady && _listOffset + PageSize < _listTotal;
+        int shownPosts = ShownPostCount;
         PreviousPostsButton.IsEnabled = readReady && _postOffset > 0;
-        NextPostsButton.IsEnabled = readReady && _thread != null && _postOffset + PageSize < _thread.PostCount;
-        ArchivePostNavigation.IsVisible = _thread?.PostCount > PageSize;
+        NextPostsButton.IsEnabled = readReady && _thread != null && _postOffset + ReaderPageSize < shownPosts;
+        ArchivePostNavigation.IsVisible = shownPosts > ReaderPageSize;
         CapturePostsButton.IsEnabled = ready && _thread != null;
         Button capture = CapturePostsButton;
         string captureAction = Texts.T(_thread?.Summary.CaptureEnabled == true ? "archive.captureOff" : "archive.captureOn");
@@ -628,10 +686,10 @@ public partial class ArchivePage : UserControl
             && FrozenArchiveSelection().Length == 1;
         ArchiveResultsGallery.IsEnabled = ready && _listTotal > 0;
         ArchiveThreadPage.Text = PageLabel(_listOffset, _listTotal);
-        ArchivePostPage.Text = PageLabel(_postOffset, _thread?.PostCount ?? 0);
+        ArchivePostPage.Text = PageLabel(_postOffset, shownPosts, ReaderPageSize);
         RefreshArchiveResultActions();
     }
-    private static string PageLabel(int offset, int total) => Texts.T("archive.page", total == 0 ? 0 : offset + 1, Math.Min(offset + PageSize, total), total);
+    private static string PageLabel(int offset, int total, int pageSize = PageSize) => Texts.T("archive.page", total == 0 ? 0 : offset + 1, Math.Min(offset + pageSize, total), total);
 
     private async void OnCaptureClick(object? sender, RoutedEventArgs e)
     {
@@ -848,7 +906,7 @@ public partial class ArchivePage : UserControl
     {
         if (IsFilenameSearchOpen || _busy || _postOffset == 0) return;
         ++_readerInteractionRevision;
-        _postOffset = Math.Max(0, _postOffset - PageSize);
+        _postOffset = Math.Max(0, _postOffset - ReaderPageSize);
         ++_readerFocusRequest;
         _readerPostId = null;
         RenderThread();
@@ -856,9 +914,9 @@ public partial class ArchivePage : UserControl
     }
     private void OnNextPosts(object? sender, RoutedEventArgs e)
     {
-        if (IsFilenameSearchOpen || _busy || _thread == null || _postOffset + PageSize >= _thread.PostCount) return;
+        if (IsFilenameSearchOpen || _busy || _thread == null || _postOffset + ReaderPageSize >= ShownPostCount) return;
         ++_readerInteractionRevision;
-        _postOffset += PageSize;
+        _postOffset += ReaderPageSize;
         ++_readerFocusRequest;
         _readerPostId = null;
         RenderThread();
@@ -1000,6 +1058,7 @@ public partial class ArchivePage : UserControl
             if (control is Button button) button.Content = Texts.T(key);
         }
         LocalizeThreadFind();
+        LocalizeReaderView();
         LocalizePrivateTags();
         LocalizeExport();
         LocalizeSearch();

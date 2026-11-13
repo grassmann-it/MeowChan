@@ -241,6 +241,8 @@
                     <Button x:Name="ArchiveOpenGallery" ursa:ToolBar.OverflowMode="Never" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
                     <Button x:Name="ReaderUnreadReturn" ursa:ToolBar.OverflowMode="Never" IsVisible="False" Click="OnReaderUnreadReturnClick" />
                     <Button x:Name="ReaderFindOpen" ursa:ToolBar.OverflowMode="AsNeeded" Click="OnOpenThreadFind" />
+                    <!-- Reader view switches (hide media, only posts with media, and what later packages register). -->
+                    <Button x:Name="ReaderViewOpen" ursa:ToolBar.OverflowMode="AsNeeded" Click="OnReaderViewMenuClick" />
                     <Button x:Name="ArchiveReadPosts" ursa:ToolBar.OverflowMode="Never" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
                     <Button x:Name="ArchiveGalleryReturn" ursa:ToolBar.OverflowMode="Never" Content="Back to gallery" IsVisible="False" Click="OnGalleryReturnClick" />
                     <!-- MEDIA103-NAV: shown instead of the gallery return while a "show in thread" from the Medien page can go back. -->
@@ -405,10 +407,22 @@
                                                     <Setter Property="Padding" Value="4,2" />
                                                     <Setter Property="MinHeight" Value="24" />
                                                 </Style>
+                                                <!-- Reader view: a placeholder for a post the view hides shows no card, only its edge; a post a
+                                                     filter highlights gets a warning edge. Selection and keyboard focus keep their own edges. -->
+                                                <Style Selector="ListBoxItem.reader-stub:not(:selected)">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                </Style>
+                                                <Style Selector="ListBoxItem.reader-stub:not(:selected) /template/ ContentPresenter">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                </Style>
+                                                <Style Selector="ListBoxItem.reader-highlight:not(:selected):not(:focus-visible) /template/ ContentPresenter">
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Warning}" />
+                                                    <Setter Property="BorderThickness" Value="3,1,1,1" />
+                                                </Style>
                                             </ListBox.Styles>
                                             <ListBox.ItemTemplate>
                                                 <DataTemplate x:DataType="desktop:ArchivePostRow">
-                                                    <StackPanel Margin="8,8,8,12" Spacing="6">
+                                                    <StackPanel Margin="8,8,8,12" Spacing="6" AutomationProperties.HelpText="{Binding DepthLabel}">
                                                         <!-- Reading mark: a full-width divider at the top edge of the first post after the last one read. It runs to the
                                                              card edges (it cancels the card's inner margin) and carries the count between two rules. -->
                                                         <Grid ColumnDefinitions="14,Auto,*" ColumnSpacing="8" Margin="-8,-8,-8,0" IsVisible="{Binding HasUnreadLine}" AutomationProperties.Name="{Binding UnreadLabel}">
@@ -416,13 +430,19 @@
                                                             <TextBlock Grid.Column="1" Text="{Binding UnreadLabel}" Classes="workspace-meta" FontWeight="SemiBold" Foreground="{DynamicResource Workspace.Accent}" VerticalAlignment="Center" Margin="0,4" />
                                                             <Rectangle Grid.Column="2" Height="2" Fill="{DynamicResource Workspace.Accent}" VerticalAlignment="Center" />
                                                         </Grid>
+                                                        <!-- Placeholder of a post the view hides: number, reason and Show instead of the post. -->
+                                                        <WrapPanel ItemSpacing="8" LineSpacing="2" IsVisible="{Binding IsStub}">
+                                                            <TextBlock Text="{Binding StubText}" Classes="workspace-meta" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                            <Button Classes="reader-quote reader-view-show" Content="{Binding ShowStubLabel}" AutomationProperties.Name="{Binding ShowStubLabel}"
+                                                                    Click="OnReaderStubShowClick" VerticalAlignment="Center" />
+                                                        </WrapPanel>
                                                         <!-- One header line: Subject · Name · Date · No.; the number copies ">>No.".
                                                              The reply counter at the right opens the nested reply cards below the text. -->
-                                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" IsVisible="{Binding !IsStub}">
                                                             <WrapPanel ItemSpacing="8" LineSpacing="2" VerticalAlignment="Center">
                                                                 <TextBlock Text="{Binding Subject}" IsVisible="{Binding HasSubject}" Classes="section-title" TextWrapping="Wrap" VerticalAlignment="Center" />
                                                                 <TextBlock Text="{Binding Author}" IsVisible="{Binding HasAuthor}" Classes="workspace-meta" VerticalAlignment="Center" />
-                                                                <TextBlock Text="{Binding Posted}" IsVisible="{Binding HasPosted}" Classes="workspace-meta" VerticalAlignment="Center" />
+                                                                <TextBlock Text="{Binding Posted}" IsVisible="{Binding HasPosted}" ToolTip.Tip="{Binding PostedFull}" Classes="workspace-meta" VerticalAlignment="Center" />
                                                                 <Button Classes="link reader-post-number" Content="{Binding NumberLabel}" ToolTip.Tip="{Binding CopyNumberLabel}"
                                                                         AutomationProperties.Name="{Binding CopyNumberLabel}" Click="OnCopyPostNumberClick" VerticalAlignment="Center" />
                                                                 <TextBlock Text="{Binding RemovedLabel}" IsVisible="{Binding IsDeleted}" Classes="workspace-meta" VerticalAlignment="Center" />
@@ -439,8 +459,14 @@
                                                                 </StackPanel>
                                                             </Button>
                                                         </Grid>
-                                                        <desktop:ReaderPostLayout>
-                                                            <ItemsControl ItemsSource="{Binding Attachments}" IsVisible="{Binding HasAttachments}" HorizontalAlignment="Left">
+                                                        <!-- An explicit jump or Show revealed a post this view hides; it can be hidden again. -->
+                                                        <WrapPanel ItemSpacing="8" LineSpacing="2" IsVisible="{Binding IsRevealed}">
+                                                            <TextBlock Text="{Binding RevealedLabel}" Classes="workspace-meta" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                            <Button Classes="reader-quote reader-view-hide-again" Content="{Binding HideAgainLabel}" AutomationProperties.Name="{Binding HideAgainLabel}"
+                                                                    Click="OnReaderHideAgainClick" VerticalAlignment="Center" />
+                                                        </WrapPanel>
+                                                        <desktop:ReaderPostLayout IsVisible="{Binding !IsStub}">
+                                                            <ItemsControl ItemsSource="{Binding Attachments}" IsVisible="{Binding ShowsMedia}" HorizontalAlignment="Left">
                                                                 <ItemsControl.ItemTemplate>
                                                                     <DataTemplate x:DataType="desktop:ArchiveAttachmentRow">
                                                                         <desktop:ArchiveAttachmentView Margin="0,2,0,8" />
@@ -448,6 +474,8 @@
                                                                 </ItemsControl.ItemTemplate>
                                                             </ItemsControl>
                                                             <StackPanel Spacing="6">
+                                                                <!-- "Hide media": the slot gives way to one short line; the hidden thumbnails never load. -->
+                                                                <TextBlock Text="{Binding MediaHiddenLabel}" IsVisible="{Binding HasMediaHiddenLine}" Classes="workspace-meta" />
                                                                 <StackPanel>
                                                                     <!-- The Semi text theme sets FontSize locally; explicitly honor the reader preference.
                                                                          Greentext and >>No. are runs over the plain text; a click on >>No. opens it like the buttons. -->

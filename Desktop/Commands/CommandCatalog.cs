@@ -209,6 +209,14 @@ public static class CommandCatalog
         new("reader.font-size", "command.reader.font-size", "Reading font size", "Leseschriftgröße", "type", null, CommandScope.Reader | CommandScope.Media | CommandScope.Settings, new[] { "reader-toolbar", "settings-reading-media" }),
         new("watch.follow-live", "command.watch.follow-live", "Follow live", "Live folgen", "arrow-down", null, CommandScope.Reader | CommandScope.Downloads, new[] { "reader-live-watch", "threadwatcher" }),
         new("reader.show-new-posts", "command.reader.show-new-posts", "Show new posts", "Neue Posts anzeigen", "arrow-down", null, CommandScope.Reader, new[] { "reader-new-posts-notice" }),
+        // The reader's "View" menu (plan P0). No default gesture; each one can be given a shortcut. The conversation view
+        // (P4) and the post filters (P2) appear in the menu once their package registers them.
+        new("reader.view.hide-media", "command.reader.view.hide-media", "Hide media", "Medien ausblenden", "eye-off", null, CommandScope.Reader, new[] { "reader-view-menu" }),
+        new("reader.view.media-only", "command.reader.view.media-only", "Only posts with media", "Nur Posts mit Medien", "image", null, CommandScope.Reader, new[] { "reader-view-menu" }),
+        new("reader.view.conversation", "command.reader.view.conversation", "Show as conversation", "Als Gespräch zeigen", "message-square", null, CommandScope.Reader, new[] { "reader-view-menu" }),
+        new("reader.post-filters", "command.reader.post-filters", "Post filters…", "Postfilter…", "filter", null, CommandScope.Reader, new[] { "reader-view-menu" }),
+        new("post.hide", "command.post.hide", "Hide post", "Post ausblenden", "eye-off", null, CommandScope.Reader, new[] { "reader-post-menu" }),
+        new("post.unhide", "command.post.unhide", "Show post again", "Post wieder anzeigen", "eye", null, CommandScope.Reader, new[] { "reader-post-menu" }),
         new("thread.favorite-toggle", "command.thread.favorite-toggle", "Favorite / unfavorite thread", "Threadfavorit markieren / entfernen", "star", "Primary+D", CommandScope.Archive | CommandScope.Reader, new[] { "archive-card", "archive-table", "archive-thread-menu", "reader-toolbar" }),
         new("thread.tags", "command.thread.tags", "Tags…", "Tags…", "edit-2", "Primary+T", CommandScope.Archive | CommandScope.Reader, new[] { "archive-thread-menu" }, new[] { "archive", "reader" }),
         new("favorites.toggle", "command.favorites.toggle", "Add / remove favorite", "Als Favorit markieren / entfernen", "star", "F", CommandScope.Reader | CommandScope.Gallery | CommandScope.Media, new[] { "reader-inline-media", "gallery-toolbar", "media-tile", "media-context-menu" }),

@@ -93,7 +93,35 @@ internal sealed record ArchivePostRow(string Id, string Subject, string Body,
     public string QuoteReference => ">>" + Id;
     public string CopyNumberLabel => Texts.T("reader.copyPostNumber", Id);
     public bool HasAttachments => Attachments.Count > 0;
-    public bool IsTextOnly => !HasAttachments;
+    // Hidden media read as a text-only post: the body takes the whole width and no thumbnail is loaded.
+    public bool IsTextOnly => !HasAttachments || MediaHidden;
+
+    // Reader view (plan P0). Each row is built for one page of the projection and never changes afterwards.
+    /// <summary>Index in the thread read (not the shown position).</summary>
+    public int ThreadIndex { get; init; } = -1;
+    /// <summary>Indentation level of the conversation view; 0 everywhere else.</summary>
+    public int Depth { get; init; }
+    /// <summary>The shown parent in the conversation view.</summary>
+    public string? ParentId { get; init; }
+    public string DepthLabel => Depth > 0 && ParentId != null ? Texts.T("reader.view.depthLabel", ParentId, Depth) : string.Empty;
+    /// <summary>The view shows only a placeholder line with the number, the reason and Show.</summary>
+    public bool IsStub { get; init; }
+    public string StubText { get; init; } = string.Empty;
+    public string ShowStubLabel => Texts.T("reader.view.show");
+    public bool IsHighlighted { get; init; }
+    /// <summary>Shown after an explicit jump or Show although the view hides it.</summary>
+    public bool IsRevealed { get; init; }
+    public string RevealedLabel => Texts.T("reader.view.revealed");
+    public string HideAgainLabel => Texts.T("reader.view.hideAgain");
+    /// <summary>"Hide media": the media slot gives way to a short line with the number of attachments.</summary>
+    public bool MediaHidden { get; init; }
+    public bool ShowsMedia => HasAttachments && !MediaHidden;
+    public bool HasMediaHiddenLine => HasAttachments && MediaHidden;
+    public string MediaHiddenLabel => Texts.Count("reader.view.mediaHidden", Attachments.Count, Attachments.Count);
+    /// <summary>The header date's tooltip: the full date and time.</summary>
+    public string PostedFull { get; init; } = string.Empty;
+    /// <summary>The conversation view nests the replies itself, so the header's reply counter would show them twice.</summary>
+    public bool SuppressReplyToggle { get; init; }
     public IReadOnlyList<ArchiveQuoteRow> Quotes { get; init; } = Array.Empty<ArchiveQuoteRow>();
     // Spoiler, code and external-link ranges of Body (set with Quotes; empty for unformatted posts).
     public IReadOnlyList<ArchiveTextMark> Marks { get; init; } = Array.Empty<ArchiveTextMark>();
@@ -133,7 +161,7 @@ internal sealed record ArchivePostRow(string Id, string Subject, string Body,
     // The header counter is the toggle for the nested reply cards below the text.
     public bool HasBacklinks => _backlinkCount > 0;
     // Shown for a known count above zero, and for a failed load so a local retry stays possible.
-    public bool HasReplyToggle => HasBacklinks || HasRepliesError;
+    public bool HasReplyToggle => !SuppressReplyToggle && (HasBacklinks || HasRepliesError);
     public string ReplyToggleLabel => Texts.T("reader.repliesToggle");
     public string BacklinkCountLabel => Texts.T("reader.replyCount", _backlinkCount?.ToString(Texts.Culture) ?? "…");
     public string BacklinksLabel => Texts.T("archive.backlinks", Id) + " · " +

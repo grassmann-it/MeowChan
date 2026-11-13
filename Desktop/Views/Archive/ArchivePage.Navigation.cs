@@ -200,6 +200,8 @@ public partial class ArchivePage
         _thread = view;
         ReaderSnapshotLoaded();
         _postOffset = offset;
+        // With a post, the page is the one that holds it in the shown order (the offset is the thread's own page).
+        _projectionPagePost = postId;
         _assets = Array.Empty<ArchiveAssetRow>();
         _showReader = true;
         RenderThread();

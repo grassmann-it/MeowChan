@@ -118,6 +118,7 @@ public partial class ArchivePage
             // The saved anchor is the reading mark: the posts after it have not been read since.
             if (!fallback) _unreadMark = (position.ThreadId, LastReadOf(view, position));
             ShowCapturedView(view, fallback ? 0 : index / PageSize * PageSize, postId);
+            if (!fallback) await RevealPostAsync(postId); // The saved place is shown even where the reader view hides it.
             OpenReaderRequested?.Invoke(null);
             await RestoreReaderAnchorAsync(new ReaderAnchor(position.ThreadId, postId,
                 fallback ? 0 : position.Top, fallback ? postId : position.SelectedPostId));
