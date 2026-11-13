@@ -21,9 +21,11 @@ internal sealed record VideoScrubFrame(int Slot, double Fraction, byte[] Png);
 /// <item>Concurrent requests for one slot share one load. A request whose callers have all left before its native decode
 /// began is dropped, so quick hovering only decodes where the pointer rests (latest wins); a decode that already began
 /// finishes and fills the cache.</item>
-/// <item>Before a stored or decoded thumbnail is used the original is opened verified (hashed once, then file identity).
-/// An original that is missing or changed makes the whole session unavailable; a slot whose decode failed or timed out
-/// stays empty for this session. Cancellation never records a failure.</item>
+/// <item>Before a stored thumbnail is used the original is opened verified (hashed once, then file identity); a decoded one
+/// is published and stored only if the original still verifies after the decode. An original that is missing or changed makes
+/// the whole session unavailable, for good: at that cut every held thumbnail is dropped, both <see cref="TryGetReady"/> and
+/// <see cref="GetSlotAsync"/> return nothing from then on, and loads still in flight neither publish nor store. A slot whose
+/// decode failed or timed out stays empty for this session. Cancellation never records a failure.</item>
 /// <item><see cref="DisposeAsync"/> cancels outstanding work and waits for it; callers still waiting see cancellation, and
 /// a native decode that ignores cancellation keeps only the shared decode gate occupied until it returns.</item>
 /// </list>
@@ -62,7 +64,7 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
 
     internal MediaAssetReference Asset { get; }
 
-    /// <summary>True once the original failed verification; no slot of this session produces a thumbnail any more.</summary>
+    /// <summary>True once the original failed verification; no slot of this session returns a thumbnail any more, held ones included.</summary>
     internal bool IsUnavailable { get { lock (_lock) return _unavailable; } }
 
     /// <summary>Native decodes this session started (diagnostics and tests).</summary>
@@ -74,7 +76,7 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
         int slot = VideoScrubSlots.FromFraction(fraction);
         lock (_lock)
         {
-            byte[]? png = _disposing ? null : _frames[slot];
+            byte[]? png = _disposing || _unavailable ? null : _frames[slot];
             frame = png == null ? null : new VideoScrubFrame(slot, VideoScrubSlots.Fraction(slot), png);
             return frame != null;
         }
@@ -97,15 +99,19 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
         lock (_lock)
         {
             ObjectDisposedException.ThrowIf(_disposing, this);
+            if (_unavailable) return null;
             if (_frames[slot] is { } ready) return new VideoScrubFrame(slot, VideoScrubSlots.Fraction(slot), ready);
-            if (_unavailable || _failed[slot] || duration <= TimeSpan.Zero) return null;
+            if (_failed[slot] || duration <= TimeSpan.Zero) return null;
             work = _work[slot] ??= Start(slot, duration);
             work.Waiters++;
         }
         try
         {
             byte[]? png = await work.Task.WaitAsync(token).ConfigureAwait(false);
-            return png == null ? null : new VideoScrubFrame(slot, VideoScrubSlots.Fraction(slot), png);
+            if (png == null) return null;
+            // Published before the cut, but the original was lost since: nothing is handed out after it.
+            lock (_lock) if (_unavailable) return null;
+            return new VideoScrubFrame(slot, VideoScrubSlots.Fraction(slot), png);
         }
         finally { Leave(work); }
     }
@@ -148,6 +154,7 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
         PerformanceDiagnostics.Record("gallery.scrub", "accepted", request, asset: Asset.AssetId, value: work.Slot);
         try
         {
+            lock (_lock) if (_unavailable) return null;
             // A stored thumbnail needs no native gate, only a verified original.
             opening = true;
             Stream video = await OpenVerifiedAsync(token).ConfigureAwait(false);
@@ -168,6 +175,7 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
                 // Every caller left while this queued (Leave cancels right after its lock): treat it as canceled, never as failed.
                 abandoned = work.Waiters == 0;
                 if (abandoned || token.IsCancellationRequested) throw new OperationCanceledException(token);
+                if (_unavailable) return null; // lost while this queued: no native decode for a lost original
                 work.Started = true;
             }
             using CancellationTokenSource bounded = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -181,12 +189,27 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
             Interlocked.Increment(ref _decodes);
             using (PerformanceDiagnostics.Measure("gallery.scrub.decode", request, asset: Asset.AssetId))
             {
-                // The decoder owns the verified handle from here on, including failures.
-                decoding = _cache.Decoder.DecodeAsync(video, VideoScrubSlots.Start(work.Slot, duration),
-                    VideoScrubPreviewOptions.ThumbnailMaximumWidth, VideoScrubPreviewOptions.ThumbnailMaximumHeight, bounded.Token);
+                // The decoder owns the verified handle from here on, including failures. One that throws before returning a
+                // task may not have taken it: release it here (a second dispose of the handle is harmless).
+                try
+                {
+                    decoding = _cache.Decoder.DecodeAsync(video, VideoScrubSlots.Start(work.Slot, duration),
+                        VideoScrubPreviewOptions.ThumbnailMaximumWidth, VideoScrubPreviewOptions.ThumbnailMaximumHeight, bounded.Token);
+                }
+                catch
+                {
+                    await video.DisposeAsync().ConfigureAwait(false);
+                    throw;
+                }
                 png = await decoding.WaitAsync(options.DecodeTimeout + NativeGrace, token).ConfigureAwait(false);
             }
             if (!VideoScrubPreviewCache.Valid(png)) throw new InvalidDataException("The scrub thumbnail exceeds its safe limits.");
+            // The cut after the decode: the original must still verify (file identity, else a full hash), so a file changed while it
+            // was decoded never yields a frame stored under the recorded revision; a session lost meanwhile publishes nothing.
+            opening = true;
+            await (await OpenVerifiedAsync(bounded.Token).ConfigureAwait(false)).DisposeAsync().ConfigureAwait(false);
+            opening = false;
+            lock (_lock) if (_unavailable || _disposing) return null;
             try { await _cache.StoreAsync(key, png, bounded.Token).ConfigureAwait(false); }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
@@ -209,7 +232,12 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
                 : "Could not generate a video scrub preview; the seek bar works without it.");
             lock (_lock)
             {
-                if (original) _unavailable = true;
+                if (original)
+                {
+                    // The cut: from here on no slot hands out a thumbnail; Publish and every reader check it under this lock.
+                    _unavailable = true;
+                    Array.Clear(_frames);
+                }
                 else _failed[work.Slot] = true;
             }
             return null;
@@ -233,10 +261,15 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
         }
     }
 
-    private byte[] Publish(Work work, byte[] png)
+    /// <summary>Holds and returns <paramref name="png"/>, or null once the session lost its original or is being disposed.</summary>
+    private byte[]? Publish(Work work, byte[] png)
     {
-        lock (_lock) _frames[work.Slot] = png;
-        return png;
+        lock (_lock)
+        {
+            if (_unavailable || _disposing) return null;
+            _frames[work.Slot] = png;
+            return png;
+        }
     }
 
     private async Task<Stream> OpenVerifiedAsync(CancellationToken token)

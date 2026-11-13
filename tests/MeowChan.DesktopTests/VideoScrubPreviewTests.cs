@@ -344,6 +344,122 @@ public sealed class VideoScrubPreviewTests
         Assert.False(VideoPosterCache.Valid(Png(VideoPosterDecoder.PosterMaximumWidth + 1, VideoPosterDecoder.PosterMaximumHeight)));
     }
 
+    [Fact]
+    public async Task AnOriginalLostAtAnotherSlotEmptiesAlreadyHeldSlotsInBothApis()
+    {
+        using TempDirectory temp = new();
+        var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", new byte[] { 1, 2, 3, 4 });
+        FakeDecoder decoder = new();
+        await using VideoScrubPreviewSession session = Cache(temp.Path, decoder).OpenSession(manifest, asset)!;
+        Assert.NotNull(await session.GetSlotAsync(4, Duration, CancellationToken.None));
+        Assert.True(session.TryGetReady(0.2, out _));
+
+        await File.WriteAllBytesAsync(asset.Path, new byte[] { 5, 6, 7, 8 });
+        Assert.Null(await session.GetSlotAsync(9, Duration, CancellationToken.None));
+        Assert.True(session.IsUnavailable);
+
+        Assert.False(session.TryGetReady(0.2, out VideoScrubFrame? held));
+        Assert.Null(held);
+        Assert.Null(await session.GetSlotAsync(4, Duration, CancellationToken.None));
+        Assert.Null(await session.GetAsync(0.21, Duration, CancellationToken.None));
+        Assert.Single(decoder.Calls);
+    }
+
+    [Fact]
+    public async Task ADecodeFinishingAfterTheSessionLostItsOriginalIsNeitherPublishedNorStoredEvenIfTheFileVerifiesAgain()
+    {
+        using TempDirectory temp = new();
+        byte[] original = { 1, 2, 3, 4 };
+        var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", original);
+        FakeDecoder decoder = new() { Hold = new(TaskCreationOptions.RunContinuationsAsynchronously), ReleaseBeforeHold = true };
+        VideoScrubPreviewCache cache = Cache(temp.Path, decoder);
+        await using VideoScrubPreviewSession session = cache.OpenSession(manifest, asset)!;
+        Task<VideoScrubFrame?> late = session.GetSlotAsync(2, Duration, CancellationToken.None);
+        await decoder.Started.Task.WaitAsync(Patience);
+
+        await File.WriteAllBytesAsync(asset.Path, new byte[] { 5, 6, 7, 8 });
+        Assert.Null(await session.GetSlotAsync(9, Duration, CancellationToken.None).WaitAsync(Patience));
+        Assert.True(session.IsUnavailable);
+        // The bytes come back, so the late decode's own check after decoding passes: the session-wide cut alone must hold.
+        await File.WriteAllBytesAsync(asset.Path, original);
+        decoder.Hold.SetResult();
+
+        Assert.Null(await late.WaitAsync(Patience));
+        Assert.False(session.TryGetReady(0.1, out _));
+        Assert.Null(await session.GetSlotAsync(2, Duration, CancellationToken.None));
+        Assert.False(File.Exists(cache.PathOf(VideoScrubFrameKey.For(asset, 2))));
+        Assert.Single(decoder.Calls);
+        Assert.True(decoder.AllStreamsDisposed);
+    }
+
+    [Fact]
+    public async Task AnOriginalChangedWhileItsFrameDecodesYieldsNoFrameAndStoresNothing()
+    {
+        using TempDirectory temp = new();
+        var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", new byte[] { 1, 2, 3, 4 });
+        FakeDecoder decoder = new() { Hold = new(TaskCreationOptions.RunContinuationsAsynchronously), ReleaseBeforeHold = true };
+        VideoScrubPreviewCache cache = Cache(temp.Path, decoder);
+        await using VideoScrubPreviewSession session = cache.OpenSession(manifest, asset)!;
+        Task<VideoScrubFrame?> request = session.GetSlotAsync(6, Duration, CancellationToken.None);
+        await decoder.Started.Task.WaitAsync(Patience);
+        await File.WriteAllBytesAsync(asset.Path, new byte[] { 5, 6, 7, 8 });
+        decoder.Hold.SetResult();
+
+        Assert.Null(await request.WaitAsync(Patience));
+        Assert.True(session.IsUnavailable);
+        Assert.False(session.TryGetReady(0.3, out _));
+        Assert.False(File.Exists(cache.PathOf(VideoScrubFrameKey.For(asset, 6))));
+    }
+
+    [Fact]
+    public async Task ADecoderThrowingBeforeItReturnsATaskStillHasTheVerifiedHandleAndTheGateReleased()
+    {
+        using TempDirectory temp = new();
+        var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", new byte[] { 1, 2, 3, 4 });
+        SynchronouslyThrowingDecoder decoder = new();
+        SemaphoreSlim gate = new(1, 1);
+        await using VideoScrubPreviewSession session = new VideoScrubPreviewCache(Path.Combine(temp.Path, "scrub"),
+            VideoScrubPreviewOptions.Default, decoder, gate).OpenSession(manifest, asset)!;
+        Assert.Null(await session.GetSlotAsync(3, Duration, CancellationToken.None).WaitAsync(Patience));
+        Stream handed = Assert.Single(decoder.Streams);
+        Assert.False(handed.CanRead); // disposed although the decoder never took ownership
+        Assert.Equal(1, gate.CurrentCount);
+        Assert.False(session.IsUnavailable);
+        Assert.Null(await session.GetSlotAsync(3, Duration, CancellationToken.None));
+        Assert.Single(decoder.Streams);
+    }
+
+    [Fact]
+    public async Task DisposalRacingCallerCancellationSettlesEveryRequestAndReleasesEveryHandle()
+    {
+        using TempDirectory temp = new();
+        var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", new byte[] { 1, 2, 3, 4 });
+        for (int round = 0; round < 40; round++)
+        {
+            FakeDecoder decoder = new() { Hold = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+            SemaphoreSlim gate = new(1, 1);
+            VideoScrubPreviewSession session = Cache(Path.Combine(temp.Path, "round-" + round), decoder, gate).OpenSession(manifest, asset)!;
+            CancellationTokenSource[] hovers = Enumerable.Range(0, 8).Select(_ => new CancellationTokenSource()).ToArray();
+            Task<VideoScrubFrame?>[] requests = Enumerable.Range(0, 8)
+                .Select(index => Task.Run(() => session.GetSlotAsync(index % 5, Duration, hovers[index].Token))).ToArray();
+            Task cancels = Task.Run(() => { for (int index = round % 2; index < hovers.Length; index += 2) hovers[index].Cancel(); });
+            Task release = Task.Run(() => decoder.Hold.TrySetResult());
+            Task disposing = Task.Run(async () => await session.DisposeAsync());
+            await Task.WhenAll(cancels, release, disposing).WaitAsync(Patience);
+            foreach (Task<VideoScrubFrame?> request in requests)
+            {
+                try { await request.WaitAsync(Patience); }
+                catch (OperationCanceledException) { }
+                catch (ObjectDisposedException) { }
+            }
+            Assert.Equal(1, gate.CurrentCount);
+            Assert.True(decoder.AllStreamsDisposed);
+            Assert.False(session.TryGetReady(0.1, out _));
+            await Assert.ThrowsAsync<ObjectDisposedException>(() => session.GetSlotAsync(1, Duration, CancellationToken.None));
+            foreach (CancellationTokenSource hover in hovers) hover.Dispose();
+        }
+    }
+
     private static VideoScrubPreviewCache Cache(string root, FakeDecoder decoder, SemaphoreSlim? gate = null, VideoScrubPreviewOptions? options = null) =>
         new(Path.Combine(root, "scrub"), options ?? VideoScrubPreviewOptions.Default, decoder, gate ?? new SemaphoreSlim(1, 1));
 
@@ -356,6 +472,8 @@ public sealed class VideoScrubPreviewTests
         internal TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal TaskCompletionSource? Hold { get; init; }
         internal bool IgnoreCancellation { get; init; }
+        // Releases the verified handle before holding, so a test can rewrite the original on platforms that enforce sharing.
+        internal bool ReleaseBeforeHold { get; init; }
         internal volatile bool Fail, Oversized;
         internal bool AllStreamsDisposed => Volatile.Read(ref _open) == 0;
 
@@ -371,6 +489,7 @@ public sealed class VideoScrubPreviewTests
                     Assert.True(verifiedVideo.CanRead);
                     if (Hold != null)
                     {
+                        if (ReleaseBeforeHold) await verifiedVideo.DisposeAsync();
                         if (IgnoreCancellation) await Hold.Task;
                         else await Hold.Task.WaitAsync(token);
                     }
@@ -380,6 +499,18 @@ public sealed class VideoScrubPreviewTests
                 }
             }
             finally { Interlocked.Decrement(ref _open); }
+        }
+    }
+
+    private sealed class SynchronouslyThrowingDecoder : IVideoScrubFrameDecoder
+    {
+        internal ConcurrentQueue<Stream> Streams { get; } = new();
+
+        // Not async: throws before any task exists and leaves the handle as it got it.
+        public Task<byte[]> DecodeAsync(Stream verifiedVideo, TimeSpan start, int maximumWidth, int maximumHeight, CancellationToken token)
+        {
+            Streams.Enqueue(verifiedVideo);
+            throw new InvalidOperationException("synthetic synchronous decoder failure");
         }
     }
 
