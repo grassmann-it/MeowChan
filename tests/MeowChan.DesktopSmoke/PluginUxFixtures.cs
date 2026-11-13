@@ -18,7 +18,6 @@ internal sealed class PluginUxFixture
     internal const string SourceKey = "pux-source-candidate";
     internal const string FilterKey = "pux-filter-candidate";
     internal const string UnknownKey = "pux-unknown-candidate";
-    internal const string AlternateKey = "pux-source-alternate";
     internal const string SourcePluginId = "sample.arbitrary.purpose";
     internal const string FilterPluginId = "sample.arbitrary.filter";
     internal const string SourceId = "pux-source";
@@ -84,14 +83,6 @@ internal sealed class PluginUxFixture
         var configuration = active.Configuration with { Revision = "pux-next-configuration",
             PluginSettings = new("1", new[] { new SettingValue("label", SettingKind.Text, Text: "next-start label") }) };
         return await Store.SaveConfigurationAsync(SourcePluginId, SourceKey, configuration, state.Revision);
-    }
-
-    internal async Task AddAlternateAsync()
-    {
-        PluginProfileSnapshot state = await Store.ReadAsync();
-        await Store.ObserveCandidateAsync(Source with { CandidateId = AlternateKey,
-            Artifact = Source.Artifact! with { ExecutionRevision = new string('c', 64) },
-            CandidatePath = Path.Combine(Path.GetDirectoryName(Source.CandidatePath!)!, "discussion reader alternate.cs") }, state.Revision);
     }
 
     internal async Task FailSourceAsync(bool missing)
