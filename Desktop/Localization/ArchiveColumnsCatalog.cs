@@ -4,7 +4,6 @@ internal static class ArchiveColumnsCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     [
-        ("archive.columns", "Columns", "Spalten"),
         ("archive.columnsReset", "Reset to mode defaults", "Auf Modus-Standard zurücksetzen"),
         ("archive.columns.identity", "Source / board", "Quelle / Board"),
         ("archive.columns.title", "Title / ID", "Titel / ID"),

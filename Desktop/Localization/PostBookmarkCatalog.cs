@@ -26,6 +26,5 @@ internal static class PostBookmarkCatalog
         ("bookmarks.loading", "Checking local post…", "Lokaler Post wird geprüft…"),
         ("bookmarks.invalidNote", "The note must contain valid Unicode, at most 8,000 codepoints, and no control characters except tab and line breaks.", "Die Notiz muss gültiges Unicode enthalten, höchstens 8.000 Codepoints und keine Steuerzeichen außer Tab und Zeilenumbrüchen."),
         ("bookmarks.saved", "Bookmark saved.", "Lesezeichen gespeichert."),
-        ("bookmarks.busy", "Saving…", "Wird gespeichert…")
     };
 }

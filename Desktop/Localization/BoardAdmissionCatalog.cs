@@ -75,6 +75,5 @@ internal static class BoardAdmissionCatalog
         ("wizard.resetChoiceHint", "Reset only this thread's individual choice and reactivation in the current board draft. Apply all boards separately below.", "Nur die Einzelentscheidung und Reaktivierung dieses Threads im aktuellen Boardentwurf zurücksetzen. Alle Boards anschließend unten gemeinsam übernehmen."),
         ("wizard.manualWatch", "Manually watched — continues", "Manuell beobachtet – läuft weiter"),
         ("wizard.existingWatch", "Already watched — continues", "Bereits beobachtet – läuft weiter"),
-        ("wizard.edit", "Thread filters and exclusions…", "Threadfilter und Ausschlüsse…")
     };
 }

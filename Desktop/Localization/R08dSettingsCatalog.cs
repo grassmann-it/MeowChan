@@ -7,7 +7,6 @@ internal static class R08dSettingsCatalog
         ("setup.title", "Set up downloads", "Downloads einrichten"),
         ("setup.intro", "Choose the download folder and two limits. You can change everything later under Settings → Downloads.", "Wähle den Downloadordner und zwei Grenzen. Alles lässt sich später unter Einstellungen → Downloads ändern."),
         ("setup.bandwidth", "Bandwidth limit (MiB/s)", "Bandbreitenlimit (MiB/s)"),
-        ("setup.parallel", "Parallel downloads (whole number)", "Parallele Downloads (ganze Zahl)"),
         ("setup.accept", "Apply and get started", "Übernehmen und loslegen"),
         ("setup.later", "Later (use defaults)", "Später (Standardwerte verwenden)"),
         ("setup.close", "Close", "Schließen"),

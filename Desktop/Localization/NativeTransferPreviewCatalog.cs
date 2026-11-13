@@ -9,8 +9,6 @@ internal static class NativeTransferPreviewCatalog
         ("transfer.preview.heading", "Transfer package inventory", "Transferpaket-Inventar"),
         ("transfer.preview.choose", "Choose transfer package…", "Transferpaket wählen…"),
         ("transfer.preview.fileType", "Transfer package (ZIP)", "Transferpaket (ZIP)"),
-        ("transfer.preview.cancel", "Cancel", "Abbrechen"),
-        ("transfer.preview.close", "Close", "Schließen"),
         ("transfer.preview.noSource", "No package selected.", "Kein Paket ausgewählt."),
         ("transfer.preview.source", "Selected package: {0}", "Gewähltes Paket: {0}"),
         ("transfer.preview.choosing", "Choosing package…", "Paket wird gewählt…"),
