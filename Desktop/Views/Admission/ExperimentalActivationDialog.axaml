@@ -1,6 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ursa="https://irihi.tech/ursa" x:Class="MeowChan.ExperimentalActivationDialog"
-        Width="620" Height="460" MinWidth="360" MinHeight="330"
+        Width="620" Height="460" MinWidth="360" MinHeight="380"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
     <!-- Shared dialog frame (Desktop/Controls/DialogFrame.cs) rebuilt in XAML: fixed heading,
          local error strip, scrolling explanation/scope and fixed actions with the busy status. -->

@@ -1,5 +1,5 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="MeowChan.SavedArchiveSearchesDialog" Width="650" Height="510" MinWidth="360" MinHeight="330"
+        x:Class="MeowChan.SavedArchiveSearchesDialog" Width="650" Height="510" MinWidth="360" MinHeight="380"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
     <!-- UX103 P7 dialog frame: fixed header, local error strip, scrolling body, fixed footer. -->
     <Grid RowDefinitions="Auto,Auto,*,Auto" KeyboardNavigation.TabNavigation="Cycle">
