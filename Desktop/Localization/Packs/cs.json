@@ -244,7 +244,7 @@
     "downloads.title": "Stahování",
     "downloads.threads": "Vlákna",
     "downloads.boards": "Boardy",
-    "downloads.empty": "Pro zahájení stahování přidejte adresu URL vlákna nebo boardu.",
+    "downloads.empty": "Vložte nahoře adresu URL vlákna nebo boardu a stiskněte Přidat. Zde uvidíte průběh; uložená vlákna se čtou v Archivu.",
     "downloads.urlPlaceholder": "Adresy URL vláken nebo boardů…",
     "downloads.inputHint": "Vložte adresy URL vláken nebo boardů. Přidat bez zadání načte schránku.",
     "downloads.threadsCount": "Vlákna ({0})",
@@ -688,7 +688,7 @@
     "archive.select": "Vyberte archivované vlákno.",
     "archive.previous": "Předchozí",
     "archive.next": "Další",
-    "archive.back": "Seznam vláken",
+    "archive.back": "Zpět na seznam vláken",
     "archive.page": "{0}–{1} z {2}",
     "archive.posts": "Příspěvky",
     "archive.media": "Uložená média",
@@ -2024,7 +2024,7 @@
     "command.scope.export.open-all-results-html-dialog": "Samostatné tlačítko · všechny výsledky aktuálního hledání",
     "command.scope.navigation.generic": "Mimo vstupní pole a překrytí · pokud je k dispozici",
     "command.gallery.close.compact": "Zavřít",
-    "command.gallery.close.media": "Na média",
+    "command.gallery.close.media": "Zpět na média",
     "command.gallery.favorite.compact": "Oblíbené",
     "command.gallery.export-original.compact": "Originál…",
     "transfer.preview.open": "Prozkoumat přenosový balíček…",
@@ -3453,6 +3453,13 @@
     "limit.hiddenPosts.one": "Byl dosažen limit {0} jednotlivě skrytého příspěvku. Zvyšte „{1}“ v {2}; již skryté příspěvky zůstávají skryté.",
     "limit.hiddenPosts.few": "Byl dosažen limit {0} jednotlivě skrytých příspěvků. Zvyšte „{1}“ v {2}; již skryté příspěvky zůstávají skryté.",
     "gallery.overflow.label": "Další akce galerie",
-    "gallery.overflow.help": "Zoom, hodnocení, štítky, export, přehrávání, možnosti zobrazení a nápověda ke zkratkám"
+    "gallery.overflow.help": "Zoom, hodnocení, štítky, export, přehrávání, možnosti zobrazení a nápověda ke zkratkám",
+    "downloads.archiveHint": "Přidáno. Příspěvky a média se ukládají. Vlákno si přečtete v Archivu ({0}) nebo dvojitým kliknutím na jeho řádek. Vlákno se sleduje dál i po 100 %.",
+    "downloads.archiveHint.open": "Otevřít v Archivu",
+    "downloads.archiveHint.dismiss": "Rozumím",
+    "command.reader.close.toArchive": "Zpět do archivu",
+    "command.reader.close.toDownloads": "Zpět na stahování",
+    "rules.thisThread": "Pravidla pro toto vlákno…",
+    "media.rulesThreadUnavailable": "Toto médium nepatří ke staženému vláknu, proto zde nejsou žádná pravidla vlákna k úpravě."
   }
 }

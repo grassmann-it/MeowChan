@@ -880,7 +880,7 @@ public partial class MainWindow
         CommandBindings.Apply(ShellHelpClose, "window.close");
         foreach (string id in MainPageOrder.CommandIds)
             CommandBindings.Apply(WorkspaceControl<MenuItem>(MainPageOrder.ControlStem(id) + "MenuItem"), id);
-        foreach (var pair in new[] { ("SettingsMenuItem", "navigation.settings"), ("AboutMenuItem", "navigation.about"),
+        foreach (var pair in new[] { ("ManualImportMenuItem", "import.open"), ("SettingsMenuItem", "navigation.settings"), ("AboutMenuItem", "navigation.about"),
             ("ShortcutHelpMenuItem", "viewer.shortcut-help"), ("ExitMenuItem", "app.quit") })
             CommandBindings.Apply(WorkspaceControl<MenuItem>(pair.Item1), pair.Item2);
         if (ToolsNavigationButton.Flyout is MenuFlyout tools)

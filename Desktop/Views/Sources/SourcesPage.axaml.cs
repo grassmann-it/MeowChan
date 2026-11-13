@@ -174,7 +174,7 @@ public partial class SourcesPage : UserControl
             if (control is TextBlock text) text.Text = Texts.T(key);
             if (control is Button button && !button.Classes.Contains("command-icon")) button.Content = Texts.T(key);
         }
-        CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceBackButton")!, "sources.back", Texts.T("nav.sources"));
+        CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceBackButton")!, "sources.back", CommandCatalog.Label("sources.back"));
         CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceRulesButton")!, "rules.edit-scope", Texts.T("sources.rules"));
         CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceDiagnosticsButton")!, "navigation.diagnostics", Texts.T("sources.diagnostics"));
         Button addToDownloads = this.FindControl<Button>("SourceAddToDownloadsButton")!;

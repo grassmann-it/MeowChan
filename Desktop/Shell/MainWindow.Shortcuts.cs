@@ -63,6 +63,16 @@ public partial class MainWindow
                 () => ArchiveActive() && !_largeReaderOpen, () => !archive.IsReaderDialogOpen,
                 archive.ToggleFilterSurfaceByShortcut, Priority: 100, AllowInTextInput: true));
         }
+        // Following live and showing the new posts belong to the open thread, in the embedded and in the large reader.
+        if (_archivePage is { } live && live.FindControl<Control>("ArchiveReaderPane") is { } readerPane)
+        {
+            bool ReaderShown() => _gallery == null && !HasBlockingPageDecision()
+                && (_largeReaderOpen || _selectedPage == WorkspacePage.Archive);
+            _shortcutRouter.Register(new CommandRegistration("watch.follow-live", readerPane, ReaderShown,
+                () => live.CanToggleFollowLiveByShortcut, live.ToggleFollowLiveByShortcut, Priority: 100));
+            _shortcutRouter.Register(new CommandRegistration("reader.show-new-posts", readerPane, ReaderShown,
+                () => live.CanShowNewPostsByShortcut, () => _ = live.ShowReaderUpdatesAsync(), Priority: 100));
+        }
         if (_mediaPage is { } media)
             _shortcutRouter.Register(new CommandRegistration("media.tags.edit", media,
                 () => _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null,

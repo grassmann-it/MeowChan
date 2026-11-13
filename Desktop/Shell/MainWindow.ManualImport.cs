@@ -24,6 +24,16 @@ public partial class MainWindow
     private bool _manualImportOpening;
     private readonly List<string> _manualImportPending = new();
 
+    // The "Import files…" command: the same dialog as the menu entry, with its shortcut. Like the menu entry it works on
+    // every page; it waits while a blocking decision, another dialog or a busy session owns the window.
+    private bool CanOpenManualImport => _restoreCompleted && !_isClosing && !_applyingPreferences && IsEnabled
+        && _session.State == DesktopSessionState.Ready && !WorkspaceCommandBusy && !HasVisibleShellDialog()
+        && !HasBlockingPageDecision() && _archivePage?.IsReaderDialogOpen != true;
+
+    private void RegisterManualImportCommand() => _shortcutRouter?.Register(new MeowChan.Desktop.Commands.CommandRegistration(
+        "import.open", this, () => !_largeReaderOpen && _gallery == null, () => CanOpenManualImport,
+        () => OpenManualImportDialog(Array.Empty<string>())));
+
     private void OnManualImportMenuClick(object? sender, RoutedEventArgs e) => OpenManualImportDialog(Array.Empty<string>());
 
     /// <summary>Opens the import dialog (or brings the open one forward) and adds <paramref name="roots"/> to its selection.</summary>

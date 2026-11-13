@@ -127,6 +127,22 @@ internal static class MediaMenuBuilder
         return item;
     }
 
+    /// <summary>A context-specific item that is a catalog command (its icon and shortcut show), with its own visible label.</summary>
+    internal static MenuItem ContextCommandItem(MediaMenuSession session, string commandId, Func<Task> action, Func<bool> available,
+        Func<Func<Task>, Task> run, string? unavailableReason, string label)
+    {
+        void Execute()
+        {
+            if (session.IsCurrent) _ = run(action);
+        }
+        bool CanExecute() => available() && session.IsCurrent;
+        MenuItem item = CommandBindings.CreateMenuItem(commandId, Execute, CanExecute, () => CanExecute() ? null : unavailableReason, () => label);
+        item.Tag = commandId;
+        item.Click += (_, _) => RetireIfStale(session);
+        ToolTip.SetShowOnDisabled(item, true);
+        return item;
+    }
+
     /// <summary>A disabled note inside the menu (for example which items the single-target actions apply to).</summary>
     internal static MenuItem Note(string text)
     {

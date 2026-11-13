@@ -82,6 +82,9 @@ public sealed partial class MediaPage : UserControl
     /// <summary>Set by the shell: the footer destinations offered by the empty state.</summary>
     internal Action? GoToDownloadsRequested { get; set; }
     internal Func<MediaLibraryEntry, Task>? ShowInThread { get; set; }
+    /// <summary>Opens the Rules page on the thread of an archived medium (the shell supplies it; catalog media have no thread).</summary>
+    internal Action<MediaLibraryEntry>? EditThreadRules { get; set; }
+    internal static bool HasThreadRules(MediaLibraryEntry entry) => !entry.IsCatalogMedium && entry.Thread.Thread != null;
     /// <summary>Edits the own media tags of one entry through the host's tag commands.</summary>
     internal Func<MediaLibraryEntry, Task>? EditTags { get; set; }
     // The shell supplies the guarded executor for the shared menu. Keeping this seam on
@@ -695,6 +698,14 @@ public sealed partial class MediaPage : UserControl
                 if (_grid.Selection.Count == 1) await ShowSelectedInThreadAsync();
                 return;
             }
+            // The media rules of the thread the tile belongs to (the menu item's command).
+            if (CommandBindings.Matches(e, "rules.edit-scope"))
+            {
+                e.Handled = true;
+                if (!_lifetime.IsCancellationRequested && _building == null && SelectedRow is { } ruleRow
+                    && HasThreadRules(ruleRow.Entry)) EditThreadRules?.Invoke(ruleRow.Entry);
+                return;
+            }
             // media.tags.edit: several selected tiles tag together (the selection bar's action), one edits its own tags.
             if (CommandBindings.Matches(e, "media.tags.edit"))
             {
@@ -922,6 +933,8 @@ public sealed partial class MediaPage : UserControl
             () => !several, Run, MediaMenuReasons.SeveralSelected));
         context.Add(MediaMenuBuilder.ContextItem(session, "media.occurrences", () => { ShowOccurrences(tile); return Task.CompletedTask; },
             () => tile.IsGroup, Run, MediaMenuReasons.Unavailable));
+        context.Add(MediaMenuBuilder.ContextCommandItem(session, "rules.edit-scope", () => { EditThreadRules?.Invoke(entry); return Task.CompletedTask; },
+            () => EditThreadRules != null && HasThreadRules(entry), Run, Texts.T("media.rulesThreadUnavailable"), Texts.T("rules.thisThread")));
         foreach ((Button action, string key) in new[] { (_selTag, "media.selection.tag"),
             (_selGallery, "media.selection.gallery"), (_selExport, "media.selection.export") })
         {

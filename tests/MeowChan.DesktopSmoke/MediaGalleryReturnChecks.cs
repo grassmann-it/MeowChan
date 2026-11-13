@@ -13,7 +13,7 @@ using MeowChan.Persistence;
 namespace MeowChan.DesktopSmoke;
 
 // MEOWCHAN_MEDIA_PAGE_ONLY, fourth part (MEDIA103-NAV P1): the gallery way back in a real MainWindow.
-// (a) Medien -> gallery ("To media" on its close action) -> show in thread (only "Back to gallery") -> back to the gallery ->
+// (a) Medien -> gallery ("Back to media" on its close action) -> show in thread (only "Back to gallery") -> back to the gallery ->
 //     Escape -> the same Medien tile focused, no media return left behind.
 // (b) Medien -> show in thread ("Back to media") -> gallery from the reader ("Close gallery") -> show in thread -> back to the gallery
 //     -> close -> the archive reader again with "Back to media" visible and working.
@@ -102,8 +102,8 @@ internal static partial class MediaPageChecks
             page.Grid.Focus();
             Key(page.Grid, Avalonia.Input.Key.Enter);
             GalleryViewer fromMedia = await GalleryAsync("612");
-            RequireCloseLabel(fromMedia, "To media", "Gallery from Medien");
-            Require(Shown(Close(fromMedia)).Contains("To media", StringComparison.Ordinal), "The visible close label must say 'To media': " + Shown(Close(fromMedia)));
+            RequireCloseLabel(fromMedia, "Back to media", "Gallery from Medien");
+            Require(Shown(Close(fromMedia)).Contains("Back to media", StringComparison.Ordinal), "The visible close label must say 'To media': " + Shown(Close(fromMedia)));
             // The help lists the close action under its media name, and Escape's last step leads back to media.
             GalleryViewerChecksAccess.Click(fromMedia, "GalleryHelp");
             await UntilAsync(() => fromMedia.GetGalleryVisualDescendants().OfType<Button>().Any(button => button.Name == "GalleryHelpMore"));
@@ -111,15 +111,15 @@ internal static partial class MediaPageChecks
             string[] help = Array.Empty<string>();
             await UntilAsync(() => (help = fromMedia.GetGalleryVisualDescendants().OfType<TextBlock>().Select(text => text.Text ?? string.Empty).ToArray())
                 .Contains(Texts.T("viewer.help.escape.media")));
-            Require(help.Contains(CommandBindings.Tooltip("gallery.close", visibleLabel: "To media")) && !help.Contains(CommandBindings.Tooltip("gallery.close"))
+            Require(help.Contains(CommandBindings.Tooltip("gallery.close", visibleLabel: "Back to media")) && !help.Contains(CommandBindings.Tooltip("gallery.close"))
                 && !help.Contains(Texts.T("viewer.help.escape")), "The help must name the close action 'To media': " + string.Join(" | ", help));
             GalleryViewerChecksAccess.Click(fromMedia, "GalleryHelpClose");
             // A language switch keeps the media name (in that language).
             Texts.SetLanguage("de");
-            await UntilAsync(() => AutomationProperties.GetName(Close(fromMedia)) == "Zu Medien");
-            RequireCloseLabel(fromMedia, "Zu Medien", "Gallery from Medien (de)");
+            await UntilAsync(() => AutomationProperties.GetName(Close(fromMedia)) == "Zurück zu Medien");
+            RequireCloseLabel(fromMedia, "Zurück zu Medien", "Gallery from Medien (de)");
             Texts.SetLanguage("en");
-            await UntilAsync(() => AutomationProperties.GetName(Close(fromMedia)) == "To media");
+            await UntilAsync(() => AutomationProperties.GetName(Close(fromMedia)) == "Back to media");
             fromMedia.Focus();
             Key(fromMedia, Avalonia.Input.Key.T);
             await InArchiveAsync("612", "612");
@@ -133,7 +133,7 @@ internal static partial class MediaPageChecks
             await UntilAsync(() => galleryHost.IsVisible && !galleryReturn.IsVisible);
             Require(!mediaHost.IsVisible && !shell.MediaReturnAvailableForTests, "(a) Alt+Left must not bypass the waiting gallery.");
             Require(ReferenceEquals(galleryHost.Content, fromMedia) && fromMedia.CaptureState().PostId == "612", "(a) The same gallery must come back at the same position.");
-            RequireCloseLabel(fromMedia, "To media", "Gallery from Medien after the reader");
+            RequireCloseLabel(fromMedia, "Back to media", "Gallery from Medien after the reader");
             await CloseToAsync(fromMedia);
             await UntilAsync(() => mediaHost.IsVisible && !archiveHost.IsVisible && FocusOn(viaGallery));
             Require(Selected() == "r-612.png" && page.SelectedTiles.Count == 1, "(a) Closing the gallery must return to the same Medien tile: " + Selected());

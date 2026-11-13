@@ -24,6 +24,12 @@ public partial class MainWindow
         _readerRestoreOrigin = ArchivePage.CaptureGalleryOrigin(restoreReaderFocus: false);
         _readerOriginPage = _selectedPage;
         _readerOriginFocus = origin;
+        ArchivePage.SetReaderCloseTarget(_selectedPage switch
+        {
+            WorkspacePage.Downloads => "command.reader.close.toDownloads",
+            WorkspacePage.Archive => "command.reader.close.toArchive",
+            _ => null
+        });
         ContentControl host = ReaderHost;
         host.Content = ArchivePage.DetachReader();
         host.IsVisible = true;
@@ -43,6 +49,7 @@ public partial class MainWindow
         host.IsVisible = false;
         ArchivePage.AttachReader(pane);
         _largeReaderOpen = false;
+        ArchivePage.SetReaderCloseTarget(null);
         RefreshReadingResumePresentation();
         if (restoreOrigin)
         {

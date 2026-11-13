@@ -199,7 +199,11 @@ internal static class BuiltInCatalog
         ("downloads.title", "Downloads", "Downloads"),
         ("downloads.threads", "Threads", "Threads"),
         ("downloads.boards", "Boards", "Boards"),
-        ("downloads.empty", "Add a thread or board URL to start downloading.", "Zum Herunterladen eine Thread- oder Board-URL hinzufügen."),
+        ("downloads.empty", "Paste a thread or board URL above and press Add. Here you see the progress; you read saved threads in the Archive.", "Oben eine Thread- oder Board-URL einfügen und Hinzufügen drücken. Hier siehst du den Fortschritt; gelesen wird im Archiv."),
+        // UX flows AP1: the one-time line after the first successful Add; {0} is the Archive's name with its shortcut.
+        ("downloads.archiveHint", "Added. Posts and media are being saved. Read the thread in the Archive ({0}) or double-click its row. A thread keeps being watched after 100 %.", "Hinzugefügt. Posts und Medien werden gespeichert. Den Thread liest du im Archiv ({0}) oder per Doppelklick auf die Zeile. Ein Thread wird auch bei 100 % weiter beobachtet."),
+        ("downloads.archiveHint.open", "Open in Archive", "Im Archiv öffnen"),
+        ("downloads.archiveHint.dismiss", "Got it", "Verstanden"),
         ("downloads.urlPlaceholder", "Thread or board URLs…", "Thread- oder Board-URLs…"),
         ("downloads.inputHint", "Paste thread or board URLs. Empty Add imports from the clipboard.", "Thread- oder Board-URLs einfügen. Hinzufügen ohne Eingabe liest die Zwischenablage."),
         ("downloads.threadsCount", "Threads ({0})", "Threads ({0})"),

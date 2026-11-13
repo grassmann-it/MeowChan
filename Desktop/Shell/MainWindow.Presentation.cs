@@ -294,6 +294,7 @@ public partial class MainWindow
         ToolTip.SetTip(WorkspaceModeComboBox, Texts.T("shell.mode"));
         SetupInspectorLocalActions();
         RefreshAdmissionResults();
+        RefreshArchiveBridgeHint();
         UpdateThemeIcon();
         RefreshBrandNavigation();
         LocalizeDownloadsColumnsButton();
@@ -402,6 +403,7 @@ public partial class MainWindow
         CommandBindings.ApplyLabeled(DetailsToggleButton,
             visible ? "inspector.close" : "thread.details",
             Texts.T(visible ? "action.hideDetails" : "action.showDetails"));
+        if (_workspaceInitialized) RefreshDownloadsToolbarEmptiness(!string.IsNullOrWhiteSpace(DownloadSearchText));
     }
 
     private bool _statusColumnVisible;

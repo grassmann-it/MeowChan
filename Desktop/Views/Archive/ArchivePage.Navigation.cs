@@ -9,6 +9,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
 
@@ -216,6 +217,25 @@ public partial class ArchivePage
         Message(string.Empty);
         MediaLoadTask = LoadMediaAsync(view);
     }
+    // The large reader names where Close goes ("Back to Archive", "Back to Downloads"); without a known target it stays "Close".
+    // Presentation only: the command, Escape and the way back are those of reader.close.
+    private string? _readerCloseTargetKey;
+
+    internal string ReaderCloseLabel => _readerCloseTargetKey is { } key ? Texts.T(key) : CommandCatalog.Label("reader.close");
+
+    internal void SetReaderCloseTarget(string? textKey)
+    {
+        if (_readerCloseTargetKey == textKey) return;
+        _readerCloseTargetKey = textKey;
+        ApplyReaderCloseLabel();
+    }
+
+    private void ApplyReaderCloseLabel()
+    {
+        if (_readerCloseTargetKey is { } key) CommandBindings.ApplyLabeled(ArchiveCloseReader, "reader.close", Texts.T(key));
+        else CommandBindings.Apply(ArchiveCloseReader, "reader.close", iconWithLabel: true);
+    }
+
     internal bool CanGoHistoryBack => ArchiveHistoryBack.IsVisible && ArchiveHistoryBack.IsEnabled && !_busy && !_ended
         && !IsFilenameSearchOpen && _history.Last != null;
     internal void GoHistoryBackByShortcut() { if (CanGoHistoryBack) OnHistoryBack(null, new RoutedEventArgs()); }

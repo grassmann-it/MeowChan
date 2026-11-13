@@ -83,7 +83,7 @@ internal static class CommandLabelCatalog
         ("command.archive.media-view", "Choose media view", "Medienansicht wählen"),
         ("command.pagination.previous", "Previous page", "Vorherige Seite"),
         ("command.pagination.next", "Next page", "Nächste Seite"),
-        ("command.archive.back-to-list", "Back to thread list", "Zur Threadliste"),
+        ("command.archive.back-to-list", "Back to thread list", "Zurück zur Threadliste"),
         ("command.archive.capture-toggle", "Start / stop post capture", "Post-Erfassung starten / stoppen"),
         ("command.reader.close", "Close reader", "Reader schließen"),
         ("command.reader.expand", "Expand reader", "Reader vergrößern"),
@@ -112,7 +112,7 @@ internal static class CommandLabelCatalog
         ("command.gallery.overlay-autohide-toggle", "Toggle overlay auto-hide", "Automatisches Ausblenden umschalten"),
         ("command.gallery.post-overlay-toggle", "Toggle post overlay", "Post-Overlay umschalten"),
         ("command.gallery.context-toggle", "Show post context", "Post-Kontext anzeigen"),
-        ("command.gallery.context-close", "Return to image", "Zurück zum Bild"),
+        ("command.gallery.context-close", "Back to image", "Zurück zum Bild"),
         ("command.gallery.show-in-thread", "Show in thread", "Im Thread anzeigen"),
         ("command.preview.close", "Close preview", "Vorschau schließen"),
         ("command.video.play", "Play", "Abspielen"),
@@ -219,7 +219,10 @@ internal static class CommandLabelCatalog
     {
         ("command.gallery.close.compact", "Close", "Schließen"),
         // MEDIA103-NAV P1: the same gallery.close, when the gallery was opened from the Medien page and closes back to it.
-        ("command.gallery.close.media", "To media", "Zu Medien"),
+        ("command.gallery.close.media", "Back to media", "Zurück zu Medien"),
+        // UX flows AP9: the large reader's Close names the page it returns to (presentation only; the command stays reader.close).
+        ("command.reader.close.toArchive", "Back to Archive", "Zurück zum Archiv"),
+        ("command.reader.close.toDownloads", "Back to Downloads", "Zurück zu Downloads"),
         ("command.gallery.favorite.compact", "Favorite", "Favorit"),
         ("command.gallery.export-original.compact", "Original…", "Original…"),
     };

@@ -37,6 +37,7 @@ public partial class MainWindow
         {
             OpenGallery = (window, start) => OpenMediaLibraryGalleryAsync(window, start),
             ShowInThread = ShowMediaLibraryEntryInThreadAsync,
+            EditThreadRules = entry => EditFrozenRules(entry.Thread),
             EditTags = EditMediaLibraryTagsAsync,
             EditTagsForMenuAsync = (entry, current) => EditMediaLibraryTagsForMenuAsync(entry, current),
             ExecuteMediaMenuActionAsync = ExecuteMediaLibraryMenuActionAsync,

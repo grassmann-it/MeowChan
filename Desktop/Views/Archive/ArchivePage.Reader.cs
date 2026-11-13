@@ -626,6 +626,13 @@ public partial class ArchivePage
             await OpenExportForThreadsAsync(new[] { _thread.Summary.Id }, e.Source as Control);
             return;
         }
+        if (CommandBindings.Matches(e, "rules.edit-scope") && _thread != null)
+        {
+            if (!_available || _busy || _ended || _lifetime.IsCancellationRequested) return;
+            e.Handled = true;
+            if (CanEditThreadRules) EditThreadRulesFromReader(); else Message(Texts.T("archive.command.noWatch"));
+            return;
+        }
         if (CommandBindings.Matches(e, "gallery.open") && _thread != null && OpenGallery != null)
         {
             if (!_available || _busy || _ended || _lifetime.IsCancellationRequested) return;

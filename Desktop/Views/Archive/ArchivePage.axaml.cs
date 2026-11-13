@@ -1105,7 +1105,7 @@ public partial class ArchivePage : UserControl
         CommandBindings.Apply(NextReferences, "pagination.next", iconOnly: true);
         CommandBindings.Apply(ArchiveHistoryBack, "reader.history-back", iconWithLabel: true);
         CommandBindings.Apply(ArchiveReaderFullscreen, "window.fullscreen", iconWithLabel: true);
-        CommandBindings.Apply(ArchiveCloseReader, "reader.close", iconWithLabel: true);
+        ApplyReaderCloseLabel();
         CommandBindings.Apply(ArchiveOpenGallery, "gallery.open", iconWithLabel: true);
         CommandBindings.Apply(ArchiveReadPosts, "reader.expand", iconWithLabel: true);
         CommandBindings.Apply(ArchiveGalleryReturn, "gallery.return", iconWithLabel: true);

@@ -128,6 +128,7 @@ public partial class MainWindow : Window
             InitializeReaderGroups(); // URSA-12 shared initialization hunk.
             using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.workspace")) InitializeWorkspace();
             RegisterReadingResumeCommand();
+            RegisterManualImportCommand();
             RegisterReaderGroupCommands();
             RegisterPostBookmarkCommands();
             // Section and rule-template registrations belong to pages built after the first frame
@@ -136,6 +137,7 @@ public partial class MainWindow : Window
             WireWorkspaceCommands();
             InitializeSelectionCommands();
             InitializeStatusColumnRedundancy();
+            InitializeArchiveBridgeHint();
             Texts.Changed += OnLanguageChanged;
             RecordStartupTiming(StartupTimingPoint.TrayBegin);
             try { using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.tray")) SetupTrayIcon(); }
@@ -541,6 +543,7 @@ public partial class MainWindow : Window
     private async Task<bool> SubmitInputAsync(string? input)
     {
         if (!_restoreCompleted || _isClosing) return false;
+        NoteAdmissionStart();
         _admissionResults.Clear();
         bool allAccepted = true;
         try
@@ -587,6 +590,7 @@ public partial class MainWindow : Window
         int added = _admissionResults.Count(item => item.Status == AdmissionStatus.Added);
         int duplicate = _admissionResults.Count(item => item.Status == AdmissionStatus.AlreadyPresent);
         AdmissionResultsTitle.Text = Texts.T("admission.summary", added, duplicate, _admissionResults.Count - added - duplicate);
+        OfferArchiveBridgeHint(added);
         if (_admissionResults.Count == 0) return;
         // One selectable, scrollable report keeps large imports from creating a control per URL.
         TextBox report = new TextBox

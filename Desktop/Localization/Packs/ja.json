@@ -421,7 +421,7 @@
     "downloads.title": "ダウンロード",
     "downloads.threads": "スレッド",
     "downloads.boards": "板",
-    "downloads.empty": "スレッドまたは板のURLを追加するとダウンロードが始まります。",
+    "downloads.empty": "上の欄にスレッドまたは板のURLを貼り付けて「追加」を押します。ここでは進行状況を確認し、保存したスレッドはアーカイブで読みます。",
     "downloads.urlPlaceholder": "スレッドまたは板のURL…",
     "downloads.inputHint": "スレッドまたは板のURLを貼り付けてください。空のまま「追加」するとクリップボードから取り込みます。",
     "downloads.threadsCount": "スレッド（{0}）",
@@ -984,7 +984,7 @@
     "archive.select": "アーカイブされたスレッドを選択してください。",
     "archive.previous": "前へ",
     "archive.next": "次へ",
-    "archive.back": "スレッド一覧",
+    "archive.back": "スレッド一覧に戻る",
     "archive.page": "{0}–{1} / {2}",
     "archive.posts": "投稿",
     "archive.media": "保存済みメディア",
@@ -2196,7 +2196,7 @@
     "command.scope.export.open-all-results-html-dialog": "個別のボタン · 現在の検索のすべての結果",
     "command.scope.navigation.generic": "入力欄とオーバーレイの外 · 利用できる場合",
     "command.gallery.close.compact": "閉じる",
-    "command.gallery.close.media": "メディアへ",
+    "command.gallery.close.media": "メディアに戻る",
     "command.gallery.favorite.compact": "お気に入り",
     "command.gallery.export-original.compact": "オリジナル…",
     "command.reader.close.compact": "閉じる",
@@ -3387,6 +3387,13 @@
     "limit.postFilterRules": "投稿フィルターのルールが上限の{0}件に達しました。{2} の「{1}」を引き上げてください。既存のルールは保持されます。",
     "limit.hiddenPosts": "個別に非表示にした投稿が上限の{0}件に達しました。{2} の「{1}」を引き上げてください。すでに非表示の投稿は非表示のままです。",
     "gallery.overflow.label": "ギャラリーのその他の操作",
-    "gallery.overflow.help": "ズーム、評価、タグ、エクスポート、再生、表示オプション、ショートカットヘルプ"
+    "gallery.overflow.help": "ズーム、評価、タグ、エクスポート、再生、表示オプション、ショートカットヘルプ",
+    "downloads.archiveHint": "追加しました。投稿とメディアを保存しています。スレッドはアーカイブ（{0}）か、行のダブルクリックで読めます。100 %になってもスレッドの監視は続きます。",
+    "downloads.archiveHint.open": "アーカイブで開く",
+    "downloads.archiveHint.dismiss": "了解",
+    "command.reader.close.toArchive": "アーカイブに戻る",
+    "command.reader.close.toDownloads": "ダウンロードに戻る",
+    "rules.thisThread": "このスレッドのルール…",
+    "media.rulesThreadUnavailable": "このメディアはダウンロード済みスレッドに属していないため、編集できるスレッドのルールはありません。"
   }
 }

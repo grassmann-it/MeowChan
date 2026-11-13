@@ -604,6 +604,9 @@ namespace MeowChan
         }
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string LastExportDirectory { get => _lastExportDirectory; set => _lastExportDirectory = value ?? string.Empty; }
+        /// <summary>The one-time Downloads hint "read it in the Archive" was answered (dismissed, or its action used). Not a setting: no editor shows it.</summary>
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool ArchiveBridgeHintSeen { get; set; }
 
         /// <summary>English, path-free description of a failed load for the log; the window shows <see cref="LocalizedLoadWarning"/>.</summary>
         [JsonIgnore]
@@ -1065,6 +1068,7 @@ namespace MeowChan
                 ColumnWidths = ColumnWidths,
                 LayoutProfiles = _layoutProfiles.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal),
                 LastExportDirectory = LastExportDirectory,
+                ArchiveBridgeHintSeen = ArchiveBridgeHintSeen,
                 LoadWarning = LoadWarning,
                 LoadProblem = LoadProblem,
                 LoadDisabledSourceGrants = LoadDisabledSourceGrants,
@@ -1199,6 +1203,7 @@ namespace MeowChan
             ColumnWidths = source.ColumnWidths;
             LayoutProfiles = source._layoutProfiles.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
             LastExportDirectory = source.LastExportDirectory;
+            ArchiveBridgeHintSeen = source.ArchiveBridgeHintSeen;
             PluginEditorExecutable = source.PluginEditorExecutable;
             PluginEditorArguments = (string[])source.PluginEditorArguments.Clone();
             LoadWarning = source.LoadWarning;

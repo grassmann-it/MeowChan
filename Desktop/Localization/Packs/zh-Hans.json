@@ -421,7 +421,7 @@
     "downloads.title": "下载",
     "downloads.threads": "串",
     "downloads.boards": "版块",
-    "downloads.empty": "添加串或版块 URL 即可开始下载。",
+    "downloads.empty": "在上方粘贴串或版块 URL，然后按“添加”。此处查看进度；已保存的串在“归档”中阅读。",
     "downloads.urlPlaceholder": "串或版块 URL…",
     "downloads.inputHint": "粘贴串或版块 URL。输入为空时点“添加”会从剪贴板导入。",
     "downloads.threadsCount": "串（{0}）",
@@ -984,7 +984,7 @@
     "archive.select": "选择一个已归档的串。",
     "archive.previous": "上一页",
     "archive.next": "下一页",
-    "archive.back": "串列表",
+    "archive.back": "返回串列表",
     "archive.page": "第 {0}–{1} 个，共 {2} 个",
     "archive.posts": "帖子",
     "archive.media": "已保存的媒体",
@@ -2196,7 +2196,7 @@
     "command.scope.export.open-all-results-html-dialog": "单独的按钮 · 当前搜索的所有结果",
     "command.scope.navigation.generic": "输入框和浮层之外 · 可用时",
     "command.gallery.close.compact": "关闭",
-    "command.gallery.close.media": "到媒体",
+    "command.gallery.close.media": "返回媒体",
     "command.gallery.favorite.compact": "收藏",
     "command.gallery.export-original.compact": "原图…",
     "command.reader.close.compact": "关闭",
@@ -3387,6 +3387,13 @@
     "limit.postFilterRules": "已达到 {0} 条帖子筛选规则的上限。请在 {2} 中提高“{1}”；现有规则会保留。",
     "limit.hiddenPosts": "已达到 {0} 个单独隐藏帖子的上限。请在 {2} 中提高“{1}”；已隐藏的帖子仍保持隐藏。",
     "gallery.overflow.label": "更多图库操作",
-    "gallery.overflow.help": "缩放、评分、标签、导出、播放、视图选项和快捷键帮助"
+    "gallery.overflow.help": "缩放、评分、标签、导出、播放、视图选项和快捷键帮助",
+    "downloads.archiveHint": "已添加。帖子和媒体正在保存。可在“归档”（{0}）中阅读该串，或双击它所在的行。达到 100 % 后仍会继续关注该串。",
+    "downloads.archiveHint.open": "在归档中打开",
+    "downloads.archiveHint.dismiss": "知道了",
+    "command.reader.close.toArchive": "返回归档",
+    "command.reader.close.toDownloads": "返回下载",
+    "rules.thisThread": "此串的规则…",
+    "media.rulesThreadUnavailable": "此媒体不属于已下载的串，因此没有可编辑的串规则。"
   }
 }

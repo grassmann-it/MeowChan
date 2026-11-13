@@ -335,6 +335,7 @@ public partial class MainWindow
         PluginsNavigationButton.Classes.Set("selected", page == WorkspacePage.Plugins);
         StatisticsNavigationButton.Classes.Set("selected", page == WorkspacePage.Statistics);
         RefreshStartupPreview(); // The historical preview belongs to the Downloads page only.
+        if (page == WorkspacePage.Archive) MarkArchiveBridgeHintSeen(); // reading has been found by another route
         UpdatePageNavigation();
         RefreshReadingResumePresentation();
         if (page == WorkspacePage.Sources) RefreshSourcesPage();

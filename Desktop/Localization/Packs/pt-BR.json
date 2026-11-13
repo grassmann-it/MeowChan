@@ -240,7 +240,7 @@
     "downloads.title": "Downloads",
     "downloads.threads": "Tópicos",
     "downloads.boards": "Boards",
-    "downloads.empty": "Adicione a URL de um tópico ou board para começar a baixar.",
+    "downloads.empty": "Cole acima a URL de um tópico ou board e pressione Adicionar. Aqui você acompanha o progresso; os tópicos salvos são lidos no Acervo.",
     "downloads.urlPlaceholder": "URLs de tópicos ou boards…",
     "downloads.inputHint": "Cole URLs de tópicos ou boards. Adicionar sem texto importa da área de transferência.",
     "downloads.threadsCount": "Tópicos ({0})",
@@ -684,7 +684,7 @@
     "archive.select": "Selecione um tópico arquivado.",
     "archive.previous": "Anterior",
     "archive.next": "Próximo",
-    "archive.back": "Lista de tópicos",
+    "archive.back": "Voltar à lista de tópicos",
     "archive.page": "{0}–{1} de {2}",
     "archive.posts": "Postagens",
     "archive.media": "Mídias salvas",
@@ -2014,7 +2014,7 @@
     "command.scope.export.open-all-results-html-dialog": "Botão separado · todos os resultados da pesquisa atual",
     "command.scope.navigation.generic": "Fora de campos e sobreposições · quando disponível",
     "command.gallery.close.compact": "Fechar",
-    "command.gallery.close.media": "Para mídia",
+    "command.gallery.close.media": "Voltar à mídia",
     "command.gallery.favorite.compact": "Favorito",
     "command.gallery.export-original.compact": "Original…",
     "transfer.preview.open": "Inspecionar pacote de transferência…",
@@ -3425,6 +3425,13 @@
     "limit.hiddenPosts": "O limite de {0} postagens ocultas individualmente foi atingido. Aumente “{1}” em {2}; as postagens já ocultas continuam ocultas.",
     "limit.hiddenPosts.one": "O limite de {0} postagem oculta individualmente foi atingido. Aumente “{1}” em {2}; as postagens já ocultas continuam ocultas.",
     "gallery.overflow.label": "Mais ações da galeria",
-    "gallery.overflow.help": "Zoom, avaliação, tags, exportação, reprodução, opções de exibição e ajuda de atalhos"
+    "gallery.overflow.help": "Zoom, avaliação, tags, exportação, reprodução, opções de exibição e ajuda de atalhos",
+    "downloads.archiveHint": "Adicionado. As postagens e a mídia estão sendo salvas. Leia o tópico no Acervo ({0}) ou dê um clique duplo na linha dele. Um tópico continua sendo observado depois de 100 %.",
+    "downloads.archiveHint.open": "Abrir no Acervo",
+    "downloads.archiveHint.dismiss": "Entendi",
+    "command.reader.close.toArchive": "Voltar ao acervo",
+    "command.reader.close.toDownloads": "Voltar aos downloads",
+    "rules.thisThread": "Regras deste tópico…",
+    "media.rulesThreadUnavailable": "Esta mídia não pertence a um tópico baixado, então não há regras de tópico para editar."
   }
 }

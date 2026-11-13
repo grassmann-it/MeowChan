@@ -244,7 +244,7 @@
     "downloads.title": "Pobieranie",
     "downloads.threads": "Wątki",
     "downloads.boards": "Tablice",
-    "downloads.empty": "Dodaj adres URL wątku lub tablicy, aby rozpocząć pobieranie.",
+    "downloads.empty": "Wklej powyżej adres URL wątku lub tablicy i naciśnij Dodaj. Tutaj widać postęp; zapisane wątki czyta się w Archiwum.",
     "downloads.urlPlaceholder": "Adresy URL wątków lub tablic…",
     "downloads.inputHint": "Wklej adresy URL wątków lub tablic. Puste „Dodaj” importuje ze schowka.",
     "downloads.threadsCount": "Wątki ({0})",
@@ -688,7 +688,7 @@
     "archive.select": "Wybierz zarchiwizowany wątek.",
     "archive.previous": "Poprzedni",
     "archive.next": "Następny",
-    "archive.back": "Lista wątków",
+    "archive.back": "Wróć do listy wątków",
     "archive.page": "{0}–{1} z {2}",
     "archive.posts": "Posty",
     "archive.media": "Zapisane media",
@@ -2024,7 +2024,7 @@
     "command.scope.export.open-all-results-html-dialog": "Osobny przycisk · wszystkie wyniki bieżącego wyszukiwania",
     "command.scope.navigation.generic": "Poza polami i nakładkami · gdy dostępne",
     "command.gallery.close.compact": "Zamknij",
-    "command.gallery.close.media": "Do mediów",
+    "command.gallery.close.media": "Wróć do mediów",
     "command.gallery.favorite.compact": "Ulubione",
     "command.gallery.export-original.compact": "Oryginał…",
     "transfer.preview.open": "Sprawdź pakiet transferu…",
@@ -3458,6 +3458,13 @@
     "limit.hiddenPosts.one": "Osiągnięto limit {0} pojedynczo ukrytego posta. Zwiększ „{1}” w {2}; posty już ukryte pozostają ukryte.",
     "limit.hiddenPosts.few": "Osiągnięto limit {0} pojedynczo ukrytych postów. Zwiększ „{1}” w {2}; posty już ukryte pozostają ukryte.",
     "gallery.overflow.label": "Więcej akcji galerii",
-    "gallery.overflow.help": "Powiększenie, ocena, tagi, eksport, odtwarzanie, opcje widoku i pomoc dotycząca skrótów"
+    "gallery.overflow.help": "Powiększenie, ocena, tagi, eksport, odtwarzanie, opcje widoku i pomoc dotycząca skrótów",
+    "downloads.archiveHint": "Dodano. Posty i multimedia są zapisywane. Wątek przeczytasz w Archiwum ({0}) lub po dwukrotnym kliknięciu jego wiersza. Wątek jest obserwowany także po osiągnięciu 100 %.",
+    "downloads.archiveHint.open": "Otwórz w Archiwum",
+    "downloads.archiveHint.dismiss": "Rozumiem",
+    "command.reader.close.toArchive": "Wróć do archiwum",
+    "command.reader.close.toDownloads": "Wróć do pobierania",
+    "rules.thisThread": "Reguły tego wątku…",
+    "media.rulesThreadUnavailable": "To medium nie należy do pobranego wątku, więc nie ma reguł wątku do edycji."
   }
 }

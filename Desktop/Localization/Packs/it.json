@@ -240,7 +240,7 @@
     "downloads.title": "Download",
     "downloads.threads": "Thread",
     "downloads.boards": "Board",
-    "downloads.empty": "Aggiungi l’URL di un thread o di una board per iniziare a scaricare.",
+    "downloads.empty": "Incolla qui sopra l’URL di un thread o di una board e premi Aggiungi. Qui vedi l’avanzamento; i thread salvati si leggono nell’Archivio.",
     "downloads.urlPlaceholder": "URL di thread o board…",
     "downloads.inputHint": "Incolla URL di thread o board. «Aggiungi» a campo vuoto importa dagli appunti.",
     "downloads.threadsCount": "Thread ({0})",
@@ -684,7 +684,7 @@
     "archive.select": "Seleziona un thread archiviato.",
     "archive.previous": "Precedente",
     "archive.next": "Successivo",
-    "archive.back": "Elenco thread",
+    "archive.back": "Torna all’elenco dei thread",
     "archive.page": "{0}–{1} di {2}",
     "archive.posts": "Post",
     "archive.media": "Media salvati",
@@ -2014,7 +2014,7 @@
     "command.scope.export.open-all-results-html-dialog": "Pulsante separato · tutti i risultati della ricerca attuale",
     "command.scope.navigation.generic": "Fuori da campi e sovrapposizioni · quando disponibile",
     "command.gallery.close.compact": "Chiudi",
-    "command.gallery.close.media": "Ai media",
+    "command.gallery.close.media": "Torna ai media",
     "command.gallery.favorite.compact": "Preferito",
     "command.gallery.export-original.compact": "Originale…",
     "transfer.preview.open": "Esamina pacchetto di trasferimento…",
@@ -3425,6 +3425,13 @@
     "limit.hiddenPosts": "È stato raggiunto il limite di {0} post nascosti singolarmente. Aumenta «{1}» in {2}; i post già nascosti restano nascosti.",
     "limit.hiddenPosts.one": "È stato raggiunto il limite di {0} post nascosto singolarmente. Aumenta «{1}» in {2}; i post già nascosti restano nascosti.",
     "gallery.overflow.label": "Altre azioni della galleria",
-    "gallery.overflow.help": "Zoom, valutazione, tag, esportazione, riproduzione, opzioni di visualizzazione e guida alle scorciatoie"
+    "gallery.overflow.help": "Zoom, valutazione, tag, esportazione, riproduzione, opzioni di visualizzazione e guida alle scorciatoie",
+    "downloads.archiveHint": "Aggiunto. Post e media vengono salvati. Leggi il thread nell’Archivio ({0}) o fai doppio clic sulla sua riga. Un thread resta monitorato anche dopo il 100 %.",
+    "downloads.archiveHint.open": "Apri nell’Archivio",
+    "downloads.archiveHint.dismiss": "Ho capito",
+    "command.reader.close.toArchive": "Torna all’archivio",
+    "command.reader.close.toDownloads": "Torna ai download",
+    "rules.thisThread": "Regole di questo thread…",
+    "media.rulesThreadUnavailable": "Questo media non appartiene a un thread scaricato, quindi non ci sono regole del thread da modificare."
   }
 }

@@ -162,7 +162,7 @@ internal static class PluginCatalog
         ("plugins.filesCount", "Files: {0}", "Dateien: {0}"),
         ("plugins.fileShown", "shown", "angezeigt"),
         ("plugins.empty", "No plugins in this category.", "Keine Plugins in dieser Kategorie."),
-        ("plugins.back", "Back to plugins", "Zur Pluginliste"),
+        ("plugins.back", "Back to plugins", "Zurück zur Pluginliste"),
         ("plugins.all", "All plugins", "Alle Plugins"),
         ("plugins.sources", "Sources", "Quellen"),
         ("plugins.filters", "Image filters", "Bildfilter"),

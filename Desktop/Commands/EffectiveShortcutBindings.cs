@@ -102,7 +102,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 2;
+    public const int DefaultsRevision = 3;
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -126,6 +126,9 @@ public sealed class EffectiveShortcutBindings
         // One Back gesture and one page gesture for several commands that never apply at the same time.
         ["reader.history-back"] = 2, ["gallery.return"] = 2, ["pagination.previous"] = 2, ["pagination.next"] = 2,
         ["window.minimize"] = 2,
+        // New in revision 3: shortcuts for actions that had none (UX flows AP13).
+        ["navigation.continue-reading"] = 3, ["import.open"] = 3, ["reader.show-new-posts"] = 3,
+        ["watch.follow-live"] = 3, ["diagnostics.retry-selection"] = 3,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
@@ -207,6 +210,9 @@ public sealed class EffectiveShortcutBindings
             "media.details" => Of("I", "Primary+I"),
             "reader.find-next" => Of("Primary+G", "F3"),
             "reader.find-previous" => Of("Primary+Shift+G", "Shift+F3"),
+            // Fn is never the only way on a Mac: the Diagnostics retry shares the gesture of "Retry missing media"
+            // (they never apply on the same page).
+            "diagnostics.retry-selection" => Of("Primary+Alt+Shift+R"),
             _ => null
         };
     }

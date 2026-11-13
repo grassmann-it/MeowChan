@@ -423,7 +423,7 @@
     "downloads.title": "Descargas",
     "downloads.threads": "Hilos",
     "downloads.boards": "Tablones",
-    "downloads.empty": "Añada la URL de un hilo o tablón para empezar a descargar.",
+    "downloads.empty": "Pegue arriba la URL de un hilo o tablón y pulse Añadir. Aquí verá el progreso; los hilos guardados se leen en el Archivo.",
     "downloads.urlPlaceholder": "URL de hilos o tablones…",
     "downloads.inputHint": "Pegue URL de hilos o tablones. Añadir con el campo vacío importa desde el portapapeles.",
     "downloads.threadsCount": "Hilos ({0})",
@@ -1090,7 +1090,7 @@
     "archive.select": "Seleccione un hilo archivado.",
     "archive.previous": "Anterior",
     "archive.next": "Siguiente",
-    "archive.back": "Lista de hilos",
+    "archive.back": "Volver a la lista de hilos",
     "archive.page": "{0}–{1} de {2}",
     "archive.posts": "Publicaciones",
     "archive.media": "Medios guardados",
@@ -2337,7 +2337,7 @@
     "command.scope.export.open-all-results-html-dialog": "Botón separado · todos los resultados de la búsqueda actual",
     "command.scope.navigation.generic": "Fuera de entradas y superposiciones · cuando está disponible",
     "command.gallery.close.compact": "Cerrar",
-    "command.gallery.close.media": "A Medios",
+    "command.gallery.close.media": "Volver a Medios",
     "command.gallery.favorite.compact": "Favorito",
     "command.gallery.export-original.compact": "Original…",
     "command.reader.close.compact": "Cerrar",
@@ -3418,6 +3418,13 @@
     "settings.animations.hint": "Fundidos breves y cambios al pasar el puntero. «Seguir el sistema» usa el ajuste de movimiento reducido de su sistema. Las barras de progreso y los indicadores de carga se mantienen siempre.",
     "settings.animations.system": "Seguir el sistema",
     "settings.animations.on": "Activadas",
-    "settings.animations.off": "Desactivadas"
+    "settings.animations.off": "Desactivadas",
+    "downloads.archiveHint": "Añadido. Las publicaciones y los medios se están guardando. Lea el hilo en el Archivo ({0}) o haga doble clic en su fila. Un hilo se sigue vigilando después del 100 %.",
+    "downloads.archiveHint.open": "Abrir en el Archivo",
+    "downloads.archiveHint.dismiss": "Entendido",
+    "command.reader.close.toArchive": "Volver al Archivo",
+    "command.reader.close.toDownloads": "Volver a Descargas",
+    "rules.thisThread": "Reglas de este hilo…",
+    "media.rulesThreadUnavailable": "Este medio no pertenece a un hilo descargado, así que no hay reglas de hilo que editar."
   }
 }
