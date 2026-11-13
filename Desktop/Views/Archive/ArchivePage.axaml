@@ -284,7 +284,8 @@
                                              AccentSurface card with the accent edge; keyboard focus adds a heavier edge and the
                                              shared focus adorner. Semi's hover/pressed tints are suppressed on cards. -->
                                         <ListBox x:Name="ArchivePosts" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                                 Background="{DynamicResource Workspace.ReaderPage}" Padding="2,4">
+                                                 Background="{DynamicResource Workspace.ReaderPage}" Padding="2,4"
+                                                 ContainerPrepared="OnReaderPostContainerPrepared">
                                             <ListBox.Styles>
                                                 <Style Selector="ListBoxItem">
                                                     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -306,6 +307,23 @@
                                                 </Style>
                                                 <Style Selector="ListBoxItem:pressed /template/ ContentPresenter">
                                                     <Setter Property="Background" Value="{DynamicResource Workspace.ReaderPostSurface}" />
+                                                </Style>
+                                                <!-- Opening post: no card, directly on the page (classic imageboard order: OP, then
+                                                     reply cards). The transparent 1-px edge keeps its geometry; selected, it becomes
+                                                     the active card like every post (the styles below win). -->
+                                                <Style Selector="ListBoxItem.reader-op">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                                </Style>
+                                                <Style Selector="ListBoxItem.reader-op /template/ ContentPresenter">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                                </Style>
+                                                <Style Selector="ListBoxItem.reader-op:pointerover /template/ ContentPresenter">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                </Style>
+                                                <Style Selector="ListBoxItem.reader-op:pressed /template/ ContentPresenter">
+                                                    <Setter Property="Background" Value="Transparent" />
                                                 </Style>
                                                 <Style Selector="ListBoxItem:selected">
                                                     <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />

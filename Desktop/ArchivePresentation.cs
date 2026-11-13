@@ -86,6 +86,8 @@ internal sealed record ArchivePostRow(string Id, string Subject, string Body,
     public string Author { get; init; } = string.Empty;
     public string Posted { get; init; } = string.Empty;
     public bool IsDeleted { get; init; }
+    // The opening post sits directly on the page (classic imageboard); replies are cards.
+    public bool IsOpeningPost { get; init; }
     public bool HasSubject => Subject.Length > 0;
     public bool HasAuthor => Author.Length > 0;
     public bool HasPosted => Posted.Length > 0;
@@ -189,4 +191,12 @@ internal sealed record ArchiveAssetRow(MediaAssetSnapshot Manifest, MediaAssetRe
 internal static class ArchivePresentation
 {
     internal static string PlainText(string? html) => ArchiveText.PlainText(html);
+
+    // 4chan/8kun number the opening post with the thread number, so a thread whose OP was not
+    // captured has none. Other sources: the first captured post opens the thread.
+    internal static string? OpeningPostId(ArchivedThreadView thread) => OpeningPostId(thread.Summary.Id,
+        id => thread.FindPostIndex(id) >= 0, thread.PostCount == 0 ? null : thread.GetPosts(0, 1)[0].PostId);
+
+    internal static string? OpeningPostId(ResourceId thread, Func<string, bool> captured, string? firstPost) =>
+        thread.Thread is { } id && captured(id) ? id : thread.Source is "4chan" or "8kun" ? null : firstPost;
 }

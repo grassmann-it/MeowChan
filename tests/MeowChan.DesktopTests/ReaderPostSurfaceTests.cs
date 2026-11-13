@@ -241,6 +241,21 @@ public sealed class ReaderPostSurfaceTests
             Assert.True(Contrast(green, Resource(dictionary, surface).Value) >= 4.5, $"{theme}: greentext on {surface}");
     }
 
+    [Fact]
+    public void OpeningPostSitsOnThePageAndBecomesTheActiveCardWhenSelected()
+    {
+        Assert.Equal("OnReaderPostContainerPrepared", (string?)Posts().Attribute("ContainerPrepared"));
+        foreach (string selector in new[] { "ListBoxItem.reader-op", "ListBoxItem.reader-op /template/ ContentPresenter" })
+        {
+            Assert.Equal("Transparent", Setting(PostStyle(selector), "Background"));
+            Assert.Equal("Transparent", Setting(PostStyle(selector), "BorderBrush"));
+        }
+        string[] order = Posts().Element(A + "ListBox.Styles")!.Elements(A + "Style")
+            .Select(style => (string?)style.Attribute("Selector") ?? "").ToArray();
+        Assert.True(Array.IndexOf(order, "ListBoxItem:selected /template/ ContentPresenter")
+            > Array.IndexOf(order, "ListBoxItem.reader-op:pressed /template/ ContentPresenter"));
+    }
+
     private static XElement PostRoot()
     {
         XElement template = Posts().Element(A + "ListBox.ItemTemplate")!.Element(A + "DataTemplate")!;

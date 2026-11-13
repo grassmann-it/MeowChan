@@ -61,6 +61,16 @@ public sealed class ArchivePresentationTests
     }
 
     [Fact]
+    public void OpeningPostIsTheThreadNumberOnImageboardsAndTheFirstPostElsewhere()
+    {
+        Assert.Equal("100", ArchivePresentation.OpeningPostId(new MeowChan.ResourceId("4chan", "g", "100"), id => id == "100", "100"));
+        // An uncaptured 4chan OP leaves no opening post; the first captured reply stays a reply.
+        Assert.Null(ArchivePresentation.OpeningPostId(new MeowChan.ResourceId("4chan", "g", "100"), _ => false, "105"));
+        Assert.Equal("a1", ArchivePresentation.OpeningPostId(new MeowChan.ResourceId("plugin", "b", "t-9"), _ => false, "a1"));
+        Assert.Null(ArchivePresentation.OpeningPostId(new MeowChan.ResourceId("plugin", "b", "t-9"), _ => false, null));
+    }
+
+    [Fact]
     public void ReplyStateOnlyCollapsesConfirmedSuccessfulZero()
     {
         ArchivePostRow row = new("123", "", "", Array.Empty<ArchiveAttachmentRow>());

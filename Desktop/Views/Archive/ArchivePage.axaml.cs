@@ -487,6 +487,7 @@ public partial class ArchivePage : UserControl
         ArchiveReaderStatus.Text = status;
         if (_thread != null)
         {
+            string? openingPost = ArchivePresentation.OpeningPostId(_thread);
             ArchivePostRow[] posts = _thread.GetPosts(_postOffset, PageSize).Select(post =>
             {
                 string text = ArchivePresentation.PlainText(post.Html);
@@ -497,6 +498,7 @@ public partial class ArchivePage : UserControl
                     Author = post.Author ?? string.Empty,
                     Posted = post.PostedAt?.ToLocalTime().ToString("g", Texts.Culture) ?? string.Empty,
                     IsDeleted = post.IsDeleted,
+                    IsOpeningPost = post.PostId == openingPost,
                     Quotes = Array.AsReadOnly(ArchiveQuoteParser.Parse(_thread.Summary.Id, _thread.Summary.Url, post)
                         .Select(quote => new ArchiveQuoteRow(quote)).ToArray())
                 };

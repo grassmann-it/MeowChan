@@ -14,6 +14,13 @@ public partial class ArchivePage
     // Test seam for the clipboard write; production uses the window clipboard.
     internal Func<string, Task>? CopyPostReference { get; set; }
 
+    // Recycled containers are re-prepared for every item, so the class always follows the shown post.
+    private void OnReaderPostContainerPrepared(object? sender, ContainerPreparedEventArgs e)
+    {
+        object? item = (sender as ItemsControl)?.ItemFromContainer(e.Container) ?? e.Container.DataContext;
+        e.Container.Classes.Set("reader-op", item is ArchivePostRow { IsOpeningPost: true });
+    }
+
     // A click on an inline >>No. in the post text navigates exactly like its quote button.
     private async void OnInlineQuoteInvoked(object? sender, ReaderQuoteInvokedEventArgs e)
     {
