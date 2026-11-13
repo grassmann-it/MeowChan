@@ -167,6 +167,25 @@ public sealed class ReaderExternalLinkTests
     }
 
     [Fact]
+    public void EnterWithoutSelectionStaysTheMediaKeyOnAPostWithMedia()
+    {
+        // B8-R8: the same Enter must not open the gallery on one post and a link dialog on the next.
+        ReaderBodyDocument one = ReaderBodyFormatting.Format("source https://one.example/ here", []);
+        Assert.Null(ReaderExternalLink.ForKeyboard(one, 0, 0, true, postHasMedia: true));
+        Assert.Equal("https://one.example/", ReaderExternalLink.ForKeyboard(one, 0, 0, true, postHasMedia: false)?.OriginalString);
+        // A selection is a deliberate gesture and still opens, media or not.
+        Assert.Equal("https://one.example/", ReaderExternalLink.ForKeyboard(one, 0, one.Text.Length, true, postHasMedia: true)?.OriginalString);
+    }
+
+    [Fact]
+    public void OnlyANonDeletedAttachmentMakesAPostMediaForEnter()
+    {
+        Assert.False(new ArchivePostRow("1", "", "x", Array.Empty<ArchiveAttachmentRow>()).HasActivatableMedia);
+        Assert.False(new ArchivePostRow("1", "", "x", [new(new CapturedAttachment(0, "m1", IsDeleted: true))]).HasActivatableMedia);
+        Assert.True(new ArchivePostRow("1", "", "x", [new(new CapturedAttachment(0, "m1")), new(new CapturedAttachment(1, "m2", IsDeleted: true))]).HasActivatableMedia);
+    }
+
+    [Fact]
     public void EnterOpensTheLinkInTheSelectionOrTheOnlyLink()
     {
         ReaderBodyDocument two = ReaderBodyFormatting.Format("a https://first.example/a b https://second.example/b", []);

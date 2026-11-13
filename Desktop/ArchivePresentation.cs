@@ -122,6 +122,8 @@ internal sealed record ArchivePostRow(string Id, string Subject, string Body,
     public string PostedFull { get; init; } = string.Empty;
     /// <summary>The conversation view nests the replies itself, so the header's reply counter would show them twice.</summary>
     public bool SuppressReplyToggle { get; init; }
+    // Enter on a focused post opens its media (the gallery); a deleted attachment has none to open.
+    public bool HasActivatableMedia => Attachments.Any(row => !row.Attachment.IsDeleted);
     public IReadOnlyList<ArchiveQuoteRow> Quotes { get; init; } = Array.Empty<ArchiveQuoteRow>();
     // Spoiler, code and external-link ranges of Body (set with Quotes; empty for unformatted posts).
     public IReadOnlyList<ArchiveTextMark> Marks { get; init; } = Array.Empty<ArchiveTextMark>();

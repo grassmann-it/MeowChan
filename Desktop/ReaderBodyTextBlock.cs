@@ -351,9 +351,11 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
             e.Handled = true;
             return;
         }
-        // Enter opens (after its confirmation) the link inside the selection, or the only link of the body.
+        // Enter opens (after its confirmation) the link inside the selection, or the only link of the body; on a post with
+        // media and no selection it stays the media key and reaches the reader.
         if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && !HasHiddenSpoilers
-            && ReaderExternalLink.ForKeyboard(Document, SelectionStart, SelectionEnd, SpoilersRevealed) is { } keyboardLink)
+            && ReaderExternalLink.ForKeyboard(Document, SelectionStart, SelectionEnd, SpoilersRevealed,
+                DataContext is ArchivePostRow { HasActivatableMedia: true }) is { } keyboardLink)
         {
             e.Handled = true;
             RaiseEvent(new ReaderLinkInvokedEventArgs(LinkInvokedEvent, keyboardLink));

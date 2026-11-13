@@ -723,7 +723,7 @@ public partial class ArchivePage
             e.Handled = true;
             return true;
         }
-        if (!post.Attachments.Any(row => !row.Attachment.IsDeleted)) return false;
+        if (!post.HasActivatableMedia) return false;
         Task<IReadOnlyList<ArchiveAssetRow>> ready = _mediaReady.Task;
         ResourceId resource = _thread!.Summary.Id;
         if (ready.IsCompletedSuccessfully && FindReaderMediaTarget(resource, post, ready.Result) == null) return false;

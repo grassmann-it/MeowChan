@@ -67,15 +67,19 @@ internal static class ReaderExternalLink
 
     /// <summary>
     /// The link Enter opens on a focused body: the first link inside the selection, or the only link of the body when
-    /// nothing is selected. With several links and no selection nothing opens.
+    /// nothing is selected. With several links and no selection nothing opens. Without a selection Enter belongs to the
+    /// post's media when it has any (<paramref name="postHasMedia"/>): the same key must not open the gallery on one post
+    /// and a link dialog on the next, so the link then needs a selection (or a click).
     /// </summary>
-    internal static Uri? ForKeyboard(ReaderBodyDocument? document, int selectionStart, int selectionEnd, bool spoilersRevealed)
+    internal static Uri? ForKeyboard(ReaderBodyDocument? document, int selectionStart, int selectionEnd, bool spoilersRevealed,
+        bool postHasMedia = false)
     {
         if (document == null) return null;
         int from = Math.Min(selectionStart, selectionEnd), to = Math.Max(selectionStart, selectionEnd);
         IEnumerable<ReaderBodySegment> links = document.Segments.Where(segment => segment.Link != null && (!segment.LinkNeedsReveal || spoilersRevealed));
         if (to > from)
             return links.FirstOrDefault(segment => segment.Start < to && segment.End > from)?.Link is { } inSelection && IsOpenable(inSelection) ? inSelection : null;
+        if (postHasMedia) return null;
         Uri[] all = links.Select(segment => segment.Link!).Distinct().ToArray();
         return all.Length == 1 && IsOpenable(all[0]) ? all[0] : null;
     }
