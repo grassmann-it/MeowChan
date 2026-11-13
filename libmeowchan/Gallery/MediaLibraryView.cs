@@ -86,7 +86,7 @@ internal static class MediaLibraryGallery
     internal static async Task<IReadOnlyList<GalleryEntry>> ResolveAsync(IReadOnlyList<MediaLibraryEntry> entries,
         Func<CancellationToken, Task<ArchiveReader>> openReader,
         Func<string, CancellationToken, Task<MediaAssetSnapshot>> openManifest, CancellationToken cancellationToken = default,
-        Func<BooruCatalogSnapshot?>? readBooruCatalog = null)
+        Func<BooruCatalogSnapshot?>? readBooruCatalog = null, Func<Import.ManualImportCatalogSnapshot?>? readImportCatalog = null)
     {
         ArgumentNullException.ThrowIfNull(entries);
         Dictionary<(ResourceId, string, string, string?, int?), GalleryEntry> found = new();
@@ -99,10 +99,19 @@ internal static class MediaLibraryGallery
             if (await BooruMediaGallery.ResolveAsync(provider, catalog, openManifest, cancellationToken).ConfigureAwait(false) is { } resolved)
                 booru.TryAdd(provider, resolved);
         }
-        ResourceId[] archived = entries.Where(entry => entry.Presence == MediaLibraryPresence.Present && entry.BooruPostId == null)
+        Dictionary<MediaLibraryEntry, GalleryEntry> imported = new();
+        Import.ManualImportCatalogSnapshot? imports = null;
+        bool importsRead = false;
+        foreach (MediaLibraryEntry item in entries.Where(entry => entry.ImportItemId != null && entry.Presence == MediaLibraryPresence.Present))
+        {
+            if (!importsRead) { imports = readImportCatalog == null ? null : ReadImports(readImportCatalog); importsRead = true; }
+            if (await ManualImportMediaGallery.ResolveAsync(item, imports, openManifest, cancellationToken).ConfigureAwait(false) is { } resolved)
+                imported.TryAdd(item, resolved);
+        }
+        ResourceId[] archived = entries.Where(entry => entry.Presence == MediaLibraryPresence.Present && !entry.IsCatalogMedium)
             .Select(entry => entry.Thread).Distinct().ToArray();
-        // Provider media need no archive catalog, so a profile without one still resolves them.
-        await using ArchiveReader? reader = archived.Length == 0 && entries.Any(entry => entry.BooruPostId != null)
+        // Provider media and imports need no archive catalog, so a profile without one still resolves them.
+        await using ArchiveReader? reader = archived.Length == 0 && entries.Any(entry => entry.IsCatalogMedium)
             ? null : await openReader(cancellationToken).ConfigureAwait(false);
         foreach (ResourceId thread in archived)
         {
@@ -122,11 +131,19 @@ internal static class MediaLibraryGallery
         foreach (MediaLibraryEntry entry in entries)
         {
             if (entry.BooruPostId != null) { if (booru.TryGetValue(entry, out GalleryEntry? provider)) result.Add(provider); continue; }
+            if (entry.ImportItemId != null) { if (imported.TryGetValue(entry, out GalleryEntry? import)) result.Add(import); continue; }
             if (entry.Presence == MediaLibraryPresence.Present && entry.Directory != null && entry.AssetId != null
                 && found.TryGetValue((entry.Thread, entry.Directory, entry.AssetId, entry.PostId, entry.Position), out GalleryEntry? match))
                 result.Add(match);
         }
         return result;
+    }
+
+    private static Import.ManualImportCatalogSnapshot? ReadImports(Func<Import.ManualImportCatalogSnapshot?> read)
+    {
+        try { return read(); }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException
+            or Import.ManualImportException) { return null; }
     }
 
     // An unreadable catalog resolves nothing for provider media: they are left out, never guessed.

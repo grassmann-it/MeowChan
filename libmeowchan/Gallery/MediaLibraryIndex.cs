@@ -34,6 +34,16 @@ internal sealed record MediaLibraryEntry(
     /// provider claims itself; the claims are read from the Booru catalog when a view needs them.
     /// </summary>
     internal string? BooruPostId { get; init; }
+
+    /// <summary>
+    /// The import item id (32 hex digits) when this is a manually imported file (see <see cref="Import.ManualImportIdentity"/>),
+    /// else null. Additive projection field: such an entry has no chan post and no bound version; it is a loose file whose
+    /// <see cref="LocalSlot"/> names its tag locator, and its batch is the borrowed thread identity.
+    /// </summary>
+    internal string? ImportItemId { get; init; }
+
+    /// <summary>True for an entry that comes from a local catalog (Danbooru or manual import) instead of an archived thread.</summary>
+    internal bool IsCatalogMedium => BooruPostId != null || ImportItemId != null;
 }
 
 /// <summary>What one thread's entries were derived from; equal state means the entries can be reused.</summary>
@@ -129,7 +139,8 @@ internal static class MediaLibraryIndexBuilder
         Func<CancellationToken, Task<ArchiveReader>> openReader,
         Func<string, CancellationToken, Task<MediaAssetSnapshot>> openManifest,
         MediaLibrarySnapshot? previous = null, IProgress<MediaLibraryProgress>? progress = null,
-        CancellationToken cancellationToken = default, Func<BooruCatalogSnapshot?>? readBooruCatalog = null)
+        CancellationToken cancellationToken = default, Func<BooruCatalogSnapshot?>? readBooruCatalog = null,
+        Func<Import.ManualImportCatalogSnapshot?>? readImportCatalog = null)
     {
         ArgumentNullException.ThrowIfNull(openManifest);
         return BuildAsync(openReader, new MediaManifestCache(openManifest, identity: false), previous, progress, cancellationToken, readBooruCatalog);
@@ -162,7 +173,7 @@ internal static class MediaLibraryIndexBuilder
         ArchiveReader? reader = null;
         FileNotFoundException? noArchive = null;
         try { reader = await openReader(cancellationToken).ConfigureAwait(false); }
-        catch (FileNotFoundException error) when (readBooruCatalog != null) { noArchive = error; }
+        catch (FileNotFoundException error) when (readBooruCatalog != null || readImportCatalog != null) { noArchive = error; }
         await using ArchiveReader? readerGuard = reader;
         List<ArchiveThreadSummary> threads = new();
         for (int offset = 0; reader != null; offset += ThreadPageSize)
@@ -263,6 +274,27 @@ internal static class MediaLibraryIndexBuilder
                 providerManifests = projected.Manifests;
                 int unreadable = projected.Unreadable;
                 if (unreadable > 0) { complete = false; warnings.Add("Danbooru: " + unreadable + " media folder(s) could not be read."); }
+            }
+        }
+        // Imported files are derived again from the import catalog each time, like Danbooru media; an unreadable catalog
+        // keeps the imports the previous index showed (the index is then incomplete).
+        if (readImportCatalog != null)
+        {
+            Import.ManualImportCatalogSnapshot? imports = null;
+            try { imports = readImportCatalog(); }
+            catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException
+                or Import.ManualImportException) { }
+            if (imports == null)
+            {
+                entries.AddRange((previous?.Entries ?? Array.Empty<MediaLibraryEntry>()).Where(entry => entry.ImportItemId != null));
+                complete = false;
+                warnings.Add("Imports: the import catalog could not be read.");
+            }
+            else
+            {
+                (IReadOnlyList<MediaLibraryEntry> imported, int unreadable) = await ManualImportMediaProjection.EntriesAsync(imports, openManifest, cancellationToken).ConfigureAwait(false);
+                entries.AddRange(imported);
+                if (unreadable > 0) { complete = false; warnings.Add("Imports: " + unreadable + " media folder(s) could not be read."); }
             }
         }
         if (noArchive != null && entries.Count == 0) throw noArchive;

@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Archive;
 using MeowChan.Gallery;
+using MeowChan.Import;
 using MeowChan.Storage;
 
 namespace MeowChan.Tags;
@@ -37,7 +38,7 @@ internal static class LocalMediaTagRevalidation
     /// </summary>
     internal static async Task<IReadOnlyList<LocalMediaCheck>> CheckAsync(IReadOnlyList<LocalMediaObservation> observations,
         Func<CancellationToken, Task<ArchiveReader>> openReader, Func<string, CancellationToken, Task<MediaAssetSnapshot>> openManifest,
-        bool verifyBytes, CancellationToken token)
+        bool verifyBytes, CancellationToken token, Func<ManualImportCatalogSnapshot?>? readImports = null)
     {
         ArgumentNullException.ThrowIfNull(observations);
         ArgumentNullException.ThrowIfNull(openReader);
@@ -45,10 +46,18 @@ internal static class LocalMediaTagRevalidation
         // Every slot starts as Unreadable; only completed checks overwrite it.
         LocalMediaCheck[] results = new LocalMediaCheck[observations.Count];
         if (observations.Count == 0) return results;
+        // Manually imported files are loose files of an import batch, not of an archived thread: the import catalog, not
+        // the archive, says whether the occurrence still exists. Without a catalog reader they stay Unreadable.
+        int[] imported = Enumerable.Range(0, observations.Count)
+            .Where(index => ManualImportIdentity.IsImportThread(observations[index].Locator.Thread)).ToArray();
+        if (imported.Length > 0 && readImports != null)
+            await CheckImportsAsync(observations, imported, readImports, openManifest, verifyBytes, results, token).ConfigureAwait(false);
+        if (imported.Length == observations.Count) return results;
+        HashSet<int> handled = imported.ToHashSet();
         try
         {
             await using ArchiveReader reader = await openReader(token).ConfigureAwait(false);
-            foreach (IGrouping<ResourceId, int> thread in Enumerable.Range(0, observations.Count)
+            foreach (IGrouping<ResourceId, int> thread in Enumerable.Range(0, observations.Count).Where(index => !handled.Contains(index))
                 .GroupBy(index => observations[index].Locator.Thread))
             {
                 token.ThrowIfCancellationRequested();
@@ -61,6 +70,67 @@ internal static class LocalMediaTagRevalidation
         }
         catch (Exception error) when (Evidence(error)) { /* Unchecked slots stay Unreadable. */ }
         return results;
+    }
+
+    private static async Task CheckImportsAsync(IReadOnlyList<LocalMediaObservation> observations, IReadOnlyList<int> indexes,
+        Func<ManualImportCatalogSnapshot?> readImports, Func<string, CancellationToken, Task<MediaAssetSnapshot>> openManifest,
+        bool verifyBytes, LocalMediaCheck[] results, CancellationToken token)
+    {
+        ManualImportCatalogSnapshot? catalog;
+        try { catalog = readImports(); }
+        catch (Exception error) when (Evidence(error) || error is ManualImportException or ObjectDisposedException) { return; }
+        if (catalog == null) return;
+        Dictionary<string, MediaAssetSnapshot?> manifests = new(StringComparer.Ordinal);
+        foreach (int index in indexes)
+        {
+            token.ThrowIfCancellationRequested();
+            LocalMediaObservation observation = observations[index];
+            ManualImportIdentity.TryGetBatchId(observation.Locator.Thread, out Guid batchId);
+            ManualImportBatch? batch = catalog.Find(batchId);
+            ManualImportItem? item = batch?.Items.FirstOrDefault(candidate => candidate.State == ManualImportItemState.Committed
+                && candidate.AssetId == observation.AssetId);
+            if (batch == null || item == null || !string.Equals(batch.Directory, observation.Locator.Directory, StringComparison.Ordinal))
+            { results[index] = LocalMediaCheck.Missing; continue; }
+            if (!manifests.TryGetValue(batch.Directory, out MediaAssetSnapshot? manifest))
+            {
+                try { manifest = await openManifest(batch.Directory, token).ConfigureAwait(false); }
+                catch (Exception error) when (Evidence(error)) { manifest = null; }
+                manifests[batch.Directory] = manifest;
+            }
+            if (manifest == null || manifest.Status == MediaManifestStatus.Corrupt) continue; // Unreadable: nothing is concluded.
+            if (manifest.Status != MediaManifestStatus.Available || manifest.FindById(observation.AssetId) is not { } asset)
+            { results[index] = LocalMediaCheck.Missing; continue; }
+            if (asset.RequestedFileName != observation.Locator.RequestedFileName || asset.RequestedFileName != item.RequestedFileName
+                || asset.MediaIdentifier != item.MediaIdentifier)
+            { results[index] = LocalMediaCheck.NotLoose; continue; }
+            if (asset.Length != observation.Length || !string.Equals(asset.Sha256, observation.Sha256, StringComparison.OrdinalIgnoreCase)
+                || asset.Length != item.Length || !string.Equals(asset.Sha256, item.Sha256, StringComparison.OrdinalIgnoreCase))
+            { results[index] = LocalMediaCheck.Changed; continue; }
+            results[index] = await VerifyFileAsync(manifest, asset, verifyBytes, token).ConfigureAwait(false);
+        }
+    }
+
+    private static async Task<LocalMediaCheck> VerifyFileAsync(MediaAssetSnapshot manifest, MediaAssetReference asset, bool verifyBytes,
+        CancellationToken token)
+    {
+        if (!verifyBytes)
+        {
+            try
+            {
+                FileInfo file = new(asset.Path);
+                return file.Exists && (file.Attributes & FileAttributes.ReparsePoint) == 0 && file.Length == asset.Length
+                    ? LocalMediaCheck.Verified : LocalMediaCheck.Changed;
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return LocalMediaCheck.Unreadable; }
+        }
+        try
+        {
+            await using Stream verified = await manifest.OpenVerifiedReadAsync(asset.AssetId, token).ConfigureAwait(false);
+            return LocalMediaCheck.Verified;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException)
+        { return LocalMediaCheck.Changed; }
     }
 
     private sealed record ThreadEvidence(bool Exists, IReadOnlyList<MediaAssetSnapshot> Manifests, IReadOnlyList<GalleryEntry> Entries);
@@ -96,25 +166,8 @@ internal static class LocalMediaTagRevalidation
             return LocalMediaCheck.NotLoose;
         if (asset.Length != observation.Length || !string.Equals(asset.Sha256, observation.Sha256, StringComparison.OrdinalIgnoreCase))
             return LocalMediaCheck.Changed;
-        if (!verifyBytes)
-        {
-            try
-            {
-                FileInfo file = new(asset.Path);
-                return file.Exists && (file.Attributes & FileAttributes.ReparsePoint) == 0 && file.Length == asset.Length
-                    ? LocalMediaCheck.Verified : LocalMediaCheck.Changed;
-            }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return LocalMediaCheck.Unreadable; }
-        }
-        try
-        {
-            await using Stream verified = await manifest.OpenVerifiedReadAsync(asset.AssetId, token).ConfigureAwait(false);
-            return LocalMediaCheck.Verified;
-        }
-        catch (OperationCanceledException) { throw; }
-        // Missing files (FileNotFound/DirectoryNotFound are IOExceptions) and changed bytes alike.
-        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException)
-        { return LocalMediaCheck.Changed; }
+        // Missing files (FileNotFound/DirectoryNotFound are IOExceptions) and changed bytes alike count as changed.
+        return await VerifyFileAsync(manifest, asset, verifyBytes, token).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -124,7 +177,7 @@ internal static class LocalMediaTagRevalidation
     /// </summary>
     internal static async Task<LocalMediaTagInspection> InspectAsync(PrivateTagStoreSnapshot snapshot,
         Func<CancellationToken, Task<ArchiveReader>> openReader, Func<string, CancellationToken, Task<MediaAssetSnapshot>> openManifest,
-        CancellationToken token)
+        CancellationToken token, Func<ManualImportCatalogSnapshot?>? readImports = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         LocalMediaTagTarget[] targets = snapshot.LocalAssignments.Select(item => item.Target).Distinct().ToArray();
@@ -142,7 +195,7 @@ internal static class LocalMediaTagRevalidation
             observations.Add(observation!);
             observed.Add(target);
         }
-        IReadOnlyList<LocalMediaCheck> checks = await CheckAsync(observations, openReader, openManifest, verifyBytes: false, token)
+        IReadOnlyList<LocalMediaCheck> checks = await CheckAsync(observations, openReader, openManifest, verifyBytes: false, token, readImports)
             .ConfigureAwait(false);
         int notChecked = 0;
         for (int index = 0; index < checks.Count; index++)

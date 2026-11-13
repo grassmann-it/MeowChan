@@ -39,8 +39,9 @@ internal static class MediaLibraryIndexCache
     internal const int MaximumThreads = 200_000;
     // Version 2 adds the local tag slot of loose entries; version 3 adds the Danbooru post id of downloaded provider media;
     // version 4 adds the manifest file identities ("I") and the provider manifests ("Pm"), so an unchanged manifest is not
-    // read again. A version 3 document is still read (it simply has no identities: the next build reads the manifests once,
-    // as before, and writes version 4; no cold rebuild). An older or newer document is no cache: rebuild.
+    // read again, and the item id ("Im") of manually imported files. A version 3 document is still read (it simply has
+    // neither identities nor imported files: the next build reads the manifests once, as before, and writes version 4;
+    // no cold rebuild). An older or newer document is no cache: rebuild.
     private const int CurrentVersion = 4;
     private const int PreviousVersion = 3;
     private static readonly JsonSerializerOptions WriteOptions = CreateOptions(null);
@@ -96,7 +97,7 @@ internal static class MediaLibraryIndexCache
         if (document is not { Version: CurrentVersion or PreviousVersion } || document.Threads == null || document.Entries == null
             || document.Threads.Count > MaximumThreads || document.Entries.Count > MaximumEntries) return null;
         // A version 3 document never carries what version 4 added.
-        if (document.Version == PreviousVersion && (reader.SawIdentity || document.Pm != null)) return null;
+        if (document.Version == PreviousVersion && (reader.SawIdentity || reader.SawImport || document.Pm != null)) return null;
         HashSet<ResourceId> known = new();
         foreach (MediaLibraryThreadState? thread in document.Threads)
             if (thread == null || !known.Add(thread.Thread)) return null;
@@ -107,8 +108,13 @@ internal static class MediaLibraryIndexCache
             // and it never carries a post binding or a local tag slot.
             if (entry.BooruPostId is { } postId && (!DanbooruPostReference.IsValidPostId(postId) || entry.Thread != BooruMediaIdentity.Thread(postId)
                 || entry.PostId != null || entry.AttachmentRevisionKey != null || entry.LocalSlot != null || entry.Position != null)) return null;
+            // An imported file is no archived thread either: its batch identity is the borrowed thread, it never carries a
+            // post binding, and a present one always names its loose slot.
+            if (entry.ImportItemId is { } itemId && (entry.BooruPostId != null || !Import.ManualImportIdentity.TryParseId(itemId, out _)
+                || !Import.ManualImportIdentity.IsImportThread(entry.Thread) || entry.PostId != null || entry.AttachmentRevisionKey != null
+                || entry.Position != null || entry.Presence != MediaLibraryPresence.Missing && entry.LocalSlot == null)) return null;
             // Every other entry belongs to a listed thread.
-            if (entry.BooruPostId == null && !known.Contains(entry.Thread)) return null;
+            if (entry.BooruPostId == null && entry.ImportItemId == null && !known.Contains(entry.Thread)) return null;
         }
         HashSet<string> providerFolders = new(StringComparer.Ordinal);
         foreach (MediaLibraryManifestState? manifest in document.Pm ?? (IReadOnlyList<MediaLibraryManifestState>)Array.Empty<MediaLibraryManifestState>())
@@ -186,6 +192,7 @@ internal static class MediaLibraryIndexCache
         private ResourceId? _lastId;
         private int _elements;
         internal bool SawIdentity { get; set; }
+        internal bool SawImport { get; set; }
         internal int Threads { get; set; }
         internal int Entries { get; set; }
 
@@ -408,7 +415,7 @@ internal static class MediaLibraryIndexCache
             if (++shared.Entries > MaximumEntries) throw Damaged();
             shared.Tick();
             string? source = null, board = null, thread = null, title = null, post = null, key = null, dir = null, asset = null, sha = null,
-                mid = null, variant = null, fileName = null, slot = null, providerPost = null;
+                mid = null, variant = null, fileName = null, slot = null, providerPost = null, importItem = null;
             long revision = 0;
             long? ordinal = null, length = null;
             int? position = null, kind = null;
@@ -444,6 +451,7 @@ internal static class MediaLibraryIndexCache
                     case "Old": old = Boolean(ref value); break;
                     case "Slot": slot = ReadText(ref value); break;
                     case "Bp": providerPost = ReadText(ref value); break;
+                    case "Im": importItem = ReadText(ref value); if (importItem != null) shared.SawImport = true; break;
                     default: return false;
                 }
                 return true;
@@ -456,7 +464,7 @@ internal static class MediaLibraryIndexCache
                 || slot != null && (missing || key != null || slot.Length == 0)) throw Damaged();
             return new MediaLibraryEntry(shared.Id(source, board, thread), title, revision, first, last, post, ordinal, at, position, key, dir,
                 asset, sha, length, mid, variant, fileName, mediaKind, missing ? MediaLibraryPresence.Missing : MediaLibraryPresence.Present,
-                loose, old, slot) { BooruPostId = providerPost };
+                loose, old, slot) { BooruPostId = providerPost, ImportItemId = importItem };
         }
 
         public override void Write(Utf8JsonWriter writer, MediaLibraryEntry entry, JsonSerializerOptions options)
@@ -487,6 +495,7 @@ internal static class MediaLibraryIndexCache
             writer.WriteBoolean("Old", entry.Historical);
             Optional(writer, "Slot", entry.LocalSlot);
             Optional(writer, "Bp", entry.BooruPostId);
+            Optional(writer, "Im", entry.ImportItemId);
             writer.WriteEndObject();
         }
     }
