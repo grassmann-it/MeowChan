@@ -189,6 +189,28 @@ public sealed class TransferNetUploadMeteringTests
     }
 
     [Fact]
+    public async Task RemovingAnExplicitContentLengthBetweenSendsIsNotRecreatedFromTheOriginal()
+    {
+        string key = NewKey();
+        using ScriptedContent content = new([1, 2, 3]);
+        content.Headers.ContentLength = 99;
+        List<long?> lengths = new();
+        using HttpMessageInvoker invoker = new(new MeteringHandler(new Handler(async (request, token) =>
+        {
+            lengths.Add(request.Content!.Headers.ContentLength);
+            await request.Content.CopyToAsync(Stream.Null, token);
+            return Response();
+        })));
+        using HttpRequestMessage request = Request(key, content);
+        using (await invoker.SendAsync(request, CancellationToken.None)) { }
+        request.Content!.Headers.ContentLength = null;
+        using (await invoker.SendAsync(request, CancellationToken.None)) { }
+
+        Assert.Equal(new long?[] { 99, null }, lengths);
+        AssertCounters(key, 6, requests: 2, errors: 0);
+    }
+
+    [Fact]
     public async Task HeaderEditsBetweenSendsAreNotLostWhenReplacingThePreviousMeter()
     {
         string key = NewKey();

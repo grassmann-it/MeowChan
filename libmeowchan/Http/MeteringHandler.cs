@@ -80,10 +80,17 @@ internal sealed class MeteringHandler : DelegatingHandler
     {
         internal HttpContent Inner { get; }
         private readonly SourceCounters _counters;
+        private readonly bool _contentLengthWasExplicitlyProvided;
 
         internal UploadMeteringContent(HttpContent inner, SourceCounters counters)
         {
             _counters = counters;
+            // A previous wrapper may have had an explicit length removed by the caller. Remember
+            // that fact before unwrapping: the original content still has its old header, but the
+            // currently presented request must not grow it back on the next send.
+            _contentLengthWasExplicitlyProvided = inner is UploadMeteringContent previous
+                ? previous._contentLengthWasExplicitlyProvided
+                : inner.Headers.TryGetValues("Content-Length", out _);
             foreach (KeyValuePair<string, IEnumerable<string>> header in inner.Headers)
                 Headers.TryAddWithoutValidation(header.Key, header.Value);
             // Preserve the currently presented headers, including edits made between sends, but
@@ -94,6 +101,14 @@ internal sealed class MeteringHandler : DelegatingHandler
 
         protected override bool TryComputeLength(out long length)
         {
+            // Do not resurrect an explicitly removed Content-Length from the unwrapped content.
+            // For normal computed lengths the inner content remains authoritative, just as it was
+            // before metering was added.
+            if (_contentLengthWasExplicitlyProvided && !Headers.TryGetValues("Content-Length", out _))
+            {
+                length = 0;
+                return false;
+            }
             long? known = Inner.Headers.ContentLength;
             length = known.GetValueOrDefault();
             return known.HasValue;
