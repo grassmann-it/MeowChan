@@ -168,7 +168,7 @@ public partial class ReaderGroupsDialog : Window
         };
         Opened += async (_, _) =>
         {
-            if (Owner != null) { MaxWidth = Math.Max(480, Owner.Bounds.Width); MaxHeight = Math.Max(400, Owner.Bounds.Height); }
+            if (Owner != null) { MaxWidth = Math.Max(480, Owner.Bounds.Width); MaxHeight = Math.Max(480, Owner.Bounds.Height); }
             await LoadAsync();
         };
         Closed += (_, _) =>
@@ -189,10 +189,12 @@ public partial class ReaderGroupsDialog : Window
         bool stacked = ClientSize.Width < 680;
         Grid workspace = C<Grid>("GroupWorkspace");
         workspace.ColumnDefinitions = new(stacked ? "*" : "220,*");
-        workspace.RowDefinitions = new(stacked ? "*,2*" : "*");
+        // Stacked: the group list takes only what a few rows need so the editor, with its member actions, keeps the rest.
+        workspace.RowDefinitions = new(stacked ? "Auto,*" : "*");
         ScrollViewer editor = C<ScrollViewer>("GroupEditorScroll");
         Grid.SetColumn(editor, stacked ? 0 : 1); Grid.SetRow(editor, stacked ? 1 : 0);
         C<ListBox>("Groups").Height = double.NaN;
+        C<ListBox>("Groups").MaxHeight = stacked ? 104 : double.PositiveInfinity;
     }
 
     private void HostChanged() => Dispatcher.UIThread.Post(() =>
