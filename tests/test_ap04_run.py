@@ -165,6 +165,18 @@ class CandidateTests(unittest.TestCase):
             sums.unlink()
             self.assertTrue(cand.verify(temp, candidate), 'a vanished SHA256SUMS is a problem, not a crash')
 
+    def test_package_root_inventory_detects_unlisted_file_and_manifest_mutation(self):
+        with tempfile.TemporaryDirectory() as temp, tempfile.TemporaryDirectory() as packages:
+            sha = make_repo(temp)
+            self.make_packages(packages, sha)
+            candidate = cand.identity(temp, sha, packages)
+            (Path(packages) / 'unlisted-dependency-artifact').write_bytes(b'not in the manifest')
+            self.assertIn('package files changed after recording', cand.verify(temp, candidate))
+            (Path(packages) / 'unlisted-dependency-artifact').unlink()
+            manifest = Path(packages) / 'linux-x64-package-manifest.json'
+            manifest.write_text(manifest.read_text().replace('"version": "1.1.0"', '"version": "1.1.0"\n'))
+            self.assertIn('package files changed after recording', cand.verify(temp, candidate))
+
     def test_package_checksum_reaches_the_report_prefix(self):
         with tempfile.TemporaryDirectory() as temp, tempfile.TemporaryDirectory() as packages:
             sha = make_repo(temp)
@@ -195,6 +207,13 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual('INCOMPLETE', run.verdict(skipped, [], True, True))
         self.assertEqual('INCOMPLETE', run.verdict(skipped, [], False, False))
 
+    def test_verdict_rejects_missing_or_reordered_steps_even_when_all_are_green(self):
+        records = self.records()
+        self.assertEqual('INCOMPLETE', run.verdict(records[:-1], [], True, True))
+        reordered = list(records)
+        reordered[0], reordered[1] = reordered[1], reordered[0]
+        self.assertEqual('INCOMPLETE', run.verdict(reordered, [], True, True))
+
     def test_source_only_report_is_never_a_pass(self):
         tokens = {'commit': SHA, 'bin': 'b' * 16, 'pkg': 'none'}
         result = run.verdict(self.records(), [], False, False)
@@ -213,6 +232,16 @@ class RunnerTests(unittest.TestCase):
         failing = run.render(tokens, self.records(), ['worktree is dirty (1 entries)'], 'FAIL', '/x')
         self.assertTrue(all('candidate=' in line for line in failing))
         self.assertIn('step=final-verify status=FAIL', '\n'.join(failing))
+
+    def test_report_separates_source_upgrade_from_unexecuted_package_start(self):
+        tokens = {'commit': SHA, 'bin': 'b' * 16, 'pkg': 'c' * 16}
+        lines = run.render(tokens, self.records(), [], 'PASS', '/x')
+        joined = '\n'.join(lines)
+        self.assertIn('source-upgrade evidence only', joined)
+        self.assertIn('packaged-release verification was not executed', joined)
+        incomplete = run.render(tokens, self.records()[:-1], [], 'INCOMPLETE', '/x')
+        self.assertIn('status=NOT-RUN', '\n'.join(incomplete))
+        self.assertNotIn('step=final-verify status=PASS', '\n'.join(incomplete))
 
     def test_trx_outcomes_are_read_by_test_name(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -321,6 +350,16 @@ class RunnerTests(unittest.TestCase):
                     run.run(ctx, 'busy-free', ctx.heavy(['sh', '-c', 'exit 3']), timeout=30)
                 self.assertIn('EXIT 0', run.run(ctx, 'free', ctx.heavy(['true']), timeout=30))
 
+    def test_dotnet_restore_is_offline_locked_and_smokes_are_serialized(self):
+        class Args:
+            root, candidate_sha, out, no_netns, lock_wait = ROOT, SHA, run.ALLOWED_OUT / 'r-cmd', True, 1
+        ctx = run.Context(Args())
+        restore = list(map(str, ctx.restore('fixture.csproj')))
+        self.assertIn('--locked-mode', restore)
+        self.assertIn('-p:UseSharedCompilation=false', restore)
+        self.assertEqual('flock', ctx.consumer_command(Path('/tmp/result.json'), 'readback')[0])
+        self.assertEqual('flock', ctx.test_command()[0])
+
     def test_dry_run_prints_every_step_and_writes_nothing(self):
         target = run.ALLOWED_OUT / 'ut-dry'
         code, out, _ = self.invoke('--candidate-sha', SHA, '--out', str(target), '--dry-run')
@@ -400,6 +439,11 @@ class PostCheckTests(unittest.TestCase):
         (self.profile / 'private-tags.json').write_bytes(v2)
         (self.profile / 'private-tags.json.bak').write_bytes(self.v1)
         (self.profile / cw.V1_BACKUP).write_bytes(self.v1)
+        (self.writes / 'backup-observations.json').write_text(json.dumps([
+            {'stage': 'after-conversion', 'bytes': len(self.v1), 'sha256': sha256(self.v1)},
+            {'stage': 'readback-1', 'bytes': len(self.v1), 'sha256': sha256(self.v1)},
+            {'stage': 'readback-2', 'bytes': len(self.v1), 'sha256': sha256(self.v1)},
+        ]))
         tag = {'Name': cw.THREAD_TAG, 'Id': 'x', 'Thread': self.THREAD, 'DefinedChanged': True, 'AssignedChanged': True,
                'Revision': 2, 'FormatVersion': 1}
         (self.writes / 'write-host.json').write_text(json.dumps(cycle(
@@ -439,6 +483,13 @@ class PostCheckTests(unittest.TestCase):
             self.check()
         (self.profile / cw.V1_BACKUP).unlink()
         with self.assertRaisesRegex(ValueError, 'does not exist'):
+            self.check()
+
+    def test_backup_observations_must_cover_both_readbacks(self):
+        observations = json.loads((self.writes / 'backup-observations.json').read_text())
+        observations.pop()
+        (self.writes / 'backup-observations.json').write_text(json.dumps(observations))
+        with self.assertRaisesRegex(ValueError, 'observations do not cover'):
             self.check()
 
     def test_conversion_must_produce_version_two_and_leave_no_temporary_file(self):

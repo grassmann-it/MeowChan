@@ -107,7 +107,8 @@ class Context:
 
     def restore(self, project):
         return self.dotnet('restore', project, '--configfile', str(self.nuget_config), '--source', str(FEED),
-                           '-p:NuGetAudit=false', '-p:Configuration=Debug', '-m:1', '-nodeReuse:false')
+                           '--locked-mode', '-p:NuGetAudit=false', '-p:Configuration=Debug',
+                           '-p:UseSharedCompilation=false', '-m:1', '-nodeReuse:false')
 
     def build(self, project, revision):
         return self.dotnet('build', project, '--no-restore', '--configuration', 'Debug', f'-p:SourceRevisionId={revision}',
@@ -116,7 +117,8 @@ class Context:
     def test_command(self):
         return self.heavy(['timeout', '1200s', 'dotnet', 'test', self.test_project, '--no-build', '--no-restore', '--configuration', 'Debug',
                            '--filter', 'FullyQualifiedName~MeowChan.DesktopTests.Released102RestPackageUpgradeTests',
-                           '--results-directory', str(self.out / 'test-results'), '--logger', 'trx;LogFileName=ap04.trx', '-nodeReuse:false'])
+                           '--results-directory', str(self.out / 'test-results'), '--logger', 'trx;LogFileName=ap04.trx',
+                           '-p:UseSharedCompilation=false', '-m:1', '-nodeReuse:false'])
 
     def test_env(self):
         env = self.env()
@@ -128,7 +130,9 @@ class Context:
         return env
 
     def consumer_command(self, result, mode):
-        return self.isolated(['dotnet', str(self.consumer_dll), str(self.profile), str(result), mode])
+        # Consumer starts are native smoke processes.  They are serialized just like restore,
+        # build and test; otherwise a write/read-back could race a separate heavy build.
+        return self.heavy(self.isolated(['dotnet', str(self.consumer_dll), str(self.profile), str(result), mode]))
 
     def tokens(self):
         if self.candidate:
@@ -184,7 +188,11 @@ def guard_out(out):
     """Fresh path below the allowed temp root; never a real profile and never anything that exists."""
     resolved = Path(os.path.abspath(out))
     require(not resolved.exists(), f'--out exists (a failed attempt is kept, use a new one): {resolved}')
-    require(ALLOWED_OUT in resolved.parents, f'--out must be below {ALLOWED_OUT}: {resolved}')
+    # A lexical prefix is not enough: an existing symlink component could redirect all evidence
+    # outside the bounded AP04 root while the path still appears to be below it.
+    allowed = ALLOWED_OUT.resolve()
+    parent = resolved.parent.resolve()
+    require(parent == allowed or allowed in parent.parents, f'--out must be below {ALLOWED_OUT}: {resolved}')
     home = Path.home()
     for name in REAL_PROFILES:
         real = home / name
@@ -237,7 +245,8 @@ def step_release_artifact(ctx):
     if not ctx.args.release_artifact:
         return 'real-artifact=not supplied (release code is the pinned Git object eec6c016, built locally)'
     artifact, sums = Path(ctx.args.release_artifact), Path(ctx.args.release_sums or '')
-    require(artifact.is_file() and sums.is_file(), '--release-artifact needs an existing file and --release-sums')
+    require(artifact.is_file() and not artifact.is_symlink() and sums.is_file() and not sums.is_symlink(),
+            '--release-artifact and --release-sums must be ordinary files')
     listed = candidate_lib.parse_sha256sums(sums).get(artifact.name)
     actual = candidate_lib.digest_file(artifact)
     require(listed is not None, f'{artifact.name} is not listed in {sums.name}')
@@ -264,7 +273,8 @@ def step_released_build(ctx):
 
 
 def step_released_generate(ctx):
-    run(ctx, 'released-generate', ctx.isolated(['dotnet', ctx.generator_dll, ctx.profile, ctx.src / 'UPGRADE-102-SOURCE.json']), timeout=200)
+    run(ctx, 'released-generate', ctx.heavy(ctx.isolated(
+        ['dotnet', ctx.generator_dll, ctx.profile, ctx.src / 'UPGRADE-102-SOURCE.json'])), timeout=200)
     text = run(ctx, 'released-receipt-check', ['python3', '-I', ctx.fix / 'check.py', '--source', ctx.src, '--profile', ctx.profile], timeout=120)
     line = first_line(text, 'RECEIPT OK')
     shutil.copy2(ctx.profile / 'v102-receipt.json', ctx.evidence / 'released-receipt.json')
@@ -293,7 +303,9 @@ def trx_outcome(path):
     outcomes = {}
     for element in ET.parse(path).getroot().iter():
         if element.tag.endswith('UnitTestResult'):
-            outcomes[element.get('testName')] = element.get('outcome')
+            name = element.get('testName')
+            require(name and name not in outcomes, f'duplicate TRX result: {name or "<unnamed>"}')
+            outcomes[name] = element.get('outcome')
     return outcomes
 
 
@@ -302,11 +314,16 @@ def step_cycles(ctx):
     trx = ctx.out / 'test-results/ap04.trx'
     require(trx.is_file(), 'no TRX produced (see logs/cycles-test.log)')
     outcomes = trx_outcome(trx)
-    upgrade = [v for k, v in outcomes.items() if k.endswith(TEST_NAME)]
-    require(upgrade == ['Passed'], f'the upgrade test did not pass or was skipped: {upgrade or "absent"}')
+    upgrade = outcomes.get(TEST_NAME)
+    require(upgrade == 'Passed', f'the upgrade test did not pass or was skipped: {upgrade or "absent"}')
     require(all(v == 'Passed' for v in outcomes.values()), 'a test of the class failed: ' + ', '.join(k for k, v in outcomes.items() if v != 'Passed'))
     for name in ('current-result.json', 'cycle-0.json', 'cycle-1.json', 'cycle-2.json', 'released-receipt.json'):
         require((ctx.results / name).is_file(), 'missing ' + name)
+    cycles = [json.loads((ctx.results / f'cycle-{index}.json').read_bytes()) for index in range(3)]
+    require(all(cycle.get('Mode') == 'observe' for cycle in cycles), 'cycle result is not an observe restart')
+    require(all(cycle.get('CurrentVersion') == f'{EXPECTED_VERSION}+{ctx.sha}' for cycle in cycles),
+            'a restart result is not stamped with the candidate revision')
+    require(len({cycle.get('Profile') for cycle in cycles}) == 1, 'restart results do not use one profile')
     summary = [line for line in text.splitlines() if line.startswith('Passed!')]
     return f"tests={len(outcomes)} upgrade=Passed cycles=3 {summary[0] if summary else ''}".strip()
 
@@ -357,13 +374,27 @@ def step_writes(ctx):
                                                     'bytes': len(data), 'v1_backup_existed_before': False}) + '\n', encoding='utf-8')
     run(ctx, 'write-local-tag', ctx.consumer_command(ctx.writes / 'write-local-tag.json', 'write-local-tag'), env=env,
         cwd=ctx.consumer_dir, timeout=300)
+    backup = ctx.profile / check_writes.V1_BACKUP
+    require(backup.is_file() and not backup.is_symlink(), 'the conversion did not create the permanent v1 backup')
+    (ctx.writes / 'backup-observations.json').write_text(json.dumps([{
+        'stage': 'after-conversion', 'bytes': backup.stat().st_size,
+        'sha256': candidate_lib.digest_file(backup),
+    }], sort_keys=True) + '\n', encoding='utf-8')
     return f"settings+queue+pause+thread-tag written; v1 file {len(data)} bytes sha256={candidate_lib.digest_file(snapshot / 'private-tags.json')[:16]}; conversion done"
 
 
 def step_readbacks(ctx):
+    observations = json.loads((ctx.writes / 'backup-observations.json').read_bytes())
     for index in (1, 2):
         run(ctx, f'readback-{index}', ctx.consumer_command(ctx.writes / f'readback-{index}.json', 'readback'), env=ctx.env(),
             cwd=ctx.consumer_dir, timeout=300)
+        result = ctx.writes / f'readback-{index}.json'
+        require(result.is_file(), f'missing readback-{index}.json')
+        backup = ctx.profile / check_writes.V1_BACKUP
+        require(backup.is_file() and not backup.is_symlink(), 'permanent v1 backup disappeared during read-back')
+        observations.append({'stage': f'readback-{index}', 'bytes': backup.stat().st_size,
+                             'sha256': candidate_lib.digest_file(backup)})
+    (ctx.writes / 'backup-observations.json').write_text(json.dumps(observations, sort_keys=True) + '\n', encoding='utf-8')
     return 'offline restarts after the writes=2'
 
 
@@ -400,7 +431,9 @@ def verdict(records, final_problems, package_bound, sums_checked):
     without them is SOURCE-ONLY, a diagnosis and never an acceptance; --allow-no-package only permits running it."""
     if final_problems or any(r['status'] == 'FAIL' for r in records):
         return 'FAIL'
-    if any(r['status'] != 'PASS' for r in records) or len(records) != len(STEPS):
+    expected = tuple(name for name, _ in STEPS)
+    observed = tuple(r.get('name') for r in records)
+    if observed != expected or any(r.get('status') != 'PASS' for r in records):
         return 'INCOMPLETE'
     if not (package_bound and sums_checked):
         return 'SOURCE-ONLY'
@@ -417,14 +450,18 @@ def render(tokens, records, final_problems, result, out):
         lines.append(f"{prefix(tokens)} step={record['name']} status={record['status']} seconds={record['seconds']} {record['detail']}".rstrip())
     for problem in final_problems:
         lines.append(f'{prefix(tokens)} step=final-verify status=FAIL {problem}')
-    if not final_problems:
-        lines.append(f'{prefix(tokens)} step=final-verify status=PASS same commit, clean worktree, built files and packages unchanged')
+    complete = tuple(record.get('name') for record in records) == tuple(name for name, _ in STEPS) \
+        and all(record.get('status') == 'PASS' for record in records)
+    if not final_problems and complete:
+        lines.append(f'{prefix(tokens)} step=final-verify status=PASS same commit, clean worktree, built files and package root unchanged')
+    elif not final_problems:
+        lines.append(f'{prefix(tokens)} step=final-verify status=NOT-RUN run was incomplete; acceptance was not verified')
     if result == 'SOURCE-ONLY':
         lines.append(f'{prefix(tokens)} NOTE no 1.1.0 package manifest and SHA256SUMS bound: source-only diagnosis, NOT an AP04 acceptance')
     lines.append(f'{prefix(tokens)} VERDICT={result}')
-    lines.append(f'{prefix(tokens)} SCOPE synthetic profile written by the released 1.0.2 code from the pinned Git object; DesktopSessionHost and '
-                 'PluginSession processes, no window; loose-file tag conversion at store level; NOT a real-profile, UI, package-start, '
-                 'platform, Danbooru-network or release acceptance')
+    lines.append(f'{prefix(tokens)} SCOPE source-upgrade evidence only: synthetic profile written by the released 1.0.2 code from the pinned Git object; '
+                 'DesktopSessionHost and PluginSession processes, no window; loose-file tag conversion at store level; packaged-release verification '
+                 'was not executed (package root/checksums are provenance only); NOT a real-profile, UI, platform, Danbooru-network or release acceptance')
     return lines
 
 
@@ -441,7 +478,8 @@ def dry_run(ctx):
         ('release-artifact', 'SHA-256 of --release-artifact against --release-sums (optional)'),
         ('released-source', shlex.join(['python3', '-I', str(ctx.fix / 'prepare.py'), str(ctx.src)])),
         ('released-build', shlex.join(map(str, ctx.restore(ctx.generator_project))) + '\n      ' + shlex.join(map(str, ctx.build(ctx.generator_project, RELEASE_REVISION)))),
-        ('released-generate', shlex.join(map(str, ctx.isolated(['dotnet', str(ctx.generator_dll), str(ctx.profile), str(ctx.src / 'UPGRADE-102-SOURCE.json')])))),
+        ('released-generate', shlex.join(map(str, ctx.heavy(ctx.isolated(
+            ['dotnet', str(ctx.generator_dll), str(ctx.profile), str(ctx.src / 'UPGRADE-102-SOURCE.json')]))))),
         ('current-build', shlex.join(map(str, ctx.restore(ctx.consumer_project))) + '\n      ' + shlex.join(map(str, ctx.build(ctx.consumer_project, ctx.sha)))
          + '\n      (same for ' + ctx.test_project + ', then seal of both bin directories)'),
         ('cycles', shlex.join(map(str, ctx.test_command())) + '\n      env MEOWCHAN_RELEASED102_* -> ' + str(ctx.profile)),
@@ -505,6 +543,7 @@ def main(argv=None):
             print('AP04 refused: nothing was created.', file=sys.stderr)
             return 2
     final_problems = []
+    stopped_at = next((record['name'] for record in records if record['status'] == 'FAIL'), None)
     if ctx.candidate is not None:
         final_problems = candidate_lib.verify(ctx.root, ctx.candidate)
     else:
@@ -512,12 +551,19 @@ def main(argv=None):
             candidate_lib.require_frozen(ctx.root, ctx.sha)
         except ValueError as error:
             final_problems.append(str(error))
+    if stopped_at:
+        final_problems.append(f'run stopped after {stopped_at}; final acceptance was not verified')
     package = ctx.candidate.get('package') if ctx.candidate else None
     result = verdict(records, final_problems, package is not None, bool(package and package.get('sha256sums_checked')))
     lines = render(ctx.tokens(), records, final_problems, result, str(ctx.out))
     (ctx.out / 'report.txt').write_text('\n'.join(lines) + '\n', encoding='utf-8')
     (ctx.out / 'report.json').write_text(json.dumps({'candidate': ctx.tokens(), 'verdict': result, 'steps': records,
                                                      'final_problems': final_problems,
+                                                     'source_upgrade': {'synthetic_profile': True, 'released_revision': RELEASE_REVISION,
+                                                                       'executed': bool(ctx.candidate and not stopped_at)},
+                                                     'packaged_release': {'verification': 'not-executed',
+                                                                          'artifact_root_bound': bool(package),
+                                                                          'sha256sums_bound': bool(package and package.get('sha256sums_checked'))},
                                                      'finished_utc': datetime.datetime.now(datetime.timezone.utc).isoformat()}, indent=2) + '\n',
                                          encoding='utf-8')
     print('\n'.join(lines))
