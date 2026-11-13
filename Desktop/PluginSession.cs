@@ -283,6 +283,9 @@ internal sealed partial class PluginSession : IAsyncDisposable
 
     private async Task<StartupProbe> ProbeCoreAsync(CancellationToken token)
     {
+        // The batch starts verifying the delivered toolchain right away, so the hashing overlaps the profile read and
+        // the inventory scans instead of running later under the build gate (each import re-checks it before use).
+        using IPluginBundleImportBatch imports = ((IPluginBundleInstaller)CompilationService).BeginImportBatch();
         Directory.CreateDirectory(PluginDirectory);
         Directory.CreateDirectory(_launch.WorkingDirectory);
         PluginProfileSnapshot previous = await MeasureStartupAsync("profile-read", null, () => ProfileStore.ReadAsync(token)).ConfigureAwait(false);
@@ -295,7 +298,6 @@ internal sealed partial class PluginSession : IAsyncDisposable
             .Concat(local.Candidates).ToArray();
         // Probes overlap in bounded lanes; observations, provenance and activation keep inventory order.
         SemaphoreSlim lanes = new(StartupProbeLanes, StartupProbeLanes);
-        using IPluginBundleImportBatch imports = ((IPluginBundleInstaller)CompilationService).BeginImportBatch();
         using MeowChan.Diagnostics.PerformanceDiagnostics.Measurement pass = PluginStartupDiagnostics.Span("probe-pass");
         PluginCandidateObservation[] probed = await Task.WhenAll(ordered.Select(async candidate =>
         {

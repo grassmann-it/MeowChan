@@ -365,22 +365,104 @@ public sealed class CompilerIntegrationTests : IDisposable
         using (IPluginBundleImportBatch pass = installer.BeginImportBatch())
         {
             Success(await pass.ImportBundleAsync(bundle.ManifestPath));
-            // This pass already verified every toolchain file; the unchanged-in-pass result is reused (the saved work).
+            Assert.True((await pass.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
+            // The pass's one verification is reused only while no verified file changed: a change after hashing fails closed.
             await DamageAsync();
+            AssertToolchainRejected(await pass.ImportBundleAsync(bundle.ManifestPath));
+            await File.WriteAllBytesAsync(reference, original);
             Assert.True((await pass.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
         }
         // A new pass and a plain import always verify the whole toolchain again.
+        await DamageAsync();
         using (IPluginBundleImportBatch next = installer.BeginImportBatch())
         {
-            PluginBuildResult damaged = await next.ImportBundleAsync(bundle.ManifestPath);
-            Assert.Equal(PluginBuildStatus.IntegrityError, damaged.Status);
-            Assert.Contains(damaged.Diagnostics, d => d.Message.Contains("toolchain integrity", StringComparison.OrdinalIgnoreCase));
-            Assert.Equal(PluginBuildStatus.IntegrityError, (await installer.ImportBundleAsync(bundle.ManifestPath)).Status);
+            AssertToolchainRejected(await next.ImportBundleAsync(bundle.ManifestPath));
+            AssertToolchainRejected(await installer.ImportBundleAsync(bundle.ManifestPath));
             // A failed verification is not remembered: once the file is restored the same pass succeeds.
             await File.WriteAllBytesAsync(reference, original);
             Assert.True((await next.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
         }
         Assert.True((await installer.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
+    }
+
+    [Fact]
+    public async Task ToolchainChangedBetweenHashingAndUseFailsClosed()
+    {
+        PrebuiltFixture bundle = await PrebuiltBundleAsync("toolchain race bundle");
+        string copy = Path.Combine(_root, "raced toolchain");
+        CopyDirectory(_bundle, copy);
+        PluginCompilationService importer = Service(bundle: copy);
+        IPluginBundleInstaller installer = importer;
+        Success(await importer.ImportBundleAsync(bundle.ManifestPath));
+        string reference = Path.Combine(copy, "references", "System.Runtime.dll");
+        string sdk = Path.Combine(copy, "MeowChan.PluginSdk.dll");
+        byte[] original = await File.ReadAllBytesAsync(reference);
+        byte[] damaged = (byte[])original.Clone();
+        damaged[^1] ^= 1;
+
+        // Changed right after the batch began hashing (in the background, outside the build gate): whether the hash saw
+        // the old or the new bytes, the import must not accept the toolchain.
+        using (IPluginBundleImportBatch pass = installer.BeginImportBatch())
+        {
+            await File.WriteAllBytesAsync(reference, damaged);
+            AssertToolchainRejected(await pass.ImportBundleAsync(bundle.ManifestPath));
+        }
+        await File.WriteAllBytesAsync(reference, original);
+
+        // Same length, write time set back: only the file identity (status-change time / inode) still shows the write.
+        using (IPluginBundleImportBatch pass = installer.BeginImportBatch())
+        {
+            Assert.True((await pass.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
+            DateTime written = File.GetLastWriteTimeUtc(reference);
+            await File.WriteAllBytesAsync(reference, damaged);
+            File.SetLastWriteTimeUtc(reference, written);
+            if (OperatingSystem.IsLinux()) AssertToolchainRejected(await pass.ImportBundleAsync(bundle.ManifestPath));
+            await File.WriteAllBytesAsync(reference, original);
+            Assert.True((await pass.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
+        }
+
+        // A verified file replaced by another file is re-verified before use: other bytes fail, identical bytes pass.
+        using (IPluginBundleImportBatch pass = installer.BeginImportBatch())
+        {
+            Assert.True((await pass.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
+            string other = Path.Combine(copy, "replacement.tmp");
+            await File.WriteAllBytesAsync(other, damaged);
+            File.Move(other, reference, overwrite: true);
+            AssertToolchainRejected(await pass.ImportBundleAsync(bundle.ManifestPath));
+            await File.WriteAllBytesAsync(other, original);
+            File.Move(other, reference, overwrite: true);
+            Assert.True((await pass.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
+            // A missing verified file is a failure, not a skipped check.
+            File.Move(sdk, sdk + ".away");
+            PluginBuildResult missing = await pass.ImportBundleAsync(bundle.ManifestPath);
+            Assert.False(missing.Succeeded);
+            File.Move(sdk + ".away", sdk);
+            Assert.True((await pass.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
+        }
+    }
+
+    [Fact]
+    public async Task DisposingDuringTheBackgroundToolchainVerificationLeavesNothingRunning()
+    {
+        PrebuiltFixture bundle = await PrebuiltBundleAsync("disposed pass bundle");
+        PluginCompilationService importer = Service(executable: Path.Combine(_root, "compiler need not exist"));
+        IPluginBundleInstaller installer = importer;
+        installer.BeginImportBatch().Dispose(); // Cancels its verification at once; nothing observes the outcome.
+        IPluginBundleImportBatch pass = installer.BeginImportBatch();
+        Task<PluginBuildResult> import = pass.ImportBundleAsync(bundle.ManifestPath);
+        await importer.DisposeAsync(); // Waits for the import and for the verification it may still be running.
+        PluginBuildResult result = await import;
+        Assert.True(result.Succeeded || result.Status == PluginBuildStatus.Cancelled, result.Status.ToString());
+        Assert.Equal(PluginBuildStatus.Cancelled, (await pass.ImportBundleAsync(bundle.ManifestPath)).Status);
+        pass.Dispose();
+        // A service that is stopping starts no verification for a new pass.
+        Assert.Equal(PluginBuildStatus.Cancelled, (await installer.BeginImportBatch().ImportBundleAsync(bundle.ManifestPath)).Status);
+    }
+
+    private static void AssertToolchainRejected(PluginBuildResult result)
+    {
+        Assert.Equal(PluginBuildStatus.IntegrityError, result.Status);
+        Assert.Contains(result.Diagnostics, d => d.Message.Contains("toolchain integrity", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

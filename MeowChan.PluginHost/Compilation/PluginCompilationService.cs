@@ -56,7 +56,7 @@ public sealed partial class PluginCompilationService : IPluginCompilationService
             sourceFingerprint = CompilerWire.Hash(source);
             if (source.Length == 0) return Failure(PluginBuildStatus.SourceError, "MCEMPTY", "The source file is empty.", originalPath, sourceFingerprint);
             ToolchainManifest toolchain;
-            try { toolchain = await CompilerWire.ReadToolchainAsync(_options.ToolchainDirectory, cancellationToken).ConfigureAwait(false); }
+            try { toolchain = (await ToolchainVerification.VerifyAsync(_options.ToolchainDirectory, cancellationToken).ConfigureAwait(false)).Manifest; }
             catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or JsonException)
             { return Failure(PluginBuildStatus.ReferenceError, "MCREF", exception.Message, originalPath, sourceFingerprint); }
             string toolchainFingerprint = CompilerWire.ToolchainHash(toolchain);
