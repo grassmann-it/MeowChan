@@ -1,7 +1,8 @@
 # Desktop language packs
 
-The desktop includes English (`en`) and German (`de`) plus bundled Spanish (`es`),
-French (`fr`) and Russian (`ru`) **Untested** translation previews. English is the
+The desktop includes English (`en`) and German (`de`) plus bundled **Untested**
+translation previews (`es`, `fr`, `ru`, `zh-Hans`, and `ja`, `ko`, `pt-BR`, `cs`,
+`it`, `pl` once their pack files exist; see the table in [Packs](Packs/README.md)). English is the
 initial language and the fallback for missing translations. Display text is
 formatted with the selected language's culture; the download engine's culture is
 not changed.
@@ -13,9 +14,11 @@ it does not create or write language packs. Select an accepted language in Setti
 
 ## Bundled Untested previews
 
-[Spanish, French and Russian](Packs/README.md) are embedded assembly resources,
-loaded at normal startup without copying files into a profile. The choices are
-`Español (Untested)`, `Français (Untested)` and `Русский (Untested)`.
+The [bundled packs](Packs/README.md) are embedded assembly resources, loaded at
+normal startup without copying files into a profile; the file name `Packs/<code>.json`
+is the language code. The choices read like `Español (Untested)` or
+`简体中文 (Untested)`. CJK text needs an installed CJK system font on Linux
+(Noto Sans CJK); see the pack README.
 They are AI-authored and not qualified-human-reviewed supported locales. Existing
 language selection is preserved; offering a bundle does not select it or write
 configuration. Full catalog-key coverage does not cover EN/DE-only helpers or
@@ -58,7 +61,8 @@ Counted texts have a general (plural) base key and an optional `<key>.one` text 
 count of exactly one, for example `archive.postsCount` and `archive.postsCount.one`.
 Languages with further number forms may add `<key>.few` (also `.many`, `.two`,
 `.zero`); Russian-style languages keep their "many" form in the base key and add
-`.one` and `.few`. These variant keys are optional in a custom pack: a missing
+`.one` and `.few` (Polish too; Czech keeps "other" in the base key). Chinese, Japanese
+and Korean have no number forms: their packs contain no variant keys. These variant keys are optional in a custom pack: a missing
 variant uses the pack's base text, and a variant must use the same placeholders as
 its base key. English, German and the bundled es/fr/ru previews supply the `.one` keys
 listed in `Desktop/Localization/CountCatalog.cs`.

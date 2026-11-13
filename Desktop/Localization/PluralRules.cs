@@ -4,9 +4,12 @@ using System.Collections.Generic;
 namespace MeowChan.Desktop.Localization;
 
 /// <summary>
-/// Plural categories for whole counts. Texts.Count looks up <c>key.&lt;category&gt;</c> and falls back to
-/// the base key, which therefore holds the general ("other") form. Russian-style languages put their
-/// "many" form in the base key and add <c>key.few</c> for 2-4.
+/// Plural categories for whole counts (CLDR cardinal rules for integers; fractions never reach this code).
+/// Texts.Count looks up <c>key.&lt;category&gt;</c> and falls back to the base key, which therefore holds the
+/// general ("other") form. Russian-style languages put their "many" form in the base key and add <c>key.few</c>
+/// for 2-4. Czech/Slovak: one = 1, few = 2-4, other = everything else (their "many" is for fractions only).
+/// Portuguese: Brazilian pt and plain pt treat 0 and 1 as "one"; European pt-PT only 1. Chinese, Japanese,
+/// Korean, Vietnamese, Thai, Indonesian and Malay have no plural forms and always use the base key.
 /// </summary>
 internal static class PluralRules
 {
@@ -32,8 +35,10 @@ internal static class PluralRules
             case "sk":
                 return n == 1 ? "one" : n is >= 2 and <= 4 ? "few" : Other;
             case "fr":
-            case "pt":
                 return n <= 1 ? "one" : Other;
+            case "pt":
+                // CLDR: pt (Brazil) one = 0 and 1; pt-PT one = 1 only.
+                return language.EndsWith("-PT", StringComparison.OrdinalIgnoreCase) ? (n == 1 ? "one" : Other) : (n <= 1 ? "one" : Other);
             case "ja":
             case "zh":
             case "ko":

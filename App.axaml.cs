@@ -10,6 +10,7 @@ using MeowChan.Desktop.Localization;
 using Serilog;
 using System;
 using System.Globalization;
+using System.Linq;
 
 namespace MeowChan;
 
@@ -34,15 +35,30 @@ public partial class App : Application
 
     private void ApplyControlLanguage()
     {
-        // Vendor controls require a supported specific culture. Unknown language
-        // packs retain the application's English fallback instead of Chinese defaults.
-        CultureInfo culture = CultureInfo.GetCultureInfo(Texts.Culture.TwoLetterISOLanguageName == "de" ? "de-DE" : "en-US");
+        // Vendor controls require a specific culture they ship themselves; other languages, including the
+        // bundled previews, keep the application's English fallback instead of the vendors' Chinese defaults.
+        string language = Texts.Culture.TwoLetterISOLanguageName;
+        CultureInfo semiCulture = CultureInfo.GetCultureInfo(VendorLocale(language, SemiLocales));
+        CultureInfo ursaCulture = CultureInfo.GetCultureInfo(VendorLocale(language, UrsaLocales));
         foreach (Avalonia.Styling.IStyle style in Styles)
         {
-            if (style is SemiTheme semi) semi.Locale = culture;
-            else if (style is UrsaSemiTheme ursa) ursa.Locale = culture;
+            if (style is SemiTheme semi) semi.Locale = semiCulture;
+            else if (style is UrsaSemiTheme ursa) ursa.Locale = ursaCulture;
         }
+        // The CJK font that answers first follows the UI language (zh-Hans: SC, ja: JP).
+        ReaderFonts.Apply(this, Texts.Language);
     }
+
+    // Vendor locales the themes actually ship for the built-in languages and the newer bundled previews
+    // (zh-Hans, ja, ko, it, pl, cs); es/fr/ru stay on English vendor strings until their own review.
+    // Semi: zh-CN, ja-JP, ko-KR, it-IT, pl-PL (no cs/pt). Ursa: zh-CN, cs-CZ, pl-PL (no ja/ko/it/pt).
+    internal static readonly (string Language, string Locale)[] SemiLocales =
+        { ("de", "de-DE"), ("zh", "zh-CN"), ("ja", "ja-JP"), ("ko", "ko-KR"), ("it", "it-IT"), ("pl", "pl-PL") };
+    internal static readonly (string Language, string Locale)[] UrsaLocales =
+        { ("de", "de-DE"), ("zh", "zh-CN"), ("cs", "cs-CZ"), ("pl", "pl-PL") };
+
+    internal static string VendorLocale(string language, (string Language, string Locale)[] locales) =>
+        locales.FirstOrDefault(entry => entry.Language == language).Locale ?? "en-US";
 
     protected virtual MainWindow CreateMainWindow() => Program.StartupSmoke?.IntegrityProcess is ApphostIntegrityProcessSmoke policy
         ? new MainWindow(policy.CreateSession())

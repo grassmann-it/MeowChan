@@ -11,10 +11,16 @@ public sealed class BundledLanguagePackTests : IDisposable
     public void Dispose() => Reset();
     private static void Reset() { Texts.Initialize(); Texts.SetLanguage("en"); }
 
+    /// <summary>Every embedded pack, discovered exactly as the loader discovers it (file name = language code).</summary>
+    public static TheoryData<string> BundledCodes()
+    {
+        TheoryData<string> data = new();
+        foreach (string code in Texts.BundledPackCodes()) data.Add(code);
+        return data;
+    }
+
     [Theory]
-    [InlineData("es")]
-    [InlineData("fr")]
-    [InlineData("ru")]
+    [MemberData(nameof(BundledCodes))]
     public void BundledPackStaysWellBelowTheLoaderCeilings(string code)
     {
         // The loader would refuse a pack at the ceiling and the language would silently vanish from the choice.
@@ -59,7 +65,8 @@ public sealed class BundledLanguagePackTests : IDisposable
         using TempDirectory directory = new();
         string missing = Path.Combine(directory.Path, "LanguagePacks");
         Texts.Initialize(missing);
-        Assert.Equal(new[] { "en", "de", "es", "fr", "ru" }, Texts.Languages.Select(l => l.Code));
+        string[] expected = new[] { "en", "de" }.Concat(Texts.BundledPackCodes()).ToArray();
+        Assert.Equal(expected, Texts.Languages.Select(l => l.Code));
         Assert.Equal("en", Texts.Language);
         Assert.Equal("English", Texts.Languages[0].NativeName);
         Assert.Equal("Deutsch", Texts.Languages[1].NativeName);
@@ -67,8 +74,17 @@ public sealed class BundledLanguagePackTests : IDisposable
         Assert.False(Directory.Exists(missing));
         Assert.Empty(Directory.EnumerateFileSystemEntries(directory.Path));
         Texts.Initialize(); // The default, no-directory startup path must also load resources.
-        Assert.Equal(new[] { "en", "de", "es", "fr", "ru" }, Texts.Languages.Select(l => l.Code));
+        Assert.Equal(expected, Texts.Languages.Select(l => l.Code));
         Assert.Empty(Texts.Warnings);
+    }
+
+    // An English "<key>.one" the language never selects (zh/ja/ko have no number forms) is not expected in its pack.
+    private static bool IsSelectableEnglishKey(string code, string key)
+    {
+        int dot = key.LastIndexOf('.');
+        if (PluralRules.BaseKey(key) == null || !BuiltInCatalog.English.ContainsKey(key[..dot])) return true;
+        string category = key[(dot + 1)..];
+        return Enumerable.Range(0, 1000).Any(count => PluralRules.Category(code, count) == category);
     }
 
     private static bool IsExtraPluralForm(string key)
@@ -93,7 +109,7 @@ public sealed class BundledLanguagePackTests : IDisposable
         var translations = document.RootElement.GetProperty("strings").EnumerateObject()
             .ToDictionary(p => p.Name, p => p.Value.GetString()!, StringComparer.Ordinal);
         Assert.Equal(BuiltInCatalog.English.Where(p => !string.IsNullOrWhiteSpace(p.Value))
-            .Select(p => p.Key).Order(StringComparer.Ordinal),
+            .Select(p => p.Key).Where(key => IsSelectableEnglishKey(code, key)).Order(StringComparer.Ordinal),
             // Optional extra number forms ("<key>.few") exist only in the pack, e.g. Russian.
             translations.Keys.Where(key => !IsExtraPluralForm(key)).Order(StringComparer.Ordinal));
         Assert.All(translations.Values, value => Assert.False(string.IsNullOrWhiteSpace(value)));
@@ -172,7 +188,7 @@ public sealed class BundledLanguagePackTests : IDisposable
         Assert.EndsWith(" (Untested)", Assert.Single(Texts.Languages, l => l.Code == code).NativeName);
         Assert.StartsWith(code + ".json: ", Assert.Single(Texts.Warnings));
         Assert.Equal(original, File.ReadAllBytes(path));
-        Assert.Equal(5, Texts.Languages.Count);
+        Assert.Equal(2 + Texts.BundledPackCodes().Count, Texts.Languages.Count);
     }
 
     [Fact]
@@ -215,7 +231,7 @@ public sealed class BundledLanguagePackTests : IDisposable
         Texts.SetLanguage(code);
         Assert.Equal(title, Texts.T("settings.title"));
         Assert.Contains("Duplicate language code:", Assert.Single(Texts.Warnings));
-        Assert.Equal(5, Texts.Languages.Count);
+        Assert.Equal(2 + Texts.BundledPackCodes().Count, Texts.Languages.Count);
     }
 
     [Fact]

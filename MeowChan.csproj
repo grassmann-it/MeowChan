@@ -51,9 +51,9 @@
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
 
     <!-- Embedded data stays available through the assembly in normal, published and single-file builds. -->
-    <EmbeddedResource Include="Desktop/Localization/Packs/es.json" LogicalName="MeowChan.Desktop.Localization.Packs.es.json" WithCulture="false" />
-    <EmbeddedResource Include="Desktop/Localization/Packs/fr.json" LogicalName="MeowChan.Desktop.Localization.Packs.fr.json" WithCulture="false" />
-    <EmbeddedResource Include="Desktop/Localization/Packs/ru.json" LogicalName="MeowChan.Desktop.Localization.Packs.ru.json" WithCulture="false" />
+    <!-- Every bundled language pack: the file name is the language code (es, fr, ru, zh-Hans, pt-BR, cs, ja, ...);
+         Texts.BundledPackCodes discovers them from this resource name, so a new pack needs no entry here. -->
+    <EmbeddedResource Include="Desktop/Localization/Packs/*.json" LogicalName="MeowChan.Desktop.Localization.Packs.%(Filename)%(Extension)" WithCulture="false" />
     <!-- Keep production XAML explicit so every build always emits the
          precompiled loaders used by AvaloniaXamlLoader.Load. Samples and
          archived build trees are intentionally not part of the app. -->

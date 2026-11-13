@@ -161,8 +161,27 @@ public sealed class CountAndSizeTextTests : IDisposable
     [InlineData("fr", 0, "one")] [InlineData("fr", 1, "one")] [InlineData("fr", 2, "other")]
     [InlineData("ru", 1, "one")] [InlineData("ru", 3, "few")] [InlineData("ru", 0, "many")] [InlineData("ru", 12, "many")] [InlineData("ru", 22, "few")]
     [InlineData("ru", -1, "one")] [InlineData("pl", 5, "many")] [InlineData("cs", 3, "few")] [InlineData("ja", 1, "other")]
+    // CLDR cardinal examples (integers). zh-Hans/ja: no plural forms, every count is "other".
+    [InlineData("zh-Hans", 0, "other")] [InlineData("zh-Hans", 1, "other")] [InlineData("zh-Hans", 2, "other")] [InlineData("zh-Hans", 100, "other")]
+    [InlineData("zh", 1, "other")] [InlineData("ja", 0, "other")] [InlineData("ja", 2, "other")] [InlineData("ja", 1000, "other")]
+    // pt (Brazil): one = 0 and 1; pt-PT: one = 1 only.
+    [InlineData("pt-BR", 0, "one")] [InlineData("pt-BR", 1, "one")] [InlineData("pt-BR", 2, "other")] [InlineData("pt-BR", 11, "other")] [InlineData("pt-BR", 100, "other")]
+    [InlineData("pt", 0, "one")] [InlineData("pt", 1, "one")] [InlineData("pt-PT", 0, "other")] [InlineData("pt-PT", 1, "one")] [InlineData("pt-PT", 2, "other")]
+    // cs: one = 1, few = 2-4, other = 0 and 5+ ("many" is for fractions only and never produced for whole counts).
+    [InlineData("cs", 0, "other")] [InlineData("cs", 1, "one")] [InlineData("cs", 2, "few")] [InlineData("cs", 4, "few")] [InlineData("cs", 5, "other")]
+    [InlineData("cs", 11, "other")] [InlineData("cs", 12, "other")] [InlineData("cs", 22, "other")] [InlineData("cs", 100, "other")] [InlineData("cs-CZ", 3, "few")] [InlineData("cs", -2, "few")]
+    // it: one = 1; ko: no forms; pl: one = 1, few = 2-4 except 12-14, many = 0, 5+ and 12-14 (the pack's base key).
+    [InlineData("it", 0, "other")] [InlineData("it", 1, "one")] [InlineData("it", 2, "other")] [InlineData("it-IT", 1, "one")]
+    [InlineData("ko", 0, "other")] [InlineData("ko", 1, "other")] [InlineData("ko", 2, "other")] [InlineData("ko-KR", 1, "other")]
+    [InlineData("pl", 0, "many")] [InlineData("pl", 1, "one")] [InlineData("pl", 2, "few")] [InlineData("pl", 4, "few")]
+    [InlineData("pl", 12, "many")] [InlineData("pl", 14, "many")] [InlineData("pl", 21, "many")] [InlineData("pl", 22, "few")] [InlineData("pl", 112, "many")] [InlineData("pl", 122, "few")] [InlineData("pl-PL", 3, "few")]
     public void PluralCategories(string language, long count, string expected) =>
         Assert.Equal(expected, PluralRules.Category(language, count));
+
+    [Theory]
+    [InlineData("zh-Hans")] [InlineData("ja")] [InlineData("ko")] [InlineData("cs")] [InlineData("pt-BR")] [InlineData("it")]
+    public void OnlyEastSlavicAndPolishProduceManyForWholeCounts(string language) =>
+        Assert.DoesNotContain("many", Enumerable.Range(0, 2000).Select(count => PluralRules.Category(language, count)));
 
     [Theory]
     [InlineData(-5L, "0 B")]

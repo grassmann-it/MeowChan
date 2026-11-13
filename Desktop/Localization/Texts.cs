@@ -39,6 +39,9 @@ public static class Texts
     // either ceiling, long before the loader would refuse it. Raise a ceiling together with that test's reason.
     internal const int MaximumPackBytes = 2 * 1024 * 1024;
     internal const int MaximumPackKeys = 8000;
+    // Every Desktop/Localization/Packs/<code>.json is embedded under this prefix (MeowChan.csproj); the file name
+    // is the language code, so a new pack needs no code change here. The pack's own "code" must match its file name.
+    internal const string BundledPackResourcePrefix = "MeowChan.Desktop.Localization.Packs.";
     private static readonly CultureInfo EnglishCulture = CultureInfo.GetCultureInfo("en");
     private static readonly object Gate = new object();
     private static State _state = CreateBuiltIns();
@@ -56,6 +59,13 @@ public static class Texts
     public static IReadOnlyList<LanguageInfo> Languages => Volatile.Read(ref _state).Languages;
     public static IReadOnlyList<string> Warnings => Volatile.Read(ref _state).Warnings;
 
+    /// <summary>Language codes of the embedded packs, taken from their resource names, in ordinal order.</summary>
+    internal static IReadOnlyList<string> BundledPackCodes() => typeof(Texts).Assembly.GetManifestResourceNames()
+        .Where(name => name.StartsWith(BundledPackResourcePrefix, StringComparison.Ordinal) && name.EndsWith(".json", StringComparison.Ordinal))
+        .Select(name => name[BundledPackResourcePrefix.Length..^5])
+        .Order(StringComparer.Ordinal)
+        .ToArray();
+
     /// <summary>Reloads built-ins, bundled previews and optional user JSON packs. A missing directory is normal.</summary>
     public static void Initialize(string? directory = null) => InitializeCore(directory, includeBundles: true);
 
@@ -69,9 +79,9 @@ public static class Texts
         List<string> warnings = new List<string>();
         if (includeBundles)
         {
-            foreach (string code in new[] { "es", "fr", "ru" })
+            foreach (string code in BundledPackCodes())
             {
-                string resource = "MeowChan.Desktop.Localization.Packs." + code + ".json";
+                string resource = BundledPackResourcePrefix + code + ".json";
                 try
                 {
                     using Stream stream = typeof(Texts).Assembly.GetManifestResourceStream(resource)

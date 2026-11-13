@@ -284,7 +284,10 @@
         <x:Double x:Key="Workspace.Space.24">24</x:Double>
         <x:Double x:Key="Workspace.Space.32">32</x:Double>
         <x:Double x:Key="Workspace.Text.Caption">11</x:Double>
-        <!-- Reading font of post bodies only (bundled Noto Sans subset, Inter for missing glyphs); the UI stays Inter. -->
+        <!-- UI font (Inter) and reading font of post bodies only (bundled Noto Sans subset, Inter for missing glyphs).
+             These are the static defaults; ReaderFonts.Apply republishes both keys in Application.Resources with the
+             platform's installed CJK families appended, the active UI language's regional variant first. -->
+        <FontFamily x:Key="Workspace.Font.UI">avares://Avalonia.Fonts.Inter/Assets#Inter</FontFamily>
         <FontFamily x:Key="Workspace.Font.Reading">avares://MeowChan/Assets/Fonts#Noto Sans, avares://Avalonia.Fonts.Inter/Assets#Inter</FontFamily>
         <x:Double x:Key="Workspace.Text.Body">13</x:Double>
         <x:Double x:Key="Workspace.Text.Meta">12</x:Double>
@@ -331,7 +334,7 @@
     <Style Selector="Window">
         <Setter Property="Background" Value="{DynamicResource Workspace.Background}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
-        <Setter Property="FontFamily" Value="avares://Avalonia.Fonts.Inter/Assets#Inter" />
+        <Setter Property="FontFamily" Value="{DynamicResource Workspace.Font.UI}" />
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" />
     </Style>
     <Style Selector="ProgressBar"><Setter Property="Background" Value="{DynamicResource Workspace.ProgressTrack}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Progress}" /></Style>
@@ -341,7 +344,7 @@
     <Style Selector="TextBlock.page-title"><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Title}" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
     <Style Selector="TextBlock.section-title"><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Section}" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
     <Style Selector="TextBlock.mono"><Setter Property="FontFamily" Value="monospace" /></Style>
-    <Style Selector="SelectableTextBlock.reader-body"><Setter Property="FontFamily" Value="{StaticResource Workspace.Font.Reading}" /></Style>
+    <Style Selector="SelectableTextBlock.reader-body"><Setter Property="FontFamily" Value="{DynamicResource Workspace.Font.Reading}" /></Style>
     <Style Selector="Window.workspace-advanced TextBlock.inline-thread-id"><Setter Property="IsVisible" Value="False" /></Style>
     <Style Selector="Border.panel, Border.raised, Border.shell-bar">
         <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" />

@@ -1,15 +1,62 @@
-# Bundled Spanish, French and Russian Untested previews
+# Bundled Untested language previews
 
 These **AI-authored translation previews** ship as embedded assembly resources and
 are available in the normal language chooser without profile-file installation.
 They have not received qualified human linguistic review. English and German
 remain supported built-ins. The saved language is not changed automatically.
 
-| File | Language / UI choice | Scope |
-| --- | --- | --- |
-| `es.json` | `es` · Español (Untested) | Spanish, no regional review claimed |
-| `fr.json` | `fr` · Français (Untested) | French, no regional review claimed |
-| `ru.json` | `ru` · Русский (Untested) | Russian, no linguistic/native-UI review claimed |
+Every `Packs/<code>.json` is embedded by one wildcard in `MeowChan.csproj` and
+discovered by `Texts.BundledPackCodes()` from its resource name: **the file name is
+the language code**, so adding a pack needs no code change. The file's `"code"` must
+be exactly that name in .NET's canonical spelling (`pt-BR`, not `pt-br` or `pt_BR`;
+`zh-Hans`, not `zh-CN`), and `"nativeName"` must be exactly the chooser name below
+(`BundledLanguagePackCompletenessTests.ExpectedNativeNames`). The chooser lists
+English, German, then the bundled packs in ordinal code order.
+
+| File | Code · UI choice | Plural keys besides the base key | Scope |
+| --- | --- | --- | --- |
+| `es.json` | `es` · Español (Untested) | `.one` | Spanish, no regional review claimed |
+| `fr.json` | `fr` · Français (Untested) | `.one` (0 and 1) | French, no regional review claimed |
+| `ru.json` | `ru` · Русский (Untested) | `.one`, `.few`; base = many | Russian, no linguistic/native-UI review claimed |
+| `zh-Hans.json` | `zh-Hans` · 简体中文 (Untested) | none (no `.one` keys) | Simplified Chinese (mainland usage) |
+| `ja.json` | `ja` · 日本語 (Untested) | none (no `.one` keys) | Japanese |
+| `ko.json` | `ko` · 한국어 (Untested) | none (no `.one` keys) | Korean |
+| `pt-BR.json` | `pt-BR` · Português (Brasil) (Untested) | `.one` (0 and 1) | Brazilian Portuguese |
+| `cs.json` | `cs` · Čeština (Untested) | `.one` (1), `.few` (2–4); base = other | Czech |
+| `it.json` | `it` · Italiano (Untested) | `.one` (1) | Italian |
+| `pl.json` | `pl` · Polski (Untested) | `.one` (1), `.few` (2–4, 22–24, … not 12–14); base = many | Polish |
+
+The plural column follows the CLDR cardinal rules for whole counts in
+`PluralRules`. A pack may only contain variant keys its language can select: the
+completeness test rejects any `.one` in zh-Hans/ja/ko, a `.many` in cs (its CLDR
+"many" is for fractions only) or a `.few` in pt-BR/it. zh-Hans, ja and ko therefore
+cover the English keys minus the 25 `<key>.one` texts of `CountCatalog` and use
+the base text for every number.
+
+### CJK fonts (system dependency, nothing bundled)
+
+Inter (UI) and the bundled Noto Sans subset (post bodies) have no CJK glyphs, and
+the full Noto Sans CJK fonts (about 20 MB per weight) are too large to bundle. Both
+font chains therefore end with the platform's installed CJK families
+(`Desktop/ReaderFonts.cs`), and the **UI language decides which regional family
+answers first**, because the same Han character is drawn differently in each:
+
+| UI language | Linux / BSD | Windows | macOS |
+| --- | --- | --- | --- |
+| zh-Hans (SC) | Noto Sans CJK SC | Microsoft YaHei UI, Microsoft YaHei | PingFang SC |
+| ja (JP) | Noto Sans CJK JP | Yu Gothic UI, Yu Gothic, Meiryo | Hiragino Sans |
+| ko (KR) | Noto Sans CJK KR | Malgun Gothic | Apple SD Gothic Neo |
+
+The other regions follow (a Korean name in a Chinese post still renders), as do
+Traditional Chinese (Noto Sans CJK TC, Microsoft JhengHei, PingFang TC) and, on
+Linux, the same design under the name "Source Han Sans". A non-CJK UI language
+follows the OS language, else Japanese first. Windows and macOS ship these fonts.
+**Linux needs Noto Sans CJK installed** (`noto-fonts-cjk` on Arch/Manjaro,
+`fonts-noto-cjk` on Debian/Ubuntu, `google-noto-sans-cjk-fonts` on Fedora);
+without any CJK font the last resort is fontconfig's per-character match, which
+shows boxes when no installed font has the glyph. The order is refreshed live on
+a language switch (`ReaderFonts.Apply`), both in the UI/reading families and in the
+FontManager's global CJK fallback list, which Avalonia consults first.
 
 The current packs cover all **nonempty translatable catalog strings** in this
 working copy, including the command, rating and startup-preview catalogs. Two
@@ -100,7 +147,8 @@ accessibility or linguistic acceptance for these surfaces.
   labels, cleanup strings, and some thread-favorite and thread-row text.
   These bypass the shared catalog and remain English for ES/FR/RU even with full
   key coverage.
-- Semi/Ursa controls currently use German for DE and English for other languages.
+- Semi/Ursa controls use German for DE, their own locale for zh/ja/ko/it/pl/cs
+  where the vendor ships one, and English for the other languages.
   Native OS dialogs, engine/plugin messages and source/user content are separate.
 - Startup failures before profile initialization use EN/DE OS-language guidance;
   a profile pack is not available at that point.
@@ -118,14 +166,17 @@ review. No Russian native-window, layout, accessibility or input QA is claimed;
 ES/FR smoke results do not extend to RU. Select it only as a deliberate preview,
 and report unclear translations with their visible text and catalog key if known.
 
-### Simplified Chinese
+### CJK and the newer previews
 
-Simplified Chinese (`zh-Hans`) is a separate candidate, **not included here**.
-Inter does not establish CJK glyph coverage. Before offering it we need platform
-font-fallback/rendering checks, wrapping/input tests and qualified Chinese review.
-Traditional Chinese (`zh-Hant`) is distinct; do not label all Chinese locales as
-Simplified. Full built-in ES/FR support also requires helper/vendor localization,
-layout/accessibility QA and an explicit upgrade/collision policy for existing packs.
+The zh-Hans, ja, ko, pt-BR, cs, it and pl packs are Untested AI-authored previews
+like es/fr/ru. For CJK, the Linux smoke checks the font order, shaping without
+.notdef glyphs and Light/Dark captures for line breaks; it is no Windows/macOS
+rendering, IME input or qualified native review. Traditional Chinese (`zh-Hant`)
+is distinct and not offered; do not label all Chinese locales as Simplified.
+Semi/Ursa vendor controls use their own zh-CN, ja-JP, ko-KR, it-IT, pl-PL (Semi)
+and zh-CN, cs-CZ, pl-PL (Ursa) strings where they ship them, English otherwise.
+Full built-in support also requires helper/vendor localization, layout and
+accessibility QA and an explicit upgrade/collision policy for existing packs.
 
 See [language-pack format and contracts](../README.md).
 

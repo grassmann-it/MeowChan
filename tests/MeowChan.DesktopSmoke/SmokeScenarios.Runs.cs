@@ -253,7 +253,10 @@ internal static partial class SmokeScenarios
         {
             Configure = config => config.WorkspaceMode = "Advanced"
         },
-        ["preview-languages"] = new(SmokeStage.AfterCommandRefresh, mainWindow => PreviewLanguagePackChecks.RunAsync(mainWindow)),
+        ["preview-languages"] = new(SmokeStage.AfterCommandRefresh, mainWindow => PreviewLanguagePackChecks.RunAsync(mainWindow))
+        {
+            Seed = profile => PreviewLanguagePackChecks.SeedAsync(profile) // The CJK captures read real archived threads.
+        },
         ["window-chrome"] = new(SmokeStage.AfterCommandRefresh, async mainWindow =>
         {
             if (WindowChrome.Mode == WindowChromeMode.System)
