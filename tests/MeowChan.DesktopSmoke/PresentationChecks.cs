@@ -76,7 +76,7 @@ internal static class PresentationChecks
             "The caption did not update its accessible label after changing language.");
         Require(HasIconLabel(add, Texts.T("action.add")) && input.Text == draft && Mode(modes) == "Simple",
             "Changing language did not translate intake or discarded pending view state.");
-        Require(Avalonia.Automation.AutomationProperties.GetName(window.FindControl<Button>("ThemeToggleButton")!) == "Zum dunklen Design wechseln",
+        Require(Avalonia.Automation.AutomationProperties.GetName(window.FindControl<Button>("ThemeToggleButton")!) == "Zum dunklen Farbschema wechseln",
             "The German theme action exposed a missing translation key or an English label.");
         Program.CaptureWindow(window, "smoke-simple-german.png");
         await ChangeLanguageAsync(window, "en");
