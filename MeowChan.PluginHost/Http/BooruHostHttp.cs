@@ -285,6 +285,7 @@ public sealed class BooruHostHttp : IDisposable
         message.Headers.UserAgent.ParseAdd(_userAgent);
         message.Headers.AcceptEncoding.Clear();
         message.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("identity"));
+        message.Options.Set(MeteringHandler.SourceKey, request.SourceId);
         if (request.Headers is not null)
             foreach ((string name, string value) in request.Headers)
                 message.Headers.TryAddWithoutValidation(name, value);
