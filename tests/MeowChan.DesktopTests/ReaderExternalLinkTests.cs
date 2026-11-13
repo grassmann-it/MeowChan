@@ -165,6 +165,15 @@ public sealed class ReaderExternalLinkTests
         Assert.DoesNotContain("Settings", source); // The session choice is not persisted.
     }
 
+    [Fact]
+    public void TheConfirmationStartsOnCancelSoAHeldEnterCannotConfirmIt()
+    {
+        // The Enter (or its auto-repeat) that opened the dialog must land on Cancel; the smoke proves it with a second Enter.
+        string source = File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop", "Views", "Archive", "ArchivePage.ExternalLinks.cs"));
+        Assert.Contains("ReaderLinkCancel.Focus();", source);
+        Assert.DoesNotContain("ReaderLinkOpen.Focus()", source);
+    }
+
     private static string RepositoryRoot()
     {
         string? directory = AppContext.BaseDirectory;

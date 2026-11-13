@@ -50,7 +50,9 @@ public partial class ArchivePage
         ReaderLinkRemember.IsChecked = false;
         LocalizeReaderLink();
         ReaderLinkDialog.IsVisible = true;
-        ReaderLinkOpen.Focus();
+        // The start focus is on Cancel: the Enter (or its auto-repeat) that opened this dialog must never confirm it.
+        // Opening is a conscious Tab or click.
+        ReaderLinkCancel.Focus();
     }
 
     private void LocalizeReaderLink()

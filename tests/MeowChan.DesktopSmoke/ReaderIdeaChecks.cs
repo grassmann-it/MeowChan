@@ -399,8 +399,13 @@ internal static class ReaderIdeaChecks
             "A selection inside the second link did not ask about exactly that address.");
         Require(page.FindControl<SelectableTextBlock>("ReaderLinkUrl")!.Inlines!.OfType<Run>().Any(run => run.Text == "second.example" && run.FontWeight == FontWeight.Bold),
             "The confirmation did not highlight the host.");
-        Named("ReaderLinkCancel").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        Require(!page.IsExternalLinkDialogOpen && launched.Count == 0, "Cancel left the dialog open or launched the link.");
+        // The start focus is on Cancel, so a held or doubled Enter cannot confirm: a second Enter closes the dialog, nothing opens.
+        Require(ReferenceEquals(TopLevel.GetTopLevel(page)!.FocusManager!.GetFocusedElement(), Named("ReaderLinkCancel")),
+            "The link confirmation did not start with the focus on Cancel.");
+        Control focused = (Control)TopLevel.GetTopLevel(page)!.FocusManager!.GetFocusedElement()!;
+        focused.RaiseEvent(KeyEvent(InputElement.KeyDownEvent, Avalonia.Input.Key.Enter, focused));
+        await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
+        Require(!page.IsExternalLinkDialogOpen && launched.Count == 0, "A second Enter opened the link or left the dialog open.");
         two.SelectionStart = two.SelectionEnd = 0;
 
         // Only addresses that are http(s), without user information, and only their visible text, are links.
