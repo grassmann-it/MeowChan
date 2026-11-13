@@ -196,6 +196,27 @@ public sealed class StoreLimitSettingsTests
     }
 
     [Fact]
+    public void TheThumbnailMemoryHintNamesTheLargestPreviewAndWhatTheMaximumCostsInEveryLanguage()
+    {
+        string previous = Texts.Language;
+        try
+        {
+            foreach (string language in Languages)
+            {
+                Texts.SetLanguage(language);
+                string hint = Texts.T("budgets.thumbnailCacheTilesHint");
+                string point = language == "en" ? "." : ",";
+                // A video poster is up to 340 x 250 x 4 bytes = 0.33 MiB: 384 of them are 125 MiB, 8192 are 2.7 GiB.
+                Assert.Contains("0" + point + "33", hint);
+                Assert.Contains("125", hint);
+                Assert.Contains("2" + point + "7", hint);
+                Assert.DoesNotContain("60 MiB", hint);
+            }
+        }
+        finally { Texts.SetLanguage(previous); }
+    }
+
+    [Fact]
     public void TheMediaIndexCountRefusalNamesBothSettingsInEveryLanguage()
     {
         string previous = Texts.Language;

@@ -124,6 +124,6 @@ internal sealed class MediaThumbnailCache<T> where T : class, IDisposable
 /// <summary>The default of <see cref="MediaThumbnailCache{T}"/>.</summary>
 internal static class MediaThumbnailCache
 {
-    /// <summary>Default number of previews kept (the limit is a setting). At about 0.2 MiB a preview, roughly 60 MiB of memory.</summary>
+    /// <summary>Default number of previews kept (the limit is a setting). At up to about 0.17 MiB an image preview and 0.33 MiB a video poster, up to roughly 125 MiB of memory.</summary>
     internal const int DefaultCapacity = 384;
 }

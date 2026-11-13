@@ -195,7 +195,7 @@ namespace MeowChan
         internal const int PosterCacheFileLimitDefault = Desktop.VideoPosterCache.DefaultCacheFiles;
         internal const int PosterCacheFileLimitMinimum = 32;
         internal const int PosterCacheFileLimitMaximum = 50_000;
-        /// <summary>How many decoded tile previews of the Media page stay in memory (about 0.2 MiB each), so scrolling back shows them at once.</summary>
+        /// <summary>How many decoded tile previews of the Media page stay in memory (up to about 0.17 MiB each, a video poster 0.33 MiB), so scrolling back shows them at once.</summary>
         public int ThumbnailCacheTiles { get; set; } = ThumbnailCacheTilesDefault;
         internal const int ThumbnailCacheTilesDefault = Desktop.MediaThumbnailCache.DefaultCapacity;
         internal const int ThumbnailCacheTilesMinimum = 32;
