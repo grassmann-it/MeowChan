@@ -92,8 +92,7 @@ public sealed class PaletteContrastTests
 
     // The charcoal bars of the Light theme are the download progress bars (Workspace.Progress is #333333 there; title bar, header,
     // footer and toolbars are warm Panel/Background tones, not dark grey). The fill is the bar: it needs 3:1 against every surface it
-    // is drawn on and against its own track. The empty track is only the remaining extent (the count beside it says the same) and
-    // stays a soft tone, so it is deliberately not held to 3:1. Scrollbar thumbs are bars too.
+    // is drawn on and against its own track. Scrollbar thumbs are bars too.
     [Theory, InlineData("Dark"), InlineData("Light")]
     public void ProgressBarFillReadsOnItsTrackAndOnEverySurfaceItIsDrawnOn(string theme)
     {
@@ -101,6 +100,23 @@ public sealed class PaletteContrastTests
         foreach (string surface in new[] { "Workspace.Background", "Workspace.Panel", "Workspace.Raised", "Workspace.Card", "Workspace.Hover", "Workspace.AccentSurface", "Workspace.Overlay" })
             AssertContrast(theme, "Workspace.Progress", surface, 3.0);
     }
+
+    // Owner decision: the Dark fill is the accent blue again (it was a light grey), and it reads on its track at well over 3:1.
+    [Fact]
+    public void DarkProgressFillIsTheAccentBlueAndReadsOnItsTrack()
+    {
+        Assert.Equal(Color("Dark", "Workspace.Accent"), Color("Dark", "Workspace.Progress"));
+        AssertContrast("Dark", "Workspace.Progress", "Workspace.ProgressTrack", 4.5);
+    }
+
+    // Owner decision: the empty track is clearly visible in Light, a warm mid-grey (#857D74). 3:1 against the surfaces of the lists and
+    // panels is pinned; against Raised, Hover and AccentSurface 3:1 cannot hold together with a 3:1 #333333 fill (that needs a track
+    // luminance of at most 0.19 and at least 0.199), so those three are held to 2.4:1, well above the earlier 1.05 to 1.45.
+    [Theory]
+    [InlineData("Workspace.Background", 3.0), InlineData("Workspace.Panel", 3.0), InlineData("Workspace.Card", 3.0), InlineData("Workspace.Overlay", 3.0)]
+    [InlineData("Workspace.Raised", 2.4), InlineData("Workspace.Hover", 2.4), InlineData("Workspace.AccentSurface", 2.4)]
+    public void LightProgressTrackIsVisibleAgainstTheSurfaces(string surface, double minimum) =>
+        AssertContrast("Light", "Workspace.ProgressTrack", surface, minimum);
 
     [Fact]
     public void LightScrollbarThumbsReadOnTheSurfacesTheyScrollOver()

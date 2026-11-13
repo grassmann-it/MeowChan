@@ -56,7 +56,8 @@
                     <SolidColorBrush x:Key="Workspace.WarningSurface">#352C1D</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Success">#A7EFCB</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.SuccessSurface">#20382D</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.Progress">#C9CFD6</SolidColorBrush>
+                    <!-- The fill is the accent blue again (same value as Workspace.Accent): 4.98:1 on the track, 4.98 to 7.55:1 on the surfaces. -->
+                    <SolidColorBrush x:Key="Workspace.Progress">#6AA7FF</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ProgressTrack">#30363E</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPrimaryForeground">#EEF1F4</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPointeroverBackground">#30363E</SolidColorBrush>
@@ -155,7 +156,10 @@
                     <SolidColorBrush x:Key="Workspace.Success">#1D6941</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.SuccessSurface">#E8F0E4</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Progress">#333333</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.ProgressTrack">#D4CFC7</SolidColorBrush>
+                    <!-- The empty part of a bar is visible: 3.05:1 on Background, 3.44:1 on Panel/Overlay, 3.79:1 on Card, and the #333333 fill is 3.12:1 on it.
+                         3:1 on Raised (2.78), Hover (2.50) and AccentSurface (2.81) is not reachable together with a 3:1 fill: that would need a track
+                         luminance of at most 0.19 and at least 0.199. -->
+                    <SolidColorBrush x:Key="Workspace.ProgressTrack">#857D74</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPrimaryForeground">#1A1A1A</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPointeroverBackground">#D2CABE</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPressedBackground">#E7D4BE</SolidColorBrush>
