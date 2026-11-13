@@ -56,6 +56,8 @@ public partial class PluginsPage
                 PluginStepState.Problem => "plugins.step.state.problem",
                 _ => "plugins.step.state.later"
             }));
+            // The chip text carries the name: a Border and a WrapPanel have no automation peer, and the marker character alone would be read as its glyph name.
+            AutomationProperties.SetName(chip.Child!, spoken[index]);
         }
         AutomationProperties.SetName(panel, Texts.T("plugins.step.group") + ": " + string.Join("; ", spoken));
 
