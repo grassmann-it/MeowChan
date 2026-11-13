@@ -277,6 +277,7 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
             Padding = new Thickness(8, 4), MinHeight = 32,
             HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center
         }.CaptionText();
+        reset.Classes.Add("ghost"); // a repeated per-row action: quiet at rest, outlined on hover or focus
         reset.Bind(ContentControl.ContentProperty, new Binding(nameof(PreviewRow.ResetLabel)));
         reset.Bind(AutomationProperties.NameProperty, new Binding(nameof(PreviewRow.ResetName)));
         reset.Bind(AutomationProperties.HelpTextProperty, new Binding(nameof(PreviewRow.ResetHint)));

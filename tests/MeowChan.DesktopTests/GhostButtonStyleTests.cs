@@ -67,6 +67,13 @@ public sealed class GhostButtonStyleTests
             .Single(button => (string?)button.Attribute(X + "Name") == "CapturePostsButton").Attribute("Classes") ?? "").Split(' '));
     }
 
+    [Fact]
+    public void TheRepeatedBoardAssistantResetActionIsAGhost()
+    {
+        string source = File.ReadAllText(Root("Desktop/Views/Admission/BoardAdmissionWindow.cs"));
+        Assert.Contains("reset.Classes.Add(\"ghost\")", source);
+    }
+
     private static IEnumerable<XElement> StyleElements() => XDocument.Load(Root("Desktop/WorkspaceStyles.axaml")).Root!.Elements(A + "Style");
 
     private static string? Setting(string selector, string property) =>
