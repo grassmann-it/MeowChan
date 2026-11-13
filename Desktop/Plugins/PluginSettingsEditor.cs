@@ -58,7 +58,9 @@ internal sealed class PluginSettingsEditor : StackPanel
         foreach (SettingDefinition field in draft.Schema.Fields)
         {
             TextBlock label = new() { Text = field.Label, TextWrapping = TextWrapping.Wrap, Classes = { "workspace-field-label" } };
-            StackPanel content = new() { Spacing = 8 };
+            // Ursa's FormItem leaves 5 dip under the label; 3 more give label, Set value box, field, error and help one 8 dip
+            // rhythm (measured: label 403-415, box 420-435, field 445-469 before). Box, label and field share the left edge.
+            StackPanel content = new() { Spacing = 8, Margin = new Thickness(0, 3, 0, 0) };
             Control editor;
             if (field.Kind == SettingKind.Boolean)
             {
