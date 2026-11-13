@@ -4,6 +4,7 @@ using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 
@@ -103,6 +104,12 @@ internal static class PluginPageCaptureChecks
             Require(page.Selected?.Key == key && page.FindControl<TextBlock>("PluginHeading")!.IsEffectivelyVisible
                 && page.FindControl<Button>("PluginEnabled")!.IsEffectivelyVisible,
                 "The selected plugin's heading or state action was not shown for the capture " + name + ".");
+        // A generated single-line settings field has the workspace input height, as the category box above the list.
+        double inputHeight = page.FindControl<ComboBox>("PluginCategory")!.Bounds.Height;
+        foreach (TextBox field in page.GetVisualDescendants().OfType<TextBox>()
+            .Where(field => field.Name?.StartsWith("PluginField_", StringComparison.Ordinal) == true && field.IsEffectivelyVisible && !field.AcceptsReturn))
+            Require(field.Bounds.Height >= inputHeight - 1,
+                $"The plugin setting field {field.Name} is {field.Bounds.Height} dip high, the workspace inputs {inputHeight} dip ({name}).");
         Program.CaptureWindow(window, name + ".png");
     }
 

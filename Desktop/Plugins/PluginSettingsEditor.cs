@@ -58,7 +58,7 @@ internal sealed class PluginSettingsEditor : StackPanel
         foreach (SettingDefinition field in draft.Schema.Fields)
         {
             TextBlock label = new() { Text = field.Label, TextWrapping = TextWrapping.Wrap, Classes = { "workspace-field-label" } };
-            StackPanel content = new() { Spacing = 6 };
+            StackPanel content = new() { Spacing = 8 };
             Control editor;
             if (field.Kind == SettingKind.Boolean)
             {
@@ -111,8 +111,10 @@ internal sealed class PluginSettingsEditor : StackPanel
                     (field.MaximumLength > 1024 || draft.Text(field.Key).Contains('\n'));
                 TextBox input = new() { Text = draft.Text(field.Key), HorizontalAlignment = HorizontalAlignment.Stretch,
                     PlaceholderText = field.Kind == SettingKind.Uri ? "https://…" : null,
-                    AcceptsReturn = multiline, TextWrapping = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap,
-                    MinHeight = multiline ? 96 : 0, MaxHeight = multiline ? 192 : double.PositiveInfinity };
+                    AcceptsReturn = multiline, TextWrapping = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap };
+                // A single-line field keeps the workspace input height (Workspace.Size.Input via the TextBox style);
+                // a local MinHeight of 0 here used to crush it to the text height.
+                if (multiline) { input.MinHeight = 96; input.MaxHeight = 192; }
                 CheckBox? set = null;
                 if (!field.IsRequired)
                 {
