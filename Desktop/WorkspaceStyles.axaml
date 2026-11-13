@@ -24,6 +24,12 @@
                     <SolidColorBrush x:Key="Workspace.CardEdge">#5A636E</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Overlay">#1B1E22</SolidColorBrush>
                     <BoxShadows x:Key="Workspace.Shadow.Overlay">0 4 16 0 #66000000</BoxShadows>
+                    <!-- D6: Semi's own menu, flyout, drop-down, suggestion and toast shadows carry the one overlay shadow (same value as Workspace.Shadow.Overlay). -->
+                    <BoxShadows x:Key="MenuFlyoutBorderBoxShadow">0 4 16 0 #66000000</BoxShadows>
+                    <BoxShadows x:Key="FlyoutBorderBoxShadow">0 4 16 0 #66000000</BoxShadows>
+                    <BoxShadows x:Key="ComboBoxPopupBoxShadow">0 4 16 0 #66000000</BoxShadows>
+                    <BoxShadows x:Key="AutoCompleteBoxPopupBoxShadow">0 4 16 0 #66000000</BoxShadows>
+                    <BoxShadows x:Key="NotificationCardBoxShadows">0 4 16 0 #66000000</BoxShadows>
                     <SolidColorBrush x:Key="Workspace.Scrim">#66000000</SolidColorBrush>
                     <!-- Reader post cards are workspace cards (D3): Card on the Background page, CardEdge 3.03:1 against the page
                          (non-text minimum 3:1), the card 1.18:1 above it. The active card uses Workspace.AccentSurface with the accent edge. -->
@@ -107,6 +113,12 @@
                     <SolidColorBrush x:Key="Workspace.CardEdge">#7A7062</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Overlay">#EFECE6</SolidColorBrush>
                     <BoxShadows x:Key="Workspace.Shadow.Overlay">0 4 16 0 #26000000</BoxShadows>
+                    <!-- D6: see Dark. -->
+                    <BoxShadows x:Key="MenuFlyoutBorderBoxShadow">0 4 16 0 #26000000</BoxShadows>
+                    <BoxShadows x:Key="FlyoutBorderBoxShadow">0 4 16 0 #26000000</BoxShadows>
+                    <BoxShadows x:Key="ComboBoxPopupBoxShadow">0 4 16 0 #26000000</BoxShadows>
+                    <BoxShadows x:Key="AutoCompleteBoxPopupBoxShadow">0 4 16 0 #26000000</BoxShadows>
+                    <BoxShadows x:Key="NotificationCardBoxShadows">0 4 16 0 #26000000</BoxShadows>
                     <SolidColorBrush x:Key="Workspace.Scrim">#33000000</SolidColorBrush>
                     <!-- Reader post cards are workspace cards (D3): warm near-white Card on the Background page. Edge = ControlBorder
                          (= CardEdge), 3.66:1 against the page; card 1.24:1 above it. Active card: AccentSurface + accent edge. -->
@@ -214,6 +226,14 @@
              retain MeowChan's density without replacing focus, input or state behavior. -->
         <Thickness x:Key="DataGridCellTextBlockDefaultMargin">12,0</Thickness>
         <x:Double x:Key="DataGridCellMinHeight">0</x:Double>
+        <!-- D6: one radius (8, Workspace.Radius.Group) for every overlay Semi draws: menu, flyout, tooltip, toast, drop-down and
+             suggestion popups. Menu items keep Semi's own item radius. -->
+        <CornerRadius x:Key="MenuFlyoutCornerRadius">8</CornerRadius>
+        <CornerRadius x:Key="FlyoutCornerRadius">8</CornerRadius>
+        <CornerRadius x:Key="ToolTipCornerRadius">8</CornerRadius>
+        <CornerRadius x:Key="NotificationCardCornerRadius">8</CornerRadius>
+        <CornerRadius x:Key="ComboBoxPopupBoxCornerRadius">8</CornerRadius>
+        <CornerRadius x:Key="AutoCompleteBoxPopupCornerRadius">8</CornerRadius>
         <x:Double x:Key="DataGridColumnHeaderMinHeight">28</x:Double>
         <!-- ===== Workspace design tokens (D0) =====
              Colour tokens live in the theme dictionaries above; the tokens below are theme-neutral.
@@ -749,7 +769,9 @@
     <!-- D3 surfaces (design language 5, 6.2). workspace-card: content card on Panel or Background (Booru hit, watcher, reader post
          through the same tokens): Card + CardEdge 1 px, radius 5, no shadow, never a card inside a card. workspace-card-active: the
          selected card, AccentSurface with the accent edge 3,1,1,1 (never the tint alone). workspace-overlay: the in-window overlay
-         level (filter surface): Overlay + ControlBorder + radius 8; D6 adds the one shadow. workspace-thumb-placeholder: the quiet
+         level (filter surface): Overlay + ControlBorder + radius 8. No shadow on it (D6 measurement: an in-window overlay
+         repaints its shadow whenever the grid behind scrolls; the smoke "motion shadow cost" shows mean 14.6 to 16.0 ms, p95 16.9 to 22.4 ms
+         under software rendering, so the edge alone separates it; the shadow stays on Semi's popups and toasts, which are own surfaces). workspace-thumb-placeholder: the quiet
          static slot behind a thumbnail that has not arrived (no box once the image is there). -->
     <Style Selector="Border.workspace-card">
         <Setter Property="Background" Value="{DynamicResource Workspace.Card}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.CardEdge}" />

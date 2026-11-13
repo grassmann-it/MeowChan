@@ -69,6 +69,33 @@ public sealed class SurfaceStyleTests
             Assert.DoesNotContain(retired, xaml);
     }
 
+    private static readonly XNamespace X = "http://schemas.microsoft.com/winfx/2006/xaml";
+    private static readonly string[] SemiShadowKeys =
+    {
+        "MenuFlyoutBorderBoxShadow", "FlyoutBorderBoxShadow", "ComboBoxPopupBoxShadow", "AutoCompleteBoxPopupBoxShadow", "NotificationCardBoxShadows"
+    };
+
+    // D6: the one shadow. Semi's menu, flyout, drop-down, suggestion and toast shadows carry the value of Workspace.Shadow.Overlay.
+    [Theory, InlineData("Dark"), InlineData("Light")]
+    public void SemiOverlayShadowsCarryTheOverlayShadowOfTheTheme(string theme)
+    {
+        XElement dictionary = XDocument.Load(Root("Desktop/WorkspaceStyles.axaml")).Descendants(A + "ResourceDictionary").Single(element => (string?)element.Attribute(X + "Key") == theme);
+        string value = Assert.Single(dictionary.Elements(A + "BoxShadows").Where(element => (string?)element.Attribute(X + "Key") == "Workspace.Shadow.Overlay")).Value.Trim();
+        foreach (string key in SemiShadowKeys)
+            Assert.Equal(value, Assert.Single(dictionary.Elements(A + "BoxShadows").Where(element => (string?)element.Attribute(X + "Key") == key)).Value.Trim());
+    }
+
+    [Fact]
+    public void EveryOverlaySemiDrawsHasTheGroupRadiusAndTheInWindowOverlayNoShadow()
+    {
+        XElement root = XDocument.Load(Root("Desktop/WorkspaceStyles.axaml")).Root!;
+        string group = Assert.Single(root.Descendants(A + "CornerRadius").Where(element => (string?)element.Attribute(X + "Key") == "Workspace.Radius.Group")).Value.Trim();
+        foreach (string key in new[] { "MenuFlyoutCornerRadius", "FlyoutCornerRadius", "ToolTipCornerRadius", "NotificationCardCornerRadius", "ComboBoxPopupBoxCornerRadius", "AutoCompleteBoxPopupCornerRadius" })
+            Assert.Equal(group, Assert.Single(root.Descendants(A + "CornerRadius").Where(element => (string?)element.Attribute(X + "Key") == key)).Value.Trim());
+        // Measured (smoke "motion shadow cost"): a blurred shadow on an in-window overlay costs frames while the grid behind it scrolls.
+        Assert.Null(Style("Border.workspace-overlay").Elements(A + "Setter").FirstOrDefault(setter => (string?)setter.Attribute("Property") == "BoxShadow"));
+    }
+
     private static XElement Style(string selector) =>
         Assert.Single(XDocument.Load(Root("Desktop/WorkspaceStyles.axaml")).Root!.Elements(A + "Style").Where(style => (string?)style.Attribute("Selector") == selector));
 

@@ -266,6 +266,41 @@ internal static class MotionChecks
             Console.WriteLine($"SMOKE motion frames: n={frames.Count} mean={mean:0.0} ms p95={p95:0.0} ms max={max:0.0} ms (software rendering under Xvfb; limit on the mean {MeanFrameLimitMs} ms, design target 16 ms on real hardware)");
             Require(mean <= MeanFrameLimitMs, $"Mean frame interval {mean:0.0} ms exceeds {MeanFrameLimitMs} ms during the fades.");
 
+            // D6: what the one overlay shadow costs. The same page fade runs behind a large workspace-overlay with and without its shadow.
+            Border shadowProbe = new() { Width = 520, Height = 320, Classes = { "workspace-overlay" }, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, ZIndex = 11, IsHitTestVisible = false };
+            content.Children.Add(shadowProbe);
+            await IdleAsync();
+            async Task<(double Mean, double P95, double Max, int Count)> MeasureAsync(bool shadow)
+            {
+                shadowProbe.BoxShadow = shadow ? Avalonia.Media.BoxShadows.Parse("0 4 16 0 #66000000") : default;
+                await IdleAsync();
+                page.Transitions = [new DoubleTransition { Property = Visual.OpacityProperty, Duration = TimeSpan.FromMilliseconds(120) }];
+                List<double> samples = new();
+                TimeSpan? last = null;
+                bool active = true;
+                void Tick(TimeSpan time)
+                {
+                    if (last is { } before) samples.Add((time - before).TotalMilliseconds);
+                    last = time;
+                    if (active) window.RequestAnimationFrame(Tick);
+                }
+                window.RequestAnimationFrame(Tick);
+                for (int round = 0; round < 6; round++) { page.Opacity = round % 2 == 0 ? 0.4 : 1; await Task.Delay(160); }
+                active = false;
+                page.Transitions = null;
+                page.Opacity = 1;
+                double[] ordered = samples.OrderBy(value => value).ToArray();
+                return (samples.Average(), ordered[(int)Math.Min(ordered.Length - 1, Math.Floor(ordered.Length * 0.95))], samples.Max(), samples.Count);
+            }
+            var plain = await MeasureAsync(false);
+            var shadowed = await MeasureAsync(true);
+            plain = await MeasureAsync(false);
+            Console.WriteLine($"SMOKE motion shadow cost: without n={plain.Count} mean={plain.Mean:0.0} p95={plain.P95:0.0} max={plain.Max:0.0} ms; with n={shadowed.Count} mean={shadowed.Mean:0.0} p95={shadowed.P95:0.0} max={shadowed.Max:0.0} ms (520 x 320 overlay over a 1200-label page under a fade)");
+            // Informational on purpose: the numbers are why workspace-overlay has no shadow; a hard gate would be flaky under load.
+            Require(plain.Count >= 20 && shadowed.Count >= 20, "Too few frames to compare the overlay with and without its shadow.");
+            content.Children.Remove(shadowProbe);
+
             await FocusRingGeometryAsync(window);
 
             Console.WriteLine("SMOKE motion: policy (environment > setting > OS) toggled the class on an open window at run time; hover, overlay, toast and image fade exist only with motion on; frame interval measured.");
