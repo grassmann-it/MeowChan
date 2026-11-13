@@ -39,6 +39,7 @@ namespace MeowChan.Desktop.Booru
         internal const string AdmissionFailed = "admission_failed";
         internal const string ProviderCooldown = "provider_cooldown";
         internal const string WatcherError = "watcher_error";
+        internal const string CheckFaulted = "check_faulted";
         internal const string CheckAlreadyRunning = "check_already_running";
         internal const string CooldownActive = "cooldown_active";
 
@@ -74,7 +75,7 @@ namespace MeowChan.Desktop.Booru
             CatalogUnreadable, WatcherRecordInvalid, PersistFailed, SchedulerStopped, SchedulerNotStarted, InvalidQuery,
             WatcherExists, WatcherNotFound, WatcherRemoved, Rejected, Superseded, Cancelled, ContinuationBlocked,
             SearchResultMissing, SearchPortFault, ForeignPost, PageRejected, ProviderDeferred, SourceUnavailable, ProviderError,
-            SearchResultUnknown, AdmissionFailed, ProviderCooldown, WatcherError, CheckAlreadyRunning, CooldownActive,
+            SearchResultUnknown, AdmissionFailed, ProviderCooldown, WatcherError, CheckFaulted, CheckAlreadyRunning, CooldownActive,
             MissingReason, MissingError, WorkerUnavailable, MalformedPost, NotAdmitted, BooruSource,
             BooruCooldown, ProviderThrottled, ProviderUnavailable,
             Busy, Canceled, Closed, Exception, Error, NoWorker, UnknownResult, PageBinding, WrongPost,
@@ -131,6 +132,7 @@ namespace MeowChan.Desktop.Localization
             (P + "admission_failed", "New posts could not be added to the download queue. Resume the watcher to try again.", "Neue Posts konnten nicht in die Downloadwarteschlange übernommen werden. Setze die Suchbeobachtung fort, um es erneut zu versuchen."),
             (P + "provider_cooldown", "Danbooru asked MeowChan to wait; no request is sent until the pause ends.", "Danbooru hat MeowChan um Wartezeit gebeten; bis zum Ende der Pause wird nichts angefragt."),
             (P + "watcher_error", "The watcher stopped after an error. Resume it to check again.", "Die Suchbeobachtung wurde nach einem Fehler angehalten. Setze sie fort, um wieder zu prüfen."),
+            (P + "check_faulted", "The watcher check failed unexpectedly. Resume it to try again.", "Die Prüfung der Suchbeobachtung ist unerwartet fehlgeschlagen. Setze sie fort, um es erneut zu versuchen."),
             (P + "missing_reason", "The provider pause came without a reason. The check was stopped.", "Die Anbieterpause kam ohne Grund. Die Prüfung wurde abgebrochen."),
             (P + "missing_error", "The check failed without an error code.", "Die Prüfung ist ohne Fehlercode fehlgeschlagen."),
             (P + "worker_unavailable", "The Danbooru plugin could not be started. Nothing was requested.", "Das Danbooru-Plugin konnte nicht gestartet werden. Es wurde nichts angefragt."),

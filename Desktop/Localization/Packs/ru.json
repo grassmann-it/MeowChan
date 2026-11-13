@@ -2764,6 +2764,7 @@
     "booru.watcher.problem.admission_failed": "Не удалось добавить новые посты в очередь загрузок. Возобновите наблюдение, чтобы повторить.",
     "booru.watcher.problem.provider_cooldown": "Danbooru попросил MeowChan подождать; до конца паузы ничего не отправляется.",
     "booru.watcher.problem.watcher_error": "Наблюдение остановлено после ошибки. Возобновите его, чтобы снова проверять.",
+    "booru.watcher.problem.check_faulted": "Проверка наблюдения неожиданно завершилась ошибкой. Возобновите его, чтобы повторить.",
     "booru.watcher.problem.missing_reason": "Пауза поставщика пришла без причины. Проверка остановлена.",
     "booru.watcher.problem.missing_error": "Проверка завершилась ошибкой без кода.",
     "booru.watcher.problem.worker_unavailable": "Не удалось запустить плагин Danbooru. Ничего не запрошено.",

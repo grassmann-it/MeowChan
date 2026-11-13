@@ -2764,6 +2764,7 @@
     "booru.watcher.problem.admission_failed": "No se pudieron añadir publicaciones nuevas a la cola de descargas. Reanuda el vigilante para intentarlo de nuevo.",
     "booru.watcher.problem.provider_cooldown": "Danbooru pidió a MeowChan que espere; no se envía nada hasta que termine la pausa.",
     "booru.watcher.problem.watcher_error": "El vigilante se detuvo tras un error. Reanúdalo para volver a comprobar.",
+    "booru.watcher.problem.check_faulted": "La comprobación del vigilante falló inesperadamente. Reanúdalo para intentarlo de nuevo.",
     "booru.watcher.problem.missing_reason": "La pausa del proveedor llegó sin motivo. Se detuvo la comprobación.",
     "booru.watcher.problem.missing_error": "La comprobación falló sin código de error.",
     "booru.watcher.problem.worker_unavailable": "No se pudo iniciar el complemento de Danbooru. No se solicitó nada.",
