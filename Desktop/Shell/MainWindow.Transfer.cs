@@ -1,5 +1,5 @@
 using System;
-using System.Diagnostics;
+using System.Threading;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -8,37 +8,42 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Stats;
 
 namespace MeowChan;
 
 public partial class MainWindow
 {
-    private DispatcherTimer? _speedTimer;
-    private DownloadRateHistory? _downloadRate;
-    private long _speedTimestamp;
+    // The header graph and the statistics page read the process-wide hub. This window holds a claim on it only while
+    // it can be seen and something that shows the rates is visible, so a hidden or minimized window runs no timer.
+    private IoStatsHub? _ioStats;
+    private IoStatsSubscription? _ioClaim;
+    private CoalescedUiUpdate? _ioUpdate;
+    private string? _graphDescription;
 
-    // A silent, hidden or minimized window must not wake the UI thread every second.
-    // The sampling window is 60 samples; once all of them are zero nothing visible changes.
-    private const int SpeedGraphSamples = 60;
-    private int _speedIdleTicks;
+    /// <summary>The claim this window currently holds on the statistics hub (None while nothing needs samples).</summary>
+    internal IoStatsVisibility IoStatsClaim => _ioClaim?.Visibility ?? IoStatsVisibility.None;
 
     private void StartSpeedSampling()
     {
-        _downloadRate = new DownloadRateHistory(_session.ReceivedMediaBytes);
-        _speedTimestamp = Stopwatch.GetTimestamp();
-        _speedTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, OnSpeedSample);
+        _ioStats = _session.IoStats;
+        _ioUpdate = new CoalescedUiUpdate(ApplyIoSnapshot);
+        _ioClaim = _ioStats.Subscribe(IoStatsVisibility.None);
+        _ioStats.Sampled += OnIoStatsSampled;
         PropertyChanged += OnSpeedWindowPropertyChanged;
-        RefreshSpeedLabel();
+        ApplyIoSnapshot(force: true);
         UpdateSpeedSamplingState();
     }
 
     private void StopSpeedSampling()
     {
         PropertyChanged -= OnSpeedWindowPropertyChanged;
-        _speedTimer?.Stop();
-        if (_speedTimer != null) _speedTimer.Tick -= OnSpeedSample;
-        _speedTimer = null;
-        _downloadRate = null;
+        if (_ioStats != null) _ioStats.Sampled -= OnIoStatsSampled;
+        _ioClaim?.Dispose();
+        _ioClaim = null;
+        _ioUpdate?.Dispose();
+        _ioUpdate = null;
+        _ioStats = null;
     }
 
     private bool SpeedSamplingWanted => !_isClosing && IsVisible && WindowState != WindowState.Minimized;
@@ -48,46 +53,41 @@ public partial class MainWindow
         if (e.Property == IsVisibleProperty || e.Property == WindowStateProperty) UpdateSpeedSamplingState();
     }
 
+    /// <summary>Sets the claim from what is visible now. Call it whenever the window, the header graph or the page changes.</summary>
     private void UpdateSpeedSamplingState()
     {
-        if (_speedTimer == null || _downloadRate == null) return;
-        if (SpeedSamplingWanted)
+        if (_ioClaim == null || _ioStats == null) return;
+        IoStatsVisibility want = IoStatsDisplay.Claim(SpeedSamplingWanted, TransferSpeed.IsVisible, pageVisible: false);
+        if (_ioClaim.Visibility == want) return;
+        _ioClaim.Visibility = want;
+        // A fresh window starts from the hub's cleared history: show it now instead of waiting a whole interval.
+        if (want != IoStatsVisibility.None) _ioUpdate?.RequestImmediate();
+    }
+
+    // Pool thread: only post. The hub raises this only while something visible changes.
+    private void OnIoStatsSampled() => Volatile.Read(ref _ioUpdate)?.Request();
+
+    private void ApplyIoSnapshot() => ApplyIoSnapshot(force: false);
+
+    private void ApplyIoSnapshot(bool force)
+    {
+        IoStatsHub? hub = _ioStats;
+        if (_isClosing || hub == null || (!force && _ioClaim?.Visibility is null or IoStatsVisibility.None)) return;
+        IoStatsSnapshot snapshot = hub.Snapshot();
+        if (TransferSpeedGraph.IsVisible) TransferSpeedGraph.SetSeries(snapshot.Series);
+        TransferSpeedLabel.Text = "↓ " + ByteUnits.Rate(snapshot.Rate.NetDown);
+        TransferDiskLabel.Text = ByteUnits.Rate(IoStatsDisplay.DiskRate(snapshot.Rate));
+        // Set the name and tip only when the sentence changes: no live region, so nothing is read out every second.
+        string description = IoStatsDisplay.GraphDescription(snapshot.Rate, snapshot.Activity);
+        if (!string.Equals(description, _graphDescription, StringComparison.Ordinal))
         {
-            if (_speedTimer.IsEnabled) return;
-            // Bytes received while hidden are not a rate: start a fresh window instead of one huge spike.
-            _downloadRate = new DownloadRateHistory(_session.ReceivedMediaBytes);
-            _speedTimestamp = Stopwatch.GetTimestamp();
-            _speedIdleTicks = 0;
-            TransferSpeedGraph.SetSamples(_downloadRate.Samples);
-            RefreshSpeedLabel();
-            _speedTimer.Start();
+            _graphDescription = description;
+            ToolTip.SetTip(TransferSpeed, description);
+            AutomationProperties.SetName(TransferSpeed, description);
         }
-        else _speedTimer.Stop();
     }
 
-    private void OnSpeedSample(object? sender, EventArgs e)
-    {
-        if (_isClosing || _speedTimer == null || _downloadRate == null) return;
-        long now = Stopwatch.GetTimestamp();
-        _downloadRate.Sample(_session.ReceivedMediaBytes, Stopwatch.GetElapsedTime(_speedTimestamp, now));
-        _speedTimestamp = now;
-        _speedIdleTicks = _downloadRate.BytesPerSecond > 0 ? 0 : Math.Min(_speedIdleTicks + 1, SpeedGraphSamples + 1);
-        if (_speedIdleTicks > SpeedGraphSamples) return;
-        TransferSpeedGraph.SetSamples(_downloadRate.Samples);
-        RefreshSpeedLabel();
-    }
-
-    private void RefreshSpeedLabel()
-    {
-        double rate = _downloadRate?.BytesPerSecond ?? 0;
-        string value = rate >= 1048576 ? (rate / 1048576).ToString("0.0", Texts.Culture) + " MiB/s"
-            : rate >= 1024 ? (rate / 1024).ToString("0", Texts.Culture) + " KiB/s"
-            : rate.ToString("0", Texts.Culture) + " B/s";
-        TransferSpeedLabel.Text = "↓ " + value;
-        string description = Texts.T("shell.transferSpeed", value);
-        ToolTip.SetTip(TransferSpeed, description);
-        AutomationProperties.SetName(TransferSpeed, description);
-    }
+    private void RefreshSpeedLabel() => ApplyIoSnapshot(force: true);
 
     private bool? _lastDarkThemeIcon;
 

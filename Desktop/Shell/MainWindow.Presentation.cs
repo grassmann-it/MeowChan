@@ -96,8 +96,14 @@ public partial class MainWindow
     private void OnWorkspaceSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         RefreshWorkspaceMinimumAfterResize();
-        TransferSpeedGraph.IsVisible = Bounds.Width >= 1000;
-        TransferSpeed.IsVisible = Bounds.Width >= 760;
+        bool showGraph = Bounds.Width >= 1000, showSpeed = Bounds.Width >= 760;
+        if (TransferSpeedGraph.IsVisible != showGraph || TransferSpeed.IsVisible != showSpeed)
+        {
+            TransferSpeedGraph.IsVisible = showGraph;
+            TransferSpeed.IsVisible = showSpeed;
+            UpdateSpeedSamplingState();
+            _ioUpdate?.RequestImmediate(); // a graph that just appeared needs its history now
+        }
         if (ShellHelpOverlay.IsVisible)
             ShellHelpOverlay.MaxHeight = Math.Max(180, ClientSize.Height - 40);
         RememberNormalGeometry();

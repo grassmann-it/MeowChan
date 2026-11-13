@@ -59,6 +59,9 @@
                     <!-- The fill is the accent blue again (same value as Workspace.Accent): 4.98:1 on the track, 4.98 to 7.55:1 on the surfaces. -->
                     <SolidColorBrush x:Key="Workspace.Progress">#6AA7FF</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ProgressTrack">#30363E</SolidColorBrush>
+                    <!-- Disk row of the network/disk graph: opaque, drawn dashed, so it differs from the network row by form as well as
+                         colour. 9.8:1 on Panel (header) and 10.8:1 on Background; the page graph sits on Card. -->
+                    <SolidColorBrush x:Key="Workspace.Stats.Disk">#7FD6C2</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPrimaryForeground">#EEF1F4</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPointeroverBackground">#30363E</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPressedBackground">#25344A</SolidColorBrush>
@@ -160,6 +163,7 @@
                          3:1 on Raised (2.78), Hover (2.50) and AccentSurface (2.81) is not reachable together with a 3:1 fill: that would need a track
                          luminance of at most 0.19 and at least 0.199. -->
                     <SolidColorBrush x:Key="Workspace.ProgressTrack">#857D74</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Stats.Disk">#1F6B5C</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPrimaryForeground">#1A1A1A</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPointeroverBackground">#D2CABE</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPressedBackground">#E7D4BE</SolidColorBrush>
@@ -376,6 +380,8 @@
         <Setter Property="Width" Value="{StaticResource Workspace.Size.Control}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Control}" />
         <Setter Property="Padding" Value="6" /><Setter Property="BorderBrush" Value="Transparent" />
     </Style>
+    <!-- The network/disk graph in the header is a button: compact, no outline until it has focus or the pointer. -->
+    <Style Selector="Button.header-graph"><Setter Property="Padding" Value="6,2" /><Setter Property="MinHeight" Value="0" /><Setter Property="BorderBrush" Value="Transparent" /></Style>
     <Style Selector="Button.header-icon.selected"><Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /></Style>
     <Style Selector="Path.header-icon">
         <Setter Property="Width" Value="{StaticResource Workspace.Size.Icon}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Icon}" />
