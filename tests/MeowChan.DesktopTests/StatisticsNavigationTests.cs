@@ -109,11 +109,11 @@ public sealed class StatisticsNavigationTests : IDisposable
         Assert.Contains("TransferSpeedLabel", inner);
         Assert.Contains("TransferDiskLabel", inner);
         Assert.Contains("TransferDiskGraph", inner);
-        Assert.Contains("TransferDiskRow", inner);
-        // Each header row draws one series only: the network download and the disk writing, never the disk reading.
+        Assert.Contains("TransferLayoutGrid", inner);
+        // Exactly two header graph surfaces: network (download + upload) and disk (write + read), never a combined sum.
         XElement[] graphs = speed.Descendants().Where(e => e.Name.LocalName == "IoGraph").ToArray();
-        Assert.Equal(["DiskWrite", "NetDown"], graphs.Select(e => (string?)e.Attribute("Source")).OrderBy(x => x).ToArray());
-        Assert.DoesNotContain("DiskRead", speed.ToString());
+        Assert.Equal(["DiskIo", "NetworkIo"], graphs.Select(e => (string?)e.Attribute("Source")).OrderBy(x => x).ToArray());
+        Assert.Equal(2, graphs.Length);
     }
 
     [Fact]

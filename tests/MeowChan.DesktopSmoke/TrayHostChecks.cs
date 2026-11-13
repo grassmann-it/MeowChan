@@ -89,16 +89,16 @@ internal static class TrayHostChecks
     {
         TrayIcon icon = TrayIcon.GetIcons(Application.Current!)!.Single();
         NativeMenu menu = icon.Menu ?? throw new InvalidOperationException("The tray icon has no menu.");
-        if (menu.Items[0] is not NativeMenuItem rates || menu.Items[1] is not NativeMenuItem detail || menu.Items[2] is not NativeMenuItemSeparator)
-            throw new InvalidOperationException("The tray menu does not start with the two statistics lines and a separator.");
-        if (!rates.IsEnabled || !detail.IsEnabled || !rates.IsVisible || string.IsNullOrEmpty(rates.Header) || string.IsNullOrEmpty(detail.Header))
-            throw new InvalidOperationException("The tray statistics lines are not enabled and filled: '" + rates.Header + "' / '" + detail.Header + "'.");
+        if (menu.Items[0] is not NativeMenuItem rates || menu.Items[1] is not NativeMenuItem disk || menu.Items[2] is not NativeMenuItem detail || menu.Items[3] is not NativeMenuItemSeparator)
+            throw new InvalidOperationException("The tray menu does not start with the three statistics lines and a separator.");
+        if (!rates.IsEnabled || !disk.IsEnabled || !detail.IsEnabled || !rates.IsVisible || string.IsNullOrEmpty(rates.Header) || string.IsNullOrEmpty(disk.Header) || string.IsNullOrEmpty(detail.Header))
+            throw new InvalidOperationException("The tray statistics lines are not enabled and filled: '" + rates.Header + "' / '" + disk.Header + "' / '" + detail.Header + "'.");
         IoStatsHub hub = window.SessionHost.IoStats;
         if (hub.SamplingMode != IoStatsVisibility.None)
             throw new InvalidOperationException("A sampling timer runs while the window is hidden and idle: " + hub.SamplingMode + ".");
         if (icon.ToolTipText is null || !icon.ToolTipText.StartsWith("MeowChan", StringComparison.Ordinal) || icon.ToolTipText.Length > TrayStatsModel.MaxTooltipLength)
             throw new InvalidOperationException("Unexpected tray tooltip: " + icon.ToolTipText);
-        Console.WriteLine("SMOKE tray statistics: lines '" + rates.Header + "' / '" + detail.Header + "', tooltip '" + icon.ToolTipText + "', hidden timers=" + hub.ActiveTimerCount + ".");
+        Console.WriteLine("SMOKE tray statistics: lines '" + rates.Header + "' / '" + disk.Header + "' / '" + detail.Header + "', tooltip '" + icon.ToolTipText + "', hidden timers=" + hub.ActiveTimerCount + ".");
     }
 
     private static async Task CheckIndependentPreferencesAsync(MainWindow window)

@@ -133,7 +133,8 @@ public sealed class TrayStatsPresenterTests : IDisposable
         h.OpenMenu();
         Assert.Equal(0, h.Hub.ActiveTimerCount);
         Assert.Equal(0, h.Clock.ActiveTimers);
-        Assert.Equal("Today ↓ 3.0 MiB · Disk: 0 B written", h.Presenter.DetailItem.Header);
+        Assert.Equal("Today ↓ 3.0 MiB", h.Presenter.DiskItem.Header);
+        Assert.Equal("Disk: 0 B written", h.Presenter.DetailItem.Header);
     }
 
     [Fact]
@@ -146,12 +147,12 @@ public sealed class TrayStatsPresenterTests : IDisposable
         Assert.Equal(IoStatsVisibility.Tray, h.Hub.SamplingMode);
         Assert.Equal(5000, h.Hub.SamplingIntervalMs);
 
-        h.Source.Add("4chan", net: 10 * MiB, diskWritten: 5 * MiB);
+        h.Source.Add("4chan", net: 10 * MiB, diskWritten: 5 * MiB, netUp: 5 * 1024 * 5);
         h.Clock.Advance(TimeSpan.FromSeconds(5));
-        Assert.Equal("MeowChan · ↓ 2.0 MiB/s · Disk written 1.0 MiB/s · 3 downloads active", h.Tooltip);
+        Assert.Equal("MeowChan · Network ↓ 2.0 MiB/s ↑ 5 KiB/s · Disk R 0 B/s W 1.0 MiB/s · 3 downloads active", h.Tooltip);
         h.Source.Add("4chan", net: 25 * MiB, diskWritten: 25 * MiB);
         h.Clock.Advance(TimeSpan.FromSeconds(5));
-        Assert.Equal("MeowChan · ↓ 5.0 MiB/s · Disk written 5.0 MiB/s · 3 downloads active", h.Tooltip);
+        Assert.Equal("MeowChan · Network ↓ 5.0 MiB/s ↑ 0 B/s · Disk R 0 B/s W 5.0 MiB/s · 3 downloads active", h.Tooltip);
 
         // The window comes back: the claim ends, the slow timer goes, and samples no longer reach the tooltip.
         h.Shown = true;
@@ -218,16 +219,16 @@ public sealed class TrayStatsPresenterTests : IDisposable
     // --- the menu lines ---------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void TheMenuStartsWithTwoEnabledLinesAndASeparatorAndTheOldEntriesFollow()
+    public void TheMenuStartsWithThreeEnabledLinesAndASeparatorAndTheOldEntriesFollow()
     {
         using Harness h = new();
         Assert.Same(h.Presenter.RatesItem, h.Menu.Items[0]);
-        Assert.Same(h.Presenter.DetailItem, h.Menu.Items[1]);
-        Assert.Same(h.Presenter.Separator, h.Menu.Items[2]);
-        Assert.Equal("Open", ((NativeMenuItem)h.Menu.Items[3]).Header);
-        Assert.True(h.Presenter.RatesItem.IsEnabled);
-        Assert.True(h.Presenter.DetailItem.IsEnabled);
-        Assert.True(h.Presenter.RatesItem.IsVisible && h.Presenter.DetailItem.IsVisible && h.Presenter.Separator.IsVisible);
+        Assert.Same(h.Presenter.DiskItem, h.Menu.Items[1]);
+        Assert.Same(h.Presenter.DetailItem, h.Menu.Items[2]);
+        Assert.Same(h.Presenter.Separator, h.Menu.Items[3]);
+        Assert.Equal("Open", ((NativeMenuItem)h.Menu.Items[4]).Header);
+        Assert.True(h.Presenter.RatesItem.IsEnabled && h.Presenter.DiskItem.IsEnabled && h.Presenter.DetailItem.IsEnabled);
+        Assert.True(h.Presenter.RatesItem.IsVisible && h.Presenter.DiskItem.IsVisible && h.Presenter.DetailItem.IsVisible && h.Presenter.Separator.IsVisible);
     }
 
     [Fact]
@@ -237,16 +238,18 @@ public sealed class TrayStatsPresenterTests : IDisposable
         h.Presenter.Refresh(); // first fill
         Assert.Equal("Idle", h.Presenter.RatesItem.Header);
         h.Activity(3);
-        h.Source.Add("4chan", net: 10 * MiB, diskWritten: 5 * MiB);
+        h.Source.Add("4chan", net: 10 * MiB, diskWritten: 5 * MiB, diskRead: 10 * MiB);
         h.Clock.Advance(TimeSpan.FromSeconds(5));
         // The tooltip moved on with the sample; the menu lines stay as they were until the menu opens.
         Assert.Equal("Idle", h.Presenter.RatesItem.Header);
         h.OpenMenu();
-        Assert.Equal("↓ 2.0 MiB/s · Disk written 1.0 MiB/s", h.Presenter.RatesItem.Header);
+        Assert.Equal("Network ↓ 2.0 MiB/s ↑ 0 B/s", h.Presenter.RatesItem.Header);
+        Assert.Equal("Disk R 2.0 MiB/s W 1.0 MiB/s", h.Presenter.DiskItem.Header);
         Assert.Equal("3 downloads active · 4 waiting · Today ↓ 10.0 MiB", h.Presenter.DetailItem.Header);
         Texts.SetLanguage("de");
         h.OpenMenu();
-        Assert.Equal("↓ 2,0 MiB/s · Platte geschrieben 1,0 MiB/s", h.Presenter.RatesItem.Header);
+        Assert.Equal("Netzwerk ↓ 2,0 MiB/s ↑ 0 B/s", h.Presenter.RatesItem.Header);
+        Assert.Equal("Datenträger L 2,0 MiB/s S 1,0 MiB/s", h.Presenter.DiskItem.Header);
         Assert.Equal("3 Downloads aktiv · 4 wartend · Heute ↓ 10,0 MiB", h.Presenter.DetailItem.Header);
     }
 
@@ -257,7 +260,8 @@ public sealed class TrayStatsPresenterTests : IDisposable
         h.Source.Add("4chan", net: 2 * MiB, diskWritten: MiB);
         h.OpenMenu();
         Assert.Equal("Paused", h.Presenter.RatesItem.Header);
-        Assert.Equal("Today ↓ 2.0 MiB · Disk: 1.0 MiB written", h.Presenter.DetailItem.Header);
+        Assert.Equal("Today ↓ 2.0 MiB", h.Presenter.DiskItem.Header);
+        Assert.Equal("Disk: 1.0 MiB written", h.Presenter.DetailItem.Header);
         Assert.Equal("MeowChan · paused · Today ↓ 2.0 MiB", h.Tooltip);
     }
 
@@ -275,7 +279,8 @@ public sealed class TrayStatsPresenterTests : IDisposable
         h.Presenter.Refresh();
         Assert.True(h.Presenter.RatesItem.IsVisible && h.Presenter.DetailItem.IsVisible && h.Presenter.Separator.IsVisible);
         Assert.Equal("Idle", h.Presenter.RatesItem.Header);
-        Assert.Equal("Today ↓ 1.0 MiB · Disk: 0 B written", h.Presenter.DetailItem.Header);
+        Assert.Equal("Today ↓ 1.0 MiB", h.Presenter.DiskItem.Header);
+        Assert.Equal("Disk: 0 B written", h.Presenter.DetailItem.Header);
         Assert.Equal("MeowChan - Image Downloader", h.Tooltip); // tooltip setting still off: the legacy text
     }
 
@@ -284,11 +289,12 @@ public sealed class TrayStatsPresenterTests : IDisposable
     {
         using Harness h = new();
         h.Click(h.Presenter.RatesItem);
+        h.Click(h.Presenter.DiskItem);
         h.Click(h.Presenter.DetailItem);
-        Assert.Equal(2, h.Opened);
+        Assert.Equal(3, h.Opened);
         h.Presenter.Dispose();
         h.Click(h.Presenter.RatesItem);
-        Assert.Equal(2, h.Opened);
+        Assert.Equal(3, h.Opened);
     }
 
     [Fact]

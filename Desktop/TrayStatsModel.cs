@@ -34,7 +34,7 @@ internal static class TrayStatsModel
         if (state.Paused) parts.Add(Texts.T("tray.tooltipPaused"));
         else if (state.Active > 0)
         {
-            if (state.RatesKnown) parts.Add(RatesText(state));
+            if (state.RatesKnown) { parts.Add(NetText(state)); parts.Add(DiskText(state)); }
             parts.Add(Texts.Count("stats.tray.activeCount", state.Active));
         }
         else parts.Add(Texts.T("stats.tray.idle"));
@@ -43,21 +43,23 @@ internal static class TrayStatsModel
     }
 
     /// <summary>
-    /// The two menu lines. Line one is the current rates (or the state when there are none to show), line two the counts and
-    /// today's totals. The lines are plain text; both are enabled because a disabled native item is drawn unreadably grey.
+    /// The three menu lines. While rates are shown: "Network ↓ x ↑ y" and "Disk R x W y", the same labelled values as the header,
+    /// then the counts and today's download total. Otherwise: the state, today's network total and today's written total.
+    /// The lines are plain text; all are enabled because a disabled native item is drawn unreadably grey.
     /// </summary>
-    internal static (string Rates, string Detail) MenuLines(in TrayStatsInput state)
+    internal static (string Net, string Disk, string Detail) MenuLines(in TrayStatsInput state)
     {
         if (state.ShowsRates)
-            return (RatesText(state), Join(ActiveText(state), WaitingText(state), TodayText(state)));
+            return (NetText(state), DiskText(state), Join(ActiveText(state), WaitingText(state), TodayText(state)));
         string first = state.Paused ? Texts.T("stats.tray.menuPaused")
             : state.Active > 0 ? Join(ActiveText(state), WaitingText(state))
             : Texts.T("stats.tray.menuIdle");
-        return (first, Join(TodayText(state), Texts.T("stats.tray.diskWritten", ByteUnits.Size(state.Today.DiskWritten))));
+        return (first, TodayText(state), Texts.T("stats.tray.diskWritten", ByteUnits.Size(state.Today.DiskWritten)));
     }
 
-    private static string RatesText(in TrayStatsInput state) =>
-        Texts.T("stats.tray.rates", ByteUnits.Rate(state.Rate.NetDown), ByteUnits.Rate(IoStatsDisplay.HeaderDiskRate(state.Rate)));
+    private static string NetText(in TrayStatsInput state) => IoStatsDisplay.NetworkLine(state.Rate);
+
+    private static string DiskText(in TrayStatsInput state) => IoStatsDisplay.DiskLine(state.Rate);
 
     private static string ActiveText(in TrayStatsInput state) => Texts.Count("stats.tray.activeCount", state.Active);
 

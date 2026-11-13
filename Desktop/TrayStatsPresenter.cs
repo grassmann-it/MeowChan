@@ -17,7 +17,7 @@ internal sealed record TrayStatsHost(
     Action<Action> Post);
 
 /// <summary>
-/// Network and disk statistics in the tray, text only: the tooltip (rates while downloads run, today's total otherwise) and two
+/// Network and disk statistics in the tray, text only: the tooltip (rates while downloads run, today's total otherwise) and three
 /// enabled lines at the top of the tray menu. The presenter owns no timer. It holds the hub claim of <see cref="TrayStatsClaim"/>
 /// (window hidden and tooltip on), refreshes the tooltip on each hub sample while the claim is held and otherwise only when the
 /// window's own tray refresh asks (throttled to one reading per second), and fills the menu lines when the menu opens.
@@ -33,13 +33,14 @@ internal sealed class TrayStatsPresenter : IDisposable
     private readonly TrayStatsClaim _claim;
     private readonly CoalescedUiUpdate _sampled;
     private readonly NativeMenuItem _ratesItem = new();
+    private readonly NativeMenuItem _diskItem = new();
     private readonly NativeMenuItem _detailItem = new();
     private readonly NativeMenuItemSeparator _separator = new();
     private string _key = string.Empty;
     private long _stamp;
     private bool _disposed;
 
-    /// <summary>Inserts the two lines and a separator at the top of <paramref name="menu"/> and listens for its update request.</summary>
+    /// <summary>Inserts the three lines and a separator at the top of <paramref name="menu"/> and listens for its update request.</summary>
     internal TrayStatsPresenter(IoStatsHub hub, NativeMenu menu, TrayStatsHost host, TimeProvider? time = null)
     {
         ArgumentNullException.ThrowIfNull(hub);
@@ -52,16 +53,21 @@ internal sealed class TrayStatsPresenter : IDisposable
         _sampled = new CoalescedUiUpdate(OnSampled, TimeSpan.Zero, null, (action, _) => _host.Post(action));
         _claim = new TrayStatsClaim(hub, _sampled.Request);
         bool visible = host.MenuEnabled();
-        _ratesItem.IsVisible = _detailItem.IsVisible = _separator.IsVisible = visible;
+        _ratesItem.IsVisible = _diskItem.IsVisible = _detailItem.IsVisible = _separator.IsVisible = visible;
         _ratesItem.Click += OnClick;
+        _diskItem.Click += OnClick;
         _detailItem.Click += OnClick;
         menu.Items.Insert(0, _ratesItem);
-        menu.Items.Insert(1, _detailItem);
-        menu.Items.Insert(2, _separator);
+        menu.Items.Insert(1, _diskItem);
+        menu.Items.Insert(2, _detailItem);
+        menu.Items.Insert(3, _separator);
         menu.NeedsUpdate += OnNeedsUpdate;
     }
 
+    /// <summary>Line one: "Net ↓ x" while rates show, else the state.</summary>
     internal NativeMenuItem RatesItem => _ratesItem;
+    /// <summary>Line two: "Disk y" (written) while rates show, else today's network total.</summary>
+    internal NativeMenuItem DiskItem => _diskItem;
     internal NativeMenuItem DetailItem => _detailItem;
     internal NativeMenuItemSeparator Separator => _separator;
     internal bool ClaimHeld => _claim.Held;
@@ -94,7 +100,7 @@ internal sealed class TrayStatsPresenter : IDisposable
         _claim.Update(TrayStatsClaim.Wanted(_host.Closing(), shown, tooltipOn));
         if (_ratesItem.IsVisible != menuOn)
         {
-            _ratesItem.IsVisible = _detailItem.IsVisible = _separator.IsVisible = menuOn;
+            _ratesItem.IsVisible = _diskItem.IsVisible = _detailItem.IsVisible = _separator.IsVisible = menuOn;
             force = fillMenu = true;
         }
         // The lines are written when the menu opens, when the setting came on, and the first time.
@@ -126,8 +132,9 @@ internal sealed class TrayStatsPresenter : IDisposable
 
     private void ApplyLines(in TrayStatsInput state)
     {
-        (string rates, string detail) = TrayStatsModel.MenuLines(state);
-        if (!Equals(_ratesItem.Header, rates)) _ratesItem.Header = rates;
+        (string net, string disk, string detail) = TrayStatsModel.MenuLines(state);
+        if (!Equals(_ratesItem.Header, net)) _ratesItem.Header = net;
+        if (!Equals(_diskItem.Header, disk)) _diskItem.Header = disk;
         if (!Equals(_detailItem.Header, detail)) _detailItem.Header = detail;
     }
 
@@ -137,6 +144,7 @@ internal sealed class TrayStatsPresenter : IDisposable
         _disposed = true;
         _menu.NeedsUpdate -= OnNeedsUpdate;
         _ratesItem.Click -= OnClick;
+        _diskItem.Click -= OnClick;
         _detailItem.Click -= OnClick;
         _claim.Dispose();
         _sampled.Dispose();

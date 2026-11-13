@@ -43,26 +43,27 @@ public sealed class IoStatsDisplayTests : IDisposable
     [Fact]
     public void TheGraphSentenceNamesNetworkDiskAndActiveDownloadsInBinaryUnits()
     {
-        IoRates rates = new(NetDown: 2.4 * MiB, DiskWrite: 1.5 * MiB, DiskRead: 0.4 * MiB, Requests: 3);
+        IoRates rates = new(NetDown: 2.4 * MiB, DiskWrite: 1.5 * MiB, DiskRead: 0.4 * MiB, Requests: 3, NetUp: 0.5 * MiB);
         Assert.Equal(1.5 * MiB, IoStatsDisplay.HeaderDiskRate(rates), 3);          // what MeowChan writes, not what it reads back
-        Assert.Equal("Network download 2.4 MiB/s, disk written 1.5 MiB/s, active downloads: 3. Opens the statistics.",
+        Assert.Equal("Network (application data) download 2.4 MiB/s, upload 512 KiB/s; media files on disk written 1.5 MiB/s, read 410 KiB/s; active downloads: 3. Opens the statistics.",
             IoStatsDisplay.GraphDescription(rates, new IoActivity(3, 41, 0), En));
         Texts.SetLanguage("de");
-        Assert.Equal("Netzwerk herunter 2,4 MiB/s, auf Datenträger geschrieben 1,5 MiB/s, aktive Downloads: 3. Öffnet die Statistik.",
+        Assert.Equal("Netzwerk (Anwendungsdaten) herunter 2,4 MiB/s, hoch 512 KiB/s; Mediendateien auf dem Datenträger geschrieben 1,5 MiB/s, gelesen 410 KiB/s; aktive Downloads: 3. Öffnet die Statistik.",
             IoStatsDisplay.GraphDescription(rates, new IoActivity(3, 41, 0), De));
         Texts.SetLanguage("en");
-        Assert.Equal("Network download 0 B/s, disk written 0 B/s, active downloads: 0. Opens the statistics.",
+        Assert.Equal("Network (application data) download 0 B/s, upload 0 B/s; media files on disk written 0 B/s, read 0 B/s; active downloads: 0. Opens the statistics.",
             IoStatsDisplay.GraphDescription(IoRates.Zero, default, En));
     }
 
     [Fact]
-    public void ReadingBackFromDiskNeverChangesTheHeaderRateOrItsSentence()
+    public void ReadingBackFromDiskNeverChangesTheHeaderGraphRateButIsAValueOfItsOwn()
     {
         IoRates quiet = new(NetDown: 1 * MiB, DiskWrite: 200 * 1024, DiskRead: 0, Requests: 1);
         IoRates busyReading = quiet with { DiskRead = 80 * MiB };
         Assert.Equal(IoStatsDisplay.HeaderDiskRate(quiet), IoStatsDisplay.HeaderDiskRate(busyReading));
-        Assert.Equal(IoStatsDisplay.GraphDescription(quiet, default, En), IoStatsDisplay.GraphDescription(busyReading, default, En));
-        Assert.DoesNotContain("80", IoStatsDisplay.GraphDescription(busyReading, default, En));
+        Assert.Contains("80.0 MiB/s", IoStatsDisplay.DiskValues(busyReading, En));
+        Assert.Contains("80.0 MiB/s", IoStatsDisplay.GraphDescription(busyReading, default, En));
+        Assert.Contains("200 KiB/s", IoStatsDisplay.DiskValues(busyReading, En));
     }
 
     [Theory]

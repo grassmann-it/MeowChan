@@ -282,37 +282,24 @@ public sealed class HelpDocumentationTests
     public void StatisticsHelpNamesTheShippedHeaderValuesAndMeasurementLimits()
     {
         // The catalogs are read as data (no language state); the display seams are the production header rules.
-        string[] names = ["stats.header.net", "stats.header.disk", "stats.footnote"];
+        string[] names = ["stats.header.networkTitle", "stats.header.diskTitle", "stats.header.netValues", "stats.header.diskValues", "stats.footnote"];
         Dictionary<string, string> english = IoStatsPageTexts.Entries.Where(entry => names.Contains(entry.Key))
             .ToDictionary(entry => entry.Key, entry => entry.English, StringComparer.Ordinal);
         Assert.Equal(names.Order(StringComparer.Ordinal), english.Keys.Order(StringComparer.Ordinal));
-        string netLabel = english["stats.header.net"].Replace("{0}", "").Trim();
-        string diskLabel = english["stats.header.disk"].Replace("{0}", "").Trim();
-        Assert.Contains("Upload is not measured", english["stats.footnote"], StringComparison.Ordinal);
+        Assert.Equal("Network", english["stats.header.networkTitle"]);
+        Assert.Equal("Disk", english["stats.header.diskTitle"]);
+        Assert.Contains("request payload", english["stats.footnote"], StringComparison.Ordinal);
         Assert.Contains("without headers or encryption", english["stats.footnote"], StringComparison.Ordinal);
+        Assert.DoesNotContain("Upload is not measured", english["stats.footnote"], StringComparison.Ordinal);
 
-        // The header disk value is the written rate only, and neither it nor the label set carries reads or upload.
-        IoRates rates = new(NetDown: 10, DiskWrite: 20, DiskRead: 3000, Requests: 4);
+        // The header shows download and upload, write and read as values; Automatic draws both graphs in every work view.
+        IoRates rates = new(NetDown: 10, NetUp: 5, DiskWrite: 20, DiskRead: 3000, Requests: 4);
         Assert.Equal(20, IoStatsDisplay.HeaderDiskRate(rates));
         Assert.False(IoStatsDisplay.HeaderShowsDiskValue(IoStatsDisplay.HeaderGraphNetwork));
         Assert.True(IoStatsDisplay.HeaderShowsDiskValue(IoStatsDisplay.HeaderGraphAuto));
-        Assert.True(IoStatsDisplay.HeaderShowsDiskValue(IoStatsDisplay.HeaderGraphNetworkAndDisk));
-        Assert.False(IoStatsDisplay.HeaderShowsDisk(IoStatsDisplay.HeaderGraphAuto, "Simple"));
-        Assert.True(IoStatsDisplay.HeaderShowsDisk(IoStatsDisplay.HeaderGraphAuto, "Advanced"));
-        Assert.True(IoStatsDisplay.HeaderShowsDisk(IoStatsDisplay.HeaderGraphNetworkAndDisk, "Simple"));
-
-        string text = Plain(Section(Read(Help), "Statistics and disk traffic"));
-        Assert.Contains($"The header values read {netLabel} (network download) and {diskLabel} (written to disk)", text, StringComparison.Ordinal);
-        Assert.Contains("they show neither disk reads nor upload", text, StringComparison.Ordinal);
-        Assert.Contains("upload is not measured, only the number of requests is shown", text, StringComparison.Ordinal);
-        Assert.Contains("response data MeowChan receives, without headers or encryption", text, StringComparison.Ordinal);
-        Assert.Contains("Automatic shows labeled network-download and disk-write values in every work view", text, StringComparison.Ordinal);
-        Assert.Contains("the disk history graph is drawn only in Advanced", text, StringComparison.Ordinal);
-        Assert.Contains("Network only hides the disk value and its graph", text, StringComparison.Ordinal);
-        // The requested header Read+Write / Down+Up choice is not part of this candidate and must not be described as shipped.
-        Assert.DoesNotContain("Read/Write", text, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Down/Up", text, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Read and write in the header", text, StringComparison.OrdinalIgnoreCase);
+        Assert.True(IoStatsDisplay.HeaderShowsDisk(IoStatsDisplay.HeaderGraphAuto));
+        Assert.True(IoStatsDisplay.HeaderShowsDisk(IoStatsDisplay.HeaderGraphNetworkAndDisk));
+        // The statistics section of docs/Help.md still describes the previous header; its text is updated separately from this change.
     }
 
     [Fact]

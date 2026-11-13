@@ -96,11 +96,10 @@ public partial class MainWindow
     private void OnWorkspaceSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         RefreshWorkspaceMinimumAfterResize();
-        bool showGraph = Bounds.Width >= 1000, showSpeed = Bounds.Width >= 760;
-        if (TransferSpeedGraph.IsVisible != showGraph || TransferSpeed.IsVisible != showSpeed)
+        bool showSpeed = Bounds.Width >= 760;
+        ApplyHeaderGraphMode(); // below 1000 DIPs every graph goes and the labelled values stay; two blocks need 1280
+        if (TransferSpeed.IsVisible != showSpeed)
         {
-            TransferSpeedGraph.IsVisible = showGraph;
-            TransferDiskGraph.IsVisible = showGraph;
             TransferSpeed.IsVisible = showSpeed;
             UpdateSpeedSamplingState();
             _ioUpdate?.RequestImmediate(); // a graph that just appeared needs its history now

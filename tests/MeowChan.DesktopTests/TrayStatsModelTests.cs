@@ -15,15 +15,15 @@ public sealed class TrayStatsModelTests : IDisposable
     public void Dispose() => Texts.SetLanguage(_previous);
 
     private static TrayStatsInput Running(int active = 3, int waiting = 0, double net = 2.4 * MiB, double write = 12 * MiB, double read = 0,
-        long today = 1288490189, bool known = true) =>
-        new(false, active, waiting, new IoRates(net, write, read, 0), new IoCounts(today, 450 * MiB, 0, 0, 0), known);
+        long today = 1288490189, bool known = true, double up = 12 * KiB) =>
+        new(false, active, waiting, new IoRates(NetDown: net, NetUp: up, DiskWrite: write, DiskRead: read, Requests: 0), new IoCounts(today, 450 * MiB, 0, 0, 0), known);
 
     private static TrayStatsInput Quiet(bool paused = false, long today = 1288490189) =>
         new(paused, 0, 0, IoRates.Zero, new IoCounts(today, 450 * MiB, 0, 0, 0), RatesKnown: false);
 
     [Theory]
-    [InlineData("en", "MeowChan · ↓ 2.4 MiB/s · Disk written 12.0 MiB/s · 3 downloads active")]
-    [InlineData("de", "MeowChan · ↓ 2,4 MiB/s · Platte geschrieben 12,0 MiB/s · 3 Downloads aktiv")]
+    [InlineData("en", "MeowChan · Network ↓ 2.4 MiB/s ↑ 12 KiB/s · Disk R 0 B/s W 12.0 MiB/s · 3 downloads active")]
+    [InlineData("de", "MeowChan · Netzwerk ↓ 2,4 MiB/s ↑ 12 KiB/s · Datenträger L 0 B/s S 12,0 MiB/s · 3 Downloads aktiv")]
     public void TheActiveTooltipShowsBinaryRatesAndTheDownloadCount(string language, string expected)
     {
         Texts.SetLanguage(language);
@@ -31,9 +31,9 @@ public sealed class TrayStatsModelTests : IDisposable
     }
 
     [Theory]
-    [InlineData("en", "MeowChan · ↓ 512 KiB/s · Disk written 1.0 MiB/s · 1 download active")]
-    [InlineData("de", "MeowChan · ↓ 512 KiB/s · Platte geschrieben 1,0 MiB/s · 1 Download aktiv")]
-    public void TheDiskRateIsWritingOnlyReadingNeverCountsAndTheSingularIsUsed(string language, string expected)
+    [InlineData("en", "MeowChan · Network ↓ 512 KiB/s ↑ 12 KiB/s · Disk R 512 KiB/s W 1.0 MiB/s · 1 download active")]
+    [InlineData("de", "MeowChan · Netzwerk ↓ 512 KiB/s ↑ 12 KiB/s · Datenträger L 512 KiB/s S 1,0 MiB/s · 1 Download aktiv")]
+    public void TheTooltipNamesAllFourValuesAndTheSingularIsUsed(string language, string expected)
     {
         Texts.SetLanguage(language);
         Assert.Equal(expected, TrayStatsModel.Tooltip(Running(active: 1, net: 512 * KiB, write: MiB, read: 0.5 * MiB)));
@@ -94,21 +94,21 @@ public sealed class TrayStatsModelTests : IDisposable
     }
 
     [Theory]
-    [InlineData("en", "↓ 2.4 MiB/s · Disk written 12.0 MiB/s", "3 downloads active · 41 waiting · Today ↓ 1.2 GiB")]
-    [InlineData("de", "↓ 2,4 MiB/s · Platte geschrieben 12,0 MiB/s", "3 Downloads aktiv · 41 wartend · Heute ↓ 1,2 GiB")]
-    public void TheMenuLinesShowRatesAndCountsWhileDownloadsRunAndAreMeasured(string language, string rates, string detail)
+    [InlineData("en", "Network ↓ 2.4 MiB/s ↑ 12 KiB/s", "Disk R 0 B/s W 12.0 MiB/s", "3 downloads active · 41 waiting · Today ↓ 1.2 GiB")]
+    [InlineData("de", "Netzwerk ↓ 2,4 MiB/s ↑ 12 KiB/s", "Datenträger L 0 B/s S 12,0 MiB/s", "3 Downloads aktiv · 41 wartend · Heute ↓ 1,2 GiB")]
+    public void TheMenuShowsNetAndDiskAsSeparateLabelledLinesWhileDownloadsRunAndAreMeasured(string language, string net, string disk, string detail)
     {
         Texts.SetLanguage(language);
-        Assert.Equal((rates, detail), TrayStatsModel.MenuLines(Running(waiting: 41)));
+        Assert.Equal((net, disk, detail), TrayStatsModel.MenuLines(Running(waiting: 41)));
     }
 
     [Theory]
-    [InlineData("en", "3 downloads active · 41 waiting", "Today ↓ 1.2 GiB · Disk: 450.0 MiB written")]
-    [InlineData("de", "3 Downloads aktiv · 41 wartend", "Heute ↓ 1,2 GiB · Platte: 450,0 MiB geschrieben")]
-    public void WithoutAMeasurementTheMenuShowsCountsAndTodaysTotalsButNoRates(string language, string first, string second)
+    [InlineData("en", "3 downloads active · 41 waiting", "Today ↓ 1.2 GiB", "Disk: 450.0 MiB written")]
+    [InlineData("de", "3 Downloads aktiv · 41 wartend", "Heute ↓ 1,2 GiB", "Datenträger: 450,0 MiB geschrieben")]
+    public void WithoutAMeasurementTheMenuShowsCountsAndTodaysTotalsButNoRates(string language, string first, string second, string third)
     {
         Texts.SetLanguage(language);
-        Assert.Equal((first, second), TrayStatsModel.MenuLines(Running(waiting: 41, known: false)));
+        Assert.Equal((first, second, third), TrayStatsModel.MenuLines(Running(waiting: 41, known: false)));
     }
 
     [Theory]
@@ -117,9 +117,9 @@ public sealed class TrayStatsModelTests : IDisposable
     public void IdleAndPausedMenusShowTheStateAndTodaysTotals(string language, string idle, string paused)
     {
         Texts.SetLanguage(language);
-        string detail = language == "en" ? "Today ↓ 1.2 GiB · Disk: 450.0 MiB written" : "Heute ↓ 1,2 GiB · Platte: 450,0 MiB geschrieben";
-        Assert.Equal((idle, detail), TrayStatsModel.MenuLines(Quiet()));
-        Assert.Equal((paused, detail), TrayStatsModel.MenuLines(Quiet(paused: true)));
+        (string today, string disk) = language == "en" ? ("Today ↓ 1.2 GiB", "Disk: 450.0 MiB written") : ("Heute ↓ 1,2 GiB", "Datenträger: 450,0 MiB geschrieben");
+        Assert.Equal((idle, today, disk), TrayStatsModel.MenuLines(Quiet()));
+        Assert.Equal((paused, today, disk), TrayStatsModel.MenuLines(Quiet(paused: true)));
     }
 
     [Fact]
