@@ -63,20 +63,28 @@
                     </StackPanel>
                     <Menu Grid.Column="3" VerticalAlignment="Center">
                         <MenuItem x:Name="WorkspaceMenuItem" Header="⋯">
+                            <!-- Group 1: every main page, in footer order (Downloads, Archive, Media | Rules, Sources, Plugins | Diagnostics, Statistics). -->
+                            <MenuItem x:Name="DownloadsMenuItem" Tag="nav.downloads" Classes="localized" Header="Downloads" Click="OnDownloadsNavigationClick" />
                             <MenuItem x:Name="ArchiveMenuItem" Tag="nav.archive" Classes="localized" Header="Archive" Click="OnArchiveNavigationClick" />
                             <MenuItem x:Name="MediaMenuItem" Tag="nav.media" Classes="localized" Header="Media" Click="OnMediaNavigationClick" />
+                            <Separator x:Name="PagesGroupSeparatorWork" />
+                            <MenuItem x:Name="RulesMenuItem" Tag="nav.rules" Classes="localized" Header="Rules" Click="OnRulesNavigationClick" />
+                            <MenuItem x:Name="SourcesMenuItem" Tag="nav.sources" Classes="localized" Header="Sources" Click="OnSourcesNavigationClick" />
+                            <MenuItem x:Name="PluginsMenuItem" Tag="nav.plugins" Classes="localized" Header="Plugins" Click="OnPluginsNavigationClick" />
+                            <Separator x:Name="PagesGroupSeparatorSetUp" />
+                            <MenuItem x:Name="DiagnosticsMenuItem" Tag="nav.diagnostics" Classes="localized" Header="Diagnostics" Click="OnDiagnosticsNavigationClick" />
+                            <MenuItem x:Name="StatisticsMenuItem" Tag="nav.statistics" Classes="localized" Header="Statistics" Click="OnStatisticsNavigationClick" />
+                            <Separator x:Name="MenuPagesToolsSeparator" />
+                            <!-- Group 2: tools. Continue reading, post bookmarks and Danbooru insert themselves after this anchor. -->
                             <MenuItem x:Name="ManualImportMenuItem" Tag="import.menu" Classes="localized" Header="Import files…" Click="OnManualImportMenuClick" />
                             <!-- URSA-12 shared shell hunk: group manager entry in every workspace mode. -->
                             <MenuItem x:Name="ReaderGroupsMenuItem" Header="Reader groups" />
-                            <MenuItem x:Name="RulesMenuItem" Tag="nav.rules" Classes="localized" Header="Rules" Click="OnRulesNavigationClick" />
-                            <MenuItem x:Name="SourcesMenuItem" Tag="nav.sources" Classes="localized" Header="Sources" Click="OnSourcesNavigationClick" />
-                            <MenuItem x:Name="DiagnosticsMenuItem" Tag="nav.diagnostics" Classes="localized" Header="Diagnostics" Click="OnDiagnosticsNavigationClick" />
-                            <MenuItem x:Name="PluginsMenuItem" Tag="nav.plugins" Classes="localized" Header="Plugins" Click="OnPluginsNavigationClick" />
-                            <MenuItem x:Name="StatisticsMenuItem" Tag="nav.statistics" Classes="localized" Header="Statistics" Click="OnStatisticsNavigationClick" />
+                            <Separator x:Name="MenuToolsAppSeparator" />
+                            <!-- Group 3: the application. The update check inserts itself in front of About. -->
                             <MenuItem x:Name="PauseMenuItem" Header="Pause downloads" Click="OnPauseClick" />
                             <MenuItem x:Name="SettingsMenuItem" Tag="nav.settings" Classes="localized" Header="Settings" />
-                            <MenuItem x:Name="AboutMenuItem" Tag="nav.about" Classes="localized" Header="About" />
                             <MenuItem x:Name="ShortcutHelpMenuItem" Header="Keyboard shortcuts" />
+                            <MenuItem x:Name="AboutMenuItem" Tag="nav.about" Classes="localized" Header="About" />
                             <Separator />
                             <MenuItem x:Name="ExitMenuItem" Tag="action.exit" Classes="localized" Header="Exit" />
                         </MenuItem>
@@ -446,25 +454,32 @@
                 </Button>
                 <Button x:Name="ArchiveNavigationButton" Classes="nav localized" Tag="nav.archive" Content="Archive" Click="OnArchiveNavigationClick" />
                 <Button x:Name="MediaNavigationButton" Classes="nav localized" Tag="nav.media" Content="Media" Click="OnMediaNavigationClick" />
+                <!-- Footer groups: Downloads, Archive, Media | Rules, Sources, Plugins | Diagnostics, Statistics | More, Settings.
+                     UpdatePageNavigation shows a separator only between two groups that both have a visible button. -->
+                <Border x:Name="FooterSeparatorWork" Classes="nav-separator" Width="1" Height="18" Margin="4,0" VerticalAlignment="Center" IsHitTestVisible="False" Focusable="False" AutomationProperties.AccessibilityView="Raw" />
                 <Button x:Name="RulesNavigationButton" Classes="nav localized" Tag="nav.rules" Content="Rules" Click="OnRulesNavigationClick" />
                 <Button x:Name="SourcesNavigationButton" Classes="nav localized" Tag="nav.sources" Content="Sources" Click="OnSourcesNavigationClick" />
+                <Button x:Name="PluginsNavigationButton" Classes="nav" Content="Plugins" Click="OnPluginsNavigationClick" />
+                <Border x:Name="FooterSeparatorSetUp" Classes="nav-separator" Width="1" Height="18" Margin="4,0" VerticalAlignment="Center" IsHitTestVisible="False" Focusable="False" AutomationProperties.AccessibilityView="Raw" />
                 <Button x:Name="DiagnosticsNavigationButton" Classes="nav" Click="OnDiagnosticsNavigationClick">
                     <StackPanel Orientation="Horizontal" Spacing="9">
                         <Path Data="M 1,10 L 4,10 L 7,3 L 10,16 L 13,10 L 17,10" Width="17" Height="17" StrokeThickness="1.5" Stretch="Uniform" />
                         <TextBlock Tag="nav.diagnostics" Classes="localized" Text="Diagnostics" />
                     </StackPanel>
                 </Button>
-                <Button x:Name="PluginsNavigationButton" Classes="nav" Content="Plugins" Click="OnPluginsNavigationClick" />
                 <Button x:Name="StatisticsNavigationButton" Classes="nav localized" Tag="nav.statistics" Content="Statistics" Click="OnStatisticsNavigationClick" />
-                <Button x:Name="ToolsNavigationButton" Classes="nav localized" Tag="nav.tools" Content="Tools">
+                <Border x:Name="FooterSeparatorObserve" Classes="nav-separator" Width="1" Height="18" Margin="4,0" VerticalAlignment="Center" IsHitTestVisible="False" Focusable="False" AutomationProperties.AccessibilityView="Raw" />
+                <Button x:Name="ToolsNavigationButton" Classes="nav localized" Tag="nav.tools" Content="More">
                     <Button.Flyout>
                         <MenuFlyout>
                             <MenuItem Tag="nav.archive" Classes="localized" Header="Archive" Click="OnArchiveNavigationClick" />
                             <MenuItem Tag="nav.media" Classes="localized" Header="Media" Click="OnMediaNavigationClick" />
+                            <Separator Tag="nav.group-separator.0" />
                             <MenuItem Tag="nav.rules" Classes="localized" Header="Rules" Click="OnRulesNavigationClick" />
                             <MenuItem Tag="nav.sources" Classes="localized" Header="Sources" Click="OnSourcesNavigationClick" />
-                            <MenuItem Tag="nav.diagnostics" Classes="localized" Header="Diagnostics" Click="OnDiagnosticsNavigationClick" />
                             <MenuItem Tag="nav.plugins" Classes="localized" Header="Plugins" Click="OnPluginsNavigationClick" />
+                            <Separator Tag="nav.group-separator.1" />
+                            <MenuItem Tag="nav.diagnostics" Classes="localized" Header="Diagnostics" Click="OnDiagnosticsNavigationClick" />
                             <MenuItem Tag="nav.statistics" Classes="localized" Header="Statistics" Click="OnStatisticsNavigationClick" />
                         </MenuFlyout>
                     </Button.Flyout>

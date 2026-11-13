@@ -24,7 +24,10 @@ public partial class MainWindow
     {
         _postBookmarksMenu = CommandBindings.CreateMenuItem("post-bookmarks.open-manager",
             async () => await ShowPostBookmarksAsync(), () => CanOpenPostBookmarks);
-        WorkspaceMenuItem.Items.Insert(2, _postBookmarksMenu);
+        // Tools group: behind Continue reading when that entry exists, else directly behind the page group's separator.
+        int anchor = _resumeReadingMenu is null ? -1 : WorkspaceMenuItem.Items.IndexOf(_resumeReadingMenu);
+        if (anchor < 0) anchor = WorkspaceMenuItem.Items.IndexOf(MenuPagesToolsSeparator);
+        WorkspaceMenuItem.Items.Insert(anchor + 1, _postBookmarksMenu);
         ArchivePage.EditPostBookmark = EditPostBookmarkAsync;
         ArchivePage.OpenPostBookmarks = async () => await ShowPostBookmarksAsync();
         Closed += (_, _) =>

@@ -39,7 +39,8 @@ public sealed class NavigationMediaShortcutTests : IDisposable
         for (int index = 0; index < Pages.Length; index++)
             Assert.Equal((index + 1).ToString(), bindings.Display(Pages[index])![^1..]);
         Assert.Equal("5", bindings.Display("navigation.sources")![^1..]);
-        Assert.Equal("7", bindings.Display("navigation.plugins")![^1..]);
+        Assert.Equal("6", bindings.Display("navigation.plugins")![^1..]);
+        Assert.Equal("7", bindings.Display("navigation.diagnostics")![^1..]);
     }
 
     [Theory]

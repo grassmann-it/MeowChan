@@ -7,7 +7,7 @@ are required for the corresponding plugin operations. See
 
 ## First session
 
-1. Open **Plugins** from the app menu or footer (under **Tools** in compact views).
+1. Open **Plugins** from the app menu or footer (under **More** in compact views).
    The supplied inventory contains **24 plugins**: **19 source-plugin entries**
    and **5 image filters**, with **21 editable example/filter source files**.
    This includes three prebuilt official plugins (4chan, 8kun and Danbooru) and
@@ -22,7 +22,7 @@ are required for the corresponding plugin operations. See
    Selecting an entry shows
    its purpose, current status and available actions. Use the category selector
    for sources, image filters or all plugins. Sources → source details →
-   **Plugin settings and tests** is another route to that source's entry.
+   **Show plugin** is another route to that source's entry.
 2. Choose **Enable plugin** or **Disable plugin** to change availability now.
    These actions use the already selected valid build; manual enablement grants
    no provider-size/MD5 exception. The supplied experimental board/thread sources
@@ -151,8 +151,8 @@ Release readiness and broader source availability remain separate assessments.
 
 ## Install a source file
 
-1. Open **Plugins** from the application menu or footer (under **Tools** in compact views). The source detail
-   action **Plugin settings and tests** opens the same catalog for that source.
+1. Open **Plugins** from the application menu or footer (under **More** in compact views). The source detail
+   action **Show plugin** opens the same catalog for that source.
 2. Select **Open plugin folder**. The displayed directory is
    `<active profile>/plugins`; it is independent of the media download directory.
 3. Place one complete `.cs` file directly in that directory. Include all needed
@@ -322,7 +322,8 @@ catalog](../../Desktop/Localization/SourcesCatalog.cs).
 | Show developer details | Entwicklerdetails anzeigen |
 | Copy technical details | Technische Details kopieren |
 | Open plugin folder | Pluginordner öffnen |
-| Plugin settings and tests | Plugineinstellungen und Tests |
+| Show plugin | Plugin anzeigen |
+| Show in Sources | In Quellen anzeigen |
 | Source, editor and test | Source, Editor und Test |
 | Open in editor | Im Editor öffnen |
 | Build and test | Bauen und testen |

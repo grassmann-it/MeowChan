@@ -55,6 +55,8 @@ internal static class FooterNavigationChecks
                         RequireLanguage(window, language);
                         RequireSelection(window, tools);
                         RequireResumeAction(window);
+                        RequireGroupSeparators(window, tools);
+                        RequireWorkspaceMenuGroups(window);
                         Require(Fits(window, window.FindControl<ComboBox>("WorkspaceModeComboBox")!),
                             scenario + ": the footer view switch is clipped.");
 
@@ -155,10 +157,10 @@ internal static class FooterNavigationChecks
     private static void RequireToolsLabel(MainWindow window, Button tools, string language)
     {
         if (!tools.IsVisible || window.Bounds.Width < 640) return;
-        string expected = language == "de" ? "Werkzeuge" : "Tools";
+        string expected = language == "de" ? "Mehr" : "More";
         Require(tools.GetVisualDescendants().OfType<TextBlock>()
                 .Any(label => label.IsEffectivelyVisible && label.Text == expected),
-            "Tools must retain its visible localized label at the supported workspace minimum width.");
+            "More must retain its visible localized label at the supported workspace minimum width.");
     }
 
     internal static Task WaitForResumeHitAsync(MainWindow window) => Program.WaitUntilAsync(() =>
@@ -263,6 +265,55 @@ internal static class FooterNavigationChecks
             && origin.X >= -1 && origin.Y >= -1
             && origin.X + control.Bounds.Width <= window.Bounds.Width + 1
             && origin.Y + control.Bounds.Height <= window.Bounds.Height + 1;
+    }
+
+    /// <summary>Footer groups (Downloads, Archive, Media | Rules, Sources, Plugins | Diagnostics, Statistics | More, Settings):
+    /// a separator shows exactly while the group in front of it has a visible button, never two in a row, never one at an edge,
+    /// and the More flyout sets its own groups apart the same way.</summary>
+    private static void RequireGroupSeparators(MainWindow window, Button tools)
+    {
+        StackPanel footer = window.FindControl<StackPanel>("WorkspaceNavigationButtons")!;
+        string[] separatorNames = { "FooterSeparatorWork", "FooterSeparatorSetUp", "FooterSeparatorObserve" };
+        var groups = MeowChan.Desktop.Commands.MainPageOrder.Groups;
+        for (int group = 0; group < separatorNames.Length; group++)
+        {
+            Control separator = footer.Children.Single(control => control.Name == separatorNames[group]);
+            bool groupVisible = group == 0 || groups[group].Any(id => Button(window, MeowChan.Desktop.Commands.MainPageOrder.ControlStem(id)).IsVisible);
+            Require(separator.IsVisible == groupVisible, $"Footer separator after group {group} is {(separator.IsVisible ? "shown" : "hidden")} but its group is {(groupVisible ? "visible" : "empty")}.");
+        }
+        Control[] visible = footer.Children.Where(control => control.IsVisible).ToArray();
+        Require(visible[0] is Button && visible[^1] is Button, "A footer separator sits at the edge of the footer.");
+        for (int index = 1; index < visible.Length; index++)
+            Require(!(visible[index] is Border && visible[index - 1] is Border), "Two footer separators are adjacent.");
+        if (tools.Flyout is MenuFlyout flyout)
+        {
+            // Each flyout separator needs a visible destination before and after it.
+            Control[] items = flyout.Items.OfType<Control>().Where(item => item.IsVisible).ToArray();
+            if (items.Length > 0)
+            {
+                Require(items[0] is MenuItem && items[^1] is MenuItem, "A More separator sits at the edge of the menu.");
+                for (int index = 1; index < items.Length; index++)
+                    Require(!(items[index] is Separator && items[index - 1] is Separator), "Two More separators are adjacent.");
+            }
+        }
+    }
+
+    /// <summary>The ⋯ menu lists every main page, Downloads included, in footer order and in the same groups.</summary>
+    private static void RequireWorkspaceMenuGroups(MainWindow window)
+    {
+        MenuItem menu = window.FindControl<MenuItem>("WorkspaceMenuItem")!;
+        var ids = MeowChan.Desktop.Commands.MainPageOrder.CommandIds;
+        string[] tags = ids.Select(MeowChan.Desktop.Commands.MainPageOrder.Tag).ToArray();
+        MenuItem[] pages = menu.Items.OfType<MenuItem>().Where(item => item.Tag is string tag && tags.Contains(tag)).ToArray();
+        Require(pages.Select(item => (string)item.Tag!).SequenceEqual(tags), "The ⋯ menu does not list every page in footer order.");
+        var groups = MeowChan.Desktop.Commands.MainPageOrder.Groups;
+        for (int group = 0; group + 1 < groups.Count; group++)
+        {
+            int last = menu.Items.IndexOf(pages.Single(item => (string)item.Tag! == MeowChan.Desktop.Commands.MainPageOrder.Tag(groups[group][^1])));
+            int first = menu.Items.IndexOf(pages.Single(item => (string)item.Tag! == MeowChan.Desktop.Commands.MainPageOrder.Tag(groups[group + 1][0])));
+            Require(first == last + 2 && menu.Items[last + 1] is Separator, $"The ⋯ menu does not set group {group} apart with a separator.");
+        }
+        Require(pages.All(item => item.IsVisible), "A page of the ⋯ menu is hidden.");
     }
 
     private static void RequireNoOverlap(MainWindow window)

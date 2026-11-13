@@ -72,7 +72,7 @@ internal static class PluginCatalog
         ("nav.plugins", "Plugins", "Plugins"),
         ("plugins.experimentalHint", "Experimental sources: {0}. Provider differences are possible; the first activation asks once. Permissions are managed in Sources.", "Experimentelle Quellen: {0}. Anbieterabweichungen möglich; die erste Aktivierung fragt einmal nach. Freigaben stehen unter Quellen."),
         ("plugins.classificationTitle", "Source classification", "Quellenklassifikation"),
-        ("plugins.subtitle", "Sources and image filters in this profile.", "Quellen und Bildfilter dieses Profils."),
+        ("plugins.subtitle", "Plugins provide the sources and image filters: enable, update, test. What you watch is under Sources.", "Plugins stellen Quellen und Bildfilter bereit: aktivieren, aktualisieren, testen. Beobachtungen stehen unter Quellen."),
         ("plugins.count", "Plugins: {0}", "Plugins: {0}"),
         ("plugins.localStatusHint", "Plugin status and descriptions do not indicate website availability.", "Pluginstatus und Beschreibungen sagen nichts über die Erreichbarkeit einer Website aus."),
         ("plugins.directoryDetails", "Plugin folder and diagnostics", "Pluginordner und Diagnose"),
@@ -210,7 +210,7 @@ internal static class PluginCatalog
         ("plugins.disable", "Disable plugin", "Plugin deaktivieren"),
         ("plugins.selectCandidate", "Use this build next start", "Diese Fassung beim nächsten Start verwenden"),
         ("plugins.rollback", "Use last good saved build next start", "Letzte gute gespeicherte Fassung beim nächsten Start verwenden"),
-        ("plugins.watches", "Manage in Sources", "In Quellen verwalten"),
+        ("plugins.watches", "Show in Sources", "In Quellen anzeigen"),
         ("plugins.pluginSettings", "Plugin settings", "Plugineinstellungen"),
         ("plugins.sourceSettings", "Source settings · {0}", "Quelleinstellungen · {0}"),
         ("plugins.noSettings", "No settings provided.", "Keine Einstellungen vorhanden."),
@@ -302,6 +302,6 @@ internal static class PluginCatalog
         ("plugins.grantOrigin", "Effective grant: source {0}, board {1}, rule {2} — {3}", "Wirksame Freigabe: Quelle {0}, Board {1}, Regel {2} — {3}"),
         ("plugins.revokeGrant", "Revoke this grant", "Diese Freigabe widerrufen"),
         ("plugins.grantSourceRequired", "Choose a source before granting access.", "Vor der Freigabe eine Quelle wählen."),
-        ("plugins.manageSource", "Plugin settings and tests", "Plugineinstellungen und Tests")
+        ("plugins.manageSource", "Show plugin", "Plugin anzeigen")
     };
 }

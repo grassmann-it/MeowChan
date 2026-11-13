@@ -40,7 +40,7 @@ internal static class CommandLabelCatalog
         ("command.navigation.plugins", "Plugins", "Plugins"),
         ("command.navigation.settings", "Settings", "Einstellungen"),
         ("command.navigation.about", "About MeowChan", "Über MeowChan"),
-        ("command.navigation.tools-menu", "Tools", "Werkzeuge"),
+        ("command.navigation.tools-menu", "More", "Mehr"),
         ("command.navigation.app-menu", "App menu", "Appmenü"),
         ("command.app.show", "Show MeowChan", "MeowChan anzeigen"),
         ("command.app.quit", "Quit", "Beenden"),

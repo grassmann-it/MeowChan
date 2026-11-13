@@ -435,6 +435,8 @@
         <Setter Property="IsHitTestVisible" Value="False" />
     </Style>
     <Style Selector="Button.nav"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="Padding" Value="12,8" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Nav}" /></Style>
+    <!-- Thin rule between the footer groups; decorative, so it stays on the decorative border colour. -->
+    <Style Selector="Border.nav-separator"><Setter Property="Background" Value="{DynamicResource Workspace.Border}" /></Style>
     <Style Selector="Button.nav.selected"><Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" /></Style>
     <Style Selector="Button.nav TextBlock"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /></Style>
     <Style Selector="Button.nav.selected TextBlock"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>

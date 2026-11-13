@@ -878,7 +878,7 @@ public partial class MainWindow
         Avalonia.Automation.AutomationProperties.SetHelpText(FullscreenButton,
             CommandBindings.Tooltip("window.fullscreen") + " · " + MeowChan.Desktop.Localization.Texts.T(WindowState == WindowState.FullScreen ? "window.fullscreen.on" : "window.fullscreen.off"));
         CommandBindings.Apply(ShellHelpClose, "window.close");
-        foreach (string id in MainPageOrder.CommandIds.Where(id => id != "navigation.downloads"))
+        foreach (string id in MainPageOrder.CommandIds)
             CommandBindings.Apply(WorkspaceControl<MenuItem>(MainPageOrder.ControlStem(id) + "MenuItem"), id);
         foreach (var pair in new[] { ("SettingsMenuItem", "navigation.settings"), ("AboutMenuItem", "navigation.about"),
             ("ShortcutHelpMenuItem", "viewer.shortcut-help"), ("ExitMenuItem", "app.quit") })

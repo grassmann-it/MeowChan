@@ -416,16 +416,24 @@ public partial class MainWindow
             double settingsWidth = Measure(settings);
             double toolsWidth = Measure(tools);
             double[] destinationWidths = destinations.Select(destination => Measure(destination.Button)).ToArray();
+            // Footer groups (Downloads, Archive, Media | Rules, Sources, Plugins | Diagnostics, Statistics | More, Settings):
+            // the separator behind a group is shown while that group has a visible button, so no two separators meet and
+            // none dangles. Downloads keeps the first group and Settings the last one non-empty in every work view.
+            Border[] separators = { FooterSeparatorWork, FooterSeparatorSetUp, FooterSeparatorObserve };
+            int[] groups = destinations.Select(destination => MainPageOrder.Group(destination.Id)).ToArray();
+            bool GroupHasDirect(int group, bool[] visible) => group == 0 || destinations.Where((_, index) => groups[index] == group && visible[index]).Any();
+            double separatorWidth = separators[0].Width + separators[0].Margin.Left + separators[0].Margin.Right;
             double width = ClientSize.Width > 0 ? ClientSize.Width : Width;
             Grid layout = (Grid)panel.Parent!;
             double available = width - footer.Padding.Left - footer.Padding.Right - modes.Width - layout.ColumnSpacing;
             double RequiredWidth()
             {
                 bool overflow = direct.Any(visible => !visible);
-                int count = 2 + direct.Count(visible => visible) + (overflow ? 1 : 0);
+                int visibleSeparators = Enumerable.Range(0, separators.Length).Count(group => GroupHasDirect(group, direct));
+                int count = 2 + direct.Count(visible => visible) + (overflow ? 1 : 0) + visibleSeparators;
                 return downloadsWidth + settingsWidth
                     + destinationWidths.Where((_, index) => direct[index]).Sum()
-                    + (overflow ? toolsWidth : 0) + Math.Max(0, count - 1) * panel.Spacing;
+                    + (overflow ? toolsWidth : 0) + visibleSeparators * separatorWidth + Math.Max(0, count - 1) * panel.Spacing;
             }
             // Preserve Archive longest, then Media; remove the rarer destinations first.
             foreach (string id in MainPageOrder.OverflowOrder)
@@ -460,6 +468,16 @@ public partial class MainWindow
                 if (tools.Flyout is MenuFlyout menu)
                     foreach (MenuItem item in menu.Items.OfType<MenuItem>())
                         if (item.Tag as string == destination.Tag) item.IsVisible = !direct[index];
+            }
+            for (int group = 0; group < separators.Length; group++) separators[group].IsVisible = GroupHasDirect(group, direct);
+            if (tools.Flyout is MenuFlyout flyout)
+            {
+                // The flyout lists only the pages that left the footer; its separators follow the same rule.
+                bool GroupInFlyout(int group) => destinations.Where((_, index) => groups[index] == group && !direct[index]).Any();
+                foreach (Separator separator in flyout.Items.OfType<Separator>())
+                    if (separator.Tag is string tag && tag.StartsWith("nav.group-separator.", StringComparison.Ordinal)
+                        && int.TryParse(tag["nav.group-separator.".Length..], out int boundary))
+                        separator.IsVisible = GroupInFlyout(boundary) && Enumerable.Range(boundary + 1, separators.Length - boundary - 1).Any(GroupInFlyout);
             }
             if (!hasOverflow) tools.Flyout?.Hide();
             if (returnDestination is { IsVisible: true } target)

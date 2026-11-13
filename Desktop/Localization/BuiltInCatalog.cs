@@ -61,7 +61,7 @@ internal static class BuiltInCatalog
         ("nav.goDownloads", "Go to Downloads", "Zu Downloads"),
         ("nav.goArchive", "Go to Archive", "Zum Archiv"),
         ("nav.diagnostics", "Diagnostics", "Diagnose"),
-        ("nav.tools", "Tools", "Werkzeuge"),
+        ("nav.tools", "More", "Mehr"),
         ("diagnostics.hint", "Current requests, errors and the latest session warnings. This is a live snapshot, not an event history.", "Aktuelle Anfragen, Fehler und die letzten Sitzungswarnungen. Die Ansicht zeigt den jetzigen Zustand, keinen Ereignisverlauf."),
         ("diagnostics.empty", "No current requests or reported problems. Downloads continue in the background.", "Keine laufenden Anfragen oder gemeldeten Probleme. Downloads laufen im Hintergrund weiter."),
         ("diagnostics.current", "Current requests and problems", "Aktuelle Anfragen und Probleme"),

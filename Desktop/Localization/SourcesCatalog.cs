@@ -6,7 +6,7 @@ internal static class SourcesCatalog
     {
         ("nav.sources", "Sources", "Quellen"),
         ("sources.title", "Sources", "Quellen"),
-        ("sources.subtitle", "Supported websites, their capabilities and what you watch there.", "Unterstützte Websites, ihre Fähigkeiten und was du dort beobachtest."),
+        ("sources.subtitle", "Websites and what you watch there; each source is provided by a plugin.", "Websites und was du dort beobachtest; jede Quelle stellt ein Plugin bereit."),
         ("sources.experimental", "Experimental", "Experimentell"),
         ("sources.tier.meowchanExperimental", "MeowChan · experimental", "MeowChan · experimentell"),
         ("sources.tierClassification.meowchanExperimental", "Product tier: MeowChan · experimental. This is not website-operator approval, and it does not relax integrity or activation checks.", "Produktstufe: MeowChan · experimentell. Keine Zustimmung des Websitebetreibers; Integritäts- oder Aktivierungsprüfungen werden nicht gelockert."),

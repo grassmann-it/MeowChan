@@ -113,7 +113,8 @@ public partial class MainWindow
         ArchivePage.ConsciousReadingPositionChanged += SaveConsciousReadingPosition;
         _resumeReadingMenu = new MenuItem();
         _resumeReadingMenu.Click += async (_, _) => await ResumeLastReadingAsync();
-        WorkspaceMenuItem.Items.Insert(1, _resumeReadingMenu);
+        // First entry of the tools group, directly behind the page group's separator.
+        WorkspaceMenuItem.Items.Insert(WorkspaceMenuItem.Items.IndexOf(MenuPagesToolsSeparator) + 1, _resumeReadingMenu);
         ContinueReadingButton.Click += async (_, _) => await ResumeLastReadingAsync();
         RefreshReadingResumeLabels();
     }

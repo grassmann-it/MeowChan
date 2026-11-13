@@ -86,7 +86,7 @@ public sealed class CommandLabelLocalizationTests : IDisposable
             ("navigation.plugins", "Plugins", "Plugins", "Complementos", "Plugins", "Плагины"),
             ("navigation.settings", "Settings", "Einstellungen", "Configuración", "Paramètres", "Настройки"),
             ("navigation.about", "About MeowChan", "Über MeowChan", "Acerca de MeowChan", "À propos de MeowChan", "О программе MeowChan"),
-            ("navigation.tools-menu", "Tools", "Werkzeuge", "Herramientas", "Outils", "Инструменты"),
+            ("navigation.tools-menu", "More", "Mehr", "Más", "Plus", "Ещё"),
             ("navigation.app-menu", "App menu", "Appmenü", "Menú de la aplicación", "Menu de l’application", "Меню приложения"),
             ("settings.browse-folder", "Browse…", "Durchsuchen…", "Examinar…", "Parcourir…", "Обзор…"),
             ("settings.discard", "Discard draft", "Entwurf verwerfen", "Descartar borrador", "Annuler le brouillon", "Отменить черновик"),

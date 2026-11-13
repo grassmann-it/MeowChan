@@ -20,8 +20,8 @@ public sealed class MainPageHeadingTests
         ("navigation.media", "Desktop/Views/Media/MediaPage.cs"),
         ("navigation.rules", "Desktop/Views/Rules/RulesPage.axaml"),
         ("navigation.sources", "Desktop/Views/Sources/SourcesPage.axaml"),
-        ("navigation.diagnostics", "Desktop/Views/Diagnostics/DiagnosticsPage.axaml"),
         ("navigation.plugins", "Desktop/Views/Plugins/PluginsPage.axaml"),
+        ("navigation.diagnostics", "Desktop/Views/Diagnostics/DiagnosticsPage.axaml"),
         ("navigation.statistics", "Desktop/Views/Statistics/StatisticsPage.axaml"),
     };
 
