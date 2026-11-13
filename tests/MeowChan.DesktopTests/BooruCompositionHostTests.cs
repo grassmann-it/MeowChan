@@ -176,7 +176,7 @@ public sealed class BooruCompositionHostTests
     }
 
     [Fact]
-    public async Task GlobalPauseReachesAnUnpublishedCompositionBeforeItsFirstCheck()
+    public async Task GlobalPauseReachesAnUnpublishedCompositionBeforeItsFirstAutomaticCheck()
     {
         using TempDirectory profile = new();
         using DanbooruStub stub = new();
@@ -206,9 +206,11 @@ public sealed class BooruCompositionHostTests
         Assert.True(scheduler.SessionPaused); // the older pre-pause snapshot did not overwrite the confirmed pause
         Assert.True(scheduler.AddWatcher("cat_ears").Accepted);
         string watcher = scheduler.GetSnapshot().Watchers.Single().WatcherId;
-        Assert.Equal(DanbooruWatcherScheduler.SessionPausedCode,
-            (await scheduler.CheckNowAsync(watcher).WaitAsync(Deadline)).Code);
+        Assert.Null(await scheduler.RunNextAsync().WaitAsync(Deadline));
         Assert.Equal(0, stub.MetadataRequests);
+        Assert.Null((await scheduler.CheckNowAsync(watcher).WaitAsync(Deadline)).Code);
+        Assert.True(scheduler.SessionPaused);
+        Assert.Equal(1, stub.MetadataRequests);
     }
 
     [Fact]
@@ -405,12 +407,13 @@ public sealed class BooruCompositionHostTests
     }
 
     [Fact]
-    public async Task TheGlobalSessionPauseHoldsAutomaticAndManualWatcherChecksUntilResume()
+    public async Task TheGlobalSessionPauseHoldsAutomaticWatcherChecksButAllowsCheckNow()
     {
         using TempDirectory profile = new();
         using DanbooruStub stub = new();
         stub.Add(new(5001));
         stub.Publish("cat_ears", 5001);
+        stub.Publish("dog", 5001);
         using DanbooruTestBinding binding = new(stub);
         await using DesktopSessionHost host = await StartAsync(profile.Path, stub, () => binding.Binding, paused: true);
         DanbooruWatcherScheduler scheduler = host.BooruComposition!.WatcherHost.Scheduler;
@@ -418,22 +421,28 @@ public sealed class BooruCompositionHostTests
         IBooruWatcherPort watchers = host.BooruServices!.Watchers;
         Assert.Equal(BooruWatcherCommandStatus.Done, (await watchers.CreateAsync("cat_ears", CancellationToken.None)).Status);
         BooruWatcherView created = Assert.Single(await watchers.ListAsync(CancellationToken.None));
-        await Task.Delay(300);
+        Assert.Null(await scheduler.RunNextAsync().WaitAsync(Deadline));
         Assert.Equal(0, stub.MetadataRequests);
-        DanbooruWatcherCheckSummary manual = await scheduler.CheckNowAsync(created.WatcherId).WaitAsync(Deadline);
-        Assert.Equal((DanbooruWatcherCheckKind.Rejected, DanbooruWatcherScheduler.SessionPausedCode), (manual.Kind, manual.Code));
-        Assert.Equal(0, stub.MetadataRequests);
+        Assert.Equal(BooruWatcherCommandStatus.Done,
+            (await watchers.CheckNowAsync(created.WatcherId, CancellationToken.None).WaitAsync(Deadline)).Status);
+        Assert.True(scheduler.SessionPaused);
+        Assert.Equal(1, stub.MetadataRequests);
+        Assert.True(Assert.Single(await watchers.ListAsync(CancellationToken.None)).BaselineEstablished);
 
+        Assert.Equal(BooruWatcherCommandStatus.Done, (await watchers.CreateAsync("dog", CancellationToken.None)).Status);
+        Assert.Null(await scheduler.RunNextAsync().WaitAsync(Deadline));
+        Assert.Equal(1, stub.MetadataRequests);
         await host.SetPausedAsync(false).WaitAsync(Deadline);
         Assert.False(scheduler.SessionPaused);
-        await WaitAsync(async () => (await watchers.ListAsync(CancellationToken.None)).Single().BaselineEstablished,
-            "the baseline after resume");
-        Assert.Equal(1, stub.MetadataRequests);
+        await WaitAsync(async () => (await watchers.ListAsync(CancellationToken.None)).Single(w => w.Query == "dog").BaselineEstablished,
+            "the automatic baseline after resume");
+        Assert.Equal(2, stub.MetadataRequests);
         await host.SetPausedAsync(true).WaitAsync(Deadline);
         Assert.True(scheduler.SessionPaused);
-        Assert.Equal(DanbooruWatcherScheduler.SessionPausedCode,
-            (await scheduler.CheckNowAsync(created.WatcherId).WaitAsync(Deadline)).Code);
-        Assert.Equal(1, stub.MetadataRequests);
+        Assert.Equal(BooruWatcherCommandStatus.Done,
+            (await watchers.CheckNowAsync(created.WatcherId, CancellationToken.None).WaitAsync(Deadline)).Status);
+        Assert.True(scheduler.SessionPaused);
+        Assert.Equal(3, stub.MetadataRequests);
         Assert.Empty(stub.Violations);
     }
 

@@ -66,7 +66,7 @@ public sealed class BooruPortAvailabilityTests
     }
 
     [Fact]
-    public async Task ReenabledHostKeepsTheGlobalPauseBeforeItsFirstAutomaticOrManualCheck()
+    public async Task ReenabledHostKeepsAutomaticChecksPausedButAllowsAnExplicitManualCheck()
     {
         await using Fixture f = new();
         f.Composition.WatcherHost.Scheduler.Load();
@@ -75,8 +75,7 @@ public sealed class BooruPortAvailabilityTests
         await f.StartAsync();
         DanbooruWatcherHost old = f.Composition.WatcherHost;
         Assert.True(old.Scheduler.SessionPaused);
-        Assert.Equal(DanbooruWatcherScheduler.SessionPausedCode,
-            (await old.Scheduler.CheckNowAsync(watcher).WaitAsync(Deadline)).Code);
+        Assert.Null(await old.Scheduler.RunNextAsync().WaitAsync(Deadline));
         Assert.Equal(0, f.Worker.Calls);
 
         f.SetEnabled(false);
@@ -87,15 +86,23 @@ public sealed class BooruPortAvailabilityTests
         Assert.True(replacement.SessionPaused);
         Assert.Equal(BooruProducerPhase.Open, f.Producers.Phase); // disable is not a terminal session cut
         Assert.Equal(1L, f.Producers.Generation);
-        Assert.Equal(DanbooruWatcherScheduler.SessionPausedCode,
-            (await replacement.CheckNowAsync(watcher).WaitAsync(Deadline)).Code);
+        Assert.Null(await replacement.RunNextAsync().WaitAsync(Deadline));
         Assert.Equal(0, f.Worker.Calls);
         Assert.False(replacement.GetSnapshot().Watchers.Single().BaselineEstablished);
 
+        // The explicit Check now exception must survive host replacement, without unpausing the session.
+        Assert.Null((await replacement.CheckNowAsync(watcher).WaitAsync(Deadline)).Code);
+        Assert.True(replacement.GetSnapshot().Watchers.Single().BaselineEstablished);
+        Assert.True(replacement.SessionPaused);
+        Assert.Equal(1, f.Worker.Calls);
+        Assert.True(replacement.AddWatcher("dog").Accepted);
+        Assert.Null(await replacement.RunNextAsync().WaitAsync(Deadline));
+        Assert.Equal(1, f.Worker.Calls);
+
         await f.Queue.SetPausedAsync(false);
         f.Composition.SyncSessionPause();
-        await WaitAsync(() => replacement.GetSnapshot().Watchers.Single().BaselineEstablished);
-        Assert.Equal(1, f.Worker.Calls);
+        await WaitAsync(() => replacement.GetSnapshot().Watchers.Single(w => w.Query == "dog").BaselineEstablished);
+        Assert.Equal(2, f.Worker.Calls);
     }
 
     [Fact]
@@ -390,7 +397,7 @@ public sealed class BooruPortAvailabilityTests
         [
             new BooruMediaVariant(BooruMediaRole.Preview, new Uri($"https://cdn.donmai.us/preview/{id}.jpg")),
             new BooruMediaVariant(BooruMediaRole.Original, new Uri($"https://cdn.donmai.us/original/{id}.jpg"),
-                "jpg", Image.Length, ExpectedMd5: Convert.ToBase64String(MD5.HashData(Image)))
+                ".jpg", Image.Length, ExpectedMd5: Convert.ToBase64String(MD5.HashData(Image)))
         ]));
 
     private sealed class Fixture : IAsyncDisposable
