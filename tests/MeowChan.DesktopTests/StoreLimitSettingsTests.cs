@@ -30,6 +30,8 @@ public sealed class StoreLimitSettingsTests
         (nameof(Config.PosterCacheLimitMiB), 512, 16, 8_192, "posterCacheMiB"),
         (nameof(Config.PosterCacheFileLimit), 2_048, 32, 50_000, "posterCacheFiles"),
         (nameof(Config.ThumbnailCacheTiles), 384, 32, 8_192, "thumbnailCacheTiles"),
+        (nameof(Config.ClipboardUrlLimit), 32, 1, 500, "clipboardUrls"),
+        (nameof(Config.ClipboardTextLimitKiB), 64, 4, 4_096, "clipboardText"),
         (nameof(Config.ImportMaxFilesPerBatch), 2_000, 1, 20_000, "importFiles"),
         (nameof(Config.ImportMaxBatchGiB), 50, 1, 16_384, "importBatchGiB"),
         (nameof(Config.ImportMaxFileMiB), 4_096, 1, 1_048_576, "importFileMiB"),

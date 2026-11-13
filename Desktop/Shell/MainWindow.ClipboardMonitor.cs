@@ -33,6 +33,7 @@ public partial class MainWindow
     private void RefreshClipboardMonitor()
     {
         bool enabled = _config.MonitorClipboardUrls && !_isClosing;
+        _clipboardUrlMonitor.Configure(_config.ClipboardUrlLimit, _config.ClipboardTextLimitKiB * 1024);
         // Capture the loaded opt-in on the first refresh (which can precede Opened/Ready).
         // Later OFF -> ON saves deliberately process existing text, even before the first poll.
         _clipboardUrlMonitor.SetEnabled(enabled, baselineOnly: !_clipboardMonitorInitialized);
@@ -43,12 +44,18 @@ public partial class MainWindow
         var panel = this.FindControl<Border>("ClipboardSuggestionPanel");
         if (panel == null) return;
         int count = _clipboardUrlMonitor.Pending.Count;
-        panel.IsVisible = enabled && count > 0 && CanShowClipboardSuggestion;
-        ClipboardSuggestionTitle.Text = Texts.T("clipboard.monitor.found", count);
+        // What a read had to leave out is shown too, with the setting that changes it; without URLs only Dismiss remains.
+        string? notice = _clipboardUrlMonitor.NoticeText();
+        panel.IsVisible = enabled && (count > 0 || notice != null) && CanShowClipboardSuggestion;
+        ClipboardSuggestionTitle.Text = count > 0 ? Texts.T("clipboard.monitor.found", count) : notice ?? string.Empty;
+        ClipboardSuggestionNotice.Text = count > 0 ? notice : null;
+        ClipboardSuggestionNotice.IsVisible = count > 0 && notice != null;
         ClipboardSuggestionAccept.Content = Texts.T("clipboard.monitor.accept");
         ClipboardSuggestionDismiss.Content = Texts.T("clipboard.monitor.dismiss");
         ClipboardSuggestionUrls.Text = string.Join(Environment.NewLine, _clipboardUrlMonitor.Pending);
-        ClipboardSuggestionAccept.IsEnabled = panel.IsVisible && !RowCommandBusy;
+        ClipboardSuggestionUrls.IsVisible = count > 0;
+        ClipboardSuggestionAccept.IsVisible = count > 0;
+        ClipboardSuggestionAccept.IsEnabled = panel.IsVisible && !RowCommandBusy; // Hidden without URLs, so it cannot be activated then.
     }
 
     private string[] GetClipboardMonitorHosts() => _session.GetProviderDescriptors()

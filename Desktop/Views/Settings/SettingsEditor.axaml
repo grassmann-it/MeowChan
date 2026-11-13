@@ -262,6 +262,22 @@
                             </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding MediaIndexCacheMiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="ClipboardUrlLimitFieldLabel" Text="{Binding ClipboardUrlLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="ClipboardUrlLimitInput" Value="{Binding ClipboardUrlLimit, Mode=TwoWay}" Minimum="1" Maximum="500" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ClipboardUrlLimitFieldLabel}" AutomationProperties.Name="{Binding ClipboardUrlLimitLabel}" AutomationProperties.HelpText="{Binding ClipboardUrlLimitHelp}" />
+                                <TextBlock x:Name="ClipboardUrlLimitInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding ClipboardUrlLimitHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="ClipboardTextLimitKiBFieldLabel" Text="{Binding ClipboardTextLimitKiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="ClipboardTextLimitKiBInput" Value="{Binding ClipboardTextLimitKiB, Mode=TwoWay}" Minimum="4" Maximum="4096" Increment="4" AutomationProperties.LabeledBy="{Binding ElementName=ClipboardTextLimitKiBFieldLabel}" AutomationProperties.Name="{Binding ClipboardTextLimitKiBLabel}" AutomationProperties.HelpText="{Binding ClipboardTextLimitKiBHelp}" />
+                                <TextBlock x:Name="ClipboardTextLimitKiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding ClipboardTextLimitKiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
                     <TextBlock x:Name="LimitsListsHeading" Text="{Binding ListsGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,14,0,0" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="FavoriteEntryLimitFieldLabel" Text="{Binding FavoriteEntryLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />

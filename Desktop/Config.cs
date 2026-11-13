@@ -209,6 +209,16 @@ namespace MeowChan
         internal const int ThumbnailCacheTilesDefault = Desktop.MediaThumbnailCache.DefaultCapacity;
         internal const int ThumbnailCacheTilesMinimum = 32;
         internal const int ThumbnailCacheTilesMaximum = 8192;
+        /// <summary>Most URLs of one clipboard text that clipboard monitoring checks and offers; further URLs are skipped and the suggestion says so.</summary>
+        public int ClipboardUrlLimit { get; set; } = ClipboardUrlLimitDefault;
+        internal const int ClipboardUrlLimitDefault = Desktop.ClipboardUrlMonitor.MaximumUrls;
+        internal const int ClipboardUrlLimitMinimum = Desktop.ClipboardUrlMonitor.MinimumUrlLimit;
+        internal const int ClipboardUrlLimitMaximum = Desktop.ClipboardUrlMonitor.MaximumUrlLimit;
+        /// <summary>Largest clipboard text, in KiB, that clipboard monitoring searches for URLs; a larger text is not searched and the suggestion says so.</summary>
+        public int ClipboardTextLimitKiB { get; set; } = ClipboardTextLimitKiBDefault;
+        internal const int ClipboardTextLimitKiBDefault = Desktop.ClipboardUrlMonitor.MaximumTextLength / 1024;
+        internal const int ClipboardTextLimitKiBMinimum = Desktop.ClipboardUrlMonitor.MinimumTextLimitKiB;
+        internal const int ClipboardTextLimitKiBMaximum = Desktop.ClipboardUrlMonitor.MaximumTextLimitKiB;
 
         // Manual import limits (contract manual-import-v1 §4). Every limit is a setting; the stores enforce technical ceilings.
         /// <summary>Most files (new and already present) one import batch may hold.</summary>
@@ -675,6 +685,10 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(PosterCacheFileLimit), "PosterCacheFileLimit is outside its supported range (" + PosterCacheFileLimitMinimum + " to " + PosterCacheFileLimitMaximum + ").");
             if (ThumbnailCacheTiles is < ThumbnailCacheTilesMinimum or > ThumbnailCacheTilesMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ThumbnailCacheTiles), "ThumbnailCacheTiles is outside its supported range (" + ThumbnailCacheTilesMinimum + " to " + ThumbnailCacheTilesMaximum + ").");
+            if (ClipboardUrlLimit is < ClipboardUrlLimitMinimum or > ClipboardUrlLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ClipboardUrlLimit), "ClipboardUrlLimit is outside its supported range (" + ClipboardUrlLimitMinimum + " to " + ClipboardUrlLimitMaximum + ").");
+            if (ClipboardTextLimitKiB is < ClipboardTextLimitKiBMinimum or > ClipboardTextLimitKiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ClipboardTextLimitKiB), "ClipboardTextLimitKiB is outside its supported range (" + ClipboardTextLimitKiBMinimum + " to " + ClipboardTextLimitKiBMaximum + ").");
             if (ImportMaxFilesPerBatch is < ImportMaxFilesPerBatchMinimum or > ImportMaxFilesPerBatchMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ImportMaxFilesPerBatch), "ImportMaxFilesPerBatch is outside its supported range (" + ImportMaxFilesPerBatchMinimum + " to " + ImportMaxFilesPerBatchMaximum + ").");
             if (ImportMaxBatchGiB is < ImportMaxBatchGiBMinimum or > ImportMaxBatchGiBMaximum)
@@ -764,6 +778,8 @@ namespace MeowChan
                 PosterCacheLimitMiB = PosterCacheLimitMiB,
                 PosterCacheFileLimit = PosterCacheFileLimit,
                 ThumbnailCacheTiles = ThumbnailCacheTiles,
+                ClipboardUrlLimit = ClipboardUrlLimit,
+                ClipboardTextLimitKiB = ClipboardTextLimitKiB,
                 ImportMaxFilesPerBatch = ImportMaxFilesPerBatch,
                 ImportMaxBatchGiB = ImportMaxBatchGiB,
                 ImportMaxFileMiB = ImportMaxFileMiB,
@@ -881,6 +897,8 @@ namespace MeowChan
             PosterCacheLimitMiB = source.PosterCacheLimitMiB;
             PosterCacheFileLimit = source.PosterCacheFileLimit;
             ThumbnailCacheTiles = source.ThumbnailCacheTiles;
+            ClipboardUrlLimit = source.ClipboardUrlLimit;
+            ClipboardTextLimitKiB = source.ClipboardTextLimitKiB;
             ImportMaxFilesPerBatch = source.ImportMaxFilesPerBatch;
             ImportMaxBatchGiB = source.ImportMaxBatchGiB;
             ImportMaxFileMiB = source.ImportMaxFileMiB;
@@ -962,6 +980,8 @@ namespace MeowChan
             PosterCacheLimitMiB = source.PosterCacheLimitMiB;
             PosterCacheFileLimit = source.PosterCacheFileLimit;
             ThumbnailCacheTiles = source.ThumbnailCacheTiles;
+            ClipboardUrlLimit = source.ClipboardUrlLimit;
+            ClipboardTextLimitKiB = source.ClipboardTextLimitKiB;
             ImportMaxFilesPerBatch = source.ImportMaxFilesPerBatch;
             ImportMaxBatchGiB = source.ImportMaxBatchGiB;
             ImportMaxFileMiB = source.ImportMaxFileMiB;

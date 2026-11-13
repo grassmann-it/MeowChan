@@ -114,6 +114,7 @@ internal static class R08dSettingsCatalog
         ("settings.unitCount", "count", "Anzahl"),
         ("settings.unitGiB", "GiB", "GiB"),
         ("settings.unitMiB", "MiB", "MiB"),
+        ("settings.unitKiB", "KiB", "KiB"),
         ("settings.unitMinutes", "minutes", "Minuten"),
         ("settings.unitSeconds", "Seconds", "Sekunden"),
         ("settings.unitBandwidth", "Mebibytes per second (MiB/s)", "Mebibyte pro Sekunde (MiB/s)"),

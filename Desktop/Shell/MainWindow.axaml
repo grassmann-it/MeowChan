@@ -104,12 +104,13 @@
         </ursa:Banner>
         <Border x:Name="ClipboardSuggestionPanel" Grid.Row="1" IsVisible="False" Classes="panel" Margin="20,8,20,0" Padding="12,8"
                 KeyDown="OnClipboardSuggestionKeyDown">
-            <Grid ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="4">
+            <Grid ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="4">
                 <TextBlock x:Name="ClipboardSuggestionTitle" TextWrapping="Wrap" VerticalAlignment="Center" />
                 <Button x:Name="ClipboardSuggestionAccept" Grid.Column="1" Classes="primary" Click="OnClipboardSuggestionAccept" />
                 <Button x:Name="ClipboardSuggestionDismiss" Grid.Column="2" Click="OnClipboardSuggestionDismiss" />
                 <TextBox x:Name="ClipboardSuggestionUrls" Grid.Row="1" Grid.ColumnSpan="3" IsReadOnly="True" AcceptsReturn="True"
                          TextWrapping="NoWrap" MaxHeight="80" AutomationProperties.LabeledBy="{Binding ElementName=ClipboardSuggestionTitle}" />
+                <TextBlock x:Name="ClipboardSuggestionNotice" Grid.Row="2" Grid.ColumnSpan="3" Classes="muted" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Polite" />
             </Grid>
         </Border>
         <Grid Grid.Row="2" x:Name="WorkspaceBody" RowDefinitions="Auto,Auto,*" Margin="20" RowSpacing="10">

@@ -9,11 +9,27 @@ using MeowChan.Admission;
 
 namespace MeowChan.Desktop;
 
+/// <summary>What a poll had to leave out; the window shows it as a localized sentence that names the setting.</summary>
+internal enum ClipboardNotice
+{
+    None,
+    /// <summary>The text held more URLs than <see cref="ClipboardUrlMonitor.UrlLimit"/>; only the first ones were checked.</summary>
+    UrlsCut,
+    /// <summary>The text was larger than <see cref="ClipboardUrlMonitor.TextLimit"/> and was not searched at all.</summary>
+    TextTooLong
+}
+
 /// <summary>UI-thread-owned, opt-in passive suggestion state. Never admits URLs or persists clipboard contents.</summary>
 internal sealed class ClipboardUrlMonitor
 {
+    // Defaults of the two clipboard settings (Config.ClipboardTextLimitKiB, Config.ClipboardUrlLimit); a poll uses the
+    // instance limits below, which Configure sets from the settings. Reads never persist or log the text.
     internal const int MaximumTextLength = 64 * 1024;
     internal const int MaximumUrls = 32;
+    internal const int MinimumUrlLimit = 1;
+    internal const int MaximumUrlLimit = 500;
+    internal const int MinimumTextLimitKiB = 4;
+    internal const int MaximumTextLimitKiB = 4096;
     private static readonly Regex Urls = new(@"https?://[^\s<>""',;]+",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
     private readonly HashSet<string> _seen = new(StringComparer.Ordinal);
@@ -22,6 +38,30 @@ internal sealed class ClipboardUrlMonitor
     private long _generation;
     private string? _lastTextHash, _pendingHash, _supportedHostsHash, _startupBaselineTextHash;
     internal IReadOnlyList<string> Pending { get; private set; } = Array.Empty<string>();
+    /// <summary>Most URLs of one text that are checked (the "Clipboard: URLs checked per read" setting).</summary>
+    internal int UrlLimit { get; private set; } = MaximumUrls;
+    /// <summary>Largest text, in UTF-16 units, that is searched at all (the "Clipboard: text searched (KiB)" setting).</summary>
+    internal int TextLimit { get; private set; } = MaximumTextLength;
+    /// <summary>What the last poll had to leave out, until the clipboard changes or the user dismisses the suggestion.</summary>
+    internal ClipboardNotice Notice { get; private set; }
+    private bool _oversized;
+
+    /// <summary>Applies the two clipboard settings; the next poll uses them. Out-of-range values are a programming error.</summary>
+    internal void Configure(int urlLimit, int textLimitBytes)
+    {
+        if (urlLimit is < MinimumUrlLimit or > MaximumUrlLimit) throw new ArgumentOutOfRangeException(nameof(urlLimit));
+        if (textLimitBytes < MinimumTextLimitKiB * 1024 || textLimitBytes > MaximumTextLimitKiB * 1024) throw new ArgumentOutOfRangeException(nameof(textLimitBytes));
+        UrlLimit = urlLimit;
+        TextLimit = textLimitBytes;
+    }
+
+    /// <summary>The localized sentence for <see cref="Notice"/>, naming the setting and its page; null when nothing was left out.</summary>
+    internal string? NoticeText() => Notice switch
+    {
+        ClipboardNotice.UrlsCut => Localization.Texts.T("clipboard.monitor.cutUrls", UrlLimit, Localization.Texts.T("budgets.clipboardUrls")),
+        ClipboardNotice.TextTooLong => Localization.Texts.T("clipboard.monitor.cutText", TextLimit / 1024, Localization.Texts.T("budgets.clipboardText")),
+        _ => null
+    };
 
     internal void SetEnabled(bool enabled, bool baselineOnly = false)
     {
@@ -32,6 +72,7 @@ internal sealed class ClipboardUrlMonitor
         _supportedHostsHash = null;
         ++_generation;
         Pending = Array.Empty<string>();
+        Notice = ClipboardNotice.None; _oversized = false;
         _pendingHash = _lastTextHash = _startupBaselineTextHash = null;
         _seen.Clear(); _seenOrder.Clear();
     }
@@ -45,6 +86,7 @@ internal sealed class ClipboardUrlMonitor
         _supportedHostsHash = hash;
         ++_generation;
         Pending = Array.Empty<string>();
+        Notice = ClipboardNotice.None;
         _pendingHash = _lastTextHash = null;
         // Invalidate host-bound work, not the completed startup text digest. Delayed
         // provider discovery must not turn unchanged startup contents into an offer.
@@ -58,7 +100,8 @@ internal sealed class ClipboardUrlMonitor
             _seenOrder.Enqueue(hash);
             if (_seenOrder.Count > 64) _seen.Remove(_seenOrder.Dequeue());
         }
-        Pending = Array.Empty<string>(); _pendingHash = null;
+        // A dismissed notice stays away until the clipboard changes (an oversized text stays "seen" while it stays oversized).
+        Pending = Array.Empty<string>(); _pendingHash = null; Notice = ClipboardNotice.None;
     }
 
     internal IReadOnlyList<string> TakePending()
@@ -87,12 +130,16 @@ internal sealed class ClipboardUrlMonitor
             string? text = await readClipboard();
             if (!Current()) return;
             // Check length before hashing, whitespace scanning or candidate extraction.
-            if (text != null && text.Length > MaximumTextLength)
+            if (text != null && text.Length > TextLimit)
             {
                 Pending = Array.Empty<string>(); _pendingHash = _lastTextHash = null;
                 if (baselineOnly) ++_generation; // Retry a baseline, never classify after an oversized read.
+                // Say once per oversized text that nothing was searched; a startup baseline is ignored silently as always.
+                else if (!_oversized) { _oversized = true; Notice = ClipboardNotice.TextTooLong; }
                 return;
             }
+            _oversized = false;
+            if (Notice == ClipboardNotice.TextTooLong) Notice = ClipboardNotice.None;
             if (baselineOnly)
             {
                 _startupBaselineTextHash = Hash(text ?? string.Empty);
@@ -116,15 +163,16 @@ internal sealed class ClipboardUrlMonitor
             }
             if (string.IsNullOrWhiteSpace(text))
             {
-                Pending = Array.Empty<string>(); _pendingHash = _lastTextHash = null;
+                Pending = Array.Empty<string>(); _pendingHash = _lastTextHash = null; Notice = ClipboardNotice.None;
                 return;
             }
             string hash = Hash(text + "\n" + _supportedHostsHash);
             if (hash == _lastTextHash) return;
             // A newer clipboard never leaves an older suggestion actionable during classification.
-            Pending = Array.Empty<string>(); _pendingHash = null;
+            Pending = Array.Empty<string>(); _pendingHash = null; Notice = ClipboardNotice.None;
             List<string> accepted = new();
-            foreach (string url in ExtractCandidates(text, hosts))
+            IReadOnlyList<string> candidates = ExtractCandidates(text, hosts, UrlLimit, TextLimit, out bool truncated);
+            foreach (string url in candidates)
             {
                 if (!Current()) return;
                 BoardAdmissionTarget? target = await classify(url);
@@ -137,10 +185,12 @@ internal sealed class ClipboardUrlMonitor
                     accepted.Add(normalized);
             }
             _lastTextHash = hash;
-            if (accepted.Count == 0) return;
+            // Skipped URLs are reported even when none of the checked ones was supported: the user may expect the later ones.
+            if (accepted.Count == 0) { if (truncated) Notice = ClipboardNotice.UrlsCut; return; }
             string batchHash = Hash(string.Join('\n', accepted));
             if (_seen.Contains(batchHash)) return;
             Pending = Array.AsReadOnly(accepted.ToArray()); _pendingHash = batchHash;
+            if (truncated) Notice = ClipboardNotice.UrlsCut;
         }
         catch
         {
@@ -155,16 +205,25 @@ internal sealed class ClipboardUrlMonitor
         finally { _polling = false; }
     }
 
-    internal static IReadOnlyList<string> ExtractCandidates(string text, IReadOnlyCollection<string> supportedHosts)
+    internal static IReadOnlyList<string> ExtractCandidates(string text, IReadOnlyCollection<string> supportedHosts) =>
+        ExtractCandidates(text, supportedHosts, MaximumUrls, MaximumTextLength, out _);
+
+    /// <summary>
+    /// The supported URLs among the first <paramref name="maximumUrls"/> URL-shaped matches of a text no longer than
+    /// <paramref name="maximumTextLength"/>. <paramref name="truncated"/> is true when a further match existed.
+    /// </summary>
+    internal static IReadOnlyList<string> ExtractCandidates(string text, IReadOnlyCollection<string> supportedHosts,
+        int maximumUrls, int maximumTextLength, out bool truncated)
     {
-        if (text.Length > MaximumTextLength) return Array.Empty<string>();
+        truncated = false;
+        if (text.Length > maximumTextLength) return Array.Empty<string>();
         HashSet<string> hosts = new(supportedHosts, StringComparer.OrdinalIgnoreCase);
         HashSet<string> distinct = new(StringComparer.Ordinal);
         List<string> result = new();
         int visited = 0;
         foreach (Match match in Urls.Matches(text))
         {
-            if (++visited > MaximumUrls) break;
+            if (++visited > maximumUrls) { truncated = true; break; }
             string value = match.Value.TrimEnd('.', ',', ';', ')', ']', '}');
             if (!TryNormalizeSupportedUrl(value, hosts, out string normalized)) continue;
             if (distinct.Add(normalized)) result.Add(normalized);
