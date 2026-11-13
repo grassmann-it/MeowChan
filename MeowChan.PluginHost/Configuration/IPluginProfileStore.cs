@@ -25,6 +25,12 @@ public interface IPluginProfileStore
     Task<PluginProfileSnapshot> ReauthorizeBundledRepairAsync(BundledCandidateRepair repair, long expectedRevision,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Bundled permission reauthorization is not supported by this profile store.");
+    /// <summary>Review changed declarations and corrected settings in the same next-start operation.
+    /// Acknowledgement is scoped to the frozen target; existing special rights need separate consent.</summary>
+    Task<PluginProfileSnapshot> ConfirmBundledChangeAsync(BundledCandidateRepair repair,
+        PluginConfiguration configuration, bool acknowledgeChanges, bool authorizePermissions,
+        long expectedRevision, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Bundled declaration review is not supported by this profile store.");
     /// <summary>Persist an explicit acknowledgement of the exact automatically accepted SDK bridge.
     /// This never activates code or transfers rights; it only records the user's review.
     /// </summary>

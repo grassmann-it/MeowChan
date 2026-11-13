@@ -1257,6 +1257,29 @@ provenance. Those cases remain separate reviewed operations. Manual repair/new
 selection in the running session is still saved for the next start; general live
 plugin replacement is not currently implemented.
 
+### Changed bundled-plugin capabilities or settings
+
+If an update changes a bundled plugin's capabilities or settings (for example
+Danbooru), open **Plugins → Review bundled updates**. Complete the review in
+that same dialog; do not delete the profile or try **NEW selection** for an
+already identified update.
+
+1. Review the old and new capabilities. Technical identities and exact review
+   data are available under **Technical details**.
+2. Correct any settings directly in the dialog. Existing compatible values are
+   prefilled. Removed fields require an explicit acknowledgement; their old
+   values remain in the retained old plugin version.
+3. Confirm the capability/settings changes. If existing special permissions
+   are listed, confirm those separately for this exact new build.
+4. Choose **Save reviewed plugin for next start**, then restart the application.
+   Saving does not activate the updated plugin in the running session.
+
+The dialog validates the settings and rechecks the exact displayed update before
+saving. If the files, permissions or profile changed meanwhile, reload and review
+again. Existing enabled/disabled choices, source ownership and rollback data are
+not silently replaced. A conflicting owner, pinned version, ambiguous candidate
+or missing delivery proof cannot be overridden by this confirmation.
+
 ### Missing legacy plugin candidates
 
 If an older profile reports **Candidate is missing from the startup inventory**,

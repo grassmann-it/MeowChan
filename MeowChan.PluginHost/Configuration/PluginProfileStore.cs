@@ -186,6 +186,8 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                         BundledCandidateMigration.IdenticalEstablishedLocalAlias(document, old, candidate, IsProfileLocal(candidate)) is not null;
                     bool bindingMatches = binding is not null && !previous.Missing && previous.Provenance?.SlotId == binding.SlotId &&
                         candidate?.Artifact?.ExecutionRevision == binding.TargetExecutionRevision &&
+                        (binding.ReviewedDescriptionFingerprint is null || candidate.Description is not null &&
+                            BundledCandidateMigration.DescriptionHash(candidate.Description) == binding.ReviewedDescriptionFingerprint) &&
                         document.Provenance.Any(p => p.SlotId == binding.SlotId && BundledCandidateMigration.Matches(p, candidate));
                     bool canSerializePermissions = repairRestrictedSources is null || repairPermissionGate is not null;
                     sdkUpgrade = buildChanged && canSerializePermissions && candidate?.Description is { } sdkDescription &&

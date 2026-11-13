@@ -25,6 +25,11 @@ public sealed record BundledCandidateRepair(string PluginId, string OldCandidate
     // across rederivation, unlike mutable/list reference equality.
     public string? PermissionReviewJson { get; init; }
     public string? PermissionFingerprint { get; init; }
+    // A separate declaration/settings decision. Ordinary repair remains fail-closed.
+    public string? ChangeReviewJson { get; init; }
+    public string? ChangeFingerprint { get; init; }
+    public bool CanReviewChanges => BlockedReason is "description-changed" or "configuration-incompatible" &&
+        NewCandidateId is not null && ChangeReviewJson is not null && ChangeFingerprint is not null;
     public bool CanReauthorize => BlockedReason == "inherited-grants" && NewCandidateId is not null &&
         PermissionReviewJson is not null && PermissionFingerprint is not null;
 }
@@ -57,6 +62,9 @@ internal sealed record BundledRepairBinding(string PluginId, string SelectedCand
     // Explicit UI consent is scoped to TargetCandidateId + TargetExecutionRevision
     // and the exact effective permissions (including filter-grant revisions).
     public string? ReauthorizedPermissionFingerprint { get; init; }
+    // Optional on legacy bindings. Material declaration consent is exact, even if a provider
+    // reports different metadata without changing its assembly/execution fingerprint.
+    public string? ReviewedDescriptionFingerprint { get; init; }
 }
 internal sealed record PreReplacementBasis(PluginReleaseSnapshot? Release, string? CandidateId,
     string? ExecutionRevision, DeliveredCandidateProvenance? Provenance, bool HasHistory)
@@ -208,6 +216,8 @@ internal static class BundledCandidateMigration
                 plugin.Pending?.CandidateId == b.TargetCandidateId && plugin.Pending.ExecutionRevision == b.TargetExecutionRevision &&
                 plugin.Candidates.Any(c => c.CandidateId == b.TargetCandidateId && c.IsPresent && c.Problem is null &&
                     c.Artifact?.ExecutionRevision == b.TargetExecutionRevision &&
+                    (b.ReviewedDescriptionFingerprint is null || c.Description is not null &&
+                        DescriptionHash(c.Description) == b.ReviewedDescriptionFingerprint) &&
                     !HasUnreviewedInheritedRights(document, plugin, c, previous.ExecutionRevision != c.Artifact.ExecutionRevision)))) continue;
             if (!previous.Missing && plugin.Active is not null && document.Bindings.Any(b => b.PluginId == plugin.PluginId &&
                 b.SelectedCandidateId == selected && b.TargetCandidateId == plugin.Active.CandidateId &&
@@ -237,12 +247,28 @@ internal static class BundledCandidateMigration
                 HasInheritedRights(document, plugin, target, changed) ? "inherited-grants" : null;
             string? permissions = reason == "inherited-grants"
                 ? BundledRepairPermissionReview.Json(document, plugin, target!) : null;
+            string? changeReview = null;
+            if (reason is "description-changed" or "configuration-incompatible" &&
+                basis is not null && target?.Description is { } targetDescription &&
+                !HasOwnerConflict(document.Profile, plugin.PluginId, targetDescription) &&
+                basis.Description.Sources.Select(s => s.SourceId).Order(StringComparer.Ordinal).SequenceEqual(
+                    targetDescription.Sources.Select(s => s.SourceId).Order(StringComparer.Ordinal)))
+            {
+                // The exact retained settings and all existing rights are frozen with the declarations.
+                // A changed source identity is not a settings repair and cannot acquire an owner here.
+                var rights = SdkJson.Deserialize<BundledRepairPermissions>(Encoding.UTF8.GetBytes(
+                    BundledRepairPermissionReview.Json(document, plugin, target)));
+                changeReview = Encoding.UTF8.GetString(SdkJson.Serialize(new BundledPluginChangeReview(
+                    basis.Description, targetDescription, basis.Configuration, rights)));
+            }
             rows.Add(new(plugin.PluginId, selected, target?.CandidateId, old?.SlotId,
                 old?.CandidatePath ?? selectedCandidate?.CandidatePath, target?.CandidatePath,
                 previous.ExecutionRevision, target?.Artifact?.ExecutionRevision, changed, reason)
             {
                 PermissionReviewJson = permissions,
-                PermissionFingerprint = permissions is null ? null : BundledRepairPermissionReview.Fingerprint(permissions)
+                PermissionFingerprint = permissions is null ? null : BundledRepairPermissionReview.Fingerprint(permissions),
+                ChangeReviewJson = changeReview,
+                ChangeFingerprint = changeReview is null ? null : BundledRepairPermissionReview.Fingerprint(changeReview)
             });
         }
         return new(document.Profile.Revision, rows);
@@ -412,7 +438,8 @@ internal static class BundledCandidateMigration
                     p.CandidateId == b.TargetCandidateId && p.ExecutionRevision == b.TargetExecutionRevision) ||
                 !document.Provenance.Any(p => p.PluginId == b.PluginId && p.SlotId == b.SlotId && p.ExecutionRevision == b.OldExecutionRevision) ||
                 string.IsNullOrWhiteSpace(b.SelectedCandidateId) ||
-                b.ReauthorizedPermissionFingerprint is { } fingerprint && !CompilerWire.IsHash(fingerprint))
+                b.ReauthorizedPermissionFingerprint is { } fingerprint && !CompilerWire.IsHash(fingerprint) ||
+                b.ReviewedDescriptionFingerprint is { } descriptionFingerprint && !CompilerWire.IsHash(descriptionFingerprint))
                 throw new ArgumentException("Unproven delivered repair binding.");
         foreach (BundledRepairBinding binding in document.Bindings.Where(b => b.OriginalRelease is not null))
         {
