@@ -18,21 +18,6 @@ internal sealed class SavedArchiveSearchStoreAdapter : StoreAdapter
     // not applicable. Nothing of the user's is lost, so the backup is not offered.
     internal override bool RecoveryExpected(string variant) => variant is not ("future-version" or "unknown-extra-field");
 
-    private const string RawBackupProbe =
-        "BUG: the backup check before a commit (libmeowchan/Persistence/SavedArchiveSearchStore.cs:165-166) calls Read without "
-        + "catching its parse failures, so a damaged archive-searches.json.bak makes the write throw the raw parser exception "
-        + "instead of the InvalidOperationException the line was written to raise.";
-
-    internal override IReadOnlyDictionary<string, string> KnownBugs => new Dictionary<string, string>
-    {
-        ["backup:empty"] = RawBackupProbe,
-        ["backup:truncated-half"] = RawBackupProbe,
-        ["backup:trailing-garbage"] = RawBackupProbe,
-        ["backup:invalid-utf8-in-string"] = RawBackupProbe,
-        ["not-regular-backup:directory"] = RawBackupProbe,
-        ["not-regular-backup:symlink"] = RawBackupProbe
-    };
-
     internal override void Seed(string directory, ProfileLease lease)
     {
         SavedArchiveSearchStore store = new(directory, lease);
@@ -71,12 +56,32 @@ public sealed class SavedArchiveSearchStoreCorruptionTests(ITestOutputHelper log
 {
     internal override StoreAdapter Adapter { get; } = new SavedArchiveSearchStoreAdapter();
 
-    [Fact(Skip = "BUG: libmeowchan/Persistence/SavedArchiveSearchStore.cs:165-166 guards a commit with "
-        + "`if (File.Exists(_path) && !Read(_path + \".bak\", missingIsEmpty: true).CanWrite) throw new InvalidOperationException(...)`, "
-        + "but Read throws on a damaged backup instead of returning a non-writable snapshot. The raw JsonReaderException, "
-        + "DecoderFallbackException or KeyNotFoundException therefore escapes the store (for a directory at that name an "
-        + "UnauthorizedAccessException quoting the full profile path), and the dialog shows it through Texts.T(\"savedSearch.readonly\", error). "
-        + "The write itself is correctly refused and both files are left intact.")]
-    public void ADamagedBackupIsRefusedWithTheStoresOwnErrorRatherThanAParserException() =>
-        CorruptionScenarios.DamagedBackup(new SavedArchiveSearchStoreAdapter(), "truncated-half");
+    // A damaged .bak stops the commit with the store's own error; neither file changes and no message names the profile path.
+    [Theory]
+    [InlineData("empty")]
+    [InlineData("truncated-half")]
+    [InlineData("trailing-garbage")]
+    [InlineData("invalid-utf8-in-string")]
+    public void ADamagedBackupIsRefusedWithTheStoresOwnErrorRatherThanAParserException(string variant)
+    {
+        SavedArchiveSearchStoreAdapter adapter = new();
+        CorruptionScenarios.DamagedBackup(adapter, variant);
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        adapter.Seed(temp.Path, lease);
+        File.WriteAllBytes(adapter.BackupPath(temp.Path), Damage.Make(variant, File.ReadAllBytes(adapter.BackupPath(temp.Path)), "schemaVersion"));
+        InvalidOperationException refused = Assert.Throws<InvalidOperationException>(() => adapter.Mutate(temp.Path, lease));
+        Assert.DoesNotContain(temp.Path, refused.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ADirectoryInPlaceOfTheFileFailsWithoutNamingTheProfilePath()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        Directory.CreateDirectory(Path.Combine(temp.Path, "archive-searches.json"));
+        SavedArchiveSearchSnapshot loaded = new SavedArchiveSearchStore(temp.Path, lease).Load();
+        Assert.False(loaded.CanWrite);
+        Assert.DoesNotContain(temp.Path, loaded.Error ?? "", StringComparison.Ordinal);
+    }
 }

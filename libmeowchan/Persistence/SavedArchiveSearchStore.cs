@@ -163,8 +163,8 @@ internal sealed class SavedArchiveSearchStore
                 "The saved search limit is reached.");
         long next = checked(revision + 1);
         string json = SerializeForCommit(next, candidate);
-        if (File.Exists(_path) && !Read(_path + ".bak", missingIsEmpty: true).CanWrite)
-            throw new InvalidOperationException("The saved searches backup contains unsupported data. No files were changed.");
+        if (File.Exists(_path) && !BackupMayBeRotated())
+            throw new InvalidOperationException("The saved searches backup is damaged or unsupported. No files were changed.");
         BeforeAdmittedMutationForTests?.Invoke(admission);
         AtomicJsonFile.WriteAllText(_path, json, backupCurrentFile: true, token);
         _current = new(next, Array.AsReadOnly(candidate.ToArray()), SavedSearchStoreState.Ready);
@@ -195,14 +195,29 @@ internal sealed class SavedArchiveSearchStore
     }
     // InvalidDataException derives from SystemException, not IOException.
     private static bool IsReadError(Exception error) => error is InvalidDataException or IOException or UnauthorizedAccessException or JsonException or ArgumentException or InvalidOperationException or OverflowException or FormatException or KeyNotFoundException or DecoderFallbackException or NotSupportedException;
+    // The commit replaces the backup with the current file. A damaged, unsupported or unreadable backup is kept instead:
+    // the commit is refused with the store's own error, never a parser exception.
+    private bool BackupMayBeRotated()
+    {
+        try { return Read(_path + ".bak", missingIsEmpty: true).CanWrite; }
+        catch (Exception error) when (IsReadError(error)) { return false; }
+    }
     private static string FileIdentity(string path)
     {
-        using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using FileStream stream = Open(path);
         return Convert.ToHexString(SHA256.HashData(stream));
+    }
+    // The system messages of open failures name the full profile path, and load errors reach the dialog's text.
+    private static FileStream Open(string path)
+    {
+        try { return new(path, FileMode.Open, FileAccess.Read, FileShare.Read); }
+        catch (FileNotFoundException) { throw new FileNotFoundException("The saved searches file is missing."); }
+        catch (UnauthorizedAccessException) { throw new UnauthorizedAccessException("The saved searches file could not be read."); }
+        catch (IOException) { throw new IOException("The saved searches file could not be read."); }
     }
     private static string ReadBounded(string path)
     {
-        using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using FileStream stream = Open(path);
         if (stream.Length > MaximumFileBytes) throw new InvalidDataException("Saved searches exceed 8 MiB.");
         using MemoryStream contents = new();
         byte[] chunk = new byte[8192];
