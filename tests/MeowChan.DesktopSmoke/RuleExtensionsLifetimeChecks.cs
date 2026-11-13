@@ -20,7 +20,7 @@ internal static class RuleExtensionsLifetimeChecks
         try
         {
             host.Content = probe;
-            await FlushAsync();
+            await SmokeDispatcher.SettleAsync();
             probe.IsVisible = true;
             TextBox? input = null;
             await Program.WaitUntilAsync(() =>
@@ -34,13 +34,13 @@ internal static class RuleExtensionsLifetimeChecks
             input.Text = "JPG, WebM";
             Require(initial.Tags.SequenceEqual(new[] { ".jpg", ".webm" }) && initial.Rest == "",
                 "First focused edit did not synchronously reach the tag draft: " + initial.Fingerprint);
-            await FlushAsync();
+            await SmokeDispatcher.SettleAsync();
             Require(initial.Tags.SequenceEqual(new[] { ".jpg", ".webm" }) && initial.Rest == "",
                 "Later Loaded processing erased the first focused edit.");
 
             TextBox oldInput = input;
             host.Content = new Border();
-            await FlushAsync();
+            await SmokeDispatcher.SettleAsync();
             ExtensionTagDraft next = new() { Rest = "retained/invalid" }; // Explicit owner-switch fixture.
             probe.Bind(next);
             oldInput.Text = "detached-editor-must-not-edit-current-owner";
@@ -58,14 +58,14 @@ internal static class RuleExtensionsLifetimeChecks
             Require(input!.Focus(NavigationMethod.Tab) && input.Text == "retained/invalid",
                 "Reattached editor did not restore its current owner's exact raw rest.");
             input.Text = "image/avif";
-            await FlushAsync();
+            await SmokeDispatcher.SettleAsync();
             Require(next.Rest == "image/avif", "Reattached first raw edit was lost or normalized destructively.");
             // Explicit fixture: a disabled owner's invalid rest is bound before
             // its trailing editor materializes, as in template creation on A.
             RuleExtensionsInput disabled = new() { IsVisible = false, IsEnabled = false };
             ExtensionTagDraft disabledDraft = new() { Rest = "image/jpeg" };
             disabled.Bind(disabledDraft); host.Content = disabled;
-            await FlushAsync(); disabled.IsVisible = true;
+            await SmokeDispatcher.SettleAsync(); disabled.IsVisible = true;
             TextBox? disabledInput = null;
             await Program.WaitUntilAsync(() =>
             {
@@ -86,12 +86,7 @@ internal static class RuleExtensionsLifetimeChecks
             Require(disabledDraft.Rest == "", "An explicitly cleared initialized editor failed to commit empty raw text.");
             Console.WriteLine("SMOKE rule tags: first focus, late load, detached Flush ownership, disabled late Flush and explicit clear checks passed through actual TextBox edits.");
         }
-        finally { host.Content = retained; await FlushAsync(); }
-    }
-    private static async Task FlushAsync()
-    {
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        finally { host.Content = retained; await SmokeDispatcher.SettleAsync(); }
     }
     private static void Require(bool condition, string message)
     {

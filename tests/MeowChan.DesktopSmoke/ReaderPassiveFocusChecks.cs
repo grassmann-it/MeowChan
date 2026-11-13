@@ -44,7 +44,7 @@ internal static class ReaderPassiveFocusChecks
             async Task LocalizationCase(string name, Control? newer, bool headerOrigin = false, bool missing = false)
             {
                 await page.FocusPostAsync(postId);
-                await SettleAsync();
+                await SmokeDispatcher.SettleAsync();
                 Control original = PostContainer(posts, postId);
                 Require(original.IsKeyboardFocusWithin, name + ": cannot establish post focus.");
                 if (headerOrigin) Require(header.Focus() && header.IsFocused, name + ": cannot focus surviving header.");
@@ -78,7 +78,7 @@ internal static class ReaderPassiveFocusChecks
                     await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
                     release.TrySetResult();
                     await operation.WaitAsync(TimeSpan.FromSeconds(10));
-                    await SettleAsync();
+                    await SmokeDispatcher.SettleAsync();
                     Control replacement = PostContainer(posts, postId);
                     if (newer != null || headerOrigin)
                     {
@@ -160,7 +160,7 @@ internal static class ReaderPassiveFocusChecks
                     owner.AddHandler(InputElement.GotFocusEvent, Focused, RoutingStrategies.Bubble, handledEventsToo: true);
                     release.TrySetResult();
                     await restoration.WaitAsync(TimeSpan.FromSeconds(10));
-                    await SettleAsync();
+                    await SmokeDispatcher.SettleAsync();
                     Require(latePostFocus == 0 && (expected == null || expected.IsKeyboardFocusWithin),
                         cover + ": held restoration focused the underlying reader. " + Describe(owner));
                 }
@@ -182,7 +182,7 @@ internal static class ReaderPassiveFocusChecks
                         child?.Close();
                         owner.Activate();
                         await Program.WaitUntilAsync(() => owner.IsActive && !page.IsObscuredByGallery);
-                        await SettleAsync();
+                        await SmokeDispatcher.SettleAsync();
                     }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderPassiveFocusChecks: " + exception));
                 }
             }
@@ -201,7 +201,7 @@ internal static class ReaderPassiveFocusChecks
                 owner.Width = width; owner.Height = height; owner.WindowState = state;
                 owner.Activate();
                 await Program.WaitUntilAsync(() => owner.IsActive);
-                await SettleAsync();
+                await SmokeDispatcher.SettleAsync();
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderPassiveFocusChecks: " + exception));
         }
     }
@@ -300,7 +300,7 @@ internal static class ReaderPassiveFocusChecks
                 {
                     release.TrySetResult();
                     await update.WaitAsync(TimeSpan.FromSeconds(10));
-                    await SettleAsync();
+                    await SmokeDispatcher.SettleAsync();
                     string newest = (1000 + count - 1).ToString();
                     Require(page.CurrentThread?.PostCount == count && (posts.SelectedItem as ArchivePostRow)?.Id == newest,
                         scenario + ": guarded refresh lost the appended content/follow target.");
@@ -329,7 +329,7 @@ internal static class ReaderPassiveFocusChecks
                 host?.Close();
                 owner.Activate();
                 await Program.WaitUntilAsync(() => owner.IsActive);
-                await SettleAsync();
+                await SmokeDispatcher.SettleAsync();
                 Directory.Delete(directory, recursive: true);
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderPassiveFocusChecks: " + exception));
         }
@@ -343,11 +343,6 @@ internal static class ReaderPassiveFocusChecks
         + (host.FocusManager?.GetFocusedElement() is Control control ? control.GetType().Name + "#" + control.Name : "none");
     private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-    private static async Task SettleAsync()
-    {
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-    }
     private static void Require(bool condition, string message)
     { if (!condition) throw new InvalidOperationException(message); }
 }

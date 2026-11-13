@@ -96,7 +96,7 @@ internal static class ReaderPreviewChecks
             await page.LoadThreadAsync(id);
             await page.FocusPostAsync("110125033");
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
-            await FlushAsync();
+            await SmokeDispatcher.SettleAsync();
             object? rows = posts.ItemsSource;
             await page.FocusPostAsync("110125033");
             Require(ReferenceEquals(rows, posts.ItemsSource), "Same-page navigation replaced live attachment loaders.");
@@ -104,10 +104,10 @@ internal static class ReaderPreviewChecks
             Task latestFocus = page.FocusPostAsync("110125033");
             await Task.WhenAll(earlierFocus, latestFocus);
             Require((posts.SelectedItem as ArchivePostRow)?.Id == "110125033", "An older deferred focus replaced the latest post navigation.");
-            await FlushAsync();
+            await SmokeDispatcher.SettleAsync();
             double before = PostTop(posts, "110125033");
             mediaGate.SetResult(); await page.MediaLoadTask;
-            await WaitPreviewAsync(posts, "110125033"); await FlushAsync();
+            await WaitPreviewAsync(posts, "110125033"); await SmokeDispatcher.SettleAsync();
             Require(Math.Abs(PostTop(posts, "110125033") - before) <= 2,
                 $"Completing delayed previews moved the focused post: {before} → {PostTop(posts, "110125033")}.");
             ArchiveAttachmentView preview = posts.GetVisualDescendants().OfType<ArchiveAttachmentView>()
@@ -120,7 +120,7 @@ internal static class ReaderPreviewChecks
             await page.FocusPostAsync("110125033"); await WaitPreviewAsync(posts, "110125033");
             ScrollViewer scroll = posts.GetVisualDescendants().OfType<ScrollViewer>().First();
             scroll.Offset = new Vector(scroll.Offset.X, scroll.Offset.Y + 208);
-            await FlushAsync();
+            await SmokeDispatcher.SettleAsync();
             Require(PostTop(posts, "110125033") < -100, "Refresh regression did not start inside a partially scrolled post.");
             mediaGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
             double refreshTop = PostTop(posts, "110125033");
@@ -132,10 +132,10 @@ internal static class ReaderPreviewChecks
             Console.WriteLine("SMOKE reader refresh anchor: " + DescribeRefreshAnchor("after", window, pane, page, posts, refreshedTop));
             Require(Math.Abs(refreshedTop - refreshTop) <= 2,
                 $"Same-thread refresh lost the scroll anchor before media completed: {refreshTop:R} → {refreshedTop:R}.");
-            mediaGate.SetResult(); await page.MediaLoadTask; await WaitPreviewAsync(posts, "110125033"); await FlushAsync();
+            mediaGate.SetResult(); await page.MediaLoadTask; await WaitPreviewAsync(posts, "110125033"); await SmokeDispatcher.SettleAsync();
             Require(Math.Abs(PostTop(posts, "110125033") - refreshTop) <= 2, "Refreshed previews moved the retained post.");
             // Reparenting the same controls must resume visible thumbnails after detach cancellation.
-            window.Content = null; await FlushAsync(); window.Content = pane;
+            window.Content = null; await SmokeDispatcher.SettleAsync(); window.Content = pane;
             await WaitPreviewAsync(posts, "110125033");
             page.EndLifetime(); window.Content = null;
             await CheckCancellationAndLateResultsAsync(window);
@@ -178,7 +178,7 @@ internal static class ReaderPreviewChecks
         view.Thumbnail.PropertyChanged += OnPixelsChanged;
         try
         {
-            await FlushAsync();
+            await SmokeDispatcher.SettleAsync();
             Require(oldCancellation.IsCancellationRequested && oldLoads == 1 && currentLoads == 0
                 && current == null && view.Thumbnail.Source == null,
                 "Replacing a preview did not cancel the old request or started a replacement before its native owner returned.");
@@ -186,7 +186,7 @@ internal static class ReaderPreviewChecks
             // replacement may enter; waiting for replacement pixels first deadlocks this fixture.
             old.SetResult(obsolete);
             await Program.WaitUntilAsync(() => current != null && ReferenceEquals(view.Thumbnail.Source, current));
-            await FlushAsync();
+            await SmokeDispatcher.SettleAsync();
             Require(currentLoads == 1 && !publishedObsolete && ReferenceEquals(view.Thumbnail.Source, current),
                 "An obsolete cancelled preview published pixels or the latest replacement did not run exactly once.");
         }
@@ -199,13 +199,13 @@ internal static class ReaderPreviewChecks
         view.LoadTimeout = TimeSpan.FromMilliseconds(100);
         view.DataContext = Row(_ => slow.Task);
         await Program.WaitUntilAsync(() => view.PreviewStatus == Texts.T("archive.previewLoadFailed"));
-        slow.SetResult(NewBitmap()); await FlushAsync();
+        slow.SetResult(NewBitmap()); await SmokeDispatcher.SettleAsync();
         Require(view.Thumbnail.Source == null && Math.Abs(view.Bounds.Height - height) <= 2,
             "Timeout/late completion changed the stable preview or displayed obsolete pixels.");
         view.DataContext = new ArchiveAttachmentRow(new CapturedAttachment(0, "video-poster", OriginalFileName: "saved-video.webm"))
         { LoadThumbnail = _ => Task.FromResult<Bitmap?>(NewBitmap()) };
         await Program.WaitUntilAsync(() => view.Thumbnail.Source is Bitmap);
-        await FlushAsync();
+        await SmokeDispatcher.SettleAsync();
         Border play = view.GetVisualDescendants().OfType<Border>().Single(control => control.Name == "VideoPlayOverlay");
         Point center = play.TranslatePoint(new Point(play.Bounds.Width / 2, play.Bounds.Height / 2), view.Thumbnail)
             ?? throw new InvalidOperationException("Video play overlay has no thumbnail position.");
@@ -214,7 +214,7 @@ internal static class ReaderPreviewChecks
             && Math.Abs(center.Y - view.Thumbnail.Bounds.Height / 2) <= 2,
             "Video preview play affordance is not centered and bounded over the poster.");
         Program.CaptureWindow(window, "smoke-video-poster-play-overlay.png");
-        window.Content = null; await FlushAsync();
+        window.Content = null; await SmokeDispatcher.SettleAsync();
         Require(view.Thumbnail.Source == null, "Detached attachment retained pixels.");
     }
     // Read-only snapshots beside the existing PostTop measurements: no layout,
@@ -298,10 +298,5 @@ internal static class ReaderPreviewChecks
         using SKImage image = SKImage.FromBitmap(bitmap); using SKData data = image.Encode(SKEncodedImageFormat.Png, 100); return data.ToArray();
     }
     private static Bitmap NewBitmap() => new(new MemoryStream(ImageBytes()));
-    private static async Task FlushAsync()
-    {
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-    }
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 }

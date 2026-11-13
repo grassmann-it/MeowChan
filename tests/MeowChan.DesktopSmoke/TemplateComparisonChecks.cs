@@ -90,7 +90,7 @@ internal static partial class TemplateComparisonChecks
             Write("actual-action", new { control = control.Name ?? control.GetType().Name, operation,
                 accessible_name = AutomationProperties.GetName(control), focus_before = before, focus_after = Focus(),
                 scroll_preparation = "programmatic BringIntoView; not a counted user scroll" });
-            await FlushAsync();
+            await SmokeDispatcher.SettleAsync();
         }
         private string? Focus() => window.FocusManager?.GetFocusedElement() is Control control ? control.Name ?? control.GetType().Name : null;
         internal void Capture(string name)
@@ -180,7 +180,7 @@ internal static partial class TemplateComparisonChecks
             evidence.Capture("copy-three-boards.png");
             await RunRivalAsync("bulk");
             await RunRivalAsync("link");
-            host.Content = page; await FlushAsync();
+            host.Content = page; await SmokeDispatcher.SettleAsync();
             await OpenScopeAsync(0); await CreateAsync("Wallpaper", types: "jpg,png");
             for (int i = 0; i < 2; i++) { await OpenScopeAsync(i); evidence.Predict("wallpaper-target-" + i, "copy", new { target = scopes[i].Board, types = "jpg/png", other_groups_unchanged = true }); await ApplyAsync("Wallpaper"); await SaveRuleAsync(); }
             string copiedRules = FileHash("media_rules.json");
@@ -189,7 +189,7 @@ internal static partial class TemplateComparisonChecks
             await Program.WaitUntilAsync(() => !page.IsBusy && NamedOrNull<TextBox>("RuleTemplateName") == null);
             Require(FileHash("media_rules.json") == copiedRules && rules.Current.Rules.Where(rule => rule.Scope == scopes[0] || rule.Scope == scopes[1]).All(rule => rule.Types.Extensions.SequenceEqual(new[] { ".jpg", ".png" })), "Catalog edit changed independently copied rules.");
             evidence.Write("observed-result", Snapshot());
-            await RunRivalAsync("preset"); host.Content = page; await FlushAsync();
+            await RunRivalAsync("preset"); host.Content = page; await SmokeDispatcher.SettleAsync();
             evidence.Predict("private-custom-values", "copy", new { extensions = "webp/avif", preset_fixed_values_insufficient = true, rule_write = false });
             await CreateAsync("Private values", types: "webp,avif");
             Require(templates.Current.Templates.Single(template => template.Name == "Private values").Types!.Extensions.SequenceEqual(new[] { ".avif", ".webp" }) && FileHash("media_rules.json") == copiedRules, "User-owned custom template failed or wrote rules.");
@@ -300,7 +300,7 @@ internal static partial class TemplateComparisonChecks
         {
             evidence.ExpectedLanguage = expectedLanguage; evidence.ExpectedTheme = expectedTheme;
             await Program.WaitUntilAsync(() => Texts.Language == expectedLanguage && window.ActualThemeVariant == expectedTheme && page.ActualThemeVariant == expectedTheme);
-            await FlushAsync(); window.UpdateLayout(); evidence.AssertPresentation();
+            await SmokeDispatcher.SettleAsync(); window.UpdateLayout(); evidence.AssertPresentation();
             evidence.Write("verified-presentation-setup", new { fixture_setup = true, config_mode = window.SessionHost.Config.WorkspaceMode,
                 expected_language = expectedLanguage, actual_theme = window.ActualThemeVariant.Key?.ToString(), labels_checked = "literal Save rule/Regel speichern and Rule templates/Regelvorlagen plus Semi/Ursa locale" });
         }
@@ -333,7 +333,7 @@ internal static partial class TemplateComparisonChecks
                 return new TemplateRivalWalkthrough.Board(scope.Board!, string.Join("/", rule.Types.Extensions.Select(value => value.TrimStart('.'))),
                     (int)(rule.SizeLimit.Bytes!.Value / 1_000_000), rule.Enabled, scope == scopes[2] ? "incompatible-v2" : "compatible");
             }).ToArray();
-            TemplateRivalWalkthrough rival = new(variant, start); host.Content = new ScrollViewer { Content = rival }; await FlushAsync();
+            TemplateRivalWalkthrough rival = new(variant, start); host.Content = new ScrollViewer { Content = rival }; await SmokeDispatcher.SettleAsync();
             object[] before = rival.State.Cast<object>().ToArray();
             evidence.Predict(variant + "-targets", variant, new { starting_state = before, intent = variant == "preset" ? "private webp + threshold7 cannot be represented" : variant == "bulk" ? "a,b succeed, c unchanged conflict" : "bind a,b then exclude b; update changes a only" });
             await EditAsync(rival.Prediction, variant == "preset" ? "unsupported, all unchanged" : variant == "bulk" ? "a,b video; c conflict unchanged" : "a,b wallpaper; later only a changes if b excluded");
@@ -358,6 +358,5 @@ internal static partial class TemplateComparisonChecks
         }
     }
     private static string Hash(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
-    private static async Task FlushAsync() { await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded); await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background); }
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 }

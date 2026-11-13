@@ -44,7 +44,7 @@ internal static class PluginSettingsErrorMatrixChecks
                     window.Width = width; window.Height = height;
                     await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
                     window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-                    await SettleAsync();
+                    await SmokeDispatcher.SettleAsync();
                     TextBox field = (TextBox)editor().FindField(key)!;
                     TextBlock? error = ErrorLabel();
                     string stem = "smoke-form-error-" + scene + "-" + mode.ToLowerInvariant() + "-" + language + "-" + theme.Key.ToString()!.ToLowerInvariant();
@@ -114,15 +114,10 @@ internal static class PluginSettingsErrorMatrixChecks
             await PresentationChecks.SwitchModeAsync(window, modeBefore);
             Texts.SetLanguage(languageBefore); Application.Current!.RequestedThemeVariant = themeBefore;
             window.Width = sizeBefore.Width; window.Height = sizeBefore.Height; window.WindowState = stateBefore;
-            await SettleAsync();
+            await SmokeDispatcher.SettleAsync();
         }
     }
 
-    private static async Task SettleAsync()
-    {
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-    }
     private static bool Focused(Window window, Control field) => field.IsFocused
         && ReferenceEquals(window.FocusManager?.GetFocusedElement(), field);
     private static bool FullyVisible(Window window, Control control)
