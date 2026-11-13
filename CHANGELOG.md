@@ -63,6 +63,19 @@
 - Return focus to the export button or **More** after closing export, scroll the settings
   validation error into view in small windows, and keep secondary windows at normal size
   after a title-bar restore on Linux/X11.
+- Rework the default keyboard shortcuts. **Media** is **Ctrl/Cmd+3** in footer order, with
+  **Rules 4**, **Sources 5**, **Diagnostics 6** and **Plugins 7**; footer, menus and the F1 help
+  list the pages in the same order. New defaults: **Ctrl+T** tags, **Ctrl+D** thread favorite,
+  **Ctrl+Shift+F** filters (also for board filters, which moved from Ctrl+Shift+R), **F3** and
+  **Ctrl+G** for find next and **Shift+F3** and **Ctrl+Shift+G** for find previous in the large Reader,
+  **S** slideshow, **I** details, **R** rating, **Ctrl+E** export original and **Ctrl+O** show in folder
+  in the gallery and Media page, **Ctrl+A** select all media, the Menu key for the context menu, one
+  **Alt+Left** Back and one **Alt+PageUp/PageDown** page gesture for the commands that never apply
+  together. macOS gets its own defaults (Cmd for Ctrl, no Fn-only keys, Cmd+Delete, Cmd+Left, Option+Cmd+R
+  to refresh, Control+Cmd+F for full screen), Apple glyph notation, and a native menu bar. **Settings,
+  Keyboard shortcuts** can turn the single-character shortcuts off. Saved shortcuts are never changed:
+  a new default yields to a saved binding of another command instead of silencing it, and the startup
+  warning appears only for bindings that are really blocked.
 - Upgrade: archive schema 5 to 12, media manifest 4 to 5 (6 for imported representations),
   work journal pruning with one backup and a `user_version` stamp, new `private-tags.json`,
   media index cache, `booru-catalog.json` and the catalog limit setting.
