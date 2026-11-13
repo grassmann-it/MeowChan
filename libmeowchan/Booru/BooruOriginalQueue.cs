@@ -476,7 +476,10 @@ internal sealed class BooruOriginalQueue
     /// <summary>
     /// Acknowledges a genuinely accepted queue job: re-asserts the write-ahead Requested. The job may already
     /// have ended while the accept was returning: a cancel or link has recorded its own terminal intent and is
-    /// never overwritten, while a failure or stop still leaves the accepted request pending.
+    /// never overwritten, while a failure or stop still leaves the accepted request pending. The re-assert is
+    /// only a confirmation: the write-ahead Requested is already durable, so a profile that cannot take a
+    /// write now (closing, or an exclusive admission reserved) skips it. The owner always leaves the
+    /// accepted-awaiting set; a stale entry would answer every later admission of the post as AlreadyQueued.
     /// </summary>
     private async Task RecordAcceptedAsync(PostOwner owner)
     {
@@ -484,40 +487,30 @@ internal sealed class BooruOriginalQueue
         // can remove the owner, a later cancel can persist Cancelled, and this delayed acknowledgement can
         // resurrect the request as Requested after the cancel has returned. The gate is awaited, never blocked on.
         await _admissionGate.WaitAsync().ConfigureAwait(false);
-        bool acknowledged = false;
         try
         {
-            using ProfileAdmissionToken admission = _catalog.ProfileLease.Admission.EnterStoreWriter();
+            using ProfileAdmissionToken? admission = TryEnterStoreWriter();
+            if (admission is null) return;
             lock (owner.Gate)
             {
                 if (owner.Completion.IsCompleted
                     && owner.Completion.Result.State is BooruOriginalDownloadState.Cancelled or BooruOriginalDownloadState.Linked)
-                {
-                    acknowledged = true;
                     return;
-                }
                 BooruPostRecord? current = FindRecord(owner.Plan.PostId);
                 if (current is null || current.OriginalIntent is BooruOriginalIntent.Cancelled
                     or BooruOriginalIntent.Linked)
-                {
-                    acknowledged = true;
                     return;
-                }
                 _catalog.SetOriginalIntentAdmitted(DanbooruPostReference.ProviderId, owner.Plan.PostId,
                     BooruOriginalIntent.Requested, admission);
-                acknowledged = true;
             }
         }
         finally
         {
-            if (acknowledged)
+            lock (_sync)
             {
-                lock (_sync)
-                {
-                    if (_acceptedAwaitingIntent.TryGetValue(owner.Plan.PostId, out PostOwner? current)
-                        && ReferenceEquals(current, owner))
-                        _acceptedAwaitingIntent.Remove(owner.Plan.PostId);
-                }
+                if (_acceptedAwaitingIntent.TryGetValue(owner.Plan.PostId, out PostOwner? current)
+                    && ReferenceEquals(current, owner))
+                    _acceptedAwaitingIntent.Remove(owner.Plan.PostId);
             }
             _admissionGate.Release();
         }

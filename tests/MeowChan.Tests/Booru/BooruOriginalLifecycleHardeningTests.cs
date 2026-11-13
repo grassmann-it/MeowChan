@@ -1,5 +1,6 @@
 using MeowChan.Archive;
 using MeowChan.Booru;
+using MeowChan.Persistence;
 using TempDirectory = MeowChan.Tests.TempDirectory;
 
 namespace MeowChan.Tests.Booru;
@@ -383,6 +384,60 @@ public sealed partial class BooruOriginalQueueTests
         await session.Queue.StopAllAsync().WaitAsync(TestWait.Timeout);
         Assert.Equal(BooruOriginalDownloadState.Interrupted,
             (await retry.Completion.WaitAsync(TestWait.Timeout)).State);
+    }
+
+    [Fact]
+    public async Task AnAcknowledgementThatCannotEnterTheProfileStillReleasesThePostForALaterRetry()
+    {
+        using TempDirectory directory = new();
+        FakeCdn cdn = new();
+        byte[] bytes = Bytes(39);
+        BooruPostClaim post = Post("401", bytes, cdn);
+        await using Session session = new(directory.Path, cdn);
+        await session.Queue.SetPausedAsync(true);
+        ProfileAdmission profile = session.Catalog.ProfileLease.Admission;
+        using CancellationTokenSource abandonExclusive = new();
+        ProfileAdmissionToken? blocker = null;
+        Task<ProfileAdmissionToken>? exclusive = null;
+        // A private-store commit reserves the exclusive slot (pending behind an active writer) while the queue
+        // accept returns, so the acknowledgement cannot enter a store writer.
+        session.Booru.AfterQueueAcceptedForTests = _ =>
+        {
+            blocker = profile.EnterOrdinaryWriter();
+            exclusive = profile.EnterExclusiveAsync(abandonExclusive.Token).AsTask();
+            return Task.CompletedTask;
+        };
+
+        BooruOriginalAdmission admission;
+        try
+        {
+            admission = await session.Booru.AdmitAsync(post, BooruFindingKind.OneShot).WaitAsync(TestWait.Timeout);
+            Assert.False(exclusive!.IsCompleted);
+        }
+        finally
+        {
+            session.Booru.AfterQueueAcceptedForTests = null;
+            abandonExclusive.Cancel();
+            if (exclusive is not null)
+            {
+                try { (await exclusive.WaitAsync(TestWait.Timeout)).Dispose(); }
+                catch (OperationCanceledException) { }
+            }
+            blocker?.Dispose();
+        }
+        // The queue accepted the job and the write-ahead Requested is durable: this is an admission, not a fault.
+        Assert.Equal(BooruOriginalAdmissionStatus.Queued, admission.Status);
+        Assert.Equal(BooruOriginalIntent.Requested, Assert.Single(session.Catalog.Read().Posts).OriginalIntent);
+
+        cdn.Responses[OriginalUrl("401")] = new FakeResponse(bytes.Select(value => (byte)(value ^ 0x51)).ToArray());
+        await session.Queue.SetPausedAsync(false);
+        Assert.Equal(BooruOriginalDownloadState.DownloadFailed, (await admission.Completion.WaitAsync(TestWait.Timeout)).State);
+
+        // Before the fix the accepted owner stayed registered and every retry answered AlreadyQueued until a restart.
+        cdn.Responses[OriginalUrl("401")] = new FakeResponse(bytes);
+        BooruOriginalAdmission retry = await session.Booru.RetryAsync("401").WaitAsync(TestWait.Timeout);
+        Assert.Equal(BooruOriginalAdmissionStatus.Queued, retry.Status);
+        Assert.Equal(BooruOriginalDownloadState.Linked, (await retry.Completion.WaitAsync(TestWait.Timeout)).State);
     }
 
 }
