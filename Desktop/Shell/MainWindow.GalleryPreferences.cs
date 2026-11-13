@@ -30,10 +30,12 @@ public partial class MainWindow
             _config.VideoAutoplay, _config.VideoStartMuted, _desiredGalleryVolume ?? _config.VideoVolume);
         _presentedGalleryPlayback = _desiredGalleryPlayback ?? GalleryPlaybackPreferences.FromConfig(_config);
         _gallery?.ConfigurePlayback(_presentedGalleryPlayback);
+        _gallery?.ConfigureFit(ReaderSettingsPreferences.Gallery(_config));
         if (_archivePage != null)
         {
             _archivePage.ReadingFontSizePreference = ReadingFontSize();
             _archivePage.ReaderPostWidthPreference = _config.ReaderPostWidth;
+            ReaderSettingsPreferences.Apply(_archivePage, _config);
         }
     }
 

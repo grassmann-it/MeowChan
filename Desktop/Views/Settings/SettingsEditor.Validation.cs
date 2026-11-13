@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -172,6 +173,7 @@ public partial class SettingsEditor
             nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitHelp), nameof(SourcesWatchPreviewRowsHelp), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitHelp), nameof(AudioProbeCacheLimitMiBHelp), nameof(AudioProbeCacheEntriesHelp), nameof(ThumbnailCacheTilesHelp), nameof(GalleryImageCacheMiBHelp), nameof(GalleryPreloadAheadHelp), nameof(GalleryPreloadBehindHelp), nameof(ClipboardUrlLimitHelp), nameof(ClipboardTextLimitKiBHelp), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesHelp), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsHelp) })
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
         NotifyStatisticsHelpChanged();
+        NotifyReaderHelpChanged();
     }
 
     private void SetFieldErrorHelp(Control input, Func<string> message)
@@ -267,6 +269,7 @@ public partial class SettingsEditor
         yield return (ImportCatalogLimitMiBInput, ImportCatalogLimitMiB, ImportCatalogLimitMiBLabel, Texts.T("settings.unitMiB"),
             Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum, true);
         foreach (var field in StatisticsNumericFields()) yield return field;
+        foreach (var field in ReaderNumericFields()) yield return field;
     }
 
     private void ClearFieldErrors()
@@ -289,6 +292,7 @@ public partial class SettingsEditor
 
     private static string FieldLabelWithUnit(string label, string unit)
     {
+        if (string.IsNullOrWhiteSpace(unit)) return label;
         string suffix = "(" + unit + ")";
         // Help can spell out a unit and also provide its abbreviation, e.g. MiB/s.
         int abbreviation = unit.LastIndexOf('(');
@@ -305,14 +309,8 @@ public partial class SettingsEditor
         foreach (var field in NumericFields())
         {
             if (!IsStatisticsFieldActive(field.Input)) continue;
-            string? key = null;
-            bool parsed = decimal.TryParse(field.Input.Text, field.Input.ParsingNumberStyle, field.Input.NumberFormat, out decimal raw);
-            bool InvalidNumber(decimal? value) => !value.HasValue || value < field.Min || value > field.Max ||
-                (field.Integer && decimal.Truncate(value.Value) != value.Value) || (!field.Integer && value <= 0);
-            if (!parsed || DataValidationErrors.GetHasErrors(field.Input))
-                key = "settings.fieldNumber";
-            else if (InvalidNumber(raw) || InvalidNumber(field.Value))
-                key = field.Integer ? "settings.fieldInteger" : "settings.bandwidthRange";
+            string? key = NumericDraftError(field.Input.Text, field.Input.ParsingNumberStyle, field.Input.NumberFormat,
+                DataValidationErrors.GetHasErrors(field.Input), field.Value, field.Min, field.Max, field.Integer);
             if (key == null) continue;
             // Keep the failure kind, but resolve the field label/unit in the current language.
             string messageKey = key;
@@ -325,6 +323,20 @@ public partial class SettingsEditor
             _firstInvalidInput ??= field.Input;
         }
         return FinishFieldValidation(focusError);
+    }
+
+    // Validate the raw draft as well as Value: a rejected edit can leave Value at
+    // its last accepted number (or a control boundary). Neither is the user's text.
+    internal static string? NumericDraftError(string? text, NumberStyles style, IFormatProvider? format,
+        bool hasBindingErrors, decimal? value, decimal minimum, decimal maximum, bool integer)
+    {
+        bool InvalidNumber(decimal? number) => !number.HasValue || number < minimum || number > maximum ||
+            (integer && decimal.Truncate(number.Value) != number.Value) || (!integer && number <= 0);
+        if (!decimal.TryParse(text, style, format, out decimal raw) || hasBindingErrors)
+            return "settings.fieldNumber";
+        return InvalidNumber(raw) || InvalidNumber(value)
+            ? integer ? "settings.fieldInteger" : "settings.bandwidthRange"
+            : null;
     }
 
     private string RenderNumericFieldError(NumericUpDown input, string key)

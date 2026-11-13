@@ -129,6 +129,7 @@ internal static partial class SmokeScenarios
         }),
         ["gallery-hidden-favorite"] = new(SmokeStage.Ready, mainWindow => GalleryHiddenFavoriteChecks.RunAsync(mainWindow)),
         ["settings-language-refresh"] = new(SmokeStage.Ready, mainWindow => SettingsLanguageRefreshChecks.RunAsync(mainWindow)),
+        ["settings-reader-display"] = new(SmokeStage.Ready, mainWindow => SettingsReaderDisplayChecks.RunAsync(mainWindow)),
         ["first-run-settings"] = new(SmokeStage.Ready, mainWindow => FirstRunSettingsChecks.RunAsync(mainWindow)),
         ["first-run-setup"] = new(SmokeStage.Ready, mainWindow => FirstRunSetupChecks.RunAsync(mainWindow)),
         ["preference-startup"] = new(SmokeStage.Ready, mainWindow => PreferenceStartupChecks.RunAsync(mainWindow)),
