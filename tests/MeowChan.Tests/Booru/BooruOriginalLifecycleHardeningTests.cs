@@ -440,4 +440,45 @@ public sealed partial class BooruOriginalQueueTests
         Assert.Equal(BooruOriginalDownloadState.Linked, (await retry.Completion.WaitAsync(TestWait.Timeout)).State);
     }
 
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AnAcknowledgementWhoseStoreWriteFailsStillReturnsTheAdmissionAndReleasesThePost(bool catalogFull)
+    {
+        using TempDirectory directory = new();
+        FakeCdn cdn = new();
+        byte[] bytes = Bytes(41);
+        BooruPostClaim post = Post("402", bytes, cdn);
+        await using Session session = new(directory.Path, cdn);
+        await session.Queue.SetPausedAsync(true);
+        // The stored intent changes between the queue accept and the confirmation, so the confirmation must write
+        // Requested again; that write then fails.
+        session.Booru.AfterQueueAcceptedForTests = postId =>
+        {
+            session.Catalog.SetOriginalIntent("danbooru", postId, BooruOriginalIntent.NotAdmitted);
+            session.Catalog.BeforeAdmittedMutationForTests = _ => throw (catalogFull
+                ? new InvalidDataException(BooruCatalogStore.FullMessage) : new IOException("disk failure"));
+            return Task.CompletedTask;
+        };
+
+        BooruOriginalAdmission admission;
+        try { admission = await session.Booru.AdmitAsync(post, BooruFindingKind.OneShot).WaitAsync(TestWait.Timeout); }
+        finally
+        {
+            session.Booru.AfterQueueAcceptedForTests = null;
+            session.Catalog.BeforeAdmittedMutationForTests = null;
+        }
+        // The queue accepted the job: the failed confirmation is not a fault of this request, and the owner left
+        // the accepted-awaiting set, so a later admission is not answered with a stale AlreadyQueued.
+        Assert.Equal(BooruOriginalAdmissionStatus.Queued, admission.Status);
+        cdn.Responses[OriginalUrl("402")] = new FakeResponse(bytes.Select(value => (byte)(value ^ 0x51)).ToArray());
+        await session.Queue.SetPausedAsync(false);
+        Assert.Equal(BooruOriginalDownloadState.DownloadFailed, (await admission.Completion.WaitAsync(TestWait.Timeout)).State);
+        cdn.Responses[OriginalUrl("402")] = new FakeResponse(bytes);
+        BooruOriginalAdmission retry = await session.Booru.RetryAsync("402").WaitAsync(TestWait.Timeout);
+        Assert.Equal(BooruOriginalAdmissionStatus.Queued, retry.Status);
+        Assert.Equal(BooruOriginalDownloadState.Linked, (await retry.Completion.WaitAsync(TestWait.Timeout)).State);
+    }
+
 }

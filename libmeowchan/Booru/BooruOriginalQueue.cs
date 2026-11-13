@@ -497,12 +497,22 @@ internal sealed class BooruOriginalQueue
                 if (owner.Completion.IsCompleted
                     && owner.Completion.Result.State is BooruOriginalDownloadState.Cancelled or BooruOriginalDownloadState.Linked)
                     return;
-                BooruPostRecord? current = FindRecord(owner.Plan.PostId);
-                if (current is null || current.OriginalIntent is BooruOriginalIntent.Cancelled
-                    or BooruOriginalIntent.Linked)
-                    return;
-                _catalog.SetOriginalIntentAdmitted(DanbooruPostReference.ProviderId, owner.Plan.PostId,
-                    BooruOriginalIntent.Requested, admission);
+                try
+                {
+                    BooruPostRecord? current = FindRecord(owner.Plan.PostId);
+                    if (current is null || current.OriginalIntent is BooruOriginalIntent.Cancelled
+                        or BooruOriginalIntent.Linked)
+                        return;
+                    _catalog.SetOriginalIntentAdmitted(DanbooruPostReference.ProviderId, owner.Plan.PostId,
+                        BooruOriginalIntent.Requested, admission);
+                }
+                catch (Exception exception) when (exception is InvalidOperationException or ObjectDisposedException
+                    or IOException or UnauthorizedAccessException or InvalidDataException)
+                {
+                    // The queue already accepted the job and the write-ahead Requested is durable, so a storage
+                    // failure of this confirmation must not turn an admitted original into a faulted admission
+                    // (InvalidDataException: a full or unreadable catalog).
+                }
             }
         }
         finally
