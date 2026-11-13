@@ -64,7 +64,7 @@ public sealed class BundledLanguagePackCompletenessTests : IDisposable
         Assert.All(pluralVariants, key =>
         {
             int dot = key.LastIndexOf('.');
-            Assert.True(dot > 0 && key[(dot + 1)..] is "zero" or "two" or "few" or "many"
+            Assert.True(dot > 0 && key[(dot + 1)..] is "zero" or "one" or "two" or "few" or "many"
                 && BuiltInCatalog.English.ContainsKey(key[..dot]), "Unknown bundled translation key: " + key);
         });
         Assert.Equal(

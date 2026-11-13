@@ -55,6 +55,27 @@ public sealed class CountAndSizeTextTests : IDisposable
             Texts.Count("archive.captured", count, "5.11.2026", count));
     }
 
+    // The limit texts name the counted things after the number, so Russian needs its own form for 1, 2-4 and the rest.
+    [Theory]
+    [InlineData("limit.favoriteEntries", 1, "запись,")]
+    [InlineData("limit.favoriteEntries", 3, "записи,")]
+    [InlineData("limit.favoriteEntries", 5, "записей,")]
+    [InlineData("limit.postBookmarks", 22, "закладки постов")]
+    [InlineData("limit.postBookmarks", 11, "закладок постов")]
+    [InlineData("limit.postBookmarks", 21, "закладку постов")]
+    [InlineData("limit.savedSearches", 2, "сохранённых поиска")]
+    [InlineData("limit.savedSearches", 1, "сохранённый поиск")]
+    [InlineData("limit.savedSearches", 12, "сохранённых поисков")]
+    [InlineData("limit.readerGroups", 4, "группы для чтения")]
+    [InlineData("limit.readerGroups", 1, "группу для чтения")]
+    [InlineData("limit.readerGroups", 14, "групп для чтения")]
+    public void RussianLimitTextsAgreeWithTheLimit(string key, long limit, string expected)
+    {
+        Texts.SetLanguage("ru");
+
+        Assert.Contains(limit + " " + expected, Texts.Count(key, limit, limit, "A", "B"));
+    }
+
     [Fact]
     public void CountFormatsEveryArgumentAndKeepsTheOtherCountsPlural()
     {

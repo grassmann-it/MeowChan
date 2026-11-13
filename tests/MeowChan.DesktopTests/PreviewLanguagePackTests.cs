@@ -19,7 +19,7 @@ public sealed class PreviewLanguagePackTests : IDisposable
     {
         int dot = key.LastIndexOf('.');
         return dot > 0 && !BuiltInCatalog.English.ContainsKey(key) && BuiltInCatalog.English.ContainsKey(key[..dot])
-            && key[(dot + 1)..] is "zero" or "two" or "few" or "many";
+            && key[(dot + 1)..] is "zero" or "one" or "two" or "few" or "many";
     }
 
     [Theory]
