@@ -229,14 +229,20 @@ public sealed class RuntimeProcessTests
     {
         using Workspace workspace = new();
         await using PluginWorkerManager manager = new(new() { MaximumConcurrentCalls = 1 });
-        using HttpClient transport = new(new StaticHandler());
+        StaticHandler handler = new();
+        using HttpClient transport = new(handler);
         using PluginHostHttp http = new(transport, new RequestPolicyState(), new FixturePlugin().Describe().Sources);
         await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services(http));
-        DateTimeOffset before = DateTimeOffset.UtcNow;
-        Stopwatch watch = Stopwatch.StartNew();
         ThreadDeferred deferred = Assert.IsType<ThreadDeferred>(await worker.ReadThreadAsync(Thread("http"), Operation));
-        // The handler asks for a 30 s cooldown: the deferral carries it, and the call returned without sitting it out.
-        Assert.True(deferred.RetryAt > before.AddSeconds(20)); Assert.True(watch.Elapsed < TimeSpan.FromSeconds(20));
+        DateTimeOffset returned = DateTimeOffset.UtcNow;
+        // The handler asks for a 30 s cooldown once. The deferral carries the whole cooldown from the 429 answer, and the call
+        // came back with at least two thirds of it still to go: sitting out any real part of it (e.g. half) fails here,
+        // while only the time after the answer counts, not the worker start or request setup on a busy machine.
+        DateTimeOffset answered = Assert.IsType<DateTimeOffset>(handler.AnsweredAt);
+        Assert.Equal(1, handler.Requests);
+        Assert.True(deferred.RetryAt >= answered + StaticHandler.Cooldown - TimeSpan.FromSeconds(1), $"RetryAt {deferred.RetryAt:O} vs answer {answered:O}");
+        Assert.True(deferred.RetryAt - returned > StaticHandler.Cooldown * 2 / 3,
+            $"The call returned {returned - answered} after the 429 answer, with only {deferred.RetryAt - returned} of the cooldown left.");
         await using IPluginWorkerClient other = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
         Assert.IsType<SdkThreadSnapshot>(await other.ReadThreadAsync(Thread(), Operation));
     }
@@ -473,10 +479,18 @@ public sealed class RuntimeProcessTests
     private static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(30);
     private sealed class StaticHandler : HttpMessageHandler
     {
+        internal static readonly TimeSpan Cooldown = TimeSpan.FromSeconds(30);
+        private int _requests;
+        private long _answeredTicks;
+        internal int Requests => Volatile.Read(ref _requests);
+        internal DateTimeOffset? AnsweredAt => Interlocked.Read(ref _answeredTicks) is var ticks and > 0 ? new DateTimeOffset(ticks, TimeSpan.Zero) : null;
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            Interlocked.Increment(ref _requests);
             HttpResponseMessage response = new(HttpStatusCode.TooManyRequests) { RequestMessage = request };
-            response.Headers.RetryAfter = new(System.TimeSpan.FromSeconds(30)); return Task.FromResult(response);
+            response.Headers.RetryAfter = new(Cooldown);
+            Interlocked.Exchange(ref _answeredTicks, DateTimeOffset.UtcNow.UtcTicks);
+            return Task.FromResult(response);
         }
     }
 }
