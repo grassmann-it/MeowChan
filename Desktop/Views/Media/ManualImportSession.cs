@@ -261,6 +261,23 @@ internal sealed class ManualImportSession
         _ => "import.run.failed"
     };
 
+    /// <summary>
+    /// The refusal sentence in the user's language. A limit refusal names the setting that raises it and the settings page it
+    /// is on (the arguments of the message come first, then the setting and the page), never a raw configuration key.
+    /// </summary>
+    internal static string MessageText(string key, params object[] arguments)
+    {
+        string page = Texts.T("settings.storageLimits");
+        return key switch
+        {
+            "import.limit.files" => Texts.T(key, arguments.Concat(new object[] { Texts.T("budgets.importFiles"), page }).ToArray()),
+            "import.limit.batch" => Texts.T(key, Texts.T("budgets.importBatchGiB"), page),
+            "import.error.total" => Texts.T(key, Texts.T("budgets.importTotal"), page),
+            "import.error.catalogSize" => Texts.T(key, Texts.T("budgets.importCatalogMiB"), page),
+            _ => Texts.T(key, arguments)
+        };
+    }
+
     private void SetMessage(string? key, params object[] arguments)
     {
         MessageKey = key;
@@ -277,7 +294,7 @@ internal sealed class ManualImportSession
         ManualImportDisposition.DuplicateInSelection => Texts.T("import.row.twice"),
         ManualImportDisposition.Unsupported => Texts.T("import.row.unsupported"),
         ManualImportDisposition.OtherFilesOff => Texts.T("import.row.otherOff"),
-        ManualImportDisposition.TooLarge => Texts.T("import.row.tooLarge"),
+        ManualImportDisposition.TooLarge => Texts.T("import.row.tooLarge", Texts.T("budgets.importFileMiB")),
         ManualImportDisposition.Unreadable => Texts.T("import.row.unreadable"),
         _ => Texts.T("import.row.skipped")
     };

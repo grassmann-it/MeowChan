@@ -349,7 +349,7 @@ internal sealed class ManualImportDialog : Window
         _showBatch.IsVisible = done && _session.Outcome is { Batch: var batch } && batch.Count(ManualImportItemState.Committed) > 0 && ShowBatch != null;
 
         _status.Text = done ? Summary(_session.Outcome!) : _session.MessageKey != null
-            ? Texts.T(_session.MessageKey, _session.MessageArguments) : !_session.BatchNameValid ? Texts.T("import.batch.invalid") : string.Empty;
+            ? ManualImportSession.MessageText(_session.MessageKey, _session.MessageArguments) : !_session.BatchNameValid ? Texts.T("import.batch.invalid") : string.Empty;
         _status.IsVisible = _status.Text.Length > 0;
     }
 

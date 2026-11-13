@@ -84,7 +84,7 @@ public sealed class ManualImportDesktopTests : IDisposable
         await session.WorkTask;
         Assert.Equal(("import.limit.files", 2000), (session.MessageKey, (int)session.MessageArguments.Single()));
         Assert.False(session.CanImport);
-        Assert.Contains("2000", Texts.T(session.MessageKey!, session.MessageArguments));
+        Assert.Contains("2000", ManualImportSession.MessageText(session.MessageKey!, session.MessageArguments));
 
         ManualImportSession full = new((_, _, _) => Task.FromResult(Plan(Candidate("a.png", ManualImportDisposition.New))),
             (_, _, _, _) => throw new ManualImportException(ManualImportError.NotEnoughSpace), DateTimeOffset.UnixEpoch);
@@ -93,6 +93,38 @@ public sealed class ManualImportDesktopTests : IDisposable
         await full.ImportAsync();
         Assert.Equal((ManualImportStage.Ready, "import.error.space"), (full.Stage, full.MessageKey));
         Assert.Single(full.Roots);
+    }
+
+    [Fact]
+    public void ALimitRefusalNamesTheSettingAndThePageInEveryLanguageAndNeverARawConfigKey()
+    {
+        (string Key, object[] Arguments, string Setting)[] cases =
+        {
+            ("import.limit.files", new object[] { 2000 }, "budgets.importFiles"),
+            ("import.limit.batch", Array.Empty<object>(), "budgets.importBatchGiB"),
+            ("import.error.total", Array.Empty<object>(), "budgets.importTotal"),
+            ("import.error.catalogSize", Array.Empty<object>(), "budgets.importCatalogMiB"),
+        };
+        foreach (string language in new[] { "en", "de", "es", "fr", "ru" })
+        {
+            Texts.SetLanguage(language);
+            foreach ((string key, object[] arguments, string setting) in cases)
+            {
+                string text = ManualImportSession.MessageText(key, arguments);
+                Assert.Contains(Texts.T(setting), text);
+                Assert.Contains(Texts.T("settings.storageLimits"), text);
+                Assert.DoesNotContain("ImportMax", text);
+                Assert.DoesNotContain("ImportCatalogLimit", text);
+                Assert.DoesNotContain("{", text);
+                Assert.DoesNotContain(key, text);
+            }
+            Assert.Contains("2000", ManualImportSession.MessageText("import.limit.files", 2000));
+            ManualImportCandidate large = Candidate("big.png", ManualImportDisposition.TooLarge);
+            Assert.Contains(Texts.T("budgets.importFileMiB"), ManualImportSession.StatusText(large));
+        }
+        Texts.SetLanguage("de");
+        Assert.DoesNotContain("setting", ManualImportSession.MessageText("import.error.total"));
+        Assert.DoesNotContain("Einstellung", ManualImportSession.MessageText("import.error.total"));
     }
 
     [Fact]

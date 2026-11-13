@@ -33,7 +33,7 @@ public partial class MainWindow
         }
         if (_session.ManualImportBlocked() is { } blocked)
         {
-            ShowNotification(Texts.T("import.title"), Texts.T(ManualImportSession.MessageOf(blocked)), NotificationType.Warning, operation: "import.open");
+            ShowNotification(Texts.T("import.title"), ManualImportSession.MessageText(ManualImportSession.MessageOf(blocked)), NotificationType.Warning, operation: "import.open");
             return;
         }
         ManualImportSession session = new(
