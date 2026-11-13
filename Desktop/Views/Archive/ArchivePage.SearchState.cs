@@ -18,7 +18,6 @@ public partial class ArchivePage
     private ListLoad? _runningList;
     private IReadOnlyDictionary<string, ThreadWorkSnapshot> _appliedWork = new Dictionary<string, ThreadWorkSnapshot>();
     private ListLoad? _retryList;
-    internal bool CanApplySearch => CanRead && !_busy && !_ended;
     internal bool IsSearchLoading => _runningList != null;
     internal ArchiveSearchSpec? AppliedSearchSpec => _appliedSearch?.Spec;
     internal event Action? AppliedSearchChanged;
