@@ -83,13 +83,22 @@ public sealed class ArchivedThreadView
     public IReadOnlyList<CapturedPost> GetPosts(int offset = 0, int limit = 100)
     {
         ArchiveValidation.ValidatePage(offset, limit);
-        return Array.AsReadOnly(_posts.Skip(offset).Take(limit).ToArray());
+        int count = offset >= _posts.Length ? 0 : Math.Min(limit, _posts.Length - offset);
+        return Array.AsReadOnly(count == 0 ? Array.Empty<CapturedPost>() : _posts.AsSpan(offset, count).ToArray());
     }
     /// <summary>Zero-based index in this immutable read, or -1 when the post was not captured.</summary>
     public int FindPostIndex(string postId)
     {
         ArgumentNullException.ThrowIfNull(postId);
-        return Array.FindIndex(_posts, post => post.PostId == postId);
+        // One lookup table per immutable read, built on first use: the reader asks per scroll and per quote.
+        return (_postIndex ??= new Lazy<Dictionary<string, int>>(BuildPostIndex)).Value.TryGetValue(postId, out int index) ? index : -1;
+    }
+    private Lazy<Dictionary<string, int>>? _postIndex;
+    private Dictionary<string, int> BuildPostIndex()
+    {
+        Dictionary<string, int> index = new(_posts.Length, StringComparer.Ordinal);
+        for (int position = 0; position < _posts.Length; position++) index.TryAdd(_posts[position].PostId, position); // First one wins, as before.
+        return index;
     }
     internal IReadOnlyList<CapturedPost> Posts => _posts;
 }
