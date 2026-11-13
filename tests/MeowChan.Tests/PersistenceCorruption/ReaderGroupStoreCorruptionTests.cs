@@ -14,19 +14,6 @@ internal sealed class ReaderGroupStoreAdapter : StoreAdapter
     internal override StorePolicy Policy => StorePolicy.OfferRecovery;
     internal override bool FollowsSymbolicLinks => true;
 
-    private const string RawBackupProbe =
-        "BUG: the backup probe before a save (libmeowchan/Persistence/ReaderGroupStore.cs:100-104) calls Read without catching "
-        + "its parse failures, so a damaged .bak makes SaveAsync throw the raw JsonReaderException (and, for a directory, an "
-        + "UnauthorizedAccessException naming the profile path) instead of the store's own 'no files were changed' error.";
-
-    internal override IReadOnlyDictionary<string, string> KnownBugs => new Dictionary<string, string>
-    {
-        ["backup:empty"] = RawBackupProbe,
-        ["backup:truncated-half"] = RawBackupProbe,
-        ["backup:trailing-garbage"] = RawBackupProbe,
-        ["not-regular-backup:directory"] = RawBackupProbe
-    };
-
     private static ReaderGroupsSnapshot Snapshot(string name, params ResourceId[] members) =>
         new(1, 0, new[] { new ReaderGroup(Guid.Parse("00000000-0000-0000-0000-000000000001"), name, members) });
 
@@ -106,10 +93,20 @@ public sealed class ReaderGroupStoreCorruptionTests(ITestOutputHelper log) : Bac
         Assert.Equal(ReadKind.Data, adapter.Read(temp.Path, lease).Kind);
     }
 
-    [Fact(Skip = "BUG: SaveAsync's backup probe (libmeowchan/Persistence/ReaderGroupStore.cs:100-104) calls Read without catching its parse "
-        + "failures. A damaged reader-groups.json.bak therefore makes the save throw the raw System.Text.Json reader exception, and a "
-        + "directory at that name an UnauthorizedAccessException quoting the full profile path, instead of the store's own "
-        + "\"The available backup uses a newer reader groups schema. No files were changed.\" style error. The files are left intact.")]
-    public void ADamagedBackupIsRefusedWithTheStoresOwnErrorRatherThanAParserException() =>
-        CorruptionScenarios.DamagedBackup(new ReaderGroupStoreAdapter(), "truncated-half");
+    // A damaged .bak stops the save with the store's own error; neither file changes and no message names the profile path.
+    [Theory]
+    [InlineData("empty")]
+    [InlineData("truncated-half")]
+    [InlineData("trailing-garbage")]
+    public void ADamagedBackupIsRefusedWithTheStoresOwnErrorRatherThanAParserException(string variant)
+    {
+        ReaderGroupStoreAdapter adapter = new();
+        CorruptionScenarios.DamagedBackup(adapter, variant);
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        adapter.Seed(temp.Path, lease);
+        File.WriteAllBytes(adapter.BackupPath(temp.Path), Damage.Make(variant, File.ReadAllBytes(adapter.BackupPath(temp.Path)), "schemaVersion"));
+        InvalidOperationException refused = Assert.Throws<InvalidOperationException>(() => adapter.Mutate(temp.Path, lease));
+        Assert.DoesNotContain(temp.Path, refused.Message, StringComparison.Ordinal);
+    }
 }
