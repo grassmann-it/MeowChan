@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -165,6 +166,14 @@ internal sealed class ManualImportCatalogStore
     private int _maximumTotalItems = DefaultMaximumTotalItems;
     private int _maximumBatches = DefaultMaximumBatches;
     private int _maximumTags = DefaultMaximumTags;
+    // The last catalog read or written, with the identity of the file it stands for: equal identity means equal bytes, so a
+    // read need not parse the file again (like the Danbooru catalog). Guarded by _sync.
+    private ManualImportCatalogSnapshot? _cached;
+    private RegularProfileFileIdentity? _cachedIdentity;
+    private byte[]? _cachedDigest;
+    // SHA-256 of the backup bytes that were last parsed in full and found fine; the same bytes are not parsed again.
+    private byte[]? _validatedBackupDigest;
+    private long _fullReads, _cachedReads, _backupParses;
 
     internal ManualImportCatalogStore(string profileDirectory, ProfileLease lease)
     {
@@ -175,6 +184,10 @@ internal sealed class ManualImportCatalogStore
     }
 
     internal string FilePath => _path;
+
+    /// <summary>How often the catalog file was parsed in full, answered from the cache, and how often the backup was parsed; for tests.</summary>
+    internal (long Full, long Cached, long BackupParses) ReadCounts => (Interlocked.Read(ref _fullReads), Interlocked.Read(ref _cachedReads),
+        Interlocked.Read(ref _backupParses));
 
     /// <summary>Configured write limit of the catalog file in bytes (setting). Lowering it never makes a catalog unreadable.</summary>
     internal long DocumentLimitBytes
@@ -235,6 +248,8 @@ internal sealed class ManualImportCatalogStore
     {
         ArgumentNullException.ThrowIfNull(batch);
         ArgumentNullException.ThrowIfNull(admission);
+        // The published snapshot is kept for later reads: it must not share lists the caller goes on changing.
+        batch = batch with { Tags = batch.Tags.ToArray(), Items = batch.Items.ToArray() };
         return _lease.RunStoreWrite(admission, () =>
         {
             lock (_sync)
@@ -261,21 +276,36 @@ internal sealed class ManualImportCatalogStore
     private ManualImportCatalogSnapshot ReadLocked(CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        ManualImportCatalogSnapshot? read = ReadFile(_path, out bool newer);
+        RegularProfileFileIdentity? before = RegularProfileFile.TryGetIdentity(_path);
+        if (before is { } current && _cached is { } hit && _cachedIdentity == current)
+        {
+            Interlocked.Increment(ref _cachedReads);
+            return hit;
+        }
+        ForgetCache();
+        byte[]? bytes = ReadBytes(_path);
+        if (bytes == null) return ManualImportCatalogSnapshot.Empty;
+        Interlocked.Increment(ref _fullReads);
+        ManualImportCatalogSnapshot? read = Parse(bytes, out bool newer);
         if (newer) throw new ManualImportException(ManualImportError.CatalogNewer);
+        // Only a file that did not change while it was read may be reused.
+        if (read != null && before is { } stable && RegularProfileFile.TryGetIdentity(_path) == stable)
+            (_cached, _cachedIdentity, _cachedDigest) = (read, stable, SHA256.HashData(bytes));
         return read ?? ManualImportCatalogSnapshot.Empty;
     }
+
+    private void ForgetCache() => (_cached, _cachedIdentity, _cachedDigest) = (null, null, null);
 
     private void Publish(ManualImportCatalogSnapshot snapshot, CancellationToken token)
     {
         byte[] bytes = Serialize(snapshot);
         if (bytes.Length > DocumentLimitBytes) throw new ManualImportException(ManualImportError.CatalogTooLarge);
         // The previous version becomes the backup; a backup written by a newer program is never replaced.
-        if (File.Exists(_path + ".bak"))
-        {
-            try { ReadFile(_path + ".bak", out bool newerBackup); if (newerBackup) throw new ManualImportException(ManualImportError.CatalogNewer); }
-            catch (ManualImportException error) when (error.Error == ManualImportError.CatalogDamaged) { /* A damaged backup may be replaced. */ }
-        }
+        CheckBackup();
+        // What is on disk now (read just before under the same lock) is what the backup will hold after the replace.
+        byte[]? replacedDigest = _cachedDigest;
+        ForgetCache();
+        _validatedBackupDigest = null;
         string json = Encoding.UTF8.GetString(bytes);
         try { AtomicJsonFile.WriteAllText(_path, json, backupCurrentFile: true, token); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
@@ -289,6 +319,32 @@ internal sealed class ManualImportCatalogStore
             catch (Exception readError) when (readError is IOException or UnauthorizedAccessException or ManualImportException) { }
             throw;
         }
+        // The next read is answered from what was just written, as long as the file on disk has exactly its size.
+        if (RegularProfileFile.TryGetIdentity(_path) is { } written && written.Size == bytes.Length)
+            (_cached, _cachedIdentity, _cachedDigest) = (snapshot, written, SHA256.HashData(bytes));
+        _validatedBackupDigest = replacedDigest;
+    }
+
+    /// <summary>
+    /// A backup written by a newer program must not be replaced; a damaged one may be. Bytes equal to those last parsed in
+    /// full are not parsed again.
+    /// </summary>
+    private void CheckBackup()
+    {
+        byte[]? bytes;
+        try { bytes = ReadBytes(_path + ".bak"); }
+        catch (ManualImportException error) when (error.Error == ManualImportError.CatalogDamaged) { return; }
+        if (bytes == null) return;
+        byte[] digest = SHA256.HashData(bytes);
+        if (_validatedBackupDigest is { } known && digest.AsSpan().SequenceEqual(known)) return;
+        try
+        {
+            Interlocked.Increment(ref _backupParses);
+            Parse(bytes, out bool newerBackup);
+            if (newerBackup) throw new ManualImportException(ManualImportError.CatalogNewer);
+            _validatedBackupDigest = digest;
+        }
+        catch (ManualImportException error) when (error.Error == ManualImportError.CatalogDamaged) { /* A damaged backup may be replaced. */ }
     }
 
     // ---- Wire format (version 1) ----
@@ -353,17 +409,29 @@ internal sealed class ManualImportCatalogStore
     /// <summary>Null when the file is missing. <paramref name="newer"/>: a valid newer version that must not be touched.</summary>
     internal static ManualImportCatalogSnapshot? ReadFile(string path, out bool newer)
     {
+        byte[]? bytes = ReadBytes(path);
         newer = false;
-        byte[] bytes;
+        return bytes == null ? null : Parse(bytes, out newer);
+    }
+
+    // Null when the file is missing.
+    private static byte[]? ReadBytes(string path)
+    {
         try
         {
             using FileStream stream = RegularProfileFile.OpenRead(path);
             if (stream.Length > MaximumDocumentBytes) throw new ManualImportException(ManualImportError.CatalogDamaged);
-            bytes = new byte[checked((int)stream.Length)];
+            byte[] bytes = new byte[checked((int)stream.Length)];
             stream.ReadExactly(bytes);
+            return bytes;
         }
         catch (FileNotFoundException) { return null; }
         catch (DirectoryNotFoundException) { return null; }
+    }
+
+    private static ManualImportCatalogSnapshot? Parse(byte[] bytes, out bool newer)
+    {
+        newer = false;
         try
         {
             using JsonDocument document = JsonDocument.Parse(bytes, new JsonDocumentOptions { MaxDepth = 16 });

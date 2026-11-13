@@ -102,7 +102,7 @@ internal sealed class ManualImportExecutor
             if (copy) sources[id] = candidate;
         }
         ManualImportBatch batch = new(batchId, name, Now(), null, ManualImportBatchState.Copying, directory, plan.SourceLabel,
-            plan.IncludeOtherFiles, false, tags, tags.Length == 0, items.AsReadOnly());
+            plan.IncludeOtherFiles, false, tags, tags.Length == 0, items.ToArray());
         catalog = _catalog.PutBatchAdmitted(batch, catalog.Revision, admission, token);
 
         int done = 0, unflushed = 0;

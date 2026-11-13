@@ -19,6 +19,10 @@ public partial class MainWindow
     private ManualImportDialog? _manualImportDialog;
     internal ManualImportDialog? ManualImportWindow => _manualImportDialog;
 
+    // The catalog is checked off the UI thread (a large catalog takes time to read once); drops that arrive meanwhile join the same dialog.
+    private bool _manualImportOpening;
+    private readonly List<string> _manualImportPending = new();
+
     private void OnManualImportMenuClick(object? sender, RoutedEventArgs e) => OpenManualImportDialog(Array.Empty<string>());
 
     /// <summary>Opens the import dialog (or brings the open one forward) and adds <paramref name="roots"/> to its selection.</summary>
@@ -31,11 +35,41 @@ public partial class MainWindow
             open.Activate();
             return;
         }
-        if (_session.ManualImportBlocked() is { } blocked)
+        if (_manualImportOpening)
         {
-            ShowNotification(Texts.T("import.title"), ManualImportSession.MessageText(ManualImportSession.MessageOf(blocked)), NotificationType.Warning, operation: "import.open");
+            _manualImportPending.AddRange(roots);
             return;
         }
+        _manualImportOpening = true;
+        _manualImportPending.AddRange(roots);
+        _ = OpenManualImportDialogCheckedAsync();
+    }
+
+    private async Task OpenManualImportDialogCheckedAsync()
+    {
+        ManualImportError? blocked;
+        try { blocked = await Task.Run(_session.ManualImportBlocked); }
+        catch (ObjectDisposedException) { _manualImportOpening = false; _manualImportPending.Clear(); return; }
+        string[] roots = _manualImportPending.ToArray();
+        _manualImportPending.Clear();
+        _manualImportOpening = false;
+        if (_isClosing || _session.State != DesktopSessionState.Ready) return;
+        if (_manualImportDialog is { } open)
+        {
+            open.Session.AddRoots(roots);
+            open.Activate();
+            return;
+        }
+        if (blocked is { } error)
+        {
+            ShowNotification(Texts.T("import.title"), ManualImportSession.MessageText(ManualImportSession.MessageOf(error)), NotificationType.Warning, operation: "import.open");
+            return;
+        }
+        ShowManualImportDialog(roots);
+    }
+
+    private void ShowManualImportDialog(IReadOnlyList<string> roots)
+    {
         // What the library holds is computed once per dialog session and again only after an import changed it.
         KnownMediaState known = new();
         ManualImportKnownMediaSource knownSource = new(token => BuildKnownMediaAsync(known, token));

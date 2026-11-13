@@ -92,6 +92,58 @@ public sealed class ManualImportTests
         Assert.DoesNotContain(fixture.Source, File.ReadAllText(fixture.Store.FilePath));
     }
 
+    [Fact]
+    public void ReadsAreServedFromTheCacheUntilTheFileChangesAndTheBackupIsParsedOnlyOnce()
+    {
+        using Fixture fixture = new();
+        ManualImportBatch batch = Batch(items: Item());
+        using ProfileAdmissionToken admission = fixture.Lease.Admission.EnterStoreWriter();
+        ManualImportCatalogSnapshot written = fixture.Store.PutBatchAdmitted(batch, 0, admission);
+        // The write primed the cache: neither the viewer reads nor the next writes parse the primary again.
+        for (int index = 0; index < 5; index++) Assert.Same(written, fixture.Store.Read());
+        Assert.Equal(0, fixture.Store.ReadCounts.Full);
+        long revision = written.Revision;
+        for (int index = 0; index < 6; index++)
+            revision = fixture.Store.PutBatchAdmitted(batch with { TagsApplied = index % 2 == 0 }, revision, admission).Revision;
+        (long full, long cached, long backupParses) = fixture.Store.ReadCounts;
+        Assert.Equal(0, full);
+        Assert.True(cached >= 11);
+        Assert.True(backupParses <= 1, "backup parsed " + backupParses + " times");
+        Assert.Equal(7, fixture.Store.Read().Revision);
+
+        // A different process or the user replaced the file: the next read parses it, whatever the cache holds.
+        string text = File.ReadAllText(fixture.Store.FilePath);
+        File.WriteAllText(fixture.Store.FilePath, text.Replace("\"Revision\": 7,", "\"Revision\": 7,\n  \"Extra\": 1,"));
+        Assert.Equal(ManualImportError.CatalogDamaged, Assert.Throws<ManualImportException>(() => fixture.Store.Read()).Error);
+        Assert.Equal(1, fixture.Store.ReadCounts.Full);
+
+        // A fresh store (restart) reads the file once and then answers from memory.
+        File.WriteAllText(fixture.Store.FilePath, text);
+        ManualImportCatalogStore restarted = new(fixture.Profile, fixture.Lease);
+        Assert.Equal(7, restarted.Read().Revision);
+        Assert.Equal(7, restarted.Read().Revision);
+        Assert.Equal((1L, 1L), (restarted.ReadCounts.Full, restarted.ReadCounts.Cached));
+    }
+
+    [Fact]
+    public void ABackupChangedBehindTheStoresBackIsCheckedAgain()
+    {
+        using Fixture fixture = new();
+        ManualImportBatch batch = Batch(items: Item());
+        using ProfileAdmissionToken admission = fixture.Lease.Admission.EnterStoreWriter();
+        fixture.Store.PutBatchAdmitted(batch, 0, admission);
+        fixture.Store.PutBatchAdmitted(batch with { TagsApplied = true }, 1, admission);
+        fixture.Store.PutBatchAdmitted(batch, 2, admission);
+        string newer = "{\"Version\": 2, \"Anything\": true}";
+        File.WriteAllText(fixture.Store.FilePath + ".bak", newer);
+        Assert.Equal(ManualImportError.CatalogNewer, Assert.Throws<ManualImportException>(
+            () => fixture.Store.PutBatchAdmitted(batch with { TagsApplied = true }, 3, admission)).Error);
+        Assert.Equal(newer, File.ReadAllText(fixture.Store.FilePath + ".bak"));
+        File.WriteAllText(fixture.Store.FilePath + ".bak", "damaged");
+        fixture.Store.PutBatchAdmitted(batch with { TagsApplied = true }, 3, admission);
+        Assert.Equal(4, fixture.Store.Read().Revision);
+    }
+
     [Theory]
     [InlineData("\"Version\": 1,", "\"Version\": 1, \"Extra\": 1,")]
     [InlineData("\"Revision\": 1,", "\"Revision\": 1, \"Revision\": 1,")]
