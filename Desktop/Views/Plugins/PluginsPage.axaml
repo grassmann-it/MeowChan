@@ -1,6 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:plugins="using:MeowChan.Desktop.Plugins" xmlns:ursa="https://irihi.tech/ursa" x:Class="MeowChan.PluginsPage" SizeChanged="OnPageSizeChanged">
-  <Grid RowDefinitions="Auto,*" Margin="12" RowSpacing="8">
+  <Grid RowDefinitions="Auto,*" Margin="{StaticResource Workspace.Inset.Page}" RowSpacing="8">
     <!-- Spacing 0: each optional row brings its own 8 dip top margin, so hidden or empty rows add no gap above the list
          (as on the Sources page, the list starts 8 dip under the subtitle). -->
     <StackPanel Classes="workspace-page-header" Spacing="0">

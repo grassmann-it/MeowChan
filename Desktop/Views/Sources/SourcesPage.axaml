@@ -4,7 +4,7 @@
              xmlns:ursa="https://irihi.tech/ursa"
              x:Class="MeowChan.SourcesPage" SizeChanged="OnPageSizeChanged">
     <ScrollViewer x:Name="SourcesScroll" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="12" Spacing="8">
+        <StackPanel Margin="{StaticResource Workspace.Inset.Page}" Spacing="8">
             <Grid x:Name="SourcesPageHeader" ColumnDefinitions="*,Auto" ColumnSpacing="12">
                 <StackPanel Spacing="5">
                     <TextBlock Tag="nav.sources" Classes="page-title localized" />

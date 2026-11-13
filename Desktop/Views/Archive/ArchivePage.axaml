@@ -1,13 +1,13 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:commands="clr-namespace:MeowChan.Desktop.Commands"
              xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:controls="clr-namespace:MeowChan.Desktop.Controls" xmlns:ursa="https://irihi.tech/ursa" x:Class="MeowChan.ArchivePage" SizeChanged="OnSizeChanged">
-    <Grid x:Name="ArchiveRoot" Margin="12" RowDefinitions="Auto,*,Auto" RowSpacing="8">
+    <Grid x:Name="ArchiveRoot" Margin="{StaticResource Workspace.Inset.Page}" RowDefinitions="Auto,*,Auto" RowSpacing="8">
         <Grid x:Name="ArchivePageHeader" ColumnDefinitions="*,Auto" ColumnSpacing="12">
             <StackPanel Spacing="5">
                 <TextBlock Tag="nav.archive" Classes="page-title localized" />
                 <TextBlock x:Name="ArchiveSubtitle" Tag="archive.subtitle" Classes="muted localized" TextWrapping="Wrap" />
             </StackPanel>
-            <WrapPanel Grid.Column="1" VerticalAlignment="Top" ItemSpacing="8" LineSpacing="6">
+            <WrapPanel Grid.Column="1" Classes="workspace-toolbar" VerticalAlignment="Top">
                 <Button x:Name="ArchiveTransferPreview" Click="OnTransferPreviewClick" />
                 <Button x:Name="ArchiveCleanupOpen" Click="OnArchiveCleanupClick" />
                 <Button x:Name="RefreshArchiveButton" Tag="archive.refresh" Classes="localized" Click="OnRefreshClick" />
@@ -16,15 +16,15 @@
         <!-- ARCH-DENSE-01: while no error banner is shown the split also spans the empty
              status row, so both boxes end at the page margin. -->
         <Grid x:Name="ArchiveSplit" Grid.Row="1" Grid.RowSpan="2" ColumnDefinitions="270,6,*" ColumnSpacing="6">
-            <Grid x:Name="ArchiveListPane" RowSpacing="6">
+            <Grid x:Name="ArchiveListPane" RowSpacing="8">
                 <Grid.RowDefinitions>
                     <!-- Collapsed search tools use only their content height;
                          expanded tools scroll at the cap instead of pushing results down. -->
                     <RowDefinition Height="Auto" MaxHeight="260" />
                     <RowDefinition Height="2*" />
                 </Grid.RowDefinitions>
-                <ScrollViewer x:Name="ArchiveSearchPanelScroll" MaxHeight="260" HorizontalScrollBarVisibility="Disabled"><Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="6">
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                <ScrollViewer x:Name="ArchiveSearchPanelScroll" MaxHeight="260" HorizontalScrollBarVisibility="Disabled"><Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                         <controls:SearchBox x:Name="ArchiveSearchText" MaxLength="512" KeyDown="OnSearchKeyDown" />
                         <Button x:Name="SearchArchiveButton" Grid.Column="1" Tag="archive.search" Classes="localized" Click="OnSearchClick" />
                     </Grid>

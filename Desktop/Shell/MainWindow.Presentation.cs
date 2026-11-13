@@ -188,8 +188,8 @@ public partial class MainWindow
             WorkspaceVersion.IsVisible = true;
             WorkspaceHeader.Margin = barebones ? new Thickness(12, 0) : new Thickness(20, 0);
             Grid body = WorkspaceBody;
-            body.Margin = barebones ? new Thickness(12) : new Thickness(20);
-            body.RowSpacing = barebones ? 8 : 10;
+            body.Margin = new Thickness(WorkspacePageInset);
+            body.RowSpacing = 8;
 
             DataGrid threads = ThreadsDataGrid;
             _applyingColumnProfile = true;
@@ -517,6 +517,9 @@ public partial class MainWindow
             && _session.CanRequestCheck(target);
     }
 
+    // Same value as the Workspace.Inset.Page token (12): every work view has the same page margin.
+    private const double WorkspacePageInset = 12;
+
     private void UpdateWorkspaceLayout()
     {
         if (!_workspaceInitialized || _updatingWorkspaceLayout) return;
@@ -552,15 +555,15 @@ public partial class MainWindow
             WorkspaceNavigationButtons.IsVisible = true;
             // Keep the shared footer's height and padding from XAML in every view.
             Grid body = WorkspaceBody;
-            body.RowSpacing = retainedErrorLayout ? 4 : reducedChrome ? 8 : 10;
-            body.Margin = retainedErrorLayout ? new Thickness(barebones ? 8 : 12, 6)
-                : barebones ? new Thickness(12) : shortWindow ? new Thickness(16, 12) : new Thickness(20);
+            body.RowSpacing = retainedErrorLayout ? 4 : 8;
+            body.Margin = retainedErrorLayout ? new Thickness(barebones ? 8 : WorkspacePageInset, 6)
+                : new Thickness(WorkspacePageInset);
             // Keep intake and the latest results usable without allowing large pasted
             // batches to push the table's header and first complete row offscreen.
             UrlInput.MaxHeight = retainedErrorLayout ? 36 : compactIntake ? 40 : 72;
             WorkspaceIntakeCard.Padding = retainedErrorLayout ? new Thickness(4)
-                : compactIntake ? new Thickness(8) : new Thickness(12, 10);
-            WorkspaceIntakeStack.Spacing = retainedErrorLayout ? 3 : 7;
+                : compactIntake ? new Thickness(8) : new Thickness(12);
+            WorkspaceIntakeStack.Spacing = retainedErrorLayout ? 4 : 8;
             // Reserve tabs, the column header and one complete data row. Extra-long
             // repair/report content scrolls in intake instead of reducing the table to zero.
             double rowHeight = barebones || _config.CompactDensity ? 32 : 44;
