@@ -244,3 +244,36 @@ short (저장, 설정, 삭제). Fixed terms:
 Particles after a placeholder or other variable text use the neutral software notation
 `을(를)`, `이(가)`, `은(는)`, `(으)로`; particles that do not change (`의`, `에`, `에서`) are
 written plainly. Keyboard keys, units and placeholders are kept unchanged.
+
+## Glossary: Brazilian Portuguese (pt-BR) and Czech (cs)
+
+`pt-BR.json` (Português (Brasil) (Untested)) and `cs.json` (Čeština (Untested)) are
+**unreviewed AI translations** like the other previews. pt-BR addresses the user with
+informal "você"; cs uses the polite "vy" form and „…“ quotes. Booru, Danbooru, board,
+plugin, worker and URL stay as they are. One term per concept:
+
+| English | pt-BR | cs |
+| --- | --- | --- |
+| post | postagem | příspěvek |
+| thread | tópico | vlákno |
+| archive (page / state) | Acervo / arquivado | Archiv / archivováno |
+| file | arquivo | soubor |
+| media | mídia | média, médium |
+| gallery | galeria | galerie |
+| reader | leitor | čtečka |
+| watch (thread/board) | acompanhar, acompanhamento | sledovat, sledování |
+| watcher (Danbooru search) | monitor | sledování |
+| download | download (noun), baixar (verb) | stahování, stáhnout |
+| tag / own tag | tag / tag própria | štítek / vlastní štítek |
+| plugin | plugin | plugin |
+| settings | Configurações | Nastavení |
+| favorite | favorito | oblíbené |
+| rating | avaliação (Danbooru: classificação) | hodnocení |
+| Storage and limits | Armazenamento e limites | Úložiště a limity |
+| provider | provedor | poskytovatel |
+
+Plural variants: cs adds `<key>.few` (2–4; base = other) where a number directly governs a
+noun and `<key>.one`/`<key>.few` for the `limit.*` texts; other counted cs texts use the
+count-agnostic "Label: {0}" form. pt-BR adds `<key>.one` (0 and 1) for the `limit.*` texts.
+Size units in rules and budget texts are MiB/KiB, as in English. Both packs need qualified
+native review before they can count as reviewed.
