@@ -94,7 +94,16 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
         GotFocus += (_, e) =>
         {
             if (_restoringFocus || _pointerInPopup || SuggestionAt(e.Source) != null) return;
-            _suppressed = false; _ = PopulateAsync();
+            _suppressed = false;
+            int revision = _revision;
+            // A cached provider can finish synchronously inside the routed focus event,
+            // before the base editor finishes updating its popup/search state. Publish
+            // only after that event, and never revive a request superseded by typing.
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (!_ended && !_suppressed && revision == _revision && IsKeyboardFocusWithin)
+                    _ = PopulateAsync();
+            }, Avalonia.Threading.DispatcherPriority.Input);
         };
         LostFocus += (_, e) =>
         {

@@ -88,7 +88,9 @@ internal static class FilterPointerSelectionChecks
                         .FirstOrDefault(item => item.Name == "PART_SelectingItemsControl")
                     ?? throw new InvalidOperationException(field.Name + " suggestion list is missing.");
                 await Program.WaitUntilAsync(() => list.GetVisualDescendants().OfType<ListBoxItem>().Any(item => item.DataContext is IdentitySuggestion candidate
-                    && candidate.Value == value && candidate.Source == sourceValue && item.Bounds.Width > 0 && item.Bounds.Height > 0));
+                    && candidate.Value == value && candidate.Source == sourceValue && item.Bounds.Width > 0 && item.Bounds.Height > 0),
+                    () => SuggestionState(field) + $"; popupOpen={popup.IsOpen}; listItems={list.Items.Count}; listVisible={list.IsEffectivelyVisible}; listBounds={list.Bounds}; rows=["
+                        + string.Join(",", list.GetVisualDescendants().OfType<ListBoxItem>().Select(item => $"{item.DataContext}:{item.Bounds}")) + "]");
                 Control row = list.GetVisualDescendants().OfType<ListBoxItem>().First(item => item.DataContext is IdentitySuggestion candidate
                     && candidate.Value == value && candidate.Source == sourceValue);
                 Require(row.IsEffectivelyVisible && row.Bounds.Width > 0 && row.Bounds.Height > 0,
