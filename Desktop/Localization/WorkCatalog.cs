@@ -4,6 +4,7 @@ internal static class WorkCatalog
     internal static readonly (string Key, string English, string German)[] Entries =
     {
         ("work.missingAndErrors", "{0} / {1} errors", "{0} / {1} Fehler"),
+        ("work.moreItems", "and {0} more", "und {0} weitere"),
         ("work.errorSummary", "{0} media errors", "{0} Medienfehler"),
         ("work.sourceArchived", "The source thread is archived. Remaining media keep their existing retry limits.", "Der Quellthread ist archiviert. Für verbleibende Medien gelten die bisherigen Wiederholungsgrenzen."),
         ("work.sourceEnded", "The source thread is no longer available. Missing media may remain after the retry deadline.", "Der Quellthread ist nicht mehr verfügbar. Nach Ende der Wiederholungsfrist können Medien fehlen."),

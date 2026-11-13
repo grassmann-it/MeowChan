@@ -1064,6 +1064,7 @@
     "wizard.existingWatch": "Ya en seguimiento — continúa",
     "work.missingAndErrors": "{0} / {1} errores",
     "work.errorSummary": "{0} errores de medios",
+    "work.moreItems": "y {0} más",
     "work.sourceArchived": "El hilo de la fuente está archivado. Los medios restantes conservan sus límites de reintento existentes.",
     "work.sourceEnded": "El hilo de la fuente ya no está disponible. Pueden quedar medios ausentes tras el plazo de reintento.",
     "work.watching": "En seguimiento",

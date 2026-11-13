@@ -99,6 +99,8 @@ public static class WorkStatusFormatter
                 details.Add(retry); context.Add(retry);
             }
         }
+        // Only the first five items are listed; say so instead of silently hiding the rest.
+        if (missing.Length > 5) details.Add(Texts.T("work.moreItems", missing.Length - 5));
         double completion = work.Media.Count == 0 ? 0 : 100d * work.SavedMedia / work.Media.Count;
         bool canRetry = work.Intent != WorkIntent.Suppressed && missing.Any(item => !item.ManualAttempt);
         return new WorkStatusPresentation(status, progress, string.Join(Environment.NewLine, details), completion, canRetry)

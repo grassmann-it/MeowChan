@@ -169,7 +169,6 @@
                             <TextBox x:Name="DownloadPathInput" AutomationProperties.LabeledBy="{Binding ElementName=DownloadPathFieldLabel}" AutomationProperties.Name="{Binding DownloadPathLabel}" AutomationProperties.HelpText="{Binding DownloadPathHelp}" Text="{Binding DownloadPath, Mode=TwoWay}" />
                             <Button x:Name="BrowseButton" Grid.Column="1" Click="OnBrowseButtonClick" />
                         </Grid>
-                        <TextBlock Text="{Binding PathHint}" Classes="muted workspace-help" />
                         <TextBlock x:Name="NormalizedDestinationPreview" Text="{Binding NormalizedDestination}" Classes="workspace-help" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding DestinationScopeHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding DestinationPolicyHint}" Classes="muted workspace-help" TextWrapping="Wrap" />

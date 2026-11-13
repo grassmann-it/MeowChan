@@ -1064,6 +1064,7 @@
     "wizard.existingWatch": "Déjà surveillé — continue",
     "work.missingAndErrors": "{0} / {1} erreurs",
     "work.errorSummary": "{0} erreurs de médias",
+    "work.moreItems": "et {0} autres",
     "work.sourceArchived": "Le fil source est archivé. Les médias restants conservent leurs limites de nouvelles tentatives existantes.",
     "work.sourceEnded": "Le fil source n’est plus disponible. Des médias peuvent rester manquants après l’échéance des nouvelles tentatives.",
     "work.watching": "Surveillance",

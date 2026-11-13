@@ -252,7 +252,7 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="Missing / errors" Width="140" SortMemberPath="MissingMedia" Binding="{Binding MissingMediaText, DataType=desktop:ThreadRow}" IsVisible="False" />
+                                <DataGridTextColumn Header="Missing / errors" Width="190" SortMemberPath="MissingMedia" Binding="{Binding MissingMediaText, DataType=desktop:ThreadRow}" IsVisible="False" />
                             <DataGridTextColumn Header="Earliest retry" Width="160" SortMemberPath="EarliestRetry" Binding="{Binding EarliestRetryText, DataType=desktop:ThreadRow}" IsVisible="False" />
                         </DataGrid.Columns>
 

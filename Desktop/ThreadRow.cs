@@ -180,8 +180,9 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
             Progress += " · " + Texts.T("progress.excluded", snapshot.Content.ExcludedMedia);
         Queued = snapshot.Downloads.Queued;
         Active = snapshot.Downloads.Active;
-        string[] mediaErrors = snapshot.MediaFailures.Values.Select(mediaFailure => mediaFailure.Message).Distinct().Take(5).ToArray();
-        ErrorDetails = string.Join(Environment.NewLine, mediaErrors);
+        string[] allMediaErrors = snapshot.MediaFailures.Values.Select(mediaFailure => mediaFailure.Message).Distinct().ToArray();
+        string[] mediaErrors = allMediaErrors.Take(5).ToArray();
+        ErrorDetails = string.Join(Environment.NewLine, allMediaErrors.Length > 5 ? mediaErrors.Append(Texts.T("work.moreItems", allMediaErrors.Length - 5)) : mediaErrors);
         if (snapshot.LastCheckFailure is FailureInfo failure)
         {
             ErrorDetails = string.IsNullOrEmpty(ErrorDetails) ? failure.Message : failure.Message + Environment.NewLine + ErrorDetails;
