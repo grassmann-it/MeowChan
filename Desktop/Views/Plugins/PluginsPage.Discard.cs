@@ -56,7 +56,7 @@ public partial class PluginsPage
             _catalog = catalog; _drafts.Remove(key); _renderedKey = null; Error(null); RenderList(); RenderDetails();
         }
         catch (OperationCanceledException) { }
-        catch (Exception exception) { if (Current(generation)) Error(exception.Message); }
+        catch (Exception exception) { if (Current(generation)) ErrorFailure("plugins.error.discard", exception); }
         finally { FinishOperation(generation); }
         return !_ended && generation == _operationGeneration && _selectedKey == key ? generation : null;
     }

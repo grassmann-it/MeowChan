@@ -71,7 +71,7 @@ public partial class PluginsPage
             await RefreshAsync();
         }
         catch (OperationCanceledException) { }
-        catch (Exception exception) { if (Current(generation)) { Error(exception.Message); focusSaveError = true; } }
+        catch (Exception exception) { if (Current(generation)) { ErrorFailure("plugins.error.save", exception); focusSaveError = true; } }
         finally
         {
             FinishOperation(generation);
@@ -87,7 +87,8 @@ public partial class PluginsPage
             IReadOnlyList<FieldValidationError> scoped = PluginConfigurationFieldError.ForScope(errors, scope);
             editor.ShowErrors(scoped);
         }
-        Error(errors.Count == 0 ? null : string.Join(Environment.NewLine, errors.Select(error => error.Error.Message)));
+        if (errors.Count == 0) Error(null);
+        else ErrorFailure("plugins.error.fields", string.Join(Environment.NewLine, errors.Select(error => error.Error.Message)));
         if (focusFirstError && errors.Count > 0) FocusFirstSettingError();
     }
     private static async Task<IReadOnlyList<PluginConfigurationFieldError>> ValidateInWorkerAsync(IPluginWorkerClient worker,
@@ -142,7 +143,7 @@ public partial class PluginsPage
             await RefreshAsync();
         }
         catch (OperationCanceledException) { }
-        catch (Exception exception) { if (Current(generation)) { Error(exception.Message); SetTestStatus("plugins.testFailed"); } }
+        catch (Exception exception) { if (Current(generation)) { ErrorFailure("plugins.error.test", exception); SetTestStatus("plugins.testFailed"); } }
         finally
         {
             FinishOperation(generation);
@@ -168,7 +169,7 @@ public partial class PluginsPage
                     if (_ended || _selectedKey != entry.Key) return;
                     // The compiler reports the loader input. Never accept plugin-supplied executable strings.
                     try { await PluginEditorLauncher.OpenAsync(GetEditorOptions?.Invoke() ?? new(null, new[] { "{file}" }), file, diagnostic.Line ?? 1, diagnostic.Column ?? 1, _lifetime.Token); }
-                    catch (Exception error) { if (!_ended && _selectedKey == entry.Key) Error(error.Message); }
+                    catch (Exception error) { if (!_ended && _selectedKey == entry.Key) ErrorLocalized("plugins.editorFallback", error.Message); }
                 };
                 panel.Children.Add(location);
             }
@@ -192,11 +193,12 @@ public partial class PluginsPage
             ToolState(tested.Key).Result = PluginProbePresentation.Capture(result);
             RenderPluginProbeResult();
             string formatted = C<TextBox>("PluginProbeResult").Text ?? string.Empty;
+            // The probe result is the plugin's own output for the URL the user entered; it stays verbatim.
             if (result is ThreadFailure or CatalogFailure) Error(formatted);
             SetTestStatus("plugins.probeFinished");
         }
         catch (OperationCanceledException) { }
-        catch (Exception exception) { if (Current(generation)) Error(exception.Message); }
+        catch (Exception exception) { if (Current(generation)) ErrorFailure("plugins.error.probe", exception); }
         finally { FinishOperation(generation); }
     }
     private void OnCancelClick(object? sender, RoutedEventArgs e)
@@ -218,6 +220,6 @@ public partial class PluginsPage
             (C<TextBox>("PluginEditorArguments").Text ?? "{file}").Replace("\r", string.Empty, StringComparison.Ordinal).Split('\n'));
         string? key = _selectedKey;
         try { _ = PluginEditorLauncher.CreateStartInfo(options, Selected?.SourcePath ?? "plugin.cs"); await SaveEditorOptionsAsync(options); }
-        catch (Exception exception) { if (!_ended && key == _selectedKey) Error(exception.Message); }
+        catch (Exception exception) { if (!_ended && key == _selectedKey) ErrorFailure("plugins.error.editorSave", exception); }
     }
 }

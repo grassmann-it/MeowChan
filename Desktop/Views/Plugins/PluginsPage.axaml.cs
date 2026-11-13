@@ -52,14 +52,20 @@ public partial class PluginsPage : UserControl
 
     // Only host-owned messages carry translation keys. Worker/compiler/exception
     // text remains opaque, even when it happens to look like a translation key.
+    // A failure pairs a localized sentence (what happened, what to do next) with the original
+    // technical text, which is kept only as a detail (tooltip and accessible help), never as the message.
     internal sealed class PluginErrorState
     {
         private readonly object?[] _arguments;
         internal string? Key { get; }
         internal string? RawText { get; }
+        internal string? Detail { get; }
 
-        private PluginErrorState(string? key, string? rawText, object?[] arguments)
-        { Key = key; RawText = rawText; _arguments = (object?[])arguments.Clone(); }
+        private PluginErrorState(string? key, string? rawText, object?[] arguments, string? detail = null)
+        { Key = key; RawText = rawText; _arguments = (object?[])arguments.Clone(); Detail = detail; }
+
+        internal static PluginErrorState Failure(string key, string? detail) =>
+            new(key, null, Array.Empty<object?>(), string.IsNullOrWhiteSpace(detail) ? null : detail);
 
         internal static PluginErrorState Localized(string key, params object?[] arguments) =>
             new(key, null, arguments);
@@ -201,7 +207,7 @@ public partial class PluginsPage : UserControl
             RenderList(); RenderDetails();
         }
         catch (OperationCanceledException) when (_ended) { }
-        catch (Exception exception) { if (!_ended && refreshGeneration == _refreshGeneration) Error(exception.Message); }
+        catch (Exception exception) { if (!_ended && refreshGeneration == _refreshGeneration) ErrorFailure("plugins.error.refresh", exception); }
     }
     private bool Included(PluginCatalogEntry entry) => C<ComboBox>("PluginCategory").SelectedIndex switch { 1 => entry.IsSource, 2 => entry.IsFilter, _ => true };
     private void RenderList()
@@ -479,7 +485,7 @@ public partial class PluginsPage : UserControl
     private void OnCategoryChanged(object? sender, SelectionChangedEventArgs e) { if (!_refreshing) { ClosePluginActionMenu(); CancelDiscardConfirmation(); _showDetails = false; RenderList(); } }
     private async void OnRefreshClick(object? sender, RoutedEventArgs e) => await RefreshAsync();
     private async void OnFolderClick(object? sender, RoutedEventArgs e)
-    { try { if (_services != null) await ExternalLauncher.OpenAsync(_services.PluginDirectory); } catch (Exception error) { if (!_ended) Error(error.Message); } }
+    { try { if (_services != null) await ExternalLauncher.OpenAsync(_services.PluginDirectory); } catch (Exception error) { if (!_ended) ErrorFailure("plugins.error.folder", error); } }
     private void OnWatchesClick(object? sender, RoutedEventArgs e)
     { _ = ExecutePluginControlActionAsync("PluginWatches"); }
     private async void OnEnabledClick(object? sender, RoutedEventArgs e)
@@ -499,7 +505,7 @@ public partial class PluginsPage : UserControl
             await RefreshAsync(); if (Current(generation) && Selected is { } selected) RenderGrants(selected);
         }
         catch (OperationCanceledException) { }
-        catch (Exception exception) { if (Current(generation)) Error(exception.Message); }
+        catch (Exception exception) { if (Current(generation)) ErrorFailure("plugins.error.change", exception); }
         finally { FinishOperation(generation); }
     }
     private void OnDiscardClick(object? sender, RoutedEventArgs e)
@@ -509,6 +515,17 @@ public partial class PluginsPage : UserControl
     private void Error(string? text)
     {
         _errorState = text is null ? null : PluginErrorState.Raw(text);
+        RenderError();
+    }
+    // An exception from a host operation: a localized sentence with the next step; the original text is only the detail.
+    private void ErrorFailure(string key, Exception exception)
+    {
+        _errorState = PluginErrorState.Failure(key, exception.Message);
+        RenderError();
+    }
+    private void ErrorFailure(string key, string? detail)
+    {
+        _errorState = PluginErrorState.Failure(key, detail);
         RenderError();
     }
     private void ErrorLocalized(string key, params object?[] arguments)
@@ -521,6 +538,9 @@ public partial class PluginsPage : UserControl
         string? text = _errorState?.Render();
         TextBlock summary = C<TextBlock>("PluginPageError");
         summary.Text = text;
+        string? detail = _errorState?.Detail;
+        ToolTip.SetTip(summary, detail);
+        AutomationProperties.SetHelpText(summary, detail ?? string.Empty);
         summary.Focusable = !string.IsNullOrEmpty(text);
         AutomationProperties.SetName(summary, text);
         C<Ursa.Controls.Banner>("PluginErrorBanner").IsVisible = !string.IsNullOrEmpty(text);

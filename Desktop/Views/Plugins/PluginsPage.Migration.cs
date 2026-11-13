@@ -388,7 +388,7 @@ public partial class PluginsPage
             if (Current(generation)) await RefreshAsync(); // Never refresh page selection under the open modal.
         }
         catch (OperationCanceledException) { }
-        catch (Exception exception) { if (Current(generation)) Error(exception.Message); }
+        catch (Exception exception) { if (Current(generation)) ErrorFailure("plugins.error.repair", exception); }
         finally
         {
             CloseBundledRepairPreview(); _migrationWindow = null; _migrationApproval = null;
