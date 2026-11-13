@@ -17,7 +17,7 @@ internal static class MediaRatingCatalog
         ("media.rating.filter.sortDescending", "Rating descending", "Bewertung absteigend"),
         ("media.rating.saved", "Saved rating: {0}", "Gespeicherte Bewertung: {0}"),
         ("media.rating.identity", "{0} /{1}/ {2} · {3} · {4}\nSHA-256: {5}", "{0} /{1}/ {2} · {3} · {4}\nSHA-256: {5}"),
-        ("media.rating.search", "Search identities", "Identitäten durchsuchen"),
+        ("media.rating.search", "Search identities", "Bewertungen durchsuchen"),
         ("media.rating.noSaved", "No saved ratings.", "Keine gespeicherten Bewertungen."),
         ("media.rating.noMatching", "No matching ratings.", "Keine passenden Bewertungen."),
         ("media.rating.summary", "{0} shown · {1} saved ratings", "{0} angezeigt · {1} gespeicherte Bewertungen"),

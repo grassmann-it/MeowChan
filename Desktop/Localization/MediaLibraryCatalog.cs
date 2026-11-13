@@ -61,7 +61,7 @@ internal static class MediaLibraryCatalog
         ("media.filter.kind.video", "Videos", "Videos"),
         ("media.filter.kind.other", "Other files", "Andere Dateien"),
         ("media.filter.sound", "Sound", "Ton"),
-        ("media.filter.anySound", "Sound: any", "Ton: egal"),
+        ("media.filter.anySound", "Sound: any", "Mit oder ohne Ton"),
         ("media.filter.sound.with", "With sound", "Mit Ton"),
         ("media.filter.sound.without", "Without sound", "Ohne Ton"),
         ("media.filter.sound.hint", "Videos only. Whether a video has sound is read from the file headers. Videos not checked yet are not shown.", "Nur Videos. Ob ein Video Ton hat, wird aus den Dateikopfdaten gelesen. Noch ungeprüfte Videos werden nicht gezeigt."),
