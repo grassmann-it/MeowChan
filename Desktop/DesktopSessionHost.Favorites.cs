@@ -82,12 +82,13 @@ internal sealed partial class DesktopSessionHost
     internal IReadOnlyList<StoreLimitUsage.Item> ReadStoreLimitUsage()
     {
         if (_disposed) return Array.Empty<StoreLimitUsage.Item>();
-        List<long> counts = new(3), sizes = new(3);
-        try { counts.Add(GetFavorites().Count); } catch (Exception error) when (error is InvalidDataException or ObjectDisposedException) { }
-        try { if (GetPublishedThreadFavoriteSnapshot().Snapshot is { } threads) counts.Add(threads.Threads.Count); } catch (ObjectDisposedException) { }
-        try { counts.Add(GetMediaRatings().Count); } catch (Exception error) when (error is InvalidDataException or ObjectDisposedException) { }
-        foreach (string file in new[] { "media-favorites.json", "thread-favorites.json", "media-ratings.json" })
-            sizes.Add(ProfileStoreLimits.FileLength(Path.Combine(ProfileDirectory, file)));
+        List<(StoreLimitUsage.StoreList? List, long Value)> counts = new(3), sizes = new(3);
+        try { counts.Add((StoreLimitUsage.StoreList.Favorites, GetFavorites().Count)); } catch (Exception error) when (error is InvalidDataException or ObjectDisposedException) { }
+        try { if (GetPublishedThreadFavoriteSnapshot().Snapshot is { } threads) counts.Add((StoreLimitUsage.StoreList.ThreadFavorites, threads.Threads.Count)); } catch (ObjectDisposedException) { }
+        try { counts.Add((StoreLimitUsage.StoreList.Ratings, GetMediaRatings().Count)); } catch (Exception error) when (error is InvalidDataException or ObjectDisposedException) { }
+        foreach ((StoreLimitUsage.StoreList list, string file) in new[] { (StoreLimitUsage.StoreList.Favorites, "media-favorites.json"),
+            (StoreLimitUsage.StoreList.ThreadFavorites, "thread-favorites.json"), (StoreLimitUsage.StoreList.Ratings, "media-ratings.json") })
+            sizes.Add((list, ProfileStoreLimits.FileLength(Path.Combine(ProfileDirectory, file))));
         ProfileStoreLimits limits = _profileLease.StoreLimits;
         return StoreLimitUsage.Evaluate(counts, limits.FavoriteEntries, sizes, limits.FavoriteFileBytes);
     }
