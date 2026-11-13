@@ -20,18 +20,23 @@ internal static class JsonDuplicateProperties
         if (utf8Json.StartsWith(Bom)) utf8Json = utf8Json[Bom.Length..];
         Utf8JsonReader reader = new(utf8Json, new JsonReaderOptions { MaxDepth = maxDepth });
         Stack<HashSet<string>?> scopes = new();
-        while (reader.Read())
+        try
         {
-            switch (reader.TokenType)
+            while (reader.Read())
             {
-                case JsonTokenType.StartObject: scopes.Push(new HashSet<string>(StringComparer.Ordinal)); break;
-                case JsonTokenType.StartArray: scopes.Push(null); break;
-                case JsonTokenType.EndObject or JsonTokenType.EndArray: scopes.Pop(); break;
-                case JsonTokenType.PropertyName:
-                    if (!scopes.Peek()!.Add(reader.GetString()!)) return true;
-                    break;
+                switch (reader.TokenType)
+                {
+                    case JsonTokenType.StartObject: scopes.Push(new HashSet<string>(StringComparer.Ordinal)); break;
+                    case JsonTokenType.StartArray: scopes.Push(null); break;
+                    case JsonTokenType.EndObject or JsonTokenType.EndArray: scopes.Pop(); break;
+                    case JsonTokenType.PropertyName:
+                        if (!scopes.Peek()!.Add(reader.GetString()!)) return true;
+                        break;
+                }
             }
         }
+        // GetString throws InvalidOperationException for a name that cannot be decoded (a lone surrogate escape, invalid UTF-8).
+        catch (InvalidOperationException error) { throw new JsonException(error.Message, error); }
         return false;
     }
 }

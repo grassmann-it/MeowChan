@@ -108,6 +108,20 @@ public sealed class JsonDuplicatePropertiesTests(ITestOutputHelper log)
     [InlineData("""{"a":tru}""")]
     public void MalformedJsonThrowsAJsonException(string json) => Assert.ThrowsAny<JsonException>(() => Any(json));
 
+    // PF-R6: the contract is "malformed JSON throws JsonException"; a name that cannot be decoded must not escape as another type.
+    [Theory]
+    [InlineData("""{"\ud800":1}""")]
+    [InlineData("""{"a":1,"\udc00x":2}""")]
+    [InlineData("""{"ok":{"\ud83d":1}}""")]
+    public void ANameWithALoneSurrogateEscapeThrowsAJsonException(string json) => Assert.ThrowsAny<JsonException>(() => Any(json));
+
+    [Fact]
+    public void InvalidUtf8InANameThrowsAJsonException()
+    {
+        byte[] bytes = [(byte)'{', (byte)'"', 0xC3, 0x28, (byte)'"', (byte)':', (byte)'1', (byte)'}'];
+        Assert.ThrowsAny<JsonException>(() => JsonDuplicateProperties.Any(bytes));
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(10)]
