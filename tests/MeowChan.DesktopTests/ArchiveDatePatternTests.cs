@@ -17,6 +17,7 @@ public sealed class ArchiveDatePatternTests
         string before = Texts.Language;
         try
         {
+            Texts.Initialize(); // the bundled packs; without it the result depends on which test ran first
             Texts.SetLanguage(language);
             Assert.Equal(pattern, Texts.T("archive.datePattern"));
             Assert.Contains(pattern, Texts.T("archive.invalidDate", "x"));
