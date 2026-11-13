@@ -16,6 +16,67 @@
   when a source changes an attachment key. Loose and legacy files that no captured post
   binds can be tagged too, with orphan check and retryable cleanup; own tags are not
   exported.
+- Rework the media tag dialogs around search: one field filters a single list of toggle rows
+  with use counts, the tags on the file first, then the most used, then A to Z (or sort by
+  most used), with one-step undo from the footer. Tagging several files together shows for each
+  tag whether all, some or none of the ticked files carry it ("3 of 5"). A vocabulary of 20000
+  tags opens and filters smoothly, and the tag manager gets the same sort choice.
+- Give tags, filter values and badges one chip look: own tags are filled, thread tags carry a
+  house mark, Danbooru source tags have a dashed outline and a category mark, so they differ by
+  shape and not only by colour. Every active Media page filter shows as a removable chip under the
+  toolbar, even while the filter area is closed, with **Reset all** and a count on the button
+  ("Filters (3)"). Tiles show their state in fixed corners (type, provider, not saved,
+  no media tags yet, favorite star on hover or focus).
+- Select several files in a thread's Media tab, as on the Media page: Ctrl/Cmd+click,
+  Shift+click, Shift+arrows, Ctrl/Cmd+A, Esc. With two or more selected, **Tag together**,
+  **Selection as gallery**, **Export originals** and **Clear selection** act on all of them, also
+  from the right-click menu.
+- Add **Import files…** (menu, or drop files and folders on the window) for your own files.
+  MeowChan checks each file by SHA-256, copies new ones to `meowchan-import/` in the download
+  folder and only links files it already has; your originals are never moved or changed. You can
+  add own tags for the new files, stop after the current file, and open the batch on the Media
+  page; imported files are loose, taggable media in the index and gallery. The dialog names the
+  settings row when a limit stops a selection.
+- Show reader posts as cards on the page tone, with the opening post directly on the page. The
+  header is one line (subject, name, date, number); a click on the number copies `>>number` for
+  quoting. Thumbnails sit flat under a file line with name and size, lines starting with `>` are
+  green, and `>>number` in the text jumps to that post (the quote buttons stay as the keyboard
+  path). Post bodies are set in a bundled Noto Sans subset (Latin, Greek, Cyrillic; CJK uses the
+  system fonts), credited in About and the README next to Inter; the interface stays in Inter. The
+  HTML export follows the same cards, colours and greentext.
+- Reader: rest the pointer on a quote, or focus it and press Space, to preview the quoted post
+  (Esc closes it, Enter jumps there) and see the target flash after a jump. A line marks where new
+  posts begin ("N new posts since last time") and **Back to last read** returns to it. Posts over
+  24 lines fold to 18 with **Show more** (remembered per post; find opens them). The reply counter
+  in the header opens the replies as nested cards, five more at a time. References to posts that
+  were not captured are struck through, spoilers stay hidden until you click them or press
+  Enter or Space, code is monospace, external links are underlined; the HTML export shows the same.
+- Add the setting **Animations** (Follow system, On, Off): short fades, hover and chip transitions
+  and toast changes follow the system reduced-motion setting or stay off. Progress bars and
+  spinners always stay.
+- Draw the keyboard focus ring in two shells so it stays visible on any background, and show the
+  selected state by shape on chips, tiles, thread media tiles (drawn check mark) and the settings
+  sidebar (a bar), not only by colour.
+- Give every window and dialog the app's own title bar. Windows and Linux keep Snap, resize and
+  shadow; Windows 11 gets square corners; macOS keeps its native traffic lights, full screen and
+  rounded corners with the app caption beneath. `MEOWCHAN_WINDOW_CHROME=system` brings back the
+  platform title bar everywhere.
+- Announce a found update with a quiet toast (**Release notes**, **Later**, **Skip this version**)
+  and a tray entry; the footer notice stays as the indicator. Each version is announced once per
+  start, never for a skipped version, with automatic checks off, or when information notifications
+  are off. Nothing is downloaded automatically.
+- Downloads: removing from the watch list offers **Undo**, retries state the reason and the next
+  step in plain language, the tray menu can pause and resume, the search also matches the status
+  text, a link to **Show in list** appears for addresses that are already watched, and toasts last
+  by category.
+- Gallery and Media page: a saved file without a viewer shows **Open with default program** and
+  **Show in folder** (runnable types such as scripts are never handed to the default program),
+  **Copy file path** joins the shared menu, the gallery export button reads **Original…**, the
+  slideshow duration is a dropdown next to the playback mode, the reader post menu copies text,
+  number and (4chan) link, and the archive media footer has **Manage saved ratings**.
+- Make German and the counted texts consistent: always "du", one wording per action
+  (Reader, Downloads, Beobachtung, Post), correct singular forms (also Russian 2 to 4), and
+  one file-size format that never shows 0 MB for a small file.
 - Add the Danbooru source, read-only and enabled by default (it sends nothing until you
   search or a watcher checks): tag search with restricted previews, single posts, watchers
   that continue below a post id cursor without a page limit, a one-time check of a paused
@@ -27,18 +88,34 @@
   card offers **Open post in browser** and **Copy link**; a **Danbooru watcher**
   notification reports originals that a check added to the download queue; the detail
   dialog copies source tags and uses up to two of them as a search; pending originals
-  are picked up in the background at start.
-- Add the setting **Danbooru catalog limit (MiB)** under **Advanced: plugin process
-  limits** (default 32, 8 to 128) with a watcher-list warning from 75 %; lowering it
-  deletes nothing.
+  are picked up in the background at start. Result cards list rating, score, favorites,
+  date and original file as facts with the same rating and tag-category names as the detail
+  dialog, and every source tag is a button that adds it to the search (up to two; nothing is
+  requested until you press Search). Several Danbooru search addresses in one Add input open the
+  window with the last one and report the unused ones once; words after a space stay part of
+  an address; a dropped board name such as `/g/` counts as a link, not as a file. Any text
+  that mentions a Danbooru host is redacted from logs and feedback context.
+- Add the settings **Danbooru catalog limit (MiB)** (default 32, 8 to 128), **Own tag
+  limit** (default 1024, 1024 to 20000) and **Own tag file limit (MiB)** (default 32, 8 to
+  128). The Danbooru limit warns in the watcher list from 75 %; a refused new tag or write
+  names the setting in the user's language. Lowering a limit deletes nothing and never makes
+  a saved file unreadable; removing, renaming and cancelling keep working above a lowered
+  limit. They sit on the renamed settings page **Storage and limits** (formerly named after
+  the plugin-process expander) next to the free-space reserve. The first-run text and the
+  Danbooru warning now point to that page, Downloads shows the effective parallel limit live
+  with a short hint, and plugin settings say that they apply at the next start.
 - Make the remaining amount and size limits settings under **Storage and limits**:
   entries per favorite/thread-favorite/rating list (default 50000) and their file size
   (8 MiB), post bookmarks (10000), saved searches (500), reader groups (500), the question
   before "Export all matches" (500 files or 2 GiB), the video preview cache (128 MiB,
-  256 files) and the five import limits. Lowering a limit deletes nothing; a full list
-  names the setting in the user's language. Fixed technical limits are listed in the help.
+  256 files), the seven import limits (including 32 tags per batch and 100000 batches) and
+  the media index cache (256 MiB, 1000000 entries, 200000 threads). Lowering a limit deletes
+  nothing; a full list names the setting in the user's language, and the status bar warns
+  from 75 % of the favorites, thread favorites and ratings limits and of the media index
+  cache. Fixed technical limits are listed in the help.
 - Raise the minimum height of the archive metadata, gallery details, media occurrences,
-  reader-group prompt and startup error windows so the footer stays visible below the title bar.
+  reader-group prompt, saved searches, experimental activation and startup error windows so
+  the footer stays visible below the title bar.
 - Add plugin SDK 1.1.0 (booru post search, blocked-declaration status), reviewed and
   moved to Shipped, with a one-time automatic transition for bundled plugins that only
   change the declared SDK version. The booru post identity is `BooruPostId` (renamed before
@@ -84,9 +161,27 @@
   Keyboard shortcuts** can turn the single-character shortcuts off. Saved shortcuts are never changed:
   a new default yields to a saved binding of another command instead of silencing it, and the startup
   warning appears only for bindings that are really blocked.
+- Speed up large collections: the saved media index loads in the background with a status
+  instead of freezing the window, is written only when it changed, and unchanged threads and
+  imported batches are reused without opening their manifests (100000 entries: warm build 4.8 to
+  2.1 s, about 80 % fewer allocations on load); the own tag store and the import catalog are
+  indexed and skip re-parsing an unchanged backup; the tag list lays out again only when the filter
+  text really changed; finding the reading line no longer walks the visual tree on every scroll;
+  the download speed timer stops while the window is hidden or minimized; opening a folder on an
+  unresponsive network share no longer freezes the window (2 s limit); chan plugins now ask for
+  compressed responses.
+- Fix write and queue problems found in review: pausing, resuming, removing and cancelling in the
+  Danbooru catalog keep working above a lowered limit (only growth is refused), a failing
+  acknowledgement can no longer fail an original already accepted into the queue, and leftover
+  temporary catalog files from a crash are cleaned up at the next start.
+- Improve screen reader and keyboard use: hidden spoilers get a neutral name until revealed,
+  tiles and Danbooru facts have named values (type, untagged state, "term: value"), the quote
+  buttons stay reachable with Tab after the post text.
 - Upgrade: archive schema 5 to 12, media manifest 4 to 5 (6 for imported representations),
   work journal pruning with one backup and a `user_version` stamp, new `private-tags.json`,
-  media index cache, `booru-catalog.json` and the catalog limit setting.
+  media index cache (version 4; version 3 files are still read, so there is no cold rebuild
+  after the update), `booru-catalog.json`, `local-imports.json` with the `meowchan-import/`
+  folder, and the new limit and animation settings.
   `private-tags.json` becomes version 2 at the first tag on a loose file; the exact version
   1 file is kept permanently as `private-tags.v1.bak`. Back up the whole profile first;
   there is no supported downgrade.
