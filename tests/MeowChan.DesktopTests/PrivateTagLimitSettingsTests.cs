@@ -8,7 +8,7 @@ using MeowChan.Tags;
 namespace MeowChan.DesktopTests;
 
 /// <summary>
-/// The own-tag count limit (default 1024, 1024–20000) and the private-tags.json write limit (default 32 MiB, 8–128 MiB)
+/// The own-tag count limit (default 1024, 256–20000) and the private-tags.json write limit (default 32 MiB, 8–128 MiB)
 /// are validated settings applied to the profile's tag stores at start and after a settings change, shown on the
 /// advanced limits page with an explanation, and a refused write names the setting that raises it.
 /// </summary>
@@ -20,7 +20,7 @@ public sealed class PrivateTagLimitSettingsTests
     {
         using TempDirectory directory = new();
         Assert.Equal((1024, 32), (new Config().PrivateTagLimit, new Config().PrivateTagFileLimitMiB));
-        Assert.Equal((1024, 20_000, 8, 128), (Config.PrivateTagMinimumLimit, Config.PrivateTagMaximumLimit,
+        Assert.Equal((256, 20_000, 8, 128), (Config.PrivateTagMinimumLimit, Config.PrivateTagMaximumLimit,
             Config.PrivateTagFileMinimumLimitMiB, Config.PrivateTagFileMaximumLimitMiB));
         Config original = new() { PrivateTagLimit = 5000, PrivateTagFileLimitMiB = 64 };
         Config live = new();
@@ -33,7 +33,7 @@ public sealed class PrivateTagLimitSettingsTests
         Assert.Null(loaded.LoadWarning);
         Assert.Equal((5000, 64), (loaded.PrivateTagLimit, loaded.PrivateTagFileLimitMiB));
 
-        foreach (int invalid in new[] { 0, 1023, 20_001, int.MaxValue })
+        foreach (int invalid in new[] { 0, 255, 20_001, int.MaxValue })
         {
             Config candidate = live.Clone();
             candidate.PrivateTagLimit = invalid;
@@ -119,7 +119,7 @@ public sealed class PrivateTagLimitSettingsTests
                     Assert.Contains(settings, text);
                     Assert.DoesNotContain(message, text);
                 }
-                Assert.Contains("1024", Texts.T("budgets.privateTagsHint"));
+                Assert.Contains("256", Texts.T("budgets.privateTagsHint"));
                 Assert.Contains("20000", Texts.T("budgets.privateTagsHint"));
                 Assert.Contains("128", Texts.T("budgets.privateTagFileHint"));
             }

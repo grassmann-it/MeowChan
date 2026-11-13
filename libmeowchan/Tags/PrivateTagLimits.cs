@@ -13,7 +13,8 @@ internal sealed class PrivateTagLimits
 {
     /// <summary>Default number of own tags (the fixed limit before it became a setting).</summary>
     internal const int DefaultTagLimit = 1024;
-    internal const int MinimumTagLimit = 1024;
+    /// <summary>A small vocabulary is a valid choice; lowering never deletes tags, it only refuses new ones.</summary>
+    internal const int MinimumTagLimit = 256;
     internal const int MaximumTagLimit = PrivateTagStore.MaximumTags;
     /// <summary>Default size limit of private-tags.json (the fixed limit before it became a setting).</summary>
     internal const int DefaultDocumentLimitBytes = 32 * 1024 * 1024;

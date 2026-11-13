@@ -35,12 +35,12 @@ public sealed class PrivateTagLimitsTests
     {
         PrivateTagLimits limits = new();
         Assert.Equal((1024, 32L * 1024 * 1024), (limits.TagLimit, limits.DocumentLimitBytes));
-        Assert.Equal((1024, 20_000), (PrivateTagLimits.MinimumTagLimit, PrivateTagLimits.MaximumTagLimit));
+        Assert.Equal((256, 20_000), (PrivateTagLimits.MinimumTagLimit, PrivateTagLimits.MaximumTagLimit));
         Assert.Equal((8L * 1024 * 1024, 128L * 1024 * 1024),
             ((long)PrivateTagLimits.MinimumDocumentLimitBytes, (long)PrivateTagLimits.MaximumDocumentLimitBytes));
         Assert.Equal(PrivateTagStore.MaximumTags, PrivateTagLimits.MaximumTagLimit);
         Assert.Equal(PrivateTagStore.MaximumBytes, PrivateTagLimits.MaximumDocumentLimitBytes);
-        foreach (int invalid in new[] { 0, 1023, 20_001, int.MaxValue })
+        foreach (int invalid in new[] { 0, 255, 20_001, int.MaxValue })
             Assert.Throws<ArgumentOutOfRangeException>(() => limits.TagLimit = invalid);
         foreach (long invalid in new[] { 0L, 8L * 1024 * 1024 - 1, 128L * 1024 * 1024 + 1 })
             Assert.Throws<ArgumentOutOfRangeException>(() => limits.DocumentLimitBytes = invalid);

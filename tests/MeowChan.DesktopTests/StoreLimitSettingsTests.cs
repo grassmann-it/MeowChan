@@ -21,7 +21,7 @@ public sealed class StoreLimitSettingsTests
     private static readonly (string Property, int Default, int Minimum, int Maximum, string Key)[] Limits =
     {
         (nameof(Config.FavoriteEntryLimit), 50_000, 10_000, 500_000, "favoriteEntries"),
-        (nameof(Config.FavoriteFileLimitMiB), 8, 8, 128, "favoriteFile"),
+        (nameof(Config.FavoriteFileLimitMiB), 8, 1, 128, "favoriteFile"),
         (nameof(Config.PostBookmarkLimit), 10_000, 1_000, 100_000, "postBookmarks"),
         (nameof(Config.SavedSearchLimit), 500, 50, 5_000, "savedSearches"),
         (nameof(Config.ReaderGroupLimit), 500, 50, 5_000, "readerGroups"),

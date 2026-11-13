@@ -56,7 +56,8 @@ internal sealed class ProfileStoreLimits
     internal const int FavoriteEntryCeiling = 500_000;
     /// <summary>Size of each favorite and rating file. Default 8 MiB.</summary>
     internal const int DefaultFavoriteFileBytes = 8 * 1024 * 1024;
-    internal const int MinimumFavoriteFileBytes = 8 * 1024 * 1024;
+    /// <summary>A write that does not grow the file is always allowed, so a small limit only stops growth.</summary>
+    internal const int MinimumFavoriteFileBytes = 1024 * 1024;
     /// <summary>Fixed technical ceiling of a favorite or rating file (reads and writes).</summary>
     internal const int FavoriteFileCeilingBytes = 128 * 1024 * 1024;
 

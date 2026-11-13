@@ -1488,7 +1488,8 @@
     "budgets.booruCatalog": "Límite del catálogo de Danbooru (MiB)",
     "budgets.booruCatalogHint": "El archivo local con publicaciones, hallazgos y vigilantes de Danbooru. Cuando alcanza este tamaño, los vigilantes y las descargas de originales no pueden guardar publicaciones nuevas. Reducir el límite nunca borra nada; solo impide que siga creciendo. Permitido: de 8 a 128 MiB.",
     "budgets.privateTags": "Límite de etiquetas propias",
-    "budgets.privateTagsHint": "Cuántas etiquetas propias puede crear. Reducirlo nunca borra etiquetas: las existentes siguen legibles y utilizables; solo se rechazan etiquetas nuevas hasta que vuelva a estar por debajo del límite. Muchas etiquetas hacen más lentos los diálogos de etiquetas. Permitido: de 1024 a 20000.",
+    "budgets.privateTagsHint": "Cuántas etiquetas propias puede crear. Reducirlo nunca borra etiquetas: las existentes siguen legibles y utilizables; solo se rechazan etiquetas nuevas hasta que vuelva a estar por debajo del límite. Muchas etiquetas hacen más lentos los diálogos de etiquetas. Permitido: de 256 a 20000.",
+
     "budgets.privateTagFile": "Límite del archivo de etiquetas propias (MiB)",
     "budgets.privateTagFileHint": "El archivo local con sus etiquetas propias y sus asignaciones a hilos y medios. Cuando alcanza este tamaño, no se pueden guardar etiquetas ni asignaciones nuevas; quitar etiquetas o asignaciones sigue funcionando. Reducir el límite nunca borra nada. Permitido: de 8 a 128 MiB.",
     "budgets.mediaIndexCache": "Límite de la caché del índice de medios (MiB)",
@@ -2980,7 +2981,8 @@
     "budgets.favoriteEntries": "Favoritos y valoraciones: entradas por lista",
     "budgets.favoriteEntriesHint": "Cuántas entradas puede contener cada una de las tres listas (medios favoritos, hilos favoritos, valoraciones). Reducir el límite nunca borra nada: las entradas existentes siguen siendo legibles y utilizables; solo se rechazan entradas nuevas hasta que la lista vuelva a estar por debajo del límite. Permitido: de 10000 a 500000.",
     "budgets.favoriteFile": "Favoritos y valoraciones: tamaño del archivo (MiB)",
-    "budgets.favoriteFileHint": "Límite de tamaño de cada uno de los tres archivos de lista. Se rechaza un cambio que haría crecer un archivo por encima de este valor; quitar entradas siempre funciona. Reducir el límite no borra nada. Si sube mucho el límite de entradas, suba también este. Permitido: de 8 a 128 MiB.",
+    "budgets.favoriteFileHint": "Límite de tamaño de cada uno de los tres archivos de lista. Se rechaza un cambio que haría crecer un archivo por encima de este valor; quitar entradas siempre funciona. Reducir el límite no borra nada. Si sube mucho el límite de entradas, suba también este. Permitido: de 1 a 128 MiB.",
+
     "budgets.postBookmarks": "Marcadores de publicaciones",
     "budgets.postBookmarksHint": "Cuántas publicaciones pueden tener un marcador. La longitud de la nota (8000 caracteres) y el tamaño del archivo (32 MiB) son límites técnicos fijos. Reducir el límite no borra nada: los marcadores y notas existentes se conservan; solo se rechazan marcadores nuevos hasta que vuelva a estar por debajo del límite. Permitido: de 1000 a 100000.",
     "budgets.savedSearches": "Búsquedas guardadas",

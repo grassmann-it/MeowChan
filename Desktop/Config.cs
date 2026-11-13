@@ -650,7 +650,7 @@ namespace MeowChan
             if (BooruCatalogLimitMiB is < BooruCatalogMinimumLimitMiB or > BooruCatalogMaximumLimitMiB)
                 throw new ArgumentOutOfRangeException(nameof(BooruCatalogLimitMiB), "The Danbooru catalog limit must be between 8 and 128 MiB.");
             if (PrivateTagLimit is < PrivateTagMinimumLimit or > PrivateTagMaximumLimit)
-                throw new ArgumentOutOfRangeException(nameof(PrivateTagLimit), "The own tag limit must be between 1024 and 20000.");
+                throw new ArgumentOutOfRangeException(nameof(PrivateTagLimit), "The own tag limit must be between " + PrivateTagMinimumLimit + " and " + PrivateTagMaximumLimit + ".");
             if (PrivateTagFileLimitMiB is < PrivateTagFileMinimumLimitMiB or > PrivateTagFileMaximumLimitMiB)
                 throw new ArgumentOutOfRangeException(nameof(PrivateTagFileLimitMiB), "The own tag file limit must be between 8 and 128 MiB.");
             if (MediaIndexCacheLimitMiB is < MediaIndexCacheMinimumLimitMiB or > MediaIndexCacheMaximumLimitMiB)

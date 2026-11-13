@@ -241,7 +241,7 @@
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="PrivateTagLimitFieldLabel" Text="{Binding PrivateTagLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                                <desktop:SettingsNumberInput x:Name="PrivateTagLimitInput" Value="{Binding PrivateTagLimit, Mode=TwoWay}" Minimum="1024" Maximum="20000" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=PrivateTagLimitFieldLabel}" AutomationProperties.Name="{Binding PrivateTagLimitLabel}" AutomationProperties.HelpText="{Binding PrivateTagLimitHelp}" />
+                                <desktop:SettingsNumberInput x:Name="PrivateTagLimitInput" Value="{Binding PrivateTagLimit, Mode=TwoWay}" Minimum="256" Maximum="20000" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=PrivateTagLimitFieldLabel}" AutomationProperties.Name="{Binding PrivateTagLimitLabel}" AutomationProperties.HelpText="{Binding PrivateTagLimitHelp}" />
                                 <TextBlock x:Name="PrivateTagLimitInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
@@ -274,7 +274,7 @@
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="FavoriteFileLimitMiBFieldLabel" Text="{Binding FavoriteFileLimitMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                                <desktop:SettingsNumberInput x:Name="FavoriteFileLimitMiBInput" Value="{Binding FavoriteFileLimitMiB, Mode=TwoWay}" Minimum="8" Maximum="128" Increment="8" AutomationProperties.LabeledBy="{Binding ElementName=FavoriteFileLimitMiBFieldLabel}" AutomationProperties.Name="{Binding FavoriteFileLimitMiBLabel}" AutomationProperties.HelpText="{Binding FavoriteFileLimitMiBHelp}" />
+                                <desktop:SettingsNumberInput x:Name="FavoriteFileLimitMiBInput" Value="{Binding FavoriteFileLimitMiB, Mode=TwoWay}" Minimum="1" Maximum="128" Increment="8" AutomationProperties.LabeledBy="{Binding ElementName=FavoriteFileLimitMiBFieldLabel}" AutomationProperties.Name="{Binding FavoriteFileLimitMiBLabel}" AutomationProperties.HelpText="{Binding FavoriteFileLimitMiBHelp}" />
                                 <TextBlock x:Name="FavoriteFileLimitMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
