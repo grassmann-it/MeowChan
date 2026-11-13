@@ -235,7 +235,7 @@ internal static class GalleryIntegrityChecks
             && text.TextLayout.WidthIncludingTrailingWhitespace <= bounds.Width + 1 && text.TextLayout.Height <= bounds.Height + 1
             && visible.Width >= bounds.Width - 1 && visible.Height >= bounds.Height - 1
             && bounds.Left >= -1 && bounds.Top >= -1 && bounds.Right <= viewer.Bounds.Width + 1 && bounds.Bottom <= viewer.Bounds.Height + 1,
-            "Gallery provenance text is clipped or outside its visible viewport: " + text.Text);
+            "Gallery provenance text is clipped or outside its visible viewport: " + text.Text + " | text " + bounds + " visible " + visible + " viewer " + viewer.Bounds.Size + " layout " + text.TextLayout.WidthIncludingTrailingWhitespace + "x" + text.TextLayout.Height + " vis " + text.IsEffectivelyVisible);
     }
     private static object State(TextBlock text, Control root) => new { text.Text, bounds = Bounds(text, root).ToString(),
         layoutWidth = text.TextLayout.WidthIncludingTrailingWhitespace, layoutHeight = text.TextLayout.Height, text.IsEffectivelyVisible };
