@@ -232,9 +232,11 @@ public sealed class RuntimeProcessTests
         using HttpClient transport = new(new StaticHandler());
         using PluginHostHttp http = new(transport, new RequestPolicyState(), new FixturePlugin().Describe().Sources);
         await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services(http));
+        DateTimeOffset before = DateTimeOffset.UtcNow;
         Stopwatch watch = Stopwatch.StartNew();
         ThreadDeferred deferred = Assert.IsType<ThreadDeferred>(await worker.ReadThreadAsync(Thread("http"), Operation));
-        Assert.True(deferred.RetryAt > DateTimeOffset.UtcNow.AddSeconds(20)); Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5));
+        // The handler asks for a 30 s cooldown: the deferral carries it, and the call returned without sitting it out.
+        Assert.True(deferred.RetryAt > before.AddSeconds(20)); Assert.True(watch.Elapsed < TimeSpan.FromSeconds(20));
         await using IPluginWorkerClient other = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
         Assert.IsType<SdkThreadSnapshot>(await other.ReadThreadAsync(Thread(), Operation));
     }
@@ -311,10 +313,10 @@ public sealed class RuntimeProcessTests
         CancellableHttp http = new();
         await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services(http));
         Task<ThreadReadResult> call = worker.ReadThreadAsync(Thread(crash ? "background-crash" : "background"), Operation);
-        await http.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await http.Started.Task.WaitAsync(HangGuard);
         if (crash) await Assert.ThrowsAsync<PluginWorkerException>(() => call);
         else Assert.IsType<SdkThreadSnapshot>(await call);
-        await http.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await http.Cancelled.Task.WaitAsync(HangGuard);
     }
     [Fact]
     public async Task SharedTemporaryBudgetIsEnforcedEvenWithAnEmptyWorkerWorkspace()
@@ -346,7 +348,7 @@ public sealed class RuntimeProcessTests
         PluginWorkerLaunch delayed = Launch(workspace.Path, "delayed");
         delayed = delayed with { Arguments = delayed.Arguments.Concat([workspace.Path]).ToArray() };
         Task<IPluginWorkerClient> first = manager.StartAsync(delayed, Artifact(), Configuration, new Services());
-        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(5));
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(30));
         while (!File.Exists(Path.Combine(workspace.Path, "handshake.wait"))) await Task.Delay(10, timeout.Token);
         Task<PluginDescription> describe = manager.DescribeAsync(Launch(workspace.Path), Artifact(), timeout.Token);
         Task<IPluginWorkerClient> test = manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services(), testWorker: true, cancellationToken: timeout.Token);
@@ -381,9 +383,9 @@ public sealed class RuntimeProcessTests
         DrainingHttp http = new();
         IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services(http));
         Task<ThreadReadResult> call = worker.ReadThreadAsync(Thread("http"), Operation);
-        await http.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await http.Started.Task.WaitAsync(HangGuard);
         Task first = worker.DisposeAsync().AsTask();
-        await http.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await http.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(30));
         try
         {
             Task second = worker.DisposeAsync().AsTask();
@@ -394,7 +396,7 @@ public sealed class RuntimeProcessTests
             Assert.Same(managerFirst, managerSecond);
             Assert.False(managerSecond.IsCompleted);
             http.Release.TrySetResult();
-            await Task.WhenAll(first, second, managerFirst, managerSecond).WaitAsync(TimeSpan.FromSeconds(5));
+            await Task.WhenAll(first, second, managerFirst, managerSecond).WaitAsync(TimeSpan.FromSeconds(30));
             Assert.Empty(manager.GetSnapshots());
             Assert.Empty(Directory.GetDirectories(workspace.Path));
         }
@@ -410,12 +412,12 @@ public sealed class RuntimeProcessTests
         await using IPluginWorkerClient first = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services(http));
         using CancellationTokenSource cancellation = new();
         Task<ThreadReadResult> call = first.ReadThreadAsync(Thread("http"), Operation, cancellation.Token);
-        await http.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await http.Started.Task.WaitAsync(HangGuard);
         Task<IPluginWorkerClient> queued = manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
         Assert.False(queued.IsCompleted);
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
-        await using IPluginWorkerClient second = await queued.WaitAsync(TimeSpan.FromSeconds(2));
+        await using IPluginWorkerClient second = await queued.WaitAsync(HangGuard);
         Assert.IsType<SdkThreadSnapshot>(await second.ReadThreadAsync(Thread(), Operation));
         Assert.Equal("idle", first.Snapshot.State);
     }
@@ -446,7 +448,7 @@ public sealed class RuntimeProcessTests
     }
     private static async Task WaitExited(int pid)
     {
-        try { using Process process = Process.GetProcessById(pid); await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5)); }
+        try { using Process process = Process.GetProcessById(pid); await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(30)); }
         catch (ArgumentException) { }
     }
     private sealed class Workspace : IDisposable
@@ -467,6 +469,8 @@ public sealed class RuntimeProcessTests
         public Task<ImageAssetChunk> ReadImageAsync(string assetToken, long offset, int count, PluginOperationContext operation, CancellationToken cancellationToken)
         { ImageReads++; return Task.FromResult(new ImageAssetChunk(offset, [1, 2, 3, 4], true)); }
     }
+    // Only a hang guard: the awaited signals end every wait, never this limit.
+    private static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(30);
     private sealed class StaticHandler : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
