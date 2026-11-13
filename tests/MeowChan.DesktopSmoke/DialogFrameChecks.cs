@@ -40,6 +40,10 @@ internal static partial class DialogFrameChecks
         string selected = Environment.GetEnvironmentVariable("MEOWCHAN_DIALOG_FRAME_GROUP") ?? "all";
         string[] names = selected.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         Require(names.All(name => name == "all" || Groups.Any(group => group.Name == name)), "Unknown dialog frame group: " + selected);
+        // Optional evidence theme (Light or Dark) for before/after captures; unset keeps the profile theme.
+        string? theme = Environment.GetEnvironmentVariable("MEOWCHAN_DIALOG_FRAME_THEME");
+        if (theme is "Light" or "Dark")
+            Application.Current!.RequestedThemeVariant = theme == "Light" ? Avalonia.Styling.ThemeVariant.Light : Avalonia.Styling.ThemeVariant.Dark;
         foreach ((string name, Func<MainWindow, Task> run) in Groups)
         {
             if (!names.Contains("all") && !names.Contains(name)) continue;
