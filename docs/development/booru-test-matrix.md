@@ -108,14 +108,17 @@ regression sources narrow the old B4/B5 gaps; they do not close final acceptance
   invalidation and profile shutdown across scheduler, host and queue is still open;
   source presence alone establishes neither quiescence nor absence of races.
 - B1 terminal-status handling, job lifetime across pages/worker waits, and long
-  429 cooldowns in `b82741dd` need parent integration and deterministic regression
-  runs together with the watcher/admission lifecycle. Old capped host tests in the
-  candidate are not evidence for the corrected long-cooldown contract.
+  429 cooldowns from `b82741dd` are integrated into the candidate (`fb2516ce`).
+  Deterministic regression runs must cover them together with the watcher/admission
+  lifecycle. `BooruHostHttpTests.RetryAfterDeltaSaturatesOnlyAtTechnicalDateLimit`
+  uses a valid HTTP delta near the calendar limit; its earlier invalid-header
+  fixture failure is not evidence that the transport failed to saturate.
 - `HelpDocumentationTests.DocumentedMetadataHttpBudgetsMatchTransportConstants`
-  still requires a “24-hour cap”; `GermanCatalogDefaultsAndCooldownBoundsMatchTheSameCode`
-  still requires “höchstens 24 Stunden”. Both refer to the old MaximumCooldown
-  constant. The parent must align these assertions with B1 and the corrected help;
-  this three-document patch does not change test code or claim a green help suite.
+  and `GermanCatalogDefaultsAndProviderCooldownContractMatchTheSameCode` now assert
+  the minimum wait and that a longer valid provider deadline is not shortened.
+  They no longer mistake the legacy MaximumCooldown compatibility constant for a
+  live 24-hour cap. A green help suite still requires execution on the integrated
+  candidate; source changes alone are not an acceptance result.
 - Fresh native Booru workbench, offline media/gallery/favorites and accessibility
   acceptance, plus the real-old-profile upgrade run noted in scenario 8, remain
   unverified here. No build, restore, .NET test, native smoke or live-provider
