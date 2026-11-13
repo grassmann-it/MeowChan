@@ -155,7 +155,7 @@ internal static class ReaderRepliesChecks
     }
 
     // Reader post cards (R1-R6): OP on the page and reply cards in their tokens, one-line header with the
-    // copyable number and reply count, inline >>No. hit-testing and navigation over unchanged plain text,
+    // copyable number and reply count, inline >>No. hit-testing and navigation over displayed plain text,
     // the focus-revealed keyboard quote row, and the bundled reading font with its relative line height.
     private static async Task CheckPostCardsAsync(Window window, ArchivePage page, ResourceId id)
     {
@@ -271,6 +271,11 @@ internal static class ReaderRepliesChecks
             await page.FocusPostAsync(postId);
             ArchivePostRow selected = list.ItemsSource!.Cast<ArchivePostRow>().Single(row => row.Id == postId);
             ListBoxItem selectedItem = Container(selected);
+            // FocusPostAsync already focused the container with NavigationMethod.Unspecified. Move to a
+            // child first so this is a real Tab focus transition, not a no-op focus of the same element.
+            Button selectedNumber = selectedItem.GetVisualDescendants().OfType<Button>()
+                .Single(button => button.Classes.Contains("reader-post-number"));
+            Require(selectedNumber.Focus(NavigationMethod.Tab), "Could not focus the post number for " + postId);
             Require(selectedItem.Focus(NavigationMethod.Tab), "Could not keyboard-focus post " + postId);
             await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
             Require(ReferenceEquals(list.SelectedItem, selected) && selectedItem.IsSelected && selectedItem.IsFocused
