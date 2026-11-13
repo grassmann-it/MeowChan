@@ -47,13 +47,23 @@ public partial class MainWindow
 
     private async Task OpenManualImportDialogCheckedAsync()
     {
-        ManualImportError? blocked;
-        try { blocked = await Task.Run(_session.ManualImportBlocked); }
-        catch (ObjectDisposedException) { _manualImportOpening = false; _manualImportPending.Clear(); return; }
+        ManualImportError? blocked = null;
+        Exception? failure = null;
+        DesktopSessionHost session = _session;
+        // Whatever the check throws, the opening flag must come back down: a stuck flag would swallow every later import and drop.
+        try { blocked = await Task.Run(session.ManualImportBlocked); }
+        catch (ObjectDisposedException) { _manualImportPending.Clear(); return; }
+        catch (Exception error) when (error is not OutOfMemoryException) { failure = error; }
+        finally { _manualImportOpening = false; }
         string[] roots = _manualImportPending.ToArray();
         _manualImportPending.Clear();
-        _manualImportOpening = false;
-        if (_isClosing || _session.State != DesktopSessionState.Ready) return;
+        if (_isClosing || !ReferenceEquals(session, _session) || _session.State != DesktopSessionState.Ready) return;
+        if (failure != null)
+        {
+            UnhandledErrors.TryRecover(failure, "import.open");
+            ShowNotification(Texts.T("import.title"), failure.Message, NotificationType.Warning, operation: "import.open");
+            return;
+        }
         if (_manualImportDialog is { } open)
         {
             open.Session.AddRoots(roots);

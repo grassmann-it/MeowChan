@@ -30,11 +30,18 @@ public partial class MainWindow
         {
             IReadOnlyList<StoreLimitUsage.Item> near;
             try { near = session.ReadStoreLimitUsage(); }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException)
-            { near = Array.Empty<StoreLimitUsage.Item>(); }
+            catch (Exception error) when (error is not OutOfMemoryException)
+            {
+                // Any failure only clears the warning; the guard flag below is lowered in every case so later checks still run.
+                if (error is not (IOException or UnauthorizedAccessException or InvalidOperationException)) UnhandledErrors.TryRecover(error, "limits.warning");
+                near = Array.Empty<StoreLimitUsage.Item>();
+            }
+            finally
+            {
+                Dispatcher.UIThread.Post(() => _storeWarningRunning = false);
+            }
             Dispatcher.UIThread.Post(() =>
             {
-                _storeWarningRunning = false;
                 if (_isClosing) return;
                 _storeUsage = near;
                 ShowStoreLimitWarning();
