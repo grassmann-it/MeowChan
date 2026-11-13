@@ -54,10 +54,30 @@ internal static class BuiltTestBinaries
         RequireFile(Path.Combine(directory, project + ".dll"), assembly);
         RequireFile(Path.Combine(directory, project + ".deps.json"), assembly);
         RequireFile(Path.Combine(directory, project + ".runtimeconfig.json"), assembly);
+        RequireSameSharedAssemblies(output.FullName, directory, assembly);
         string binary = Path.Combine(directory, project + (appHost
             ? (OperatingSystem.IsWindows() ? ".exe" : string.Empty) : ".dll"));
         RequireFile(binary, assembly);
         return binary;
+    }
+
+    // A worker/fixture tree and the test output each carry their own copy of the SDK/protocol assemblies. When the
+    // projects were built separately (or only some were rebuilt) the copies drift and the worker fails far from the
+    // cause (MissingMethodException inside the child process). Name the drift here instead.
+    private static readonly string[] SharedAssemblies = ["MeowChan.PluginSdk.dll"];
+
+    private static void RequireSameSharedAssemblies(string testOutput, string executableDirectory, string assembly)
+    {
+        foreach (string name in SharedAssemblies)
+        {
+            string left = Path.Combine(testOutput, name), right = Path.Combine(executableDirectory, name);
+            if (!File.Exists(left) || !File.Exists(right)) continue;
+            if (!File.ReadAllBytes(left).AsSpan().SequenceEqual(File.ReadAllBytes(right)))
+                throw new InvalidOperationException(
+                    $"Stale or mixed build: '{left}' differs from '{right}' (test assembly '{assembly}'). " +
+                    "Rebuild the test project and its worker/fixture dependencies together in one configuration; " +
+                    "do not combine outputs of separate builds or use --no-build after building only some projects.");
+        }
     }
 
     private static void RequireFile(string path, string assembly)
