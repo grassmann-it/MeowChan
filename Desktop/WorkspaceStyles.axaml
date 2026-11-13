@@ -631,6 +631,21 @@
         <Setter Property="Stroke" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
         <Setter Property="StrokeThickness" Value="2" /><Setter Property="IsDashed" Value="False" />
     </Style>
+    <!-- I8: a source-tag chip that is an action. The button itself is invisible; the dashed chip shows hover and press. -->
+    <Style Selector="Button.chip-source-button">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" /><Setter Property="MinHeight" Value="0" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.ChipCompact}" />
+        <Setter Property="HorizontalAlignment" Value="Left" /><Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.chip-source-button /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent" /></Style>
+    <Style Selector="Button.chip-source-button:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent" /></Style>
+    <Style Selector="Button.chip-source-button:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent" /></Style>
+    <Style Selector="Button.chip-source-button:pointerover controls|ChipOutline.chip-source"><Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /></Style>
+    <Style Selector="Button.chip-source-button:pressed controls|ChipOutline.chip-source">
+        <Setter Property="Background" Value="{DynamicResource Workspace.ChipSelectedSurface}" />
+        <Setter Property="Stroke" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
+    </Style>
     <!-- I7 tile corners: static chip badges and marks; the favourite star appears by opacity only (set, hover, keyboard focus),
          so nothing moves and the tile keeps its height. -->
     <Style Selector="Border.tile-mark"><Setter Property="Padding" Value="3" /></Style>

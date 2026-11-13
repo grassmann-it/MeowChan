@@ -62,6 +62,8 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     internal const string InputIssueName = "BooruInputIssue";
     internal const string NoticeName = "BooruNotice";
     internal const string WatcherNoticeName = "BooruWatcherNotice";
+    internal const string ResultTagPrefix = "BooruResultTag:";
+    internal const string DetailsPrefix = "BooruResultDetails:";
 
     private const int PreviewSize = 112;
     private const int MaximumTagsShown = 24;
@@ -645,17 +647,8 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
 
         StackPanel info = new() { Spacing = 4 };
         info.Children.Add(new TextBlock { Text = Texts.T("booru.ui.post.title", post.PostId), FontWeight = FontWeight.SemiBold, FontSize = 14 });
-        if (post.PostUrl is { } url)
-        {
-            SelectableTextBlock link = new() { Text = url.ToString(), Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
-            // The address itself is what is read; "Post page" only describes it.
-            AutomationProperties.SetHelpText(link, Texts.T("booru.ui.post.urlLabel"));
-            info.Children.Add(link);
-        }
-        if (BooruPostLinks.TryCanonical(post, out string canonical))
-            info.Children.Add(CreateLinkActions(OpenPostPrefix + post.PostId, CopyLinkPrefix + post.PostId, canonical,
-                Texts.T("booru.ui.post.openFor", post.PostId), Texts.T("booru.ui.post.copyFor", post.PostId)));
-        info.Children.Add(new TextBlock { Text = MetaLine(post), Classes = { "workspace-meta" } });
+        // I8: the post facts as a definition list; the address is no longer a text line, it is the tooltip of the link buttons.
+        info.Children.Add(CreateDetails(post));
 
         bool withdrawn = post.IsDeleted || post.IsBanned;
         TextBlock original = new()
@@ -666,6 +659,10 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         original.Classes.Add(post.OriginalAccess == BooruOriginalAccess.Available ? "workspace-status-success" : "workspace-warning");
         info.Children.Add(original);
         info.Children.Add(CreateTags(post));
+        // Secondary links after the content; the primary action (load original) keeps its place on the right.
+        if (BooruPostLinks.TryCanonical(post, out string canonical))
+            info.Children.Add(CreateLinkActions(OpenPostPrefix + post.PostId, CopyLinkPrefix + post.PostId, canonical,
+                Texts.T("booru.ui.post.openFor", post.PostId), Texts.T("booru.ui.post.copyFor", post.PostId)));
 
         if (BooruText.Load(row) is { } loadText)
         {
@@ -793,17 +790,34 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         return frame;
     }
 
-    private static string MetaLine(BooruPostView post)
+    /// <summary>
+    /// I8: the provider's facts of a post as a definition list (term | value) instead of a "·" chain. Each value is named
+    /// "term: value" for screen readers; the term itself is not read twice.
+    /// </summary>
+    private static Control CreateDetails(BooruPostView post)
     {
-        List<string> parts = new();
+        Grid list = new() { Name = DetailsPrefix + post.PostId, ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 10, RowSpacing = 1 };
+        void Add(string termKey, string value)
+        {
+            int row = list.RowDefinitions.Count;
+            list.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            string termText = Texts.T(termKey);
+            TextBlock term = new() { Text = termText, Classes = { "workspace-meta" }, VerticalAlignment = VerticalAlignment.Top };
+            AutomationProperties.SetAccessibilityView(term, AccessibilityView.Raw);
+            TextBlock detail = new() { Text = value, TextWrapping = TextWrapping.Wrap };
+            detail[!TextBlock.FontSizeProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Text.Meta"); // D0 token, value in the text colour
+            AutomationProperties.SetName(detail, termText + ": " + value);
+            Grid.SetRow(term, row); Grid.SetRow(detail, row); Grid.SetColumn(detail, 1);
+            list.Children.Add(term); list.Children.Add(detail);
+        }
         string rating = BooruText.Rating(post.Rating);
         if (post.Rating != BooruRating.Unknown && !string.IsNullOrEmpty(post.RawRating)
             && !string.Equals(post.RawRating, post.Rating.ToString(), StringComparison.OrdinalIgnoreCase))
             rating += " (" + post.RawRating + ")";
-        parts.Add(Texts.T("booru.ui.post.rating", rating));
-        if (post.Score is { } score) parts.Add(Texts.T("booru.ui.post.score", score));
-        if (post.FavoriteCount is { } favorites) parts.Add(Texts.T("booru.ui.post.favorites", favorites));
-        if (post.CreatedAt is { } created) parts.Add(Texts.T("booru.ui.post.created", created.ToLocalTime().ToString("d", Texts.Culture)));
+        Add("booru.ui.post.field.rating", rating);
+        if (post.Score is { } score) Add("booru.ui.post.field.score", score.ToString(Texts.Culture));
+        if (post.FavoriteCount is { } favorites) Add("booru.ui.post.field.favorites", favorites.ToString(Texts.Culture));
+        if (post.CreatedAt is { } created) Add("booru.ui.post.field.created", created.ToLocalTime().ToString("d", Texts.Culture));
         if (post.Original is { } original)
         {
             StringBuilder media = new();
@@ -813,9 +827,9 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
                 media.Append(media.Length > 0 ? " " : string.Empty).Append(original.Extension.TrimStart('.'));
             if (original.ExpectedSize is { } size)
                 media.Append(media.Length > 0 ? " " : string.Empty).Append(Size(size));
-            if (media.Length > 0) parts.Add(media.ToString());
+            if (media.Length > 0) Add("booru.ui.post.field.file", media.ToString());
         }
-        return string.Join(" · ", parts);
+        return list;
     }
 
     /// <summary>
@@ -854,7 +868,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         return (unit == 0 ? value.ToString("0", Texts.Culture) : value.ToString("0.#", Texts.Culture)) + " " + units[unit];
     }
 
-    private static Control CreateTags(BooruPostView post)
+    private Control CreateTags(BooruPostView post)
     {
         StackPanel panel = new() { Spacing = 4 };
         panel.Children.Add(new TextBlock { Text = Texts.T("booru.ui.tags.label"), Classes = { "workspace-meta" }, FontWeight = FontWeight.Medium });
@@ -872,16 +886,22 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
             string[] take = names.Take(MaximumTagsShown - shown).ToArray();
             shown += take.Length;
             // C1: source tags as compact dashed chips with their category mark; the category is named in front, so the mark is
-            // only an addition. Static, like the text line before: the card owns input.
+            // only an addition. I8: Danbooru's category order (artist, copyright, character, general, meta); a chip adds its tag
+            // to the search field (nothing is requested until Search).
             string label = Texts.T("booru.ui.tagCategory." + category);
             WrapPanel line = new() { Name = "BooruResultTags:" + category, ItemSpacing = 4, LineSpacing = 4 };
             line.Children.Add(new TextBlock { Text = label + ":", VerticalAlignment = VerticalAlignment.Center, Classes = { "workspace-meta" } });
             foreach (string name in take)
             {
-                ChipOutline chip = WorkspaceChips.CreateSourceTag(name, category, compact: true);
-                chip.MaxWidth = 240;
-                AutomationProperties.SetName(chip, label + ": " + name);
-                ToolTip.SetTip(chip, label + ": " + name);
+                Button chip = new()
+                {
+                    Name = ResultTagPrefix + post.PostId + ":" + name, Content = WorkspaceChips.CreateSourceTag(name, category, compact: true),
+                    Classes = { WorkspaceChips.SourceButton }, MaxWidth = 240
+                };
+                string accessible = Texts.T("booru.ui.tags.addFor", name, label);
+                AutomationProperties.SetName(chip, accessible);
+                ToolTip.SetTip(chip, accessible);
+                chip.Click += (_, _) => AddTagToSearch(name);
                 line.Children.Add(chip);
             }
             AutomationProperties.SetName(line, label + ": " + string.Join(", ", take));
@@ -890,6 +910,29 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         if (post.Tags.Length > shown)
             panel.Children.Add(new TextBlock { Text = Texts.T("booru.ui.tags.more", post.Tags.Length - shown), Classes = { "workspace-meta" } });
         return panel;
+    }
+
+    /// <summary>
+    /// I8: a source tag chip of a result adds its tag to the search field (tag search) up to the parser's limit. Only the field
+    /// changes; nothing is requested until Search. The outcome is said in the polite link note line.
+    /// </summary>
+    internal void AddTagToSearch(string tag)
+    {
+        if (_closed) return;
+        string current = _model.Search.View.Mode == BooruInputMode.Tags ? _input.Text ?? string.Empty : string.Empty;
+        string[] terms = current.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (terms.Contains(tag, StringComparer.Ordinal)) { SetLinkNote(("booru.ui.tags.alreadyInSearch", tag, false)); return; }
+        if (!BooruSourceTagSearch.Plan(new[] { tag }).IsValid) { SetLinkNote(("booru.ui.tags.unusable", tag, true)); return; }
+        if (terms.Length >= BooruSourceTagSearch.MaximumTags)
+        {
+            SetLinkNote(("booru.ui.tags.searchFull", BooruSourceTagSearch.MaximumTags.ToString(Texts.Culture), true));
+            return;
+        }
+        string query = string.Join(' ', terms.Append(tag));
+        _model.Search.SetMode(BooruInputMode.Tags);
+        _input.Text = query;
+        _model.Search.SetInput(query);
+        SetLinkNote(("booru.ui.tags.addedToSearch", tag, false));
     }
 
     private Bitmap? PreviewBitmap(BooruResultRowView row)

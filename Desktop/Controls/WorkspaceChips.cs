@@ -39,6 +39,8 @@ internal static class WorkspaceChips
     internal const string CategoryMark = "chip-category-mark";
     internal const string Label = "chip-label";
     internal const string ThreadMark = "chip-thread-mark";
+    /// <summary>A button whose content is a source-tag chip (I8: the chip is the action, e.g. "add to search").</summary>
+    internal const string SourceButton = "chip-source-button";
 
     /// <summary>The provider tag categories with their own mark colour; anything else is shown as general.</summary>
     internal static readonly string[] Categories = { "artist", "copyright", "character", "meta", "general" };

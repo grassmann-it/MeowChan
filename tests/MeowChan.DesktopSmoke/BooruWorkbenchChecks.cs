@@ -10,6 +10,7 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Booru;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.PluginSdk;
 using MeowChan.Tests.Shared;
@@ -67,9 +68,22 @@ internal static class BooruWorkbenchChecks
             Require(h.Search.Searches.Single() == ("cat blue_eyes", 1), "The search did not send the exact query.");
             Require(!h.Search.Searches[0].Query.Contains("rating"), "A rating term was added to the query.");
             string text = Text(window);
-            foreach (string expected in new[] { "Post #101", "https://danbooru.donmai.us/posts/101", "Danbooru rating: General",
-                "Danbooru score: 12", "Original available", "Source tags (from Danbooru, not your own tags)", "Page 1 of at most 5" })
+            foreach (string expected in new[] { "Post #101", "Danbooru rating", "Danbooru score", "Original available",
+                "Source tags (from Danbooru, not your own tags)", "Page 1 of at most 5" })
                 Require(text.Contains(expected), "Result card lacks '" + expected + "'.");
+            // I8: facts as a definition list (values named "term: value"), no address text line, tags as chips in Danbooru order.
+            Grid details = Find<Grid>(window, BooruWorkbenchWindow.DetailsPrefix + "101");
+            string[] detailNames = details.Children.OfType<TextBlock>().Select(block => AutomationProperties.GetName(block) ?? string.Empty).ToArray();
+            Require(detailNames.Any(name => name.StartsWith("Danbooru rating: General", StringComparison.Ordinal)) && detailNames.Contains("Danbooru score: 12")
+                && details.ColumnDefinitions.Count == 2,
+                "The post facts are not a definition list: " + string.Join(" | ", detailNames));
+            Require(!text.Contains("https://danbooru.donmai.us/posts/101"), "The post address is still shown as a text line.");
+            Button[] chips101 = window.GetVisualDescendants().OfType<Button>().Where(button => button.Name?.StartsWith(BooruWorkbenchWindow.ResultTagPrefix + "101:", StringComparison.Ordinal) == true).ToArray();
+            Require(chips101.Select(button => button.Name![(BooruWorkbenchWindow.ResultTagPrefix.Length + 4)..]).SequenceEqual(new[] { "sky", "cat", "blue_eyes" })
+                && chips101.All(button => button.Focusable && button.IsTabStop && button.Classes.Contains("chip-source-button")
+                    && button.Content is ChipOutline { IsDashed: true })
+                && AutomationProperties.GetName(chips101[0]) == "Add source tag sky (Artist) to the search",
+                "The source tag chips are not in Danbooru order or not named actions: " + string.Join(",", chips101.Select(button => button.Name)));
             Require(Find<Button>(window, BooruWorkbenchWindow.PreviousName).IsVisible == false
                 || !Find<Button>(window, BooruWorkbenchWindow.PreviousName).IsEnabled, "Previous page enabled on page 1.");
             Capture(window, shots, "search-light");
@@ -91,6 +105,22 @@ internal static class BooruWorkbenchChecks
             Require(h.Links.Copied[0] == "https://danbooru.donmai.us/posts/101", "The clipboard got another text: " + h.Links.Copied[0]);
             Require(h.Search.Requests == 1 && h.Queue.Loads.Count == 0, "A link action caused a provider or queue request.");
             Capture(window, shots, "search-links-light");
+
+            // ---- I8: a source tag chip adds its tag to the search field, never a request -------------------------------
+            Click(chips101[0]); // the field already holds two tags: refused and said, the field is unchanged
+            await Program.WaitUntilAsync(() => Text(window).Contains("A search takes at most 2 tags"), () => "full search note missing");
+            Require(input.Text == "cat blue_eyes", "A refused chip changed the field: " + input.Text);
+            input.Text = string.Empty;
+            await Program.WaitUntilAsync(() => window.Model.Search.View.Input == string.Empty, () => "field not cleared");
+            Click(chips101[0]);
+            Click(Find<Button>(window, BooruWorkbenchWindow.ResultTagPrefix + "101:cat"));
+            await Program.WaitUntilAsync(() => input.Text == "sky cat" && window.Model.Search.View.Input == "sky cat", () => "chips did not fill the field: " + input.Text);
+            Click(Find<Button>(window, BooruWorkbenchWindow.ResultTagPrefix + "101:cat"));
+            await Program.WaitUntilAsync(() => Text(window).Contains("cat is already in the search."), () => "duplicate note missing");
+            Require(h.Search.Requests == 1, "A tag chip sent a request.");
+            Capture(window, shots, "search-tag-chips-light");
+            input.Text = "cat blue_eyes";
+            await Program.WaitUntilAsync(() => window.Model.Search.View.Input == "cat blue_eyes", () => "field not restored");
             h.Links.OnOpen = _ => throw new InvalidOperationException("no browser");
             Click(Find<Button>(window, BooruWorkbenchWindow.OpenPostPrefix + "102"));
             await Program.WaitUntilAsync(() => Text(window).Contains("could not be opened in your browser"), () => "open failure not shown");
@@ -127,7 +157,8 @@ internal static class BooruWorkbenchChecks
                 && !Find<Button>(window, BooruWorkbenchWindow.LoadPrefix + "302").IsEnabled, "A post without an original has an enabled load button.");
             Require(Text(window).Contains("Danbooru offers no original for this post") && Text(window).Contains("Original restricted by Danbooru"),
                 "Original availability is not explained.");
-            Require(Text(window).Contains("Danbooru rating: Explicit"), "The provider rating is not shown as provider metadata.");
+            Require(Find<Grid>(window, BooruWorkbenchWindow.DetailsPrefix + "303").Children.OfType<TextBlock>()
+                .Any(block => AutomationProperties.GetName(block)?.StartsWith("Danbooru rating: Explicit", StringComparison.Ordinal) == true), "The provider rating is not shown as provider metadata.");
             Require(h.Queue.Loads.Count == 1, "A search or a disabled button queued something.");
 
             // ---- states ----------------------------------------------------------------------------------------------------
@@ -397,9 +428,12 @@ internal static class BooruWorkbenchChecks
         Require(card.GetVisualDescendants().OfType<Control>().Count(control => AutomationProperties.GetName(control) == "Post #101") == 0
             && card.GetVisualDescendants().OfType<TextBlock>().Count(text => text.Text == "Post #101") == 1,
             "\"Post #101\" is named more than once in its card.");
-        SelectableTextBlock link = card.GetVisualDescendants().OfType<SelectableTextBlock>().Single(text => text.Text == "https://danbooru.donmai.us/posts/101");
-        Require(string.IsNullOrEmpty(AutomationProperties.GetName(link)) && AutomationProperties.GetHelpText(link) == "Post page",
-            "The URL line is hidden behind a name.");
+        // I8: the address is not a text line any more; it is the tooltip of the copy button, and the open button names the post.
+        Require(!card.GetVisualDescendants().OfType<SelectableTextBlock>().Any(text => text.Text == "https://danbooru.donmai.us/posts/101"),
+            "The post address is still a text line in its card.");
+        Button copy = card.GetVisualDescendants().OfType<Button>().Single(button => button.Name == BooruWorkbenchWindow.CopyLinkPrefix + "101");
+        Require(ToolTip.GetTip(copy) as string == "https://danbooru.donmai.us/posts/101" && !string.IsNullOrEmpty(AutomationProperties.GetName(copy)),
+            "The copy button lacks the address as its tooltip or a name.");
     }
 
     private static void RequireSilentCards(Window window, string prefix)
