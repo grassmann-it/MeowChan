@@ -46,14 +46,14 @@
                                 <controls:IoGraph x:Name="TransferSpeedGraph" Source="NetworkIo" Width="128" MinWidth="120" Height="15" HistoryWindowSeconds="60" VerticalAlignment="Center" IsHitTestVisible="False"
                                                   Stroke="{DynamicResource Workspace.Accent}" SecondaryStroke="{DynamicResource Workspace.Accent}" Fill="{DynamicResource Workspace.AccentSurface}" />
                                 <StackPanel x:Name="TransferSpeedText" Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" MinWidth="232">
-                                    <TextBlock x:Name="TransferSpeedTitle" Classes="muted" FontSize="11" FontFamily="{DynamicResource Workspace.Font.UI}" Text="Network" />
-                                    <TextBlock x:Name="TransferSpeedLabel" FontSize="11" FontFamily="{DynamicResource Workspace.Font.UI}" FontFeatures="tnum" Text="↓ 0 B/s ↑ 0 B/s" />
+                                    <TextBlock x:Name="TransferSpeedTitle" Classes="muted" FontSize="{StaticResource Workspace.Text.Caption}" FontFamily="{DynamicResource Workspace.Font.UI}" Text="Network" />
+                                    <TextBlock x:Name="TransferSpeedLabel" FontSize="{StaticResource Workspace.Text.Caption}" FontFamily="{DynamicResource Workspace.Font.UI}" FontFeatures="tnum" Text="↓ 0 B/s ↑ 0 B/s" />
                                 </StackPanel>
                                 <controls:IoGraph x:Name="TransferDiskGraph" Grid.Row="1" Source="DiskIo" Width="128" MinWidth="120" Height="15" HistoryWindowSeconds="60" VerticalAlignment="Center" IsHitTestVisible="False"
                                                   Stroke="{DynamicResource Workspace.Stats.Disk}" SecondaryStroke="{DynamicResource Workspace.Stats.Disk}" Fill="{DynamicResource Workspace.Stats.DiskSurface}" />
                                 <StackPanel x:Name="TransferDiskText" Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" MinWidth="232">
-                                    <TextBlock x:Name="TransferDiskTitle" Classes="muted" FontSize="11" FontFamily="{DynamicResource Workspace.Font.UI}" Text="Disk" />
-                                    <TextBlock x:Name="TransferDiskLabel" FontSize="11" FontFamily="{DynamicResource Workspace.Font.UI}" FontFeatures="tnum" Text="R 0 B/s W 0 B/s" />
+                                    <TextBlock x:Name="TransferDiskTitle" Classes="muted" FontSize="{StaticResource Workspace.Text.Caption}" FontFamily="{DynamicResource Workspace.Font.UI}" Text="Disk" />
+                                    <TextBlock x:Name="TransferDiskLabel" FontSize="{StaticResource Workspace.Text.Caption}" FontFamily="{DynamicResource Workspace.Font.UI}" FontFeatures="tnum" Text="R 0 B/s W 0 B/s" />
                                 </StackPanel>
                             </Grid>
                         </Button>
