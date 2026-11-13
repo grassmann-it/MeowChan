@@ -59,7 +59,7 @@ internal static class ManualImportChecks
             ManualImportDialog import = shell.ManualImportWindow!;
             Require((import.Session.NewCount, import.Session.LinkedCount, import.Session.UnsupportedCount) == (2, 1, 1),
                 "The check did not find 2 new, 1 linked and 1 unsupported file: " + import.Counts.Text);
-            Require(import.ImportButton.IsEnabled && Equals(import.ImportButton.Content, Texts.T("import.start", 2)), "The import button does not name 2 files.");
+            Require(import.ImportButton.IsEnabled && Equals(import.ImportButton.Content, Texts.Count("import.start", 2)), "The import button does not name 2 files.");
             import.TagInput.Text = "imported_fixture";
             import.TagAddButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Require(import.Session.Tags.SequenceEqual(new[] { "imported_fixture" }), "The batch tag was not taken.");

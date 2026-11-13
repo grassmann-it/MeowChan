@@ -66,7 +66,7 @@ internal static class UrlDropChecks
         // Files and folders are the import's drop: Copy with the import overlay, and the drop opens the import dialog
         // with exactly that folder selected (here a missing one, so the check reports it unreadable). No admission.
         if (Raise(window, RawDragEventType.DragEnter, input, files) != DragDropEffects.Copy
-            || !overlay.IsVisible || title.Text != Texts.T("drop.files.title", 1))
+            || !overlay.IsVisible || title.Text != Texts.Count("drop.files.title", 1))
             throw new InvalidOperationException("A folder drag was not offered as an import: " + title.Text);
         if (Raise(window, RawDragEventType.Drop, null, files) != DragDropEffects.Copy || overlay.IsVisible)
             throw new InvalidOperationException("The folder drop was not accepted or left the overlay visible.");

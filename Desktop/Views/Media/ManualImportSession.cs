@@ -290,10 +290,7 @@ internal sealed class ManualImportSession
         _ => Texts.T("import.kind.unknown")
     };
 
-    internal static string Size(long bytes) => bytes >= 1L << 30 ? (bytes / (double)(1L << 30)).ToString("0.0", Texts.Culture) + " GB"
-        : bytes >= 1L << 20 ? (bytes / (double)(1L << 20)).ToString("0.0", Texts.Culture) + " MB"
-        : bytes >= 1L << 10 ? (bytes / (double)(1L << 10)).ToString("0", Texts.Culture) + " KB"
-        : bytes.ToString(Texts.Culture) + " B";
+    internal static string Size(long bytes) => SizeText.Format(bytes);
 }
 
 internal static class ManualImportPlanText

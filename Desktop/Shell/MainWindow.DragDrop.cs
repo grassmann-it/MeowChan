@@ -80,7 +80,7 @@ public partial class MainWindow
         if (content is { Kind: DroppedContentKind.Files, Paths.Count: > 0 })
             OpenManualImportDialog(content.Paths);
         else if (content?.Kind == DroppedContentKind.Files)
-            ShowNotification(Texts.T("drop.files.title"), Texts.T("drop.files.unreadable"), NotificationType.Information, operation: "drop.files");
+            ShowNotification(Texts.T("drop.empty.title"), Texts.T("drop.files.unreadable"), NotificationType.Information, operation: "drop.files");
         else if (content?.Kind == DroppedContentKind.Empty)
             ShowNotification(Texts.T("drop.empty.title"), Texts.T("drop.empty.detail"), NotificationType.Information, operation: "drop.empty");
         else if (content?.Text is { } text)
@@ -142,7 +142,7 @@ public partial class MainWindow
             DroppedContentKind.Files => "drop.files",
             _ => "drop.empty"
         };
-        DropOverlayTitle.Text = Texts.T(prefix + ".title", files);
+        DropOverlayTitle.Text = kind == DroppedContentKind.Files ? Texts.Count("drop.files.title", files) : Texts.T(prefix + ".title", files);
         DropOverlayDetail.Text = Texts.T(prefix + ".detail");
         DropOverlayCard[!Border.BorderBrushProperty] = new DynamicResourceExtension(
             kind is DroppedContentKind.Links or DroppedContentKind.Files ? "Workspace.Accent" : "Workspace.Warning");

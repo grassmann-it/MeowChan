@@ -326,7 +326,7 @@ public sealed partial class MediaPage : UserControl
     {
         if (_cacheWrite is not { } write) return null;
         string Size(long bytes) => (bytes / (1024.0 * 1024.0)).ToString("0.#", Texts.Culture) + " MiB";
-        string setting = Texts.T("budgets.mediaIndexCache"), category = Texts.T("budgets.advanced");
+        string setting = Texts.T("budgets.mediaIndexCache"), category = Texts.T("settings.storageLimits");
         return write.Status switch
         {
             MediaLibraryIndexCacheWriteStatus.TooManyEntries => Texts.T("media.cache.tooMany", MediaLibraryIndexCache.MaximumEntries.ToString("N0", Texts.Culture)),

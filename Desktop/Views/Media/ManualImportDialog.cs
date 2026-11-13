@@ -344,7 +344,7 @@ internal sealed class ManualImportDialog : Window
         bool done = _session.Stage == ManualImportStage.Done;
         _import.IsVisible = !done;
         _import.IsEnabled = _session.CanImport;
-        _import.Content = _session.NewCount > 0 ? Texts.T("import.start", _session.NewCount) : Texts.T("import.start.linkOnly");
+        _import.Content = _session.NewCount > 0 ? Texts.Count("import.start", _session.NewCount) : Texts.T("import.start.linkOnly");
         AutomationProperties.SetName(_import, _import.Content as string ?? string.Empty);
         _cancel.IsVisible = _session.Busy;
         _showBatch.IsVisible = done && _session.Outcome is { Batch: var batch } && batch.Count(ManualImportItemState.Committed) > 0 && ShowBatch != null;
@@ -388,10 +388,10 @@ internal sealed class ManualImportDialog : Window
         ManualImportBatch batch = outcome.Batch;
         List<string> parts = new()
         {
-            Texts.T("import.done", batch.Count(ManualImportItemState.Committed), batch.Name)
+            Texts.Count("import.done", batch.Count(ManualImportItemState.Committed), batch.Count(ManualImportItemState.Committed), batch.Name)
         };
-        if (batch.Count(ManualImportItemState.Duplicate) is > 0 and int linked) parts.Add(Texts.T("import.done.linked", linked));
-        if (batch.Count(ManualImportItemState.Failed) is > 0 and int failed) parts.Add(Texts.T("import.done.failed", failed));
+        if (batch.Count(ManualImportItemState.Duplicate) is > 0 and int linked) parts.Add(Texts.Count("import.done.linked", linked));
+        if (batch.Count(ManualImportItemState.Failed) is > 0 and int failed) parts.Add(Texts.Count("import.done.failed", failed));
         if (batch.Cancelled) parts.Add(Texts.T("import.done.cancelled"));
         if (outcome.TagsRequested && batch.Count(ManualImportItemState.Committed) > 0)
             parts.Add(Texts.T(outcome.TagsApplied ? "import.done.tags" : "import.done.tagsFailed", batch.Tags.Count));

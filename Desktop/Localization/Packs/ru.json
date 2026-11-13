@@ -2903,6 +2903,13 @@
     "import.done.tags": "Добавлено тегов: {0}.",
     "import.done.tagsFailed": "Не удалось добавить теги; файлы импортированы без них.",
     "import.media.source": "Собственный импорт",
-    "import.media.tile": "Импорт · {0}"
+    "import.media.tile": "Импорт · {0}",
+    "import.done.linked.one": "{0} уже был и только связан.",
+    "drop.files.title.one": "Отпустите, чтобы импортировать файлы или папки: {0}",
+    "import.start.one": "Импортировать файлы: {0}",
+    "import.done.one": "Импортировано файлов: {0} в «{1}».",
+    "import.done.failed.one": "{0} не удалось скопировать (изменён или не читается).",
+    "tags.dialog.addedMany.one": "Тег «{0}» добавлен вхождениям: {1}.",
+    "tags.dialog.removedMany.one": "Тег «{0}» убран у вхождений: {1}."
   }
 }

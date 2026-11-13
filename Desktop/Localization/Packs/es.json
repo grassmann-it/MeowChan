@@ -2902,6 +2902,13 @@
     "import.done.tags": "Etiquetas añadidas: {0}.",
     "import.done.tagsFailed": "No se pudieron añadir las etiquetas; los archivos se importaron sin ellas.",
     "import.media.source": "Importaciones propias",
-    "import.media.tile": "Importación · {0}"
+    "import.media.tile": "Importación · {0}",
+    "drop.files.title.one": "Suelta para importar {0} archivo o carpeta",
+    "import.start.one": "Importar {0} archivo",
+    "import.done.one": "Se importó {0} archivo en «{1}».",
+    "import.done.linked.one": "{0} ya existía y solo se vinculó.",
+    "import.done.failed.one": "{0} no se pudo copiar (cambiado o ilegible).",
+    "tags.dialog.addedMany.one": "Se añadió «{0}» a {1} aparición.",
+    "tags.dialog.removedMany.one": "Se quitó «{0}» de {1} aparición."
   }
 }

@@ -23,6 +23,13 @@ internal static class CountCatalog
         ("priority.normalAccepted.one", "Normal priority restored for {0} thread.", "Normale Priorität für {0} Thread wiederhergestellt."),
         ("work.retryAccepted.one", "Requested one retry for {0} media file. Queue and source limits still apply.", "Ein Wiederholungsversuch für {0} Mediendatei angefordert. Warteschlange und Quellenlimits gelten weiterhin."),
         ("work.retryPaused.one", "Requested one retry for {0} media file. Transfers wait until the session resumes; source limits still apply.", "Ein Wiederholungsversuch für {0} Mediendatei angefordert. Transfers warten auf das Fortsetzen der Sitzung; Quellenlimits gelten weiterhin."),
-        ("work.errorSummary.one", "{0} media error", "{0} Medienfehler")
+        ("work.errorSummary.one", "{0} media error", "{0} Medienfehler"),
+        ("drop.files.title.one", "Drop to import {0} file or folder", "Loslassen, um {0} Datei oder Ordner zu importieren"),
+        ("import.start.one", "Import {0} file", "{0} Datei importieren"),
+        ("import.done.one", "Imported {0} file into “{1}”.", "{0} Datei in „{1}“ importiert."),
+        ("import.done.linked.one", "{0} was already there and is only linked.", "{0} war schon vorhanden und ist nur verknüpft."),
+        ("import.done.failed.one", "{0} could not be copied (changed or unreadable).", "{0} konnte nicht kopiert werden (geändert oder nicht lesbar)."),
+        ("tags.dialog.addedMany.one", "Added “{0}” to {1} occurrence.", "„{0}“ an {1} Fundstelle hinzugefügt."),
+        ("tags.dialog.removedMany.one", "Removed “{0}” from {1} occurrence.", "„{0}“ von {1} Fundstelle entfernt.")
     };
 }

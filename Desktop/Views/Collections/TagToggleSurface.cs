@@ -139,7 +139,7 @@ internal sealed class TagToggleSurface : IDisposable
         List.IsVisible = snapshot != null && Model.Rows.Count > 0;
         TagDialogChange? change = _lastChange();
         Notice.Text = change is { } last
-            ? _many ? Texts.T(last.Assigned ? "tags.dialog.addedMany" : "tags.dialog.removedMany", last.Name, last.Subjects.Count)
+            ? _many ? Texts.Count(last.Assigned ? "tags.dialog.addedMany" : "tags.dialog.removedMany", last.Subjects.Count, last.Name, last.Subjects.Count)
                 : Texts.T(last.Assigned ? "tags.dialog.added" : "tags.dialog.removed", last.Name)
             : _undone() ? Texts.T("tags.dialog.undone") : string.Empty;
         Notice.IsVisible = Notice.Text.Length > 0;
