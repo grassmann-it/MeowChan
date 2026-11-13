@@ -318,7 +318,7 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
 
     // The reveal comes first: a reference inside a hidden spoiler cannot be clicked before the text is shown.
     private ReaderBodySegment? ActionAt(Point point) => SegmentAt(point) is { } segment
-        && (segment is { IsSpoiler: true } && !SpoilersRevealed || segment.Quote != null || segment.Link != null) ? segment : null;
+        && (segment.LinkNeedsReveal && !SpoilersRevealed || segment is { IsSpoiler: true } && !SpoilersRevealed || segment.Quote != null || segment.Link != null) ? segment : null;
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
@@ -336,7 +336,7 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
         if (pressed == null || e.InitialPressMouseButton != MouseButton.Left || SelectionStart != SelectionEnd
             || !ReferenceEquals(ActionAt(e.GetPosition(this)), pressed)) return;
         e.Handled = true;
-        if (pressed.IsSpoiler && !SpoilersRevealed) { SpoilersRevealed = true; SetLinkCursor(false); }
+        if ((pressed.IsSpoiler || pressed.LinkNeedsReveal) && !SpoilersRevealed) { SpoilersRevealed = true; SetLinkCursor(false); }
         else if (pressed.Quote != null) RaiseEvent(new ReaderQuoteInvokedEventArgs(QuoteInvokedEvent, pressed.Quote));
         else if (ReaderExternalLink.ForActivation(pressed, SpoilersRevealed, SelectionStart != SelectionEnd) is { } link)
             RaiseEvent(new ReaderLinkInvokedEventArgs(LinkInvokedEvent, link));

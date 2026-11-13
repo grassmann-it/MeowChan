@@ -59,11 +59,11 @@ internal static class ReaderExternalLink
     }
 
     /// <summary>
-    /// The link a click on this segment opens. Never while a spoiler over it is still hidden (the click reveals it) and
-    /// never while text is selected (a drag that selected text is not a click).
+    /// The link a click on this segment opens. Never while a spoiler over it, or inside the same link, is still hidden (the
+    /// click reveals it) and never while text is selected (a drag that selected text is not a click).
     /// </summary>
     internal static Uri? ForActivation(ReaderBodySegment? segment, bool spoilersRevealed, bool selectionActive)
-        => segment is { Link: { } link } && !selectionActive && (!segment.IsSpoiler || spoilersRevealed) && IsOpenable(link) ? link : null;
+        => segment is { Link: { } link } && !selectionActive && (!segment.LinkNeedsReveal || spoilersRevealed) && IsOpenable(link) ? link : null;
 
     /// <summary>
     /// The link Enter opens on a focused body: the first link inside the selection, or the only link of the body when
@@ -73,7 +73,7 @@ internal static class ReaderExternalLink
     {
         if (document == null) return null;
         int from = Math.Min(selectionStart, selectionEnd), to = Math.Max(selectionStart, selectionEnd);
-        IEnumerable<ReaderBodySegment> links = document.Segments.Where(segment => segment.Link != null && (!segment.IsSpoiler || spoilersRevealed));
+        IEnumerable<ReaderBodySegment> links = document.Segments.Where(segment => segment.Link != null && (!segment.LinkNeedsReveal || spoilersRevealed));
         if (to > from)
             return links.FirstOrDefault(segment => segment.Start < to && segment.End > from)?.Link is { } inSelection && IsOpenable(inSelection) ? inSelection : null;
         Uri[] all = links.Select(segment => segment.Link!).Distinct().ToArray();
