@@ -166,15 +166,39 @@ internal sealed class ReaderGroupStore
             stream.ReadExactly(bytes);
         }
         catch (FileNotFoundException) { return null; }
+        // The system messages of these failures name the full profile path; keep the type, drop the path.
+        catch (UnauthorizedAccessException) { throw new UnauthorizedAccessException("The reader groups file could not be read."); }
+        catch (EndOfStreamException) { throw new InvalidDataException("The reader groups file changed while it was read."); }
+        catch (IOException error) when (error is not FileNotFoundException) { throw new IOException("The reader groups file could not be read."); }
         hash = Convert.ToHexString(SHA256.HashData(bytes));
+        // Strict like the other profile stores: an invalid byte is damage, never a U+FFFD that quietly renames a member.
+        if (!System.Text.Unicode.Utf8.IsValid(bytes)) throw new InvalidDataException("Reader groups are not valid UTF-8.");
         using JsonDocument document = JsonDocument.Parse(bytes);
-        if (document.RootElement.ValueKind != JsonValueKind.Object
-            || !document.RootElement.TryGetProperty("schemaVersion", out JsonElement version)
+        JsonElement root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object
+            || !root.TryGetProperty("schemaVersion", out JsonElement version)
             || version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out int schema))
             throw new InvalidDataException("Reader groups schema version is missing.");
         if (schema > 1) { future = true; return null; }
+        // The serializer keeps the last of two equal names (a second "groups" would replace every group) and fills a
+        // missing member with its default (revision 0 beside real groups): both are damage, not a smaller document.
+        if (JsonDuplicateProperties.Any(bytes)) throw new InvalidDataException("Reader groups repeat a property.");
+        RequireMembers(root, "revision", JsonValueKind.Number, "groups", JsonValueKind.Array);
+        foreach (JsonElement group in root.GetProperty("groups").EnumerateArray())
+        {
+            if (group.ValueKind != JsonValueKind.Object) throw new InvalidDataException("A reader group is not an object.");
+            RequireMembers(group, "id", JsonValueKind.String, "name", JsonValueKind.String, "members", JsonValueKind.Array);
+        }
         ReaderGroupsSnapshot snapshot = JsonSerializer.Deserialize(bytes, ReaderGroupsJsonContext.Default.ReaderGroupsSnapshot)
             ?? throw new InvalidDataException("Reader groups file is empty.");
         return ReaderGroupsValidation.Copy(snapshot);
+    }
+
+    /// <summary>Pairs of member name and kind that <paramref name="value"/> must carry.</summary>
+    private static void RequireMembers(JsonElement value, params object[] pairs)
+    {
+        for (int index = 0; index < pairs.Length; index += 2)
+            if (!value.TryGetProperty((string)pairs[index], out JsonElement member) || member.ValueKind != (JsonValueKind)pairs[index + 1])
+                throw new InvalidDataException("Reader groups lack a required member.");
     }
 }

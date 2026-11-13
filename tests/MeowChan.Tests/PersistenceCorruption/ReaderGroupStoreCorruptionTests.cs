@@ -14,10 +14,6 @@ internal sealed class ReaderGroupStoreAdapter : StoreAdapter
     internal override StorePolicy Policy => StorePolicy.OfferRecovery;
     internal override bool FollowsSymbolicLinks => true;
 
-    private const string LooseEnvelope =
-        "BUG: ReaderGroupStore.Read (libmeowchan/Persistence/ReaderGroupStore.cs:157-179) parses the raw bytes with no strict "
-        + "UTF-8 decoding, no duplicate-property check and no required-field check, so a damaged byte silently yields a wrong "
-        + "document that the store then reports as Ready and writable.";
     private const string RawBackupProbe =
         "BUG: the backup probe before a save (libmeowchan/Persistence/ReaderGroupStore.cs:100-104) calls Read without catching "
         + "its parse failures, so a damaged .bak makes SaveAsync throw the raw JsonReaderException (and, for a directory, an "
@@ -25,15 +21,6 @@ internal sealed class ReaderGroupStoreAdapter : StoreAdapter
 
     internal override IReadOnlyDictionary<string, string> KnownBugs => new Dictionary<string, string>
     {
-        ["primary:invalid-utf8-in-string"] = LooseEnvelope,
-        ["primary:overlong-utf8-in-string"] = LooseEnvelope,
-        ["primary:duplicate-array-property-different-value"] = LooseEnvelope,
-        ["primary-good-backup:invalid-utf8-in-string"] = LooseEnvelope,
-        ["primary-good-backup:overlong-utf8-in-string"] = LooseEnvelope,
-        ["primary-good-backup:duplicate-array-property-different-value"] = LooseEnvelope,
-        ["both:invalid-utf8-in-string"] = LooseEnvelope,
-        ["both:overlong-utf8-in-string"] = LooseEnvelope,
-        ["both:duplicate-array-property-different-value"] = LooseEnvelope,
         ["backup:empty"] = RawBackupProbe,
         ["backup:truncated-half"] = RawBackupProbe,
         ["backup:trailing-garbage"] = RawBackupProbe,
@@ -86,13 +73,38 @@ public sealed class ReaderGroupStoreCorruptionTests(ITestOutputHelper log) : Bac
 {
     internal override StoreAdapter Adapter { get; } = new ReaderGroupStoreAdapter();
 
-    [Fact(Skip = "BUG: reader-groups.json is parsed from raw bytes (ReaderGroupStore.Read, libmeowchan/Persistence/ReaderGroupStore.cs:157-179) "
-        + "without strict UTF-8 decoding and without a duplicate-property check. One invalid byte inside the \"revision\" property name "
-        + "makes the property unreadable, so the snapshot loads with revision 0 beside the real groups; a repeated \"groups\" property "
-        + "makes the last (empty) one win, so every group silently disappears. Both load as Ready and writable, and the next save "
-        + "commits the wrong document. Every other 1.1.0 store rejects these (FavoriteStore.CheckObject, SavedArchiveSearchStore.CheckDuplicates).")]
-    public void ADamagedByteNeverSilentlyChangesTheReaderGroupsDocument() =>
-        CorruptionScenarios.DamagedPrimary(new ReaderGroupStoreAdapter(), "duplicate-array-property-different-value", null, "bug");
+    // A damaged byte or a repeated, missing or misnamed member is damage: the good backup is offered, nothing is written.
+    [Theory]
+    [InlineData("duplicate-array-property-different-value")]
+    [InlineData("invalid-utf8-in-string")]
+    [InlineData("overlong-utf8-in-string")]
+    [InlineData("version-missing")]
+    public void ADamagedByteNeverSilentlyChangesTheReaderGroupsDocument(string variant) =>
+        CorruptionScenarios.DamagedPrimary(new ReaderGroupStoreAdapter(), variant, null, "envelope");
+
+    [Fact]
+    public void AMisnamedRevisionIsDamageNotRevisionZero()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        ReaderGroupStoreAdapter adapter = new();
+        adapter.Seed(temp.Path, lease);
+        string path = adapter.PrimaryPath(temp.Path);
+        File.WriteAllText(path, File.ReadAllText(path).Replace("\"revision\"", "\"revisiom\"", StringComparison.Ordinal));
+        Assert.Equal(ReadKind.Recovery, adapter.Read(temp.Path, lease).Kind);
+    }
+
+    [Fact]
+    public void FilesWrittenByTheStoreStillLoad()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        ReaderGroupStoreAdapter adapter = new();
+        adapter.Seed(temp.Path, lease);
+        Assert.Equal(ReadKind.Data, adapter.Read(temp.Path, lease).Kind);
+        adapter.Mutate(temp.Path, lease);
+        Assert.Equal(ReadKind.Data, adapter.Read(temp.Path, lease).Kind);
+    }
 
     [Fact(Skip = "BUG: SaveAsync's backup probe (libmeowchan/Persistence/ReaderGroupStore.cs:100-104) calls Read without catching its parse "
         + "failures. A damaged reader-groups.json.bak therefore makes the save throw the raw System.Text.Json reader exception, and a "
