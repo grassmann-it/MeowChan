@@ -1143,9 +1143,18 @@ internal static partial class MediaPageChecks
         {
             second.Show(owner);
             again.IsAvailable = true;
-            await again.ActivateAsync().WaitAsync(Deadline);
+            // The stored results do not wait for the first previews: with a long grace they are still there at once.
+            TimeSpan grace = MediaPage.AudioScanGrace;
+            MediaPage.AudioScanGrace = TimeSpan.FromSeconds(12);
+            System.Diagnostics.Stopwatch storedIn = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                await again.ActivateAsync().WaitAsync(Deadline);
+                await UntilAsync(() => again.AudioResults.Count == 3);
+                Require(storedIn.Elapsed < TimeSpan.FromSeconds(6), "The stored sound results must not wait for the first previews: " + storedIn.Elapsed);
+            }
+            finally { MediaPage.AudioScanGrace = grace; }
             await again.AudioScanTask.WaitAsync(Deadline);
-            await UntilAsync(() => again.AudioResults.Count == 3);
             C<ComboBox>(again, "MediaSoundFilter").SelectedIndex = 1;
             Require(again.ShownEntries.Count == 1 && again.ShownEntries[0].Name == "snd-900.mp4", "The cached results must filter again.");
         }

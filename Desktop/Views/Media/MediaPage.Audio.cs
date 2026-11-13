@@ -70,9 +70,14 @@ public sealed partial class MediaPage
             Dispatcher.UIThread.Post(() => OnAudioUpdate(scan, map, progress));
         try
         {
-            WaitForFirstThumbnailWave(scan.Token);
+            // The stored results are one small read and are shown at once; only opening the video files waits for the first previews.
             if (current.Count == 0 && cachePath != null && MediaAudioCache.Load(cachePath) is { } stored) { current = stored; Post(stored, null); }
-            MediaAudioMap result = MediaLibraryAudioScanner.Scan(snapshot, current, entry => OpenForAudioProbe(entry, scan.Token),
+            bool waited = false;
+            MediaAudioMap result = MediaLibraryAudioScanner.Scan(snapshot, current, entry =>
+            {
+                if (!waited) { waited = true; WaitForFirstThumbnailWave(scan.Token); }
+                return OpenForAudioProbe(entry, scan.Token);
+            },
                 (map, progress) => Post(map, progress), cachePath, scan.Token);
             Post(result, null);
         }
@@ -88,8 +93,9 @@ public sealed partial class MediaPage
     internal static TimeSpan AudioScanMaximumWait { get; set; } = TimeSpan.FromSeconds(6);
 
     // The sound check opens a file per video (up to tens of thousands) and competes with the index save and the tiles' previews for the
-    // disk. It starts after the save (it is started from there) and, here, once the first wave of previews is through: a short grace
-    // for the visible tiles to begin, then until no preview is waiting or loading, but never for long (scrolling keeps loading).
+    // disk. It starts after the save (it is started from there) and, here, before its first file is opened, once the first wave of
+    // previews is through: a short grace for the visible tiles to begin, then until no preview is waiting or loading, but never for
+    // long (scrolling keeps loading). Reading the stored results does not wait: it is cheap and the sound filter needs it at once.
     private static void WaitForFirstThumbnailWave(CancellationToken token)
     {
         System.Diagnostics.Stopwatch waited = System.Diagnostics.Stopwatch.StartNew();
