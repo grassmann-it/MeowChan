@@ -12,8 +12,13 @@ namespace MeowChan;
 
 public partial class MainWindow
 {
-    private static readonly Geometry MaximizeGeometry = Geometry.Parse(WindowChromePolicy.MaximizePath);
-    private static readonly Geometry RestoreGeometry = Geometry.Parse(WindowChromePolicy.RestorePath);
+    // Parsed on first use from the UI path, never in a static initializer: Geometry.Parse needs the render platform, and
+    // tests reach static MainWindow members (e.g. ApphostFixturePluginEnabled) without Avalonia set up. An initializer here
+    // made MainWindow's type initializer throw "Unable to locate IPlatformRenderInterface" for them.
+    private static Geometry? _maximizeGeometry;
+    private static Geometry? _restoreGeometry;
+    private static Geometry MaximizeGeometry => _maximizeGeometry ??= Geometry.Parse(WindowChromePolicy.MaximizePath);
+    private static Geometry RestoreGeometry => _restoreGeometry ??= Geometry.Parse(WindowChromePolicy.RestorePath);
 
     // Square corners on Windows (DWM) and native corners and traffic lights on macOS (header
     // starts after them). MEOWCHAN_WINDOW_CHROME=system fallback: the platform caption returns,
