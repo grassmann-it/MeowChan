@@ -1,6 +1,6 @@
 # Plugin guide
 
-MeowChan's 1.0 source tree supports C# source plugins and image filters in separate
+MeowChan's 1.1 source tree supports C# source plugins and image filters in separate
 processes. This guide describes that implementation; it does not announce a
 published package or certify a desktop release. See [validation and current
 limits](validation.md) for what each check establishes.
@@ -37,15 +37,43 @@ editable `.cs` file; there is no separate documentation copy to keep in sync.
 | [Endchan.cs](../../plugins/Examples/Endchan/Endchan.cs) · [notes and evidence](../../plugins/Examples/Endchan/README.md) | Independent SDK-only source, LynxChan OP/replies and original-media metadata | Source plugin; see provider notes for evidence and limits |
 | [ImageDimensionsFilter.cs](../../plugins/Examples/ImageDimensionsFilter/ImageDimensionsFilter.cs) | Scoped rule schema, domain validation, token-based original-byte reads | Static JPEG/PNG dimensions and aspect ratio; no OCR or general image decoding |
 | [SyntheticPlugin.cs](../../samples/MeowChan.PluginSdk.Consumer/SyntheticPlugin.cs) · [consumer](../../samples/MeowChan.PluginSdk.Consumer/Program.cs) | Small independent SDK consumer, settings and passive information | Synthetic data only; references the SDK package |
-| [Official source plugins](../../plugins/Official/README.md) | Existing 4chan/8kun source identities and provider differences | Official source implementations; registration is not a live-health claim |
+| [Official source plugins](../../plugins/Official/README.md) | Existing 4chan/8kun source identities and Danbooru post search | Official source implementations; registration is not a live-health claim |
 
-In this separate integration branch the candidate delivery contains **sixteen
-plugins, eleven sources and fourteen editable files**: the existing six sources,
-five additional experimental sources and five filters (dimensions plus the four
-[local media filters](local-media-filters.md)). The new source contracts and
-adapters are wired for actual host acceptance; fixture, live, restart and packaged
-checks remain separate gates. This inventory is not a published release or
-packaged/native-platform acceptance result.
+## Packaged inventory
+
+The current packaging allowlists define **24 plugins**: **19 source-plugin
+entries** and **5 image filters**, with **21 editable example/filter source
+files**. The exact split is:
+
+| Delivery group | Plugin bundles | Source-plugin entries | Image filters | Editable `.cs` files |
+| --- | --- | --- | --- | --- |
+| Official | 3 | 3 | 0 | 0 |
+| Examples / filters | 21 | 16 | 5 | 21 |
+| **Total** | **24** | **19** | **5** | **21** |
+
+Each bundle has one `.plugin.json` manifest under `plugins/` and one assembly
+under `plugins/assemblies/`. The editable files are copied from
+`plugins/Examples/` into `plugins/sources/`; **no official `.cs` files are included in the application
+package**. Official implementations are available in the repository for
+[authoring and local builds](../../plugins/Official/README.md#authoring-and-local-builds).
+
+The source-plugin count includes 18 board/thread entries and one booru entry
+(Danbooru). Two board/thread entries, **Anon Imageboards** and **Guro.cx**, are
+blocked placeholders: they register no source or URL routes. Thus the inventory
+is not a count of usable or enabled sources. Danbooru uses post search, not the
+board/thread URL workflow. The other example sources are Lainchan, Kohlchan,
+Wizchan, Endchan, Leftypol, 2ch / Двач, Uboachan, ZZZchan, SushiChan, 7chan,
+BBW-Chan, CapybaraChan, 8chan.moe and Fchan. Filters are Image dimensions,
+File rules, Hash blocklist, Animation format and PNG metadata; see the
+[local media filter guide](local-media-filters.md).
+
+The inventory comes from
+[`_ShippedPluginProject` and `_PluginExampleSource`](../../packaging/PluginDelivery.targets),
+checked against [`PLUGINS` and `SOURCES`](../../scripts/package-plugins.py).
+The [documentation contract test](../../tests/test_plugin_documentation.py)
+checks the counts and delivery split against both allowlists. Registration,
+fixture, live, restart and packaged checks remain separate gates; these counts
+are not a published release or packaged/native-platform acceptance result.
 For the historical source-only baseline, see the
 [dated local validation results](../architecture/1.0.0/source-erweiterungen/README.md#lokaler-abschlussnachweis)
 for the tested candidate and its limits.
