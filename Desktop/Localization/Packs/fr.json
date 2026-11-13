@@ -1909,6 +1909,8 @@
     "command.reader.next-thread": "Fil suivant",
     "command.reader.previous-post": "Publication précédente",
     "command.reader.find": "Rechercher dans le fil",
+    "command.reader.find-next": "Rechercher le suivant",
+    "command.reader.find-previous": "Rechercher le précédent",
     "command.reader.next-post": "Publication suivante",
     "command.reader.open-quote": "Afficher la publication citée",
     "command.reader.show-replies": "Afficher les réponses",

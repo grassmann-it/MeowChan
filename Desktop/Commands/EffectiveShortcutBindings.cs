@@ -115,6 +115,8 @@ public sealed class EffectiveShortcutBindings
         ["window.fullscreen"] = 2, ["viewer.shortcut-help"] = 2, ["watch.remove"] = 2, ["archive.delete-permanently"] = 2,
         ["thread.details"] = 2, ["watch.check"] = 2, ["watch.retry-media"] = 2, ["archive.previous-page"] = 2,
         ["archive.next-page"] = 2, ["media.return"] = 2,
+        // New in revision 2: find next / previous in the large reader.
+        ["reader.find-next"] = 2, ["reader.find-previous"] = 2,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     /// <summary>Whether an issue deserves the startup warning: only what silences or blocks a binding
@@ -152,6 +154,8 @@ public sealed class EffectiveShortcutBindings
             case "gallery.zoom-out": list.Add(ShortcutGesture.Parse("Subtract")); break;
             case "viewer.shortcut-help": list.Add(new("OemQuestion", new[] { "Shift" }, "?")); break;
             case "menu.context-open": list.Add(ShortcutGesture.Parse("Apps")); break;
+            case "reader.find-next": list.Add(ShortcutGesture.Parse("Primary+G")); break;
+            case "reader.find-previous": list.Add(ShortcutGesture.Parse("Primary+Shift+G")); break;
         }
         return list.AsReadOnly();
     }
@@ -178,6 +182,8 @@ public sealed class EffectiveShortcutBindings
             "archive.previous-page" => Of("Primary+Alt+Left", "Alt+PageUp"),
             "archive.next-page" => Of("Primary+Alt+Right", "Alt+PageDown"),
             "media.return" => Of("Primary+Left"),
+            "reader.find-next" => Of("Primary+G", "F3"),
+            "reader.find-previous" => Of("Primary+Shift+G", "Shift+F3"),
             _ => null
         };
     }
@@ -325,7 +331,7 @@ public sealed class EffectiveShortcutBindings
             return new[] { "media", "reader", "gallery", "dialog:media-rating" };
         if (id.StartsWith("navigation.") || id is "session.pause" or "window.fullscreen" or "input.focus-url" or "viewer.shortcut-help") return new[] { "shell" };
         // The large reader owns thread find; the archive search box is not reachable from it.
-        if (id == "reader.find") return new[] { "large-reader" };
+        if (id is "reader.find" or "reader.find-next" or "reader.find-previous") return new[] { "large-reader" };
         if (id == "input.focus-search") return new[] { "archive", "reader", "about" };
         if (id == "thread.read") return new[] { "archive", "downloads" };
         if (c.Contexts.Any(x => x.StartsWith("reader-groups"))) return new[] { "dialog:reader-groups" };

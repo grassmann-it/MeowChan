@@ -464,6 +464,7 @@ public partial class ArchivePage
             OnOpenThreadFind(null, e);
             return;
         }
+        if (_thread != null && ReaderFindBar.IsVisible && TryMoveThreadFindByShortcut(e)) return;
         if (e.Source is Visual source)
         {
             if (source.GetSelfAndVisualAncestors().Any(control => control is TextBox or ComboBox or NumericUpDown or MenuItem or Slider or ScrollBar)) return;

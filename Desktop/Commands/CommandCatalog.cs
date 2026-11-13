@@ -130,6 +130,8 @@ public static class CommandCatalog
         new("reader.next-thread", "command.reader.next-thread", "Next thread", "Nächster Thread", "arrow-right", "Right", CommandScope.Reader, new[] { "large-reader-navigation" }),
         new("reader.previous-post", "command.reader.previous-post", "Previous post", "Voriger Post", "arrow-up", "Up", CommandScope.Reader, new[] { "large-reader-navigation" }),
         new("reader.find", "command.reader.find", "Find in thread", "Im Thread suchen", "search", "Primary+F", CommandScope.Reader, new[] { "reader-find" }),
+        new("reader.find-next", "command.reader.find-next", "Find next", "Weitersuchen", "arrow-down", "F3", CommandScope.Reader, new[] { "reader-find" }),
+        new("reader.find-previous", "command.reader.find-previous", "Find previous", "Zurücksuchen", "arrow-up", "Shift+F3", CommandScope.Reader, new[] { "reader-find" }),
         new("reader.next-post", "command.reader.next-post", "Next post", "Nächster Post", "arrow-down", "Down", CommandScope.Reader, new[] { "large-reader-navigation" }),
         new("reader.open-quote", "command.reader.open-quote", "Show quoted post", "Zitierten Post anzeigen", "corner-up-left", null, CommandScope.Reader | CommandScope.Gallery, new[] { "reader-post-quote", "reader-reference-list", "gallery-post-context" }),
         new("reader.show-replies", "command.reader.show-replies", "Show replies", "Antworten anzeigen", "message-square", null, CommandScope.Reader, new[] { "reader-post" }),

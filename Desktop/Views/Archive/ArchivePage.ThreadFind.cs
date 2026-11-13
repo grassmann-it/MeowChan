@@ -141,6 +141,7 @@ public partial class ArchivePage
     {
         if (e.Handled || _ended || ShortcutService.IsCapturing || IsReaderDialogOpen
             || !ReaderFindBar.IsVisible || !IsThreadFindSource(e.Source)) return;
+        if (TryMoveThreadFindByShortcut(e)) return;
         int gesture = ThreadFindGesture(e.Key, e.KeyModifiers);
         if (gesture == 0) return; // Space, Tab, modified Enter/Escape retain native ownership.
         // The first Escape empties a typed query (SearchBox); only Escape in an empty query or on a button closes the bar.
@@ -159,6 +160,17 @@ public partial class ArchivePage
             }
         }
         else MoveThreadFind(gesture == 1);
+    }
+
+    // F3 / Ctrl+G (⌘G) and Shift+F3 / Ctrl+Shift+G (⇧⌘G): next and previous hit while the find bar is open,
+    // also from inside the query box. Never opens the bar and never takes focus.
+    private bool TryMoveThreadFindByShortcut(KeyEventArgs e)
+    {
+        bool forward = CommandBindings.Matches(e, "reader.find-next");
+        if (!forward && !CommandBindings.Matches(e, "reader.find-previous")) return false;
+        e.Handled = true;
+        MoveThreadFind(forward);
+        return true;
     }
 
     private static Button? FocusedFindButton(object? source) => (source as Avalonia.Visual)?

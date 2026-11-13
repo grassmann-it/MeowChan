@@ -1909,6 +1909,8 @@
     "command.reader.next-thread": "Следующий тред",
     "command.reader.previous-post": "Предыдущее сообщение",
     "command.reader.find": "Поиск в треде",
+    "command.reader.find-next": "Найти далее",
+    "command.reader.find-previous": "Найти ранее",
     "command.reader.next-post": "Следующее сообщение",
     "command.reader.open-quote": "Показать цитируемое сообщение",
     "command.reader.show-replies": "Показать ответы",
