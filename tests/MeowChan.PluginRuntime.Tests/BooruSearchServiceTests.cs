@@ -156,6 +156,189 @@ public sealed class BooruSearchServiceTests
         Assert.Equal(0, worker.SearchCalls);
     }
 
+    private static readonly TimeSpan Bound = TimeSpan.FromSeconds(10); // hang guard, not a deadline driver
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task WholeWorkerResultWaitEndsAtJobDeadlineEvenWhenWorkerIgnoresToken(bool postRead)
+    {
+        using FacadeRig rig = new();
+        TaskCompletionSource<BooruSearchResult> searchResult = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource<BooruPostResult> postResult = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken received = default;
+        PluginOperationContext? operation = null;
+        FakeWorker worker = new((_, op, token) => { operation = op; received = token; return searchResult.Task; },
+            (_, op, token) => { operation = op; received = token; return postResult.Task; });
+        Task pending = postRead
+            ? rig.Search.ReadPostAsync(worker, new("danbooru", "1"))
+            : rig.Search.SearchAsync(worker, "danbooru", "cat", 1);
+        Assert.NotNull(operation);
+        Assert.True(received.CanBeCanceled);
+        Assert.False(pending.IsCompleted);
+        rig.Clock.Advance(BooruJob.MaximumLifetime);
+        await pending.WaitAsync(Bound);
+        string code = postRead
+            ? Assert.IsType<BooruPostFailure>(await (Task<BooruPostResult>)pending).Failure.Code
+            : Assert.IsType<BooruSearchFailure>(await (Task<BooruSearchResult>)pending).Failure.Code;
+        Assert.Equal("booru-budget", code);
+        Assert.True(received.IsCancellationRequested);
+        // The ignored task may finish later, but cannot replace the host's terminal result.
+        searchResult.SetResult(new BooruSearchSnapshot(new("danbooru", "cat", 1, [], true)));
+        postResult.SetResult(new BooruPostNotFound(new("danbooru", "1")));
+        Assert.Equal("booru-job", Assert.IsType<HostHttpFailure>(await rig.Services.SendHttpAsync(
+            new("danbooru", HostHttpMethod.Get, new("https://danbooru.test/posts.json")), operation!, default)).Failure.Code);
+        Assert.Equal(0, rig.Sends);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExpiredScopeDoesNotStartNumberedOrCursorWorker(bool cursor)
+    {
+        using FacadeRig rig = new();
+        using BooruSearchScope scope = rig.Search.OpenScope();
+        rig.Clock.Advance(BooruJob.MaximumLifetime);
+        FakeWorker worker = new();
+        BooruSearchResult result = cursor
+            ? await rig.Search.SearchBeforeAsync(worker, "danbooru", "cat", "1000", scope)
+            : await rig.Search.SearchAsync(worker, "danbooru", "cat", 1, scope);
+        Assert.Equal("booru-budget", Assert.IsType<BooruSearchFailure>(result).Failure.Code);
+        Assert.Equal(0, worker.SearchCalls);
+        Assert.Equal(0, rig.Sends);
+    }
+
+    [Fact]
+    public async Task ClosingScopeEndsTokenIgnoringWorkerResultWait()
+    {
+        using FacadeRig rig = new();
+        using BooruSearchScope scope = rig.Search.OpenScope();
+        TaskCompletionSource<BooruSearchResult> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        FakeWorker worker = new((_, _, _) => completion.Task);
+        Task<BooruSearchResult> pending = rig.Search.SearchAsync(worker, "danbooru", "cat", 1, scope);
+        scope.Dispose();
+        Assert.Equal("booru-job", Assert.IsType<BooruSearchFailure>(await pending.WaitAsync(Bound)).Failure.Code);
+        completion.SetResult(new BooruSearchSnapshot(new("danbooru", "cat", 1, [], true)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CallerCancellationEndsTokenIgnoringWorkerWait(bool postRead)
+    {
+        using FacadeRig rig = new();
+        using CancellationTokenSource caller = new();
+        TaskCompletionSource<BooruSearchResult> searchResult = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource<BooruPostResult> postResult = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        FakeWorker worker = new((_, _, _) => searchResult.Task, (_, _, _) => postResult.Task);
+        Task pending = postRead
+            ? rig.Search.ReadPostAsync(worker, new("danbooru", "1"), caller.Token)
+            : rig.Search.SearchAsync(worker, "danbooru", "cat", 1, caller.Token);
+        caller.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(Bound));
+        searchResult.SetResult(new BooruSearchSnapshot(new("danbooru", "cat", 1, [], true)));
+        postResult.SetResult(new BooruPostNotFound(new("danbooru", "1")));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CallerCancellationWinsOverDeadlineAndCompletedWorkerResult(bool postRead)
+    {
+        using FacadeRig rig = new();
+        using CancellationTokenSource caller = new();
+        void EndBoth() { rig.Clock.Advance(BooruJob.MaximumLifetime); caller.Cancel(); }
+        FakeWorker worker = new((_, _, _) =>
+        {
+            EndBoth();
+            return Task.FromResult<BooruSearchResult>(new BooruSearchSnapshot(new("danbooru", "cat", 1, [], true)));
+        }, (_, _, _) =>
+        {
+            EndBoth();
+            return Task.FromResult<BooruPostResult>(new BooruPostNotFound(new("danbooru", "1")));
+        });
+        Task pending = postRead
+            ? rig.Search.ReadPostAsync(worker, new("danbooru", "1"), caller.Token)
+            : rig.Search.SearchAsync(worker, "danbooru", "cat", 1, caller.Token);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(Bound));
+    }
+
+    [Fact]
+    public async Task CallerCancellationWinsOverScopeCloseAndCompletedWorkerResult()
+    {
+        using FacadeRig rig = new();
+        using BooruSearchScope scope = rig.Search.OpenScope();
+        using CancellationTokenSource caller = new();
+        FakeWorker worker = new((_, _, _) =>
+        {
+            scope.Dispose();
+            caller.Cancel();
+            return Task.FromResult<BooruSearchResult>(new BooruSearchSnapshot(new("danbooru", "cat", 1, [], true)));
+        });
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => rig.Search.SearchAsync(worker, "danbooru", "cat", 1, scope, caller.Token));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FirstRateLimitedFacadeWaitStaysDeferredEvenIfWorkerIgnoresCancellation(bool postRead)
+    {
+        using FacadeRig rig = new(rateLimited: true);
+        TaskCompletionSource<BooruSearchResult> searchResult = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource<BooruPostResult> postResult = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        FakeWorker worker = new(async (_, operation, _) =>
+        {
+            Assert.IsType<HostHttpDeferred>(await rig.Services.SendHttpAsync(
+                new("danbooru", HostHttpMethod.Get, new("https://danbooru.test/posts.json")), operation, default));
+            return await searchResult.Task; // deliberately ignores the cancelled job token
+        }, async (_, operation, _) =>
+        {
+            Assert.IsType<HostHttpDeferred>(await rig.Services.SendHttpAsync(
+                new("danbooru", HostHttpMethod.Get, new("https://danbooru.test/posts/1.json")), operation, default));
+            return await postResult.Task;
+        });
+        if (postRead)
+        {
+            Assert.Equal(429, Assert.IsType<BooruPostDeferred>(await rig.Search.ReadPostAsync(worker, new("danbooru", "1")).WaitAsync(Bound)).HttpStatusCode);
+            Assert.IsType<BooruPostDeferred>(await rig.Search.ReadPostAsync(worker, new("danbooru", "1")));
+            Assert.Equal(1, worker.PostCalls);
+        }
+        else
+        {
+            using BooruSearchScope scope = rig.Search.OpenScope();
+            Assert.Equal(429, Assert.IsType<BooruSearchDeferred>(await rig.Search.SearchAsync(worker, "danbooru", "cat", 1, scope).WaitAsync(Bound)).HttpStatusCode);
+            Assert.IsType<BooruSearchDeferred>(await rig.Search.SearchAsync(worker, "danbooru", "cat", 1));
+            rig.Clock.Advance(BooruHostHttp.MinimumCooldown);
+            Assert.Equal("booru-job", Assert.IsType<BooruSearchFailure>(await rig.Search.SearchAsync(worker, "danbooru", "cat", 1, scope)).Failure.Code);
+            Assert.Equal(1, worker.SearchCalls);
+        }
+        Assert.Equal(1, rig.Sends);
+        searchResult.SetResult(new BooruSearchSnapshot(new("danbooru", "cat", 1, [], true)));
+        postResult.SetResult(new BooruPostNotFound(new("danbooru", "1")));
+    }
+
+    private sealed class FacadeRig : IDisposable
+    {
+        internal readonly ManualClock Clock = new();
+        internal readonly BooruHostServices Services;
+        internal readonly BooruSearchService Search;
+        internal int Sends;
+        private readonly HttpClient _transport;
+        private readonly BooruHostHttp _http;
+        internal FacadeRig(bool rateLimited = false)
+        {
+            _transport = new(new Handler((_, _) =>
+            {
+                ++Sends;
+                return Task.FromResult(new HttpResponseMessage(rateLimited ? HttpStatusCode.TooManyRequests : HttpStatusCode.OK));
+            }));
+            _http = new(_transport, new MeowChan.Http.RequestPolicyState(Clock), [DecimalDanbooruSource()]);
+            Services = new(new Inner(), _http);
+            Search = new(Services);
+        }
+        public void Dispose() { _http.Dispose(); _transport.Dispose(); }
+    }
+
     private const string BooruJobResourcePrefix = "booru-job:";
     private static SourceDescription DecimalDanbooruSource() => DanbooruSource() with { PostOrder = PostOrderKind.DecimalPostId };
     private static SourceDescription DanbooruSource() => new("danbooru", "Danbooru", new("https://danbooru.test/"),
@@ -179,7 +362,10 @@ public sealed class BooruSearchServiceTests
     private sealed class FakeWorker : IPluginWorkerClient
     {
         private readonly Func<BooruSearchRequest, PluginOperationContext, CancellationToken, Task<BooruSearchResult>>? _search;
-        public FakeWorker(Func<BooruSearchRequest, PluginOperationContext, CancellationToken, Task<BooruSearchResult>>? search = null) => _search = search;
+        private readonly Func<BooruPostRequest, PluginOperationContext, CancellationToken, Task<BooruPostResult>>? _post;
+        public FakeWorker(Func<BooruSearchRequest, PluginOperationContext, CancellationToken, Task<BooruSearchResult>>? search = null,
+            Func<BooruPostRequest, PluginOperationContext, CancellationToken, Task<BooruPostResult>>? post = null)
+        { _search = search; _post = post; }
         public int SearchCalls { get; private set; }
         public int PostCalls { get; private set; }
         public PluginDescription Description { get; } = new("fake", "fake", "1", SdkContract.Version, "fake", [DanbooruSource()], [], new("1", []), []);
@@ -188,7 +374,7 @@ public sealed class BooruSearchServiceTests
         public Task<BooruSearchResult> SearchBooruPostsAsync(BooruSearchRequest request, PluginOperationContext operation, CancellationToken cancellationToken = default)
         { ++SearchCalls; return _search?.Invoke(request, operation, cancellationToken) ?? Task.FromResult<BooruSearchResult>(new BooruSearchSnapshot(new(request.SourceId, request.Query, request.Page, [], true))); }
         public Task<BooruPostResult> ReadBooruPostAsync(BooruPostRequest request, PluginOperationContext operation, CancellationToken cancellationToken = default)
-        { ++PostCalls; return Task.FromResult<BooruPostResult>(new BooruPostNotFound(request.Post)); }
+        { ++PostCalls; return _post?.Invoke(request, operation, cancellationToken) ?? Task.FromResult<BooruPostResult>(new BooruPostNotFound(request.Post)); }
         public Task<CatalogReadResult> ReadCatalogAsync(CatalogReadRequest request, PluginOperationContext operation, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ThreadReadResult> ReadThreadAsync(ThreadReadRequest request, PluginOperationContext operation, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ImageFilterResult> EvaluateAsync(ImageFilterRequest request, PluginOperationContext operation, CancellationToken cancellationToken = default) => throw new NotSupportedException();

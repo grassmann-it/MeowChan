@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using MeowChan.PluginHost.Contracts;
+using MeowChan.PluginSdk;
 
 namespace MeowChan.PluginHost.Sources.Booru;
 
@@ -72,6 +73,16 @@ internal sealed class BooruJob
             ++_sends;
             return true;
         }
+    }
+
+    // Published before Close cancels result waits: the first 429 must remain a Deferred.
+    private HostHttpDeferred? _cooldownStop;
+    internal HostHttpDeferred? CooldownStop => Volatile.Read(ref _cooldownStop);
+
+    internal void StopForCooldown(HostHttpDeferred deferred)
+    {
+        Volatile.Write(ref _cooldownStop, deferred);
+        Close();
     }
 
     internal void Close()

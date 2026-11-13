@@ -82,8 +82,12 @@ public sealed class BooruOperationJobIntegrationTests
         await using IPluginWorkerClient worker = await StartAsync(manager, workspace, services);
 
         PluginOperationContext operation = new("booru/deadline", 1);
+        // The runtime binds with its production System clock. Pre-bind this synthetic operation
+        // with the same ManualClock as its HTTP policy, without a separate job lookup before HTTP.
+        using PluginHostHttp.MetadataHistory owner = PluginHostHttp.MetadataHistory.BindOperation(operation, CancellationToken.None, clock)!;
         BooruSearchFailure expired = Assert.IsType<BooruSearchFailure>(
             await worker.SearchBooruPostsAsync(new("danbooru", "http-burst:20", 1, 20), operation).WaitAsync(Bound));
+        owner.Dispose();
         // Request n starts at 10n s; the 12th (started at 110 s) is aborted by the 120 s job deadline.
         Assert.Equal("booru-budget", expired.Failure.Code);
         Assert.Equal("completed 11", expired.Failure.Message);

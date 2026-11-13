@@ -108,10 +108,19 @@ public sealed class BooruSearchService
 
         ArgumentNullException.ThrowIfNull(worker);
         BooruJob job = scope.Job; // throws if the scope was disposed
+        cancellationToken.ThrowIfCancellationRequested();
+        if (JobFailure(job) is FailureDetail ended) return new BooruSearchFailure(sourceId, ended);
+        using CancellationTokenSource lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, job.Token);
         try
         {
-            BooruSearchResult result = await worker.SearchBooruPostsAsync(request, job.Operation, cancellationToken).ConfigureAwait(false);
+            lifetime.Token.ThrowIfCancellationRequested();
+            BooruSearchResult result = await worker.SearchBooruPostsAsync(request, job.Operation, lifetime.Token)
+                .WaitAsync(lifetime.Token).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (SearchJobEnd(job, sourceId) is BooruSearchResult stopped) return stopped;
             IReadOnlyList<ValidationIssue> resultIssues = SdkValidation.ValidateBooruSearchResult(request, result, source!);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (SearchJobEnd(job, sourceId) is BooruSearchResult validationEnd) return validationEnd;
             return resultIssues.Count == 0 ? result : new BooruSearchFailure(sourceId, PublicFailure(resultIssues[0]));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -120,22 +129,24 @@ public sealed class BooruSearchService
         }
         catch (OperationCanceledException)
         {
-            // Not the caller's cancellation: the worker client's own lifetime ended mid-call (see WorkerStoppedCode).
-            // Escaping as a cancellation would leave a watcher check without a terminal outcome and a search
-            // spinner without a result, because callers only settle the cancellations they requested.
-            return new BooruSearchFailure(sourceId, WorkerStopped());
+            // Job deadline/close (including a latched 429) outranks unrelated worker invalidation.
+            // Only the caller's own cancellation escapes; every other cancellation is a terminal outcome.
+            return SearchJobEnd(job, sourceId) ?? new BooruSearchFailure(sourceId, WorkerStopped());
         }
         catch (ObjectDisposedException)
         {
-            return new BooruSearchFailure(sourceId, WorkerStopped());
+            cancellationToken.ThrowIfCancellationRequested();
+            return SearchJobEnd(job, sourceId) ?? new BooruSearchFailure(sourceId, WorkerStopped());
         }
         catch (PluginWorkerException exception)
         {
-            return new BooruSearchFailure(sourceId, WorkerFailure(exception));
+            cancellationToken.ThrowIfCancellationRequested();
+            return SearchJobEnd(job, sourceId) ?? new BooruSearchFailure(sourceId, WorkerFailure(exception));
         }
         catch (NotSupportedException exception)
         {
-            return new BooruSearchFailure(sourceId, new FailureDetail("capability", exception.Message));
+            cancellationToken.ThrowIfCancellationRequested();
+            return SearchJobEnd(job, sourceId) ?? new BooruSearchFailure(sourceId, new FailureDetail("capability", exception.Message));
         }
     }
 
@@ -158,10 +169,18 @@ public sealed class BooruSearchService
             return new BooruPostFailure(post, PublicFailure(requestIssues[0]));
 
         BooruJob job = _services.OpenJob();
+        using CancellationTokenSource lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, job.Token);
         try
         {
-            BooruPostResult result = await worker.ReadBooruPostAsync(request, job.Operation, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            lifetime.Token.ThrowIfCancellationRequested();
+            BooruPostResult result = await worker.ReadBooruPostAsync(request, job.Operation, lifetime.Token)
+                .WaitAsync(lifetime.Token).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (PostJobEnd(job, post) is BooruPostResult stopped) return stopped;
             IReadOnlyList<ValidationIssue> resultIssues = SdkValidation.ValidateBooruPostResult(request, result, source!);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (PostJobEnd(job, post) is BooruPostResult validationEnd) return validationEnd;
             return resultIssues.Count == 0 ? result : new BooruPostFailure(post, PublicFailure(resultIssues[0]));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -170,25 +189,46 @@ public sealed class BooruSearchService
         }
         catch (OperationCanceledException)
         {
-            return new BooruPostFailure(post, WorkerStopped());
+            return PostJobEnd(job, post) ?? new BooruPostFailure(post, WorkerStopped());
         }
         catch (ObjectDisposedException)
         {
-            return new BooruPostFailure(post, WorkerStopped());
+            cancellationToken.ThrowIfCancellationRequested();
+            return PostJobEnd(job, post) ?? new BooruPostFailure(post, WorkerStopped());
         }
         catch (PluginWorkerException exception)
         {
-            return new BooruPostFailure(post, WorkerFailure(exception));
+            cancellationToken.ThrowIfCancellationRequested();
+            return PostJobEnd(job, post) ?? new BooruPostFailure(post, WorkerFailure(exception));
         }
         catch (NotSupportedException exception)
         {
-            return new BooruPostFailure(post, new FailureDetail("capability", exception.Message));
+            cancellationToken.ThrowIfCancellationRequested();
+            return PostJobEnd(job, post) ?? new BooruPostFailure(post, new FailureDetail("capability", exception.Message));
         }
         finally
         {
             _services.CloseJob(job);
         }
     }
+
+    private static FailureDetail? JobFailure(BooruJob job)
+    {
+        if (!job.IsOpen) return new("booru-job", "The booru job is not live.");
+        if (job.IsExpired) return new("booru-budget", "The booru job budget is exhausted.");
+        if (job.Token.IsCancellationRequested) return new("booru-job", "The booru job is not live.");
+        return null;
+    }
+
+    private static BooruSearchResult? SearchJobEnd(BooruJob job, string sourceId) =>
+        job.CooldownStop is HostHttpDeferred deferred
+            ? new BooruSearchDeferred(sourceId, deferred.RetryAt, deferred.ReasonCode, deferred.HttpStatusCode)
+            : JobFailure(job) is FailureDetail failure ? new BooruSearchFailure(sourceId, failure) : null;
+
+    private static BooruPostResult? PostJobEnd(BooruJob job, BooruPostId post) =>
+        job.CooldownStop is HostHttpDeferred deferred
+            ? new BooruPostDeferred(post, deferred.RetryAt, deferred.ReasonCode, deferred.HttpStatusCode)
+            : JobFailure(job) is FailureDetail failure ? new BooruPostFailure(post, failure) : null;
 
     private bool TryGetSource(string sourceId, out SourceDescription? source, out FailureDetail? failure)
     {

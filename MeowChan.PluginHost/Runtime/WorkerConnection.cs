@@ -153,7 +153,7 @@ internal sealed class WorkerConnection : IAsyncDisposable
         // service calls. It lives no longer than this call and is linked to its lifetime
         // (caller cancellation, operation deadline, worker failure).
         Http.PluginHostHttp.MetadataHistory? booruOperation = context != null && IsBooruOperation(operation)
-            ? Http.PluginHostHttp.MetadataHistory.BindOperation(context, lifetime.Token) : null;
+            ? Http.PluginHostHttp.MetadataHistory.BindOperation(context, lifetime.Token, TimeProvider.System) : null;
         if (!_pending.TryAdd(id, pending)) { booruOperation?.Dispose(); throw new InvalidOperationException(); }
         try
         {

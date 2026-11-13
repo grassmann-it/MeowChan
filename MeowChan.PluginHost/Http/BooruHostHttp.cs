@@ -24,7 +24,7 @@ public sealed class BooruHostHttp : IDisposable
     public static readonly TimeSpan MaximumJobLifetime = BooruJob.MaximumLifetime;
     public static readonly TimeSpan ResponseTimeout = TimeSpan.FromSeconds(15);
     public static readonly TimeSpan MinimumCooldown = TimeSpan.FromSeconds(60);
-    /// <summary>Upper bound for a provider Retry-After on 429; matches the Danbooru plugin's own 24-hour cap.</summary>
+    /// <summary>Legacy compatibility value; valid provider cooldowns are no longer capped at this duration.</summary>
     public static readonly TimeSpan MaximumCooldown = TimeSpan.FromHours(24);
     /// <summary>Danbooru post ids fit a signed 64-bit integer: at most 18 canonical decimal digits are accepted.</summary>
     private const int MaximumPostIdDigits = 18;
@@ -176,7 +176,9 @@ public sealed class BooruHostHttp : IDisposable
                     DateTimeOffset cooldown = CooldownUntil(response.Headers.RetryAfter, _clock.GetUtcNow());
                     lock (state.Gate)
                         if (cooldown > state.CooldownUntil) state.CooldownUntil = cooldown;
-                    return new HostHttpDeferred(cooldown, "booru-cooldown", status);
+                    HostHttpDeferred deferred = new(cooldown, "booru-cooldown", status);
+                    job.StopForCooldown(deferred);
+                    return deferred;
                 }
                 if (status is 502 or 503 && !retried)
                 {
@@ -231,7 +233,7 @@ public sealed class BooruHostHttp : IDisposable
             {
                 return Failure("http-encoding", "The booru metadata response encoding is not supported.", exception: exception);
             }
-            catch (HttpRequestException) when (!retried)
+            catch (HttpRequestException) when (!retried && !IsTerminalStatus(response))
             {
                 retried = true;
                 if (await DelayTransportRetryAsync(job, state, abort).ConfigureAwait(false) is HostHttpFailure stop)
@@ -240,9 +242,9 @@ public sealed class BooruHostHttp : IDisposable
             }
             catch (HttpRequestException exception)
             {
-                return Failure("http-network", "The booru metadata request failed.", exception: exception);
+                return Failure("http-network", "The booru metadata request failed.", response is null ? null : (int)response.StatusCode, exception: exception);
             }
-            catch (IOException) when (!retried)
+            catch (IOException) when (!retried && !IsTerminalStatus(response))
             {
                 retried = true;
                 if (await DelayTransportRetryAsync(job, state, abort).ConfigureAwait(false) is HostHttpFailure stop)
@@ -251,7 +253,7 @@ public sealed class BooruHostHttp : IDisposable
             }
             catch (IOException exception)
             {
-                return Failure("http-network", "The booru metadata response could not be read.", exception: exception);
+                return Failure("http-network", "The booru metadata response could not be read.", response is null ? null : (int)response.StatusCode, exception: exception);
             }
             finally
             {
@@ -316,20 +318,9 @@ public sealed class BooruHostHttp : IDisposable
             await wire.WriteAsync(chunk.AsMemory(0, read), window.Token).ConfigureAwait(false);
         }
 
-        Stream decoded = new MemoryStream(wire.ToArray(), writable: false);
+        Stream decoded = CreateDecoder(new MemoryStream(wire.ToArray(), writable: false), content.Headers.ContentEncoding);
         try
         {
-            if (content.Headers.ContentEncoding.Count > 2) throw new BooruEncodingException();
-            foreach (string encoding in content.Headers.ContentEncoding.Reverse())
-                decoded = encoding.ToLowerInvariant() switch
-                {
-                    "identity" => decoded,
-                    "gzip" => new GZipStream(decoded, CompressionMode.Decompress),
-                    "deflate" => new DeflateStream(decoded, CompressionMode.Decompress),
-                    "br" => new BrotliStream(decoded, CompressionMode.Decompress),
-                    _ => throw new BooruEncodingException()
-                };
-            using (decoded)
             using (MemoryStream output = new())
             {
                 while (true)
@@ -352,9 +343,32 @@ public sealed class BooruHostHttp : IDisposable
         catch (InvalidOperationException exception) { throw new BooruEncodingException(exception); }
         finally
         {
-            // The using above disposes the outermost decoder. If decoder construction
-            // failed before entering it, release the raw memory stream here.
-            if (decoded is MemoryStream memory && memory != null) memory.Dispose();
+            // The fully built chain is owned here; CreateDecoder owns failed construction.
+            decoded.Dispose();
+        }
+    }
+
+    /// <summary>Takes ownership of the encoded stream, including partially constructed chains on failure.</summary>
+    internal static Stream CreateDecoder(Stream decoded, ICollection<string> encodings)
+    {
+        try
+        {
+            if (encodings.Count > 2) throw new BooruEncodingException();
+            foreach (string encoding in encodings.Reverse())
+                decoded = encoding.ToLowerInvariant() switch
+                {
+                    "identity" => decoded,
+                    "gzip" => new GZipStream(decoded, CompressionMode.Decompress),
+                    "deflate" => new DeflateStream(decoded, CompressionMode.Decompress),
+                    "br" => new BrotliStream(decoded, CompressionMode.Decompress),
+                    _ => throw new BooruEncodingException()
+                };
+            return decoded;
+        }
+        catch
+        {
+            decoded.Dispose();
+            throw;
         }
     }
 
@@ -442,25 +456,29 @@ public sealed class BooruHostHttp : IDisposable
         return headers;
     }
 
+    private static bool IsTerminalStatus(HttpResponseMessage? response) =>
+        response?.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
+            or HttpStatusCode.NotFound or HttpStatusCode.Gone;
+
+    private static DateTimeOffset AddSaturating(DateTimeOffset now, TimeSpan delay) =>
+        delay >= DateTimeOffset.MaxValue - now ? DateTimeOffset.MaxValue : now + delay;
+
     private static DateTimeOffset RetryAt(RetryConditionHeaderValue? header, DateTimeOffset now)
     {
-        DateTimeOffset minimum = now + RetryDelay;
+        DateTimeOffset minimum = AddSaturating(now, RetryDelay);
         DateTimeOffset? requested = header?.Delta is TimeSpan delta && delta >= TimeSpan.Zero
-            ? now + delta
+            ? AddSaturating(now, delta)
             : header?.Date is DateTimeOffset date && date > now ? date : null;
         return requested is DateTimeOffset value && value > minimum ? value : minimum;
     }
 
     private static DateTimeOffset CooldownUntil(RetryConditionHeaderValue? header, DateTimeOffset now)
     {
-        DateTimeOffset minimum = now + MinimumCooldown;
-        DateTimeOffset maximum = now + MaximumCooldown;
+        DateTimeOffset minimum = AddSaturating(now, MinimumCooldown);
         DateTimeOffset? requested = header?.Delta is TimeSpan delta && delta >= TimeSpan.Zero
-            ? (delta >= MaximumCooldown ? maximum : now + delta)
+            ? AddSaturating(now, delta)
             : header?.Date is DateTimeOffset date && date > now ? date : null;
-        if (requested is not DateTimeOffset value || value <= minimum) return minimum;
-        // A far-future Retry-After must not silence the provider until the process restarts.
-        return value > maximum ? maximum : value;
+        return requested is DateTimeOffset value && value > minimum ? value : minimum;
     }
 
     private async Task DelayUntilAsync(DateTimeOffset due, CancellationToken cancellationToken)

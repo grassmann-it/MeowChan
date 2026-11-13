@@ -219,10 +219,11 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
         /// Binds a non-ambient history to a typed operation for exactly the caller's scope,
         /// so every host HTTP service call of that operation shares one booru job. The job
         /// is linked to <paramref name="lifetime"/> (caller cancellation, operation deadline,
-        /// worker lifetime) and closed when the returned owner is disposed. Returns null when
+        /// worker lifetime), starts at this bind using <paramref name="clock"/> (not at the first HTTP),
+        /// and is closed when the returned owner is disposed. Returns null when
         /// the caller already bound a live history: that owner keeps the job lifetime.
         /// </summary>
-        internal static MetadataHistory? BindOperation(Contracts.PluginOperationContext operation, CancellationToken lifetime)
+        internal static MetadataHistory? BindOperation(Contracts.PluginOperationContext operation, CancellationToken lifetime, TimeProvider clock)
         {
             ArgumentNullException.ThrowIfNull(operation);
             lock (OperationsLock)
@@ -232,7 +233,12 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
                     if (Volatile.Read(ref existing._disposed) == 0) return null;
                     Operations.Remove(operation);
                 }
-                MetadataHistory history = new(null, ambient: false) { _operationLifetime = lifetime, _boundOperation = operation };
+                MetadataHistory history = new(null, ambient: false)
+                {
+                    _operationLifetime = lifetime,
+                    _boundOperation = operation,
+                    _booruJob = new BooruJob(clock, lifetime)
+                };
                 Operations.Add(operation, history);
                 return history;
             }

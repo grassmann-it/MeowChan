@@ -45,6 +45,106 @@ public sealed class BooruHostHttpContractTests
         public void Dispose() { Http.Dispose(); Transport.Dispose(); }
     }
 
+    [Theory]
+    [InlineData(401, false)]
+    [InlineData(403, false)]
+    [InlineData(404, false)]
+    [InlineData(410, false)]
+    [InlineData(401, true)]
+    [InlineData(403, true)]
+    [InlineData(404, true)]
+    [InlineData(410, true)]
+    public async Task TerminalStatusDoesNotRetryWhenItsBodyThrows(int status, bool httpException)
+    {
+        using Rig rig = new((_, _, _) => Task.FromResult(new HttpResponseMessage((HttpStatusCode)status)
+        { Content = new StreamContent(new ThrowingBody(httpException)) }));
+        BooruJob job = rig.Services.OpenJob();
+        try
+        {
+            // No clock advance: a mistaken retry cannot finish this await.
+            HostHttpFailure failure = Assert.IsType<HostHttpFailure>(await rig.Send(job).WaitAsync(Bound));
+            Assert.Equal("http-network", failure.Failure.Code);
+            Assert.Equal(status, failure.Failure.HttpStatusCode);
+            Assert.Equal(1, rig.Sends);
+            Assert.Equal(1, job.Sends);
+            Assert.False(rig.Clock.HasTimer(BooruHostHttp.RetryDelay));
+        }
+        finally { rig.Services.CloseJob(job); }
+    }
+
+    [Fact]
+    public async Task RateLimitedJobNeverResumesButNewJobsRespectSourceCooldown()
+    {
+        using Rig rig = new((n, _, _) => Task.FromResult(Response(n == 1 ? HttpStatusCode.TooManyRequests : HttpStatusCode.OK, "[]")));
+        BooruJob old = rig.Services.OpenJob();
+        BooruJob? fresh = null;
+        try
+        {
+            HostHttpDeferred deferred = Assert.IsType<HostHttpDeferred>(await rig.Send(old));
+            Assert.False(old.IsOpen);
+            Assert.True(old.Token.IsCancellationRequested);
+            fresh = rig.Services.OpenJob();
+            Assert.Equal(deferred.RetryAt, Assert.IsType<HostHttpDeferred>(await rig.Send(fresh)).RetryAt);
+            Assert.Equal(0, fresh.Sends);
+            Assert.Equal(1, rig.Sends);
+            rig.Clock.Advance(BooruHostHttp.MinimumCooldown);
+            Assert.Equal("booru-job", Assert.IsType<HostHttpFailure>(await rig.Send(old)).Failure.Code);
+            Assert.IsType<HostHttpResponse>(await rig.Send(fresh));
+            Assert.Equal(2, rig.Sends);
+            Assert.Equal(1, old.Sends);
+        }
+        finally
+        {
+            rig.Services.CloseJob(old);
+            if (fresh is not null) rig.Services.CloseJob(fresh);
+        }
+    }
+
+    [Theory]
+    [InlineData("gzip")]
+    [InlineData("deflate")]
+    [InlineData("br")]
+    public async Task UnsupportedOuterEncodingAfterBuildingADecoderIsTerminal(string inner)
+    {
+        using Rig rig = new((_, _, _) =>
+        {
+            HttpResponseMessage response = Response(HttpStatusCode.OK, Encode([1, 2, 3], inner));
+            response.Content.Headers.ContentEncoding.Add("zstd");
+            response.Content.Headers.ContentEncoding.Add(inner);
+            return Task.FromResult(response);
+        });
+        BooruJob job = rig.Services.OpenJob();
+        try
+        {
+            Assert.Equal("http-encoding", Assert.IsType<HostHttpFailure>(await rig.Send(job)).Failure.Code);
+            Assert.Equal(1, rig.Sends);
+        }
+        finally { rig.Services.CloseJob(job); }
+    }
+
+    [Theory]
+    [InlineData("gzip")]
+    [InlineData("deflate")]
+    [InlineData("br")]
+    public void PartialDecoderChainDisposesItsInputExactlyOnce(string inner)
+    {
+        using DisposalStream input = new();
+        Assert.NotNull(Record.Exception(() => BooruHostHttp.CreateDecoder(input, ["zstd", inner])));
+        Assert.Equal(1, input.DisposeCalls); // proves disposal traversed the already constructed wrapper
+    }
+
+    private sealed class DisposalStream : MemoryStream
+    {
+        internal int DisposeCalls;
+        protected override void Dispose(bool disposing) { if (disposing) ++DisposeCalls; base.Dispose(disposing); }
+    }
+
+    private sealed class ThrowingBody(bool httpException) : MemoryStream
+    {
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            ValueTask.FromException<int>(httpException ? new HttpRequestException("synthetic body failure") : new IOException("synthetic body failure"));
+    }
+
     // ---------- Redirect = 0 ----------
 
     [Theory]
@@ -419,7 +519,9 @@ public sealed class BooruHostHttpContractTests
             // A PostSearch source without a host endpoint profile is refused before the transport (fail closed),
             // so it neither sends nor shares the Danbooru cooldown.
             HostHttpRequest other = new("other", HostHttpMethod.Get, new("https://other.test/index.php"));
-            Assert.Equal("http-request", Assert.IsType<HostHttpFailure>(await rig.Send(job, other)).Failure.Code);
+            BooruJob otherJob = rig.Services.OpenJob();
+            try { Assert.Equal("http-request", Assert.IsType<HostHttpFailure>(await rig.Send(otherJob, other)).Failure.Code); }
+            finally { rig.Services.CloseJob(otherJob); }
             Assert.False(rig.Http.TryGetCooldown("other", out _));
             Assert.Equal(1, rig.Sends);
 

@@ -336,11 +336,11 @@ public sealed class BooruJobLifetimeTests
 
         PluginOperationContext operation = new("booru/op", 1);
         PluginHostHttp.MetadataHistory owner = Assert.IsType<PluginHostHttp.MetadataHistory>(
-            PluginHostHttp.MetadataHistory.BindOperation(operation, CancellationToken.None));
+            PluginHostHttp.MetadataHistory.BindOperation(operation, CancellationToken.None, clock));
         BooruJob job = Assert.IsType<BooruJob>(PluginHostHttp.MetadataHistory.BooruJobFor(operation, clock));
         Assert.Same(job, PluginHostHttp.MetadataHistory.BooruJobFor(operation, clock));
         // A second binding for a live operation does not replace its owner.
-        Assert.Null(PluginHostHttp.MetadataHistory.BindOperation(operation, CancellationToken.None));
+        Assert.Null(PluginHostHttp.MetadataHistory.BindOperation(operation, CancellationToken.None, clock));
         for (int i = 0; i < BooruJob.MaximumSends; ++i)
             Assert.IsType<HostHttpResponse>(await host.SendAsync(Get(), operation));
         Assert.Equal("booru-budget", Assert.IsType<HostHttpFailure>(await host.SendAsync(Get(), operation)).Failure.Code);
@@ -354,9 +354,44 @@ public sealed class BooruJobLifetimeTests
         Assert.Equal(BooruJob.MaximumSends, sends);
 
         // The retired binding can be replaced by a fresh owner with a fresh job.
-        using PluginHostHttp.MetadataHistory next = PluginHostHttp.MetadataHistory.BindOperation(operation, CancellationToken.None)!;
+        using PluginHostHttp.MetadataHistory next = PluginHostHttp.MetadataHistory.BindOperation(operation, CancellationToken.None, clock)!;
         Assert.IsType<HostHttpResponse>(await host.SendAsync(Get(), operation));
         Assert.NotSame(job, PluginHostHttp.MetadataHistory.BooruJobFor(operation, clock));
+    }
+
+    [Theory]
+    [InlineData(119)]
+    [InlineData(121)]
+    public async Task OperationDeadlineStartsAtBindBeforeAnyHttp(int firstSendAtSeconds)
+    {
+        ManualClock clock = new();
+        int sends = 0;
+        using HttpClient transport = new(new Handler((_, _) =>
+        {
+            ++sends;
+            return Task.FromResult(Response(HttpStatusCode.OK, "{}"));
+        }));
+        using PluginHostHttp host = new(transport, new RequestPolicyState(clock), [Source()]);
+        PluginOperationContext operation = new("booru/bind-origin", 1);
+        using PluginHostHttp.MetadataHistory owner = PluginHostHttp.MetadataHistory.BindOperation(operation, CancellationToken.None, clock)!;
+        DateTimeOffset boundAt = clock.GetUtcNow();
+        // Do not materialize BooruJobFor before the first HTTP.
+        clock.Advance(TimeSpan.FromSeconds(firstSendAtSeconds));
+        HostHttpResult first = await host.SendAsync(Get(), operation);
+        if (firstSendAtSeconds < 120)
+        {
+            Assert.IsType<HostHttpResponse>(first);
+            clock.Advance(TimeSpan.FromSeconds(2));
+            Assert.Equal("booru-budget", Assert.IsType<HostHttpFailure>(await host.SendAsync(Get(), operation)).Failure.Code);
+            Assert.Equal(1, sends);
+        }
+        else
+        {
+            Assert.Equal("booru-budget", Assert.IsType<HostHttpFailure>(first).Failure.Code);
+            Assert.Equal(0, sends);
+        }
+        Assert.Equal(boundAt + BooruJob.MaximumLifetime,
+            PluginHostHttp.MetadataHistory.BooruJobFor(operation, clock)!.Deadline);
     }
 
     [Fact]
@@ -372,7 +407,7 @@ public sealed class BooruJobLifetimeTests
         }));
         using PluginHostHttp host = new(transport, new RequestPolicyState(clock), [Source()]);
         PluginOperationContext operation = new("booru/deadline", 1);
-        using PluginHostHttp.MetadataHistory owner = PluginHostHttp.MetadataHistory.BindOperation(operation, CancellationToken.None)!;
+        using PluginHostHttp.MetadataHistory owner = PluginHostHttp.MetadataHistory.BindOperation(operation, CancellationToken.None, clock)!;
 
         int completed = 0;
         HostHttpResult result;
@@ -399,7 +434,7 @@ public sealed class BooruJobLifetimeTests
         using PluginHostHttp host = new(transport, new RequestPolicyState(clock), [Source()]);
         PluginOperationContext operation = new("booru/lifetime", 1);
         using CancellationTokenSource lifetime = new();
-        using PluginHostHttp.MetadataHistory owner = PluginHostHttp.MetadataHistory.BindOperation(operation, lifetime.Token)!;
+        using PluginHostHttp.MetadataHistory owner = PluginHostHttp.MetadataHistory.BindOperation(operation, lifetime.Token, clock)!;
 
         Task<HostHttpResult> pending = host.SendAsync(Get(), operation);
         await EventuallyAsync(() => Volatile.Read(ref sends) == 1);

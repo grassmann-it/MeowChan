@@ -543,7 +543,7 @@ public sealed class BooruHostHttpTests
     [Theory]
     [InlineData(7 * 24 * 3600)]
     [InlineData(int.MaxValue)]
-    public async Task FarFutureRetryAfterCooldownIsCappedAtTwentyFourHours(int seconds)
+    public async Task FarFutureRetryAfterCooldownIsNotShortened(int seconds)
     {
         ManualClock clock = new();
         int sends = 0;
@@ -559,7 +559,7 @@ public sealed class BooruHostHttpTests
         BooruJob job = services.OpenJob();
         try
         {
-            DateTimeOffset expected = clock.GetUtcNow() + BooruHostHttp.MaximumCooldown;
+            DateTimeOffset expected = clock.GetUtcNow() + TimeSpan.FromSeconds(seconds);
             HostHttpDeferred first = Assert.IsType<HostHttpDeferred>(await services.SendHttpAsync(Get(), job.Operation, default));
             Assert.Equal(expected, first.RetryAt);
             Assert.Equal(429, first.HttpStatusCode);
@@ -569,8 +569,16 @@ public sealed class BooruHostHttpTests
         }
         finally { services.CloseJob(job); }
 
-        // After the capped cooldown the provider is reachable again with a fresh job.
-        clock.Advance(BooruHostHttp.MaximumCooldown);
+        // One day is not the provider's requested pause. Fresh jobs still cannot send.
+        clock.Advance(TimeSpan.FromHours(24));
+        BooruJob during = services.OpenJob();
+        try
+        {
+            Assert.IsType<HostHttpDeferred>(await services.SendHttpAsync(Get(), during.Operation, default));
+            Assert.Equal(1, sends);
+        }
+        finally { services.CloseJob(during); }
+        clock.Advance(TimeSpan.FromSeconds(seconds) - TimeSpan.FromHours(24));
         Assert.False(services.TryGetCooldown("danbooru", out _));
         BooruJob later = services.OpenJob();
         try
@@ -582,7 +590,7 @@ public sealed class BooruHostHttpTests
     }
 
     [Fact]
-    public async Task FarFutureRetryAfterDateIsCappedAndShortDateKeepsTheMinimum()
+    public async Task FarFutureRetryAfterDateIsNotShortenedAndShortDateKeepsTheMinimum()
     {
         ManualClock clock = new();
         DateTimeOffset retryAfterDate = default;
@@ -599,12 +607,12 @@ public sealed class BooruHostHttpTests
         BooruJob far = services.OpenJob();
         try
         {
-            Assert.Equal(clock.GetUtcNow() + BooruHostHttp.MaximumCooldown,
+            Assert.Equal(retryAfterDate,
                 Assert.IsType<HostHttpDeferred>(await services.SendHttpAsync(Get(), far.Operation, default)).RetryAt);
         }
         finally { services.CloseJob(far); }
 
-        clock.Advance(BooruHostHttp.MaximumCooldown);
+        clock.Advance(TimeSpan.FromDays(30));
         retryAfterDate = clock.GetUtcNow().AddSeconds(5);
         BooruJob near = services.OpenJob();
         try
@@ -613,6 +621,29 @@ public sealed class BooruHostHttpTests
                 Assert.IsType<HostHttpDeferred>(await services.SendHttpAsync(Get(), near.Operation, default)).RetryAt);
         }
         finally { services.CloseJob(near); }
+    }
+
+    [Fact]
+    public async Task RetryAfterDeltaSaturatesOnlyAtTechnicalDateLimit()
+    {
+        ManualClock clock = new();
+        using HttpClient transport = new(new Handler((_, _) =>
+        {
+            HttpResponseMessage response = Response(HttpStatusCode.TooManyRequests, "busy");
+            response.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.MaxValue);
+            return Task.FromResult(response);
+        }));
+        using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
+        BooruHostServices services = new(new Inner(), http);
+        BooruJob job = services.OpenJob();
+        try
+        {
+            Assert.Equal(DateTimeOffset.MaxValue,
+                Assert.IsType<HostHttpDeferred>(await services.SendHttpAsync(Get(), job.Operation, default)).RetryAt);
+            Assert.True(services.TryGetCooldown("danbooru", out DateTimeOffset until));
+            Assert.Equal(DateTimeOffset.MaxValue, until);
+        }
+        finally { services.CloseJob(job); }
     }
 
     [Fact]
