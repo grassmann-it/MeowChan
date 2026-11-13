@@ -79,7 +79,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     private static readonly string[] AdditiveDefaultCommandIds =
     {
-        "video.volume-up", "video.volume-down", "favorites.add", "favorites.remove"
+        "video.volume-up", "video.volume-down", "favorites.add", "favorites.remove", "navigation.media"
     };
     public long Version { get; } = System.Threading.Interlocked.Increment(ref _nextVersion);
     public ShortcutPlatform Platform { get; }

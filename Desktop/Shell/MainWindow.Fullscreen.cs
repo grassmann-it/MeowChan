@@ -667,7 +667,7 @@ public partial class MainWindow
         Border help = ShellHelpOverlay;
         if (help.IsVisible) { DismissShellHelp(); return; }
         _helpOrigin = FocusManager?.GetFocusedElement() as Control;
-        var ids = new List<string> { "navigation.downloads", "navigation.archive", "navigation.rules", "navigation.sources", "navigation.diagnostics",
+        var ids = new List<string> { "navigation.downloads", "navigation.archive", "navigation.media", "navigation.rules", "navigation.sources", "navigation.diagnostics",
             "session.pause", "input.focus-url", "navigation.settings", "window.fullscreen", "viewer.shortcut-help" };
         if (_largeReaderOpen)
         {

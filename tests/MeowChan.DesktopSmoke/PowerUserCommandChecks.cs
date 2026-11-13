@@ -35,7 +35,8 @@ internal static class PowerUserCommandChecks
                 await PresentationChecks.SwitchModeAsync(window, mode);
                 foreach ((string id, MainWindow.WorkspacePage page) in new[]
                 {
-                    ("navigation.archive", MainWindow.WorkspacePage.Archive), ("navigation.rules", MainWindow.WorkspacePage.Rules),
+                    ("navigation.archive", MainWindow.WorkspacePage.Archive), ("navigation.media", MainWindow.WorkspacePage.Media),
+                    ("navigation.rules", MainWindow.WorkspacePage.Rules),
                     ("navigation.sources", MainWindow.WorkspacePage.Sources), ("navigation.diagnostics", MainWindow.WorkspacePage.Diagnostics),
                     ("navigation.downloads", MainWindow.WorkspacePage.Downloads)
                 })
@@ -47,6 +48,12 @@ internal static class PowerUserCommandChecks
                 }
             }
             Press(window, "navigation.downloads");
+            // The footer names each page's shortcut in its tooltip, Media included.
+            foreach ((string name, string id) in new[] { ("DownloadsNavigationButton", "navigation.downloads"),
+                ("ArchiveNavigationButton", "navigation.archive"), ("MediaNavigationButton", "navigation.media") })
+                Require(ToolTip.GetTip(window.FindControl<Button>(name)!) is string tip
+                    && tip.StartsWith(CommandCatalog.Label(id) + " \u00b7 " + CommandCatalog.ShortcutDisplay(id), StringComparison.Ordinal),
+                    "The footer tooltip of " + id + " does not name its shortcut.");
             Require(!Press(url, "navigation.archive").Handled && window.SelectedPage == MainWindow.WorkspacePage.Downloads,
                 "A page shortcut intercepted a native text input.");
             bool beforeTextPause = window.SessionHost.IsPaused;

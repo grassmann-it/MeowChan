@@ -43,7 +43,7 @@ public static class CommandCatalog
         new("navigation.downloads", "command.navigation.downloads", "Downloads", "Downloads", "download", "Primary+1", CommandScope.Sources | CommandScope.Application, new[] { "footer", "sources" }),
         new("navigation.continue-reading", "resume.action", "Continue reading", "Weiterlesen", "book-open", null, CommandScope.Application, new[] { "header", "app-menu", "workspace-keyboard" }),
         new("navigation.archive", "command.navigation.archive", "Archive", "Archiv", "archive", "Primary+2", CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
-        new("navigation.media", "command.navigation.media", "Media", "Medien", "grid", null, CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
+        new("navigation.media", "command.navigation.media", "Media", "Medien", "grid", "Primary+6", CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         new("navigation.rules", "command.navigation.rules", "Rules", "Regeln", "sliders", "Primary+3", CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         new("navigation.sources", "command.navigation.sources", "Sources", "Quellen", "globe", "Primary+4", CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         new("navigation.diagnostics", "command.navigation.diagnostics", "Diagnostics", "Diagnose", "activity", "Primary+5", CommandScope.Sources | CommandScope.Application, new[] { "footer", "app-menu", "tools-menu", "sources" }),
