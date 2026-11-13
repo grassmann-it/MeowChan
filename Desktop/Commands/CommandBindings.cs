@@ -218,7 +218,7 @@ public static class CommandBindings
         };
     }
 
-    private static Bitmap IconMask(string icon)
+    internal static Bitmap IconMask(string icon)
     {
         lock (IconMasks)
         {

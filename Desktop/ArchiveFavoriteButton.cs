@@ -21,7 +21,6 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
     private bool _running;
     private Func<string?>? _errorSource;
     private string? _error;
-    private bool _tinted;
     private bool _failed;
     private string? _shownError;
 
@@ -64,7 +63,7 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
         IsEnabled = !_running && state.Available;
         IsChecked = marked;
         // ★ filled when marked, ☆ outline otherwise: the same pair as the thread list and the gallery badge.
-        Content = CommandBindings.Icon("favorites.toggle", state: marked ? "marked" : "unmarked");
+        Content = MeowChan.Desktop.Controls.FavoriteStar.Create(marked, tinted: _error == null);
         // A failed write keeps the star in place: an error edge plus the reason in the tooltip, which
         // opens once for a new error, instead of a text block that pushes the card layout apart.
         bool failed = _error != null;
@@ -77,14 +76,6 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
                 BorderThickness = new Avalonia.Thickness(1.5);
             }
             else { ClearValue(BorderBrushProperty); ClearValue(BorderThicknessProperty); }
-        }
-        bool tinted = marked && _error == null;
-        if (tinted != _tinted)
-        {
-            _tinted = tinted;
-            // Gold only reads on the dark surfaces; the theme key carries a darker amber for Light.
-            if (tinted) this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Favorite");
-            else ClearValue(ForegroundProperty);
         }
         string label = Texts.T(marked ? "viewer.favorite.remove" : "viewer.favorite.add");
         string description = _error == null ? (IsEnabled ? label : Texts.T("archive.notSaved")) : label + ": " + _error;

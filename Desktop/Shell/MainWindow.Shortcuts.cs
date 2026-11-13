@@ -73,6 +73,10 @@ public partial class MainWindow
             _shortcutRouter.Register(new CommandRegistration("reader.show-new-posts", readerPane, ReaderShown,
                 () => live.CanShowNewPostsByShortcut, () => _ = live.ShowReaderUpdatesAsync(), Priority: 100));
         }
+        // The saved-ratings manager is a dialog of the shell; it opens from the media page, the archive and the gallery (which routes it itself).
+        _shortcutRouter.Register(new CommandRegistration("media.rating.manage", this,
+            () => _gallery == null && _selectedPage is WorkspacePage.Media or WorkspacePage.Archive,
+            () => !_isClosing && !_ratingManagerOpen, () => _ = ManageMediaRatingsAsync(), Priority: 100));
         if (_mediaPage is { } media)
             _shortcutRouter.Register(new CommandRegistration("media.tags.edit", media,
                 () => _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null,

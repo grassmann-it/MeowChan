@@ -154,7 +154,7 @@
   after a title-bar restore on Linux/X11.
 - Rework the default keyboard shortcuts. **Media** is **Ctrl/Cmd+3** in footer order, with
   **Rules 4**, **Sources 5**, **Diagnostics 6** and **Plugins 7**; footer, menus and the F1 help
-  list the pages in the same order. New defaults: **Ctrl+T** tags, **Ctrl+D** thread favorite,
+  list the pages in the same order. New defaults: **Ctrl+T** thread tags, **Ctrl+Shift+T** media tags, **Ctrl+D** thread favorite,
   **Ctrl+Shift+F** filters (also for board filters, which moved from Ctrl+Shift+R), **F3** and
   **Ctrl+G** for find next and **Shift+F3** and **Ctrl+Shift+G** for find previous in the large Reader,
   **S** slideshow, **I** details, **R** rating, **Ctrl+E** export original and **Ctrl+O** show in folder

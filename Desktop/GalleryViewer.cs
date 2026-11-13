@@ -152,6 +152,10 @@ internal sealed partial class GalleryViewer : UserControl
     internal event EventHandler<KeyEventArgs>? ShellKeyRequested;
     internal event Action<GalleryEntry>? FavoriteToggleRequested;
     internal event Action<GalleryEntry>? RatingEditRequested;
+    /// <summary>The saved-ratings manager (the shell's dialog), from the rating rows of the "⋯" menu.</summary>
+    internal event Action? ManageRatingsRequested;
+    private readonly Button _manageRatingsButton = new() { Name = "GalleryManageRatings" };
+    internal Button ManageRatingsButton => _manageRatingsButton;
     internal event Action<GalleryEntry, int?>? RatingSetRequested;
     private CommandRouter? _ratingRouter;
     private CommandRouter? _nativeRatingRouter;
@@ -161,6 +165,8 @@ internal sealed partial class GalleryViewer : UserControl
         bool Ready() => _entry != null && _ratingButton.IsEnabled;
         router.Register(new("media.rating.edit", owner, () => owner.IsEffectivelyVisible, Ready,
             () => { if (_entry != null) RatingEditRequested?.Invoke(_entry); }, Priority: 200));
+        router.Register(new("media.rating.manage", owner, () => owner.IsEffectivelyVisible, () => ManageRatingsRequested != null,
+            () => ManageRatingsRequested?.Invoke(), Priority: 200));
         router.Register(new("media.rating.clear", owner, () => owner.IsEffectivelyVisible, Ready,
             () => { if (_entry != null) RatingSetRequested?.Invoke(_entry, null); }, Priority: 200));
         for (int value = 1; value <= 5; value++)
@@ -313,6 +319,9 @@ internal sealed partial class GalleryViewer : UserControl
         CommandBindings.Apply(_ratingButton, "media.rating.edit");
         _ratingButton.Click += (_, _) => { if (_entry != null) RatingEditRequested?.Invoke(_entry); };
         AddOverflowItem(_ratingButton, "media.rating.edit", label: () => CommandCatalog.Label("media.rating.edit"));
+        CommandBindings.Apply(_manageRatingsButton, "media.rating.manage");
+        _manageRatingsButton.Click += (_, _) => { PauseSlideshow(); ManageRatingsRequested?.Invoke(); };
+        AddOverflowItem(_manageRatingsButton, "media.rating.manage", label: () => CommandCatalog.Label("media.rating.manage"));
         CreateTagsButton(_overflowPanel);
         _exportOriginal = Command(_overflowPanel, "GalleryExportOriginal", Texts.T("viewer.menu.exportOriginal"), () =>
         { if (_entry != null) ExportOriginalRequested?.Invoke(_entry); }, overflow: true);
@@ -447,6 +456,7 @@ internal sealed partial class GalleryViewer : UserControl
         if (!Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
         { Avalonia.Threading.Dispatcher.UIThread.Post(() => OnLanguageChanged(sender, e)); return; }
         CommandBindings.Apply(_ratingButton, "media.rating.edit");
+        CommandBindings.Apply(_manageRatingsButton, "media.rating.manage");
         SetRating(_ratingValue, _ratingError, _ratingAvailable);
         if (IsFavoriteConfirmOpen) UpdateFavoriteConfirmText();
         UpdateTagsButton();
@@ -559,20 +569,25 @@ internal sealed partial class GalleryViewer : UserControl
         string? label = visibleLabel ?? CompactLabelFor(name);
         if (label == null || CommandId(name) is not { } id) return;
         if (button.Tag is OverflowItem) return; // A menu row shows its own text.
+        // The favourite button draws the app's one favourite mark for its state (outline or filled); the other icons follow the foreground.
+        Border Icon(int size)
+        {
+            if (id == "favorites.toggle") return MeowChan.Desktop.Controls.FavoriteStar.Create(_favoriteSelected, size);
+            Border plain = (Border)CommandBindings.Icon(id, size);
+            // Semi sets the checked/pressed/disabled foreground on the content
+            // presenter; inherit that same foreground for the icon and label.
+            plain.Bind(Border.BackgroundProperty, plain.GetObservable(TextElement.ForegroundProperty));
+            return plain;
+        }
         if (_compactToolbar)
         {
             // Narrow viewer: the icon alone; the name, tooltip and shortcut stay on the control.
-            Border only = (Border)CommandBindings.Icon(id, 16);
-            only.Bind(Border.BackgroundProperty, only.GetObservable(TextElement.ForegroundProperty));
             button.Classes.Set("command-icon", true);
-            button.Content = only;
+            button.Content = Icon(16);
             return;
         }
         StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
-        Border icon = (Border)CommandBindings.Icon(id, 14);
-        // Semi sets the checked/pressed/disabled foreground on the content
-        // presenter; inherit that same foreground for the icon and label.
-        icon.Bind(Border.BackgroundProperty, icon.GetObservable(TextElement.ForegroundProperty));
+        Border icon = Icon(14);
         content.Children.Add(icon);
         content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
         button.Content = content;
@@ -744,6 +759,7 @@ internal sealed partial class GalleryViewer : UserControl
     {
         string label = Texts.T(_favoriteSelected ? "viewer.favorite.remove" : "viewer.favorite.add");
         _favorite.IsChecked = _favoriteSelected;
+        ApplyCompactLabel(_favorite, "GalleryFavorite");
         AutomationProperties.SetName(_favorite, label);
         ToolTip.SetTip(_favorite, CommandBindings.Tooltip("favorites.toggle"));
         AutomationProperties.SetHelpText(_favorite, CommandBindings.Tooltip("favorites.toggle"));

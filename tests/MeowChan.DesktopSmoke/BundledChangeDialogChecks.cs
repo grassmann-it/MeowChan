@@ -153,7 +153,7 @@ internal static class BundledChangeDialogChecks
                         "Validation focused the first editor, not the invalid source field.");
                     Require(modal.IsVisible && page.IsBusy && store.Writes.Count == before && limit.Text == "1.5",
                         "Invalid required integer wrote, closed, or normalized rejected input.");
-                    Require(source.GetLogicalDescendants().OfType<TextBlock>().Any(t => t.IsEffectivelyVisible && t.Classes.Contains("error") && !string.IsNullOrEmpty(t.Text)),
+                    Require(source.GetLogicalDescendants().OfType<TextBlock>().Any(t => t.IsEffectivelyVisible && t.Classes.Contains("workspace-error") && !string.IsNullOrEmpty(t.Text)),
                         "Invalid source field has no visible validation message.");
                     Program.CaptureWindow(modal, "smoke-bundled-change-invalid-field-" + current + ".png");
                     // Correct the very same controls in the very same owned modal, not a settings-page detour.

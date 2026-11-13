@@ -14,7 +14,7 @@ public sealed class CatalogShortcutGapTests
             yield return new object[] { platform, "media.select-all", mac ? "⌘A" : "Ctrl+A" };
             yield return new object[] { platform, "thread.favorite-toggle", mac ? "⌘D" : "Ctrl+D" };
             yield return new object[] { platform, "thread.tags", mac ? "⌘T" : "Ctrl+T" };
-            yield return new object[] { platform, "media.tags.edit", mac ? "⌘T" : "Ctrl+T" };
+            yield return new object[] { platform, "media.tags.edit", mac ? "⇧⌘T" : "Ctrl+Shift+T" };
             yield return new object[] { platform, "archive.filters-toggle", mac ? "⇧⌘F" : "Ctrl+Shift+F" };
             yield return new object[] { platform, "board.filters", mac ? "⇧⌘F" : "Ctrl+Shift+F" };
             yield return new object[] { platform, "menu.context-open", mac ? "⇧F10 (Fn) / Menu" : "Shift+F10 / Menu" };
@@ -45,10 +45,19 @@ public sealed class CatalogShortcutGapTests
     [Fact]
     public void TagsKeepThreadsAndMediaApartAndTheMenuKeyIsAGestureNextToShiftF10()
     {
-        // One gesture, different targets: the thread in Archive and the large reader, the tile or selection in Media, the shown medium in the gallery.
+        // Two gestures, two targets: Ctrl+T tags the thread in Archive and the large reader; Ctrl+Shift+T tags the tile or selection in
+        // Media and the shown medium in the gallery (the reader never reads Ctrl+T as a media shortcut).
         Assert.Equal(new[] { "archive", "reader" }, CommandCatalog.Get("thread.tags").ExecutionContexts);
         Assert.Equal(new[] { "media", "gallery" }, CommandCatalog.Get("media.tags.edit").ExecutionContexts);
         var bindings = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux);
+        var ctrlT = new KeyEventArgs { Key = Key.T, KeyModifiers = KeyModifiers.Control };
+        var ctrlShiftT = new KeyEventArgs { Key = Key.T, KeyModifiers = KeyModifiers.Control | KeyModifiers.Shift };
+        Assert.True(bindings.Matches(ctrlT, "thread.tags"));
+        Assert.False(bindings.Matches(ctrlT, "media.tags.edit"));
+        Assert.True(bindings.Matches(ctrlShiftT, "media.tags.edit"));
+        Assert.False(bindings.Matches(ctrlShiftT, "thread.tags"));
+        var mac = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.MacOS);
+        Assert.True(mac.Matches(new KeyEventArgs { Key = Key.T, KeyModifiers = KeyModifiers.Meta | KeyModifiers.Shift }, "media.tags.edit"));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Apps }, "menu.context-open"));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.F10, KeyModifiers = KeyModifiers.Shift }, "menu.context-open"));
         Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.Apps, KeyModifiers = KeyModifiers.Shift }, "menu.context-open"));
@@ -71,11 +80,16 @@ public sealed class CatalogShortcutGapTests
     {
         var section = new ShortcutBindingsSection()
             .Set("navigation.archive", [ShortcutGesture.Parse("Primary+T")])
+            .Set("navigation.statistics", [ShortcutGesture.Parse("Primary+Shift+T")])
             .Set("input.focus-search", [ShortcutGesture.Parse("Primary+D")]);
         var bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
         Assert.Empty(bindings.For("thread.tags"));
         Assert.Empty(bindings.For("media.tags.edit"));
         Assert.Empty(bindings.For("thread.favorite-toggle"));
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
+        // Only the saved key blocks its own default: a profile that never used Ctrl+Shift+T gets the media tags there.
+        var other = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set("navigation.archive", [ShortcutGesture.Parse("Primary+T")]), ShortcutPlatform.Linux);
+        Assert.Empty(other.For("thread.tags"));
+        Assert.Equal("Ctrl+Shift+T", other.Display("media.tags.edit"));
     }
 }

@@ -45,6 +45,8 @@ public sealed partial class MediaPage : UserControl
     private readonly Button _shuffle = new() { Name = "MediaShuffle", IsVisible = false };
     private readonly CheckBox _missing = new() { Name = "MediaShowMissing" };
     private readonly Button _refresh = new() { Name = "MediaRefresh" };
+    // The saved ratings live with the media: the dialog that lists and removes them opens from here (it used to sit on Diagnostics).
+    private readonly Button _manageRatings = new() { Name = "MediaManageRatings" };
     private readonly TextBlock _status = new() { Name = "MediaStatus", TextWrapping = Avalonia.Media.TextWrapping.Wrap };
     private readonly ListBox _grid = new() { Name = "MediaGrid", SelectionMode = SelectionMode.Multiple, Classes = { "workspace-selection-bar" } };
     private readonly TextBlock _empty = new() { Name = "MediaEmpty", IsVisible = false };
@@ -102,6 +104,21 @@ public sealed partial class MediaPage : UserControl
     /// <summary>Copies a provider post address to the clipboard; the default uses this page's clipboard.</summary>
     internal Func<Uri, Task>? CopyProviderPage { get; set; }
     internal Func<MediaLibraryEntry, Func<bool>, Task>? EditTagsForMenuAsync { get; set; }
+    /// <summary>Opens the manager of saved ratings (the shell's dialog); the page re-reads ratings when the dialog has closed.</summary>
+    internal Func<Task>? ManageMediaRatingsAsync
+    {
+        get => _manageMediaRatings;
+        set { _manageMediaRatings = value; _manageRatings.IsEnabled = !_lifetime.IsCancellationRequested && value != null; }
+    }
+    private Func<Task>? _manageMediaRatings;
+    internal bool CanManageRatings => !_lifetime.IsCancellationRequested && _manageRatings.IsEnabled;
+    internal async Task ManageRatingsAsync()
+    {
+        if (_lifetime.IsCancellationRequested || _manageMediaRatings == null) return;
+        try { await _manageMediaRatings(); }
+        catch (Exception error) when (UnhandledErrors.TryRecover(error, "media.ratings.manage")) { /* Logged and shown. */ }
+        if (!_lifetime.IsCancellationRequested) RefreshUserData();
+    }
     internal ContextMenu? MediaMenu => _mediaMenuPresenter.Menu;
     internal MediaMenuSession? MediaMenuSession => _mediaMenuPresenter.Session;
     internal Task BuildTask { get; private set; } = Task.CompletedTask;
@@ -143,7 +160,7 @@ public sealed partial class MediaPage : UserControl
         Name = "MediaPage";
         WrapPanel tools = new() { Classes = { "workspace-toolbar" } };
         _nameFilter.ScopeChip = _searchScope; // inside the field, as in Archive and the reader (S5)
-        foreach (Control control in new Control[] { _nameFilter, _filters, _sort, _shuffle, _missing, _refresh, _exportAll })
+        foreach (Control control in new Control[] { _nameFilter, _filters, _sort, _shuffle, _missing, _refresh, _exportAll, _manageRatings })
         {
             control.VerticalAlignment = VerticalAlignment.Center;
             // Buttons match the 32 dip combo box beside them (Workspace.Size.Input) instead of sitting 1 dip inside its edges at 30 (G3).
@@ -179,6 +196,7 @@ public sealed partial class MediaPage : UserControl
         _shuffle.Click += (_, _) => { _seed = unchecked(_seed * 31 + 17); Present(); };
         _missing.IsCheckedChanged += (_, _) => { if (!_localizing) Present(); };
         _refresh.Click += (_, _) => BuildTask = BuildAsync(force: true);
+        _manageRatings.Click += async (_, _) => await ManageRatingsAsync();
         _goDownloads.Click += (_, _) => GoToDownloadsRequested?.Invoke();
         _grid.DoubleTapped += (_, _) => _ = OpenSelectedAsync();
         _grid.KeyDown += OnGridKeyDown;
@@ -999,6 +1017,8 @@ public sealed partial class MediaPage : UserControl
         _shuffle.Content = Texts.T("media.shuffle");
         _missing.Content = Texts.T("media.showMissing");
         _refresh.Content = Texts.T("media.refresh");
+        CommandBindings.Apply(_manageRatings, "media.rating.manage");
+        _manageRatings.IsEnabled = !_lifetime.IsCancellationRequested && ManageMediaRatingsAsync != null;
         CommandBindings.ApplyLabeled(_goDownloads, "navigation.downloads", Texts.T("nav.goDownloads"));
         AutomationProperties.SetName(_grid, Texts.T("media.title"));
         LocalizeFilters();

@@ -58,7 +58,8 @@ public partial class MainWindow
             {
                 if (NavigateWorkspace(WorkspacePage.Archive))
                     _archivePage?.ReceiveCarriedSearch(MeowChan.Desktop.Controls.SearchScope.FileName, query, Texts.T("nav.media"));
-            }
+            },
+            ManageMediaRatingsAsync = ManageMediaRatingsAsync
         };
         _mediaPage.InitializeSharedMediaMenus();
         MediaPageHost.Content = _mediaPage;

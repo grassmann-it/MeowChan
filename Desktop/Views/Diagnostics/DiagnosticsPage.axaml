@@ -94,7 +94,6 @@
                 <Button x:Name="RetryDiagnosticFilteredButton" Click="OnRetryDiagnosticFiltered" />
                 <Button x:Name="CopyDiagnosticButton" Tag="diagnostics.copy" Classes="localized" Click="OnCopyClick" />
                 <Button x:Name="OpenDiagnosticWatchButton" Tag="diagnostics.openWatch" Classes="localized" Click="OnOpenWatchClick" ToolTip.ShowOnDisabled="True" />
-                <Button x:Name="ManageMediaRatingsButton" Click="OnManageMediaRatingsClick" />
             </WrapPanel>
         </StackPanel>
     </Grid>

@@ -217,7 +217,6 @@ public partial class MainWindow
                 _diagnosticsPage.CanRetryMedia = target => !_isClosing && target.Kind == DiagnosticTargetKind.Thread
                     && _session.CanRetryMissingMedia(target.WatchId);
                 _diagnosticsPage.AttachFeedback(_feedback);
-                _diagnosticsPage.ManageMediaRatingsAsync = ManageMediaRatingsAsync;
                 DiagnosticsPageHost.Content = _diagnosticsPage;
                 return true;
             case 2:

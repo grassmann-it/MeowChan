@@ -352,7 +352,7 @@ public sealed class EffectiveShortcutBindings
         if (id == "reader-groups.open-manager") return new[] { "shell" };
         if (id == "archive.saved-searches.save-current") return new[] { "archive", "dialog:saved-searches" };
         if (id.StartsWith("rules.template-", StringComparison.Ordinal)) return new[] { "rules" };
-        if (id == "media.rating.manage") return new[] { "diagnostics" };
+        if (id == "media.rating.manage") return new[] { "media", "archive", "gallery" };
         if (id == "media.rating.remove-selected") return new[] { "dialog:media-ratings-manager" };
         if (id == "media.rating.cleanup-retry") return new[] { "dialog:archive-deletion" };
         if (id == "media.rating.edit") return new[] { "media", "reader", "gallery" };

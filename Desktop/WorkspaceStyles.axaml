@@ -1178,14 +1178,6 @@
         <Setter Property="Background" Value="{DynamicResource Workspace.ChipSurface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipBorder}" />
     </Style>
-    <Style Selector="Path.tile-favorite-star">
-        <Setter Property="Width" Value="13" /><Setter Property="Height" Value="13" />
-        <Setter Property="Stroke" Value="{DynamicResource Workspace.Text}" /><Setter Property="StrokeThickness" Value="1.5" />
-        <Setter Property="Fill" Value="Transparent" />
-    </Style>
-    <Style Selector="ToggleButton.tile-favorite:checked Path.tile-favorite-star">
-        <Setter Property="Fill" Value="{DynamicResource Workspace.Warning}" /><Setter Property="Stroke" Value="{DynamicResource Workspace.Warning}" />
-    </Style>
     <Style Selector="ListBoxItem.chip-item:selected controls|ChipOutline.chip-source TextBlock.chip-label"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
 
     <!-- D4 (E7, A11Y M7): a chosen chip is never the tint alone. The chip-selected class gives the tint and a solid 2-px accent
