@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using MeowChan.Desktop;
 using MeowChan.Gallery;
+using MeowChan.Persistence;
 using MeowChan.Storage;
 using SkiaSharp;
 
@@ -54,7 +55,7 @@ public sealed class MediaTileThumbnailsTests
     }
 
     [Fact]
-    public async Task AFileVerifiedThisSessionIsNotHashedAgainUntilItsLengthOrTimeChanges()
+    public async Task AFileVerifiedThisSessionIsHashedAgainWhenItsIdentityChangesEvenWithSameLengthAndTime()
     {
         using TempDirectory temp = new();
         MediaLibraryEntry entry = await VideoEntryAsync(temp.Path, "a");
@@ -64,28 +65,61 @@ public sealed class MediaTileThumbnailsTests
         DateTime stamp = File.GetLastWriteTimeUtc(file);
         await using (await manifest.OpenSessionVerifiedReadAsync(entry.AssetId!, memo)) { }
         Assert.Equal(1, memo.Count);
-        // Same length, same time: the remembered check stands, nothing is hashed (that is the point of the memory).
+        // Untouched: the remembered check stands.
+        await using (await manifest.OpenSessionVerifiedReadAsync(entry.AssetId!, memo)) { }
+        // Same length, last write time restored (cp -p, rsync -a, a backup restore): the status-change time and the inode differ,
+        // so the file is verified again and the changed bytes are refused.
         await File.WriteAllBytesAsync(file, new byte[] { 9, 9, 9, 9, 9, 9 });
         File.SetLastWriteTimeUtc(file, stamp);
+        Assert.Equal(stamp, File.GetLastWriteTimeUtc(file));
+        await Assert.ThrowsAsync<InvalidDataException>(() => manifest.OpenSessionVerifiedReadAsync(entry.AssetId!, memo));
+        // The same swap by rename-over (mv keeps the time): a new inode.
+        await File.WriteAllBytesAsync(file, VideoBytes);
+        File.SetLastWriteTimeUtc(file, stamp);
         await using (await manifest.OpenSessionVerifiedReadAsync(entry.AssetId!, memo)) { }
-        // Without the memory, or after the file was touched, the whole file is checked and the changed bytes are refused.
+        string other = file + ".other";
+        await File.WriteAllBytesAsync(other, new byte[] { 7, 7, 7, 7, 7, 7 });
+        File.SetLastWriteTimeUtc(other, stamp);
+        File.Move(other, file, overwrite: true);
+        await Assert.ThrowsAsync<InvalidDataException>(() => manifest.OpenSessionVerifiedReadAsync(entry.AssetId!, memo));
+        // Without the memory the whole file is always checked.
         await Assert.ThrowsAsync<InvalidDataException>(() => manifest.OpenVerifiedReadAsync(entry.AssetId!));
         await Assert.ThrowsAsync<InvalidDataException>(() => manifest.OpenSessionVerifiedReadAsync(entry.AssetId!, new VerifiedFileMemo()));
-        File.SetLastWriteTimeUtc(file, stamp.AddSeconds(5));
-        await Assert.ThrowsAsync<InvalidDataException>(() => manifest.OpenSessionVerifiedReadAsync(entry.AssetId!, memo));
         // A file of another length is refused whatever the memory says.
         await File.WriteAllBytesAsync(file, new byte[] { 1, 2 });
         await Assert.ThrowsAsync<InvalidDataException>(() => manifest.OpenSessionVerifiedReadAsync(entry.AssetId!, memo));
     }
 
     [Fact]
+    public async Task AFileWhoseIdentityCannotBeReadNeverCountsAsVerified()
+    {
+        using TempDirectory temp = new();
+        string file = Path.Combine(temp.Path, "f.bin");
+        await File.WriteAllBytesAsync(file, VideoBytes);
+        RegularProfileFileIdentity? identity = RegularProfileFile.TryGetIdentity(file);
+        Assert.NotNull(identity);
+        VerifiedFileMemo memo = new();
+        memo.Remember(file, null, "aa");
+        Assert.Equal(0, memo.Count);
+        memo.Remember(file, identity, "aa");
+        Assert.True(memo.IsVerified(file, identity, "AA"));
+        Assert.False(memo.IsVerified(file, null, "aa"));
+        Assert.False(memo.IsVerified(file, identity!.Value with { ChangedNanoseconds = identity.Value.ChangedNanoseconds + 1 }, "aa"));
+        Assert.False(memo.IsVerified(file, identity.Value with { Inode = identity.Value.Inode + 1 }, "aa"));
+        // A path that is not a regular file has no identity: nothing is remembered for it.
+        Assert.Null(RegularProfileFile.TryGetIdentity(Path.Combine(temp.Path, "missing")));
+    }
+
+    [Fact]
     public void TheVerifiedMemoryForgetsItsOldestFilesAtItsCapacity()
     {
         VerifiedFileMemo memo = new(2);
-        memo.Remember("/a", 1, 1, "aa"); memo.Remember("/b", 1, 1, "bb"); memo.Remember("/c", 1, 1, "cc");
-        Assert.False(memo.IsVerified("/a", 1, 1, "aa"));
-        Assert.True(memo.IsVerified("/c", 1, 1, "CC"));
-        Assert.False(memo.IsVerified("/c", 1, 2, "cc"));
+        RegularProfileFileIdentity one = new(1, 1, 1, 1, 0, 1, 0);
+        RegularProfileFileIdentity two = one with { ModifiedSeconds = 2 };
+        memo.Remember("/a", one, "aa"); memo.Remember("/b", one, "bb"); memo.Remember("/c", one, "cc");
+        Assert.False(memo.IsVerified("/a", one, "aa"));
+        Assert.True(memo.IsVerified("/c", one, "CC"));
+        Assert.False(memo.IsVerified("/c", two, "cc"));
         memo.Capacity = 1;
         Assert.Equal(1, memo.Count);
     }
