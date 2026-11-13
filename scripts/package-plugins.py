@@ -39,17 +39,39 @@ def _reject_payload_component(relative, label='package'):
         raise ValueError(f'{label} contains a build or profile artifact: {relative}')
 
 
+# macOS ships /tmp, /var and /etc as symlinks into /private. These three
+# first-level aliases are the only parent-path links tolerated for the package
+# root: the alias must match a listed absolute path (a direct child of the
+# filesystem root), resolve to exactly its listed physical target and must not
+# be the root directory itself. Every other link in the root path -
+# including the root directory itself, any user-created parent alias, or a
+# payload entry - is still rejected. The accepted alias is replaced by its
+# physical target, so later checks and the reported root use the real path.
+SYSTEM_PARENT_ALIASES = {'/tmp': '/private/tmp', '/var': '/private/var', '/etc': '/private/etc'}
+
+
+def _system_alias_target(component):
+    target = SYSTEM_PARENT_ALIASES.get(str(component))
+    if target is not None and os.path.realpath(component) == target and not Path(target).is_symlink():
+        return Path(target)
+    return None
+
+
 def _ordinary_directory(path, label='package root'):
-    """Return a directory whose path components cannot redirect outside the payload."""
+    """Return the physical directory; only the named system aliases may be links."""
     absolute = Path(os.path.abspath(path))
+    parts = absolute.parts[1:]
     current = Path(absolute.root)
-    for part in absolute.parts[1:]:
+    for index, part in enumerate(parts):
         current /= part
         if current.is_symlink():
-            raise ValueError(f'{label} path contains a symlink: {current}')
-    if not absolute.is_dir():
+            target = _system_alias_target(current) if index < len(parts) - 1 else None
+            if target is None:
+                raise ValueError(f'{label} path contains a symlink: {current}')
+            current = target
+    if not current.is_dir():
         raise ValueError(f'{label} must be a regular directory: {path}')
-    return absolute
+    return current
 
 
 def _require_single_link_file(path, label):
