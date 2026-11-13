@@ -106,12 +106,14 @@ internal static class ArchiveMediaCommandChecks
             MenuItem[] postItems = postMenu.Items.OfType<MenuItem>().ToArray();
             string link = PostMenuText.Link(page.CurrentThread!.Summary.Id, page.CurrentThread.Summary.Url, post.Id) ?? "";
             string[] expectedHeaders = new[] { "post.copy-text", "post.copy-number" }.Concat(link.Length > 0 ? new[] { "post.copy-link" } : Array.Empty<string>())
-                .Append("post-bookmarks.edit-post").Select(CommandCatalog.Label).ToArray();
+                .Append("post-bookmarks.edit-post").Append("post.hide").Select(CommandCatalog.Label)
+                .Append(Texts.T("postFilter.hideWithReplies")).ToArray();
+            int copyCount = expectedHeaders.Length - 3; // text, number and link come first; bookmark and the two hide entries follow
             Require(postItems.Select(item => item.Header?.ToString()).SequenceEqual(expectedHeaders),
                 "The post menu items are wrong: " + string.Join(" | ", postItems.Select(item => item.Header)));
-            foreach (MenuItem item in postItems.Take(expectedHeaders.Length - 1))
+            foreach (MenuItem item in postItems.Take(copyCount))
                 Require(item.IsEnabled && item.Command!.CanExecute(null), "A post copy action is disabled: " + item.Header);
-            foreach (MenuItem item in postItems.Take(expectedHeaders.Length - 1)) item.Command!.Execute(null);
+            foreach (MenuItem item in postItems.Take(copyCount)) item.Command!.Execute(null);
             string[] expectedCopies = new[] { PostMenuText.Text(post), PostMenuText.Number(post.Id) }.Concat(link.Length > 0 ? new[] { link } : Array.Empty<string>()).ToArray();
             Require(copied.SequenceEqual(expectedCopies), "The post menu copied: " + string.Join(" | ", copied));
         }
