@@ -73,6 +73,7 @@ internal static partial class SmokeScenarios
         Alternative("reader-stability", "MEOWCHAN_READER_STABILITY_ONLY", "--reader-ux"),
         Alternative("reader-post-width", "MEOWCHAN_READER_POST_WIDTH_ONLY", "--reader-ux"),
         Alternative("reader-navigation", "MEOWCHAN_READER_NAVIGATION_ONLY", "--reader-ux"),
+        Alternative("reader-view", "MEOWCHAN_READER_VIEW_ONLY", "--reader-ux"),
         // The registry run uses the first requirement; under --reader-ux it acts only with READER_GROUPS.
         Nested("reader-groups-restore", "MEOWCHAN_READER_GROUPS_RESTORE_ONLY", "MEOWCHAN_URSA_NATIVE_SUITE=groups", "--reader-ux"),
         Mode("selection", "native watch/archive multi-selection, focus-safe commands, batch export return, watch-only Delete and board admission modal"),
