@@ -1,10 +1,15 @@
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
 
 /// <summary>One Back gesture and one page gesture for commands that never apply at the same time.</summary>
+[Collection("Localization")]
 public sealed class UnifiedBackAndPageShortcutTests
 {
+    // Shortcut display strings are localized; the language is process-global, so run serially with the other language tests, in English.
+    public UnifiedBackAndPageShortcutTests() => Texts.SetLanguage("en");
+
     private static readonly string[] Back = { "media.return", "reader.history-back", "gallery.return" };
 
     [Theory]

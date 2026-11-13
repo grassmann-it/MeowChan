@@ -1,10 +1,15 @@
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
 
 /// <summary>Find next / previous in the large reader: F3 and Ctrl+G everywhere, ⌘G on macOS.</summary>
+[Collection("Localization")]
 public sealed class ReaderFindShortcutTests
 {
+    // Shortcut display strings are localized; the language is process-global, so run serially with the other language tests, in English.
+    public ReaderFindShortcutTests() => Texts.SetLanguage("en");
+
     [Theory]
     [InlineData(ShortcutPlatform.Windows, "reader.find-next", "F3 / Ctrl+G")]
     [InlineData(ShortcutPlatform.Linux, "reader.find-next", "F3 / Ctrl+G")]

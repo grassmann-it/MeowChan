@@ -1,10 +1,15 @@
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
 
 /// <summary>Slideshow S, details I, rating R, export Ctrl+E and folder Ctrl+O in the gallery and the media page.</summary>
+[Collection("Localization")]
 public sealed class MediaSingleKeyShortcutTests
 {
+    // Shortcut display strings are localized; the language is process-global, so run serially with the other language tests, in English.
+    public MediaSingleKeyShortcutTests() => Texts.SetLanguage("en");
+
     [Theory]
     [InlineData("gallery.slideshow-toggle", "S")]
     [InlineData("media.details", "I")]

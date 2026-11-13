@@ -1,11 +1,16 @@
 using Avalonia.Input;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
 
 /// <summary>Commands that had no catalog shortcut (or only a hard-wired key) now own one, on every platform, without conflicts.</summary>
+[Collection("Localization")]
 public sealed class CatalogShortcutGapTests
 {
+    // Shortcut display strings are localized; the language is process-global, so run serially with the other language tests, in English.
+    public CatalogShortcutGapTests() => Texts.SetLanguage("en");
+
     public static IEnumerable<object[]> Cases()
     {
         foreach (var platform in new[] { ShortcutPlatform.Linux, ShortcutPlatform.Windows, ShortcutPlatform.MacOS })

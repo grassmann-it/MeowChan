@@ -1,11 +1,16 @@
 using Avalonia.Input;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
 
 /// <summary>macOS gets its own defaults (no Fn as the only way, ⌘ main modifier) and Apple's display; Windows and Linux are unchanged.</summary>
+[Collection("Localization")]
 public sealed class MacShortcutDefaultsTests
 {
+    // Shortcut display strings are localized; the language is process-global, so run serially with the other language tests, in English.
+    public MacShortcutDefaultsTests() => Texts.SetLanguage("en");
+
     [Theory]
     [InlineData("Primary+Shift+P", "⇧⌘P")]
     [InlineData("Control+Primary+F", "⌃⌘F")]

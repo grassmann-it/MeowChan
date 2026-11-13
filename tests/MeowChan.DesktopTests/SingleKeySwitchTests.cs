@@ -1,10 +1,15 @@
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
 
 /// <summary>The accessibility switch (WCAG 2.1.4): standard single-character shortcuts off, everything else and saved bindings stay.</summary>
+[Collection("Localization")]
 public sealed class SingleKeySwitchTests
 {
+    // Shortcut display strings are localized; the language is process-global, so run serially with the other language tests, in English.
+    public SingleKeySwitchTests() => Texts.SetLanguage("en");
+
     private static ShortcutBindingsSection Off() => new ShortcutBindingsSection().WithSingleKeyShortcuts(false);
 
     [Fact]

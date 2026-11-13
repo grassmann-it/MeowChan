@@ -4,8 +4,12 @@ using MeowChan.Desktop.Localization;
 namespace MeowChan.DesktopTests;
 
 /// <summary>The macOS menu bar model: generated from the catalog and the main-page order, no single-key gestures, one entry per context-dependent gesture.</summary>
+[Collection("Localization")]
 public sealed class MacMenuModelTests
 {
+    // Shortcut display strings are localized; the language is process-global, so run serially with the other language tests, in English.
+    public MacMenuModelTests() => Texts.SetLanguage("en");
+
     private static readonly string[] Direct = { "navigation.about", "app.quit", "navigation.continue-reading" };
     private static readonly EffectiveShortcutBindings Mac = EffectiveShortcutBindings.Build(null, ShortcutPlatform.MacOS);
 

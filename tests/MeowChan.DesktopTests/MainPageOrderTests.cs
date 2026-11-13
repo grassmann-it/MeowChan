@@ -1,12 +1,17 @@
 using System.Runtime.CompilerServices;
 using System.Xml.Linq;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
 
 /// <summary>The footer, the More flyout, the ⋯ menu and the default digits all follow MainPageOrder.</summary>
+[Collection("Localization")]
 public sealed class MainPageOrderTests
 {
+    // Shortcut display strings are localized; the language is process-global, so run serially with the other language tests, in English.
+    public MainPageOrderTests() => Texts.SetLanguage("en");
+
     private static readonly XNamespace X = "http://schemas.microsoft.com/winfx/2006/xaml";
     private static readonly string[] OrderedIds = MainPageOrder.CommandIds.ToArray();
 
