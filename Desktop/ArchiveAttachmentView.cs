@@ -24,15 +24,18 @@ public sealed class ArchiveAttachmentView : UserControl
         {
             double maximumWidth = Large ? 360 : 240;
             double width = double.IsFinite(availableSize.Width) ? Math.Clamp(availableSize.Width, 1, maximumWidth) : maximumWidth;
-            // Keep room for the post text; full-size media remains available in the gallery.
-            Size reserved = new(width, Large ? Math.Min(280, width * 280d / 360) : width * 180d / 240);
+            // Keep room for the post text; full-size media remains available in the gallery. The capture records no pixel
+            // size, so the slot reserves a 16:9 box and the thumbnail sits at its top left: a card with media is as tall as
+            // its picture, not 60 dip taller with the thumbnail floating in the middle.
+            Size reserved = new(width, width * 9d / 16);
             base.MeasureOverride(reserved);
             return reserved;
         }
     }
 
     private readonly PreviewSlot _slot = new();
-    private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false };
+    private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false,
+        HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12,
         VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly Border _play = new()
@@ -50,12 +53,13 @@ public sealed class ArchiveAttachmentView : UserControl
         }
     };
     // Imageboard file line above the preview: "name.ext (size)" when the capture knows the size.
-    private readonly TextBlock _label = new() { TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 12 };
+    private readonly TextBlock _label = new() { TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 12,
+        VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0) };
     // A quiet slot surface only while no thumbnail is shown (loading, missing, unsupported).
     private readonly Border _placeholder = new() { CornerRadius = new CornerRadius(5), IsHitTestVisible = false };
     private readonly TextBlock _provenance = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12, IsVisible = false };
     private readonly Button _button;
-    private readonly ArchiveFavoriteButton _favorite = new() { HorizontalAlignment = HorizontalAlignment.Right };
+    private readonly ArchiveFavoriteButton _favorite = new() { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
     /// <summary>
     /// Inherited switch set by an owner whose content is covered (for example by the gallery overlay): attachments in
     /// its subtree start no new thumbnail loads while it is true. Waiting work is canceled cooperatively;
@@ -92,15 +96,20 @@ public sealed class ArchiveAttachmentView : UserControl
         _placeholder.Bind(IsVisibleProperty, _status.GetObservable(IsVisibleProperty));
         _slot.Children.Add(_placeholder); _slot.Children.Add(_image); _slot.Children.Add(_status); _slot.Children.Add(_play);
         StackPanel content = new() { Spacing = 4 };
-        content.Children.Add(_label); content.Children.Add(_slot); content.Children.Add(_provenance);
+        content.Children.Add(_slot); content.Children.Add(_provenance);
         // Flat: no raised box around the thumbnail. Semi's hover/pressed tint and the shared focus
         // adorner remain the interaction feedback of the native button.
         _button = new Button { Content = content, Padding = new Thickness(4), Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
             HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Stretch };
         _button.Click += (_, _) => (DataContext as ArchiveAttachmentRow)?.OpenPreview?.Invoke();
-        StackPanel actions = new() { Spacing = 4 };
-        actions.Children.Add(_favorite); actions.Children.Add(_button);
+        // The file line and the star share one row above the thumbnail (the star used to take a row of its own and
+        // pushed the picture down); the thumbnail below it is the click target for the preview.
+        Grid fileLine = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), MinHeight = 0 };
+        Grid.SetColumn(_favorite, 1);
+        fileLine.Children.Add(_label); fileLine.Children.Add(_favorite);
+        StackPanel actions = new() { Spacing = 0 };
+        actions.Children.Add(fileLine); actions.Children.Add(_button);
         Content = actions;
         DataContextChanged += (_, _) => { Reset(); UpdateLabel(); if (_visible) _ = LoadAsync(); };
         EffectiveViewportChanged += (_, e) => SetViewportVisible(new Rect(Bounds.Size).Intersects(e.EffectiveViewport) && IsEffectivelyVisible);

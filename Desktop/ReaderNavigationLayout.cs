@@ -9,6 +9,9 @@ internal readonly record struct ReaderNavigationLayout(Thickness PostMargin, dou
     internal const double NavigationSize = 108;
     internal const double SideReserve = NavigationSize + 24 + 12;
     internal const double OverlayTailInset = NavigationSize + 12;
+    // The post list has no maximum width (cards use the whole surface; only a post without media keeps its reading
+    // width, inside the card). The free lane for the cross exists while the cards keep at least this much.
+    internal const double MinimumCardWidth = 760;
 
     internal double RightInset(double surfaceWidth, double postRight) => TailInset > 0
         && double.IsFinite(surfaceWidth) && double.IsFinite(postRight)

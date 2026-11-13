@@ -263,7 +263,6 @@ public partial class ArchivePage
         pane.Margin = new Thickness(20);
         ArchiveCloseReader.IsVisible = true;
         ArchiveReadPosts.IsVisible = false;
-        ArchivePosts.MaxWidth = 1120;
         UpdateReaderNavigation();
         UpdateLayoutMode();
         if (_thread != null) RenderThread();
@@ -430,7 +429,7 @@ public partial class ArchivePage
         ReaderStatusLine.IsVisible = !_largeReader || tabs.SelectedIndex == 0;
         Grid surface = ReaderContentSurface;
         ListBox posts = ArchivePosts;
-        ReaderNavigationLayout layout = ReaderNavigationLayout.Resolve(_largeReader, surface.Bounds.Width, posts.MaxWidth);
+        ReaderNavigationLayout layout = ReaderNavigationLayout.Resolve(_largeReader, surface.Bounds.Width, ReaderNavigationLayout.MinimumCardWidth);
         posts.Margin = layout.PostMargin;
         _readerPostTailInset = layout.TailInset;
         UpdateReaderPostTailSpace();
@@ -452,8 +451,7 @@ public partial class ArchivePage
         if (footer.IsEffectivelyVisible && footer.TranslatePoint(default, surface) is Point position)
             bottom = Math.Max(bottom, surface.Bounds.Height - position.Y + 8);
         double right = 24;
-        // MaxWidth can center the post list even just below the free-side-lane
-        // threshold. Anchor inside its right edge, leaving the scrollbar clear.
+        // Anchor inside the post list's right edge, leaving the scrollbar clear.
         if (tabs.SelectedIndex == 0 && posts.IsEffectivelyVisible && posts.Bounds.Width > 0
             && posts.TranslatePoint(default, surface) is Point postPosition)
             right = layout.RightInset(surface.Bounds.Width, postPosition.X + posts.Bounds.Width);

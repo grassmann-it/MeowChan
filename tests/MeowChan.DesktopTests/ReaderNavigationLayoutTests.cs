@@ -27,6 +27,16 @@ public sealed class ReaderNavigationLayoutTests
         Assert.Equal(default, ReaderNavigationLayout.Resolve(false, 1440, 1120));
     }
 
+    [Fact]
+    public void CardsKeepAtLeastTheMinimumWidthBesideTheCross()
+    {
+        // The post list has no maximum width any more: the lane exists while the cards keep 760 dip, not 1120.
+        Assert.Equal(760, ReaderNavigationLayout.MinimumCardWidth);
+        Assert.Equal(new Thickness(0, 0, 144, 0), ReaderNavigationLayout.Resolve(true, 904, ReaderNavigationLayout.MinimumCardWidth).PostMargin);
+        Assert.Equal(default, ReaderNavigationLayout.Resolve(true, 903.9, ReaderNavigationLayout.MinimumCardWidth).PostMargin);
+        Assert.Equal(new Thickness(0, 0, 144, 0), ReaderNavigationLayout.Resolve(true, 1400, ReaderNavigationLayout.MinimumCardWidth).PostMargin);
+    }
+
     [Theory]
     [InlineData(640, 640, 24)]
     [InlineData(1260, 1190, 94)]

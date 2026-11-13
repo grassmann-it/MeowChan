@@ -67,6 +67,7 @@ internal static class ReaderNavigationOverlayChecks
                                 .Any(item => item.DataContext is ArchivePostRow post && post.Id == "1003")));
                     window.UpdateLayout();
                     CheckGeometry(window, page);
+                    CheckMediaCard(page, size.Width);
                     await CheckOverlayTailReadabilityAsync(window, page);
                     string name = $"smoke-reader-navigation-{size.Mode.ToLowerInvariant()}-{size.Width}x{size.Height}-{code}-{variant.ToString().ToLowerInvariant()}.png";
                     Program.CaptureWindow(window, name);
@@ -77,15 +78,16 @@ internal static class ReaderNavigationOverlayChecks
             // Keep enough height to exercise the width transition rather than
             // the short-window fallback that preserves the reading viewport.
             await PresentationChecks.SwitchModeAsync(window, "Simple");
-            foreach (double transitionWidth in new[] { 1304d, 1308d })
+            foreach (double transitionWidth in new[] { 944d, 948d })
             {
                 window.Width = transitionWidth; window.Height = 920;
                 await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, transitionWidth, 920));
                 await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
                 CheckGeometry(window, page);
                 Thickness reserved = page.FindControl<ListBox>("ArchivePosts")!.Margin;
-                Require(reserved.Bottom == 0 && (transitionWidth < 1308 ? reserved.Right == 0 : reserved.Right > 0),
-                    "Reader navigation reserved a bottom row or lost the genuinely free wide-screen side lane.");
+                Require(reserved.Bottom == 0 && (transitionWidth < 946 ? reserved.Right == 0 : reserved.Right > 0),
+                    "Reader navigation reserved a bottom row or lost the genuinely free wide-screen side lane: window " + transitionWidth
+                    + ", surface " + page.FindControl<Grid>("ReaderContentSurface")!.Bounds.Width + ", margin " + reserved);
             }
             await PresentationChecks.SwitchModeAsync(window, "Barebones");
             window.Width = 640; window.Height = 480;
@@ -161,6 +163,33 @@ internal static class ReaderNavigationOverlayChecks
 
     private static bool HasRenderedPost(ArchivePage page) => page.FindControl<ListBox>("ArchivePosts")!
         .GetVisualDescendants().OfType<ListBoxItem>().Any(item => item.IsEffectivelyVisible && item.Bounds.Width > 0);
+
+    // A post with media is one block: the star shares the file-line row (not a row of its own above it), the thumbnail starts
+    // right under that row and the text beside it starts at the file line; the card is not capped to a reading width.
+    private static void CheckMediaCard(ArchivePage page, double windowWidth)
+    {
+        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+        ListBoxItem item = posts.GetVisualDescendants().OfType<ListBoxItem>().First(candidate => (candidate.DataContext as ArchivePostRow)?.Id == "1003");
+        ArchiveAttachmentView view = item.GetVisualDescendants().OfType<ArchiveAttachmentView>().First();
+        Button star = view.GetVisualDescendants().OfType<Button>().First(button => button.Name == "ArchiveMediaFavorite");
+        TextBlock label = view.GetVisualDescendants().OfType<TextBlock>().First(text => text.FontSize == 12 && !string.IsNullOrEmpty(text.Text) && text.Text.Contains('('));
+        Point starTop = star.TranslatePoint(default, view)!.Value, labelTop = label.TranslatePoint(default, view)!.Value;
+        Point imageTop = view.Thumbnail.TranslatePoint(default, view)!.Value;
+        Require(starTop.Y + star.Bounds.Height <= imageTop.Y + 1 && Math.Abs((starTop.Y + star.Bounds.Height / 2) - (labelTop.Y + label.Bounds.Height / 2)) < 6,
+            $"The star did not share the file-line row: star {starTop}/{star.Bounds.Size}, label {labelTop}/{label.Bounds.Size}, image {imageTop}.");
+        Require(imageTop.Y <= star.Bounds.Height + 8, $"The thumbnail floated below the file line: top {imageTop.Y}.");
+        Require(view.Thumbnail.Bounds.Height > 0 && view.Thumbnail.Bounds.Height <= view.Thumbnail.Bounds.Width * 9 / 16 + 1,
+            "The thumbnail slot was taller than 16:9: " + view.Thumbnail.Bounds);
+        ReaderBodyTextBlock body = item.GetVisualDescendants().OfType<ReaderBodyTextBlock>().First();
+        Point bodyAtItem = body.TranslatePoint(default, item)!.Value, viewAtItem = view.TranslatePoint(default, item)!.Value;
+        if (bodyAtItem.X > viewAtItem.X + view.Bounds.Width)
+            Require(Math.Abs(bodyAtItem.Y - (viewAtItem.Y + labelTop.Y)) < 14, $"The text did not start at the file line: body {bodyAtItem}, file line {viewAtItem.Y + labelTop.Y}.");
+        Grid surface = page.FindControl<Grid>("ReaderContentSurface")!;
+        if (windowWidth >= 1000)
+            Require(posts.Bounds.Width >= surface.Bounds.Width - ReaderNavigationLayoutLane - 1, $"The post list was capped: {posts.Bounds.Width} of {surface.Bounds.Width}.");
+    }
+
+    private const double ReaderNavigationLayoutLane = 144;
 
     private static void CheckGeometry(MainWindow window, ArchivePage page)
     {
