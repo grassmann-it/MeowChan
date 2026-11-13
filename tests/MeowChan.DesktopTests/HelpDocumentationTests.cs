@@ -6,8 +6,8 @@ using MeowChan.Archive;
 using MeowChan.Booru;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
-using MeowChan.Desktop.Stats;
 using MeowChan.Import;
 using MeowChan.PluginHost.Http;
 using MeowChan.Persistence;
@@ -279,40 +279,38 @@ public sealed class HelpDocumentationTests
     }
 
     [Fact]
-    public void StatisticsHelpNamesTheShippedHeaderValuesAndMeasurementLimits()
+    public void GlobalPauseAndPostFilterTransferGuidanceNamesTheCurrentBoundaries()
     {
-        // The catalogs are read as data (no language state); the display seams are the production header rules.
-        string[] names = ["stats.header.net", "stats.header.disk", "stats.footnote"];
-        Dictionary<string, string> english = IoStatsPageTexts.Entries.Where(entry => names.Contains(entry.Key))
-            .ToDictionary(entry => entry.Key, entry => entry.English, StringComparer.Ordinal);
-        Assert.Equal(names.Order(StringComparer.Ordinal), english.Keys.Order(StringComparer.Ordinal));
-        string netLabel = english["stats.header.net"].Replace("{0}", "").Trim();
-        string diskLabel = english["stats.header.disk"].Replace("{0}", "").Trim();
-        Assert.Contains("Upload is not measured", english["stats.footnote"], StringComparison.Ordinal);
-        Assert.Contains("without headers or encryption", english["stats.footnote"], StringComparison.Ordinal);
+        // F2/F3 runtime integration is parent-owned; this pins the Help wording that must
+        // accompany it without starting a watcher, host or transfer operation.
+        string watcher = Plain(Section(Read(Help), "Saved watchers"));
+        Assert.Contains("While the global session pause is on, no watcher starts a check, neither automatically nor through Check now", watcher, StringComparison.Ordinal);
+        Assert.Contains("A check already running only finishes the page it is reading", watcher, StringComparison.Ordinal);
+        Assert.Contains("After Resume it continues below the saved cursor; individual pauses and cooldowns are kept", watcher, StringComparison.Ordinal);
 
-        // The header disk value is the written rate only, and neither it nor the label set carries reads or upload.
-        IoRates rates = new(NetDown: 10, DiskWrite: 20, DiskRead: 3000, Requests: 4);
-        Assert.Equal(20, IoStatsDisplay.HeaderDiskRate(rates));
-        Assert.False(IoStatsDisplay.HeaderShowsDiskValue(IoStatsDisplay.HeaderGraphNetwork));
-        Assert.True(IoStatsDisplay.HeaderShowsDiskValue(IoStatsDisplay.HeaderGraphAuto));
-        Assert.True(IoStatsDisplay.HeaderShowsDiskValue(IoStatsDisplay.HeaderGraphNetworkAndDisk));
-        Assert.False(IoStatsDisplay.HeaderShowsDisk(IoStatsDisplay.HeaderGraphAuto, "Simple"));
-        Assert.True(IoStatsDisplay.HeaderShowsDisk(IoStatsDisplay.HeaderGraphAuto, "Advanced"));
-        Assert.True(IoStatsDisplay.HeaderShowsDisk(IoStatsDisplay.HeaderGraphNetworkAndDisk, "Simple"));
+        string cards = Plain(Section(Read(Help), "Reading posts as cards"));
+        Assert.Contains("Post-filter profile transfer and backup are host APIs only", cards, StringComparison.Ordinal);
+        Assert.Contains("not wired to a product-facing command or the transfer-package workflow yet", cards, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StatisticsHelpNamesTheDirectionalHeaderContractAndMeasurementLimits()
+    {
+        // The directional graph sources are part of the integrated I/O contract. This is a
+        // documentation check only; it does not start a sampler or inspect OS traffic.
+        Assert.True(Enum.IsDefined(typeof(IoGraphSource), IoGraphSource.NetworkIo));
+        Assert.True(Enum.IsDefined(typeof(IoGraphSource), IoGraphSource.DiskIo));
 
         string text = Plain(Section(Read(Help), "Statistics and disk traffic"));
-        Assert.Contains($"The header values read {netLabel} (network download) and {diskLabel} (written to disk)", text, StringComparison.Ordinal);
-        Assert.Contains("they show neither disk reads nor upload", text, StringComparison.Ordinal);
-        Assert.Contains("upload is not measured, only the number of requests is shown", text, StringComparison.Ordinal);
-        Assert.Contains("response data MeowChan receives, without headers or encryption", text, StringComparison.Ordinal);
-        Assert.Contains("Automatic shows labeled network-download and disk-write values in every work view", text, StringComparison.Ordinal);
-        Assert.Contains("the disk history graph is drawn only in Advanced", text, StringComparison.Ordinal);
-        Assert.Contains("Network only hides the disk value and its graph", text, StringComparison.Ordinal);
-        // The requested header Read+Write / Down+Up choice is not part of this candidate and must not be described as shipped.
-        Assert.DoesNotContain("Read/Write", text, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Down/Up", text, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Read and write in the header", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Network I/O (NetworkIo) keeps Down and Up as separate directions", text, StringComparison.Ordinal);
+        Assert.Contains("Disk I/O (DiskIo) keeps Write and Read separate as well", text, StringComparison.Ordinal);
+        Assert.Contains("Auto keeps both available in every work view where the layout fits", text, StringComparison.Ordinal);
+        Assert.Contains("application-payload and media-I/O counters, not operating-system totals", text, StringComparison.Ordinal);
+        Assert.Contains("explicit layout can select Network, Disk or text without summing the categories", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("upload is not measured", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("writes only", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("disk history graph is drawn only in Advanced", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Network only hides the disk value", text, StringComparison.Ordinal);
     }
 
     [Fact]

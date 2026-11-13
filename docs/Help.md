@@ -62,11 +62,12 @@ behaves as if it never happened. `MEOWCHAN_DISABLE_UPDATE_CHECK=1` still wins.
 4. Let media download. Progress means **saved / selected media**, with rule exclusions separate. A living thread remains watched even at 100%. New watches capture posts by default; older restored watches can be media-only until capture is explicitly enabled. Pause now requests a full pause of source checks and active transfers. The Pausing state remains until cancellation has quiesced; Resume retries unfinished work.
 5. Open Archive. Select the thread to inspect it, double-click its card or row to open the large reader, or right-click for **Read posts**, **Open in gallery** and **Export as HTML**. Downloads thread rows also open the reader on double-click; use Shift+Enter or the context menu for the gallery; board rows retain their details action. Opening local content never initiates a download. Saved media remain usable offline; post reading requires captured posts.
 
-The header labels the network download rate **Net ↓** and the disk-write rate
-**Disk** (unless **Header graph → Network only** is selected). Where the compact
-histories are visible, network download and disk writing have separate graph rows,
-each with its own scale; click the header rates/graphs to open **Statistics**.
-These are separate from saved/selected media progress and are not system-wide traffic.
+The header can show two separate I/O graphs: **Network I/O** (Down ↓ and Up ↑)
+and **Disk I/O** (Write and Read). Each direction remains a separate series; the
+categories are not summed. **Auto** keeps both categories available in every work
+view where the header layout fits; click the header rates or graphs to open
+**Statistics**. These are MeowChan application-payload and media-I/O measurements,
+not system-wide traffic, and are separate from saved/selected media progress.
 
 ### Desktop view defaults
 
@@ -230,7 +231,10 @@ one-shot and watcher findings retain their provenance.
   send nothing.
 - **Pause and Resume.** Pause stops automatic checks for this watcher; originals
   already admitted follow the ordinary queue rules. Resume enables the schedule
-  again without bypassing a cooldown. Global session Pause also gates requests.
+  again without bypassing a cooldown. While the global session pause is on, no
+  watcher starts a check, neither automatically nor through **Check now**. A check
+  already running only finishes the page it is reading. After Resume it continues
+  below the saved cursor; individual pauses and cooldowns are kept.
 - **More new posts than one check covers.** Each check reads no more than 5 pages
   of 20 posts. If its budget runs out, a saved post-ID cursor continues below the
   oldest post read on a later check. A partial check is not reported as complete.
@@ -582,19 +586,14 @@ exact diagnostic text; changed error details can represent a separate occurrence
 ### Statistics and disk traffic
 
 Open **Statistics** with Ctrl+8 (Command+8 on macOS), from **Tools** or the app
-menu, or by clicking the header graph. It shows measured network and media-disk
-traffic, history and rows per source. These are MeowChan's own counters, including
-media transfers, imports and integrity reads, not operating-system totals.
-Thumbnail and archive-file I/O are not counted. Network counts the response data
-MeowChan receives, without headers or encryption; **upload is not measured**, only
-the number of requests is shown. The page has **three history
-graphs**: network download, disk writing and disk reading, each with its own
-scale. Reading back local files is separate from writing, not added to the
-header's disk rate. The header values read **Net ↓** (network download) and
-**Disk** (written to disk); they show neither disk reads nor upload. Disk reads
-appear on this page only; the one header choice is the **Header graph** setting
-below. Retries or failed transfers can contribute bytes without a
-saved file.
+menu, or by clicking the header graph. It shows measured Network I/O and Disk I/O,
+history and rows per source. These are MeowChan's own application-payload and
+media-I/O counters, not operating-system totals. **Network I/O (`NetworkIo`)** keeps
+Down and Up as separate directions; **Disk I/O (`DiskIo`)** keeps Write and Read
+separate as well. Each category has its own scale, and retries or failed transfers
+can contribute bytes without a saved file. The header uses the same directional
+categories; **Auto** keeps both available in every work view where the layout fits.
+These counters are separate from saved/selected media progress.
 **Reset statistics** asks for confirmation before clearing the counters, not media.
 
 Settings → **Behavior → Statistics** controls the sampling and persistence:
@@ -611,21 +610,21 @@ Settings → **Behavior → Statistics** controls the sampling and persistence:
 At the defaults, 120 readings at one second cover two minutes. When the window is
 hidden, sampling needs active downloads and the statistics tooltip option; hidden
 and idle does not run the sampling timer. The tray's statistics tooltip and its
-two menu lines can each be disabled. Like the header, the tray's disk rate counts
-**writes only**, not reads. The menu lines open Statistics.
+two menu lines can each be disabled. Like the header, the tray reports MeowChan's
+own I/O counters rather than operating-system totals. The menu lines open Statistics.
 
 **Keep statistics on this computer** is on by default. It saves daily totals in
 `io-stats.json` in the profile, at the configured interval when changed and at
 exit. With it off, totals last for the session and an existing file remains
 untouched. Retention includes today; older days are pruned on load and at midnight.
 Further sources beyond the row limit are grouped as **Other sources**.
-**Header graph → Automatic** shows labeled network-download and disk-write values
-in every work view where the header rates fit; the disk history graph is drawn
-only in **Advanced**.
-**Network and disk** draws both history rows in every view where the header graphs
-fit; **Network only** hides the disk value and its graph. Each history row has its
-own scale. The Statistics page always keeps its three separate histories,
-including disk reads, regardless of this setting. These controls do not alter
+**Header graph → Auto** keeps both **Network I/O (`NetworkIo`)** and **Disk I/O
+(`DiskIo`)** available in every work view where the layout fits. Down and Up remain
+separate network directions; Write and Read remain separate disk directions. An
+explicit layout can select Network, Disk or text without summing the categories or
+claiming system-wide traffic. The Statistics page keeps its directional histories
+regardless of this setting.
+These controls do not alter
 provider limits, download rules or the saved-media progress count.
 
 ### Animations
@@ -883,6 +882,8 @@ reply cards 65. These are excerpts, not limits on the stored post text.
 **View → Post filters…** can match post text, subject, file name or MD5 and then hide, replace with a placeholder or
 highlight matching posts. You can also hide one post from its post menu, optionally with its replies, and show it again.
 These filters never delete posts, and HTML export always includes every saved post.
+Post-filter profile transfer and backup are host APIs only. They are not wired to a
+product-facing command or the transfer-package workflow yet.
 
 When you return to a thread through **Continue reading** or load new posts with
 **Show new posts**, a thin line with **… new posts since last time** marks the
