@@ -84,7 +84,11 @@ internal sealed class BooruMediaDetailsDialog : Window
         close.Click += (_, _) => Close();
         Content = DialogFrame.Build(heading, body, close);
         KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; Close(); } };
+        // Like the other dialogs, start on the first action: the post page when the catalog has the post, otherwise Close.
+        Opened += (_, _) => (_initialFocus ?? close).Focus();
     }
+
+    private Control? _initialFocus;
 
     internal TextBlock Status => _status;
     internal TextBlock TagStatus => _tagStatus;
@@ -126,6 +130,9 @@ internal sealed class BooruMediaDetailsDialog : Window
         Button copy = new() { Name = "BooruCopyPost", Content = Texts.T("booru.media.copyPost") };
         ToolTip.SetTip(open, details.PostUrl.AbsoluteUri);
         ToolTip.SetTip(copy, details.PostUrl.AbsoluteUri);
+        AutomationProperties.SetHelpText(open, details.PostUrl.AbsoluteUri);
+        AutomationProperties.SetHelpText(copy, details.PostUrl.AbsoluteUri);
+        _initialFocus = open;
         open.Click += async (_, _) => await RunAsync(() => _open(details.PostUrl), null, "booru.media.openFailed");
         copy.Click += async (_, _) => await RunAsync(() => _copy(details.PostUrl), "booru.media.copied", "booru.media.copyFailed");
         WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 6, Children = { open, copy } };
@@ -205,6 +212,7 @@ internal sealed class BooruMediaDetailsDialog : Window
         _copySelectedTags.Click += async (_, _) => await CopyTagsAsync(SelectedTagNames());
         _useAsSearchButton.Content = Texts.T("booru.media.tags.useAsSearch");
         ToolTip.SetTip(_useAsSearchButton, Texts.T("booru.media.tags.useAsSearch.tip"));
+        AutomationProperties.SetHelpText(_useAsSearchButton, Texts.T("booru.media.tags.useAsSearch.tip"));
         _useAsSearchButton.Click += (_, _) => UseSelectionAsSearch();
         panel.Children.Add(new WrapPanel { Name = "BooruSourceTagActions", ItemSpacing = 8, LineSpacing = 6,
             Children = { copyAll, _copySelectedTags, _useAsSearchButton } });

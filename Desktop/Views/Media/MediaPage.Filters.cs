@@ -412,9 +412,12 @@ public sealed partial class MediaPage
         {
             (_nameFilter, "media.filter.name"), (_kindFilter, "media.filter.kind"), (_soundFilter, "media.filter.sound"), (_sourceFilter, "media.filter.source"),
             (_boardFilter, "media.filter.board"), (_minRating, "media.filter.rating"), (_tagChoice, "tags.filter.label"),
-            (_tagMode, "tags.filter.matchLabel"), (_tagInclude, "media.filter.includeHint"), (_tagExclude, "media.filter.excludeHint"),
+            (_tagMode, "tags.filter.matchLabel"), (_tagInclude, "tags.filter.include"), (_tagExclude, "tags.filter.exclude"),
             (_filterChips, "media.filter.active")
         }) AutomationProperties.SetName(control, Texts.T(key));
+        // The name is the visible label (speech control, label-in-name); the hint is the description.
+        AutomationProperties.SetHelpText(_tagInclude, Texts.T("media.filter.includeHint"));
+        AutomationProperties.SetHelpText(_tagExclude, Texts.T("media.filter.excludeHint"));
         RenderSourceOptions();
         RenderTagOptions();
         RenderFilterChips();

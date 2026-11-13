@@ -327,6 +327,8 @@ internal static class BooruMediaChecks
         BooruMediaDetailsDialog dialog = shell.BooruDetailsWindow!;
         string post = row.Entry.BooruPostId!;
         Require(dialog.Title == Texts.T("booru.media.detail.title", post) && shell.OwnedWindows.Contains(dialog), phase + ": details dialog title or owner.");
+        // The dialog starts on its first action, not nowhere (1.1.0 audit M6).
+        await UntilAsync(() => dialog.FocusManager?.GetFocusedElement() is Button { Name: "BooruOpenPost" or "BooruDetailsClose" });
 
         string[] Lines(string name) => dialog.GetVisualDescendants().OfType<TextBlock>().Where(text => text.Name == name).Select(text => text.Text ?? string.Empty).ToArray();
         Border Chip(string name) => dialog.GetVisualDescendants().OfType<Border>().Single(border => border.Name == name);

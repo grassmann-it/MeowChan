@@ -228,7 +228,13 @@ internal sealed class FeedbackToastContent : Grid
         StackPanel text = new() { Spacing = 4 };
         text.Children.Add(new TextBlock { Text = title, FontWeight = Avalonia.Media.FontWeight.SemiBold,
             TextWrapping = Avalonia.Media.TextWrapping.Wrap });
-        text.Children.Add(new SelectableTextBlock { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap });
+        SelectableTextBlock body = new() { Name = "FeedbackToastMessage", Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+        // The toast is the only announcement while the popup is allowed (the shell banner is then Off): errors interrupt,
+        // everything else (information such as the Danbooru watcher result, success, warnings) waits its turn.
+        AutomationProperties.SetLiveSetting(body, LiveSettingFor(entry));
+        text.Children.Add(body);
+        // The card has no peer of its own; the name lets a reader that enters the toast (dismiss button) hear what it says.
+        AutomationProperties.SetName(this, AccessibleName(title, message));
         Children.Add(new ScrollViewer { Content = text, MaxHeight = 160,
             HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled });
         DismissButton = new Button
@@ -250,6 +256,12 @@ internal sealed class FeedbackToastContent : Grid
         };
         DetachedFromVisualTree += (_, _) => { _attached = false; Texts.Changed -= OnLanguageChanged; };
     }
+
+    internal static AutomationLiveSetting LiveSettingFor(SessionFeedback? entry) =>
+        entry?.Category == FeedbackCategory.Error ? AutomationLiveSetting.Assertive : AutomationLiveSetting.Polite;
+
+    internal static string AccessibleName(string title, string message) =>
+        string.IsNullOrWhiteSpace(title) ? message : string.IsNullOrWhiteSpace(message) ? title : title.TrimEnd('.', ' ') + ". " + message;
 
     private void LocalizeDismissButton()
     {
