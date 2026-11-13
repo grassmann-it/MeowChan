@@ -79,8 +79,6 @@ public partial class ArchivePage
         }
     }
     private bool _largeReader;
-    private readonly ReaderPostTailSpace _readerPostTailSpace = new();
-    private double _readerPostTailInset;
     private IReadOnlyList<ResourceId> _readerThreads = Array.Empty<ResourceId>();
     private int _readerScopeRequest;
     private string? _readerPostId;
@@ -221,16 +219,15 @@ public partial class ArchivePage
             media.AddHandler(KeyDownEvent, OnMediaKeyDown, RoutingStrategies.Tunnel);
         }
         ReaderContentSurface.LayoutUpdated += (_, _) => UpdateReaderNavigationLayout();
-        // Over the content (no free lane) the cross rests faded and comes forward under the pointer or the keyboard focus.
-        ReaderNavigation.PointerEntered += (_, _) => { _readerNavigationPointerOver = true; UpdateReaderNavigationOpacity(); };
-        ReaderNavigation.PointerExited += (_, _) => { _readerNavigationPointerOver = false; UpdateReaderNavigationOpacity(); };
-        ReaderNavigation.GotFocus += (_, _) => UpdateReaderNavigationOpacity();
-        ReaderNavigation.LostFocus += (_, _) => UpdateReaderNavigationOpacity();
+        // The cross floats over the content and hides while the pointer is idle (see ReaderNavigationLayout).
+        ReaderContentSurface.AddHandler(PointerMovedEvent, OnReaderSurfacePointerMoved, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
+        ReaderNavigation.PointerEntered += (_, _) => { _readerNavigationPointerOver = true; UpdateReaderNavigationShown(); };
+        ReaderNavigation.PointerExited += (_, _) => { _readerNavigationPointerOver = false; UpdateReaderNavigationShown(); };
+        ReaderNavigation.GotFocus += (_, _) => UpdateReaderNavigationShown();
+        // Leaving the cross counts as activity: it stays for one more idle delay and then hides (the focus flag is still set inside this event).
+        ReaderNavigation.LostFocus += (_, _) => ShowReaderNavigation();
+        ReaderNavigation.DetachedFromVisualTree += (_, _) => _readerNavigationIdleTimer?.Stop();
         ListBox posts = ArchivePosts;
-        posts.ContainerPrepared += (_, e) => UpdateReaderPostTailSpace();
-        posts.ContainerIndexChanged += (_, e) => UpdateReaderPostTailSpace();
-        posts.ContainerClearing += (_, e) => _readerPostTailSpace.Release(e.Container);
-        posts.DetachedFromVisualTree += (_, _) => _readerPostTailSpace.Update(null, 0);
         posts.SelectionChanged += (_, _) =>
         {
             CancelReaderMediaActivation();
@@ -478,7 +475,9 @@ public partial class ArchivePage
         ReaderPreviousThread.IsEnabled = !_busy && !IsFilenameSearchOpen && thread > 0 && (!_readerGroupScope || ReaderGroupTargetIndex(-1) >= 0);
         ReaderNextThread.IsEnabled = !_busy && !IsFilenameSearchOpen && thread >= 0 && thread + 1 < _readerThreads.Count
             && (!_readerGroupScope || ReaderGroupTargetIndex(1) < _readerThreads.Count);
+        bool crossWasVisible = ReaderNavigation.IsVisible;
         ReaderNavigation.IsVisible = _largeReader;
+        if (_largeReader && !crossWasVisible) ShowReaderNavigation();
         UpdateReaderNavigationLayout();
     }
 
@@ -488,18 +487,12 @@ public partial class ArchivePage
         ReaderStatusLine.IsVisible = !_largeReader || tabs.SelectedIndex == 0;
         Grid surface = ReaderContentSurface;
         ListBox posts = ArchivePosts;
-        ReaderNavigationLayout layout = ReaderNavigationLayout.Resolve(_largeReader, surface.Bounds.Width, ReaderNavigationLayout.MinimumCardWidth);
-        posts.Margin = layout.PostMargin;
-        _readerPostTailInset = layout.TailInset;
-        UpdateReaderNavigationOpacity();
-        UpdateReaderPostTailSpace();
-        // Secondary tabs keep full-width filters and footers. Reserve only
-        // their scrolling surface, so the cross cannot consume their height
-        // or force another line of media filters in a narrow window.
+        // Content always uses the full width and height; the cross is an overlay that hides itself while idle.
+        posts.Margin = default;
+        UpdateReaderNavigationShown();
         tabs.Margin = default;
-        Thickness secondaryLane = _largeReader ? new Thickness(0, 0, ReaderNavigationLayout.SideReserve, 0) : default;
-        ArchiveMediaSurface.Margin = secondaryLane;
-        ArchiveReferences.Margin = secondaryLane;
+        ArchiveMediaSurface.Margin = default;
+        ArchiveReferences.Margin = default;
         if (!_largeReader) return;
         Control footer = tabs.SelectedIndex switch
         {
@@ -510,31 +503,79 @@ public partial class ArchivePage
         double bottom = 16;
         if (footer.IsEffectivelyVisible && footer.TranslatePoint(default, surface) is Point position)
             bottom = Math.Max(bottom, surface.Bounds.Height - position.Y + 8);
-        double right = 24;
-        // Anchor inside the post list's right edge, leaving the scrollbar clear.
-        if (tabs.SelectedIndex == 0 && posts.IsEffectivelyVisible && posts.Bounds.Width > 0
-            && posts.TranslatePoint(default, surface) is Point postPosition)
-            right = layout.RightInset(surface.Bounds.Width, postPosition.X + posts.Bounds.Width);
-        ReaderNavigation.Margin = new Thickness(0, 0, right, bottom);
+        ReaderNavigation.Margin = new Thickness(0, 0, ReaderNavigationLayout.RightInset, bottom);
     }
 
-    private bool _readerNavigationPointerOver;
-    internal const double ReaderNavigationRestingOpacity = 0.4;
+    private bool _readerNavigationPointerOver, _readerNavigationActive;
+    private Point? _readerSurfacePointer;
+    private long _readerNavigationLastActivity;
+    private DispatcherTimer? _readerNavigationIdleTimer;
+    private int _readerNavigationIdleDelayMs = ReaderNavigationLayout.IdleHideDelayMsDefault;
 
-    // In the free side lane the cross covers nothing and stays solid; over the content it is faded until the pointer or the
-    // keyboard focus is on it, so it does not hide text and pictures it floats above.
-    private void UpdateReaderNavigationOpacity()
+    /// <summary>Idle time before the cross fades out; clamped to its minimum and maximum.</summary>
+    internal int ReaderNavigationIdleDelayMs
     {
-        bool overContent = _largeReader && _readerPostTailInset > 0;
-        ReaderNavigation.Opacity = !overContent || _readerNavigationPointerOver || ReaderNavigation.IsKeyboardFocusWithin
-            ? 1 : ReaderNavigationRestingOpacity;
+        get => _readerNavigationIdleDelayMs;
+        set => _readerNavigationIdleDelayMs = ReaderNavigationLayout.ClampIdleHideDelayMs(value);
     }
 
-    private void UpdateReaderPostTailSpace()
+    /// <summary>True while the cross is shown: recent pointer movement, pointer over or near it, keyboard focus in it.</summary>
+    internal bool ReaderNavigationShown => _largeReader && (_readerNavigationActive || _readerNavigationPointerOver
+        || ReaderNavigation.IsKeyboardFocusWithin || PointerNearReaderNavigation());
+
+    private bool PointerNearReaderNavigation() => _readerSurfacePointer is Point pointer
+        && ReaderNavigation.Bounds.Inflate(ReaderNavigationLayout.NearMargin).Contains(pointer);
+
+    private void OnReaderSurfacePointerMoved(object? sender, PointerEventArgs e) => NotifyReaderPointerMoved(e.GetPosition(ReaderContentSurface));
+
+    /// <summary>Pointer movement over the reader surface (position in surface coordinates).</summary>
+    internal void NotifyReaderPointerMoved(Point position)
     {
-        ListBox posts = ArchivePosts;
-        Control? tail = posts.ItemCount > 0 ? posts.ContainerFromIndex(posts.ItemCount - 1) : null;
-        _readerPostTailSpace.Update(tail, _readerPostTailInset);
+        _readerSurfacePointer = position;
+        ShowReaderNavigation();
+    }
+
+    // Pointer activity (or a navigation shortcut) shows the cross and (re)arms the idle timer; the timer only re-checks the
+    // elapsed time, so a stream of pointer moves costs one timestamp each.
+    internal void ShowReaderNavigation()
+    {
+        if (!_largeReader) return;
+        _readerNavigationLastActivity = Environment.TickCount64;
+        bool wasActive = _readerNavigationActive;
+        _readerNavigationActive = true;
+        if (_readerNavigationIdleTimer == null)
+        {
+            _readerNavigationIdleTimer = new DispatcherTimer();
+            _readerNavigationIdleTimer.Tick += (_, _) => OnReaderNavigationIdleTick();
+        }
+        if (!_readerNavigationIdleTimer.IsEnabled)
+        {
+            _readerNavigationIdleTimer.Interval = TimeSpan.FromMilliseconds(_readerNavigationIdleDelayMs);
+            _readerNavigationIdleTimer.Start();
+        }
+        if (!wasActive) UpdateReaderNavigationShown();
+    }
+
+    private void OnReaderNavigationIdleTick()
+    {
+        double remaining = _readerNavigationIdleDelayMs - (Environment.TickCount64 - _readerNavigationLastActivity);
+        if (remaining > 1)
+        {
+            _readerNavigationIdleTimer!.Interval = TimeSpan.FromMilliseconds(remaining);
+            return;
+        }
+        _readerNavigationIdleTimer!.Stop();
+        _readerNavigationActive = false;
+        UpdateReaderNavigationShown();
+    }
+
+    // Hidden means transparent and not hit-tested (the fade comes from the reader-cross style and is skipped under reduced
+    // motion); the buttons stay in the visual tree, so keyboard focus and automation still reach them and show the cross.
+    private void UpdateReaderNavigationShown()
+    {
+        bool shown = ReaderNavigationShown;
+        ReaderNavigation.Opacity = shown ? 1 : 0;
+        ReaderNavigation.IsHitTestVisible = shown;
     }
 
     private async void OnReaderNavigationClick(object? sender, RoutedEventArgs e)
@@ -831,6 +872,7 @@ public partial class ArchivePage
     internal async Task NavigateReaderAsync(int postDelta, int threadDelta)
     {
         if (!_largeReader || _busy || _ended || IsReaderDialogOpen) return;
+        ShowReaderNavigation();
         ++_readerInteractionRevision;
         if (threadDelta != 0)
         {

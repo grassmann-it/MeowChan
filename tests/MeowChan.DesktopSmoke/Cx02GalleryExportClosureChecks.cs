@@ -192,7 +192,7 @@ internal static class Cx02GalleryExportClosureChecks
             true, includeOtherMedia: true).Entries.ToArray();
         Require(entries.Length > 0, "Inline fixture has no verified gallery target.");
         await window.OpenGalleryAsync(thread.Summary.Id, origin: page);
-        await window.OpenMediaGalleryAsync(entries, entries[0].EntryKey, page);
+        await window.OpenMediaGalleryLaidOutAsync(entries, entries[0].EntryKey, page);
         await window.OpenSearchGalleryAsync(ArchiveSearchRequest.Create(new ArchiveSearchSpec()), origin: page);
         Require(Read<GalleryViewer?>(window, "_gallery") == null, "Direct archive delegate bypassed the early gate.");
         Require(opened == 0 && !C<Border>(page, "ArchiveExportDialog").IsVisible,

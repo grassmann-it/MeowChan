@@ -57,7 +57,7 @@ internal static class TrayStatsModel
     }
 
     private static string RatesText(in TrayStatsInput state) =>
-        Texts.T("stats.tray.rates", ByteUnits.Rate(state.Rate.NetDown), ByteUnits.Rate(state.Rate.DiskWrite + state.Rate.DiskRead));
+        Texts.T("stats.tray.rates", ByteUnits.Rate(state.Rate.NetDown), ByteUnits.Rate(IoStatsDisplay.HeaderDiskRate(state.Rate)));
 
     private static string ActiveText(in TrayStatsInput state) => Texts.Count("stats.tray.activeCount", state.Active);
 

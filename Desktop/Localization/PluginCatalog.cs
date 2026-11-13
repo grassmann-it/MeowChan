@@ -73,6 +73,7 @@ internal static class PluginCatalog
         ("plugins.experimentalHint", "Experimental sources: {0}. Provider differences are possible; the first activation asks once. Permissions are managed in Sources.", "Experimentelle Quellen: {0}. Anbieterabweichungen möglich; die erste Aktivierung fragt einmal nach. Freigaben stehen unter Quellen."),
         ("plugins.classificationTitle", "Source classification", "Quellenklassifikation"),
         ("plugins.subtitle", "Sources and image filters in this profile.", "Quellen und Bildfilter dieses Profils."),
+        ("plugins.count", "Plugins: {0}", "Plugins: {0}"),
         ("plugins.localStatusHint", "Plugin status and descriptions do not indicate website availability.", "Pluginstatus und Beschreibungen sagen nichts über die Erreichbarkeit einer Website aus."),
         ("plugins.directoryDetails", "Plugin folder and diagnostics", "Pluginordner und Diagnose"),
         ("plugins.author", "By {0}", "Von {0}"),

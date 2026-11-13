@@ -36,7 +36,7 @@ public sealed class StatsHeaderGraphTests : IDisposable
     }
 
     [Theory]
-    // Automatic follows the work view: disk only in Advanced.
+    // Automatic follows the work view: the disk graph only in Advanced.
     [InlineData("Auto", "Advanced", true)]
     [InlineData("Auto", "Simple", false)]
     [InlineData("Auto", "Barebones", false)]
@@ -50,8 +50,52 @@ public sealed class StatsHeaderGraphTests : IDisposable
     // Unknown text behaves like Auto.
     [InlineData("nonsense", "Advanced", true)]
     [InlineData("nonsense", "Simple", false)]
-    public void TheHeaderDrawsTheDiskRowByTheSettingAndTheWorkView(string setting, string mode, bool disk) =>
+    public void TheHeaderDrawsTheDiskGraphByTheSettingAndTheWorkView(string setting, string mode, bool disk) =>
         Assert.Equal(disk, IoStatsDisplay.HeaderShowsDisk(setting, mode));
+
+    [Theory]
+    [InlineData("Auto", true)]
+    [InlineData("NetworkAndDisk", true)]
+    [InlineData("nonsense", true)]
+    [InlineData("Network", false)]
+    [InlineData("network", false)]
+    public void TheDiskValueShowsInEveryViewUnlessTheSettingIsNetwork(string setting, bool shown) =>
+        Assert.Equal(shown, IoStatsDisplay.HeaderShowsDiskValue(setting));
+
+    [Fact]
+    public void TheLabelledHeaderValuesExistInAllTwelveLanguages()
+    {
+        foreach (string language in new[] { "en", "de", "es", "fr", "ru", "zh-Hans", "ja", "ko", "pt-BR", "cs", "it", "pl" })
+        {
+            Texts.SetLanguage(language);
+            foreach (string key in new[] { "stats.header.net", "stats.header.disk" })
+            {
+                string text = Texts.T(key, "X");
+                Assert.NotEqual(key, text);
+                Assert.Contains("X", text);
+                Assert.DoesNotContain("{", text);
+            }
+            Assert.Contains("↓", Texts.T("stats.header.net", "X"));
+        }
+        Texts.SetLanguage("en");
+        Assert.Equal("Net ↓ 2.0 KiB/s", Texts.T("stats.header.net", "2.0 KiB/s"));
+        Assert.Equal("Disk 37.8 MiB/s", Texts.T("stats.header.disk", "37.8 MiB/s"));
+    }
+
+    [Fact]
+    public void TheTaglineIsTheCatSentenceInEveryLanguage()
+    {
+        Texts.SetLanguage("en");
+        Assert.Equal("Open-source imageboard downloader — now with 100% more cats", Texts.T("shell.subtitle"));
+        Texts.SetLanguage("de");
+        Assert.Equal("Open-Source-Imageboard-Downloader — jetzt mit 100 % mehr Katzen", Texts.T("shell.subtitle"));
+        foreach (string language in new[] { "es", "fr", "ru", "zh-Hans", "ja", "ko", "pt-BR", "cs", "it", "pl" })
+        {
+            Texts.SetLanguage(language);
+            Assert.DoesNotContain("YChan", Texts.T("shell.subtitle"));
+            Assert.Contains("100", Texts.T("shell.subtitle"));
+        }
+    }
 
     [Fact]
     public void SwitchingTheWorkViewUpdatesAutomaticImmediatelyAndLeavesExplicitValuesAlone()
@@ -126,10 +170,10 @@ public sealed class StatsHeaderGraphTests : IDisposable
         IoActivity activity = new(3, 41, 0);
         string both = IoStatsDisplay.GraphDescription(rates, activity, showDisk: true, En);
         string network = IoStatsDisplay.GraphDescription(rates, activity, showDisk: false, En);
-        Assert.Equal("Network download 2.4 MiB/s, disk 1.9 MiB/s, active downloads: 3. Opens the statistics.", both);
+        Assert.Equal("Network download 2.4 MiB/s, disk written 1.5 MiB/s, active downloads: 3. Opens the statistics.", both);
         Assert.Equal("Network download 2.4 MiB/s, active downloads: 3. Opens the statistics.", network);
         Assert.DoesNotContain("disk", network, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("1.9", network);
+        Assert.DoesNotContain("1.5", network);
         Texts.SetLanguage("de");
         Assert.Equal("Netzwerk herunter 2,4 MiB/s, aktive Downloads: 3. Öffnet die Statistik.",
             IoStatsDisplay.GraphDescription(rates, activity, showDisk: false, CultureInfo.GetCultureInfo("de")));
@@ -168,18 +212,41 @@ public sealed class StatsHeaderGraphTests : IDisposable
             }
         }
         Texts.SetLanguage("en");
-        Assert.Equal("Chooses what the graph at the top shows. Automatic: network and disk in the Advanced view, network only otherwise.", Texts.T("stats.headerGraph.hint"));
+        Assert.Equal("Chooses what the header shows. Automatic: network and disk values in every view, with a graph for each only in the Advanced view.", Texts.T("stats.headerGraph.hint"));
         Texts.SetLanguage("de");
-        Assert.Equal("Legt fest, was der Graph oben zeigt. Automatisch: Netz und Datenträger in der erweiterten Ansicht, sonst nur das Netz.", Texts.T("stats.headerGraph.hint"));
+        Assert.Equal("Legt fest, was die Kopfleiste zeigt. Automatisch: Netz- und Datenträgerwerte in jeder Ansicht, ein Graph für jeden nur in der erweiterten Ansicht.", Texts.T("stats.headerGraph.hint"));
         Assert.Equal("Graph in der Kopfleiste", Texts.T("stats.headerGraph.label"));
     }
 
     [Fact]
-    public void TheScaleOfANetworkOnlyGraphIgnoresTheDisk()
+    public void TheGraphTextsExistInAllTwelveLanguagesWithTheirPlaceholdersAndTheOldOnesAreGone()
+    {
+        string[] languages = ["en", "de", "es", "fr", "ru", "zh-Hans", "ja", "ko", "pt-BR", "cs", "it", "pl"];
+        (string Key, int Placeholders)[] keys = [("stats.graph.name", 3), ("stats.graph.nameNet", 2), ("stats.graph.page.name", 3), ("stats.scale", 1), ("stats.history.note", 0)];
+        foreach (string language in languages)
+        {
+            Texts.SetLanguage(language);
+            foreach ((string key, int placeholders) in keys)
+            {
+                string text = Texts.T(key, "A", "B", "C");
+                Assert.NotEqual(key, text);
+                Assert.DoesNotContain("{", text);
+                foreach (string argument in new[] { "A", "B", "C" }.Take(placeholders))
+                    Assert.Contains(argument, text);
+            }
+            foreach (string removed in new[] { "stats.peak", "stats.legend.net", "stats.legend.disk" })
+                Assert.Equal(removed, Texts.T(removed));
+        }
+        Texts.SetLanguage("en");
+        Assert.Equal("Scale up to 2 MiB/s", Texts.T("stats.scale", "2 MiB/s"));
+    }
+
+    [Fact]
+    public void TheNetworkRowScaleIgnoresTheDiskRow()
     {
         float[] network = [1000f, 2000f];
         float[] disk = [4_000_000f, 1f];
-        Assert.Equal(4_000_000d, IoGraphGeometry.Peak(network, disk));
-        Assert.Equal(IoGraphGeometry.DefaultMinimumPeak, IoGraphGeometry.Peak(network, ReadOnlySpan<float>.Empty));
+        Assert.Equal(IoGraphGeometry.DefaultMinimumPeak, IoGraphGeometry.Peak(network));
+        Assert.Equal(4_194_304d, IoGraphGeometry.Peak(disk));   // 4 MiB; its own scale
     }
 }

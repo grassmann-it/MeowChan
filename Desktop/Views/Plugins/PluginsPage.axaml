@@ -1,41 +1,55 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:plugins="using:MeowChan.Desktop.Plugins" xmlns:ursa="https://irihi.tech/ursa" x:Class="MeowChan.PluginsPage" SizeChanged="OnPageSizeChanged">
   <Grid RowDefinitions="Auto,*" Margin="12" RowSpacing="8">
-    <StackPanel Classes="workspace-page-header">
+    <!-- Spacing 0: each optional row brings its own 8 dip top margin, so hidden or empty rows add no gap above the list
+         (as on the Sources page, the list starts 8 dip under the subtitle). -->
+    <StackPanel Classes="workspace-page-header" Spacing="0">
       <!-- Below 900 dip the header actions move under the title, so the title and description keep the full width. -->
       <Grid x:Name="PluginsPageHeader" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12">
         <StackPanel Spacing="5" MinWidth="200">
           <TextBlock x:Name="PluginsTitle" Classes="page-title" />
           <TextBlock x:Name="PluginsSubtitle" TextWrapping="Wrap" Classes="muted" />
         </StackPanel>
-        <WrapPanel x:Name="PluginsHeaderActions" Grid.Column="1" VerticalAlignment="Top" ItemSpacing="8" LineSpacing="6">
+        <WrapPanel x:Name="PluginsHeaderActions" Grid.Column="1" VerticalAlignment="Top" ItemSpacing="8" LineSpacing="8">
+          <TextBlock x:Name="PluginsCount" Classes="muted" VerticalAlignment="Center" />
           <Button x:Name="PluginsRefresh" Click="OnRefreshClick" />
           <Button x:Name="PluginsFolder" Click="OnFolderClick" />
           <Button x:Name="PluginsReviewRepairs" Click="OnReviewBundledRepairsClick" />
         </WrapPanel>
       </Grid>
-      <StackPanel Orientation="Horizontal" Spacing="8">
-                        <ursa:LoadingIcon x:Name="PluginOperationLoading" Width="16" Height="16" VerticalAlignment="Center" IsVisible="False" Focusable="False" />
-                        <TextBlock x:Name="PluginTestStatus" VerticalAlignment="Center" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" /></StackPanel>
-      <Button x:Name="PluginCancel" Click="OnCancelClick" HorizontalAlignment="Left" IsVisible="False" />
-      <Expander x:Name="PluginInventoryProblems" IsVisible="False" HorizontalAlignment="Stretch">
+      <!-- The status row stays in the tree (its live region keeps announcing) but takes no height while it is empty. -->
+      <StackPanel x:Name="PluginStatusRow" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+        <ursa:LoadingIcon x:Name="PluginOperationLoading" Width="16" Height="16" VerticalAlignment="Center" IsVisible="False" Focusable="False" />
+        <TextBlock x:Name="PluginTestStatus" VerticalAlignment="Center" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+      </StackPanel>
+      <Button x:Name="PluginCancel" Click="OnCancelClick" HorizontalAlignment="Left" IsVisible="False" Margin="0,8,0,0" />
+      <Expander x:Name="PluginInventoryProblems" IsVisible="False" HorizontalAlignment="Stretch" Margin="0,8,0,0">
         <Expander.Header><ursa:Badge x:Name="PluginInventoryBadge" OverflowCount="2147483647"><TextBlock x:Name="PluginInventoryHeader" Margin="0,0,14,0" /></ursa:Badge></Expander.Header>
         <ScrollViewer MaxHeight="100"><TextBlock x:Name="PluginInventoryDiagnostics" TextWrapping="Wrap" /></ScrollViewer>
       </Expander>
-      <ursa:Banner x:Name="PluginErrorBanner" Type="Error" CanClose="False" IsVisible="False" HorizontalContentAlignment="Stretch">
+      <ursa:Banner x:Name="PluginErrorBanner" Type="Error" CanClose="False" IsVisible="False" HorizontalContentAlignment="Stretch" Margin="0,8,0,0">
         <ScrollViewer MaxHeight="96"><TextBlock x:Name="PluginPageError" TextWrapping="Wrap" Classes="error" AutomationProperties.LiveSetting="Assertive" /></ScrollViewer>
       </ursa:Banner>
     </StackPanel>
-    <Grid x:Name="PluginSplit" Grid.Row="1" ColumnDefinitions="240,*" ColumnSpacing="14">
-      <Grid x:Name="PluginListPane" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
-        <StackPanel Spacing="6">
-          <ComboBox x:Name="PluginCategory" HorizontalAlignment="Stretch" SelectionChanged="OnCategoryChanged" />
-          <Button x:Name="PluginListActions" Click="OnPluginListActionsClick" HorizontalAlignment="Left" />
+    <!-- List and detail as on the Sources page: a 280 dip column of cards beside one detail card. -->
+    <Grid x:Name="PluginSplit" Grid.Row="1" ColumnDefinitions="280,*" ColumnSpacing="14">
+      <!-- The empty hint sits in the top stack: a hidden row of its own would still add the grid's row spacing twice. -->
+      <Grid x:Name="PluginListPane" RowDefinitions="Auto,*,Auto" RowSpacing="8">
+        <StackPanel Spacing="8">
+          <!-- The selected plugin's menu sits beside the category as a square "⋯" of the input height, not as a lone row. -->
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <ComboBox x:Name="PluginCategory" HorizontalAlignment="Stretch" SelectionChanged="OnCategoryChanged" />
+            <Button x:Name="PluginListActions" Grid.Column="1" Classes="plugin-overflow" Width="32" Height="32" Click="OnPluginListActionsClick" />
+          </Grid>
+          <TextBlock x:Name="PluginsEmpty" TextWrapping="Wrap" Classes="muted" />
         </StackPanel>
-        <TextBlock x:Name="PluginsEmpty" Grid.Row="1" TextWrapping="Wrap" />
-        <ScrollViewer x:Name="PluginListScroll" Grid.Row="2"><plugins:PluginSelectionList x:Name="PluginCards" SelectionChanged="OnPluginSelectionChanged" /></ScrollViewer>
-        <Expander x:Name="PluginDirectoryExpander" Grid.Row="3" HorizontalAlignment="Stretch">
-          <StackPanel Spacing="6" Margin="0,4,0,0">
+        <ScrollViewer x:Name="PluginListScroll" Grid.Row="1">
+          <plugins:PluginSelectionList x:Name="PluginCards" Classes="workspace-card-list" SelectionChanged="OnPluginSelectionChanged">
+            <plugins:PluginSelectionList.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="10" /></ItemsPanelTemplate></plugins:PluginSelectionList.ItemsPanel>
+          </plugins:PluginSelectionList>
+        </ScrollViewer>
+        <Expander x:Name="PluginDirectoryExpander" Grid.Row="2" HorizontalAlignment="Stretch">
+          <StackPanel Spacing="8" Margin="0,4,0,0">
             <TextBlock x:Name="PluginDirectory" TextWrapping="Wrap" Classes="muted" />
             <TextBlock x:Name="PluginLocalStatusHint" TextWrapping="Wrap" Classes="muted" />
           </StackPanel>
@@ -44,22 +58,24 @@
       <Border x:Name="PluginNoSelection" Grid.Column="1" Classes="panel" Padding="20" IsVisible="False">
         <TextBlock x:Name="PluginChooseHint" Classes="muted" TextWrapping="Wrap" VerticalAlignment="Center" HorizontalAlignment="Center" />
       </Border>
+      <!-- One detail card, as on the Sources page: Back, heading and facts, actions, settings, the draft footer and the disclosures. -->
       <ScrollViewer x:Name="PluginDetailsPane" Grid.Column="1" IsVisible="False">
+        <Border x:Name="PluginDetailCard" Classes="workspace-section">
         <StackPanel x:Name="PluginDetailContent" Spacing="12">
           <Button x:Name="PluginBack" HorizontalAlignment="Left" Click="OnBackClick" />
-          <Border x:Name="PluginPurposeCard" Classes="workspace-section">
+          <Border x:Name="PluginPurposeCard">
             <StackPanel Classes="workspace-section-header">
               <WrapPanel ItemSpacing="10" LineSpacing="4">
-                <TextBlock x:Name="PluginHeading" VerticalAlignment="Center" Classes="page-title" TextWrapping="Wrap" />
-                <TextBlock x:Name="PluginAuthor" Classes="muted" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" IsVisible="False" />
+                <TextBlock x:Name="PluginHeading" VerticalAlignment="Center" Classes="section-title" TextWrapping="Wrap" />
+                <TextBlock x:Name="PluginAuthor" Classes="workspace-meta" VerticalAlignment="Center" TextWrapping="Wrap" IsVisible="False" />
               </WrapPanel>
-              <TextBlock x:Name="PluginDescriptionOrigin" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
+              <TextBlock x:Name="PluginDescriptionOrigin" Classes="workspace-help" TextWrapping="Wrap" IsVisible="False" />
               <TextBlock x:Name="PluginDescription" TextWrapping="Wrap" />
               <WrapPanel x:Name="PluginCompactIdentity" ItemSpacing="6" LineSpacing="6">
-                <Border x:Name="PluginTypeChip" Classes="workspace-status"><TextBlock x:Name="PluginType" Classes="workspace-status" /></Border>
-                <Border x:Name="PluginExperimentalChip" Classes="workspace-status" IsVisible="False"><TextBlock x:Name="PluginExperimental" Classes="workspace-status" TextWrapping="Wrap" /></Border>
-                <Border x:Name="PluginVersionChip" Classes="workspace-status" IsVisible="False"><TextBlock x:Name="PluginVersion" Classes="workspace-status" TextWrapping="Wrap" /></Border>
-                <Border x:Name="PluginIdChip" Classes="workspace-status" MaxWidth="260" IsVisible="False"><TextBlock x:Name="PluginCompactId" Classes="workspace-status muted" TextTrimming="CharacterEllipsis" MaxLines="1" /></Border>
+                <Border x:Name="PluginTypeChip" Classes="chip chip-badge chip-neutral"><TextBlock x:Name="PluginType" Classes="chip-label" /></Border>
+                <Border x:Name="PluginExperimentalChip" Classes="chip chip-badge" IsVisible="False"><TextBlock x:Name="PluginExperimental" Classes="chip-label" TextWrapping="Wrap" /></Border>
+                <Border x:Name="PluginVersionChip" Classes="chip chip-badge chip-neutral" IsVisible="False"><TextBlock x:Name="PluginVersion" Classes="chip-label" TextWrapping="Wrap" /></Border>
+                <Border x:Name="PluginIdChip" Classes="chip chip-badge chip-neutral" MaxWidth="260" IsVisible="False"><TextBlock x:Name="PluginCompactId" Classes="chip-label" TextTrimming="CharacterEllipsis" MaxLines="1" /></Border>
               </WrapPanel>
               <TextBlock x:Name="PluginStatus" FontWeight="SemiBold" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
               <WrapPanel x:Name="PluginPrimaryActions" Classes="workspace-toolbar">
@@ -67,20 +83,21 @@
                 <Button x:Name="PluginSelectCandidate" Click="OnSelectCandidateClick" />
                 <Button x:Name="PluginApproveSdkTransition" Click="OnApproveSdkTransitionClick" IsVisible="False" />
                 <Button x:Name="PluginWatches" Click="OnWatchesClick" />
-                <Button x:Name="PluginMoreActions" Click="OnPluginMoreActionsClick" />
+                <Button x:Name="PluginMoreActions" Classes="plugin-overflow" Width="30" Click="OnPluginMoreActionsClick" />
               </WrapPanel>
-              <TextBlock x:Name="PluginExperimentalHint" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
+              <TextBlock x:Name="PluginExperimentalHint" Classes="workspace-help" TextWrapping="Wrap" IsVisible="False" />
               <TextBlock x:Name="PluginDraftSummary" Classes="workspace-status" TextWrapping="Wrap" IsVisible="False" />
               <TextBlock x:Name="PluginAttention" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Polite" />
               <TextBlock x:Name="PluginStatusHint" TextWrapping="Wrap" IsVisible="False" />
-              <TextBlock x:Name="PluginCapabilities" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
+              <TextBlock x:Name="PluginCapabilities" Classes="workspace-help" TextWrapping="Wrap" IsVisible="False" />
               <SelectableTextBlock x:Name="PluginActivationReasons" TextWrapping="Wrap" Focusable="True" />
-              <SelectableTextBlock x:Name="PluginActionHint" TextWrapping="Wrap" Focusable="True" Classes="muted" IsVisible="False" />
+              <SelectableTextBlock x:Name="PluginActionHint" TextWrapping="Wrap" Focusable="True" Classes="workspace-help" IsVisible="False" />
             </StackPanel>
           </Border>
           <desktop:SectionNavigationControl x:Name="PluginSections" />
           <StackPanel x:Name="PluginSettings" Spacing="12" />
-          <Border Classes="workspace-section">
+          <!-- The draft footer is a part of the card, set off by a rule, not a card in the card. -->
+          <Border x:Name="PluginDraftFooter" Classes="workspace-card-footer">
             <StackPanel Classes="workspace-section-header">
               <TextBlock x:Name="PluginDraftStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
               <WrapPanel Classes="workspace-actions">
@@ -126,6 +143,7 @@
             </StackPanel>
           </Expander>
         </StackPanel>
+        </Border>
       </ScrollViewer>
     </Grid>
   </Grid>

@@ -40,7 +40,7 @@ internal static class GalleryMediaTagChecks
                 ?? throw new InvalidOperationException("Fixture entry did not resolve to a tag target.");
             await window.SessionHost.DefinePrivateTagAsync("existing");
 
-            await window.OpenMediaGalleryAsync([bound, unbound], bound.EntryKey);
+            await window.OpenMediaGalleryLaidOutAsync([bound, unbound], bound.EntryKey);
             ContentControl host = window.FindControl<ContentControl>("GalleryHost")!;
             await UntilAsync(() => host.Content is GalleryViewer);
             GalleryViewer viewer = (GalleryViewer)host.Content!;
@@ -445,6 +445,25 @@ internal static class GalleryMediaTagChecks
 
 internal static class GalleryViewerChecksAccess
 {
+    /// <summary>
+    /// Opens the gallery like the product does and then waits for the new viewer's first layout. An image that is already kept in
+    /// the decoded-image cache is shown in the same dispatcher turn the gallery opens, before the viewer has been templated and laid
+    /// out, so a check that acts at once would find no controls. A user cannot act before that layout, so only the checks wait.
+    /// </summary>
+    internal static async Task OpenMediaGalleryLaidOutAsync(this MainWindow window, IReadOnlyList<GalleryEntry> entries,
+        GalleryEntryKey start, Control? origin = null)
+    {
+        await window.OpenMediaGalleryAsync(entries, start, origin);
+        await WaitForLayoutAsync(window);
+    }
+
+    internal static Task WaitForLayoutAsync(MainWindow window)
+    {
+        ContentControl host = window.FindControl<ContentControl>("GalleryHost")!;
+        return Program.WaitUntilAsync(() => host.Content is not GalleryViewer viewer
+            || viewer.GetGalleryVisualDescendants().OfType<Button>().Any(item => item.Name == "GalleryClose"),
+            () => "The gallery viewer was never templated after it opened.");
+    }
     internal static void Click(GalleryViewer viewer, string name)
     {
         Button button = viewer.GetGalleryVisualDescendants().OfType<Button>().FirstOrDefault(item => item.Name == name)

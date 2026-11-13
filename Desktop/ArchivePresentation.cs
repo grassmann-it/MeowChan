@@ -60,6 +60,11 @@ internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
     public bool LargePreview { get; init; }
     /// <summary>Reader image width; zero keeps the legacy list-preview default.</summary>
     public int ThumbnailWidth { get; init; }
+    /// <summary>
+    /// Width over height of the thumbnail once one was loaded (the capture records no pixel size). The preview frame follows it and keeps
+    /// it when the pixels are released, so a post's height changes once on the first load and not again on scrolling.
+    /// </summary>
+    public double? KnownAspect { get; set; }
     public Func<CancellationToken, Task<Bitmap?>>? LoadThumbnail { get; init; }
     public Action? OpenPreview { get; init; }
     public MediaAttachmentBinding? Binding { get; set; }

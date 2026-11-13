@@ -100,6 +100,7 @@ public partial class MainWindow
         if (TransferSpeedGraph.IsVisible != showGraph || TransferSpeed.IsVisible != showSpeed)
         {
             TransferSpeedGraph.IsVisible = showGraph;
+            TransferDiskGraph.IsVisible = showGraph;
             TransferSpeed.IsVisible = showSpeed;
             UpdateSpeedSamplingState();
             _ioUpdate?.RequestImmediate(); // a graph that just appeared needs its history now
@@ -310,6 +311,7 @@ public partial class MainWindow
         RefreshShellCommands();
         RefreshSpeedLabel();
         ShowStoreLimitWarning();
+        ToolTip.SetTip(WorkspaceSubtitle, Texts.T("shell.subtitle"));
         ToolTip.SetTip(InspectorCloseButton, Texts.T("action.hideDetails") + " · Esc");
         AutomationProperties.SetName(InspectorCloseButton, Texts.T("action.hideDetails"));
         AutomationProperties.SetName(WorkspaceMenuItem, Texts.T("nav.settings"));

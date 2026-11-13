@@ -91,6 +91,7 @@ internal static partial class SmokeScenarios
         Mode("plugins", NormalPass),
         Nested("plugin-reselection", "MEOWCHAN_PLUGIN_RESELECTION_ONLY", "--plugins"),
         Nested("plugin-change-review", "MEOWCHAN_PLUGIN_CHANGE_REVIEW_ONLY", "--plugins"),
+        Nested("plugin-page-captures", "MEOWCHAN_PLUGIN_PAGE_CAPTURES_ONLY", "--plugins"),
         Mode("archive-cleanup", "archive cleanup: private preview, explicit confirmation, real deletion, durable invariants and controlled failures"),
         Mode("shell-load", "shell load: bounded offline gallery/load fixture, separate process watchdog, correlated UI/commit/resource measurements"),
         Root("startup-first-frame", "MEOWCHAN_STARTUP_FIRST_FRAME_ONLY", "startup first frame: isolated timing separations and post-startup managed navigation probes; no latency SLO or physical-presentation claim")
@@ -101,6 +102,7 @@ internal static partial class SmokeScenarios
         Root("filename-search-large-reader", "MEOWCHAN_FILENAME_SEARCH_LARGE_READER_ONLY", "filename large reader: seven synthetic native host journeys, complete-reader/off-page results, selection and lifetime joins; managed input only"),
         Root("local-search-language", "MEOWCHAN_LOCAL_SEARCH_LANGUAGE_ONLY", "local search language: EN/DE/ES/FR/RU retained drafts/results, actual native controls and 360-DIP action glyph layout; no OS typing, current-byte or cross-platform acceptance"),
         Root("media-page", "MEOWCHAN_MEDIA_PAGE_ONLY", "media page: real host, catalog, bound manifests, verified thumbnails and navigation; managed input only"),
+        Root("media-slot", "MEOWCHAN_MEDIA_SLOT_ONLY", "media slot: reader attachment, archive tile and media-page tile over generated portrait, landscape and video-poster bitmaps in Light and Dark; the visible frame, play button, star, badges and focus frame sit on the drawn image, not on the reserved slot; synthetic bitmaps, managed input only, no Windows/macOS acceptance"),
         Root("media-menu-surfaces", "MEOWCHAN_MEDIA_MENU_SURFACES_ONLY", "media menu surfaces: one real main window and archive; media page, archive table/tiles/inline attachment and gallery open the shared media menu on the right-clicked occurrence, via Menu key and Shift+F10, with identical order, labels and reasons and refusal after rebuild, thread change and navigation; managed input only, no Windows native-video overlay"),
         Root("motion", "MEOWCHAN_MOTION_ONLY", "motion: policy (environment > setting > OS signal) switching motion-off on an open window; hover, overlay, toast and image-fade styles present only with motion on; frame interval of a page fade and overlay reveal measured under software rendering; no GPU or OS-setting claim"),
         Root("gallery-toolbar", "MEOWCHAN_GALLERY_TOOLBAR_ONLY", "gallery toolbar: real main-window gallery at 760x500 and 1440x920 in Light and Dark, English and German; primary controls kept, rare commands in the overflow menu, post panel as an overlay below 900 dip keeping a minimum image area; managed input only"),

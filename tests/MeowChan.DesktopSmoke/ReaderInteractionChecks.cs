@@ -764,6 +764,14 @@ internal static class ReaderInteractionChecks
         Click(page.FindControl<Button>("ArchiveHistoryBack")!);
         await FlushAsync();
         (string Id, double Top) after = Top(posts);
+        // Restoring is a settling loop (up to eight layout passes while the virtualizer revises its estimates; the tail
+        // clearance under the cross adds passes near the end of a page): wait for it instead of racing one flush.
+        for (int wait = 0; wait < 100 && !(before.Id == after.Id && Math.Abs(before.Top - after.Top) < 2); wait++)
+        {
+            await Task.Delay(50);
+            await FlushAsync();
+            after = Top(posts);
+        }
         Require(before.Id == after.Id && Math.Abs(before.Top - after.Top) < 2 && (posts.SelectedItem as ArchivePostRow)?.Id == "1048",
             "Cross-page quote back did not restore the exact visible/selected post and offset.");
         await page.FocusPostAsync("1000");

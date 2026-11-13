@@ -626,10 +626,13 @@
                                 </Grid>
                             </TabItem>
                         </TabControl>
-                        <WrapPanel x:Name="ReaderNavigation" IsVisible="False" HorizontalAlignment="Right"
+                        <WrapPanel x:Name="ReaderNavigation" Classes="reader-cross" IsVisible="False" HorizontalAlignment="Right"
                                    VerticalAlignment="Bottom" Margin="0,0,24,56" ZIndex="1">
-                            <Border Classes="raised" Padding="4" CornerRadius="{StaticResource Workspace.Radius.Group}">
-                                <Grid RowDefinitions="32,32,32" ColumnDefinitions="32,32,32" RowSpacing="2" ColumnSpacing="2">
+                            <!-- The cross is an overlay above the content: the raised backdrop is only painted (not hit-tested), and the
+                                 button grid has no background, so a click anywhere but on one of the four buttons reaches the content below. -->
+                            <Grid>
+                                <Border Classes="raised" CornerRadius="{StaticResource Workspace.Radius.Group}" IsHitTestVisible="False" />
+                                <Grid Margin="4" RowDefinitions="32,32,32" ColumnDefinitions="32,32,32" RowSpacing="2" ColumnSpacing="2">
                                     <Grid.Styles>
                                         <Style Selector="Button">
                                             <Setter Property="Width" Value="32" /><Setter Property="Height" Value="32" />
@@ -641,7 +644,7 @@
                                     <Button x:Name="ReaderPreviousThread" Grid.Row="1" Tag="reader.previousThread" Classes="localized" Click="OnReaderNavigationClick" />
                                     <Button x:Name="ReaderNextThread" Grid.Row="1" Grid.Column="2" Tag="reader.nextThread" Classes="localized" Click="OnReaderNavigationClick" />
                                 </Grid>
-                            </Border>
+                            </Grid>
                         </WrapPanel>
                     </Grid>
                 </Border>

@@ -44,7 +44,7 @@ internal static class GalleryIntegrityChecks
             foreach (ThemeVariant theme in new[] { ThemeVariant.Dark, ThemeVariant.Light })
             {
                 Texts.SetLanguage(language); Application.Current.RequestedThemeVariant = theme;
-                await window.OpenMediaGalleryAsync([selected], selected.EntryKey);
+                await window.OpenMediaGalleryLaidOutAsync([selected], selected.EntryKey);
                 ContentControl host = window.FindControl<ContentControl>("GalleryHost")!;
                 await Program.WaitUntilAsync(() => host.Content is GalleryViewer current && Find<Image>(current, "GalleryImage").Source is Bitmap
                     && window.ActualThemeVariant == theme);

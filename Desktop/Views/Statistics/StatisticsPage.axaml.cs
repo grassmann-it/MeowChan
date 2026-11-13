@@ -16,7 +16,7 @@ using MeowChan.Desktop.Stats;
 namespace MeowChan;
 
 /// <summary>
-/// The statistics page: the current rates, one history graph for network and disk, and a table per source. It only shows
+/// The statistics page: the current rates, one history graph each for network, disk writing and disk reading, and a table per source. It only shows
 /// what the window hands it through <see cref="Apply"/>; it owns no sampling timer and holds no claim on the hub, so a page nobody
 /// looks at costs nothing.
 /// </summary>
@@ -26,7 +26,7 @@ public partial class StatisticsPage : UserControl
     private IoStatsHub? _hub;
     private Func<string, string?>? _sourceName;
     private IoStatsSnapshot? _last;
-    private string? _graphName;
+    private string? _netGraphName, _writeGraphName, _readGraphName;
     private bool _resetting;
     private bool _ended;
     private IDisposable? _statusHide;
@@ -67,7 +67,9 @@ public partial class StatisticsPage : UserControl
     internal DataGrid RowsGrid => StatisticsGrid;
     internal Border LoadNotice => LoadNoticePanel;
     internal Border PersistError => PersistErrorPanel;
-    internal MeowChan.Desktop.Controls.IoGraph Graph => StatisticsGraph;
+    internal MeowChan.Desktop.Controls.IoGraph Graph => NetGraph;
+    internal MeowChan.Desktop.Controls.IoGraph WriteGraph => DiskWriteGraph;
+    internal MeowChan.Desktop.Controls.IoGraph ReadGraph => DiskReadGraph;
 
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
@@ -88,8 +90,10 @@ public partial class StatisticsPage : UserControl
         DiskWriteCaption.Text = Texts.T("stats.metric.diskWrite");
         DiskReadCaption.Text = Texts.T("stats.metric.diskRead");
         RequestsCaption.Text = Texts.T("stats.metric.requests");
-        LegendNet.Text = Texts.T("stats.legend.net");
-        LegendDisk.Text = Texts.T("stats.legend.disk");
+        HistoryNote.Text = Texts.T("stats.history.note");
+        NetTitle.Text = Texts.T("stats.metric.net");
+        DiskWriteTitle.Text = Texts.T("stats.metric.diskWrite");
+        DiskReadTitle.Text = Texts.T("stats.metric.diskRead");
         SourcesTitle.Text = Texts.T("nav.sources");
         SourcesEmpty.Text = Texts.T("stats.sources.empty");
         StatisticsFootnote.Text = Texts.T("stats.footnote");
@@ -139,31 +143,42 @@ public partial class StatisticsPage : UserControl
         DiskReadValue.Text = ByteUnits.Rate(snapshot.Rate.DiskRead);
         RequestsValue.Text = Texts.T("stats.requestsRate", IoStatsDisplay.RequestRate(snapshot.Rate.Requests));
 
-        StatisticsGraph.SetSeries(snapshot.Series);
+        ActivityText.Text = Texts.T("stats.activity", snapshot.Activity.Active, snapshot.Activity.Pending + snapshot.Activity.WaitingAdmission);
         int interval = _hub?.Options.SampleIntervalMs ?? Config.StatsSampleIntervalMsDefault;
-        string seconds = IoStatsDisplay.HistorySecondsText(StatisticsGraph.WindowIntervals, interval);
-        bool hasTraffic = StatisticsGraph.HasTraffic;
-        string peak = ByteUnits.Rate(StatisticsGraph.TrafficPeak);
+        int seconds = IoStatsDisplay.HistorySeconds(snapshot.Series.Capacity, interval);
         HistoryTitle.Text = Texts.T("stats.history", seconds);
         HistoryStart.Text = "−" + seconds + " s";
+        HistoryEnd.Text = Texts.T("stats.now");
+        ApplyGraph(NetGraph, NetScale, "stats.metric.net", snapshot.Series, seconds, ref _netGraphName);
+        ApplyGraph(DiskWriteGraph, DiskWriteScale, "stats.metric.diskWrite", snapshot.Series, seconds, ref _writeGraphName);
+        ApplyGraph(DiskReadGraph, DiskReadScale, "stats.metric.diskRead", snapshot.Series, seconds, ref _readGraphName);
+        bool hasTraffic = NetGraph.HasTraffic;
+        string peak = ByteUnits.Rate(NetGraph.TrafficPeak);
         PeakText.Text = Texts.T("stats.peak", peak);
         PeakText.IsVisible = hasTraffic;
         ScaleTop.IsVisible = hasTraffic;
         ScaleHalf.IsVisible = hasTraffic;
-        ScaleTop.Text = ByteUnits.Rate(StatisticsGraph.Peak);
-        ScaleHalf.Text = ByteUnits.Rate(StatisticsGraph.Peak / 2);
+        ScaleTop.Text = ByteUnits.Rate(NetGraph.Peak);
+        ScaleHalf.Text = ByteUnits.Rate(NetGraph.Peak / 2);
         HistoryEmpty.IsVisible = !hasTraffic;
-        string graphName = hasTraffic ? Texts.T("stats.graph.page.name", seconds, peak) : Texts.T("stats.sources.empty");
-        if (!string.Equals(graphName, _graphName, StringComparison.Ordinal))
-        {
-            _graphName = graphName;
-            AutomationProperties.SetName(StatisticsGraph, graphName);
-        }
 
         ApplyRows(IoStatsRows.Build(snapshot, _sourceName));
         SourcesEmpty.IsVisible = snapshot.Sources.Count == 0;
         ShowNotice(LoadNoticePanel, LoadNoticeText, _hub?.LoadNotice is { Length: > 0 } notice ? Texts.T("stats.notice", notice) : null);
         ShowNotice(PersistErrorPanel, PersistErrorText, _hub?.LastPersistError is { Length: > 0 } error ? Texts.T("stats.persistError", error) : null);
+    }
+
+    // Each source has its own axis; the scale label and accessible name only change when the source scale changes.
+    private static void ApplyGraph(MeowChan.Desktop.Controls.IoGraph graph, TextBlock scaleText, string metricKey, IoSeries series, int seconds, ref string? name)
+    {
+        graph.SetSeries(series);
+        string scale = ByteUnits.Rate(graph.Peak);
+        string text = Texts.T("stats.scale", scale);
+        if (!string.Equals(scaleText.Text, text, StringComparison.Ordinal)) scaleText.Text = text;
+        string graphName = Texts.T("stats.graph.page.name", Texts.T(metricKey), seconds, scale);
+        if (string.Equals(graphName, name, StringComparison.Ordinal)) return;
+        name = graphName;
+        AutomationProperties.SetName(graph, graphName);
     }
 
     private static void ShowNotice(Border panel, TextBlock text, string? message)

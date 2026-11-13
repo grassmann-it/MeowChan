@@ -59,9 +59,13 @@
                     <!-- The fill is the accent blue again (same value as Workspace.Accent): 4.98:1 on the track, 4.98 to 7.55:1 on the surfaces. -->
                     <SolidColorBrush x:Key="Workspace.Progress">#6AA7FF</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ProgressTrack">#30363E</SolidColorBrush>
-                    <!-- Disk row of the network/disk graph: opaque, drawn dashed, so it differs from the network row by form as well as
-                         colour. 9.8:1 on Panel (header) and 10.8:1 on Background; the page graph sits on Card. -->
+                    <!-- Rows of the header and page graphs, each opaque with its own area colour, drawn as separate rows (own scale, own
+                         value label), so no row is told apart by colour alone. Disk write (what MeowChan archives) is teal, disk read
+                         violet; strokes are at least 3:1 on Panel, Background and Card (the tests measure it). -->
                     <SolidColorBrush x:Key="Workspace.Stats.Disk">#7FD6C2</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Stats.DiskSurface">#1F4540</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Stats.Read">#C3A6FF</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Stats.ReadSurface">#3A2D5C</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPrimaryForeground">#EEF1F4</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPointeroverBackground">#30363E</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPressedBackground">#25344A</SolidColorBrush>
@@ -164,6 +168,9 @@
                          luminance of at most 0.19 and at least 0.199. -->
                     <SolidColorBrush x:Key="Workspace.ProgressTrack">#857D74</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Stats.Disk">#1F6B5C</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Stats.DiskSurface">#C5DDD5</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Stats.Read">#5B3E96</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Stats.ReadSurface">#D9CFEC</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPrimaryForeground">#1A1A1A</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPointeroverBackground">#D2CABE</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPressedBackground">#E7D4BE</SolidColorBrush>
@@ -320,6 +327,9 @@
         <Thickness x:Key="Workspace.Inset.ChipCompact">6,1</Thickness>
         <Thickness x:Key="Workspace.Inset.Card">12,10,12,12</Thickness>
         <Thickness x:Key="Workspace.Inset.Overlay">12</Thickness>
+        <!-- List cards (Sources list, Plugins list): inner spacing and the start-edge selection bar (LW-06). -->
+        <Thickness x:Key="Workspace.Inset.ListCard">14</Thickness>
+        <Thickness x:Key="Workspace.ListCard.SelectionBar">3,0,0,0</Thickness>
         <!-- Native keyboard-only focus decoration; it overlays rather than moves
              content, and remains separate from selected/error border state.
              D4 (E7): two shells. The outer 2-px ring is the accent; the inner 1-px ring is the window background, so the
@@ -432,6 +442,11 @@
     <Style Selector="TextBox">
         <Setter Property="SelectionBrush" Value="{DynamicResource Workspace.Accent}" />
         <Setter Property="SelectionForegroundBrush" Value="{DynamicResource Workspace.OnAccent}" />
+    </Style>
+    <!-- A checkbox in a horizontal control row (filter rows: Diagnostics, Reader status line, toolbars) sits on the row's
+         centre line with the 32 dip inputs and buttons beside it, not at the top of the line. Vertical lists are unaffected. -->
+    <Style Selector="WrapPanel[Orientation=Horizontal] > CheckBox, StackPanel[Orientation=Horizontal] > CheckBox">
+        <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
     <Style Selector="ComboBox.footer-mode"><Setter Property="MinHeight" Value="28" /><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /></Style>
     <Style Selector="DataGrid">
@@ -714,7 +729,7 @@
 
     <!-- Sources list: the selected card carries a bar at its start edge (as DataGrid and selection-bar lists do), not a text marker. -->
     <Style Selector="Button.source-card">
-        <Setter Property="BorderThickness" Value="3,0,0,0" /><Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="{StaticResource Workspace.ListCard.SelectionBar}" /><Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style Selector="Button.source-card.selected, Button.source-card.selected:pointerover">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
@@ -723,6 +738,45 @@
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
     </Style>
+
+    <!-- Plugins list: the Ursa selection list drawn as the Sources list cards. The sliding indicator is off; each item is a raised
+         card with the same start-edge bar and accent surface when selected. Selection, keyboard and automation stay Ursa's. -->
+    <Style Selector="ursa|SelectionList.workspace-card-list /template/ ContentPresenter#PART_Indicator"><Setter Property="IsVisible" Value="False" /></Style>
+    <Style Selector="ursa|SelectionListItem.workspace-list-card">
+        <Setter Property="Padding" Value="{StaticResource Workspace.Inset.ListCard}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
+    </Style>
+    <Style Selector="ursa|SelectionListItem.workspace-list-card /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="{StaticResource Workspace.ListCard.SelectionBar}" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
+    </Style>
+    <Style Selector="ursa|SelectionListItem.workspace-list-card:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ButtonDefaultPointeroverBackground}" />
+    </Style>
+    <!-- Ursa makes the selected item bold and light-on-accent; a selected card keeps its text as it is, as on the Sources list. -->
+    <Style Selector="ursa|SelectionListItem.workspace-list-card:selected, ursa|SelectionListItem.workspace-list-card:selected:pointerover">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /><Setter Property="FontWeight" Value="Normal" />
+    </Style>
+    <Style Selector="ursa|SelectionListItem.workspace-list-card:selected /template/ ContentPresenter#PART_ContentPresenter, ursa|SelectionListItem.workspace-list-card:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /><Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+    </Style>
+
+    <!-- The closing part of a card (Plugins: the draft status with Save and Discard): a rule above it instead of a card in the card. -->
+    <Style Selector="Border.workspace-card-footer">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /><Setter Property="BorderThickness" Value="0,1,0,0" />
+        <Setter Property="Padding" Value="0,12,0,0" />
+    </Style>
+    <!-- A square "⋯" menu button (Plugins list and detail): only the icon, centred. -->
+    <Style Selector="Button.plugin-overflow">
+        <Setter Property="Padding" Value="0" /><Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <!-- A badge that states a plain fact (plugin type, file version, plugin id): the chip outline on a raised surface, no accent. -->
+    <Style Selector="Border.chip-badge.chip-neutral"><Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /></Style>
 
     <Style Selector="controls|ChipOutline.chip-source">
         <Setter Property="Background" Value="Transparent" />
@@ -941,6 +995,10 @@
                 <BrushTransition Property="BorderBrush" Duration="0:0:0.08" />
             </Transitions>
         </Setter>
+    </Style>
+    <!-- The reader arrow cross fades in and out with the pointer's idle state (Fade 120 ms); under reduced motion it switches at once. -->
+    <Style Selector=":is(TopLevel):not(.motion-off) WrapPanel.reader-cross">
+        <Setter Property="Transitions"><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.12" /></Transitions></Setter>
     </Style>
     <!-- A filter chip appears with a short fade (the tag bar's own chips are rebuilt often and tile chips are recycled: no fade there). -->
     <Style Selector=":is(TopLevel):not(.motion-off) ursa|ClosableTag.chip.chip-filter">

@@ -148,10 +148,10 @@ public sealed class TrayStatsPresenterTests : IDisposable
 
         h.Source.Add("4chan", net: 10 * MiB, diskWritten: 5 * MiB);
         h.Clock.Advance(TimeSpan.FromSeconds(5));
-        Assert.Equal("MeowChan · ↓ 2.0 MiB/s · Disk 1.0 MiB/s · 3 downloads active", h.Tooltip);
+        Assert.Equal("MeowChan · ↓ 2.0 MiB/s · Disk written 1.0 MiB/s · 3 downloads active", h.Tooltip);
         h.Source.Add("4chan", net: 25 * MiB, diskWritten: 25 * MiB);
         h.Clock.Advance(TimeSpan.FromSeconds(5));
-        Assert.Equal("MeowChan · ↓ 5.0 MiB/s · Disk 5.0 MiB/s · 3 downloads active", h.Tooltip);
+        Assert.Equal("MeowChan · ↓ 5.0 MiB/s · Disk written 5.0 MiB/s · 3 downloads active", h.Tooltip);
 
         // The window comes back: the claim ends, the slow timer goes, and samples no longer reach the tooltip.
         h.Shown = true;
@@ -242,11 +242,11 @@ public sealed class TrayStatsPresenterTests : IDisposable
         // The tooltip moved on with the sample; the menu lines stay as they were until the menu opens.
         Assert.Equal("Idle", h.Presenter.RatesItem.Header);
         h.OpenMenu();
-        Assert.Equal("↓ 2.0 MiB/s · Disk 1.0 MiB/s", h.Presenter.RatesItem.Header);
+        Assert.Equal("↓ 2.0 MiB/s · Disk written 1.0 MiB/s", h.Presenter.RatesItem.Header);
         Assert.Equal("3 downloads active · 4 waiting · Today ↓ 10.0 MiB", h.Presenter.DetailItem.Header);
         Texts.SetLanguage("de");
         h.OpenMenu();
-        Assert.Equal("↓ 2,0 MiB/s · Platte 1,0 MiB/s", h.Presenter.RatesItem.Header);
+        Assert.Equal("↓ 2,0 MiB/s · Platte geschrieben 1,0 MiB/s", h.Presenter.RatesItem.Header);
         Assert.Equal("3 Downloads aktiv · 4 wartend · Heute ↓ 10,0 MiB", h.Presenter.DetailItem.Header);
     }
 

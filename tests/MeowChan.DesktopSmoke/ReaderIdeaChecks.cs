@@ -294,8 +294,14 @@ internal static class ReaderIdeaChecks
         await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
         Require(!outline.IsVisible, "Scrolling did not remove the outline.");
         page.CloseQuotePreview();
-        scroll.Offset = new Vector(0, scroll.Extent.Height);
-        await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
+        // The end of the list carries the clearance under the arrow cross: the virtualizer needs a few layout passes to
+        // realize the last post at the bottom, so repeat the jump until it is there.
+        for (int pass = 0; pass < 10; pass++)
+        {
+            scroll.Offset = new Vector(0, scroll.Extent.Height);
+            await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
+            if (fixture.List.GetVisualDescendants().OfType<ListBoxItem>().Any(item => item.DataContext is ArchivePostRow row && row.Id == rows[^1].Id)) break;
+        }
         page.RequestQuotePreview(toOpening, Body(fixture, rows[^1].Id), new Rect(0, 0, 40, 18), immediate: false);
         Require(!outline.IsVisible, "A target scrolled out of view was outlined.");
         page.CloseQuotePreview();

@@ -40,6 +40,10 @@ public partial class PluginsPage
         var list = C<SelectionList>("PluginCards");
         list.AddHandler(PointerPressedEvent, OnPluginActionPointerPressed, RoutingStrategies.Tunnel);
         list.AddHandler(ContextRequestedEvent, OnPluginActionContextRequested, RoutingStrategies.Tunnel);
+        // Both menu buttons are the "⋯" overflow of the shell header: the catalog's more-horizontal icon, the label
+        // "Actions" as tooltip and (with the plugin's name) as accessible name. The menus and their commands are unchanged.
+        foreach (string name in new[] { "PluginMoreActions", "PluginListActions" })
+            CommandBindings.Apply(C<Button>(name), "plugins.actions", iconOnly: true);
     }
 
     private PluginCatalogEntry? PluginActionEntry(PluginActionTarget target) =>
@@ -106,7 +110,6 @@ public partial class PluginsPage
         foreach (string name in new[] { "PluginMoreActions", "PluginListActions" })
         {
             if (this.FindControl<Button>(name) is not { } button) continue;
-            button.Content = Texts.T("plugins.actions");
             AutomationProperties.SetName(button, target == null ? Texts.T("plugins.actions") : Texts.T("plugins.actionsFor", Selected!.Name));
             CommandBindings.BindExisting(button, "plugins.actions");
             button.IsEnabled = target != null && !IsDiscardConfirmationOpen && !_ended;
