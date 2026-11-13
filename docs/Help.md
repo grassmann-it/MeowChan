@@ -206,22 +206,26 @@ not a hidden filter on ordinary Danbooru searches. A post link refers to the
 same post regardless of the alias or attached search context.
 
 A card's **Open post in browser** and **Copy link** actions use its canonical
-provider post page. These deliberate browser actions leave the local app and
-can access the provider. Preview and sample variants never silently replace a
-missing, restricted or withdrawn original. The displayed reason explains why
-**Load original** is unavailable. Provider size/hash verification still applies.
-Already queued or saved posts are not admitted as a second active download;
-additional search, one-shot and watcher findings retain their provenance.
+provider post page. A watcher card offers the same two actions for the newest
+post that watcher has seen. These deliberate browser actions leave the local app
+and can access the provider. A post loaded from a search records that search as
+where it was found; a post loaded by link or number records no search provenance.
+Preview and sample variants never silently replace a missing, restricted or
+withdrawn original. The displayed reason explains why **Load original** is
+unavailable. Provider size/hash verification still applies. Already queued or
+saved posts are not admitted as a second active download; additional search,
+one-shot and watcher findings retain their provenance.
 
 #### Saved watchers
 
 - **Create.** Saves the explicit query. The first successful check establishes a
   baseline **from now**; it does not download the historical result list.
   Automatic checks normally run once an hour while the app and source are ready.
-- **Check now.** Requests one bounded check independent of that interval. A
-  paused watcher stays paused afterwards and schedules no automatic follow-up.
-  This is one check, not a promise of exactly one HTTP request: paging and bounded
-  retries still apply. Removed watchers and provider cooldowns do not send.
+- **Check now.** Requests one bounded check independent of that interval. On a
+  paused watcher it sends exactly one request, leaves the watcher paused and
+  schedules nothing further. On an active watcher, paging and bounded retries can
+  require more than one request. Removed watchers and provider cooldowns send
+  nothing.
 - **Pause and Resume.** Pause stops automatic checks for this watcher; originals
   already admitted follow the ordinary queue rules. Resume enables the schedule
   again without bypassing a cooldown. Global session Pause also gates requests.
@@ -231,8 +235,9 @@ additional search, one-shot and watcher findings retain their provenance.
 - **Remove.** Ends that watcher, but keeps downloaded media, provider metadata,
   findings and your own tags. Creating a watcher later creates a new observation.
 
-Automatic checks that queue new originals can show an information notification
-with the watcher name and admitted count. This follows the information-popup
+When an automatic check finishes after adding originals to the download queue,
+MeowChan shows one information notification titled **Danbooru watcher**. It names
+the watcher and the number of originals added. This follows the information-popup
 setting; it is not a notification for every provider hit.
 
 #### Waiting, local data and offline use
@@ -246,11 +251,13 @@ including retries, a 120-second lifetime and a 15-second deadline per response.
 Metadata response limits are 2 MiB on the wire and 4 MiB decoded. These are fixed
 transport safeguards, not a promise that a search always returns 100 posts.
 
-The local Danbooru catalog has a configurable write limit of 32 MiB by default,
-8–128 MiB under **Storage and limits**, with a warning at 75 %. Lowering it does
-not delete data or prevent reading an otherwise valid existing catalog. Growth
-can be refused until you raise the setting. Storage failures are distinct from
-provider cooldowns and must not be dismissed by deleting the catalog.
+The local Danbooru catalog of posts, findings and watchers has a configurable
+write limit under Settings → **Storage and limits**. It defaults to 32 MiB and
+can be set from 8 to 128 MiB. From 75 %, the watcher area of the Danbooru window
+warns and names the setting. Lowering it does not delete data or prevent reading
+an otherwise valid existing catalog; growth can be refused until you raise the
+setting. Storage failures are distinct from provider cooldowns and must not be
+dismissed by deleting the catalog.
 
 After a successful original download, use **Media**, the gallery and favorites
 offline. Provider, post ID/link, score, rating, source tags/categories and findings
@@ -485,6 +492,9 @@ of the limit; do not delete their files to get past an error.
 | Ask before “Export all matches” above (GiB) | 2 | 1 to 1024 |
 | Video preview cache size (MiB) | 512 | 16 to 8192 |
 | Video preview cache: files | 2048 | 32 to 50000 |
+| Gallery image cache (MiB) | 256 | 0 to 4096 |
+| Gallery images decoded ahead | 3 | 0 to 20 |
+| Gallery images decoded behind | 2 | 0 to 20 |
 | Sound check cache: size (MiB) | 64 | 16 to 128 |
 | Sound check cache: videos | 400000 | 50000 to 1000000 |
 | Media previews kept in memory | 384 | 32 to 8192 |
@@ -670,16 +680,29 @@ The reader reserves space for previews so loading images do not keep shifting po
 retains the current reading position. If a preview cannot finish loading, it reports “The preview could not be loaded.”
 instead of remaining at Loading.
 
+Use **View** in the reader toolbar to switch on **Hide media** or **Only posts with media** for this session. The
+switches apply to every thread in the reader. A deliberate jump to a hidden post (for example through a quote, find,
+bookmark or reading position) shows it temporarily; **Hide again** hides it once more. **Show as conversation** places
+replies beneath the earlier post they quote, with indentation; the opening post stays first and the separate reply
+counter is omitted in this mode. The conversation switch is session-only; its depth limit is not a visible 1.1 setting.
+
 The app header and window controls remain available above the large reader
 and gallery.
 The gallery uses the window's remaining work area. Left/Right or its navigation buttons
 move between media. Use Fit, 1:1, +/− or wheel/touchpad gestures to zoom.
 Fractional touchpad deltas produce finer zoom changes. Zooming out stops at Fit;
 the image is then centered and pan resets. Drag a zoomed image to pan. Double-click the image to switch Fit/1:1. Escape closes the gallery.
+The gallery keeps decoded images in memory and prepares the next three and previous two images in the background, so
+moving either direction can show them immediately. The cache is 256 MiB by default; set it to 0 to keep nothing.
+**Gallery image cache**, **Gallery images decoded ahead** and **Gallery images decoded behind** are under Settings →
+**Storage and limits**; their allowed ranges are 0–4096 MiB, 0–20 and 0–20.
 Use the gallery's optional **media focus** view to fold away tools and details
 and give the current medium more room. Navigation remains available; restore the
 controls when you want to use the gallery tools or read the saved-post context.
-This changes the gallery layout independently of F11 window fullscreen.
+This changes the gallery layout independently of F11 window fullscreen. The gallery toolbar keeps Close,
+Previous, position, Next, Fit, 1:1, the post panel, Favorite and Tools visible. Use **⋯ (More gallery actions)**
+for zoom, rating, tags, original export, slideshow settings, overlays, fullscreen and shortcut help; their shortcuts
+still work directly. In a narrow window the toolbar uses icons and the post panel floats over the image.
 
 **Unreleased source-build controls:** Settings → Reading & media → **Gallery &
 playback** offers **Manual**, **Repeat current video**, and **Slideshow**. The same
@@ -775,8 +798,10 @@ number (**No. …**) copies `>>number` for quoting. Thumbnails lie flat under a 
 line with name and size.
 
 In the post text, lines starting with `>` are green. Clicking `>>number` jumps to
-that post, and the target flashes once. Quotes of posts that were not captured are
-struck through. Spoilers stay hidden until you click them or press Enter or Space;
+that post, and the target flashes once. A quote of the opening post is followed by
+“(OP)”; a quote into another thread is followed by “(other thread)”. Pointing at a
+quote outlines its target when that post is visible on the current page. Quotes of
+posts that were not captured are struck through. Spoilers stay hidden until you click them or press Enter or Space;
 that reveals every spoiler of that post, and they stay revealed. Code is shown in a
 monospace font, external links are underlined. The portable HTML export remains a
 separate offline rendering of saved posts.
@@ -806,7 +831,12 @@ The **Replies: …** counter in the header opens the replies as indented cards, 
 at a time; **Show more replies** loads five more. Clicking the counter again closes
 them, and reopening reuses what was already loaded. A post without replies shows no
 counter. Replies always come from the saved posts; the source is never queried for
-them.
+them. The integrated 1.1 reader currently uses these display defaults; the settings page for changing the reader
+limits and modes is not wired in yet.
+
+**View → Post filters…** can match post text, subject, file name or MD5 and then hide, replace with a placeholder or
+highlight matching posts. You can also hide one post from its post menu, optionally with its replies, and show it again.
+These filters never delete posts, and HTML export always includes every saved post.
 
 When you return to a thread through **Continue reading** or load new posts with
 **Show new posts**, a thin line with **… new posts since last time** marks the
@@ -1158,7 +1188,14 @@ an otherwise successful export. Exports are not a full profile backup.
 Exported pages have a **Theme** switch (**System**, **Light**, **Dark**) in their
 header. It works without scripts and returns to System after a reload. **About**
 shows source/thread details, counts, timestamps, the exporting MeowChan version
-and credits. These HTML controls are independent of the desktop theme.
+and credits. Its credit panel contains the Simba-and-Mila logo pair and the photo
+credit; this is separate from any single-cat artwork in the desktop header. These
+HTML controls are independent of the desktop theme.
+
+The export frame follows the app language and is translated for English, German,
+Spanish, French, Russian, Czech, Italian, Japanese, Korean, Polish, Brazilian
+Portuguese and Simplified Chinese. Unsupported languages use English. Captured
+post text, source names and other saved content are not translated.
 
 ### Combined export of selected threads
 
@@ -1225,12 +1262,13 @@ and inspect the reported recovery error.
 ### Own-tag v1 backup and 1.1.0 local data
 
 On the first write that actually upgrades an existing own-tag v1 document to v2
-by committing local-media data, MeowChan keeps its exact previous bytes as
-`private-tags.v1.bak` in the profile. Merely reading v1 does not rewrite it.
-The one-time file is not rotated by later writes, unlike the ordinary `.bak`;
-an existing entry at that path is never overwritten. A profile already created
-as v2 cannot manufacture an old v1 copy. This is **not a full-profile backup**
-and does not make downgrading a modified profile supported.
+by committing local-media data, MeowChan keeps its exact previous bytes permanently
+as `private-tags.v1.bak` in the profile. Merely reading v1 does not rewrite it.
+The ordinary `private-tags.json.bak` is replaced by later tag changes; the v1 file
+is never rotated, overwritten or deleted. A profile already created as v2 cannot
+manufacture an old v1 copy. Keep `private-tags.v1.bak` with your profile backups.
+This is **not a full-profile backup** and does not make downgrading a modified
+profile supported.
 
 Before trying 1.1.0, retain a complete separate 1.0.2 profile/media backup. Preserve
 the Booru catalog, private tags, import catalog and imported media with the rest
@@ -1260,7 +1298,7 @@ plugin replacement is not currently implemented.
 ### Changed bundled-plugin capabilities or settings
 
 If an update changes a bundled plugin's capabilities or settings (for example
-Danbooru), open **Plugins → Review bundled updates**. Complete the review in
+Danbooru), open **Plugins → Review bundled repairs**. Complete the review in
 that same dialog; do not delete the profile or try **NEW selection** for an
 already identified update.
 

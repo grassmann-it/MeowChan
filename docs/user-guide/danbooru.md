@@ -32,6 +32,8 @@ und reiht das Original in einem Schritt als One-Shot ein.
   fragt noch nichts beim Provider an. Eine Post-Adresse über **Downloads →
   Hinzufügen** führt dagegen Metadatenabruf und Originalaufnahme als One-Shot in
   einem Schritt aus.
+- Ein aus einer Suche geladener Post speichert diese Suche als Fundstelle. Ein
+  Post, der per Link oder ID geladen wird, hat keine Such-Provenienz.
 - Treffer, die bereits durch eine andere Suchbeobachtung, Suche oder einen
   One-Shot bekannt sind, werden nicht als zweiter aktiver Download eingereiht.
   Zusätzliche Fundstellen bleiben als Provenienz erhalten.
@@ -45,10 +47,11 @@ Adresse keinen Rating-Term enthält. Er kann vor **Suchen** entfernt werden; bei
 gewöhnlichen Danbooru-Suchen wird nichts versteckt ergänzt.
 
 **Post im Browser öffnen** und **Link kopieren** verwenden die kanonische
-Danbooru-Postseite, auch wenn der Treffer über den Alias gefunden wurde. Die
-Aktionen öffnen beziehungsweise kopieren nur den Provider-Link; sie laden nicht
-automatisch das Original. Das bewusste Öffnen im Browser verlässt die lokale App
-und kann den Provider kontaktieren.
+Danbooru-Postseite, auch wenn der Treffer über den Alias gefunden wurde. Eine
+Trefferkarte bietet beide Aktionen; eine Karte der Suchbeobachtung bietet sie für
+den neuesten von ihr gesehenen Post. Die Aktionen öffnen beziehungsweise kopieren
+nur den Provider-Link; sie laden nicht automatisch das Original. Das bewusste
+Öffnen im Browser verlässt die lokale App und kann den Provider kontaktieren.
 
 ## Rating, Quelltags und Provenienz
 
@@ -83,10 +86,11 @@ Prüfung darunter fort. Dadurch werden neue Posts, die währenddessen erscheinen
 nicht einfach durch eine verschobene Seitennummer übersprungen.
 
 **Jetzt prüfen** führt eine einmalige begrenzte Prüfung unabhängig vom Zeitplan
-aus. Eine pausierte Suchbeobachtung bleibt danach pausiert und wird nicht erneut
-automatisch eingeplant. Eine Prüfung ist nicht zwingend eine einzelne HTTP-Anfrage:
-Seitennavigation und begrenzte Wiederholungen zählen weiterhin zum Budget. Eine
-entfernte Suchbeobachtung oder eine Beobachtung im Provider-Cooldown sendet nichts.
+aus. Bei einer pausierten Suchbeobachtung wird genau eine Anfrage gesendet; sie
+bleibt danach pausiert und wird nicht erneut automatisch eingeplant. Bei einer
+aktiven Beobachtung können Seitennavigation und begrenzte Wiederholungen mehrere
+Anfragen benötigen. Eine entfernte Suchbeobachtung oder eine Beobachtung im
+Provider-Cooldown sendet nichts.
 **Pause** beendet automatische Prüfungen; schon eingereihte Originale folgen den
 normalen Warteschlangenregeln. **Fortsetzen** umgeht keinen Cooldown; die globale
 Sitzungspause verhindert ebenfalls neue Prüfungen.
@@ -98,6 +102,11 @@ ein längeres `Retry-After` innerhalb des Jobbudgets wird ebenfalls berücksicht
 Bis zur erlaubten Zeit wird keine weitere Provideranfrage gesendet.
 Ein temporärer Providerfehler löscht keine Suchbeobachtung und pausiert nicht
 still die übrigen lokalen Medien.
+
+Nach einem automatischen Check, der neue Originale in die Downloadwarteschlange
+legt, zeigt MeowChan eine Info-Meldung mit dem Titel **Danbooru-Suchbeobachtung**.
+Sie nennt die Beobachtung und die Zahl der hinzugefügten Originale; bei manuellen
+Treffern erscheint diese Meldung nicht automatisch.
 
 **Entfernen** beendet nur die Beobachtung. Bereits geladene Medien,
 Provider-Metadaten, Quelltags, Fundstellen und private MeowChan-Tags werden nicht
@@ -118,12 +127,13 @@ vorherige Bytes einmalig als `private-tags.v1.bak`; eine vorhandene Sicherung wi
 nicht überschrieben. Das ersetzt kein vollständiges Profilbackup. Siehe die
 [Backup-Hinweise](../Help.md#own-tag-v1-backup-and-110-local-data).
 
-Der lokale Danbooru-Katalog hat standardmäßig eine Schreibgrenze von **32 MiB**.
-Unter **Einstellungen → Speicher und Grenzen** lässt sie sich auf **8 bis 128 MiB**
-setzen. Ab 75 % weist die Oberfläche auf die Auslastung und die Einstellung hin.
-Eine kleinere Grenze löscht keinen vorhandenen Katalog; sie verhindert nur weiteres
-Wachstum, bis wieder Platz unter der Grenze vorhanden ist. Der feste technische
-Lesedeckel bleibt unabhängig von dieser Einstellung bestehen.
+Der lokale Danbooru-Katalog mit Posts, Fundstellen und Suchbeobachtungen hat
+unter **Einstellungen → Speicher und Grenzen** eine Schreibgrenze. Standard sind
+**32 MiB**, erlaubt sind **8 bis 128 MiB**. Ab 75 % warnt der Beobachtungsbereich
+im Danbooru-Fenster und nennt die Einstellung. Eine kleinere Grenze löscht keinen
+vorhandenen Katalog; sie verhindert nur weiteres Wachstum, bis wieder Platz unter
+der Grenze vorhanden ist. Der feste technische Lesedeckel bleibt unabhängig von
+dieser Einstellung bestehen.
 
 Danbooru ist in dieser Ausbaustufe read-only:
 

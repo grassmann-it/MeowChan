@@ -42,6 +42,9 @@ public sealed class HelpDocumentationTests
             { "Ask before “Export all matches” above (GiB)", c.ExportConfirmGiB, Config.ExportConfirmGiBMinimum, Config.ExportConfirmGiBMaximum },
             { "Video preview cache size (MiB)", c.PosterCacheLimitMiB, Config.PosterCacheLimitMiBMinimum, Config.PosterCacheLimitMiBMaximum },
             { "Video preview cache: files", c.PosterCacheFileLimit, Config.PosterCacheFileLimitMinimum, Config.PosterCacheFileLimitMaximum },
+            { "Gallery image cache (MiB)", c.GalleryImageCacheMiB, Config.GalleryImageCacheMiBMinimum, Config.GalleryImageCacheMiBMaximum },
+            { "Gallery images decoded ahead", c.GalleryPreloadAhead, Config.GalleryPreloadAheadMinimum, Config.GalleryPreloadAheadMaximum },
+            { "Gallery images decoded behind", c.GalleryPreloadBehind, Config.GalleryPreloadBehindMinimum, Config.GalleryPreloadBehindMaximum },
             { "Sound check cache: size (MiB)", c.AudioProbeCacheLimitMiB, Config.AudioProbeCacheLimitMiBMinimum, Config.AudioProbeCacheLimitMiBMaximum },
             { "Sound check cache: videos", c.AudioProbeCacheEntries, Config.AudioProbeCacheEntriesMinimum, Config.AudioProbeCacheEntriesMaximum },
             { "Media previews kept in memory", c.ThumbnailCacheTiles, Config.ThumbnailCacheTilesMinimum, Config.ThumbnailCacheTilesMaximum },
@@ -106,6 +109,19 @@ public sealed class HelpDocumentationTests
         Match range = Capture(row[2], @"^(?<minimum>\d+)\s+to\s+(?<maximum>\d+)$");
         Assert.Equal(minimum, Number(range.Groups["minimum"].Value));
         Assert.Equal(maximum, Number(range.Groups["maximum"].Value));
+    }
+
+    [Fact]
+    public void HelpDescribesIntegratedReaderExportAndPluginBoundaries()
+    {
+        string text = Read(Help);
+        Assert.Contains("**Show as conversation**", text);
+        Assert.Contains("**View → Post filters…**", text);
+        Assert.Contains("settings page for changing the reader", text);
+        Assert.Contains("translated for English, German", text);
+        Assert.Contains("Simplified Chinese", text);
+        Assert.Contains("**Plugins → Review bundled repairs**", text);
+        Assert.Contains("not a claim that 1.1.0 packages have passed release acceptance", text);
     }
 
     [Fact]
