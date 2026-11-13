@@ -77,11 +77,16 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
 
     private async Task RunCycleAsync(string consumer, string profile, string result)
     {
-        ProcessStartInfo start = new(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet")
+        string host = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet";
+        // Opt-in OS-level network denial for the three current processes: a private user+network namespace in which
+        // only a downed loopback exists. The consumer's own injected HTTP handler (zero requests) stays in force too.
+        bool isolated = Environment.GetEnvironmentVariable("MEOWCHAN_RELEASED102_NETWORK_NAMESPACE") == "1";
+        ProcessStartInfo start = new(isolated ? "unshare" : host)
         {
             UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
             WorkingDirectory = Path.GetDirectoryName(consumer)!
         };
+        if (isolated) { start.ArgumentList.Add("-Urn"); start.ArgumentList.Add("--"); start.ArgumentList.Add(host); }
         start.ArgumentList.Add(consumer); start.ArgumentList.Add(profile); start.ArgumentList.Add(result);
         start.Environment.Remove("MEOWCHAN_PROFILE"); start.Environment.Remove("OCHAN_PROFILE");
         start.Environment["MEOWCHAN_DISABLE_UPDATE_CHECK"] = "1";

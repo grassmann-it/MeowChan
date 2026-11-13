@@ -1,10 +1,10 @@
 # SYNTHETIC 1.0.2 predecessor generator (AP04; historical AP07 / GP60)
 
 Generator overlay for production source pinned to
-`eec6c0169f8d52f7481ea0bf7febfd20981e97c3`. Root's resume-1011 attempt passed
-offline source export/check and restore/build, but generation failed before the
-first settings write. **No successful generation or upgrade acceptance yet.**
-This ordering fix has not been built, tested or executed by its worker. Current
+`eec6c0169f8d52f7481ea0bf7febfd20981e97c3`. Root's first resume-1011 attempt
+failed before the first settings write; after the ordering fix below, generation
+and one three-process run succeeded, **bound to an older current revision only**
+(see "Recorded attempts"). **No upgrade acceptance exists for the current HEAD.** Current
 working-copy APIs are **not proof of released schema**: compile the overlay only
 against the exact exported release. Never patch old product source or hand-author
 SQL/JSON state to make the fixture succeed. This is synthetic provider input, not
@@ -85,6 +85,9 @@ CURRENT_REVISION=$(git rev-parse HEAD)
 printf '%s\n' "$CURRENT_REVISION" > "$ATTEMPT/current-revision.txt"
 git status --porcelain=v1 > "$ATTEMPT/current-status.txt"
 test ! -s "$ATTEMPT/current-status.txt" # Freeze first; do not clean/reset a dirty tree.
+# Fresh, too: git status hides ignored bin/, obj/, *.dll ...; a reused build is never the candidate.
+git status --porcelain=v1 --ignored=matching --untracked-files=all | grep -v '__pycache__/$' > "$ATTEMPT/current-ignored.txt" || true
+test ! -s "$ATTEMPT/current-ignored.txt"
 # Substitute an existing approved local NuGet feed; do not create/download it here.
 OFFLINE_FEED=/absolute/path/to/approved/offline-nuget-feed
 test -d "$OFFLINE_FEED"
@@ -164,7 +167,112 @@ serial env -u MEOWCHAN_PROFILE -u OCHAN_PROFILE MEOWCHAN_DISABLE_UPDATE_CHECK=1 
     --logger 'trx;LogFileName=ap04.trx' -nodeReuse:false \
   > "$ATTEMPT/current-tests.log" 2>&1
 test -f "$ATTEMPT/current-cycles/current-result.json"
+# The tree must still be clean and at the same commit after both current builds and the test.
+test "$(git rev-parse HEAD)" = "$CURRENT_REVISION"
+git status --porcelain=v1 > "$ATTEMPT/current-status-after.txt"
+# Read-only: documented 1.1.0 upgrade outcomes, bound to the revision stamped in the cycles.
+python3 tests/fixtures/upgrade-v1.0.2/check_migrated.py --profile "$PROFILE" \
+  --results "$ATTEMPT/current-cycles" --expect-revision "$CURRENT_REVISION" \
+  --status "$ATTEMPT/current-status.txt" --status "$ATTEMPT/current-status-after.txt" \
+  > "$ATTEMPT/migrated-check.log" 2>&1
 ```
+
+Only `MIGRATED OK ... revision=expected source=clean` counts for a candidate. Without
+`--expect-revision`/`--status` the line says `revision=unbound`/`source=unverified`,
+which is a diagnosis of old evidence, not acceptance. `SourceRevisionId` is passed by
+hand, so the stamped revision alone does not exclude a dirty build; the status captures
+are the bound (they cover tracked and untracked files, not ignored build outputs).
+
+`check_migrated.py` asserts that all three cycles ran one stamped current revision,
+that `archive.db` carries that revision's archive schema (released 1.0.2: 5) with no
+journal file left behind, that `work-state.sqlite` carries that revision's journal
+marker (1.0.2 has none), that originals/exports are unchanged and that opening created
+no tag or Danbooru file: `private-tags.*` (including `private-tags.v1.bak`),
+`booru-catalog.*` or their dot-prefixed `.tmp` files. Expected markers are read from local
+Git objects of both revisions. Manifest versions, rewritten files, new files and a prune
+backup are only reported (`OBSERVED`). It reads the SQLite header only, never opens a
+database and writes nothing. Helper regressions:
+`python3 -m unittest discover -s tests -p test_released102_migrated_check.py -v`.
+
+### Final run on the frozen candidate: one command (no complete run yet)
+
+`ap04_run.py` performs every step above plus the post-migration checks and writes one
+commit-bound report. It must start in a **clean, fresh detached worktree of exactly the candidate
+commit** and refuses to run otherwise; it also refuses to write `VERDICT=PASS` if, at the end,
+the worktree is dirty, HEAD differs, a sealed build output or the package set changed (builds
+included). Every report line starts with `AP04 candidate=<40-hex> bin=<16> pkg=<16>`: the
+commit, the digest of the built consumer/test output directories and the digest of the Linux
+package manifest whose `source_commit` must equal the candidate.
+
+```sh
+python3 tests/fixtures/upgrade-v1.0.2/ap04_run.py --dry-run --candidate-sha "$SHA" --out "$OUT"   # plan only
+python3 tests/fixtures/upgrade-v1.0.2/ap04_run.py --candidate-sha "$SHA" \
+  --out /home/tomka/.cache/claude-ssd-tmp/ap4/r1 \
+  --linux-package-dir <run>/linux-distribution-candidate-linux-x64/linux-packages \
+  --sha256sums <run>/stable-candidate-"$SHA"/SHA256SUMS
+```
+
+* `VERDICT=PASS` needs the 1.1.0 package set of the `stable-candidate` run for the same commit: the
+  Linux package manifest (`source_commit` = candidate, version 1.1.0, all three assets re-hashed)
+  **and** that run's `SHA256SUMS` listing the same checksums; the two options are only accepted
+  together. `--allow-no-package` merely permits a source-only diagnosis (`pkg=none`): with every step
+  PASS its verdict is `SOURCE-ONLY` (exit 1), never `PASS`.
+* Fresh means more than an empty `git status`, which does not show ignored files: no ignored entry
+  other than `__pycache__/` (`bin/`, `obj/`, `*.dll`, `*.csproj.user`, ...). MSBuild reuses `obj/` and
+  the plugin copy does not prune `bin/`, so a reused tree could be sealed and executed as if it were
+  built from the candidate. Preflight and current-build refuse it; use a new `git worktree add --detach`.
+* Each restore/build/test waits at most `--lock-wait` seconds (default 3600) for `heavy.lock` on top
+  of its own timeout. A lock that is not acquired fails as `heavy.lock not acquired` (flock exit 75,
+  nothing ran), not as a command timeout.
+* Only a fresh profile below `--out` is opened; HOME/TMPDIR/DOTNET_CLI_HOME point below it,
+  `DISPLAY`/`WAYLAND_DISPLAY`/profile variables are dropped, builds are serialized under the
+  shared `heavy.lock` with `-m:1`, the offline feed is the local NuGet cache, nothing is downloaded.
+* Every current process (the three upgrade cycles via the test, the writes and the read-backs) runs
+  in a private user+network namespace (`unshare -Urn`) in addition to the consumer's HTTP handler
+  that records any request (`--no-netns` falls back to the handler only).
+* The consumer (`current/Program.cs`) has modes: `observe` (the xunit test; read-only, now also reports
+  the plugin state), `write-host` (settings and queue options, pause state re-asserted, thread tag:
+  creates `private-tags.json` version 1), `write-local-tag` (**store level**: one real manifest asset
+  is tagged as a loose file, because the synthetic profile has no loose file; this converts to version
+  2 and writes `private-tags.v1.bak`; host revalidation of loose files is therefore not exercised) and
+  `readback` (two more offline restarts). Unpausing is deliberately not done: it starts the watch producers.
+* `check_writes.py` asserts: required plugins (`4chan`, `8kun`, `danbooru`) enabled and active with no
+  problem and an identical plugin state in all seven starts; written settings/queue options persisted
+  while other values survive; `saved_urls.json` unchanged; tag state readable after restart;
+  `private-tags.v1.bak` byte-identical to the copy the runner took while the file was still version 1,
+  unchanged after the read-backs, no temporary file left; no Danbooru file without a Danbooru write.
+  The documented way back (restore the backup as `private-tags.json`) is checked on bytes only.
+* Not covered: the packaged app (the package set is bound by checksum only), a window, a real
+  published-asset start, Windows/macOS. `--release-artifact/--release-sums` only compare the checksum of
+  an owner-supplied 1.0.2 download; the 1.0.2 code that writes the profile is the pinned Git object.
+* Helper regressions (no dotnet): `python3 -m unittest discover -s tests -p test_ap04_run.py -v`.
+
+### Recorded attempts (Root, resume-1011, 12.11.2026)
+
+Evidence under `/home/tomka/mc-evidence/ux103-restpakete-20261111/resume-1011/`:
+
+* Attempt 1 (`ap04-generation.log`, exit 134): pre-save recovery refusal, kept as is.
+* Attempts 2-5 (`ap04-generation{2..5}.log`, `ap04-receipt{2..5}.log`): generation
+  exit 0, `SOURCE OK ... files=1863 overlay=2`, `RECEIPT OK ... files=34`. The overlay
+  and preparer hashes in `released102-src2/UPGRADE-102-SOURCE.json` equal the current
+  `Program.cs`, `UpgradeFixtureGenerator.csproj` and `prepare.py`.
+* Attempts 2-4 failed in the export-language comparison (later fixed in the test).
+* Attempt 5 (`ap04-consumer5.log`, `ap04-consumer-trx5/`, `released102-cycles5/`):
+  13/13 passed, the upgrade fact executed (not skipped), cycles 0/1/2 and
+  `current-result.json` present. Current side stamped `1.0.2+e3569eae`, run from the
+  dirty root checkout with the test change committed afterwards as `d959026b`, so
+  it is not a frozen clean run. `check_migrated.py` on it: `archive=5->12
+  journal=none->1 private-tags=absent booru-catalog=absent`, manifests `v4:unchanged`.
+* Not carried forward: later commits changed archive/tag/journal/Danbooru/host code
+  (Danbooru catalog, private-tag format 2 for loose files, journal pruning). A fresh
+  attempt on the frozen candidate is required.
+* First `ap04_run.py` attempt (13.11.2026, not part of resume-1011):
+  `/home/tomka/.cache/claude-ssd-tmp/ap4/full-20261113-024722`, candidate `6f4dfe91`,
+  `--allow-no-package`. Preflight and `SOURCE OK ... files=1863 overlay=2` passed; then
+  `released-restore` was killed after 1000 s while still waiting for `heavy.lock` (its log
+  holds only the command line, no output and no `EXIT`), everything later was skipped and
+  the verdict was `FAIL`. Nothing was restored, built or opened. The lock wait is now bounded
+  and reported on its own, and a source-only run can no longer end in `PASS`.
 
 The existing test invokes the current consumer once for cycle 0 (upgrade), once
 for cycle 1, and once for cycle 2 (offline restarts), each a separate process with
@@ -234,10 +342,10 @@ The receipt retains those observations; sorting does not remove variability.
 Do not modify release clocks/randomness or fabricate old releases for sameness.
 
 No plugin-selection migration (see upgrade-v1x), collection/URL-text export,
-installers, UI, live HTTP, downgrade or OS matrix proof is supplied. Current
-migration/two-restart proof remains pending execution of the existing consumer
-and assertions above by Root under its serial lease. Do not pass this receipt to
-the incompatible v1x `Release102UpgradeTests`. No new generation/build/test PASS
-is claimed. The user chose **1.1.0** for the next release; this bounded generator
+installers, UI, live HTTP, downgrade or OS matrix proof is supplied. Migration/
+two-restart proof for the current HEAD remains pending execution of the existing
+consumer and assertions above by Root under its serial lease. Do not pass this receipt to
+the incompatible v1x `Release102UpgradeTests`. No PASS for the current HEAD is claimed;
+the recorded attempts above are bound to their own revisions. The user chose **1.1.0** for the next release; this bounded generator
 fix neither bumps versions nor closes remaining implementation/acceptance gates,
 and authorizes no push, upload, tag or release.
