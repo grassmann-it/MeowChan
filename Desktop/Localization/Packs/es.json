@@ -330,7 +330,7 @@
     "admission.repairNoSources": "No hay fuentes disponibles actualmente. Revise Fuentes.",
     "mode.simple": "Simple",
     "mode.advanced": "Avanzado",
-    "mode.barebones": "Barebones",
+    "mode.barebones": "Mínimo",
     "theme.dark": "Oscuro",
     "theme.light": "Claro",
     "density.compact": "Compacta",
