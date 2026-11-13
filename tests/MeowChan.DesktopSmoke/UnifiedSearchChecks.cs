@@ -119,13 +119,16 @@ internal static class UnifiedSearchChecks
     {
         SearchScopeChip archiveChip = C<SearchScopeChip>(page, "ArchiveSearchScope");
         SearchScopeChip readerChip = C<SearchScopeChip>(page, "ReaderFindScope");
-        Require(archiveChip.Scope == SearchScope.Text && Avalonia.Automation.AutomationProperties.GetName(archiveChip) == Texts.T("search.scope.name", Texts.T("search.scope.text")),
+        Require(archiveChip.Scope == SearchScope.Text && ReferenceEquals(C<SearchBox>(page, "ArchiveSearchText").InnerLeftContent, archiveChip)
+            && Avalonia.Automation.AutomationProperties.GetName(archiveChip) == Texts.T("search.scope.name", Texts.T("search.scope.text")),
             "Archive scope chip lacks its Text scope or accessible name.");
         Require(!page.GetLogicalDescendants().OfType<Control>().Any(c => c.Name is "ArchiveFilenameSearchOpen" or "ReaderFilenameSearchOpen" or "ReaderHashSearchOpen" or "ArchiveSaveSearch"),
             "A separate file name / SHA-256 / save-search toolbar entry is still present.");
 
         // The chip menu lists the three scopes as radio entries.
-        archiveChip.ShowMenu();
+        SearchBox archiveTextBox = C<SearchBox>(page, "ArchiveSearchText");
+        archiveTextBox.Focus();
+        Press(archiveTextBox, Avalonia.Input.Key.Down, KeyModifiers.Alt); // the field opens its chip menu
         await SettleAsync(window);
         Require(archiveChip.OpenMenu is { IsOpen: true } menu && menu.Items.OfType<MenuItem>().Select(item => item.Tag).SequenceEqual(
             new object[] { SearchScope.Text, SearchScope.FileName, SearchScope.Sha256 }), "Scope menu does not list Text, File name, SHA-256.");
@@ -136,6 +139,7 @@ internal static class UnifiedSearchChecks
         await SettleAsync(window);
         SearchBox archiveFile = C<SearchBox>(page, "ArchiveFilenameQuery");
         Require(archiveChip.Scope == SearchScope.FileName && archiveFile.IsEffectivelyVisible && !C<SearchBox>(page, "ArchiveSearchText").IsEffectivelyVisible
+            && ReferenceEquals(archiveFile.ScopeChip, archiveChip) && ReferenceEquals(archiveFile.InnerLeftContent, archiveChip)
             && C<TextBlock>(page, "ArchiveSearchScopeHint").Text == Texts.T("search.scope.filename.hint") && C<Button>(page, "SearchArchiveButton").IsEnabled,
             "File name scope did not swap the box, hint and Search action.");
         archiveFile.Text = "lamp_0";
@@ -252,9 +256,10 @@ internal static class UnifiedSearchChecks
     {
         ArchivePage archive = owner.ArchivePage;
         MediaPage media = owner.MediaPageForTests ?? throw new InvalidOperationException("No media page.");
-        SearchBox name = media.FindControl<SearchBox>("MediaNameFilter") ?? media.GetLogicalDescendants().OfType<SearchBox>().Single(box => box.Name == "MediaNameFilter");
-        SearchScopeChip mediaChip = media.GetLogicalDescendants().OfType<SearchScopeChip>().Single(chip => chip.Name == "MediaSearchScope");
-        Require(mediaChip.Scopes.SequenceEqual(new[] { SearchScope.FileName }) && mediaChip.Scope == SearchScope.FileName, "Media chip is not the one-scope file name chip.");
+        SearchBox name = media.NameFilter;
+        SearchScopeChip mediaChip = media.SearchScopeChip;
+        Require(mediaChip.Scopes.SequenceEqual(new[] { SearchScope.FileName }) && mediaChip.Scope == SearchScope.FileName
+            && ReferenceEquals(name.ScopeChip, mediaChip), "Media chip is not the one-scope file name chip inside the field.");
         string before = name.Text ?? "";
         name.Text = "";
         archive.SearchInMediaRequested!("lamp_1");
@@ -275,7 +280,7 @@ internal static class UnifiedSearchChecks
         name.Text = "other";
         archive.SearchInMediaRequested!("lamp_2");
         await WaitAsync(() => owner.SelectedPage == MainWindow.WorkspacePage.Media);
-        SearchCarryOffer offer = media.GetLogicalDescendants().OfType<SearchCarryOffer>().Single();
+        SearchCarryOffer offer = media.SearchCarryOffer;
         Require(offer.IsVisible && offer.PendingQuery == "lamp_2" && name.Text == "other", "A different media query was overwritten.");
         offer.Hide();
         name.Text = before;

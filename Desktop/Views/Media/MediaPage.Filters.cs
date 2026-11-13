@@ -396,6 +396,10 @@ public sealed partial class MediaPage
         else Dispatcher.UIThread.Post(Focus, DispatcherPriority.Loaded);
     }
 
+    internal SearchScopeChip SearchScopeChip => _searchScope;
+    internal SearchBox NameFilter => _nameFilter;
+    internal SearchCarryOffer SearchCarryOffer => _searchCarryOffer;
+
     /// <summary>Host: show Archive and hand it this query for its File name scope.</summary>
     internal Action<string>? SearchInArchiveRequested { get; set; }
 

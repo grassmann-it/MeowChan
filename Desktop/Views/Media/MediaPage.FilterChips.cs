@@ -23,6 +23,7 @@ public sealed partial class MediaPage
     };
     // A filter that matches nothing offers the way back in the empty grid as well.
     private readonly Button _emptyReset = new() { Name = "MediaEmptyReset", IsVisible = false };
+    private readonly Button _emptySearchInArchive = new() { Name = "MediaEmptySearchInArchive", IsVisible = false };
     private string[] _renderedChips = Array.Empty<string>();
 
     private sealed record FilterChip(string Key, string Label, Action Remove, bool Exclude = false);
@@ -49,6 +50,12 @@ public sealed partial class MediaPage
             if (focused) FocusGrid();
         };
         _emptyActions.Children.Add(_emptyReset);
+        _emptySearchInArchive.Click += (_, _) =>
+        {
+            string name = _nameFilter.Text ?? string.Empty;
+            if (!_lifetime.IsCancellationRequested && name.Length > 0) SearchInArchiveRequested?.Invoke(name);
+        };
+        _emptyActions.Children.Add(_emptySearchInArchive);
         // "Reset all" follows the last chip directly (M1): both columns are Auto, so the chips are held to the row width
         // minus the link by hand; they wrap there, and the link stays on the first line at the chip height.
         Grid row = new() { Name = "MediaFilterChipRow", ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8 };

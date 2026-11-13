@@ -142,7 +142,8 @@ public sealed partial class MediaPage : UserControl
         _cacheFile = cachePath == null ? null : new MediaLibraryIndexCacheFile(cachePath);
         Name = "MediaPage";
         WrapPanel tools = new() { Classes = { "workspace-toolbar" } };
-        foreach (Control control in new Control[] { _searchScope, _nameFilter, _filters, _sort, _shuffle, _missing, _refresh, _exportAll })
+        _nameFilter.ScopeChip = _searchScope; // inside the field, as in Archive and the reader (S5)
+        foreach (Control control in new Control[] { _nameFilter, _filters, _sort, _shuffle, _missing, _refresh, _exportAll })
         {
             control.VerticalAlignment = VerticalAlignment.Center;
             // Buttons match the 32 dip combo box beside them (Workspace.Size.Input) instead of sitting 1 dip inside its edges at 30 (G3).
@@ -520,6 +521,14 @@ public sealed partial class MediaPage : UserControl
         // An empty library shows the sentence and its action only; with a filter the filters stay, since they are the way out.
         _headerBody.IsVisible = !(showEmpty && !_filterActive);
         _emptyReset.IsVisible = _filterActive;
+        // AP2/A6: a file name that matches nothing here can be tried in Archive in one step.
+        string name = _nameFilter.Text ?? string.Empty;
+        _emptySearchInArchive.IsVisible = showEmpty && _filterActive && name.Length > 0 && SearchInArchiveRequested != null;
+        if (_emptySearchInArchive.IsVisible)
+        {
+            _emptySearchInArchive.Content = Texts.T("search.carry.toArchive", name);
+            AutomationProperties.SetName(_emptySearchInArchive, Texts.T("search.carry.toArchive", name));
+        }
         _refresh.IsEnabled = !_lifetime.IsCancellationRequested;
         UpdateUntaggedLink();
         UpdateSearchResult();

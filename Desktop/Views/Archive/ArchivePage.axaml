@@ -24,14 +24,15 @@
                     <RowDefinition Height="2*" />
                 </Grid.RowDefinitions>
                 <ScrollViewer x:Name="ArchiveSearchPanelScroll" MaxHeight="260" HorizontalScrollBarVisibility="Disabled"><Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="0">
-                    <!-- AP2: one search field with a scope chip (Text / File name / SHA-256), the same placement as in the
-                         reader find bar. Each scope keeps its own draft in its own box; only the chosen one is shown. -->
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                        <controls:SearchScopeChip x:Name="ArchiveSearchScope" />
-                        <controls:SearchBox x:Name="ArchiveSearchText" Grid.Column="1" MaxLength="512" KeyDown="OnSearchKeyDown" />
-                        <controls:SearchBox x:Name="ArchiveFilenameQuery" Grid.Column="1" MaxLength="512" IsVisible="False" />
-                        <controls:SearchBox x:Name="ArchiveHashQuery" Grid.Column="1" MaxLength="256" IsVisible="False" />
-                        <Button x:Name="SearchArchiveButton" Grid.Column="2" Tag="archive.search" Classes="localized" Click="OnSearchClick" />
+                    <!-- AP2: one search field with its scope chip inside (Text / File name / SHA-256), the same as in the reader
+                         find bar. Each scope keeps its own draft in its own box; only the chosen one is shown and holds the chip. -->
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <controls:SearchBox x:Name="ArchiveSearchText" MaxLength="512" KeyDown="OnSearchKeyDown">
+                            <controls:SearchBox.ScopeChip><controls:SearchScopeChip x:Name="ArchiveSearchScope" /></controls:SearchBox.ScopeChip>
+                        </controls:SearchBox>
+                        <controls:SearchBox x:Name="ArchiveFilenameQuery" MaxLength="512" IsVisible="False" />
+                        <controls:SearchBox x:Name="ArchiveHashQuery" MaxLength="256" IsVisible="False" />
+                        <Button x:Name="SearchArchiveButton" Grid.Column="1" Tag="archive.search" Classes="localized" Click="OnSearchClick" />
                     </Grid>
                     <!-- P2: the expander stays the filter toggle (command, IsExpanded, draft marker);
                          its fields open as ArchiveFilterSurface over the results instead of
@@ -46,7 +47,7 @@
                     <WrapPanel x:Name="ArchiveAppliedFilters" Grid.Row="2" ItemSpacing="6" LineSpacing="6" />
                     <StackPanel x:Name="ArchiveSearchErrorHost" Grid.Row="3" Spacing="8">
                         <controls:SearchCarryOffer x:Name="ArchiveSearchCarryOffer" />
-                        <TextBlock x:Name="ArchiveSearchScopeHint" TextWrapping="Wrap" IsVisible="False" Classes="workspace-help" AutomationProperties.LiveSetting="Polite" />
+                        <TextBlock x:Name="ArchiveSearchScopeHint" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" IsVisible="False" Classes="workspace-help" AutomationProperties.LiveSetting="Polite" />
                         <TextBlock x:Name="ArchiveSearchError" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                         <Button x:Name="ArchiveRetrySearch" Click="OnRetrySearch" IsVisible="False" HorizontalAlignment="Left" />
                     </StackPanel>
@@ -209,6 +210,7 @@
                             <TextBlock x:Name="ArchiveEmpty" Classes="workspace-empty-text" />
                             <Button x:Name="ArchiveGoDownloads" Classes="primary" HorizontalAlignment="Center" Click="OnGoDownloadsClick" />
                             <Button x:Name="ArchiveResetFilters" Classes="primary" HorizontalAlignment="Center" Click="OnResetArchiveFiltersClick" />
+                            <Button x:Name="ArchiveEmptySearchInMedia" HorizontalAlignment="Center" IsVisible="False" Click="OnEmptySearchInMediaClick" />
                         </controls:WorkspaceEmptyState>
                         <!-- ARCH-DENSE-01 slice 2: the pager is docked under the list inside the results
                              box; it is its own row, so it never covers a list row. -->
@@ -268,8 +270,9 @@
                         <!-- AP2: the same scope chip as the archive field; File name and SHA-256 open their result
                              dialogs on Enter or Search, Text finds in the open thread as before. -->
                         <WrapPanel ItemSpacing="6" LineSpacing="4">
-                            <controls:SearchScopeChip x:Name="ReaderFindScope" />
-                            <controls:SearchBox x:Name="ReaderFindQuery" Width="240" TextChanged="OnThreadFindQueryChanged" />
+                            <controls:SearchBox x:Name="ReaderFindQuery" Width="240" TextChanged="OnThreadFindQueryChanged">
+                                <controls:SearchBox.ScopeChip><controls:SearchScopeChip x:Name="ReaderFindScope" /></controls:SearchBox.ScopeChip>
+                            </controls:SearchBox>
                             <controls:SearchBox x:Name="ReaderFilenameQuery" Width="240" MaxLength="512" IsVisible="False" />
                             <controls:SearchBox x:Name="ReaderHashQuery" Width="240" MaxLength="256" IsVisible="False" />
                             <Button x:Name="ReaderFindSearch" IsVisible="False" Click="OnReaderScopeSearchClick" />

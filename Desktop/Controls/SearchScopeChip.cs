@@ -31,7 +31,8 @@ public sealed record SearchCarryAction(string Name, string Label, bool IsEnabled
 
 /// <summary>
 /// The scope chip in front of a <see cref="SearchBox"/>: shows the current scope ("Text ▾") and opens a menu with
-/// the three scopes as radio entries. Click, Enter, Space, Alt+Down and F4 open the menu; the accessible name says
+/// the scopes as radio entries (none when there is only one) and the carry-over entries. It sits inside the field
+/// (SearchBox.ScopeChip); a click, or Alt+Down / F4 in the field, opens the menu; the accessible name says
 /// "Search scope: Text". The owner swaps the field behind it and decides what Enter does.
 /// </summary>
 public sealed class SearchScopeChip : Button
@@ -52,9 +53,18 @@ public sealed class SearchScopeChip : Button
     {
         Classes.Add("search-scope");
         _chevron[!Shape.StrokeProperty] = new DynamicResourceExtension("Workspace.Muted");
-        Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { _label, _chevron } };
+        _label[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted");
+        Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Children = { _label, _chevron } };
         HorizontalContentAlignment = HorizontalAlignment.Left;
-        VerticalAlignment = VerticalAlignment.Stretch;
+        VerticalAlignment = VerticalAlignment.Center;
+        // Inside the SearchBox (InnerLeftContent): no own frame or Tab stop; the field opens the menu with Alt+Down / F4.
+        Background = Brushes.Transparent;
+        BorderThickness = new Thickness(0);
+        Padding = new Thickness(2, 0, 6, 0);
+        Margin = new Thickness(0, 0, 4, 0);
+        MinHeight = 0; MinWidth = 0;
+        Focusable = false;
+        IsTabStop = false;
         Refresh();
     }
 
@@ -84,11 +94,15 @@ public sealed class SearchScopeChip : Button
             if (value == null || value.Count == 0) throw new ArgumentException("A search field needs at least one scope.", nameof(value));
             _scopes = value.ToArray();
             if (Array.IndexOf(_scopes, _scope) < 0) Scope = _scopes[0];
+            Refresh();
         }
     }
 
     /// <summary>"Search elsewhere" entries below the scopes (carry the query to another page or pane). Null hides an entry.</summary>
     public Func<IEnumerable<SearchCarryAction>>? CarryActions { get; set; }
+
+    /// <summary>The field this chip currently sits in (set by <see cref="SearchBox.ScopeChip"/>).</summary>
+    public SearchBox? Owner { get; internal set; }
 
     /// <summary>The menu while it is open (test seam and focus checks).</summary>
     internal ContextMenu? OpenMenu { get; private set; }
@@ -123,7 +137,7 @@ public sealed class SearchScopeChip : Button
         if (!IsEffectivelyEnabled) return;
         ContextMenu menu = new() { Placement = PlacementMode.BottomEdgeAlignedLeft };
         MenuItem? current = null;
-        foreach (SearchScope scope in _scopes)
+        foreach (SearchScope scope in _scopes.Length > 1 ? _scopes : Array.Empty<SearchScope>())
         {
             SearchScope frozen = scope;
             MenuItem item = new()
@@ -135,12 +149,13 @@ public sealed class SearchScopeChip : Button
                 Tag = scope,
             };
             AutomationProperties.SetName(item, Label(scope));
-            item.Click += (_, _) => { Scope = frozen; Dispatcher.UIThread.Post(() => Focus(NavigationMethod.Tab)); };
+            item.Click += (_, _) => { Scope = frozen; Dispatcher.UIThread.Post(() => Owner?.Focus(NavigationMethod.Tab)); };
             menu.Items.Add(item);
             if (scope == _scope) current = item;
         }
         SearchCarryAction[] carry = CarryActions?.Invoke().ToArray() ?? Array.Empty<SearchCarryAction>();
-        if (carry.Length > 0) menu.Items.Add(new Separator());
+        if (carry.Length > 0 && menu.Items.Count > 0) menu.Items.Add(new Separator());
+        if (menu.Items.Count == 0 && carry.Length == 0) return; // one scope and nowhere to carry: nothing to choose
         foreach (SearchCarryAction action in carry)
         {
             SearchCarryAction frozen = action;
@@ -187,7 +202,9 @@ public sealed class SearchScopeChip : Button
     {
         string label = Label(_scope);
         _label.Text = label;
-        string tip = Texts.T("search.scope.tip");
+        // One scope (Media): a plain label without the chevron; the menu then holds only the carry-over entries.
+        _chevron.IsVisible = _scopes.Length > 1;
+        string tip = Texts.T("search.scope.tip") + " · Alt+↓";
         AutomationProperties.SetName(this, Texts.T("search.scope.name", label));
         AutomationProperties.SetHelpText(this, tip);
         ToolTip.SetTip(this, tip);

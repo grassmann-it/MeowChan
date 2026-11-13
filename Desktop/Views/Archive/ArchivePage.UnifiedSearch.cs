@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -206,9 +207,14 @@ public partial class ArchivePage
         ArchiveSearchText.IsVisible = archive == SearchScope.Text;
         ArchiveFilenameQuery.IsVisible = archive == SearchScope.FileName;
         ArchiveHashQuery.IsVisible = archive == SearchScope.Sha256;
+        ArchiveScopedBox.ScopeChip = ArchiveSearchScope; // the chip sits inside the shown field (S5)
         string archiveHint = ScopeHint(archive, _archiveHashRejected);
         ArchiveSearchScopeHint.Text = archiveHint;
         ArchiveSearchScopeHint.IsVisible = archiveHint.Length > 0;
+        // One line in the narrow search column (A4); a refused hash draft wraps so its reason stays readable.
+        ArchiveSearchScopeHint.TextWrapping = archive == SearchScope.Sha256 && _archiveHashRejected
+            ? Avalonia.Media.TextWrapping.Wrap : Avalonia.Media.TextWrapping.NoWrap;
+        ToolTip.SetTip(ArchiveSearchScopeHint, archiveHint.Length > 0 ? archiveHint : null);
         ArchiveSearchScopeHint.Classes.Set("error", archive == SearchScope.Sha256 && _archiveHashRejected);
         ArchiveSearchScopeHint.Classes.Set("muted", !(archive == SearchScope.Sha256 && _archiveHashRejected));
         if (archive != SearchScope.Text) SearchArchiveButton.IsEnabled = CanRunArchiveScope;
@@ -217,6 +223,7 @@ public partial class ArchivePage
         ReaderFindQuery.IsVisible = text;
         ReaderFilenameQuery.IsVisible = reader == SearchScope.FileName;
         ReaderHashQuery.IsVisible = reader == SearchScope.Sha256;
+        ReaderScopedBox.ScopeChip = ReaderFindScope;
         ReaderFindPrevious.IsVisible = text;
         ReaderFindNext.IsVisible = text;
         ReaderFindSearch.IsVisible = !text;
@@ -234,6 +241,7 @@ public partial class ArchivePage
     private void OnArchiveScopedKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled || e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None) return;
+        if (e.Source is Avalonia.Visual source && Avalonia.VisualTree.VisualExtensions.GetSelfAndVisualAncestors(source).Contains(ArchiveSearchScope)) return;
         e.Handled = true;
         RunArchiveScope(sender as Control);
     }
