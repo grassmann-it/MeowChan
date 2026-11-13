@@ -71,6 +71,14 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
                 [AutomationProperties.NameProperty] = header + ": " + (item.Description ?? item.Label) };
         });
         Populating += (_, e) => { e.Cancel = true; };
+        // The base editor can try to reopen its popup on a click even though Escape or
+        // a scope change already cleared our candidates. Keep that dismissed list closed:
+        // only a fresh population (focus, changed text or explicit Up/Down) may reopen it.
+        DropDownOpening += (_, e) =>
+        {
+            if (_ended || _suppressed || ItemsSource?.OfType<IdentitySuggestion>().Any() != true)
+                e.Cancel = true;
+        };
         // Focus entering a suggestion (the popup is a logical child) is not the editor gaining focus:
         // repopulating then would clear the list under the click and fault the selection update.
         GotFocus += (_, e) =>
