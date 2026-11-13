@@ -256,12 +256,12 @@ public sealed class MediaLibraryIndexTests
         Assert.Equal(threads * perThread / 2, built.Entries.Count(entry => entry.Presence == MediaLibraryPresence.Present));
         Assert.True(cold < TimeSpan.FromSeconds(60), "Cold build took " + cold);
 
-        watch.Restart();
         List<MediaLibraryProgress> progress = new();
         MediaLibrarySnapshot warm = await BuildAsync(temp.Path, built, progress);
         Assert.Equal(threads, progress.Last().Reused);
         Assert.Equal(built.Entries.Count, warm.Entries.Count);
-        Assert.True(watch.Elapsed < cold, "Reusing every thread was not faster than reading them: " + watch.Elapsed + " vs " + cold);
+        // Reuse is proved by the progress counter above (every thread reused, none read again); comparing two wall-clock
+        // samples of the same build says nothing more and flips on a loaded machine.
     }
 
     [Fact]

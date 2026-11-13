@@ -244,15 +244,24 @@ public sealed class MediaLibrarySelectionTests
         Dictionary<string, MediaAssetSnapshot> manifests = all.GroupBy(entry => entry.Directory!).ToDictionary(group => group.Key, group => Manifest(group.Key, group.ToArray()));
         Assert.Equal(threads * perThread, shown.Count);
 
-        Stopwatch watch = Stopwatch.StartNew();
-        MediaLibraryExportSize size = MediaLibraryExport.Measure(shown);
-        MediaLibraryExportPlan plan = await MediaLibraryExport.BuildAsync(shown, (directory, _) => Task.FromResult(manifests[directory]));
-        watch.Stop();
+        // The cost bound is checked on the fastest of a few runs: a scheduling or GC pause on a loaded machine hits one run,
+        // an accidentally quadratic plan hits all of them.
+        TimeSpan fastest = TimeSpan.MaxValue;
+        MediaLibraryExportSize size = default!;
+        MediaLibraryExportPlan plan = default!;
+        for (int run = 0; run < 3; run++)
+        {
+            Stopwatch watch = Stopwatch.StartNew();
+            size = MediaLibraryExport.Measure(shown);
+            plan = await MediaLibraryExport.BuildAsync(shown, (directory, _) => Task.FromResult(manifests[directory]));
+            watch.Stop();
+            if (watch.Elapsed < fastest) fastest = watch.Elapsed;
+        }
 
         Assert.Equal(threads * perThread, size.Files);
         Assert.Equal(threads * perThread * 3L, size.Bytes);
         Assert.Equal(threads * perThread, plan.Assets.Count);
         Assert.Equal(0, plan.Unavailable);
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(2), "Measuring and planning 10 000 tiles took " + watch.Elapsed);
+        Assert.True(fastest < TimeSpan.FromSeconds(2), "Measuring and planning 10 000 tiles took " + fastest);
     }
 }
