@@ -141,8 +141,10 @@ public sealed partial class MediaPage : UserControl
         _manifests = new MediaManifestCache(openManifest, _lifetime.Token);
         _cacheFile = cachePath == null ? null : new MediaLibraryIndexCacheFile(cachePath);
         Name = "MediaPage";
-        WrapPanel tools = new() { ItemSpacing = 6, LineSpacing = 4 };
-        foreach (Control control in new Control[] { _filters, _sort, _shuffle, _missing, _refresh, _exportAll }) { control.VerticalAlignment = VerticalAlignment.Center; tools.Children.Add(control); }
+        WrapPanel tools = new() { Classes = { "workspace-toolbar" } };
+        // The buttons take the line height of the 32 dip combo box instead of floating 1 dip off its edges at 30 (G3).
+        foreach (Control control in new Control[] { _filters, _sort, _shuffle, _missing, _refresh, _exportAll })
+        { control.VerticalAlignment = control is Button ? VerticalAlignment.Stretch : VerticalAlignment.Center; tools.Children.Add(control); }
         StackPanel header = new() { Spacing = 4, Margin = new Thickness(12, 8, 12, 4) };
         header.Children.Add(_title); header.Children.Add(_headerBody);
         _headerBody.Children.Add(_subtitle); _headerBody.Children.Add(tools);
