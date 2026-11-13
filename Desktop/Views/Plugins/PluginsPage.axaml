@@ -26,14 +26,19 @@
         <ScrollViewer MaxHeight="96"><TextBlock x:Name="PluginPageError" TextWrapping="Wrap" Classes="error" AutomationProperties.LiveSetting="Assertive" /></ScrollViewer>
       </ursa:Banner>
     </StackPanel>
-    <Grid x:Name="PluginSplit" Grid.Row="1" ColumnDefinitions="240,*" ColumnSpacing="14">
+    <!-- List and detail as on the Sources page: a 280 dip column of cards beside one detail card. -->
+    <Grid x:Name="PluginSplit" Grid.Row="1" ColumnDefinitions="280,*" ColumnSpacing="14">
       <Grid x:Name="PluginListPane" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
         <StackPanel Spacing="6">
           <ComboBox x:Name="PluginCategory" HorizontalAlignment="Stretch" SelectionChanged="OnCategoryChanged" />
           <Button x:Name="PluginListActions" Click="OnPluginListActionsClick" HorizontalAlignment="Left" />
         </StackPanel>
         <TextBlock x:Name="PluginsEmpty" Grid.Row="1" TextWrapping="Wrap" />
-        <ScrollViewer x:Name="PluginListScroll" Grid.Row="2"><plugins:PluginSelectionList x:Name="PluginCards" SelectionChanged="OnPluginSelectionChanged" /></ScrollViewer>
+        <ScrollViewer x:Name="PluginListScroll" Grid.Row="2">
+          <plugins:PluginSelectionList x:Name="PluginCards" Classes="workspace-card-list" SelectionChanged="OnPluginSelectionChanged">
+            <plugins:PluginSelectionList.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="10" /></ItemsPanelTemplate></plugins:PluginSelectionList.ItemsPanel>
+          </plugins:PluginSelectionList>
+        </ScrollViewer>
         <Expander x:Name="PluginDirectoryExpander" Grid.Row="3" HorizontalAlignment="Stretch">
           <StackPanel Spacing="6" Margin="0,4,0,0">
             <TextBlock x:Name="PluginDirectory" TextWrapping="Wrap" Classes="muted" />
