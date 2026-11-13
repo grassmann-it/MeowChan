@@ -63,14 +63,20 @@ internal static class UrlDropChecks
         // A folder as Avalonia's X11 target reports it (file: item) plus its path as text, as file managers add.
         string folder = Path.Combine(Path.GetTempPath(), "meowchan drop folder");
         using DataTransfer files = Transfer(DataTransferItem.CreateFile(new FixtureFolder(new Uri(folder))), DataTransferItem.CreateText(folder));
-        if (Raise(window, RawDragEventType.DragEnter, input, files) != DragDropEffects.None
-            || !overlay.IsVisible || title.Text != Texts.T("drop.files.title"))
-            throw new InvalidOperationException("A folder drag was not refused with the file-import notice.");
-        // A platform that delivers Drop despite None gets the same notice and no admission.
-        Raise(window, RawDragEventType.Drop, null, files);
-        await WaitUntilAsync(() => Notifications(window).Any(message => message == Texts.T("drop.files.detail")));
-        if (ReportLines(window).Length != 3 || overlay.IsVisible)
-            throw new InvalidOperationException("A refused folder drop changed the admission results or kept the overlay.");
+        // Files and folders are the import's drop: Copy with the import overlay, and the drop opens the import dialog
+        // with exactly that folder selected (here a missing one, so the check reports it unreadable). No admission.
+        if (Raise(window, RawDragEventType.DragEnter, input, files) != DragDropEffects.Copy
+            || !overlay.IsVisible || title.Text != Texts.T("drop.files.title", 1))
+            throw new InvalidOperationException("A folder drag was not offered as an import: " + title.Text);
+        if (Raise(window, RawDragEventType.Drop, null, files) != DragDropEffects.Copy || overlay.IsVisible)
+            throw new InvalidOperationException("The folder drop was not accepted or left the overlay visible.");
+        await WaitUntilAsync(() => window.ManualImportWindow is { IsVisible: true } dialog && dialog.Session.Plan != null);
+        ManualImportDialog import = window.ManualImportWindow!;
+        if (!import.Session.Roots.SequenceEqual(new[] { folder }) || import.Session.UnreadableCount != 1 || import.Session.CanImport
+            || ReportLines(window).Length != 3)
+            throw new InvalidOperationException("The folder drop did not open the import dialog with that folder only.");
+        import.Close();
+        await WaitUntilAsync(() => window.ManualImportWindow == null);
 
         using DataTransfer blank = Transfer(DataTransferItem.CreateText(" \r\n "));
         if (Raise(window, RawDragEventType.DragEnter, input, blank) != DragDropEffects.None || title.Text != Texts.T("drop.empty.title"))
@@ -92,7 +98,7 @@ internal static class UrlDropChecks
         report.IsExpanded = false;
         foreach (NotificationCard card in window.GetVisualDescendants().OfType<NotificationCard>().ToArray()) card.Close();
         input.Text = string.Empty;
-        Console.WriteLine("SMOKE URL drop: managed raw drag events; links from another page got the Add line's ordered results on Downloads without clipboard read or draft change; folder, blank and unavailable drops refused with overlay/notice; no native XDND/OLE/Cocoa drag.");
+        Console.WriteLine("SMOKE URL drop: managed raw drag events; links from another page got the Add line's ordered results on Downloads without clipboard read or draft change; a folder drop opened the import dialog prefilled with it; blank and unavailable drops refused with overlay/notice; no native XDND/OLE/Cocoa drag.");
     }
 
     private static DragDropEffects Raise(Window window, RawDragEventType type, Control? over, IDataTransfer data)
