@@ -19,7 +19,11 @@ internal static class ReaderExternalLink
     {
         if (visibleText == null) return null;
         string text = visibleText.Trim();
-        if (text.Length == 0 || text.Length > MaxLength || text.Any(character => char.IsWhiteSpace(character) || char.IsControl(character) || character == '\\'))
+        // Unicode format characters (bidi overrides and isolates, zero-width characters, the BOM) are refused, not stripped:
+        // stripping would open an address that differs from the text the reader shows, and the whole rule is that only the
+        // visible text opens. A refused run simply stays plain text.
+        if (text.Length == 0 || text.Length > MaxLength || text.Any(character => char.IsWhiteSpace(character) || char.IsControl(character) || character == '\\'
+            || char.GetUnicodeCategory(character) == System.Globalization.UnicodeCategory.Format))
             return null;
         if (!Uri.TryCreate(text, UriKind.Absolute, out Uri? uri) || !IsOpenable(uri)) return null;
         // The authority of the text itself must not carry user information either (Uri may normalize it away).

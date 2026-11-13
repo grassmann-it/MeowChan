@@ -50,6 +50,33 @@ public sealed class ReaderExternalLinkTests
         if (Uri.TryCreate(text, UriKind.Absolute, out Uri? uri)) Assert.False(ReaderExternalLink.IsOpenable(uri));
     }
 
+    [Theory]
+    [InlineData("https://evil.example/\u202Emoc.elgoog.www//:sptth")] // Bidi override in the path.
+    [InlineData("https://ev\u202Eil.example/")] // ...and in the host.
+    [InlineData("https://evil.example/\u2066x\u2069")] // Isolates.
+    [InlineData("https://exa\u200Bmple.org/")] // Zero-width space in the host.
+    [InlineData("https://exa\u200Dmple.org/")] // Zero-width joiner.
+    [InlineData("https://example.org/\u200Ca")] // Zero-width non-joiner.
+    [InlineData("https://exam\uFEFFple.org/")] // BOM inside the address.
+    [InlineData("https://example.org/a\u00ADb")] // Soft hyphen.
+    public void AnAddressWithUnicodeFormatCharactersIsNotALinkAndIsNeverStripped(string text)
+    {
+        // Refused rather than cleaned: the opened address would otherwise differ from the text the reader shows.
+        Assert.Null(ReaderExternalLink.Parse(text));
+        ReaderBodyDocument document = ReaderBodyFormatting.Format("see " + text + " now", []);
+        Assert.DoesNotContain(document.Segments, segment => segment.Link != null);
+    }
+
+    [Fact]
+    public void AByteOrderMarkInFrontOfTheTextIsRefusedToo() => Assert.Null(ReaderExternalLink.Parse("\uFEFFhttps://example.org/"));
+
+    [Fact]
+    public void AnAddressWithUnicodeFormatCharactersInItsLabelOnlyStaysPlainWhileTheCleanOneNextToItOpens()
+    {
+        ReaderBodyDocument document = ReaderBodyFormatting.Format("https://ok.example/a https://bad.example/\u202Eb", []);
+        Assert.Equal("https://ok.example/a", Assert.Single(document.Segments, segment => segment.Link != null).Link!.OriginalString);
+    }
+
     [Fact]
     public void AnAddressLongerThanTheLimitIsNotALink() =>
         Assert.Null(ReaderExternalLink.Parse("https://example.org/" + new string('a', ReaderExternalLink.MaxLength)));
