@@ -14,7 +14,7 @@ namespace MeowChan.Desktop;
 // must never widen an archive search. Calendar selection explicitly replaces raw.
 public sealed class ArchiveDateEditor : UserControl
 {
-    private readonly TextBox _raw = new() { PlaceholderText = "YYYY-MM-DD" };
+    private readonly TextBox _raw = new() { PlaceholderText = Texts.T("archive.datePattern") };
     private sealed class CalendarPicker : DateOnlyPicker
     {
         private CalendarDisplayCulture? _displayCulture;
@@ -54,7 +54,10 @@ public sealed class ArchiveDateEditor : UserControl
     }
     internal void SetLabel(string label)
     {
-        AutomationProperties.SetName(_raw, label + " (YYYY-MM-DD)");
+        // Only the displayed pattern is localized; the accepted input stays the ISO yyyy-MM-dd.
+        string pattern = Texts.T("archive.datePattern");
+        _raw.PlaceholderText = pattern;
+        AutomationProperties.SetName(_raw, label + " (" + pattern + ")");
         AutomationProperties.SetName(_calendar, label);
         ToolTip.SetTip(_calendar, label);
     }
