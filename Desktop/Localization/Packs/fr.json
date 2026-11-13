@@ -2259,7 +2259,7 @@
     "media.filter.error.invalid": "Cette combinaison de filtres n’est pas valide. Rien n’est affiché.",
     "media.filter.error.tooManyTags": "Au plus 32 tags peuvent être inclus et 32 exclus.",
     "media.tile.selected": "Sélectionné",
-    "media.selection.none": "Rien de sélectionné. Ctrl/Cmd+clic ajoute une vignette, Maj+clic sélectionne une plage, Ctrl/Cmd+A sélectionne tout, Échap efface la sélection.",
+    "media.selection.howTo": "Ctrl/Cmd+clic ajoute une vignette, Maj+clic sélectionne une plage, Ctrl/Cmd+A sélectionne tout, Échap efface la sélection.",
     "media.selection.count": "{0} sélectionnés",
     "media.selection.countNotSaved": "{0} sélectionnés, dont {1} non enregistrés",
     "media.selection.reason.none": "Sélectionnez d’abord au moins une vignette.",

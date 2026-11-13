@@ -101,7 +101,7 @@ internal static class MediaLibraryCatalog
         ("media.filter.error.invalid", "This filter combination is not valid. Nothing is shown.", "Diese Filterkombination ist ungültig. Es wird nichts angezeigt."),
         ("media.filter.error.tooManyTags", "At most 32 tags can be included and 32 excluded.", "Höchstens 32 Tags lassen sich einschließen und 32 ausschließen."),
         ("media.tile.selected", "Selected", "Ausgewählt"),
-        ("media.selection.none", "Nothing selected. Ctrl/Cmd+click adds a tile, Shift+click selects a range, Ctrl/Cmd+A selects all, Esc clears.", "Nichts ausgewählt. Strg/Cmd+Klick fügt eine Kachel hinzu, Umschalt+Klick wählt einen Bereich, Strg/Cmd+A alle, Esc hebt die Auswahl auf."),
+        ("media.selection.howTo", "Ctrl/Cmd+click adds a tile, Shift+click selects a range, Ctrl/Cmd+A selects all, Esc clears.", "Strg/Cmd+Klick fügt eine Kachel hinzu, Umschalt+Klick wählt einen Bereich, Strg/Cmd+A alle, Esc hebt die Auswahl auf."),
         ("media.selection.count", "{0} selected", "{0} ausgewählt"),
         ("media.selection.countNotSaved", "{0} selected, {1} of them not saved", "{0} ausgewählt, davon {1} nicht gespeichert"),
         ("media.selection.reason.none", "Select at least one tile first.", "Wähle zuerst mindestens eine Kachel aus."),

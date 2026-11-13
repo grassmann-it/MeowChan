@@ -20,7 +20,7 @@ public sealed class MediaFilterChipRowTests : IDisposable
     {
         string page = Source("Desktop/Views/Media/MediaPage.cs"), chips = Source("Desktop/Views/Media/MediaPage.FilterChips.cs");
         // In the header (visible while the surface is closed), not inside the surface built from BuildFilterRow().
-        Assert.Contains("header.Children.Add(BuildFilterChipRow());", page);
+        Assert.Contains("_headerBody.Children.Add(BuildFilterChipRow());", page);
         Assert.Contains("_emptyReset.IsVisible = _filterActive;", page);
         foreach (string key in new[] { "\"tag+\"", "\"tag-\"", "\"tagMatch\"", "\"thread\"", "\"untagged\"", "\"name\"", "\"kind\"", "\"sound\"",
             "\"source\"", "\"board\"", "\"rating\"", "\"favorites\"" })

@@ -624,20 +624,27 @@ internal static partial class MediaPageChecks
             bool Marked(int index) => page.GetVisualDescendants().OfType<ListBoxItem>().FirstOrDefault(item => item.DataContext is MediaLibraryTileRow row && row.Index == index)
                 ?.GetVisualDescendants().OfType<Border>().FirstOrDefault(border => border.Name == "MediaTileSelected")?.IsVisible == true;
 
-            // Nothing selected: every action is disabled and says why.
-            Require(bar.Text == Texts.T("media.selection.none") && !tag.IsEnabled && !gallery.IsEnabled && !export.IsEnabled && !clear.IsEnabled,
+            // Nothing selected: the action row is not shown at all (no hint row, no greyed-out actions); its actions are still disabled and say why.
+            Control selectionRow = C<Control>(page, "MediaSelectionRow");
+            Require(!selectionRow.IsVisible && !bar.IsEffectivelyVisible && !tag.IsEffectivelyVisible && bar.Text == string.Empty && !tag.IsEnabled && !gallery.IsEnabled && !export.IsEnabled && !clear.IsEnabled,
                 "Without a selection the actions must be disabled.");
             Require(ToolTip.GetTip(tag) as string == Texts.T("media.selection.reason.none"), "A disabled action must give its reason.");
 
             // Plain click selects one, Shift+click a range, Escape clears, Ctrl+A takes every shown tile.
             await ClickTileAsync(page, window, 0);
             Require(Selected().SequenceEqual(["sel-z.png"]) && bar.Text == Texts.T("media.selection.count", 1), "A plain click must select one tile: " + string.Join(",", Selected()));
+            // The row appears with the first selected tile, counter and actions on one line; the how-to is the tag action's tooltip.
+            Require(selectionRow.IsVisible && bar.IsEffectivelyVisible && tag.IsEffectivelyVisible && clear.IsEffectivelyVisible, "The action row must appear with a selection.");
+            Require(new Control[] { bar, tag, gallery, export, clear }.Select(control => (int)Math.Round(control.TranslatePoint(new Point(0, control.Bounds.Height / 2), page)!.Value.Y)).Distinct().Count() == 1,
+                "The counter and the actions must share one line.");
+            Require((ToolTip.GetTip(tag) as string)!.Contains(Texts.T("media.selection.howTo")) && (ToolTip.GetTip(tag) as string)!.Contains(Texts.T("media.selection.tag.hint")),
+                "The tag action's tooltip must carry the how-to sentence.");
             await ClickTileAsync(page, window, 2, KeyModifiers.Shift);
             Require(Selected().SequenceEqual(order[..3]) && bar.Text == Texts.T("media.selection.count", 3), "Shift+click must select the range: " + string.Join(",", Selected()));
             await UntilAsync(() => Marked(0) && Marked(1) && Marked(2) && !Marked(3));
             grid.Focus();
             grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
-            Require(Selected().Length == 0 && bar.Text == Texts.T("media.selection.none") && !gallery.IsEnabled, "Escape must clear the selection.");
+            Require(Selected().Length == 0 && !selectionRow.IsVisible && !gallery.IsEnabled, "Escape must clear the selection and hide the action row.");
             await UntilAsync(() => !Marked(0) && !Marked(1));
             grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.A, KeyModifiers = KeyModifiers.Control });
             Require(Selected().SequenceEqual(order) && bar.Text == Texts.T("media.selection.count", 4), "Ctrl+A must select every shown tile.");
@@ -957,14 +964,16 @@ internal static partial class MediaPageChecks
             await page.BuildTask.WaitAsync(Deadline);
             Require(media.Classes.Contains("selected") && !archive.Classes.Contains("selected"), "Media navigation is not marked as selected.");
             Require(C<TextBlock>(page, "MediaEmpty").IsVisible, "An empty archive must say that there are no saved media.");
-            // Empty states name the next step and reach it with the footer's own navigation.
-            Button goDownloads = C<Button>(page, "MediaGoDownloads"), goArchive = C<Button>(page, "MediaGoArchive");
-            Require(goDownloads.IsEffectivelyVisible && goArchive.IsEffectivelyVisible
-                && AutomationProperties.GetName(goDownloads) == Texts.T("nav.goDownloads")
-                && AutomationProperties.GetName(goArchive) == Texts.T("nav.goArchive"),
-                "The empty media page did not offer labelled Downloads and Archive buttons.");
+            // The empty state is the sentence and one primary action (like the empty Downloads list): no filters, counters, selection row or other actions.
+            Button goDownloads = C<Button>(page, "MediaGoDownloads");
+            Require(goDownloads.IsEffectivelyVisible && AutomationProperties.GetName(goDownloads) == Texts.T("nav.goDownloads"),
+                "The empty media page did not offer a labelled Downloads button.");
+            Require(!C<Expander>(page, "MediaFilters").IsEffectivelyVisible && !C<ComboBox>(page, "MediaSort").IsEffectivelyVisible
+                && !C<TextBlock>(page, "MediaStatus").IsEffectivelyVisible && !C<Control>(page, "MediaSelectionRow").IsEffectivelyVisible
+                && !C<Button>(page, "MediaExportAll").IsEffectivelyVisible && !C<Button>(page, "MediaRefresh").IsEffectivelyVisible,
+                "The empty media page must not show filters, counters or actions.");
             Program.CaptureWindow(owner, "smoke-empty-media.png");
-            goArchive.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            owner.FindControl<Button>("ArchiveNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             ContentControl archiveHost = owner.FindControl<ContentControl>("ArchivePageHost")!;
             await UntilAsync(() => !host.IsVisible && archiveHost.IsVisible);
             Button archiveGo = C<Button>(owner.ArchivePage, "ArchiveGoDownloads");

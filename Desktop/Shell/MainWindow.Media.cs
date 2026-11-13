@@ -50,8 +50,7 @@ public partial class MainWindow
                 (name, subjects, expectedRevision, token) => _session.DefineAndSetMediaSubjectTagsAsync(name, subjects, expectedRevision, token),
                 (tag, subjects, assigned, expectedRevision, token) => _session.SetMediaSubjectTagsAsync(tag, subjects, assigned, expectedRevision, token)),
             ExportOriginals = ExportMediaLibraryOriginalsAsync,
-            GoToDownloadsRequested = GoToDownloads,
-            GoToArchiveRequested = () => NavigateWorkspace(WorkspacePage.Archive)
+            GoToDownloadsRequested = GoToDownloads
         };
         _mediaPage.InitializeSharedMediaMenus();
         MediaPageHost.Content = _mediaPage;

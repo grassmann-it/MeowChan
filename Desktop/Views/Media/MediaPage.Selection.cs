@@ -23,6 +23,7 @@ namespace MeowChan;
 public sealed partial class MediaPage
 {
     private readonly TextBlock _selectionText = new() { Name = "MediaSelectionStatus", TextWrapping = Avalonia.Media.TextWrapping.Wrap, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+    private readonly WrapPanel _selectionRow = new() { Name = "MediaSelectionRow", ItemSpacing = 6, LineSpacing = 4 };
     private readonly Button _selTag = new() { Name = "MediaSelectionTag" };
     private readonly Button _selGallery = new() { Name = "MediaSelectionGallery" };
     private readonly Button _selExport = new() { Name = "MediaSelectionExport" };
@@ -45,14 +46,15 @@ public sealed partial class MediaPage
     {
         AutomationProperties.SetLiveSetting(_selectionText, AutomationLiveSetting.Polite);
         AutomationProperties.SetLiveSetting(_selectionNote, AutomationLiveSetting.Polite);
-        WrapPanel bar = new() { ItemSpacing = 6, LineSpacing = 4 };
+        // The action row exists only while something is selected: the counter and the actions share one line (the how-to is the tag action's tooltip).
+        _selectionRow.IsVisible = false;
         foreach (Control control in new Control[] { _selectionText, _selTag, _selGallery, _selExport, _selClear })
-        { control.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center; bar.Children.Add(control); }
+        { control.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center; _selectionRow.Children.Add(control); }
         _selTag.Click += async (_, _) => await TagSelectionAsync();
         _selGallery.Click += async (_, _) => await OpenSelectionGalleryAsync();
         _selExport.Click += async (_, _) => await ExportSelectionAsync();
         _selClear.Click += (_, _) => ClearSelection();
-        return new StackPanel { Spacing = 2, Children = { bar, _selectionNote } };
+        return new StackPanel { Spacing = 2, Children = { _selectionRow, _selectionNote } };
     }
 
     private void LocalizeSelection()
@@ -98,11 +100,12 @@ public sealed partial class MediaPage
         int count = _grid.Selection.Count, notSaved = count == 0 ? 0 : NotSavedSelected();
         bool building = _building != null;
         string? reason = count == 0 ? Texts.T("media.selection.reason.none") : building ? Texts.T("media.selection.reason.building") : null;
-        _selectionText.Text = count == 0 ? Texts.T("media.selection.none")
+        _selectionRow.IsVisible = count > 0;
+        _selectionText.Text = count == 0 ? string.Empty
             : (notSaved > 0 ? Texts.T("media.selection.countNotSaved", count, notSaved) : Texts.T("media.selection.count", count))
               + (building ? " · " + Texts.T("media.selection.reason.building") : string.Empty);
         bool ready = reason == null && !_selectionBusy && !_lifetime.IsCancellationRequested;
-        SetAction(_selTag, ready && TagServices != null, reason, TagServices != null, "media.selection.tag.hint");
+        SetAction(_selTag, ready && TagServices != null, reason, TagServices != null, "media.selection.tag.hint", Texts.T("media.selection.howTo"));
         SetAction(_selGallery, ready && OpenGallery != null, reason, OpenGallery != null, "media.selection.gallery.hint");
         SetAction(_selExport, ready && ExportOriginals != null, reason, ExportOriginals != null, "media.selection.export.hint");
         _selClear.IsEnabled = count > 0;
@@ -131,10 +134,12 @@ public sealed partial class MediaPage
     }
 
     // A disabled action says why in its tooltip and accessible description.
-    private static void SetAction(Button button, bool enabled, string? reason, bool available, string hintKey)
+    // The enabled tip may carry a second line (how to select), which is never part of a reason.
+    private static void SetAction(Button button, bool enabled, string? reason, bool available, string hintKey, string? moreHint = null)
     {
         button.IsEnabled = enabled;
-        string hint = enabled ? Texts.T(hintKey) : reason ?? (available ? string.Empty : Texts.T("media.selection.reason.unavailable"));
+        string hint = enabled ? Texts.T(hintKey) + (moreHint == null ? string.Empty : "\n" + moreHint)
+            : reason ?? (available ? string.Empty : Texts.T("media.selection.reason.unavailable"));
         ToolTip.SetTip(button, hint.Length == 0 ? null : hint);
         AutomationProperties.SetHelpText(button, hint);
     }

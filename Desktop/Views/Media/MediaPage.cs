@@ -46,12 +46,18 @@ public sealed partial class MediaPage : UserControl
     private readonly Button _refresh = new() { Name = "MediaRefresh" };
     private readonly TextBlock _status = new() { Name = "MediaStatus", TextWrapping = Avalonia.Media.TextWrapping.Wrap };
     private readonly ListBox _grid = new() { Name = "MediaGrid", SelectionMode = SelectionMode.Multiple, Classes = { "workspace-selection-bar" } };
-    private readonly TextBlock _empty = new() { Name = "MediaEmpty", TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(8, 40, 8, 8), IsVisible = false, Classes = { "muted" } };
+    private readonly TextBlock _empty = new() { Name = "MediaEmpty", TextWrapping = Avalonia.Media.TextWrapping.Wrap, TextAlignment = Avalonia.Media.TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, IsVisible = false, Classes = { "muted" } };
     // An empty library points back to where media comes from; a filter that matches nothing offers its reset (MediaPage.FilterChips.cs).
     private readonly Button _goDownloads = new() { Name = "MediaGoDownloads", Classes = { "primary" } };
-    private readonly Button _goArchive = new() { Name = "MediaGoArchive" };
-    private readonly WrapPanel _emptyActions = new() { Name = "MediaEmptyActions", ItemSpacing = 8, LineSpacing = 8, Margin = new Thickness(8, 0, 8, 8) };
-    private readonly StackPanel _emptyState = new() { Name = "MediaEmptyState", VerticalAlignment = VerticalAlignment.Top, IsVisible = false };
+    private readonly WrapPanel _emptyActions = new() { Name = "MediaEmptyActions", ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
+    // Same pattern as the empty Downloads list: centered, one sentence, one primary action.
+    private readonly StackPanel _emptyState = new()
+    {
+        Name = "MediaEmptyState", VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center,
+        MaxWidth = 360, Margin = new Thickness(28), Spacing = 12, IsVisible = false
+    };
+    // Everything under the title: it is hidden while the library is empty, so the empty page shows the sentence and its action only.
+    private readonly StackPanel _headerBody = new() { Spacing = 4 };
     private MediaLibrarySnapshot? _snapshot;
     private IReadOnlyList<MediaLibraryEntry> _shown = Array.Empty<MediaLibraryEntry>();
     private IReadOnlyList<MediaLibraryTile> _tiles = Array.Empty<MediaLibraryTile>();
@@ -78,7 +84,6 @@ public sealed partial class MediaPage : UserControl
     internal Func<IReadOnlyList<MediaLibraryEntry>, int, Task>? OpenGallery { get; set; }
     /// <summary>Set by the shell: the footer destinations offered by the empty state.</summary>
     internal Action? GoToDownloadsRequested { get; set; }
-    internal Action? GoToArchiveRequested { get; set; }
     internal Func<MediaLibraryEntry, Task>? ShowInThread { get; set; }
     /// <summary>Edits the own media tags of one entry through the host's tag commands.</summary>
     internal Func<MediaLibraryEntry, Task>? EditTags { get; set; }
@@ -134,10 +139,12 @@ public sealed partial class MediaPage : UserControl
         WrapPanel tools = new() { ItemSpacing = 6, LineSpacing = 4 };
         foreach (Control control in new Control[] { _filters, _sort, _shuffle, _missing, _refresh, _exportAll }) { control.VerticalAlignment = VerticalAlignment.Center; tools.Children.Add(control); }
         StackPanel header = new() { Spacing = 4, Margin = new Thickness(12, 8, 12, 4) };
-        header.Children.Add(_title); header.Children.Add(_subtitle); header.Children.Add(tools);
+        header.Children.Add(_title); header.Children.Add(_headerBody);
+        _headerBody.Children.Add(_subtitle); _headerBody.Children.Add(tools);
         // The filter fields open as a surface over the grid (MediaPage.FilterSurface.cs); what is applied stays in the header.
         Border filterSurface = BuildFilterSurface(BuildFilterRow());
-        header.Children.Add(BuildFilterChipRow()); header.Children.Add(_filterError); header.Children.Add(BuildStatusRow(_status)); header.Children.Add(BuildExportAllAsk()); header.Children.Add(BuildSelectionBar());
+        _headerBody.Children.Add(BuildFilterChipRow()); _headerBody.Children.Add(_filterError); _headerBody.Children.Add(BuildStatusRow(_status));
+        _headerBody.Children.Add(BuildExportAllAsk()); _headerBody.Children.Add(BuildSelectionBar());
         _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { ItemHeight = MediaLibraryTileView.TileHeight });
         _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThumbnailCached = MediaTileThumbnails.TryGetCached,
             ThumbnailRelease = MediaTileThumbnails.Release, ThreadFilter = FilterToThread,
@@ -145,7 +152,7 @@ public sealed partial class MediaPage : UserControl
             CanToggleFavorite = () => ExecuteMediaMenuActionAsync != null });
         ScrollViewer.SetHorizontalScrollBarVisibility(_grid, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
         Panel body = new();
-        _emptyActions.Children.Add(_goDownloads); _emptyActions.Children.Add(_goArchive);
+        _emptyActions.Children.Add(_goDownloads);
         _emptyState.Children.Add(_empty); _emptyState.Children.Add(_emptyActions);
         body.Children.Add(_grid); body.Children.Add(_emptyState);
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
@@ -160,7 +167,6 @@ public sealed partial class MediaPage : UserControl
         _missing.IsCheckedChanged += (_, _) => { if (!_localizing) Present(); };
         _refresh.Click += (_, _) => BuildTask = BuildAsync(force: true);
         _goDownloads.Click += (_, _) => GoToDownloadsRequested?.Invoke();
-        _goArchive.Click += (_, _) => GoToArchiveRequested?.Invoke();
         _grid.DoubleTapped += (_, _) => _ = OpenSelectedAsync();
         _grid.KeyDown += OnGridKeyDown;
         _grid.SelectionChanged += (_, _) => { if (_restoring) return; _selectionStamp++; ShowSelectionNote(null); UpdateSelectionBar(); };
@@ -477,7 +483,9 @@ public sealed partial class MediaPage : UserControl
         _emptyState.IsVisible = showEmpty;
         // An empty library points to Downloads and Archive; a filter that matches nothing offers to reset it (C3).
         _emptyActions.IsVisible = showEmpty;
-        _goDownloads.IsVisible = _goArchive.IsVisible = !_filterActive;
+        _goDownloads.IsVisible = !_filterActive;
+        // An empty library shows the sentence and its action only; with a filter the filters stay, since they are the way out.
+        _headerBody.IsVisible = !(showEmpty && !_filterActive);
         _emptyReset.IsVisible = _filterActive;
         _refresh.IsEnabled = !_lifetime.IsCancellationRequested;
         UpdateUntaggedLink();
@@ -940,7 +948,6 @@ public sealed partial class MediaPage : UserControl
         _missing.Content = Texts.T("media.showMissing");
         _refresh.Content = Texts.T("media.refresh");
         CommandBindings.ApplyLabeled(_goDownloads, "navigation.downloads", Texts.T("nav.goDownloads"));
-        CommandBindings.ApplyLabeled(_goArchive, "navigation.archive", Texts.T("nav.goArchive"));
         AutomationProperties.SetName(_grid, Texts.T("media.title"));
         LocalizeFilters();
         LocalizeFilterSurface();

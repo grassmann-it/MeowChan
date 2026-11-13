@@ -195,9 +195,8 @@ internal static partial class MediaPageChecks
             state + ": the filter surface is not anchored at the top of the grid: " + area + " / " + gridClosed);
         Require(Same(Bounds(grid), gridClosed), state + ": opening the filter surface moved the grid.");
         Require(Same(Bounds(page.FilterChips), chipsClosed) && Same(Bounds(status), statusClosed)
-            && page.FilterChips.IsEffectivelyVisible && status.IsEffectivelyVisible && chipsClosed.Bottom <= area.Top + 1
-            && C<TextBlock>(page, "MediaSelectionStatus").IsEffectivelyVisible,
-            state + ": applied chips, status or selection bar moved or are hidden by the open surface.");
+            && page.FilterChips.IsEffectivelyVisible && status.IsEffectivelyVisible && chipsClosed.Bottom <= area.Top + 1,
+            state + ": applied chips or status moved or are hidden by the open surface.");
         Require(close.IsEffectivelyVisible && Contains(area, Bounds(close)) && Contains(client, Bounds(close))
             && close.DesiredSize.Width <= close.Bounds.Width + 1, state + ": the Close button is clipped.");
         // Long content scrolls inside the surface; the last field stays reachable.

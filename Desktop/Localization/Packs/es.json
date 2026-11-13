@@ -2259,7 +2259,7 @@
     "media.filter.error.invalid": "Esta combinación de filtros no es válida. No se muestra nada.",
     "media.filter.error.tooManyTags": "Se pueden incluir como máximo 32 etiquetas y excluir 32.",
     "media.tile.selected": "Seleccionado",
-    "media.selection.none": "Nada seleccionado. Ctrl/Cmd+clic añade una miniatura, Mayús+clic selecciona un rango, Ctrl/Cmd+A selecciona todo, Esc borra la selección.",
+    "media.selection.howTo": "Ctrl/Cmd+clic añade una miniatura, Mayús+clic selecciona un rango, Ctrl/Cmd+A selecciona todo, Esc borra la selección.",
     "media.selection.count": "{0} seleccionados",
     "media.selection.countNotSaved": "{0} seleccionados, {1} de ellos no guardados",
     "media.selection.reason.none": "Seleccione primero al menos una miniatura.",

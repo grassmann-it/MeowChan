@@ -2259,7 +2259,7 @@
     "media.filter.error.invalid": "Эта комбинация фильтров недопустима. Ничего не показывается.",
     "media.filter.error.tooManyTags": "Можно включить не более 32 тегов и исключить не более 32.",
     "media.tile.selected": "Выбрано",
-    "media.selection.none": "Ничего не выбрано. Ctrl/Cmd+щелчок добавляет плитку, Shift+щелчок выбирает диапазон, Ctrl/Cmd+A выбирает все, Esc снимает выбор.",
+    "media.selection.howTo": "Ctrl/Cmd+щелчок добавляет плитку, Shift+щелчок выбирает диапазон, Ctrl/Cmd+A выбирает все, Esc снимает выбор.",
     "media.selection.count": "Выбрано: {0}",
     "media.selection.countNotSaved": "Выбрано: {0}, из них не сохранено: {1}",
     "media.selection.reason.none": "Сначала выберите хотя бы одну плитку.",
