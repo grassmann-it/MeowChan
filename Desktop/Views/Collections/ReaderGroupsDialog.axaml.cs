@@ -249,7 +249,7 @@ public partial class ReaderGroupsDialog : Window
         int index = group == null || SelectedMember == null ? -1 : group.Members.ToList().IndexOf(SelectedMember!);
         return id switch
         {
-            "reader-groups.create" => _draft.Groups.Count < ReaderGroupsValidation.MaximumGroups,
+            "reader-groups.create" => _draft.Groups.Count < _host.ReaderGroupLimit,
             "reader-groups.rename" or "reader-groups.delete" => group != null,
             "reader-groups.add-members" => group != null && _candidateSelectionOrder.Count > 0
                 && group.Members.Concat(_candidateSelectionOrder).Distinct().Count() <= ReaderGroupsValidation.MaximumMembers

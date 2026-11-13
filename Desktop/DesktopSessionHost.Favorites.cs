@@ -56,6 +56,27 @@ internal sealed partial class DesktopSessionHost
         if (_registry.BooruCatalog is { } store) store.DocumentLimitBytes = (long)Config.BooruCatalogLimitMiB * 1024 * 1024;
     }
 
+    /// <summary>
+    /// Hands the configured limits of the private lists (favorites, ratings, bookmarks, saved searches, reader groups) to the
+    /// profile and the video preview cache limits to the cache. Lowering a limit never removes data; it only stops growth.
+    /// </summary>
+    private void ApplyStoreLimits()
+    {
+        ProfileStoreLimits limits = _profileLease.StoreLimits;
+        limits.FavoriteEntries = Config.FavoriteEntryLimit;
+        limits.FavoriteFileBytes = (long)Config.FavoriteFileLimitMiB * 1024 * 1024;
+        limits.Bookmarks = Config.PostBookmarkLimit;
+        limits.SavedSearches = Config.SavedSearchLimit;
+        limits.ReaderGroups = Config.ReaderGroupLimit;
+        VideoPosterCache.Configure((long)Config.PosterCacheLimitMiB * 1024 * 1024, Config.PosterCacheFileLimit);
+    }
+
+    /// <summary>The write limits the profile's private lists currently enforce (tests, diagnostics).</summary>
+    internal ProfileStoreLimits StoreLimits => _profileLease.StoreLimits;
+
+    /// <summary>The reader group limit in force (the create command is disabled at it).</summary>
+    internal int ReaderGroupLimit => _profileLease.StoreLimits.ReaderGroups;
+
     /// <summary>The write limit the profile's Danbooru catalog currently enforces (diagnostics, tests).</summary>
     internal long? BooruCatalogLimitBytes => _registry.BooruCatalog?.DocumentLimitBytes;
 

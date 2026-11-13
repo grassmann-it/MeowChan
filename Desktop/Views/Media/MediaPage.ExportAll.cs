@@ -23,8 +23,20 @@ public sealed partial class MediaPage
     private readonly WrapPanel _exportAllAsk = new() { Name = "MediaExportAllConfirm", ItemSpacing = 8, LineSpacing = 6, IsVisible = false };
     private IReadOnlyList<MediaLibraryTile>? _exportAllPending;
 
-    /// <summary>Count and bytes above which "export all" asks first. Tests lower it; the page never changes it.</summary>
-    internal (int Files, long Bytes) ExportAllConfirmAbove { get; set; } = (MediaLibraryExportSize.ConfirmAboveFiles, MediaLibraryExportSize.ConfirmAboveBytes);
+    private (int Files, long Bytes)? _exportAllConfirmAbove;
+
+    /// <summary>The settings-backed threshold (Settings, Storage and limits); read at every export so a change applies at once.</summary>
+    internal Func<(int Files, long Bytes)>? ExportAllConfirmSource { get; set; }
+
+    /// <summary>
+    /// Count and bytes above which "export all" asks first: the setting, or the former fixed values when the page has none.
+    /// Tests may set it; the page never changes it.
+    /// </summary>
+    internal (int Files, long Bytes) ExportAllConfirmAbove
+    {
+        get => _exportAllConfirmAbove ?? ExportAllConfirmSource?.Invoke() ?? (MediaLibraryExportSize.ConfirmAboveFiles, MediaLibraryExportSize.ConfirmAboveBytes);
+        set => _exportAllConfirmAbove = value;
+    }
     internal bool ExportAllAsking => _exportAllAsk.IsVisible;
 
     private Control BuildExportAllAsk()
@@ -54,13 +66,6 @@ public sealed partial class MediaPage
             : _tiles.Count == 0 ? Texts.T("media.exportAll.reason.none") : null;
         SetAction(_exportAll, reason == null && !_selectionBusy && !_lifetime.IsCancellationRequested && ExportOriginals != null,
             reason, ExportOriginals != null, "media.exportAll.hint");
-    }
-
-    private MenuItem ExportAllMenuItem()
-    {
-        MenuItem item = new() { Header = Texts.T("media.exportAll"), IsEnabled = _exportAll.IsEnabled };
-        item.Click += (_, _) => _exportAll.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
-        return item;
     }
 
     private static string AskText(MediaLibraryExportSize size) => Texts.T("media.exportAll.confirm", size.Files.ToString("N0", Texts.Culture), FormatBytes(size.Bytes));

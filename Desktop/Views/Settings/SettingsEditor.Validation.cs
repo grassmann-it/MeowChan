@@ -135,13 +135,28 @@ public partial class SettingsEditor
     public string PrivateTagLimitHelp => FieldHelp(nameof(PrivateTagLimitInput), Texts.T("settings.unitCount") + ". " + PrivateTagLimitHint);
     public string PrivateTagFileMiBHelp => FieldHelp(nameof(PrivateTagFileMiBInput), Texts.T("settings.unitMiB") + ". " + PrivateTagFileMiBHint);
     public string MediaIndexCacheMiBHelp => FieldHelp(nameof(MediaIndexCacheMiBInput), Texts.T("settings.unitMiB") + ". " + MediaIndexCacheMiBHint);
+    public string FavoriteEntryLimitHelp => FieldHelp(nameof(FavoriteEntryLimitInput), Texts.T("settings.unitCount") + ". " + FavoriteEntryLimitHint);
+    public string FavoriteFileLimitMiBHelp => FieldHelp(nameof(FavoriteFileLimitMiBInput), Texts.T("settings.unitMiB") + ". " + FavoriteFileLimitMiBHint);
+    public string PostBookmarkLimitHelp => FieldHelp(nameof(PostBookmarkLimitInput), Texts.T("settings.unitCount") + ". " + PostBookmarkLimitHint);
+    public string SavedSearchLimitHelp => FieldHelp(nameof(SavedSearchLimitInput), Texts.T("settings.unitCount") + ". " + SavedSearchLimitHint);
+    public string ReaderGroupLimitHelp => FieldHelp(nameof(ReaderGroupLimitInput), Texts.T("settings.unitCount") + ". " + ReaderGroupLimitHint);
+    public string ExportConfirmFilesHelp => FieldHelp(nameof(ExportConfirmFilesInput), Texts.T("settings.unitCount") + ". " + ExportConfirmFilesHint);
+    public string ExportConfirmGiBHelp => FieldHelp(nameof(ExportConfirmGiBInput), Texts.T("settings.unitGiB") + ". " + ExportConfirmGiBHint);
+    public string PosterCacheLimitMiBHelp => FieldHelp(nameof(PosterCacheLimitMiBInput), Texts.T("settings.unitMiB") + ". " + PosterCacheLimitMiBHint);
+    public string PosterCacheFileLimitHelp => FieldHelp(nameof(PosterCacheFileLimitInput), Texts.T("settings.unitCount") + ". " + PosterCacheFileLimitHint);
+    public string ImportMaxFilesPerBatchHelp => FieldHelp(nameof(ImportMaxFilesPerBatchInput), Texts.T("settings.unitCount") + ". " + ImportMaxFilesPerBatchHint);
+    public string ImportMaxBatchGiBHelp => FieldHelp(nameof(ImportMaxBatchGiBInput), Texts.T("settings.unitGiB") + ". " + ImportMaxBatchGiBHint);
+    public string ImportMaxFileMiBHelp => FieldHelp(nameof(ImportMaxFileMiBInput), Texts.T("settings.unitMiB") + ". " + ImportMaxFileMiBHint);
+    public string ImportMaxTotalFilesHelp => FieldHelp(nameof(ImportMaxTotalFilesInput), Texts.T("settings.unitCount") + ". " + ImportMaxTotalFilesHint);
+    public string ImportCatalogLimitMiBHelp => FieldHelp(nameof(ImportCatalogLimitMiBInput), Texts.T("settings.unitMiB") + ". " + ImportCatalogLimitMiBHint);
 
     private void NotifyFieldHelpChanged()
     {
         foreach (string property in new[] { nameof(DownloadPathHelp), nameof(RecheckTimerHelp), nameof(BandwidthInputHelp),
             nameof(ParallelDownloadsHelp), nameof(ParallelDownloadsSafetyHelp), nameof(ReserveInputHelp), nameof(ProductionWorkersHelp),
             nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp), nameof(BooruCatalogMiBHelp),
-            nameof(PrivateTagLimitHelp), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBHelp) })
+            nameof(PrivateTagLimitHelp), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBHelp),
+            nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitHelp), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitHelp), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBHelp) })
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
     }
 
@@ -183,6 +198,34 @@ public partial class SettingsEditor
             Config.PrivateTagFileMinimumLimitMiB, Config.PrivateTagFileMaximumLimitMiB, true);
         yield return (MediaIndexCacheMiBInput, MediaIndexCacheMiB, MediaIndexCacheMiBLabel, Texts.T("settings.unitMiB"),
             Config.MediaIndexCacheMinimumLimitMiB, Config.MediaIndexCacheMaximumLimitMiB, true);
+        yield return (FavoriteEntryLimitInput, FavoriteEntryLimit, FavoriteEntryLimitLabel, Texts.T("settings.unitCount"),
+            Config.FavoriteEntryLimitMinimum, Config.FavoriteEntryLimitMaximum, true);
+        yield return (FavoriteFileLimitMiBInput, FavoriteFileLimitMiB, FavoriteFileLimitMiBLabel, Texts.T("settings.unitMiB"),
+            Config.FavoriteFileLimitMiBMinimum, Config.FavoriteFileLimitMiBMaximum, true);
+        yield return (PostBookmarkLimitInput, PostBookmarkLimit, PostBookmarkLimitLabel, Texts.T("settings.unitCount"),
+            Config.PostBookmarkLimitMinimum, Config.PostBookmarkLimitMaximum, true);
+        yield return (SavedSearchLimitInput, SavedSearchLimit, SavedSearchLimitLabel, Texts.T("settings.unitCount"),
+            Config.SavedSearchLimitMinimum, Config.SavedSearchLimitMaximum, true);
+        yield return (ReaderGroupLimitInput, ReaderGroupLimit, ReaderGroupLimitLabel, Texts.T("settings.unitCount"),
+            Config.ReaderGroupLimitMinimum, Config.ReaderGroupLimitMaximum, true);
+        yield return (ExportConfirmFilesInput, ExportConfirmFiles, ExportConfirmFilesLabel, Texts.T("settings.unitCount"),
+            Config.ExportConfirmFilesMinimum, Config.ExportConfirmFilesMaximum, true);
+        yield return (ExportConfirmGiBInput, ExportConfirmGiB, ExportConfirmGiBLabel, Texts.T("settings.unitGiB"),
+            Config.ExportConfirmGiBMinimum, Config.ExportConfirmGiBMaximum, true);
+        yield return (PosterCacheLimitMiBInput, PosterCacheLimitMiB, PosterCacheLimitMiBLabel, Texts.T("settings.unitMiB"),
+            Config.PosterCacheLimitMiBMinimum, Config.PosterCacheLimitMiBMaximum, true);
+        yield return (PosterCacheFileLimitInput, PosterCacheFileLimit, PosterCacheFileLimitLabel, Texts.T("settings.unitCount"),
+            Config.PosterCacheFileLimitMinimum, Config.PosterCacheFileLimitMaximum, true);
+        yield return (ImportMaxFilesPerBatchInput, ImportMaxFilesPerBatch, ImportMaxFilesPerBatchLabel, Texts.T("settings.unitCount"),
+            Config.ImportMaxFilesPerBatchMinimum, Config.ImportMaxFilesPerBatchMaximum, true);
+        yield return (ImportMaxBatchGiBInput, ImportMaxBatchGiB, ImportMaxBatchGiBLabel, Texts.T("settings.unitGiB"),
+            Config.ImportMaxBatchGiBMinimum, Config.ImportMaxBatchGiBMaximum, true);
+        yield return (ImportMaxFileMiBInput, ImportMaxFileMiB, ImportMaxFileMiBLabel, Texts.T("settings.unitMiB"),
+            Config.ImportMaxFileMiBMinimum, Config.ImportMaxFileMiBMaximum, true);
+        yield return (ImportMaxTotalFilesInput, ImportMaxTotalFiles, ImportMaxTotalFilesLabel, Texts.T("settings.unitCount"),
+            Config.ImportMaxTotalFilesMinimum, Config.ImportMaxTotalFilesMaximum, true);
+        yield return (ImportCatalogLimitMiBInput, ImportCatalogLimitMiB, ImportCatalogLimitMiBLabel, Texts.T("settings.unitMiB"),
+            Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum, true);
     }
 
     private void ClearFieldErrors()

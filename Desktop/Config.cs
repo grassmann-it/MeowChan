@@ -147,6 +147,51 @@ namespace MeowChan
         internal const int MediaIndexCacheDefaultLimitMiB = (int)(Gallery.MediaLibraryIndexCache.DefaultLimitBytes / (1024 * 1024));
         internal const int MediaIndexCacheMinimumLimitMiB = (int)(Gallery.MediaLibraryIndexCache.MinimumLimitBytes / (1024 * 1024));
         internal const int MediaIndexCacheMaximumLimitMiB = (int)(Gallery.MediaLibraryIndexCache.MaximumBytes / (1024 * 1024));
+        /// <summary>Most entries each favorite and rating list (favorite media, favorite threads, ratings) may hold. Lowering it below the current number keeps every entry readable; only new entries are refused until the count is below the limit again.</summary>
+        public int FavoriteEntryLimit { get; set; } = FavoriteEntryLimitDefault;
+        internal const int FavoriteEntryLimitDefault = Persistence.ProfileStoreLimits.DefaultFavoriteEntries;
+        internal const int FavoriteEntryLimitMinimum = Persistence.ProfileStoreLimits.MinimumFavoriteEntries;
+        internal const int FavoriteEntryLimitMaximum = Persistence.ProfileStoreLimits.FavoriteEntryCeiling;
+        /// <summary>Write limit of each favorite and rating file in MiB. Lowering it below the current size keeps the file readable; only writes that would make it larger are refused.</summary>
+        public int FavoriteFileLimitMiB { get; set; } = FavoriteFileLimitMiBDefault;
+        internal const int FavoriteFileLimitMiBDefault = Persistence.ProfileStoreLimits.DefaultFavoriteFileBytes / (1024 * 1024);
+        internal const int FavoriteFileLimitMiBMinimum = Persistence.ProfileStoreLimits.MinimumFavoriteFileBytes / (1024 * 1024);
+        internal const int FavoriteFileLimitMiBMaximum = Persistence.ProfileStoreLimits.FavoriteFileCeilingBytes / (1024 * 1024);
+        /// <summary>Most post bookmarks. Lowering it below the current number keeps every bookmark; only new bookmarks are refused. Note length and file size stay fixed technical limits.</summary>
+        public int PostBookmarkLimit { get; set; } = PostBookmarkLimitDefault;
+        internal const int PostBookmarkLimitDefault = Persistence.ProfileStoreLimits.DefaultBookmarks;
+        internal const int PostBookmarkLimitMinimum = Persistence.ProfileStoreLimits.MinimumBookmarks;
+        internal const int PostBookmarkLimitMaximum = Persistence.ProfileStoreLimits.BookmarkCeiling;
+        /// <summary>Most saved archive searches. Lowering it below the current number keeps every search; only new searches are refused.</summary>
+        public int SavedSearchLimit { get; set; } = SavedSearchLimitDefault;
+        internal const int SavedSearchLimitDefault = Persistence.ProfileStoreLimits.DefaultSavedSearches;
+        internal const int SavedSearchLimitMinimum = Persistence.ProfileStoreLimits.MinimumSavedSearches;
+        internal const int SavedSearchLimitMaximum = Persistence.ProfileStoreLimits.SavedSearchCeiling;
+        /// <summary>Most reader groups. Lowering it below the current number keeps every group; only new groups are refused. Members per group, memberships and file size stay fixed technical limits.</summary>
+        public int ReaderGroupLimit { get; set; } = ReaderGroupLimitDefault;
+        internal const int ReaderGroupLimitDefault = Persistence.ProfileStoreLimits.DefaultReaderGroups;
+        internal const int ReaderGroupLimitMinimum = Persistence.ProfileStoreLimits.MinimumReaderGroups;
+        internal const int ReaderGroupLimitMaximum = Persistence.ProfileStoreLimits.ReaderGroupCeiling;
+        /// <summary>File count above which "Export all matches" on the Media page asks before it starts. A confirmed export is never cut short.</summary>
+        public int ExportConfirmFiles { get; set; } = ExportConfirmFilesDefault;
+        internal const int ExportConfirmFilesDefault = Gallery.MediaLibraryExportSize.ConfirmAboveFiles;
+        internal const int ExportConfirmFilesMinimum = 10;
+        internal const int ExportConfirmFilesMaximum = 100_000;
+        /// <summary>Total size in GiB above which "Export all matches" on the Media page asks before it starts.</summary>
+        public int ExportConfirmGiB { get; set; } = ExportConfirmGiBDefault;
+        internal const int ExportConfirmGiBDefault = (int)(Gallery.MediaLibraryExportSize.ConfirmAboveBytes / (1024L * 1024 * 1024));
+        internal const int ExportConfirmGiBMinimum = 1;
+        internal const int ExportConfirmGiBMaximum = 1024;
+        /// <summary>Size limit of the video preview cache in MiB. Previews are derived files: when the cache is full the oldest are removed and recreated when needed. A single preview (4 MiB) and the video size that gets one (512 MiB) are fixed technical limits.</summary>
+        public int PosterCacheLimitMiB { get; set; } = PosterCacheLimitMiBDefault;
+        internal const int PosterCacheLimitMiBDefault = (int)(Desktop.VideoPosterCache.DefaultCacheBytes / (1024 * 1024));
+        internal const int PosterCacheLimitMiBMinimum = 16;
+        internal const int PosterCacheLimitMiBMaximum = 2048;
+        /// <summary>Most preview files the video preview cache keeps.</summary>
+        public int PosterCacheFileLimit { get; set; } = PosterCacheFileLimitDefault;
+        internal const int PosterCacheFileLimitDefault = Desktop.VideoPosterCache.DefaultCacheFiles;
+        internal const int PosterCacheFileLimitMinimum = 32;
+        internal const int PosterCacheFileLimitMaximum = 10_000;
 
         // Manual import limits (contract manual-import-v1 §4). Every limit is a setting; the stores enforce technical ceilings.
         /// <summary>Most files (new and already present) one import batch may hold.</summary>
@@ -159,7 +204,11 @@ namespace MeowChan
         public int ImportMaxTotalFiles { get; set; } = Import.ManualImportCatalogStore.DefaultMaximumTotalItems;
         /// <summary>Write limit of the import catalog file in MiB; lowering it only stops growth.</summary>
         public int ImportCatalogLimitMiB { get; set; } = Import.ManualImportCatalogStore.DefaultDocumentLimitBytes / (1024 * 1024);
-        internal const int ImportMaxBatchGiBCeiling = 16 * 1024, ImportMaxFileMiBCeiling = 1024 * 1024;
+        internal const int ImportMaxFilesPerBatchMinimum = 1, ImportMaxFilesPerBatchMaximum = Import.ManualImportCatalogStore.MaximumItemsPerBatch;
+        internal const int ImportMaxBatchGiBMinimum = 1, ImportMaxBatchGiBMaximum = 16 * 1024;
+        internal const int ImportMaxFileMiBMinimum = 1, ImportMaxFileMiBMaximum = 1024 * 1024;
+        internal const int ImportMaxTotalFilesMinimum = 1, ImportMaxTotalFilesMaximum = Import.ManualImportCatalogStore.MaximumTotalItemsCeiling;
+        internal const int ImportCatalogLimitMiBMinimum = 1, ImportCatalogLimitMiBMaximum = Import.ManualImportCatalogStore.MaximumDocumentBytes / (1024 * 1024);
 
         internal Import.ManualImportLimits ImportLimits => new(ImportMaxFilesPerBatch, ImportMaxBatchGiB * 1024L * 1024 * 1024,
             ImportMaxFileMiB * 1024L * 1024);
@@ -544,16 +593,34 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(PrivateTagFileLimitMiB), "The own tag file limit must be between 8 and 128 MiB.");
             if (MediaIndexCacheLimitMiB is < MediaIndexCacheMinimumLimitMiB or > MediaIndexCacheMaximumLimitMiB)
                 throw new ArgumentOutOfRangeException(nameof(MediaIndexCacheLimitMiB), "The media index cache limit must be between 16 and 1024 MiB.");
-            if (ImportMaxFilesPerBatch is < 1 or > Import.ManualImportCatalogStore.MaximumItemsPerBatch)
-                throw new ArgumentOutOfRangeException(nameof(ImportMaxFilesPerBatch), "The files per import batch must be between 1 and 20000.");
-            if (ImportMaxBatchGiB is < 1 or > ImportMaxBatchGiBCeiling)
-                throw new ArgumentOutOfRangeException(nameof(ImportMaxBatchGiB), "The import batch size must be between 1 and 16384 GiB.");
-            if (ImportMaxFileMiB is < 1 or > ImportMaxFileMiBCeiling)
-                throw new ArgumentOutOfRangeException(nameof(ImportMaxFileMiB), "The imported file size must be between 1 and 1048576 MiB.");
-            if (ImportMaxTotalFiles is < 1 or > Import.ManualImportCatalogStore.MaximumTotalItemsCeiling)
-                throw new ArgumentOutOfRangeException(nameof(ImportMaxTotalFiles), "The total of imported files must be between 1 and 500000.");
-            if (ImportCatalogLimitMiB is < 1 or > Import.ManualImportCatalogStore.MaximumDocumentBytes / (1024 * 1024))
-                throw new ArgumentOutOfRangeException(nameof(ImportCatalogLimitMiB), "The import catalog limit must be between 1 and 128 MiB.");
+            if (FavoriteEntryLimit is < FavoriteEntryLimitMinimum or > FavoriteEntryLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(FavoriteEntryLimit), "FavoriteEntryLimit is outside its supported range (" + FavoriteEntryLimitMinimum + " to " + FavoriteEntryLimitMaximum + ").");
+            if (FavoriteFileLimitMiB is < FavoriteFileLimitMiBMinimum or > FavoriteFileLimitMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(FavoriteFileLimitMiB), "FavoriteFileLimitMiB is outside its supported range (" + FavoriteFileLimitMiBMinimum + " to " + FavoriteFileLimitMiBMaximum + ").");
+            if (PostBookmarkLimit is < PostBookmarkLimitMinimum or > PostBookmarkLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(PostBookmarkLimit), "PostBookmarkLimit is outside its supported range (" + PostBookmarkLimitMinimum + " to " + PostBookmarkLimitMaximum + ").");
+            if (SavedSearchLimit is < SavedSearchLimitMinimum or > SavedSearchLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(SavedSearchLimit), "SavedSearchLimit is outside its supported range (" + SavedSearchLimitMinimum + " to " + SavedSearchLimitMaximum + ").");
+            if (ReaderGroupLimit is < ReaderGroupLimitMinimum or > ReaderGroupLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderGroupLimit), "ReaderGroupLimit is outside its supported range (" + ReaderGroupLimitMinimum + " to " + ReaderGroupLimitMaximum + ").");
+            if (ExportConfirmFiles is < ExportConfirmFilesMinimum or > ExportConfirmFilesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ExportConfirmFiles), "ExportConfirmFiles is outside its supported range (" + ExportConfirmFilesMinimum + " to " + ExportConfirmFilesMaximum + ").");
+            if (ExportConfirmGiB is < ExportConfirmGiBMinimum or > ExportConfirmGiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ExportConfirmGiB), "ExportConfirmGiB is outside its supported range (" + ExportConfirmGiBMinimum + " to " + ExportConfirmGiBMaximum + ").");
+            if (PosterCacheLimitMiB is < PosterCacheLimitMiBMinimum or > PosterCacheLimitMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(PosterCacheLimitMiB), "PosterCacheLimitMiB is outside its supported range (" + PosterCacheLimitMiBMinimum + " to " + PosterCacheLimitMiBMaximum + ").");
+            if (PosterCacheFileLimit is < PosterCacheFileLimitMinimum or > PosterCacheFileLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(PosterCacheFileLimit), "PosterCacheFileLimit is outside its supported range (" + PosterCacheFileLimitMinimum + " to " + PosterCacheFileLimitMaximum + ").");
+            if (ImportMaxFilesPerBatch is < ImportMaxFilesPerBatchMinimum or > ImportMaxFilesPerBatchMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ImportMaxFilesPerBatch), "ImportMaxFilesPerBatch is outside its supported range (" + ImportMaxFilesPerBatchMinimum + " to " + ImportMaxFilesPerBatchMaximum + ").");
+            if (ImportMaxBatchGiB is < ImportMaxBatchGiBMinimum or > ImportMaxBatchGiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ImportMaxBatchGiB), "ImportMaxBatchGiB is outside its supported range (" + ImportMaxBatchGiBMinimum + " to " + ImportMaxBatchGiBMaximum + ").");
+            if (ImportMaxFileMiB is < ImportMaxFileMiBMinimum or > ImportMaxFileMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ImportMaxFileMiB), "ImportMaxFileMiB is outside its supported range (" + ImportMaxFileMiBMinimum + " to " + ImportMaxFileMiBMaximum + ").");
+            if (ImportMaxTotalFiles is < ImportMaxTotalFilesMinimum or > ImportMaxTotalFilesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ImportMaxTotalFiles), "ImportMaxTotalFiles is outside its supported range (" + ImportMaxTotalFilesMinimum + " to " + ImportMaxTotalFilesMaximum + ").");
+            if (ImportCatalogLimitMiB is < ImportCatalogLimitMiBMinimum or > ImportCatalogLimitMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ImportCatalogLimitMiB), "ImportCatalogLimitMiB is outside its supported range (" + ImportCatalogLimitMiBMinimum + " to " + ImportCatalogLimitMiBMaximum + ").");
             if (PluginEditorExecutable is { Length: > 4096 } || PluginEditorExecutable?.Any(char.IsControl) == true
                 || PluginEditorArguments == null || PluginEditorArguments.Length > 32
                 || PluginEditorArguments.Any(value => value == null || value.Length > 4096 || value.Any(char.IsControl)))
@@ -615,6 +682,15 @@ namespace MeowChan
                 PrivateTagLimit = PrivateTagLimit,
                 PrivateTagFileLimitMiB = PrivateTagFileLimitMiB,
                 MediaIndexCacheLimitMiB = MediaIndexCacheLimitMiB,
+                FavoriteEntryLimit = FavoriteEntryLimit,
+                FavoriteFileLimitMiB = FavoriteFileLimitMiB,
+                PostBookmarkLimit = PostBookmarkLimit,
+                SavedSearchLimit = SavedSearchLimit,
+                ReaderGroupLimit = ReaderGroupLimit,
+                ExportConfirmFiles = ExportConfirmFiles,
+                ExportConfirmGiB = ExportConfirmGiB,
+                PosterCacheLimitMiB = PosterCacheLimitMiB,
+                PosterCacheFileLimit = PosterCacheFileLimit,
                 ImportMaxFilesPerBatch = ImportMaxFilesPerBatch,
                 ImportMaxBatchGiB = ImportMaxBatchGiB,
                 ImportMaxFileMiB = ImportMaxFileMiB,
@@ -715,6 +791,15 @@ namespace MeowChan
             PrivateTagLimit = source.PrivateTagLimit;
             PrivateTagFileLimitMiB = source.PrivateTagFileLimitMiB;
             MediaIndexCacheLimitMiB = source.MediaIndexCacheLimitMiB;
+            FavoriteEntryLimit = source.FavoriteEntryLimit;
+            FavoriteFileLimitMiB = source.FavoriteFileLimitMiB;
+            PostBookmarkLimit = source.PostBookmarkLimit;
+            SavedSearchLimit = source.SavedSearchLimit;
+            ReaderGroupLimit = source.ReaderGroupLimit;
+            ExportConfirmFiles = source.ExportConfirmFiles;
+            ExportConfirmGiB = source.ExportConfirmGiB;
+            PosterCacheLimitMiB = source.PosterCacheLimitMiB;
+            PosterCacheFileLimit = source.PosterCacheFileLimit;
             ImportMaxFilesPerBatch = source.ImportMaxFilesPerBatch;
             ImportMaxBatchGiB = source.ImportMaxBatchGiB;
             ImportMaxFileMiB = source.ImportMaxFileMiB;
@@ -779,6 +864,15 @@ namespace MeowChan
             PrivateTagLimit = source.PrivateTagLimit;
             PrivateTagFileLimitMiB = source.PrivateTagFileLimitMiB;
             MediaIndexCacheLimitMiB = source.MediaIndexCacheLimitMiB;
+            FavoriteEntryLimit = source.FavoriteEntryLimit;
+            FavoriteFileLimitMiB = source.FavoriteFileLimitMiB;
+            PostBookmarkLimit = source.PostBookmarkLimit;
+            SavedSearchLimit = source.SavedSearchLimit;
+            ReaderGroupLimit = source.ReaderGroupLimit;
+            ExportConfirmFiles = source.ExportConfirmFiles;
+            ExportConfirmGiB = source.ExportConfirmGiB;
+            PosterCacheLimitMiB = source.PosterCacheLimitMiB;
+            PosterCacheFileLimit = source.PosterCacheFileLimit;
             ImportMaxFilesPerBatch = source.ImportMaxFilesPerBatch;
             ImportMaxBatchGiB = source.ImportMaxBatchGiB;
             ImportMaxFileMiB = source.ImportMaxFileMiB;

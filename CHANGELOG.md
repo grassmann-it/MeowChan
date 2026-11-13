@@ -31,6 +31,12 @@
 - Add the setting **Danbooru catalog limit (MiB)** under **Advanced: plugin process
   limits** (default 32, 8 to 128) with a watcher-list warning from 75 %; lowering it
   deletes nothing.
+- Make the remaining amount and size limits settings under **Storage and limits**:
+  entries per favorite/thread-favorite/rating list (default 50000) and their file size
+  (8 MiB), post bookmarks (10000), saved searches (500), reader groups (500), the question
+  before "Export all matches" (500 files or 2 GiB), the video preview cache (128 MiB,
+  256 files) and the five import limits. Lowering a limit deletes nothing; a full list
+  names the setting in the user's language. Fixed technical limits are listed in the help.
 - Add plugin SDK 1.1.0 (booru post search, blocked-declaration status), reviewed and
   moved to Shipped, with a one-time automatic transition for bundled plugins that only
   change the declared SDK version. The booru post identity is `BooruPostId` (renamed before

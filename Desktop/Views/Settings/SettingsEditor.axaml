@@ -246,6 +246,121 @@
                             </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding MediaIndexCacheMiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock x:Name="LimitsListsHeading" Text="{Binding ListsGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,14,0,0" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="FavoriteEntryLimitFieldLabel" Text="{Binding FavoriteEntryLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="FavoriteEntryLimitInput" Value="{Binding FavoriteEntryLimit, Mode=TwoWay}" Minimum="10000" Maximum="500000" Increment="1000" AutomationProperties.LabeledBy="{Binding ElementName=FavoriteEntryLimitFieldLabel}" AutomationProperties.Name="{Binding FavoriteEntryLimitLabel}" AutomationProperties.HelpText="{Binding FavoriteEntryLimitHelp}" />
+                                <TextBlock x:Name="FavoriteEntryLimitInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding FavoriteEntryLimitHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="FavoriteFileLimitMiBFieldLabel" Text="{Binding FavoriteFileLimitMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="FavoriteFileLimitMiBInput" Value="{Binding FavoriteFileLimitMiB, Mode=TwoWay}" Minimum="8" Maximum="128" Increment="8" AutomationProperties.LabeledBy="{Binding ElementName=FavoriteFileLimitMiBFieldLabel}" AutomationProperties.Name="{Binding FavoriteFileLimitMiBLabel}" AutomationProperties.HelpText="{Binding FavoriteFileLimitMiBHelp}" />
+                                <TextBlock x:Name="FavoriteFileLimitMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding FavoriteFileLimitMiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="PostBookmarkLimitFieldLabel" Text="{Binding PostBookmarkLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="PostBookmarkLimitInput" Value="{Binding PostBookmarkLimit, Mode=TwoWay}" Minimum="1000" Maximum="100000" Increment="1000" AutomationProperties.LabeledBy="{Binding ElementName=PostBookmarkLimitFieldLabel}" AutomationProperties.Name="{Binding PostBookmarkLimitLabel}" AutomationProperties.HelpText="{Binding PostBookmarkLimitHelp}" />
+                                <TextBlock x:Name="PostBookmarkLimitInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding PostBookmarkLimitHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="SavedSearchLimitFieldLabel" Text="{Binding SavedSearchLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="SavedSearchLimitInput" Value="{Binding SavedSearchLimit, Mode=TwoWay}" Minimum="50" Maximum="5000" Increment="50" AutomationProperties.LabeledBy="{Binding ElementName=SavedSearchLimitFieldLabel}" AutomationProperties.Name="{Binding SavedSearchLimitLabel}" AutomationProperties.HelpText="{Binding SavedSearchLimitHelp}" />
+                                <TextBlock x:Name="SavedSearchLimitInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding SavedSearchLimitHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="ReaderGroupLimitFieldLabel" Text="{Binding ReaderGroupLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="ReaderGroupLimitInput" Value="{Binding ReaderGroupLimit, Mode=TwoWay}" Minimum="50" Maximum="5000" Increment="50" AutomationProperties.LabeledBy="{Binding ElementName=ReaderGroupLimitFieldLabel}" AutomationProperties.Name="{Binding ReaderGroupLimitLabel}" AutomationProperties.HelpText="{Binding ReaderGroupLimitHelp}" />
+                                <TextBlock x:Name="ReaderGroupLimitInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding ReaderGroupLimitHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock x:Name="LimitsPreviewsHeading" Text="{Binding PreviewsGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,14,0,0" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="ExportConfirmFilesFieldLabel" Text="{Binding ExportConfirmFilesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="ExportConfirmFilesInput" Value="{Binding ExportConfirmFiles, Mode=TwoWay}" Minimum="10" Maximum="100000" Increment="100" AutomationProperties.LabeledBy="{Binding ElementName=ExportConfirmFilesFieldLabel}" AutomationProperties.Name="{Binding ExportConfirmFilesLabel}" AutomationProperties.HelpText="{Binding ExportConfirmFilesHelp}" />
+                                <TextBlock x:Name="ExportConfirmFilesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding ExportConfirmFilesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="ExportConfirmGiBFieldLabel" Text="{Binding ExportConfirmGiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="ExportConfirmGiBInput" Value="{Binding ExportConfirmGiB, Mode=TwoWay}" Minimum="1" Maximum="1024" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ExportConfirmGiBFieldLabel}" AutomationProperties.Name="{Binding ExportConfirmGiBLabel}" AutomationProperties.HelpText="{Binding ExportConfirmGiBHelp}" />
+                                <TextBlock x:Name="ExportConfirmGiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding ExportConfirmGiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="PosterCacheLimitMiBFieldLabel" Text="{Binding PosterCacheLimitMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="PosterCacheLimitMiBInput" Value="{Binding PosterCacheLimitMiB, Mode=TwoWay}" Minimum="16" Maximum="2048" Increment="16" AutomationProperties.LabeledBy="{Binding ElementName=PosterCacheLimitMiBFieldLabel}" AutomationProperties.Name="{Binding PosterCacheLimitMiBLabel}" AutomationProperties.HelpText="{Binding PosterCacheLimitMiBHelp}" />
+                                <TextBlock x:Name="PosterCacheLimitMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding PosterCacheLimitMiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="PosterCacheFileLimitFieldLabel" Text="{Binding PosterCacheFileLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="PosterCacheFileLimitInput" Value="{Binding PosterCacheFileLimit, Mode=TwoWay}" Minimum="32" Maximum="10000" Increment="32" AutomationProperties.LabeledBy="{Binding ElementName=PosterCacheFileLimitFieldLabel}" AutomationProperties.Name="{Binding PosterCacheFileLimitLabel}" AutomationProperties.HelpText="{Binding PosterCacheFileLimitHelp}" />
+                                <TextBlock x:Name="PosterCacheFileLimitInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding PosterCacheFileLimitHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock x:Name="LimitsImportHeading" Text="{Binding ImportGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,14,0,0" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="ImportMaxFilesPerBatchFieldLabel" Text="{Binding ImportMaxFilesPerBatchLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="ImportMaxFilesPerBatchInput" Value="{Binding ImportMaxFilesPerBatch, Mode=TwoWay}" Minimum="1" Maximum="20000" Increment="100" AutomationProperties.LabeledBy="{Binding ElementName=ImportMaxFilesPerBatchFieldLabel}" AutomationProperties.Name="{Binding ImportMaxFilesPerBatchLabel}" AutomationProperties.HelpText="{Binding ImportMaxFilesPerBatchHelp}" />
+                                <TextBlock x:Name="ImportMaxFilesPerBatchInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding ImportMaxFilesPerBatchHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="ImportMaxBatchGiBFieldLabel" Text="{Binding ImportMaxBatchGiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="ImportMaxBatchGiBInput" Value="{Binding ImportMaxBatchGiB, Mode=TwoWay}" Minimum="1" Maximum="16384" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ImportMaxBatchGiBFieldLabel}" AutomationProperties.Name="{Binding ImportMaxBatchGiBLabel}" AutomationProperties.HelpText="{Binding ImportMaxBatchGiBHelp}" />
+                                <TextBlock x:Name="ImportMaxBatchGiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding ImportMaxBatchGiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="ImportMaxFileMiBFieldLabel" Text="{Binding ImportMaxFileMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="ImportMaxFileMiBInput" Value="{Binding ImportMaxFileMiB, Mode=TwoWay}" Minimum="1" Maximum="1048576" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ImportMaxFileMiBFieldLabel}" AutomationProperties.Name="{Binding ImportMaxFileMiBLabel}" AutomationProperties.HelpText="{Binding ImportMaxFileMiBHelp}" />
+                                <TextBlock x:Name="ImportMaxFileMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding ImportMaxFileMiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="ImportMaxTotalFilesFieldLabel" Text="{Binding ImportMaxTotalFilesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="ImportMaxTotalFilesInput" Value="{Binding ImportMaxTotalFiles, Mode=TwoWay}" Minimum="1" Maximum="500000" Increment="1000" AutomationProperties.LabeledBy="{Binding ElementName=ImportMaxTotalFilesFieldLabel}" AutomationProperties.Name="{Binding ImportMaxTotalFilesLabel}" AutomationProperties.HelpText="{Binding ImportMaxTotalFilesHelp}" />
+                                <TextBlock x:Name="ImportMaxTotalFilesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding ImportMaxTotalFilesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="ImportCatalogLimitMiBFieldLabel" Text="{Binding ImportCatalogLimitMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="ImportCatalogLimitMiBInput" Value="{Binding ImportCatalogLimitMiB, Mode=TwoWay}" Minimum="1" Maximum="128" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ImportCatalogLimitMiBFieldLabel}" AutomationProperties.Name="{Binding ImportCatalogLimitMiBLabel}" AutomationProperties.HelpText="{Binding ImportCatalogLimitMiBHelp}" />
+                                <TextBlock x:Name="ImportCatalogLimitMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding ImportCatalogLimitMiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
                     <Expander x:Name="SettingsWorkerBudgetsHeading" Header="{Binding AdvancedBudgetsLabel}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                         <StackPanel Spacing="10" Margin="0,8,0,0">
                             <TextBlock Text="{Binding BudgetRestartHint}" Classes="muted" TextWrapping="Wrap" />

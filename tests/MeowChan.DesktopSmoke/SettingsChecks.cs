@@ -263,7 +263,8 @@ internal static class SettingsChecks
                 Texts.SetLanguage(language);
                 foreach (string name in new[] { "RecheckTimerInput", "BandwidthInput", "ParallelDownloadsInput", "ReserveInput",
                     "ProductionWorkersInput", "WorkerIdleMinutesInput", "SourceHeapMiBInput", "FilterHeapMiBInput",
-                    "PrivateTagLimitInput", "PrivateTagFileMiBInput" })
+                    "PrivateTagLimitInput", "PrivateTagFileMiBInput", "MediaIndexCacheMiBInput",
+                    "FavoriteEntryLimitInput", "FavoriteFileLimitMiBInput", "PostBookmarkLimitInput", "SavedSearchLimitInput", "ReaderGroupLimitInput", "ExportConfirmFilesInput", "ExportConfirmGiBInput", "PosterCacheLimitMiBInput", "PosterCacheFileLimitInput", "ImportMaxFilesPerBatchInput", "ImportMaxBatchGiBInput", "ImportMaxFileMiBInput", "ImportMaxTotalFilesInput", "ImportCatalogLimitMiBInput" })
                 {
                     Console.WriteLine($"SMOKE settings field begin: language={language}; field={name}; window={window.Bounds}; state={window.WindowState}.");
                     window.Editor.CancelChanges();

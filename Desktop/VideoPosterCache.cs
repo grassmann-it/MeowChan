@@ -17,9 +17,24 @@ namespace MeowChan.Desktop;
 internal static class VideoPosterCache
 {
     internal const int MaximumPngBytes = 4 * 1024 * 1024;
-    internal const long MaximumCacheBytes = 128L * 1024 * 1024;
-    internal const int MaximumCacheFiles = 256;
+    /// <summary>Default size of the cache (the limit is a setting, Settings, Storage and limits).</summary>
+    internal const long DefaultCacheBytes = 128L * 1024 * 1024;
+    /// <summary>Default number of files in the cache (the limit is a setting).</summary>
+    internal const int DefaultCacheFiles = 256;
+    // Fixed technical limit (documented in Help.md): videos above this size never get a preview.
     private const long MaximumVideoBytes = 512L * 1024 * 1024;
+    private static long _cacheBytes = DefaultCacheBytes;
+    private static int _cacheFiles = DefaultCacheFiles;
+
+    /// <summary>The cache limits in force (tests, diagnostics).</summary>
+    internal static (long Bytes, int Files) Limits => (Interlocked.Read(ref _cacheBytes), Volatile.Read(ref _cacheFiles));
+
+    /// <summary>The configured cache limits. Lowering them evicts the oldest previews when the next one is saved; originals are never touched.</summary>
+    internal static void Configure(long maximumBytes, int maximumFiles)
+    {
+        Interlocked.Exchange(ref _cacheBytes, Math.Max(MaximumPngBytes, maximumBytes));
+        Volatile.Write(ref _cacheFiles, Math.Max(1, maximumFiles));
+    }
     private static readonly SemaphoreSlim Gate = new(1, 1);
     private static readonly object FailuresLock = new();
     private static readonly Dictionary<string, DateTime> Failures = new(StringComparer.Ordinal);
@@ -170,7 +185,9 @@ internal static class VideoPosterCache
         using SKBitmap bitmap = SKBitmap.Decode(png);
         return bitmap != null && bitmap.Width == codec.Info.Width && bitmap.Height == codec.Info.Height;
     }
-    internal static void Trim(string directory, int incomingBytes)
+    internal static void Trim(string directory, int incomingBytes) => Trim(directory, incomingBytes, Interlocked.Read(ref _cacheBytes), Volatile.Read(ref _cacheFiles));
+
+    internal static void Trim(string directory, int incomingBytes, long maximumBytes, int maximumFiles)
     {
         FileInfo[] files = Directory.EnumerateFiles(directory, "*.png").Select(path => new FileInfo(path))
             .OrderBy(file => file.LastWriteTimeUtc).ToArray();
@@ -178,7 +195,7 @@ internal static class VideoPosterCache
         int count = files.Length;
         foreach (FileInfo file in files)
         {
-            if (count < MaximumCacheFiles && bytes + incomingBytes <= MaximumCacheBytes) break;
+            if (count < maximumFiles && bytes + incomingBytes <= maximumBytes) break;
             long length = file.Length;
             file.Delete(); count--; bytes -= length;
         }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Diagnostics;
@@ -120,7 +121,10 @@ internal sealed partial class DesktopSessionHost
                 try
                 {
                     using var measurement = PerformanceDiagnostics.Measure("host.command", request, target, epoch: _epoch);
-                    T result = await operation(acceptedAdmission).ConfigureAwait(false);
+                    T result;
+                    try { result = await operation(acceptedAdmission).ConfigureAwait(false); }
+                    // A full private list names its setting in the user's language instead of an English store message.
+                    catch (InvalidDataException limit) when (StoreLimitText.Describe(limit) != null) { throw StoreLimitText.Localize(limit); }
                     // All command completions observe the same bounded publication path, including forced reads.
                     if (captureAfter) await CaptureProjectionAsync().ConfigureAwait(false);
                     return result;

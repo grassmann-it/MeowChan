@@ -59,8 +59,28 @@ public sealed class VideoPosterCacheTests
         }
         VideoPosterCache.Trim(temp.Path, VideoPosterCache.MaximumPngBytes);
         var files = Directory.GetFiles(temp.Path).Select(path => new FileInfo(path)).ToArray();
-        Assert.True(files.Length < VideoPosterCache.MaximumCacheFiles);
-        Assert.True(files.Sum(file => file.Length) + VideoPosterCache.MaximumPngBytes <= VideoPosterCache.MaximumCacheBytes);
+        Assert.True(files.Length < VideoPosterCache.DefaultCacheFiles);
+        Assert.True(files.Sum(file => file.Length) + VideoPosterCache.MaximumPngBytes <= VideoPosterCache.DefaultCacheBytes);
+        Assert.False(File.Exists(Path.Combine(temp.Path, "0000.png")));
+    }
+
+    [Theory]
+    [InlineData(20, 5, 1_000_000_000L, 5)]
+    [InlineData(20, 100, 2_500_000L, 4)]
+    public void ConfiguredFileAndByteLimitsDecideHowManyOfTheNewestPreviewsStay(int created, int maximumFiles, long maximumBytes, int expectedAtMost)
+    {
+        using TempDirectory temp = new();
+        for (int index = 0; index < created; index++)
+        {
+            string path = Path.Combine(temp.Path, index.ToString("D4") + ".png");
+            using var stream = File.Create(path); stream.SetLength(600_000);
+            File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(index - 300));
+        }
+        VideoPosterCache.Trim(temp.Path, 100_000, maximumBytes, maximumFiles);
+        string[] left = Directory.GetFiles(temp.Path).OrderBy(path => path).ToArray();
+        Assert.InRange(left.Length, 1, expectedAtMost);
+        // The newest previews stay; only the oldest are evicted.
+        Assert.EndsWith((created - 1).ToString("D4") + ".png", left[^1]);
         Assert.False(File.Exists(Path.Combine(temp.Path, "0000.png")));
     }
 
