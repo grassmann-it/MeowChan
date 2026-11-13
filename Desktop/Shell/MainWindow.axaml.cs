@@ -758,7 +758,7 @@ public partial class MainWindow : Window
         _trayLogo = ThemeLogo.Follow(trayIcon);
         trayIcon.ToolTipText = TrayMenuModel.BaseTooltip;
         NativeMenu menu = new NativeMenu();
-        AddTrayStats(); // tooltip statistics, text only
+        AddTrayStatsItems(menu); // two statistics lines and a separator (hidden by the setting); text only
         NativeMenuItem openItem = CreateTrayCommandItem("app.show");
         _trayOpenItem = openItem;
         openItem.Click += (sender, e) =>
