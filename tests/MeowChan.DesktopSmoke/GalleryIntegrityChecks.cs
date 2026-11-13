@@ -124,7 +124,14 @@ internal static class GalleryIntegrityChecks
                 scroll.ScrollToEnd(); await Settle(dialog);
                 Require(scroll.Offset.Y >= Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height) - 1,
                     "Explicit details cannot scroll to their final raw values.");
-                Button close = dialog.GetVisualDescendants().OfType<Button>().Single();
+                // Template parts are not actions: the title bar's caption buttons (shared dialog frame, 9e30659d) and the
+                // ScrollBar line/page buttons that the visible scroll bar now carries. The action row's Close is the only other Button.
+                Button[] actionButtons = dialog.GetVisualDescendants().OfType<Button>()
+                    .Where(button => button.Name is not ("WindowMinimizeButton" or "WindowMaximizeButton" or "WindowCloseButton")
+                        && !button.GetVisualAncestors().OfType<Avalonia.Controls.Primitives.ScrollBar>().Any()).ToArray();
+                Require(actionButtons.Length == 1, "Explicit details action row is not a single Close button: "
+                    + string.Join(", ", actionButtons.Select(button => button.Name + "/" + button.Content)));
+                Button close = actionButtons[0];
                 Require(close.IsEffectivelyVisible && Bounds(close, dialog).Bottom <= dialog.Bounds.Height + 1,
                     "Explicit details Close action is outside the dialog.");
                 Console.WriteLine("GALLERY_INTEGRITY_DETAILS " + JsonSerializer.Serialize(new

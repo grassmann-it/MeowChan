@@ -59,7 +59,13 @@ internal static partial class GalleryPlaybackFeatureChecks
         // projection from the pinned VideoView using real roots/focus adorners.
         bool raw = Environment.GetEnvironmentVariable("MEOWCHAN_REPRO_RAW_NATIVE_CLIP") == "1";
         Grid nativeRoot = raw ? new Grid() : new NativeVideoOverlayRoot();
-        Button moved = new() { Content = "Transfer focus target", Width = 180, Height = 44 };
+        // The product's own focus ring opts out of the adorner-layer clip (AdornerLayer.IsClipEnabled=False,
+        // 7610ba31), which is exactly what keeps it from subscribing to ancestor clips. This pin reproduces the
+        // Avalonia 12.1.4 stale subscription, so it needs a ring that keeps the framework default (clip enabled),
+        // as any control outside the styled set (third-party templates, popups) still has.
+        Button moved = new() { Content = "Transfer focus target", Width = 180, Height = 44,
+            FocusAdorner = new Avalonia.Controls.Templates.FuncTemplate<Control>(() => new Border
+            { BorderBrush = Avalonia.Media.Brushes.Red, BorderThickness = new Avalonia.Thickness(2), IsHitTestVisible = false }) };
         Button other = new() { Content = "Retain focus target", Width = 180, Height = 44 };
         StackPanel controls = new(); controls.Children.Add(moved); controls.Children.Add(other);
         Window main = new() { Width = 650, Height = 500, Content = controls, Title = "Private focus-clip source" };
