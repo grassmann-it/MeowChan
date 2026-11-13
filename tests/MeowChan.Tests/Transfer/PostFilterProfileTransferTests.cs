@@ -283,6 +283,62 @@ public sealed class PostFilterProfileTransferTests
         }
     }
 
+    [Theory]
+    [InlineData("valid", false)]
+    [InlineData("valid", true)]
+    [InlineData("corrupt", false)]
+    [InlineData("corrupt", true)]
+    [InlineData("future", false)]
+    [InlineData("future", true)]
+    public void BackupAppearingAfterEmptyCaptureInvalidatesRestoreWithoutAnotherLoad(string kind, bool admitted)
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        lease.Admission.CompleteStartup();
+        using ProfileAdmissionToken? admission = admitted ? lease.Admission.EnterOrdinaryWriter() : null;
+        PostFilterStore store = new(directory.Path, lease);
+        string path = Path.Combine(directory.Path, PostFilterStore.FileName);
+        PostFilterTransferExport reviewed = PostFilterProfileBackup.Capture(store);
+        Assert.True(reviewed.IsExported);
+        Assert.Equal(0, reviewed.Snapshot!.SourceRevision);
+        Assert.Empty(reviewed.Snapshot.Rules);
+        Assert.Empty(reviewed.Snapshot.HiddenPosts);
+        Assert.False(File.Exists(path));
+        Assert.False(File.Exists(path + ".bak"));
+
+        // Even a supported backup with revision zero must invalidate the cached empty
+        // review: checking only the revision, or only the primary, would lose policy.
+        string reappeared = kind switch
+        {
+            "corrupt" => "{broken backup",
+            "future" => "{\"schemaVersion\":99}",
+            _ => """
+                {"schemaVersion":1,"revision":0,"hiddenPostsAction":"stub",
+                 "rules":[{"id":"11111111-1111-1111-1111-111111111111","enabled":true,
+                           "field":"text","match":"exact","pattern":"unreviewed policy",
+                           "action":"hide","replies":false}],"hiddenPosts":[]}
+                """
+        };
+        byte[] backup = Encoding.UTF8.GetBytes(reappeared);
+        File.WriteAllBytes(path + ".bak", backup);
+        bool reachedWrite = false;
+        store.BeforeAdmittedMutationForTests = _ => reachedWrite = true;
+
+        // Deliberately do not Load/Capture again before applying the old empty image.
+        PostFilterTransferImport result = admitted
+            ? PostFilterProfileBackup.RestoreAdmitted(store, reviewed.Bytes!, reviewed.Snapshot.SourceRevision, admission!)
+            : PostFilterProfileBackup.Restore(store, reviewed.Bytes!, reviewed.Snapshot.SourceRevision);
+        Assert.Equal(PostFilterTransferError.StoreUnavailable, result.Error);
+        Assert.False(result.IsImported);
+        Assert.Null(result.Snapshot);
+        Assert.False(reachedWrite);
+        Assert.False(File.Exists(path));
+        Assert.Equal(backup, File.ReadAllBytes(path + ".bak"));
+        Assert.Empty(Directory.GetFiles(directory.Path, ".post-filters.json.*.tmp"));
+        Assert.Equal(kind == "valid" ? PostFilterStoreState.RecoveryAvailable : PostFilterStoreState.Failed,
+            new PostFilterStore(directory.Path, lease).Load().State);
+    }
+
     [Fact]
     public void ReappearingPrimaryRequiresAnotherRecoveryReview()
     {
