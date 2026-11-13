@@ -191,6 +191,9 @@ public partial class DownloadQueue
     public long MinimumFreeSpaceBytes => _targets.Reserve;
     public IReadOnlyList<DownloadTargetWaitState> TargetWaitStates => _targets.Snapshot();
     public void UpdateMinimumFreeSpaceBytes(long bytes) => _targets.UpdateReserve(bytes);
+
+    /// <summary>The profile's configured private tag write limits, used when a commit carries media tags over.</summary>
+    internal Tags.PrivateTagLimits PrivateTagLimits { get; set; } = new();
     public Task CheckTargetsAsync(CancellationToken cancellationToken = default) => _targets.CheckBlockedAsync(true, cancellationToken);
     internal DownloadTargetGate TargetGate => _targets;
 
@@ -1291,7 +1294,7 @@ public partial class DownloadQueue
         {
             ProfileLease? lease = ResolveExecutionProfileLease(item);
             if (lease == null) return;
-            bool changed = committed != null && Tags.MediaTagKeyCarryOver.Apply(lease, admission, committed.TagHandovers, CancellationToken.None);
+            bool changed = committed != null && Tags.MediaTagKeyCarryOver.Apply(lease, admission, committed.TagHandovers, CancellationToken.None, PrivateTagLimits);
             if (changed) RaiseMediaTagsCarriedOver();
             ResourceId thread = item.AttachmentReferences[0].Resource;
             if (!_tagReconciledThreads.TryAdd(thread, 0)) return;
@@ -1303,7 +1306,7 @@ public partial class DownloadQueue
             IReadOnlyList<Tags.MediaTagKeyHandover> pending = await Tags.MediaTagKeyCarryOver
                 .FindPendingForThreadAsync(thread, keys, (_, _) => Task.FromResult<IReadOnlyList<string>>(new[] { directory }), CancellationToken.None)
                 .ConfigureAwait(false);
-            if (Tags.MediaTagKeyCarryOver.Apply(lease, admission, pending, CancellationToken.None))
+            if (Tags.MediaTagKeyCarryOver.Apply(lease, admission, pending, CancellationToken.None, PrivateTagLimits))
                 RaiseMediaTagsCarriedOver();
         }
         catch (Exception failure)

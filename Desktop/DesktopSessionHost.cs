@@ -94,6 +94,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             queue.UpdateParallelDownloadsSafetyLimit(Config.ParallelDownloadsSafetyLimit);
             _downloadQueue = queue;
             queue.UpdateMinimumFreeSpaceBytes((long)Config.MinimumFreeSpaceGiB * 1024 * 1024 * 1024);
+            ApplyPrivateTagLimits();
+            queue.PrivateTagLimits = _privateTagLimits;
             queue.SetPaused(Config.DownloadsPaused);
             if (providers == null) Plugins = new PluginSession(_profileLease.ProfileDirectory, _profileLease, Config, queue, _logger,
                 pluginTransportFactory, GetOrCreateSourceMediaIntegrityPolicy, _commands);
@@ -541,6 +543,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             Commands.ShortcutService.Publish(Config.ShortcutBindings);
             _downloadQueue.UpdateMinimumFreeSpaceBytes((long)Config.MinimumFreeSpaceGiB * 1024 * 1024 * 1024);
             ApplyBooruCatalogLimit();
+            ApplyPrivateTagLimits();
             await Updates.ConfigureAsync(Config).ConfigureAwait(false);
         }
         finally { _commands.Release(); }

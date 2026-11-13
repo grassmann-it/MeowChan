@@ -21,6 +21,8 @@ internal static class TagBarCatalog
         ("tags.notReady", "Tags can be changed once the session is ready.", "Tags lassen sich ändern, sobald die Sitzung bereit ist."),
         ("tags.error.invalidName", "This tag name is not allowed. Use 1 to 128 characters without line breaks or control characters.", "Dieser Tagname ist nicht erlaubt. Verwende 1 bis 128 Zeichen ohne Zeilenumbrüche oder Steuerzeichen."),
         ("tags.error.capacity", "The tag limit is reached. Nothing was changed.", "Die Taggrenze ist erreicht. Es wurde nichts geändert."),
+        ("tags.error.tagLimit", "The own tag limit is reached. Nothing was changed. You can raise it in Settings → Advanced: plugin process limits → “Own tag limit”.", "Die Grenze für eigene Tags ist erreicht. Es wurde nichts geändert. Du kannst sie unter Einstellungen → Erweitert: Pluginprozess-Grenzen → „Grenze für eigene Tags“ erhöhen."),
+        ("tags.error.fileLimit", "The own tag file has reached its size limit. Nothing was changed. You can raise it in Settings → Advanced: plugin process limits → “Own tag file limit (MiB)”.", "Die Datei für eigene Tags hat ihre Größengrenze erreicht. Es wurde nichts geändert. Du kannst sie unter Einstellungen → Erweitert: Pluginprozess-Grenzen → „Grenze der Datei für eigene Tags (MiB)“ erhöhen."),
         ("tags.error.stale", "Tags changed in the meantime. Nothing was changed. Try again.", "Die Tags haben sich inzwischen geändert. Es wurde nichts geändert. Bitte erneut versuchen."),
         ("tags.error.other", "The tag could not be saved. Nothing was changed.", "Der Tag konnte nicht gespeichert werden. Es wurde nichts geändert."),
         ("tags.filter.label", "Filter by own tag", "Nach eigenem Tag filtern"),

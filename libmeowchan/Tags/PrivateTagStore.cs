@@ -29,7 +29,11 @@ internal enum PrivateTagStoreError
     /// <summary>A local media write named a registration the registry no longer resolves the file to.</summary>
     StaleTarget,
     /// <summary>The host could not revalidate a loose file (gone, changed, no longer loose) before adding a tag.</summary>
-    TargetUnavailable
+    TargetUnavailable,
+    /// <summary>A new tag would exceed the configured own-tag limit (<see cref="PrivateTagLimits.TagLimit"/>).</summary>
+    TagLimitReached,
+    /// <summary>The write would grow the file past its configured size limit (<see cref="PrivateTagLimits.DocumentLimitBytes"/>).</summary>
+    DocumentLimitReached
 }
 
 /// <summary>A rejected tag operation. Nothing was written; the message is a constant.</summary>
@@ -163,7 +167,10 @@ internal sealed class PrivateTagStore
     // Permanent copy of the v1 bytes taken by the first write that upgrades v1 to v2 (the way back to 1.0.2).
     // Created once, never rewritten, rotated or deleted by this store; unlike ".bak" it survives every later write.
     internal const string V1BackupFileName = "private-tags.v1.bak";
-    // Defensive work bounds, not promised product quotas.
+    // Defensive work bounds, not promised product quotas. Tags and bytes are read ceilings; the write limits below them
+    // are settings (PrivateTagLimits). The per-item and assignment bounds stay fixed technical limits: a tag name has at
+    // most 128 scalars / 512 UTF-8 bytes (PrivateTagName), and there are at most 50,000 thread, 50,000 bound media and
+    // 50,000 local assignments, 50,000 local occurrences with at most 64 revisions each and 100,000 revisions in all.
     internal const int MaximumTags = PrivateTagCatalog.MaximumDefinitions;
     internal const int MaximumThreadAssignments = ThreadTagProjection.MaximumAssignments;
     internal const int MaximumMediaAssignments = MediaTagProjection.MaximumAssignments;
@@ -171,7 +178,8 @@ internal sealed class PrivateTagStore
     internal const int MaximumLocalRevisionsPerOccurrence = 64;
     internal const int MaximumLocalRevisions = 100_000;
     internal const int MaximumLocalAssignments = 50_000;
-    internal const int MaximumBytes = 32 * 1024 * 1024;
+    // Read ceiling: the whole document is parsed in memory and rewritten on every change, so it stays bounded.
+    internal const int MaximumBytes = 128 * 1024 * 1024;
     // v1: vocabulary, thread and bound media assignments. v2 adds the local occurrence registry and local assignments.
     // A v1 document is read without rewriting it; only a write that commits local data upgrades it, and v2 stays v2.
     private const int BoundOnlyVersion = 1;
@@ -185,13 +193,17 @@ internal sealed class PrivateTagStore
     // bytes). A backup with exactly these bytes is valid without a second parse. Only touched under the store lock.
     private byte[]? _validatedDigest;
 
-    internal PrivateTagStore(string profileDirectory, ProfileLease lease)
+    internal PrivateTagStore(string profileDirectory, ProfileLease lease, PrivateTagLimits? limits = null)
     {
         ArgumentNullException.ThrowIfNull(lease);
         lease.EnsureMatches(profileDirectory);
         _lease = lease;
         _path = Path.Combine(lease.ProfileDirectory, FileName);
+        Limits = limits ?? new PrivateTagLimits();
     }
+
+    /// <summary>The configured write limits this instance enforces (defaults when none were given).</summary>
+    internal PrivateTagLimits Limits { get; }
 
     private sealed class Model
     {
@@ -308,6 +320,7 @@ internal sealed class PrivateTagStore
         {
             PrivateTagDefinition? existing = model.Catalog.Find(parsed);
             if (existing is not null) return (false, existing.Id);
+            RequireTagRoom(model);
             TagId id = new(Guid.NewGuid());
             if (!model.Catalog.TryDefine(id, parsed, model.Catalog.Revision, out PrivateTagCatalog next,
                 out PrivateTagCatalogError error))
@@ -487,6 +500,7 @@ internal sealed class PrivateTagStore
             if (model.Catalog.Find(parsed) is { } existing) id = existing.Id;
             else
             {
+                RequireTagRoom(model);
                 id = new(Guid.NewGuid());
                 if (!model.Catalog.TryDefine(id, parsed, model.Catalog.Revision, out PrivateTagCatalog next,
                     out PrivateTagCatalogError error))
@@ -705,8 +719,10 @@ internal sealed class PrivateTagStore
             bool upgradesV1 = model.HasLocalData && model.Version == BoundOnlyVersion && bytes.Length > 0;
             if (model.HasLocalData) model.Version = LocalVersion;
             byte[] next = Serialize(model);
-            if (next.Length > MaximumBytes)
-                throw new PrivateTagStoreException(PrivateTagStoreError.CapacityExceeded);
+            // Only growth past the configured limit is refused, so removals still work after the limit was lowered.
+            // The limit never exceeds the read ceiling, so every written document stays readable.
+            if (next.Length > Limits.DocumentLimitBytes && next.Length > bytes.Length)
+                throw new PrivateTagStoreException(PrivateTagStoreError.DocumentLimitReached);
             // The exact v1 bytes are secured before the replace; ".bak" alone would lose them at the next write.
             if (upgradesV1) KeepV1Backup(bytes, token);
             WritePhaseForTests?.Invoke(PrivateTagWritePhase.BeforeReplace);
@@ -754,6 +770,12 @@ internal sealed class PrivateTagStore
     private static PrivateTagName RequireName(string? name) =>
         PrivateTagName.TryCreate(name, out PrivateTagName? parsed, out _)
             ? parsed! : throw new PrivateTagStoreException(PrivateTagStoreError.InvalidName);
+
+    private void RequireTagRoom(Model model)
+    {
+        if (model.Catalog.Definitions.Count >= Limits.TagLimit)
+            throw new PrivateTagStoreException(PrivateTagStoreError.TagLimitReached);
+    }
 
     private static void RequireKnown(Model model, TagId tag)
     {

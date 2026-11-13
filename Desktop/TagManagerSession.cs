@@ -153,6 +153,8 @@ internal sealed class TagManagerSession
                 PrivateTagStoreError.StaleRevision => "tags.error.stale",
                 PrivateTagStoreError.UnknownTag => "tags.manage.error.gone",
                 PrivateTagStoreError.CapacityExceeded => "tags.error.capacity",
+                PrivateTagStoreError.TagLimitReached => "tags.error.tagLimit",
+                PrivateTagStoreError.DocumentLimitReached => "tags.error.fileLimit",
                 _ => "tags.error.other"
             };
             // A stale or vanished target means this view is old: show the current state before a retry.

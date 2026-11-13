@@ -131,6 +131,8 @@ internal sealed class ThreadTagProjection
             : Catalog.TryDefine(id, name, Catalog.Revision, out next, out catalogError);
         if (!success) return Fail(Enum.Parse<ThreadTagError>(catalogError.ToString()), out error);
         if (ReferenceEquals(next, Catalog)) return true;
+        // The shared catalog allows more definitions than this in-memory projection's own bound.
+        if (next.Definitions.Count > MaximumDefinitions) return Fail(ThreadTagError.CapacityExceeded, out error);
         if (!CanChange(out error)) return false;
         result = new(Revision + 1, next, assignments);
         return true;

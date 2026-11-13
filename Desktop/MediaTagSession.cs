@@ -116,6 +116,8 @@ internal sealed class MediaTagSession
     {
         PrivateTagStoreError.InvalidName => "tags.error.invalidName",
         PrivateTagStoreError.CapacityExceeded => "tags.error.capacity",
+        PrivateTagStoreError.TagLimitReached => "tags.error.tagLimit",
+        PrivateTagStoreError.DocumentLimitReached => "tags.error.fileLimit",
         PrivateTagStoreError.StaleRevision => "tags.error.stale",
         PrivateTagStoreError.UnknownTag => "tags.manage.error.gone",
         PrivateTagStoreError.StaleTarget => "tags.media.error.changed",

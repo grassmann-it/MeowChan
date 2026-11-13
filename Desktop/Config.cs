@@ -124,6 +124,21 @@ namespace MeowChan
         internal const int BooruCatalogDefaultLimitMiB = Archive.BooruCatalogStore.DefaultDocumentLimitBytes / (1024 * 1024);
         internal const int BooruCatalogMinimumLimitMiB = Archive.BooruCatalogStore.MinimumDocumentLimitBytes / (1024 * 1024);
         internal const int BooruCatalogMaximumLimitMiB = Archive.BooruCatalogStore.MaximumDocumentBytes / (1024 * 1024);
+        /// <summary>
+        /// Most own tags the profile may define. Lowering it below the current number keeps every tag readable and
+        /// usable; only new tags are refused until the count is below the limit again.
+        /// </summary>
+        public int PrivateTagLimit { get; set; } = Tags.PrivateTagLimits.DefaultTagLimit;
+        internal const int PrivateTagMinimumLimit = Tags.PrivateTagLimits.MinimumTagLimit;
+        internal const int PrivateTagMaximumLimit = Tags.PrivateTagLimits.MaximumTagLimit;
+        /// <summary>
+        /// Write limit of private-tags.json (own tags and their assignments) in MiB. Lowering it below the current size
+        /// keeps the file readable; only changes that would make it larger are refused.
+        /// </summary>
+        public int PrivateTagFileLimitMiB { get; set; } = PrivateTagFileDefaultLimitMiB;
+        internal const int PrivateTagFileDefaultLimitMiB = Tags.PrivateTagLimits.DefaultDocumentLimitBytes / (1024 * 1024);
+        internal const int PrivateTagFileMinimumLimitMiB = Tags.PrivateTagLimits.MinimumDocumentLimitBytes / (1024 * 1024);
+        internal const int PrivateTagFileMaximumLimitMiB = Tags.PrivateTagLimits.MaximumDocumentLimitBytes / (1024 * 1024);
 
         public string? PluginEditorExecutable { get; set; }
         public string[] PluginEditorArguments { get; set; } = ["{file}"];
@@ -499,6 +514,10 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(MinimumFreeSpaceGiB), "Free-space reserve must not be negative.");
             if (BooruCatalogLimitMiB is < BooruCatalogMinimumLimitMiB or > BooruCatalogMaximumLimitMiB)
                 throw new ArgumentOutOfRangeException(nameof(BooruCatalogLimitMiB), "The Danbooru catalog limit must be between 8 and 128 MiB.");
+            if (PrivateTagLimit is < PrivateTagMinimumLimit or > PrivateTagMaximumLimit)
+                throw new ArgumentOutOfRangeException(nameof(PrivateTagLimit), "The own tag limit must be between 1024 and 20000.");
+            if (PrivateTagFileLimitMiB is < PrivateTagFileMinimumLimitMiB or > PrivateTagFileMaximumLimitMiB)
+                throw new ArgumentOutOfRangeException(nameof(PrivateTagFileLimitMiB), "The own tag file limit must be between 8 and 128 MiB.");
             if (PluginEditorExecutable is { Length: > 4096 } || PluginEditorExecutable?.Any(char.IsControl) == true
                 || PluginEditorArguments == null || PluginEditorArguments.Length > 32
                 || PluginEditorArguments.Any(value => value == null || value.Length > 4096 || value.Any(char.IsControl)))
@@ -557,6 +576,8 @@ namespace MeowChan
                 PluginSourceHeapMiB = PluginSourceHeapMiB,
                 PluginFilterHeapMiB = PluginFilterHeapMiB,
                 BooruCatalogLimitMiB = BooruCatalogLimitMiB,
+                PrivateTagLimit = PrivateTagLimit,
+                PrivateTagFileLimitMiB = PrivateTagFileLimitMiB,
 
                 ShortcutBindings = ShortcutBindings.Clone(),
                 PluginEditorExecutable = PluginEditorExecutable,
@@ -649,6 +670,8 @@ namespace MeowChan
             PluginSourceHeapMiB = source.PluginSourceHeapMiB;
             PluginFilterHeapMiB = source.PluginFilterHeapMiB;
             BooruCatalogLimitMiB = source.BooruCatalogLimitMiB;
+            PrivateTagLimit = source.PrivateTagLimit;
+            PrivateTagFileLimitMiB = source.PrivateTagFileLimitMiB;
 
             ShortcutBindings = source.ShortcutBindings.Clone();
             Theme = source.Theme;
@@ -705,6 +728,8 @@ namespace MeowChan
             PluginSourceHeapMiB = source.PluginSourceHeapMiB;
             PluginFilterHeapMiB = source.PluginFilterHeapMiB;
             BooruCatalogLimitMiB = source.BooruCatalogLimitMiB;
+            PrivateTagLimit = source.PrivateTagLimit;
+            PrivateTagFileLimitMiB = source.PrivateTagFileLimitMiB;
 
             ShortcutBindings = source.ShortcutBindings.Clone();
             Theme = source.Theme;

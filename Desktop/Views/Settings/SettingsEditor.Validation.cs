@@ -132,12 +132,15 @@ public partial class SettingsEditor
     public string SourceHeapMiBHelp => FieldHelp(nameof(SourceHeapMiBInput), Texts.T("settings.unitMiB") + ". " + BudgetRestartHint);
     public string FilterHeapMiBHelp => FieldHelp(nameof(FilterHeapMiBInput), Texts.T("settings.unitMiB") + ". " + BudgetRestartHint);
     public string BooruCatalogMiBHelp => FieldHelp(nameof(BooruCatalogMiBInput), Texts.T("settings.unitMiB") + ". " + BooruCatalogMiBHint);
+    public string PrivateTagLimitHelp => FieldHelp(nameof(PrivateTagLimitInput), Texts.T("settings.unitCount") + ". " + PrivateTagLimitHint);
+    public string PrivateTagFileMiBHelp => FieldHelp(nameof(PrivateTagFileMiBInput), Texts.T("settings.unitMiB") + ". " + PrivateTagFileMiBHint);
 
     private void NotifyFieldHelpChanged()
     {
         foreach (string property in new[] { nameof(DownloadPathHelp), nameof(RecheckTimerHelp), nameof(BandwidthInputHelp),
             nameof(ParallelDownloadsHelp), nameof(ParallelDownloadsSafetyHelp), nameof(ReserveInputHelp), nameof(ProductionWorkersHelp),
-            nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp), nameof(BooruCatalogMiBHelp) })
+            nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp), nameof(BooruCatalogMiBHelp),
+            nameof(PrivateTagLimitHelp), nameof(PrivateTagFileMiBHelp) })
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
     }
 
@@ -173,6 +176,10 @@ public partial class SettingsEditor
         yield return (FilterHeapMiBInput, FilterHeapMiB, FilterHeapMiBLabel, Texts.T("settings.unitMiB"), 256, 2048, true);
         yield return (BooruCatalogMiBInput, BooruCatalogMiB, BooruCatalogMiBLabel, Texts.T("settings.unitMiB"),
             Config.BooruCatalogMinimumLimitMiB, Config.BooruCatalogMaximumLimitMiB, true);
+        yield return (PrivateTagLimitInput, PrivateTagLimit, PrivateTagLimitLabel, Texts.T("settings.unitCount"),
+            Config.PrivateTagMinimumLimit, Config.PrivateTagMaximumLimit, true);
+        yield return (PrivateTagFileMiBInput, PrivateTagFileMiB, PrivateTagFileMiBLabel, Texts.T("settings.unitMiB"),
+            Config.PrivateTagFileMinimumLimitMiB, Config.PrivateTagFileMaximumLimitMiB, true);
     }
 
     private void ClearFieldErrors()

@@ -24,7 +24,19 @@ internal sealed partial class DesktopSessionHost
 {
     private readonly object _privateTagsSync = new();
     private PrivateTagStore? _privateTagStore;
+    // Write limits from Settings, shared by every tag store instance of this profile (including media tag carry-over).
+    private readonly PrivateTagLimits _privateTagLimits = new();
     private PrivateTagLoadSnapshot _publishedPrivateTags = new(PrivateTagLoadState.Unavailable, null, "Private tags are loading.");
+
+    /// <summary>Hands the configured own-tag limits (Settings, validated by <see cref="Config.Validate"/>) to the stores.</summary>
+    private void ApplyPrivateTagLimits()
+    {
+        _privateTagLimits.TagLimit = Config.PrivateTagLimit;
+        _privateTagLimits.DocumentLimitBytes = (long)Config.PrivateTagFileLimitMiB * 1024 * 1024;
+    }
+
+    /// <summary>The own-tag write limits the profile's tag store currently enforces (diagnostics, tests).</summary>
+    internal (int Tags, long DocumentBytes) PrivateTagLimitValues => (_privateTagLimits.TagLimit, _privateTagLimits.DocumentLimitBytes);
 
     /// <summary>Last committed or revalidated view; never touches the disk.</summary>
     internal PrivateTagLoadSnapshot GetPublishedPrivateTagSnapshot() => Volatile.Read(ref _publishedPrivateTags);
@@ -37,7 +49,7 @@ internal sealed partial class DesktopSessionHost
         {
             try
             {
-                _privateTagStore ??= new(_profileLease.ProfileDirectory, _profileLease);
+                _privateTagStore ??= new(_profileLease.ProfileDirectory, _profileLease, _privateTagLimits);
                 var published = new PrivateTagLoadSnapshot(PrivateTagLoadState.Ready, _privateTagStore.ReadSnapshot(), null);
                 Volatile.Write(ref _publishedPrivateTags, published);
                 return published;
@@ -175,7 +187,7 @@ internal sealed partial class DesktopSessionHost
     {
         lock (_privateTagsSync)
         {
-            _privateTagStore ??= new(_profileLease.ProfileDirectory, _profileLease);
+            _privateTagStore ??= new(_profileLease.ProfileDirectory, _profileLease, _privateTagLimits);
             PrivateTagCommit commit = _privateTagStore.RemoveThreadsAdmitted(deleted, admission);
             Volatile.Write(ref _publishedPrivateTags, new(PrivateTagLoadState.Ready, commit.Snapshot, null));
         }
@@ -281,7 +293,7 @@ internal sealed partial class DesktopSessionHost
             PrivateTagCommit commit;
             lock (_privateTagsSync)
             {
-                _privateTagStore ??= new(_profileLease.ProfileDirectory, _profileLease);
+                _privateTagStore ??= new(_profileLease.ProfileDirectory, _profileLease, _privateTagLimits);
                 // A rejected or failed change throws here and leaves the published view untouched.
                 commit = change(_privateTagStore);
                 Volatile.Write(ref _publishedPrivateTags, new(PrivateTagLoadState.Ready, commit.Snapshot, null));

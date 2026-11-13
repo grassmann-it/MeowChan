@@ -16,7 +16,11 @@ internal enum PrivateTagCatalogError
 /// <summary>Single immutable own-tag vocabulary. No delete, merge, storage or target semantics.</summary>
 internal sealed class PrivateTagCatalog
 {
-    internal const int MaximumDefinitions = PrivateTagSet.MaximumCount;
+    /// <summary>
+    /// Technical ceiling of one vocabulary (reading and the configurable own-tag limit, see
+    /// <see cref="PrivateTagLimits"/>). Lookups are indexed; a change copies the definitions once (O(n)).
+    /// </summary>
+    internal const int MaximumDefinitions = 20_000;
     private readonly PrivateTagDefinition[] definitions;
     // Hash indexes over the same immutable array: identity by ID, names by their ordinal comparison key
     // (exactly the PrivateTagName equality). Built once per instance, so every lookup is O(1).

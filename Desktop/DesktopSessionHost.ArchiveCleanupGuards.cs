@@ -54,7 +54,7 @@ internal sealed partial class DesktopSessionHost
             foreach (ResourceId id in groups.Snapshot.Groups.SelectMany(group => group.Members))
                 Protect(id, ArchiveCleanupReason.ReaderGroup);
             // Own tags protect like every other deliberate private mark, for the thread and for its media.
-            PrivateTagStoreSnapshot tags = new PrivateTagStore(ProfileDirectory, _profileLease).ReadSnapshot();
+            PrivateTagStoreSnapshot tags = new PrivateTagStore(ProfileDirectory, _profileLease, _privateTagLimits).ReadSnapshot();
             foreach (PrivateThreadTagAssignment assignment in tags.ThreadAssignments)
                 Protect(assignment.Thread, ArchiveCleanupReason.PrivateTag);
             foreach (PrivateMediaTagAssignment assignment in tags.MediaAssignments)

@@ -239,6 +239,8 @@ public partial class ArchivePage
             {
                 PrivateTagStoreError.InvalidName => "tags.error.invalidName",
                 PrivateTagStoreError.CapacityExceeded => "tags.error.capacity",
+                PrivateTagStoreError.TagLimitReached => "tags.error.tagLimit",
+                PrivateTagStoreError.DocumentLimitReached => "tags.error.fileLimit",
                 PrivateTagStoreError.StaleRevision => "tags.error.stale",
                 _ => "tags.error.other"
             });

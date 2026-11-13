@@ -147,12 +147,12 @@ internal static class MediaTagKeyCarryOver
 
     /// <summary>Writes the hand-overs, if any, in one admitted write. Returns whether the tag file changed.</summary>
     internal static bool Apply(ProfileLease lease, ProfileAdmissionToken admission, IReadOnlyCollection<MediaTagKeyHandover> handovers,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, PrivateTagLimits? limits = null)
     {
         ArgumentNullException.ThrowIfNull(lease);
         ArgumentNullException.ThrowIfNull(admission);
         ArgumentNullException.ThrowIfNull(handovers);
         if (handovers.Count == 0) return false;
-        return new PrivateTagStore(lease.ProfileDirectory, lease).CarryMediaAssignmentsAdmitted(handovers, admission, cancellationToken).Changed;
+        return new PrivateTagStore(lease.ProfileDirectory, lease, limits).CarryMediaAssignmentsAdmitted(handovers, admission, cancellationToken).Changed;
     }
 }

@@ -146,6 +146,8 @@ public sealed class PrivateTagStoreScaleEvidenceTests(ITestOutputHelper output)
 
         Measure("moderate", new(1000, 5_000, 10_000, 5_000, 5_000));
         Measure("dense", new(1000, 30_000, 30_000, 10_000, 20_000));
+        // Raised settings: almost the tag ceiling and every assignment count limit at or near its maximum.
+        Measure("ceiling", new(PrivateTagLimits.MaximumTagLimit - 10, 50_000, 50_000, 20_000, 20_000));
         MeasureCatalog();
     }
 
@@ -156,12 +158,17 @@ public sealed class PrivateTagStoreScaleEvidenceTests(ITestOutputHelper output)
             .Select(index => new PrivateTagDefinition(new(Guid.Parse(PrivateTagScaleDocument.TagId(index))),
                 PrivateTagCatalogComplexityTests.Name("collection tag " + index.ToString(CultureInfo.InvariantCulture))))
             .ToArray();
+        // One define per write in the product; a loop of single defines copies the vocabulary each time.
+        PrivateTagDefinition[] defaults = items[..PrivateTagLimits.DefaultTagLimit];
         double sequential = Median(() =>
         {
             PrivateTagCatalog catalog = new();
-            foreach (PrivateTagDefinition item in items)
+            foreach (PrivateTagDefinition item in defaults)
                 Assert.True(catalog.TryDefine(item.Id, item.Name, catalog.Revision, out catalog, out _));
         });
+        Assert.True(PrivateTagCatalog.TryCreate(items[..^1], out PrivateTagCatalog? almost, out _));
+        PrivateTagDefinition final = items[^1];
+        double single = Median(() => Assert.True(almost.TryDefine(final.Id, final.Name, almost.Revision, out _, out _)));
         double bulk = Median(() => Assert.True(PrivateTagCatalog.TryCreate(items, out _, out _)));
         Assert.True(PrivateTagCatalog.TryCreate(items, out PrivateTagCatalog? built, out _));
         const int lookups = 150_000;
@@ -178,13 +185,13 @@ public sealed class PrivateTagStoreScaleEvidenceTests(ITestOutputHelper output)
             for (int index = 0; index < lookups; index++) Assert.True(built.Contains(items[index % items.Length].Id));
         });
         output.WriteLine(FormattableString.Invariant(
-            $"catalog {items.Length} tags: sequential TryDefine {sequential:F1} ms, TryCreate {bulk:F1} ms; {lookups} lookups linear (former Contains) {linear:F0} ms, indexed {indexed:F1} ms"));
+            $"catalog: {defaults.Length} sequential TryDefine {sequential:F1} ms; at {items.Length} tags: TryCreate {bulk:F1} ms, one TryDefine {single:F2} ms; {lookups} lookups linear (former Contains) {linear:F0} ms, indexed {indexed:F1} ms"));
     }
 
     private void Measure(string label, PrivateTagScaleDocument.Shape shape)
     {
         byte[] document = PrivateTagScaleDocument.Create(shape);
-        Assert.True(document.Length <= PrivateTagStore.MaximumBytes);
+        Assert.True(document.Length <= PrivateTagLimits.MaximumDocumentLimitBytes);
         Assert.Equal(2, PrivateTagStore.ValidateDocumentBytes(document));
         double parse = Median(() => PrivateTagStore.ValidateDocumentBytes(document));
 
@@ -193,7 +200,10 @@ public sealed class PrivateTagStoreScaleEvidenceTests(ITestOutputHelper output)
         string path = Path.Combine(temp.Path, FileName);
         File.WriteAllBytes(path, document);
         File.WriteAllBytes(path + ".bak", document);
-        PrivateTagStore store = new(temp.Path, lease);
+        PrivateTagStore store = new(temp.Path, lease, new PrivateTagLimits
+        {
+            TagLimit = PrivateTagLimits.MaximumTagLimit, DocumentLimitBytes = PrivateTagLimits.MaximumDocumentLimitBytes
+        });
         double read = Median(() => store.ReadSnapshot());
         List<double> writes = [];
         for (int index = 0; index < 4; index++)
@@ -278,7 +288,6 @@ public sealed class PrivateTagCatalogComplexityTests
             .ToArray();
         Assert.False(PrivateTagCatalog.TryCreate(items, out _, out PrivateTagCatalogError error));
         Assert.Equal(PrivateTagCatalogError.CapacityExceeded, error);
-        Assert.Equal(PrivateTagCatalogError.CapacityExceeded, Sequential(items).Error);
 
         Assert.True(PrivateTagCatalog.TryCreate(items[..^1], out PrivateTagCatalog? full, out _));
         Assert.Equal(PrivateTagCatalog.MaximumDefinitions, full!.Revision);

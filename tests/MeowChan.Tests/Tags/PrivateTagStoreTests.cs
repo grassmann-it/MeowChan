@@ -321,7 +321,7 @@ public sealed class PrivateTagStoreTests
         using ProfileLease lease = ProfileLease.Acquire(temp.Path);
         string path = Path.Combine(temp.Path, FileName);
         StringBuilder json = new("{\"Version\":1,\"Revision\":1,\"Tags\":[");
-        for (int index = 0; index < PrivateTagStore.MaximumTags - 1; index++)
+        for (int index = 0; index < PrivateTagLimits.DefaultTagLimit - 1; index++)
             json.Append(index == 0 ? "" : ",").Append("{\"Id\":\"").Append(new Guid(index + 1, 0, 0, new byte[8]).ToString("D"))
                 .Append("\",\"Name\":\"tag").Append(index).Append("\"}");
         json.Append("],\"Threads\":[],\"Media\":[]}");
@@ -330,10 +330,10 @@ public sealed class PrivateTagStoreTests
 
         PrivateTagCommit last = store.Define("last");
         Assert.True(last.Changed);
-        Assert.Equal(PrivateTagStore.MaximumTags, last.Snapshot.Tags.Count);
+        Assert.Equal(PrivateTagLimits.DefaultTagLimit, last.Snapshot.Tags.Count);
         byte[] full = File.ReadAllBytes(path);
 
-        Assert.Equal(PrivateTagStoreError.CapacityExceeded, Rejected(() => store.Define("one too many")));
+        Assert.Equal(PrivateTagStoreError.TagLimitReached, Rejected(() => store.Define("one too many")));
         Assert.False(store.Define("LAST").Changed);
         Assert.Equal(full, File.ReadAllBytes(path));
     }

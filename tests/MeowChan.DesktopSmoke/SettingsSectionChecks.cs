@@ -65,7 +65,8 @@ internal static class SettingsSectionChecks
     {
         "WorkspaceModeInput" or "LanguageInput" or "ThemeInput" or "CompactDensityInput" => "settings.interface",
         "VideoVolumeInput" or "ReadingFontSizeInput" or "RememberReadingPositionInput" or "ForgetReadingPositionButton" => "settings.reading-media",
-        "ReserveInput" or "ProductionWorkersInput" or "WorkerIdleMinutesInput" or "SourceHeapMiBInput" or "FilterHeapMiBInput" => "settings.worker-budgets",
+        "ReserveInput" or "ProductionWorkersInput" or "WorkerIdleMinutesInput" or "SourceHeapMiBInput" or "FilterHeapMiBInput"
+            or "PrivateTagLimitInput" or "PrivateTagFileMiBInput" => "settings.worker-budgets",
         "AboutSettingsButton" => "settings.behavior",
         "DownloadPathInput" or "BrowseButton" or "RecheckTimerInput" or "BandwidthInput" or "ParallelDownloadsInput" => "settings.downloads",
         _ => throw new ArgumentOutOfRangeException(nameof(field), field, "No settings category mapping for this field.")
