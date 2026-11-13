@@ -678,9 +678,11 @@ public sealed class ArchiveHtmlExportTests
         Assert.Equal("<span class=\"greentext\">&gt;be me</span>\n&gt;&gt;123 reply\n<span class=\"greentext\">&gt;&lt;b&gt;x</span>\nplain &amp; text",
             ArchiveHtmlExporter.BodyHtml(">be me\n>>123 reply\n><b>x\nplain & text"));
         Assert.Equal("&gt;&gt;&gt;/g/ board", ArchiveHtmlExporter.BodyHtml(">>>/g/ board"));
-        Assert.Contains(".greentext{color:#9ccb6a}", ArchiveHtmlExporter.Css);
+        // Greentext has its own colour in both schemes; post bodies read in Noto Sans when it is installed, never downloaded.
+        Assert.Contains(".greentext{color:var(--greentext)}", ArchiveHtmlExporter.Css);
         Assert.Contains("@media (prefers-color-scheme:light)", ArchiveHtmlExporter.Css);
-        Assert.Contains("font:16px/1.5 \"Noto Sans\",system-ui,sans-serif", ArchiveHtmlExporter.Css);
+        Assert.Contains("--read:\"Noto Sans\",", ArchiveHtmlExporter.Css);
+        Assert.Contains(".body{font:1rem/1.45 var(--read);", ArchiveHtmlExporter.Css);
     }
 
     [Fact]
@@ -695,9 +697,27 @@ public sealed class ArchiveHtmlExportTests
         // A spoiler over a greentext line keeps the line break outside both spans.
         Assert.Equal("<span class=\"spoiler\" tabindex=\"0\"><span class=\"greentext\">&gt;x</span></span>\ny",
             ArchiveHtmlExporter.BodyHtml(">x\ny", [new ArchiveTextMark(ArchiveTextMarkKind.Spoiler, 0, 3)]));
-        Assert.Contains(".spoiler:hover,.spoiler:focus{color:inherit}", ArchiveHtmlExporter.Css);
-        Assert.Contains(".link{color:#6aa7ff;text-decoration:underline}", ArchiveHtmlExporter.Css);
+        // A spoiler hides its text in its own colour until hovered or focused; an external link is only coloured and
+        // underlined (it has no target); reference links below the text are not underlined.
+        Assert.Contains(".spoiler{background:var(--spoiler);color:var(--spoiler);", ArchiveHtmlExporter.Css);
+        Assert.Contains(".spoiler:hover,.spoiler:focus{color:var(--text)}", ArchiveHtmlExporter.Css);
+        Assert.Contains(".link{color:var(--accent);text-decoration:underline}", ArchiveHtmlExporter.Css);
         Assert.Contains(".quote{text-decoration:none}", ArchiveHtmlExporter.Css);
+    }
+
+    // Reader-card layout in the page: reply posts are cards that fit their content up to a maximum width (no full-width
+    // cards), the opening post stays on the page, narrow screens drop the floating thumbnail, print uses white paper.
+    [Fact]
+    public void TheStyleSheetFitsReplyCardsToTheirContentAndPrintsWithoutTheDarkBackground()
+    {
+        string css = ArchiveHtmlExporter.Css;
+        Assert.Contains("main{display:flex;flex-direction:column;align-items:flex-start;", css);
+        Assert.Contains("article{box-sizing:border-box;max-width:min(100%,52rem);", css);
+        Assert.Contains("article.op{align-self:stretch;max-width:100%;background:transparent;border-color:transparent;", css);
+        Assert.Contains("@media (max-width:560px){", css);
+        int print = css.IndexOf("@media print{", StringComparison.Ordinal);
+        Assert.True(print > 0);
+        Assert.Contains("--bg:#fff;--panel:#fff;--card:#fff;", css[print..]);
     }
 
     [Fact]

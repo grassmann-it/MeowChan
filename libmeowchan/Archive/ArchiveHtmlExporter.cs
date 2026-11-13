@@ -166,9 +166,9 @@ public static class ArchiveHtmlExporter
         await using FileStream output = new(Path.Combine(stage, pagePath), FileMode.CreateNew, FileAccess.Write, FileShare.None,
             81920, FileOptions.Asynchronous);
         await using StreamWriter html = new(output, new UTF8Encoding(false));
-        await html.WriteLineAsync("<!doctype html><html lang=\"" + text.Language + "\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'self'; img-src 'self'; media-src 'self'; base-uri 'none'; form-action 'none'\"><title>" + Encode(view.Summary.Title) + "</title><link rel=\"stylesheet\" href=\"" + Encode(cssReference) + "\"></head><body><header><h1>" + Encode(view.Summary.Title) + "</h1><p>" + Encode(view.Summary.Id.Source + " /" + view.Summary.Id.Board + "/ " + view.Summary.Id.Thread) + "</p><p>"
+        await html.WriteLineAsync("<!doctype html><html lang=\"" + text.Language + "\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"" + ContentSecurityPolicy + "\"><title>" + Encode(view.Summary.Title) + "</title><link rel=\"stylesheet\" href=\"" + Encode(cssReference) + "\"></head><body><div class=\"page\"><header class=\"top\"><div class=\"bar\"><div class=\"heading\"><h1>" + Encode(view.Summary.Title) + "</h1><p class=\"source\">" + Encode(view.Summary.Id.Source + " /" + view.Summary.Id.Board + "/ " + view.Summary.Id.Thread) + "</p></div></div><p class=\"meta\">"
             + text.Html(HtmlExportText.LastCapture, view.Summary.LastCapturedAt?.ToString("u", CultureInfo.InvariantCulture) ?? text.Get(HtmlExportText.NoPosts))
-            + "</p><p>" + text.Html(HtmlExportText.Retention) + " "
+            + "</p><p class=\"meta\">" + text.Html(HtmlExportText.Retention) + " "
             + text.Html(quoteResolver == null ? HtmlExportText.ExternalThreads : HtmlExportText.UncapturedReferences) + "</p></header><main>");
         if (quoteResolver != null) await html.WriteLineAsync("<nav><a href=\"../index.html\">" + text.Html(HtmlExportText.CollectionStart) + "</a></nav>");
         // Like the reader: the opening post is the thread number on 4chan/8kun, else the first captured post.
@@ -182,8 +182,21 @@ public static class ArchiveHtmlExporter
             HashSet<string> dead = quotes.Where(quote => quote.Target is { } target && target.Thread == view.Summary.Id && !capturedIds.Contains(target.PostId))
                 .Select(quote => quote.Label).ToHashSet(StringComparer.Ordinal);
             (string bodyText, IReadOnlyList<ArchiveTextMark> bodyMarks) = ArchiveText.PlainTextWithMarks(post.Html);
-            await html.WriteLineAsync("<article id=\"" + PostAnchor(post.PostId) + "\"" + (post.PostId == openingPost ? " class=\"op\"" : "") + "><h2>#" + Encode(post.PostId) + " " + Encode(post.Subject) + "</h2><p class=\"meta\">" + Encode(post.Author)
-                + " " + Encode(post.PostedAt?.ToString("u", CultureInfo.InvariantCulture)) + (post.IsDeleted ? " · " + text.Html(HtmlExportText.Removed) : "") + "</p><div class=\"body\">" + BodyHtml(bodyText, bodyMarks, dead, "(" + text.Get(HtmlExportText.PostNotCaptured) + ")") + "</div>");
+            // One header line like the reader card: Subject · Name · Date · No. (the number is the post's own anchor).
+            await html.WriteLineAsync("<article id=\"" + PostAnchor(post.PostId) + "\"" + (post.PostId == openingPost ? " class=\"op\"" : "") + "><h2 class=\"post-head\">"
+                + Part("subject", post.Subject) + Part("author", post.Author) + Part("date", post.PostedAt?.ToString("u", CultureInfo.InvariantCulture))
+                + "<a class=\"no\" href=\"#" + PostAnchor(post.PostId) + "\">" + text.Html(HtmlExportText.PostNumber, post.PostId) + "</a>"
+                + (post.IsDeleted ? " <span class=\"removed\">" + text.Html(HtmlExportText.Removed) + "</span>" : "") + "</h2>");
+            // File line and thumbnail first, floated beside the text as on the imageboards; several files form a row above it.
+            IReadOnlyList<CapturedAttachment> attachments = post.Attachments ?? Array.Empty<CapturedAttachment>();
+            if (attachments.Count != 0)
+            {
+                await html.WriteLineAsync(attachments.Count == 1 ? "<div class=\"files\">" : "<div class=\"files multi\">");
+                foreach (CapturedAttachment attachment in attachments)
+                    await AttachmentAsync(post.PostId, attachment).ConfigureAwait(false);
+                await html.WriteLineAsync("</div>");
+            }
+            await html.WriteLineAsync("<div class=\"body\">" + BodyHtml(bodyText, bodyMarks, dead, "(" + text.Get(HtmlExportText.PostNotCaptured) + ")") + "</div>");
             foreach (ArchiveQuote quote in quotes)
             {
                 string? quotePath = quoteResolver == null
@@ -193,8 +206,6 @@ public static class ArchiveHtmlExporter
                 else await html.WriteLineAsync("<span class=\"omission\">" + Encode(quote.Label) + " — "
                     + text.Html(quote.IsExternal ? HtmlExportText.ExternalReference : quote.Target?.Thread == view.Summary.Id ? HtmlExportText.PostNotCaptured : quote.Target != null ? HtmlExportText.OtherThread : HtmlExportText.UnresolvedReference) + "</span>");
             }
-            foreach (CapturedAttachment attachment in post.Attachments ?? Array.Empty<CapturedAttachment>())
-                await AttachmentAsync(post.PostId, attachment).ConfigureAwait(false);
             await html.WriteLineAsync("</article>");
             posts++;
             if (posts == 1 || posts % 25 == 0 || posts == view.PostCount)
@@ -205,17 +216,18 @@ public static class ArchiveHtmlExporter
         {
             await html.WriteLineAsync("<article><h2>" + text.Html(HtmlExportText.SavedMedia) + "</h2><p>" + text.Html(HtmlExportText.GalleryDescription) + "</p>");
             if (!options.IncludeMedia) await html.WriteLineAsync("<p class=\"omission\">" + text.Html(HtmlExportText.GalleryOmitted) + "</p>");
+            await html.WriteLineAsync("<div class=\"files multi\">");
             foreach ((MediaAssetSnapshot manifest, MediaAssetReference asset) in assets.Where(pair => pair.Asset.IsCurrent && pair.Asset.Variant == "original"))
             {
                 token.ThrowIfCancellationRequested();
                 await AttachmentAsync(null, new CapturedAttachment(0, asset.MediaIdentifier, asset.Variant,
                     OriginalFileName: asset.OriginalFileName, ExpectedSize: asset.Length, ExpectedMd5: asset.Md5), (manifest, asset)).ConfigureAwait(false);
             }
-            await html.WriteLineAsync("</article>");
+            await html.WriteLineAsync("</div></article>");
         }
         await html.WriteLineAsync("</main><footer><h2>" + text.Html(HtmlExportText.ExportResult) + "</h2><p>" + text.Html(HtmlExportText.ResultCounts, posts, files, omissions.Count) + "</p>");
         foreach (string warning in warnings.Distinct()) await html.WriteLineAsync("<p class=\"omission\">" + text.WarningHtml(warning) + "</p>");
-        await html.WriteLineAsync("<p>" + text.Html(HtmlExportText.VerifiedOffline) + "</p></footer></body></html>");
+        await html.WriteLineAsync("<p>" + text.Html(HtmlExportText.VerifiedOffline) + "</p></footer></div></body></html>");
         await html.FlushAsync(token).ConfigureAwait(false);
         await html.DisposeAsync().ConfigureAwait(false);
         await output.DisposeAsync().ConfigureAwait(false);
@@ -295,35 +307,41 @@ public static class ArchiveHtmlExporter
             }
             else if (relative != null)
             {
+                // File line (name and saved size) above the thumbnail, like the reader; the thumbnail opens the full file.
                 string extension = Path.GetExtension(relative);
-                if (extension is ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp")
-                    await html.WriteLineAsync("<figure><a href=\"" + relative + "\"><img loading=\"lazy\" src=\"" + relative + "\" alt=\"" + label + "\"></a><figcaption>" + label + "</figcaption></figure>");
-                else if (extension is ".webm" or ".mp4")
-                    await html.WriteLineAsync("<figure><video controls preload=\"metadata\" src=\"" + relative + "\"></video><figcaption><a href=\"" + relative + "\" download>" + label + "</a></figcaption></figure>");
-                else await html.WriteLineAsync("<p><a href=\"" + relative + "\" download>" + label + "</a></p>");
-                if (chosen is { } saved)
+                bool image = extension is ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp";
+                bool video = extension is ".webm" or ".mp4";
+                string size = chosen is { } sized ? " <span class=\"size\">" + text.Html(HtmlExportText.SavedFile, sized.Asset.Length) + "</span>" : "";
+                await html.WriteLineAsync("<figure class=\"" + (video ? "file video" : "file") + "\"><figcaption>"
+                    + (image ? "<span class=\"name\">" + label + "</span>" : "<a class=\"name\" href=\"" + relative + "\" download>" + label + "</a>") + size + "</figcaption>");
+                if (image)
+                    await html.WriteLineAsync("<a class=\"thumb\" href=\"" + relative + "\"><img loading=\"lazy\" src=\"" + relative + "\" alt=\"" + label + "\"></a>");
+                else if (video)
+                    await html.WriteLineAsync("<video controls preload=\"metadata\" src=\"" + relative + "\"></video>");
+                if (chosen != null && provenance != null)
                 {
-                    await html.WriteLineAsync("<p class=\"meta\">" + text.Html(HtmlExportText.SavedFile, saved.Asset.Length) + "</p>");
-                    if (provenance != null)
-                    {
-                        if (provenance.Acceptance.Kind == MediaAcceptanceKind.PassiveImport)
-                            await html.WriteLineAsync("<p class=\"meta\">" + text.Html(HtmlExportText.Imported) + "</p>");
-                        if (provenance.Acceptance.Kind == MediaAcceptanceKind.ExplicitProviderMismatch)
-                            await html.WriteLineAsync("<p class=\"meta\">" + text.Html(HtmlExportText.Mismatch) + "</p>");
-                        string unspecified = text.Get(HtmlExportText.Unspecified);
-                        await html.WriteLineAsync("<details><summary>" + text.Html(HtmlExportText.SourceInfo) + "</summary><p>"
-                            + text.Html(HtmlExportText.Size, provenance.Provider.ExpectedSize?.ToString(CultureInfo.InvariantCulture) ?? unspecified)
-                            + "<br>MD5: " + Encode(provenance.Provider.ExpectedMd5 ?? unspecified)
-                            + "<br>SHA-1: " + Encode(provenance.Provider.ExpectedSha1 ?? unspecified)
-                            + (provenance.Provider.ProviderSizeHint is { } hint ? "<br>"
-                                + text.Html(HtmlExportText.SizeHint, hint.RawValue, hint.UnitLabel, hint.Precision.ToString()) : "")
-                            + "<br>" + text.Html(HtmlExportText.SavedSha1, provenance.Actual.Sha1 ?? unspecified)
-                            + "<br>SHA-256: " + Encode(provenance.Provider.ExpectedSha256 ?? unspecified) + "</p></details>");
-                    }
+                    if (provenance.Acceptance.Kind == MediaAcceptanceKind.PassiveImport)
+                        await html.WriteLineAsync("<p class=\"meta\">" + text.Html(HtmlExportText.Imported) + "</p>");
+                    if (provenance.Acceptance.Kind == MediaAcceptanceKind.ExplicitProviderMismatch)
+                        await html.WriteLineAsync("<p class=\"meta\">" + text.Html(HtmlExportText.Mismatch) + "</p>");
+                    string unspecified = text.Get(HtmlExportText.Unspecified);
+                    await html.WriteLineAsync("<details><summary>" + text.Html(HtmlExportText.SourceInfo) + "</summary><p>"
+                        + text.Html(HtmlExportText.Size, provenance.Provider.ExpectedSize?.ToString(CultureInfo.InvariantCulture) ?? unspecified)
+                        + "<br>MD5: " + Encode(provenance.Provider.ExpectedMd5 ?? unspecified)
+                        + "<br>SHA-1: " + Encode(provenance.Provider.ExpectedSha1 ?? unspecified)
+                        + (provenance.Provider.ProviderSizeHint is { } hint ? "<br>"
+                            + text.Html(HtmlExportText.SizeHint, hint.RawValue, hint.UnitLabel, hint.Precision.ToString()) : "")
+                        + "<br>" + text.Html(HtmlExportText.SavedSha1, provenance.Actual.Sha1 ?? unspecified)
+                        + "<br>SHA-256: " + Encode(provenance.Provider.ExpectedSha256 ?? unspecified) + "</p></details>");
                 }
+                await html.WriteLineAsync("</figure>");
             }
         }
     }
+    // One encoded header part followed by a space, or nothing when the post has no such field.
+    private static string Part(string name, string? value) => string.IsNullOrWhiteSpace(value) ? ""
+        : "<span class=\"" + name + "\">" + Encode(value) + "</span> ";
+    internal const string ContentSecurityPolicy = "default-src 'none'; style-src 'self'; img-src 'self'; media-src 'self'; base-uri 'none'; form-action 'none'";
     internal static string Encode(string? text) => WebUtility.HtmlEncode(text ?? string.Empty);
     // The body is the plain text in styled spans (greentext, spoilers, code, external links, struck-through dead
     // references); every character stays encoded text and the spans cover it exactly once.
@@ -372,15 +390,99 @@ public static class ArchiveHtmlExporter
     internal static string PostAnchor(string id) => "p-" + Convert.ToHexString(Encoding.UTF8.GetBytes(id)).ToLowerInvariant();
     private static string SafeExtension(string path) => Path.GetExtension(path).ToLowerInvariant() switch
     { ".png" => ".png", ".jpg" => ".jpg", ".jpeg" => ".jpeg", ".gif" => ".gif", ".webp" => ".webp", ".bmp" => ".bmp", ".webm" => ".webm", ".mp4" => ".mp4", _ => ".bin" };
-    // Reader cards (study 2026-11-13): cards on the page tone with an edge >= 3:1 against the page, the
-    // opening post directly on the page, greentext; dark by default, the light palette for light schemes.
+    // Calm offline version of the reader cards (design language D3, reader study 2026-11-13). Every colour is a fixed copy
+    // of a Desktop/WorkspaceStyles.axaml token (named in the comment); there is no build-time coupling. Local fonts only:
+    // Noto Sans (the reader's body font) and Inter (the UI font) are used when installed, never downloaded, so the sheet
+    // has no url(), @import or @font-face. Reply posts are boxes that fit their content up to a maximum width; the opening
+    // post sits directly on the page. Dark is the default, the light palette follows a light system scheme; print is light.
     internal const string Css = """
-        :root{color-scheme:dark light;font:16px/1.5 "Noto Sans",system-ui,sans-serif;background:#121416;color:#eef1f4}
-        body{max-width:960px;margin:auto;padding:24px}header,footer,article{background:#20242a;border:1px solid #5a636e;border-radius:4px;padding:20px;margin-bottom:16px}
-        article.op{background:transparent;border-color:transparent}
-        h1,h2{overflow-wrap:anywhere}h2{font-size:1.05rem}.body{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.45}.meta{color:#a4adb8;font-size:.85rem}.greentext{color:#9ccb6a}
-        .link{color:#6aa7ff;text-decoration:underline}.code{font-family:ui-monospace,Menlo,Consolas,monospace;background:#171a1e;border-radius:2px}.dead{color:#a4adb8}.note{color:#a4adb8;font-style:italic}.spoiler{background:#333a42;color:#333a42;border-radius:2px;cursor:pointer}.spoiler *{color:inherit}.spoiler:hover,.spoiler:focus{color:inherit}
-        a{color:#6aa7ff;overflow-wrap:anywhere}.quote{text-decoration:none}.quote,.omission{display:block;margin:8px 0}.omission{color:#e8be72;font-size:.9rem}figure{margin:16px 0}img,video{display:block;max-width:100%;max-height:600px}figcaption{overflow-wrap:anywhere}
-        @media (prefers-color-scheme:light){:root{background:#e3dfd8;color:#1a1a1a}header,footer,article{background:#faf7f1;border-color:#7a7062}article.op{background:transparent;border-color:transparent}.meta{color:#575148}.greentext{color:#386217}a,.link{color:#803b06}.code{background:#ece7dd}.dead,.note{color:#575148}.spoiler{background:#d3cdc2;color:#d3cdc2}.spoiler:hover,.spoiler:focus{color:inherit}.omission{color:#795100}}
+        /* MeowChan HTML export. Colours: Desktop/WorkspaceStyles.axaml (Dark and Light theme dictionaries). */
+        :root{color-scheme:dark;
+        --bg:#121416;/* Workspace.Background */--panel:#1b1e22;/* Workspace.Panel */--raised:#24282d;/* Workspace.Raised */
+        --border:#2d3239;/* Workspace.Border */--card:#20242a;/* Workspace.Card */--edge:#5a636e;/* Workspace.CardEdge */
+        --text:#eef1f4;/* Workspace.Text */--muted:#a4adb8;/* Workspace.Muted */--accent:#6aa7ff;/* Workspace.Accent */
+        --accent-surface:#25344a;/* Workspace.AccentSurface */--hover:#30363e;/* Workspace.Hover */
+        --greentext:#9ccb6a;/* Workspace.ReaderGreentext */--code:#171a1e;/* Workspace.ReaderCodeSurface */
+        --spoiler:#333a42;/* Workspace.ReaderSpoiler */--warning:#e8be72;/* Workspace.Warning */
+        --scrim:rgba(0,0,0,.4);/* Workspace.Scrim #66000000 */--shadow:0 4px 16px rgba(0,0,0,.4);/* Workspace.Shadow.Overlay */
+        --ui:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+        --read:"Noto Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+        --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}
+        @media (prefers-color-scheme:light){:root{color-scheme:light;
+        --bg:#e3dfd8;/* Workspace.Background */--panel:#efece6;/* Workspace.Panel */--raised:#dbd5cb;/* Workspace.Raised */
+        --border:#a89f92;/* Workspace.Border */--card:#faf7f1;/* Workspace.Card */--edge:#7a7062;/* Workspace.CardEdge */
+        --text:#1a1a1a;/* Workspace.Text */--muted:#575148;/* Workspace.Muted */--accent:#803b06;/* Workspace.Accent */
+        --accent-surface:#e7d4be;/* Workspace.AccentSurface */--hover:#d2cabe;/* Workspace.Hover */
+        --greentext:#386217;/* Workspace.ReaderGreentext */--code:#ece7dd;/* Workspace.ReaderCodeSurface */
+        --spoiler:#d3cdc2;/* Workspace.ReaderSpoiler */--warning:#795100;/* Workspace.Warning */
+        --scrim:rgba(0,0,0,.2);/* Workspace.Scrim #33000000 */--shadow:0 4px 16px rgba(0,0,0,.15)/* Workspace.Shadow.Overlay */}}
+        html{background:var(--bg)}
+        body{margin:0}
+        .page{min-height:100vh;box-sizing:border-box;background:var(--bg);color:var(--text);font:15px/1.5 var(--ui);-webkit-text-size-adjust:100%;text-size-adjust:100%}
+        .page>*{max-width:72rem;margin-left:auto;margin-right:auto}
+        .page{padding:24px 16px 48px}
+        h1,h2{overflow-wrap:anywhere;line-height:1.3}
+        a{color:var(--accent);overflow-wrap:anywhere}
+        :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+        .meta{color:var(--muted);font-size:.8125rem}
+        header.top,footer{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px 20px}
+        header.top{margin-bottom:24px}
+        header.top p{margin:4px 0 0}
+        .bar{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px 24px}
+        .heading{min-width:0;flex:1 1 20rem}
+        h1{font-size:1.25rem;font-weight:600;margin:0}
+        .source{color:var(--muted);font-weight:600}
+        main{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+        main>nav{margin-bottom:8px;font-size:.875rem}
+        article{box-sizing:border-box;max-width:min(100%,52rem);min-width:0;display:flow-root;background:var(--card);border:1px solid var(--edge);border-radius:5px;padding:10px 12px 12px}
+        article.op{align-self:stretch;max-width:100%;background:transparent;border-color:transparent;margin-bottom:8px}
+        article>h2{font-size:1rem;font-weight:600;margin:0 0 6px}
+        article>p{margin:4px 0 0}
+        .posts{font-size:.875rem;line-height:1.7}
+        h2.post-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;font-size:.8125rem;font-weight:400;color:var(--muted)}
+        .post-head .subject{font-size:.9375rem;font-weight:600;color:var(--text)}
+        .post-head .no{color:var(--muted);text-decoration:none}
+        .post-head .no:hover{color:var(--accent);text-decoration:underline}
+        .removed{color:var(--warning)}
+        .body{font:1rem/1.45 var(--read);white-space:pre-wrap;overflow-wrap:anywhere;display:flow-root}
+        .greentext{color:var(--greentext)}
+        .link{color:var(--accent);text-decoration:underline}
+        .code{font-family:var(--mono);font-size:.9em;background:var(--code);border-radius:3px;padding:0 .2em}
+        .dead{color:var(--muted)}
+        .note{color:var(--muted);font-style:italic}
+        .spoiler{background:var(--spoiler);color:var(--spoiler);border-radius:3px;cursor:pointer}
+        .spoiler *{color:inherit}
+        .spoiler:hover,.spoiler:focus{color:var(--text)}
+        .quote,.omission{display:block;margin:6px 0 0;font-size:.875rem}
+        .quote{text-decoration:none}
+        .quote:hover{text-decoration:underline}
+        .omission{color:var(--warning)}
+        .files{float:left;max-width:100%;margin:2px 16px 8px 0}
+        .files.multi{float:none;display:flex;flex-wrap:wrap;gap:8px 16px;margin-right:0}
+        .file{margin:0;max-width:260px}
+        .file.video{max-width:480px}
+        .file figcaption{font-size:.8125rem;color:var(--muted);overflow-wrap:anywhere;margin-bottom:4px}
+        .file .name{color:var(--text)}
+        .file a.name{color:var(--accent)}
+        .thumb{display:inline-block;max-width:100%}
+        .file img{display:block;max-width:100%;max-height:250px;width:auto;height:auto;border-radius:5px}
+        .file video{display:block;max-width:100%;max-height:360px;border-radius:5px}
+        .file .meta{margin:4px 0 0}
+        .file details{font-size:.8125rem;color:var(--muted);margin-top:4px}
+        footer{margin-top:24px;font-size:.875rem;color:var(--muted)}
+        footer h2{font-size:.9375rem;font-weight:600;color:var(--text);margin:0 0 4px}
+        footer p{margin:4px 0 0}
+        @media (max-width:560px){.page{padding:12px 12px 32px}header.top,footer{padding:12px 14px}.files{float:none;margin-right:0}article{max-width:100%}}
+        @media print{
+        /* Print is always the light palette on white paper, whatever the screen theme. */
+        :root{color-scheme:light}
+        .page{--bg:#fff;--panel:#fff;--card:#fff;--edge:#a89f92;--border:#a89f92;--text:#000;--muted:#575148;--accent:#803b06;
+        --greentext:#386217;--code:#ece7dd;--spoiler:#ece7dd;--warning:#795100;padding:0;min-height:0;font-size:11pt}
+        html{background:#fff}
+        .page>*{max-width:none}
+        article{break-inside:avoid-page}
+        .post-head,.file{break-inside:avoid}
+        .spoiler{color:inherit}
+        a{text-decoration:none}}
         """;
 }

@@ -46,7 +46,8 @@ internal enum HtmlExportText
     OmissionNoMediaIdentity,
     WarningManifestUnavailable,
     WarningDirectoryUnreadable,
-    WarningManifestInvalid
+    WarningManifestInvalid,
+    PostNumber
 }
 
 /// <summary>Small, dependency-free localization surface for generated HTML framing text.</summary>
@@ -93,7 +94,8 @@ internal sealed class HtmlExportLocalization
         [HtmlExportText.OmissionNoMediaIdentity] = "No retained media identity",
         [HtmlExportText.WarningManifestUnavailable] = "A saved media manifest is unavailable.",
         [HtmlExportText.WarningDirectoryUnreadable] = "A saved media directory could not be read.",
-        [HtmlExportText.WarningManifestInvalid] = "The media manifest is invalid; no assets were inferred or repaired."
+        [HtmlExportText.WarningManifestInvalid] = "The media manifest is invalid; no assets were inferred or repaired.",
+        [HtmlExportText.PostNumber] = "No. {0}"
     };
 
     private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<HtmlExportText, string>> Translations =
@@ -140,7 +142,8 @@ internal sealed class HtmlExportLocalization
                 [HtmlExportText.OmissionNoMediaIdentity] = "Keine gespeicherte Medienidentität",
                 [HtmlExportText.WarningManifestUnavailable] = "Ein gespeichertes Medienmanifest ist nicht verfügbar.",
                 [HtmlExportText.WarningDirectoryUnreadable] = "Ein gespeichertes Medienverzeichnis konnte nicht gelesen werden.",
-                [HtmlExportText.WarningManifestInvalid] = "Das Medienmanifest ist ungültig; es wurden keine Medien abgeleitet oder repariert."
+                [HtmlExportText.WarningManifestInvalid] = "Das Medienmanifest ist ungültig; es wurden keine Medien abgeleitet oder repariert.",
+                [HtmlExportText.PostNumber] = "Nr. {0}"
             },
             ["es"] = new Dictionary<HtmlExportText, string>
             {
@@ -183,7 +186,8 @@ internal sealed class HtmlExportLocalization
                 [HtmlExportText.OmissionNoMediaIdentity] = "No hay identidad de medios conservada",
                 [HtmlExportText.WarningManifestUnavailable] = "El manifiesto de medios guardado no está disponible.",
                 [HtmlExportText.WarningDirectoryUnreadable] = "No se pudo leer un directorio de medios guardado.",
-                [HtmlExportText.WarningManifestInvalid] = "El manifiesto de medios no es válido; no se dedujeron ni repararon archivos multimedia."
+                [HtmlExportText.WarningManifestInvalid] = "El manifiesto de medios no es válido; no se dedujeron ni repararon archivos multimedia.",
+                [HtmlExportText.PostNumber] = "N.º {0}"
             },
             ["fr"] = new Dictionary<HtmlExportText, string>
             {
@@ -226,7 +230,8 @@ internal sealed class HtmlExportLocalization
                 [HtmlExportText.OmissionNoMediaIdentity] = "Aucune identité de média conservée",
                 [HtmlExportText.WarningManifestUnavailable] = "Un manifeste de médias enregistré est indisponible.",
                 [HtmlExportText.WarningDirectoryUnreadable] = "Un répertoire de médias enregistré n’a pas pu être lu.",
-                [HtmlExportText.WarningManifestInvalid] = "Le manifeste des médias est invalide ; aucun média n’a été déduit ni réparé."
+                [HtmlExportText.WarningManifestInvalid] = "Le manifeste des médias est invalide ; aucun média n’a été déduit ni réparé.",
+                [HtmlExportText.PostNumber] = "N° {0}"
             },
             ["ru"] = new Dictionary<HtmlExportText, string>
             {
@@ -269,7 +274,8 @@ internal sealed class HtmlExportLocalization
                 [HtmlExportText.OmissionNoMediaIdentity] = "Идентификатор сохранённого медиафайла отсутствует",
                 [HtmlExportText.WarningManifestUnavailable] = "Сохранённый манифест медиафайлов недоступен.",
                 [HtmlExportText.WarningDirectoryUnreadable] = "Не удалось прочитать сохранённый каталог медиафайлов.",
-                [HtmlExportText.WarningManifestInvalid] = "Манифест медиафайлов недействителен; файлы не восстанавливались и не определялись по косвенным признакам."
+                [HtmlExportText.WarningManifestInvalid] = "Манифест медиафайлов недействителен; файлы не восстанавливались и не определялись по косвенным признакам.",
+                [HtmlExportText.PostNumber] = "№ {0}"
             }
         };
 

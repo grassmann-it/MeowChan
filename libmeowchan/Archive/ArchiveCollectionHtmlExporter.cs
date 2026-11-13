@@ -146,21 +146,21 @@ public static class ArchiveCollectionHtmlExporter
             await File.WriteAllTextAsync(Path.Combine(stage, "style.css"), ArchiveHtmlExporter.Css, new UTF8Encoding(false), token).ConfigureAwait(false);
             await using (StreamWriter index = new(Path.Combine(stage, "index.html"), false, new UTF8Encoding(false)))
             {
-                await index.WriteLineAsync("<!doctype html><html lang=\"" + text.Language + "\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'self'; img-src 'self'; media-src 'self'; base-uri 'none'; form-action 'none'\"><title>" + text.Html(HtmlExportText.CollectionTitle) + "</title><link rel=\"stylesheet\" href=\"style.css\"></head><body><header><h1>" + text.Html(HtmlExportText.CollectionTitle) + "</h1><p>" + text.Html(HtmlExportText.CollectionIntro) + "</p></header><main>");
+                await index.WriteLineAsync("<!doctype html><html lang=\"" + text.Language + "\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"" + ArchiveHtmlExporter.ContentSecurityPolicy + "\"><title>" + text.Html(HtmlExportText.CollectionTitle) + "</title><link rel=\"stylesheet\" href=\"style.css\"></head><body><div class=\"page\"><header class=\"top\"><div class=\"bar\"><div class=\"heading\"><h1>" + text.Html(HtmlExportText.CollectionTitle) + "</h1></div></div><p class=\"meta\">" + text.Html(HtmlExportText.CollectionIntro) + "</p></header><main>");
                 foreach (ArchiveExportSnapshot snapshot in snapshots)
                 {
                     token.ThrowIfCancellationRequested();
                     ArchivedThreadView view = snapshot.View;
                     string page = PagePath(view.Summary.Id);
-                    await index.WriteLineAsync("<article><h2><a href=\"" + page + "\">" + ArchiveHtmlExporter.Encode(view.Summary.Title) + "</a></h2><p>" + ArchiveHtmlExporter.Encode(view.Summary.Id.Source + " /" + view.Summary.Id.Board + "/ " + view.Summary.Id.Thread) + "</p><p>"
+                    await index.WriteLineAsync("<article><h2><a href=\"" + page + "\">" + ArchiveHtmlExporter.Encode(view.Summary.Title) + "</a></h2><p class=\"source\">" + ArchiveHtmlExporter.Encode(view.Summary.Id.Source + " /" + view.Summary.Id.Board + "/ " + view.Summary.Id.Thread) + "</p><p class=\"meta\">"
                         + text.Html(HtmlExportText.LastCapture, view.Summary.LastCapturedAt?.ToString("u", CultureInfo.InvariantCulture) ?? text.Get(HtmlExportText.NoPosts))
-                        + " · " + text.Html(HtmlExportText.PostCount, view.PostCount) + "</p>");
+                        + " · " + text.Html(HtmlExportText.PostCount, view.PostCount) + "</p><p class=\"posts\">");
                     foreach (CapturedPost post in view.Posts)
                         await index.WriteLineAsync("<a href=\"" + page + "#" + ArchiveHtmlExporter.PostAnchor(post.PostId) + "\">#" + ArchiveHtmlExporter.Encode(post.PostId) + "</a> ");
-                    await index.WriteLineAsync("</article>");
+                    await index.WriteLineAsync("</p></article>");
                 }
                 await index.WriteLineAsync("</main><footer><p>" + text.Html(HtmlExportText.CollectionCounts, snapshots.Count, posts, copied.Count, omissions.Count)
-                    + "</p><p>" + text.Html(HtmlExportText.Offline) + "</p></footer></body></html>");
+                    + "</p><p>" + text.Html(HtmlExportText.Offline) + "</p></footer></div></body></html>");
                 await index.FlushAsync(token).ConfigureAwait(false);
             }
             ArchiveCollectionExportMetadata metadata = await ArchiveCollectionExportMetadataFile.CreateAsync(stage, members, options,
