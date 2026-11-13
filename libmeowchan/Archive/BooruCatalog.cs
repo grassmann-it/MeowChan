@@ -219,6 +219,22 @@ internal sealed record BooruCatalogSnapshot(
     internal const int CurrentSchemaVersion = 1;
     internal static BooruCatalogSnapshot Empty => new(CurrentSchemaVersion,
         Array.Empty<BooruPostRecord>(), Array.Empty<BooruWatcherRecord>());
+
+    // Posts by identity, made the first time a lookup asks and kept for as long as this (immutable) snapshot lives; the first lookup
+    // costs one pass, every later one is a dictionary hit instead of a scan over thousands of posts.
+    private static readonly ConditionalWeakTable<BooruCatalogSnapshot, Dictionary<(string Source, string Post), BooruPostRecord>> ByIdentity = new();
+
+    /// <summary>One post of this snapshot by identity, or null (the first one of equal identity, as a scan would find).</summary>
+    internal BooruPostRecord? TryGetPost(string sourceId, string postId)
+    {
+        Dictionary<(string Source, string Post), BooruPostRecord> index = ByIdentity.GetValue(this, snapshot =>
+        {
+            Dictionary<(string Source, string Post), BooruPostRecord> made = new(snapshot.Posts.Count);
+            foreach (BooruPostRecord record in snapshot.Posts) made.TryAdd((record.SourceId, record.PostId), record);
+            return made;
+        });
+        return index.GetValueOrDefault((sourceId, postId));
+    }
 }
 
 /// <summary>Current size of the catalog file against its configured write limit (for a visible warning).</summary>

@@ -206,7 +206,7 @@ internal sealed partial class DesktopSessionHost
                 if (BooruMediaIdentity.TryGetPostId(group.Key, out string booruPost))
                 {
                     if (!booruCatalogRead) { booruCatalog = ReadBooruCatalog(); booruCatalogRead = true; }
-                    if (booruCatalog?.Posts.FirstOrDefault(post => post.SourceId == BooruMediaIdentity.Source && post.PostId == booruPost) is { } booruRecord
+                    if (booruCatalog?.TryGetPost(BooruMediaIdentity.Source, booruPost) is { } booruRecord
                         && BooruMediaProjection.DirectoryOf(booruRecord) is { } booruDirectory)
                         directories.Add(booruDirectory);
                 }

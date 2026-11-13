@@ -147,7 +147,7 @@ internal static class BooruMediaProjection
     internal static BooruMediaDetails? Find(BooruCatalogSnapshot catalog, string postId, bool localFilePresent = true)
     {
         ArgumentNullException.ThrowIfNull(catalog);
-        BooruPostRecord? record = catalog.Posts.FirstOrDefault(post => post.SourceId == BooruMediaIdentity.Source && post.PostId == postId);
+        BooruPostRecord? record = catalog.TryGetPost(BooruMediaIdentity.Source, postId);
         return record == null ? null : Describe(record, catalog.Watchers, localFilePresent);
     }
 
@@ -264,7 +264,7 @@ internal static class BooruMediaGallery
         ArgumentNullException.ThrowIfNull(openManifest);
         if (entry.BooruPostId is not { } postId || catalog == null || entry.Presence != MediaLibraryPresence.Present
             || entry.Directory == null || entry.AssetId == null) return null;
-        BooruPostRecord? record = catalog.Posts.FirstOrDefault(post => post.SourceId == BooruMediaIdentity.Source && post.PostId == postId);
+        BooruPostRecord? record = catalog.TryGetPost(BooruMediaIdentity.Source, postId);
         if (record == null || record.LocalAssetId != entry.AssetId
             || !string.Equals(BooruMediaProjection.DirectoryOf(record), entry.Directory, StringComparison.Ordinal)) return null;
         MediaAssetSnapshot manifest;

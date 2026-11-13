@@ -183,6 +183,7 @@ public sealed partial class MediaPage : UserControl
     {
         RefreshUserData();
         UpdateSearchTip();
+        WarmBooruCatalog();
         if (_building != null) return BuildTask;
         return BuildTask = BuildAsync(force: false);
     }
@@ -587,9 +588,29 @@ public sealed partial class MediaPage : UserControl
     {
         if (entry.BooruPostId is not { } postId) return null;
         BooruPostRecord? record = null;
-        try { record = ReadBooruCatalog?.Invoke()?.Posts.FirstOrDefault(post => post.SourceId == BooruMediaIdentity.Source && post.PostId == postId); }
-        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException) { }
+        // The first read of a large catalog (tens of MiB) is slow: it never happens here, on the UI thread of a menu. Until the
+        // background read has finished, the canonical address of the post is used; the catalog only refines it.
+        if (_booruCatalogWarm)
+            try { record = ReadBooruCatalog?.Invoke()?.TryGetPost(BooruMediaIdentity.Source, postId); }
+            catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException) { }
+        else WarmBooruCatalog();
         return BooruMediaIdentity.PostUrl(postId, record?.Post.PostUrl);
+    }
+
+    private volatile bool _booruCatalogWarm;
+    private int _booruCatalogWarming;
+
+    /// <summary>Reads the Booru catalog once in the background, so that later lookups on the UI thread are served from the store's cache.</summary>
+    private void WarmBooruCatalog()
+    {
+        if (_booruCatalogWarm || ReadBooruCatalog is not { } read || _lifetime.IsCancellationRequested
+            || Interlocked.Exchange(ref _booruCatalogWarming, 1) == 1) return;
+        _ = Task.Run(() =>
+        {
+            try { read(); _booruCatalogWarm = true; }
+            catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException) { }
+            finally { Volatile.Write(ref _booruCatalogWarming, 0); }
+        });
     }
 
     internal async Task OpenProviderPostAsync(MediaLibraryEntry entry)

@@ -95,7 +95,7 @@ public partial class MainWindow
     {
         if (!BooruMediaIdentity.TryGetPostId(entry.Key.Thread, out string postId)) return null;
         BooruPostRecord? record = null;
-        try { record = _session.ReadBooruCatalog()?.Posts.FirstOrDefault(post => post.SourceId == BooruMediaIdentity.Source && post.PostId == postId); }
+        try { record = _session.ReadBooruCatalog()?.TryGetPost(BooruMediaIdentity.Source, postId); }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException) { }
         return BooruMediaIdentity.PostUrl(postId, record?.Post.PostUrl);
     }
