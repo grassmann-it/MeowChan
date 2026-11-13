@@ -57,6 +57,7 @@ public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output)
         Assert.NotEqual(first.Pid, second.Pid);
         foreach (var restarted in new[] { first, second })
         {
+            Assert.Null(restarted.Rejection);
             Assert.Equal(consent.TargetExecution, Plugin(restarted).Active!.ExecutionRevision);
             Assert.Equal(consent.TargetAssemblyHash, Plugin(restarted).Active!.Artifact.AssemblySha256);
             Assert.Equal(seed.OldExecution, Plugin(restarted).LastGood!.ExecutionRevision);
@@ -163,7 +164,7 @@ public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output)
         // supplied a successful inventory observation here; the real runtime hash/open
         // boundary must refuse use, without inventing a new store persistence policy.
         Assert.Equal(consent.TargetExecution, Plugin(restart).Active!.ExecutionRevision);
-        Assert.Equal("PluginWorkerException", restart.Rejection);
+        Assert.Equal("FileNotFoundException", restart.Rejection);
         AssertRetained(seed, restart);
         Assert.Null(restart.WorkerPid);
         Assert.Null(restart.Text);

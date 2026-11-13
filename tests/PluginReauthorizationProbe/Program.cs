@@ -118,7 +118,7 @@ if (phase.StartsWith("start-", StringComparison.Ordinal) && Plugin(final) is { E
         imageReads = services.ImageReads; httpRequests = services.HttpRequests;
     }
     }
-    catch (PluginWorkerException error) { rejection = error.GetType().Name; }
+    catch (Exception error) when (error is PluginWorkerException or IOException) { rejection = error.GetType().Name; }
     // Disposal must have reaped this privately owned worker before reporting success.
     try { if (workerPid is int pid) { using var child = Process.GetProcessById(pid); if (!child.HasExited) throw new InvalidOperationException("Worker still running."); } }
     catch (ArgumentException) { }
