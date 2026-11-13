@@ -4,6 +4,7 @@ using MeowChan.Interfaces;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Localization")]
 public sealed class ReaderSettingsPersistenceTests
 {
     public static IEnumerable<object[]> Numbers()
@@ -87,6 +88,7 @@ public sealed class ReaderSettingsPersistenceTests
         draft.ReaderDateStyle = "Long";
         draft.ReaderSpoilers = "Always";
         draft.GalleryFitUpscaleLimited = true;
+        draft = ReaderSettingsEditorTests.CaptureDraft(host.Config, draft);
         string path = Path.Combine(directory.Path, "settings.json");
         byte[] saved = File.ReadAllBytes(path);
         File.Delete(path);
@@ -115,6 +117,33 @@ public sealed class ReaderSettingsPersistenceTests
         }
         Assert.Equal(draft.PostFilterRuleLimit, host.StoreLimits.PostFilterRules);
         Assert.Equal(draft.HiddenPostLimit, host.StoreLimits.HiddenPosts);
+    }
+
+    [Fact]
+    public async Task HiddenGalleryCapSurvivesHostSavesUnrelatedEditAndReenablingTheLimit()
+    {
+        using TempDirectory directory = new();
+        new Config { AutomaticUpdateChecks = false, SaveUrlsOnExit = false,
+            DownloadPath = Path.Combine(directory.Path, "media"), GalleryFitUpscaleLimited = true,
+            GalleryFitMaxUpscalePercent = 725 }.SaveConfig(directory.Path);
+        await using DesktopSessionHost host = new(directory.Path, Array.Empty<IImageBoard>());
+        await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(15));
+        foreach (int step in new[] { 0, 1, 2 })
+        {
+            Config desired = host.Config.Clone();
+            desired.GalleryFitUpscaleLimited = step == 2;
+            if (step == 1) desired.ReaderThumbnailWidth = 365; // unrelated save while hidden
+            Config candidate = ReaderSettingsEditorTests.CaptureDraft(host.Config, desired);
+            await host.ApplySettingsAsync(candidate).WaitAsync(TimeSpan.FromSeconds(15));
+            Config disk = Config.LoadConfig(directory.Path);
+            Assert.Null(disk.LoadWarning);
+            foreach (Config current in new[] { candidate, host.Config, disk })
+            {
+                Assert.Equal(725, current.GalleryFitMaxUpscalePercent);
+                Assert.Equal(step == 2, current.GalleryFitUpscaleLimited);
+                Assert.Equal(step == 0 ? Config.ReaderThumbnailWidthDefault : 365, current.ReaderThumbnailWidth);
+            }
+        }
     }
 
     [Fact]

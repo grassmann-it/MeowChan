@@ -189,13 +189,26 @@ public partial class SettingsEditor
         candidate.ReaderReplyLines = GetInteger(ReaderReplyLines, ReaderReplyLinesLabel, Config.ReaderReplyLinesMinimum, Config.ReaderReplyLinesMaximum);
         candidate.ReaderPageSize = GetInteger(ReaderPageSize, ReaderPageSizeLabel, Config.ReaderPageSizeMinimum, Config.ReaderPageSizeMaximum);
         candidate.ReaderThreadingDepth = GetInteger(ReaderThreadingDepth, ReaderThreadingDepthLabel, Config.ReaderThreadingDepthMinimum, Config.ReaderThreadingDepthMaximum);
-        // Keep a valid draft cap even when hidden; an unavailable malformed value must not block an unrelated save.
-        candidate.GalleryFitMaxUpscalePercent = StatisticsNumber(GalleryFitMaxUpscalePercent, GalleryFitMaxUpscalePercentLabel, Config.GalleryFitMaxUpscalePercentMinimum, Config.GalleryFitMaxUpscalePercentMaximum, IsGalleryFitLimited, _config.GalleryFitMaxUpscalePercent);
+        candidate.GalleryFitMaxUpscalePercent = CaptureGalleryFitCap();
         candidate.PostFilterRuleLimit = GetInteger(PostFilterRuleLimit, PostFilterRuleLimitLabel, Config.PostFilterRuleLimitMinimum, Config.PostFilterRuleLimitMaximum);
         candidate.HiddenPostLimit = GetInteger(HiddenPostLimit, HiddenPostLimitLabel, Config.HiddenPostLimitMinimum, Config.HiddenPostLimitMaximum);
         candidate.ReaderDateStyle = SelectedReaderDateStyle?.Value ?? _config.ReaderDateStyle;
         candidate.ReaderSpoilers = SelectedReaderSpoilers?.Value ?? _config.ReaderSpoilers;
         candidate.GalleryFitUpscaleLimited = IsGalleryFitLimited;
+    }
+
+    private int CaptureGalleryFitCap()
+    {
+        // Hidden malformed text must not block an unrelated save, but Value may
+        // still contain a previous accepted edit. Preserve the saved cap in that
+        // case, not that stale Value. A genuinely valid hidden draft still wins.
+        if (!IsGalleryFitLimited && NumericDraftError(GalleryFitMaxUpscalePercentInput.Text,
+            GalleryFitMaxUpscalePercentInput.ParsingNumberStyle, GalleryFitMaxUpscalePercentInput.NumberFormat,
+            DataValidationErrors.GetHasErrors(GalleryFitMaxUpscalePercentInput), GalleryFitMaxUpscalePercent,
+            Config.GalleryFitMaxUpscalePercentMinimum, Config.GalleryFitMaxUpscalePercentMaximum, true) != null)
+            return _config.GalleryFitMaxUpscalePercent;
+        return GetInteger(GalleryFitMaxUpscalePercent, GalleryFitMaxUpscalePercentLabel,
+            Config.GalleryFitMaxUpscalePercentMinimum, Config.GalleryFitMaxUpscalePercentMaximum);
     }
 
     private IEnumerable<(NumericUpDown Input, decimal? Value, string Label, string Unit, decimal Min, decimal Max, bool Integer)> ReaderNumericFields()

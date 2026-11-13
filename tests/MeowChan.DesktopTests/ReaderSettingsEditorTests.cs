@@ -1,6 +1,8 @@
+using System.Globalization;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Xml.Linq;
+using Avalonia.Controls;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 
@@ -131,6 +133,8 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         SettingsEditor editor = CreateValidDraft();
         editor.SelectedGalleryFitUpscale = editor.GalleryFitUpscaleChoices.Single(item => item.Value == "Unlimited");
         editor.GalleryFitMaxUpscalePercent = draft.HasValue ? (decimal)draft.Value : null;
+        GetInput(editor, nameof(Config.GalleryFitMaxUpscalePercent)).Text =
+            editor.GalleryFitMaxUpscalePercent?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
         Config candidate = new();
         Invoke(editor, "ApplyReaderDraft", candidate);
         Assert.False(candidate.GalleryFitUpscaleLimited);
@@ -179,6 +183,110 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         Assert.True(wait.IsCancellationRequested);
     }
 
+    [Theory]
+    [MemberData(nameof(ReaderSettingsPersistenceTests.Numbers), MemberType = typeof(ReaderSettingsPersistenceTests))]
+    public void RawReaderNumbersCannotBeReplacedByAnAcceptedOrClampedValue(string name, int fallback, int min, int max)
+    {
+        // Unlike the existing ApplyReaderDraft bounds test, keep the bound value
+        // valid throughout: only the raw text is rejected here.
+        _ = name;
+        foreach (decimal accepted in new[] { (decimal)fallback, min, max })
+        {
+            foreach (string? raw in new[] { null, "", "not a number", "79228162514264337593543950336" })
+                Assert.Equal("settings.fieldNumber", SettingsEditor.NumericDraftError(raw, NumberStyles.Number,
+                    CultureInfo.InvariantCulture, false, accepted, min, max, true));
+            foreach (decimal rejected in new[] { min - 1m, max + 1m, min + 0.5m })
+                Assert.Equal("settings.fieldInteger", SettingsEditor.NumericDraftError(rejected.ToString(CultureInfo.InvariantCulture),
+                    NumberStyles.Number, CultureInfo.InvariantCulture, false, accepted, min, max, true));
+        }
+        foreach (int boundary in new[] { min, max })
+            Assert.Null(SettingsEditor.NumericDraftError(boundary.ToString(CultureInfo.InvariantCulture), NumberStyles.Number,
+                CultureInfo.InvariantCulture, false, boundary, min, max, true));
+        Assert.Equal("settings.fieldNumber", SettingsEditor.NumericDraftError(fallback.ToString(CultureInfo.InvariantCulture),
+            NumberStyles.Number, CultureInfo.InvariantCulture, true, fallback, min, max, true));
+    }
+
+    [Theory]
+    [InlineData("not a number")]
+    [InlineData("")]
+    [InlineData("99")]
+    [InlineData("1601")]
+    [InlineData("725.5")]
+    public void HidingARejectedGalleryEditPreservesTheSavedCapNotTheStaleAcceptedValue(string raw)
+    {
+        SettingsEditor editor = CreateValidDraft();
+        Get<Config>(editor, "_config").GalleryFitMaxUpscalePercent = 350;
+        editor.GalleryFitMaxUpscalePercent = 725; // last accepted edit, not saved
+        NumericUpDown input = GetInput(editor, nameof(Config.GalleryFitMaxUpscalePercent));
+        input.Value = 725;
+        input.Text = raw;
+        editor.SelectedGalleryFitUpscale = editor.GalleryFitUpscaleChoices.Single(item => item.Value == "Unlimited");
+        Texts.SetLanguage("de");
+        Invoke(editor, "RefreshChoiceLabels");
+        Config candidate = new();
+        Invoke(editor, "ApplyReaderDraft", candidate);
+        Assert.False(candidate.GalleryFitUpscaleLimited);
+        Assert.Equal(350, candidate.GalleryFitMaxUpscalePercent);
+        Assert.Equal(725m, editor.GalleryFitMaxUpscalePercent); // capture does not mutate the draft
+        Assert.Equal(raw, input.Text);
+        Assert.Equal(350, Get<Config>(editor, "_config").GalleryFitMaxUpscalePercent);
+        Invoke(editor, "LoadReaderDraft", Get<Config>(editor, "_config"));
+        Assert.Equal(350m, editor.GalleryFitMaxUpscalePercent);
+        Assert.Equal("350", input.Text);
+    }
+
+    [Fact]
+    public void ReloadReaderDraftDiscardsAllRejectedTextAndChoicesUsingTheCurrentSavedConfig()
+    {
+        SettingsEditor editor = CreateValidDraft();
+        Config saved = Get<Config>(editor, "_config");
+        foreach (object[] row in ReaderSettingsPersistenceTests.Numbers())
+        {
+            string name = (string)row[0];
+            typeof(Config).GetProperty(name)!.SetValue(saved, (int)row[2] + 1);
+            GetInput(editor, name).Text = "rejected draft";
+            typeof(SettingsEditor).GetProperty(name)!.SetValue(editor, null);
+        }
+        saved.ReaderDateStyle = "RelativeToNow";
+        saved.ReaderSpoilers = "Always";
+        saved.GalleryFitUpscaleLimited = false;
+        // This is the production reader reset used by CancelChanges and the
+        // successful-save reload, without bootstrapping a native SettingsWindow.
+        Invoke(editor, "LoadReaderDraft", saved);
+        foreach (object[] row in ReaderSettingsPersistenceTests.Numbers())
+        {
+            string name = (string)row[0];
+            decimal expected = (int)row[2] + 1;
+            Assert.Equal(expected, typeof(SettingsEditor).GetProperty(name)!.GetValue(editor));
+            Assert.Equal(expected, GetInput(editor, name).Value);
+            Assert.Equal(expected.ToString(CultureInfo.CurrentCulture), GetInput(editor, name).Text);
+        }
+        Assert.Equal("RelativeToNow", editor.SelectedReaderDateStyle!.Value);
+        Assert.Equal("Always", editor.SelectedReaderSpoilers!.Value);
+        Assert.False(editor.IsGalleryFitLimited);
+    }
+
+    // CLR-only entry into the same reader capture used by Save. Host tests use
+    // this to verify editor -> candidate -> disk, not just Config -> Config.
+    internal static Config CaptureDraft(Config saved, Config desired)
+    {
+        SettingsEditor editor = CreateValidDraft();
+        Set(editor, "_config", saved);
+        foreach (object[] row in ReaderSettingsPersistenceTests.Numbers())
+        {
+            string name = (string)row[0];
+            int value = (int)typeof(Config).GetProperty(name)!.GetValue(desired)!;
+            typeof(SettingsEditor).GetProperty(name)!.SetValue(editor, (decimal?)value);
+            GetInput(editor, name).Value = value;
+            GetInput(editor, name).Text = value.ToString(CultureInfo.InvariantCulture);
+        }
+        Invoke(editor, "RefreshReaderChoices", desired.ReaderDateStyle, desired.ReaderSpoilers,
+            desired.GalleryFitUpscaleLimited ? "Limited" : "Unlimited");
+        Config candidate = saved.Clone();
+        Invoke(editor, "ApplyReaderDraft", candidate);
+        return candidate;
+    }
+
     private static SettingsEditor CreateValidDraft()
     {
         SettingsEditor editor = CreateEditor();
@@ -186,7 +294,14 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         foreach (object[] row in ReaderSettingsPersistenceTests.Numbers())
         {
             string name = (string)row[0];
-            typeof(SettingsEditor).GetProperty(name)!.SetValue(editor, (decimal?)(int)typeof(Config).GetProperty(name)!.GetValue(defaults)!);
+            int value = (int)typeof(Config).GetProperty(name)!.GetValue(defaults)!;
+            typeof(SettingsEditor).GetProperty(name)!.SetValue(editor, (decimal?)value);
+            Set(editor, name + "Input", new SettingsNumberInput
+            {
+                Name = name + "Input", Minimum = (int)row[2], Maximum = (int)row[3],
+                NumberFormat = CultureInfo.InvariantCulture.NumberFormat, Value = value,
+                Text = value.ToString(CultureInfo.InvariantCulture)
+            });
         }
         Invoke(editor, "RefreshReaderChoices", "SinceOp", "Hover", "Limited");
         return editor;
@@ -258,6 +373,7 @@ public sealed class ReaderSettingsEditorTests : IDisposable
     private static XDocument Markup() => XDocument.Load(Path.Combine(RepositoryRoot(), "Desktop/Views/Settings/SettingsEditor.axaml"));
     private static string RepositoryRoot([CallerFilePath] string path = "") => Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, "../.."));
     private static string PackPath(string pack, [CallerFilePath] string path = "") => Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, "../..", "Desktop/Localization/Packs", pack + ".json"));
+    private static NumericUpDown GetInput(SettingsEditor editor, string property) => Get<NumericUpDown>(editor, property + "Input");
     private static T Get<T>(SettingsEditor editor, string field) => (T)typeof(SettingsEditor).GetField(field, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(editor)!;
     private static void Set(SettingsEditor editor, string field, object? value) => typeof(SettingsEditor).GetField(field, BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(editor, value);
     private static void Invoke(SettingsEditor editor, string method, params object?[] args) => typeof(SettingsEditor).GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(editor, args);
