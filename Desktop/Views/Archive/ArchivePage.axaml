@@ -498,8 +498,8 @@
                                         </Popup>
                                         <!-- An external link opens only after this confirmation: the full address, its host in ASCII form and highlighted. -->
                                         <Border x:Name="ReaderLinkDialog" IsVisible="False" Background="#A6000000" ZIndex="5">
-                                            <Border Background="{DynamicResource Workspace.ReaderPostSurface}" BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="1"
-                                                    CornerRadius="4" Padding="16" MaxWidth="520" Margin="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <Border Background="{DynamicResource Workspace.Card}" BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="1"
+                                                    CornerRadius="{StaticResource Workspace.Radius.Control}" Padding="16" MaxWidth="520" Margin="16" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                 <StackPanel Spacing="10">
                                                     <TextBlock x:Name="ReaderLinkTitle" Classes="section-title" TextWrapping="Wrap" />
                                                     <SelectableTextBlock x:Name="ReaderLinkUrl" TextWrapping="Wrap" />
