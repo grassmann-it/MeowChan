@@ -46,6 +46,9 @@ internal sealed partial class PluginSession : IAsyncDisposable
     private readonly Dictionary<PluginSourceImageBoard, string> _sourceOwners = new();
     private string[] _warnings = Array.Empty<string>();
     private bool _disposed;
+    // The read-only startup probe, begun at most once before StartAsync (see BeginProbe).
+    private Task<StartupProbe>? _probe;
+    private CancellationTokenSource? _probeCancellation;
 
     internal IPluginProfileStore ProfileStore { get; }
     internal IPluginCompilationService CompilationService { get; }
@@ -54,6 +57,8 @@ internal sealed partial class PluginSession : IAsyncDisposable
     internal string PluginDirectory { get; }
     internal IReadOnlyList<PluginSourceImageBoard> Sources { get; private set; } = Array.Empty<PluginSourceImageBoard>();
     internal IReadOnlyList<string> Warnings => Volatile.Read(ref _warnings);
+    // Observation only: the early probe's completion, never its result.
+    internal Task? StartupProbeForTests { get { lock (_state) return _probe; } }
 
     internal PluginSession(string profileDirectory, ProfileLease profileLease, Config config, DownloadQueue queue, ILogger logger,
         Func<HttpClient>? transportFactory = null,
@@ -125,45 +130,51 @@ internal sealed partial class PluginSession : IAsyncDisposable
         finally { LogStartupPhase("total", null, started, succeeded); }
     }
 
+    /// <summary>What the read-only probe observed; activation consumes it unchanged and in inventory order.</summary>
+    private sealed record StartupProbe(PluginProfileSnapshot Previous, PluginInstallationCandidate[] Ordered,
+        HashSet<string> ShippedIds, PluginCandidateObservation[] Probed, List<string> Warnings);
+
+    /// <summary>
+    /// Starts the read-only part of plugin startup (profile read, inventory, import, describe) in the background,
+    /// at most once, so it overlaps the window construction instead of waiting for it. It never writes the plugin
+    /// profile, activates, grants or routes anything: StartAsync awaits it where the probe ran before and then
+    /// performs provenance, activation and adapters unchanged. The probe ends with the session lifetime or
+    /// <paramref name="cancellationToken"/>; DisposeAsync waits until it has (describe workers reaped).
+    /// </summary>
+    internal void BeginProbe(CancellationToken cancellationToken)
+    {
+        lock (_state)
+        {
+            if (_disposed || _probe != null) return;
+            CancellationTokenSource source = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token, cancellationToken);
+            _probeCancellation = source;
+            // Never on the caller's (UI) thread: even the synchronous prefix reads files.
+            _probe = Task.Run(() => ProbeAsync(source.Token), CancellationToken.None);
+        }
+    }
+
     private async Task StartCoreAsync(CancellationToken cancellationToken)
     {
         using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
         CancellationToken token = linked.Token;
-        Directory.CreateDirectory(PluginDirectory);
-        Directory.CreateDirectory(_launch.WorkingDirectory);
-        PluginProfileSnapshot previous = await MeasureStartupAsync("profile-read", null, () => ProfileStore.ReadAsync(token)).ConfigureAwait(false);
-        PluginInventory shipped = await MeasureStartupAsync("inventory-shipped", null, () => Inventory.ScanAsync(_shippedDirectory, token)).ConfigureAwait(false);
-        PluginInventory local = await MeasureStartupAsync("inventory-local", null, () => Inventory.ScanAsync(PluginDirectory, token)).ConfigureAwait(false);
-        List<string> warnings = shipped.Diagnostics.Concat(local.Diagnostics).Select(item => item.Message).ToList();
+        Task<StartupProbe>? early;
+        CancellationTokenSource? earlyCancellation;
+        lock (_state) { early = _probe; earlyCancellation = _probeCancellation; }
+        StartupProbe probe;
+        if (early is null) probe = await ProbeAsync(token).ConfigureAwait(false);
+        else
+        {
+            // This start's token also ends the early probe, and startup returns only after the probe has
+            // really stopped, as when it ran inline: no describe worker or cache write outlives StartAsync.
+            Task<StartupProbe> pending = early;
+            using (token.Register(static source => CancelQuietly((CancellationTokenSource)source!), earlyCancellation))
+                probe = await MeasureStartupAsync("probe-wait", null, () => pending).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+        }
+        (PluginProfileSnapshot previous, PluginInstallationCandidate[] ordered, HashSet<string> shippedIds,
+            PluginCandidateObservation[] probed, List<string> warnings) = probe;
         List<PluginCandidateObservation> observations = new();
         List<DeliveredCandidateProvenance> delivered = new();
-        HashSet<string> shippedIds = shipped.Candidates.Where(item => item.Kind == PluginCandidateKind.PrebuiltManifest)
-            .Select(item => item.CandidateId).ToHashSet(StringComparer.Ordinal);
-        PluginInstallationCandidate[] ordered = shipped.Candidates.Where(item => item.Kind == PluginCandidateKind.PrebuiltManifest)
-            .Concat(local.Candidates).ToArray();
-        // Probes overlap in bounded lanes; observations, provenance and activation keep inventory order.
-        SemaphoreSlim lanes = new(StartupProbeLanes, StartupProbeLanes);
-        using IPluginBundleImportBatch imports = ((IPluginBundleInstaller)CompilationService).BeginImportBatch();
-        PluginStartupDiagnostics.RecordResources("plugin.startup.probe-pass", "begin");
-        MeowChan.Diagnostics.PerformanceDiagnostics.Measurement pass = PluginStartupDiagnostics.Span("probe-pass");
-        PluginCandidateObservation[] probed = await Task.WhenAll(ordered.Select(async candidate =>
-        {
-            await lanes.WaitAsync(token).ConfigureAwait(false);
-            try
-            {
-                PluginActivationSnapshot? previousOwner = previous.Plugins.FirstOrDefault(plugin =>
-                    plugin.Candidates.Any(item => item.CandidateId == candidate.CandidateId));
-                return await PluginStartupDiagnostics.ObserveAsync(candidate, previousOwner,
-                    ct => candidate.Kind == PluginCandidateKind.PrebuiltManifest
-                        ? imports.ImportBundleAsync(candidate.Path, ct)
-                        : CompilationService.BuildAsync(candidate.Path, cancellationToken: ct),
-                    (artifact, ct) => DescribeStartupAsync(previous, candidate.CandidateId, artifact, ct), _logger, token).ConfigureAwait(false);
-            }
-            finally { lanes.Release(); }
-        })).ConfigureAwait(false);
-        pass.Dispose();
-        PluginStartupDiagnostics.RecordResources("plugin.startup.probe-pass", "end");
-        imports.Dispose(); // The shared toolchain result serves this probe pass only.
         MeowChan.Diagnostics.PerformanceDiagnostics.Measurement provenance = PluginStartupDiagnostics.Span("provenance");
         for (int index = 0; index < ordered.Length; index++)
         {
@@ -253,6 +264,56 @@ internal sealed partial class PluginSession : IAsyncDisposable
         }
         Volatile.Write(ref _warnings, warnings.Distinct(StringComparer.Ordinal).ToArray());
         LogStartupPhase("adapters-routing", null, adaptersStarted, true);
+    }
+
+    private static void CancelQuietly(CancellationTokenSource source)
+    {
+        try { source.Cancel(); }
+        catch (ObjectDisposedException) { } // The session was disposed; its lifetime already ended the probe.
+    }
+
+    // Read-only: creates the plugin/worker directories and fills plugin-cache (its own area), never the profile.
+    private async Task<StartupProbe> ProbeAsync(CancellationToken token)
+    {
+        PluginStartupDiagnostics.RecordResources("plugin.startup.probe", "begin");
+        StartupProbe probe = await MeasureStartupAsync("probe", null, () => ProbeCoreAsync(token)).ConfigureAwait(false);
+        PluginStartupDiagnostics.RecordResources("plugin.startup.probe", "end");
+        return probe;
+    }
+
+    private async Task<StartupProbe> ProbeCoreAsync(CancellationToken token)
+    {
+        Directory.CreateDirectory(PluginDirectory);
+        Directory.CreateDirectory(_launch.WorkingDirectory);
+        PluginProfileSnapshot previous = await MeasureStartupAsync("profile-read", null, () => ProfileStore.ReadAsync(token)).ConfigureAwait(false);
+        PluginInventory shipped = await MeasureStartupAsync("inventory-shipped", null, () => Inventory.ScanAsync(_shippedDirectory, token)).ConfigureAwait(false);
+        PluginInventory local = await MeasureStartupAsync("inventory-local", null, () => Inventory.ScanAsync(PluginDirectory, token)).ConfigureAwait(false);
+        List<string> warnings = shipped.Diagnostics.Concat(local.Diagnostics).Select(item => item.Message).ToList();
+        HashSet<string> shippedIds = shipped.Candidates.Where(item => item.Kind == PluginCandidateKind.PrebuiltManifest)
+            .Select(item => item.CandidateId).ToHashSet(StringComparer.Ordinal);
+        PluginInstallationCandidate[] ordered = shipped.Candidates.Where(item => item.Kind == PluginCandidateKind.PrebuiltManifest)
+            .Concat(local.Candidates).ToArray();
+        // Probes overlap in bounded lanes; observations, provenance and activation keep inventory order.
+        SemaphoreSlim lanes = new(StartupProbeLanes, StartupProbeLanes);
+        using IPluginBundleImportBatch imports = ((IPluginBundleInstaller)CompilationService).BeginImportBatch();
+        using MeowChan.Diagnostics.PerformanceDiagnostics.Measurement pass = PluginStartupDiagnostics.Span("probe-pass");
+        PluginCandidateObservation[] probed = await Task.WhenAll(ordered.Select(async candidate =>
+        {
+            await lanes.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                PluginActivationSnapshot? previousOwner = previous.Plugins.FirstOrDefault(plugin =>
+                    plugin.Candidates.Any(item => item.CandidateId == candidate.CandidateId));
+                return await PluginStartupDiagnostics.ObserveAsync(candidate, previousOwner,
+                    ct => candidate.Kind == PluginCandidateKind.PrebuiltManifest
+                        ? imports.ImportBundleAsync(candidate.Path, ct)
+                        : CompilationService.BuildAsync(candidate.Path, cancellationToken: ct),
+                    (artifact, ct) => DescribeStartupAsync(previous, candidate.CandidateId, artifact, ct), _logger, token).ConfigureAwait(false);
+            }
+            finally { lanes.Release(); }
+        })).ConfigureAwait(false);
+        imports.Dispose(); // The shared toolchain result serves this probe pass only.
+        return new(previous, ordered, shippedIds, probed, warnings);
     }
 
     private Task<T> MeasureStartupAsync<T>(string phase, string? candidate, Func<Task<T>> operation) =>
@@ -387,6 +448,17 @@ internal sealed partial class PluginSession : IAsyncDisposable
         ProfileStore.LifecycleChanged -= OnLifecycleChanged;
         ProfileStore.GrantChanged -= OnGrantChanged;
         await _lifetime.CancelAsync().ConfigureAwait(false);
+        // An early probe that StartAsync never awaited (or abandoned) ends here, before the runtime and
+        // compiler go away: describe workers are reaped and no cache write outlives the session.
+        Task<StartupProbe>? probe;
+        lock (_state) probe = _probe;
+        if (probe != null)
+        {
+            try { await probe.ConfigureAwait(false); }
+            catch (OperationCanceledException) { }
+            catch (Exception exception) { _logger.Debug(exception, "The plugin startup probe ended with a failure during disposal."); }
+        }
+        _probeCancellation?.Dispose();
         foreach (PluginSourceImageBoard source in Sources) source.Dispose();
         await Runtime.DisposeAsync().ConfigureAwait(false);
         await _filterStages.DisposeAsync().ConfigureAwait(false);

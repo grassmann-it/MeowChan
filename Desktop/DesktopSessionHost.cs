@@ -100,8 +100,15 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             ApplyStoreLimits();
             queue.PrivateTagLimits = _privateTagLimits;
             queue.SetPaused(Config.DownloadsPaused);
-            if (providers == null) Plugins = new PluginSession(_profileLease.ProfileDirectory, _profileLease, Config, queue, _logger,
-                pluginTransportFactory, GetOrCreateSourceMediaIntegrityPolicy, _commands);
+            if (providers == null)
+            {
+                Plugins = new PluginSession(_profileLease.ProfileDirectory, _profileLease, Config, queue, _logger,
+                    pluginTransportFactory, GetOrCreateSourceMediaIntegrityPolicy, _commands);
+                // The read-only plugin probe needs nothing the window or the catalog builds: it overlaps their
+                // construction and is awaited in StartCoreAsync where plugin startup ran before. Activation,
+                // provenance and adapters keep their place there. Shutdown's startup cancellation also ends it.
+                Plugins.BeginProbe(_startupCancellation.Token);
+            }
             MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.host.ctor", "plugin-session-done");
             IImageBoard[] sources = providers?.ToArray() ?? Array.Empty<IImageBoard>();
             ISessionStore store = sessionStoreFactory?.Invoke(_profileLease.ProfileDirectory, _profileLease)
@@ -131,6 +138,11 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             {
                 try
                 {
+                    // An early plugin probe may already import or run describe workers. It ends (workers reaped,
+                    // cache writes stopped) before the profile lease is released; its own failure never replaces
+                    // the constructor's exception. No continuation here needs the calling (UI) thread.
+                    try { _startupCancellation.Cancel(); Plugins?.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+                    catch (Exception error) { _logger.Error(error, "Failed to dispose the plugin session after a failed session construction."); }
                     FinishProfileStartup(succeeded: false);
                     _profileLease.Admission.BeginShutdown();
                     _profileLease.Admission.CompleteShutdown();
