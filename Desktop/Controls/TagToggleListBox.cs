@@ -135,7 +135,7 @@ internal sealed class TagToggleRowView : Grid
 {
     private readonly CheckBox _box = new()
     {
-        Focusable = false, IsHitTestVisible = false, MinWidth = 0, VerticalAlignment = VerticalAlignment.Center,
+        Focusable = false, IsHitTestVisible = false, MinWidth = 0, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center,
         [AutomationProperties.AccessibilityViewProperty] = AccessibilityView.Raw
     };
     private readonly TextBlock _name = new() { TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
