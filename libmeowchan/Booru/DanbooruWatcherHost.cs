@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Archive;
@@ -48,8 +49,9 @@ internal sealed class DanbooruWatcherHost : IAsyncDisposable
     internal DanbooruWatcherScheduler Scheduler { get; }
 
     /// <summary>
-    /// The background re-admission of pending originals begun by the last successful start. It never faults:
-    /// a failure is logged and yields an empty list; a stop cancels it.
+    /// The background re-admission of pending originals begun by the last successful start. A stop cancels it;
+    /// it then yields the admissions already handed to the queue. An expected failure (unreadable catalog,
+    /// profile closing) is logged and yields an empty list; only a programming error faults it.
     /// </summary>
     internal Task<IReadOnlyList<BooruOriginalAdmission>> Recovery => Volatile.Read(ref _recovery);
 
@@ -84,7 +86,8 @@ internal sealed class DanbooruWatcherHost : IAsyncDisposable
     {
         try { return await _originals.RecoverPendingAsync(cancellationToken).ConfigureAwait(false); }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return []; }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException
+            or InvalidOperationException or ObjectDisposedException)
         {
             // Nothing was lost: every request that was not re-admitted is still pending in the catalog. An unreadable
             // catalog is already visible as the scheduler's load fault.
@@ -108,9 +111,9 @@ internal sealed class DanbooruWatcherHost : IAsyncDisposable
             finally
             {
                 // A recovery admission waiting at the queue observes the cancellation; one already handed over
-                // keeps its own queue job. RecoverAsync never faults.
-                await Recovery.ConfigureAwait(false);
-                recovery?.Dispose();
+                // keeps its own queue job. Only a programming error faults RecoverAsync.
+                try { await Recovery.ConfigureAwait(false); }
+                finally { recovery?.Dispose(); }
             }
         }
         finally { _lifecycle.Release(); }

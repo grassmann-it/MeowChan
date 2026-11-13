@@ -38,7 +38,10 @@ public sealed partial class BooruOriginalQueueTests
 
         await host.StopAsync().WaitAsync(TestWait.Timeout);
         Assert.True(host.Recovery.IsCompletedSuccessfully);
-        Assert.Empty(await host.Recovery);
+        // The cancelled recovery still reports what it handed over: the record parked at the queue is interrupted.
+        BooruOriginalAdmission parked = Assert.Single(await host.Recovery);
+        Assert.Equal("73", parked.PostId);
+        Assert.Equal(BooruOriginalDownloadState.Interrupted, (await parked.Completion.WaitAsync(TestWait.Timeout)).State);
         // A stopped recovery is not a cancellation by the user: the request stays pending for the next start.
         Assert.True(Assert.Single(second.Catalog.Read().Posts).HasPendingOriginal);
         Assert.Equal(BooruOriginalDownloadState.Interrupted, second.Booru.Snapshot()["73"].State);

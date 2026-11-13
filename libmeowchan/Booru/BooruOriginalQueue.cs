@@ -207,22 +207,23 @@ internal sealed class BooruOriginalQueue
     /// Restart recovery: re-admits every pending stored original from local data only. A medium that was
     /// committed before a crash is restored and linked without a network transfer. Each record is re-read
     /// under the admission gate, so a post cancelled or linked after the pending scan is skipped. One
-    /// record's admission failure never prevents the others; it keeps its durable request.
+    /// record's admission failure never prevents the others; it keeps its durable request. A cancellation ends
+    /// the recovery early but still returns the admissions handed over so far (they keep their queue jobs),
+    /// with the record that was being admitted as an interrupted one; the remaining records stay pending.
     /// </summary>
     internal async Task<IReadOnlyList<BooruOriginalAdmission>> RecoverPendingAsync(CancellationToken cancellationToken = default)
     {
         List<BooruOriginalAdmission> admitted = new();
         foreach (BooruPostRecord record in GetPendingOriginals())
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            if (cancellationToken.IsCancellationRequested) break;
             BooruOriginalAdmission? admission;
             try
             {
                 admission = await AdmitStoredAsync(record.PostId, AdmissionMode.Recover, cancellationToken)
                     .ConfigureAwait(false);
             }
-            catch (Exception exception) when (exception is not OperationCanceledException
-                || !cancellationToken.IsCancellationRequested)
+            catch (Exception exception)
             {
                 // Nothing was written for this record, so it stays pending for the next recovery.
                 BooruOriginalDownloadOutcome interrupted = new(BooruOriginalDownloadState.Interrupted, record.PostId,
