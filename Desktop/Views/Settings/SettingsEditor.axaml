@@ -12,11 +12,14 @@
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
             <Setter Property="BorderBrush" Value="Transparent" />
+            <!-- D4: the chosen category carries a 3-px accent bar besides the tint; the bar's width is always reserved. -->
+            <Setter Property="BorderThickness" Value="3,0,0,0" />
             <Setter Property="MinHeight" Value="34" />
             <Setter Property="Padding" Value="10,7" />
         </Style>
         <Style Selector="ToggleButton.settings-category:checked /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
             <Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" />
         </Style>
         <!-- Keyboard focus enters the template's text box, so it needs the field semantics too. -->

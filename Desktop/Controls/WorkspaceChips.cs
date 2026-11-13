@@ -6,6 +6,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.VisualTree;
 using Avalonia.Media;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop.Controls;
 
@@ -155,6 +156,45 @@ internal static class WorkspaceChips
             Name = name, Content = star, Classes = { FavoriteToggleClass }, IsVisible = false,
             HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom
         };
+    }
+
+    /// <summary>A chosen chip: tint plus a solid 2-px accent outline (A11Y M7). Add or remove it; nothing animates.</summary>
+    internal const string Selected = "chip-selected";
+    private const string CheckGeometry = "M1,6.4 L4.6,10 L11,2.4";
+
+    /// <summary>
+    /// D4: the check mark a selected tile shows in its preview corner besides the list's tint and bar, so a selection is never colour
+    /// alone. A drawn path (not a font glyph); hidden until <see cref="ShowSelection"/>; the tile's own name and the list item's
+    /// selection state carry the meaning for assistive technology, so the mark is raw to automation.
+    /// </summary>
+    internal static Border CreateSelectionCheck(string name)
+    {
+        Avalonia.Controls.Shapes.Path glyph = new() { Classes = { "tile-selection-glyph" }, Stretch = Stretch.Uniform, IsHitTestVisible = false };
+        glyph.AttachedToVisualTree += (_, _) => glyph.Data ??= Geometry.Parse(CheckGeometry);
+        Border mark = new() { Name = name, Child = glyph, Classes = { "tile-selection-check" }, IsVisible = false, VerticalAlignment = VerticalAlignment.Top };
+        AutomationProperties.SetAccessibilityView(mark, AccessibilityView.Raw);
+        return mark;
+    }
+
+    /// <summary>Shows or hides the selection check with its tooltip ("Selected").</summary>
+    internal static void ShowSelection(Border check, bool selected)
+    {
+        check.IsVisible = selected;
+        ToolTip.SetTip(check, selected ? Texts.T("media.tile.selected") : null);
+    }
+
+    /// <summary>Keeps <paramref name="check"/> in step with the selection of the list item that hosts <paramref name="tile"/>; null when there is no list item.</summary>
+    internal static IDisposable? ObserveSelection(Control tile, Border check)
+    {
+        ListBoxItem? item = tile.FindAncestorOfType<ListBoxItem>();
+        return item?.GetObservable(ListBoxItem.IsSelectedProperty).Subscribe(new SelectionObserver(check));
+    }
+
+    private sealed class SelectionObserver(Border check) : IObserver<bool>
+    {
+        public void OnNext(bool value) => ShowSelection(check, value);
+        public void OnError(Exception error) { }
+        public void OnCompleted() { }
     }
 
     private static T Add<T>(T control, params string?[] classes) where T : Control

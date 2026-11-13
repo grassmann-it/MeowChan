@@ -275,11 +275,17 @@
         <Thickness x:Key="Workspace.Inset.Card">12,10,12,12</Thickness>
         <Thickness x:Key="Workspace.Inset.Overlay">12</Thickness>
         <!-- Native keyboard-only focus decoration; it overlays rather than moves
-             content, and remains separate from selected/error border state. -->
+             content, and remains separate from selected/error border state.
+             D4 (E7): two shells. The outer 2-px ring is the accent; the inner 1-px ring is the window background, so the
+             focus stays readable on a solid accent button and on accent-tinted rows (both colours differ from every surface
+             they touch by at least 3:1 in Light and Dark). The outer border keeps Margin -4 (the 4-dip offset). -->
         <Template x:Key="Workspace.FocusAdorner">
             <Border BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="2"
                     CornerRadius="{StaticResource Workspace.Radius.Control}" Margin="-4"
-                    IsHitTestVisible="False" />
+                    IsHitTestVisible="False">
+                <Border BorderBrush="{DynamicResource Workspace.Background}" BorderThickness="1"
+                        CornerRadius="{StaticResource Workspace.Radius.Badge}" IsHitTestVisible="False" />
+            </Border>
         </Template>
     </Styles.Resources>
     <Style Selector="Window">
@@ -383,7 +389,7 @@
 
     <!-- Opt-in composition roles; native templates, selection and automation stay
          with Semi/Ursa and the existing controls. Do not nest sections for decoration. -->
-    <Style Selector="Button, ToggleButton, TextBox, ComboBox, NumericUpDown, CheckBox, RadioButton, Slider, ListBoxItem">
+    <Style Selector="Button, ToggleButton, TextBox, ComboBox, NumericUpDown, CheckBox, RadioButton, Slider, ListBoxItem, SelectableTextBlock">
         <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
     </Style>
     <Style Selector="Button.link">
@@ -695,4 +701,50 @@
         <Setter Property="Fill" Value="{DynamicResource Workspace.Warning}" /><Setter Property="Stroke" Value="{DynamicResource Workspace.Warning}" />
     </Style>
     <Style Selector="ListBoxItem.chip-item:selected controls|ChipOutline.chip-source TextBlock.chip-label"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
+
+    <!-- D4 (E7, A11Y M7): a chosen chip is never the tint alone. The chip-selected class gives the tint and a solid 2-px accent
+         outline (Button, filter tag, source tag outline); the border grows inward by one dip, so the padding gives it back and the
+         chip keeps its size. Applied and removed instantly: no transition (virtualised lists recycle chips). -->
+    <Style Selector="Button.chip.chip-selected">
+        <Setter Property="Background" Value="{DynamicResource Workspace.ChipSelectedSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
+        <Setter Property="BorderThickness" Value="2" /><Setter Property="Padding" Value="7,3" />
+    </Style>
+    <Style Selector="Button.chip.chip-compact.chip-selected"><Setter Property="Padding" Value="5,0" /></Style>
+    <Style Selector="Button.chip.chip-selected /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.ChipSelectedSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="Button.chip.chip-selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.ChipSelectedSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
+    </Style>
+    <Style Selector="Button.chip.chip-selected:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.ChipSelectedSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
+    </Style>
+    <Style Selector="ursa|ClosableTag.chip.chip-selected">
+        <Setter Property="Background" Value="{DynamicResource Workspace.ChipSelectedSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipSelectedBorder}" /><Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="ursa|ClosableTag.chip.chip-selected:pointerover"><Setter Property="Background" Value="{DynamicResource Workspace.ChipSelectedSurface}" /></Style>
+    <Style Selector="controls|ChipOutline.chip-source.chip-selected">
+        <Setter Property="Background" Value="{DynamicResource Workspace.ChipSelectedSurface}" />
+        <Setter Property="Stroke" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
+        <Setter Property="StrokeThickness" Value="2" /><Setter Property="IsDashed" Value="False" />
+    </Style>
+    <Style Selector="controls|ChipOutline.chip-source.chip-selected TextBlock.chip-label"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
+
+    <!-- D4 (T3): a selected tile carries a check mark in the preview corner besides the list's tint and bar, so the selection
+         is also a shape. A drawn path, not a font glyph; static, shown or hidden with the item's selection, no transition. -->
+    <Style Selector="Border.tile-selection-check">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="Padding" Value="3" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Badge}" />
+    </Style>
+    <Style Selector="Path.tile-selection-glyph">
+        <Setter Property="Width" Value="12" /><Setter Property="Height" Value="12" />
+        <Setter Property="Stroke" Value="{DynamicResource Workspace.OnAccent}" /><Setter Property="StrokeThickness" Value="2" />
+        <Setter Property="StrokeLineCap" Value="Round" /><Setter Property="StrokeJoin" Value="Round" />
+    </Style>
 </Styles>

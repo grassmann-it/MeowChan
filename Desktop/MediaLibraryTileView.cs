@@ -88,8 +88,7 @@ internal sealed class MediaLibraryTileView : UserControl
     private readonly Button _duplicatesLink = new() { Name = "MediaTileDuplicates", Padding = new Thickness(0), Classes = { "link" }, IsVisible = false,
         HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Left };
     // Selected tiles carry a check mark besides the list's highlight, so the state does not depend on color alone.
-    private readonly Border _selectedMark = new Border { Name = "MediaTileSelected", IsVisible = false, Padding = new Thickness(5, 1),
-        VerticalAlignment = VerticalAlignment.Top, Child = new TextBlock { Text = "✓", FontWeight = FontWeight.Bold, FontSize = 12 } }.BadgeCorners();
+    private readonly Border _selectedMark = WorkspaceChips.CreateSelectionCheck("MediaTileSelected");
     // I7: fixed corners on the preview, static and inside its 120 px (the tile keeps its height). Top left: provider badge; top
     // right: type (GIF, video, other file) beside the selection check; bottom left: "not saved" / "no media tags yet" mark; bottom
     // right: the favourite star, shown when set or while the tile is hovered or focused. Everything comes from the index and the
@@ -133,8 +132,6 @@ internal sealed class MediaLibraryTileView : UserControl
     {
         MaxWidth = 190; Height = TileHeight;
         Grid preview = new() { Height = 120, MaxWidth = 174 };
-        _selectedMark[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Accent");
-        ((TextBlock)_selectedMark.Child!)[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Background");
         StackPanel topRight = new() { Orientation = Orientation.Horizontal, Spacing = 3, HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 2, 0), Children = { _kindBadge, _selectedMark } };
         _stateMark.Margin = new Thickness(2, 0, 0, 2);
@@ -195,23 +192,9 @@ internal sealed class MediaLibraryTileView : UserControl
         AttachedToVisualTree += (_, _) =>
         {
             _selection?.Dispose();
-            ListBoxItem? item = this.FindAncestorOfType<ListBoxItem>();
-            _selection = item?.GetObservable(ListBoxItem.IsSelectedProperty).Subscribe(new SelectionObserver(this));
+            _selection = WorkspaceChips.ObserveSelection(this, _selectedMark);
         };
         DetachedFromVisualTree += (_, _) => { _visible = false; Reset(); _selection?.Dispose(); _selection = null; _selectedMark.IsVisible = false; };
-    }
-
-    private void ShowSelected(bool selected)
-    {
-        _selectedMark.IsVisible = selected;
-        ToolTip.SetTip(_selectedMark, selected ? Texts.T("media.tile.selected") : null);
-    }
-
-    private sealed class SelectionObserver(MediaLibraryTileView view) : IObserver<bool>
-    {
-        public void OnNext(bool value) => view.ShowSelected(value);
-        public void OnError(Exception error) { }
-        public void OnCompleted() { }
     }
 
     private void Present()

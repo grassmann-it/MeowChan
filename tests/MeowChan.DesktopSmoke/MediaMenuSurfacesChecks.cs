@@ -272,6 +272,9 @@ internal static class MediaMenuSurfacesChecks
         WrapPanel bar = page.FindControl<WrapPanel>("ArchiveMediaSelectionBar")!;
         TextBlock status = page.FindControl<TextBlock>("ArchiveMediaSelectionStatus")!;
         Require(bar.IsVisible && status.Text == Texts.T("media.selection.count", 2), "The selection status is missing or wrong in " + mode + " mode: " + status.Text);
+        // D4: a selected tile shows a check mark, so the selection is not colour alone.
+        if (useTiles) Require(SelectionChecks(list) == 2, "Both selected archive tiles must show a selection check mark: " + SelectionChecks(list));
+        if (useTiles) { await IdleAsync(); Program.CaptureWindow(shell, "smoke-archive-media-selection-tiles.png"); }
 
         await RightClickAsync(await RowControlAsync(list, bound), shell);
         ContextMenu menu = page.ArchiveMediaMenu ?? throw new InvalidOperationException("The archive menu did not open on a selected file.");
@@ -300,6 +303,7 @@ internal static class MediaMenuSurfacesChecks
         list.Focus();
         await KeyAsync(list, Key.Escape, KeyModifiers.None);
         Require(page.SelectedMediaRows().Count == 0 && !bar.IsVisible, "Esc did not clear the selection in " + mode + " mode.");
+        if (useTiles) Require(SelectionChecks(list) == 0, "Clearing the selection must hide the tiles' check marks.");
 
         // One selected file is just the current file: no selection actions, no status line.
         if (list is ListBox box) box.SelectedItem = looseRow; else ((DataGrid)list).SelectedItem = looseRow;
@@ -311,6 +315,9 @@ internal static class MediaMenuSurfacesChecks
         page.ArchiveMediaMenu.Close();
         await IdleAsync();
     }
+
+    private static int SelectionChecks(Control list) => list.GetVisualDescendants().OfType<ArchiveMediaTileView>()
+        .Count(tile => tile.GetVisualDescendants().OfType<Border>().Any(border => border.Name == "ArchiveMediaSelected" && border.IsVisible));
 
     private static async Task GalleryJourneyAsync(MainWindow shell, string[] mediaPageBound, string[] archiveTiles)
     {

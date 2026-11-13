@@ -23,6 +23,9 @@ public sealed class ArchiveMediaTileView : UserControl
     private readonly ArchiveFavoriteButton _favorite = new() { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom,
         Classes = { MeowChan.Desktop.Controls.WorkspaceChips.FavoriteToggleClass }, Margin = new Thickness(0, 0, 2, 2) };
     private readonly Border _kind = MeowChan.Desktop.Controls.WorkspaceChips.CreateCornerBadge("ArchiveMediaKind", HorizontalAlignment.Right, VerticalAlignment.Top);
+    // D4 (T3): a selected tile also shows a check mark beside the type badge, so the multi-selection is never colour alone.
+    private readonly Border _selectedMark = MeowChan.Desktop.Controls.WorkspaceChips.CreateSelectionCheck("ArchiveMediaSelected");
+    private IDisposable? _selection;
     private readonly Image _image = new() { Stretch = Stretch.Uniform, MaxWidth = 170, MaxHeight = 125 };
     private readonly TextBlock _rating = new TextBlock().CaptionText();
     private readonly TextBlock _title = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
@@ -67,8 +70,10 @@ public sealed class ArchiveMediaTileView : UserControl
     {
         MaxWidth = 190; Height = 210;
         Grid preview = new() { Height = 125, MaxWidth = 170 };
-        _kind.Margin = new Thickness(0, 2, 2, 0);
-        preview.Children.Add(_image); preview.Children.Add(_message); preview.Children.Add(_kind); preview.Children.Add(_favorite);
+        _kind.VerticalAlignment = VerticalAlignment.Center;
+        StackPanel topRight = new() { Orientation = Orientation.Horizontal, Spacing = 3, HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 2, 0), Children = { _kind, _selectedMark } };
+        preview.Children.Add(_image); preview.Children.Add(_message); preview.Children.Add(topRight); preview.Children.Add(_favorite);
         Grid grid = new() { Margin = new Thickness(8), RowDefinitions = new RowDefinitions("125,Auto,Auto,*"), RowSpacing = 5 };
         grid.Children.Add(preview); grid.Children.Add(_title); Grid.SetRow(_title, 1);
         grid.Children.Add(_rating); Grid.SetRow(_rating, 2);
@@ -91,6 +96,8 @@ public sealed class ArchiveMediaTileView : UserControl
         };
         AttachedToVisualTree += (_, _) =>
         {
+            _selection?.Dispose();
+            _selection = MeowChan.Desktop.Controls.WorkspaceChips.ObserveSelection(this, _selectedMark);
             foreach (Visual ancestor in this.GetSelfAndVisualAncestors())
             {
                 _visibilityAncestors.Add(ancestor);
@@ -103,6 +110,7 @@ public sealed class ArchiveMediaTileView : UserControl
             foreach (Visual ancestor in _visibilityAncestors) ancestor.PropertyChanged -= OnAncestorVisibilityChanged;
             _visibilityAncestors.Clear();
             _visible = false; Reset();
+            _selection?.Dispose(); _selection = null; _selectedMark.IsVisible = false;
         };
     }
 
