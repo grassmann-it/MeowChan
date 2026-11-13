@@ -1,11 +1,5 @@
-using System.Linq;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Threading;
-using Avalonia.VisualTree;
+using MeowChan.Desktop.Controls;
 
 namespace MeowChan;
 
@@ -14,50 +8,11 @@ namespace MeowChan;
 // the draft marker; drafts, Search and the applied chips keep their contracts.
 public partial class ArchivePage
 {
-    private void InitializeFilterSurface()
-    {
-        Expander filters = ArchiveFilters;
-        filters.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == Expander.IsExpandedProperty) OnFilterSurfaceToggled(e.GetNewValue<bool>());
-        };
-    }
+    private FilterSurfaceController _filterSurface = null!;
+
+    private void InitializeFilterSurface() => _filterSurface = new FilterSurfaceController(this, ArchiveFilters, ArchiveFilterSurface, () => _ended, drivesVisibility: false);
 
     internal bool IsFilterSurfaceOpen => ArchiveFilters.IsExpanded;
-
-    private ToggleButton? FilterSurfaceToggle => ArchiveFilters
-        .GetVisualDescendants().OfType<ToggleButton>().FirstOrDefault();
-
-    private bool FocusWithin(Control owner) => TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is Visual focused
-        && focused.GetSelfAndVisualAncestors().Contains(owner);
-
-    private void OnFilterSurfaceToggled(bool open)
-    {
-        if (_ended) return;
-        Border surface = ArchiveFilterSurface;
-        if (!open)
-        {
-            // Hiding the surface must not strand keyboard focus on an invisible field.
-            if (FocusWithin(surface)) FilterSurfaceToggle?.Focus(NavigationMethod.Tab);
-            return;
-        }
-        // Only a deliberate open from the toggle moves focus in; programmatic opens
-        // (invalid draft reveal, commands) keep their own focus target.
-        if (!FocusWithin(ArchiveFilters)) return;
-        FocusFirstFilterField();
-    }
-
-    private void FocusFirstFilterField()
-    {
-        Border surface = ArchiveFilterSurface;
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (_ended || !IsFilterSurfaceOpen || !surface.IsEffectivelyVisible) return;
-            surface.GetVisualDescendants().OfType<InputElement>()
-                .FirstOrDefault(element => element.Focusable && element.IsEffectivelyEnabled && element.IsEffectivelyVisible)
-                ?.Focus(NavigationMethod.Tab);
-        }, DispatcherPriority.Loaded);
-    }
 
     /// <summary>The filters shortcut: opens the filter surface and moves into it, or closes it and returns to the toggle.</summary>
     internal void ToggleFilterSurfaceByShortcut()
@@ -65,23 +20,10 @@ public partial class ArchivePage
         if (_ended) return;
         if (IsFilterSurfaceOpen) { CloseFilterSurface(restoreFocus: true); return; }
         ArchiveFilters.IsExpanded = true;
-        FocusFirstFilterField();
+        _filterSurface.FocusFirstField();
     }
 
-    internal void CloseFilterSurface(bool restoreFocus)
-    {
-        bool focused = FocusWithin(ArchiveFilterSurface);
-        ArchiveFilters.IsExpanded = false;
-        if (restoreFocus || focused) FilterSurfaceToggle?.Focus(NavigationMethod.Tab);
-    }
-
-    private void OnFilterSurfaceKeyDown(object? sender, KeyEventArgs e)
-    {
-        // Open dropdowns, suggestions and date editors handle their own Escape first.
-        if (e.Handled || e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None) return;
-        e.Handled = true;
-        CloseFilterSurface(restoreFocus: true);
-    }
+    internal void CloseFilterSurface(bool restoreFocus) => _filterSurface.Close(restoreFocus);
 
     private void OnFilterCloseClick(object? sender, RoutedEventArgs e) => CloseFilterSurface(restoreFocus: true);
 

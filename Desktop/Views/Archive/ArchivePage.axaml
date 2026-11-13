@@ -60,7 +60,7 @@
                      names as before; Search applies via the existing path, Escape closes. -->
                 <Border x:Name="ArchiveFilterSurface" Grid.Row="1" ZIndex="10" Classes="workspace-overlay" Padding="10"
                         VerticalAlignment="Top" IsVisible="{Binding #ArchiveFilters.IsExpanded}"
-                        KeyboardNavigation.TabNavigation="Cycle" KeyDown="OnFilterSurfaceKeyDown">
+                        KeyboardNavigation.TabNavigation="Cycle">
                     <!-- The toggle directly above names the surface; no repeated title. -->
                     <Grid RowDefinitions="*,Auto" RowSpacing="8">
                         <ScrollViewer x:Name="ArchiveFilterSurfaceScroll" HorizontalScrollBarVisibility="Disabled">
