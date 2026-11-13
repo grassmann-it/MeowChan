@@ -30,6 +30,22 @@ public sealed class ActionToolBar : ToolBar
     private int _focusRepairRevision;
     private Control[] _generatedItems = Array.Empty<Control>();
     internal ActionToolBarPanel? DirectHost;
+    /// <summary>Detached parking panel for <see cref="OmittedProperty"/> items: neither in the bar nor in its overflow.</summary>
+    internal readonly Panel OmittedHost = new() { IsVisible = false };
+
+    /// <summary>
+    /// Work view "K" (WorkViewPresenter): the item is left out of both the bar and its "More" popup because a context menu
+    /// or the app menu carries the same command. It stays an item of this toolbar, so its command, disabled reason and
+    /// shortcut keep working (CommandBindings.RouteVisibleActions falls back to such reduced items).
+    /// </summary>
+    public static readonly AttachedProperty<bool> OmittedProperty =
+        AvaloniaProperty.RegisterAttached<ActionToolBar, Control, bool>("Omitted");
+    public static bool GetOmitted(Control item) => item.GetValue(OmittedProperty);
+    public static void SetOmitted(Control item, bool omitted) => item.SetValue(OmittedProperty, omitted);
+
+    /// <summary>Items that are currently not in the bar itself: in the overflow popup (open or closed) or omitted.</summary>
+    internal IEnumerable<Control> ReducedItems => Items.OfType<Control>()
+        .Where(item => OverflowHost?.Children.Contains(item) == true || OmittedHost.Children.Contains(item));
 
 
     public ActionToolBar()
@@ -39,6 +55,17 @@ public sealed class ActionToolBar : ToolBar
         // ItemsSourceView raises CollectionChanged before its generator's internal
         // PostCollectionChanged. Restore the generated index order for that handoff.
         Items.CollectionChanged += OnActionItemsChanged;
+    }
+
+    static ActionToolBar()
+    {
+        // Items keep the toolbar as their logical parent wherever their panel is.
+        OmittedProperty.Changed.AddClassHandler<Control>((item, _) =>
+        {
+            if (item.Parent is not ActionToolBar toolbar) return;
+            toolbar.DirectHost?.InvalidateMeasure();
+            toolbar.InvalidateMeasure();
+        });
     }
 
     private void OnActionItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -51,6 +78,7 @@ public sealed class ActionToolBar : ToolBar
             // PanelContainerGenerator removes/moves by Items index. Leaving the
             // original in Popup.Children makes its generated panel too short.
             foreach (Control item in popup.Children.ToArray()) popup.Children.Remove(item);
+            OmittedHost.Children.Clear();
             direct.Children.Clear();
             foreach (Control item in _generatedItems) direct.Children.Add(item);
         }
@@ -222,6 +250,7 @@ public sealed class ActionToolBarPanel : StackPanel
 
     private ActionToolBar? Owner => TemplatedParent as ActionToolBar;
     private readonly HashSet<Control> _overflow = new();
+    private readonly HashSet<Control> _omitted = new();
 
     protected override Size MeasureOverride(Size availableSize)
     {
@@ -230,14 +259,21 @@ public sealed class ActionToolBarPanel : StackPanel
         owner.DirectHost = this;
         Control[] items = owner.Items.OfType<Control>().ToArray();
         foreach (Control item in items) item.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        double[] widths = items.Select(c => c.IsVisible ? c.DesiredSize.Width : 0).ToArray();
+        // An omitted item takes part like an invisible one: no width, never in the overflow.
+        bool[] visible = items.Select(c => c.IsVisible && !ActionToolBar.GetOmitted(c)).ToArray();
+        double[] widths = items.Select((c, i) => visible[i] ? c.DesiredSize.Width : 0).ToArray();
         OverflowMode[] modes = items.Select(ToolBar.GetOverflowMode).ToArray();
-        bool[] overflow = ActionOverflowLayout.Resolve(widths, modes, items.Select(c => c.IsVisible).ToArray(), availableSize.Width + (owner.More?.IsVisible == true ? owner.MoreWidth() : 0), owner.MoreWidth());
+        bool[] overflow = ActionOverflowLayout.Resolve(widths, modes, visible, availableSize.Width + (owner.More?.IsVisible == true ? owner.MoreWidth() : 0), owner.MoreWidth());
         _overflow.Clear();
-        for (int i = 0; i < items.Length; i++) if (overflow[i]) _overflow.Add(items[i]);
+        _omitted.Clear();
+        for (int i = 0; i < items.Length; i++)
+        {
+            if (overflow[i]) _overflow.Add(items[i]);
+            if (ActionToolBar.GetOmitted(items[i])) _omitted.Add(items[i]);
+        }
         owner.SetOverflow(_overflow.Count > 0);
-        return new Size(items.Where(c => c.IsVisible && !_overflow.Contains(c)).Sum(c => c.DesiredSize.Width),
-            items.Where(c => c.IsVisible).Select(c => c.DesiredSize.Height).DefaultIfEmpty().Max());
+        return new Size(items.Where((c, i) => visible[i] && !_overflow.Contains(c)).Sum(c => c.DesiredSize.Width),
+            items.Where((c, i) => visible[i]).Select(c => c.DesiredSize.Height).DefaultIfEmpty().Max());
     }
 
     protected override Size ArrangeOverride(Size finalSize)
@@ -245,16 +281,17 @@ public sealed class ActionToolBarPanel : StackPanel
         ActionToolBar? owner = Owner;
         if (owner?.OverflowHost is not Panel popup) return base.ArrangeOverride(finalSize);
         Control[] items = owner.Items.OfType<Control>().ToArray();
-        int directIndex = 0, popupIndex = 0;
+        int directIndex = 0, popupIndex = 0, omittedIndex = 0;
         foreach (Control item in items)
         {
-            bool overflow = _overflow.Contains(item);
-            Panel destination = overflow ? popup : this;
-            int index = overflow ? popupIndex++ : directIndex++;
+            bool omitted = _omitted.Contains(item);
+            bool overflow = !omitted && _overflow.Contains(item);
+            Panel destination = omitted ? owner.OmittedHost : overflow ? popup : this;
+            int index = omitted ? omittedIndex++ : overflow ? popupIndex++ : directIndex++;
             if (!destination.Children.Contains(item))
             {
-                owner.Moving(item, overflow);
-                Children.Remove(item); popup.Children.Remove(item);
+                owner.Moving(item, overflow || omitted);
+                Children.Remove(item); popup.Children.Remove(item); owner.OmittedHost.Children.Remove(item);
                 destination.Children.Insert(Math.Min(index, destination.Children.Count), item);
             }
         }
@@ -266,6 +303,8 @@ public sealed class ActionToolBarPanel : StackPanel
         // Return popup children before a template or host is discarded.
         if (Owner?.OverflowHost is Panel popup)
             foreach (Control item in popup.Children.ToArray()) { popup.Children.Remove(item); Children.Add(item); }
+        if (Owner is { } owner)
+            foreach (Control item in owner.OmittedHost.Children.ToArray()) { owner.OmittedHost.Children.Remove(item); Children.Add(item); }
         base.OnDetachedFromVisualTree(e);
     }
 }

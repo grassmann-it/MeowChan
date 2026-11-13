@@ -323,7 +323,8 @@ public static class CommandBindings
         var controls = context.GetVisualDescendants().Prepend(context).OfType<Control>()
             .Where(c => c.IsEffectivelyVisible && Actions.TryGetValue(c, out var a) && !CommandRouter.HasExplicitRegistration(a.Id, context) && Matches(e, a.Id))
             .Where(c => c is Button or MenuItem or ComboBox or TabItem or Expander or Ursa.Controls.ClosableTag).ToArray();
-        if (controls.Length == 0) return false;
+        // R2 of the work views: a matching action the view or a narrow window moved off its bar keeps its shortcut.
+        if (controls.Length == 0) return MeowChan.Desktop.WorkViews.WorkViewShortcuts.RouteReduced(context, e);
         Control? focused = controls.FirstOrDefault(c => e.Source is Visual source && source.GetSelfAndVisualAncestors().Contains(c));
         // Do not invent a target when several per-post/per-media actions are materialized.
         if (focused == null && (controls.Length > 1 || controls[0] is Ursa.Controls.ClosableTag))
@@ -343,6 +344,12 @@ public static class CommandBindings
         if (matches.Length == 1 && matches[0].IsEnabled) InvokeExistingControl(matches[0]);
         return true;
     }
+    /// <summary>The catalog command a control presents (Apply/ApplyLabeled/BindExisting), if any.</summary>
+    internal static string? ActionId(Control control) => Actions.TryGetValue(control, out var action) ? action.Id : null;
+
+    /// <summary>Runs a control's existing executor exactly as a routed shortcut would.</summary>
+    internal static void InvokeAction(Control target) => InvokeExistingControl(target);
+
     private static void InvokeExistingControl(Control target)
     {
         switch (target)
