@@ -38,7 +38,7 @@ public sealed partial class MediaPage : UserControl
     private readonly CancellationTokenSource _lifetime = new();
     // Manifest views of this page (thumbnails, sound check) that the index build may reuse; see MediaManifestCache.
     private readonly MediaManifestCache _manifests;
-    private readonly TextBlock _title = new() { Classes = { "section-title" } };
+    private readonly TextBlock _title = new() { Classes = { "page-title" } };
     private readonly TextBlock _subtitle = new() { TextWrapping = Avalonia.Media.TextWrapping.Wrap, Classes = { "muted" } };
     private readonly ComboBox _sort = new() { Name = "MediaSort", MinWidth = 160 };
     private readonly Button _shuffle = new() { Name = "MediaShuffle", IsVisible = false };
