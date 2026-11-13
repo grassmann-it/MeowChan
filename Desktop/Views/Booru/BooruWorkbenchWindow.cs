@@ -99,7 +99,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     private readonly WrapPanel _pager = new() { Classes = { "workspace-toolbar" } };
     private readonly Button _previous = new() { Name = PreviousName };
     private readonly Button _next = new() { Name = NextName };
-    private readonly TextBlock _pageInfo = new() { Classes = { "workspace-meta" }, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _pageInfo = new() { Classes = { "workspace-meta", "tnum" }, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _pageLimit = new() { Classes = { "workspace-help" } };
     private readonly Button _createWatcher = new() { Name = CreateWatcherName, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly TextBlock _createHint = new() { Classes = { "workspace-help" } };
@@ -649,7 +649,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         grid.Children.Add(WithPreviewCorners(CreatePreview(row), post));
 
         StackPanel info = new() { Spacing = 4 };
-        info.Children.Add(new TextBlock { Text = Texts.T("booru.ui.post.title", post.PostId), FontWeight = FontWeight.SemiBold, FontSize = 14 });
+        info.Children.Add(new TextBlock { Text = Texts.T("booru.ui.post.title", post.PostId), Classes = { "card-title" } });
         // I8: the post facts as a definition list; the address is no longer a text line, it is the tooltip of the link buttons.
         info.Children.Add(CreateDetails(post));
 
@@ -992,7 +992,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         Grid head = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
         head.Children.Add(new SelectableTextBlock
         {
-            Text = watcher.Query, Classes = { "mono" }, FontWeight = FontWeight.SemiBold, FontSize = 14, TextWrapping = TextWrapping.Wrap
+            Text = watcher.Query, Classes = { "mono", "card-title" }, TextWrapping = TextWrapping.Wrap
         });
         Border chip = new() { Child = new TextBlock { Text = BooruText.WatcherStatus(row, cooling is not null) }, VerticalAlignment = VerticalAlignment.Top };
         chip.Classes.Add("workspace-status");

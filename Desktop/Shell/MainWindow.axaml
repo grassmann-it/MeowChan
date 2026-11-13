@@ -35,7 +35,7 @@
                         <Grid x:Name="TransferSpeed" ColumnDefinitions="Auto,Auto" ColumnSpacing="8" VerticalAlignment="Center">
                             <desktop:DownloadSpeedGraph x:Name="TransferSpeedGraph" Width="96" Height="24" IsHitTestVisible="False"
                                                         Stroke="{DynamicResource Workspace.Accent}" Fill="{DynamicResource Workspace.AccentSurface}" />
-                            <TextBlock x:Name="TransferSpeedLabel" Grid.Column="1" Width="78" FontSize="{StaticResource Workspace.Text.Caption}" Classes="mono muted"
+                            <TextBlock x:Name="TransferSpeedLabel" Grid.Column="1" Width="78" FontSize="{StaticResource Workspace.Text.Caption}" Classes="mono muted tnum"
                                        VerticalAlignment="Center" Text="↓ 0 B/s" />
                         </Grid>
                         <Button x:Name="ContinueReadingButton" Classes="subtle header-icon" IsVisible="False" />
@@ -415,7 +415,7 @@
                 <!-- Warns from 75 percent of the favorites, thread favorites and ratings limits and names the setting. -->
                 <TextBlock x:Name="WorkspaceStoreWarning" Grid.Column="1" IsVisible="False" MaxWidth="560" FontSize="12" TextTrimming="CharacterEllipsis"
                            Foreground="{DynamicResource Workspace.Warning}" AutomationProperties.LiveSetting="Polite" />
-                <TextBlock x:Name="WorkspaceCounts" Grid.Column="2" Classes="muted" FontSize="12" TextTrimming="CharacterEllipsis" />
+                <TextBlock x:Name="WorkspaceCounts" Grid.Column="2" Classes="muted tnum" FontSize="12" TextTrimming="CharacterEllipsis" />
             </Grid>
         </Border>
         <Border x:Name="WorkspaceNavigation" Grid.Row="3" Classes="shell-bar" BorderThickness="0,1,0,0" Padding="12,5">

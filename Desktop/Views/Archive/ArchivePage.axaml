@@ -200,9 +200,9 @@
                                     <ursa:Pagination x:Name="ArchiveResultsPagination" PageSize="50" ShowPageSizeSelector="False" ShowQuickJump="False" CurrentPageChanged="OnResultsPageChanged">
                                         <ursa:Pagination.Styles><Style Selector="ursa|PaginationButton"><Setter Property="MinWidth" Value="24" /><Setter Property="Width" Value="24" /><Setter Property="Padding" Value="2" /></Style></ursa:Pagination.Styles>
                                     </ursa:Pagination>
-                                    <TextBlock x:Name="ArchiveThreadPage" Classes="workspace-meta" />
+                                    <TextBlock x:Name="ArchiveThreadPage" Classes="workspace-meta tnum" />
                                 </desktop:ArchiveFooterLayout>
-                                <TextBlock x:Name="ArchiveSelectionSummary" Classes="workspace-meta" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" IsVisible="False" AutomationProperties.LiveSetting="Polite" />
+                                <TextBlock x:Name="ArchiveSelectionSummary" Classes="workspace-meta tnum" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" IsVisible="False" AutomationProperties.LiveSetting="Polite" />
                                 <Button x:Name="PreviousThreadsButton" IsVisible="False" Click="OnPreviousThreads" />
                                 <Button x:Name="NextThreadsButton" IsVisible="False" Click="OnNextThreads" />
                             </StackPanel>
@@ -497,7 +497,7 @@
                                     </Grid>
                                     <Grid x:Name="ArchivePostNavigation" Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto" HorizontalAlignment="Center" Margin="8" ColumnSpacing="8">
                                         <Button x:Name="PreviousPostsButton" Tag="archive.previous" Classes="localized" Click="OnPreviousPosts" />
-                                        <TextBlock x:Name="ArchivePostPage" Grid.Column="1" Classes="muted" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                        <TextBlock x:Name="ArchivePostPage" Grid.Column="1" Classes="muted tnum" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                         <Button x:Name="NextPostsButton" Grid.Column="2" Tag="archive.next" Classes="localized" Click="OnNextPosts" />
                                     </Grid>
                                 </Grid>
@@ -551,7 +551,7 @@
                                     </ListBox>
                                     <Grid x:Name="ArchiveReferencesNavigation" Grid.Row="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                                         <Button x:Name="PreviousReferences" Tag="archive.previous" Classes="localized" Click="OnPreviousReferences" />
-                                        <TextBlock x:Name="ArchiveReferencesPage" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                        <TextBlock x:Name="ArchiveReferencesPage" Grid.Column="1" Classes="tnum" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                         <Button x:Name="NextReferences" Grid.Column="2" Tag="archive.next" Classes="localized" Click="OnNextReferences" />
                                     </Grid>
                                 </Grid>
