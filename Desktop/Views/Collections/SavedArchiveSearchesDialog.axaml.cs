@@ -354,6 +354,7 @@ public partial class SavedArchiveSearchesDialog : Window
             _revision = error.Current.Revision;
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        catch (ProfileBackupBlockedException blocked) { if (!_closed) Status(Texts.T("savedSearch.error", StoreBackupBlockedText.For(blocked)), error: true); }
         catch (Exception error) { if (!_closed) Status(Texts.T("savedSearch.error", error.Message), error: true); }
         finally
         {
@@ -382,6 +383,7 @@ public partial class SavedArchiveSearchesDialog : Window
             Status(result.Error == null ? Texts.T("savedSearch.hint") : Texts.T("savedSearch.readonly", result.Error), error: result.Error != null);
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        catch (ProfileBackupBlockedException blocked) { if (!_closed) Status(Texts.T("savedSearch.error", StoreBackupBlockedText.For(blocked)), error: true); }
         catch (Exception error) { if (!_closed) Status(Texts.T("savedSearch.error", error.Message), error: true); }
         finally { if (!_closed) { _working = false; Refresh(); } }
     }

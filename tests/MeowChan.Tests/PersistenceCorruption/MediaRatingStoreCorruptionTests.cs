@@ -9,6 +9,9 @@ namespace MeowChan.Tests.PersistenceCorruption;
 /// <summary>media-ratings.json: damaged, newer, oversized and not-a-file cases.</summary>
 internal sealed class MediaRatingStoreAdapter : StoreAdapter
 {
+    // PF-R3: a damaged backup is set aside as .bad; a backup of a newer version stays and stops the save.
+    internal override bool BackupBlocksWrite(string variant, bool stillParses) => variant == "future-version";
+    internal override bool SetsDamagedBackupAside => true;
     internal override string Name => "ratings";
     internal override string PrimaryName => "media-ratings.json";
     internal override string VersionProperty => "Version";

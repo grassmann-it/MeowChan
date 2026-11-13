@@ -60,4 +60,20 @@ internal static class AtomicJsonFile
         File.Copy(filePath, preservedPath, overwrite: false);
         return preservedPath;
     }
+
+    /// <summary>
+    /// Moves a damaged backup next to itself as <c>.bad</c> (a numbered name if that exists) so the next save can rotate a good
+    /// primary into its place. Nothing is overwritten and nothing is deleted. A directory or link is not moved.
+    /// </summary>
+    /// <returns>The new path, or null when <paramref name="backupPath"/> is not a regular file.</returns>
+    public static string? SetAsideDamagedBackup(string backupPath)
+    {
+        FileInfo info = new(backupPath);
+        if (!info.Exists || info.LinkTarget != null || (info.Attributes & FileAttributes.Directory) != 0) return null;
+        string target = backupPath + ".bad";
+        if (File.Exists(target) || Directory.Exists(target))
+            target = $"{backupPath}.bad-{DateTime.UtcNow:yyyyMMddTHHmmssfffZ}-{Guid.NewGuid():N}";
+        File.Move(backupPath, target, overwrite: false);
+        return target;
+    }
 }

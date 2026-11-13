@@ -93,9 +93,10 @@ public sealed class MediaRatingCoreTests
         File.WriteAllText(file + ".bak", future);
         Assert.Equal(4, Assert.Single(store.List()).Value);
         Assert.False(store.Set(Key, 4).Changed);
-        Assert.Throws<InvalidDataException>(() => store.Set(Key, 3));
-        Assert.Throws<InvalidDataException>(() => store.Set(Key, null));
-        Assert.Throws<InvalidDataException>(() => store.RemoveThreads([Key.Thread]));
+        ProfileBackupBlockedException blocked = Assert.Throws<ProfileBackupBlockedException>(() => store.Set(Key, 3));
+        Assert.Equal(("media-ratings.json.bak", ProfileBackupBlockReason.NewerVersion), (blocked.FileName, blocked.Reason));
+        Assert.Throws<ProfileBackupBlockedException>(() => store.Set(Key, null));
+        Assert.Throws<ProfileBackupBlockedException>(() => store.RemoveThreads([Key.Thread]));
         Assert.Equal(primary, File.ReadAllBytes(file));
         Assert.Equal(future, File.ReadAllText(file + ".bak"));
         Assert.Empty(Directory.GetFiles(temp.Path, ".media-ratings.json.*.tmp"));
@@ -162,7 +163,7 @@ public sealed class MediaRatingCoreTests
         using CancellationTokenSource cancel = new(); cancel.Cancel();
         Assert.Throws<OperationCanceledException>(() => store.Set(Key, 5, cancel.Token));
         string backup = Path.Combine(temp.Path, "media-ratings.json.bak"); Directory.CreateDirectory(backup);
-        Assert.Throws<InvalidDataException>(() => store.Set(Key, 5));
+        Assert.Equal(ProfileBackupBlockReason.Unreadable, Assert.Throws<ProfileBackupBlockedException>(() => store.Set(Key, 5)).Reason);
         Assert.Equal(2, Assert.Single(store.List()).Value);
         Directory.Delete(backup); Assert.True(store.Set(Key, 5).Changed);
     }
@@ -202,7 +203,7 @@ public sealed class MediaRatingCoreTests
         MediaRatingStore store = new(temp.Path, lease);
         Assert.Throws<InvalidDataException>(() => store.List()); File.Delete(file);
         store.Set(Key, 3); File.CreateSymbolicLink(file + ".bak", outside);
-        Assert.Throws<InvalidDataException>(() => store.Set(Key, 5));
+        Assert.Equal(ProfileBackupBlockReason.Unreadable, Assert.Throws<ProfileBackupBlockedException>(() => store.Set(Key, 5)).Reason);
         Assert.Equal("preserve", File.ReadAllText(outside));
     }
     [Theory]

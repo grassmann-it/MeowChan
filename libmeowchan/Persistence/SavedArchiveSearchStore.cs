@@ -163,8 +163,7 @@ internal sealed class SavedArchiveSearchStore
                 "The saved search limit is reached.");
         long next = checked(revision + 1);
         string json = SerializeForCommit(next, candidate);
-        if (File.Exists(_path) && !BackupMayBeRotated())
-            throw new InvalidOperationException("The saved searches backup is damaged or unsupported. No files were changed.");
+        if (File.Exists(_path)) PrepareBackupForRotation();
         BeforeAdmittedMutationForTests?.Invoke(admission);
         AtomicJsonFile.WriteAllText(_path, json, backupCurrentFile: true, token);
         _current = new(next, Array.AsReadOnly(candidate.ToArray()), SavedSearchStoreState.Ready);
@@ -195,12 +194,23 @@ internal sealed class SavedArchiveSearchStore
     }
     // InvalidDataException derives from SystemException, not IOException.
     private static bool IsReadError(Exception error) => error is InvalidDataException or IOException or UnauthorizedAccessException or JsonException or ArgumentException or InvalidOperationException or OverflowException or FormatException or KeyNotFoundException or DecoderFallbackException or NotSupportedException;
-    // The commit replaces the backup with the current file. A damaged, unsupported or unreadable backup is kept instead:
-    // the commit is refused with the store's own error, never a parser exception.
-    private bool BackupMayBeRotated()
+    // The commit replaces the backup with the current file (valid: the load state allowed the commit). A damaged backup is set
+    // aside as .bad first, so the good primary is never lost and the evidence is kept. A backup of a newer version or one that
+    // cannot be opened is not ours to move: the commit is refused with a message that names the file.
+    private void PrepareBackupForRotation()
     {
-        try { return Read(_path + ".bak", missingIsEmpty: true).CanWrite; }
-        catch (Exception error) when (IsReadError(error)) { return false; }
+        string backupPath = _path + ".bak";
+        SavedArchiveSearchSnapshot backup;
+        try { backup = Read(backupPath, missingIsEmpty: true); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        { throw new ProfileBackupBlockedException(backupPath, ProfileBackupBlockReason.Unreadable); }
+        catch (Exception error) when (IsReadError(error))
+        {
+            if (AtomicJsonFile.SetAsideDamagedBackup(backupPath) == null)
+                throw new ProfileBackupBlockedException(backupPath, ProfileBackupBlockReason.Unreadable);
+            return;
+        }
+        if (!backup.CanWrite) throw new ProfileBackupBlockedException(backupPath, ProfileBackupBlockReason.NewerVersion);
     }
     private static string FileIdentity(string path)
     {

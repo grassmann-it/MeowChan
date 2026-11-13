@@ -371,6 +371,7 @@ public partial class ReaderGroupsDialog : Window
             ShowMessage(PresentationText.Localized("readerGroups.conflict"));
         }
         catch (OperationCanceledException) when (_closed || _lifetime.IsCancellationRequested) { }
+        catch (ProfileBackupBlockedException blocked) { failed = true; ShowMessage(PresentationText.Localized("readerGroups.saveFailed", StoreBackupBlockedText.For(blocked))); C<TextBox>("GroupName").Focus(); }
         catch (Exception exception) { failed = true; ShowMessage(PresentationText.Localized("readerGroups.saveFailed", exception.Message)); C<TextBox>("GroupName").Focus(); }
         finally { _busy = false; RefreshActions(); if (failed && !_closed) C<TextBox>("GroupName").Focus(); }
     }

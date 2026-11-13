@@ -14,6 +14,9 @@ public sealed record MediaRatingEntry(FavoriteAssetKey Key, int Value);
 public sealed record MediaRatingCommit(FavoriteAssetKey Key, int? Value, bool Changed);
 
 /// <summary>Profile-owned ratings for exact committed media versions. Never resolves media bytes.</summary>
+/// <summary>A ratings file of a newer version: not readable by this version, but valid data that must be kept.</summary>
+internal sealed class NewerRatingsVersionException : Exception { }
+
 public sealed class MediaRatingStore
 {
     /// <summary>The default entry limit, not a maximum: the limit is the FavoriteEntryLimit setting (<see cref="ProfileStoreLimits.FavoriteEntries"/>); reads accept up to <see cref="ProfileStoreLimits.FavoriteEntryCeiling"/>.</summary>
@@ -81,10 +84,21 @@ public sealed class MediaRatingStore
         if (written > _lease.StoreLimits.FavoriteFileBytes && written > ProfileStoreLimits.FileLength(_path))
             throw PrivateStoreLimit.Refusal(PrivateStoreLimitKind.FavoriteFile, _lease.StoreLimits.FavoriteFileBytes,
                 "The ratings index has reached its size limit.");
-        // The backup is replaced by the current primary only after its existing
-        // contents are known to be supported. Never rotate away unknown data.
-        try { ReadDocument(_path + ".bak"); }
+        // The backup is replaced by the current primary (valid: Read succeeded before every write). A damaged backup is set
+        // aside as .bad first, so the good primary is never lost and the evidence is kept; one that cannot be opened is not
+        // ours to move, so the save is refused.
+        string backupPath = _path + ".bak";
+        try { ReadDocument(backupPath, reportNewerVersion: true); }
         catch (FileNotFoundException) { }
+        catch (NewerRatingsVersionException)
+        { throw new ProfileBackupBlockedException(backupPath, ProfileBackupBlockReason.NewerVersion); }
+        catch (InvalidDataException)
+        {
+            if (AtomicJsonFile.SetAsideDamagedBackup(backupPath) == null)
+                throw new ProfileBackupBlockedException(backupPath, ProfileBackupBlockReason.Unreadable);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        { throw new ProfileBackupBlockedException(backupPath, ProfileBackupBlockReason.Unreadable); }
         AtomicJsonFile.WriteAllText(_path, json, backupCurrentFile: true, token);
     }
     private static void RejectLink(string path)
@@ -103,7 +117,7 @@ public sealed class MediaRatingStore
         }
         return ReadDocument(_path);
     }
-    private static Document ReadDocument(string path)
+    private static Document ReadDocument(string path, bool reportNewerVersion = false)
     {
         RejectLink(path);
         if (new FileInfo(path).Length > ProfileStoreLimits.FavoriteFileCeilingBytes) throw new InvalidDataException("The ratings index exceeds its size limit.");
@@ -122,6 +136,7 @@ public sealed class MediaRatingStore
         }
         catch (Exception error) when (error is JsonException or DecoderFallbackException)
         { throw new InvalidDataException("The ratings index is invalid.", error); }
+        if (reportNewerVersion && document?.Version > 1) throw new NewerRatingsVersionException();
         if (document?.Version != 1 || document.Entries == null || document.Entries.Count > ProfileStoreLimits.FavoriteEntryCeiling)
             throw new InvalidDataException("The ratings index version or entry count is invalid.");
         HashSet<FavoriteAssetKey> seen = new();

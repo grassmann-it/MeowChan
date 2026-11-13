@@ -490,6 +490,7 @@ public sealed class ReaderGroupStoreAdmissionTests
         Func<Task> write = () => store.SaveAdmittedAsync(Rename(original, "refused"),
             failureKind == "revision" ? 0 : original.Revision, accepted);
         if (failureKind == "revision") await Assert.ThrowsAsync<ReaderGroupsConflictException>(write);
+        else if (failureKind == "future-backup") await Assert.ThrowsAsync<ProfileBackupBlockedException>(write);
         else await Assert.ThrowsAsync<InvalidOperationException>(write);
         Assert.Equal(0, hooks);
         Assert.Equal(bytes, Inventory(directory));

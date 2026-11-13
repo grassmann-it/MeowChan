@@ -96,7 +96,8 @@ public sealed class SavedArchiveSearchStoreTests : IDisposable
         Assert.Equal(saved.Revision, loaded.Revision);
         Assert.Equal(FullDefinition(), Assert.Single(loaded.Searches).Definition);
         Assert.True(loaded.Searches[0].CanApply);
-        Assert.Throws<InvalidOperationException>(() => store.Rename(id, "must not replace backup", saved.Revision));
+        ProfileBackupBlockedException blocked = Assert.Throws<ProfileBackupBlockedException>(() => store.Rename(id, "must not replace backup", saved.Revision));
+        Assert.Equal(("archive-searches.json.bak", ProfileBackupBlockReason.NewerVersion), (blocked.FileName, blocked.Reason));
         Assert.Equal(primary, File.ReadAllBytes(FilePath));
         Assert.Equal(future, File.ReadAllText(FilePath + ".bak"));
         Assert.Empty(Directory.GetFiles(_directory, ".archive-searches.json.*.tmp"));

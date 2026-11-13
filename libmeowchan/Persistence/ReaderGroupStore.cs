@@ -98,17 +98,21 @@ internal sealed class ReaderGroupStore
             throw new InvalidDataException("Reader groups exceed the 16 MiB file limit.");
         if (backup && File.Exists(_path))
         {
-            // The save would rotate the backup away. A damaged one is evidence the user may still need, so the save is
-            // refused with the store's own error; an unreadable one keeps its I/O type (already without the path).
-            bool futureBackup;
-            try { Read(_path + ".bak", out futureBackup, out _); }
+            // The save rotates the primary (valid: the load state allowed this save) over the backup. A damaged backup is set
+            // aside as .bad first, so the good primary is never lost and the evidence is kept; a backup of a newer version or
+            // one that cannot be opened is not ours to move, so the save is refused with a message that names the file.
+            string backupPath = _path + ".bak";
+            bool futureBackup = false;
+            try { Read(backupPath, out futureBackup, out _); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            { throw new ProfileBackupBlockedException(backupPath, ProfileBackupBlockReason.Unreadable); }
             catch (Exception error) when (error is JsonException or InvalidDataException or ArgumentException
                 or FormatException or OverflowException or InvalidOperationException)
             {
-                throw new InvalidOperationException("The reader groups backup is damaged. No files were changed.");
+                if (AtomicJsonFile.SetAsideDamagedBackup(backupPath) == null)
+                    throw new ProfileBackupBlockedException(backupPath, ProfileBackupBlockReason.Unreadable);
             }
-            if (futureBackup) throw new InvalidOperationException(
-                "The available backup uses a newer reader groups schema. No files were changed.");
+            if (futureBackup) throw new ProfileBackupBlockedException(backupPath, ProfileBackupBlockReason.NewerVersion);
         }
         if (backup) BeforeAdmittedSaveMutationForTests?.Invoke(admission);
         else BeforeAdmittedRestoreMutationForTests?.Invoke(admission);

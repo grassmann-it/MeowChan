@@ -75,6 +75,12 @@ internal abstract class StoreAdapter
     internal virtual bool BackupBlocksWrite(string variant, bool stillParses) => !stillParses || variant == "future-version";
 
     /// <summary>
+    /// True when a save over a damaged backup (one that no longer reads as a document) first moves it aside as <c>.bad</c>, byte for
+    /// byte, so that the good primary is rotated into the backup and the evidence stays.
+    /// </summary>
+    internal virtual bool SetsDamagedBackupAside => false;
+
+    /// <summary>
     /// True when an <see cref="StorePolicy.OfferRecovery"/> store must offer the good backup for this damage. A document that
     /// still parses but is not supported (a newer schema, unknown envelope fields) is kept read-only instead: the user's data is
     /// whole, so there is nothing to recover from.
@@ -275,6 +281,7 @@ internal static class CorruptionScenarios
             Assert.True(outcome != null, $"{context}: the write replaced a backup that the store must keep.");
             AssertHygiene(adapter, directory, outcome!, context + " write");
             AssertUnchanged(before, Capture(adapter, directory), context + ": a refused write changed files");
+            Assert.Empty(Directory.GetFiles(directory, Path.GetFileName(adapter.BackupPath(directory)) + ".bad*"));
         }
         else
         {
@@ -283,6 +290,12 @@ internal static class CorruptionScenarios
             // The good primary became the backup and the new primary is valid.
             Assert.True(StateOf(setup.GoodPrimary) == after.Backup, $"{context}: the previous primary did not become the backup.");
             Assert.Equal(ReadKind.Data, adapter.Read(directory, setup.Lease).Kind);
+            if (adapter.SetsDamagedBackupAside && !stillParses)
+            {
+                string[] aside = Directory.GetFiles(directory, Path.GetFileName(adapter.BackupPath(directory)) + ".bad*");
+                Assert.True(aside.Length == 1, $"{context}: the damaged backup was not set aside exactly once ({aside.Length} .bad files).");
+                Assert.True(File.ReadAllBytes(aside[0]).AsSpan().SequenceEqual(damaged), $"{context}: the set-aside copy is not the damaged backup, byte for byte.");
+            }
         }
     }
 
