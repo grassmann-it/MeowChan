@@ -12,8 +12,23 @@ namespace MeowChan.PluginRuntime.Tests;
 
 // Synthetic process E2E only. These are separate host lifetimes using the production
 // store/inventory/worker, NOT DesktopSessionHost, packaged release or historical upgrade evidence.
-public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output)
+public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output) : IAsyncLifetime
 {
+    private readonly List<Probe> probes = [];
+    public Task InitializeAsync() => Task.CompletedTask;
+    // Runs after success, assertion failure and timeout alike; every child has been killed/drained by then.
+    public async Task DisposeAsync()
+    {
+        List<Exception> failures = [];
+        foreach (Probe probe in probes)
+        {
+            try { await probe.DisposeAsync(); }
+            catch (Exception exception) { failures.Add(exception); }
+        }
+        if (failures.Count > 0) throw new AggregateException(failures);
+    }
+    private Probe NewProbe() { Probe probe = new(output); probes.Add(probe); return probe; }
+
     [Theory]
     [InlineData(false, true)]
     [InlineData(true, true)]
@@ -21,7 +36,7 @@ public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output)
     [InlineData(true, false)]
     public async Task ExactConsentIsRequiredAndSurvivesTwoIndependentHostRestarts(bool material, bool enabled)
     {
-        Probe probe = new(output);
+        Probe probe = NewProbe();
         var seed = await probe.Run("seed", material.ToString(), enabled.ToString());
         Assert.NotEmpty(seed.State.SelectedSourceOwners);
         Assert.Single(seed.State.Grants);
@@ -114,7 +129,7 @@ public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output)
     [InlineData(true, "stale")]
     public async Task InvalidConsentInAnotherProcessPublishesNothingAndCannotEnableUse(bool material, string fault)
     {
-        Probe probe = new(output);
+        Probe probe = NewProbe();
         var seed = await probe.Run("seed", material.ToString(), "true");
         await probe.Run("stage-B");
         var review = await probe.Run("review");
@@ -156,7 +171,7 @@ public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output)
     [InlineData(true)]
     public async Task MissingArtifactAfterConsentFailsClosedOnNextHostStart(bool material)
     {
-        Probe probe = new(output);
+        Probe probe = NewProbe();
         var seed = await probe.Run("seed", material.ToString(), "true");
         await probe.Run("stage-B"); await probe.Run("review");
         var consent = await probe.Run("consent");
@@ -224,20 +239,23 @@ public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output)
     private static void EqualJson<T>(T expected, T actual) => Assert.Equal(SdkJson.Serialize(expected), SdkJson.Serialize(actual));
     private static string Hash(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
 
-    private sealed class Probe
+    private sealed class Probe : IAsyncDisposable
     {
         private readonly ITestOutputHelper output;
-        private readonly string root;
+        private readonly string dotnetHost;
+        private readonly PluginProbeEvidenceRoot evidence;
+        private string root => evidence.RootPath;
         private int sequence;
         internal string StorePath => Path.Combine(root, "profile", "plugin-state", "state.json");
         internal Probe(ITestOutputHelper output)
         {
             this.output = output;
-            string evidence = Environment.GetEnvironmentVariable("OCHAN_REAUTH_EVIDENCE") ?? Path.GetTempPath();
-            root = Path.Combine(evidence, "reauth-process-" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(root);
-            output.WriteLine("Persistent synthetic profile/evidence: " + root);
+            dotnetHost = PluginProbeEnvironment.ResolveDotnetHost(); // Before any directory exists: failure leaks nothing.
+            evidence = PluginProbeEvidenceRoot.Create();
+            output.WriteLine((evidence.OwnsRoot ? "Temporary synthetic profile (removed afterwards): " : "Persistent synthetic profile/evidence: ") + root);
+            output.WriteLine("dotnet host: " + dotnetHost);
         }
+        public ValueTask DisposeAsync() => evidence.DisposeAsync();
         internal SortedDictionary<string, string> StoreFiles() => new(Directory.GetFiles(Path.GetDirectoryName(StorePath)!)
             .Where(path => Path.GetFileName(path) != "state.lock")
             .ToDictionary(path => Path.GetFileName(path), path => Hash(File.ReadAllBytes(path))), StringComparer.Ordinal);
@@ -246,34 +264,19 @@ public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output)
         internal async Task<ProbeResult> Run(string phase, params string[] arguments)
         {
             string executable = BuiltTestBinaries.AssemblyOf(Path.Combine("tests", "PluginReauthorizationProbe"));
-            ProcessStartInfo start = new(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "/usr/share/dotnet/dotnet")
-            {
-                UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
-                WorkingDirectory = root
-            };
+            ProcessStartInfo start = new(dotnetHost) { WorkingDirectory = root };
             foreach (string argument in new[] { executable, root, phase, BuiltTestBinaries.WorkerAssembly() }.Concat(arguments)) start.ArgumentList.Add(argument);
-            foreach (string name in new[] { "HOME", "TMPDIR", "DOTNET_CLI_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_RUNTIME_DIR" })
-            {
-                string directory = Path.Combine(root, "private", name); Directory.CreateDirectory(directory);
-                start.Environment[name] = directory;
-            }
-            using Process child = Process.Start(start) ?? throw new InvalidOperationException("Could not start private probe.");
-            Task<string> stdout = child.StandardOutput.ReadToEndAsync(), stderr = child.StandardError.ReadToEndAsync();
+            PluginProbeEnvironment.ApplyPrivateEnvironment(start, root);
             string prefix = Path.Combine(root, $"{++sequence:D2}-{phase}");
-            await File.WriteAllTextAsync(prefix + ".pid", child.Id.ToString());
-            try { await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(35)); }
-            finally
-            {
-                // Only this newly owned process tree; never enumerate or kill unrelated dotnet processes.
-                if (!child.HasExited) child.Kill(entireProcessTree: true);
-                await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
-            }
-            string resultJson = await stdout.WaitAsync(TimeSpan.FromSeconds(5)), errors = await stderr.WaitAsync(TimeSpan.FromSeconds(5));
+            // Kills the whole owned process tree and drains both pipes, also on timeout, before returning/throwing.
+            var child = await PluginProbeEnvironment.RunChildAsync(start, TimeSpan.FromSeconds(35),
+                pid => File.WriteAllText(prefix + ".pid", pid.ToString()));
+            string resultJson = child.Stdout, errors = child.Stderr;
             await File.WriteAllTextAsync(prefix + ".json", resultJson);
             await File.WriteAllTextAsync(prefix + ".stderr", errors);
-            Assert.True(child.ExitCode == 0, $"Probe {phase} PID {child.Id} exited {child.ExitCode}: {errors}\n{resultJson}");
+            Assert.True(child.ExitCode == 0, $"Probe {phase} PID {child.Pid} exited {child.ExitCode}: {errors}\n{resultJson}");
             var result = JsonSerializer.Deserialize<ProbeResult>(resultJson) ?? throw new InvalidDataException("Missing probe result.");
-            Assert.Equal(child.Id, result.Pid);
+            Assert.Equal(child.Pid, result.Pid);
             Assert.Equal(Environment.GetEnvironmentVariable("OCHAN_TEST_SOURCE_SHA"), result.SourceSha);
             Assert.Equal(Hash(await File.ReadAllBytesAsync(executable)), result.ProbeHash);
             Assert.Equal(Hash(await File.ReadAllBytesAsync(BuiltTestBinaries.WorkerAssembly())), result.WorkerHash);
