@@ -8,6 +8,7 @@ using MeowChan.Archive;
 using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Gallery;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Tags;
@@ -153,11 +154,11 @@ internal static class PrivateTagBarChecks
         await using Fixture f = await OpenAsync(owner, profile, Tagged);
         Button open = f.C<Button>("ReaderTagsOpen");
         StackPanel bar = f.C<StackPanel>("ReaderTagBar");
-        TextBox input = f.C<TextBox>("ReaderTagInput");
+        IdentitySuggestionBox input = f.C<IdentitySuggestionBox>("ReaderTagInput");
         Require(!bar.IsVisible && Equals(open.Content, "Tags") && open.IsEffectivelyEnabled, "Initial tag button state is wrong.");
 
         f.Click("ReaderTagsOpen");
-        Require(bar.IsVisible && input.IsFocused, "Open did not show the bar and focus its input.");
+        Require(bar.IsVisible && input.IsKeyboardFocusWithin, "Open did not show the bar and focus its input.");
         Require(f.Chips().Length == 0 && f.C<WrapPanel>("ReaderTagChips").Children.OfType<TextBlock>().Single().Text == Texts.T("tags.none"),
             "An untagged thread must say so.");
         // Title and first post only; duplicates collapse, paths and later posts are ignored.
@@ -180,7 +181,7 @@ internal static class PrivateTagBarChecks
         Require(enter.Handled, "Enter in the tag field was not handled by the bar.");
         await f.SettleAsync();
         Require(f.Chips().SequenceEqual(new[] { "/rpt/  ✕", "my_tag  ✕" }), "Typed tag missing or underscore lost: " + string.Join("|", f.Chips()));
-        Require(string.IsNullOrEmpty(input.Text) && input.IsFocused && Equals(open.Content, "Tags (2)"), "Add did not clear the field and keep focus.");
+        Require(string.IsNullOrEmpty(input.Text) && input.IsKeyboardFocusWithin && Equals(open.Content, "Tags (2)"), "Add did not clear the field and keep focus.");
 
         Capture(f.Page, "bar");
         // The same name in another spelling is the same tag: no duplicate, no error.
@@ -228,7 +229,7 @@ internal static class PrivateTagBarChecks
         await f.Page.LoadThreadAsync(Tagged).WaitAsync(Deadline);
         await f.Page.MediaLoadTask.WaitAsync(Deadline);
         // The bar the user left open returns with the next opened thread, without taking focus.
-        Require(bar.IsVisible && !input.IsFocused && f.Chips().SequenceEqual(new[] { "my_tag  \u2715" }), "Returned bar is not current.");
+        Require(bar.IsVisible && !input.IsKeyboardFocusWithin && f.Chips().SequenceEqual(new[] { "my_tag  \u2715" }), "Returned bar is not current.");
         f.Click(f.Suggestions()[1]);
         await f.SettleAsync();
         Require(taggedRow.TagsText == "Tags: my_tag, /sdg/" && !plainRow.HasTags, "List row did not follow the bar: " + taggedRow.TagsText);
@@ -244,6 +245,7 @@ internal static class PrivateTagBarChecks
         Require(bar.IsVisible && f.Chips().Length == 0 && f.Suggestions().Length == 0 && string.IsNullOrEmpty(input.Text)
             && !status.IsVisible && Equals(open.Content, "Tags"), "Bar did not follow the thread switch cleanly.");
         Require(f.Stored().TagsOf(Plain).Count == 0, "Thread switch tagged the new thread.");
+        await AutocompleteAsync(f, input, bar);
 
         input.Focus();
         var escape = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape };
@@ -262,7 +264,7 @@ internal static class PrivateTagBarChecks
         await ShowTableAsync(f);
         DataGrid table = f.C<DataGrid>("ArchiveThreadTable");
         StackPanel bar = f.C<StackPanel>("ReaderTagBar");
-        TextBox input = f.C<TextBox>("ReaderTagInput");
+        IdentitySuggestionBox input = f.C<IdentitySuggestionBox>("ReaderTagInput");
         ArchiveThreadRow[] rows = table.ItemsSource!.Cast<ArchiveThreadRow>().ToArray();
         ArchiveThreadRow taggedRow = rows.Single(row => row.Summary.Id == Tagged), plainRow = rows.Single(row => row.Summary.Id == Plain);
         long revision = f.Stored().Revision;
@@ -294,7 +296,7 @@ internal static class PrivateTagBarChecks
                 "The Tags… entry is disabled, mislabeled or misplaced: " + item.Header);
             item.Command!.Execute(null);
             menu.Close();
-            await UntilAsync(() => f.Page.CurrentThread?.Summary.Id == thread && bar.IsVisible && input.IsFocused);
+            await UntilAsync(() => f.Page.CurrentThread?.Summary.Id == thread && bar.IsVisible && input.IsKeyboardFocusWithin);
         }
 
         // Tagged thread, not shown yet: it is loaded, its bar opens on its own tags and takes focus.
@@ -319,6 +321,87 @@ internal static class PrivateTagBarChecks
         Console.WriteLine("SMOKE private-tags thread menu [en]: Tags… loads and opens the bar for a tagged and an untagged thread, kept open, absent for a batch, store untouched.");
     }
 
+    private static string[] Shown(IdentitySuggestionBox input) =>
+        input.ItemsSource?.OfType<IdentitySuggestion>().Select(item => item.Label).ToArray() ?? [];
+
+    // T4: own tags of every thread are offered while typing; keys follow the list first, then the bar.
+    private static async Task AutocompleteAsync(Fixture f, IdentitySuggestionBox input, StackPanel bar)
+    {
+        static KeyEventArgs Press(Key key) => new() { RoutedEvent = InputElement.KeyDownEvent, Key = key };
+        async Task OpenAsync(string text, string[] expected)
+        {
+            input.Focus();
+            input.Text = text;
+            await Program.WaitUntilAsync(() => input.IsDropDownOpen && Shown(input).Length > 0,
+                () => "tag suggestions did not open for '" + text + "': " + string.Join("|", Shown(input)));
+            Require(Shown(input).SequenceEqual(expected), "Unexpected tag suggestions for '" + text + "': " + string.Join("|", Shown(input)));
+        }
+        int tags = f.Stored().Tags.Count;
+        // A synthetic Danbooru catalog: its source tags form their own group below the own tags.
+        static BooruPostRecord Post(string id, params string[] names) => new(BooruMediaIdentity.Source, id,
+            new BooruPostClaim(BooruMediaIdentity.Source, id, BooruPostClaimPresence.None,
+                Tags: names.Select(name => new BooruPostClaimTag(name, BooruPostClaimTagCategory.General)).ToArray()),
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+        BooruCatalogSnapshot catalog = new(BooruCatalogSnapshot.CurrentSchemaVersion,
+            [Post("1", "silver_hair", "my_tag"), Post("2", "silver_hair")], []);
+        f.Page.SourceTagSuggestions.Read = () => catalog;
+        f.Page.SourceTagSuggestions.Load();
+        await f.Page.SourceTagSuggestions.LoadTask.WaitAsync(Deadline);
+        // Word start match with its use count; Down highlights without touching the draft, Enter adds it.
+        await OpenAsync("sd", ["/sdg/ (1)", "New tag: \u201csd\u201d"]);
+        Require(AutomationProperties.GetHelpText(input) == Texts.T("tags.suggest.count", 2, TagSuggestionIndex.VisibleLimit), "The list size was not announced.");
+        input.RaiseEvent(Press(Key.Down));
+        Require(input.HighlightedCandidate?.Value == "/sdg/" && input.Text == "sd", "Down must highlight without changing the draft.");
+        KeyEventArgs accept = Press(Key.Enter);
+        input.RaiseEvent(accept);
+        Require(accept.Handled, "Enter on a highlighted suggestion was not handled.");
+        await Program.WaitUntilAsync(() => f.Chips().SequenceEqual(["/sdg/  \u2715"]) && string.IsNullOrEmpty(input.Text),
+            () => "Enter did not add the highlighted suggestion: " + string.Join("|", f.Chips()) + " text=" + input.Text);
+        await f.SettleAsync();
+        // An assigned tag is not offered again. The first Escape closes the list and keeps the bar.
+        await OpenAsync("G", ["my_tag (1)", "New tag: \u201cG\u201d"]);
+        Capture(f.Page, "autocomplete");
+        KeyEventArgs listEscape = Press(Key.Escape);
+        input.RaiseEvent(listEscape);
+        Require(listEscape.Handled && !input.IsDropDownOpen && bar.IsVisible && input.Text == "G", "Escape must close only the suggestion list.");
+        // Tab completes the first suggestion in place; a comma at the end then adds the completed name.
+        await OpenAsync("my", ["my_tag (1)", "New tag: \u201cmy\u201d"]);
+        KeyEventArgs tab = Press(Key.Tab);
+        input.RaiseEvent(tab);
+        Require(tab.Handled && input.Text == "my_tag" && !input.IsDropDownOpen, "Tab did not complete the suggestion: " + input.Text);
+        var comma = new TextInputEventArgs { RoutedEvent = InputElement.TextInputEvent, Text = "," };
+        input.RaiseEvent(comma);
+        Require(comma.Handled, "A trailing comma was typed instead of adding the tag.");
+        await f.SettleAsync();
+        Require(f.Chips().SequenceEqual(["my_tag  \u2715", "/sdg/  \u2715"]) && string.IsNullOrEmpty(input.Text) && f.Stored().Tags.Count == tags,
+            "Comma did not reuse the completed tag: " + string.Join("|", f.Chips()));
+        // A source tag is offered as its own labelled group and creates an own tag when chosen; a source tag that already
+        // is an own tag (my_tag above) is never listed twice.
+        await OpenAsync("hair", ["silver_hair · Danbooru (2)", "New tag: \u201chair\u201d"]);
+        IdentitySuggestion source = input.ItemsSource!.OfType<IdentitySuggestion>().First();
+        Require(source.GroupHeader == Texts.T("tags.suggest.sourceGroup") && source.Source == TagSuggestionIndex.SourceGroup
+            && source.Description == Texts.T("tags.suggest.sourceName", "silver_hair", 2), "The source tag group is not labelled: " + source);
+        Capture(f.Page, "autocomplete-source");
+        input.RaiseEvent(Press(Key.Down));
+        input.RaiseEvent(Press(Key.Enter));
+        await Program.WaitUntilAsync(() => f.Chips().Contains("silver_hair  \u2715"), () => "Source tag was not added: " + string.Join("|", f.Chips()));
+        await f.SettleAsync();
+        Require(f.Stored().Tags.Count == tags + 1 && f.Stored().TagsOf(Plain).Any(tag => tag.Name.Display == "silver_hair"),
+            "Choosing a source tag must create exactly one own tag on the thread.");
+        // Leave the thread and the vocabulary as the journey expects them.
+        for (int round = 0; round < 5 && f.C<WrapPanel>("ReaderTagChips").Children.OfType<Button>().FirstOrDefault() is { } chip; round++)
+        {
+            f.Click(chip);
+            await f.SettleAsync();
+        }
+        PrivateTagStoreSnapshot created = f.Stored();
+        await f.Host.DeletePrivateTagAsync(created.Tags.Single(tag => tag.Name.Display == "silver_hair").Id, created.Revision).WaitAsync(Deadline);
+        await f.SettleAsync();
+        Require(f.Chips().Length == 0 && f.Stored().TagsOf(Plain).Count == 0 && f.Stored().Tags.Count == tags,
+            "Autocomplete cleanup left tags on the plain thread or in the vocabulary.");
+        Console.WriteLine("SMOKE private-tags autocomplete [en]: word-start match with uses, Down+Enter adds, assigned tag hidden, Escape closes list first, Tab completes, comma adds, Danbooru source tag group creates an own tag.");
+    }
+
     private static async Task RestartAndDamageAsync(MainWindow owner, string profile)
     {
         await using (Fixture f = await OpenAsync(owner, profile, Tagged))
@@ -329,7 +412,7 @@ internal static class PrivateTagBarChecks
             f.Click("ReaderTagsOpen");
             Require(f.Chips().SequenceEqual(new[] { "my_tag  ✕", "/sdg/  ✕" }), "Restart lost or reordered tags.");
             Capture(f.Page, "bar-de");
-            Require(Equals(f.C<Button>("ReaderTagAdd").Content, "Tag hinzufügen") && f.C<TextBox>("ReaderTagInput").Watermark == "Tagname",
+            Require(Equals(f.C<Button>("ReaderTagAdd").Content, "Tag hinzufügen") && f.C<IdentitySuggestionBox>("ReaderTagInput").PlaceholderText == "Tagname",
                 "German labels missing.");
             Require(f.Suggestions().Select(Fixture.Label).SequenceEqual(new[] { "+ /rpt/" }), "Restart suggestions wrong.");
         }
@@ -341,7 +424,7 @@ internal static class PrivateTagBarChecks
             f.Click("ReaderTagsOpen");
             TextBlock status = f.C<TextBlock>("ReaderTagStatus");
             Require(status.IsVisible && status.Text == Texts.T("tags.unavailable"), "Damaged index must be reported.");
-            Require(!f.C<TextBox>("ReaderTagInput").IsEffectivelyEnabled && !f.C<Button>("ReaderTagAdd").IsEffectivelyEnabled
+            Require(!f.C<IdentitySuggestionBox>("ReaderTagInput").IsEffectivelyEnabled && !f.C<Button>("ReaderTagAdd").IsEffectivelyEnabled
                 && f.Chips().Length == 0 && f.Suggestions().Length == 0, "Damaged index must not be editable or look empty-but-usable.");
             Require(File.ReadAllText(file) == "{bad", "Damaged index was overwritten.");
         }

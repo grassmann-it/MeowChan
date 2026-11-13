@@ -258,7 +258,7 @@
                         <WrapPanel x:Name="ReaderTagChips" ItemSpacing="6" LineSpacing="4" />
                         <WrapPanel x:Name="ReaderTagSuggestions" ItemSpacing="6" LineSpacing="4" IsVisible="False" />
                         <WrapPanel ItemSpacing="6" LineSpacing="4">
-                            <TextBox x:Name="ReaderTagInput" Width="240" />
+                            <desktop:IdentitySuggestionBox x:Name="ReaderTagInput" Width="240" />
                             <Button x:Name="ReaderTagAdd" Click="OnAddThreadTag" />
                             <Button x:Name="ReaderTagManage" Click="OnManageTags" />
                             <Button x:Name="ReaderTagClose" Click="OnCloseThreadTags" />

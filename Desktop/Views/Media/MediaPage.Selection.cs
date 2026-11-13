@@ -175,7 +175,7 @@ public sealed partial class MediaPage
         if ((_owner ?? TopLevel.GetTopLevel(this) as Window) is not { } owner) return;
         IReadOnlyList<MediaLibraryTile> tiles = SelectedTiles;
         MediaSelectionTagSession session = new(MediaLibraryTagging.Candidates(tiles), services.Load, services.DefineAndSetMany, services.SetMany);
-        MediaSelectionTagDialog dialog = new(session, tiles.Count);
+        MediaSelectionTagDialog dialog = new(session, tiles.Count, ReadBooruCatalog);
         _selectionTag = dialog;
         _selectionBusy = true;
         UpdateSelectionBar();

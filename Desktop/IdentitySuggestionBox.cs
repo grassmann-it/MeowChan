@@ -27,6 +27,19 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
     /// <summary>Opt-in: Enter on an open list with no highlighted suggestion closes the list and is left
     /// unhandled for the parent, which decides what free text means. Off: Enter only closes the list.</summary>
     internal bool ReleaseUnselectedEnter { get; set; }
+    /// <summary>Opt-in: Tab on an open list writes the highlighted (else the first) suggestion into the editor without
+    /// accepting it, see <see cref="IdentitySuggestions.TabCompletion"/>. Off: Tab only closes the list.</summary>
+    internal bool TabCompletes { get; set; }
+    /// <summary>Rows shown at most; the screen reader hint still counts every match.</summary>
+    internal int VisibleLimit { get; set; } = IdentitySuggestions.VisibleLimit;
+    /// <summary>Catalog key of the hint announced after each list update; formatted with the match count and the limit.</summary>
+    internal string CountHelpKey { get; set; } = "suggestions.count";
+    /// <summary>True while the list is populated because Up/Down opened it, not because of focus or typing.</summary>
+    internal bool IsExplicitRequest { get; private set; }
+    /// <summary>The suggestion Up/Down (or an exact typed match) highlights in the open list, else null.</summary>
+    internal IdentitySuggestion? HighlightedCandidate => IsDropDownOpen
+        && (SelectionAdapter?.SelectedItem ?? SelectedItem) is IdentitySuggestion item
+        && (ItemsSource?.Cast<object>().Contains(item) ?? false) ? item : null;
     private CancellationTokenSource? _request;
     private int _revision;
     private bool _publishing;
@@ -41,11 +54,21 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
         FilterMode = AutoCompleteFilterMode.None;
         ValueMemberBinding = new Binding(nameof(IdentitySuggestion.Value));
         ItemSelector = (text, _) => text ?? string.Empty; // Navigation never changes the draft.
-        ItemTemplate = new FuncDataTemplate<IdentitySuggestion>((item, _) => new TextBlock
+        ItemTemplate = new FuncDataTemplate<IdentitySuggestion>((item, _) =>
         {
-            Text = item?.Label, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis,
-            [ToolTip.TipProperty] = item?.Label,
-            [AutomationProperties.NameProperty] = item?.Label
+            TextBlock row = new()
+            {
+                Text = item?.Label, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis,
+                [ToolTip.TipProperty] = item?.Description ?? item?.Label,
+                [AutomationProperties.NameProperty] = item?.Description ?? item?.Label
+            };
+            if (item?.GroupHeader is not { } header) return row;
+            // The group label sits above its first row, inside that row: it is never a selectable item of its own.
+            TextBlock label = new() { Text = header, TextWrapping = Avalonia.Media.TextWrapping.Wrap, Classes = { "workspace-meta" },
+                [AutomationProperties.AccessibilityViewProperty] = AccessibilityView.Raw };
+            return new StackPanel { Spacing = 2, Children = { label, row },
+                [ToolTip.TipProperty] = item.Description ?? item.Label,
+                [AutomationProperties.NameProperty] = header + ": " + (item.Description ?? item.Label) };
         });
         Populating += (_, e) => { e.Cancel = true; };
         // Focus entering a suggestion (the popup is a logical child) is not the editor gaining focus:
@@ -142,12 +165,21 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
         if (e.Key == Key.Enter && this.GetVisualDescendants().OfType<TextPresenter>().Any(x => !string.IsNullOrEmpty(x.PreeditText)))
         { e.Handled = true; return; }
         if (e.Key == Key.Escape) { Dismiss(); e.Handled = true; return; }
-        if (e.Key == Key.Tab) { Dismiss(); return; }
+        if (e.Key == Key.Tab)
+        {
+            if (TabCompletes && e.KeyModifiers == KeyModifiers.None && IsDropDownOpen
+                && IdentitySuggestions.TabCompletion(Text, HighlightedCandidate, ShownCandidates()) is { } completion)
+            { Complete(completion); e.Handled = true; return; }
+            Dismiss(); return;
+        }
         if ((e.Key == Key.Down || e.Key == Key.Up) && !IsDropDownOpen && !_ended && Candidates != null)
         {
             // Escape or a prior accept closes the list; explicit navigation reopens it
             // without changing the draft, applying a search or accepting anything.
-            _suppressed = false; _ = PopulateAsync(); e.Handled = true; return;
+            _suppressed = false; e.Handled = true;
+            IsExplicitRequest = true;
+            try { _ = PopulateAsync(); } finally { IsExplicitRequest = false; }
+            return;
         }
         if (e.Key != Key.Enter || !IsDropDownOpen) return;
         if (ReleaseUnselectedEnter && !(ItemsSource?.Cast<object>().Contains(SelectionAdapter?.SelectedItem ?? SelectedItem) ?? false))
@@ -155,6 +187,17 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
         // Consume the popup's Enter before a parent search command can observe it.
         AcceptCandidate();
         e.Handled = true;
+    }
+    private IdentitySuggestion[] ShownCandidates() => ItemsSource?.OfType<IdentitySuggestion>().ToArray() ?? Array.Empty<IdentitySuggestion>();
+    // Completion only edits the draft: no CandidateAccepted, nothing is applied or added.
+    private void Complete(IdentitySuggestion item)
+    {
+        _publishing = true;
+        try { SetCurrentValue(TextProperty, item.Value); }
+        finally { _publishing = false; }
+        Dismiss();
+        if (this.GetVisualDescendants().OfType<TextBox>().FirstOrDefault() is { } editor)
+        { editor.ClearSelection(); editor.CaretIndex = item.Value.Length; }
     }
     internal void Dismiss()
     {
@@ -178,7 +221,7 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
         _publishing = true;
         try
         {
-            ItemsSource = items.Take(IdentitySuggestions.VisibleLimit).ToArray();
+            ItemsSource = items.Take(VisibleLimit).ToArray();
             PopulateComplete();
             IsDropDownOpen = items.Length > 0;
             return true;
@@ -215,10 +258,10 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
                     if (_ended || token.IsCancellationRequested || revision != _revision || _suppressed || Text != text) return;
-                    if (Publish(items)) AutomationProperties.SetHelpText(this, Texts.T("suggestions.count", items.Length));
+                    if (Publish(items)) AutomationProperties.SetHelpText(this, Texts.T(CountHelpKey, items.Length, VisibleLimit));
                 }, Avalonia.Threading.DispatcherPriority.Input);
             }
-            AutomationProperties.SetHelpText(this, Texts.T("suggestions.count", items.Length));
+            AutomationProperties.SetHelpText(this, Texts.T(CountHelpKey, items.Length, VisibleLimit));
             LoadCompleted?.Invoke(null);
         }
         catch (OperationCanceledException) { }

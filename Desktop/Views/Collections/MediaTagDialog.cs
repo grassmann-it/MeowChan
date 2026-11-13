@@ -31,22 +31,26 @@ internal sealed class MediaTagDialog : Window
     private readonly WrapPanel _assigned = new() { Name = "MediaTagAssigned", ItemSpacing = 6, LineSpacing = 6 };
     private readonly TextBlock _availableLabel = new() { TextWrapping = TextWrapping.Wrap };
     private readonly WrapPanel _available = new() { Name = "MediaTagAvailable", ItemSpacing = 6, LineSpacing = 6 };
-    private readonly TextBox _input = new() { Name = "MediaTagInput" };
+    private readonly IdentitySuggestionBox _input = new() { Name = "MediaTagInput" };
     private readonly Button _add = new() { Name = "MediaTagAdd" };
     private readonly TextBlock _status = new() { Name = "MediaTagStatus", TextWrapping = TextWrapping.Wrap };
     private readonly Button _close = new() { Name = "MediaTagClose" };
     private bool _closed;
+    private readonly SourceTagSuggestions _sources = new();
 
     internal MediaTagSession Session => _session;
     internal WrapPanel AssignedPanel => _assigned;
     internal WrapPanel AvailablePanel => _available;
-    internal TextBox Input => _input;
+    internal IdentitySuggestionBox Input => _input;
     internal Button AddButton => _add;
+    /// <summary>Danbooru source tags offered below the own tags, read once when the dialog opens.</summary>
+    internal SourceTagSuggestions SourceTags => _sources;
     internal TextBlock Status => _status;
 
-    internal MediaTagDialog(MediaTagSession session, string mediaLabel)
+    internal MediaTagDialog(MediaTagSession session, string mediaLabel, Func<MeowChan.Archive.BooruCatalogSnapshot?>? readSourceTags = null)
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
+        _sources.Read = readSourceTags;
         _mediaLabel = mediaLabel ?? string.Empty;
         Name = "MediaTagDialog";
         Width = 480; Height = 460; MinWidth = 340; MinHeight = 320;
@@ -75,6 +79,9 @@ internal sealed class MediaTagDialog : Window
         Content = layout;
 
         _add.Click += OnAdd; _close.Click += OnClose;
+        // Own tags as suggestions while typing; the tags of this medium are not offered again.
+        TagSuggestionInput.Attach(_input, () => _session.Busy ? null : _session.Snapshot,
+            () => _session.Assigned.Select(tag => tag.Id).ToHashSet(), () => _ = AddTypedAsync(), _sources);
         _input.AddHandler(KeyDownEvent, OnInputKey, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, OnKey, RoutingStrategies.Tunnel);
         Opened += OnOpened; Closed += OnClosed;
@@ -82,7 +89,7 @@ internal sealed class MediaTagDialog : Window
         Refresh();
     }
 
-    private void OnOpened(object? sender, EventArgs e) { _chrome.Attach(this); _input.Focus(); }
+    private void OnOpened(object? sender, EventArgs e) { _chrome.Attach(this); _sources.Load(); _input.Focus(); }
     private void OnSessionUpdated() => Dispatcher.UIThread.Post(Refresh);
     private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(Refresh);
 
@@ -97,10 +104,12 @@ internal sealed class MediaTagDialog : Window
         if (_session.MessageKey == null && !_closed) _input.Text = string.Empty;
     }
 
+    // Runs after the field's own handler: an Enter that took a highlighted suggestion is already handled there.
     private async void OnInputKey(object? sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None) return;
+        if (e.Handled || e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None) return;
         e.Handled = true;
+        _input.Dismiss();
         await AddTypedAsync();
     }
 
@@ -110,7 +119,9 @@ internal sealed class MediaTagDialog : Window
     {
         if (e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None) return;
         e.Handled = true;
-        Close();
+        // The first Escape closes an open suggestion list, the next one the dialog.
+        if (TagSuggestionInput.Route(_input, e) == TagFieldKey.CloseList) _input.Dismiss();
+        else Close();
     }
 
     internal void CloseForLifetime() { if (!_closed) Close(); }
@@ -123,8 +134,7 @@ internal sealed class MediaTagDialog : Window
         _scope.Text = Texts.T(_session.IsLocal ? "tags.media.scopeLocal" : "tags.media.scope");
         _assignedLabel.Text = Texts.T("tags.media.assigned");
         _availableLabel.Text = Texts.T("tags.media.available");
-        _input.Watermark = Texts.T("tags.input");
-        AutomationProperties.SetName(_input, Texts.T("tags.input"));
+        TagSuggestionInput.Localize(_input);
         _add.Content = Texts.T("tags.add"); AutomationProperties.SetName(_add, Texts.T("tags.add"));
         _close.Content = Texts.T("tags.media.close"); AutomationProperties.SetName(_close, Texts.T("tags.media.close"));
         AutomationProperties.SetName(_assigned, Texts.T("tags.media.assigned"));
@@ -159,6 +169,7 @@ internal sealed class MediaTagDialog : Window
         _availableLabel.IsVisible = _available.IsVisible = _session.Available.Count > 0;
 
         _input.IsEnabled = _add.IsEnabled = ready;
+        if (!ready) _input.Dismiss();
         _status.Text = _session.Snapshot == null ? Texts.T("tags.unavailable")
             : _session.MessageKey != null ? Texts.T(_session.MessageKey) : string.Empty;
         _status.IsVisible = _status.Text.Length > 0;
@@ -171,6 +182,7 @@ internal sealed class MediaTagDialog : Window
         if (_closed) return;
         _closed = true;
         _session.Updated -= OnSessionUpdated; Texts.Changed -= OnLanguageChanged;
+        _input.EndSuggestions(); _sources.End();
         _add.Click -= OnAdd; _close.Click -= OnClose;
         _input.RemoveHandler(KeyDownEvent, OnInputKey); RemoveHandler(KeyDownEvent, OnKey);
         Opened -= OnOpened; Closed -= OnClosed;

@@ -213,7 +213,7 @@ public partial class MainWindow
             }
             MediaTagSession session = new(target, _session.GetPublishedPrivateTagSnapshot,
                 _session.DefineAndSetMediaSubjectTagAsync, _session.SetMediaSubjectTagAsync);
-            MediaTagDialog dialog = new(session, match.Asset.OriginalFileName ?? Path.GetFileName(match.Asset.Path));
+            MediaTagDialog dialog = new(session, match.Asset.OriginalFileName ?? Path.GetFileName(match.Asset.Path), _session.ReadBooruCatalog);
             MediaPageTagWindow = dialog;
             await dialog.ShowDialog(this);
         }

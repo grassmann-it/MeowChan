@@ -37,12 +37,16 @@ public partial class ArchivePage
     private (ResourceId Thread, long Revision, IReadOnlyList<PrivateTagName> Names)? _tagSuggestions;
     private (ResourceId Thread, long Revision, bool CanEdit, string? Message, string Language)? _tagBarRendered;
     internal Task PrivateTagTask { get; private set; } = Task.CompletedTask;
+    // Danbooru source tags offered below the own tags; read again each time the bar is opened.
+    private readonly SourceTagSuggestions _sourceTagSuggestions = new();
+    internal SourceTagSuggestions SourceTagSuggestions => _sourceTagSuggestions;
 
     internal void AttachPrivateTags(DesktopSessionHost host)
     {
         _loadPrivateTags = host.GetPublishedPrivateTagSnapshot;
         _definePrivateTag = host.DefinePrivateTagAsync;
         _setThreadTag = host.SetThreadTagAsync;
+        _sourceTagSuggestions.Read = host.ReadBooruCatalog;
         _renamePrivateTag = host.RenamePrivateTagAsync;
         _deletePrivateTag = host.DeletePrivateTagAsync;
         _inspectLocalTagOrphans = host.InspectLocalMediaTagOrphansAsync;
@@ -54,6 +58,11 @@ public partial class ArchivePage
     {
         // One local tunnel registration, before native Button.Enter click handling.
         ReaderTagBar.AddHandler(KeyDownEvent, OnTagBarKeyDown, RoutingStrategies.Tunnel);
+        // Own tags as suggestions while typing; the tags of the open thread are not offered again.
+        TagSuggestionInput.Attach(ReaderTagInput, () => CanEditThreadTags ? _privateTags : null,
+            () => _thread == null || _privateTags == null ? new HashSet<TagId>()
+                : _privateTags.TagsOf(_thread.Summary.Id).Select(tag => tag.Id).ToHashSet(),
+            () => OnAddThreadTag(ReaderTagInput, new RoutedEventArgs()), _sourceTagSuggestions);
         // The tag column sorts by the sorted tag names, threads without tags last.
         ArchiveThreadTable.Columns[Array.IndexOf(ThreadColumnKeys, "tags")].CustomSortComparer = ArchiveThreadRow.TagColumnComparer.Instance;
         LocalizePrivateTags();
@@ -140,6 +149,7 @@ public partial class ArchivePage
         if (_tagBarWanted) { CloseTagBar(); return; }
         ReloadPrivateTags();
         _tagBarWanted = true;
+        _sourceTagSuggestions.Load();
         ReaderTagBar.IsVisible = true;
         RenderTagBar();
         // Opening is explicit, so it may take focus; later updates never do.
@@ -180,11 +190,15 @@ public partial class ArchivePage
         if (e.Handled || _ended || ShortcutService.IsCapturing || IsReaderDialogOpen
             || !ReaderTagBar.IsVisible || !IsTagBarSource(e.Source)
             || e.KeyModifiers != KeyModifiers.None) return;
-        if (e.Key == Key.Escape) { e.Handled = true; CloseTagBar(focusOpen: true); }
-        // Enter adds only from the text field; buttons keep their native activation.
-        else if (e.Key == Key.Enter && e.Source is Visual source
-            && source.GetSelfAndVisualAncestors().Contains(ReaderTagInput))
-        { e.Handled = true; OnAddThreadTag(sender, new RoutedEventArgs()); }
+        bool inInput = e.Source is Visual source && source.GetSelfAndVisualAncestors().Contains(ReaderTagInput);
+        TagFieldKey key = inInput ? TagSuggestionInput.Route(ReaderTagInput, e) : TagFieldKey.None;
+        // The first Escape in the field closes its open suggestion list, the next one the bar.
+        if (key == TagFieldKey.CloseList) { e.Handled = true; ReaderTagInput.Dismiss(); }
+        else if (e.Key == Key.Escape) { e.Handled = true; CloseTagBar(focusOpen: true); }
+        // Enter adds only from the text field; buttons keep their native activation. A highlighted
+        // suggestion is left to the field, which accepts and then adds it.
+        else if (key == TagFieldKey.CommitTyped)
+        { e.Handled = true; ReaderTagInput.Dismiss(); OnAddThreadTag(sender, new RoutedEventArgs()); }
     }
 
     private void OnAddThreadTag(object? sender, RoutedEventArgs e)
@@ -312,6 +326,7 @@ public partial class ArchivePage
         }
 
         ReaderTagInput.IsEnabled = canEdit;
+        if (!canEdit) ReaderTagInput.Dismiss();
         ReaderTagAdd.IsEnabled = canEdit;
         TextBlock status = ReaderTagStatus;
         status.Text = _privateTags == null ? Texts.T("tags.unavailable")
@@ -322,8 +337,7 @@ public partial class ArchivePage
     private void LocalizePrivateTags()
     {
         ToolTip.SetTip(ReaderTagsOpen, Texts.T("tags.openHint"));
-        ReaderTagInput.Watermark = Texts.T("tags.input");
-        AutomationProperties.SetName(ReaderTagInput, Texts.T("tags.input"));
+        TagSuggestionInput.Localize(ReaderTagInput);
         ReaderTagAdd.Content = Texts.T("tags.add");
         ReaderTagClose.Content = Texts.T("tags.close");
         _tagBarRendered = null;

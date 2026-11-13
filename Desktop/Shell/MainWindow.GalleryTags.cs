@@ -48,7 +48,7 @@ public partial class MainWindow
         {
             MediaTagSession session = new(target, _session.GetPublishedPrivateTagSnapshot,
                 _session.DefineAndSetMediaSubjectTagAsync, _session.SetMediaSubjectTagAsync);
-            MediaTagDialog dialog = new(session, entry.Asset.OriginalFileName ?? System.IO.Path.GetFileName(entry.Asset.Path));
+            MediaTagDialog dialog = new(session, entry.Asset.OriginalFileName ?? System.IO.Path.GetFileName(entry.Asset.Path), _session.ReadBooruCatalog);
             GalleryMediaTagWindow = dialog;
             await dialog.ShowDialog(this);
         }

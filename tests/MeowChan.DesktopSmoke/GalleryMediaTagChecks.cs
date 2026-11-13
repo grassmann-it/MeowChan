@@ -84,6 +84,17 @@ internal static class GalleryMediaTagChecks
             Require(Labels(dialog.AssignedPanel).SequenceEqual(new[] { "my_media  ✕" }) && Labels(dialog.AvailablePanel).SequenceEqual(new[] { "+ existing" }),
                 "Removing a chip did not move the tag back to the offers.");
 
+            // T4: typing offers the existing tag; the first Escape closes only that list, the next one the dialog.
+            dialog.Input.Focus();
+            dialog.Input.Text = "XIST";
+            await UntilAsync(() => dialog.Input.IsDropDownOpen);
+            Require(dialog.Input.ItemsSource!.OfType<IdentitySuggestion>().Select(item => item.Value).SequenceEqual(new[] { "existing", "XIST" }),
+                "The existing tag was not suggested, or an assigned tag was suggested again.");
+            var listEscape = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape };
+            dialog.Input.RaiseEvent(listEscape);
+            Require(listEscape.Handled && !dialog.Input.IsDropDownOpen && window.GalleryMediaTagWindow == dialog, "Escape must close the suggestion list first.");
+            dialog.Input.Text = string.Empty;
+
             var escape = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape };
             dialog.Input.RaiseEvent(escape);
             await UntilAsync(() => window.GalleryMediaTagWindow == null);
