@@ -3,6 +3,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Controls.Presenters;
+using Avalonia.Controls.Documents;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.Interactivity;
@@ -137,7 +138,13 @@ internal static class ReaderRepliesChecks
             await Program.WaitUntilAsync(() => list.SelectedItem is ArchivePostRow { Id: "101" });
             Require(page.CurrentThread?.Summary.Id == id, "Inline backlink navigation left the local thread.");
             Console.WriteLine("SMOKE reader replies: collapsed count, bounded 5-card inline page, more replies and quote navigation passed.");
-            await CheckPostCardsAsync(window, page, id);
+            foreach (ThemeVariant theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+            {
+                window.RequestedThemeVariant = theme;
+                await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+                Require(window.ActualThemeVariant == theme, "The card fixture did not apply " + theme.Key);
+                await CheckPostCardsAsync(window, page, id);
+            }
         }
         finally
         {
@@ -148,7 +155,7 @@ internal static class ReaderRepliesChecks
     }
 
     // Reader post cards (R1-R6): OP on the page and reply cards in their tokens, one-line header with the
-    // copyable number and reply count, inline >>No. hit-testing and navigation over unchanged plain text,
+    // copyable number and reply count, inline >>No. hit-testing and navigation over displayed plain text,
     // the focus-revealed keyboard quote row, and the bundled reading font with its relative line height.
     private static async Task CheckPostCardsAsync(Window window, ArchivePage page, ResourceId id)
     {
@@ -167,6 +174,10 @@ internal static class ReaderRepliesChecks
         await page.FocusPostAsync("120");
         Require(list.SelectedItem is ArchivePostRow { Id: "120" },
             "The inactive-card fixture did not finish moving selection away from the sampled posts.");
+        // Keep keyboard focus out of the virtualized containers too: an inactive but focused post
+        // correctly has an accent edge, which is a different state from the plain-card contract.
+        Require(page.FindControl<Button>("ReaderTagsOpen")!.Focus(),
+            "The inactive-card fixture could not move focus to the reader toolbar.");
         await Program.WaitUntilAsync(() =>
         {
             list.ScrollIntoView(opening); list.UpdateLayout();
@@ -179,16 +190,29 @@ internal static class ReaderRepliesChecks
         await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
         Color Token(string key) => Application.Current!.TryGetResource(key, window.ActualThemeVariant, out object? value)
             && value is ISolidColorBrush brush ? brush.Color : throw new InvalidOperationException("Missing token " + key);
-        Color? Surface(ListBoxItem item) => (item.GetVisualDescendants().OfType<ContentPresenter>().First().Background as ISolidColorBrush)?.Color;
+        ContentPresenter Presenter(ListBoxItem item) => item.GetVisualDescendants().OfType<ContentPresenter>()
+            .Single(presenter => ReferenceEquals(presenter.TemplatedParent, item));
+        Color? Surface(ListBoxItem item) => (Presenter(item).Background as ISolidColorBrush)?.Color;
         ListBoxItem opItem = Container(opening), replyItem = Container(reply);
-        Require(!opItem.IsSelected && !replyItem.IsSelected,
-            "Inactive-card fixture lost selection: selected=" + (list.SelectedItem as ArchivePostRow)?.Id);
+        Require(!opItem.IsSelected && !replyItem.IsSelected && !opItem.IsKeyboardFocusWithin && !replyItem.IsKeyboardFocusWithin,
+            "Inactive-card fixture retained selection or focus: selected=" + (list.SelectedItem as ArchivePostRow)?.Id);
+        // Quote navigation briefly paints a jump flash above the list. Let that transient finish
+        // naturally before capturing the actual inactive surfaces; do not hide or restyle it.
+        await Program.WaitUntilAsync(() => !page.FindControl<Border>("ReaderJumpFlash")!.IsVisible);
         Program.CaptureWindow(window, "smoke-reader-cards-inactive-" + window.ActualThemeVariant.Key + ".png");
-        Require(opItem.Classes.Contains("reader-op") && Surface(opItem) == Colors.Transparent,
-            "The opening post did not sit directly on the page: " + Surface(opItem));
+        Require(opItem.Classes.Contains("reader-op") && Surface(opItem) == Colors.Transparent
+            && (Presenter(opItem).BorderBrush as ISolidColorBrush)?.Color == Colors.Transparent
+            && Presenter(opItem).BorderThickness == new Thickness(1),
+            "The inactive opening post did not sit directly on the page: " + CardDetails(opItem));
         Require(!replyItem.Classes.Contains("reader-op") && Surface(replyItem) == Token("Workspace.Card")
-            && (replyItem.GetVisualDescendants().OfType<ContentPresenter>().First().BorderBrush as ISolidColorBrush)?.Color == Token("Workspace.CardEdge"),
-            "A reply was not a card with its edge: " + Surface(replyItem) + " selected=" + replyItem.IsSelected + " over=" + replyItem.IsPointerOver + " classes=" + string.Join(",", replyItem.Classes) + " listSelected=" + (list.SelectedItem as ArchivePostRow)?.Id + " theme=" + window.ActualThemeVariant + " card=" + Token("Workspace.Card") + " edgeOk=" + ((replyItem.GetVisualDescendants().OfType<ContentPresenter>().First().BorderBrush as ISolidColorBrush)?.Color == Token("Workspace.CardEdge")));
+            && (Presenter(replyItem).BorderBrush as ISolidColorBrush)?.Color == Token("Workspace.CardEdge")
+            && Presenter(replyItem).BorderThickness == new Thickness(1),
+            "A reply was not a card with its edge: " + CardDetails(replyItem));
+        string CardDetails(ListBoxItem item) => $"post={(item.DataContext as ArchivePostRow)?.Id}; "
+            + $"selected={item.IsSelected}; focus={item.IsFocused}; over={item.IsPointerOver}; "
+            + $"classes={string.Join(",", item.Classes)}; listSelected={(list.SelectedItem as ArchivePostRow)?.Id}; "
+            + $"theme={window.ActualThemeVariant}; surface={Surface(item)}; "
+            + $"edge={(Presenter(item).BorderBrush as ISolidColorBrush)?.Color}; thickness={Presenter(item).BorderThickness}";
         Require((list.Background as ISolidColorBrush)?.Color == Token("Workspace.Background"), "The post list was not on the page tone.");
         Require(opItem.GetVisualDescendants().OfType<TextBlock>().Any(text => text.IsEffectivelyVisible && text.Text == opening.BacklinkCountLabel),
             "The reply count was not shown in the opening post header.");
@@ -199,12 +223,25 @@ internal static class ReaderRepliesChecks
         Require(reply.Body == ">>100 reply 101" && body.Text == null && body.Inlines is { Count: 3 }
             && body.PlainText == expectedBody && body.Document!.Segments.Count(segment => segment.Kind == ReaderBodySegmentKind.QuoteMarker) == 1,
             "The reply body did not retain its quote, OP-marker and text runs: " + body.PlainText);
+        Run[] runs = body.Inlines!.OfType<Run>().ToArray();
+        Require(runs.Length == 3 && string.Concat(runs.Select(run => run.Text)) == expectedBody
+            && runs[0].Text == ">>100" && runs[1].Text == " " + MeowChan.Desktop.Localization.Texts.T("reader.quote.opMarker")
+            && (runs[0].Foreground as ISolidColorBrush)?.Color == Token("Workspace.Accent")
+            && (runs[1].Foreground as ISolidColorBrush)?.Color == Token("Workspace.Muted"),
+            "The native quote/marker runs lost their displayed text or theme tokens: " + body.PlainText);
         Require(body.LineHeight == Math.Round(body.FontSize * 1.45), "The reading line height did not follow the font size.");
         Require(FontManager.Current.TryGetGlyphTypeface(new Typeface(body.FontFamily), out var glyphs)
             && glyphs!.FamilyName == "Noto Sans", "The post body did not resolve the bundled Noto Sans: " + body.FontFamily);
         body.SelectionStart = 0; body.SelectionEnd = expectedBody.Length;
         Require(body.SelectedText == expectedBody, "Selecting a formatted body did not copy its plain text: " + body.SelectedText);
+        ReaderBodySegment marker = body.Document!.Segments.Single(segment => segment.Kind == ReaderBodySegmentKind.QuoteMarker);
+        body.SelectionStart = marker.Start; body.SelectionEnd = marker.End;
+        Require(body.SelectedText == " " + MeowChan.Desktop.Localization.Texts.T("reader.quote.opMarker"),
+            "Selecting the OP marker did not preserve the displayed copy text: " + body.SelectedText);
         body.SelectionStart = body.SelectionEnd = 0;
+        Rect markerCaret = body.TextLayout.HitTestTextPosition(marker.Start + 2);
+        Require(body.QuoteAt(new Point(markerCaret.X + 1, markerCaret.Y + markerCaret.Height / 2)) == null,
+            "The display-only OP marker became a quote target.");
         Rect caret = body.TextLayout.HitTestTextPosition(2);
         ReaderBodySegment? link = body.QuoteAt(new Point(caret.X + 1, caret.Y + caret.Height / 2));
         Rect plain = body.TextLayout.HitTestTextPosition(expectedBody.Length - 2);
@@ -218,7 +255,7 @@ internal static class ReaderRepliesChecks
         key.Focus(NavigationMethod.Tab);
         await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
         Require(keys.Bounds.Height > 0 && key.Bounds.Height >= 24, "Keyboard focus did not reveal the quote row: " + keys.Bounds);
-        Program.CaptureWindow(window, "smoke-reader-cards-keyboard-quote.png");
+        Program.CaptureWindow(window, "smoke-reader-cards-keyboard-quote-" + window.ActualThemeVariant.Key + ".png");
 
         string? copied = null;
         page.CopyPostReference = text => { copied = text; return Task.CompletedTask; };
@@ -234,8 +271,31 @@ internal static class ReaderRepliesChecks
         body.RaiseEvent(new ReaderQuoteInvokedEventArgs(ReaderBodyTextBlock.QuoteInvokedEvent, link!.Quote!));
         await Program.WaitUntilAsync(() => list.SelectedItem is ArchivePostRow { Id: "100" } && !page.IsBusy);
         Require(page.CurrentThread?.Summary.Id == id, "Inline >>100 navigation left the local thread.");
+        // Assert the selected contract explicitly, not by accepting its accent surface as an inactive card.
+        // FocusPostAsync also supersedes the routed quote handler's remaining layout passes.
+        foreach (string postId in new[] { "100", "101" })
+        {
+            await page.FocusPostAsync(postId);
+            ArchivePostRow selected = list.ItemsSource!.Cast<ArchivePostRow>().Single(row => row.Id == postId);
+            ListBoxItem selectedItem = Container(selected);
+            // FocusPostAsync already focused the container with NavigationMethod.Unspecified. Move to a
+            // child first so this is a real Tab focus transition, not a no-op focus of the same element.
+            Button selectedNumber = selectedItem.GetVisualDescendants().OfType<Button>()
+                .Single(button => button.Classes.Contains("reader-post-number"));
+            Require(selectedNumber.Focus(NavigationMethod.Tab), "Could not focus the post number for " + postId);
+            Require(selectedItem.Focus(NavigationMethod.Tab), "Could not keyboard-focus post " + postId);
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            Require(ReferenceEquals(list.SelectedItem, selected) && selectedItem.IsSelected && selectedItem.IsFocused
+                && selectedItem.Classes.Contains(":focus-visible")
+                && Surface(selectedItem) == Token("Workspace.AccentSurface")
+                && (Presenter(selectedItem).BorderBrush as ISolidColorBrush)?.Color == Token("Workspace.Accent")
+                && Presenter(selectedItem).BorderThickness == new Thickness(3, 2, 2, 2),
+                "The selected post lost its separate keyboard-focus edge: " + CardDetails(selectedItem));
+            await Program.WaitUntilAsync(() => !page.FindControl<Border>("ReaderJumpFlash")!.IsVisible);
+            Program.CaptureWindow(window, "smoke-reader-cards-focused-" + postId + "-" + window.ActualThemeVariant.Key + ".png");
+        }
         Program.CaptureWindow(window, "smoke-reader-cards-" + window.ActualThemeVariant.Key + ".png");
-        Console.WriteLine("SMOKE reader cards: OP on page, reply card tokens, header count and number copy, inline >>No. hit-test/navigation, keyboard quote row, Noto Sans body passed.");
+        Console.WriteLine("SMOKE reader cards (" + window.ActualThemeVariant.Key + "): OP on page, reply card tokens, header count and number copy, inline >>No. hit-test/navigation, keyboard quote row, Noto Sans body passed.");
     }
 
     private static void Require(bool condition, string message)
