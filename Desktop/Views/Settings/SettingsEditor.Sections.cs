@@ -176,7 +176,7 @@ public partial class SettingsEditor
             new("settings.interface", InterfaceTitle, () => SettingsInterfaceHeading, () => SelectCategory("settings.interface")),
             new("settings.reading-media", ReadingMediaTitle, () => SettingsReadingMediaHeading, () => SelectCategory("settings.reading-media")),
             new("settings.downloads", DownloadsTitle, () => SettingsDownloadsHeading, () => SelectCategory("settings.downloads")),
-            new("settings.worker-budgets", AdvancedBudgetsLabel, () => SettingsWorkerBudgetsPageTitle,
+            new("settings.worker-budgets", StorageLimitsLabel, () => SettingsWorkerBudgetsPageTitle,
                 () => { SelectCategory("settings.worker-budgets"); SettingsWorkerBudgetsHeading.IsExpanded = true; }),
             new("settings.updates", UpdatesTitle, () => SettingsUpdatesHeading, () => SelectCategory("settings.updates"))
         };

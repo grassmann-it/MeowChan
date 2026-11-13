@@ -263,6 +263,8 @@ namespace MeowChan
         public string ReserveLabel => Texts.T("budgets.reserve");
         public string ReserveHint => Texts.T("budgets.reserveHint");
         public string AdvancedBudgetsLabel => Texts.T("budgets.advanced");
+        public string StorageLimitsLabel => Texts.T("settings.storageLimits");
+        public string StorageLimitsIntro => Texts.T("budgets.intro");
         public string BudgetRestartHint => Texts.T("budgets.nextSession");
         public bool AutomaticUpdateChecks { get => _automaticUpdateChecks; set => SetField(ref _automaticUpdateChecks, value, nameof(AutomaticUpdateChecks)); }
         public bool IncludePrereleaseUpdates { get => _includePrereleaseUpdates; set => SetField(ref _includePrereleaseUpdates, value, nameof(IncludePrereleaseUpdates)); }
@@ -317,6 +319,17 @@ namespace MeowChan
         public string ParallelLabel => Texts.T("settings.parallelDownloads");
         public string ParallelSafetyLabel => Texts.T("settings.parallelSafetyLimit");
         public string ParallelSafetyHint => Texts.T("settings.parallelSafetyHint");
+        // Live from the two drafts: the smaller value is what the queue applies. Empty while
+        // either draft is not a valid whole number (the field errors already say why).
+        public string ParallelEffectiveText =>
+            MaxParallelDownloads is { } requested && ParallelDownloadsSafetyLimit is { } cap
+            && requested >= 1 && requested == decimal.Truncate(requested) && requested <= int.MaxValue
+            && cap >= 1 && cap == decimal.Truncate(cap) && cap <= Downloader.DownloadQueue.MaximumParallelDownloadsSafetyLimit
+                ? Texts.T("settings.parallelEffective", (int)Math.Min(requested, cap)) : string.Empty;
+        private void RaiseParallelEffectiveChanged()
+        {
+            if (!_isClosed) PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ParallelEffectiveText)));
+        }
         public string RestoreSessionLabel => Texts.T("settings.restoreSession");
         public string BoardAdmissionWizardLabel => Texts.T("settings.boardAdmissionWizard");
         public string MonitorClipboardLabel => Texts.T("settings.monitorClipboard");
@@ -444,13 +457,13 @@ namespace MeowChan
         public decimal? MaxParallelDownloads
         {
             get => _maxParallelDownloads;
-            set => SetField(ref _maxParallelDownloads, value, nameof(MaxParallelDownloads));
+            set { SetField(ref _maxParallelDownloads, value, nameof(MaxParallelDownloads)); RaiseParallelEffectiveChanged(); }
         }
 
         public decimal? ParallelDownloadsSafetyLimit
         {
             get => _parallelDownloadsSafetyLimit;
-            set => SetField(ref _parallelDownloadsSafetyLimit, value, nameof(ParallelDownloadsSafetyLimit));
+            set { SetField(ref _parallelDownloadsSafetyLimit, value, nameof(ParallelDownloadsSafetyLimit)); RaiseParallelEffectiveChanged(); }
         }
 
         public decimal? BandwidthLimiterMB
@@ -719,7 +732,7 @@ namespace MeowChan
                 foreach (string property in new[]
                 {
                     nameof(BusyStatusMessage), nameof(NotificationsTitle), nameof(InformationNotificationsLabel), nameof(WarningNotificationsLabel), nameof(ErrorNotificationsLabel), nameof(NotificationsHint), nameof(UpdatesTitle), nameof(AutomaticUpdateChecksLabel), nameof(IncludePrereleaseUpdatesLabel), nameof(UpdatePrivacyHint),
-                    nameof(UpdateDisabledReason), nameof(ReserveLabel), nameof(ReserveHint), nameof(AdvancedBudgetsLabel),
+                    nameof(UpdateDisabledReason), nameof(ReserveLabel), nameof(ReserveHint), nameof(AdvancedBudgetsLabel), nameof(StorageLimitsLabel), nameof(StorageLimitsIntro), nameof(ParallelEffectiveText),
                     nameof(BudgetRestartHint), nameof(ProductionWorkersLabel), nameof(WorkerIdleMinutesLabel), nameof(SourceHeapMiBLabel),
                     nameof(FilterHeapMiBLabel), nameof(BooruCatalogMiBLabel), nameof(BooruCatalogMiBHint), nameof(BooruCatalogMiBHelp),
                     nameof(PrivateTagLimitLabel), nameof(PrivateTagLimitHint), nameof(PrivateTagLimitHelp),

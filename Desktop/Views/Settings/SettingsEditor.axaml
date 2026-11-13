@@ -200,9 +200,12 @@
                             <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" Text="{Binding ParallelSafetyHint}" Classes="muted" TextWrapping="Wrap" />
                         </Grid>
                     </Border>
+                    <TextBlock x:Name="ParallelEffectiveLine" Margin="0,2,0,0" Text="{Binding ParallelEffectiveText}" FontWeight="SemiBold" TextWrapping="Wrap"
+                               IsVisible="{Binding $self.Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" AutomationProperties.LiveSetting="Polite" />
                 </StackPanel>
                 <StackPanel x:Name="SettingsWorkerBudgetsPage" Spacing="8" IsEnabled="{Binding IsEditable}" IsVisible="False">
-                    <TextBlock x:Name="SettingsWorkerBudgetsPageTitle" Text="{Binding AdvancedBudgetsLabel}" Classes="section-title" />
+                    <TextBlock x:Name="SettingsWorkerBudgetsPageTitle" Text="{Binding StorageLimitsLabel}" Classes="section-title" />
+                    <TextBlock x:Name="StorageLimitsIntroText" Text="{Binding StorageLimitsIntro}" Classes="muted workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ReserveFieldLabel" Text="{Binding ReserveLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">

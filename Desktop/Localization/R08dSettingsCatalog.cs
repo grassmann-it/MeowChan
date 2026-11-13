@@ -11,7 +11,7 @@ internal static class R08dSettingsCatalog
         ("setup.accept", "Accept these values", "Diese Werte übernehmen"),
         ("setup.later", "Later", "Später"),
         ("setup.close", "Close", "Schließen"),
-        ("setup.reserve", "Current free-space reserve: {0} GiB. Change it later in Settings → Worker budgets. No unlimited mode or default change is applied.", "Aktuelle Speicherreserve: {0} GiB. Später unter Einstellungen → Worker-Budgets änderbar. Kein unbegrenzter Modus und keine Defaultänderung."),
+        ("setup.reserve", "Free-space reserve: {0} GiB (unchanged by this setup). You can change it later under Settings → Storage and limits.", "Speicherplatzreserve: {0} GiB (wird durch die Einrichtung nicht geändert). Du kannst sie später unter Einstellungen → Speicher und Grenzen ändern."),
         ("setup.positiveLimits", "Enter a positive MiB/s limit (at least 1 byte/s, within Int64) and a whole parallel count from 1 to 2147483647. Zero is not unlimited.", "Ein positives MiB/s-Limit (mindestens 1 Byte/s, innerhalb Int64) und eine ganze Parallelanzahl von 1 bis 2147483647 eingeben. Null ist nicht unbegrenzt."),
         ("setup.checking", "Checking the selected folder…", "Gewählter Ordner wird geprüft…"),
         ("setup.saving", "Saving the accepted values and completion together…", "Angenommene Werte und Abschluss werden gemeinsam gespeichert…"),

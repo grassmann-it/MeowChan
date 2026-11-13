@@ -67,7 +67,7 @@ public partial class PluginsPage
             }
             await _services.ProfileStore.SaveConfigurationAsync(entry.PluginId, draft.CandidateId, configuration, draft.ExpectedRevision, token);
             if (!Current(generation)) return;
-            _drafts.Remove(entry.Key); _renderedKey = null;
+            _drafts.Remove(entry.Key); _renderedKey = null; _savedNoticeKey = entry.Key;
             await RefreshAsync();
         }
         catch (OperationCanceledException) { }

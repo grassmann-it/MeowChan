@@ -102,7 +102,7 @@ public sealed class BooruCatalogLimitTests
             foreach (string language in new[] { "en", "de", "es", "fr", "ru" })
             {
                 Texts.SetLanguage(language);
-                string category = Texts.T("budgets.advanced");
+                string category = Texts.T("settings.storageLimits");
                 string setting = Texts.T("budgets.booruCatalog");
                 string text = Texts.T("booru.ui.watchers.catalogSize", "24 MiB", "32 MiB", 75, 900, category, setting);
                 Assert.Contains(setting, text);

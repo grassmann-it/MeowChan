@@ -35,6 +35,8 @@ public partial class PluginsPage : UserControl
     private readonly Dictionary<string, string?> _actionReasons = new(StringComparer.Ordinal);
     private readonly Dictionary<string, (DescriptionsItem Item, SelectableTextBlock Value)> _identityRows = new(StringComparer.Ordinal);
     private string? _selectedKey;
+    // Plugin whose configuration was just saved: its status line says when the saved values apply.
+    private string? _savedNoticeKey;
     private string? _renderedKey;
     private bool _narrow;
     private bool _showDetails;
@@ -383,7 +385,9 @@ public partial class PluginsPage : UserControl
     {
         PluginConfigurationDraft? draft = CurrentDraft;
         bool stale = draft != null && draft.ExpectedRevision != _catalog?.Profile.Revision;
-        C<TextBlock>("PluginDraftStatus").Text = Texts.T(stale ? "plugins.stale" : draft?.Dirty == true ? "plugins.draft" : "plugins.settingsHint");
+        if (_savedNoticeKey != _selectedKey || draft?.Dirty == true) _savedNoticeKey = null;
+        C<TextBlock>("PluginDraftStatus").Text = Texts.T(stale ? "plugins.stale" : draft?.Dirty == true ? "plugins.draft"
+            : _savedNoticeKey != null ? "plugins.savedNextStart" : "plugins.settingsHint");
         C<TextBlock>("PluginDraftStatus").Classes.Set("workspace-error", stale);
         TextBlock draftSummary = C<TextBlock>("PluginDraftSummary");
         draftSummary.Text = C<TextBlock>("PluginDraftStatus").Text;

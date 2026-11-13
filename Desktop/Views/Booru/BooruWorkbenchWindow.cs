@@ -517,7 +517,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         if (view.Storage is { NearLimit: true } storage)
         {
             _storageText.Text = Texts.T("booru.ui.watchers.catalogSize", Size(storage.DocumentBytes), Size(storage.LimitBytes),
-                storage.Percent, storage.PostCount, Texts.T("budgets.advanced"), Texts.T("budgets.booruCatalog"));
+                storage.Percent, storage.PostCount, Texts.T("settings.storageLimits"), Texts.T("budgets.booruCatalog"));
             ApplyTone(_storageHost, BooruNoticeKind.Warning);
         }
         _storageHost.IsVisible = view.Storage is { NearLimit: true };
