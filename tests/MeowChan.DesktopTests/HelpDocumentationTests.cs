@@ -364,7 +364,9 @@ public sealed class HelpDocumentationTests
         string text = Plain(Section(Read(Help), "Waiting, local data and offline use"));
         AssertNumber(text, @"starts? at least (?<value>\w+) second", BooruHostHttp.MinimumStartSpacing.TotalSeconds);
         AssertNumber(text, @"pause of at least (?<value>\d+) seconds", BooruHostHttp.MinimumCooldown.TotalSeconds);
-        AssertNumber(text, @"(?<value>\d+)-hour cap", BooruHostHttp.MaximumCooldown.TotalHours);
+        Assert.Contains("a longer valid Retry-After is not shortened", text, StringComparison.Ordinal);
+        Assert.Contains("Only the technical maximum representable date bounds that deadline", text, StringComparison.Ordinal);
+        Assert.DoesNotMatch(@"\b\d+-hour cap\b", text);
         AssertNumber(text, @"no earlier than (?<value>\w+) seconds", BooruHostHttp.RetryDelay.TotalSeconds);
         AssertNumber(text, @"operation has at most (?<value>\d+) sends", BooruHostHttp.MaximumSendsPerJob);
         AssertNumber(text, @"(?<value>\d+)-second lifetime", BooruHostHttp.MaximumJobLifetime.TotalSeconds);
@@ -374,7 +376,7 @@ public sealed class HelpDocumentationTests
     }
 
     [Fact]
-    public void GermanCatalogDefaultsAndCooldownBoundsMatchTheSameCode()
+    public void GermanCatalogDefaultsAndProviderCooldownContractMatchTheSameCode()
     {
         string text = Plain(Read(DanbooruGuide));
         AssertNumber(text, @"Schreibgrenze von (?<value>\d+) MiB", new Config().BooruCatalogLimitMiB);
@@ -382,7 +384,9 @@ public sealed class HelpDocumentationTests
         AssertNumber(text, @"auf \d+ bis (?<value>\d+) MiB", Config.BooruCatalogMaximumLimitMiB);
         AssertNumber(text, @"Lesedeckel von (?<value>\d+) MiB", BooruCatalogStore.MaximumDocumentBytes / (1024 * 1024));
         AssertNumber(text, @"mindestens (?<value>\d+) Sekunden", BooruHostHttp.MinimumCooldown.TotalSeconds);
-        AssertNumber(text, @"höchstens (?<value>\d+) Stunden", BooruHostHttp.MaximumCooldown.TotalHours);
+        Assert.Contains("Ein längeres gültiges Retry-After wird nicht auf 24 Stunden verkürzt", text, StringComparison.Ordinal);
+        Assert.Contains("nur das technisch maximal darstellbare Datum begrenzt diesen Zeitpunkt", text, StringComparison.Ordinal);
+        Assert.DoesNotMatch(@"höchstens \d+ Stunden", text);
     }
 
     [Theory]
