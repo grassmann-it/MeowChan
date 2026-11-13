@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using MeowChan.Archive;
+using MeowChan.Booru;
 using MeowChan.Downloader;
 using MeowChan.Persistence;
 
@@ -539,6 +541,415 @@ public sealed class BooruCatalogStoreTests
         store.UpsertPost(Post("60"), DateTimeOffset.UtcNow);
         Assert.Equal("60", Assert.Single(store.Read().Posts).PostId);
         Assert.DoesNotContain(Directory.EnumerateFiles(directory.Path), path => IsTemporary(Path.GetFileName(path)));
+    }
+
+    // ---- Incomplete, truncated and regressing catalog data ------------------------------------------
+
+    [Fact]
+    public void EveryTruncationOfAWrittenCatalogFailsClosed()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        BooruCatalogStore store = new(directory.Path, lease);
+        WriteRepresentativeCatalog(store);
+        byte[] complete = File.ReadAllBytes(store.FilePath);
+        Assert.NotEmpty(store.Read().Watchers);
+
+        // A torn or partially flushed file must never be accepted as a (smaller) valid catalog.
+        for (int length = 0; length < complete.Length; length++)
+        {
+            File.WriteAllBytes(store.FilePath, complete.AsSpan(0, length).ToArray());
+            Assert.Throws<InvalidDataException>(() => store.Read());
+        }
+
+        File.WriteAllBytes(store.FilePath, complete);
+        Assert.Equal("123", Assert.Single(store.Read().Watchers).HighWaterMark);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(4096)]
+    public void ZeroFilledCatalogAfterPowerLossFailsClosed(int length)
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        BooruCatalogStore store = new(directory.Path, lease);
+        File.WriteAllBytes(store.FilePath, new byte[length]);
+        Assert.Throws<InvalidDataException>(() => store.Read());
+        // A failed read never becomes an empty catalog that a later write could persist over the data.
+        Assert.Throws<InvalidDataException>(() => store.UpsertPost(Post("1"), DateTimeOffset.UtcNow));
+        Assert.Equal(length, new FileInfo(store.FilePath).Length);
+    }
+
+    [Theory]
+    [InlineData("watchers", "highWaterMark")]
+    [InlineData("watchers", "nextPage")]
+    [InlineData("watchers", "baselineEstablished")]
+    [InlineData("watchers", "knownPostIds")]
+    [InlineData("watchers", "watcherId")]
+    [InlineData("watchers", "query")]
+    [InlineData("watchers", "state")]
+    [InlineData("watchers", "createdAtUtc")]
+    [InlineData("posts", "firstSeenAtUtc")]
+    [InlineData("posts", "lastSeenAtUtc")]
+    [InlineData("posts", "localAssetId")]
+    [InlineData("posts", "localPath")]
+    [InlineData("posts", "findings")]
+    [InlineData("posts", "post")]
+    public void RecordsMissingASchemaOneKeyFailClosed(string collection, string key)
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        BooruCatalogStore store = new(directory.Path, lease);
+        WriteRepresentativeCatalog(store);
+
+        JsonObject root = JsonNode.Parse(File.ReadAllText(store.FilePath))!.AsObject();
+        JsonObject record = root[collection]![0]!.AsObject();
+        Assert.True(record.Remove(key), $"fixture lacks {key}");
+        File.WriteAllText(store.FilePath, root.ToJsonString());
+
+        Assert.Throws<InvalidDataException>(() => store.Read());
+    }
+
+    [Fact]
+    public void RecordsMissingANestedRequiredKeyFailClosed()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        BooruCatalogStore store = new(directory.Path, lease);
+        WriteRepresentativeCatalog(store);
+        string original = File.ReadAllText(store.FilePath);
+
+        foreach (Action<JsonObject> damage in new Action<JsonObject>[]
+                 {
+                     root => root.Remove("schemaVersion"),
+                     root => root.Remove("watchers"),
+                     root => root["posts"]![0]!["findings"]![0]!.AsObject().Remove("foundAtUtc"),
+                     root => root["posts"]![0]!["findings"]![0]!.AsObject().Remove("findingId"),
+                     root => root["posts"]![0]!["post"]!.AsObject().Remove("fields"),
+                     root => root["posts"]![0]!["post"]!["media"]![0]!.AsObject().Remove("url"),
+                     root => root["posts"]![0]!["post"]!["tags"]![0]!.AsObject().Remove("category")
+                 })
+        {
+            JsonObject root = JsonNode.Parse(original)!.AsObject();
+            damage(root);
+            File.WriteAllText(store.FilePath, root.ToJsonString());
+            Assert.Throws<InvalidDataException>(() => store.Read());
+        }
+    }
+
+    [Fact]
+    public void DuplicateJsonKeysCannotReplaceADurableHighWaterMark()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        BooruCatalogStore store = new(directory.Path, lease);
+        WriteRepresentativeCatalog(store);
+        string text = File.ReadAllText(store.FilePath);
+        const string original = "\"highWaterMark\": \"123\"";
+        Assert.Contains(original, text);
+        // "Last wins" would silently erase the fence and re-announce every older post.
+        File.WriteAllText(store.FilePath, text.Replace(original, original + ", \"highWaterMark\": null", StringComparison.Ordinal));
+        Assert.Throws<InvalidDataException>(() => store.Read());
+    }
+
+    [Theory]
+    [InlineData("remove-highWaterMark")]
+    [InlineData("remove-baselineEstablished")]
+    [InlineData("duplicate-highWaterMark")]
+    public void IdleEstablishedWatcherCannotSilentlyLoseItsHighWaterMark(string damage)
+    {
+        // An idle established watcher keeps no known ids (they are compacted below the fence), so the
+        // high-water mark is the only thing separating "already seen" from "new" after a restart.
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        BooruCatalogStore store = new(directory.Path, lease);
+        store.UpsertWatcher(new("w-idle", "danbooru", "cat", "Active", DateTimeOffset.Parse("2026-11-12T12:00:00Z"),
+            HighWaterMark: "500", BaselineEstablished: true, ResumeState: "Active", PageSize: 20, PageBudget: 5));
+        string text = File.ReadAllText(store.FilePath);
+        const string fence = "\"highWaterMark\": \"500\"";
+        Assert.Contains(fence, text);
+
+        if (damage == "duplicate-highWaterMark")
+        {
+            text = text.Replace(fence, fence + ", \"highWaterMark\": null", StringComparison.Ordinal);
+        }
+        else
+        {
+            JsonObject root = JsonNode.Parse(text)!.AsObject();
+            Assert.True(root["watchers"]![0]!.AsObject().Remove(damage["remove-".Length..]));
+            text = root.ToJsonString();
+        }
+        File.WriteAllText(store.FilePath, text);
+
+        Assert.Throws<InvalidDataException>(() => store.Read());
+    }
+
+    [Fact]
+    public void IdleRecordsWithoutLaterAdditiveKeysStayReadable()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        BooruCatalogStore store = new(directory.Path, lease);
+        DateTimeOffset now = DateTimeOffset.Parse("2026-11-12T12:00:00Z");
+        store.UpsertPost(Post("5"), now);
+        store.UpsertWatcher(new("w-idle", "danbooru", "cat", "Paused", now, HighWaterMark: "5",
+            BaselineEstablished: true, ResumeState: "Paused"));
+
+        // A schema-1 file written before the restart fields and the original intent existed.
+        JsonObject root = JsonNode.Parse(File.ReadAllText(store.FilePath))!.AsObject();
+        root["posts"]![0]!.AsObject().Remove("originalIntent");
+        JsonObject watcher = root["watchers"]![0]!.AsObject();
+        foreach (string additive in new[] { "cursorBeforePostId", "checkStartHighWaterMark", "checkStartHighWaterMarkCaptured",
+                     "resumeState", "pageSize", "pageBudget", "pagesCheckedInRun", "budgetLimited" })
+            Assert.True(watcher.Remove(additive), additive);
+        File.WriteAllText(store.FilePath, root.ToJsonString());
+
+        BooruCatalogSnapshot migrated = store.Read();
+        Assert.Equal(BooruOriginalIntent.None, Assert.Single(migrated.Posts).OriginalIntent);
+        BooruWatcherRecord saved = Assert.Single(migrated.Watchers);
+        Assert.Equal("5", saved.HighWaterMark);
+        Assert.Null(saved.ResumeState);
+        Assert.Equal(0, saved.NextPage);
+    }
+
+    [Fact]
+    public void CatalogsWrittenByTheCurrentWriterKeepLoadingUnderTheRequiredKeys()
+    {
+        // Every record shape the current writer produces, including the production watcher projection driven
+        // through real domain transitions, is read back by a fresh store under the required-key and fence rules.
+        using TempDirectory directory = new();
+        DateTimeOffset now = DateTimeOffset.Parse("2026-11-12T12:00:00Z");
+        byte[] written;
+        using (ProfileLease lease = ProfileLease.Acquire(directory.Path))
+        {
+            BooruCatalogStore store = new(directory.Path, lease);
+            WriteRepresentativeCatalog(store);
+            store.AddFinding("danbooru", "123", BooruFindingKind.Search, null, "cat", now);
+            store.AddFinding("danbooru", "123", BooruFindingKind.OneShot, null, null, now);
+            BooruOriginalIntent[] intents =
+            [
+                BooruOriginalIntent.None, BooruOriginalIntent.Requested, BooruOriginalIntent.Cancelled,
+                BooruOriginalIntent.Unavailable, BooruOriginalIntent.NotAdmitted
+            ];
+            for (int item = 0; item < intents.Length; item++)
+            {
+                string id = (200 + item).ToString();
+                store.UpsertPost(Post(id), now);
+                store.SetOriginalIntent("danbooru", id, intents[item]);
+            }
+            store.UpsertPost(Post("300"), now);
+            store.LinkLocalAsset("danbooru", "300", "asset-without-path");
+
+            store.UpsertWatcher(new("w-fresh", "danbooru", "cat", "Active", now, ResumeState: "Active", PageSize: 20, PageBudget: 5));
+            store.UpsertWatcher(new("w-empty", "danbooru", "cat", "Active", now, BaselineEstablished: true,
+                ResumeState: "Active", PageSize: 20, PageBudget: 5));
+            store.UpsertWatcher(new("w-cool", "danbooru", "cat", "Cooldown", now, CooldownUntilUtc: now.AddMinutes(5),
+                ErrorCode: "rate_limited", HighWaterMark: "9", BaselineEstablished: true, ResumeState: "Active"));
+            store.UpsertWatcher(new("w-error", "danbooru", "cat", "Error", now, ErrorCode: "provider_error",
+                HighWaterMark: "9", BaselineEstablished: true, KnownPostIds: ["9"]));
+            store.UpsertWatcher(new("w-gone", "danbooru", "cat", "Active", now, HighWaterMark: "9", BaselineEstablished: true));
+            Assert.True(store.MarkWatcherRemoved("w-gone"));
+
+            // The production projection, persisted after every transition of a baseline and a budget-limited catch-up.
+            Assert.True(DanbooruWatcher.TryCreate("w-domain", "cat", now, out DanbooruWatcher? created, out _, 2, 2));
+            DanbooruWatcher watcher = created!;
+            void Persist(DanbooruWatcher next)
+            {
+                watcher = next;
+                store.UpsertWatcher(DanbooruWatcherRecordMapper.ToRecord(watcher));
+            }
+            DanbooruSearchPageObservation Page(int page, bool end, params string[] ids) =>
+                new("danbooru", watcher.CanonicalQuery, page, ids, end);
+            Persist(watcher);
+            Persist(DanbooruWatcher.BeginCheck(watcher, now).Watcher);
+            Persist(DanbooruWatcher.ApplyPage(watcher, Page(1, false, "100", "99"), now).Watcher);
+            Persist(DanbooruWatcher.BeginCheck(watcher, now.AddMinutes(1)).Watcher);
+            Persist(DanbooruWatcher.ApplyPage(watcher, Page(1, false, "140", "130"), now).Watcher);
+            Persist(DanbooruWatcher.ApplyPage(watcher, Page(2, false, "120", "110"), now).Watcher);
+            Assert.True(watcher.Progress.BudgetLimited);
+            Persist(DanbooruWatcher.BeginCheck(watcher, now.AddMinutes(2)).Watcher);
+            Persist(DanbooruWatcher.ApplyPage(watcher, Page(3, false, "105", "100"), now).Watcher);
+            Assert.Equal(0, watcher.Progress.NextPage);
+            Persist(DanbooruWatcher.Pause(watcher).Watcher);
+            written = File.ReadAllBytes(store.FilePath);
+        }
+
+        using ProfileLease reopened = ProfileLease.Acquire(directory.Path);
+        BooruCatalogStore restarted = new(directory.Path, reopened);
+        BooruCatalogSnapshot snapshot = restarted.Read();
+        Assert.Equal(7, snapshot.Posts.Count);
+        Assert.Equal(7, snapshot.Watchers.Count);
+        BooruWatcherRecord domain = Assert.Single(snapshot.Watchers, item => item.WatcherId == "w-domain");
+        Assert.Equal("140", domain.HighWaterMark);
+        Assert.Empty(domain.KnownPostIds);
+        Assert.Equal("Removed", Assert.Single(snapshot.Watchers, item => item.WatcherId == "w-gone").State);
+        Assert.Equal(BooruOriginalIntent.Linked, restarted.TryGetPost("danbooru", "300")!.OriginalIntent);
+        Assert.Equal("w-domain", DanbooruWatcherRecordMapper.FromRecord(domain).WatcherId);
+        // Re-persisting every record unchanged is accepted and reproduces the same bytes.
+        foreach (BooruWatcherRecord record in snapshot.Watchers) restarted.UpsertWatcher(record);
+        Assert.Equal(written, File.ReadAllBytes(restarted.FilePath));
+    }
+
+    [Fact]
+    public void InterruptedReplacementKeepsThePreviousCatalogAndItsCursor()
+    {
+        using TempDirectory directory = new();
+        DateTimeOffset now = DateTimeOffset.Parse("2026-11-12T12:00:00Z");
+        using (ProfileLease lease = ProfileLease.Acquire(directory.Path))
+        {
+            BooruCatalogStore store = new(directory.Path, lease);
+            WriteRepresentativeCatalog(store);
+            byte[] before = File.ReadAllBytes(store.FilePath);
+
+            // Fault after the durable temporary write, before the rename: the crash window of the writer.
+            store.BeforeAdmittedMutationForTests = _ => throw new IOException("simulated crash before replace");
+            Assert.Throws<IOException>(() => store.UpsertWatcher(InFlightWatcher(now) with
+            {
+                HighWaterMark = "200", KnownPostIds = ["150", "200"], CursorBeforePostId = "150"
+            }));
+            Assert.Throws<IOException>(() => store.UpsertPost(Post("999"), now));
+
+            Assert.Equal(before, File.ReadAllBytes(store.FilePath));
+            Assert.DoesNotContain(Directory.EnumerateFiles(directory.Path), path => IsTemporary(Path.GetFileName(path)));
+        }
+
+        using ProfileLease reopened = ProfileLease.Acquire(directory.Path);
+        BooruCatalogSnapshot restarted = new BooruCatalogStore(directory.Path, reopened).Read();
+        BooruWatcherRecord watcher = Assert.Single(restarted.Watchers);
+        Assert.Equal("123", watcher.HighWaterMark);
+        Assert.Equal("123", watcher.CursorBeforePostId);
+        Assert.Equal("100", watcher.CheckStartHighWaterMark);
+        Assert.Equal(2, watcher.NextPage);
+        Assert.DoesNotContain(restarted.Posts, post => post.PostId == "999");
+    }
+
+    [Fact]
+    public void ObservationInvariantsRejectKnownIdsBeyondOrWithoutTheHighWaterMark()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        BooruCatalogStore store = new(directory.Path, lease);
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        Assert.Throws<ArgumentException>(() => store.UpsertWatcher(new("w1", "danbooru", "cat", "Active", now,
+            BaselineEstablished: true, KnownPostIds: ["5"])));
+        Assert.Throws<ArgumentException>(() => store.UpsertWatcher(new("w1", "danbooru", "cat", "Active", now,
+            HighWaterMark: "5", BaselineEstablished: true, KnownPostIds: ["6"])));
+        Assert.Throws<ArgumentException>(() => store.UpsertWatcher(new("w1", "danbooru", "cat", "Active", now,
+            HighWaterMark: "5", BaselineEstablished: false)));
+        Assert.False(File.Exists(store.FilePath));
+        // An established watcher whose baseline was empty legitimately has no high-water mark.
+        store.UpsertWatcher(new("w1", "danbooru", "cat", "Active", now, BaselineEstablished: true));
+
+        // The same invariants hold when the file is read, not only when it is written.
+        File.WriteAllText(store.FilePath, Json(new BooruCatalogSnapshot(1, [], [new BooruWatcherRecord("w2", "danbooru", "cat",
+            "Active", now, HighWaterMark: "5", BaselineEstablished: true, KnownPostIds: ["9"])])));
+        Assert.Throws<InvalidDataException>(() => store.Read());
+        File.WriteAllText(store.FilePath, Json(new BooruCatalogSnapshot(1, [], [new BooruWatcherRecord("w2", "danbooru", "cat",
+            "Active", now, HighWaterMark: "5", BaselineEstablished: false)])));
+        Assert.Throws<InvalidDataException>(() => store.Read());
+    }
+
+    [Fact]
+    public void WatcherReplacementCannotLowerTheHighWaterMarkOrReviveARemovedWatcher()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        BooruCatalogStore store = new(directory.Path, lease);
+        DateTimeOffset now = DateTimeOffset.Parse("2026-11-12T12:00:00Z");
+        BooruWatcherRecord stored = store.UpsertWatcher(new("w1", "danbooru", "cat", "Active", now,
+            HighWaterMark: "100", BaselineEstablished: true, ResumeState: "Active"));
+        byte[] before = File.ReadAllBytes(store.FilePath);
+
+        Assert.Throws<InvalidOperationException>(() => store.UpsertWatcher(stored with { HighWaterMark = "99" }));
+        Assert.Throws<InvalidOperationException>(() => store.UpsertWatcher(stored with { HighWaterMark = null }));
+        Assert.Throws<InvalidOperationException>(() => store.UpsertWatcher(stored with
+        {
+            HighWaterMark = null, BaselineEstablished = false
+        }));
+        Assert.Throws<InvalidOperationException>(() => store.UpsertWatcher(stored with { Query = "dog" }));
+        Assert.Throws<InvalidOperationException>(() => store.UpsertWatcher(stored with { CreatedAtUtc = now.AddDays(-1) }));
+        Assert.Equal(before, File.ReadAllBytes(store.FilePath));
+        Assert.Equal("100", Assert.Single(store.Read().Watchers).HighWaterMark);
+
+        // Forward progress and unchanged re-writes remain allowed.
+        store.UpsertWatcher(stored);
+        store.UpsertWatcher(stored with { HighWaterMark = "150", LastCheckedAtUtc = now.AddMinutes(1) });
+        Assert.Equal("150", Assert.Single(store.Read().Watchers).HighWaterMark);
+
+        Assert.True(store.MarkWatcherRemoved("w1"));
+        BooruWatcherRecord removed = Assert.Single(store.Read().Watchers);
+        Assert.Equal("Removed", removed.State);
+        Assert.Equal("150", removed.HighWaterMark);
+        Assert.Throws<InvalidOperationException>(() => store.UpsertWatcher(removed with { State = "Active" }));
+        store.UpsertWatcher(removed);
+    }
+
+    [Fact]
+    public void CursorAndFenceSurviveRepeatedProfileRestartsByteForByte()
+    {
+        using TempDirectory directory = new();
+        byte[] first;
+        using (ProfileLease lease = ProfileLease.Acquire(directory.Path))
+        {
+            BooruCatalogStore store = new(directory.Path, lease);
+            WriteRepresentativeCatalog(store);
+            first = File.ReadAllBytes(store.FilePath);
+        }
+
+        for (int restart = 0; restart < 3; restart++)
+        {
+            using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+            BooruCatalogStore store = new(directory.Path, lease);
+            BooruCatalogSnapshot snapshot = store.Read();
+            // Re-persisting what was read is lossless: the serialized form is a fixed point.
+            store.UpsertWatcher(Assert.Single(snapshot.Watchers));
+            BooruPostRecord post = Assert.Single(snapshot.Posts);
+            store.UpsertPost(post.Post, post.LastSeenAtUtc);
+            Assert.Equal(first, File.ReadAllBytes(store.FilePath));
+        }
+    }
+
+    [Fact]
+    public async Task PreparedRestoreFailsClosedForACatalogMissingItsHighWaterMark()
+    {
+        using TempDirectory directory = new();
+        using (ProfileLease seed = ProfileLease.Acquire(directory.Path))
+            WriteRepresentativeCatalog(new BooruCatalogStore(directory.Path, seed));
+        string path = Path.Combine(directory.Path, BooruCatalogStore.FileName);
+        JsonObject root = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        root["watchers"]![0]!.AsObject().Remove("highWaterMark");
+        File.WriteAllText(path, root.ToJsonString());
+        string damaged = File.ReadAllText(path);
+
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        using StubImageBoard provider = new();
+        await using Registry registry = new([provider], new DownloadQueue(1, 1024 * 1024),
+            directory.Path, TimeSpan.FromHours(1), 3600, persistSession: false);
+        registry.PrepareProfileProducers(lease);
+        using (ProfileAdmissionToken startup = lease.Admission.EnterStartupWriter())
+            await Assert.ThrowsAsync<InvalidDataException>(() => registry.RestoreAdmittedAsync(startup));
+        lease.Admission.FailStartup();
+        await registry.StopAsync().WaitAsync(Deadline);
+
+        // Failing closed is not a repair: the damaged file is left untouched for the user.
+        Assert.Equal(damaged, File.ReadAllText(path));
+    }
+
+    private static BooruWatcherRecord InFlightWatcher(DateTimeOffset now) => new("w1", "danbooru", "cat", "Active", now,
+        LastCheckedAtUtc: now, HighWaterMark: "123", NextPage: 2, BaselineEstablished: true, KnownPostIds: ["123"],
+        CursorBeforePostId: "123", CheckStartHighWaterMark: "100", CheckStartHighWaterMarkCaptured: true,
+        ResumeState: "Active", PageSize: 20, PageBudget: 5);
+
+    private static void WriteRepresentativeCatalog(BooruCatalogStore store)
+    {
+        DateTimeOffset now = DateTimeOffset.Parse("2026-11-12T12:00:00Z");
+        store.UpsertPost(CompletePost("123"), now);
+        store.AddFinding("danbooru", "123", BooruFindingKind.Watcher, "w1", "cat", now);
+        store.LinkLocalAsset("danbooru", "123", "asset-1", "/offline/asset.png");
+        store.UpsertWatcher(InFlightWatcher(now));
     }
 
     private static bool IsTemporary(string name) =>

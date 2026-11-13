@@ -147,11 +147,14 @@ internal sealed record BooruPostRecord(
     BooruPostClaim Post,
     DateTimeOffset FirstSeenAtUtc,
     DateTimeOffset LastSeenAtUtc,
-    string? LocalAssetId = null,
-    string? LocalPath = null,
+    [property: JsonRequired] string? LocalAssetId = null,
+    [property: JsonRequired] string? LocalPath = null,
     IReadOnlyList<BooruFinding>? Findings = null,
     BooruOriginalIntent OriginalIntent = BooruOriginalIntent.None)
 {
+    // Every schema-1 writer has written the asset link and the findings. A missing key is therefore an incomplete
+    // record, not an older one, and must not silently turn a linked original back into a post to download again.
+    [JsonRequired]
     public IReadOnlyList<BooruFinding> Findings { get; init; } = Findings ?? Array.Empty<BooruFinding>();
 
     /// <summary>True when an explicitly requested original is still awaiting a committed local asset.</summary>
@@ -179,10 +182,15 @@ internal sealed record BooruPostRecord(
 /// separates that from a lost fence.
 /// </para>
 /// <para>
-/// Contract boundary: no production mapper between <c>DanbooruWatcher</c> and this record exists yet
-/// (B5 owns it). This type and <see cref="BooruCatalogStore"/> only guarantee that a conforming mapper can
-/// store the domain state losslessly and that inconsistent records are refused; they do not construct or
-/// interpret domain objects.
+/// Contract boundary: <c>DanbooruWatcherRecordMapper</c> is the production projection. This type and
+/// <see cref="BooruCatalogStore"/> only guarantee that a conforming mapper can store the domain state
+/// losslessly and that inconsistent records are refused; they do not construct or interpret domain objects.
+/// </para>
+/// <para>
+/// Observation state: <see cref="HighWaterMark"/>, <see cref="NextPage"/>, <see cref="BaselineEstablished"/> and
+/// <see cref="KnownPostIds"/> were written by every schema-1 writer and are therefore required keys. A record
+/// missing one of them is incomplete and fails closed: a lost high-water mark would make an established watcher
+/// (whose known ids are compacted below the mark) treat every older post as new after a restart.
 /// </para>
 /// </summary>
 internal sealed record BooruWatcherRecord(
@@ -194,9 +202,9 @@ internal sealed record BooruWatcherRecord(
     DateTimeOffset? LastCheckedAtUtc = null,
     DateTimeOffset? CooldownUntilUtc = null,
     string? ErrorCode = null,
-    string? HighWaterMark = null,
-    int NextPage = 0,
-    bool BaselineEstablished = false,
+    [property: JsonRequired] string? HighWaterMark = null,
+    [property: JsonRequired] int NextPage = 0,
+    [property: JsonRequired] bool BaselineEstablished = false,
     IReadOnlyList<string>? KnownPostIds = null,
     string? CursorBeforePostId = null,
     string? CheckStartHighWaterMark = null,
@@ -207,6 +215,7 @@ internal sealed record BooruWatcherRecord(
     int PagesCheckedInRun = 0,
     bool BudgetLimited = false)
 {
+    [JsonRequired]
     public IReadOnlyList<string> KnownPostIds { get; init; } = KnownPostIds ?? Array.Empty<string>();
 }
 
@@ -605,6 +614,7 @@ internal sealed class BooruCatalogStore
                 Cache cache = LoadLocked();
                 BooruWatcherRecord canonical = FreezeWatcher(watcher);
                 int index = cache.Watchers.TryGetValue(canonical.WatcherId, out int found) ? found : -1;
+                if (index >= 0) EnsureWatcherSuccessor(cache.Snapshot.Watchers[index], canonical);
                 return WriteWatcherLocked(cache, index, canonical, admission, cancellationToken);
             }
         });
@@ -659,6 +669,11 @@ internal sealed class BooruCatalogStore
             AllowDuplicateProperties = false,
             MaxDepth = 64,
             UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+            // Constructor parameters without a default (identities, timestamps, collections, media URLs) must be
+            // present; a missing key is an incomplete record and fails closed instead of binding a default. Keys
+            // added later (the watcher restart fields, the original intent) have defaults and stay optional.
+            // Repeated keys are refused before deserialization (JsonDuplicateProperties in Parse).
+            RespectRequiredConstructorParameters = true,
             WriteIndented = true
         };
         options.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false));
@@ -1096,7 +1111,7 @@ internal sealed class BooruCatalogStore
         if (watcher.NextPage is < 0 or > MaximumWatcherPage || watcher.KnownPostIds is null
             || watcher.KnownPostIds.Count > MaximumKnownPostIds)
             throw new ArgumentException("The Booru watcher record is invalid.", nameof(watcher));
-        _ = CanonicalIds(watcher.KnownPostIds);
+        ValidateWatcherObservationState(watcher, CanonicalIds(watcher.KnownPostIds));
         ValidateWatcherRestartState(watcher, state);
         if (state == DanbooruWatcherState.Cooldown && watcher.CooldownUntilUtc is null
             || state != DanbooruWatcherState.Cooldown && watcher.CooldownUntilUtc is not null)
@@ -1106,6 +1121,41 @@ internal sealed class BooruCatalogStore
             || state is not (DanbooruWatcherState.Error or DanbooruWatcherState.Cooldown)
             && watcher.ErrorCode is not null)
             throw new ArgumentException("The Booru watcher error state is invalid.", nameof(watcher));
+    }
+
+    /// <summary>
+    /// The high-water mark is the highest post id any applied page contained, and only an applied page establishes
+    /// the baseline (<c>DanbooruWatcher.ApplyPage</c>). Known ids therefore never exceed the mark and never exist
+    /// without it, and a mark implies an established baseline. A record breaking this has lost or corrupted its
+    /// fence and must not be resumed.
+    /// </summary>
+    private static void ValidateWatcherObservationState(BooruWatcherRecord watcher, string[] canonicalKnownIds)
+    {
+        if (watcher.HighWaterMark is not null && !watcher.BaselineEstablished)
+            throw new ArgumentException("The Booru watcher has a high-water mark without a baseline.", nameof(watcher));
+        if (canonicalKnownIds.Length == 0) return;
+        if (!watcher.BaselineEstablished || watcher.HighWaterMark is null
+            || DanbooruPostReference.ComparePostIds(canonicalKnownIds[^1], watcher.HighWaterMark) > 0)
+            throw new ArgumentException("The Booru watcher known ids exceed its high-water mark.", nameof(watcher));
+    }
+
+    /// <summary>
+    /// Guard for replacing a stored watcher. Watcher ids are unique per creation, so identity is immutable;
+    /// <c>Removed</c> is terminal in the domain; and the observation fence only moves forward. A regressing write
+    /// (stale in-memory copy, mapper defect, reused id) is refused, so a durable high-water mark is never lowered or
+    /// erased by a later write. Caller holds the write lock; nothing is written when this throws.
+    /// </summary>
+    private static void EnsureWatcherSuccessor(BooruWatcherRecord current, BooruWatcherRecord next)
+    {
+        if (current.SourceId != next.SourceId || current.Query != next.Query || current.CreatedAtUtc != next.CreatedAtUtc)
+            throw new InvalidOperationException("The Booru watcher identity cannot change.");
+        if (current.State == nameof(DanbooruWatcherState.Removed) && next.State != nameof(DanbooruWatcherState.Removed))
+            throw new InvalidOperationException("A removed Booru watcher cannot be revived.");
+        if (current.BaselineEstablished && !next.BaselineEstablished)
+            throw new InvalidOperationException("The Booru watcher baseline cannot be dropped.");
+        if (current.HighWaterMark is not null && (next.HighWaterMark is null
+            || DanbooruPostReference.ComparePostIds(next.HighWaterMark, current.HighWaterMark) < 0))
+            throw new InvalidOperationException("The Booru watcher high-water mark cannot move backwards.");
     }
 
     /// <summary>
