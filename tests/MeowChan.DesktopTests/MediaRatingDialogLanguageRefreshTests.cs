@@ -237,7 +237,7 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
             ["media.rating.unrated"] = "Unbewertet",
             ["media.rating.saved"] = "Gespeicherte Bewertung: {0}",
             ["media.rating.identity"] = "{0} /{1}/ {2} · {3} · {4}\nSHA-256: {5}",
-            ["media.rating.search"] = "Identitäten durchsuchen",
+            ["media.rating.search"] = "Bewertungen durchsuchen",
             ["media.rating.noSaved"] = "Keine gespeicherten Bewertungen.",
             ["media.rating.noMatching"] = "Keine passenden Bewertungen.",
             ["media.rating.summary"] = "{0} angezeigt · {1} gespeicherte Bewertungen",

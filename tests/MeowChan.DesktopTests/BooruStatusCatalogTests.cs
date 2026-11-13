@@ -137,7 +137,9 @@ public sealed class BooruStatusCatalogTests : IDisposable
             Assert.Contains("brand-new-code", BooruMessages.Failure("brand-new-code"));
             Assert.Contains("brand-new-code", BooruMessages.WatcherProblem("brand-new-code"));
             Assert.Contains("503", BooruMessages.Failure("http-503"));
-            Assert.Contains("?", BooruMessages.Failure(null));
+            // No code at all gets its own sentence (no "(?)" placeholder): the next step and where the details are.
+            Assert.Equal(Texts.T("booru.failure.unknownNoCode"), BooruMessages.Failure(null));
+            Assert.DoesNotContain("{", BooruMessages.Failure(null));
             Assert.DoesNotContain("{", BooruMessages.Failure("http-503"));
         }
     }
