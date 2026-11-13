@@ -115,6 +115,44 @@ internal static partial class MediaPageChecks
             Require(back.Index == anchor.Index && Math.Abs(back.Offset - anchor.Offset) < 1.5, "The view must stand where it stood: " + anchor + " -> " + back);
             Require(!note.IsVisible, "No note when the tile is still there.");
 
+            // 1b. A library above the background threshold presents off the UI thread. A presentation still running when the page
+            // comes back replaces the rows just restored, so the return must wait for it, then restore selection, focus and view.
+            page.BackgroundPresentEntries = 0;
+            TaskCompletionSource releasePresent = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            int heldRuns = 0;
+            page.PresentGate = (_, _) => { Interlocked.Increment(ref heldRuns); return releasePresent.Task; };
+            try
+            {
+                anchor = panel.CaptureAnchor()!.Value;
+                Key(Tile(chosen), Avalonia.Input.Key.T);
+                await InArchiveAsync(target.Thread.Thread!, target.PostId!);
+                await UntilAsync(() => mediaReturn.IsEffectivelyVisible);
+                gridScroll.Offset = default;
+                Control heldPost = posts.ContainerFromItem(posts.SelectedItem!) as Control ?? throw new InvalidOperationException("The focused post is not realized.");
+                heldPost.Focus();
+                Key(heldPost, Avalonia.Input.Key.Left, KeyModifiers.Alt);
+                await UntilAsync(() => mediaHost.IsVisible && !archiveHost.IsVisible && Volatile.Read(ref heldRuns) > 0);
+                Require(!page.PresentTask.IsCompleted, "The gated presentation must still be running.");
+                await Task.Delay(300);
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                Require(!shell.MediaReturnTask.IsCompleted, "The return must wait for the presentation that is still running.");
+                releasePresent.SetResult();
+                await BackOnMediaAsync();
+                await page.PresentTask.WaitAsync(Deadline);
+                await UntilAsync(() => FocusOn(chosen));
+                Require(Selected() == chosenName && page.SelectedTiles.Count == 1, "The opened tile must be selected after a background presentation: " + Selected());
+                back = panel.CaptureAnchor()!.Value;
+                Require(back.Index == anchor.Index && Math.Abs(back.Offset - anchor.Offset) < 1.5,
+                    "The view must stand where it stood after a background presentation: " + anchor + " -> " + back);
+            }
+            finally
+            {
+                releasePresent.TrySetResult();
+                page.PresentGate = null;
+                page.BackgroundPresentEntries = 2000;
+                await page.PresentTask.WaitAsync(Deadline);
+            }
+
             // 2. A duplicate: the occurrences list opens the second thread; the button brings back the one tile of those bytes.
             reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             sort.SelectedIndex = 0;

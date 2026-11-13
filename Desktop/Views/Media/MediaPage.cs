@@ -283,6 +283,14 @@ public sealed partial class MediaPage : UserControl
     internal int BackgroundPresentEntries { get; set; } = 2000;
     /// <summary>Completes when the presentation that is running now (if any) has been applied or was replaced by a newer one.</summary>
     internal Task PresentTask { get; private set; } = Task.CompletedTask;
+    /// <summary>
+    /// Test seam: when set, every background presentation awaits it (with its number, see <see cref="PresentRunCount"/>) after its rows
+    /// are computed and before it asks to be applied, so a test can hold a run open (a late, already cancelled run must not overwrite
+    /// a newer one). Runs off the UI thread.
+    /// </summary>
+    internal Func<int, CancellationToken, Task>? PresentGate { get; set; }
+    /// <summary>How many background presentations have been started; the n-th one passes n to <see cref="PresentGate"/>.</summary>
+    internal int PresentRunCount { get; private set; }
     private CancellationTokenSource? _presenting;
     private bool _presentPending;
     // Counts the user's own selection changes: a presentation computed in the background keeps the selection it was started with
@@ -321,14 +329,20 @@ public sealed partial class MediaPage : UserControl
         CancellationTokenSource presenting = new();
         _presenting = presenting;
         _presentPending = true;
-        PresentTask = PresentInBackgroundAsync(inputs, presenting);
+        PresentTask = PresentInBackgroundAsync(inputs, presenting, ++PresentRunCount);
     }
 
-    private async Task PresentInBackgroundAsync(PresentInputs inputs, CancellationTokenSource presenting)
+    private async Task PresentInBackgroundAsync(PresentInputs inputs, CancellationTokenSource presenting, int run)
     {
         try
         {
-            PresentResult result = await Task.Run(() => ComputePresent(inputs, presenting.Token), presenting.Token);
+            Func<int, CancellationToken, Task>? gate = PresentGate;
+            PresentResult result = await Task.Run(async () =>
+            {
+                PresentResult computed = ComputePresent(inputs, presenting.Token);
+                if (gate != null) await gate(run, presenting.Token).ConfigureAwait(false);
+                return computed;
+            }, presenting.Token);
             if (presenting.IsCancellationRequested || _lifetime.IsCancellationRequested) return;
             _presentPending = false;
             ApplyPresent(inputs, result);

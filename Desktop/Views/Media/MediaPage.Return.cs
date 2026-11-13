@@ -41,8 +41,13 @@ public sealed partial class MediaPage
         _returnRun = run;
         bool shown = await RestoreAsync(point, run);
         Task build = BuildTask;
-        if (build.IsCompleted || !ReferenceEquals(_returnRun, run)) return shown;
-        try { await build; } catch (OperationCanceledException) { }
+        if ((build.IsCompleted && PresentTask.IsCompleted) || !ReferenceEquals(_returnRun, run)) return shown;
+        if (!build.IsCompleted)
+        {
+            try { await build; } catch (OperationCanceledException) { }
+        }
+        // A large library presents in the background (see Present): its rows replace the ones just restored, so wait for it too.
+        await WaitForPresentAsync(run);
         return ReferenceEquals(_returnRun, run) ? await RestoreAsync(point, run) : shown;
     }
 
@@ -58,10 +63,23 @@ public sealed partial class MediaPage
         AddHandler(KeyDownEvent, Interrupt, RoutingStrategies.Tunnel, handledEventsToo: true);
     }
 
+    // Waits until no presentation is running (or the return ended): a presentation swaps the rows, and a swap resets scroll and focus.
+    // A presentation started while waiting (an audio update, new own state) is waited for as well.
+    private async Task WaitForPresentAsync(object run)
+    {
+        while (true)
+        {
+            Task seen = PresentTask;
+            if (!seen.IsCompleted) await Task.WhenAny(seen);
+            if (ReferenceEquals(seen, PresentTask) || !ReferenceEquals(_returnRun, run) || _lifetime.IsCancellationRequested) return;
+        }
+    }
+
     private async Task<bool> RestoreAsync(MediaLibraryReturnPoint point, object run)
     {
         // Let a presentation queued by the activation (refreshed own state) run first.
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
+        await WaitForPresentAsync(run);
         if (!ReferenceEquals(_returnRun, run) || _lifetime.IsCancellationRequested || !IsEffectivelyVisible) return false;
         MediaLibraryReturnMatch match = MediaLibraryReturn.Locate(point, _tiles);
         _restoring = true;
