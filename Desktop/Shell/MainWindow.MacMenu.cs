@@ -16,6 +16,10 @@ namespace MeowChan;
 public partial class MainWindow
 {
     private NativeMenu? _macMenu;
+    // Titles of the top menus and submenus that follow the language: one handler on the static Texts.Changed for the
+    // whole menu bar, removed when the window goes away (the menu tree must not outlive its window through Texts).
+    private readonly List<(NativeMenuItem Item, string Key)> _macMenuTitles = new();
+    private EventHandler? _macMenuTextsChanged;
 
     internal NativeMenu? MacMenuForTests => _macMenu;
 
@@ -26,13 +30,29 @@ public partial class MainWindow
         {
             _macMenu = BuildMacMenu();
             NativeMenu.SetMenu(this, _macMenu);
+            _macMenuTextsChanged = (_, _) => RefreshMacMenuTitles();
+            Texts.Changed += _macMenuTextsChanged;
         }
         catch (Exception error)
         {
+            DisposeMacMenu();
             // A broken menu bar must never keep the application from starting; the window shortcuts still work.
             Serilog.Log.Warning(error, "Could not create the macOS menu bar.");
             _macMenu = null;
         }
+    }
+
+    private void RefreshMacMenuTitles()
+    {
+        foreach ((NativeMenuItem item, string key) in _macMenuTitles) item.Header = Texts.T(key);
+    }
+
+    /// <summary>Stops following the language and drops the menu bar; called when the window is closed.</summary>
+    private void DisposeMacMenu()
+    {
+        if (_macMenuTextsChanged is { } handler) Texts.Changed -= handler;
+        _macMenuTextsChanged = null;
+        _macMenuTitles.Clear();
     }
 
     private NativeMenu BuildMacMenu()
@@ -41,11 +61,7 @@ public partial class MainWindow
         foreach (MacTopMenu top in MacMenuModel.Build())
         {
             NativeMenuItem title = new(top.TitleKey is { } key ? Texts.T(key) : "MeowChan") { Menu = BuildMacMenuItems(top.Items) };
-            if (top.TitleKey is { } titleKey)
-            {
-                Action refresh = () => title.Header = Texts.T(titleKey);
-                Texts.Changed += (_, _) => refresh();
-            }
+            if (top.TitleKey is { } titleKey) _macMenuTitles.Add((title, titleKey));
             bar.Items.Add(title);
         }
         return bar;
@@ -61,7 +77,7 @@ public partial class MainWindow
             {
                 string submenuKey = node.TitleKey!;
                 NativeMenuItem submenu = new(Texts.T(submenuKey)) { Menu = BuildMacMenuItems(node.Items!) };
-                Texts.Changed += (_, _) => submenu.Header = Texts.T(submenuKey);
+                _macMenuTitles.Add((submenu, submenuKey));
                 menu.Items.Add(submenu);
                 continue;
             }

@@ -473,6 +473,7 @@ public partial class MainWindow
     private void DisposeWorkspacePages()
     {
         DisposeUpdates();
+        DisposeMacMenu();
         _pluginsPage?.EndLifetime();
         _diagnosticsPage?.EndLifetime();
         if (_sourcesPage != null) { _sourcesPage.BusyChanged -= OnSettingsBusyChanged; _sourcesPage.EndLifetime(); }
