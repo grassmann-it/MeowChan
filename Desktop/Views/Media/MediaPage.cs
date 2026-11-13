@@ -110,6 +110,8 @@ public sealed partial class MediaPage : UserControl
     internal Func<MediaLibraryIndexCacheFile, CancellationToken, Task<MediaLibrarySnapshot?>> LoadCache { get; set; } =
         (file, token) => file.LoadAsync(token);
     internal MediaLibraryIndexCacheFile? CacheFile => _cacheFile;
+    /// <summary>The page's manifest views; the import dialog's dedupe check reuses them instead of reading every manifest again.</summary>
+    internal MediaManifestCache ManifestCache => _manifests;
     internal bool LoadingCache => _loadingCache;
     internal MediaLibraryIndexCacheWrite? LastCacheWrite => _cacheWrite;
     /// <summary>One entry per tile: the occurrence each tile shows. Gallery windows are made from this list.</summary>

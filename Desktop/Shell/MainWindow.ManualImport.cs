@@ -13,7 +13,7 @@ using MeowChan.Import;
 namespace MeowChan;
 
 // Manual import (contract manual-import-v1, phase 1): one dialog, opened from the "⋯" menu or by dropping files and
-// folders on the window. The dedupe check builds a fresh media index (reusing what the Media page already read).
+// folders on the window. The dedupe check builds a media index once per dialog session (reusing what the Media page already read).
 public partial class MainWindow
 {
     private ManualImportDialog? _manualImportDialog;
@@ -36,9 +36,16 @@ public partial class MainWindow
             ShowNotification(Texts.T("import.title"), ManualImportSession.MessageText(ManualImportSession.MessageOf(blocked)), NotificationType.Warning, operation: "import.open");
             return;
         }
+        // What the library holds is computed once per dialog session and again only after an import changed it.
+        KnownMediaState known = new();
+        ManualImportKnownMediaSource knownSource = new(token => BuildKnownMediaAsync(known, token));
         ManualImportSession session = new(
-            (request, progress, token) => _session.PlanManualImportAsync(request, BuildKnownMediaAsync, progress, token),
-            (plan, options, progress, token) => _session.RunManualImportAsync(plan, options, progress, token),
+            (request, progress, token) => _session.PlanManualImportAsync(request, knownSource.GetAsync, progress, token),
+            async (plan, options, progress, token) =>
+            {
+                try { return await _session.RunManualImportAsync(plan, options, progress, token); }
+                finally { knownSource.Invalidate(); }
+            },
             DateTimeOffset.Now);
         session.MaximumTags = _session.Config.ImportMaxTagsPerBatch;
         ManualImportDialog dialog = new(session, _session.ManualImportFolder, () => _session.GetPublishedPrivateTagSnapshot().Snapshot,
@@ -52,23 +59,43 @@ public partial class MainWindow
             // A finished import changes the library: the Media page reads it again (imports are always derived fresh).
             if (session.Stage == ManualImportStage.Done && session.Outcome != null) _ = _mediaPage?.RebuildAsync();
         };
-        dialog.Closed += (_, _) => { if (ReferenceEquals(_manualImportDialog, dialog)) _manualImportDialog = null; };
+        dialog.Closed += (_, _) =>
+        {
+            knownSource.Dispose();
+            if (ReferenceEquals(_manualImportDialog, dialog)) _manualImportDialog = null;
+        };
         dialog.Show(this);
         session.AddRoots(roots);
     }
 
-    private async Task<ManualImportKnownMedia> BuildKnownMediaAsync(CancellationToken token)
+    /// <summary>What one dialog session keeps between index builds when the Media page is not there to share its own.</summary>
+    private sealed class KnownMediaState
     {
-        MediaLibrarySnapshot? previous = _mediaPage?.Snapshot;
-        if (previous == null)
+        internal MediaManifestCache? Manifests;
+        internal MediaLibrarySnapshot? Last;
+        internal bool CacheTried;
+    }
+
+    private async Task<ManualImportKnownMedia> BuildKnownMediaAsync(KnownMediaState state, CancellationToken token)
+    {
+        // The Media page's manifest views and index are reused when it exists: unchanged manifests are not opened or
+        // hashed again, so adding one file costs about what a refresh of that page costs, not a cold scan.
+        MediaPage? page = _mediaPage;
+        MediaManifestCache manifests = page?.ManifestCache ?? (state.Manifests ??= new MediaManifestCache());
+        manifests.Invalidate(); // Files may have changed since the views were read: they prove their identity first.
+        MediaLibrarySnapshot? previous = page?.Snapshot ?? state.Last;
+        if (previous == null && !state.CacheTried)
         {
-            try { previous = MediaLibraryIndexCache.Load(Path.Combine(_session.ProfileDirectory, "cache", MediaLibraryIndexCache.FileName)); }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+            state.CacheTried = true;
+            MediaLibraryIndexCacheRead? read = await MediaLibraryIndexCache.LoadAsync(
+                Path.Combine(_session.ProfileDirectory, "cache", MediaLibraryIndexCache.FileName), token).ConfigureAwait(false);
+            previous = read?.Snapshot;
         }
         try
         {
-            MediaLibrarySnapshot built = await MediaLibraryIndexBuilder.BuildAsync(_session.OpenArchiveReaderAsync, Storage.MediaAssetReader.OpenAsync,
+            MediaLibrarySnapshot built = await MediaLibraryIndexBuilder.BuildAsync(_session.OpenArchiveReaderAsync, manifests,
                 previous, null, token, _session.ReadBooruCatalog, _session.ReadManualImportCatalog).ConfigureAwait(false);
+            state.Last = built;
             return ManualImportKnownMedia.From(built);
         }
         catch (FileNotFoundException)
