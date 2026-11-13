@@ -63,6 +63,19 @@ internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
     public MediaAttachmentBinding? Binding { get; set; }
     public string Label => (Attachment.OriginalFileName ?? Attachment.MediaId ?? Texts.T("archive.deletedAttachment"))
         + (MediaProvenanceText.Summary(Binding) is { Length: > 0 } provenance ? "\n" + provenance : string.Empty);
+    // The capture records the provider's byte size but no pixel dimensions, so the line shows
+    // "name.ext (size)" when the size is known and the bare name otherwise.
+    public string FileLine => (Attachment.OriginalFileName ?? Attachment.MediaId ?? string.Empty)
+        + (Attachment.ExpectedSize is > 0 and long size ? " (" + FileSize(size) + ")" : string.Empty);
+
+    internal static string FileSize(long bytes)
+    {
+        string[] units = { "B", "KiB", "MiB", "GiB" };
+        double value = bytes;
+        int unit = 0;
+        while (value >= 1024 && unit < units.Length - 1) { value /= 1024; unit++; }
+        return (unit == 0 ? value.ToString("0", Texts.Culture) : value.ToString("0.#", Texts.Culture)) + " " + units[unit];
+    }
 }
 
 // One header line in imageboard order: Subject · Name · Date · No. (the number copies ">>No.").

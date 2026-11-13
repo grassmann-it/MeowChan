@@ -48,6 +48,19 @@ public sealed class ArchivePresentationTests
     }
 
     [Fact]
+    public void FileLineNamesTheFileAndItsCapturedSizeOnly()
+    {
+        Assert.Equal("ridge.png (2 KiB)", new ArchiveAttachmentRow(new CapturedAttachment(0, "m1",
+            OriginalFileName: "ridge.png", ExpectedSize: 2048)).FileLine);
+        Assert.Equal("ridge.png (512 B)", new ArchiveAttachmentRow(new CapturedAttachment(0, "m1",
+            OriginalFileName: "ridge.png", ExpectedSize: 512)).FileLine);
+        // No size and no pixel dimensions are captured: the bare name, never an invented "(?)".
+        Assert.Equal("ridge.png", new ArchiveAttachmentRow(new CapturedAttachment(0, "m1", OriginalFileName: "ridge.png")).FileLine);
+        Assert.Equal("m1", new ArchiveAttachmentRow(new CapturedAttachment(0, "m1")).FileLine);
+        Assert.Equal("3 MiB", ArchiveAttachmentRow.FileSize(3L * 1024 * 1024));
+    }
+
+    [Fact]
     public void ReplyStateOnlyCollapsesConfirmedSuccessfulZero()
     {
         ArchivePostRow row = new("123", "", "", Array.Empty<ArchiveAttachmentRow>());

@@ -49,7 +49,10 @@ public sealed class ArchiveAttachmentView : UserControl
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
         }
     };
+    // Imageboard file line above the preview: "name.ext (size)" when the capture knows the size.
     private readonly TextBlock _label = new() { TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 12 };
+    // A quiet slot surface only while no thumbnail is shown (loading, missing, unsupported).
+    private readonly Border _placeholder = new() { CornerRadius = new CornerRadius(4), IsHitTestVisible = false };
     private readonly TextBlock _provenance = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12, IsVisible = false };
     private readonly Button _button;
     private readonly ArchiveFavoriteButton _favorite = new() { HorizontalAlignment = HorizontalAlignment.Right };
@@ -85,10 +88,15 @@ public sealed class ArchiveAttachmentView : UserControl
 
     public ArchiveAttachmentView()
     {
-        _slot.Children.Add(_image); _slot.Children.Add(_status); _slot.Children.Add(_play);
-        StackPanel content = new() { Spacing = 5 };
-        content.Children.Add(_slot); content.Children.Add(_label); content.Children.Add(_provenance);
-        _button = new Button { Content = content, Padding = new Thickness(8),
+        _placeholder[!Border.BackgroundProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Raised");
+        _placeholder.Bind(IsVisibleProperty, _status.GetObservable(IsVisibleProperty));
+        _slot.Children.Add(_placeholder); _slot.Children.Add(_image); _slot.Children.Add(_status); _slot.Children.Add(_play);
+        StackPanel content = new() { Spacing = 4 };
+        content.Children.Add(_label); content.Children.Add(_slot); content.Children.Add(_provenance);
+        // Flat: no raised box around the thumbnail. Semi's hover/pressed tint and the shared focus
+        // adorner remain the interaction feedback of the native button.
+        _button = new Button { Content = content, Padding = new Thickness(4), Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
             HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Stretch };
         _button.Click += (_, _) => (DataContext as ArchiveAttachmentRow)?.OpenPreview?.Invoke();
         StackPanel actions = new() { Spacing = 4 };
@@ -127,9 +135,9 @@ public sealed class ArchiveAttachmentView : UserControl
         _slot.Large = large;
         _slot.InvalidateMeasure();
         _label.MaxWidth = _status.MaxWidth = large ? 360 : 240;
-        _button.MaxWidth = large ? 376 : 256;
+        _button.MaxWidth = large ? 368 : 248;
         _button.HorizontalAlignment = large ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
-        _label.Text = row?.Attachment.OriginalFileName ?? row?.Attachment.MediaId ?? string.Empty;
+        _label.Text = row?.FileLine ?? string.Empty;
         _provenance.Text = MediaProvenanceText.Summary(row?.Binding);
         _provenance.IsVisible = !string.IsNullOrEmpty(_provenance.Text);
         _provenance.MaxWidth = large ? 360 : 240;
