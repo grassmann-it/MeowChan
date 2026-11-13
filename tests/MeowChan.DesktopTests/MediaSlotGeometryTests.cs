@@ -82,6 +82,18 @@ public sealed class MediaSlotGeometryTests
     }
 
     [Fact]
+    public void MarksOfAFlatPictureGetABandSoBadgeAndStarDoNotStack()
+    {
+        // A 4:1 strip is 42.5 dip high in a 170 x 125 cell: its marks are arranged on a 64 dip band centred on it, never past the cell.
+        Rect strip = MediaSlotGeometry.Marks(new Size(170, 125), 4);
+        Assert.Equal(new Rect(0, 30.5, 170, 64), strip);
+        Rect portrait = MediaSlotGeometry.Marks(new Size(170, 125), 2d / 3);
+        Assert.Equal(MediaSlotGeometry.Letterbox(new Size(170, 125), 2d / 3), portrait);
+        Assert.Equal(new Rect(0, 0, 170, 125), MediaSlotGeometry.Marks(new Size(170, 125), null));
+        Assert.True(MediaSlotGeometry.Marks(new Size(50, 40), 10).Width <= 50);
+    }
+
+    [Fact]
     public void TheFramePanelArrangesPictureAndOverlaysOnTheSameRectangle()
     {
         Border picture = new(), play = new() { Width = 44, Height = 44, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,

@@ -56,6 +56,20 @@ internal static class MediaSlotGeometry
         return new Rect((cell.Width - width) / 2, (cell.Height - height) / 2, width, height);
     }
 
+    /// <summary>A picture lower or narrower than this keeps its marks apart: the band they are arranged on is at least this large.</summary>
+    internal const double MinimumMarkExtent = 64;
+
+    /// <summary>
+    /// Where the corner marks of a tile (type badge, star, check mark) are arranged: the letterboxed picture, but at least
+    /// <see cref="MinimumMarkExtent"/> in each direction, centred on it. A wide strip of 40 dip would otherwise stack badge and star.
+    /// </summary>
+    internal static Rect Marks(Size cell, double? aspect)
+    {
+        Rect picture = Letterbox(cell, aspect);
+        double width = Math.Min(cell.Width, Math.Max(picture.Width, MinimumMarkExtent)), height = Math.Min(cell.Height, Math.Max(picture.Height, MinimumMarkExtent));
+        return new Rect(picture.Center.X - width / 2, picture.Center.Y - height / 2, width, height);
+    }
+
     /// <summary>
     /// The width of a reader attachment block (file line, frame, provenance): the frame, but at least the file line's minimum,
     /// and never more than what the owner gives.
@@ -92,8 +106,9 @@ internal sealed class MediaFramePanel : Panel
 }
 
 /// <summary>
-/// A uniform grid cell whose children (picture and corner marks) are arranged on the letterboxed picture inside it
-/// (<see cref="MediaSlotGeometry.Letterbox"/>): the cell keeps the tile grid regular, the marks sit on the picture's corners.
+/// A uniform grid cell: its <see cref="Image"/> is arranged on the letterboxed picture inside it (<see cref="MediaSlotGeometry.Letterbox"/>),
+/// every other child (corner marks, status text) on <see cref="MediaSlotGeometry.Marks"/>: the cell keeps the tile grid regular, the
+/// marks sit on the picture's corners.
 /// </summary>
 internal sealed class LetterboxPanel : Panel
 {
@@ -121,15 +136,15 @@ internal sealed class LetterboxPanel : Panel
             return new Size(double.IsInfinity(availableSize.Width) ? width : availableSize.Width,
                 double.IsInfinity(availableSize.Height) ? height : availableSize.Height);
         }
-        Rect picture = MediaSlotGeometry.Letterbox(availableSize, _aspect);
-        foreach (Control child in Children) child.Measure(picture.Size);
+        Rect picture = MediaSlotGeometry.Letterbox(availableSize, _aspect), marks = MediaSlotGeometry.Marks(availableSize, _aspect);
+        foreach (Control child in Children) child.Measure(child is Image ? picture.Size : marks.Size);
         return availableSize;
     }
 
     protected override Size ArrangeOverride(Size finalSize)
     {
-        Rect picture = MediaSlotGeometry.Letterbox(finalSize, _aspect);
-        foreach (Control child in Children) child.Arrange(picture);
+        Rect picture = MediaSlotGeometry.Letterbox(finalSize, _aspect), marks = MediaSlotGeometry.Marks(finalSize, _aspect);
+        foreach (Control child in Children) child.Arrange(child is Image ? picture : marks);
         return finalSize;
     }
 }

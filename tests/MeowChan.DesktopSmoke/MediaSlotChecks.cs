@@ -215,7 +215,7 @@ internal static class MediaSlotChecks
                 Rect picture = RectIn(image, host), cell = RectIn(image.GetVisualParent<Control>()!, host);
                 double aspect = image.Source!.Size.Width / image.Source.Size.Height;
                 // Where the picture is really drawn inside the (uniform) image control.
-                Rect drawn = Drawn(picture, aspect);
+                Rect drawn = Marks(Drawn(picture, aspect));
                 Console.WriteLine("SMOKE media-slot archive-tile: " + JsonSerializer.Serialize(new { label, cell = cell.ToString(), control = picture.ToString(), drawn = drawn.ToString() }));
                 foreach (string overlayName in new[] { "ArchiveMediaFavorite", "ArchiveMediaKind" })
                     if (tile.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Name == overlayName && c.IsVisible && c.Bounds.Width > 0) is { } overlay)
@@ -226,15 +226,36 @@ internal static class MediaSlotChecks
                 string file = (tile.DataContext as MediaLibraryTileRow)!.Entry.Name ?? "?", label = "media tile #" + ((tile.DataContext as MediaLibraryTileRow)!.Index + 1) + " " + name;
                 Image image = tile.GetVisualDescendants().OfType<Image>().First();
                 Rect picture = RectIn(image, host);
-                Rect drawn = Drawn(picture, image.Source!.Size.Width / image.Source.Size.Height);
+                Rect drawn = Marks(Drawn(picture, image.Source!.Size.Width / image.Source.Size.Height));
                 Console.WriteLine("SMOKE media-slot media-tile: " + JsonSerializer.Serialize(new { label, control = picture.ToString(), drawn = drawn.ToString() }));
                 foreach (string overlayName in new[] { "MediaTileFavoriteToggle", "MediaTileKind" })
                     if (tile.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Name == overlayName && c.IsVisible && c.Bounds.Width > 0) is { } overlay)
                         Expect(Inside(drawn, RectIn(overlay, host)), $"{label}: {overlayName} {RectIn(overlay, host)} is not on the drawn image {drawn}.");
             }
+            foreach (ArchiveMediaTileView tile in archiveTiles)
+            {
+                Control? kind = tile.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Name == "ArchiveMediaKind" && c.IsVisible && c.Bounds.Width > 0);
+                Control? star = tile.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Name == "ArchiveMediaFavorite" && c.IsVisible && c.Bounds.Width > 0);
+                if (kind != null && star != null)
+                    Expect(!RectIn(kind, host).Intersects(RectIn(star, host)), $"archive tile {(tile.DataContext as ArchiveAssetRow)!.Name} {name}: type badge and star overlap.");
+            }
+            foreach (MediaLibraryTileView tile in libraryTiles)
+            {
+                Control? kind = tile.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Name == "MediaTileKind" && c.IsVisible && c.Bounds.Width > 0);
+                Control? star = tile.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Name == "MediaTileFavoriteToggle" && c.IsVisible && c.Bounds.Width > 0);
+                if (kind != null && star != null)
+                    Expect(!RectIn(kind, host).Intersects(RectIn(star, host)), $"media tile #{(tile.DataContext as MediaLibraryTileRow)!.Index + 1} {name}: type badge and star overlap.");
+            }
             Program.CaptureWindow(host, "media-slot-tiles-" + name + ".png", directory);
         }
         finally { host.Content = null; host.Close(); await SmokeDispatcher.SettleAsync(); }
+    }
+
+    // Marks sit on the picture's corners; a picture lower than the minimum band gets that band, centred, so badge and star never stack.
+    private static Rect Marks(Rect picture)
+    {
+        double width = Math.Max(picture.Width, MediaSlotGeometry.MinimumMarkExtent), height = Math.Max(picture.Height, MediaSlotGeometry.MinimumMarkExtent);
+        return new Rect(picture.Center.X - width / 2, picture.Center.Y - height / 2, width, height);
     }
 
     // The rectangle a Stretch.Uniform picture of this aspect covers inside its control (centred).
