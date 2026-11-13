@@ -47,16 +47,16 @@ public sealed class BundledLanguagePackTests : IDisposable
     public void PackAtTheKeyCeilingLoadsAndOneKeyMoreIsRejectedWithAWarning(int extra, bool loads)
     {
         using TempDirectory directory = new();
-        System.Text.StringBuilder json = new("{\"schemaVersion\":1,\"code\":\"it\",\"nativeName\":\"Italiano\",\"strings\":{\"action.close\":\"Chiudi\"");
+        System.Text.StringBuilder json = new("{\"schemaVersion\":1,\"code\":\"nl\",\"nativeName\":\"Nederlands\",\"strings\":{\"action.close\":\"Sluiten\"");
         for (int index = 1; index < Texts.MaximumPackKeys + extra; index++)
             json.Append(",\"future.key.").Append(index).Append("\":\"x\"");
         json.Append("}}");
-        File.WriteAllText(Path.Combine(directory.Path, "it.json"), json.ToString());
+        File.WriteAllText(Path.Combine(directory.Path, "nl.json"), json.ToString());
 
         Texts.Initialize(directory.Path);
 
-        Assert.Equal(loads, Texts.Languages.Any(language => language.Code == "it"));
-        Assert.Equal(loads ? 0 : 1, Texts.Warnings.Count(warning => warning.StartsWith("it.json:", StringComparison.Ordinal)));
+        Assert.Equal(loads, Texts.Languages.Any(language => language.Code == "nl"));
+        Assert.Equal(loads ? 0 : 1, Texts.Warnings.Count(warning => warning.StartsWith("nl.json:", StringComparison.Ordinal)));
     }
 
     [Fact]
