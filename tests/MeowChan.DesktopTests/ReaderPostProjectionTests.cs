@@ -258,10 +258,10 @@ public sealed class ReaderPostProjectionTests
     [Fact]
     public void IndentationIsALocalMarginWithLevelAndWidthLimits()
     {
-        Assert.Equal(new Avalonia.Thickness(6, 4), ArchivePage.ReaderPostIndentMargin(0, 1000));
-        Assert.Equal(new Avalonia.Thickness(26, 4, 6, 4), ArchivePage.ReaderPostIndentMargin(1, 1000));
-        Assert.Equal(new Avalonia.Thickness(6 + 16 * 20, 4, 6, 4), ArchivePage.ReaderPostIndentMargin(40, 5000)); // 16 levels at most.
-        Assert.Equal(new Avalonia.Thickness(6 + 160, 4, 6, 4), ArchivePage.ReaderPostIndentMargin(16, 400));      // 40 % of the width.
+        Assert.Equal(new Avalonia.Thickness(8, 4), ArchivePage.ReaderPostIndentMargin(0, 1000));
+        Assert.Equal(new Avalonia.Thickness(28, 4, 8, 4), ArchivePage.ReaderPostIndentMargin(1, 1000));
+        Assert.Equal(new Avalonia.Thickness(8 + 16 * 20, 4, 8, 4), ArchivePage.ReaderPostIndentMargin(40, 5000)); // 16 levels at most.
+        Assert.Equal(new Avalonia.Thickness(8 + 160, 4, 8, 4), ArchivePage.ReaderPostIndentMargin(16, 400));      // 40 % of the width.
     }
 
     [Fact]

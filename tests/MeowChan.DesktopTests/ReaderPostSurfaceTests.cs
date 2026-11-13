@@ -47,11 +47,11 @@ public sealed class ReaderPostSurfaceTests
     {
         XElement posts = Posts();
         Assert.Equal("{DynamicResource Workspace.Background}", (string?)posts.Attribute("Background"));
-        Assert.Equal("2,4", (string?)posts.Attribute("Padding"));
+        Assert.Equal("0,4", (string?)posts.Attribute("Padding"));
         XElement root = PostRoot();
         Assert.Equal(A + "StackPanel", root.Name);
         Assert.Equal("8,8,8,12", (string?)root.Attribute("Margin"));
-        Assert.Equal("6", (string?)root.Attribute("Spacing"));
+        Assert.Equal("8", (string?)root.Attribute("Spacing"));
         Assert.Null(root.Attribute("Background"));
         Assert.Empty(root.Descendants(A + "Border")); // The card is the item itself; no card in the card.
         Assert.DoesNotContain(Source("Desktop/Views/Archive/ArchivePage.axaml").Descendants(), element =>
@@ -70,7 +70,7 @@ public sealed class ReaderPostSurfaceTests
         Assert.Equal("{StaticResource Workspace.Radius.Control}", Setting(style, "CornerRadius"));
         if (selector == "ListBoxItem")
         {
-            Assert.Equal("6,4", Setting(style, "Margin"));
+            Assert.Equal("8,4", Setting(style, "Margin"));
             Assert.Equal("Stretch", Setting(style, "HorizontalContentAlignment"));
         }
     }
@@ -127,7 +127,7 @@ public sealed class ReaderPostSurfaceTests
         Assert.Equal("Transparent", Setting(style, "Background"));
         Assert.Equal("0", Setting(style, "BorderThickness"));
         Assert.Equal("{DynamicResource Workspace.Accent}", Setting(style, "Foreground"));
-        Assert.Equal("24", Setting(style, "MinHeight"));
+        Assert.Equal("{StaticResource Workspace.Size.ControlCompact}", Setting(style, "MinHeight"));
     }
 
     [Theory]
@@ -155,7 +155,7 @@ public sealed class ReaderPostSurfaceTests
         Assert.Equal("OnCopyPostNumberClick", (string?)number.Attribute("Click"));
         Assert.Equal("{Binding CopyNumberLabel}", (string?)number.Attribute("AutomationProperties.Name"));
         Assert.Equal("{Binding CopyNumberLabel}", (string?)number.Attribute("ToolTip.Tip"));
-        Assert.Equal("24", Setting(PostStyle("Button.reader-post-number"), "MinHeight"));
+        Assert.Equal("{StaticResource Workspace.Size.ControlCompact}", Setting(PostStyle("Button.reader-post-number"), "MinHeight"));
         // The reply counter at the right is the toggle for the nested reply cards (I2).
         XElement counter = Assert.Single(header.Elements(A + "Button"));
         Assert.Equal("1", (string?)counter.Attribute("Grid.Column"));
@@ -300,6 +300,38 @@ public sealed class ReaderPostSurfaceTests
             .Select(style => (string?)style.Attribute("Selector") ?? "").ToArray();
         Assert.True(Array.IndexOf(order, "ListBoxItem:selected /template/ ContentPresenter")
             > Array.IndexOf(order, "ListBoxItem.reader-op:pressed /template/ ContentPresenter"));
+    }
+
+    // P8: the reader's local style blocks read sizes, type and spacing from the design tokens or sit on the space grid;
+    // only the documented geometry stays literal (selection edge 3,1,1,1 / 3,2,2,2, the post-column cap 1120).
+    [Fact]
+    public void ReaderLocalStylesUseTokensAndTheSpaceGrid()
+    {
+        double[] grid = { 0, 2, 4, 8, 12, 16, 24, 32 };
+        XElement page = Source("Desktop/Views/Archive/ArchivePage.axaml");
+        XElement[] blocks = page.Descendants().Where(element => element.Name.LocalName.EndsWith(".Styles", StringComparison.Ordinal)).ToArray();
+        Assert.NotEmpty(blocks);
+        foreach (XElement setter in blocks.SelectMany(block => block.Descendants(A + "Setter")))
+        {
+            string property = (string?)setter.Attribute("Property") ?? "", value = (string?)setter.Attribute("Value") ?? "";
+            if (property is "FontSize" or "Width" or "MinWidth" or "Height" or "MinHeight" && !value.StartsWith("0", StringComparison.Ordinal))
+                Assert.True(value.StartsWith("{StaticResource Workspace.", StringComparison.Ordinal), $"{property}=\"{value}\" is a literal");
+            if (property is "Margin" or "Padding" && !value.StartsWith("{", StringComparison.Ordinal))
+                Assert.All(value.Split(','), part => Assert.Contains(double.Parse(part, System.Globalization.CultureInfo.InvariantCulture), grid));
+        }
+        foreach (XElement element in page.DescendantsAndSelf())
+        {
+            string name = (string?)element.Attribute(X + "Name") ?? "";
+            if (!name.StartsWith("Reader", StringComparison.Ordinal) && name != "ArchivePosts" && name != "ArchiveReaderPane") continue;
+            foreach (string spacing in new[] { "Spacing", "ItemSpacing", "LineSpacing", "RowSpacing", "ColumnSpacing" })
+                if (double.TryParse((string?)element.Attribute(spacing), System.Globalization.CultureInfo.InvariantCulture, out double value))
+                    Assert.Contains(value, grid);
+        }
+        Assert.DoesNotContain(page.DescendantsAndSelf().SelectMany(element => element.Attributes()), attribute =>
+            attribute.Value.StartsWith('#') && attribute.Name.LocalName != "Name");
+        Assert.Equal("{DynamicResource Workspace.Scrim}", (string?)Assert.Single(page.Descendants(A + "Border"), element =>
+            (string?)element.Attribute(X + "Name") == "ReaderLinkDialog").Attribute("Background"));
+        Assert.Equal("{StaticResource Workspace.Size.Input}", Setting(Assert.Single(page.Descendants(Desktop + "ActionToolBar.Styles").Elements(A + "Style")), "Height"));
     }
 
     private static XElement PostRoot()

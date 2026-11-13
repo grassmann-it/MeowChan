@@ -277,7 +277,7 @@ public partial class ArchivePage
         pane.SetValue(ReaderPostLayout.LargeReaderProperty, true);
         pane.AddHandler(KeyDownEvent, OnReaderKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         pane.AddHandler(ContextRequestedEvent, OnArchiveMediaContextRequested, RoutingStrategies.Tunnel);
-        pane.Margin = new Thickness(20);
+        pane.Margin = new Thickness(16);
         ArchiveCloseReader.IsVisible = true;
         ArchiveReadPosts.IsVisible = false;
         UpdateReaderNavigation();

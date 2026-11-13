@@ -73,6 +73,7 @@ public sealed class WorkspaceTokenTests
     [InlineData("Workspace.Size.Caption", "44")]
     [InlineData("Workspace.Size.Icon", "16")]
     [InlineData("Workspace.Size.IconCaption", "10")]
+    [InlineData("Workspace.Size.ControlCompact", "24")]
     [InlineData("Workspace.Radius.None", "0")]
     [InlineData("Workspace.Radius.Badge", "3")]
     [InlineData("Workspace.Radius.Control", "5")]

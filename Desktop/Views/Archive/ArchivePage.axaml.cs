@@ -674,7 +674,7 @@ public partial class ArchivePage : UserControl
         string captureAction = Texts.T(_thread?.Summary.CaptureEnabled == true ? "archive.captureOff" : "archive.captureOn");
         capture.Content = new StackPanel
         {
-            Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 5,
+            Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 4,
             Children =
             {
                 CommandBindings.Icon("archive.capture-toggle", 16, _thread?.Summary.CaptureEnabled == true ? "capturing" : "stopped"),

@@ -30,8 +30,8 @@ public partial class ArchivePage
     internal const double ReaderIndentStep = ReaderNavigationLayout.ConversationIndentStep;
     internal const int ReaderIndentMaximumLevels = 16;
     internal const double ReaderIndentMaximumShare = ReaderNavigationLayout.ConversationIndentMaximumShare;
-    // Mirrors the ListBoxItem margin of the post list's style ("6,4"); a local value replaces the whole margin.
-    private static readonly Thickness ReaderPostCardMargin = new(6, 4);
+    // Mirrors the ListBoxItem margin of the post list's style ("8,4": Space.8 / Space.4); a local value replaces the whole margin.
+    private static readonly Thickness ReaderPostCardMargin = new(8, 4);
 
     private readonly ReaderViewState _readerView = new();
     private readonly List<IReaderPostClassifier> _postClassifiers = new();
