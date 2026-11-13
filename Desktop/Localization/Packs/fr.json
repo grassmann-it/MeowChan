@@ -2231,6 +2231,7 @@
     "media.tile.sameThread": "{0} emplacements dans ce fil",
     "media.tile.duplicatesHint": "Le même fichier a été trouvé {0} fois. Cliquez pour lister toutes les occurrences.",
     "media.tile.tagHint": "N’afficher que les médias avec l’étiquette « {0} »",
+    "media.tile.threadTagHint": "Étiquette du fil « {0} » : n’afficher que les médias avec cette étiquette",
     "media.tile.moreTags": "Autres étiquettes : {0}",
     "media.occurrences": "Toutes les occurrences…",
     "media.occurrences.title": "Occurrences : {0}",

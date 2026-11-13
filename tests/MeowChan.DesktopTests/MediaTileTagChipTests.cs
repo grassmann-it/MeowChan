@@ -31,9 +31,13 @@ public sealed class MediaTileTagChipTests : IDisposable
         return new PrivateTagDefinition(new TagId(new Guid(id, 0, 0, new byte[8])), tagName!);
     }
 
-    private static MediaLibraryTileRow Row(MediaLibraryTile tile, params PrivateTagDefinition[] tags) => new(tile, 0, _ =>
-        new MediaLibraryEntryState(MediaLibraryFlag.No, true, 4, true, tags.Select(tag => tag.Name.Display).ToArray(), Array.Empty<string>(), null)
-        { CarriedTags = tags });
+    private static MediaLibraryTileRow Row(MediaLibraryTile tile, params PrivateTagDefinition[] tags) => Row(tile, tags, Array.Empty<PrivateTagDefinition>());
+
+    // Media tags first, then the thread's tags the file does not carry itself (MediaLibraryEntryState.CarriedTags).
+    private static MediaLibraryTileRow Row(MediaLibraryTile tile, PrivateTagDefinition[] media, PrivateTagDefinition[] thread) => new(tile, 0, _ =>
+        new MediaLibraryEntryState(MediaLibraryFlag.No, true, 4, true, media.Select(tag => tag.Name.Display).ToArray(), thread.Select(tag => tag.Name.Display).ToArray(), null)
+        { CarriedTags = media.Concat(thread).ToArray() });
+    private static string Label(Button chip) => MediaLibraryTileView.ChipLabel(chip).Text ?? string.Empty;
 
     private static Button[] Chips(Control view) => view.GetLogicalDescendants().OfType<Button>().Where(button => button.Name == "MediaTileTag").ToArray();
     private static TextBlock More(Control view) => view.GetLogicalDescendants().OfType<TextBlock>().Single(text => text.Name == "MediaTileMoreTags");
@@ -47,13 +51,15 @@ public sealed class MediaTileTagChipTests : IDisposable
         MediaLibraryTileView view = new() { TagFilter = filtered.Add, DataContext = Row(new MediaLibraryTile(entry, [entry]), cat, dog, owl) };
 
         Button[] visible = Chips(view).Where(chip => chip.IsVisible).ToArray();
-        Assert.Equal(new[] { "cat", "dog" }, visible.Select(chip => ((TextBlock)chip.Content!).Text));
+        Assert.Equal(new[] { "cat", "dog" }, visible.Select(Label));
         Assert.All(visible, chip =>
         {
-            // Same link role as the thread label; reachable and named for keyboard and screen reader users.
-            Assert.Contains("link", chip.Classes);
+            // C1: a filled compact own-tag chip; reachable and named for keyboard and screen reader users.
+            Assert.Equal(new[] { "chip", "chip-own", "chip-compact" }, chip.Classes.Where(name => name.StartsWith("chip", StringComparison.Ordinal)));
+            Assert.DoesNotContain("link", chip.Classes);
+            Assert.False(MediaLibraryTileView.ChipThreadMark(chip).IsVisible);
             Assert.True(chip.Focusable && chip.IsTabStop);
-            string hint = Texts.T("media.tile.tagHint", ((TextBlock)chip.Content!).Text);
+            string hint = Texts.T("media.tile.tagHint", Label(chip));
             Assert.Equal(hint, ToolTip.GetTip(chip));
             Assert.Equal(hint, AutomationProperties.GetName(chip));
         });
@@ -76,7 +82,7 @@ public sealed class MediaTileTagChipTests : IDisposable
         MediaLibraryEntry first = Entry("1", 'a'), second = Entry("2", 'a');
         PrivateTagDefinition cat = Tag(1, "cat"), dog = Tag(2, "dog");
         MediaLibraryTileView view = new() { DataContext = Row(new MediaLibraryTile(first, [first, second], MediaLibraryFavoriteState.None), cat, dog) };
-        Assert.Equal(new[] { "cat" }, Chips(view).Where(chip => chip.IsVisible).Select(chip => ((TextBlock)chip.Content!).Text));
+        Assert.Equal(new[] { "cat" }, Chips(view).Where(chip => chip.IsVisible).Select(Label));
         Assert.Equal("+1", More(view).Text);
         Assert.True(view.GetLogicalDescendants().OfType<TextBlock>().Single(text => text.Name == "MediaTileFavorite").IsVisible);
 
@@ -84,6 +90,34 @@ public sealed class MediaTileTagChipTests : IDisposable
         Assert.All(Chips(view), chip => Assert.False(chip.IsVisible));
         Assert.False(More(view).IsVisible);
         Assert.Null(ToolTip.GetTip(Chips(view)[0]));
+    }
+
+    [Fact]
+    public void AThreadTagChipCarriesTheThreadMarkAndSaysSoWhileAMediaTagDoesNot()
+    {
+        MediaLibraryEntry entry = Entry("1", 'a');
+        PrivateTagDefinition cat = Tag(1, "cat"), rpt = Tag(2, "rpt");
+        List<Guid> filtered = new();
+        MediaLibraryTileView view = new() { TagFilter = filtered.Add, DataContext = Row(new MediaLibraryTile(entry, [entry]), [cat], [rpt]) };
+        Button[] visible = Chips(view).Where(chip => chip.IsVisible).ToArray();
+        Assert.Equal(new[] { "cat", "rpt" }, visible.Select(Label));
+        // Both are own tags (same filled form); the thread tag adds a shape mark and the word "Thread" in its name.
+        Assert.All(visible, chip => Assert.Contains("chip-own", chip.Classes));
+        Assert.False(MediaLibraryTileView.ChipThreadMark(visible[0]).IsVisible);
+        Assert.DoesNotContain("chip-thread", visible[0].Classes);
+        Assert.True(MediaLibraryTileView.ChipThreadMark(visible[1]).IsVisible);
+        Assert.Contains("chip-thread", visible[1].Classes);
+        Assert.Equal(Texts.T("media.tile.tagHint", "cat"), AutomationProperties.GetName(visible[0]));
+        Assert.Equal(Texts.T("media.tile.threadTagHint", "rpt"), AutomationProperties.GetName(visible[1]));
+        Assert.Equal(Texts.T("media.tile.threadTagHint", "rpt"), ToolTip.GetTip(visible[1]));
+        // Behaviour unchanged: the thread tag chip filters by its tag like any other chip.
+        visible[1].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal(new[] { rpt.Id.Value }, filtered);
+
+        // A recycled tile drops the mark when the next row's chip is a media tag.
+        view.DataContext = Row(new MediaLibraryTile(entry, [entry]), [rpt], []);
+        Assert.False(MediaLibraryTileView.ChipThreadMark(Chips(view)[0]).IsVisible);
+        Assert.DoesNotContain("chip-thread", Chips(view)[0].Classes);
     }
 
     [Theory]
@@ -96,6 +130,7 @@ public sealed class MediaTileTagChipTests : IDisposable
         Assert.Contains("12", Texts.T("media.untagged.count", 12));
         Assert.Contains("12", Texts.T("media.untagged.hint", 12));
         Assert.Contains("kitten", Texts.T("media.tile.tagHint", "kitten"));
+        Assert.Contains("kitten", Texts.T("media.tile.threadTagHint", "kitten"));
         Assert.Contains("kitten", Texts.T("media.tile.moreTags", "kitten"));
         if (language == "en") return;
         string translated = Texts.T("media.filter.withoutTags");

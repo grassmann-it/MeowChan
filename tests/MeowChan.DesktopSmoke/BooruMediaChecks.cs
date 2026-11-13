@@ -15,6 +15,7 @@ using MeowChan.Archive;
 using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
 using MeowChan.Booru;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
@@ -518,6 +519,15 @@ internal static class BooruMediaChecks
         // Back to two marked tags, which is also what the screenshots show.
         TagList(dialog, BooruPostClaimTagCategory.General).SelectedItems!.Clear();
         Require(dialog.SelectedTagNames().Count == 2, phase + ": unmarking the third tag.");
+        // C1: source tags are dashed chips with a category mark; a marked one turns solid with a 2-px accent outline (not tint only).
+        ChipOutline Outline(BooruPostClaimTagCategory category, string tag) =>
+            TagList(dialog, category).Items.OfType<ListBoxItem>().Single(item => (string)item.Tag! == tag).GetVisualDescendants().OfType<ChipOutline>().Single();
+        await UntilAsync(() => { dialog.UpdateLayout(); return !Outline(BooruPostClaimTagCategory.Artist, "artist_name").IsDashed; });
+        ChipOutline marked = Outline(BooruPostClaimTagCategory.Artist, "artist_name"), plain = Outline(BooruPostClaimTagCategory.General, "blue_sky");
+        Require(marked.StrokeThickness == 2 && plain.IsDashed && plain.StrokeThickness == 1 && plain.Classes.Contains("chip-source-general")
+            && marked.Classes.Contains("chip-source-artist") && marked.Bounds.Height >= 20
+            && AutomationProperties.GetName(TagList(dialog, BooruPostClaimTagCategory.General).Items.OfType<ListBoxItem>().Single(item => (string)item.Tag! == "blue_sky")) == "blue_sky",
+            phase + ": source tag chips must be dashed, marked ones solid with a 2-px outline, and keep the tag name.");
         await ClickAsync("BooruCopySelectedTags", 7);
         Require(dialog.TagStatus.Text == Texts.T("booru.media.tags.copied", 2), phase + ": status after recovery: " + dialog.TagStatus.Text);
         Require(host.GetPrivateTagSnapshot().Snapshot!.Tags.Count == 0, phase + ": copying provider tags must never create private tags.");

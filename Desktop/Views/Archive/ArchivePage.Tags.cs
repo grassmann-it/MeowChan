@@ -310,7 +310,7 @@ public partial class ArchivePage
         {
             TagId tagId = tag.Id;
             // A TextBlock keeps underscores in names literal instead of access-key markers.
-            Button chip = new() { Content = new TextBlock { Text = tag.Name.Display + "  ✕" }, IsEnabled = canEdit };
+            Button chip = MeowChan.Desktop.Controls.WorkspaceChips.MarkOwn(new Button { Content = new TextBlock { Text = tag.Name.Display + "  ✕" }, IsEnabled = canEdit });
             string hint = Texts.T("tags.remove", tag.Name.Display);
             AutomationProperties.SetName(chip, hint);
             ToolTip.SetTip(chip, hint);
@@ -330,7 +330,7 @@ public partial class ArchivePage
             foreach (PrivateTagName name in open)
             {
                 string display = name.Display;
-                Button suggestion = new() { Content = new TextBlock { Text = "+ " + display }, IsEnabled = canEdit };
+                Button suggestion = MeowChan.Desktop.Controls.WorkspaceChips.MarkOffered(new Button { Content = new TextBlock { Text = "+ " + display }, IsEnabled = canEdit });
                 string hint = Texts.T("tags.addSuggestion", display);
                 AutomationProperties.SetName(suggestion, hint);
                 ToolTip.SetTip(suggestion, hint);

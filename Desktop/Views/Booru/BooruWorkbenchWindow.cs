@@ -829,7 +829,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
 
     private static Control CreateTags(BooruPostView post)
     {
-        StackPanel panel = new() { Spacing = 2 };
+        StackPanel panel = new() { Spacing = 4 };
         panel.Children.Add(new TextBlock { Text = Texts.T("booru.ui.tags.label"), Classes = { "workspace-meta" }, FontWeight = FontWeight.Medium });
         if (post.Tags.IsEmpty)
         {
@@ -844,11 +844,21 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
             if (names.Length == 0 || shown >= MaximumTagsShown) continue;
             string[] take = names.Take(MaximumTagsShown - shown).ToArray();
             shown += take.Length;
-            panel.Children.Add(new TextBlock
+            // C1: source tags as compact dashed chips with their category mark; the category is named in front, so the mark is
+            // only an addition. Static, like the text line before: the card owns input.
+            string label = Texts.T("booru.ui.tagCategory." + category);
+            WrapPanel line = new() { Name = "BooruResultTags:" + category, ItemSpacing = 4, LineSpacing = 4 };
+            line.Children.Add(new TextBlock { Text = label + ":", VerticalAlignment = VerticalAlignment.Center, Classes = { "workspace-meta" } });
+            foreach (string name in take)
             {
-                Text = Texts.T("booru.ui.tagCategory." + category) + ": " + string.Join(", ", take),
-                TextWrapping = TextWrapping.Wrap
-            });
+                ChipOutline chip = WorkspaceChips.CreateSourceTag(name, category, compact: true);
+                chip.MaxWidth = 240;
+                AutomationProperties.SetName(chip, label + ": " + name);
+                ToolTip.SetTip(chip, label + ": " + name);
+                line.Children.Add(chip);
+            }
+            AutomationProperties.SetName(line, label + ": " + string.Join(", ", take));
+            panel.Children.Add(line);
         }
         if (post.Tags.Length > shown)
             panel.Children.Add(new TextBlock { Text = Texts.T("booru.ui.tags.more", post.Tags.Length - shown), Classes = { "workspace-meta" } });

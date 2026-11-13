@@ -307,20 +307,20 @@ public sealed partial class MediaPage
 
     private void RenderFilterChips()
     {
-        List<(string Label, Action Remove)> chips = new();
+        List<(string Label, Action Remove, bool Exclude)> chips = new();
         chips.AddRange(_includeTags.ToArray().Select(id => (Texts.T("tags.filter.includeChip", TagLabel(id)),
-            (Action)(() => { _includeTags.Remove(id); RenderTagOptions(); FilterEdited(); }))));
+            (Action)(() => { _includeTags.Remove(id); RenderTagOptions(); FilterEdited(); }), false)));
         chips.AddRange(_excludeTags.ToArray().Select(id => (Texts.T("tags.filter.excludeChip", TagLabel(id)),
-            (Action)(() => { _excludeTags.Remove(id); RenderTagOptions(); FilterEdited(); }))));
+            (Action)(() => { _excludeTags.Remove(id); RenderTagOptions(); FilterEdited(); }), true)));
         if (_includeTags.Count > 1 && _tagMode.SelectedIndex == 1)
-            chips.Add((Texts.T("tags.filter.anyChip"), () => { _tagMode.SelectedIndex = 0; }));
+            chips.Add((Texts.T("tags.filter.anyChip"), () => { _tagMode.SelectedIndex = 0; }, false));
         if (_threadFilter is { } thread)
-            chips.Add((Texts.T("media.filter.threadChip", thread.Title), () => { _threadFilter = null; FilterEdited(); }));
+            chips.Add((Texts.T("media.filter.threadChip", thread.Title), () => { _threadFilter = null; FilterEdited(); }, false));
         // Reached from the status line while the filter fields are closed, so it is removable without opening them.
         if (_withoutMediaTags.IsChecked == true)
-            chips.Add((Texts.T("media.filter.withoutTags"), () => { _withoutMediaTags.IsChecked = false; }));
+            chips.Add((Texts.T("media.filter.withoutTags"), () => { _withoutMediaTags.IsChecked = false; }, false));
         _filterChips.Children.Clear();
-        foreach ((string label, Action remove) in chips) _filterChips.Children.Add(ArchivePage.CreateFilterTag(label, remove));
+        foreach ((string label, Action remove, bool exclude) in chips) _filterChips.Children.Add(ArchivePage.CreateFilterTag(label, remove, exclude));
         _filterChips.IsVisible = chips.Count > 0;
     }
 

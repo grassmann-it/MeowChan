@@ -2231,6 +2231,7 @@
     "media.tile.sameThread": "{0} lugares en este hilo",
     "media.tile.duplicatesHint": "El mismo archivo se encontró {0} veces. Haga clic para listar todas las apariciones.",
     "media.tile.tagHint": "Mostrar solo medios con la etiqueta «{0}»",
+    "media.tile.threadTagHint": "Etiqueta del hilo «{0}»: mostrar solo medios con esta etiqueta",
     "media.tile.moreTags": "Más etiquetas: {0}",
     "media.occurrences": "Todas las apariciones…",
     "media.occurrences.title": "Apariciones: {0}",

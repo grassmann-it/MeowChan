@@ -11,6 +11,7 @@ using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Tags;
@@ -41,6 +42,8 @@ internal sealed record MediaLibraryTileRow(MediaLibraryTile Tile, int Index, Fun
         ? (Detail.Length == 0 ? compact : Detail + " · " + compact) : Detail;
     /// <summary>The own tags the tile offers as filter chips (media tags first, then thread tags); empty when unknown or none.</summary>
     public IReadOnlyList<PrivateTagDefinition> TagChips => State?.CarriedTags ?? Array.Empty<PrivateTagDefinition>();
+    /// <summary>True when the chip at this index is a thread tag: media tags come first and every carried tag is listed once.</summary>
+    public bool IsThreadTagChip(int index) => State is { } state && index >= state.MediaTags.Count && index < TagChips.Count;
     /// <summary>How many chips fit beside what else the row shows: a grouped tile shares its row with the group favorite.</summary>
     public int ShownTagChips => Math.Min(TagChips.Count, Tile.IsGroup ? 1 : 2);
     /// <summary>Favorite state over every saved occurrence of the bytes; only a grouped tile has one to report.</summary>
@@ -78,12 +81,11 @@ internal sealed class MediaLibraryTileView : UserControl
         HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 2, 0),
         Child = new TextBlock { Text = "✓", FontWeight = FontWeight.Bold, FontSize = 12 } }.BadgeCorners();
     // Downloaded provider media carry a small source badge next to the preview, so they are told apart without opening anything.
-    private readonly Border _providerBadge = new Border { Name = "MediaTileProvider", IsVisible = false, Padding = new Thickness(5, 1),
-        HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(2, 2, 0, 0),
-        Child = new TextBlock { FontWeight = FontWeight.SemiBold }.CaptionText() }.BadgeCorners();
+    private readonly Border _providerBadge = CreateProviderBadge();
     private readonly TextBlock _favorite = new TextBlock { Name = "MediaTileFavorite", MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, IsVisible = false }.CaptionText();
     // Own tags act like the thread label beside them: each chip filters the page to that tag. The row is the favorite row of grouped tiles,
     // so the cell keeps its height; what does not fit is summarized as "+N" with the names in its tooltip.
+    // C1: filled own-tag chips (chip-own chip-compact); a thread tag carries a small house mark besides (R7).
     private readonly Button[] _tagChips = new Button[2];
     private readonly TextBlock _moreTags = new TextBlock { Name = "MediaTileMoreTags", MaxLines = 1, IsVisible = false, VerticalAlignment = VerticalAlignment.Center }.CaptionText();
     private IDisposable? _selection;
@@ -112,10 +114,6 @@ internal sealed class MediaLibraryTileView : UserControl
         Grid preview = new() { Height = 120, MaxWidth = 174 };
         _selectedMark[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Accent");
         ((TextBlock)_selectedMark.Child!)[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Background");
-        _providerBadge[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.AccentSurface");
-        _providerBadge[!Border.BorderBrushProperty] = new DynamicResourceExtension("Workspace.Border");
-        _providerBadge.BorderThickness = new Thickness(1);
-        ((TextBlock)_providerBadge.Child!)[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
         preview.Children.Add(_image); preview.Children.Add(_placeholder); preview.Children.Add(_providerBadge); preview.Children.Add(_selectedMark);
         Grid grid = new() { Margin = new Thickness(6, 6, 6, 4), RowDefinitions = new RowDefinitions("120,Auto,Auto,Auto,Auto"), RowSpacing = 3 };
         grid.Children.Add(preview);
@@ -129,16 +127,20 @@ internal sealed class MediaLibraryTileView : UserControl
         // text beside it. Without them both sit on one baseline; a hint too long for the width puts the size on a clean second line,
         // which needs the room the thread link's minimum height would otherwise take.
         _duplicatesLink.MinHeight = 0; _duplicatesLink.BorderThickness = new Thickness(0);
-        _threadLink.MinHeight = 0;
+        // A link, not a chip: no frame (the theme's button outline made it look like a boxed chip of its own).
+        _threadLink.MinHeight = 0; _threadLink.BorderThickness = new Thickness(0);
         foreach (Control part in new Control[] { _duplicatesLink, _detail }) part.VerticalAlignment = VerticalAlignment.Center;
         WrapPanel footer = new() { ItemSpacing = 6, LineSpacing = 0, Children = { _duplicatesLink, _detail } };
         grid.Children.Add(footer); Grid.SetRow(footer, 3);
         TagRow tags = new() { Name = "MediaTileTags", ClipToBounds = true, Children = { _favorite } };
         for (int index = 0; index < _tagChips.Length; index++)
         {
-            Button chip = _tagChips[index] = new Button { Name = "MediaTileTag", Padding = new Thickness(0), MinHeight = 0,
-                Classes = { "link" }, IsVisible = false, VerticalAlignment = VerticalAlignment.Center,
-                Content = new TextBlock { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, Classes = { "workspace-meta" } }.CaptionText() };
+            Avalonia.Controls.Shapes.Path mark = WorkspaceChips.CreateThreadMark();
+            mark.Name = "MediaTileTagThreadMark"; mark.IsVisible = false;
+            TextBlock label = new() { Name = "MediaTileTagName", MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+            DockPanel content = new() { Children = { mark, label } };
+            DockPanel.SetDock(mark, Dock.Left);
+            Button chip = _tagChips[index] = WorkspaceChips.MarkOwn(new Button { Name = "MediaTileTag", IsVisible = false, Content = content }, compact: true);
             chip.Click += (_, e) => { e.Handled = true; if (chip.Tag is PrivateTagDefinition tag) TagFilter?.Invoke(tag.Id.Value); };
             tags.Children.Add(chip);
         }
@@ -213,10 +215,13 @@ internal sealed class MediaLibraryTileView : UserControl
         {
             Button chip = _tagChips[index];
             PrivateTagDefinition? tag = index < shown ? tags[index] : null;
+            bool thread = tag != null && row!.IsThreadTagChip(index);
             chip.Tag = tag;
             chip.IsVisible = tag != null;
-            ((TextBlock)chip.Content!).Text = tag?.Name.Display;
-            string hint = tag == null ? string.Empty : Texts.T("media.tile.tagHint", tag.Name.Display);
+            ChipLabel(chip).Text = tag?.Name.Display;
+            ChipThreadMark(chip).IsVisible = thread;
+            chip.Classes.Set(WorkspaceChips.Thread, thread);
+            string hint = tag == null ? string.Empty : Texts.T(thread ? "media.tile.threadTagHint" : "media.tile.tagHint", tag.Name.Display);
             ToolTip.SetTip(chip, tag == null ? null : hint);
             AutomationProperties.SetName(chip, hint);
         }
@@ -226,6 +231,21 @@ internal sealed class MediaLibraryTileView : UserControl
         string moreHint = more > 0 ? Texts.T("media.tile.moreTags", string.Join(", ", tags.Skip(shown).Select(tag => tag.Name.Display))) : string.Empty;
         ToolTip.SetTip(_moreTags, more > 0 ? moreHint : null);
         AutomationProperties.SetName(_moreTags, moreHint);
+    }
+
+    /// <summary>The tag name inside a tile chip.</summary>
+    internal static TextBlock ChipLabel(Button chip) => (TextBlock)((DockPanel)chip.Content!).Children[1];
+    /// <summary>The thread mark inside a tile chip; visible only for a thread tag.</summary>
+    internal static Avalonia.Controls.Shapes.Path ChipThreadMark(Button chip) => (Avalonia.Controls.Shapes.Path)((DockPanel)chip.Content!).Children[0];
+
+    private static Border CreateProviderBadge()
+    {
+        Border badge = WorkspaceChips.CreateBadge("MediaTileProvider", string.Empty, compact: true);
+        badge.IsVisible = false;
+        badge.HorizontalAlignment = HorizontalAlignment.Left; badge.VerticalAlignment = VerticalAlignment.Top;
+        badge.Margin = new Thickness(2, 2, 0, 0);
+        // D0: a mark under 20 dip high takes the badge corners, as the selection check beside it does.
+        return badge.BadgeCorners();
     }
 
     /// <summary>

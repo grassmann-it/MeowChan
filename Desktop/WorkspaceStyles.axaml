@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:desktop="clr-namespace:MeowChan.Desktop">
+        xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:controls="clr-namespace:MeowChan.Desktop.Controls"
+        xmlns:ursa="https://irihi.tech/ursa">
     <Styles.Resources>
         <ResourceDictionary>
             <ResourceDictionary.ThemeDictionaries>
@@ -66,6 +67,27 @@
                     <SolidColorBrush x:Key="DataGridRowSelectedPointeroverBackground">#25344A</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridCellFocusBorderBrush">#6AA7FF</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridLineBrush">#2D3239</SolidColorBrush>
+                    <!-- C1 chips. Dark Workspace.ControlBorder (#2D3239) is 1.2:1 on Panel, so the chip outline has its own value:
+                         #7D8793 is 3.3:1 or more on Background, Panel, Raised, Hover and AccentSurface (selected tiles). -->
+                    <SolidColorBrush x:Key="Workspace.ChipSurface">#24282D</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ChipBorder">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ChipSourceBorder">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ChipExcludeBorder">#F49B9B</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ChipSelectedSurface">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ChipSelectedBorder">#6AA7FF</SolidColorBrush>
+                    <!-- Danbooru category marks: an addition to the named category, never the only carrier. -->
+                    <SolidColorBrush x:Key="Workspace.TagCategory.Artist">#E88A8A</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.TagCategory.Copyright">#C79BF0</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.TagCategory.Character">#8FD3A0</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.TagCategory.Meta">#E8BE72</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.TagCategory.General">#A4ADB8</SolidColorBrush>
+                    <!-- Ursa ClosableTag (filter and extension chips) in the chip palette. -->
+                    <SolidColorBrush x:Key="ClosableTagForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="ClosableTagBackground">#24282D</SolidColorBrush>
+                    <SolidColorBrush x:Key="ClosableTagBorder">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="ClosableTagCloseButtonForeground">#A4ADB8</SolidColorBrush>
+                    <SolidColorBrush x:Key="ClosableTagCloseButtonPointeroverForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="ClosableTagCloseButtonPressedForeground">#6AA7FF</SolidColorBrush>
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="Workspace.Background">#E3DFD8</SolidColorBrush>
@@ -163,6 +185,25 @@
                     <SolidColorBrush x:Key="TextBoxPlaceholderForeground">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="ComboBoxSelectorPlaceHolderForeground">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="MenuItemInputGestureTextForeground">#575148</SolidColorBrush>
+                    <!-- C1 chips: the outline is LW-06 Workspace.ControlBorder (#7A7062, 3.3:1 or more on Background, Panel,
+                         Raised and AccentSurface). -->
+                    <SolidColorBrush x:Key="Workspace.ChipSurface">#DBD5CB</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ChipBorder">#7A7062</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ChipSourceBorder">#7A7062</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ChipExcludeBorder">#A52736</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ChipSelectedSurface">#E7D4BE</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ChipSelectedBorder">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.TagCategory.Artist">#9E2B2B</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.TagCategory.Copyright">#6B3BA3</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.TagCategory.Character">#2E6B3A</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.TagCategory.Meta">#795100</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.TagCategory.General">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="ClosableTagForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ClosableTagBackground">#DBD5CB</SolidColorBrush>
+                    <SolidColorBrush x:Key="ClosableTagBorder">#7A7062</SolidColorBrush>
+                    <SolidColorBrush x:Key="ClosableTagCloseButtonForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="ClosableTagCloseButtonPointeroverForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ClosableTagCloseButtonPressedForeground">#803B06</SolidColorBrush>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
@@ -464,4 +505,131 @@
     <Style Selector="TextBox.workspace-invalid, ComboBox.workspace-invalid, NumericUpDown.workspace-invalid">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Error}" />
     </Style>
+
+    <!-- C1 chips (TAG-SUCHE-CHIPS-ZIELBILD 3.1/3.2). Own tag = filled, offered own tag = solid outline without fill,
+         source tag = dashed outline + category mark, filter value = filled + close mark, exclusion = thicker error outline.
+         The forms differ by fill and line, not only by colour. Classes only; focus, keys and names stay with the callers. -->
+    <Style Selector="Button.chip">
+        <Setter Property="Background" Value="{DynamicResource Workspace.ChipSurface}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Chip}" />
+        <Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Chip}" />
+        <Setter Property="Padding" Value="{StaticResource Workspace.Inset.Chip}" />
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" />
+        <Setter Property="HorizontalAlignment" Value="Left" /><Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.chip.chip-available"><Setter Property="Background" Value="Transparent" /></Style>
+    <Style Selector="Button.chip.chip-compact">
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.ChipCompact}" />
+        <Setter Property="MinHeight" Value="{StaticResource Workspace.Size.ChipCompact}" />
+        <Setter Property="Padding" Value="{StaticResource Workspace.Inset.ChipCompact}" />
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Caption}" />
+    </Style>
+    <Style Selector="Button.chip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="Button.chip:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.ChipSelectedSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <!-- Disabled: dimmed as a whole, no colour change, so the form (filled/outlined) stays recognisable. -->
+    <Style Selector="Button.chip:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.ChipSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="Button.chip.chip-available:disabled /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent" /></Style>
+    <Style Selector="Button.chip:disabled"><Setter Property="Opacity" Value="0.6" /></Style>
+    <Style Selector="Path.chip-thread-mark">
+        <Setter Property="Width" Value="9" /><Setter Property="Height" Value="9" /><Setter Property="Margin" Value="0,0,4,0" />
+        <Setter Property="Stroke" Value="{Binding $parent[Button].Foreground}" /><Setter Property="StrokeThickness" Value="1.25" />
+    </Style>
+
+    <Style Selector="ursa|ClosableTag.chip">
+        <Setter Property="Background" Value="{DynamicResource Workspace.ChipSurface}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Chip}" />
+        <Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Chip}" />
+        <Setter Property="Padding" Value="{StaticResource Workspace.Inset.Chip}" />
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
+    </Style>
+    <Style Selector="ursa|ClosableTag.chip.chip-exclude">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipExcludeBorder}" /><Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="ursa|ClosableTag.chip:pointerover"><Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /></Style>
+    <!-- The close mark is a template button: without this it inherits the 30-px minimum and frame of every Button. -->
+    <Style Selector="ursa|ClosableTag.chip /template/ Button#PART_CloseButton">
+        <Setter Property="MinHeight" Value="0" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="6,0,0,0" />
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Border.chip-badge">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Chip}" />
+        <Setter Property="Padding" Value="{StaticResource Workspace.Inset.Chip}" />
+    </Style>
+    <Style Selector="Border.chip-badge.chip-compact">
+        <Setter Property="Padding" Value="{StaticResource Workspace.Inset.ChipCompact}" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.ChipCompact}" />
+    </Style>
+    <Style Selector="Border.chip-badge TextBlock.chip-label">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" />
+    </Style>
+    <Style Selector="Border.chip-badge.chip-compact TextBlock.chip-label">
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Caption}" /><Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="controls|ChipOutline.chip-source">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Stroke" Value="{DynamicResource Workspace.ChipSourceBorder}" />
+        <Setter Property="StrokeThickness" Value="1" /><Setter Property="IsDashed" Value="True" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Chip}" />
+        <Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Chip}" />
+        <Setter Property="Padding" Value="{StaticResource Workspace.Inset.Chip}" />
+    </Style>
+    <Style Selector="controls|ChipOutline.chip-source.chip-compact">
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.ChipCompact}" />
+        <Setter Property="MinHeight" Value="{StaticResource Workspace.Size.ChipCompact}" />
+        <Setter Property="Padding" Value="{StaticResource Workspace.Inset.ChipCompact}" />
+    </Style>
+    <Style Selector="controls|ChipOutline.chip-source TextBlock.chip-label">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" />
+    </Style>
+    <Style Selector="controls|ChipOutline.chip-source.chip-compact TextBlock.chip-label">
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Caption}" />
+    </Style>
+    <Style Selector="Border.chip-category-mark">
+        <Setter Property="Width" Value="3" /><Setter Property="CornerRadius" Value="1.5" /><Setter Property="Margin" Value="0,2,5,2" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.TagCategory.General}" />
+    </Style>
+    <Style Selector="controls|ChipOutline.chip-source-artist Border.chip-category-mark"><Setter Property="Background" Value="{DynamicResource Workspace.TagCategory.Artist}" /></Style>
+    <Style Selector="controls|ChipOutline.chip-source-copyright Border.chip-category-mark"><Setter Property="Background" Value="{DynamicResource Workspace.TagCategory.Copyright}" /></Style>
+    <Style Selector="controls|ChipOutline.chip-source-character Border.chip-category-mark"><Setter Property="Background" Value="{DynamicResource Workspace.TagCategory.Character}" /></Style>
+    <Style Selector="controls|ChipOutline.chip-source-meta Border.chip-category-mark"><Setter Property="Background" Value="{DynamicResource Workspace.TagCategory.Meta}" /></Style>
+    <!-- A marked source tag (A11Y M7): tint plus a solid 2-px accent outline, so the mark is a change of line, not only of colour. -->
+    <Style Selector="ListBoxItem.chip-item">
+        <Setter Property="Padding" Value="0" /><Setter Property="Background" Value="Transparent" /><Setter Property="MinHeight" Value="0" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Chip}" />
+    </Style>
+    <Style Selector="ListBoxItem.chip-item /template/ ContentPresenter"><Setter Property="Background" Value="Transparent" /></Style>
+    <Style Selector="ListBoxItem.chip-item:pointerover /template/ ContentPresenter"><Setter Property="Background" Value="Transparent" /></Style>
+    <Style Selector="ListBoxItem.chip-item:selected /template/ ContentPresenter"><Setter Property="Background" Value="Transparent" /></Style>
+    <Style Selector="ListBoxItem.chip-item:pointerover controls|ChipOutline.chip-source"><Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /></Style>
+    <Style Selector="ListBoxItem.chip-item:selected controls|ChipOutline.chip-source">
+        <Setter Property="Background" Value="{DynamicResource Workspace.ChipSelectedSurface}" />
+        <Setter Property="Stroke" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
+        <Setter Property="StrokeThickness" Value="2" /><Setter Property="IsDashed" Value="False" />
+    </Style>
+    <Style Selector="ListBoxItem.chip-item:selected controls|ChipOutline.chip-source TextBlock.chip-label"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
 </Styles>

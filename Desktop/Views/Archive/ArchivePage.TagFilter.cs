@@ -129,6 +129,9 @@ public partial class ArchivePage
             { _draftIncludeTags.Remove(id); DraftEdited("tags"); RenderDraftSets(); })))
             .Concat(_draftExcludeTags.Select(id => (Texts.T("tags.filter.excludeChip", TagFilterLabel(id)), (Action)(() =>
             { _draftExcludeTags.Remove(id); DraftEdited("tags"); RenderDraftSets(); })))));
+        // C1: drafted exclusions look like applied ones (chip-exclude); the label already says "without".
+        foreach (Control excluded in Control<WrapPanel>("ArchiveDraftTags").Children.Skip(_draftIncludeTags.Count))
+            MeowChan.Desktop.Controls.WorkspaceChips.MarkFilter(excluded, exclude: true);
         ComboBox combo = ArchiveTagChoice;
         PrivateTagStoreSnapshot? tags = _privateTags;
         HashSet<Guid> used = _draftIncludeTags.Concat(_draftExcludeTags).ToHashSet();

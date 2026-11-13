@@ -2231,6 +2231,7 @@
     "media.tile.sameThread": "{0} мест в этом треде",
     "media.tile.duplicatesHint": "Один и тот же файл найден {0} раз. Нажмите, чтобы показать все вхождения.",
     "media.tile.tagHint": "Показывать только медиа с тегом «{0}»",
+    "media.tile.threadTagHint": "Тег треда «{0}»: показывать только медиа с этим тегом",
     "media.tile.moreTags": "Другие теги: {0}",
     "media.occurrences": "Все вхождения…",
     "media.occurrences.title": "Вхождения: {0}",

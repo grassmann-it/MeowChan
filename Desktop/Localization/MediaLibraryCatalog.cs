@@ -40,6 +40,7 @@ internal static class MediaLibraryCatalog
         ("media.tile.sameThread", "{0} places in this thread", "{0} Fundstellen in diesem Thread"),
         ("media.tile.duplicatesHint", "The same file was found {0} times. Click to list all occurrences.", "Dieselbe Datei wurde {0}-mal gefunden. Klicken, um alle Fundstellen aufzulisten."),
         ("media.tile.tagHint", "Show only media with the tag “{0}”", "Nur Medien mit dem Tag „{0}“ zeigen"),
+        ("media.tile.threadTagHint", "Thread tag “{0}”: show only media with this tag", "Thread-Tag „{0}“: nur Medien mit diesem Tag zeigen"),
         ("media.tile.moreTags", "More tags: {0}", "Weitere Tags: {0}"),
         ("media.occurrences", "All occurrences…", "Alle Fundstellen …"),
         ("media.occurrences.title", "Occurrences: {0}", "Fundstellen: {0}"),

@@ -9,6 +9,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using Ursa.Controls;
 
@@ -22,7 +23,8 @@ public partial class ArchivePage
         public bool CanExecute(object? parameter) => true;
         public void Execute(object? parameter) => action();
     }
-    internal static ClosableTag CreateFilterTag(string label, Action remove)
+    /// <summary>A removable filter value; C1 styles it as <c>chip chip-filter</c>, an exclusion additionally as <c>chip-exclude</c>.</summary>
+    internal static ClosableTag CreateFilterTag(string label, Action remove, bool exclude = false)
     {
         string accessible = Texts.T("archive.removeFilter", label);
         ClosableTag tag = new()
@@ -30,6 +32,7 @@ public partial class ArchivePage
             Content = new TextBlock { Text = label, MaxWidth = 235, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis },
             Command = new FilterTagCommand(remove), Focusable = true
         };
+        WorkspaceChips.MarkFilter(tag, exclude);
         ToolTip.SetTip(tag, accessible); AutomationProperties.SetName(tag, accessible);
         MeowChan.Desktop.Commands.CommandPresentation.SetId(tag, "archive.clear-filter");
         tag.KeyDown += (_, e) => { if (e.Key is Key.Enter or Key.Space) { e.Handled = true; remove(); } };
@@ -72,7 +75,7 @@ public partial class ArchivePage
         for (int i = 0; i < tags.Count; i++)
         {
             var item = tags[i]; int index = i;
-            panel.Children.Add(CreateFilterTag(item.Label, async () => await RemoveAppliedFilter(item.Field, item.Value, index)));
+            panel.Children.Add(CreateFilterTag(item.Label, async () => await RemoveAppliedFilter(item.Field, item.Value, index), item.Field == "tagExclude"));
         }
     }
     private static string CanonicalField(ArchiveSearchSpec spec, string field) => ArchiveSearchSpecJson.Serialize(field switch

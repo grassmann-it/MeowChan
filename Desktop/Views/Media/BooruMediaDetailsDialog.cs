@@ -108,20 +108,8 @@ internal sealed class BooruMediaDetailsDialog : Window
         return row;
     }
 
-    private static Border Chip(string name, string text)
-    {
-        TextBlock label = new() { Text = text, FontSize = 12, TextWrapping = TextWrapping.Wrap };
-        label[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
-        Border chip = new Border
-        {
-            Name = name, Child = label, Padding = new Thickness(8, 2),
-            BorderThickness = new Thickness(1)
-        }.PillCorners();
-        chip[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.AccentSurface");
-        chip[!Border.BorderBrushProperty] = new DynamicResourceExtension("Workspace.Border");
-        AutomationProperties.SetName(chip, text);
-        return chip;
-    }
+    // C1: static facts are chip badges (filled accent surface, chip outline), not tags.
+    private static Border Chip(string name, string text) => WorkspaceChips.CreateBadge(name, text);
 
     private Control PostRow(BooruMediaDetails details)
     {
@@ -223,7 +211,8 @@ internal sealed class BooruMediaDetailsDialog : Window
         foreach (IGrouping<BooruPostClaimTagCategory, BooruPostClaimTag> group in details.Tags.GroupBy(tag => tag.Category))
         {
             // The category names the group; each tag keeps the provider's exact spelling. Tags are selectable list items
-            // (one tab stop per category, arrow keys inside), not tag chips of the user's own.
+            // (one tab stop per category, arrow keys inside), not tag chips of the user's own: C1 source-tag chips (dashed, category
+            // mark), and a marked tag turns solid with a 2-px accent outline. The item keeps the tag's exact name for screen readers.
             string category = BooruMessages.TagCategory(group.Key);
             string[] names = group.Select(tag => tag.Name).ToArray();
             TextBlock title = new() { Name = "BooruSourceTagCategory", Text = category, VerticalAlignment = VerticalAlignment.Center,
@@ -241,7 +230,7 @@ internal sealed class BooruMediaDetailsDialog : Window
             {
                 Name = "BooruSourceTagList:" + group.Key, SelectionMode = SelectionMode.Multiple | SelectionMode.Toggle,
                 ItemsPanel = new FuncTemplate<Panel?>(() => new WrapPanel { ItemSpacing = 4, LineSpacing = 4 }),
-                ItemsSource = names.Select(name => new ListBoxItem { Content = name, Tag = name, Padding = new Thickness(8, 2) }).ToArray()
+                ItemsSource = names.Select(name => SourceTagItem(name, group.Key)).ToArray()
             };
             ScrollViewer.SetHorizontalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
             ScrollViewer.SetVerticalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
@@ -259,6 +248,13 @@ internal sealed class BooruMediaDetailsDialog : Window
         panel.Children.Add(Note("BooruSourceTagsNote", Texts.T("booru.media.sourceTags.note")));
         UpdateTagSelection();
         return panel;
+    }
+
+    private static ListBoxItem SourceTagItem(string name, BooruPostClaimTagCategory category)
+    {
+        ListBoxItem item = new() { Content = WorkspaceChips.CreateSourceTag(name, category, compact: false), Tag = name, Classes = { WorkspaceChips.Item } };
+        AutomationProperties.SetName(item, name);
+        return item;
     }
 
     private bool IsCopyGesture(KeyEventArgs e) =>

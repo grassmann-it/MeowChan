@@ -366,7 +366,8 @@ internal static partial class MediaPageChecks
                 Button chip = null!;
                 await UntilAsync(() => (chip = page.GetVisualDescendants().OfType<Button>().FirstOrDefault(button => button.Name == "MediaTileTag"
                     && button.IsEffectivelyVisible && button.DataContext is MediaLibraryTileRow row && row.Entry == two)!) != null);
-                Require((chip.Content as TextBlock)?.Text == "keep" && Equals(ToolTip.GetTip(chip), Texts.T("media.tile.tagHint", "keep"))
+                Require(MediaLibraryTileView.ChipLabel(chip).Text == "keep" && Equals(ToolTip.GetTip(chip), Texts.T("media.tile.tagHint", "keep"))
+                    && chip.Classes.Contains("chip-own") && chip.Classes.Contains("chip-compact") && !MediaLibraryTileView.ChipThreadMark(chip).IsVisible
                     && Avalonia.Automation.AutomationProperties.GetName(chip) == Texts.T("media.tile.tagHint", "keep"), "The media tag chip is not named.");
                 // The chip row shares the tile's cell; nothing is clipped or pushed under the next tile.
                 MediaLibraryTileView chipTile = chip.FindAncestorOfType<MediaLibraryTileView>()!;
@@ -382,7 +383,9 @@ internal static partial class MediaPageChecks
                 Button threadTag = null!;
                 await UntilAsync(() => (threadTag = page.GetVisualDescendants().OfType<Button>().FirstOrDefault(button => button.Name == "MediaTileTag"
                     && button.IsEffectivelyVisible && button.DataContext is MediaLibraryTileRow row && row.Entry == one)!) != null);
-                Require((threadTag.Content as TextBlock)?.Text == "rpt", "The thread tag must show as a chip as well.");
+                Require(MediaLibraryTileView.ChipLabel(threadTag).Text == "rpt" && MediaLibraryTileView.ChipThreadMark(threadTag).IsEffectivelyVisible
+                    && threadTag.Classes.Contains("chip-thread") && Equals(ToolTip.GetTip(threadTag), Texts.T("media.tile.threadTagHint", "rpt")),
+                    "The thread tag must show as a chip as well, with its thread mark.");
                 threadTag.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 Require(page.ShownEntries.Count == 2 && page.ShownEntries.All(entry => entry.Thread == A), "The thread tag chip must reach the whole thread.");
                 C<Button>(page, "MediaFilterReset").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
