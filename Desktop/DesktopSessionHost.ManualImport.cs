@@ -64,7 +64,10 @@ internal sealed partial class DesktopSessionHost
     {
         try { ManualImportStore.Read(); return null; }
         catch (ManualImportException error) { return error.Error; }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return ManualImportError.CatalogDamaged; }
+        // As in ReadManualImportCatalog above: a directory or link in place of the catalog reports "not a regular file"
+        // as InvalidDataException. That is a blocked catalog, not an error for the caller to let escape.
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException)
+        { return ManualImportError.CatalogDamaged; }
     }
 
     /// <summary>Checks a selection read-only with the configured limits; the download folder itself is never imported.</summary>
