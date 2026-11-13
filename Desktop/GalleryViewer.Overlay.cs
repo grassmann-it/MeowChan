@@ -332,25 +332,30 @@ internal sealed partial class GalleryViewer
     private void LayoutContextPlacement()
     {
         if (_terminalRetirement) return;
-        bool overlay = PostOverlayEffective;
-        bool compact = Bounds.Width < 850;
+        // Narrow viewers (below CompactPostWidth) lay the post panel over the picture, as the overlay option does, so the
+        // picture keeps its area instead of being replaced by the panel.
+        bool overlay = ContextOverPicture;
+        bool overlayOption = PostOverlayEffective;
+        if (overlay != _contextOverPicture) { _contextOverPicture = overlay; ApplyOverlayBackgrounds(); }
         MoveOverlayControl(_contextPanel, overlay ? OverlayHost : _body);
         _contextPanel.IsVisible = _contextOpen;
         if (overlay)
         {
-            _contextPanel.Width = Math.Min(360, Math.Max(0, Bounds.Width - 24));
+            _contextPanel.Width = ContextOverlayWidth;
             _contextPanel.HorizontalAlignment = HorizontalAlignment.Right;
             _contextPanel.VerticalAlignment = VerticalAlignment.Stretch;
             double transportInset = !_nativeOverlayActive && _entry?.Kind == SavedMediaKind.Video
                 ? _video?.TransportBottomInset ?? 0 : 0;
-            _contextPanel.Margin = new Thickness(12, 12, 12, OverlayControlsEffective && _overlayFooter.IsVisible
+            // The overlay option sits above the floating footer; the narrow placement sits in the picture row,
+            // above the docked toolbar, so only the transport strip of a video has to be cleared.
+            _contextPanel.Margin = new Thickness(12, 12, 12, overlayOption && OverlayControlsEffective && _overlayFooter.IsVisible
                 ? _overlayFooter.Bounds.Height + 16 : transportInset + 12);
             Grid.SetColumn(_contextPanel, 0); Grid.SetColumnSpan(_contextPanel, 1);
-            Grid.SetRow(_contextPanel, 0); Grid.SetRowSpan(_contextPanel, 1);
+            Grid.SetRow(_contextPanel, _nativeOverlayFallback && !overlayOption ? 1 : 0); Grid.SetRowSpan(_contextPanel, 1);
         }
         else
         {
-            _contextPanel.Width = compact ? double.NaN : 320;
+            _contextPanel.Width = 320;
             _contextPanel.HorizontalAlignment = HorizontalAlignment.Stretch;
             _contextPanel.VerticalAlignment = VerticalAlignment.Stretch;
             // Native chrome covers only the video viewport in a separate window.
@@ -359,12 +364,10 @@ internal sealed partial class GalleryViewer
             // layout dependency (main layout positions the native overlay).
             _contextPanel.Margin = new Thickness(0, 0, 0, !_nativeOverlayActive && OverlayControlsEffective
                 && _overlayFooter.IsVisible ? _overlayFooter.Bounds.Height + 8 : 0);
-            Grid.SetColumn(_contextPanel, compact ? 0 : 1); Grid.SetColumnSpan(_contextPanel, compact ? 2 : 1);
+            Grid.SetColumn(_contextPanel, 1); Grid.SetColumnSpan(_contextPanel, 1);
             Grid.SetRow(_contextPanel, 0); Grid.SetRowSpan(_contextPanel, 1);
         }
-        bool hideViewport = !overlay && _contextOpen && compact;
-        if (hideViewport && _viewport.IsKeyboardFocusWithin) _toolsToggle.Focus(NavigationMethod.Tab);
-        _viewport.IsVisible = !hideViewport;
+        _viewport.IsVisible = true; // The picture is never replaced by the panel.
         UpdateEdgeIndicators();
     }
 
@@ -378,7 +381,7 @@ internal sealed partial class GalleryViewer
         var background = new SolidColorBrush(Color.FromArgb(light ? (byte)238 : (byte)232, tone.R, tone.G, tone.B));
         SetOverlayBackground(_chrome, OverlayControlsEffective, background);
         SetOverlayBackground(_infoOverlay, OverlayControlsEffective, background);
-        SetOverlayBackground(_contextPanel, PostOverlayEffective, background);
+        SetOverlayBackground(_contextPanel, ContextOverPicture, background);
         if (_video?.TransportControl is Border transport) SetOverlayBackground(transport, OverlayControlsEffective, background);
         // Deliberately never set parent Opacity: text and controls remain fully opaque.
     }

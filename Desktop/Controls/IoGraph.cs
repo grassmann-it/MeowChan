@@ -74,6 +74,12 @@ public sealed class IoGraph : Control
     public static readonly StyledProperty<bool> ShowDiskProperty = AvaloniaProperty.Register<IoGraph, bool>(nameof(ShowDisk), true);
     public static readonly StyledProperty<double> LineThicknessProperty = AvaloniaProperty.Register<IoGraph, double>(nameof(LineThickness), 1.3);
 
+    /// <summary>Zero keeps the page history; a positive value limits the header to recent seconds.</summary>
+    public int HistoryWindowSeconds { get; set; }
+
+    // Supplied by the shell, not a timer or a second hub subscription. Read on every snapshot so settings apply at once.
+    internal Func<int>? SampleIntervalMs { get; set; }
+
     private float[] _network = [];
     private float[] _disk = [];
     private int _capacity = 1;
@@ -95,17 +101,29 @@ public sealed class IoGraph : Control
     /// <summary>The top of the scale used by the last drawing input, in bytes per second.</summary>
     internal double Peak { get; private set; } = IoGraphGeometry.DefaultMinimumPeak;
     internal int SampleCount => _network.Length;
+    internal bool HasTraffic => TrafficPeak > 0;
+    internal double TrafficPeak { get; private set; }
+    internal int WindowIntervals => Math.Max(0, _capacity - 1);
 
     internal void SetSeries(IoSeries series)
     {
-        _network = series.NetDown;
-        _disk = IoGraphGeometry.DiskTotals(series);
-        _capacity = Math.Max(series.Capacity, series.Count);
+        (int skip, int capacity) = IoStatsDisplay.GraphWindow(series, SampleIntervalMs?.Invoke() ?? 1000, HistoryWindowSeconds);
+        _network = skip == 0 ? series.NetDown : series.NetDown[skip..];
+        float[] disk = IoGraphGeometry.DiskTotals(series);
+        _disk = skip == 0 ? disk : disk[skip..];
+        _capacity = capacity;
         UpdatePeak();
         InvalidateVisual();
     }
 
-    private void UpdatePeak() => Peak = IoGraphGeometry.Peak(_network, ShowDisk ? _disk : []);
+    private void UpdatePeak()
+    {
+        Peak = IoGraphGeometry.Peak(_network, ShowDisk ? _disk : []);
+        double actual = 0;
+        foreach (float value in _network) if (float.IsFinite(value) && value > actual) actual = value;
+        if (ShowDisk) foreach (float value in _disk) if (float.IsFinite(value) && value > actual) actual = value;
+        TrafficPeak = actual;
+    }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
@@ -121,7 +139,7 @@ public sealed class IoGraph : Control
         double bottom = Bounds.Height - 1;
         double width = Bounds.Width - 2;
         double height = Bounds.Height - 3;
-        if (GuideStroke is { } guide)
+        if (HasTraffic && GuideStroke is { } guide)
         {
             Pen guidePen = new(guide, 0.5);
             foreach (double fraction in new[] { 0.5, 1.0 })

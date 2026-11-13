@@ -22,6 +22,7 @@ public sealed class MainPageHeadingTests
         ("navigation.sources", "Desktop/Views/Sources/SourcesPage.axaml"),
         ("navigation.diagnostics", "Desktop/Views/Diagnostics/DiagnosticsPage.axaml"),
         ("navigation.plugins", "Desktop/Views/Plugins/PluginsPage.axaml"),
+        ("navigation.statistics", "Desktop/Views/Statistics/StatisticsPage.axaml"),
     };
 
     [Fact]
@@ -44,7 +45,7 @@ public sealed class MainPageHeadingTests
     }
 
     [Fact]
-    public void TheMediaPageTitleIsAPageTitleLikeTheOtherSixAndNotASectionTitle()
+    public void TheMediaPageTitleIsAPageTitleLikeTheOtherPagesAndNotASectionTitle()
     {
         string source = File.ReadAllText(Root("Desktop/Views/Media/MediaPage.cs"));
         Match declaration = Regex.Match(source, @"TextBlock _title = new\(\) \{ Classes = \{ ""(?<class>[a-z-]+)"" \} \}");

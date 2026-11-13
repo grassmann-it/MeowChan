@@ -95,12 +95,12 @@ internal static class ReaderRepliesChecks
                 Program.CaptureWindow(window, "smoke-reader-text-" + theme.Key + ".png");
             }
             toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await Program.WaitUntilAsync(() => target.Replies.Count == ArchivePage.InlineReplyPageSize && !target.RepliesLoading);
+            await Program.WaitUntilAsync(() => target.Replies.Count == ReaderDisplayLimits.ReplyStepDefault && !target.RepliesLoading);
             Require(target.RepliesExpanded && target.HasMoreReplies && target.Replies[0].Quote.Origin.PostId == "101",
                 "First inline reply page was not bounded or ordered.");
             await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
             Button[] cards = inline.GetVisualDescendants().OfType<Button>().Where(button => button.Classes.Contains("reader-reply-card")).ToArray();
-            Require(cards.Length == ArchivePage.InlineReplyPageSize, $"The first page showed {cards.Length} reply cards.");
+            Require(cards.Length == ReaderDisplayLimits.ReplyStepDefault, $"The first page showed {cards.Length} reply cards.");
             Program.CaptureWindow(window, "smoke-reader-i2-replies.png");
             while (target.HasMoreReplies)
             {

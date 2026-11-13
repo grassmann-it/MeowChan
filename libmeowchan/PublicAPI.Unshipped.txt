@@ -1,5 +1,1 @@
 #nullable enable
-*REMOVED*const MeowChan.Favorites.ThreadFavoriteStore.MaximumBytes = 8000000 -> int
-*REMOVED*const MeowChan.Ratings.MediaRatingStore.MaximumBytes = 8000000 -> int
-const MeowChan.Favorites.ThreadFavoriteStore.MaximumBytes = 8388608 -> int
-const MeowChan.Ratings.MediaRatingStore.MaximumBytes = 8388608 -> int

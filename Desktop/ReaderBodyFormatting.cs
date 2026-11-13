@@ -11,13 +11,17 @@ internal enum ReaderBodySegmentKind { Text, Greentext, Quote, DeadQuote, DeadNot
 /// <summary>
 /// A contiguous slice of the document text; segments cover the text exactly once. <see cref="Style"/> carries
 /// the spoiler, code and link flags (never Greentext, which is the kind). <see cref="Link"/> is the address a link
-/// opens: its visible text parsed as an absolute http(s) address; a link text that is anything else is plain text.
+/// opens: the visible text of the whole link range (which a spoiler or code mark may divide into several segments)
+/// parsed as an absolute http(s) address; a link text that is anything else is plain text. <see cref="LinkSpansSpoiler"/>
+/// is set when a spoiler lies anywhere inside that link range.
 /// </summary>
 internal sealed record ReaderBodySegment(ReaderBodySegmentKind Kind, int Start, int Length, ArchiveQuoteRow? Quote = null,
-    ArchiveTextStyle Style = ArchiveTextStyle.None, Uri? Link = null)
+    ArchiveTextStyle Style = ArchiveTextStyle.None, Uri? Link = null, bool LinkSpansSpoiler = false)
 {
     public int End => Start + Length;
     public bool IsSpoiler => (Style & ArchiveTextStyle.Spoiler) != 0;
+    /// <summary>The link of this segment is not open to use while a spoiler of its own text, or one inside the same link, is hidden.</summary>
+    public bool LinkNeedsReveal => Link != null && (IsSpoiler || LinkSpansSpoiler);
 }
 
 /// <summary>
@@ -63,13 +67,15 @@ internal static class ReaderBodyFormatting
             }
         }
         IReadOnlyList<ArchiveTextRun> runs = ArchiveBodyRuns.Split(text, marks);
+        IReadOnlyList<ResolvedLink> links = ResolveLinks(text, marks, runs);
         SortedSet<int> cuts = new() { 0, text.Length };
         foreach (ArchiveTextRun run in runs) cuts.Add(run.Start);
+        foreach (ResolvedLink resolved in links) { cuts.Add(resolved.Start); cuts.Add(resolved.End); }
         foreach ((int start, int end, _) in references) { cuts.Add(start); cuts.Add(end); }
         int[] points = cuts.ToArray();
         StringBuilder shown = new(text.Length + 16);
         List<ReaderBodySegment> segments = new();
-        int runIndex = 0, referenceIndex = 0;
+        int runIndex = 0, referenceIndex = 0, linkIndex = 0;
         for (int index = 0; index + 1 < points.Length; index++)
         {
             int start = points[index], end = points[index + 1];
@@ -78,18 +84,15 @@ internal static class ReaderBodyFormatting
             while (referenceIndex < references.Count && references[referenceIndex].End <= start) referenceIndex++;
             (int Start, int End, ArchiveQuoteRow Row)? reference = referenceIndex < references.Count && references[referenceIndex].Start <= start
                 ? references[referenceIndex] : null;
-            ArchiveTextStyle flags = style & ~ArchiveTextStyle.Greentext;
-            Uri? link = null;
-            if ((flags & ArchiveTextStyle.Link) != 0)
-            {
-                // The whole link run is the visible text, however references or other cuts divide it into segments.
-                ArchiveTextRun linkRun = runs[runIndex];
-                link = ReaderExternalLink.Parse(text.Substring(linkRun.Start, linkRun.Length));
-                if (link == null) flags &= ~ArchiveTextStyle.Link;
-            }
+            // Only a range that parsed as an address is a link; the style flag of a run alone is not (see ResolveLinks).
+            ArchiveTextStyle flags = style & ~(ArchiveTextStyle.Greentext | ArchiveTextStyle.Link);
+            while (linkIndex < links.Count && links[linkIndex].End <= start) linkIndex++;
+            ResolvedLink? resolvedLink = linkIndex < links.Count && links[linkIndex].Start <= start ? links[linkIndex] : null;
+            Uri? link = resolvedLink?.Uri;
+            if (resolvedLink != null) flags |= ArchiveTextStyle.Link;
             ReaderBodySegmentKind kind = reference != null ? reference.Value.Row.IsDead ? ReaderBodySegmentKind.DeadQuote : ReaderBodySegmentKind.Quote
                 : (style & ArchiveTextStyle.Greentext) != 0 ? ReaderBodySegmentKind.Greentext : ReaderBodySegmentKind.Text;
-            segments.Add(new ReaderBodySegment(kind, shown.Length, end - start, reference?.Row, flags, link));
+            segments.Add(new ReaderBodySegment(kind, shown.Length, end - start, reference?.Row, flags, link, resolvedLink?.SpansSpoiler ?? false));
             shown.Append(text, start, end - start);
             // "(OP)" / "(other thread)" behind the last piece of a reference, before the note of a dead one.
             if (reference != null && end == reference.Value.End && reference.Value.Row.Marker is { Length: > 0 } marker)
@@ -108,10 +111,37 @@ internal static class ReaderBodyFormatting
         foreach (ReaderBodySegment segment in segments)
         {
             if (merged.Count > 0 && merged[^1] is { Kind: ReaderBodySegmentKind.Text or ReaderBodySegmentKind.Greentext } previous
-                && previous.Kind == segment.Kind && previous.Style == segment.Style && previous.Link == segment.Link)
+                && previous.Kind == segment.Kind && previous.Style == segment.Style && previous.Link == segment.Link
+                && previous.LinkSpansSpoiler == segment.LinkSpansSpoiler)
                 merged[^1] = previous with { Length = previous.Length + segment.Length };
             else merged.Add(segment);
         }
         return new ReaderBodyDocument(shown.ToString(), merged.AsReadOnly(), labels.Any(pair => !placed.Contains(pair.Label)));
+    }
+
+    private readonly record struct ResolvedLink(int Start, int End, Uri Uri, bool SpansSpoiler);
+
+    /// <summary>
+    /// The links of a body as ranges of the plain text, sorted and without overlap. An anchor opens its whole text when that
+    /// text is an address; an anchor with other text (words plus an address) is no link itself, but the bare addresses inside
+    /// it stay links of their own. A link is one range however spoilers or code marks divide it into styled runs, so its
+    /// target is always the address the reader shows.
+    /// </summary>
+    private static IReadOnlyList<ResolvedLink> ResolveLinks(string text, IReadOnlyList<ArchiveTextMark>? marks, IReadOnlyList<ArchiveTextRun> runs)
+    {
+        IReadOnlyList<ArchiveLinkRange> candidates = ArchiveBodyRuns.LinkRanges(text, marks);
+        if (candidates.Count == 0) return Array.Empty<ResolvedLink>();
+        List<ResolvedLink> accepted = new();
+        // Anchors first (their whole text is the address), then the bare addresses that no accepted link already covers.
+        foreach (bool anchors in new[] { true, false })
+            foreach (ArchiveLinkRange range in candidates.Where(candidate => candidate.IsMark == anchors).OrderBy(candidate => candidate.Start))
+            {
+                if (accepted.Any(other => range.Start < other.End && range.End > other.Start)) continue;
+                if (ReaderExternalLink.Parse(text.Substring(range.Start, range.End - range.Start)) is not { } uri) continue;
+                bool spansSpoiler = runs.Any(run => (run.Style & ArchiveTextStyle.Spoiler) != 0 && run.Start < range.End && run.End > range.Start);
+                accepted.Add(new ResolvedLink(range.Start, range.End, uri, spansSpoiler));
+            }
+        accepted.Sort((left, right) => left.Start.CompareTo(right.Start));
+        return accepted.AsReadOnly();
     }
 }

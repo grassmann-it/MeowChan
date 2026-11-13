@@ -10,12 +10,22 @@ public sealed class ReaderPostLayout : Panel
 {
     public static readonly AttachedProperty<bool> LargeReaderProperty =
         AvaloniaProperty.RegisterAttached<ReaderPostLayout, Control, bool>("LargeReader", inherits: true);
+    public static readonly AttachedProperty<int> ThumbnailWidthProperty =
+        AvaloniaProperty.RegisterAttached<ReaderPostLayout, Control, int>("ThumbnailWidth",
+            ReaderDisplayPreferences.ReaderThumbnailWidthDefault, inherits: true);
 
-    static ReaderPostLayout() => AffectsMeasure<ReaderPostLayout>(LargeReaderProperty);
+    static ReaderPostLayout() => AffectsMeasure<ReaderPostLayout>(LargeReaderProperty, ThumbnailWidthProperty);
 
     private bool _beside;
-    private bool Beside(double width) => width >= (GetValue(LargeReaderProperty) ? 760 : 600);
-    private double MediaWidth => GetValue(LargeReaderProperty) ? 376 : 268;
+
+    private bool IsLargeReader => GetValue(LargeReaderProperty);
+    private double ThumbnailWidth => ReaderDisplayPreferences.EffectiveThumbnailWidth(
+        GetValue(ThumbnailWidthProperty), IsLargeReader);
+
+    // The threshold includes the media column and the body breathing room. Defaults remain 600/760 DIP, while a
+    // wider configured thumbnail grows the threshold instead of making the body overlap the media.
+    private bool Beside(double width) => width >= ThumbnailMediaWidth + (IsLargeReader ? 384 : 332);
+    private double ThumbnailMediaWidth => ThumbnailWidth + (IsLargeReader ? 16 : 28);
 
     // Smoke seam: how many times the post layouts were measured (scroll cost of the card width modes).
     internal static long MeasurePasses;
@@ -26,7 +36,7 @@ public sealed class ReaderPostLayout : Panel
         if (Children.Count != 2) return default;
         Control media = Children[0], body = Children[1];
         double width = availableSize.Width;
-        media.Measure(new Size(Math.Min(width, MediaWidth), availableSize.Height));
+        media.Measure(new Size(Math.Min(width, ThumbnailMediaWidth), availableSize.Height));
         bool beside = _beside = Beside(width);
         double gap = media.IsVisible ? (beside ? 12 : 8) : 0;
         body.Measure(new Size(beside ? Math.Max(0, width - media.DesiredSize.Width - gap) : width,

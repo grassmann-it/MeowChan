@@ -106,6 +106,11 @@ internal static class BoardAdmissionContractChecks
         await Program.WaitUntilAsync(() => Find<Button>(modal, "BoardAdmissionApply").IsEnabled);
         ListBox list = Find<ListBox>(modal, "BoardAdmissionPreview");
         list.ScrollIntoView(list.Items[0]!);
+        // UX round 3: a loaded board shows its count summary, not "Preview loaded", and the footer does not repeat the apply rules.
+        Require(!Find<TextBlock>(modal, "BoardAdmissionStatus").IsVisible && Find<TextBlock>(modal, "BoardAdmissionSummary").IsVisible,
+            "A loaded board kept the redundant preview-loaded line.");
+        Require(modal.GetVisualDescendants().OfType<TextBlock>().All(block => block.Text != Texts.T("wizard.applyHint")),
+            "The footer repeats the apply rules as visible text.");
         await Program.WaitUntilAsync(() => modal.GetVisualDescendants().OfType<Button>().Any(button => button.Name == "BoardAdmissionResetChoice"));
         CheckBox row = Find<CheckBox>(modal, "BoardAdmissionInclude");
         row.IsChecked = true;

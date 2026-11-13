@@ -430,8 +430,11 @@ internal sealed class HtmlExportLocalization
     {
         string code = NormalizeLanguage(language);
         Language = code;
-        _strings = Translations.TryGetValue(code, out IReadOnlyDictionary<HtmlExportText, string>? translated)
-            ? translated : English;
+        if (Translations.TryGetValue(code, out IReadOnlyDictionary<HtmlExportText, string>? translated)
+            || HtmlExportAdditionalTranslations.All.TryGetValue(code, out translated))
+            _strings = translated;
+        else
+            _strings = English;
     }
 
     public string Language { get; }
@@ -469,7 +472,14 @@ internal sealed class HtmlExportLocalization
         string tag = language.Trim();
         foreach (char character in tag)
             if (!char.IsAsciiLetterOrDigit(character) && character is not ('-' or '_')) return "en";
-        string code = tag.Replace('_', '-').Split('-', 2)[0].ToLowerInvariant();
-        return code is "de" or "es" or "fr" or "ru" ? code : "en";
+        string normalized = tag.Replace('_', '-');
+        string code = normalized.Split('-', 2)[0].ToLowerInvariant();
+        if (code is "de" or "es" or "fr" or "ru" or "cs" or "it" or "ja" or "ko" or "pl")
+            return code;
+        if (code == "pt" && string.Equals(normalized, "pt-BR", StringComparison.OrdinalIgnoreCase))
+            return "pt-BR";
+        if (code == "zh" && string.Equals(normalized, "zh-Hans", StringComparison.OrdinalIgnoreCase))
+            return "zh-Hans";
+        return "en";
     }
 }

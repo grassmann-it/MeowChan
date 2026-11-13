@@ -58,6 +58,8 @@ internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
     public Func<Task>? ToggleFavoriteAsync { get; set; }
     public Func<string?>? FavoriteError { get; set; }
     public bool LargePreview { get; init; }
+    /// <summary>Reader image width; zero keeps the legacy list-preview default.</summary>
+    public int ThumbnailWidth { get; init; }
     public Func<CancellationToken, Task<Bitmap?>>? LoadThumbnail { get; init; }
     public Action? OpenPreview { get; init; }
     public MediaAttachmentBinding? Binding { get; set; }
@@ -122,6 +124,8 @@ internal sealed record ArchivePostRow(string Id, string Subject, string Body,
     public string PostedFull { get; init; } = string.Empty;
     /// <summary>The conversation view nests the replies itself, so the header's reply counter would show them twice.</summary>
     public bool SuppressReplyToggle { get; init; }
+    // Enter on a focused post opens its media (the gallery); a deleted attachment has none to open.
+    public bool HasActivatableMedia => Attachments.Any(row => !row.Attachment.IsDeleted);
     public IReadOnlyList<ArchiveQuoteRow> Quotes { get; init; } = Array.Empty<ArchiveQuoteRow>();
     // Spoiler, code and external-link ranges of Body (set with Quotes; empty for unformatted posts).
     public IReadOnlyList<ArchiveTextMark> Marks { get; init; } = Array.Empty<ArchiveTextMark>();
@@ -264,13 +268,14 @@ internal static class ArchivePresentation
     /// The excerpt of a post that quote previews and reply cards show: a header "&gt;&gt;No. · author · date" and the first
     /// lines of the text (the first attachment name when the post has no text). Only the limits differ between the two.
     /// </summary>
-    internal static (string Header, string Body) PostExcerpt(CapturedPost post, int maxLines, int maxCharacters)
+    internal static (string Header, string Body) PostExcerpt(CapturedPost post, int maxLines, int maxCharacters,
+        ReaderDateStyle dateStyle = ReaderDateStyle.System, DateTimeOffset? openingPostAt = null, DateTimeOffset? now = null)
     {
         ArgumentNullException.ThrowIfNull(post);
         string header = string.Join(" \u00B7 ", new[]
         {
             Texts.T("reader.postNumber", post.PostId), post.Author ?? string.Empty,
-            post.PostedAt?.ToLocalTime().ToString("g", Texts.Culture) ?? string.Empty
+            ReaderDateText.Posted(post.PostedAt, dateStyle, openingPostAt, now)
         }.Where(part => part.Length > 0));
         string body = ArchivePage.ShortenText(PlainText(post.Html), maxLines, maxCharacters);
         if (body.Length == 0 && post.Attachments?.FirstOrDefault(attachment => !string.IsNullOrEmpty(attachment.OriginalFileName)) is { } file)

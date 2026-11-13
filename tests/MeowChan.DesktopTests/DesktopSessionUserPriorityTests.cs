@@ -12,8 +12,9 @@ public sealed class DesktopSessionUserPriorityTests
     public async Task MultipleExactWatchesCanBeBoostedWhilePausedWithoutStartingNetworkOrPersistingBoost()
     {
         using TempDirectory directory = new();
+        const int configuredConcurrency = 200;
         new Config { DownloadsPaused = true, AutomaticUpdateChecks = false,
-            DownloadPath = Path.Combine(directory.Path, "media"), MaxParallelDownloads = 200 }.SaveConfig(directory.Path);
+            DownloadPath = Path.Combine(directory.Path, "media"), MaxParallelDownloads = configuredConcurrency }.SaveConfig(directory.Path);
         using NoNetwork handler = new();
         using HttpClient client = new(handler);
         await using DesktopSessionHost host = new(directory.Path, [new FourChanImageBoard(client)]);
@@ -26,10 +27,12 @@ public sealed class DesktopSessionUserPriorityTests
         Assert.Equal(ids.Order(), projection.HighPriorityWatches.Order());
         Assert.True(host.IsPaused);
         Assert.Equal(0, handler.Requests);
-        Assert.Equal(1000, projection.MediaConcurrency.Configured);
+        Assert.Equal(configuredConcurrency, projection.MediaConcurrency.Configured);
         Assert.Equal(32, projection.MediaConcurrency.Effective);
         Assert.Equal(0, projection.MediaConcurrency.Active);
-        Assert.Equal(1000, Config.LoadConfig(directory.Path).MaxParallelDownloads);
+        // User priority is runtime-only: it must not rewrite the requested concurrency.
+        Assert.Equal(configuredConcurrency, host.Config.MaxParallelDownloads);
+        Assert.Equal(configuredConcurrency, Config.LoadConfig(directory.Path).MaxParallelDownloads);
         Assert.True(await host.SetUserThreadPriorityAsync(ids[0], false).WaitAsync(Deadline));
         Assert.Equal(ids[1], Assert.Single(host.Projection.HighPriorityWatches));
         Assert.False(await host.SetUserThreadPriorityAsync(long.MaxValue, true).WaitAsync(Deadline));

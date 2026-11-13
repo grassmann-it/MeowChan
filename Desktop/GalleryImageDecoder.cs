@@ -164,8 +164,15 @@ internal static class GalleryGeometry
         ? Math.Exp(Math.Clamp(delta, -4, 4) * Math.Log(1.1)) : 1;
     internal static double ClampZoom(double requested, double fit) =>
         Math.Clamp(double.IsFinite(requested) ? requested : fit, fit, Math.Max(16, fit));
-    internal static double Fit(int width, int height, double viewportWidth, double viewportHeight, double displayScale) =>
-        Math.Min(Math.Max(1, viewportWidth) * displayScale / width, Math.Max(1, viewportHeight) * displayScale / height);
+    /// <summary>
+    /// The scale that fits the image into the viewport. <paramref name="maxUpscale"/> (physical pixels per source pixel, null =
+    /// no limit) only caps an enlargement: it never reduces a fit that shrinks the image, and never goes below 1.
+    /// </summary>
+    internal static double Fit(int width, int height, double viewportWidth, double viewportHeight, double displayScale, double? maxUpscale = null)
+    {
+        double fit = Math.Min(Math.Max(1, viewportWidth) * displayScale / width, Math.Max(1, viewportHeight) * displayScale / height);
+        return maxUpscale is { } cap && double.IsFinite(cap) ? Math.Min(fit, Math.Max(1, cap)) : fit;
+    }
     internal static double Pan(double pan, int sourcePixels, double physicalZoom, double displayScale, double viewport) =>
         Math.Clamp(pan, -Math.Max(0, (sourcePixels * physicalZoom / displayScale - viewport) / 2),
             Math.Max(0, (sourcePixels * physicalZoom / displayScale - viewport) / 2));

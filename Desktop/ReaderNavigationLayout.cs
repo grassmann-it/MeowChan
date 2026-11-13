@@ -15,6 +15,19 @@ internal readonly record struct ReaderNavigationLayout(Thickness PostMargin, dou
     // Post width "fit to content": a card is as wide as its content needs, up to this reading width. The same number
     // is the MaxWidth setter of the "ListBox.reader-fit-width ListBoxItem" style in ArchivePage.axaml (a test pins both).
     internal const double CardMaxWidth = 1120;
+    // Conversation indentation is local to a card. Keeping it below 40% of the readable width prevents the
+    // deepest tree from consuming the text column or the navigation lane at 900/1440 DIP.
+    internal const double ConversationIndentStep = 20;
+    internal const double ConversationIndentMaximumShare = 0.4;
+
+    internal static double ConversationIndent(int depth, double availableWidth, double cardMaxWidth = CardMaxWidth)
+    {
+        int level = Math.Clamp(depth, 0, 16);
+        if (!double.IsFinite(cardMaxWidth) || cardMaxWidth <= 0) cardMaxWidth = CardMaxWidth;
+        double readable = double.IsFinite(availableWidth) && availableWidth > 0 ? availableWidth : cardMaxWidth;
+        readable = Math.Min(readable, cardMaxWidth);
+        return Math.Min(level * ConversationIndentStep, readable * ConversationIndentMaximumShare);
+    }
 
     internal double RightInset(double surfaceWidth, double postRight) => TailInset > 0
         && double.IsFinite(surfaceWidth) && double.IsFinite(postRight)

@@ -24,6 +24,13 @@ public sealed class HtmlExportLocalizationRenderingTests
     [InlineData("es", "Resultado de la exportación")]
     [InlineData("fr", "Résultat de l’exportation")]
     [InlineData("ru", "Результат экспорта")]
+    [InlineData("cs", "Výsledek exportu")]
+    [InlineData("it", "Risultato dell'esportazione")]
+    [InlineData("ja", "エクスポート結果")]
+    [InlineData("ko", "내보내기 결과")]
+    [InlineData("pl", "Wynik eksportu")]
+    [InlineData("pt-BR", "Resultado da exportação")]
+    [InlineData("zh-Hans", "导出结果")]
     public async Task ThreadFrameIsLocalizedWithoutChangingSourceDataOrVerifiedMedia(string language, string heading)
     {
         using TempDirectory directory = new();

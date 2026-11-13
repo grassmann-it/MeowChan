@@ -225,14 +225,26 @@ public partial class SavedArchiveSearchesDialog : Window
     private bool Ready => _host.State == DesktopSessionState.Ready;
     private bool CanCapture() => _snapshot?.CanWrite == true && _page.CanSaveCurrentSearch;
     // A disabled action explains itself: why nothing can be saved, or that a search must be selected first.
-    private string? UnavailableReason(string suffix)
+    private string? UnavailableReason(string suffix) => UnavailableReason(_snapshot, suffix, Selected != null,
+        _page.CanSaveCurrentSearch, _page.AppliedSearchSpec != null);
+
+    // The store's own state comes first: with damaged, read-only or recovery-pending storage every write action is
+    // unavailable, and that is the reason, whatever is or is not selected. Applying a saved search needs no write.
+    internal static string? UnavailableReason(SavedArchiveSearchSnapshot? snapshot, string suffix, bool hasSelection,
+        bool canSaveCurrent, bool hasAppliedSearch)
     {
-        if (_snapshot == null || _snapshot.CanWrite != true && suffix is not "apply") return null;
+        if (snapshot == null) return null;
+        if (!snapshot.CanWrite && suffix is not "apply")
+        {
+            string readOnly = Texts.T("savedSearch.readonly", snapshot.Error ?? snapshot.State.ToString());
+            return snapshot.State == SavedSearchStoreState.RecoveryAvailable
+                ? readOnly + " " + Texts.T("savedSearch.prompt.Recover") : readOnly;
+        }
         bool needsCapture = suffix is "save-current" or "replace";
         bool needsSelection = suffix is not "save-current";
-        if (needsSelection && Selected == null) return Texts.T("savedSearch.choose");
-        if (needsCapture && !_page.CanSaveCurrentSearch)
-            return Texts.T(_page.AppliedSearchSpec == null ? "savedSearch.noApplied" : "savedSearch.captureBlocked");
+        if (needsSelection && !hasSelection) return Texts.T("savedSearch.choose");
+        if (needsCapture && !canSaveCurrent)
+            return Texts.T(hasAppliedSearch ? "savedSearch.captureBlocked" : "savedSearch.noApplied");
         return null;
     }
     private void UpdateUnavailableHints()
@@ -417,7 +429,8 @@ public partial class SavedArchiveSearchesDialog : Window
         Button("SavedSearchReload").IsEnabled = idle && _edit == EditKind.None;
         Button("SavedSearchRecover").IsEnabled = idle && _edit == EditKind.None;
         Button("SavedSearchConfirm").IsEnabled = idle && _edit != EditKind.None && !TargetDeletedByConflict && (_edit == EditKind.Apply || _edit == EditKind.Discard || _snapshot?.CanWrite == true || _edit == EditKind.Recover && _snapshot?.State == SavedSearchStoreState.RecoveryAvailable);
-        Button("SavedSearchCancelEdit").Content = Texts.T(_working ? "savedSearch.cancelOperation" : _edit == EditKind.Discard ? "savedSearch.keepEditing" : "savedSearch.cancel");        UpdateUnavailableHints();
+        Button("SavedSearchCancelEdit").Content = Texts.T(_working ? "savedSearch.cancelOperation" : _edit == EditKind.Discard ? "savedSearch.keepEditing" : "savedSearch.cancel");
+        UpdateUnavailableHints();
     }
     // Failures go to the local error strip between header and body; SavedSearchStatus keeps the
     // same text for its existing readers, other outcomes stay in the footer status line.

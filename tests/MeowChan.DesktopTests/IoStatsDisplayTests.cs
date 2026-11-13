@@ -200,7 +200,7 @@ public sealed class IoStatsDisplayTests : IDisposable
         row.Update(first);
         Assert.Empty(changed);
         row.Update(first with { Now = "2 KiB/s", Requests = "2" });
-        Assert.Equal([nameof(StatisticsRow.Now), nameof(StatisticsRow.Requests)], changed);
+        Assert.Equal([nameof(StatisticsRow.Now), nameof(StatisticsRow.Requests), nameof(StatisticsRow.Details)], changed);
         Assert.Equal(Avalonia.Media.FontWeight.Normal, row.Weight);
         Assert.Equal(Avalonia.Media.FontWeight.SemiBold, new StatisticsRow(first with { IsTotal = true }).Weight);
     }

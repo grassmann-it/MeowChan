@@ -4,7 +4,6 @@ internal static class ExportCatalog
     internal static readonly (string Key, string English, string German)[] Entries =
     {
         ("export.target", "Destination", "Ziel"),
-        ("export.options", "Options", "Optionen"),
         ("export.scopeDetails", "Included threads", "Enthaltene Threads"),
         ("export.originalHint", "Copy this frozen selection of verified local originals. Nothing is downloaded.", "Diese eingefrorene Auswahl verifizierter lokaler Originale kopieren. Es wird nichts heruntergeladen."),
         ("export.older", "Older exports without metadata", "Ältere Exporte ohne Metadaten"),

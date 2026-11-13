@@ -108,6 +108,11 @@ internal static class ReaderUxChecks
             await ReaderRepliesChecks.RunAsync(window);
             return;
         }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_POST_FILTER_ONLY") == "1")
+        {
+            await ReaderPostFilterChecks.RunAsync(window);
+            return;
+        }
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_RETURNS_ONLY") == "1")
         {
             await ReaderReturnChecks.RunAsync(window);
@@ -121,6 +126,16 @@ internal static class ReaderUxChecks
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_STABILITY_ONLY") == "1")
         {
             await ReaderStabilityChecks.RunAsync(window);
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_CONVERSATION_ONLY") == "1")
+        {
+            await ReaderConversationChecks.RunAsync(window);
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_DISPLAY_ONLY") == "1")
+        {
+            await ReaderDisplayChecks.RunAsync(window);
             return;
         }
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_VIEW_ONLY") == "1")

@@ -74,6 +74,7 @@ internal static partial class SmokeScenarios
         }),
         ["media-menu-surfaces"] = new(SmokeStage.Ready, mainWindow => MediaMenuSurfacesChecks.RunAsync(mainWindow)),
         ["motion"] = new(SmokeStage.Ready, mainWindow => MotionChecks.RunAsync(mainWindow)),
+        ["gallery-toolbar"] = new(SmokeStage.Ready, mainWindow => GalleryToolbarLayoutChecks.RunAsync(mainWindow)),
         ["gallery-media-tags"] = new(SmokeStage.Ready, mainWindow => GalleryMediaTagChecks.RunAsync(mainWindow)),
         ["local-media-tags"] = new(SmokeStage.Ready, mainWindow => LocalMediaTagChecks.RunAsync(mainWindow)),
         ["manual-import"] = new(SmokeStage.Ready, mainWindow => ManualImportChecks.RunAsync(mainWindow)),
@@ -146,6 +147,7 @@ internal static partial class SmokeScenarios
         ["gallery-integrity-gui"] = new(SmokeStage.Ready, mainWindow => GalleryIntegrityChecks.RunAsync(mainWindow)),
         ["smoke-alpha2-copy"] = new(SmokeStage.Ready, mainWindow => Alpha2CopyChecks.RunAsync(mainWindow)),
         ["source-filter-wave"] = new(SmokeStage.Ready, mainWindow => SourceFilterWaveChecks.RunAsync(mainWindow)),
+        ["filter-pointer-selection"] = new(SmokeStage.Ready, mainWindow => FilterPointerSelectionChecks.RunAsync(mainWindow)),
         ["archive-media-counts"] = new(SmokeStage.Ready, async mainWindow =>
         {
             await ArchiveMediaCountsChecks.RunAsync(mainWindow);

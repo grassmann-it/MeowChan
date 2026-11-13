@@ -12,6 +12,13 @@ public sealed class HtmlExportLocalizationTests
     [InlineData("fr", "fr", "Résultat de l’exportation")]
     [InlineData("ru", "ru", "Результат экспорта")]
     [InlineData("fr-CA", "fr", "Résultat de l’exportation")]
+    [InlineData("cs", "cs", "Výsledek exportu")]
+    [InlineData("it", "it", "Risultato dell'esportazione")]
+    [InlineData("ja", "ja", "エクスポート結果")]
+    [InlineData("ko", "ko", "내보내기 결과")]
+    [InlineData("pl", "pl", "Wynik eksportu")]
+    [InlineData("pt-BR", "pt-BR", "Resultado da exportação")]
+    [InlineData("zh-Hans", "zh-Hans", "导出结果")]
     public void SupportedLanguageUsesLocalizedHtmlFrame(string language, string expectedCode, string expectedResult)
     {
         HtmlExportLocalization localization = new(language);
@@ -25,6 +32,8 @@ public sealed class HtmlExportLocalizationTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("fr-\"><script>alert(1)</script>")]
+    [InlineData("pt-PT")]
+    [InlineData("zh-Hant")]
     public void UnknownLanguageFallsBackToSafeEnglishFrame(string? language)
     {
         HtmlExportLocalization localization = new(language);
@@ -47,6 +56,13 @@ public sealed class HtmlExportLocalizationTests
     [InlineData("es")]
     [InlineData("fr")]
     [InlineData("ru")]
+    [InlineData("cs")]
+    [InlineData("it")]
+    [InlineData("ja")]
+    [InlineData("ko")]
+    [InlineData("pl")]
+    [InlineData("pt-BR")]
+    [InlineData("zh-Hans")]
     public void EveryFrameKeyHasNonEnglishTextWithMatchingFormatArguments(string language)
     {
         HtmlExportLocalization english = new("en");

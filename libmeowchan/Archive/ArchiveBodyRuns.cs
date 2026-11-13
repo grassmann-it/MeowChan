@@ -13,6 +13,9 @@ internal readonly record struct ArchiveTextRun(int Start, int Length, ArchiveTex
     public int End => Start + Length;
 }
 
+/// <summary>A candidate link range of a body: an anchor mark (<see cref="IsMark"/>) or a bare http(s) address.</summary>
+internal readonly record struct ArchiveLinkRange(int Start, int End, bool IsMark);
+
 /// <summary>
 /// Splits a plain post body into runs of equal style: greentext lines, the marked spoilers, code and
 /// external links, and bare http(s) addresses. Shared by the reader and the HTML export, so both format alike.
@@ -59,6 +62,26 @@ internal static class ArchiveBodyRuns
             else runs.Add(new ArchiveTextRun(points[index], points[index + 1] - points[index], style));
         }
         return runs.AsReadOnly();
+    }
+
+    /// <summary>
+    /// The candidate link ranges of a body, before the styles are combined: the marked link ranges (anchors) and the bare
+    /// http(s) addresses. A reader that opens links needs the ranges themselves, because <see cref="Split"/> divides a link
+    /// wherever a spoiler or code mark cuts it.
+    /// </summary>
+    internal static IReadOnlyList<ArchiveLinkRange> LinkRanges(string text, IReadOnlyList<ArchiveTextMark>? marks = null)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        List<ArchiveLinkRange> ranges = new();
+        if (marks != null)
+            foreach (ArchiveTextMark mark in marks)
+            {
+                if (mark.Kind != ArchiveTextMarkKind.Link) continue;
+                int start = Math.Max(0, mark.Start), end = Math.Min(text.Length, mark.Start + mark.Length);
+                if (end > start) ranges.Add(new ArchiveLinkRange(start, end, true));
+            }
+        foreach ((int start, int end) in Addresses(text)) ranges.Add(new ArchiveLinkRange(start, end, false));
+        return ranges.AsReadOnly();
     }
 
     // Bare http(s) addresses (4chan posts carry most links as text, not anchors).

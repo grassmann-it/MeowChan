@@ -37,9 +37,17 @@ internal sealed class DanbooruWatcherQueueAdmission : IDanbooruWatcherAdmissionP
         BooruPostRecord? existing = _catalog.TryGetPost(post.SourceId, post.PostId);
         if (existing is { OriginalIntent: BooruOriginalIntent.Cancelled })
         {
-            // Claim and watcher finding in one write; the stored cancellation is left as it is.
-            _catalog.RecordObservation(post, _time.GetUtcNow(), BooruFindingKind.Watcher, watcherId, query,
-                cancellationToken: cancellationToken);
+            // Claim and watcher finding in one write; the stored cancellation is left as it is. This is the
+            // admission's direct catalog boundary (the normal path is wrapped by BooruOriginalQueue).
+            try
+            {
+                _catalog.RecordObservation(post, _time.GetUtcNow(), BooruFindingKind.Watcher, watcherId, query,
+                    cancellationToken: cancellationToken);
+            }
+            catch (Exception exception) when (BooruCatalogPersistenceException.IsStoreWriteFailure(exception))
+            {
+                throw new BooruCatalogPersistenceException(exception);
+            }
             return DanbooruWatcherAdmissionResult.KeptCancelled;
         }
 

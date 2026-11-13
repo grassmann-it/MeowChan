@@ -151,8 +151,9 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
         }
         tabs.ItemsSource = items; body.Children.Add(tabs);
         var footer = new StackPanel { Spacing = 8 };
+        // The apply rules are the Apply button's accessible help (RefreshTotal); the footer shows only the joint total, so the dialog does
+        // not explain itself twice (UX round 3).
         footer.Children.Add(_total);
-        footer.Children.Add(Localized(Help(string.Empty), c => c.Text = Texts.T("wizard.applyHint")));
         _direct = Localized(new CheckBox { Name = "BoardAdmissionDirectFuture", IsChecked = !showWizard }, c =>
         {
             c.Content = Wrapped(Texts.T("wizard.directFuture"));
@@ -276,6 +277,7 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
             Padding = new Thickness(8, 4), MinHeight = 32,
             HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center
         }.CaptionText();
+        reset.Classes.Add("ghost"); // a repeated per-row action: quiet at rest, outlined on hover or focus
         reset.Bind(ContentControl.ContentProperty, new Binding(nameof(PreviewRow.ResetLabel)));
         reset.Bind(AutomationProperties.NameProperty, new Binding(nameof(PreviewRow.ResetName)));
         reset.Bind(AutomationProperties.HelpTextProperty, new Binding(nameof(PreviewRow.ResetHint)));
@@ -353,6 +355,8 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
             editor.Text.Classes.Set("workspace-invalid", invalid);
             AutomationProperties.SetHelpText(editor.Text, invalid ? Texts.T("wizard.invalid") : string.Empty);
         }
+        // "Preview loaded" only matters while there is nothing else to say: the board summary below replaces it.
+        draft.Status.IsVisible = !(draft.Loaded && draft.Failure == null && draft.Rows.Count > 0);
         draft.Summary.Classes.Set("workspace-error", !valid);
         draft.Summary.IsVisible = !valid || draft.Loaded;
         draft.Matches.IsVisible = valid && draft.Loaded;

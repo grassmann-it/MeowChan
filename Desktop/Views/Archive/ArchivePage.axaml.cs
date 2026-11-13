@@ -127,6 +127,7 @@ public partial class ArchivePage : UserControl
         InitializeArchivePresentation();
         InitializeFilterSurface();
         InitializeArchiveMediaCounts();
+        InitializeReaderDisplay();
         InitializeReaderView(); AttachPostFilter(); AttachConversationView();
     }
     internal ArchivePage(Func<CancellationToken, Task<ArchiveReader>> openReader,
@@ -523,8 +524,10 @@ public partial class ArchivePage : UserControl
             bool IsDead(ArchiveQuote quote) => quote.Target is { } target && target.Thread == current.Summary.Id
                 && !(capturedIds.TryGetValue(target.PostId, out bool captured) ? captured
                     : capturedIds[target.PostId] = current.FindPostIndex(target.PostId) >= 0);
-            PostRowContext context = new(current, openingPost, unreadCarrier, unreadCount, _readerView.HideMedia,
-                projection?.IsOrdered == true, IsDead);
+            DateTimeOffset? openingPostAt = openingPost == null
+                ? null : current.Posts.FirstOrDefault(candidate => candidate.PostId == openingPost)?.PostedAt;
+            PostRowContext context = new(current, openingPost, openingPostAt, DateTimeOffset.Now, unreadCarrier, unreadCount,
+                _readerView.HideMedia, projection?.IsOrdered == true, IsDead);
             ArchivePostRow[] posts = projection == null ? Array.Empty<ArchivePostRow>()
                 : projection.Page(_postOffset, pageSize).Select(entry => BuildPostRow(entry, context)).ToArray();
             ListBox postList = ArchivePosts;
@@ -549,8 +552,9 @@ public partial class ArchivePage : UserControl
         AnnounceProjection();
     }
 
-    private readonly record struct PostRowContext(ArchivedThreadView Thread, string? OpeningPost, string? UnreadCarrier,
-        int UnreadCount, bool HideMedia, bool SuppressReplyToggle, Func<ArchiveQuote, bool> IsDead);
+    private readonly record struct PostRowContext(ArchivedThreadView Thread, string? OpeningPost,
+        DateTimeOffset? OpeningPostAt, DateTimeOffset RenderedAt, string? UnreadCarrier, int UnreadCount,
+        bool HideMedia, bool SuppressReplyToggle, Func<ArchiveQuote, bool> IsDead);
 
     // One immutable row of a page. A placeholder keeps no attachments, so it never offers or loads media.
     private ArchivePostRow BuildPostRow(ReaderPostEntry entry, PostRowContext context)
@@ -567,7 +571,7 @@ public partial class ArchivePage : UserControl
         return new ArchivePostRow(post.PostId, post.Subject ?? string.Empty, text, attachments)
         {
             Author = post.Author ?? string.Empty,
-            Posted = ReaderDateText.Posted(post.PostedAt),
+            Posted = ReaderDateText.Posted(post.PostedAt, this.ReaderDateStyle, context.OpeningPostAt, context.RenderedAt),
             PostedFull = ReaderDateText.PostedFull(post.PostedAt),
             IsDeleted = post.IsDeleted,
             IsOpeningPost = post.PostId == context.OpeningPost,
@@ -712,10 +716,14 @@ public partial class ArchivePage : UserControl
         Task<IReadOnlyList<ArchiveAssetRow>> ready)
     {
         bool large = _largeReader;
+        global::MeowChan.Desktop.ReaderDisplayPreferences.ThumbnailDecodeBounds bounds =
+            global::MeowChan.Desktop.ReaderDisplayPreferences.DecodeBounds(ReaderThumbnailWidth, large);
+        int thumbnailWidth = ReaderDisplayPreferences.EffectiveThumbnailWidth(ReaderThumbnailWidth, large);
         ArchiveAttachmentRow row = new(attachment);
         row = row with
         {
             LargePreview = large,
+            ThumbnailWidth = thumbnailWidth,
             LoadThumbnail = async cancellationToken =>
             {
                 using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
@@ -729,7 +737,10 @@ public partial class ArchivePage : UserControl
                 // The normal-size previews are kept by their bytes (the large ones are about 3 MiB each and are not), so scrolling the
                 // reader back shows them at once. The image size is the tile default, so the media page and the archive tiles share it.
                 bool video = SavedMediaTypes.Classify(match.Asset.OriginalFileName ?? match.Asset.Path) == SavedMediaKind.Video;
-                string? key = large ? null : MediaTileThumbnails.ByteKey(match.Asset, video ? "@poster240x180" : string.Empty);
+                string? key = large ? null : MediaTileThumbnails.ByteKey(match.Asset,
+                    video ? $"@poster{bounds.MaximumWidth}x{bounds.MaximumHeight}"
+                        : bounds is { MaximumWidth: 240, MaximumHeight: 180 } ? string.Empty
+                        : $"@reader{bounds.MaximumWidth}x{bounds.MaximumHeight}");
                 return await MediaTileThumbnails.KeepAsync(key, () => Task.Run(async () =>
                 {
                     await _thumbnailGate.WaitAsync(loading.Token).ConfigureAwait(false);
@@ -739,8 +750,8 @@ public partial class ArchivePage : UserControl
                         if (video)
                             return await VideoPosterCache.LoadAsync(match.Manifest, match.Asset,
                                 Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1"),
-                                large ? 1040 : 240, large ? 720 : 180, loading.Token).ConfigureAwait(false);
-                        return await DecodeThumbnailAsync(match, loading.Token, large ? 1040 : 240, large ? 720 : 180).ConfigureAwait(false);
+                                bounds.MaximumWidth, bounds.MaximumHeight, loading.Token).ConfigureAwait(false);
+                        return await DecodeThumbnailAsync(match, loading.Token, bounds.MaximumWidth, bounds.MaximumHeight).ConfigureAwait(false);
                     }
                     finally { _thumbnailGate.Release(); }
                 }, loading.Token)).ConfigureAwait(false);

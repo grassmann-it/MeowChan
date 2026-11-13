@@ -111,6 +111,60 @@ public sealed class ReaderBodyFormattingTests
     }
 
     [Fact]
+    public void LinkThatASpoilerCutsKeepsOneTargetForEverySegment()
+    {
+        // B8-R6: the reader shows https://example.org/private once the spoiler is revealed; every part must open exactly that.
+        string text = "go https://example.org/private now";
+        int spoilerAt = text.IndexOf("private", StringComparison.Ordinal);
+        ReaderBodyDocument document = ReaderBodyFormatting.Format(text, [], [new(ArchiveTextMarkKind.Spoiler, spoilerAt, 7)]);
+        ReaderBodySegment[] parts = document.Segments.Where(segment => segment.Link != null).ToArray();
+        Assert.Equal(2, parts.Length);
+        Assert.All(parts, part => Assert.Equal("https://example.org/private", part.Link!.OriginalString));
+        Assert.All(parts, part => Assert.True(part.LinkSpansSpoiler));
+        Assert.All(parts, part => Assert.True(part.LinkNeedsReveal)); // The visible half waits for the reveal as well.
+        Assert.Equal("https://example.org/private", string.Concat(parts.Select(part => document.Text.Substring(part.Start, part.Length))));
+        Assert.Null(ReaderExternalLink.ForActivation(parts[0], spoilersRevealed: false, selectionActive: false));
+        Assert.Equal("https://example.org/private", ReaderExternalLink.ForActivation(parts[0], true, false)?.OriginalString);
+        Assert.Equal("https://example.org/private", ReaderExternalLink.ForActivation(parts[1], true, false)?.OriginalString);
+        Assert.Null(ReaderExternalLink.ForKeyboard(document, 0, 0, spoilersRevealed: false));
+        Assert.Equal("https://example.org/private", ReaderExternalLink.ForKeyboard(document, 0, 0, true)?.OriginalString);
+    }
+
+    [Fact]
+    public void LinkWithoutSpoilerStaysOpenWhileAnotherLinkHidesItsOwn()
+    {
+        string text = "https://a.example/ https://b.example/x";
+        ReaderBodyDocument document = ReaderBodyFormatting.Format(text, [], [new(ArchiveTextMarkKind.Spoiler, 29, 9)]);
+        ReaderBodySegment first = Assert.Single(document.Segments, segment => segment.Link?.Host == "a.example");
+        Assert.False(first.LinkNeedsReveal);
+        Assert.NotNull(ReaderExternalLink.ForActivation(first, spoilersRevealed: false, selectionActive: false));
+    }
+
+    [Fact]
+    public void AnchorWithWordsAndAnAddressLinksOnlyTheAddress()
+    {
+        // B8-R6: the anchor text is "see https://x.example/p": no address as a whole, but the address inside stays a link.
+        string text = "pre see https://x.example/p post";
+        ReaderBodyDocument document = ReaderBodyFormatting.Format(text, [], [new(ArchiveTextMarkKind.Link, 4, 23)]);
+        ReaderBodySegment link = Assert.Single(document.Segments, segment => segment.Link != null);
+        Assert.Equal("https://x.example/p", document.Text.Substring(link.Start, link.Length));
+        Assert.Equal("https://x.example/p", link.Link!.OriginalString);
+        Assert.True((link.Style & ArchiveTextStyle.Link) != 0);
+        Assert.All(document.Segments.Where(segment => segment != link), segment => Assert.Equal(0, (int)(segment.Style & ArchiveTextStyle.Link)));
+    }
+
+    [Fact]
+    public void AnchorWhoseTextIsAnAddressOpensItsWholeText()
+    {
+        string text = "x https://x.example/a/b y";
+        ReaderBodyDocument document = ReaderBodyFormatting.Format(text, [], [new(ArchiveTextMarkKind.Link, 2, 21)]);
+        ReaderBodySegment link = Assert.Single(document.Segments, segment => segment.Link != null);
+        Assert.Equal("https://x.example/a/b", link.Link!.OriginalString);
+        Assert.Equal(2, link.Start);
+        Assert.Equal(21, link.Length);
+    }
+
+    [Fact]
     public void ReferenceInsideASpoilerKeepsBothTheLinkAndTheHiddenStyle()
     {
         ArchiveQuoteRow quote = Quote(">>101");

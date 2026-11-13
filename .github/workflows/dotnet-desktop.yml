@@ -143,6 +143,7 @@ jobs:
           python -m unittest discover -s tests -p test_macos_packaging.py -v
           python -m unittest discover -s tests -p test_desktop_package.py -v
           python -m unittest discover -s tests -p test_plugin_packaging.py -v
+          python -m unittest discover -s tests -p test_plugin_documentation.py -v
           python -m unittest discover -s tests -p test_prerelease.py -v
           python -m unittest discover -s tests -p test_public_api_policy.py -v
           python -m unittest discover -s tests -p test_ci_desktop_preparation.py -v
@@ -538,6 +539,7 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_macos*.py' -v
           python3 -m unittest discover -s tests -p test_desktop_package.py -v
           python3 -m unittest discover -s tests -p test_plugin_packaging.py -v
+          python3 -m unittest discover -s tests -p test_plugin_documentation.py -v
       - name: Read product version
         id: metadata
         shell: bash
@@ -632,6 +634,7 @@ jobs:
           python -m unittest discover -s tests -p test_apphost_workflow_runner.py -v
           python -m unittest discover -s tests -p test_desktop_package.py -v
           python -m unittest discover -s tests -p test_plugin_packaging.py -v
+          python -m unittest discover -s tests -p test_plugin_documentation.py -v
       - name: Restore the actual release package contract
         run: dotnet restore MeowChan.csproj --artifacts-path artifacts/media-build -p:RuntimeIdentifier=${{ matrix.runtime }} -p:Configuration=Release --locked-mode -p:SelfContained=true -p:PublishSingleFile=true -warnaserror:NU1900
       - name: Publish self-contained single-file application
@@ -760,6 +763,7 @@ jobs:
           python3 -W error::ResourceWarning -m unittest discover -s tests -p 'test_apphost*runner.py' -v
           python3 -W error::ResourceWarning -m unittest discover -s tests -p test_desktop_package.py -v
           python3 -W error::ResourceWarning -m unittest discover -s tests -p test_plugin_packaging.py -v
+          python3 -W error::ResourceWarning -m unittest discover -s tests -p test_plugin_documentation.py -v
       - name: Read product version
         id: metadata
         shell: bash

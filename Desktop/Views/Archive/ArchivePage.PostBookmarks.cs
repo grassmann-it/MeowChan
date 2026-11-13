@@ -65,6 +65,7 @@ public partial class ArchivePage
             menu.Items.Add(new Separator());
             menu.Items.Add(CreatePostBookmarkMenuItem(new PostBookmarkKey(thread, row.Id), origin));
         }
+        AddPostFilterMenuItems(menu, row);
         return menu;
     }
 

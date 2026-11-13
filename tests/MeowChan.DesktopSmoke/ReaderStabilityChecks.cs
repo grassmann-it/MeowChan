@@ -133,6 +133,25 @@ internal static class ReaderStabilityChecks
         Require((posts.SelectedItem as ArchivePostRow)?.Id == "1020", "Rapid reader arrows lost or duplicated a navigation step.");
         Visible(posts, "1020", "wheel then rapid arrows");
 
+        // B8-R9: a jump ends when the user takes over. A wheel turn right after the jump started must not be pulled back by a
+        // later pass of the same jump.
+        await page.FocusPostAsync("1040");
+        await Flush(window);
+        ScrollViewer jumpScroll = posts.GetVisualDescendants().OfType<ScrollViewer>().First();
+        Task userJump = page.FocusPostAsync("1002");
+        using (Pointer pointer = new(Pointer.GetNextFreeId(), PointerType.Mouse, true))
+        {
+            Point point = wheelTarget.TranslatePoint(new Point(40, 40), window)!.Value;
+            wheelTarget.RaiseEvent(new PointerWheelEventArgs(wheelTarget, pointer, window, point, 0,
+                new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other),
+                KeyModifiers.None, new Vector(0, -1)));
+        }
+        double afterWheel = jumpScroll.Offset.Y;
+        await userJump;
+        await Flush(window);
+        Require(Math.Abs(jumpScroll.Offset.Y - afterWheel) <= 1,
+            $"A jump kept scrolling after the user turned the wheel (offset {afterWheel} became {jumpScroll.Offset.Y}).");
+
         // Native scopes must still own their arrows in the detached reader.
         TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
         TabItem header = tabs.GetVisualDescendants().OfType<TabItem>().First();

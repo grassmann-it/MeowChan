@@ -1,23 +1,32 @@
 # Install, edit and activate plugins
 
-These instructions describe plugin use in MeowChan 1.0. Extract the complete
-application package before starting: its worker, compiler and reference files
+These instructions describe plugin use in the MeowChan 1.1 source tree. Extract
+the complete application package before starting: its worker, compiler and reference files
 are required for the corresponding plugin operations. See
 [validation](validation.md) for the scope of packaging and native-platform checks.
 
 ## First session
 
-1. Open **Plugins** from the app menu or footer (under **Tools** in compact views). The supplied inventory contains **16 plugins**: **11 sources** and **5 image
-   filters**, with **14 editable source files**. Sources include 4chan, 8kun,
-   Lainchan and the eight experimental sources listed below; filters include
-   **Image dimensions (example)** and the four [local media filters](local-media-filters.md). Selecting an entry shows
+1. Open **Plugins** from the app menu or footer (under **Tools** in compact views).
+   The supplied inventory contains **24 plugins**: **19 source-plugin entries**
+   and **5 image filters**, with **21 editable example/filter source files**.
+   This includes three prebuilt official plugins (4chan, 8kun and Danbooru) and
+   21 example/filter plugins. Only example/filter `.cs` files are delivered under
+   `plugins/sources/`; official source code is available in the repository, not
+   in the application package. See the [packaging split](README.md#packaged-inventory)
+   and [official authoring steps](../../plugins/Official/README.md#authoring-and-local-builds).
+   Source entries include two blocked placeholders, **Anon Imageboards** and
+   **Guro.cx**, which register no source or URL routes. **Danbooru** is a booru
+   post-search source, not a board/thread URL source. Filters include
+   **Image dimensions (example)** and the four [local media filters](local-media-filters.md).
+   Selecting an entry shows
    its purpose, current status and available actions. Use the category selector
    for sources, image filters or all plugins. Sources → source details →
    **Plugin settings and tests** is another route to that source's entry.
 2. Choose **Enable plugin** or **Disable plugin** to change availability now.
    These actions use the already selected valid build; manual enablement grants
-   no provider-size/MD5 exception. The eight supplied experimental sources default
-   disabled at first registration; existing saved states are retained. See
+   no provider-size/MD5 exception. The supplied experimental board/thread sources
+   default disabled at first registration; existing saved states are retained. See
    [experimental activation](#experimental-sources-and-media-checks) for their distinct checks.
    **Source and watches**
    opens the related source and its watched entries when available.
@@ -63,15 +72,18 @@ this section. To add or edit a trusted `.cs` source, follow the next sections.
 
 ## Experimental sources and media checks
 
-The eight supplied Experimental sources are Kohlchan, Wizchan, Endchan,
-Leftypol, 2ch / Двач, Uboachan, ZZZchan and SushiChan. All eight start disabled
-when first registered in a profile. Existing profiles keep their saved enable/disable and permission
-choices; an upgrade does not reset them. Registration does not establish live service health; see the source-specific
-notes and dated validation evidence for tested behavior.
+The supplied experimental board/thread sources are Kohlchan, Wizchan, Endchan,
+Leftypol, 2ch / Двач, Uboachan, ZZZchan, SushiChan, 7chan, BBW-Chan,
+CapybaraChan, 8chan.moe and Fchan. They start disabled when first registered in
+a profile. Anon Imageboards and Guro.cx are blocked placeholders, not activatable
+sources; this board/thread activation flow does not apply to Danbooru post search.
+Existing profiles keep their saved enable/disable and permission choices; an
+upgrade does not reset them. Registration does not establish live service health;
+see the source-specific notes and dated validation evidence for tested behavior.
 
 | Sources | Activation confirmation | Integrity behavior |
 | --- | --- | --- |
-| Kohlchan, Wizchan, Endchan, Leftypol | **Activate and allow differences** | Explicit profile/source permission can allow provider size/MD5 differences. Raw provider values and measured local values remain separate. |
+| Kohlchan, Wizchan, Endchan, Leftypol, 7chan, BBW-Chan, CapybaraChan, 8chan.moe, Fchan | **Activate and allow differences** | Explicit profile/source permission can allow provider size/MD5 differences. Raw provider values and measured local values remain separate. |
 | 2ch / Двач, Uboachan, ZZZchan, SushiChan | **Activate source** | Exact provider hashes/sizes remain strict. There is no size/MD5 exception checkbox or automatic grant for these sources. 2ch is the one source here that reports no checksum expectation: its MD5 and size describe a different file than the one it serves (checked in live runs on 11.11.2026), so the MD5 is validated for format but not compared, and the size is kept only as a rounded annotation, never an exact byte expectation or a byte-limit substitute. After an update that dropped the 2ch MD5, the first re-check of an already archived 2ch thread downloads each original once more into the same files (no duplicate tile), and your tags on those media move to the new revision; favorites and ratings are unaffected. |
 
 Experimental describes the current support status. It grants no exception.
@@ -80,8 +92,9 @@ after successful activation; closing or retrying never adds a mismatch grant.
 Provider SHA-1 always remains strict, including Uboachan SHA-1 metadata; it is
 compared separately from any MD5 metadata.
 
-The following combined permission flow applies to Kohlchan, Wizchan, Endchan and
-Leftypol:
+The following combined permission flow applies to the sources in the first table
+row (Kohlchan, Wizchan, Endchan, Leftypol, 7chan, BBW-Chan, CapybaraChan,
+8chan.moe and Fchan):
 
 When you explicitly submit a matching URL for a disabled source, a warning appears
 before that URL is fetched. Choose **Activate and allow differences**
@@ -237,9 +250,22 @@ rights to carry over (no filter grant, no
 restricted source with size/MD5 exception) is taken over automatically. A changed
 build that would keep existing rights stays off until you review it in **Review
 bundled repairs** and explicitly authorize those rights for that exact new
-execution revision. A changed description (capabilities, routes, hosts, filters,
-settings schema, names or metadata) is shown as blocked and cannot be confirmed
-there.
+execution revision. A change to capabilities, routes, hosts, filters, settings,
+names or metadata requires a separate, explicit decision. For a uniquely proven
+bundled target with the same source identities, **Review bundled repairs** now
+shows that review in the same dialog: compare the old and new declaration, correct
+settings in the embedded form, and acknowledge the changes. Any existing special
+rights require their own confirmation; ordinary repair cannot bypass either decision.
+
+**Save reviewed plugin for next start** records the exact reviewed build and
+validated settings without live activation. Restart the app after saving. The old
+release/configuration and the pre-selection backup remain available; nothing in
+this dialog deletes or resets the profile. Paths, execution hashes and exact JSON
+are under **Technical details** rather than obscuring the review.
+
+Missing delivery proof, conflicting source ownership, ambiguous candidates, changed
+source identities or a pinned rollback remain blockers. A stale preview must be
+reloaded; it never silently changes the build or permissions being approved.
 
 ### SDK 1.0.0 to 1.1.0 transition
 

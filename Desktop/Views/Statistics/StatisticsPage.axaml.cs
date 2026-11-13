@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -16,7 +17,7 @@ namespace MeowChan;
 
 /// <summary>
 /// The statistics page: the current rates, one history graph for network and disk, and a table per source. It only shows
-/// what the window hands it through <see cref="Apply"/>; it owns no timer and holds no claim on the hub, so a page nobody
+/// what the window hands it through <see cref="Apply"/>; it owns no sampling timer and holds no claim on the hub, so a page nobody
 /// looks at costs nothing.
 /// </summary>
 public partial class StatisticsPage : UserControl
@@ -28,11 +29,15 @@ public partial class StatisticsPage : UserControl
     private string? _graphName;
     private bool _resetting;
     private bool _ended;
+    private IDisposable? _statusHide;
+    private bool _restoreResetFocus;
+    private long _resetFocusGeneration;
 
     public StatisticsPage()
     {
         InitializeComponent();
         StatisticsGrid.ItemsSource = _rows;
+        StatisticsCompactList.ItemsSource = _rows;
         ApplyLanguage();
         AttachedToVisualTree += (_, _) => Texts.Changed += OnLanguageChanged;
         DetachedFromVisualTree += (_, _) => Texts.Changed -= OnLanguageChanged;
@@ -48,10 +53,14 @@ public partial class StatisticsPage : UserControl
     internal void EndLifetime()
     {
         _ended = true;
+        _statusHide?.Dispose();
+        ResetConfirmation.Hide();
         Texts.Changed -= OnLanguageChanged;
     }
 
-    internal bool IsResetConfirmationOpen => ResetConfirmPanel.IsVisible;
+    private Flyout ResetConfirmation => (Flyout)FlyoutBase.GetAttachedFlyout(ResetStatisticsButton)!;
+
+    internal bool IsResetConfirmationOpen => ResetConfirmation.IsOpen;
     internal Button ResetButton => ResetStatisticsButton;
     internal Button ConfirmButton => ConfirmResetButton;
     internal Button CancelButton => CancelResetButton;
@@ -72,7 +81,9 @@ public partial class StatisticsPage : UserControl
     {
         StatisticsTitle.Text = Texts.T("nav.statistics");
         StatisticsSubtitle.Text = Texts.T("stats.subtitle");
-        NowTitle.Text = Texts.T("stats.now");
+        HistoryEnd.Text = Texts.T("stats.now");
+        HistoryEmpty.Text = Texts.T("stats.sources.empty");
+        if (ResetStatusPanel.IsVisible) StatisticsStatus.Text = Texts.T("stats.reset.done");
         NetCaption.Text = Texts.T("stats.metric.net");
         DiskWriteCaption.Text = Texts.T("stats.metric.diskWrite");
         DiskReadCaption.Text = Texts.T("stats.metric.diskRead");
@@ -87,6 +98,11 @@ public partial class StatisticsPage : UserControl
         ConfirmResetButton.Content = Texts.T("stats.reset.confirm");
         CancelResetButton.Content = Texts.T("stats.reset.cancel");
         AutomationProperties.SetName(StatisticsGrid, Texts.T("nav.sources"));
+        AutomationProperties.SetName(StatisticsHelpButton, Texts.T("action.details"));
+        CompactSourceHeader.Text = Texts.T("stats.col.source");
+        CompactRateHeader.Text = Texts.T("stats.col.rate");
+        CompactSessionHeader.Text = Texts.T("stats.col.session");
+        CompactErrorsHeader.Text = Texts.T("stats.col.errors");
         SetHeader(StatisticsGrid.Columns[0], "stats.col.source", left: true);
         SetHeader(StatisticsGrid.Columns[1], "stats.col.rate");
         SetHeader(StatisticsGrid.Columns[2], "stats.col.session");
@@ -122,14 +138,22 @@ public partial class StatisticsPage : UserControl
         DiskWriteValue.Text = ByteUnits.Rate(snapshot.Rate.DiskWrite);
         DiskReadValue.Text = ByteUnits.Rate(snapshot.Rate.DiskRead);
         RequestsValue.Text = Texts.T("stats.requestsRate", IoStatsDisplay.RequestRate(snapshot.Rate.Requests));
-        ActivityText.Text = Texts.T("stats.activity", snapshot.Activity.Active, snapshot.Activity.Pending + snapshot.Activity.WaitingAdmission);
 
         StatisticsGraph.SetSeries(snapshot.Series);
-        int seconds = IoStatsDisplay.HistorySeconds(snapshot.Series.Capacity, _hub?.Options.SampleIntervalMs ?? Config.StatsSampleIntervalMsDefault);
-        string peak = ByteUnits.Rate(StatisticsGraph.Peak);
+        int interval = _hub?.Options.SampleIntervalMs ?? Config.StatsSampleIntervalMsDefault;
+        string seconds = IoStatsDisplay.HistorySecondsText(StatisticsGraph.WindowIntervals, interval);
+        bool hasTraffic = StatisticsGraph.HasTraffic;
+        string peak = ByteUnits.Rate(StatisticsGraph.TrafficPeak);
         HistoryTitle.Text = Texts.T("stats.history", seconds);
+        HistoryStart.Text = "−" + seconds + " s";
         PeakText.Text = Texts.T("stats.peak", peak);
-        string graphName = Texts.T("stats.graph.page.name", seconds, peak);
+        PeakText.IsVisible = hasTraffic;
+        ScaleTop.IsVisible = hasTraffic;
+        ScaleHalf.IsVisible = hasTraffic;
+        ScaleTop.Text = ByteUnits.Rate(StatisticsGraph.Peak);
+        ScaleHalf.Text = ByteUnits.Rate(StatisticsGraph.Peak / 2);
+        HistoryEmpty.IsVisible = !hasTraffic;
+        string graphName = hasTraffic ? Texts.T("stats.graph.page.name", seconds, peak) : Texts.T("stats.sources.empty");
         if (!string.Equals(graphName, _graphName, StringComparison.Ordinal))
         {
             _graphName = graphName;
@@ -155,23 +179,37 @@ public partial class StatisticsPage : UserControl
         for (int i = 0; sameShape && i < texts.Count; i++) sameShape = _rows[i].Key == texts[i].Key && _rows[i].IsTotal == texts[i].IsTotal;
         if (sameShape)
         {
-            for (int i = 0; i < texts.Count; i++) _rows[i].Update(texts[i]);
+            for (int i = 0; i < texts.Count; i++) _rows[i].Update(texts[i], _last?.RetentionDays ?? Config.StatsRetentionDaysDefault);
             return;
         }
         _rows.Clear();
-        foreach (IoStatsRowText text in texts) _rows.Add(new StatisticsRow(text));
+        foreach (IoStatsRowText text in texts) _rows.Add(new StatisticsRow(text, _last?.RetentionDays ?? Config.StatsRetentionDaysDefault));
+    }
+
+    // Use the actual table viewport, not the outer window (which may include navigation chrome).
+    private void OnSourcesSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        bool compact = e.NewSize.Width < 900;
+        StatisticsGrid.IsVisible = !compact;
+        CompactSources.IsVisible = compact;
     }
 
     /// <summary>The rows as shown, for tests.</summary>
     internal System.Collections.Generic.IReadOnlyList<StatisticsRow> Rows => _rows;
 
     /// <summary>Leaving the page withdraws an open question: it would still be there on the way back.</summary>
-    internal void Deactivate() => CloseConfirmation(focusReset: false);
+    internal void Deactivate()
+    {
+        CloseConfirmation(focusReset: false);
+        ResetStatusPanel.IsVisible = false;
+        _statusHide?.Dispose();
+    }
 
     internal void FocusContent()
     {
-        if (ResetConfirmPanel.IsVisible) CancelResetButton.Focus();
-        else StatisticsGrid.Focus();
+        if (ResetConfirmation.IsOpen) CancelResetButton.Focus();
+        else if (StatisticsGrid.IsVisible) StatisticsGrid.Focus();
+        else ResetStatisticsButton.Focus();
     }
 
     private void OnResetClick(object? sender, RoutedEventArgs e) => OpenConfirmation();
@@ -179,25 +217,45 @@ public partial class StatisticsPage : UserControl
     private void OpenConfirmation()
     {
         if (_ended || _hub == null || _resetting) return;
-        ResetConfirmPanel.IsVisible = true;
-        ResetStatisticsButton.IsEnabled = false;
-        StatisticsStatus.IsVisible = false;
-        // The destructive answer is never the default: focus starts on Cancel.
-        CancelResetButton.Focus();
+        ResetStatusPanel.IsVisible = false;
+        _statusHide?.Dispose();
+        _restoreResetFocus = true;
+        ++_resetFocusGeneration;
+        ResetConfirmation.ShowAt(ResetStatisticsButton);
     }
 
     private void CloseConfirmation(bool focusReset)
     {
-        ResetConfirmPanel.IsVisible = false;
+        _restoreResetFocus = focusReset;
+        ResetConfirmation.Hide();
         if (!_resetting) ResetStatisticsButton.IsEnabled = true;
         if (focusReset) ResetStatisticsButton.Focus();
+    }
+
+    private void OnResetConfirmationOpened(object? sender, EventArgs e)
+    {
+        // A native popup can apply its own initial focus after Opened. Make the safe answer the
+        // settled focus target too, but only once for this opening (not an unbounded focus loop).
+        CancelResetButton.Focus();
+        long generation = _resetFocusGeneration;
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (generation == _resetFocusGeneration && !_ended && ResetConfirmation.IsOpen)
+                CancelResetButton.Focus();
+        }, DispatcherPriority.Loaded);
+    }
+
+    private void OnResetConfirmationClosed(object? sender, EventArgs e)
+    {
+        ++_resetFocusGeneration;
+        if (!_ended && IsVisible && !_resetting && _restoreResetFocus) ResetStatisticsButton.Focus();
     }
 
     private void OnCancelResetClick(object? sender, RoutedEventArgs e) => CloseConfirmation(focusReset: true);
 
     private void OnResetConfirmKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Escape || !ResetConfirmPanel.IsVisible) return;
+        if (e.Key != Key.Escape || !ResetConfirmation.IsOpen) return;
         e.Handled = true;
         CloseConfirmation(focusReset: true);
     }
@@ -205,16 +263,19 @@ public partial class StatisticsPage : UserControl
     private async void OnConfirmResetClick(object? sender, RoutedEventArgs e)
     {
         IoStatsHub? hub = _hub;
-        if (_ended || hub == null || _resetting) return;
+        if (_ended || hub == null || _resetting || !ResetConfirmation.IsOpen) return;
         _resetting = true;
         ConfirmResetButton.IsEnabled = false;
+        ResetStatisticsButton.IsEnabled = false;
         try
         {
             // Deleting the file is I/O: off the UI thread. The hub raises Sampled afterwards, which refreshes the page.
             await Task.Run(hub.Reset);
             if (_ended) return;
             StatisticsStatus.Text = Texts.T("stats.reset.done");
-            StatisticsStatus.IsVisible = true;
+            ResetStatusPanel.IsVisible = true;
+            _statusHide?.Dispose();
+            _statusHide = DispatcherTimer.RunOnce(() => ResetStatusPanel.IsVisible = false, TimeSpan.FromSeconds(5));
         }
         finally
         {

@@ -60,6 +60,9 @@ internal static class ArchiveExportChecks
                 await fixture.OpenExportForThreadAsync(saved.Summary.Id, fixture.FindControl<Button>("ExportArchiveButton"));
                 Require(fixture.FindControl<Button>("ArchiveExportOpen")!.IsVisible && !fixture.FindControl<Button>("ArchiveExportOpen")!.IsEnabled, "Current result folder action must be visible and disabled before success.");
                 Require(fixture.FindControl<Border>("ArchiveExportDialog")!.IsVisible, "Export action did not open its workflow.");
+                Require(!fixture.FindControl<Button>("ArchiveExportPrevious")!.IsVisible && !fixture.FindControl<Button>("ArchiveExportAssociate")!.IsVisible
+                    && fixture.FindControl<CheckBox>("ArchiveExportMedia")!.IsVisible && fixture.FindControl<Control>("ArchiveExportOptionsLabel") == null,
+                    "Without export history the history actions must be hidden together and no Options heading may remain above the media checkbox.");
                 // A busy page refuses to open an export (readiness gate), so the independent
                 // reader load starts only once the context export dialog is open.
                 holdReader = true;

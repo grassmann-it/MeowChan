@@ -724,7 +724,7 @@ public partial class MainWindow
         string[] effectiveIds = ids.Distinct().Where(id => CommandCatalog.TryGet(id, out _)
             && CommandCatalog.ShortcutDisplay(id) != null).ToArray();
         string HelpLine(string id) => CommandCatalog.Label(id) + "   " + CommandCatalog.ShortcutDisplay(id)
-            + (CommandCatalog.ScopeHint(id, _largeReaderOpen ? CommandScope.Reader : CommandScope.None) is string hint ? " · " + hint : string.Empty);
+            + (!CommandCatalog.HasGenericScope(id) && CommandCatalog.ScopeHint(id, _largeReaderOpen ? CommandScope.Reader : CommandScope.None) is string hint ? " · " + hint : string.Empty);
         List<string> sections = new();
         foreach ((string label, bool shell) in new[] { ("help.scope.current", false), ("help.scope.application", true) })
         {
@@ -734,6 +734,8 @@ public partial class MainWindow
         }
         if (_largeReaderOpen && _archivePage?.ReaderShowsPosts == true)
             sections.Insert(0, Texts.T("help.reader.mediaActivation"));
+        // The "outside inputs and overlays" qualifier of the page shortcuts is stated once, not on every line (UX round 3).
+        if (effectiveIds.Any(CommandCatalog.HasGenericScope)) sections.Add(Texts.T("help.scope.generalNote"));
         ShellHelpText.Text = string.Join(Environment.NewLine + Environment.NewLine, sections)
             + Environment.NewLine + Environment.NewLine
             + (ShortcutService.Current.SingleKeyShortcuts ? string.Empty : Texts.T("help.singleKeysOff") + Environment.NewLine + Environment.NewLine)

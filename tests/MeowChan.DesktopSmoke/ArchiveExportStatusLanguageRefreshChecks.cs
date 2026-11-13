@@ -351,7 +351,7 @@ internal static class ArchiveExportStatusLanguageRefreshChecks
                 && (expectedError().Length == 0 || error.IsEffectivelyVisible), scenario + ": outcome visibility mismatch.");
             Require(Equals(Need<Button>(page, "ArchiveExportClose").Content, Texts.T(running ? "archive.exportCancel" : "action.close"))
                 && Need<TextBlock>(page, "ArchiveExportTargetLabel").Text == Texts.T("export.target")
-                && Need<TextBlock>(page, "ArchiveExportOptionsLabel").Text == Texts.T("export.options"), scenario + ": live labels stale.");
+                && Equals(Need<CheckBox>(page, "ArchiveExportMedia").Content, Texts.T("archive.exportMedia")), scenario + ": live labels stale.");
             Require(page.IsExportRunning == running && Volatile.Read(ref boundary.Calls) == calls
                 && ReferenceEquals(single, page.LastExport) && ReferenceEquals(collection, page.LastCollectionExport)
                 && Need<TextBox>(page, "ArchiveExportDestination").Text == destination

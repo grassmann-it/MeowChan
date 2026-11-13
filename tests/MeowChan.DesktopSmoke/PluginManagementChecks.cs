@@ -33,6 +33,11 @@ internal static partial class PluginManagementChecks
     {
         if (Environment.GetEnvironmentVariable("MEOWCHAN_URSA_NATIVE_SUITE") == "plugins")
             Texts.SetLanguage(Environment.GetEnvironmentVariable("MEOWCHAN_NATIVE_INPUT_LANGUAGE") ?? "en");
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_CHANGE_REVIEW_ONLY") == "1")
+        {
+            await BundledChangeDialogChecks.RunAsync(window);
+            return;
+        }
         if (Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_RESELECTION_ONLY") == "1")
         {
             await PluginReselectionChecks.RunAsync(window);

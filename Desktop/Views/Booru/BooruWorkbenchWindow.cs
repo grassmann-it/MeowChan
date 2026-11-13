@@ -705,12 +705,12 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     {
         WrapPanel actions = new() { Classes = { "workspace-toolbar" } };
         Button open = new() { Name = openName, Content = Texts.T("booru.ui.post.open") };
-        open.Classes.Add("subtle");
+        open.Classes.Add("ghost");
         AutomationProperties.SetName(open, openAccessibleName);
         ToolTip.SetTip(open, Texts.T("booru.ui.post.openTip", url));
         open.Click += async (_, _) => await OpenLinkAsync(url);
         Button copy = new() { Name = copyName, Content = Texts.T("booru.ui.post.copy") };
-        copy.Classes.Add("subtle");
+        copy.Classes.Add("ghost");
         AutomationProperties.SetName(copy, copyAccessibleName);
         ToolTip.SetTip(copy, url);
         copy.Click += async (_, _) => await CopyLinkAsync(url);
@@ -1053,17 +1053,17 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
             watcher.Query, checkBlock, cooling, async () => await model.CheckNowAsync(watcher.WatcherId)));
         if (watcher.Status == BooruWatcherStatus.Paused)
             actions.Children.Add(WatcherButton(ResumePrefix + watcher.WatcherId, "booru.ui.watcher.resume", "booru.ui.watcher.resumeFor",
-                watcher.Query, model.ResumeBlock(row), cooling, async () => await model.ResumeAsync(watcher.WatcherId)));
+                watcher.Query, model.ResumeBlock(row), cooling, async () => await model.ResumeAsync(watcher.WatcherId), ghost: true));
         else
             actions.Children.Add(WatcherButton(PausePrefix + watcher.WatcherId, "booru.ui.watcher.pause", "booru.ui.watcher.pauseFor",
-                watcher.Query, model.PauseBlock(row), cooling, async () => await model.PauseAsync(watcher.WatcherId)));
+                watcher.Query, model.PauseBlock(row), cooling, async () => await model.PauseAsync(watcher.WatcherId), ghost: true));
         Button remove = WatcherButton(RemovePrefix + watcher.WatcherId, "booru.ui.watcher.remove", "booru.ui.watcher.removeFor",
             watcher.Query, model.RemoveBlock(row), cooling, () => { model.RequestRemoval(watcher.WatcherId); return Task.CompletedTask; });
         remove.Classes.Add("danger");
         actions.Children.Add(remove);
         if (BooruWatcherListModel.CanRestartFromNow(watcher))
             actions.Children.Add(WatcherButton(RestartPrefix + watcher.WatcherId, "booru.ui.watcher.restart", "booru.ui.watcher.restartFor",
-                watcher.Query, model.RestartBlock(row), cooling, async () => await model.RestartFromNowAsync(watcher.WatcherId)));
+                watcher.Query, model.RestartBlock(row), cooling, async () => await model.RestartFromNowAsync(watcher.WatcherId), ghost: true));
         panel.Children.Add(actions);
 
         if (row.ConfirmingRemoval)
@@ -1092,9 +1092,11 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     }
 
     private static Button WatcherButton(string name, string labelKey, string nameKey, string query, BooruWatcherBlock block,
-        DateTimeOffset? cooling, Func<Task> action)
+        DateTimeOffset? cooling, Func<Task> action, bool ghost = false)
     {
         Button button = new() { Name = name, Content = Texts.T(labelKey), IsEnabled = block == BooruWatcherBlock.None };
+        // Check now keeps its outline as the card's one findable action, Remove keeps its red one; the rest is quiet (UX round 3).
+        if (ghost) button.Classes.Add("ghost");
         string accessible = Texts.T(nameKey, query);
         AutomationProperties.SetName(button, accessible);
         string why = BooruText.WatcherBlock(block, cooling);

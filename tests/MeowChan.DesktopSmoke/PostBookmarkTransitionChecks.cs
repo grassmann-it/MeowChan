@@ -50,7 +50,7 @@ internal static class PostBookmarkTransitionChecks
             {
                 SetArchiveApplicationId(database, 0);
                 await InvalidateAsync(dialog);
-                Require(!open.IsEnabled && status.Text?.Contains(path, StringComparison.Ordinal) == true,
+                Require(!open.IsEnabled && IsFailure(status.Text),
                     "The private unsupported archive fixture did not expose a real availability read error.");
             }
             finally { SetArchiveApplicationId(database, applicationId); }
@@ -64,7 +64,7 @@ internal static class PostBookmarkTransitionChecks
             using (FileStream blocked = new(path, FileMode.Open, FileAccess.Read, FileShare.None))
             {
                 save.Command!.Execute(null);
-                await Program.WaitUntilAsync(() => save.IsEnabled && status.Text?.Contains(path, StringComparison.Ordinal) == true);
+                await Program.WaitUntilAsync(() => save.IsEnabled && IsFailure(status.Text));
             }
             string failure = status.Text!;
             await InvalidateAsync(dialog);
@@ -121,6 +121,17 @@ internal static class PostBookmarkTransitionChecks
             if (host != null) await host.DisposeAsync();
             try { Directory.Delete(profile, true); } catch (IOException) { }
         }
+    }
+
+    // The failure row is the localized "could not read or save" sentence followed by the
+    // exception detail. The profile path is intentionally not part of it (it leaks the account name).
+    private static bool IsFailure(string? text)
+    {
+        const string marker = "\u0001";
+        string template = Texts.T("bookmarks.failed", marker);
+        int cut = template.IndexOf(marker, StringComparison.Ordinal);
+        string prefix = cut < 0 ? template : template[..cut];
+        return text != null && text.StartsWith(prefix, StringComparison.Ordinal) && text.Length > prefix.Length;
     }
 
     private static long ArchiveApplicationId(string database)
