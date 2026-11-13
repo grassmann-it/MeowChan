@@ -43,7 +43,7 @@ internal static class BooruAddUrl
                 _ => Failure(postId, Texts.T(BooruText.Prefix + "load.Failed", BooruCodeLabel(load.Code)))
             };
         }
-        catch (OperationCanceledException) { throw; }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             return Failure(postId, Texts.T("booru.ui.status.failed", BooruCodeLabel("exception")));

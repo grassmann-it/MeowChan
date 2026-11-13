@@ -269,10 +269,13 @@ public sealed class SearchBoxTests : IDisposable
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.K, KeyModifiers = KeyModifiers.Control }, "input.focus-media-search"));
         Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.F, KeyModifiers = KeyModifiers.Control }, "input.focus-media-search"));
 
-        // A command that lives on the Media page cannot take the same gesture.
+        // A saved binding of another Media command on the same gesture wins: the new default yields instead of
+        // disabling the user's binding.
         var gesture = new[] { ShortcutGesture.Parse("Primary+F") };
-        var clash = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set("media.rating.edit", gesture), ShortcutPlatform.Linux);
-        Assert.Contains(clash.Issues, issue => issue.OtherCommandId == "input.focus-media-search" || issue.CommandId == "input.focus-media-search");
+        var saved = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set("media.rating.edit", gesture), ShortcutPlatform.Linux);
+        Assert.DoesNotContain(saved.Issues, issue => issue.BlocksSave);
+        Assert.True(saved.Matches(new KeyEventArgs { Key = Key.F, KeyModifiers = KeyModifiers.Control }, "media.rating.edit"));
+        Assert.False(saved.Matches(new KeyEventArgs { Key = Key.F, KeyModifiers = KeyModifiers.Control }, "input.focus-media-search"));
     }
 
     [Fact]
