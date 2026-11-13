@@ -22,8 +22,8 @@
                     <!-- D0 surface tokens (design language 4.3): level 2 card with a 1-px CardEdge, level 4 overlay
                          (menu, flyout, filter surface, toast) with the app's only shadow, and the scrim behind blocking
                          in-window overlays. Overlay equals Panel today (separate key so it can be tinted later).
-                         Dark CardEdge is deliberately softer than a 3:1 edge (computed 2.3:1 on Background, 2.0:1 on Card;
-                         not measured natively); adjust it here only. -->
+                         Dark CardEdge (#5A636E) is computed at 3.03:1 on Background, 2.74:1 on Panel and 2.56:1 on Card
+                         (WCAG relative luminance; not measured natively), so it clears 3:1 only against the page; adjust it here only. -->
                     <SolidColorBrush x:Key="Workspace.Card">#20242A</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.CardEdge">#5A636E</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Overlay">#1B1E22</SolidColorBrush>
