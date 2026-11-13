@@ -235,9 +235,8 @@ internal partial class PostBookmarksDialog : Window
         this.FindControl<Border>("DialogFrameErrorStrip")!.IsVisible = error;
         this.FindControl<ScrollViewer>("StatusHost")!.IsVisible = !error && StatusText.Text.Length > 0;
     }
-    private string ErrorDetails(Exception error) => System.IO.Path.Combine(_owner.ProfileDirectory, "post-bookmarks.json") + "\n" + error.Message;
     private void ShowError(Exception error)
-    { SetStatus("bookmarks.failed", ErrorDetails(error)); _actionError = true; }
+    { SetStatus("bookmarks.failed", error.Message); _actionError = true; }
     private void SetAvailabilityStatus(string key, params object?[] arguments)
     {
         // Availability can finish after an edit, conflict or failed write. Its
@@ -336,7 +335,7 @@ internal partial class PostBookmarksDialog : Window
         }
         catch (FileNotFoundException) { if (IsCurrent()) SetAvailabilityStatus("bookmarks.missing"); }
         catch (Exception error) when (error is not OutOfMemoryException)
-        { if (IsCurrent()) SetAvailabilityStatus("bookmarks.failed", ErrorDetails(error)); }
+        { if (IsCurrent()) SetAvailabilityStatus("bookmarks.failed", error.Message); }
         finally { if (IsCurrent()) Refresh(); }
     }
     private async Task SaveAsync()

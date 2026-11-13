@@ -131,7 +131,7 @@ internal sealed class ArchiveCleanupDialog : Window
                     directory = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(directory)) ?? directory;
                 _openFolder?.Invoke(directory);
             }
-            catch (Exception error) { _error.Text = Texts.T("archive.cleanup.error.openFolder") + "\n" + error.Message; }
+            catch (Exception error) { _error.Text = Texts.T("archive.cleanup.error.openFolder") + "\n" + Texts.T("error.detail", error.Message); }
         };
         Named(_hint, "Hint");
         // Fixed header: task, protection rules and archive scope stay in view while the inventory scrolls.
@@ -364,7 +364,7 @@ internal sealed class ArchiveCleanupDialog : Window
         catch (OperationCanceledException) when (operation.IsCancellationRequested)
         { if (!_closed) _status.Text = Texts.T("archive.cleanup.status.checkCanceled"); }
         catch (Exception error)
-        { if (!_closed) _error.Text = Texts.T("archive.cleanup.error.inventory") + "\n" + error.Message; }
+        { if (!_closed) _error.Text = Texts.T("archive.cleanup.error.inventory") + "\n" + Texts.T("error.detail", error.Message); }
         finally { EndOperation(operation); if (!_closed) { RenderRows(); FocusAfterLayout(_refresh, _outcome); } }
     }
     private async Task ReviewAsync()
@@ -393,7 +393,7 @@ internal sealed class ArchiveCleanupDialog : Window
         catch (OperationCanceledException) when (operation.IsCancellationRequested)
         { if (!_closed) { _selection.Invalidate(); _status.Text = Texts.T("archive.cleanup.status.reviewCanceled"); } }
         catch (Exception error)
-        { if (!_closed) { _selection.Invalidate(); _status.Text = ArchiveCleanupText.Stale; _error.Text = error.Message; } }
+        { if (!_closed) { _selection.Invalidate(); _status.Text = ArchiveCleanupText.Stale; _error.Text = Texts.T("archive.cleanup.error.preview", error.Message); } }
         finally
         {
             EndOperation(operation);
@@ -431,7 +431,7 @@ internal sealed class ArchiveCleanupDialog : Window
         catch (Exception error)
         {
             ArchiveChanged = true;
-            if (!_closed) { _status.Text = Texts.T("archive.cleanup.status.deleteUnfinished"); _error.Text = error.Message; }
+            if (!_closed) { _status.Text = Texts.T("archive.cleanup.status.deleteUnfinished"); _error.Text = Texts.T("archive.cleanup.error.delete", error.Message); }
         }
         finally
         {

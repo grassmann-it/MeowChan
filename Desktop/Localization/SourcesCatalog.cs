@@ -34,6 +34,7 @@ internal static class SourcesCatalog
         ("sources.providerMismatchStrict", "Provider metadata is checked strictly. No exception is enabled.", "Anbieterangaben werden streng geprüft. Es ist keine Ausnahme freigegeben."),
         ("sources.providerMismatchInactive", "This source is inactive. Its saved permission does not permit new media to be saved.", "Diese Quelle ist inaktiv. Ihre gespeicherte Freigabe erlaubt keine Speicherung neuer Medien."),
         ("sources.providerMismatchSaveFailed", "The source permission could not be saved: {0}", "Die Quellenfreigabe konnte nicht gespeichert werden: {0}"),
+        ("sources.openFailed", "The address could not be opened. Check that a default browser is set, or copy the address instead.", "Die Adresse konnte nicht geöffnet werden. Prüfe, ob ein Standardbrowser festgelegt ist, oder kopiere die Adresse stattdessen."),
         ("sources.count", "{0} registered sources", "{0} registrierte Quellen"),
         ("sources.empty", "No sources available.", "Keine Quellen verfügbar."),
         ("sources.select", "Select a source", "Quelle auswählen"),

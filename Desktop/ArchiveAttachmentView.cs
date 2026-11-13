@@ -215,7 +215,9 @@ public sealed class ArchiveAttachmentView : UserControl
             {
                 UpdateLabel();
                 // Report the timeout now; draining a noncancelable codec can take longer.
-                _status.Text = exception is OperationCanceledException or TimeoutException ? Texts.T("archive.previewLoadFailed") : exception.Message;
+                _status.Text = exception is OperationCanceledException or TimeoutException
+                    ? Texts.T("archive.previewLoadFailed")
+                    : Texts.T("archive.previewLoadFailedDetail", exception.Message);
                 _status.IsVisible = true;
             }
             if (pending != null) await DisposeLateAsync(pending);

@@ -286,6 +286,7 @@ internal static class BuiltInCatalog
         ("settings.unavailableLanguage", "{0} (English fallback)", "{0} (Englisch als Ersatz)"),
         ("settings.languagePacks", "Additional JSON language packs can be placed in the profile's LanguagePacks folder. Missing translations use English.", "Zusätzliche JSON-Sprachpakete können im Ordner LanguagePacks des Profils abgelegt werden. Fehlende Übersetzungen erscheinen auf Englisch."),
         ("notification.error", "Error", "Fehler"),
+        ("error.detail", "Details: {0}", "Details: {0}"),
         ("error.unexpected", "An unexpected error occurred: {0} MeowChan keeps running, but the last action may be incomplete. Details are in the log file.", "Ein unerwarteter Fehler ist aufgetreten: {0} MeowChan läuft weiter, aber die letzte Aktion ist möglicherweise unvollständig. Details stehen in der Logdatei."),
         ("notification.settings", "Settings", "Einstellungen"),
         ("notification.session", "Session", "Sitzung"),

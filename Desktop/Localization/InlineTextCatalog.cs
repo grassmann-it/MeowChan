@@ -69,6 +69,8 @@ internal static class InlineTextCatalog
         ("archive.cleanup.status.checked", "Inventory checked. Choose the candidates you want to remove.", "Bestand geprüft. Gewünschte Kandidaten bewusst auswählen."),
         ("archive.cleanup.status.checkCanceled", "Check canceled. Check again before selecting.", "Prüfung abgebrochen. Vor der Auswahl neu prüfen."),
         ("archive.cleanup.error.inventory", "The inventory could not be verified. Nothing is selected.", "Bestand konnte nicht geprüft werden. Es ist nichts ausgewählt."),
+        ("archive.cleanup.error.preview", "The check could not be completed. Nothing was deleted; check again. Details: {0}", "Die Prüfung konnte nicht abgeschlossen werden. Es wurde nichts gelöscht; erneut prüfen. Details: {0}"),
+        ("archive.cleanup.error.delete", "The deletion was not completed. Check again to see what is left. Details: {0}", "Das Löschen wurde nicht abgeschlossen. Erneut prüfen, um den verbliebenen Bestand zu sehen. Details: {0}"),
         ("archive.cleanup.status.rechecking", "Rechecking this exact selection before confirmation…", "Genau diese Auswahl wird vor der Bestätigung erneut geprüft…"),
         ("archive.cleanup.status.reviewLoss", "Review the loss summary. Deletion needs your explicit confirmation.", "Verlustübersicht prüfen. Erst die bewusste Bestätigung erlaubt das Löschen."),
         ("archive.cleanup.status.reviewCanceled", "Review canceled. Check again.", "Prüfung abgebrochen. Neu prüfen."),

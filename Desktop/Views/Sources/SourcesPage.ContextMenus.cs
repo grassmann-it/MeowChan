@@ -10,6 +10,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using Serilog;
 
 namespace MeowChan;
 
@@ -61,7 +62,8 @@ public partial class SourcesPage
         try { await ExternalLauncher.OpenAsync(address); }
         catch (Exception exception)
         {
-            if (!_ended) this.FindControl<TextBlock>("SourcesActionError")!.Text = exception.Message;
+            Log.Warning(exception, "Could not open the frozen source address.");
+            if (!_ended) this.FindControl<TextBlock>("SourcesActionError")!.Text = Texts.T("sources.openFailed");
         }
     }
 

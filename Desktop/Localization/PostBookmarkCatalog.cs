@@ -14,7 +14,7 @@ internal static class PostBookmarkCatalog
         ("bookmarks.select", "Select a bookmark to check local availability and edit its note.", "Lesezeichen auswählen, um die lokale Verfügbarkeit zu prüfen und die Notiz zu bearbeiten."),
         ("bookmarks.available", "Locally available · {0}", "Lokal verfügbar · {0}"),
         ("bookmarks.missing", "This exact post is not available locally. Its reference and your note are retained. No source request is started.", "Dieser exakte Post ist lokal nicht verfügbar. Referenz und eigene Notiz bleiben erhalten. Es wird kein Quellenabruf gestartet."),
-        ("bookmarks.failed", "Post bookmarks: {0}", "Post-Lesezeichen: {0}"),
+        ("bookmarks.failed", "Post bookmarks could not be read or saved. Your saved bookmarks are kept. Try again; details: {0}", "Die Post-Lesezeichen konnten nicht gelesen oder gespeichert werden. Deine gespeicherten Lesezeichen bleiben erhalten. Erneut versuchen; Details: {0}"),
         ("bookmarks.retry", "Reload / Retry", "Neu laden / Wiederholen"),
         ("bookmarks.discard", "Discard your note changes?", "Änderungen an der eigenen Notiz verwerfen?"),
         ("bookmarks.keepEditing", "Continue editing", "Weiter bearbeiten"),
