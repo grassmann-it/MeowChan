@@ -48,6 +48,7 @@ internal static class PrivateTagBarChecks
             }
             Texts.SetLanguage("en");
             await JourneyAsync(owner, profile);
+            await ThreadMenuJourneyAsync(owner, profile);
             Texts.SetLanguage("de");
             await RestartAndDamageAsync(owner, profile);
             Texts.SetLanguage("en");
@@ -249,6 +250,73 @@ internal static class PrivateTagBarChecks
         input.RaiseEvent(escape);
         Require(escape.Handled && !bar.IsVisible && open.IsFocused, "Escape did not close the bar and return focus.");
         Console.WriteLine("SMOKE private-tags journey [en]: suggestions, click-to-tag, typed Enter, case variant, invalid name, remove, list rows, thread switch, Escape checked.");
+    }
+
+    // "Tags…" in the thread list menu: one selected thread is shown in the reader pane and its tag bar opens there,
+    // with the input focused; a batch offers no such entry. Opening tags nothing and writes nothing.
+    // This window is too narrow for a preview beside the table, so choosing the entry also has to load the thread.
+    private static async Task ThreadMenuJourneyAsync(MainWindow owner, string profile)
+    {
+        await using Fixture f = await OpenAsync(owner, profile, Plain);
+        Require(await f.Page.ApplySearchSpecAsync(new ArchiveSearchSpec()), "List load failed.");
+        await ShowTableAsync(f);
+        DataGrid table = f.C<DataGrid>("ArchiveThreadTable");
+        StackPanel bar = f.C<StackPanel>("ReaderTagBar");
+        TextBox input = f.C<TextBox>("ReaderTagInput");
+        ArchiveThreadRow[] rows = table.ItemsSource!.Cast<ArchiveThreadRow>().ToArray();
+        ArchiveThreadRow taggedRow = rows.Single(row => row.Summary.Id == Tagged), plainRow = rows.Single(row => row.Summary.Id == Plain);
+        long revision = f.Stored().Revision;
+        Require(!bar.IsVisible && f.Page.CurrentThread == null, "The bar must start closed and no thread shown.");
+
+        async Task<ContextMenu> OpenMenuAsync(params ArchiveThreadRow[] selection)
+        {
+            if (!table.IsEffectivelyVisible)
+            {
+                f.Click("ArchiveBackButton");
+                await UntilAsync(() => table.IsEffectivelyVisible);
+            }
+            table.SelectedItems.Clear();
+            foreach (ArchiveThreadRow row in selection) table.SelectedItems.Add(row);
+            await UntilAsync(() => table.SelectedItems.Count == selection.Length && !f.Page.IsBusy);
+            ContextMenu menu = table.ContextMenu!;
+            table.Focus();
+            table.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
+            await UntilAsync(() => menu.IsOpen);
+            return menu;
+        }
+        static MenuItem? TagsItem(ContextMenu menu) => menu.Items.OfType<MenuItem>().SingleOrDefault(item => Equals(item.Tag, "thread.tags"));
+        async Task ChooseTagsAsync(ContextMenu menu, ResourceId thread)
+        {
+            MenuItem item = TagsItem(menu) ?? throw new InvalidOperationException("The thread menu offers no Tags… entry.");
+            Require(item.Command?.CanExecute(null) == true && item.Header?.ToString()?.StartsWith(Texts.T("command.thread.tags"), StringComparison.Ordinal) == true
+                && menu.Items.OfType<MenuItem>().Select(entry => entry.Tag).TakeWhile(tag => !Equals(tag, "thread.tags"))
+                    .SequenceEqual(new object?[] { "thread.favorite-toggle", "thread.read", "gallery.open", "thread.details" }),
+                "The Tags… entry is disabled, mislabeled or misplaced: " + item.Header);
+            item.Command!.Execute(null);
+            menu.Close();
+            await UntilAsync(() => f.Page.CurrentThread?.Summary.Id == thread && bar.IsVisible && input.IsFocused);
+        }
+
+        // Tagged thread, not shown yet: it is loaded, its bar opens on its own tags and takes focus.
+        await ChooseTagsAsync(await OpenMenuAsync(taggedRow), Tagged);
+        Require(f.Chips().SequenceEqual(new[] { "my_tag  ✕", "/sdg/  ✕" }), "The bar does not show the tags of the chosen thread: " + string.Join("|", f.Chips()));
+
+        // Another thread: the bar follows it and shows its own (empty) tags.
+        f.Click("ReaderTagClose");
+        Require(!bar.IsVisible, "The bar did not close.");
+        await ChooseTagsAsync(await OpenMenuAsync(plainRow), Plain);
+        Require(f.Chips().Length == 0, "The bar did not open for the untagged thread.");
+
+        // A second use with the bar already open keeps it open (it never toggles shut).
+        await ChooseTagsAsync(await OpenMenuAsync(plainRow), Plain);
+        Require(bar.IsVisible, "A second Tags… closed the open bar.");
+
+        // A batch gets no Tags… entry: tags edit exactly one thread.
+        ContextMenu batch = await OpenMenuAsync(plainRow, taggedRow);
+        Require(TagsItem(batch) == null, "A batch selection offered Tags….");
+        batch.Close();
+        Require(f.Stored().Revision == revision, "Opening the bar through the menu changed the tag store.");
+        Console.WriteLine("SMOKE private-tags thread menu [en]: Tags… loads and opens the bar for a tagged and an untagged thread, kept open, absent for a batch, store untouched.");
     }
 
     private static async Task RestartAndDamageAsync(MainWindow owner, string profile)

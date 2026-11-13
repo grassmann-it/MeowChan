@@ -1926,6 +1926,7 @@
     "command.watch.follow-live": "Suivre le direct",
     "command.reader.show-new-posts": "Afficher les nouvelles publications",
     "command.thread.favorite-toggle": "Ajouter / retirer le fil des favoris",
+    "command.thread.tags": "Étiquettes…",
     "command.favorites.toggle": "Ajouter / retirer des favoris",
     "command.favorites.filter": "Favoris uniquement",
     "command.favorites.open": "Afficher les favoris",

@@ -8,6 +8,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
@@ -143,6 +144,24 @@ public partial class ArchivePage
         RenderTagBar();
         // Opening is explicit, so it may take focus; later updates never do.
         if (CanEditThreadTags) ReaderTagInput.Focus();
+    }
+
+    // The thread list menu's "Tags…": show that thread in the reader pane and open its tag bar there.
+    // Opening only ever shows the bar; an already open bar is kept and takes focus instead of toggling shut.
+    internal async Task OpenThreadTagsAsync(ResourceId id)
+    {
+        if (_ended || IsReaderDialogOpen) return;
+        if (_thread?.Summary.Id != id)
+        {
+            await LoadThreadAsync(id);
+            if (_ended || _thread?.Summary.Id != id) return;
+        }
+        if (!_tagBarWanted) OnOpenThreadTags(null, new RoutedEventArgs());
+        // The closing menu hands focus back to the list afterwards; ask again once it has settled.
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!_ended && _tagBarWanted && _thread?.Summary.Id == id && CanEditThreadTags) ReaderTagInput.Focus();
+        }, DispatcherPriority.Input);
     }
 
     private void OnCloseThreadTags(object? sender, RoutedEventArgs e) => CloseTagBar(focusOpen: true);

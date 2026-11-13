@@ -160,6 +160,7 @@ internal static class CommandLabelCatalog
         ("command.watch.follow-live", "Follow live", "Live folgen"),
         ("command.reader.show-new-posts", "Show new posts", "Neue Posts anzeigen"),
         ("command.thread.favorite-toggle", "Favorite / unfavorite thread", "Threadfavorit markieren / entfernen"),
+        ("command.thread.tags", "Tags…", "Tags …"),
         ("command.favorites.toggle", "Add / remove favorite", "Als Favorit markieren / entfernen"),
         ("command.favorites.filter", "Favorites only", "Nur Favoriten"),
         ("command.favorites.open", "Show favorites", "Favoriten anzeigen"),

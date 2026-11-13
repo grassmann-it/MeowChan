@@ -1926,6 +1926,7 @@
     "command.watch.follow-live": "Seguir en directo",
     "command.reader.show-new-posts": "Mostrar nuevas publicaciones",
     "command.thread.favorite-toggle": "Marcar / desmarcar hilo como favorito",
+    "command.thread.tags": "Etiquetas…",
     "command.favorites.toggle": "Añadir / quitar favorito",
     "command.favorites.filter": "Solo favoritos",
     "command.favorites.open": "Mostrar favoritos",

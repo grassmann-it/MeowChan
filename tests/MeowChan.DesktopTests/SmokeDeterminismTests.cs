@@ -100,6 +100,8 @@ public sealed class SmokeDeterminismTests
             "rules.edit-scope", "watch.remove", "archive.delete-permanently"
         }, batch);
         Assert.Matches("if \\(ids.Length == 1\\)\\s*\\{\\s*Add\\(\"export.open-urltext-dialog\"", source);
+        // Own thread tags are single-thread only as well: nested, so the batch order above stays exact.
+        Assert.Matches("if \\(ids.Length == 1\\)\\s*Add\\(\"thread.tags\"", source);
         // Do not remove the feature to make the batch-order regression pass.
         Assert.Equal(1, Regex.Matches(source, "Add\\(\"export.open-urltext-dialog\"").Count);
     }
@@ -112,7 +114,7 @@ public sealed class SmokeDeterminismTests
         Assert.Contains("RequireArchiveMenuOrder(cardMenu, single: false);", source);
         Assert.Contains("CheckKeyboardContextAsync(table, table.ContextMenu!, singleArchiveSelection: true)", source);
         Assert.Contains("CheckKeyboardContextAsync(table, table.ContextMenu, singleArchiveSelection: false)", source);
-        Assert.Contains("if (single) expected.Insert(5, \"export.open-urltext-dialog\");", source);
+        Assert.Contains("expected.Insert(4, \"thread.tags\"); expected.Insert(6, \"export.open-urltext-dialog\");", source);
         Assert.Contains("actual.SequenceEqual(expected)", source);
     }
 

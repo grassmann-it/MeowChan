@@ -158,6 +158,9 @@ public partial class ArchivePage
             () => ids.Length == 1, Texts.T("archive.command.singleRead"), leadAction: true);
         Add("gallery.open", async () => { if (OpenGallery != null) await OpenGallery(lead.Summary.Id, null, origin); }, leadAction: true);
         Add("thread.details", async () => await ShowArchiveDetailsAsync(lead), leadAction: true);
+        // Own tags belong to one thread: like the URL-text export below, a batch gets no permanently disabled entry.
+        if (ids.Length == 1)
+            Add("thread.tags", async () => await OpenThreadTagsAsync(lead.Summary.Id), leadAction: true);
         menu.Items.Add(new Separator());
         Add("export.open-html-dialog", async () => await OpenExportForThreadsAsync(ids, origin), count: () => ids.Length);
         // A URL-text export covers exactly one frozen thread. Offering it for a batch would show a

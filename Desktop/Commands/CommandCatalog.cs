@@ -205,6 +205,7 @@ public static class CommandCatalog
         new("watch.follow-live", "command.watch.follow-live", "Follow live", "Live folgen", "arrow-down", null, CommandScope.Reader | CommandScope.Downloads, new[] { "reader-live-watch", "threadwatcher" }),
         new("reader.show-new-posts", "command.reader.show-new-posts", "Show new posts", "Neue Posts anzeigen", "arrow-down", null, CommandScope.Reader, new[] { "reader-new-posts-notice" }),
         new("thread.favorite-toggle", "command.thread.favorite-toggle", "Favorite / unfavorite thread", "Threadfavorit markieren / entfernen", "star", null, CommandScope.Archive | CommandScope.Reader, new[] { "archive-card", "archive-table", "archive-thread-menu", "reader-toolbar" }),
+        new("thread.tags", "command.thread.tags", "Tags…", "Tags …", "edit-2", null, CommandScope.Archive, new[] { "archive-thread-menu" }),
         new("favorites.toggle", "command.favorites.toggle", "Add / remove favorite", "Als Favorit markieren / entfernen", "star", "F", CommandScope.Reader | CommandScope.Gallery | CommandScope.Media, new[] { "reader-inline-media", "gallery-toolbar", "media-tile", "media-context-menu" }),
         new("favorites.add", "command.favorites.add", "Add favorite", "Favorit hinzufügen", "star", "M", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("favorites.remove", "command.favorites.remove", "Remove favorite", "Favorit entfernen", "x", "U", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),

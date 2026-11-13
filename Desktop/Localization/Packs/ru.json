@@ -1926,6 +1926,7 @@
     "command.watch.follow-live": "Следить за обновлениями",
     "command.reader.show-new-posts": "Показать новые сообщения",
     "command.thread.favorite-toggle": "Добавить тред в избранное / убрать из избранного",
+    "command.thread.tags": "Теги…",
     "command.favorites.toggle": "Добавить в избранное / убрать из избранного",
     "command.favorites.filter": "Только избранное",
     "command.favorites.open": "Показать избранное",
