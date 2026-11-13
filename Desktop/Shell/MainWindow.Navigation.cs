@@ -16,6 +16,15 @@ namespace MeowChan;
 public partial class MainWindow
 {
     internal enum WorkspacePage { Downloads, Archive, Rules, Sources, Diagnostics, Settings, Plugins, Media }
+    /// <summary>The workspace page behind a main-page command of <see cref="MainPageOrder"/>.</summary>
+    internal static WorkspacePage PageFor(string commandId) => commandId switch
+    {
+        "navigation.downloads" => WorkspacePage.Downloads, "navigation.archive" => WorkspacePage.Archive,
+        "navigation.media" => WorkspacePage.Media, "navigation.rules" => WorkspacePage.Rules,
+        "navigation.sources" => WorkspacePage.Sources, "navigation.diagnostics" => WorkspacePage.Diagnostics,
+        "navigation.plugins" => WorkspacePage.Plugins,
+        _ => throw new ArgumentOutOfRangeException(nameof(commandId), commandId, "Not a main page.")
+    };
     private SettingsEditor? _settingsEditor;
     private DiagnosticsPage? _diagnosticsPage;
     private RulesPage? _rulesPage;
@@ -268,15 +277,10 @@ public partial class MainWindow
             StackPanel panel = WorkspaceNavigationButtons;
             Border footer = WorkspaceNavigation;
             ComboBox modes = WorkspaceModeComboBox;
-            var destinations = new[]
-            {
-                (Page: WorkspacePage.Archive, Button: ArchiveNavigationButton, Tag: "nav.archive"),
-                (Page: WorkspacePage.Media, Button: MediaNavigationButton, Tag: "nav.media"),
-                (Page: WorkspacePage.Rules, Button: RulesNavigationButton, Tag: "nav.rules"),
-                (Page: WorkspacePage.Plugins, Button: PluginsNavigationButton, Tag: "nav.plugins"),
-                (Page: WorkspacePage.Sources, Button: SourcesNavigationButton, Tag: "nav.sources"),
-                (Page: WorkspacePage.Diagnostics, Button: DiagnosticsNavigationButton, Tag: "nav.diagnostics")
-            };
+            // Footer order, from the single source MainPageOrder (Downloads is always shown).
+            var destinations = MainPageOrder.CommandIds.Where(id => id != "navigation.downloads")
+                .Select(id => (Id: id, Page: PageFor(id), Button: WorkspaceControl<Button>(MainPageOrder.ControlStem(id) + "NavigationButton"),
+                    Tag: MainPageOrder.Tag(id))).ToArray();
             // Capture the actual focused menu destination before changing visibility:
             // hiding its presenter can clear FocusManager synchronously.
             Control? focusedBefore = FocusManager?.GetFocusedElement() as Control;
@@ -330,10 +334,10 @@ public partial class MainWindow
                     + (overflow ? toolsWidth : 0) + Math.Max(0, count - 1) * panel.Spacing;
             }
             // Preserve Archive longest, then Media; remove the rarer destinations first.
-            foreach (int index in new[] { 5, 4, 3, 2, 1, 0 })
+            foreach (string id in MainPageOrder.OverflowOrder)
             {
                 if (RequiredWidth() <= available) break;
-                direct[index] = false;
+                direct[Array.FindIndex(destinations, destination => destination.Id == id)] = false;
             }
             // A small screen can shrink even below the usual workspace minimum.
             // Compact familiar icons only when the actual localized destinations do not fit.

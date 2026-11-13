@@ -15,32 +15,15 @@ public partial class MainWindow
     {
         RefreshReadingResumeLabels();
         RefreshPostBookmarkLabels();
-        foreach (var (name, action) in new[]
-        {
-            ("DownloadsNavigationButton", "navigation.downloads"),
-            ("ArchiveNavigationButton", "navigation.archive"),
-            ("MediaNavigationButton", "navigation.media"),
-            ("RulesNavigationButton", "navigation.rules"),
-            ("SourcesNavigationButton", "navigation.sources"),
-            ("DiagnosticsNavigationButton", "navigation.diagnostics"),
-            ("SettingsNavigationButton", "navigation.settings"),
-            ("PluginsNavigationButton", "navigation.plugins"),
-            ("ToolsNavigationButton", "navigation.tools-menu")
-        })
-            CommandBindings.Apply(WorkspaceControl<Button>(name), action, iconWithLabel: true);
+        foreach (string id in MainPageOrder.CommandIds)
+            CommandBindings.Apply(WorkspaceControl<Button>(MainPageOrder.ControlStem(id) + "NavigationButton"), id, iconWithLabel: true);
+        CommandBindings.Apply(WorkspaceControl<Button>("SettingsNavigationButton"), "navigation.settings", iconWithLabel: true);
+        CommandBindings.Apply(WorkspaceControl<Button>("ToolsNavigationButton"), "navigation.tools-menu", iconWithLabel: true);
 
-        foreach (var (name, action) in new[]
-        {
-            ("ArchiveMenuItem", "navigation.archive"),
-            ("MediaMenuItem", "navigation.media"),
-            ("RulesMenuItem", "navigation.rules"),
-            ("SourcesMenuItem", "navigation.sources"),
-            ("PluginsMenuItem", "navigation.plugins"),
-            ("DiagnosticsMenuItem", "navigation.diagnostics"),
-            ("SettingsMenuItem", "navigation.settings"),
-            ("AboutMenuItem", "navigation.about")
-        })
-            CommandBindings.Apply(WorkspaceControl<MenuItem>(name), action);
+        foreach (string id in MainPageOrder.CommandIds.Where(id => id != "navigation.downloads"))
+            CommandBindings.Apply(WorkspaceControl<MenuItem>(MainPageOrder.ControlStem(id) + "MenuItem"), id);
+        CommandBindings.Apply(WorkspaceControl<MenuItem>("SettingsMenuItem"), "navigation.settings");
+        CommandBindings.Apply(WorkspaceControl<MenuItem>("AboutMenuItem"), "navigation.about");
 
         if (ToolsNavigationButton.Flyout is MenuFlyout tools)
             foreach (MenuItem item in tools.Items.OfType<MenuItem>())

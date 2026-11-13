@@ -667,8 +667,8 @@ public partial class MainWindow
         Border help = ShellHelpOverlay;
         if (help.IsVisible) { DismissShellHelp(); return; }
         _helpOrigin = FocusManager?.GetFocusedElement() as Control;
-        var ids = new List<string> { "navigation.downloads", "navigation.archive", "navigation.media", "navigation.rules", "navigation.sources", "navigation.diagnostics",
-            "session.pause", "input.focus-url", "navigation.settings", "window.fullscreen", "viewer.shortcut-help" };
+        var ids = new List<string>(MainPageOrder.CommandIds);
+        ids.AddRange(new[] { "session.pause", "input.focus-url", "navigation.settings", "window.fullscreen", "viewer.shortcut-help" });
         if (_largeReaderOpen)
         {
             foreach (var pair in new[] { ("ArchiveOpenGallery", "gallery.open"), ("ExportArchiveButton", "export.open-html-dialog"),
@@ -797,14 +797,10 @@ public partial class MainWindow
             && activeGallery.RouteUnfocusedHostShortcut(e)) return;
         if (CanExecuteShellPowerCommand(e.Source, e.Key))
         {
-            foreach ((string id, WorkspacePage page) in new[]
-            {
-                ("navigation.downloads", WorkspacePage.Downloads), ("navigation.archive", WorkspacePage.Archive),
-                ("navigation.media", WorkspacePage.Media), ("navigation.rules", WorkspacePage.Rules), ("navigation.sources", WorkspacePage.Sources),
-                ("navigation.diagnostics", WorkspacePage.Diagnostics)
-            })
+            foreach (string id in MainPageOrder.CommandIds)
             {
                 if (!CommandBindings.Matches(e, id)) continue;
+                WorkspacePage page = PageFor(id);
                 if (_gallery != null) CloseGallery(restoreOrigin: false);
                 if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);
                 e.Handled = NavigateWorkspace(page);
@@ -868,17 +864,14 @@ public partial class MainWindow
         Avalonia.Automation.AutomationProperties.SetHelpText(FullscreenButton,
             CommandBindings.Tooltip("window.fullscreen") + " · " + MeowChan.Desktop.Localization.Texts.T(WindowState == WindowState.FullScreen ? "window.fullscreen.on" : "window.fullscreen.off"));
         CommandBindings.Apply(ShellHelpClose, "window.close");
-        foreach (var pair in new[] { ("ArchiveMenuItem", "navigation.archive"), ("MediaMenuItem", "navigation.media"), ("RulesMenuItem", "navigation.rules"),
-            ("SourcesMenuItem", "navigation.sources"), ("DiagnosticsMenuItem", "navigation.diagnostics"),
-            ("SettingsMenuItem", "navigation.settings"), ("AboutMenuItem", "navigation.about"),
+        foreach (string id in MainPageOrder.CommandIds.Where(id => id != "navigation.downloads"))
+            CommandBindings.Apply(WorkspaceControl<MenuItem>(MainPageOrder.ControlStem(id) + "MenuItem"), id);
+        foreach (var pair in new[] { ("SettingsMenuItem", "navigation.settings"), ("AboutMenuItem", "navigation.about"),
             ("ShortcutHelpMenuItem", "viewer.shortcut-help"), ("ExitMenuItem", "app.quit") })
             CommandBindings.Apply(WorkspaceControl<MenuItem>(pair.Item1), pair.Item2);
         if (ToolsNavigationButton.Flyout is MenuFlyout tools)
             foreach (MenuItem item in tools.Items.OfType<MenuItem>())
-            {
-                string? id = (item.Tag as string) switch { "nav.archive" => "navigation.archive", "nav.media" => "navigation.media", "nav.rules" => "navigation.rules",
-                    "nav.sources" => "navigation.sources", "nav.diagnostics" => "navigation.diagnostics", _ => null };
-                if (id != null) CommandBindings.Apply(item, id);
-            }
+                if (item.Tag is string tag && MainPageOrder.CommandIds.FirstOrDefault(id => MainPageOrder.Tag(id) == tag) is { } navigationId)
+                    CommandBindings.Apply(item, navigationId);
     }
 }
