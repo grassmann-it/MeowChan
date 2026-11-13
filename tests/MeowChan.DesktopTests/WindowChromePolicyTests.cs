@@ -47,8 +47,7 @@ public sealed class WindowChromePolicyTests
         Assert.Null(window.Attribute("CanMaximize"));
         Assert.Null(window.Attribute("CanMinimize"));
         XElement root = window.Elements().Single(e => e.Name.LocalName == "Grid");
-        Assert.Equal(new[] { "{x:Static desktop:WorkspaceMetrics.TitleBarRow}", "*" },
-            root.Element(root.Name.Namespace + "Grid.RowDefinitions")!.Elements().Select(row => (string?)row.Attribute("Height")));
+        Assert.Equal("Auto,*", (string?)root.Attribute("RowDefinitions"));
         Assert.Equal("{DynamicResource Workspace.Background}", (string?)root.Attribute("Background"));
         Assert.Null(root.Attribute("Margin"));
         Assert.Single(root.Elements().Where(e => e.Name.LocalName == "WindowChromeBar"));

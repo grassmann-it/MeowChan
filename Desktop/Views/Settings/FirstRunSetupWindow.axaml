@@ -9,11 +9,7 @@
     <Window.Styles>
         <Style Selector="TextBlock"><Setter Property="TextWrapping" Value="Wrap" /></Style>
     </Window.Styles>
-    <Grid Background="{DynamicResource Workspace.Background}">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="{x:Static desktop:WorkspaceMetrics.TitleBarRow}" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+    <Grid RowDefinitions="Auto,*" Background="{DynamicResource Workspace.Background}">
         <desktop:WindowChromeBar x:Name="AppCaption" />
         <!-- UX103 P7 dialog frame: fixed header, local error strip, scrolling body, fixed footer.
              No inner Tab cycle: the window cycle keeps the caption buttons reachable. -->

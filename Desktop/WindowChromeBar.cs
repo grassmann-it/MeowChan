@@ -14,8 +14,9 @@ using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop;
 
-// Shared app-owned caption for the two secondary windows. Ordinary Buttons keep
-// keyboard focus/Space/Enter and automation; native roles retain platform hints.
+// Shared app-owned caption for every window except MainWindow (own XAML caption). Ordinary
+// Buttons keep keyboard focus/Space/Enter and automation; native roles retain platform hints.
+// Built by WindowChrome.Frame or placed in XAML; it attaches to the window it is shown in.
 public sealed class WindowChromeBar : UserControl
 {
     private static readonly Geometry MaximizeGeometry = Geometry.Parse(WindowChromePolicy.MaximizePath);
@@ -28,10 +29,13 @@ public sealed class WindowChromeBar : UserControl
     private readonly CaptionRestoreTracker _restore = new();
     private Window? _window;
     private bool _restoreCheckQueued;
+    private WindowChromeKind _kind = WindowChromeKind.Window;
 
     public WindowChromeBar()
     {
         Height = WorkspaceMetrics.TitleBarHeight;
+        // The system fallback keeps the control (and its names) but shows the platform caption instead.
+        IsVisible = WindowChrome.ShowsCaption(WindowChrome.Mode);
         var frame = new Border { BorderThickness = new Thickness(0, 0, 0, 1) };
         frame.Classes.Add("shell-bar");
         var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Background = Brushes.Transparent };
@@ -40,11 +44,12 @@ public sealed class WindowChromeBar : UserControl
         _title = new TextBlock
         {
             Name = "WindowCaptionTitle", TextWrapping = TextWrapping.NoWrap,
-            Margin = new Thickness(16, 0), VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(16 + WindowChrome.LeadingInset(WindowChrome.Mode), 0, 16, 0), VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis, FontWeight = FontWeight.SemiBold
         };
         header.Children.Add(_title);
-        var controls = new StackPanel { Orientation = Orientation.Horizontal };
+        // macOS keeps the native traffic lights instead (WindowChromeMode.NativeCaptionButtons).
+        var controls = new StackPanel { Orientation = Orientation.Horizontal, IsVisible = WindowChrome.ShowsOwnCaptionButtons(WindowChrome.Mode) };
         Grid.SetColumn(controls, 1);
         _minimize = CaptionButton("WindowMinimizeButton", "M 0,5 L 10,5", WindowDecorationsElementRole.MinimizeButton);
         _maximize = CaptionButton("WindowMaximizeButton", WindowChromePolicy.MaximizePath, WindowDecorationsElementRole.MaximizeButton);
@@ -61,6 +66,20 @@ public sealed class WindowChromeBar : UserControl
         header.Children.Add(controls);
         frame.Child = header;
         Content = frame;
+    }
+
+    /// <summary>Which caption commands are offered; maximize also follows <see cref="Window.CanResize"/>.</summary>
+    internal WindowChromeKind Kind
+    {
+        get => _kind;
+        set { _kind = value; Refresh(); }
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        // Idempotent with the explicit Attach calls of older windows.
+        if (TopLevel.GetTopLevel(this) is Window window) Attach(window);
     }
 
     internal void Attach(Window window)
@@ -97,7 +116,7 @@ public sealed class WindowChromeBar : UserControl
 
     private void ToggleMaximize()
     {
-        if (_window is not { } window) return;
+        if (_window is not { } window || !WindowChromePolicy.ShowsMaximize(window.CanResize)) return;
         WindowState next = WindowChromePolicy.ToggleMaximize(window.WindowState, window.CanMaximize, window.CanResize);
         if (next == window.WindowState) return;
         if (next == WindowState.Maximized && window.WindowState == WindowState.Normal) _restore.BeforeMaximize(window.Bounds.Size);
@@ -143,6 +162,8 @@ public sealed class WindowChromeBar : UserControl
     {
         if (_window is not { } window) return;
         _title.Text = window.Title;
+        _minimize.IsVisible = WindowChromePolicy.ShowsMinimize(_kind);
+        _maximize.IsVisible = WindowChromePolicy.ShowsMaximize(window.CanResize);
         _minimize.IsEnabled = window.CanMinimize;
         _maximize.IsEnabled = WindowChromePolicy.CanToggleMaximize(window.WindowState, window.CanMaximize, window.CanResize);
         _maximizeIcon.Data = window.WindowState == WindowState.Maximized ? RestoreGeometry : MaximizeGeometry;

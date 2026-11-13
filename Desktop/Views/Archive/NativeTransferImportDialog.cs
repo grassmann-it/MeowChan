@@ -63,9 +63,7 @@ internal sealed class NativeTransferImportDialog : Window
         MinWidth = 480;
         MinHeight = 400;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        WindowDecorations = WindowDecorations.BorderOnly;
-        ExtendClientAreaToDecorationsHint = true;
-        ExtendClientAreaTitleBarHeightHint = WorkspaceMetrics.TitleBarHeight;
+        WindowChrome.Apply(this);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
 
@@ -122,7 +120,7 @@ internal sealed class NativeTransferImportDialog : Window
         Border footer = new() { Child = footerContent, Margin = new Thickness(16, 0, 16, 16) };
         footer.Classes.Add("workspace-dialog-footer");
 
-        Grid layout = new() { RowDefinitions = WorkspaceMetrics.TitleBarRows("*") };
+        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
         layout.Children.Add(_chrome);
         Grid frame = DialogFrame.Build(header, body, footer, DialogFrame.ErrorStrip(_error));
         layout.Children.Add(frame);

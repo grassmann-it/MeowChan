@@ -39,6 +39,7 @@ internal partial class FirstRunSetupWindow : Window
         DownloadDestinationValidator? validator = null)
     {
         InitializeComponent();
+        WindowChrome.Apply(this);
         AppCaption.Attach(this);
         ThemeLogo.Follow(this);
         _baseline = baseline.Clone();

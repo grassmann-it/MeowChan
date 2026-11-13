@@ -65,8 +65,7 @@ internal sealed class MediaSelectionTagDialog : Window
         Name = "MediaSelectionTagDialog";
         Width = 560; Height = 640; MinWidth = 380; MinHeight = 420;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        WindowDecorations = WindowDecorations.BorderOnly;
-        ExtendClientAreaToDecorationsHint = true; ExtendClientAreaTitleBarHeightHint = WorkspaceMetrics.TitleBarHeight;
+        WindowChrome.Apply(this);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
         _surface = new TagToggleSurface(true, "MediaSelectionTag", _input, () => _session.Snapshot, _session.Coverage,
@@ -99,7 +98,7 @@ internal sealed class MediaSelectionTagDialog : Window
         footer.Children.Add(_surface.Undo); Grid.SetColumn(_surface.Undo, 1);
         footer.Children.Add(_close); Grid.SetColumn(_close, 2);
         Grid frame = DialogFrame.Build(header, body, footer, DialogFrame.ErrorStrip(_status), fillBody: true);
-        Grid layout = new() { RowDefinitions = WorkspaceMetrics.TitleBarRows("*") };
+        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
         layout.Children.Add(_chrome);
         layout.Children.Add(frame); Grid.SetRow(frame, 1);
         Content = layout;

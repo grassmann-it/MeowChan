@@ -97,8 +97,7 @@ internal sealed class ManualImportDialog : Window
         Name = "ManualImportDialog";
         Width = 640; Height = 720; MinWidth = 420; MinHeight = 480;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        WindowDecorations = WindowDecorations.BorderOnly;
-        ExtendClientAreaToDecorationsHint = true; ExtendClientAreaTitleBarHeightHint = 48;
+        WindowChrome.Apply(this);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
@@ -122,7 +121,7 @@ internal sealed class ManualImportDialog : Window
             body.Children.Add(control);
         StackPanel footer = new() { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(16, 0, 16, 16), HorizontalAlignment = HorizontalAlignment.Right };
         footer.Children.Add(_cancel); footer.Children.Add(_close); footer.Children.Add(_showBatch); footer.Children.Add(_import);
-        Grid layout = new() { RowDefinitions = new RowDefinitions("48,*,Auto") };
+        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
         layout.Children.Add(_chrome);
         ScrollViewer scroll = new() { Content = body, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
         layout.Children.Add(scroll); Grid.SetRow(scroll, 1);

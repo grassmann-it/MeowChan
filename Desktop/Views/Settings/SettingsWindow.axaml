@@ -6,11 +6,7 @@
         Width="940" Height="760" MinWidth="480" MinHeight="480" WindowStartupLocation="CenterOwner"
         WindowDecorations="BorderOnly" ExtendClientAreaToDecorationsHint="True" ExtendClientAreaTitleBarHeightHint="{x:Static desktop:WorkspaceMetrics.TitleBarHeight}"
         Background="{DynamicResource Workspace.Background}" Foreground="{DynamicResource Workspace.Text}">
-    <Grid Background="{DynamicResource Workspace.Background}">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="{x:Static desktop:WorkspaceMetrics.TitleBarRow}" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+    <Grid RowDefinitions="Auto,*" Background="{DynamicResource Workspace.Background}">
         <desktop:WindowChromeBar x:Name="AppCaption" />
         <ContentControl x:Name="EditorHost" Grid.Row="1" />
     </Grid>

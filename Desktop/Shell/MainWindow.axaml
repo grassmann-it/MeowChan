@@ -74,7 +74,7 @@
                         </MenuItem>
                     </Menu>
                 </Grid>
-                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <StackPanel x:Name="WindowCaptionButtons" Grid.Column="1" Orientation="Horizontal">
                     <Button x:Name="WindowMinimizeButton" Classes="window-caption" Click="OnWindowMinimizeClick"
                             WindowDecorationProperties.ElementRole="MinimizeButton">
                         <Path Data="M 0,5 L 10,5" Classes="window-caption-icon" />

@@ -13,6 +13,7 @@ public partial class SettingsWindow : Window
     public SettingsWindow(Config config, Func<Config, Task>? applySettings = null)
     {
         InitializeComponent();
+        WindowChrome.Apply(this);
         AppCaption.Attach(this);
         ThemeLogo.Follow(this);
         Editor = new SettingsEditor(config, applySettings, closeOnDiscard: true);

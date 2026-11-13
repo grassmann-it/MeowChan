@@ -54,8 +54,7 @@ internal sealed class MediaTagDialog : Window
         Name = "MediaTagDialog";
         Width = 520; Height = 600; MinWidth = 360; MinHeight = 420;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        WindowDecorations = WindowDecorations.BorderOnly;
-        ExtendClientAreaToDecorationsHint = true; ExtendClientAreaTitleBarHeightHint = WorkspaceMetrics.TitleBarHeight;
+        WindowChrome.Apply(this);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
         _surface = new TagToggleSurface(false, "MediaTag", _input, () => _session.Snapshot, _session.Coverage,
@@ -77,7 +76,7 @@ internal sealed class MediaTagDialog : Window
         footer.Children.Add(_close); Grid.SetColumn(_close, 2);
         // Every status of this dialog is a failure (unavailable index or refused change).
         var frame = DialogFrame.Build(header, body, footer, DialogFrame.ErrorStrip(_status), fillBody: true);
-        var layout = new Grid { RowDefinitions = WorkspaceMetrics.TitleBarRows("*") };
+        var layout = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
         layout.Children.Add(_chrome);
         layout.Children.Add(frame); Grid.SetRow(frame, 1);
         Content = layout;

@@ -15,9 +15,21 @@ public partial class MainWindow
     private static readonly Geometry MaximizeGeometry = Geometry.Parse(WindowChromePolicy.MaximizePath);
     private static readonly Geometry RestoreGeometry = Geometry.Parse(WindowChromePolicy.RestorePath);
 
+    // Square corners on Windows (DWM) and native corners and traffic lights on macOS (header
+    // starts after them). MEOWCHAN_WINDOW_CHROME=system fallback: the platform caption returns,
+    // the header row stays as an in-window bar (branding, menu, header commands) without own
+    // caption buttons or window dragging.
+    private void ApplyWindowChrome()
+    {
+        WindowChrome.Apply(this);
+        WindowCaptionButtons.IsVisible = WindowChrome.ShowsOwnCaptionButtons(WindowChrome.Mode);
+        // On the frame, not the header: workspace modes reset the header margin.
+        WorkspaceTitleBarFrame.Padding = new Thickness(WindowChrome.LeadingInset(WindowChrome.Mode), 0, 0, 0);
+    }
+
     private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (e.Handled || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        if (e.Handled || !WindowChrome.ShowsCaption(WindowChrome.Mode) || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         // Header commands keep their own input; only branding and empty space drag.
         if (e.Source is Visual source && source.GetVisualAncestors().Prepend(source)
             .Any(visual => visual is Button or Menu or MenuItem)) return;

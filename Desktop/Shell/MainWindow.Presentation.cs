@@ -46,6 +46,7 @@ public partial class MainWindow
         SizeChanged += OnWorkspaceSizeChanged;
         WorkspaceBody.SizeChanged += OnWorkspaceBodySizeChanged;
         ShellActionErrorBanner.PropertyChanged += OnShellFeedbackVisibilityChanged;
+        ApplyWindowChrome();
         PropertyChanged += OnWindowChromePropertyChanged;
         KeyDown += OnWorkspaceKeyDown;
         InitializeShellPresentation();
