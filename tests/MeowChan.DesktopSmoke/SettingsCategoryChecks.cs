@@ -5,7 +5,9 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Persistence;
 using MeowChan.Desktop.Localization;
 using MeowChan.Testing;
 
@@ -103,9 +105,45 @@ internal static class SettingsCategoryChecks
                     Require(p.HasValue && Math.Abs(p.Value.X + layout.Bounds.Width / 2 - editor.Bounds.Width / 2) <= 2,
                         "Navigation and content block is not centered.");
                     if (page.Id == "interface") Program.CaptureWindow(window, $"smoke-settings-category-{testedLanguage}-{testedTheme}-{width}.png");
+                    if (page.Id == "worker-budgets" && width == 1440d)
+                    {
+                        // Evidence for the storage and limits page: its top, middle and end, since it is a long page.
+                        ScrollViewer scroll = Find<ScrollViewer>(editor, "SettingsScrollViewer");
+                        foreach (int percent in new[] { 0, 50, 100 })
+                        {
+                            scroll.Offset = new Vector(0, Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height) * percent / 100);
+                            window.UpdateLayout();
+                            Program.CaptureWindow(window, $"smoke-settings-storage-limits-{testedLanguage}-{testedTheme}-{percent}.png");
+                        }
+                        scroll.Offset = default;
+                    }
                 }
             }
             Require(commits == 0, "Layout/language/theme changes saved settings.");
+            // Evidence for the 75 percent status-bar warning: a measurement near the limit, shown in the main window's status bar.
+            System.Reflection.FieldInfo usage = typeof(MainWindow).GetField("_storeUsage", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            System.Reflection.MethodInfo show = typeof(MainWindow).GetMethod("ShowStoreLimitWarning", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            try
+            {
+                foreach (ThemeVariant warnTheme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+                foreach (string warnLanguage in new[] { "de", "en" })
+                {
+                    Application.Current.RequestedThemeVariant = warnTheme;
+                    Texts.SetLanguage(warnLanguage);
+                    usage.SetValue(owner, new[] { new StoreLimitUsage.Item(PrivateStoreLimitKind.FavoriteEntries, 8_000, 10_000, StoreLimitUsage.StoreList.Ratings) });
+                    show.Invoke(owner, null);
+                    await Program.WaitUntilAsync(() => owner.FindControl<TextBlock>("WorkspaceStoreWarning")!.IsEffectivelyVisible);
+                    owner.UpdateLayout();
+                    Require(owner.FindControl<TextBlock>("WorkspaceStoreWarning")!.Text!.Contains(Texts.T("limit.warn.list.ratings"), StringComparison.Ordinal),
+                        "The status-bar warning does not name the ratings list.");
+                    Program.CaptureWindow(owner, $"smoke-store-limit-warning-{warnLanguage}-{warnTheme}.png");
+                }
+            }
+            finally
+            {
+                usage.SetValue(owner, Array.Empty<StoreLimitUsage.Item>());
+                show.Invoke(owner, null);
+            }
             Console.WriteLine("SMOKE settings categories: eight exclusive pages, centered bounds EN/DE Dark/Light 640/850/1440, raw/checkbox/shortcut draft preservation, hidden numeric/shortcut error focus and global discard passed.");
         }
         finally
