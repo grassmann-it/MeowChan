@@ -116,6 +116,8 @@ public sealed class BooruUnpublishedTransportTests
             schedulerRelease.TrySetResult();
             recoveryRelease.TrySetResult();
             Assert.False(await beforeQueueDrain.Task.WaitAsync(Deadline), "the queue must not be stopping during Booru drain");
+            Assert.Equal(1, unpublished.Originals.ActiveCount); // The already accepted transfer still belongs to the queue.
+            Assert.Equal(1, stub.OriginalRequests); // Neither restart recovery nor shutdown duplicated it.
 
             // StopAsync has completed Booru start/stop drain, but is blocked just before the actual shared-queue
             // stop. A live request here proves the unpublished composition was not disposed early.
@@ -128,6 +130,7 @@ public sealed class BooruUnpublishedTransportTests
             // Only after queue drain may the owner release its media client. The queue-stop outcome stays pending
             // for restart recovery; an early composition Dispose must not turn accepted work into a silent loss.
             Assert.Contains(unpublished.Originals.GetPendingOriginals(), item => item.PostId == post.PostId);
+            Assert.Equal(0, unpublished.Originals.ActiveCount); // Physical queue drain, not just cancellation requested.
             Assert.Empty(TransportOwners(host));
             Assert.Null(host.BooruComposition);
             await Assert.ThrowsAsync<ObjectDisposedException>(() => mediaClient.GetAsync(post.OriginalUrl));
