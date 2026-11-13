@@ -122,7 +122,7 @@ public partial class ArchivePage : UserControl
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         ArchivePosts.AutoScrollToSelectedItem = false;
         ArchiveMediaTiles.AutoScrollToSelectedItem = false;
-        InitializeReaderInteraction(); InitializeReaderUpdates(); InitializeReadingPositionInput(); InitializePostBookmarks();
+        InitializeReaderInteraction(); InitializeQuotePreview(); InitializeReaderUpdates(); InitializeReadingPositionInput(); InitializePostBookmarks();
         InitializePaginationFocus();
         InitializeArchivePresentation();
         InitializeFilterSurface();
@@ -470,6 +470,7 @@ public partial class ArchivePage : UserControl
 
     private void RenderThread()
     {
+        CloseQuotePreview();
         ReaderFindOpen.IsEnabled = !_ended && !_busy && _thread != null;
         ArchiveSelectHint.IsVisible = _thread == null && !_busy;
         ArchiveContentTabs.IsVisible = _thread != null;
@@ -1046,6 +1047,7 @@ public partial class ArchivePage : UserControl
         if (_ended) return;
         InvalidateFilenameSearch();
         CloseThreadFind();
+        CloseQuotePreview();
         _ended = true;
         _mediaMenuPresenter.Invalidate();
         EndMediaSelectionLifetime();

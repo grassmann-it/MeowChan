@@ -38,6 +38,11 @@ public partial class ArchivePage
         }
         // Shell tunnel reaches this before local handlers. Keep modal priority above
         // this strictly source-scoped dismissal; never treat Find as a global Escape.
+        if (!_ended && IsQuotePreviewOpen)
+        {
+            CloseQuotePreview();
+            return true;
+        }
         if (!_ended && ReaderFindBar.IsVisible && IsThreadFindSource(source))
         {
             CloseThreadFind();
@@ -457,6 +462,13 @@ public partial class ArchivePage
     {
         if (IsThreadFindSource(e.Source)) return;
         if (e.Handled || ShortcutService.IsCapturing || !_largeReader || IsReaderDialogOpen) return;
+        // An open quote preview is dismissed first: Escape must not also close the reader.
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && IsQuotePreviewOpen)
+        {
+            e.Handled = true;
+            CloseQuotePreview();
+            return;
+        }
         // Thread find is a Reader-only command (never a global find): it needs an open thread.
         if (_thread != null && CommandBindings.Matches(e, "reader.find"))
         {

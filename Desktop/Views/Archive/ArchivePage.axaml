@@ -399,7 +399,7 @@
                                                                     <!-- The Semi text theme sets FontSize locally; explicitly honor the reader preference.
                                                                          Greentext and >>No. are runs over the plain text; a click on >>No. opens it like the buttons. -->
                                                                     <desktop:ReaderBodyTextBlock Classes="reader-body" Document="{Binding BodyDocument}" SpoilersRevealed="{Binding SpoilersRevealed, Mode=TwoWay}" IsTextOnly="{Binding IsTextOnly}" FontSize="{Binding $parent[ListBox].FontSize}"
-                                                                                                 TextWrapping="Wrap" QuoteInvoked="OnInlineQuoteInvoked" />
+                                                                                                 TextWrapping="Wrap" QuoteInvoked="OnInlineQuoteInvoked" QuoteHover="OnInlineQuoteHover" />
                                                                     <!-- Keyboard/screen-reader path for the inline references (inline runs are not focusable):
                                                                          after the text in tab and reading order, zero height until it holds keyboard focus. -->
                                                                     <ItemsControl ItemsSource="{Binding Quotes}" Classes="reader-quote-keys" Classes.reader-quotes-visible="{Binding HasUnplacedQuotes}"
@@ -407,7 +407,7 @@
                                                                         <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                                                         <ItemsControl.ItemTemplate>
                                                                             <DataTemplate x:DataType="desktop:ArchiveQuoteRow">
-                                                                                <Button Classes="reader-quote" Content="{Binding Label}" ToolTip.Tip="{Binding AccessibleLabel}" AutomationProperties.Name="{Binding AccessibleLabel}" commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick" Margin="0,2,6,2" HorizontalAlignment="Left" />
+                                                                                <Button Classes="reader-quote" Content="{Binding Label}" ToolTip.Tip="{Binding AccessibleLabel}" AutomationProperties.Name="{Binding AccessibleLabel}" commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick" PointerEntered="OnQuoteButtonEntered" PointerExited="OnQuoteButtonExited" Margin="0,2,6,2" HorizontalAlignment="Left" />
                                                                             </DataTemplate>
                                                                         </ItemsControl.ItemTemplate>
                                                                     </ItemsControl>
@@ -439,6 +439,20 @@
                                             </ListBox.ItemTemplate>
                                         </ListBox>
                                         <TextBlock x:Name="ArchiveNoPosts" Tag="archive.noPosts" Classes="muted localized" TextWrapping="Wrap" Margin="16" />
+                                        <!-- One accent wash for the post a jump lands on (fades out once in 400 ms; never per post). -->
+                                        <Border x:Name="ReaderJumpFlash" IsVisible="False" IsHitTestVisible="False" Opacity="0" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                                CornerRadius="4" Background="{DynamicResource Workspace.Accent}" />
+                                        <!-- The quote preview: one at a time, filled from the thread's post index when it opens. -->
+                                        <Popup x:Name="QuotePreviewPopup" Placement="Bottom" IsLightDismissEnabled="False">
+                                            <Border IsHitTestVisible="False" Background="{DynamicResource Workspace.ReaderPostSurface}" BorderBrush="{DynamicResource Workspace.Accent}"
+                                                    BorderThickness="1" CornerRadius="4" Padding="10,8" MaxWidth="480" MaxHeight="320">
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock x:Name="QuotePreviewHeader" Classes="workspace-meta" TextWrapping="Wrap" />
+                                                    <TextBlock x:Name="QuotePreviewSubject" Classes="section-title" TextWrapping="Wrap" />
+                                                    <TextBlock x:Name="QuotePreviewBody" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </Border>
+                                        </Popup>
                                     </Grid>
                                     <Grid x:Name="ArchivePostNavigation" Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto" HorizontalAlignment="Center" Margin="8" ColumnSpacing="8">
                                         <Button x:Name="PreviousPostsButton" Tag="archive.previous" Classes="localized" Click="OnPreviousPosts" />

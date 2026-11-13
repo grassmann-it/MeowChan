@@ -144,6 +144,7 @@ public partial class ArchivePage
         ReaderAnchor? originAnchor = row.Backlink && ArchiveContentTabs.SelectedIndex == 2
             ? _backlinkOriginAnchor ?? CaptureReaderAnchor() : CaptureReaderAnchor();
         CancelReferences();
+        CloseQuotePreview();
         int request = _referenceRequest;
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _referenceCancellation = loading;
@@ -167,6 +168,7 @@ public partial class ArchivePage
             }
             ShowCapturedView(resolved.View, resolved.PostIndex.Value / PageSize * PageSize, resolved.Post!.PostId);
             await FocusPostAsync(resolved.Post.PostId);
+            if (!_ended && request == _referenceRequest) _ = FlashPostAsync(resolved.Post.PostId);
         }
         catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
         catch (Exception exception) { if (!_ended && request == _referenceRequest) OperationMessage("reference", exception.Message, true); }

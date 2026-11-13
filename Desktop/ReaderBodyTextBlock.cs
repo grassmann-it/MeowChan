@@ -17,6 +17,14 @@ internal sealed class ReaderQuoteInvokedEventArgs(RoutedEvent routedEvent, Archi
     public ArchiveQuoteRow Quote { get; } = quote;
 }
 
+/// <summary>The pointer entered (Quote set, Area = the reference's first line in the control) or left (Quote null) an inline reference.</summary>
+internal sealed class ReaderQuoteHoverEventArgs(RoutedEvent routedEvent, ArchiveQuoteRow? quote, Rect area) : RoutedEventArgs(routedEvent)
+{
+    public ArchiveQuoteRow? Quote { get; } = quote;
+    public Rect Area { get; } = area;
+}
+
+// Hovering an inline reference raises QuoteHover (the page shows the quote preview); leaving it raises it with null.
 // Keep the native selectable text control and its configured reading font. Only
 // media-free bodies get a reading measure; attachment/text layouts remain intact.
 // A formatted body (greentext, inline >>No.) is rendered as runs over the unchanged plain
@@ -40,6 +48,9 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     public static readonly RoutedEvent<ReaderQuoteInvokedEventArgs> QuoteInvokedEvent =
         RoutedEvent.Register<ReaderBodyTextBlock, ReaderQuoteInvokedEventArgs>(nameof(QuoteInvoked), RoutingStrategies.Bubble);
 
+    public static readonly RoutedEvent<ReaderQuoteHoverEventArgs> QuoteHoverEvent =
+        RoutedEvent.Register<ReaderBodyTextBlock, ReaderQuoteHoverEventArgs>(nameof(QuoteHover), RoutingStrategies.Bubble);
+
     public bool IsTextOnly
     {
         get => GetValue(IsTextOnlyProperty);
@@ -61,6 +72,12 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
 
     internal bool HasHiddenSpoilers => Document is { HasSpoilers: true } && !SpoilersRevealed;
 
+    public event EventHandler<ReaderQuoteHoverEventArgs>? QuoteHover
+    {
+        add => AddHandler(QuoteHoverEvent, value);
+        remove => RemoveHandler(QuoteHoverEvent, value);
+    }
+
     public event EventHandler<ReaderQuoteInvokedEventArgs>? QuoteInvoked
     {
         add => AddHandler(QuoteInvokedEvent, value);
@@ -75,6 +92,7 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
 
     private static readonly FontFamily CodeFont = new("monospace");
     private ReaderBodySegment? _pressedQuote;
+    private ArchiveQuoteRow? _hoverQuote;
     private bool _linkCursor;
 
     public ReaderBodyTextBlock() => UpdateReadingMetrics();
@@ -98,6 +116,7 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     private void ShowDocument(ReaderBodyDocument? document)
     {
         _pressedQuote = null;
+        _hoverQuote = null;
         SetLinkCursor(false);
         SelectionStart = SelectionEnd = 0;
         if (document is not { IsFormatted: true })
@@ -207,13 +226,31 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
-        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) SetLinkCursor(ActionAt(e.GetPosition(this)) != null);
+        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) { SetHoverQuote(null); return; }
+        Point position = e.GetPosition(this);
+        SetLinkCursor(ActionAt(position) != null);
+        SetHoverQuote(QuoteAt(position));
     }
 
     protected override void OnPointerExited(PointerEventArgs e)
     {
         base.OnPointerExited(e);
         SetLinkCursor(false);
+        SetHoverQuote(null);
+    }
+
+    private void SetHoverQuote(ReaderBodySegment? segment)
+    {
+        if (ReferenceEquals(_hoverQuote, segment?.Quote)) return;
+        _hoverQuote = segment?.Quote;
+        Rect area = default;
+        if (segment != null)
+            foreach (Rect rect in TextLayout.HitTestTextRange(segment.Start, segment.Length))
+            {
+                area = new Rect(rect.X + Padding.Left, rect.Y + Padding.Top, rect.Width, rect.Height);
+                break;
+            }
+        RaiseEvent(new ReaderQuoteHoverEventArgs(QuoteHoverEvent, _hoverQuote, area));
     }
 
     private void SetLinkCursor(bool link)
