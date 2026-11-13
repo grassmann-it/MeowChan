@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
+using Avalonia.Media.Imaging;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -200,11 +201,9 @@ internal static class SelectionChecks
     {
         await Task.Delay(80); window.UpdateLayout();
         Image logo = window.FindControl<Image>("WorkspaceLogo")!;
-        Image darkLogo = window.FindControl<Image>("WorkspaceLogoDark")!;
-        Require(logo.Source != null && logo.IsEffectivelyVisible && logo.Bounds.Width == 30 && logo.Bounds.Height == 30
-            && darkLogo.Source != null && darkLogo.IsEffectivelyVisible && darkLogo.Bounds.Width == 30 && darkLogo.Bounds.Height == 30,
-            "The compact header lost one of its two cat assets.");
-        foreach (Control item in new Control[] { logo, darkLogo, window.FindControl<TextBlock>("WorkspaceVersion")!, window.FindControl<ComboBox>("WorkspaceModeComboBox")!, window.FindControl<MenuItem>("WorkspaceMenuItem")! })
+        Require(logo.Source is Bitmap && logo.IsEffectivelyVisible && logo.Bounds.Width == 30 && logo.Bounds.Height == 30,
+            "The compact header lost its theme-specific cat asset.");
+        foreach (Control item in new Control[] { logo, window.FindControl<TextBlock>("WorkspaceVersion")!, window.FindControl<ComboBox>("WorkspaceModeComboBox")!, window.FindControl<MenuItem>("WorkspaceMenuItem")! })
         {
             Point? position = item.TranslatePoint(default, window);
             Require(position.HasValue && position.Value.X >= 0 && position.Value.X + item.Bounds.Width <= window.Bounds.Width + 1,

@@ -301,8 +301,9 @@ proprietary theme assemblies are no longer dependencies or distributed assets.
   license name or further terms were given; the photographs are not covered by
   MeowChan's license.
 
-  The application's header and About window show both cats side by side; the
-  window, tray and dialog icons keep following the theme.
+  The application's header shows the theme-appropriate cat, while the About window
+  shows both cats side by side for documentation and credits; the window, tray and
+  dialog icons keep following the theme.
 
   Within each set the PNG, Windows ICO and, for the orange set, packaged macOS
   ICNS use the same photographic cutout.

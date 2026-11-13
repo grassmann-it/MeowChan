@@ -11,8 +11,8 @@ using SkiaSharp;
 
 namespace MeowChan.DesktopSmoke;
 
-// Window icons, dialog icons and the tray follow the effective theme (orange in Light, grey in Dark), live
-// and for new windows. The header logo and the About window show both cats side by side in either theme.
+// Window icons, dialog icons, the tray and the header logo follow the effective theme (orange in Light,
+// grey in Dark), live and for new windows. The About window keeps the documentation/credits pair.
 // Product theme toggle and brand-logo About entry on the private Xvfb; managed input only. The tray is
 // a standalone TrayIcon: the private run has no StatusNotifier host, so no native tray is observed.
 internal static class LogoThemeChecks
@@ -23,7 +23,7 @@ internal static class LogoThemeChecks
     internal static async Task RunAsync(MainWindow window)
     {
         Application application = Application.Current ?? throw new InvalidOperationException("The desktop application is unavailable.");
-        Image workspaceLogo = window.FindControl<Image>("WorkspaceLogo")!, workspaceLogoDark = window.FindControl<Image>("WorkspaceLogoDark")!;
+        Image workspaceLogo = window.FindControl<Image>("WorkspaceLogo")!;
         Button toggle = window.FindControl<Button>("ThemeToggleButton")!;
         var tray = new TrayIcon();
         using IDisposable trayLogo = ThemeLogo.Follow(tray);
@@ -35,8 +35,8 @@ internal static class LogoThemeChecks
             if (initial != ThemeVariant.Light) await ToggleAsync(window, toggle, ThemeVariant.Light);
             Require(ThemeLogo.AssetFor(window.ActualThemeVariant) == ThemeLogo.LightAsset, "Light did not resolve to the orange asset.");
             RequireIcon(window, ThemeVariant.Light, "main window");
-            RequirePair(window, workspaceLogo, workspaceLogoDark, ThemeVariant.Light, "main window header");
-            RequireHeaderFits(window, workspaceLogo, workspaceLogoDark, "main window header (Light)");
+            RequireThemeLogo(window, workspaceLogo, ThemeVariant.Light, "main window header");
+            RequireHeaderFits(window, workspaceLogo, "main window header (Light)");
             RequireTray(tray, ThemeVariant.Light);
             Program.CaptureWindow(window, "smoke-logo-main-light.png");
             CaptureControl(window.FindControl<Border>("WorkspaceTitleBarFrame")!, "smoke-logo-header-light.png");
@@ -63,8 +63,8 @@ internal static class LogoThemeChecks
             // Live switch with every consumer above already open.
             await ToggleAsync(window, toggle, ThemeVariant.Dark);
             RequireIcon(window, ThemeVariant.Dark, "main window");
-            RequirePair(window, workspaceLogo, workspaceLogoDark, ThemeVariant.Dark, "main window header");
-            RequireHeaderFits(window, workspaceLogo, workspaceLogoDark, "main window header (Dark)");
+            RequireThemeLogo(window, workspaceLogo, ThemeVariant.Dark, "main window header");
+            RequireHeaderFits(window, workspaceLogo, "main window header (Dark)");
             RequireIcon(about, ThemeVariant.Dark, "About");
             RequirePair(about, catLogo, catLogoDark, ThemeVariant.Dark, "About");
             Require(ReferenceEquals(plain.Icon, ThemeLogo.IconFor(ThemeVariant.Dark)), "An open dialog kept the orange cat in Dark.");
@@ -96,14 +96,14 @@ internal static class LogoThemeChecks
             ThemeVariant system = application.ActualThemeVariant;
             Require(system == ThemeVariant.Light || system == ThemeVariant.Dark, "System theme did not resolve: " + system);
             RequireIcon(window, system, "main window (system " + system + ")");
-            RequirePair(window, workspaceLogo, workspaceLogoDark, system, "main window header (system " + system + ")");
+            RequireThemeLogo(window, workspaceLogo, system, "main window header (system " + system + ")");
             RequireTray(tray, system);
 
             // Back to Light: the switch is live in both directions. The toggle flips the resolved variant.
             if (system == ThemeVariant.Light) await ToggleAsync(window, toggle, ThemeVariant.Dark);
             await ToggleAsync(window, toggle, ThemeVariant.Light);
             RequireIcon(window, ThemeVariant.Light, "main window (back to Light)");
-            RequirePair(window, workspaceLogo, workspaceLogoDark, ThemeVariant.Light, "main window header (back to Light)");
+            RequireThemeLogo(window, workspaceLogo, ThemeVariant.Light, "main window header (back to Light)");
             RequireIcon(about, ThemeVariant.Light, "About (back to Light)");
             RequirePair(about, catLogo, catLogoDark, ThemeVariant.Light, "About (back to Light)");
             Require(ReferenceEquals(plain.Icon, ThemeLogo.IconFor(ThemeVariant.Light)), "An open dialog did not return to the orange cat.");
@@ -112,12 +112,12 @@ internal static class LogoThemeChecks
             await RequireCreditsAsync(about, ThemeVariant.Light);
             about.Close();
             about = null;
-            await RequireNarrowHeaderAsync(window, toggle, workspaceLogo, workspaceLogoDark);
+            await RequireNarrowHeaderAsync(window, toggle, workspaceLogo);
             if (initial != ThemeVariant.Light) await ToggleAsync(window, toggle, initial);
-            Console.WriteLine("SMOKE logo theme: main window icon, About icon, plain dialog and standalone tray icon switched live "
-                + "Light->Dark->System(" + system + ")->Light (orange in Light, grey in Dark); header logo and About showed the orange and the grey cat "
-                + "side by side, same size, unclipped, in both themes, with one automation name for the About pair; new About/Settings/startup-error windows "
-                + "carried the grey icon before opening; header fit at 640x480 Barebones and 760x500 and About at its 440 minimum.");
+            Console.WriteLine("SMOKE logo theme: main window icon, theme-specific header logo, About pair, plain dialog and standalone tray icon switched live "
+                + "Light->Dark->System(" + system + ")->Light (orange in Light, grey in Dark); the header showed exactly one matching cat in each theme, "
+                + "while About kept the orange/grey documentation pair with one automation name; new About/Settings/startup-error windows carried the grey icon "
+                + "before opening; header fit at 640x480 Barebones and 760x500 and About at its 440 minimum.");
         }
         finally
         {
@@ -177,18 +177,18 @@ internal static class LogoThemeChecks
     private static Rect BoundsIn(Control control, Visual root) =>
         new(control.TranslatePoint(default, root) ?? throw new InvalidOperationException(control.Name + " is not in the window."), control.Bounds.Size);
 
-    // The pair must not push the brand text, the version or the right-hand controls out of the header.
-    private static void RequireHeaderFits(MainWindow window, Image orange, Image grey, string name)
+    // The single theme-specific header cat must not push the brand text, version or right-hand controls out.
+    private static void RequireHeaderFits(MainWindow window, Image logo, string name)
     {
         window.UpdateLayout();
-        Rect first = BoundsIn(orange, window), second = BoundsIn(grey, window);
+        Rect logoBounds = BoundsIn(logo, window);
         Control version = window.FindControl<TextBlock>("WorkspaceVersion")!;
         Rect versionBounds = BoundsIn(version, window);
         Rect brand = BoundsIn(window.FindControl<Grid>("WorkspaceHeader")!.GetLogicalDescendants().OfType<TextBlock>()
             .First(text => text.Classes.Contains("brand")), window);
-        Require(first.Left >= 0 && second.Right <= window.Bounds.Width + 0.5, name + ": the logo pair is clipped by the window.");
-        Require(second.Right <= brand.Left + 0.5 && brand.Right <= versionBounds.Left + 0.5,
-            $"{name}: the logo pair overlaps the brand text ({second} / {brand} / {versionBounds}).");
+        Require(logoBounds.Left >= 0 && logoBounds.Right <= window.Bounds.Width + 0.5, name + ": the logo is clipped by the window.");
+        Require(logoBounds.Right <= brand.Left + 0.5 && brand.Right <= versionBounds.Left + 0.5,
+            $"{name}: the logo overlaps the brand text ({logoBounds} / {brand} / {versionBounds}).");
         Require(version.IsEffectivelyVisible && versionBounds.Right <= window.Bounds.Width + 0.5, name + ": the version is clipped.");
         double rightEdge = new[] { "TransferSpeed", "ContinueReadingButton", "PauseButton", "FullscreenButton", "ThemeToggleButton" }
             .Select(id => window.FindControl<Control>(id)!).Where(control => control.IsEffectivelyVisible)
@@ -198,8 +198,18 @@ internal static class LogoThemeChecks
         Require(window.FindControl<MenuItem>("WorkspaceMenuItem")!.IsEffectivelyVisible
             && BoundsIn(window.FindControl<MenuItem>("WorkspaceMenuItem")!, window).Right <= window.Bounds.Width + 0.5,
             name + ": the workspace menu is clipped.");
-        Console.WriteLine($"SMOKE logo theme header: {name}; pair={first.Left:F1}..{second.Right:F1} brand={brand.Left:F1}..{brand.Right:F1} " +
+        Console.WriteLine($"SMOKE logo theme header: {name}; logo={logoBounds.Left:F1}..{logoBounds.Right:F1} brand={brand.Left:F1}..{brand.Right:F1} " +
             $"version right={versionBounds.Right:F1}; controls left={rightEdge:F1}; window={window.Bounds.Width:F0}");
+    }
+
+    // The header has one image and it always renders the effective theme's cat.
+    private static void RequireThemeLogo(Window owner, Image logo, ThemeVariant theme, string name)
+    {
+        Require(ReferenceEquals(logo.Source, ThemeLogo.BitmapFor(theme)), name + " is not the " + Cat(theme) + " cat.");
+        owner.UpdateLayout();
+        Require(logo.IsEffectivelyVisible && logo.Bounds.Width > 0 && logo.Bounds.Height > 0,
+            name + " is not visible in " + theme + ".");
+        RequireRendered(owner, logo, orange: !IsDark(theme), name + " " + Cat(theme) + " cat", theme);
     }
 
     // One automation name for the About pair; the images are hidden from the accessibility tree.
@@ -220,9 +230,9 @@ internal static class LogoThemeChecks
             "The About pair name does not name both cats.");
         Button brand = ((MainWindow)about.Owner!).FindControl<Button>("BrandAboutButton")!;
         Require(!string.IsNullOrWhiteSpace(AutomationProperties.GetName(brand)), "The header brand button has no accessible name.");
-        foreach (string image in new[] { "WorkspaceLogo", "WorkspaceLogoDark" })
-            Require(AutomationProperties.GetAccessibilityView(((MainWindow)about.Owner!).FindControl<Image>(image)!) == AccessibilityView.Raw,
-                image + " is announced separately from the About button.");
+        Image headerLogo = ((MainWindow)about.Owner!).FindControl<Image>("WorkspaceLogo")!;
+        Require(AutomationProperties.GetAccessibilityView(headerLogo) == AccessibilityView.Raw,
+            "The header logo is announced separately from the About button.");
     }
 
     // The visible photo credit in the Credits tab: text naming both cats and the photographer, two links, one safe-open path.
@@ -268,7 +278,7 @@ internal static class LogoThemeChecks
     }
 
     // The header at the supported small sizes, both themes: 640x480 Barebones and 760x500.
-    private static async Task RequireNarrowHeaderAsync(MainWindow window, Button toggle, Image orange, Image grey)
+    private static async Task RequireNarrowHeaderAsync(MainWindow window, Button toggle, Image logo)
     {
         string mode = window.SessionHost.Config.WorkspaceMode;
         Size original = window.Bounds.Size;
@@ -284,8 +294,8 @@ internal static class LogoThemeChecks
                 {
                     if (window.ActualThemeVariant != theme) await ToggleAsync(window, toggle, theme);
                     await Task.Delay(80);
-                    RequirePair(window, orange, grey, theme, $"main window header at {width}x{height}");
-                    RequireHeaderFits(window, orange, grey, $"{width}x{height} {workspace} ({theme})");
+                    RequireThemeLogo(window, logo, theme, $"main window header at {width}x{height}");
+                    RequireHeaderFits(window, logo, $"{width}x{height} {workspace} ({theme})");
                     CaptureControl(window.FindControl<Border>("WorkspaceTitleBarFrame")!, $"smoke-logo-header-{width}-{Name(theme)}-theme.png");
                 }
             }

@@ -27,9 +27,8 @@ internal static class BrandNavigationChecks
             || string.IsNullOrWhiteSpace(AutomationProperties.GetName(resume)))
             throw new InvalidOperationException("The header reading action lacks its book icon or accessible name.");
         Button brand = window.FindControl<Button>("BrandAboutButton")!;
-        if (!brand.IsEffectivelyVisible || window.FindControl<Image>("WorkspaceLogo")!.Source is not Bitmap
-            || window.FindControl<Image>("WorkspaceLogoDark")!.Source is not Bitmap)
-            throw new InvalidOperationException("The clickable header logo pair is not visible.");
+        if (!brand.IsEffectivelyVisible || window.FindControl<Image>("WorkspaceLogo")!.Source is not Bitmap)
+            throw new InvalidOperationException("The clickable theme-specific header logo is not visible.");
         brand.Focus();
         brand.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await Program.WaitUntilAsync(() => window.OwnedWindows.OfType<AboutWindow>().Any(about => about.IsVisible));

@@ -89,36 +89,31 @@ public sealed class ThemeLogoTests
         Assert.Equal(["Desktop/ThemeLogo.cs"], naming);
     }
 
-    // Window, tray and dialog icons follow the theme; the header logo and About show both cats side by side.
+    // Window, tray, dialog and header logos follow the theme; About keeps the documentation pair.
     [Fact]
-    public void HeaderAndAboutShowBothCatsWhileWindowIconsStayThemeBased()
+    public void HeaderShowsOneThemeCatWhileAboutKeepsTheDocumentationPair()
     {
         string repository = Repository();
         string Read(string path) => File.ReadAllText(Path.Combine(repository, path));
-        (string Axaml, string Code, string Orange, string Grey, string Pair)[] pairs =
-        [
-            ("Desktop/Shell/MainWindow.axaml", "Desktop/Shell/MainWindow.axaml.cs", "WorkspaceLogo", "WorkspaceLogoDark", "WorkspaceLogoPair"),
-            ("Desktop/Views/About/AboutWindow.axaml", "Desktop/Views/About/AboutWindow.axaml.cs", "CatLogo", "CatLogoDark", "CatLogoPair"),
-        ];
-        foreach (var (axamlPath, codePath, orange, grey, pair) in pairs)
-        {
-            string axaml = Read(axamlPath), code = Read(codePath);
-            // Two images in one container, neither with a fixed source, both the same size.
-            Assert.Matches($@"<Image x:Name=""{orange}"" Width=""(\d+)"" Height=""\1""", axaml);
-            Assert.Matches($@"<Image x:Name=""{grey}"" Width=""(\d+)"" Height=""\1""", axaml);
-            Assert.DoesNotContain("Source=", axaml[axaml.IndexOf(orange, StringComparison.Ordinal)..axaml.IndexOf(grey, StringComparison.Ordinal)]);
-            Assert.Contains($"x:Name=\"{pair}\"", axaml);
-            Assert.Contains($"ThemeLogo.ShowPair({orange}, {grey});", code);
-            // The pair does not follow the theme, the window icon still does.
-            Assert.DoesNotContain($"ThemeLogo.Follow({orange})", code);
-            Assert.DoesNotContain($"ThemeLogo.Follow({grey})", code);
-            Assert.Contains("ThemeLogo.Follow(this);", code);
-        }
-        // About names the pair once; the images are not announced separately.
-        string about = Read("Desktop/Views/About/AboutWindow.axaml"), aboutCode = Read("Desktop/Views/About/AboutWindow.axaml.cs");
+
+        string mainAxaml = Read("Desktop/Shell/MainWindow.axaml"), mainCode = Read("Desktop/Shell/MainWindow.axaml.cs");
+        Assert.Matches(@"<Image x:Name=""WorkspaceLogo"" Width=""(\d+)"" Height=""\1""", mainAxaml);
+        Assert.DoesNotContain("WorkspaceLogoDark", mainAxaml);
+        Assert.DoesNotContain("WorkspaceLogoPair", mainAxaml);
+        Assert.Contains("ThemeLogo.Follow(WorkspaceLogo, variant => WorkspaceLogo.Source = ThemeLogo.BitmapFor(variant));", mainCode);
+        Assert.DoesNotContain("ThemeLogo.ShowPair(WorkspaceLogo", mainCode);
+
+        string aboutAxaml = Read("Desktop/Views/About/AboutWindow.axaml"), aboutCode = Read("Desktop/Views/About/AboutWindow.axaml.cs");
+        Assert.Matches(@"<Image x:Name=""CatLogo"" Width=""(\d+)"" Height=""\1""", aboutAxaml);
+        Assert.Matches(@"<Image x:Name=""CatLogoDark"" Width=""(\d+)"" Height=""\1""", aboutAxaml);
+        Assert.Contains("CatLogoPair", aboutAxaml);
+        Assert.Contains("ThemeLogo.ShowPair(CatLogo, CatLogoDark);", aboutCode);
+        Assert.DoesNotContain("ThemeLogo.Follow(CatLogo)", aboutCode);
+        Assert.DoesNotContain("ThemeLogo.Follow(CatLogoDark)", aboutCode);
         Assert.Contains("AutomationProperties.SetName(CatLogoPair, Texts.T(\"about.logoDescription\"));", aboutCode);
-        Assert.Equal(2, Regex.Matches(about, @"<Image x:Name=""CatLogo(Dark)?""[^>]*AccessibilityView=""Raw""").Count);
-        // The tray and the other windows keep their theme-based single icon.
+        Assert.Equal(2, Regex.Matches(aboutAxaml, @"<Image x:Name=""CatLogo(Dark)?""[^>]*AccessibilityView=""Raw""").Count);
+
+        // Other windows and the tray keep their theme-based single icon.
         Assert.Contains("_trayLogo = ThemeLogo.Follow(trayIcon);", Read("Desktop/Shell/MainWindow.axaml.cs"));
         Assert.Contains("ThemeLogo.Follow(this);", Read("Desktop/Views/Settings/SettingsWindow.axaml.cs"));
         Assert.Contains("ThemeLogo.Follow(this);", Read("Desktop/Views/Settings/FirstRunSetupWindow.axaml.cs"));

@@ -136,8 +136,8 @@
   as an overlay; open filters over the results; keep the Reader toolbar on one row.
 - Show the orange cat in the light theme and the grey cat in the dark theme; soften the light theme
   (palette corrections pending).
-- Show both cats side by side in the header logo and the About window in either theme (window,
-  tray and dialog icons keep following the theme), and credit the photographer of both cats (Simba, orange; Mila, grey),
+- Show the theme-appropriate cat in the header and both cats side by side in the About window for documentation
+  and credits (window, tray and dialog icons keep following the theme), and credit the photographer of both cats (Simba, orange; Mila, grey),
   Alexander Huxel · Webentwicklung Huxel, in THIRD-PARTY-NOTICES, the README and About > Credits.
 - Keep Archive, Downloads and Settings usable while the session is still starting; writes
   wait for Ready.

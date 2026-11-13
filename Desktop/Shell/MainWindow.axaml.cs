@@ -91,10 +91,10 @@ public partial class MainWindow : Window
                 Application.Current.RequestedThemeVariant = ThemeForPreference(_config.Theme);
             }
             MeowChan.Desktop.Motion.MotionPolicy.SetSetting(_config.Animations);
-            // After the saved theme, so the first logo decoded is the one shown.
+            // After the saved theme, so the first logo decoded is the one shown. The header has one
+            // theme-appropriate cat; the About window owns the documentation/credits pair.
             ThemeLogo.Follow(this);
-            // Both cats side by side in the header, whatever the theme; only the window icon follows it.
-            ThemeLogo.ShowPair(WorkspaceLogo, WorkspaceLogoDark);
+            ThemeLogo.Follow(WorkspaceLogo, variant => WorkspaceLogo.Source = ThemeLogo.BitmapFor(variant));
             // Progress-only changes are spaced (first comparison variant of PF-03: 100 ms, background priority);
             // lifecycle, pause, warnings, watch-set and failure changes use RequestImmediate.
             _sessionRefresh = new CoalescedUiUpdate(RefreshSession, SessionProgressIntervalForTests);

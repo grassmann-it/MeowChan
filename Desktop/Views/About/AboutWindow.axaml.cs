@@ -38,7 +38,7 @@ public partial class AboutWindow : Window
         DialogFit.OnOpen(this);
         AppCaption.Attach(this);
         ThemeLogo.Follow(this);
-        // Both cats side by side in either theme; only the window icon follows the theme.
+        // Documentation/credits pair: both cats side by side in either theme; only the window icon follows the theme.
         ThemeLogo.ShowPair(CatLogo, CatLogoDark);
         Opened += (_, _) => { MeowChan.Desktop.Commands.LegacyCommandAdapters.Register(this); MeowChan.Desktop.Commands.CommandBindings.BindExisting(CloseButton, "about.close"); };
         Assembly assembly = typeof(AboutWindow).Assembly;

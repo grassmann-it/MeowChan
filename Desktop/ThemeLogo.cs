@@ -10,11 +10,11 @@ namespace MeowChan.Desktop;
 
 /// <summary>
 /// The one place that chooses the cat logo: the orange cat in the light theme, the grey cat in the dark
-/// theme. Window icons, the tray and dialog icons follow the effective (resolved) variant and switch live;
-/// an unresolved variant, such as before any theme exists, shows the orange cat. The executable and
-/// package icons cannot follow the app theme and stay orange outside this class. The header brand and
-/// the About window are the exception: both cats belong to the identity, so they show the pair side by
-/// side in either theme (<see cref="ShowPair"/>) instead of following a variant.
+/// theme. Window icons, the tray, dialog icons and the header logo follow the effective (resolved) variant
+/// and switch live; an unresolved variant, such as before any theme exists, shows the orange cat. The
+/// executable and package icons cannot follow the app theme and stay orange outside this class. The About
+/// window is the documentation/credits exception: both cats belong to the identity there, so it shows the
+/// pair side by side in either theme (<see cref="ShowPair"/>) instead of following a variant.
 /// </summary>
 internal static class ThemeLogo
 {

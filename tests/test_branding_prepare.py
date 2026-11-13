@@ -441,25 +441,35 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn(f'internal const string LightAsset = "{uri}";', mapping)
         self.assertIn(f'internal const string DarkAsset = "{DARK_URI}";', mapping)
         self.assertIn("IsDark(variant) ? DarkAsset : LightAsset", mapping)
-        # The header logo and About show both cats side by side (ThemeLogo.ShowPair); their window icons still follow the theme.
-        windows = {"Desktop/Shell/MainWindow.axaml": ("WorkspaceLogo", "WorkspaceLogoDark"),
-                   "Desktop/Views/About/AboutWindow.axaml": ("CatLogo", "CatLogoDark"),
-                   "Desktop/Views/Settings/SettingsWindow.axaml": None, "Desktop/Views/Settings/FirstRunSetupWindow.axaml": None}
+        # The header has one theme-specific cat; About alone shows both cats for documentation and credits.
+        windows = {"Desktop/Views/Settings/SettingsWindow.axaml": None,
+                   "Desktop/Views/Settings/FirstRunSetupWindow.axaml": None}
         self.assertIn("internal static void ShowPair(Image orange, Image grey)", mapping)
-        self.assertNotIn("Follow(Image", mapping)
+        main = ET.parse(ROOT / "Desktop/Shell/MainWindow.axaml").getroot()
+        main_code = (ROOT / "Desktop/Shell/MainWindow.axaml.cs").read_text(encoding="utf-8")
+        self.assertNotIn("WorkspaceLogoDark", (ROOT / "Desktop/Shell/MainWindow.axaml").read_text(encoding="utf-8"))
+        self.assertNotIn("WorkspaceLogoPair", (ROOT / "Desktop/Shell/MainWindow.axaml").read_text(encoding="utf-8"))
+        logo = next(element for element in main.iter()
+                    if element.get("{http://schemas.microsoft.com/winfx/2006/xaml}Name") == "WorkspaceLogo")
+        self.assertNotIn("Source", logo.attrib)
+        self.assertIn("ThemeLogo.Follow(WorkspaceLogo, variant => WorkspaceLogo.Source = ThemeLogo.BitmapFor(variant));", main_code)
+        self.assertNotIn("ThemeLogo.ShowPair(WorkspaceLogo", main_code)
+
+        about_name = "Desktop/Views/About/AboutWindow.axaml"
+        about = ET.parse(ROOT / about_name).getroot()
+        about_code = (ROOT / (about_name + ".cs")).read_text(encoding="utf-8")
+        for image in ("CatLogo", "CatLogoDark"):
+            cat = next(element for element in about.iter()
+                       if element.get("{http://schemas.microsoft.com/winfx/2006/xaml}Name") == image)
+            self.assertNotIn("Source", cat.attrib)
+        self.assertIn("ThemeLogo.ShowPair(CatLogo, CatLogoDark);", about_code)
+
         for name, images in windows.items():
             with self.subTest(window=name):
                 window = ET.parse(ROOT / name).getroot()
                 self.assertNotIn("Icon", window.attrib)
                 code = (ROOT / (name + ".cs")).read_text(encoding="utf-8")
                 self.assertIn("ThemeLogo.Follow(this);", code)
-                if images:
-                    for image in images:
-                        logo = next(element for element in window.iter()
-                                    if element.get("{http://schemas.microsoft.com/winfx/2006/xaml}Name") == image)
-                        self.assertNotIn("Source", logo.attrib)
-                        self.assertNotIn(f"ThemeLogo.Follow({image});", code)
-                    self.assertIn(f"ThemeLogo.ShowPair({images[0]}, {images[1]});", code)
         self.assertIn("ThemeLogo.Follow(this);", (ROOT / "Desktop/StartupErrorWindow.cs").read_text(encoding="utf-8"))
         shell = (ROOT / "Desktop/Shell/MainWindow.axaml.cs").read_text(encoding="utf-8")
         tray = shell.split("private void ConfigureTrayIcon(TrayIcon trayIcon)", 1)[1].split("private void RestoreWindow()", 1)[0]

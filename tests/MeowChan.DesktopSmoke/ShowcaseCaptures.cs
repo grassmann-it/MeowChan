@@ -509,7 +509,7 @@ internal static class ShowcaseCaptures
             {
                 Image logo = main.FindControl<Image>("WorkspaceLogo")!;
                 Point? origin = logo.TranslatePoint(default, main);
-                return logo.IsEffectivelyVisible && logo.Source != null && main.FindControl<Image>("WorkspaceLogoDark")!.Source != null && logo.Bounds.Width >= 24
+                return logo.IsEffectivelyVisible && logo.Source != null && logo.Bounds.Width >= 24
                     && logo.Bounds.Height >= 24 && origin is Point position && position.X >= 0 && position.Y >= 0
                     && position.X + logo.Bounds.Width <= main.Bounds.Width + 1
                     && position.Y + logo.Bounds.Height <= main.FindControl<Grid>("WorkspaceTitleBar")!.Bounds.Height + 1;
