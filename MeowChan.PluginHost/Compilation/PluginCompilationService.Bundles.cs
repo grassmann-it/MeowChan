@@ -1,4 +1,5 @@
 using System.Text.Json;
+using MeowChan.Diagnostics;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginHost.Installation;
 
@@ -36,22 +37,31 @@ public sealed partial class PluginCompilationService : IPluginBundleInstaller
     {
         string? stage = null;
         bool acquired = false;
+        // Opt-in startup evidence: sub-phase spans on the report clock, no allocation without an active run.
+        string? trace = PerformanceDiagnostics.Enabled ? Path.GetFileName(manifestPath) : null;
+        PerformanceDiagnostics.Measurement span = default;
         try
         {
-            await BuildGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            using (PerformanceDiagnostics.Measure("plugin.import.gate-wait", asset: trace))
+                await BuildGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             acquired = true;
             string fullPath = Path.GetFullPath(manifestPath);
             string root = Path.GetDirectoryName(fullPath)!;
+            span = PerformanceDiagnostics.Measure("plugin.import.manifest", asset: trace);
             PluginBundleManifest bundle = await ReadJsonAsync<PluginBundleManifest>(fullPath, cancellationToken).ConfigureAwait(false);
+            span.Dispose();
             if (bundle.SchemaVersion != 1 || !CompilerWire.IsHash(bundle.AssemblySha256) || !CompilerWire.IsHash(bundle.SdkFingerprint) ||
                 !CompilerWire.IsHash(bundle.CompilerFingerprint) || bundle.Resources is null || bundle.Resources.Count > 128 ||
                 bundle.Resources.Any(r => r is null || !CompilerWire.IsHash(r.Sha256)))
                 throw new InvalidDataException("Unsupported or incomplete plugin bundle manifest.");
             // The gate serializes imports, so the first one of a batch verifies every toolchain file and the rest reuse that result.
-            ToolchainManifest toolchain = batch?.Toolchain
-                ?? await CompilerWire.ReadToolchainAsync(_options.ToolchainDirectory, cancellationToken).ConfigureAwait(false);
+            ToolchainManifest? toolchain = batch?.Toolchain;
+            if (toolchain is null)
+                using (PerformanceDiagnostics.Measure("plugin.import.toolchain", asset: trace))
+                    toolchain = await CompilerWire.ReadToolchainAsync(_options.ToolchainDirectory, cancellationToken).ConfigureAwait(false);
             if (batch is not null) batch.Toolchain = toolchain;
             if (bundle.SdkFingerprint != toolchain.SdkFingerprint) throw new InvalidDataException("The prebuilt bundle does not match the delivered SDK fingerprint.");
+            span = PerformanceDiagnostics.Measure("plugin.import.delivered", asset: trace);
             byte[] assembly = await CompilerWire.ReadBoundedAsync(CompilerWire.ResolvePath(root, bundle.AssemblyRelativePath), 32 * 1024 * 1024, cancellationToken).ConfigureAwait(false);
             if (CompilerWire.Hash(assembly) != bundle.AssemblySha256) throw new InvalidDataException("The prebuilt assembly hash does not match its manifest.");
             List<ResourceSnapshot> snapshots = await ReadResourcesAsync(bundle.Resources.Select(r => new PluginResourceInput(r.Name,
@@ -61,6 +71,7 @@ public sealed partial class PluginCompilationService : IPluginBundleInstaller
                 PluginArtifactResource expected = bundle.Resources.Single(r => r.Name == snapshot.Resource.Name && r.Rid == snapshot.Resource.Rid);
                 if (expected.Sha256 != snapshot.Resource.Sha256) throw new InvalidDataException($"The prebuilt resource hash does not match: {expected.RelativePath}");
             }
+            span.Dispose();
             PluginArtifactResource[] resources = snapshots.Select(s => s.Resource).ToArray();
             string fingerprint = CompilerWire.HashParts("prebuilt-v1", bundle.AssemblySha256, bundle.SdkFingerprint, bundle.CompilerFingerprint);
             string revision = ExecutionRevision(fingerprint, resources);
@@ -72,11 +83,15 @@ public sealed partial class PluginCompilationService : IPluginBundleInstaller
             string destination = CompilerWire.ResolvePath(artifactRoot, revision);
             if (Directory.Exists(destination))
             {
-                PluginArtifact? cached = await FindArtifactAsync(revision, cancellationToken).ConfigureAwait(false);
+                PluginArtifact? cached;
+                using (PerformanceDiagnostics.Measure("plugin.import.cache-validate", asset: trace))
+                    cached = await FindArtifactAsync(revision, cancellationToken).ConfigureAwait(false);
+                PerformanceDiagnostics.Record("plugin.import.result", cached is null ? "cache-rejected" : "cache-hit", asset: trace);
                 return cached is null ? Failure(PluginBuildStatus.IntegrityError, "MCCACHE", "The cached prebuilt artifact failed verification.", fullPath) :
                     new(PluginBuildStatus.Success, cached, true, bundle.AssemblySha256, fingerprint, []);
             }
             stage = Path.Combine(stagingRoot, Guid.NewGuid().ToString("N"));
+            span = PerformanceDiagnostics.Measure("plugin.import.stage-write", asset: trace);
             Directory.CreateDirectory(stage);
             await WriteBytesAsync(Path.Combine(stage, "plugin.dll"), assembly, cancellationToken).ConfigureAwait(false);
             foreach (ResourceSnapshot snapshot in snapshots)
@@ -87,12 +102,18 @@ public sealed partial class PluginCompilationService : IPluginBundleInstaller
             }
             CompilationEntry compilation = new(1, fingerprint, bundle.AssemblySha256, bundle.AssemblySha256, bundle.SdkFingerprint, bundle.CompilerFingerprint, []);
             await WriteJsonAsync(Path.Combine(stage, "artifact.json"), new ArtifactEntry(1, revision, compilation, resources), cancellationToken).ConfigureAwait(false);
-            if (await ValidateArtifactAsync(stage, revision, cancellationToken).ConfigureAwait(false) is null)
-                throw new InvalidDataException("The prepared prebuilt artifact failed verification.");
+            span.Dispose();
+            using (PerformanceDiagnostics.Measure("plugin.import.stage-validate", asset: trace))
+                if (await ValidateArtifactAsync(stage, revision, cancellationToken).ConfigureAwait(false) is null)
+                    throw new InvalidDataException("The prepared prebuilt artifact failed verification.");
             cancellationToken.ThrowIfCancellationRequested();
-            Directory.Move(stage, destination);
+            using (PerformanceDiagnostics.Measure("plugin.import.move", asset: trace))
+                Directory.Move(stage, destination);
             stage = null;
-            PluginArtifact? artifact = await FindArtifactAsync(revision, cancellationToken).ConfigureAwait(false);
+            PluginArtifact? artifact;
+            using (PerformanceDiagnostics.Measure("plugin.import.publish-validate", asset: trace))
+                artifact = await FindArtifactAsync(revision, cancellationToken).ConfigureAwait(false);
+            PerformanceDiagnostics.Record("plugin.import.result", artifact is null ? "publish-rejected" : "imported", asset: trace);
             return artifact is null ? Failure(PluginBuildStatus.IntegrityError, "MCCACHE", "The imported bundle failed verification.", fullPath) :
                 new(PluginBuildStatus.Success, artifact, false, bundle.AssemblySha256, fingerprint, []);
         }

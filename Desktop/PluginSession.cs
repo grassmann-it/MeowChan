@@ -116,6 +116,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
     {
         long started = Stopwatch.GetTimestamp();
         bool succeeded = false;
+        using MeowChan.Diagnostics.PerformanceDiagnostics.Measurement span = PluginStartupDiagnostics.Span("total");
         try
         {
             await StartCoreAsync(cancellationToken).ConfigureAwait(false);
@@ -143,6 +144,8 @@ internal sealed partial class PluginSession : IAsyncDisposable
         // Probes overlap in bounded lanes; observations, provenance and activation keep inventory order.
         SemaphoreSlim lanes = new(StartupProbeLanes, StartupProbeLanes);
         using IPluginBundleImportBatch imports = ((IPluginBundleInstaller)CompilationService).BeginImportBatch();
+        PluginStartupDiagnostics.RecordResources("plugin.startup.probe-pass", "begin");
+        MeowChan.Diagnostics.PerformanceDiagnostics.Measurement pass = PluginStartupDiagnostics.Span("probe-pass");
         PluginCandidateObservation[] probed = await Task.WhenAll(ordered.Select(async candidate =>
         {
             await lanes.WaitAsync(token).ConfigureAwait(false);
@@ -158,7 +161,10 @@ internal sealed partial class PluginSession : IAsyncDisposable
             }
             finally { lanes.Release(); }
         })).ConfigureAwait(false);
+        pass.Dispose();
+        PluginStartupDiagnostics.RecordResources("plugin.startup.probe-pass", "end");
         imports.Dispose(); // The shared toolchain result serves this probe pass only.
+        MeowChan.Diagnostics.PerformanceDiagnostics.Measurement provenance = PluginStartupDiagnostics.Span("provenance");
         for (int index = 0; index < ordered.Length; index++)
         {
             token.ThrowIfCancellationRequested();
@@ -168,6 +174,8 @@ internal sealed partial class PluginSession : IAsyncDisposable
             {
                 try
                 {
+                    using MeowChan.Diagnostics.PerformanceDiagnostics.Measurement proof = PluginStartupDiagnostics.Span("provenance-candidate",
+                        MeowChan.Diagnostics.PerformanceDiagnostics.Enabled ? Path.GetFileName(candidate.Path) : null);
                     delivered.Add(await PluginInstallationInventory.RecordDeliveredAsync(_shippedDirectory, candidate,
                         observation.Artifact, observation.Description, token).ConfigureAwait(false));
                 }
@@ -180,11 +188,15 @@ internal sealed partial class PluginSession : IAsyncDisposable
             observations.Add(observation);
             if (observation.Problem is not null) warnings.Add(observation.Problem);
         }
+        provenance.Dispose();
+        PluginStartupDiagnostics.RecordResources("plugin.startup.activation", "begin");
         PluginProfileSnapshot activated = await MeasureStartupAsync("activation", null,
             () => ProfileStore.ApplyBundledStartupAsync(observations, delivered, _repairRestrictedSourceIds, previous.Revision, token)).ConfigureAwait(false);
+        PluginStartupDiagnostics.RecordResources("plugin.startup.activation", "end");
         foreach (PluginActivationSnapshot activation in activated.Plugins)
             PluginStartupDiagnostics.LogActivationProblem(_logger, activation);
         long adaptersStarted = Stopwatch.GetTimestamp();
+        using MeowChan.Diagnostics.PerformanceDiagnostics.Measurement adapters = PluginStartupDiagnostics.Span("adapters-routing");
         lock (_state) _grants = activated;
         List<(PluginActivationSnapshot Activation, PluginDescription Description)> descriptions = activated.Plugins
             .Select(plugin => (Activation: plugin, Description: plugin.Active?.Description ?? plugin.LastGood?.Description))

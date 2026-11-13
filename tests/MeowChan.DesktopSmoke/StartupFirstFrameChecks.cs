@@ -140,6 +140,33 @@ internal static class StartupFirstFrameChecks
         }
     }
 
+    internal const string KeptProfileVariable = "MEOWCHAN_STARTUP_FIRST_FRAME_PROFILE";
+    private const string KeptProfileMarker = ".startup-first-frame-profile";
+
+    /// <summary>
+    /// Opt-in warm start: with MEOWCHAN_STARTUP_FIRST_FRAME_PROFILE (absolute path) the measurement uses and keeps that
+    /// harness-owned profile, so a second process starts on an initialized profile (plugin cache, plugin state, archive).
+    /// Without it (null) every run keeps today's throwaway first-start profile. An existing directory without the
+    /// harness marker is refused, never adopted. The report records whether this run was warm.
+    /// </summary>
+    internal static string? ResolveKeptProfile(bool measuring)
+    {
+        string? requested = Environment.GetEnvironmentVariable(KeptProfileVariable);
+        if (string.IsNullOrEmpty(requested)) return null;
+        if (!measuring) throw new InvalidOperationException(KeptProfileVariable + " is only valid for the startup first-frame measurement.");
+        if (!Path.IsPathFullyQualified(requested)) throw new IOException("The kept startup profile path must be absolute.");
+        string profile = Path.GetFullPath(requested);
+        string marker = Path.Combine(profile, KeptProfileMarker);
+        bool warm = File.Exists(marker);
+        if (!warm && Directory.Exists(profile) && Directory.EnumerateFileSystemEntries(profile).Any())
+            throw new IOException("The startup measurement refuses an unmarked existing profile: " + profile);
+        // The marker follows the initial settings (Prepare): settings refuse a non-empty unknown directory.
+        Active!.SetProfileReuse(new(Kept: true, Warm: warm,
+            PriorPluginCache: Directory.Exists(Path.Combine(profile, "plugin-cache", "artifacts")),
+            PriorPluginState: File.Exists(Path.Combine(profile, "plugin-state", "state.json"))));
+        return profile;
+    }
+
     internal static void Prepare(string profile)
     {
         Config config = Config.LoadConfig(profile);
@@ -157,6 +184,7 @@ internal static class StartupFirstFrameChecks
         new SessionStore(profile, lease).SaveAsync(new SessionSnapshot()).GetAwaiter().GetResult();
         new StartupPreviewStore(profile, lease).Save(new(new DateTimeOffset(2026, 10, 31, 12, 0, 0, TimeSpan.Zero), 1, 0,
             Array.AsReadOnly(new[] { new StartupPreviewRow(false, "Offline timing cache", "local", "Historical display only", 25, 12) })));
+        if (Active!.Reuse.Kept) File.WriteAllText(Path.Combine(profile, KeptProfileMarker), "Disposable startup first-frame measurement profile");
         Active!.SetProfile(profile);
         PerformanceDiagnostics.Record("harness.startup.fixture", "prepared");
     }
@@ -223,6 +251,8 @@ internal sealed class StartupFirstFrameMeasurement : IDisposable
     private string? _profile, _fixtureHash, _lastNavigation, _writeError, _renderError;
     private string _status = "observing";
     private string? _failure;
+    internal sealed record ProfileReuse(bool Kept, bool Warm, bool PriorPluginCache, bool PriorPluginState);
+    private ProfileReuse _reuse = new(false, false, false, false);
     private bool _renderPending, _renderDirty;
     private volatile bool _shellRendered, _historicalRendered, _observationEnded;
     private int _disposed;
@@ -259,6 +289,13 @@ internal sealed class StartupFirstFrameMeasurement : IDisposable
     }
 
     private static string Hash(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
+
+    internal ProfileReuse Reuse { get { lock (_writeLock) return _reuse; } }
+
+    internal void SetProfileReuse(ProfileReuse reuse)
+    {
+        lock (_writeLock) _reuse = reuse;
+    }
 
     internal void SetProfile(string profile)
     {
@@ -520,7 +557,7 @@ internal sealed class StartupFirstFrameMeasurement : IDisposable
                 processStartUtc = _processStartUtc, managedEntryUtc = _entryUtc, managedEntryTimestamp = _entryTimestamp,
                 processStartToManagedEntryMs = (_entryUtc - _processStartUtc).TotalMilliseconds,
                 clock = "milestones/separations use Stopwatch ticks; OS process-start UTC to managed-entry UTC is a separate wall-clock observation, not an exact monotonic mapping",
-                profile = _profile, fixtureSha256 = _fixtureHash, harnessSha256 = _harnessSha256, productSha256 = _productSha256,
+                profile = _profile, warm = _reuse.Warm, profileReuse = _reuse, fixtureSha256 = _fixtureHash, harnessSha256 = _harnessSha256, productSha256 = _productSha256,
                 httpAttempts = HttpAttempts,
                 nativeTray = "real Avalonia SetupTrayIcon, isolated DBus without a supplied StatusNotifier host; exporter availability is observed in the shell gate samples, not a host-desktop tray claim",
                 milestones,

@@ -548,15 +548,20 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         Func<BundledProfileDocument, Task<BundledProfileDocument>> update, CancellationToken cancellationToken,
         bool preserveReselectionBackup = false, bool skipWriteWhenUnchanged = false)
     {
+        // Opt-in startup evidence: boundary markers only (inert without an active diagnostic run).
+        MeowChan.Diagnostics.PerformanceDiagnostics.Record("plugin.profile.write", "begin");
         Directory.CreateDirectory(directory);
         await using FileStream lease = await AcquireLockAsync(cancellationToken).ConfigureAwait(false);
+        MeowChan.Diagnostics.PerformanceDiagnostics.Record("plugin.profile.write", "locked");
         byte[]? original = null;
         int originalVersion = FormatVersion;
         BundledProfileDocument document = await ReadDocumentCoreAsync(cancellationToken,
             (bytes, version) => { original = bytes; originalVersion = version; }).ConfigureAwait(false);
         PluginProfileSnapshot state = document.Profile;
+        MeowChan.Diagnostics.PerformanceDiagnostics.Record("plugin.profile.write", "read");
         if (state.Revision != expectedRevision) throw new PluginProfileConflictException(expectedRevision, state.Revision);
         BundledProfileDocument updated = await update(document).ConfigureAwait(false);
+        MeowChan.Diagnostics.PerformanceDiagnostics.Record("plugin.profile.write", "decided");
         // A startup observation that changes nothing must not advance the profile revision or
         // rewrite the file; an existing profile stays byte-identical across clean starts.
         // A v1 document is never skipped: every startup still carries it through the writer
@@ -576,6 +581,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         Envelope envelope = new(deliveredFormat ? DeliveredFormatVersion : FormatVersion, Convert.ToHexString(SHA256.HashData(payload)), payload);
         byte[] bytes = SdkJson.Serialize(envelope);
         if (bytes.Length > MaximumStoreBytes) throw new IOException("Plugin profile state exceeds its bounded store size.");
+        MeowChan.Diagnostics.PerformanceDiagnostics.Record("plugin.profile.write", "serialized", value: bytes.Length);
         // Preserve the first observed v1 envelope before even a v1 startup observation
         // can replace it. Later mutations verify, but never refresh, that original.
         // A conflicting/oversized/unreadable backup aborts rather than replacing evidence.
@@ -592,6 +598,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                 await stream.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
                 stream.Flush(flushToDisk: true);
             }
+            MeowChan.Diagnostics.PerformanceDiagnostics.Record("plugin.profile.write", "flushed");
             cancellationToken.ThrowIfCancellationRequested();
             // Windows MoveFileEx can deny overwrite while a share-delete reader holds
             // the old revision open. ReplaceFile supports that reader and keeps its
@@ -614,6 +621,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
             else File.Move(temporary, path);
         }
         finally { if (!preserveTemporary && File.Exists(temporary)) File.Delete(temporary); }
+        MeowChan.Diagnostics.PerformanceDiagnostics.Record("plugin.profile.write", "replaced");
         return Clone(next);
     }
 

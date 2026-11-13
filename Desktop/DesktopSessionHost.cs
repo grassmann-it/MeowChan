@@ -202,8 +202,10 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             if (AfterCatalogReadableForTests is { } readableHold) await readableHold(_startupCancellation.Token).ConfigureAwait(false);
             if (Plugins != null)
             {
+                PluginStartupDiagnostics.RecordResources("host.startup.plugins", "begin");
                 using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.startup.plugins", epoch: _epoch))
                     await Plugins.StartAsync(_startupCancellation.Token).ConfigureAwait(false);
+                PluginStartupDiagnostics.RecordResources("host.startup.plugins", "end");
                 await PluginRegistryAdapter.RegisterBeforeRestoreAsync(_registry, Plugins.Sources, _startupCancellation.Token).ConfigureAwait(false);
             }
             Plugins?.AttachContent(_content);

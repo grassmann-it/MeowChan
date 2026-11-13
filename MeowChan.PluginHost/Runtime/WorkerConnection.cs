@@ -71,7 +71,10 @@ internal sealed class WorkerConnection : IAsyncDisposable
         workspaceQuota = workspaceQuota > 0 ? workspaceQuota : options.MaximumTemporaryBytes;
         try
         {
+            // Opt-in startup evidence (inert without an active diagnostic run): verify, spawn, hello, describe.
+            PerformanceDiagnostics.Measurement span = PerformanceDiagnostics.Measure("plugin.worker.verify", asset: artifact.ExecutionRevision);
             Dictionary<string, string> resources = await ArtifactVerifier.VerifyAsync(artifact, token).ConfigureAwait(false);
+            span.Dispose();
             token.ThrowIfCancellationRequested();
             if (sharedBudget != null && !sharedBudget.AcceptWorker(workingDirectory, workspaceQuota))
                 throw new PluginWorkerException("temporary-limit", "The worker workspace quota does not fit the shared budget.");
@@ -87,15 +90,21 @@ internal sealed class WorkerConnection : IAsyncDisposable
             start.Environment["DOTNET_GCHeapHardLimit"] = options.HeapLimitBytes.ToString("X");
             start.Environment["DOTNET_EnableDiagnostics"] = "0";
             start.Environment["MEOWCHAN_WORKSPACE_BYTE_QUOTA"] = workspaceQuota.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            span = PerformanceDiagnostics.Measure("plugin.worker.spawn", asset: artifact.ExecutionRevision);
             process = Process.Start(start) ?? throw new PluginWorkerException("start", "Worker process could not be started.");
+            span.Dispose();
             try { process.PriorityClass = ProcessPriorityClass.BelowNormal; } catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or InvalidOperationException or PlatformNotSupportedException) { }
             connection = new WorkerConnection(process, new(Guid.NewGuid().ToString("N"), artifact.ExecutionRevision, configuration.Revision), options, services, processLease, workingDirectory, temporaryBytes, sharedBudget, workspaceQuota);
+            span = PerformanceDiagnostics.Measure("plugin.worker.hello", asset: artifact.ExecutionRevision);
             HelloResponse hello = await connection.InvokeAsync<HelloRequest, HelloResponse>("hello", new(ProtocolVersion.Operations), null, options.HandshakeTimeout, token).ConfigureAwait(false);
+            span.Dispose();
             connection._processTree.ConfirmGroup();
             if (hello.Operations == null || hello.Operations.Length > 32 || ProtocolVersion.Operations.Any(operation => !hello.Operations.Contains(operation)))
                 throw new PluginWorkerException("protocol", "Worker does not implement the required operations.");
+            span = PerformanceDiagnostics.Measure("plugin.worker.describe", asset: artifact.ExecutionRevision);
             PluginDescription description = await connection.InvokeAsync<InitializeRequest, PluginDescription>("describe",
                 new(Path.GetFullPath(artifact.AssemblyPath), resources, configuration, !describeOnly), null, options.HandshakeTimeout, token).ConfigureAwait(false);
+            span.Dispose();
             SdkValidation.ThrowIfInvalid(SdkValidation.ValidateDescription(description));
             if (!describeOnly) SdkValidation.ThrowIfInvalid(SdkValidation.ValidateConfiguration(description, configuration));
             connection.Description = description;

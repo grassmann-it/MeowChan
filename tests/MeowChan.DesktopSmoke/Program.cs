@@ -164,6 +164,9 @@ internal static class Program
                 throw new IOException("Saved-search smoke refuses an unmarked existing profile.");
             Directory.CreateDirectory(profile);
         }
+        // Startup timing only: an explicit harness-owned profile kept for a later warm-start process.
+        string? keptStartupProfile = StartupFirstFrameChecks.ResolveKeptProfile(startupTiming != null);
+        if (keptStartupProfile != null) profile = keptStartupProfile;
         Directory.CreateDirectory(profile);
         Environment.SetEnvironmentVariable("OCHAN_PROFILE", null);
         Environment.SetEnvironmentVariable("MEOWCHAN_PROFILE", null);
@@ -203,7 +206,7 @@ internal static class Program
             if (_galleryCloseOnly)
                 config.WorkspaceMode = "Advanced";
             _run?.Configure?.Invoke(config);
-            if ((!_readingPositionMode && !_savedSearchesOnly) || !File.Exists(Path.Combine(profile, "settings.json"))) config.SaveConfig();
+            if ((!_readingPositionMode && !_savedSearchesOnly && keptStartupProfile == null) || !File.Exists(Path.Combine(profile, "settings.json"))) config.SaveConfig();
             // Marker files are data too: initialize an owned empty profile first.
             if (_readingPositionMode && Environment.GetEnvironmentVariable("MEOWCHAN_READING_TEST_PROFILE") is { Length: > 0 })
                 File.WriteAllText(Path.Combine(profile, ".reading-smoke-profile"), "Disposable reading-position test profile");
@@ -295,7 +298,8 @@ internal static class Program
                 shellLoadApp.DisposeFixture();
             Log.CloseAndFlush();
             if (_archiveCleanupMode) ArchiveCleanupChecks.Cleanup(profile);
-            if (!_savedSearchesOnly && (!_readingPositionMode || string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MEOWCHAN_READING_TEST_PROFILE"))))
+            if (!_savedSearchesOnly && keptStartupProfile == null
+                && (!_readingPositionMode || string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MEOWCHAN_READING_TEST_PROFILE"))))
                 Directory.Delete(showcaseRoot ?? profile, recursive: true);
         }
     }
