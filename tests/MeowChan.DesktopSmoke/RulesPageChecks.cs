@@ -55,14 +55,14 @@ internal static partial class RulesPageChecks
             Require(page.ExtensionsText.Contains(".jpg", StringComparison.Ordinal) && page.ExtensionsText.Contains(".webm", StringComparison.Ordinal),
                 "The first focused edit was not synchronously attached to the rule tag draft: " + page.ExtensionsText);
             Console.WriteLine("SMOKE rules before global save: types=" + page.TypesMode + "; raw=" + page.ExtensionsText
-                + "; sizeMode=" + page.SizeMode + "; MB=" + page.MegabytesText);
+                + "; sizeMode=" + page.SizeMode + "; MiB=" + page.MegabytesText);
             await SaveThroughButtonAsync(window, page);
             MediaRuleSet savedGlobal = window.SessionHost.MediaRules;
             EffectiveMediaRule global = new MediaRuleResolver(savedGlobal).Resolve(MediaRuleScope.Global);
-            Require(global.Types.Extensions.SequenceEqual(new[] { ".jpg", ".webm" }) && global.SizeLimit.Bytes == 1_500_000,
-                "The global Rules editor did not commit normalized types and decimal MB through the session host. Actual: mode=" + global.Types.Mode
+            Require(global.Types.Extensions.SequenceEqual(new[] { ".jpg", ".webm" }) && global.SizeLimit.Bytes == 1_572_864,
+                "The global Rules editor did not commit normalized types and MiB through the session host. Actual: mode=" + global.Types.Mode
                 + "; extensions=" + string.Join(",", global.Types.Extensions) + "; bytes=" + global.SizeLimit.Bytes
-                + "; draft=" + page.ExtensionsText + "; draftMB=" + page.MegabytesText + "; revision=" + savedGlobal.Revision);
+                + "; draft=" + page.ExtensionsText + "; draftMiB=" + page.MegabytesText + "; revision=" + savedGlobal.Revision);
             Require(File.ReadAllText(Path.Combine(Config.GetConfigDirectory(), "media_rules.json")).Contains(savedGlobal.Revision, StringComparison.Ordinal),
                 "The visible saved rule revision was not present in the isolated profile.");
 
@@ -80,7 +80,7 @@ internal static partial class RulesPageChecks
             await SaveThroughButtonAsync(window, page);
             EffectiveMediaRule inherited = window.SessionHost.ResolveRules(board);
             Require(inherited.TypesOrigin.Scope == board && inherited.SizeLimitOrigin.Scope == MediaRuleScope.Global
-                && inherited.SizeLimit.Bytes == 1_500_000, "The saved board rule did not resolve fields independently.");
+                && inherited.SizeLimit.Bytes == 1_572_864, "The saved board rule did not resolve fields independently.");
 
             page.FindControl<CheckBox>("RuleEnabledInput")!.IsChecked = false;
             await FlushAsync();
@@ -237,7 +237,7 @@ internal static partial class RulesPageChecks
             await FlushAsync();
             RequireModeSelections(page);
             Require(page.MegabytesText == "0,000001" && page.CanSave,
-                "Changing language did not preserve the exact one-byte decimal MB draft.");
+                "Changing language did not preserve the exact one-byte MiB draft.");
             Texts.SetLanguage("en");
             await FlushAsync();
             RequireModeSelections(page);

@@ -19,7 +19,8 @@ public sealed record RuleScopeChoice(MediaRuleScope Scope, string Label);
 
 public partial class RulesPage : UserControl, INotifyPropertyChanged
 {
-    private const decimal BytesPerMegabyte = 1_000_000m;
+    // The limit is typed in MiB, like every other size of the app (1 MiB = 1024 * 1024 bytes); the rule stores whole bytes.
+    private const decimal BytesPerMebibyte = 1_048_576m;
     private readonly Func<MediaRuleSet> _getRules;
     private readonly Func<IEnumerable<MediaRule>, string, Task<MediaRuleSet>> _saveRules;
     private readonly Dictionary<MediaRuleScope, RuleDraft> _drafts = new Dictionary<MediaRuleScope, RuleDraft>();
@@ -374,8 +375,8 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             return false;
         try
         {
-            decimal value = megabytes * BytesPerMegabyte;
-            if (value > long.MaxValue || decimal.Truncate(value) != value) return false;
+            decimal value = Math.Round(megabytes * BytesPerMebibyte, 0, MidpointRounding.AwayFromZero);
+            if (value > long.MaxValue) return false;
             bytes = decimal.ToInt64(value);
             return true;
         }
@@ -619,7 +620,15 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         finally { _refreshingChoiceLabels = refreshing; }
     }
     private void Raise(string property) { if (!_ended) PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property)); }
-    private static string FormatMegabytes(long bytes, CultureInfo culture) => (bytes / BytesPerMegabyte).ToString("0.######", culture);
+    private static string FormatMegabytes(long bytes, CultureInfo culture)
+    {
+        decimal mebibytes = bytes / BytesPerMebibyte;
+        // Six decimals when they give the same byte count back; otherwise the exact value (at most 20 decimals), so
+        // opening and saving a rule never moves its limit by a byte.
+        decimal shown = Math.Round(mebibytes, 6, MidpointRounding.AwayFromZero);
+        if (Math.Round(shown * BytesPerMebibyte, 0, MidpointRounding.AwayFromZero) != bytes) shown = mebibytes;
+        return shown.ToString("0.####################", culture);
+    }
     private static string FormatOrigin(MediaRuleOrigin origin) => origin.Scope == null ? Texts.T("rules.builtin") : FormatScope(origin.Scope);
     private static string FormatScope(MediaRuleScope scope) => MeowChan.Desktop.Plugins.PluginGrantPresentation.ScopeLabel(scope);
     private static MediaRule? FindRule(MediaRuleSet set, MediaRuleScope scope) => set.Rules.FirstOrDefault(rule => rule.Scope == scope);

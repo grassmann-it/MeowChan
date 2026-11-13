@@ -180,13 +180,13 @@ public sealed class BundledLanguagePackTests : IDisposable
     {
         using TempDirectory directory = new();
         string path = Path.Combine(directory.Path, "fr.json");
-        File.WriteAllText(path, new string(' ', 2_000_001));
+        File.WriteAllText(path, new string(' ', 2 * 1024 * 1024 + 1));
         Texts.SetLanguage("fr");
         Texts.Initialize(directory.Path);
         Assert.Equal("fr", Texts.Language);
         Assert.Equal("Paramètres", Texts.T("settings.title"));
         Assert.Contains("exceeds 2 MiB", Assert.Single(Texts.Warnings));
-        Assert.Equal(2_000_001L, new FileInfo(path).Length);
+        Assert.Equal(2L * 1024 * 1024 + 1, new FileInfo(path).Length);
     }
 
     [Theory]

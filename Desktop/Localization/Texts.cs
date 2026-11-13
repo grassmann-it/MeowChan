@@ -37,7 +37,7 @@ public static class Texts
     // catalog to roughly 2.7x its size. A bundled pack that exceeds a ceiling is rejected with a warning and its
     // language silently disappears from the choice, so BundledLanguagePackTests fail once a pack passes 75 % of
     // either ceiling, long before the loader would refuse it. Raise a ceiling together with that test's reason.
-    internal const int MaximumPackBytes = 2_000_000;
+    internal const int MaximumPackBytes = 2 * 1024 * 1024;
     internal const int MaximumPackKeys = 8000;
     private static readonly CultureInfo EnglishCulture = CultureInfo.GetCultureInfo("en");
     private static readonly object Gate = new object();
