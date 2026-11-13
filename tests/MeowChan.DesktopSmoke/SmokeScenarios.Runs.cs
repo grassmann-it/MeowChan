@@ -248,6 +248,11 @@ internal static partial class SmokeScenarios
         ["preview-languages"] = new(SmokeStage.AfterCommandRefresh, mainWindow => PreviewLanguagePackChecks.RunAsync(mainWindow)),
         ["window-chrome"] = new(SmokeStage.AfterCommandRefresh, async mainWindow =>
         {
+            if (WindowChrome.Mode == WindowChromeMode.System)
+            {
+                await SecondaryWindowChromeChecks.RunSystemFallbackAsync(mainWindow);
+                return;
+            }
             await WindowChromeChecks.RunAsync(mainWindow);
             await SecondaryWindowChromeChecks.RunAsync(mainWindow);
         }),
