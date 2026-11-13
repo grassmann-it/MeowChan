@@ -43,6 +43,11 @@ internal static partial class PluginManagementChecks
             await PluginReselectionChecks.RunAsync(window);
             return;
         }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_PAGE_CAPTURES_ONLY") == "1")
+        {
+            await PluginPageCaptureChecks.RunAsync(window);
+            return;
+        }
         if (Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_UX_REVIEW") == "1"
             || Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_UX_PRESENTATION") == "1")
         {

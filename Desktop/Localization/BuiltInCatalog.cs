@@ -173,7 +173,7 @@ internal static class BuiltInCatalog
         ("action.details", "Details", "Details"),
         ("action.hideDetails", "Hide details", "Details ausblenden"),
         ("action.showDetails", "Show details", "Details anzeigen"),
-        ("shell.subtitle", "Open-source, cross-platform imageboard downloader — from the creator of YChan", "Plattformübergreifender Open-Source-Imageboard-Downloader — vom Entwickler von YChan"),
+        ("shell.subtitle", "Open-source imageboard downloader — now with 100% more cats", "Open-Source-Imageboard-Downloader — jetzt mit 100 % mehr Katzen"),
         ("shell.switchToLight", "Switch to light theme", "Zum hellen Farbschema wechseln"),
         ("shell.switchToDark", "Switch to dark theme", "Zum dunklen Farbschema wechseln"),
         ("shell.mode", "View", "Ansicht"),

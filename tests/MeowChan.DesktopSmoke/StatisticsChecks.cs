@@ -107,26 +107,43 @@ internal static class StatisticsChecks
 
     private static Button Speed(MainWindow window) => window.FindControl<Button>("TransferSpeed")!;
     private static IoGraph HeaderGraph(MainWindow window) => window.FindControl<IoGraph>("TransferSpeedGraph")!;
-    private static TextBlock DiskLabel(MainWindow window) => window.FindControl<TextBlock>("TransferDiskLabel")!;
+    private static IoGraph HeaderDiskGraph(MainWindow window) => window.FindControl<IoGraph>("TransferDiskGraph")!;
+    // The disk row (graph slot and labelled value) is hidden as one; its own visibility is what the work view and the setting decide.
+    private static bool DiskRowShown(MainWindow window) => window.FindControl<Control>("TransferDiskRow")!.IsVisible;
 
-    private static async Task RequireHeaderAsync(MainWindow window, bool disk, string scenario)
+    private static async Task RequireHeaderAsync(MainWindow window, bool disk, bool graph, string scenario)
     {
-        await Program.WaitUntilAsync(() => DiskLabel(window).IsVisible == disk && HeaderGraph(window).ShowDisk == disk
+        await Program.WaitUntilAsync(() => DiskRowShown(window) == disk
             && AutomationProperties.GetName(Speed(window)) is { Length: > 0 } name && name.Contains("disk", StringComparison.OrdinalIgnoreCase) == disk,
-            () => $"{scenario}: label {DiskLabel(window).IsVisible}, graph {HeaderGraph(window).ShowDisk}, name '{AutomationProperties.GetName(Speed(window))}'");
+            () => $"{scenario}: row {DiskRowShown(window)}, name '{AutomationProperties.GetName(Speed(window))}'");
         string text = AutomationProperties.GetName(Speed(window))!;
         Require(Texts.T("stats.graph.name", "", "", 0).Length > 0 && ToolTip.GetTip(Speed(window)) as string == text,
             scenario + ": the tooltip differs from the accessible name.");
-        Require(DiskLabel(window).IsVisible == disk && window.FindControl<Control>("TransferDiskIcon")!.IsVisible == disk,
+        Require(DiskRowShown(window) == disk && window.FindControl<Control>("TransferDiskLabel")!.IsVisible,
             scenario + ": the disk value is " + (disk ? "missing" : "shown") + ".");
+        // Both values carry a short label; the disk one is the written rate. The graph slot is blank when the row has no graph.
+        string netLabel = window.FindControl<TextBlock>("TransferSpeedLabel")!.Text ?? "", diskLabel = window.FindControl<TextBlock>("TransferDiskLabel")!.Text ?? "";
+        Require(netLabel.StartsWith(Texts.T("stats.header.net", "").Split('↓')[0], StringComparison.Ordinal) && netLabel.Contains('↓') && netLabel.EndsWith("/s", StringComparison.Ordinal),
+            scenario + ": the network value has no label: '" + netLabel + "'.");
+        if (disk)
+            Require(diskLabel.StartsWith(Texts.T("stats.header.disk", "").Trim(), StringComparison.Ordinal) && diskLabel.EndsWith("/s", StringComparison.Ordinal) && (HeaderDiskGraph(window).Opacity == 1) == graph,
+                scenario + ": the disk value has no label or the wrong graph state: '" + diskLabel + "'.");
         // Barebones fits the window to its minimum, below the widths where the graph (1000) and the button (760) appear.
         if (window.Bounds.Width >= 1000)
+        {
             Require(HeaderGraph(window).IsEffectivelyVisible && HeaderGraph(window).SampleCount >= 8 && HeaderGraph(window).Bounds.Width > 0,
                 scenario + ": the header graph shows no history.");
+            // The disk row is its own graph with its own scale, drawing the write series only.
+            Require(HeaderGraph(window).Source == IoGraphSource.NetDown && HeaderDiskGraph(window).Source == IoGraphSource.DiskWrite,
+                scenario + ": a header row draws the wrong series.");
+            if (disk && graph)
+                Require(HeaderDiskGraph(window).IsEffectivelyVisible && HeaderDiskGraph(window).SampleCount >= 8 && HeaderDiskGraph(window).Bounds.Width > 0,
+                    scenario + ": the disk row shows no history.");
+        }
         if (window.Bounds.Width >= 760)
             Require(Speed(window) is { IsEffectivelyEnabled: true, IsEffectivelyVisible: true } && Speed(window).IsTabStop,
                 scenario + ": the graph button cannot be reached.");
-        Console.WriteLine($"SMOKE statistics header: {scenario}; disk row {(disk ? "drawn" : "omitted")}; name '{text}'.");
+        Console.WriteLine($"SMOKE statistics header: {scenario}; disk value {(disk ? "shown" : "omitted")}, graph {(graph ? "drawn" : "none")}; name '{text}'.");
     }
 
     private static async Task HeaderAsync(MainWindow window)
@@ -136,8 +153,12 @@ internal static class StatisticsChecks
         {
             await PresentationChecks.SwitchModeAsync(window, mode);
             if (mode != "Barebones") await EnsureWideAsync(window);
-            await RequireHeaderAsync(window, disk, "Auto/" + mode);
-            if (mode != "Barebones") Program.CaptureWindow(window, $"smoke-statistics-header-dark-{mode.ToLowerInvariant()}.png");
+            await RequireHeaderAsync(window, disk: true, graph: disk, "Auto/" + mode);
+            // The tagline shows where the title bar has room and is gone where it has not (never a stub).
+            Control tagline = window.FindControl<Control>("WorkspaceSubtitle")!;
+            if (mode == "Barebones") Require(!tagline.IsVisible, "The tagline is still shown in the narrow Barebones title bar.");
+            if (mode == "Advanced") Require(tagline.IsEffectivelyVisible && tagline.Bounds.Width > 100, $"The tagline is missing in a wide title bar: visible {tagline.IsVisible}, bounds {tagline.Bounds}, column {window.FindControl<Grid>("WorkspaceHeader")!.ColumnDefinitions[1].ActualWidth}, window {window.Bounds.Width}.");
+            Program.CaptureWindow(window, $"smoke-statistics-header-dark-{mode.ToLowerInvariant()}.png");
         }
         Program.CaptureWindow(window, "smoke-statistics-header-dark-advanced.png");
     }
@@ -155,19 +176,19 @@ internal static class StatisticsChecks
         Require(settings.StatsHeaderGraphChoices.Select(choice => choice.Value).SequenceEqual(["Auto", "Network", "NetworkAndDisk"]),
             "The header graph setting does not offer Auto, Network and NetworkAndDisk.");
         Require(settings.SelectedStatsHeaderGraph?.Value == "Auto" && settings.StatsHeaderGraphLabel == Texts.T("stats.headerGraph.label")
-            && settings.StatsHeaderGraphHint == "Chooses what the graph at the top shows. Automatic: network and disk in the Advanced view, network only otherwise.",
+            && settings.StatsHeaderGraphHint == "Chooses what the header shows. Automatic: network and disk values in every view, with a graph for each only in the Advanced view.",
             "The header graph setting lost its default, label or hint.");
         Require(AutomationProperties.GetName(input) == settings.StatsHeaderGraphLabel && AutomationProperties.GetHelpText(input) == settings.StatsHeaderGraphHint,
             "The header graph setting has no accessible name or help text.");
         Program.CaptureWindow(window, "smoke-statistics-settings-block-dark.png");
         // Advanced: Network hides the disk, NetworkAndDisk shows it again; Simple with NetworkAndDisk keeps it.
         await SaveChoiceAsync(window, settings, "Network");
-        await GoHeaderAsync(window, "Advanced", disk: false, "Network/Advanced");
+        await GoHeaderAsync(window, "Advanced", disk: false, graph: false, "Network/Advanced");
         await SaveChoiceAsync(window, settings, "NetworkAndDisk");
-        await GoHeaderAsync(window, "Simple", disk: true, "NetworkAndDisk/Simple");
-        await GoHeaderAsync(window, "Barebones", disk: true, "NetworkAndDisk/Barebones");
+        await GoHeaderAsync(window, "Simple", disk: true, graph: true, "NetworkAndDisk/Simple");
+        await GoHeaderAsync(window, "Barebones", disk: true, graph: true, "NetworkAndDisk/Barebones");
         await SaveChoiceAsync(window, settings, "Auto");
-        await GoHeaderAsync(window, "Advanced", disk: true, "Auto/Advanced");
+        await GoHeaderAsync(window, "Advanced", disk: true, graph: true, "Auto/Advanced");
         await EnsureWideAsync(window);
         await SaveChoiceAsync(window, settings, "Network");
         Require(Config.LoadConfig().StatsHeaderGraph == "Network" && window.SessionHost.Config.StatsHeaderGraph == "Network",
@@ -184,11 +205,11 @@ internal static class StatisticsChecks
         await Program.WaitUntilAsync(() => settings.FindControl<Control>("SettingsBehaviorPage")!.IsVisible);
     }
 
-    private static async Task GoHeaderAsync(MainWindow window, string mode, bool disk, string scenario)
+    private static async Task GoHeaderAsync(MainWindow window, string mode, bool disk, bool graph, string scenario)
     {
         await PresentationChecks.SwitchModeAsync(window, mode);
         if (mode != "Barebones") await EnsureWideAsync(window);
-        await RequireHeaderAsync(window, disk, scenario);
+        await RequireHeaderAsync(window, disk, graph, scenario);
         // The work view switch leaves Settings through the footer; open it again for the next choice.
         window.FindControl<MenuItem>("SettingsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         await Program.WaitUntilAsync(() => window.SettingsPageVisible);
@@ -204,8 +225,8 @@ internal static class StatisticsChecks
             () => $"wanted {value}, file {Config.LoadConfig().StatsHeaderGraph}, session {window.SessionHost.Config.StatsHeaderGraph}, busy {settings.IsBusy}, error '{settings.ErrorMessage}'");
         // The header shows the new value without leaving Settings.
         string mode = window.SessionHost.Config.WorkspaceMode;
-        bool disk = value == "NetworkAndDisk" || (value == "Auto" && mode == "Advanced");
-        await Program.WaitUntilAsync(() => DiskLabel(window).IsVisible == disk, () => $"{value}/{mode}: label {DiskLabel(window).IsVisible}");
+        bool disk = value != "Network";
+        await Program.WaitUntilAsync(() => DiskRowShown(window) == disk, () => $"{value}/{mode}: disk row {DiskRowShown(window)}");
         await ShowBehaviorAsync(settings);
     }
 
@@ -248,10 +269,16 @@ internal static class StatisticsChecks
         StatisticsRow first = page.Rows.Single(row => row.Key == Fixture);
         Require(first.Requests != "0" && first.Session.Contains('B') && first.Today.Length > 0 && first.Retained.Length > 0,
             "The fixture row shows no counted traffic: " + first.Session + " / " + first.Requests);
-        Require(page.Graph.ShowDisk && page.Graph.Peak > IoGraphGeometry.DefaultMinimumPeak,
-            "The page graph hides the disk row or never scaled up.");
-        // The page shows both rows whatever the header setting is.
-        Require(AutomationProperties.GetName(page.Graph) is { Length: > 0 }, "The page graph has no accessible name.");
+        Require(page.Graph.Source == IoGraphSource.NetDown && page.WriteGraph.Source == IoGraphSource.DiskWrite && page.ReadGraph.Source == IoGraphSource.DiskRead,
+            "The page graphs do not draw network, disk write and disk read.");
+        Require(page.Graph.Peak > IoGraphGeometry.DefaultMinimumPeak && page.WriteGraph.Peak > IoGraphGeometry.DefaultMinimumPeak
+            && page.Graph.Peak != page.WriteGraph.Peak && page.WriteGraph.SampleCount >= 8 && page.ReadGraph.SampleCount >= 8,
+            $"The page graphs never scaled up or share one scale: net {page.Graph.Peak}, write {page.WriteGraph.Peak}, read {page.ReadGraph.Peak}.");
+        // The page shows all rows whatever the header setting is, each with its own name.
+        foreach (IoGraph graph in new[] { page.Graph, page.WriteGraph, page.ReadGraph })
+            Require(AutomationProperties.GetName(graph) is { Length: > 0 }, "A page graph has no accessible name.");
+        Require(AutomationProperties.GetName(page.ReadGraph)!.StartsWith(Texts.T("stats.metric.diskRead"), StringComparison.Ordinal),
+            "The read graph is not named as the read series.");
         Require(page.ResetButton.IsEffectivelyVisible && page.ResetButton.IsEnabled, "Reset is not available.");
         Require(!page.IsResetConfirmationOpen, "The reset question is open before Reset was pressed.");
         await Settle(window);
@@ -275,6 +302,20 @@ internal static class StatisticsChecks
         await GoToAsync(window, "navigation.downloads", MainWindow.WorkspacePage.Downloads);
         await Settle(window);
         Program.CaptureWindow(window, $"smoke-statistics-header-{variant}.png");
+        if (variant == "light")
+        {
+            // The compact work views carry the labelled values too.
+            foreach (string mode in new[] { "Simple", "Barebones" })
+            {
+                await PresentationChecks.SwitchModeAsync(window, mode);
+                if (mode != "Barebones") await EnsureWideAsync(window);
+                await Settle(window);
+                Program.CaptureWindow(window, $"smoke-statistics-header-{variant}-{mode.ToLowerInvariant()}.png");
+            }
+            await PresentationChecks.SwitchModeAsync(window, "Advanced");
+            await EnsureWideAsync(window);
+            await GoToAsync(window, "navigation.downloads", MainWindow.WorkspacePage.Downloads);
+        }
         await OpenPageAsync(window, byGraphClick: true);
         await Settle(window);
         Require(Page(window).Rows.Any(row => row.Key == Fixture) && Page(window).ResetButton.IsEffectivelyVisible, "The page is incomplete in " + variant + ".");

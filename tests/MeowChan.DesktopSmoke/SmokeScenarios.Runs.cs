@@ -72,6 +72,7 @@ internal static partial class SmokeScenarios
             await MediaMenuCompositionChecks.RunAsync(mainWindow);
             await MediaPageChecks.RunAsync(mainWindow);
         }),
+        ["media-slot"] = new(SmokeStage.Ready, mainWindow => MediaSlotChecks.RunAsync(mainWindow)),
         ["media-menu-surfaces"] = new(SmokeStage.Ready, mainWindow => MediaMenuSurfacesChecks.RunAsync(mainWindow)),
         ["motion"] = new(SmokeStage.Ready, mainWindow => MotionChecks.RunAsync(mainWindow)),
         ["gallery-toolbar"] = new(SmokeStage.Ready, mainWindow => GalleryToolbarLayoutChecks.RunAsync(mainWindow)),

@@ -58,7 +58,9 @@ internal sealed class PluginSettingsEditor : StackPanel
         foreach (SettingDefinition field in draft.Schema.Fields)
         {
             TextBlock label = new() { Text = field.Label, TextWrapping = TextWrapping.Wrap, Classes = { "workspace-field-label" } };
-            StackPanel content = new() { Spacing = 6 };
+            // Ursa's FormItem leaves 5 dip under the label; 3 more give label, Set value box, field, error and help one 8 dip
+            // rhythm (measured: label 403-415, box 420-435, field 445-469 before). Box, label and field share the left edge.
+            StackPanel content = new() { Spacing = 8, Margin = new Thickness(0, 3, 0, 0) };
             Control editor;
             if (field.Kind == SettingKind.Boolean)
             {
@@ -111,8 +113,10 @@ internal sealed class PluginSettingsEditor : StackPanel
                     (field.MaximumLength > 1024 || draft.Text(field.Key).Contains('\n'));
                 TextBox input = new() { Text = draft.Text(field.Key), HorizontalAlignment = HorizontalAlignment.Stretch,
                     PlaceholderText = field.Kind == SettingKind.Uri ? "https://…" : null,
-                    AcceptsReturn = multiline, TextWrapping = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap,
-                    MinHeight = multiline ? 96 : 0, MaxHeight = multiline ? 192 : double.PositiveInfinity };
+                    AcceptsReturn = multiline, TextWrapping = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap };
+                // A single-line field keeps the workspace input height (Workspace.Size.Input via the TextBox style);
+                // a local MinHeight of 0 here used to crush it to the text height.
+                if (multiline) { input.MinHeight = 96; input.MaxHeight = 192; }
                 CheckBox? set = null;
                 if (!field.IsRequired)
                 {

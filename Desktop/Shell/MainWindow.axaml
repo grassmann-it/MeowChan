@@ -31,25 +31,26 @@
                         <TextBlock Classes="brand" VerticalAlignment="Center" AutomationProperties.Name="MeowChan"><Run Text="Meow" /><Run Text="Chan" Foreground="{DynamicResource Workspace.Accent}" /></TextBlock>
                         <TextBlock x:Name="WorkspaceVersion" Classes="muted" FontSize="12" VerticalAlignment="Center" />
                     </StackPanel>
+                    <TextBlock x:Name="WorkspaceSubtitle" Grid.Column="1" Tag="shell.subtitle" Classes="localized muted" FontSize="12"
+                               VerticalAlignment="Center" FontStyle="Italic" TextTrimming="CharacterEllipsis" />
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                        <!-- Network and disk on one surface. A button, so keyboard and screen reader reach it: the name is the
-                             current values and a click opens the statistics page. The inner parts are not exposed separately. -->
+                        <!-- Each visible row names one series. The disk value remains available in every non-Network view; its graph
+                             is hidden in compact/automatic views without removing the value column. -->
                         <Button x:Name="TransferSpeed" Classes="subtle header-graph" VerticalAlignment="Center" Click="OnTransferSpeedClick">
-                            <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="8" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
-                                <controls:IoGraph x:Name="TransferSpeedGraph" Width="128" MinWidth="120" Height="28" HistoryWindowSeconds="60" IsHitTestVisible="False"
-                                                  Stroke="{DynamicResource Workspace.Accent}" Fill="{DynamicResource Workspace.AccentSurface}"
-                                                  DiskStroke="{DynamicResource Workspace.Stats.Disk}" />
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
-                                    <TextBlock x:Name="TransferSpeedLabel" Width="100" FontSize="11" FontFamily="{DynamicResource Workspace.Font.UI}" FontFeatures="tnum" Classes="muted"
-                                               Text="↓ 0 B/s" />
-                                    <StackPanel Orientation="Horizontal" Spacing="4">
-                                        <Path x:Name="TransferDiskIcon" Width="10" Height="10" Stretch="Uniform" StrokeThickness="1.2"
-                                              Data="M 1,2.5 L 9,2.5 L 9,7.5 L 1,7.5 Z M 6,5 L 8,5" Stroke="{DynamicResource Workspace.Stats.Disk}" VerticalAlignment="Center" />
-                                        <TextBlock x:Name="TransferDiskLabel" Width="86" FontSize="11" FontFamily="{DynamicResource Workspace.Font.UI}" FontFeatures="tnum" Classes="muted"
-                                                   Text="0 B/s" />
-                                    </StackPanel>
-                                </StackPanel>
-                            </Grid>
+                            <StackPanel Spacing="2" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+                                <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="8">
+                                    <controls:IoGraph x:Name="TransferSpeedGraph" Source="NetDown" ShowDisk="False" Width="128" MinWidth="120" Height="15" HistoryWindowSeconds="60" VerticalAlignment="Center" IsHitTestVisible="False"
+                                                      Stroke="{DynamicResource Workspace.Accent}" Fill="{DynamicResource Workspace.AccentSurface}" />
+                                    <TextBlock x:Name="TransferSpeedLabel" Grid.Column="1" Width="124" TextTrimming="CharacterEllipsis" FontSize="11" FontFamily="{DynamicResource Workspace.Font.UI}" FontFeatures="tnum" Classes="muted"
+                                               VerticalAlignment="Center" Text="Net ↓ 0 B/s" />
+                                </Grid>
+                                <Grid x:Name="TransferDiskRow" ColumnDefinitions="Auto,Auto" ColumnSpacing="8">
+                                    <controls:IoGraph x:Name="TransferDiskGraph" Source="DiskWrite" ShowDisk="False" Width="128" MinWidth="120" Height="15" HistoryWindowSeconds="60" VerticalAlignment="Center" IsHitTestVisible="False"
+                                                      Stroke="{DynamicResource Workspace.Stats.Disk}" Fill="{DynamicResource Workspace.Stats.DiskSurface}" />
+                                    <TextBlock x:Name="TransferDiskLabel" Grid.Column="1" Width="124" TextTrimming="CharacterEllipsis" FontSize="11" FontFamily="{DynamicResource Workspace.Font.UI}" FontFeatures="tnum" Classes="muted"
+                                               VerticalAlignment="Center" Text="Disk 0 B/s" />
+                                </Grid>
+                            </StackPanel>
                         </Button>
                         <Button x:Name="ContinueReadingButton" Classes="subtle header-icon" IsVisible="False" />
                         <Button x:Name="PauseButton" Classes="subtle header-icon" Click="OnPauseClick">

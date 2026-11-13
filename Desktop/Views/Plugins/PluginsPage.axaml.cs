@@ -29,7 +29,10 @@ public partial class PluginsPage : UserControl
     private readonly Dictionary<string, PluginConfigurationDraft> _drafts = new(StringComparer.Ordinal);
     private readonly Dictionary<string, SelectionListItem> _cards = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PluginSettingsEditor> _editors = new(StringComparer.Ordinal);
-    private sealed record PluginListContent(TextBlock Name, TextBlock Description, TextBlock Origin, TextBlock State, TextBlock Identity);
+    private sealed record PluginListContent(TextBlock Name, WrapPanel Chips, TextBlock Description, TextBlock Origin, TextBlock State, TextBlock Identity)
+    {
+        internal string ChipSignature { get; set; } = string.Empty;
+    }
     private readonly Dictionary<string, PluginListContent> _cardContent = new(StringComparer.Ordinal);
     private bool _projectingSelection;
     private readonly Dictionary<string, string?> _actionReasons = new(StringComparer.Ordinal);
@@ -100,6 +103,11 @@ public partial class PluginsPage : UserControl
         };
         C<SelectionList>("PluginCards").AddHandler(KeyDownEvent, OnPluginListKeyDown, RoutingStrategies.Tunnel);
         Texts.Changed += OnLanguageChanged;
+        // Layout only: an empty status row (no text, no spinner) takes no height and no gap; it is never hidden, so the live
+        // region stays in the tree and announces the next status as before.
+        C<TextBlock>("PluginTestStatus").PropertyChanged += (_, args) => { if (args.Property == TextBlock.TextProperty) FitStatusRow(); };
+        C<Ursa.Controls.LoadingIcon>("PluginOperationLoading").PropertyChanged += (_, args) => { if (args.Property == IsVisibleProperty) FitStatusRow(); };
+        FitStatusRow();
         _statusTimer.Tick += OnStatusTick;
         Localize();
     }
@@ -120,6 +128,13 @@ public partial class PluginsPage : UserControl
         else C<ComboBox>("PluginCategory").Focus();
     }
     private T C<T>(string name) where T : Control => this.FindControl<T>(name)!;
+    private void FitStatusRow()
+    {
+        bool empty = string.IsNullOrEmpty(C<TextBlock>("PluginTestStatus").Text) && !C<Ursa.Controls.LoadingIcon>("PluginOperationLoading").IsVisible;
+        StackPanel row = C<StackPanel>("PluginStatusRow");
+        row.MaxHeight = empty ? 0 : double.PositiveInfinity;
+        row.Margin = empty ? default : new Thickness(0, 8, 0, 0);
+    }
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
         // Invalidate consent synchronously, including same-language catalog reloads.
@@ -231,15 +246,18 @@ public partial class PluginsPage : UserControl
                 PluginCatalogEntry entry = entries[index];
                 if (!_cards.TryGetValue(entry.Key, out SelectionListItem? item))
                 {
-                    var title = new TextBlock { Name = "PluginListName", FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis };
+                    // The card of the Sources list: name, chips only where a source deviates, then quiet meta lines.
+                    var title = new TextBlock { Name = "PluginListName", TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis };
+                    var chips = new WrapPanel { Name = "PluginListChips", ItemSpacing = 6, LineSpacing = 4, IsVisible = false };
                     var purpose = new TextBlock { Name = "PluginListDescription", TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis };
-                    var origin = new TextBlock { Name = "PluginListDescriptionOrigin", TextWrapping = TextWrapping.Wrap, FontSize = 12 };
-                    var state = new TextBlock { Name = "PluginListState", TextWrapping = TextWrapping.Wrap, FontSize = 12 };
-                    var identity = new TextBlock { Name = "PluginListIdentity", TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 12 };
-                    origin.Classes.Add("muted"); state.Classes.Add("muted"); identity.Classes.Add("muted");
-                    _cardContent.Add(entry.Key, new(title, purpose, origin, state, identity));
+                    var origin = new TextBlock { Name = "PluginListDescriptionOrigin", TextWrapping = TextWrapping.Wrap };
+                    var state = new TextBlock { Name = "PluginListState", TextWrapping = TextWrapping.Wrap };
+                    var identity = new TextBlock { Name = "PluginListIdentity", TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis };
+                    title.Classes.Add("section-title");
+                    purpose.Classes.Add("workspace-meta"); origin.Classes.Add("workspace-meta"); state.Classes.Add("workspace-meta"); identity.Classes.Add("workspace-meta");
+                    _cardContent.Add(entry.Key, new(title, chips, purpose, origin, state, identity));
                     item = new PluginSelectionItem { HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-                        Padding = new Thickness(12), Content = new StackPanel { Spacing = 5, Children = { title, purpose, origin, state, identity } } };
+                        Classes = { "workspace-list-card" }, Content = new StackPanel { Spacing = 4, Children = { title, chips, purpose, origin, state, identity } } };
                     string key = entry.Key;
                     item.PointerReleased += (_, args) =>
                     {
@@ -257,9 +275,12 @@ public partial class PluginsPage : UserControl
                 content.Origin.Text = presentation.HasRetainedDescription ? Texts.T("plugins.lastDescriptionShort") : string.Empty;
                 content.Origin.IsVisible = presentation.HasRetainedDescription;
                 string sourceClassifications = PluginContentPresentation.DescribeSourceClassifications(presentation);
-                content.State.Text = PluginContentPresentation.DescribeType(presentation.DescriptionMetadata)
-                    + (sourceClassifications.Length > 0 ? " · " + sourceClassifications : string.Empty)
-                    + " · " + PluginContentPresentation.DescribeStatus(presentation);
+                // The classification is shown as chips (as on the Sources list); the line keeps type and status.
+                // The item's accessible name below still carries the complete former line, classification included.
+                string type = PluginContentPresentation.DescribeType(presentation.DescriptionMetadata);
+                string status = PluginContentPresentation.DescribeStatus(presentation);
+                content.State.Text = type + " · " + status;
+                RenderListChips(content, presentation);
                 PluginCatalogEntry[] similar = entries.Where(other => string.Equals(other.Name, entry.Name, StringComparison.CurrentCultureIgnoreCase)).ToArray();
                 content.Identity.IsVisible = similar.Length > 1;
                 if (similar.Length > 1)
@@ -269,7 +290,8 @@ public partial class PluginsPage : UserControl
                         + " · " + fileName + (presentation.CandidateVersion is { } version ? " · " + Texts.T("plugins.fileVersion", version) : string.Empty);
                     ToolTip.SetTip(content.Identity, entry.LoaderPath ?? entry.CandidateId ?? entry.Key);
                 }
-                AutomationProperties.SetName(item, string.Join(". ", new[] { presentation.Name, content.Description.Text, content.Origin.Text, content.State.Text,
+                string fullState = type + (sourceClassifications.Length > 0 ? " · " + sourceClassifications : string.Empty) + " · " + status;
+                AutomationProperties.SetName(item, string.Join(". ", new[] { presentation.Name, content.Description.Text, content.Origin.Text, fullState,
                     content.Identity.IsVisible ? content.Identity.Text : null }.Where(value => !string.IsNullOrEmpty(value))));
             }
             list.SelectedItem = _selectedKey != null && entries.Any(entry => entry.Key == _selectedKey) ? _cards.GetValueOrDefault(_selectedKey) : null;
@@ -281,6 +303,9 @@ public partial class PluginsPage : UserControl
         C<TextBlock>("PluginsEmpty").IsVisible = _catalog != null && entries.Length == 0;
         C<TextBlock>("PluginsEmpty").Text = Texts.T(_catalog?.Entries.Count == 0 ? "plugins.noPlugins" : C<ComboBox>("PluginCategory").SelectedIndex switch
         { 1 => "plugins.emptySources", 2 => "plugins.emptyFilters", _ => "plugins.empty" });
+        // The header count, as on the Sources page: every plugin of the profile, whatever the category shows.
+        C<TextBlock>("PluginsCount").Text = _catalog == null ? string.Empty : Texts.T("plugins.count", _catalog.Entries.Count);
+        C<TextBlock>("PluginsCount").IsVisible = _catalog != null;
         int count = _catalog?.Diagnostics.Count ?? 0;
         C<Expander>("PluginInventoryProblems").IsVisible = count > 0;
         C<Badge>("PluginInventoryBadge").Header = count;
@@ -288,6 +313,30 @@ public partial class PluginsPage : UserControl
         C<TextBlock>("PluginInventoryDiagnostics").Text = string.Join("\n", _catalog?.Diagnostics.Select(diagnostic => diagnostic.Code + ": " + diagnostic.Message + "\n" + diagnostic.FilePath) ?? Array.Empty<string>());
         ApplyPaneVisibility();
         RefreshPluginActions();
+    }
+    /// <summary>
+    /// The Sources list rule for the plugin's described sources: a chip only where a source deviates from the norm
+    /// ("Maintenance unverified", "Experimental" in the warning tone), each once. The source status chip is left out: on the
+    /// Sources page it means the source's own activation, which the plugin list does not show.
+    /// </summary>
+    private static void RenderListChips(PluginListContent content, PluginEntryPresentation presentation)
+    {
+        SourceBadge[] deviating = presentation.SourceClassifications
+            .SelectMany(classification => SourceWording.Badges(classification, isActive: true, isBuiltIn: false))
+            .Where(badge => badge.Deviates && badge.Kind != SourceBadgeKind.Status)
+            .OrderBy(badge => badge.Kind)
+            .DistinctBy(badge => badge.ChipText).ToArray();
+        string signature = string.Join("|", deviating.Select(badge => (badge.Warning ? "!" : "") + badge.ChipText));
+        content.Chips.IsVisible = deviating.Length > 0;
+        if (signature == content.ChipSignature) return;
+        content.ChipSignature = signature;
+        content.Chips.Children.Clear();
+        foreach (SourceBadge badge in deviating)
+        {
+            Border chip = Desktop.Controls.WorkspaceChips.CreateBadge("PluginListChip", badge.ChipText, compact: true);
+            if (badge.Warning) chip.Classes.Add("chip-warning");
+            content.Chips.Children.Add(chip);
+        }
     }
     private void OnPluginSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
@@ -336,6 +385,8 @@ public partial class PluginsPage : UserControl
         C<TextBlock>("PluginType").Text = PluginContentPresentation.DescribeType(presentation.DescriptionMetadata);
         string classifications = PluginContentPresentation.DescribeSourceClassifications(presentation);
         C<Border>("PluginExperimentalChip").IsVisible = presentation.HasSourceClassifications;
+        // The warning tone of the Sources "Experimental" chip; the words say it too.
+        C<Border>("PluginExperimentalChip").Classes.Set("chip-warning", presentation.HasExperimentalSources);
         TextBlock classificationText = C<TextBlock>("PluginExperimental");
         classificationText.Text = classifications;
         AutomationProperties.SetName(classificationText, classifications);
@@ -452,7 +503,8 @@ public partial class PluginsPage : UserControl
             (ReferenceEquals(focused, pane) || focused.GetVisualAncestors().Contains(pane));
         bool listHadFocus = ContainsFocus(C<Grid>("PluginListPane"));
         bool detailsHadFocus = ContainsFocus(C<ScrollViewer>("PluginDetailsPane"));
-        bool narrow = Bounds.Width < 850;
+        // The Sources page's switch point: the detail needs 520 DIP beside the 280 DIP list, gutters and panel padding.
+        bool narrow = Bounds.Width - 40 - 280 - 14 - 32 < 520;
         if (narrow && !_narrow)
         {
             // The pane the user is working in takes precedence over a previous
@@ -467,7 +519,7 @@ public partial class PluginsPage : UserControl
         Grid.SetRow(headerActions, stackedHeader ? 1 : 0);
         headerActions.Margin = stackedHeader ? new Thickness(0, 8, 0, 0) : default;
         C<Grid>("PluginsPageHeader").ColumnSpacing = stackedHeader ? 0 : 12;
-        C<Grid>("PluginSplit").ColumnDefinitions[0].Width = new GridLength(_narrow ? 0 : 240);
+        C<Grid>("PluginSplit").ColumnDefinitions[0].Width = new GridLength(_narrow ? 0 : 280);
         C<Grid>("PluginSplit").ColumnSpacing = _narrow ? 0 : 14;
         Grid.SetColumn(C<Grid>("PluginListPane"), _narrow ? 1 : 0); ApplyPaneVisibility();
         // Widening hides Back itself. Repair only a focus owned by one of our

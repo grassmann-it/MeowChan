@@ -27,6 +27,7 @@ public sealed class ArchiveMediaTileView : UserControl
     private readonly Border _selectedMark = MeowChan.Desktop.Controls.WorkspaceChips.CreateSelectionCheck("ArchiveMediaSelected");
     private IDisposable? _selection;
     private readonly Image _image = new() { Stretch = Stretch.Uniform, MaxWidth = 170, MaxHeight = 125 };
+    private readonly LetterboxPanel _preview = new();
     private readonly TextBlock _rating = new TextBlock().CaptionText();
     private readonly TextBlock _title = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _status = new TextBlock { MaxLines = 2, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis }.CaptionText();
@@ -46,6 +47,8 @@ public sealed class ArchiveMediaTileView : UserControl
     // keep the image decoder. Nothing is fetched or generated beyond the reader.
     internal const int PosterWidth = 340, PosterHeight = 250;
     internal bool HasThumbnail => _bitmap != null;
+    /// <summary>Where the picture is drawn, in the preview's coordinates (the badge, star and check mark sit on it).</summary>
+    internal Rect PictureBounds => _preview.PictureBounds;
     internal static bool UsesVideoPoster(ArchiveAssetRow row) =>
         MeowChan.Gallery.SavedMediaTypes.Classify(row.Asset.OriginalFileName ?? row.Asset.Path) == MeowChan.Gallery.SavedMediaKind.Video;
     /// <summary>I7: GIF, video or other file by the saved name (no file is read); empty for still images.</summary>
@@ -70,7 +73,9 @@ public sealed class ArchiveMediaTileView : UserControl
     public ArchiveMediaTileView()
     {
         MaxWidth = 190; Height = 210;
-        Grid preview = new() { Height = 125, MaxWidth = 170 };
+        // The cell stays uniform (the tile grid is regular); the picture is letterboxed in it and the badge, star and check mark are
+        // arranged on the picture, not on the cell edge.
+        LetterboxPanel preview = _preview; preview.Height = 125; preview.MaxWidth = 170;
         _kind.VerticalAlignment = VerticalAlignment.Center;
         StackPanel topRight = new() { Orientation = Orientation.Horizontal, Spacing = 3, HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 2, 0), Children = { _kind, _selectedMark } };
@@ -154,7 +159,7 @@ public sealed class ArchiveMediaTileView : UserControl
         if (key != null && MediaTileThumbnails.Cache.TryAcquire(key) is { } kept)
         {
             _bitmap = kept;
-            _image.Source = kept;
+            _image.Source = kept; _preview.Aspect = MediaSlotGeometry.AspectOf(kept);
             _message.Text = string.Empty;
             UpdateDescription();
             return;
@@ -173,7 +178,7 @@ public sealed class ArchiveMediaTileView : UserControl
             if (request != _request || !_visible || !IsEffectivelyVisible || !ReferenceEquals(DataContext, row) || loading.IsCancellationRequested)
             { if (bitmap != null) MediaTileThumbnails.Release(bitmap); return; }
             _bitmap = bitmap;
-            _image.Source = bitmap;
+            _image.Source = bitmap; _preview.Aspect = MediaSlotGeometry.AspectOf(bitmap);
             // The tile has no path line below it, unlike the preview pane, so name only what is missing.
             _message.Text = bitmap == null ? Texts.T(UnavailableKey(row)) : string.Empty;
             UpdateDescription();
@@ -195,7 +200,7 @@ public sealed class ArchiveMediaTileView : UserControl
     {
         ++_request;
         _loading?.Cancel(); _loading = null;
-        _image.Source = null; if (_bitmap != null) MediaTileThumbnails.Release(_bitmap); _bitmap = null;
+        _image.Source = null; _preview.Aspect = null; if (_bitmap != null) MediaTileThumbnails.Release(_bitmap); _bitmap = null;
         _message.Text = string.Empty;
         UpdateDescription();
     }

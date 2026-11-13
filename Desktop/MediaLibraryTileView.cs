@@ -79,6 +79,7 @@ internal sealed class MediaLibraryTileView : UserControl
     // Four loads at a time: with the file check remembered per session a load is mostly decoding, which spreads over the cores.
     private static readonly SemaphoreSlim ThumbnailGate = new(4, 4);
     private readonly Image _image = new() { Stretch = Stretch.Uniform, MaxWidth = 174, MaxHeight = 120 };
+    private readonly LetterboxPanel _preview = new();
     private readonly TextBlock _placeholder = new TextBlock { TextWrapping = TextWrapping.Wrap,
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Center }.CaptionText();
     private readonly TextBlock _name = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
@@ -112,6 +113,8 @@ internal sealed class MediaLibraryTileView : UserControl
     private Bitmap? _bitmap;
     /// <summary>True while the tile shows a verified thumbnail or video poster.</summary>
     internal bool HasThumbnail => _image.Source != null;
+    /// <summary>Where the picture is drawn, in the preview's coordinates (the corner marks sit on it).</summary>
+    internal Rect PictureBounds => _preview.PictureBounds;
     private CancellationTokenSource? _loading;
     private int _request;
     private bool _visible;
@@ -144,7 +147,9 @@ internal sealed class MediaLibraryTileView : UserControl
     public MediaLibraryTileView()
     {
         MaxWidth = 190; Height = TileHeight;
-        Grid preview = new() { Height = 120, MaxWidth = 174 };
+        // The cell stays uniform (the grid's cell height is fixed); the picture is letterboxed in it and the corner marks (provider
+        // badge, type, selection check, "not saved", star) are arranged on the picture, not on the cell edge.
+        LetterboxPanel preview = _preview; preview.Height = 120; preview.MaxWidth = 174;
         StackPanel topRight = new() { Orientation = Orientation.Horizontal, Spacing = 3, HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 2, 0), Children = { _kindBadge, _selectedMark } };
         _stateMark.Margin = new Thickness(2, 0, 0, 2);
@@ -350,7 +355,7 @@ internal sealed class MediaLibraryTileView : UserControl
         if (ThumbnailCached?.Invoke(row.Tile) is { } cached)
         {
             _bitmap = cached;
-            _image.Source = cached;
+            _image.Source = cached; _preview.Aspect = MediaSlotGeometry.AspectOf(cached);
             _placeholder.Text = string.Empty;
             ThumbnailWasCached = true;
             return;
@@ -368,7 +373,7 @@ internal sealed class MediaLibraryTileView : UserControl
             if (request != _request || !_visible || !ReferenceEquals(DataContext, row)) { Discard(bitmap); return; }
             _bitmap = bitmap;
             ThumbnailWasCached = false;
-            _image.Source = bitmap;
+            _image.Source = bitmap; _preview.Aspect = MediaSlotGeometry.AspectOf(bitmap);
             _placeholder.Text = bitmap == null ? Texts.T("archive.previewUnavailable") : string.Empty;
         }
         catch (OperationCanceledException) { }
@@ -390,7 +395,7 @@ internal sealed class MediaLibraryTileView : UserControl
     {
         ++_request;
         _loading?.Cancel(); _loading = null;
-        _image.Source = null; Discard(_bitmap); _bitmap = null; ThumbnailWasCached = false;
+        _image.Source = null; _preview.Aspect = null; Discard(_bitmap); _bitmap = null; ThumbnailWasCached = false;
         MediaLibraryTileRow? row = DataContext as MediaLibraryTileRow;
         _placeholder.Text = row?.Entry.Presence == MediaLibraryPresence.Missing ? Texts.T("media.tile.missing") : string.Empty;
     }

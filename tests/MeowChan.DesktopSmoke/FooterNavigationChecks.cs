@@ -185,7 +185,7 @@ internal static class FooterNavigationChecks
         Require(action.IsVisible == expectedVisible, "Unexpected header reading action visibility.");
         Grid header = window.FindControl<Grid>("WorkspaceHeader")!;
         Control[] headerControls = new[] { header.Children[0] }.Concat(new[] {
-            "TransferSpeed", "ContinueReadingButton", "PauseButton", "FullscreenButton",
+            "WorkspaceSubtitle", "TransferSpeed", "ContinueReadingButton", "PauseButton", "FullscreenButton",
             "ThemeToggleButton", "WorkspaceMenuItem", "WindowMinimizeButton", "WindowMaximizeButton", "WindowCloseButton"
         }.Select(name => window.FindControl<Control>(name)!))
             .Where(control => control.IsEffectivelyVisible && control.Bounds.Width > 0).ToArray();

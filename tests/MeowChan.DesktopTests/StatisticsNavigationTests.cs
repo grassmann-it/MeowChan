@@ -108,6 +108,22 @@ public sealed class StatisticsNavigationTests : IDisposable
         Assert.Contains("TransferSpeedGraph", inner);
         Assert.Contains("TransferSpeedLabel", inner);
         Assert.Contains("TransferDiskLabel", inner);
+        Assert.Contains("TransferDiskGraph", inner);
+        Assert.Contains("TransferDiskRow", inner);
+        // Each header row draws one series only: the network download and the disk writing, never the disk reading.
+        XElement[] graphs = speed.Descendants().Where(e => e.Name.LocalName == "IoGraph").ToArray();
+        Assert.Equal(["DiskWrite", "NetDown"], graphs.Select(e => (string?)e.Attribute("Source")).OrderBy(x => x).ToArray());
+        Assert.DoesNotContain("DiskRead", speed.ToString());
+    }
+
+    [Fact]
+    public void TheStatisticsPageDrawsNetworkWriteAndReadAsThreeSeparateGraphs()
+    {
+        XDocument markup = XDocument.Load(Source("Desktop/Views/Statistics/StatisticsPage.axaml"));
+        XElement[] graphs = markup.Descendants().Where(e => e.Name.LocalName == "IoGraph").ToArray();
+        Assert.Equal(["DiskRead", "DiskWrite", "NetDown"], graphs.Select(e => (string?)e.Attribute("Source")).OrderBy(x => x).ToArray());
+        foreach (string name in new[] { "NetTitle", "NetScale", "DiskWriteTitle", "DiskWriteScale", "DiskReadTitle", "DiskReadScale" })
+            Assert.Contains(markup.Descendants(), e => (string?)e.Attribute(X + "Name") == name);
     }
 
     private static string Source(string path, [CallerFilePath] string sourcePath = "") =>

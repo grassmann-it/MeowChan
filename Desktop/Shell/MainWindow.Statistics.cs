@@ -11,6 +11,7 @@ public partial class MainWindow
     {
         // The header gets a recent-window scale, not a peak from the entire retained page history.
         TransferSpeedGraph.SampleIntervalMs = () => _session.IoStats.Options.SampleIntervalMs;
+        TransferDiskGraph.SampleIntervalMs = () => _session.IoStats.Options.SampleIntervalMs;
         _statisticsPage = new StatisticsPage();
         _statisticsPage.Attach(_session.IoStats, SourceDisplayName);
         StatisticsPageHost.Content = _statisticsPage;
