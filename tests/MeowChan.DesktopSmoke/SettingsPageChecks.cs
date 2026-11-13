@@ -165,6 +165,7 @@ internal static class SettingsPageChecks
         double height = window.Height;
         WindowState state = window.WindowState;
         SettingsEditor editor = window.SettingsEditor;
+        Exception? failureBeforeCleanup = null;
         try
         {
             Navigate(window, true);
@@ -219,19 +220,23 @@ internal static class SettingsPageChecks
             }
             if (footerOnly) await CheckAdvancedMinimumWithBannerAsync(window, editor);
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            Texts.SetLanguage(initial.Language);
-            await PresentationChecks.SwitchModeAsync(window, initial.WorkspaceMode);
-            window.Width = width;
-            window.Height = height;
-            window.WindowState = state;
-            editor.CancelChanges();
-            Navigate(window, false);
-            // The next capture must not show a layout taken while the restored size is still in flight
-            // (UX round 2 #1: the old "top" capture showed the page overflowing mid-resize).
-            if (state == WindowState.Normal)
-                await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                Texts.SetLanguage(initial.Language);
+                await PresentationChecks.SwitchModeAsync(window, initial.WorkspaceMode);
+                window.Width = width;
+                window.Height = height;
+                window.WindowState = state;
+                editor.CancelChanges();
+                Navigate(window, false);
+                // The next capture must not show a layout taken while the restored size is still in flight
+                // (UX round 2 #1: the old "top" capture showed the page overflowing mid-resize).
+                if (state == WindowState.Normal)
+                    await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SettingsPageChecks: " + exception));
         }
     }
 

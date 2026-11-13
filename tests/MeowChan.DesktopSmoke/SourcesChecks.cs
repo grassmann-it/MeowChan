@@ -287,6 +287,7 @@ internal static class SourcesChecks
     {
         double restoreHeight = window.Height;
         string language = Texts.Language;
+        Exception? failureBeforeCleanup = null;
         try
         {
             window.Width = 1440; window.Height = 920;
@@ -301,13 +302,17 @@ internal static class SourcesChecks
                 await CaptureBothThemesAsync(window, $"smoke-sources-wide-{wideLanguage}");
             }
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            Texts.SetLanguage(language);
-            window.Width = restoreWidth; window.Height = restoreHeight;
-            await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - restoreWidth) <= 1);
-            page.Refresh(providers, view, true);
-            page.SelectSource("thread-only");
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                Texts.SetLanguage(language);
+                window.Width = restoreWidth; window.Height = restoreHeight;
+                await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - restoreWidth) <= 1);
+                page.Refresh(providers, view, true);
+                page.SelectSource("thread-only");
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SourcesChecks: " + exception));
         }
     }
     // Maturity order, chips only for deviations, the selection bar instead of a text marker, the complete meta line and the
@@ -337,6 +342,7 @@ internal static class SourcesChecks
         static string NameOf(Button card) => ((StackPanel)card.Content!).Children.OfType<TextBlock>().First().Text ?? string.Empty;
         static string[] ChipsOf(Button card) => ((StackPanel)card.Content!).Children.OfType<WrapPanel>().Single().Children.OfType<Border>()
             .Select(chip => chip.GetLogicalDescendants().OfType<TextBlock>().Single().Text ?? string.Empty).ToArray();
+        Exception? failureBeforeCleanup = null;
         try
         {
             page.GetSourceMediaIntegrityPolicies = () => policies;
@@ -402,12 +408,16 @@ internal static class SourcesChecks
                 await CaptureBothThemesAsync(window, $"smoke-sources-886-{narrowLanguage}");
             }
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            page.GetSourceMediaIntegrityPolicies = original;
-            Texts.SetLanguage(language);
-            window.Width = restoreWidth; window.Height = restoreHeight;
-            await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - restoreWidth) <= 1);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                page.GetSourceMediaIntegrityPolicies = original;
+                Texts.SetLanguage(language);
+                window.Width = restoreWidth; window.Height = restoreHeight;
+                await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - restoreWidth) <= 1);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SourcesChecks: " + exception));
         }
     }
     // The preview length is the "Sources page: watch rows per source" setting: three rows minimum, the rest one link away under Downloads.
