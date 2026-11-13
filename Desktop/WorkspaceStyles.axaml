@@ -15,6 +15,16 @@
                     <SolidColorBrush x:Key="Workspace.Accent">#6AA7FF</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentSurface">#25344A</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ReaderActiveSurface">#152233</SolidColorBrush>
+                    <!-- D0 surface tokens (design language 4.3): level 2 card with a 1-px CardEdge, level 4 overlay
+                         (menu, flyout, filter surface, toast) with the app's only shadow, and the scrim behind blocking
+                         in-window overlays. Overlay equals Panel today (separate key so it can be tinted later).
+                         Dark CardEdge is deliberately softer than a 3:1 edge (computed 2.3:1 on Background, 2.0:1 on Card;
+                         not measured natively); adjust it here only. -->
+                    <SolidColorBrush x:Key="Workspace.Card">#20242A</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.CardEdge">#4A525C</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Overlay">#1B1E22</SolidColorBrush>
+                    <BoxShadows x:Key="Workspace.Shadow.Overlay">0 4 16 0 #66000000</BoxShadows>
+                    <SolidColorBrush x:Key="Workspace.Scrim">#66000000</SolidColorBrush>
                     <!-- Decorative reader rule only; do not change the shared palette or row height. -->
                     <x:Double x:Key="Workspace.ReaderPostSeparatorHeight">1</x:Double>
                     <SolidColorBrush x:Key="Workspace.Hover">#30363E</SolidColorBrush>
@@ -64,6 +74,12 @@
                     <SolidColorBrush x:Key="Workspace.Accent">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentSurface">#E7D4BE</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ReaderActiveSurface">#E8E0D5</SolidColorBrush>
+                    <!-- D0 surface tokens (see the Dark block). Light CardEdge equals ControlBorder; Overlay equals Panel. -->
+                    <SolidColorBrush x:Key="Workspace.Card">#FAF7F1</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.CardEdge">#7A7062</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Overlay">#EFECE6</SolidColorBrush>
+                    <BoxShadows x:Key="Workspace.Shadow.Overlay">0 4 16 0 #26000000</BoxShadows>
+                    <SolidColorBrush x:Key="Workspace.Scrim">#33000000</SolidColorBrush>
                     <x:Double x:Key="Workspace.ReaderPostSeparatorHeight">0</x:Double>
                     <SolidColorBrush x:Key="Workspace.Hover">#D2CABE</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.OnAccent">#FFFFFF</SolidColorBrush>
@@ -144,23 +160,60 @@
         <Thickness x:Key="DataGridCellTextBlockDefaultMargin">12,0</Thickness>
         <x:Double x:Key="DataGridCellMinHeight">0</x:Double>
         <x:Double x:Key="DataGridColumnHeaderMinHeight">28</x:Double>
+        <!-- ===== Workspace design tokens (D0) =====
+             Colour tokens live in the theme dictionaries above; the tokens below are theme-neutral.
+             Use them instead of literals. Nothing here changes a Semi template.
+             Surfaces, each only on the level below (never Card in Card):
+               Background 0 (window) < Panel 1 (section, table, bar) < Card 2 (content card, CardEdge 1 px)
+               < Raised 3 (interactive: buttons, column heads) < Overlay 4 (menu, flyout, toast: Overlay +
+               ControlBorder + Shadow.Overlay). Shadow.Overlay is the only shadow: never in lists, tiles or cards.
+               Scrim dims the content behind blocking in-window overlays.
+             Radius: None 0 (window, title bar, caption, tab/nav bars, transport), Badge 3 (marks under 20 dip),
+               Control 5 (buttons, inputs, cards, tiles), Group 8 (sections, overlays, dialog body),
+               Chip 12 (pill at 24 dip), ChipCompact 9 (pill at 18 dip). Circles use Width/2 locally.
+             Size: Control 30 (button), Input 32 (text box, combo box, column head), Nav 36, Chip 24, ChipCompact 18,
+               TitleBar 48 (code mirror WorkspaceMetrics.TitleBarHeight), Caption 44 (caption-button width),
+               Icon 16, IconCaption 10. Row heights stay in code (WorkspaceMetrics, density setting).
+             Space: 2/4/8/12/16/24/32. Inset: Section, Message, Footer, Chip, ChipCompact, Card, Overlay.
+             Text: Caption 11, Meta 12, Body 13, Section 14, Subtitle 16, Title 20 (the brand's 19 is a special case).
+             From code bind a resource, e.g. control[!Border.CornerRadiusProperty] = new DynamicResourceExtension(key). -->
         <!-- Shared composition values. Density remains the existing preference,
              not a new setting and not an instruction to compact every surface. -->
+        <x:Double x:Key="Workspace.Space.2">2</x:Double>
         <x:Double x:Key="Workspace.Space.4">4</x:Double>
         <x:Double x:Key="Workspace.Space.8">8</x:Double>
         <x:Double x:Key="Workspace.Space.12">12</x:Double>
         <x:Double x:Key="Workspace.Space.16">16</x:Double>
         <x:Double x:Key="Workspace.Space.24">24</x:Double>
+        <x:Double x:Key="Workspace.Space.32">32</x:Double>
+        <x:Double x:Key="Workspace.Text.Caption">11</x:Double>
         <x:Double x:Key="Workspace.Text.Body">13</x:Double>
         <x:Double x:Key="Workspace.Text.Meta">12</x:Double>
         <x:Double x:Key="Workspace.Text.Section">14</x:Double>
+        <x:Double x:Key="Workspace.Text.Subtitle">16</x:Double>
         <x:Double x:Key="Workspace.Text.Title">20</x:Double>
+        <CornerRadius x:Key="Workspace.Radius.None">0</CornerRadius>
+        <CornerRadius x:Key="Workspace.Radius.Badge">3</CornerRadius>
         <CornerRadius x:Key="Workspace.Radius.Control">5</CornerRadius>
         <CornerRadius x:Key="Workspace.Radius.Group">8</CornerRadius>
+        <CornerRadius x:Key="Workspace.Radius.Chip">12</CornerRadius>
+        <CornerRadius x:Key="Workspace.Radius.ChipCompact">9</CornerRadius>
+        <x:Double x:Key="Workspace.Size.Control">30</x:Double>
+        <x:Double x:Key="Workspace.Size.Input">32</x:Double>
+        <x:Double x:Key="Workspace.Size.Nav">36</x:Double>
+        <x:Double x:Key="Workspace.Size.Chip">24</x:Double>
+        <x:Double x:Key="Workspace.Size.ChipCompact">18</x:Double>
+        <x:Double x:Key="Workspace.Size.TitleBar">48</x:Double>
+        <x:Double x:Key="Workspace.Size.Caption">44</x:Double>
+        <x:Double x:Key="Workspace.Size.Icon">16</x:Double>
+        <x:Double x:Key="Workspace.Size.IconCaption">10</x:Double>
         <Thickness x:Key="Workspace.Inset.Section">16</Thickness>
         <Thickness x:Key="Workspace.Inset.Message">12</Thickness>
         <Thickness x:Key="Workspace.Inset.Footer">16,12</Thickness>
         <Thickness x:Key="Workspace.Inset.Chip">8,4</Thickness>
+        <Thickness x:Key="Workspace.Inset.ChipCompact">6,1</Thickness>
+        <Thickness x:Key="Workspace.Inset.Card">12,10,12,12</Thickness>
+        <Thickness x:Key="Workspace.Inset.Overlay">12</Thickness>
         <!-- Native keyboard-only focus decoration; it overlays rather than moves
              content, and remains separate from selected/error border state. -->
         <Template x:Key="Workspace.FocusAdorner">
@@ -189,8 +242,8 @@
         <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style Selector="Border.settings-divider"><Setter Property="Padding" Value="0,10" /><Setter Property="BorderThickness" Value="0,0,0,1" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /></Style>
-    <Style Selector="Border.panel"><Setter Property="CornerRadius" Value="5" /></Style>
-    <Style Selector="Border.raised"><Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="CornerRadius" Value="5" /></Style>
+    <Style Selector="Border.panel"><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" /></Style>
+    <Style Selector="Border.raised"><Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" /></Style>
     <Style Selector="Button">
         <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
@@ -199,8 +252,8 @@
         <Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="VerticalAlignment" Value="Stretch" />
         <Setter Property="FontWeight" Value="Normal" />
-        <Setter Property="MinHeight" Value="30" /><Setter Property="Padding" Value="10,5" />
-        <Setter Property="CornerRadius" Value="5" /><Setter Property="FontSize" Value="13" />
+        <Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Control}" /><Setter Property="Padding" Value="10,5" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" /><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" />
     </Style>
     <Style Selector="Button.primary">
         <Setter Property="Theme" Value="{DynamicResource SolidButton}" />
@@ -210,18 +263,18 @@
     <Style Selector="Button.subtle"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /></Style>
     <Style Selector="Button.danger"><Setter Property="Foreground" Value="{DynamicResource Workspace.Error}" /></Style>
     <Style Selector="Button.header-icon">
-        <Setter Property="Width" Value="30" /><Setter Property="Height" Value="30" />
+        <Setter Property="Width" Value="{StaticResource Workspace.Size.Control}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Control}" />
         <Setter Property="Padding" Value="6" /><Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style Selector="Button.header-icon.selected"><Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /></Style>
     <Style Selector="Path.header-icon">
-        <Setter Property="Width" Value="16" /><Setter Property="Height" Value="16" />
+        <Setter Property="Width" Value="{StaticResource Workspace.Size.Icon}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Icon}" />
         <Setter Property="Stroke" Value="{Binding $parent[Button].Foreground}" /><Setter Property="StrokeThickness" Value="1.5" />
         <Setter Property="IsHitTestVisible" Value="False" />
     </Style>
     <Style Selector="Button.window-caption">
-        <Setter Property="Width" Value="44" /><Setter Property="MinHeight" Value="0" />
-        <Setter Property="Padding" Value="0" /><Setter Property="CornerRadius" Value="0" />
+        <Setter Property="Width" Value="{StaticResource Workspace.Size.Caption}" /><Setter Property="MinHeight" Value="0" />
+        <Setter Property="Padding" Value="0" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.None}" />
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
         <Setter Property="VerticalAlignment" Value="Stretch" />
     </Style>
@@ -229,32 +282,32 @@
         <Setter Property="Background" Value="#C42B1C" /><Setter Property="Foreground" Value="White" />
     </Style>
     <Style Selector="Path.window-caption-icon">
-        <Setter Property="Width" Value="10" /><Setter Property="Height" Value="10" />
+        <Setter Property="Width" Value="{StaticResource Workspace.Size.IconCaption}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.IconCaption}" />
         <Setter Property="Stroke" Value="{Binding $parent[Button].Foreground}" /><Setter Property="StrokeThickness" Value="1" />
         <Setter Property="IsHitTestVisible" Value="False" />
     </Style>
-    <Style Selector="Button.nav"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="Padding" Value="12,8" /><Setter Property="MinHeight" Value="36" /></Style>
+    <Style Selector="Button.nav"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="Padding" Value="12,8" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Nav}" /></Style>
     <Style Selector="Button.nav.selected"><Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" /></Style>
     <Style Selector="Button.nav TextBlock"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /></Style>
     <Style Selector="Button.nav.selected TextBlock"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
     <Style Selector="Button.nav Path"><Setter Property="Stroke" Value="{DynamicResource Workspace.Muted}" /></Style>
     <Style Selector="Button.nav.selected Path"><Setter Property="Stroke" Value="{DynamicResource Workspace.Accent}" /></Style>
-    <Style Selector="TextBox, ComboBox, NumericUpDown"><Setter Property="MinHeight" Value="32" /><Setter Property="FontSize" Value="13" /></Style>
+    <Style Selector="TextBox, ComboBox, NumericUpDown"><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" /></Style>
     <!-- Semi's translucent dark-blue selection has little contrast on dark fields.
          Keep its native presenter and retained-selection behavior with an opaque pair. -->
     <Style Selector="TextBox">
         <Setter Property="SelectionBrush" Value="{DynamicResource Workspace.Accent}" />
         <Setter Property="SelectionForegroundBrush" Value="{DynamicResource Workspace.OnAccent}" />
     </Style>
-    <Style Selector="ComboBox.footer-mode"><Setter Property="MinHeight" Value="28" /><Setter Property="FontSize" Value="12" /></Style>
+    <Style Selector="ComboBox.footer-mode"><Setter Property="MinHeight" Value="28" /><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /></Style>
     <Style Selector="DataGrid">
         <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
-        <Setter Property="BorderThickness" Value="0" /><Setter Property="RowHeight" Value="{x:Static desktop:WorkspaceMetrics.NormalRowHeight}" /><Setter Property="ColumnHeaderHeight" Value="32" /><Setter Property="FontSize" Value="13" />
+        <Setter Property="BorderThickness" Value="0" /><Setter Property="RowHeight" Value="{x:Static desktop:WorkspaceMetrics.NormalRowHeight}" /><Setter Property="ColumnHeaderHeight" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" />
         <Setter Property="GridLinesVisibility" Value="Horizontal" /><Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource Workspace.Border}" />
     </Style>
     <Style Selector="DataGridColumnHeader">
         <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
-        <Setter Property="FontSize" Value="12" /><Setter Property="Padding" Value="10,7" />
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /><Setter Property="Padding" Value="10,7" />
     </Style>
     <Style Selector="DataGridCell"><Setter Property="Padding" Value="12,0" /><Setter Property="ClipToBounds" Value="True" /></Style>
     <Style Selector="DataGridRow:selected"><Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /></Style>
@@ -338,7 +391,7 @@
     <!-- Video transport is a quiet strip attached to the viewport, not another
          settings card. Keep the gallery's action/caption surfaces independent. -->
     <Style Selector="Border.workspace-media-transport">
-        <Setter Property="BorderThickness" Value="0" /><Setter Property="CornerRadius" Value="0" />
+        <Setter Property="BorderThickness" Value="0" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.None}" />
         <Setter Property="Padding" Value="12,8" />
     </Style>
     <Style Selector="Button.media-control, ToggleButton.media-control">
