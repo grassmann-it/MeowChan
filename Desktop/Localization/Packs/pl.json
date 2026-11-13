@@ -1646,6 +1646,7 @@
     "archive.columns.workAttention": "Uwaga",
     "archive.columns.workWatching": "Obserwowany",
     "help.escape": "Esc  Zamknij pomoc skrótów",
+    "help.scope.generalNote": "Skróty bez uwagi działają poza polami i nakładkami, gdy akcja jest dostępna.",
     "help.singleKeysOff": "Skróty jednoklawiszowe są wyłączone (Ustawienia, Skróty klawiaturowe).",
     "help.scope.current": "Bieżący obszar",
     "help.scope.application": "Aplikacja i nawigacja",

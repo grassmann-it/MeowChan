@@ -1636,6 +1636,7 @@
     "archive.columns.workAttention": "Attenzione",
     "archive.columns.workWatching": "Monitorato",
     "help.escape": "Esc  Chiudi la guida alle scorciatoie",
+    "help.scope.generalNote": "Le scorciatoie senza nota valgono fuori da campi e sovrapposizioni, quando l’azione è disponibile.",
     "help.singleKeysOff": "Le scorciatoie a tasto singolo sono disattivate (Impostazioni, Scorciatoie da tastiera).",
     "help.scope.current": "Area attuale",
     "help.scope.application": "Applicazione e navigazione",

@@ -1819,6 +1819,7 @@
     "archive.columns.workAttention": "注意",
     "archive.columns.workWatching": "关注中",
     "help.escape": "Esc  关闭快捷键帮助",
+    "help.scope.generalNote": "没有备注的快捷键在输入框和浮层之外、操作可用时生效。",
     "help.singleKeysOff": "单键快捷键已关闭（“设置”中的“键盘快捷键”）。",
     "help.scope.current": "当前区域",
     "help.scope.application": "应用程序和导航",

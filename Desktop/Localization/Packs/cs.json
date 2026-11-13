@@ -1646,6 +1646,7 @@
     "archive.columns.workAttention": "Pozornost",
     "archive.columns.workWatching": "Sleduje se",
     "help.escape": "Esc  Zavřít nápovědu ke zkratkám",
+    "help.scope.generalNote": "Zkratky bez poznámky platí mimo vstupní pole a překrytí, pokud je akce dostupná.",
     "help.singleKeysOff": "Jednoklávesové zkratky jsou vypnuté (Nastavení, Klávesové zkratky).",
     "help.scope.current": "Aktuální oblast",
     "help.scope.application": "Aplikace a navigace",

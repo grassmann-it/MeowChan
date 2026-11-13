@@ -67,6 +67,10 @@ internal static class PowerUserCommandChecks
                 Require(help.Contains(CommandCatalog.Label("navigation.rules"), StringComparison.Ordinal)
                     && help.Contains(CommandCatalog.ShortcutDisplay("session.pause")!, StringComparison.Ordinal)
                     && help.Contains(CommandCatalog.ScopeHint("watch.import-clipboard")!, StringComparison.Ordinal), "F1 omitted the scoped command help.");
+                // UX round 3: the "outside inputs and overlays" qualifier is stated once as a note, not on every page shortcut.
+                string generic = CommandCatalog.ScopeHint("navigation.rules")!;
+                Require(!help.Contains(generic, StringComparison.Ordinal) && help.Contains(Texts.T("help.scope.generalNote"), StringComparison.Ordinal)
+                    && help.Split(Texts.T("help.scope.generalNote")).Length == 2, "F1 repeats the generic scope qualifier or lacks its single note.");
                 Require(!Press(window, "navigation.archive").Handled && window.SelectedPage == MainWindow.WorkspacePage.Downloads,
                     "A page shortcut escaped the help overlay.");
                 Program.CaptureWindow(window, "smoke-poweruser-help-" + language + ".png");

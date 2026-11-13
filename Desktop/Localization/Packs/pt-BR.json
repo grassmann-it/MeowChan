@@ -1636,6 +1636,7 @@
     "archive.columns.workAttention": "Atenção",
     "archive.columns.workWatching": "Acompanhando",
     "help.escape": "Esc  Fechar ajuda de atalhos",
+    "help.scope.generalNote": "Atalhos sem observação valem fora de campos e sobreposições, quando a ação está disponível.",
     "help.singleKeysOff": "Os atalhos de tecla única estão desativados (Configurações, Atalhos de teclado).",
     "help.scope.current": "Área atual",
     "help.scope.application": "Aplicativo e navegação",

@@ -1895,6 +1895,7 @@
     "archive.columns.workAttention": "Внимание",
     "archive.columns.workWatching": "Наблюдение",
     "help.escape": "Esc  Закрыть справку по клавишам",
+    "help.scope.generalNote": "Сочетания без пометки работают вне полей ввода и оверлеев, если действие доступно.",
     "help.singleKeysOff": "Сочетания из одной клавиши отключены (Настройки, Сочетания клавиш).",
     "help.scope.current": "Текущая область",
     "help.scope.application": "Приложение и навигация",

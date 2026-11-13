@@ -1819,6 +1819,7 @@
     "archive.columns.workAttention": "주의",
     "archive.columns.workWatching": "감시 중",
     "help.escape": "Esc  단축키 도움말 닫기",
+    "help.scope.generalNote": "별도 표시가 없는 단축키는 입력란과 오버레이 밖에서 해당 동작을 사용할 수 있을 때 적용됩니다.",
     "help.singleKeysOff": "단일 키 단축키가 꺼져 있습니다(설정, 키보드 단축키).",
     "help.scope.current": "현재 영역",
     "help.scope.application": "애플리케이션 및 탐색",

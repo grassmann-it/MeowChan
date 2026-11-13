@@ -1895,6 +1895,7 @@
     "archive.columns.workAttention": "Attention",
     "archive.columns.workWatching": "Surveillance",
     "help.escape": "Esc  Fermer l’aide des raccourcis",
+    "help.scope.generalNote": "Les raccourcis sans mention s’appliquent hors des champs de saisie et des superpositions, si l’action est disponible.",
     "help.singleKeysOff": "Les raccourcis à une seule touche sont désactivés (Paramètres, Raccourcis clavier).",
     "help.scope.current": "Zone actuelle",
     "help.scope.application": "Application et navigation",

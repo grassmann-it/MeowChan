@@ -1819,6 +1819,7 @@
     "archive.columns.workAttention": "要注意",
     "archive.columns.workWatching": "監視中",
     "help.escape": "Esc  ショートカットヘルプを閉じる",
+    "help.scope.generalNote": "注記のないショートカットは、入力欄とオーバーレイの外で、操作が利用できるときに有効です。",
     "help.singleKeysOff": "単独キーのショートカットはオフになっています（設定、キーボードショートカット）。",
     "help.scope.current": "現在の領域",
     "help.scope.application": "アプリケーションとナビゲーション",

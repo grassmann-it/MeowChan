@@ -1896,6 +1896,7 @@
     "archive.columns.workAttention": "Atención",
     "archive.columns.workWatching": "En seguimiento",
     "help.escape": "Esc  Cerrar ayuda de atajos",
+    "help.scope.generalNote": "Los atajos sin nota se aplican fuera de entradas y superposiciones, cuando la acción está disponible.",
     "help.singleKeysOff": "Los atajos de una sola tecla están desactivados (Configuración, Atajos de teclado).",
     "help.scope.current": "Área actual",
     "help.scope.application": "Aplicación y navegación",

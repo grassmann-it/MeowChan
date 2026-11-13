@@ -53,4 +53,24 @@ public sealed class UxRound3TextTests : IDisposable
             Assert.Contains(2_500_000L.ToString("N0", Texts.Culture), line);
         }
     }
+
+    [Fact]
+    public void TheGenericShortcutScopeIsOneNoteInEveryLanguageAndStillTheTooltipHint()
+    {
+        Assert.True(MeowChan.Desktop.Commands.CommandCatalog.HasGenericScope("session.pause"));
+        Assert.True(MeowChan.Desktop.Commands.CommandCatalog.HasGenericScope("navigation.archive"));
+        Assert.False(MeowChan.Desktop.Commands.CommandCatalog.HasGenericScope("watch.import-clipboard"));
+        Assert.False(MeowChan.Desktop.Commands.CommandCatalog.HasGenericScope("input.focus-search"));
+        HashSet<string> notes = new();
+        foreach (string language in new[] { "en", "de", "es", "fr", "ru", "zh-Hans", "ja", "ko", "pt-BR", "cs", "it", "pl" })
+        {
+            Texts.SetLanguage(language);
+            Assert.True(notes.Add(Texts.T("help.scope.generalNote")), language);
+            Assert.Equal(Texts.T("command.scope.navigation.generic"), MeowChan.Desktop.Commands.CommandCatalog.ScopeHint("navigation.archive"));
+        }
+        Texts.SetLanguage("en");
+        Assert.Contains("outside inputs and overlays", Texts.T("help.scope.generalNote"));
+        Texts.SetLanguage("de");
+        Assert.Contains("außerhalb von Eingaben und Overlays", Texts.T("help.scope.generalNote"));
+    }
 }
