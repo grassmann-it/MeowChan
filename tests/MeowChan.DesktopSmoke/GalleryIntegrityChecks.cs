@@ -62,10 +62,14 @@ internal static class GalleryIntegrityChecks
                 SetContext(viewer, true); await Settle(window);
                 Border context = Find<Border>(viewer, "GalleryContext");
                 SelectableTextBlock[] text = context.GetVisualDescendants().OfType<SelectableTextBlock>().ToArray();
+                // UX round 3: binary size first, the exact byte count in brackets.
+                string unit = language == "de" ? "Bytes" : "bytes";
                 string localLabel = (language == "de" ? "Gespeicherte Datei: " : "Saved file: ")
-                    + binding.Actual.Length.ToString("N0", Texts.Culture) + " bytes";
+                    + MeowChan.Desktop.SizeText.Format(binding.Actual.Length, Texts.Culture) + " ("
+                    + binding.Actual.Length.ToString("N0", Texts.Culture) + " " + unit + ")";
                 string sourceLabel = (language == "de" ? "Anbieterangabe: " : "Source reported: ")
-                    + binding.Provider.ExpectedSize!.Value.ToString("N0", Texts.Culture) + " bytes";
+                    + MeowChan.Desktop.SizeText.Format(binding.Provider.ExpectedSize!.Value, Texts.Culture) + " ("
+                    + binding.Provider.ExpectedSize!.Value.ToString("N0", Texts.Culture) + " " + unit + ")";
                 SelectableTextBlock local = text.Single(item => item.Text == localLabel);
                 SelectableTextBlock provider = text.Single(item => item.Text == expectedSummary + Environment.NewLine + sourceLabel);
                 AssertVisibleText(summary, viewer);

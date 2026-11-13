@@ -37,4 +37,20 @@ public sealed class UxRound3TextTests : IDisposable
             Assert.DoesNotContain(Texts.T("reader.link.remember"), old);
         }
     }
+
+    [Fact]
+    public void TheGalleryShowsTheBinarySizeFirstAndTheExactByteCountInBrackets()
+    {
+        Texts.SetLanguage("en");
+        Assert.Equal("Saved file: 63 KiB (64,624 bytes)", MediaProvenanceText.LocalSize(64_624));
+        Texts.SetLanguage("de");
+        Assert.Equal("Gespeicherte Datei: 2,4 MiB (2.500.000 Bytes)", MediaProvenanceText.LocalSize(2_500_000));
+        foreach (string language in new[] { "en", "de", "es", "fr", "ru", "zh-Hans", "ja", "ko", "pt-BR", "cs", "it", "pl" })
+        {
+            Texts.SetLanguage(language);
+            string line = MediaProvenanceText.LocalSize(2_500_000);
+            Assert.Contains(SizeText.Format(2_500_000), line);
+            Assert.Contains(2_500_000L.ToString("N0", Texts.Culture), line);
+        }
+    }
 }
