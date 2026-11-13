@@ -119,12 +119,12 @@ public sealed class ReaderSettingsEditorTests : IDisposable
     }
 
     [Theory]
-    [InlineData(100, 100)]
-    [InlineData(725, 725)]
-    [InlineData(1600, 1600)]
+    [InlineData(100d, 100)]
+    [InlineData(725d, 725)]
+    [InlineData(1600d, 1600)]
     [InlineData(null, 200)]
-    [InlineData(99, 200)]
-    [InlineData(1601, 200)]
+    [InlineData(99d, 200)]
+    [InlineData(1601d, 200)]
     [InlineData(200.5, 200)]
     public void UnlimitedGalleryPreservesValidHiddenCapAndIgnoresInvalidHiddenDraft(double? draft, int expected)
     {

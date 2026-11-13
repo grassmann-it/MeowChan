@@ -1,4 +1,11 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text.Json;
+using Avalonia.Media.Imaging;
+using MeowChan.Archive;
+using MeowChan.Gallery;
+using MeowChan.Storage;
+using SkiaSharp;
 using Avalonia.Controls;
 using Avalonia.Automation;
 using Avalonia.VisualTree;
@@ -91,6 +98,7 @@ internal static class SettingsReaderDisplayChecks
             GalleryFitPreferences gallery = ReaderSettingsPreferences.Gallery(saved);
             Require(gallery.Limit && gallery.MaxUpscalePercent == 350,
                 "The saved gallery fit preference did not reach its live mapping.");
+            await CheckLiveGalleryAsync(window, saved);
 
             // A valid cap must survive becoming unavailable and an unrelated save.
             SetNumber(editor, nameof(SettingsEditor.GalleryFitMaxUpscalePercent), 725);
@@ -98,6 +106,7 @@ internal static class SettingsReaderDisplayChecks
             await SaveAsync(editor);
             Require(!host.Config.GalleryFitUpscaleLimited && Config.LoadConfig().GalleryFitMaxUpscalePercent == 725,
                 "Unlimited fitting discarded the valid hidden cap.");
+            await CheckLiveGalleryAsync(window, Config.LoadConfig());
             SetNumber(editor, nameof(SettingsEditor.ReaderThumbnailWidth), 365);
             await SaveAsync(editor);
             Require(Config.LoadConfig().GalleryFitMaxUpscalePercent == 725, "An unrelated save discarded the hidden cap.");
@@ -132,6 +141,59 @@ internal static class SettingsReaderDisplayChecks
                         await host.ApplySettingsAsync(original).WaitAsync(TimeSpan.FromSeconds(15));
                 }
                 finally { editor.CancelChanges(); }
+            }
+        }
+    }
+
+    // Open through the production shell, not ConfigureFit directly: this proves
+    // that a saved setting reaches a subsequently created real gallery as well.
+    private static async Task CheckLiveGalleryAsync(MainWindow window, Config config)
+    {
+        string directory = Path.Combine(window.SessionHost.ProfileDirectory, "reader-p1-gallery");
+        Directory.CreateDirectory(directory);
+        byte[] bytes;
+        using (SKBitmap bitmap = new(24, 24))
+        {
+            bitmap.Erase(SKColors.CornflowerBlue);
+            using SKImage image = SKImage.FromBitmap(bitmap);
+            using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
+            bytes = data.ToArray();
+        }
+        const string fileName = "reader-p1.png";
+        await File.WriteAllBytesAsync(Path.Combine(directory, fileName), bytes);
+        object record = new { MediaIdentifier = "reader-p1", SourceUrl = "https://offline.invalid/reader-p1", FileName = fileName,
+            Length = bytes.Length, Sha256 = Convert.ToHexString(SHA256.HashData(bytes)), Md5 = Convert.ToBase64String(MD5.HashData(bytes)) };
+        await File.WriteAllTextAsync(Path.Combine(directory, ".meowchan-manifest.json"), JsonSerializer.Serialize(new {
+            Version = 1, Entries = new Dictionary<string, object> { [fileName] = record } }));
+        MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(directory);
+        MediaAssetReference asset = manifest.GetPage().Single();
+        GalleryEntry entry = new(new GalleryAssetKey(new ResourceId("4chan", "g", "reader-p1"), directory, asset.AssetId),
+            manifest, asset, null, null, false, false);
+        ContentControl host = window.FindControl<ContentControl>("GalleryHost")!;
+        GalleryViewer? viewer = null;
+        try
+        {
+            await window.OpenMediaGalleryAsync([entry], entry.EntryKey, stillRequested: () => true);
+            await Program.WaitUntilAsync(() => host.Content is GalleryViewer current
+                && current.GetGalleryVisualDescendants().OfType<Image>().Any(image => image.Name == "GalleryImage" && image.Source is Bitmap));
+            viewer = (GalleryViewer)host.Content!;
+            Grid viewport = viewer.GetGalleryVisualDescendants().OfType<Grid>().Single(control => control.Name == "GalleryViewport");
+            await Program.WaitUntilAsync(() =>
+            {
+                double expected = GalleryGeometry.Fit(24, 24, viewport.Bounds.Width, viewport.Bounds.Height, window.RenderScaling,
+                    ReaderSettingsPreferences.Gallery(config).MaxUpscale(window.RenderScaling));
+                return expected > 0 && Math.Abs(viewer.CaptureState().PhysicalZoom - expected) < 0.01;
+            });
+            Require(!viewer.CaptureState().ManualZoom, "A fresh gallery did not use automatic Fit.");
+            Console.WriteLine("SMOKE reader P1 live shell gallery: limited=" + config.GalleryFitUpscaleLimited
+                + " storedPercent=" + config.GalleryFitMaxUpscalePercent + " physicalZoom=" + viewer.CaptureState().PhysicalZoom);
+        }
+        finally
+        {
+            if (viewer != null)
+            {
+                Click(viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryClose"));
+                await Program.WaitUntilAsync(() => host.Content == null && !host.IsVisible);
             }
         }
     }
