@@ -36,9 +36,12 @@ internal static class MediaLibraryGrouping
     /// Its occurrence list holds every occurrence of <paramref name="all"/> with the same bytes, in thread order.
     /// <paramref name="isFavorite"/> (may throw <see cref="MediaLibraryFilterException"/> when favorites are unavailable)
     /// gives each tile its favorite state over all those occurrences; without it, or when it throws, the state is unknown.
+    /// <paramref name="direction"/> mirrors the sort; <paramref name="userOrder"/> serves the tag count and rating sorts (a group counts its
+    /// maximum, so all its occurrences share one key). Both only change where a tile stands, never which tiles there are.
     /// </summary>
     internal static IReadOnlyList<MediaLibraryTile> Build(IEnumerable<MediaLibraryEntry> all, IEnumerable<MediaLibraryEntry> passing,
-        MediaLibrarySort sort, bool includeMissing, int seed = 0, Func<MediaLibraryEntry, bool>? isFavorite = null)
+        MediaLibrarySort sort, bool includeMissing, int seed = 0, Func<MediaLibraryEntry, bool>? isFavorite = null,
+        MediaLibrarySortDirection direction = MediaLibrarySortDirection.Default, MediaLibraryUserOrder? userOrder = null)
     {
         ArgumentNullException.ThrowIfNull(all);
         ArgumentNullException.ThrowIfNull(passing);
@@ -46,7 +49,9 @@ internal static class MediaLibraryGrouping
         HashSet<string> seen = new(StringComparer.Ordinal);
         List<MediaLibraryTile> tiles = new();
         bool favoritesReadable = isFavorite != null;
-        foreach (MediaLibraryEntry entry in MediaLibraryView.Select(passing, sort, includeMissing, seed))
+        // "References" counts all occurrences of the bytes (what the tile lists), not only the ones that passed the filter.
+        Func<MediaLibraryEntry, int>? references = sort == MediaLibrarySort.References ? OccurrenceCounter(byHash) : null;
+        foreach (MediaLibraryEntry entry in MediaLibraryView.Select(passing, sort, includeMissing, seed, direction, references, userOrder))
         {
             if (ByteKey(entry) is not { } key)
             {
@@ -61,6 +66,29 @@ internal static class MediaLibraryGrouping
             tiles.Add(new MediaLibraryTile(entry, occurrences, FavoriteOf(occurrences, isFavorite, ref favoritesReadable)));
         }
         return tiles;
+    }
+
+    /// <summary>
+    /// How many saved occurrences of the same bytes an entry has among <paramref name="all"/>, the entry itself included; 1 for an entry
+    /// without a provable byte identity. The same number as <c>MediaLibraryTile.Occurrences.Count</c> for that entry's tile.
+    /// </summary>
+    internal static Func<MediaLibraryEntry, int> OccurrenceCounter(IEnumerable<MediaLibraryEntry> all)
+    {
+        ArgumentNullException.ThrowIfNull(all);
+        return OccurrenceCounter(all.Where(HasHash).ToLookup(entry => ByteKey(entry)!, StringComparer.Ordinal));
+    }
+
+    private static Func<MediaLibraryEntry, int> OccurrenceCounter(ILookup<string, MediaLibraryEntry> byHash)
+    {
+        Dictionary<string, int> counts = new(StringComparer.Ordinal);
+        return entry =>
+        {
+            if (ByteKey(entry) is not { } key) return 1;
+            if (counts.TryGetValue(key, out int known)) return known;
+            IEnumerable<MediaLibraryEntry> group = byHash[key];
+            // The shown entry is always part of its list, even if the caller's "all" left it out.
+            return counts[key] = group.Count() + (group.Contains(entry) ? 0 : 1);
+        };
     }
 
     /// <summary>Number of tiles the unfiltered index would give; for "x of y match" counts.</summary>

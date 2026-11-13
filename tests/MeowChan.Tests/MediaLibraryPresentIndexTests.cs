@@ -1,6 +1,9 @@
 using System.Diagnostics;
 using System.Globalization;
+using MeowChan.Favorites;
 using MeowChan.Gallery;
+using MeowChan.Ratings;
+using MeowChan.Tags;
 using Xunit.Abstractions;
 
 namespace MeowChan.Tests;
@@ -79,6 +82,148 @@ public sealed class MediaLibraryPresentIndexTests(ITestOutputHelper output)
                 index.Build(passing, sort, includeMissing, 11, favorite));
         }
         Assert.Equal(MediaLibraryGrouping.CountTiles(all, includeMissing), index.CountTiles(includeMissing));
+    }
+
+    // Tags on every third and fourth thread, a rating on about half of the saved files: tag counts and ratings of every shape, with equal
+    // bytes in several threads so the group maximum matters.
+    private static MediaLibraryUserData UserData(MediaLibraryEntry[] all, long revision = 1, int ratingShift = 0)
+    {
+        PrivateTagName.TryCreate("one", out PrivateTagName? one, out _);
+        PrivateTagName.TryCreate("two", out PrivateTagName? two, out _);
+        TagId first = new(Guid.Parse("00000000-0000-0000-0000-0000000000b1")), second = new(Guid.Parse("00000000-0000-0000-0000-0000000000b2"));
+        ResourceId[] threads = all.Select(entry => entry.Thread).Distinct().ToArray();
+        List<PrivateThreadTagAssignment> assigned = new();
+        for (int i = 0; i < threads.Length; i++)
+        {
+            if (i % 3 == 0) assigned.Add(new PrivateThreadTagAssignment(first, threads[i]));
+            if (i % 4 == 0) assigned.Add(new PrivateThreadTagAssignment(second, threads[i]));
+        }
+        List<MediaRatingEntry> ratings = new();
+        for (int i = 0; i < all.Length; i++)
+            if ((i + ratingShift) % 2 == 0 && MediaLibraryFilterEngine.AssetKey(all[i]) is { } key) ratings.Add(new MediaRatingEntry(key, 1 + i % 5));
+        return new MediaLibraryUserData(new PrivateTagStoreSnapshot(revision, "fp" + revision,
+            [new PrivateTagDefinition(first, one!), new PrivateTagDefinition(second, two!)], assigned, []), Array.Empty<FavoriteEntry>(), ratings.ToArray());
+    }
+
+    public static IEnumerable<object[]> SortsDirectionsAndMissing() =>
+        from sort in Enum.GetValues<MediaLibrarySort>()
+        from direction in Enum.GetValues<MediaLibrarySortDirection>()
+        from includeMissing in new[] { false, true }
+        select new object[] { sort, direction, includeMissing };
+
+    [Theory]
+    [MemberData(nameof(SortsDirectionsAndMissing))]
+    public void EverySortInEveryDirectionGivesTheTilesOfTheGeneralPath(MediaLibrarySort sort, MediaLibrarySortDirection direction, bool includeMissing)
+    {
+        MediaLibraryEntry[] all = Library(40, 12, seed: 4);
+        MediaLibraryPresentIndex index = new(all);
+        MediaLibraryUserOrder userOrder = MediaLibraryUserOrder.Of(all, UserData(all));
+        Func<MediaLibraryEntry, bool> favorite = entry => entry.AssetId != null && entry.AssetId.EndsWith('3');
+        IReadOnlyList<MediaLibraryEntry>[] passings =
+        [
+            all,
+            all.Where(entry => entry.Name == "f1.png").ToArray(),
+            all.Where((_, position) => position % 5 == 0).ToArray(),
+            Array.Empty<MediaLibraryEntry>()
+        ];
+        foreach (IReadOnlyList<MediaLibraryEntry> passing in passings)
+        {
+            IReadOnlyList<MediaLibraryTile> expected = MediaLibraryGrouping.Build(all, passing, sort, includeMissing, 11, favorite, direction, userOrder);
+            AssertSame(expected, index.Build(ReferenceEquals(passing, all) ? null : passing, sort, includeMissing, 11, favorite,
+                CancellationToken.None, direction, userOrder));
+            AssertSame(expected, index.Build(passing, sort, includeMissing, 11, favorite, CancellationToken.None, direction, userOrder));
+            // The same index serves the next call from its cache and still gives the same tiles.
+            AssertSame(expected, index.Build(passing, sort, includeMissing, 11, favorite, CancellationToken.None, direction, userOrder));
+        }
+    }
+
+    [Theory]
+    [InlineData(MediaLibrarySort.Name)]
+    [InlineData(MediaLibrarySort.Size)]
+    [InlineData(MediaLibrarySort.References)]
+    [InlineData(MediaLibrarySort.TagCount)]
+    [InlineData(MediaLibrarySort.Rating)]
+    public void AReversedDirectionIsTheMirrorOfTheKeyedTilesAndKeepsTheUnkeyedOnesLast(MediaLibrarySort sort)
+    {
+        MediaLibraryEntry[] all = Library(40, 12, seed: 8);
+        MediaLibraryPresentIndex index = new(all);
+        MediaLibraryUserOrder userOrder = MediaLibraryUserOrder.Of(all, UserData(all));
+        IReadOnlyList<MediaLibraryTile> forward = index.Build(null, sort, true, 0, null, default, MediaLibrarySortDirection.Default, userOrder);
+        IReadOnlyList<MediaLibraryTile> backward = index.Build(null, sort, true, 0, null, default, MediaLibrarySortDirection.Reversed, userOrder);
+        Assert.Equal(forward.Count, backward.Count);
+        Assert.Equal(forward.Select(tile => tile.Occurrences.Count).Sum(), backward.Select(tile => tile.Occurrences.Count).Sum());
+        // Every tile stays one tile; only the places change, and a sort with several distinct keys really does move them.
+        Assert.Equal(forward.SelectMany(tile => tile.Occurrences).Count(), backward.SelectMany(tile => tile.Occurrences).Count());
+        Assert.NotEqual(forward.Select(tile => tile.Entry), backward.Select(tile => tile.Entry));
+    }
+
+    [Fact]
+    public void TheNewKeysAreSortedAsTheDocumentedDefaultDirections()
+    {
+        MediaLibraryEntry[] all = Library(40, 12, seed: 2);
+        MediaLibraryPresentIndex index = new(all);
+        Func<MediaLibrarySort, IReadOnlyList<MediaLibraryTile>> build = sort => index.Build(null, sort, false);
+        long?[] sizes = build(MediaLibrarySort.Size).Select(tile => tile.Entry.Length).ToArray();
+        Assert.Equal(sizes.OrderByDescending(size => size), sizes);
+        int[] references = build(MediaLibrarySort.References).Select(tile => tile.Occurrences.Count).ToArray();
+        Assert.Equal(references.OrderByDescending(count => count), references);
+        string?[] names = build(MediaLibrarySort.Name).Select(tile => tile.Entry.Name).ToArray();
+        Assert.Equal(names.OrderBy(name => name, StringComparer.OrdinalIgnoreCase), names);
+    }
+
+    [Fact]
+    public void UserSortsWithoutAUserOrderKeepTheByThreadOrderAndAForeignUserOrderIsRefused()
+    {
+        MediaLibraryEntry[] all = Library(20, 8);
+        MediaLibraryPresentIndex index = new(all);
+        foreach (MediaLibrarySort sort in new[] { MediaLibrarySort.TagCount, MediaLibrarySort.Rating })
+            foreach (MediaLibrarySortDirection direction in Enum.GetValues<MediaLibrarySortDirection>())
+                AssertSame(MediaLibraryGrouping.Build(all, all, MediaLibrarySort.ByThread, true),
+                    index.Build(null, sort, true, 0, null, default, direction));
+        MediaLibraryUserOrder foreign = MediaLibraryUserOrder.Of(all.ToArray(), UserData(all));
+        Assert.Throws<ArgumentException>(() => index.Build(null, MediaLibrarySort.TagCount, true, 0, null, default, MediaLibrarySortDirection.Default, foreign));
+        Assert.Throws<ArgumentOutOfRangeException>(() => index.Build(null, (MediaLibrarySort)42, true));
+    }
+
+    [Fact]
+    public void ANewUserOrderOfNewDataSortsAgainAndAnUnchangedOneIsReused()
+    {
+        MediaLibraryEntry[] all = Library(40, 12, seed: 6);
+        MediaLibraryPresentIndex index = new(all);
+        MediaLibraryUserOrder first = MediaLibraryUserOrder.Of(all, UserData(all, revision: 1, ratingShift: 0));
+        MediaLibraryUserOrder second = MediaLibraryUserOrder.Of(all, UserData(all, revision: 2, ratingShift: 1));
+        foreach (MediaLibrarySort sort in new[] { MediaLibrarySort.TagCount, MediaLibrarySort.Rating })
+            foreach (MediaLibraryUserOrder order in new[] { first, second, first, second })
+                AssertSame(MediaLibraryGrouping.Build(all, all, sort, true, 0, null, MediaLibrarySortDirection.Default, order),
+                    index.Build(null, sort, true, 0, null, default, MediaLibrarySortDirection.Default, order));
+    }
+
+    [Fact]
+    public void RunsOnSeveralThreadsWithDifferentSortsAndDirectionsOnOneIndexEachGiveTheirOwnResult()
+    {
+        MediaLibraryEntry[] all = Library(40, 12, seed: 3);
+        MediaLibraryPresentIndex index = new(all);
+        MediaLibraryUserOrder userOrder = MediaLibraryUserOrder.Of(all, UserData(all));
+        (MediaLibrarySort Sort, MediaLibrarySortDirection Direction)[] runs =
+        [
+            (MediaLibrarySort.Name, MediaLibrarySortDirection.Default), (MediaLibrarySort.Name, MediaLibrarySortDirection.Reversed),
+            (MediaLibrarySort.Size, MediaLibrarySortDirection.Reversed), (MediaLibrarySort.References, MediaLibrarySortDirection.Default),
+            (MediaLibrarySort.TagCount, MediaLibrarySortDirection.Reversed), (MediaLibrarySort.Rating, MediaLibrarySortDirection.Default)
+        ];
+        IReadOnlyList<MediaLibraryTile>[] expected = runs.Select(run =>
+            MediaLibraryGrouping.Build(all, all, run.Sort, true, 0, null, run.Direction, userOrder)).ToArray();
+        using Barrier start = new(runs.Length);
+        Task<IReadOnlyList<MediaLibraryTile>[]>[] workers = Enumerable.Range(0, runs.Length).Select(worker => Task.Run(() =>
+        {
+            start.SignalAndWait();
+            List<IReadOnlyList<MediaLibraryTile>> results = new();
+            for (int round = 0; round < 10; round++)
+                results.Add(index.Build(null, runs[worker].Sort, true, 0, null, default, runs[worker].Direction, userOrder));
+            return results.ToArray();
+        })).ToArray();
+        Task.WaitAll(workers);
+        for (int worker = 0; worker < runs.Length; worker++)
+            foreach (IReadOnlyList<MediaLibraryTile> built in workers[worker].Result) AssertSame(expected[worker], built);
     }
 
     [Fact]

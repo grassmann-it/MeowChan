@@ -10,32 +10,77 @@ using MeowChan.Storage;
 
 namespace MeowChan.Gallery;
 
-/// <summary>Order of the media page.</summary>
-internal enum MediaLibrarySort { ByThread, Newest, Random }
+/// <summary>
+/// Order of the media page. The first three values are the original orders and keep their numbers; the others were added after them.
+/// Every sort has a default direction (<see cref="MediaLibraryView.IsDescendingByDefault"/>) that <see cref="MediaLibrarySortDirection.Reversed"/>
+/// mirrors. <see cref="Random"/> has no direction. <see cref="TagCount"/> and <see cref="Rating"/> read the profile's own data and need a
+/// <see cref="MediaLibraryUserOrder"/>; without one every entry is unknown for them and the order is the by-thread order.
+/// </summary>
+internal enum MediaLibrarySort
+{
+    /// <summary>Threads by latest capture, then post order. Default: newest thread first.</summary>
+    ByThread,
+    /// <summary>Post time, else capture time. Default: newest first.</summary>
+    Newest,
+    /// <summary>A stable shuffle for one seed. No direction.</summary>
+    Random,
+    /// <summary>Capture time (<c>LastCapturedAt ?? FirstSeenAt</c>), ties as by thread. Default: newest first. Same keys as <see cref="ByThread"/>.</summary>
+    Captured,
+    /// <summary>File name, case-insensitive ordinal, then case-sensitive ordinal. Default: A to Z. No name: last.</summary>
+    Name,
+    /// <summary>Length in bytes. Default: largest first. Never saved (no length): last.</summary>
+    Size,
+    /// <summary>Number of saved occurrences of the same bytes in the index (1 for a file of its own). Default: most first.</summary>
+    References,
+    /// <summary>Tags the occurrence is found by (own media tags and its thread's tags); a group counts its maximum. Default: most first.</summary>
+    TagCount,
+    /// <summary>Own rating; a group counts its maximum. Default: best first. Unrated or unknown: last.</summary>
+    Rating
+}
+
+/// <summary>
+/// Direction of a sort relative to its default. Reversed is the exact mirror of the default order for every entry that has the sort's key;
+/// entries without it (no name, no length, unrated) stay last in both directions, in thread order.
+/// </summary>
+internal enum MediaLibrarySortDirection { Default, Reversed }
 
 /// <summary>Pure ordering and visibility rules of the media page. No IO.</summary>
 internal static class MediaLibraryView
 {
     /// <summary>
+    /// Whether the default direction of <paramref name="sort"/> runs from large to small or new to old (descending); the arrow of a
+    /// direction toggle follows this. Name runs ascending. <see cref="MediaLibrarySort.Random"/> has no direction and answers false.
+    /// </summary>
+    internal static bool IsDescendingByDefault(MediaLibrarySort sort) => sort switch
+    {
+        MediaLibrarySort.Name or MediaLibrarySort.Random => false,
+        MediaLibrarySort.ByThread or MediaLibrarySort.Newest or MediaLibrarySort.Captured or MediaLibrarySort.Size
+            or MediaLibrarySort.References or MediaLibrarySort.TagCount or MediaLibrarySort.Rating => true,
+        _ => throw new ArgumentOutOfRangeException(nameof(sort))
+    };
+
+    /// <summary>Whether <paramref name="sort"/> has a direction at all (everything but the shuffle).</summary>
+    internal static bool HasDirection(MediaLibrarySort sort) => sort != MediaLibrarySort.Random;
+
+    /// <summary>
     /// The entries the page shows, in page order. By thread: threads by latest capture, then post order;
     /// the thread acts like a meta tag that keeps its media together. Newest: post time, else capture time.
     /// Random: a stable shuffle for one seed, so paging and reopening do not reshuffle by themselves.
+    /// The other sorts order by their key and break ties as by thread. <paramref name="direction"/> mirrors the order (ties included);
+    /// entries without the key stay last. <paramref name="references"/> gives the occurrences of an entry's bytes for
+    /// <see cref="MediaLibrarySort.References"/> (default: counted among <paramref name="entries"/>); <paramref name="userOrder"/> serves
+    /// <see cref="MediaLibrarySort.TagCount"/> and <see cref="MediaLibrarySort.Rating"/>.
     /// </summary>
     internal static IReadOnlyList<MediaLibraryEntry> Select(IEnumerable<MediaLibraryEntry> entries, MediaLibrarySort sort,
-        bool includeMissing, int seed = 0)
+        bool includeMissing, int seed = 0, MediaLibrarySortDirection direction = MediaLibrarySortDirection.Default,
+        Func<MediaLibraryEntry, int>? references = null, MediaLibraryUserOrder? userOrder = null)
     {
         ArgumentNullException.ThrowIfNull(entries);
+        if (!Enum.IsDefined(sort)) throw new ArgumentOutOfRangeException(nameof(sort));
         IEnumerable<MediaLibraryEntry> visible = entries.Where(entry => includeMissing || entry.Presence == MediaLibraryPresence.Present);
         IEnumerable<MediaLibraryEntry> ordered = sort switch
         {
-            MediaLibrarySort.ByThread => visible
-                .OrderByDescending(entry => entry.LastCapturedAt ?? entry.FirstSeenAt)
-                .ThenBy(entry => entry.Thread.Source, StringComparer.Ordinal).ThenBy(entry => entry.Thread.Board, StringComparer.Ordinal)
-                .ThenBy(entry => entry.Thread.Thread, StringComparer.Ordinal)
-                // Post media first in post order, then saved files without a post.
-                .ThenBy(entry => entry.PostOrdinal.HasValue ? 0 : 1).ThenBy(entry => entry.PostOrdinal ?? long.MaxValue)
-                .ThenBy(entry => entry.Position ?? int.MaxValue).ThenBy(entry => entry.Name, StringComparer.Ordinal)
-                .ThenBy(entry => entry.AssetId, StringComparer.Ordinal),
+            MediaLibrarySort.ByThread or MediaLibrarySort.Captured => ByThreadOrder(visible),
             MediaLibrarySort.Newest => visible
                 .OrderByDescending(entry => entry.PostedAt ?? entry.LastCapturedAt ?? entry.FirstSeenAt)
                 .ThenByDescending(entry => entry.PostOrdinal ?? -1)
@@ -44,9 +89,59 @@ internal static class MediaLibraryView
             MediaLibrarySort.Random => visible
                 .Select(entry => (Entry: entry, Key: StableKey(entry, seed)))
                 .OrderBy(pair => pair.Key).ThenBy(pair => pair.Entry.AssetId, StringComparer.Ordinal).Select(pair => pair.Entry),
-            _ => throw new ArgumentOutOfRangeException(nameof(sort))
+            _ => Keyed(visible.ToArray(), sort, direction, references, userOrder)
         };
-        return ordered.ToArray();
+        MediaLibraryEntry[] result = ordered.ToArray();
+        // The three original orders have a key for every entry, so mirroring them is a plain reversal.
+        if (direction == MediaLibrarySortDirection.Reversed && (sort is MediaLibrarySort.ByThread or MediaLibrarySort.Newest or MediaLibrarySort.Captured))
+            Array.Reverse(result);
+        return result;
+    }
+
+    // The by-thread keys, as a stable sort: equal entries keep the order of the input.
+    private static IOrderedEnumerable<MediaLibraryEntry> ByThreadOrder(IEnumerable<MediaLibraryEntry> visible) => visible
+        .OrderByDescending(entry => entry.LastCapturedAt ?? entry.FirstSeenAt)
+        .ThenBy(entry => entry.Thread.Source, StringComparer.Ordinal).ThenBy(entry => entry.Thread.Board, StringComparer.Ordinal)
+        .ThenBy(entry => entry.Thread.Thread, StringComparer.Ordinal)
+        // Post media first in post order, then saved files without a post.
+        .ThenBy(entry => entry.PostOrdinal.HasValue ? 0 : 1).ThenBy(entry => entry.PostOrdinal ?? long.MaxValue)
+        .ThenBy(entry => entry.Position ?? int.MaxValue).ThenBy(entry => entry.Name, StringComparer.Ordinal)
+        .ThenBy(entry => entry.AssetId, StringComparer.Ordinal);
+
+    // Name, size, references, tag count, rating: by-thread order first, then a stable sort by the key, so ties stay in thread order.
+    // Entries without a key follow in thread order. A reversed direction mirrors the part that has keys.
+    private static IEnumerable<MediaLibraryEntry> Keyed(MediaLibraryEntry[] visible, MediaLibrarySort sort, MediaLibrarySortDirection direction,
+        Func<MediaLibraryEntry, int>? references, MediaLibraryUserOrder? userOrder)
+    {
+        MediaLibraryEntry[] byThread = ByThreadOrder(visible).ToArray();
+        MediaLibraryEntry[] known, unknown;
+        switch (sort)
+        {
+            case MediaLibrarySort.Name:
+                known = byThread.Where(entry => !string.IsNullOrEmpty(entry.Name))
+                    .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase).ThenBy(entry => entry.Name, StringComparer.Ordinal).ToArray();
+                unknown = byThread.Where(entry => string.IsNullOrEmpty(entry.Name)).ToArray();
+                break;
+            case MediaLibrarySort.Size:
+                known = byThread.Where(entry => entry.Length != null).OrderByDescending(entry => entry.Length!.Value).ToArray();
+                unknown = byThread.Where(entry => entry.Length == null).ToArray();
+                break;
+            case MediaLibrarySort.References:
+                references ??= MediaLibraryGrouping.OccurrenceCounter(visible);
+                known = byThread.Select(entry => (Entry: entry, Count: references(entry))).OrderByDescending(pair => pair.Count)
+                    .Select(pair => pair.Entry).ToArray();
+                unknown = Array.Empty<MediaLibraryEntry>();
+                break;
+            case MediaLibrarySort.TagCount:
+            case MediaLibrarySort.Rating:
+                (MediaLibraryEntry Entry, int Key)[] keyed = byThread.Select(entry => (Entry: entry, Key: userOrder?.KeyOf(sort, entry) ?? -1)).ToArray();
+                known = keyed.Where(pair => pair.Key >= 0).OrderByDescending(pair => pair.Key).Select(pair => pair.Entry).ToArray();
+                unknown = keyed.Where(pair => pair.Key < 0).Select(pair => pair.Entry).ToArray();
+                break;
+            default: throw new ArgumentOutOfRangeException(nameof(sort));
+        }
+        if (direction == MediaLibrarySortDirection.Reversed) Array.Reverse(known);
+        return known.Concat(unknown);
     }
 
     // Deterministic per entry and seed, independent of input order and process hash randomization. The hash runs over the characters of
