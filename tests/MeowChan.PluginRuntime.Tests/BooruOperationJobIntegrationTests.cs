@@ -40,7 +40,7 @@ public sealed class BooruOperationJobIntegrationTests
         // Two host requests in one operation: one job, both sends counted on it.
         PluginOperationContext first = new("booru/first", 1);
         BooruSearchSnapshot two = Assert.IsType<BooruSearchSnapshot>(
-            await worker.SearchBooruPostsAsync(new("fixture-booru", "http-burst:2", 1, 20), first).WaitAsync(Bound));
+            await worker.SearchBooruPostsAsync(new("danbooru", "http-burst:2", 1, 20), first).WaitAsync(Bound));
         Assert.Equal(2, two.Page.Posts.Count);
         Assert.Equal(2, server.RequestCount);
         BooruJob firstJob = services.SingleJob(first, expectedCalls: 2);
@@ -52,7 +52,7 @@ public sealed class BooruOperationJobIntegrationTests
         // The 21st host request of one operation never reaches the network.
         PluginOperationContext burst = new("booru/burst", 1);
         BooruSearchFailure exhausted = Assert.IsType<BooruSearchFailure>(
-            await worker.SearchBooruPostsAsync(new("fixture-booru", "http-burst:21", 1, 20), burst).WaitAsync(Bound));
+            await worker.SearchBooruPostsAsync(new("danbooru", "http-burst:21", 1, 20), burst).WaitAsync(Bound));
         Assert.Equal("booru-budget", exhausted.Failure.Code);
         Assert.Equal("completed 20", exhausted.Failure.Message);
         Assert.Equal(2 + BooruJob.MaximumSends, server.RequestCount);
@@ -63,7 +63,7 @@ public sealed class BooruOperationJobIntegrationTests
 
         // The budget belongs to the operation: the next operation starts fresh.
         PluginOperationContext next = new("booru/next", 1);
-        Assert.IsType<BooruSearchSnapshot>(await worker.SearchBooruPostsAsync(new("fixture-booru", "http-burst:1", 1, 20), next).WaitAsync(Bound));
+        Assert.IsType<BooruSearchSnapshot>(await worker.SearchBooruPostsAsync(new("danbooru", "http-burst:1", 1, 20), next).WaitAsync(Bound));
         Assert.Equal(3 + BooruJob.MaximumSends, server.RequestCount);
         Assert.NotSame(burstJob, services.SingleJob(next, expectedCalls: 1));
     }
@@ -83,7 +83,7 @@ public sealed class BooruOperationJobIntegrationTests
 
         PluginOperationContext operation = new("booru/deadline", 1);
         BooruSearchFailure expired = Assert.IsType<BooruSearchFailure>(
-            await worker.SearchBooruPostsAsync(new("fixture-booru", "http-burst:20", 1, 20), operation).WaitAsync(Bound));
+            await worker.SearchBooruPostsAsync(new("danbooru", "http-burst:20", 1, 20), operation).WaitAsync(Bound));
         // Request n starts at 10n s; the 12th (started at 110 s) is aborted by the 120 s job deadline.
         Assert.Equal("booru-budget", expired.Failure.Code);
         Assert.Equal("completed 11", expired.Failure.Message);
@@ -107,7 +107,7 @@ public sealed class BooruOperationJobIntegrationTests
 
         PluginOperationContext operation = new("booru/cancel", 1);
         using CancellationTokenSource caller = new();
-        Task<BooruSearchResult> pending = worker.SearchBooruPostsAsync(new("fixture-booru", "http-burst:5", 1, 20), operation, caller.Token);
+        Task<BooruSearchResult> pending = worker.SearchBooruPostsAsync(new("danbooru", "http-burst:5", 1, 20), operation, caller.Token);
         Assert.True(await server.Stalled.Task.WaitAsync(Bound));
         caller.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(Bound));
@@ -130,7 +130,7 @@ public sealed class BooruOperationJobIntegrationTests
         string path = typeof(FixturePlugin).Assembly.Location;
         PluginArtifact artifact = new("compile1", "build1", path, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))), "sdk1", "compiler1", [], null);
         PluginConfiguration configuration = new("config1", new("1", []),
-            new Dictionary<string, SettingsSnapshot> { ["fixture"] = new("1", []), ["fixture-booru"] = new("1", []) });
+            new Dictionary<string, SettingsSnapshot> { ["fixture"] = new("1", []), ["danbooru"] = new("1", []) });
         PluginWorkerLaunch launch = new(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "/usr/share/dotnet/dotnet",
             [BuiltTestBinaries.WorkerAssembly()], workspace.Path);
         return manager.StartAsync(launch, artifact, configuration, services);

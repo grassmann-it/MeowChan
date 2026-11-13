@@ -10,7 +10,8 @@ public sealed class FixturePlugin : ISourcePlugin, IBooruSourcePlugin, IImageFil
         [new("fixture", "Fixture", new("https://fixture.test/"), SourceCapabilities.ThreadRead | SourceCapabilities.BoardCatalog,
             [new(SourceResourceKind.Thread, "fixture.test", "/{board}/thread/{thread}", IsCanonical: true), new(SourceResourceKind.Board, "fixture.test", "/{board}", IsCanonical: true)],
             [new("fixture.test", HttpHostPurpose.Metadata)], new("1", [])),
-         new("fixture-booru", "Fixture booru", new("https://booru.fixture.test/"), SourceCapabilities.PostSearch | SourceCapabilities.OriginalMedia | SourceCapabilities.Previews, [],
+         // Id "danbooru": the booru host sends only for a source with a host-owned endpoint profile (41072779).
+         new("danbooru", "Fixture booru", new("https://booru.fixture.test/"), SourceCapabilities.PostSearch | SourceCapabilities.OriginalMedia | SourceCapabilities.Previews, [],
             [new("booru.fixture.test", HttpHostPurpose.Metadata), new("media.fixture.test", HttpHostPurpose.OriginalMedia | HttpHostPurpose.PreviewMedia)], new("1", []))],
         [new("bytes", "Bytes", "Reads actual staged bytes", FilterDataAccess.OriginalImage | FilterDataAccess.CandidateMetadata, new("1", []), ["image/png"])],
         new("1", []), []);
@@ -73,7 +74,7 @@ public sealed class FixturePlugin : ISourcePlugin, IBooruSourcePlugin, IImageFil
         for (int index = 0; index < count; index++)
         {
             HostHttpResult result = await context.Http.SendAsync(new(request.SourceId, HostHttpMethod.Get,
-                new("https://booru.fixture.test/posts.json?i=" + index.ToString(System.Globalization.CultureInfo.InvariantCulture))), cancellationToken);
+                new("https://booru.fixture.test/posts.json?limit=1")), cancellationToken);
             string? code = result switch
             {
                 HostHttpResponse { StatusCode: 200 } => null,
