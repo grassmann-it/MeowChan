@@ -37,6 +37,8 @@
   before "Export all matches" (500 files or 2 GiB), the video preview cache (128 MiB,
   256 files) and the five import limits. Lowering a limit deletes nothing; a full list
   names the setting in the user's language. Fixed technical limits are listed in the help.
+- Raise the minimum height of the archive metadata, gallery details, media occurrences,
+  reader-group prompt and startup error windows so the footer stays visible below the title bar.
 - Add plugin SDK 1.1.0 (booru post search, blocked-declaration status), reviewed and
   moved to Shipped, with a one-time automatic transition for bundled plugins that only
   change the declared SDK version. The booru post identity is `BooruPostId` (renamed before
