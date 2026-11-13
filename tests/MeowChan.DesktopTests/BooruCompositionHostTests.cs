@@ -85,6 +85,33 @@ public sealed class BooruCompositionHostTests
     }
 
     [Fact]
+    public async Task AfterShutdownTheCompositionIsUnavailableStopsIdempotentlyAndNeverComposesAgain()
+    {
+        using TempDirectory profile = new();
+        using DanbooruStub stub = new();
+        using DanbooruTestBinding binding = new(stub, enabled: false);
+        DesktopSessionHost host = await StartAsync(profile.Path, stub, () => binding.Binding);
+        binding.SetEnabled(true);
+        await WaitAsync(() => host.BooruComposition != null, "composition after enable");
+        BooruSessionComposition composition = host.BooruComposition!;
+        await host.StopAsync().WaitAsync(Deadline);
+
+        Assert.False(composition.IsAvailable);
+        Assert.Null(host.BooruServices);
+        // A second stop and a late transport release are harmless.
+        await composition.StopAsync().WaitAsync(Deadline);
+        composition.ReleaseTransport();
+        // The availability event is unhooked at shutdown: toggling the plugin cannot revive anything.
+        binding.SetEnabled(false);
+        binding.SetEnabled(true);
+        await Task.Delay(200);
+        Assert.Same(composition, host.BooruComposition);
+        Assert.Null(host.BooruServices);
+        await host.DisposeAsync();
+        Assert.Empty(stub.Requests);
+    }
+
+    [Fact]
     public async Task SearchPreviewsAndLoadOriginalRunThroughTheRealQueueExactlyOnce()
     {
         using TempDirectory profile = new();
