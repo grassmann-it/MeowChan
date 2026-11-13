@@ -126,6 +126,10 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
     // the popup may take focus on press, which would otherwise dismiss the list before the release.
     private SelectingItemsControl? _popupList;
     private bool _pointerInPopup;
+    // Keep the row captured on press. The popup's selection adapter may close and
+    // detach its row before the native release reaches us; looking at e.Source on
+    // release then loses the only identity the user actually clicked.
+    private IdentitySuggestion? _pointerCandidate;
     private bool _restoringFocus;
     private void AttachPopupPointer(SelectingItemsControl? list)
     {
@@ -143,14 +147,29 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
         => (source as Visual)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>().FirstOrDefault()?.DataContext as IdentitySuggestion;
     private void OnPopupPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (e.GetCurrentPoint(null).Properties.IsLeftButtonPressed && SuggestionAt(e.Source) != null) _pointerInPopup = true;
+        if (!e.GetCurrentPoint(null).Properties.IsLeftButtonPressed || SuggestionAt(e.Source) is not { } item) return;
+        _pointerInPopup = true;
+        _pointerCandidate = item;
     }
     private void OnPopupReleased(object? sender, PointerReleasedEventArgs e)
     {
         bool pressedHere = _pointerInPopup;
+        IdentitySuggestion? pressedItem = _pointerCandidate;
         _pointerInPopup = false;
-        if (!pressedHere || e.InitialPressMouseButton != MouseButton.Left) return;
-        if (SuggestionAt(e.Source) is not { } item) return;
+        _pointerCandidate = null;
+        // _pointerInPopup is set only for a left-button press. Keep the release
+        // path independent of the platform's InitialPressMouseButton bookkeeping.
+        if (!pressedHere) return;
+        // Retain the press-time item when the popup already detached it during
+        // selection/focus handling, but do not turn a drag across rows into a
+        // selection of a different row.
+        IdentitySuggestion? releasedItem = SuggestionAt(e.Source);
+        if (releasedItem != null && pressedItem != null && !ReferenceEquals(releasedItem, pressedItem)) return;
+        IdentitySuggestion? item = pressedItem ?? releasedItem;
+        if (item == null) return;
+        // Ursa can dismiss the popup on press after changing focus but before the
+        // release. Let the release commit the captured row in that case.
+        if (!ReferenceEquals(AcceptedCandidate, item)) _suppressed = false;
         Accept(item);
         // The press moved focus into the popup, which Accept just closed; hand it back to the editor
         // without letting the focus event reopen the list for the accepted value.
@@ -201,7 +220,11 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
     }
     internal void Dismiss()
     {
-        ++_revision; _suppressed = true; _pointerInPopup = false;
+        ++_revision; _suppressed = true;
+        // Do not erase the press-time candidate while a popup click is in flight.
+        // Some templates close/detach the popup on press; release still has to
+        // commit that same candidate.
+        if (!_pointerInPopup) _pointerCandidate = null;
         _request?.Cancel(); _request?.Dispose(); _request = null;
         IsDropDownOpen = false;
         if (!ClearItems()) Avalonia.Threading.Dispatcher.UIThread.Post(() => { if (_suppressed) ClearItems(); }, Avalonia.Threading.DispatcherPriority.Input);
