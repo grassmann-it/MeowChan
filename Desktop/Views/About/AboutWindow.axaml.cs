@@ -35,6 +35,7 @@ public partial class AboutWindow : Window
         _openBrowser = openBrowser ?? ExternalLauncher.OpenAsync;
         InitializeComponent();
         WindowChrome.Apply(this);
+        DialogFit.OnOpen(this);
         AppCaption.Attach(this);
         ThemeLogo.Follow(this);
         // Both cats side by side in either theme; only the window icon follows the theme.
