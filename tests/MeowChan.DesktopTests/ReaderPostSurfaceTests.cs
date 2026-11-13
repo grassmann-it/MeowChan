@@ -12,7 +12,7 @@ public sealed class ReaderPostSurfaceTests
     private static readonly XNamespace Desktop = "clr-namespace:MeowChan.Desktop";
     [Theory]
     [InlineData("Dark", "#121416", "#20242A", "#5A636E")]
-    [InlineData("Light", "#E3DFD8", "#FAF7F1", "#7A7062")]
+    [InlineData("Light", "#E3DFD8", "#FAF7F1", "#726858")]
     public void PostCardTokensReplaceTheSeparatorWithoutChangingThePalette(string theme, string page, string card, string edge)
     {
         XElement dictionary = Theme(theme);

@@ -23,7 +23,7 @@ public sealed class WorkspaceTokenTests
     [InlineData("Dark", "Workspace.Scrim", "#66000000")]
     [InlineData("Dark", "Workspace.Shadow.Overlay", "0 4 16 0 #66000000")]
     [InlineData("Light", "Workspace.Card", "#FAF7F1")]
-    [InlineData("Light", "Workspace.CardEdge", "#7A7062")]
+    [InlineData("Light", "Workspace.CardEdge", "#726858")]
     [InlineData("Light", "Workspace.Scrim", "#66000000")]
     [InlineData("Light", "Workspace.Shadow.Overlay", "0 4 16 0 #26000000")]
     public void SurfaceTokensExistInBothThemesWithTheDesignValues(string theme, string key, string value) =>

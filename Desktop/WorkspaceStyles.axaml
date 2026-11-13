@@ -85,7 +85,7 @@
                     <SolidColorBrush x:Key="ButtonSolidDisabledBackground">#24282D</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidDisabledForeground">#A4ADB8</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidDisabledBorderBrush">#4A525C</SolidColorBrush>
-                    <SolidColorBrush x:Key="DataGridRowPointeroverBackground">#24282D</SolidColorBrush>
+                    <SolidColorBrush x:Key="DataGridRowPointeroverBackground">#30363E</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridRowSelectedBackground">#25344A</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridRowSelectedPointeroverBackground">#25344A</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridCellFocusBorderBrush">#6AA7FF</SolidColorBrush>
@@ -117,6 +117,76 @@
                     <SolidColorBrush x:Key="ClosableTagCloseButtonForeground">#A4ADB8</SolidColorBrush>
                     <SolidColorBrush x:Key="ClosableTagCloseButtonPointeroverForeground">#EEF1F4</SolidColorBrush>
                     <SolidColorBrush x:Key="ClosableTagCloseButtonPressedForeground">#6AA7FF</SolidColorBrush>
+                    <!-- UX review 2026-11-13 (hover and pop-up contrast). Semi's overlay surfaces sat outside the palette (#43444A menus,
+                         drop-downs, suggestions, confirmations and toasts, a light-grey tooltip) with a 12 % white hover row (1.42:1) and an
+                         8 % edge (1.26:1), and its selection was Semi blue #54A9FF. Overlays are now Workspace.Overlay with a 1-px
+                         Workspace.ControlBorder edge (4.59:1 on Panel) and the one overlay shadow (D6). States, one each for every surface:
+                         hover = Workspace.Hover fill (the 1-px ControlBorder outline in the styles carries the 3:1 boundary, 3.34:1 on Hover),
+                         pressed = AccentSurface, selected = AccentSurface (+ accent bar), text = Workspace.Text (14.76:1 on Overlay, 10.75:1
+                         on Hover), shortcut and disabled text = Workspace.Muted (7.37:1 on Overlay; disabled stays exempt but readable). -->
+                    <SolidColorBrush x:Key="MenuFlyoutBackground">#1B1E22</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxPopupBackground">#1B1E22</SolidColorBrush>
+                    <SolidColorBrush x:Key="AutoCompleteBoxPopupBackground">#1B1E22</SolidColorBrush>
+                    <SolidColorBrush x:Key="PopConfirmBackground">#1B1E22</SolidColorBrush>
+                    <SolidColorBrush x:Key="NotificationCardBackground">#1B1E22</SolidColorBrush>
+                    <SolidColorBrush x:Key="FlyoutBackground">#1B1E22</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToolTipBackground">#1B1E22</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuFlyoutBorderBrush">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxPopupBorderBrush">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="AutoCompleteBoxPopupBorderBrush">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="PopConfirmBorderBrush">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="NotificationCardBorderBrush">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="FlyoutBorderBrush">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToolTipBorderBrush">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToolTipForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="FlyoutForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="PopConfirmContentForeground">#A4ADB8</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemPointeroverBackground">#30363E</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemPointeroverBackground">#30363E</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemFocusBackground">#30363E</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemPointeroverBackground">#30363E</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLineHeaderPointeroverBackground">#30363E</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorPointeroverBackground">#30363E</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemPressedBackground">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemPressedBackground">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemPressedBackground">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLineHeaderPressedBackground">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorPressedBackground">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemSelectedBackground">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemSelectedPointeroverBackground">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemSelectedBackground">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemSelectedPointeroverBackground">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemPointeroverForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemPointeroverForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemFocusForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemPressedForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemSelectedForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemPointeroverForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemPressedForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemSelectedForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemInputGestureTextForeground">#A4ADB8</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemDisabledForeground">#A4ADB8</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemDisabledInputGestureTextForeground">#A4ADB8</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemDisabledForeground">#A4ADB8</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemHeaderDisabledForeground">#A4ADB8</SolidColorBrush>
+                    <!-- Line tabs (Threads/Boards): resting label Muted, hover/selected label Text; the 2-px pipe is ControlBorder on hover,
+                         the accent when pressed or selected (6.84:1 on Panel). -->
+                    <SolidColorBrush x:Key="TabItemLineHeaderForeground">#A4ADB8</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLineHeaderPointeroverForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLineHeaderSelectedForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLinePipePointeroverBorderBrush">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLinePipePressedBorderBrush">#6AA7FF</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLinePipeSelectedBackground">#6AA7FF</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemIconSelectedForeground">#6AA7FF</SolidColorBrush>
+                    <!-- Selectors are Raised like buttons (outline ControlBorder); hover Hover, pressed AccentSurface with the accent edge. -->
+                    <SolidColorBrush x:Key="ComboBoxSelectorBackground">#24282D</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorFocusBackground">#24282D</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorFocusBorderBrush">#6AA7FF</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorPressedBorderBrush">#6AA7FF</SolidColorBrush>
+                    <!-- The caption close button's red hover (#C42B1C) is 2.95:1 on the Dark Panel: a 1-px Text edge (10.75:1) carries the boundary. -->
+                    <SolidColorBrush x:Key="Workspace.CaptionCloseEdge">#EEF1F4</SolidColorBrush>
                     <!-- QW-20: marked-favorite tint; Gold is 10.6-13.2:1 on the dark surfaces. -->
                     <SolidColorBrush x:Key="Workspace.Favorite">#FFD700</SolidColorBrush>
                 </ResourceDictionary>
@@ -125,15 +195,18 @@
                     <SolidColorBrush x:Key="Workspace.Panel">#EFECE6</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Raised">#DBD5CB</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Border">#A89F92</SolidColorBrush>
-                    <!-- LW-06 (B1, N7, N8, N10, N12): interactive outlines only; decorative lines stay on Workspace.Border. -->
-                    <SolidColorBrush x:Key="Workspace.ControlBorder">#7A7062</SolidColorBrush>
+                    <!-- LW-06 (B1, N7, N8, N10, N12): interactive outlines only; decorative lines stay on Workspace.Border.
+                         UX review 2026-11-13: #7A7062 was 2.99:1 on Hover, so a hovered button, chip or row outline fell just under 3:1.
+                         #726858 is 3.37:1 on Hover, 3.75:1 on Raised, 3.79:1 on AccentSurface, 4.12:1 on Background, 4.64:1 on Panel/Overlay
+                         and 5.12:1 on Card; every Light key that mirrors it below carries the same value. -->
+                    <SolidColorBrush x:Key="Workspace.ControlBorder">#726858</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Text">#1A1A1A</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Muted">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Accent">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentSurface">#E7D4BE</SolidColorBrush>
                     <!-- D0 surface tokens (see the Dark block). Light CardEdge equals ControlBorder; Overlay equals Panel. -->
                     <SolidColorBrush x:Key="Workspace.Card">#FAF7F1</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.CardEdge">#7A7062</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.CardEdge">#726858</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Overlay">#EFECE6</SolidColorBrush>
                     <BoxShadows x:Key="Workspace.Shadow.Overlay">0 4 16 0 #26000000</BoxShadows>
                     <!-- D6: see Dark. -->
@@ -144,7 +217,7 @@
                     <BoxShadows x:Key="NotificationCardBoxShadows">0 4 16 0 #26000000</BoxShadows>
                     <SolidColorBrush x:Key="Workspace.Scrim">#66000000</SolidColorBrush>
                     <!-- Reader post cards are workspace cards (D3): warm near-white Card on the Background page. Edge = ControlBorder
-                         (= CardEdge), 3.66:1 against the page; card 1.24:1 above it. Active card: AccentSurface + accent edge. -->
+                         (= CardEdge), 4.12:1 against the page; card 1.24:1 above it. Active card: AccentSurface + accent edge. -->
                     <!-- Greentext: the study's #3F6D1A fell to 4.26:1 on the active card (AccentSurface); #386217
                          is 6.71:1 on the card, 4.97:1 on the active card and 5.40:1 on the page (opening post). -->
                     <SolidColorBrush x:Key="Workspace.ReaderGreentext">#386217</SolidColorBrush>
@@ -176,7 +249,7 @@
                     <SolidColorBrush x:Key="ButtonDefaultPressedBackground">#E7D4BE</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultDisabledForeground">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultDisabledBorderBrush">#A89F92</SolidColorBrush>
-                    <SolidColorBrush x:Key="ButtonDefaultPointeroverBorderBrush">#7A7062</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonDefaultPointeroverBorderBrush">#726858</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPressedBorderBrush">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidForeground">#FFFFFF</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidPrimaryBackground">#803B06</SolidColorBrush>
@@ -189,19 +262,19 @@
                     <SolidColorBrush x:Key="ButtonSolidDisabledBackground">#DBD5CB</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidDisabledForeground">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidDisabledBorderBrush">#A89F92</SolidColorBrush>
-                    <SolidColorBrush x:Key="DataGridRowPointeroverBackground">#DBD5CB</SolidColorBrush>
+                    <SolidColorBrush x:Key="DataGridRowPointeroverBackground">#D2CABE</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridRowSelectedBackground">#E7D4BE</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridRowSelectedPointeroverBackground">#E7D4BE</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridCellFocusBorderBrush">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridLineBrush">#A89F92</SolidColorBrush>
                     <!-- LW-06 N7a/N7b/N8/N10: Semi gives fields no visible outline (1-px transparent border) and a
-                         translucent grey checkbox/scrollbar; use Workspace.ControlBorder (#7A7062) in Light only. -->
-                    <SolidColorBrush x:Key="TextBoxDefaultBorderBrush">#7A7062</SolidColorBrush>
-                    <SolidColorBrush x:Key="TextBoxPointeroverBorderBrush">#7A7062</SolidColorBrush>
-                    <SolidColorBrush x:Key="ComboBoxSelectorBorderBrush">#7A7062</SolidColorBrush>
-                    <SolidColorBrush x:Key="ComboBoxSelectorPointeroverBorderBrush">#7A7062</SolidColorBrush>
-                    <SolidColorBrush x:Key="CheckBoxDefaultBorderBrush">#7A7062</SolidColorBrush>
-                    <SolidColorBrush x:Key="ScrollBarThumbForeground">#7A7062</SolidColorBrush>
+                         translucent grey checkbox/scrollbar; use Workspace.ControlBorder (#726858) in Light only. -->
+                    <SolidColorBrush x:Key="TextBoxDefaultBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="TextBoxPointeroverBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorPointeroverBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="CheckBoxDefaultBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="ScrollBarThumbForeground">#726858</SolidColorBrush>
                     <SolidColorBrush x:Key="ScrollBarThumbPointeroverForeground">#575148</SolidColorBrush>
                     <!-- LW-06 N1/N2/N3/N4/N8b/X2a: Semi blue left in Light. Selection uses Workspace.AccentSurface
                          (#E7D4BE), focus and state indicators Workspace.Accent (#803B06, hover #9A4B0B, pressed #662F05). -->
@@ -231,11 +304,11 @@
                     <SolidColorBrush x:Key="TextBoxPlaceholderForeground">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="ComboBoxSelectorPlaceHolderForeground">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="MenuItemInputGestureTextForeground">#575148</SolidColorBrush>
-                    <!-- C1 chips: the outline is LW-06 Workspace.ControlBorder (#7A7062, 3.3:1 or more on Background, Panel,
-                         Raised and AccentSurface). -->
+                    <!-- C1 chips: the outline is LW-06 Workspace.ControlBorder (#726858, 3.3:1 or more on Background, Panel,
+                         Raised, Hover and AccentSurface). -->
                     <SolidColorBrush x:Key="Workspace.ChipSurface">#DBD5CB</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.ChipBorder">#7A7062</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.ChipSourceBorder">#7A7062</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ChipBorder">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ChipSourceBorder">#726858</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ChipExcludeBorder">#A52736</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ChipSelectedSurface">#E7D4BE</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ChipSelectedBorder">#803B06</SolidColorBrush>
@@ -246,10 +319,67 @@
                     <SolidColorBrush x:Key="Workspace.TagCategory.General">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="ClosableTagForeground">#1A1A1A</SolidColorBrush>
                     <SolidColorBrush x:Key="ClosableTagBackground">#DBD5CB</SolidColorBrush>
-                    <SolidColorBrush x:Key="ClosableTagBorder">#7A7062</SolidColorBrush>
+                    <SolidColorBrush x:Key="ClosableTagBorder">#726858</SolidColorBrush>
                     <SolidColorBrush x:Key="ClosableTagCloseButtonForeground">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="ClosableTagCloseButtonPointeroverForeground">#1A1A1A</SolidColorBrush>
                     <SolidColorBrush x:Key="ClosableTagCloseButtonPressedForeground">#803B06</SolidColorBrush>
+                    <!-- UX review 2026-11-13: see the Dark block. Light overlays were pure white (#FFFFFF, cold against the warm palette) with a
+                         5 % hover row (1.09:1) and an 8 % edge (1.15:1); the resting line tab label was 4.40:1. Overlay #EFECE6 with a
+                         ControlBorder edge (4.64:1 on Panel), Text 14.76:1 and Muted 6.66:1 on it, Text 10.72:1 on Hover. -->
+                    <SolidColorBrush x:Key="MenuFlyoutBackground">#EFECE6</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxPopupBackground">#EFECE6</SolidColorBrush>
+                    <SolidColorBrush x:Key="AutoCompleteBoxPopupBackground">#EFECE6</SolidColorBrush>
+                    <SolidColorBrush x:Key="PopConfirmBackground">#EFECE6</SolidColorBrush>
+                    <SolidColorBrush x:Key="NotificationCardBackground">#EFECE6</SolidColorBrush>
+                    <SolidColorBrush x:Key="FlyoutBackground">#EFECE6</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToolTipBackground">#EFECE6</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuFlyoutBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxPopupBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="AutoCompleteBoxPopupBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="PopConfirmBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="NotificationCardBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="FlyoutBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToolTipBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToolTipForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="FlyoutForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="PopConfirmContentForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemPointeroverBackground">#D2CABE</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemPointeroverBackground">#D2CABE</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemFocusBackground">#D2CABE</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemPointeroverBackground">#D2CABE</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLineHeaderPointeroverBackground">#D2CABE</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorPointeroverBackground">#D2CABE</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemPressedBackground">#E7D4BE</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemPressedBackground">#E7D4BE</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemPressedBackground">#E7D4BE</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLineHeaderPressedBackground">#E7D4BE</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorPressedBackground">#E7D4BE</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemPointeroverForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemPointeroverForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemFocusForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemPressedForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemSelectedForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemPointeroverForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemPressedForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemSelectedForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemDisabledForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemDisabledInputGestureTextForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemDisabledForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemHeaderDisabledForeground">#575148</SolidColorBrush>
+                    <!-- Line tabs (Threads/Boards): resting label Muted, hover/selected label Text; the 2-px pipe is ControlBorder on hover,
+                         the accent when pressed or selected (7.00:1 on Panel). -->
+                    <SolidColorBrush x:Key="TabItemLineHeaderForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLineHeaderPointeroverForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLineHeaderSelectedForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLinePipePointeroverBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLinePipePressedBorderBrush">#803B06</SolidColorBrush>
+                    <!-- Selectors are Raised like buttons (outline ControlBorder); hover Hover, pressed AccentSurface with the accent edge. -->
+                    <SolidColorBrush x:Key="ComboBoxSelectorBackground">#DBD5CB</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorFocusBackground">#DBD5CB</SolidColorBrush>
+                    <!-- In Light the red close hover itself is 4.80:1 on Panel; its edge is the same red. -->
+                    <SolidColorBrush x:Key="Workspace.CaptionCloseEdge">#C42B1C</SolidColorBrush>
                     <!-- QW-20: marked-favorite tint; Gold is 1.2:1 here. Dark amber is 4.8:1 on Workspace.Panel, 4.3:1 on Background, 3.9:1 on Raised. -->
                     <SolidColorBrush x:Key="Workspace.Favorite">#8A5F00</SolidColorBrush>
                 </ResourceDictionary>

@@ -160,6 +160,71 @@ public sealed class PaletteContrastTests
         Assert.True(ratio >= minimum, $"{theme}: dialog card on the dimmed background is {ratio:0.00}:1, needs {minimum:0.0}:1");
     }
 
+    // UX review 2026-11-13 (hover and pop-up contrast): a hover fill alone cannot reach 3:1 against its resting surface while text
+    // keeps 4.5:1 on it, so the 1-px ControlBorder outline carries the hover boundary. It must clear 3:1 on the Hover fill too; the
+    // earlier Light #7A7062 was 2.99:1 there.
+    [Theory, InlineData("Dark"), InlineData("Light")]
+    public void HoverOutlineReachesThreeToOneOnTheHoverFill(string theme)
+    {
+        foreach (string surface in new[] { "Workspace.Hover", "Workspace.Raised", "Workspace.AccentSurface", "Workspace.Overlay" })
+            AssertContrast(theme, "Workspace.ControlBorder", surface, 3.0);
+        // The selection bar and the pressed outline: the accent on the selected fill and on the bars around it.
+        foreach (string surface in new[] { "Workspace.AccentSurface", "Workspace.Panel", "Workspace.Overlay" })
+            AssertContrast(theme, "Workspace.Accent", surface, 3.0);
+    }
+
+    [Fact]
+    public void LightControlBorderIsTheDarkerWarmGreyInEveryKeyThatMirrorsIt()
+    {
+        Assert.Equal("#726858", Color("Light", "Workspace.ControlBorder"));
+        foreach (string key in new[] { "Workspace.CardEdge", "ButtonDefaultPointeroverBorderBrush", "TextBoxDefaultBorderBrush", "TextBoxPointeroverBorderBrush",
+                     "ComboBoxSelectorBorderBrush", "ComboBoxSelectorPointeroverBorderBrush", "CheckBoxDefaultBorderBrush", "ScrollBarThumbForeground",
+                     "Workspace.ChipBorder", "Workspace.ChipSourceBorder", "ClosableTagBorder" })
+            Assert.Equal(Color("Light", "Workspace.ControlBorder"), Color("Light", key));
+    }
+
+    // Semi's own overlay and row keys follow the palette in both themes: one overlay surface with the interactive outline, one hover fill,
+    // pressed and selected on the accent surface, palette text, Muted for shortcut and disabled text, and no Semi blue.
+    [Theory, InlineData("Dark"), InlineData("Light")]
+    public void SemiOverlaysAndRowsUseThePaletteStates(string theme)
+    {
+        static void Same(string theme, string token, params string[] keys)
+        {
+            foreach (string key in keys) Assert.True(Color(theme, token) == Color(theme, key), $"{theme}: {key} is {Color(theme, key)}, expected {token} {Color(theme, token)}");
+        }
+        Same(theme, "Workspace.Overlay", "MenuFlyoutBackground", "ComboBoxPopupBackground", "AutoCompleteBoxPopupBackground", "PopConfirmBackground",
+            "NotificationCardBackground", "FlyoutBackground", "ToolTipBackground");
+        Same(theme, "Workspace.ControlBorder", "MenuFlyoutBorderBrush", "ComboBoxPopupBorderBrush", "AutoCompleteBoxPopupBorderBrush", "PopConfirmBorderBrush",
+            "NotificationCardBorderBrush", "FlyoutBorderBrush", "ToolTipBorderBrush", "TabItemLinePipePointeroverBorderBrush");
+        Same(theme, "Workspace.Hover", "MenuItemPointeroverBackground", "ComboBoxItemPointeroverBackground", "ComboBoxItemFocusBackground",
+            "ListBoxItemPointeroverBackground", "TabItemLineHeaderPointeroverBackground", "ComboBoxSelectorPointeroverBackground", "DataGridRowPointeroverBackground");
+        Same(theme, "Workspace.AccentSurface", "MenuItemPressedBackground", "ComboBoxItemPressedBackground", "ListBoxItemPressedBackground",
+            "TabItemLineHeaderPressedBackground", "ComboBoxSelectorPressedBackground", "ComboBoxItemSelectedBackground",
+            "ComboBoxItemSelectedPointeroverBackground", "ListBoxItemSelectedBackground", "ListBoxItemSelectedPointeroverBackground");
+        Same(theme, "Workspace.Text", "ToolTipForeground", "FlyoutForeground", "MenuItemForeground", "MenuItemPointeroverForeground", "ComboBoxItemForeground",
+            "ComboBoxItemPointeroverForeground", "ComboBoxItemSelectedForeground", "ListBoxItemPointeroverForeground", "ListBoxItemSelectedForeground",
+            "TabItemLineHeaderPointeroverForeground", "TabItemLineHeaderSelectedForeground");
+        Same(theme, "Workspace.Muted", "MenuItemInputGestureTextForeground", "MenuItemDisabledForeground", "MenuItemDisabledInputGestureTextForeground",
+            "ListBoxItemDisabledForeground", "TabItemHeaderDisabledForeground", "TabItemLineHeaderForeground", "PopConfirmContentForeground");
+        Same(theme, "Workspace.Accent", "TabItemLinePipeSelectedBackground", "TabItemIconSelectedForeground", "TabItemLinePipePressedBorderBrush",
+            "ComboBoxSelectorPressedBorderBrush", "ComboBoxSelectorFocusBorderBrush");
+        Same(theme, "Workspace.Raised", "ComboBoxSelectorBackground", "ComboBoxSelectorFocusBackground");
+        // The resting line-tab label was Semi's 62 % black, 4.40:1 on the Light panel.
+        AssertContrast(theme, "TabItemLineHeaderForeground", "Workspace.Panel", 4.5);
+        XElement dictionary = Assert.Single(Styles().Descendants(A + "ResourceDictionary"), element => (string?)element.Attribute(X + "Key") == theme);
+        Assert.DoesNotContain(dictionary.Elements(), element => string.Equals(element.Value.Trim(), "#54A9FF", StringComparison.OrdinalIgnoreCase));
+    }
+
+    // The red close hover is #C42B1C in both themes; where the fill is under 3:1 on the title bar (Dark, 2.95:1) its edge carries the boundary.
+    [Theory, InlineData("Dark"), InlineData("Light")]
+    public void CaptionCloseHoverHasAThreeToOneBoundary(string theme)
+    {
+        double fill = Contrast("#C42B1C", Color(theme, "Workspace.Panel"));
+        double edge = Contrast(Color(theme, "Workspace.CaptionCloseEdge"), Color(theme, "Workspace.Panel"));
+        Assert.True(Math.Max(fill, edge) >= 3.0, $"{theme}: close hover fill {fill:0.00}:1, edge {edge:0.00}:1 on the bar");
+        Assert.True(Contrast("#FFFFFF", "#C42B1C") >= 4.5);
+    }
+
     private static int Channel(string hex, int index) =>
         int.Parse(hex.AsSpan(1 + index * 2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
 
