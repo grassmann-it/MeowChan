@@ -34,8 +34,13 @@ internal sealed record DanbooruAddress(DanbooruAddressKind Kind, string? PostId,
         @"(?<=^|[\s,])https?://(?:danbooru|safebooru)\.donmai\.us(?::\d+)?(?=[/?#,\s]|$)(?:[/?#](?:(?!,\s*https?://)\S)*)?",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
+    // Any mention of a Danbooru host, wherever it sits: inside <...>, (...) or quotes, after punctuation, with a trailing
+    // dot or user info. Looser than SpanPattern on purpose: redaction may over-match, splitting must not.
+    private static readonly Regex HostMention = new(
+        @"(?:danbooru|safebooru)\.donmai\.us", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
     /// <summary>True when the text names one of the Danbooru hosts; the whole text then counts as sensitive for logging.</summary>
-    internal static bool MentionsKnownHost(string? text) => text is not null && SpanPattern.IsMatch(text);
+    internal static bool MentionsKnownHost(string? text) => text is not null && HostMention.IsMatch(text);
 
     /// <summary>
     /// The address spans of a line, trailing commas trimmed, in order. Entry splitting uses them so a comma inside an
@@ -86,8 +91,8 @@ internal sealed record DanbooruAddress(DanbooruAddressKind Kind, string? PostId,
     }
 
     /// <summary>
-    /// Text that is safe to write to a log: an address on a Danbooru host (which may carry a private query) is replaced
-    /// by a fixed marker; anything else is returned unchanged.
+    /// Text that is safe to write to a log: any text that mentions a Danbooru host (the address may carry a private query)
+    /// is replaced by a fixed marker; anything else is returned unchanged.
     /// </summary>
     internal static string RedactForLog(string? text) =>
         text is null ? string.Empty : MentionsKnownHost(text) ? "[Danbooru address]" : text;

@@ -154,4 +154,24 @@ public sealed class DanbooruAddressTests
         string[] spans = DanbooruAddress.FindSpans(line).Select(span => line.Substring(span.Start, span.Length)).ToArray();
         Assert.Equal(new[] { "https://danbooru.donmai.us/posts?tags=a b", "https://safebooru.donmai.us/posts/5" }, spans);
     }
+
+    [Theory]
+    [InlineData("<https://danbooru.donmai.us/posts?tags=secret>")]
+    [InlineData("(https://danbooru.donmai.us/posts?tags=secret)")]
+    [InlineData("\"https://safebooru.donmai.us/posts?tags=secret\"")]
+    [InlineData("'https://safebooru.donmai.us/posts?tags=secret'")]
+    [InlineData("x;https://danbooru.donmai.us/posts?tags=secret")]
+    [InlineData("see:https://danbooru.donmai.us/posts?tags=secret.")]
+    [InlineData("https://danbooru.donmai.us./posts?tags=secret")]
+    [InlineData("https://user@danbooru.donmai.us/posts?tags=secret")]
+    [InlineData("HTTPS://DANBOORU.DONMAI.US/posts?tags=secret")]
+    [InlineData("danbooru.donmai.us/posts?tags=secret")]
+    [InlineData("https://example.test/?u=https://danbooru.donmai.us/posts?tags=secret")]
+    public void LogRedactionFindsAnAddressInsideBracketsQuotesAndAfterPunctuation(string text)
+    {
+        Assert.True(DanbooruAddress.MentionsKnownHost(text));
+        string logged = DanbooruAddress.RedactForLog(text);
+        Assert.DoesNotContain("secret", logged);
+        Assert.DoesNotContain("donmai", logged);
+    }
 }
