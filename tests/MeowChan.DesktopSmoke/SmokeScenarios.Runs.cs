@@ -131,6 +131,7 @@ internal static partial class SmokeScenarios
         ["first-run-settings"] = new(SmokeStage.Ready, mainWindow => FirstRunSettingsChecks.RunAsync(mainWindow)),
         ["first-run-setup"] = new(SmokeStage.Ready, mainWindow => FirstRunSetupChecks.RunAsync(mainWindow)),
         ["preference-startup"] = new(SmokeStage.Ready, mainWindow => PreferenceStartupChecks.RunAsync(mainWindow)),
+        ["native-drain-boundary"] = new(SmokeStage.Ready, mainWindow => NativeDrainBoundaryChecks.RunAsync(mainWindow)),
         ["compact-diagnostics"] = new(SmokeStage.Ready, async mainWindow =>
         {
             await DownloadCompactStatusChecks.RunAsync(mainWindow);

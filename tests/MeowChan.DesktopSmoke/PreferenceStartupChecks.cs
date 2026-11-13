@@ -196,6 +196,7 @@ internal static class PreferenceStartupChecks
     /// Controlled task-boundary probe ONLY for a dedicated disposable process. Intentionally retains the
     /// profile/window after assertions; the parent must observe this receipt, terminate/exit the process,
     /// then prove lease reacquisition. Never call from RunAsync/the reusable normal-suite process.
+    /// NativeDrainBoundaryChecks (scenario native-drain-boundary) is that parent.
     /// No decoder is created or mocked; real StopAndDetach/media lifetime tests remain mandatory.
     /// </summary>
     internal static async Task RunRetainedNativeDrainBoundaryAsync(MainWindow shell, CancellationToken cancellationToken = default)
