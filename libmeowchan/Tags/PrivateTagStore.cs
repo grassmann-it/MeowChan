@@ -181,6 +181,9 @@ internal sealed class PrivateTagStore
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private readonly ProfileLease _lease;
     private readonly string _path;
+    // SHA-256 of the last document bytes this instance validated in full with Parse (a pure function of the
+    // bytes). A backup with exactly these bytes is valid without a second parse. Only touched under the store lock.
+    private byte[]? _validatedDigest;
 
     internal PrivateTagStore(string profileDirectory, ProfileLease lease)
     {
@@ -281,6 +284,9 @@ internal sealed class PrivateTagStore
     /// <summary>Test seam: called at each phase of a changing write; throwing there aborts (or, after the replace, simulates a crash).</summary>
     internal Action<PrivateTagWritePhase>? WritePhaseForTests { get; init; }
 
+    /// <summary>Test seam: called with the file name each time this instance parses a document file in full.</summary>
+    internal Action<string>? DocumentParsedForTests { get; init; }
+
     internal PrivateTagStoreSnapshot ReadSnapshot() => _lease.RunExclusive(() =>
     {
         (Model model, byte[] bytes) = Read();
@@ -300,7 +306,7 @@ internal sealed class PrivateTagStore
         PrivateTagName parsed = RequireName(name);
         return Mutate(admission, expectedRevision, token, model =>
         {
-            PrivateTagDefinition? existing = model.Catalog.Definitions.FirstOrDefault(item => item.Name == parsed);
+            PrivateTagDefinition? existing = model.Catalog.Find(parsed);
             if (existing is not null) return (false, existing.Id);
             TagId id = new(Guid.NewGuid());
             if (!model.Catalog.TryDefine(id, parsed, model.Catalog.Revision, out PrivateTagCatalog next,
@@ -478,7 +484,7 @@ internal sealed class PrivateTagStore
         {
             bool defined = false;
             TagId id;
-            if (model.Catalog.Definitions.FirstOrDefault(item => item.Name == parsed) is { } existing) id = existing.Id;
+            if (model.Catalog.Find(parsed) is { } existing) id = existing.Id;
             else
             {
                 id = new(Guid.NewGuid());
@@ -638,14 +644,9 @@ internal sealed class PrivateTagStore
         {
             RequireKnown(model, tag);
             // The vocabulary type has no delete; rebuild it from the surviving definitions in order.
-            PrivateTagCatalog rebuilt = new();
-            foreach (PrivateTagDefinition item in model.Catalog.Definitions)
-            {
-                if (item.Id == tag) continue;
-                if (!rebuilt.TryDefine(item.Id, item.Name, rebuilt.Revision, out PrivateTagCatalog next, out _))
-                    throw new InvalidDataException(Invalid);
-                rebuilt = next;
-            }
+            if (!PrivateTagCatalog.TryCreate(model.Catalog.Definitions.Where(item => item.Id != tag),
+                out PrivateTagCatalog? rebuilt, out _))
+                throw new InvalidDataException(Invalid);
             model.Catalog = rebuilt;
             model.Threads.RemoveAll(item => (TagId)item.TagId == tag);
             model.Media.RemoveAll(item => (TagId)item.TagId == tag);
@@ -696,7 +697,7 @@ internal sealed class PrivateTagStore
                 throw new PrivateTagStoreException(PrivateTagStoreError.RevisionOverflow);
             WritePhaseForTests?.Invoke(PrivateTagWritePhase.BeforeBackupCheck);
             // A newer or damaged backup must never be rotated away by this writer.
-            try { ReadDocument(_path + ".bak"); }
+            try { CheckBackup(); }
             catch (FileNotFoundException) { }
             model.Revision++;
             // The first committed local data upgrades the document; afterwards it stays v2 (never silently downgraded).
@@ -711,6 +712,8 @@ internal sealed class PrivateTagStore
             WritePhaseForTests?.Invoke(PrivateTagWritePhase.BeforeReplace);
             // One atomic replace publishes registrations together with the assignments that name them.
             AtomicJsonFile.WriteAllText(_path, StrictUtf8.GetString(next), backupCurrentFile: true, token);
+            // The replaced primary, parsed in full above, is what ".bak" now holds for the next write's check.
+            if (bytes.Length > 0) _validatedDigest = SHA256.HashData(bytes);
             WritePhaseForTests?.Invoke(PrivateTagWritePhase.AfterReplace);
             return new PrivateTagCommit(true, tag, model.Snapshot(next));
         });
@@ -801,7 +804,33 @@ internal sealed class PrivateTagStore
         }
     }
 
-    private static (Model Model, byte[] Bytes) ReadDocument(string path)
+    /// <summary>
+    /// Reads the backup with the same file checks as a document and parses it in full unless its bytes are exactly
+    /// the bytes this instance last validated with the full parser; either way a damaged or newer backup throws.
+    /// </summary>
+    private void CheckBackup()
+    {
+        string path = _path + ".bak";
+        byte[] bytes = ReadDocumentBytes(path);
+        byte[] digest = SHA256.HashData(bytes);
+        if (_validatedDigest is { } known && digest.AsSpan().SequenceEqual(known)) return;
+        ParseFile(path, bytes);
+        _validatedDigest = digest;
+    }
+
+    private (Model Model, byte[] Bytes) ReadDocument(string path)
+    {
+        byte[] bytes = ReadDocumentBytes(path);
+        return (ParseFile(path, bytes), bytes);
+    }
+
+    private Model ParseFile(string path, byte[] bytes)
+    {
+        DocumentParsedForTests?.Invoke(Path.GetFileName(path));
+        return Parse(bytes);
+    }
+
+    private static byte[] ReadDocumentBytes(string path)
     {
         try { return ReadDocumentCore(path); }
         // Paths and parser messages can expose private profile values; never attach raw exceptions.
@@ -811,7 +840,7 @@ internal sealed class PrivateTagStore
         catch (IOException) { throw new IOException("The private tag index could not be read."); }
     }
 
-    private static (Model Model, byte[] Bytes) ReadDocumentCore(string path)
+    private static byte[] ReadDocumentCore(string path)
     {
         using FileStream stream = RegularProfileFile.OpenRead(path);
         long length = stream.Length;
@@ -821,7 +850,7 @@ internal sealed class PrivateTagStore
         catch (EndOfStreamException) { throw new InvalidDataException("The private tag index changed while reading."); }
         if (stream.ReadByte() != -1 || stream.Length != length)
             throw new InvalidDataException("The private tag index changed while reading.");
-        return (Parse(bytes), bytes);
+        return bytes;
     }
 
     private static Model Parse(byte[] bytes)
@@ -844,6 +873,8 @@ internal sealed class PrivateTagStore
             Model model = new() { Version = version, Revision = root.GetProperty("Revision").GetInt64() };
             if (model.Revision < 0) throw new InvalidDataException(Invalid);
 
+            List<PrivateTagDefinition> tags = new();
+            HashSet<TagId> ids = new();
             foreach (JsonElement item in Items(root.GetProperty("Tags"), MaximumTags))
             {
                 CheckObject(item, ["Id", "Name"]);
@@ -852,11 +883,13 @@ internal sealed class PrivateTagStore
                 // Stored names are canonical: they must round-trip through the name rule unchanged.
                 if (!PrivateTagName.TryCreate(text, out PrivateTagName? name, out _)
                     || !string.Equals(name!.Display, text, StringComparison.Ordinal)
-                    || model.Catalog.Contains(id)
-                    || !model.Catalog.TryDefine(id, name, model.Catalog.Revision, out PrivateTagCatalog next, out _))
+                    || !ids.Add(id))
                     throw new InvalidDataException(Invalid);
-                model.Catalog = next;
+                tags.Add(new(id, name));
             }
+            // One linear build with the catalog's own rules (name collisions, capacity) instead of a copy per tag.
+            if (!PrivateTagCatalog.TryCreate(tags, out PrivateTagCatalog? catalog, out _)) throw new InvalidDataException(Invalid);
+            model.Catalog = catalog;
 
             foreach (JsonElement item in Items(root.GetProperty("Threads"), MaximumThreadAssignments))
             {
