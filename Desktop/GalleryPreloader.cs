@@ -81,11 +81,13 @@ internal sealed class GalleryPreloader<T> where T : class, IDisposable
                 if (kept >= 0) { window += kept; continue; }
                 // Farther images would not fit either: stop instead of pushing out the nearer ones.
                 if (window + viewportBytes > budget) break;
+                Func<bool>? valid = GalleryImageCache.Validity(entry); // before the decode reads the file
+                if (valid == null) continue;
                 (T bitmap, GalleryImageInfo info) decoded;
                 try { decoded = await _decode(entry, fit, token).ConfigureAwait(false); }
                 catch (Exception exception) when (exception is not OperationCanceledException) { continue; }
                 // Keep it (the lease of Add is not needed: nobody shows it yet) and let go of it.
-                T stored = _cache.Add(key, decoded.bitmap, decoded.info);
+                T stored = _cache.Add(key, decoded.bitmap, decoded.info, valid);
                 window += _cache.BytesOf(stored);
                 Interlocked.Increment(ref _decoded);
                 _cache.Release(stored);
