@@ -125,14 +125,13 @@ internal static partial class MediaPageChecks
             await InArchiveAsync("612", "612");
             await UntilAsync(() => galleryReturn.IsEffectivelyVisible);
             Require(!mediaReturn.IsVisible && !shell.MediaReturnAvailableForTests, "(a) While the gallery waits, only its own return is offered.");
-            // Alt+Left belongs to a Medien jump only; with the gallery waiting it must not leave for the Medien page.
+            // One Back gesture answers for the innermost return: with the gallery waiting it leads back into that gallery,
+            // never past it to the Medien page (the Medien return is not offered while a gallery is open or suspended).
             Control post = posts.ContainerFromItem(posts.SelectedItem!) as Control ?? throw new InvalidOperationException("The focused post is not realized.");
             post.Focus();
             Key(post, Avalonia.Input.Key.Left, KeyModifiers.Alt);
-            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-            Require(archiveHost.IsVisible && !mediaHost.IsVisible && galleryReturn.IsVisible, "(a) Alt+Left must not bypass the waiting gallery.");
-            galleryReturn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => galleryHost.IsVisible && !galleryReturn.IsVisible);
+            Require(!mediaHost.IsVisible && !shell.MediaReturnAvailableForTests, "(a) Alt+Left must not bypass the waiting gallery.");
             Require(ReferenceEquals(galleryHost.Content, fromMedia) && fromMedia.CaptureState().PostId == "612", "(a) The same gallery must come back at the same position.");
             RequireCloseLabel(fromMedia, "To media", "Gallery from Medien after the reader");
             await CloseToAsync(fromMedia);
