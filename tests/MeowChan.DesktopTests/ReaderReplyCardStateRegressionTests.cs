@@ -61,6 +61,32 @@ public sealed class ReaderReplyCardStateRegressionTests
     }
 
     [Theory]
+    [InlineData("Light", false)]
+    [InlineData("Dark", false)]
+    [InlineData("Light", true)]
+    [InlineData("Dark", true)]
+    public void KeyboardFocusAndSelectionAreIndependentForOpeningAndReplyCards(string theme, bool opening)
+    {
+        var (root, item, presenter, tokens) = Create(theme);
+        item.Classes.Set("reader-op", opening);
+        Color inactive = opening ? Colors.Transparent : tokens["Workspace.Card"];
+        Color edge = opening ? Colors.Transparent : tokens["Workspace.CardEdge"];
+        foreach (bool hovered in new[] { false, true })
+        {
+            ((IPseudoClasses)item.Classes).Set(":pointerover", hovered);
+            ((IPseudoClasses)item.Classes).Set(":focus-visible", true);
+            Surface(presenter, inactive, tokens["Workspace.Accent"], new Thickness(3, 2, 2, 2));
+            item.IsSelected = true;
+            Surface(presenter, tokens["Workspace.AccentSurface"], tokens["Workspace.Accent"], new Thickness(3, 2, 2, 2));
+            item.IsSelected = false;
+            Surface(presenter, inactive, tokens["Workspace.Accent"], new Thickness(3, 2, 2, 2));
+            ((IPseudoClasses)item.Classes).Set(":focus-visible", false);
+            Surface(presenter, inactive, edge, new Thickness(1));
+        }
+        GC.KeepAlive(root);
+    }
+
+    [Theory]
     [InlineData("Light")]
     [InlineData("Dark")]
     public void RecycledOpeningPostReturnsToReplyCardButSelectionStillWins(string theme)
