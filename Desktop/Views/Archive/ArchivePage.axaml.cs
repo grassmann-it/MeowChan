@@ -475,7 +475,7 @@ public partial class ArchivePage : UserControl
         ArchiveContentTabs.IsVisible = _thread != null;
         ArchiveReaderTitle.Text = _thread?.Summary.Title ?? string.Empty;
         string status = _thread?.Summary.LastCapturedAt is DateTimeOffset captured
-            ? Texts.T("archive.captured", captured.ToLocalTime().ToString("g", Texts.Culture), _thread.PostCount)
+            ? Texts.Count("archive.captured", _thread.PostCount, captured.ToLocalTime().ToString("g", Texts.Culture), _thread.PostCount)
             : _thread != null ? Texts.T("archive.mediaOnly") : string.Empty;
         if (_thread != null)
             status += " · " + Texts.T(_thread.Summary.SourceState switch

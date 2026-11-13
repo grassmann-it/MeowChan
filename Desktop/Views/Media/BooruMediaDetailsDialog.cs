@@ -159,7 +159,7 @@ internal sealed class BooruMediaDetailsDialog : Window
     {
         List<string> parts = new() { VariantText(variant) };
         if (variant.Width is int width && variant.Height is int height) parts.Add(width + "×" + height);
-        if (variant.ExpectedSize is long size) parts.Add((size / 1_000_000d).ToString("0.###", Texts.Culture) + " MB");
+        if (variant.ExpectedSize is long size) parts.Add(SizeText.Format(size));
         return string.Join(" · ", parts);
     });
 

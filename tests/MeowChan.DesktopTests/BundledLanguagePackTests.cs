@@ -29,6 +29,13 @@ public sealed class BundledLanguagePackTests : IDisposable
         Assert.Empty(Texts.Warnings);
     }
 
+    private static bool IsExtraPluralForm(string key)
+    {
+        int dot = key.LastIndexOf('.');
+        return dot > 0 && !BuiltInCatalog.English.ContainsKey(key) && BuiltInCatalog.English.ContainsKey(key[..dot])
+            && key[(dot + 1)..] is "zero" or "two" or "few" or "many";
+    }
+
     [Theory]
     [InlineData("es", "Español (Untested)", "Configuración")]
     [InlineData("fr", "Français (Untested)", "Paramètres")]
@@ -44,7 +51,9 @@ public sealed class BundledLanguagePackTests : IDisposable
         var translations = document.RootElement.GetProperty("strings").EnumerateObject()
             .ToDictionary(p => p.Name, p => p.Value.GetString()!, StringComparer.Ordinal);
         Assert.Equal(BuiltInCatalog.English.Where(p => !string.IsNullOrWhiteSpace(p.Value))
-            .Select(p => p.Key).Order(StringComparer.Ordinal), translations.Keys.Order(StringComparer.Ordinal));
+            .Select(p => p.Key).Order(StringComparer.Ordinal),
+            // Optional extra number forms ("<key>.few") exist only in the pack, e.g. Russian.
+            translations.Keys.Where(key => !IsExtraPluralForm(key)).Order(StringComparer.Ordinal));
         Assert.All(translations.Values, value => Assert.False(string.IsNullOrWhiteSpace(value)));
         Texts.Initialize();
         Texts.SetLanguage(code);

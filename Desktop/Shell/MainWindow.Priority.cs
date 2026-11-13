@@ -31,7 +31,7 @@ public partial class MainWindow
             accepted++;
         });
         if (!_isClosing && accepted > 0)
-            ShowNotification(Texts.T("notification.session"), Texts.T(high ? "priority.highAccepted" : "priority.normalAccepted", accepted),
+            ShowNotification(Texts.T("notification.session"), Texts.Count(high ? "priority.highAccepted" : "priority.normalAccepted", accepted),
                 NotificationType.Information, context: string.Join(",", frozen), operation: "selection.priority");
     }
 }

@@ -348,7 +348,7 @@ public partial class MainWindow
             if (frozen.Length > 1) text += " · " + responses.Count + "/" + frozen.Length;
             ShowNotification(Texts.T("notification.session"), text, NotificationType.Information, context: string.Join(",", frozen.Select(target => target.WatchId)), operation: "selection.check");
         }
-        if (retried) ShowNotification(Texts.T("notification.session"), Texts.T(acceptedMedia == 0 ? "work.retryNone"
+        if (retried) ShowNotification(Texts.T("notification.session"), Texts.Count(acceptedMedia == 0 ? "work.retryNone"
             : _session.Projection.IsPaused ? "work.retryPaused" : "work.retryAccepted", acceptedMedia),
             NotificationType.Information, context: string.Join(",", frozen.Select(target => target.WatchId)), operation: "selection.media-retry");
     }

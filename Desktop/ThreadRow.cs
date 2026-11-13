@@ -159,7 +159,7 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
         };
         Completion = snapshot.SelectedMedia == 0 ? 0 : 100d * snapshot.CompletedMedia / snapshot.SelectedMedia;
         Progress = Texts.T("progress.media", CompletedMedia, SelectedMedia, Completion);
-        ExceptionHint = snapshot.MediaFailures.Count > 0 ? Texts.T("work.errorSummary", snapshot.MediaFailures.Count) : string.Empty;
+        ExceptionHint = snapshot.MediaFailures.Count > 0 ? Texts.Count("work.errorSummary", snapshot.MediaFailures.Count) : string.Empty;
         if (snapshot.Content?.ExcludedMedia > 0)
             Progress += " · " + Texts.T("progress.excluded", snapshot.Content.ExcludedMedia);
         Queued = snapshot.Downloads.Queued;

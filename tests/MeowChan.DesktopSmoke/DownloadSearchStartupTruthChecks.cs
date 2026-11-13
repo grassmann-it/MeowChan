@@ -236,7 +236,7 @@ internal static class DownloadSearchStartupTruthChecks
             && ReferenceEquals(C<DataGrid>(window, "ThreadsDataGrid").ItemsSource, window.VisibleThreads), "Historical grid did not retire.");
         Require(window.VisibleThreads.Count == (live ? 1 : 0) && window.VisibleBoards.Count == 0,
             "Ready did not apply the retained literal to real rows.");
-        Require(C<TextBlock>(window, "DownloadSearchSummary").Text == Texts.T("downloads.searchCount", live ? 1 : 0),
+        Require(C<TextBlock>(window, "DownloadSearchSummary").Text == Texts.Count("downloads.searchCount", live ? 1 : 0),
             "Ready search count is not authoritative.");
         if (live) Require(window.VisibleThreads[0].ThreadId == "710001" && window.SelectedThreadsForTests().Length == 0,
             "Historical selection leaked into restored rows.");

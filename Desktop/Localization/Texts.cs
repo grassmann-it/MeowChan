@@ -147,12 +147,36 @@ public static class Texts
         State state = Volatile.Read(ref _state);
         string fallback = state.Catalogs["en"].Strings.GetValueOrDefault(key) ?? key;
         string value = state.Catalogs[state.Language].Strings.GetValueOrDefault(key) ?? fallback;
-        if (arguments.Length == 0)
-            return value;
+        return arguments.Length == 0 ? value : FormatSafely(state.Language, value, fallback, arguments);
+    }
 
+    /// <summary>
+    /// Formats a counted text in the grammatical number of <paramref name="count"/>. The base key holds the
+    /// general plural form; <c>key.one</c> (and, where the language has them, <c>key.few</c>, <c>key.many</c>,
+    /// <c>key.two</c>, <c>key.zero</c>) hold the other forms. A missing form falls back to the base key.
+    /// Without <paramref name="arguments"/>, <paramref name="count"/> is {0}; texts with several values pass them all.
+    /// </summary>
+    public static string Count(string key, long count, params object?[] arguments)
+    {
+        State state = Volatile.Read(ref _state);
+        IReadOnlyDictionary<string, string> english = state.Catalogs["en"].Strings;
+        IReadOnlyDictionary<string, string> current = state.Catalogs[state.Language].Strings;
+        // A language that lacks the base text shows the English text, so it also uses the English number rules.
+        bool own = current.ContainsKey(key);
+        string language = own ? state.Language : "en";
+        IReadOnlyDictionary<string, string> source = own ? current : english;
+        string category = PluralRules.Category(language, count);
+        string fallback = english.GetValueOrDefault(PluralRules.Variant(key, PluralRules.Category("en", count))) ?? english.GetValueOrDefault(key) ?? key;
+        string value = (category != PluralRules.Other ? source.GetValueOrDefault(PluralRules.Variant(key, category)) : null)
+            ?? source.GetValueOrDefault(key) ?? fallback;
+        return FormatSafely(state.Language, value, fallback, arguments.Length == 0 ? new object?[] { count } : arguments);
+    }
+
+    private static string FormatSafely(string language, string value, string fallback, object?[] arguments)
+    {
         try
         {
-            return string.Format(CultureInfo.GetCultureInfo(state.Language), value, arguments);
+            return string.Format(CultureInfo.GetCultureInfo(language), value, arguments);
         }
         catch (FormatException)
         {
@@ -251,7 +275,8 @@ public static class Texts
             string translation = entry.Value.GetString()!;
             if (string.IsNullOrWhiteSpace(translation) || translation.Length > 10_000)
                 throw new InvalidDataException("Empty or excessively long translation: " + entry.Name);
-            if (!english.TryGetValue(entry.Name, out string? fallback))
+            if (!english.TryGetValue(entry.Name, out string? fallback)
+                && !(PluralRules.BaseKey(entry.Name) is { } baseKey && english.TryGetValue(baseKey, out fallback)))
                 continue; // A newer catalog may contain keys that this version does not use.
             if (!Placeholders(fallback).SetEquals(Placeholders(translation)))
                 throw new InvalidDataException("Different placeholders or formats: " + entry.Name);

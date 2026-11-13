@@ -54,6 +54,15 @@ optionally followed by hyphen-separated ASCII letter/digit segments of two to
 eight characters, at most 35 characters total. `nativeName` must contain 1–64
 characters, without control characters. The displayed name is trimmed.
 
+Counted texts have a general (plural) base key and an optional `<key>.one` text for a
+count of exactly one, for example `archive.postsCount` and `archive.postsCount.one`.
+Languages with further number forms may add `<key>.few` (also `.many`, `.two`,
+`.zero`); Russian-style languages keep their "many" form in the base key and add
+`.one` and `.few`. These variant keys are optional in a custom pack: a missing
+variant uses the pack's base text, and a variant must use the same placeholders as
+its base key. English, German and the bundled es/fr/ru previews supply the `.one` keys
+listed in `Desktop/Localization/CountCatalog.cs`.
+
 Missing keys fall back to English. Unknown translation keys are ignored, allowing
 a pack to include text introduced by a newer desktop version. A pack must contain
 at least one recognized key. Files are loaded in filename order; duplicate

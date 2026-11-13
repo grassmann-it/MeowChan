@@ -190,8 +190,8 @@ public partial class MainWindow
             AutomationProperties.SetName(WorkspaceCounts, pending);
         }
         summary.Text = !current ? pending + (active && !_downloadSearchOpen ? " · " + DownloadSearchText : string.Empty)
-            : active && !_downloadSearchOpen ? Texts.T("downloads.searchActive", VisibleResultCount, DownloadSearchText)
-            : Texts.T("downloads.searchCount", VisibleResultCount);
+            : active && !_downloadSearchOpen ? Texts.Count("downloads.searchActive", VisibleResultCount, VisibleResultCount, DownloadSearchText)
+            : Texts.Count("downloads.searchCount", VisibleResultCount);
         ToolTip.SetTip(summary, summary.Text);
         AutomationProperties.SetName(summary, summary.Text);
         bool boards = DownloadsTabs.SelectedIndex == 1;

@@ -61,10 +61,10 @@ internal static class SourcesCatalog
         ("sources.noProblem", "No currently reported problem", "Aktuell kein gemeldetes Problem"),
         ("sources.archived", "Archived source thread", "Quellthread archiviert"),
         ("sources.stopped", "Session stopped or stopping", "Sitzung gestoppt oder wird beendet"),
-        ("sources.watchCounts", "{0} threads · {1} boards · {2} queued · {3} active", "{0} Threads · {1} Boards · {2} wartend · {3} aktiv"),
+        ("sources.watchCounts", "Threads: {0} · Boards: {1} · Queued: {2} · Active: {3}", "Threads: {0} · Boards: {1} · Wartend: {2} · Aktiv: {3}"),
         ("sources.mediaCounts", "{0} queued · {1} active", "{0} wartend · {1} aktiv"),
         ("sources.watches", "Watched threads and boards", "Beobachtete Threads und Boards"),
-        ("sources.work", "Work", "Arbeit"),
+        ("sources.work", "Work", "Downloads"),
         ("sources.observation", "Observation", "Beobachtung")
     };
 }

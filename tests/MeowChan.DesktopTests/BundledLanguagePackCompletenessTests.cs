@@ -59,9 +59,17 @@ public sealed class BundledLanguagePackCompletenessTests : IDisposable
         IEnumerable<string> expectedKeys = BuiltInCatalog.English
             .Where(entry => !string.IsNullOrWhiteSpace(entry.Value))
             .Select(entry => entry.Key);
+        // Languages with more number forms than English add optional "<key>.few" style variants of an English key.
+        string[] pluralVariants = translations.Keys.Where(key => !BuiltInCatalog.English.ContainsKey(key)).ToArray();
+        Assert.All(pluralVariants, key =>
+        {
+            int dot = key.LastIndexOf('.');
+            Assert.True(dot > 0 && key[(dot + 1)..] is "zero" or "two" or "few" or "many"
+                && BuiltInCatalog.English.ContainsKey(key[..dot]), "Unknown bundled translation key: " + key);
+        });
         Assert.Equal(
             expectedKeys.Order(StringComparer.Ordinal),
-            translations.Keys.Order(StringComparer.Ordinal));
+            translations.Keys.Except(pluralVariants).Order(StringComparer.Ordinal));
         Assert.All(translations.Values, value => Assert.False(string.IsNullOrWhiteSpace(value)));
 
         Texts.Initialize();

@@ -38,12 +38,12 @@ public partial class MainWindow
             TextBlock summary = new()
             {
                 TextWrapping = TextWrapping.Wrap,
-                Text = Texts.T("archive.delete.summary", plan.Catalog.Threads.Count, plan.Files.OwnedFileCount, plan.Files.OwnedBytes)
+                Text = Texts.Count("archive.delete.summary", plan.Catalog.Threads.Count, plan.Catalog.Threads.Count, plan.Files.OwnedFileCount, plan.Files.OwnedBytes)
             };
             List<string> details = plan.Catalog.Threads.Select(thread =>
                 thread.Summary.Id.Source + " /" + thread.Summary.Id.Board + "/ " + thread.Summary.Id.Thread + " · " + thread.Summary.Title).ToList();
             details.Add("");
-            details.Add(Texts.T("archive.delete.ratings", plan.RatingCount));
+            details.Add(Texts.Count("archive.delete.ratings", plan.RatingCount));
             details.Add(Texts.T("archive.delete.effects"));
             details.Add(Texts.T("bookmarks.retained"));
             foreach (ArchiveDirectoryPlan directory in plan.Files.Directories)
@@ -160,7 +160,7 @@ public partial class MainWindow
                     outcome.Add(Texts.T("bookmarks.retained"));
                     detail.Text = string.Join(Environment.NewLine, outcome);
                     _postBookmarksDialog?.InvalidateAvailability();
-                    status.Text = Texts.T("archive.delete.deleted", result.DeletedThreads.Count);
+                    status.Text = Texts.Count("archive.delete.deleted", result.DeletedThreads.Count);
                     if (result.Files != null)
                         status.Text += " " + Texts.T("archive.delete.filesRemoved", result.Files.DeletedFileCount);
                     await ArchivePage.ActivateAsync();

@@ -74,7 +74,7 @@ internal static class PluginCatalog
         ("targets.check", "Check download targets now", "Downloadziele jetzt prüfen"),
         ("nav.plugins", "Plugins", "Plugins"),
         ("plugins.experimental", "Experimental", "Experimentell"),
-        ("plugins.experimentalHint", "Experimental sources: {0}. Submitting a URL for a disabled source can activate it with explicit permission for provider differences. Enabling here grants no new permission; existing permissions keep their effect. Manage permissions in Sources.", "Experimentelle Quellen: {0}. Eine URL für eine deaktivierte Quelle kann sie mit ausdrücklicher Abweichungsfreigabe aktivieren. Aktivieren an dieser Stelle erteilt keine neue Freigabe; bestehende Freigaben bleiben wirksam. Freigaben unter Quellen verwalten."),
+        ("plugins.experimentalHint", "Experimental sources: {0}. Provider differences are possible; the first activation asks once. Permissions are managed in Sources.", "Experimentelle Quellen: {0}. Anbieterabweichungen möglich; die erste Aktivierung fragt einmal nach. Freigaben stehen unter Quellen."),
         ("plugins.classificationTitle", "Source classification", "Quellenklassifikation"),
         ("plugins.subtitle", "Sources and image filters in this profile.", "Quellen und Bildfilter dieses Profils."),
         ("plugins.localStatusHint", "Plugin status and descriptions do not indicate website availability.", "Pluginstatus und Beschreibungen sagen nichts über die Erreichbarkeit einer Website aus."),

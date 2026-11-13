@@ -65,10 +65,7 @@ public sealed partial class MediaPage
 
     private static string AskText(MediaLibraryExportSize size) => Texts.T("media.exportAll.confirm", size.Files.ToString("N0", Texts.Culture), FormatBytes(size.Bytes));
 
-    // The tile detail shows decimal megabytes; larger totals read better in gigabytes.
-    private static string FormatBytes(long bytes) => bytes >= 1_000_000_000L
-        ? (bytes / 1_000_000_000d).ToString("0.#", Texts.Culture) + " GB"
-        : (bytes / 1_000_000d).ToString("0.#", Texts.Culture) + " MB";
+    private static string FormatBytes(long bytes) => MeowChan.Desktop.SizeText.Format(bytes);
 
     private void DismissExportAllAsk()
     {

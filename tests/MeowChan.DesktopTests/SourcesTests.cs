@@ -22,8 +22,8 @@ public sealed class SourcesTests
             new FailureInfo(FailureKind.Http, "Thread missing", HttpStatusCode.NotFound), new DownloadCounts(2, 1)), "4chan", "g");
         DesktopSessionView view = new DesktopSessionView([thread], [], [], DesktopSessionState.Ready, null);
         IReadOnlyList<SourceRow> rows = SourcesSnapshot.From([Provider("4chan"), Provider("8kun")], view);
-        Assert.Contains("1 threads", rows[0].Summary);
-        Assert.Contains("2 queued", rows[0].Summary);
+        Assert.Contains("Threads: 1", rows[0].Summary);
+        Assert.Contains("Queued: 2", rows[0].Summary);
         SourceWatchRow watch = Assert.Single(rows[0].Watches);
         Assert.Equal(new DiagnosticTarget(DiagnosticTargetKind.Thread, 42), watch.Target);
         Assert.Contains("25", watch.Observation);

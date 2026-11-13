@@ -17,7 +17,7 @@ internal static class ArchiveColumnsCatalog
         ("archive.media.missingVersions", "Not counted: {0:N0} recorded files are missing or have changed.", "Nicht mitgezählt: {0:N0} erfasste Dateien fehlen oder haben sich verändert."),
         ("archive.media.currentProgress", "Current download work: {0}", "Aktueller Downloadauftrag: {0}"),
         ("archive.columns.source", "Source", "Quelle"),
-        ("archive.columns.work", "Work", "Arbeit"),
+        ("archive.columns.work", "Work", "Downloads"),
         ("archive.columns.lastCapture", "Last capture", "Letzte Erfassung"),
         ("archive.columns.tags", "Tags", "Tags"),
         ("archive.columns.name", "File name", "Dateiname"),

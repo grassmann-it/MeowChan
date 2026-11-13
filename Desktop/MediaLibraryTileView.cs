@@ -34,7 +34,7 @@ internal sealed record MediaLibraryTileRow(MediaLibraryTile Tile, int Index, Fun
         : Texts.T("media.tile.thread", string.IsNullOrWhiteSpace(Entry.ThreadTitle) ? "#" + Entry.Thread.Thread : Entry.ThreadTitle);
     public string Detail => Entry.Presence == MediaLibraryPresence.Missing ? Texts.T("media.tile.missing")
         : Entry.Unassigned && !IsProviderMedium ? Texts.T("media.tile.unassigned")
-        : Entry.Length is long length ? (length / 1_000_000d).ToString("0.###", Texts.Culture) + " MB" : string.Empty;
+        : Entry.Length is long length ? SizeText.Format(length) : string.Empty;
     public string DetailWithState => State is { } state && MediaLibraryStateText.Compact(state, Tile.IsGroup) is { Length: > 0 } compact
         ? (Detail.Length == 0 ? compact : Detail + " · " + compact) : Detail;
     /// <summary>The own tags the tile offers as filter chips (media tags first, then thread tags); empty when unknown or none.</summary>

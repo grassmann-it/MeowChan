@@ -22,7 +22,7 @@ internal sealed partial record ArchiveThreadRow(ArchiveThreadSummary Summary, Th
     public string TitleOrId => string.IsNullOrWhiteSpace(Title) ? "#" + Summary.Id.Thread : Title;
     public string Identity => Summary.Id.Source + " /" + Summary.Id.Board + "/ · " + Summary.Id.Thread;
     public string Status => Summary.LastCapturedAt == null ? Texts.T("archive.mediaOnly")
-        : Texts.T("archive.postsCount", Summary.PostCount);
+        : Texts.Count("archive.postsCount", Summary.PostCount);
     public int Posts => Summary.PostCount;
     public string SourceStatus => Texts.T(Summary.SourceState switch
     {
@@ -182,7 +182,7 @@ internal sealed record ArchiveAssetRow(MediaAssetSnapshot Manifest, MediaAssetRe
     public Func<Task>? ToggleFavoriteAsync { get; set; }
     public Func<string?>? FavoriteError { get; set; }
     public string Name => Asset.OriginalFileName ?? System.IO.Path.GetFileName(Asset.Path);
-    public string Size => (Asset.Length / 1_000_000d).ToString("0.###", Texts.Culture) + " MB";
+    public string Size => SizeText.Format(Asset.Length);
     public string TileSummary => Size + " · " + Texts.T(Asset.IsCurrent ? "gallery.latestVersions" : "gallery.earlierVersion");
     public string Version => Asset.Sha256[..Math.Min(12, Asset.Sha256.Length)];
     public string Path => Asset.Path;

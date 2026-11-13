@@ -1,0 +1,190 @@
+using System.Globalization;
+using System.Text.Json;
+using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
+
+namespace MeowChan.DesktopTests;
+
+[Collection("Localization")]
+public sealed class CountAndSizeTextTests : IDisposable
+{
+    public CountAndSizeTextTests() => Reset();
+    public void Dispose() => Reset();
+
+    private static void Reset()
+    {
+        Texts.Initialize();
+        Texts.SetLanguage("en");
+    }
+
+    [Theory]
+    [InlineData("en", 0, "0 captured posts")]
+    [InlineData("en", 1, "1 captured post")]
+    [InlineData("en", 2, "2 captured posts")]
+    [InlineData("de", 1, "1 erfasster Post")]
+    [InlineData("de", 3, "3 erfasste Posts")]
+    [InlineData("es", 1, "1 publicación capturada")]
+    [InlineData("es", 0, "0 publicaciones capturadas")]
+    [InlineData("fr", 0, "0 message capturé")]
+    [InlineData("fr", 1, "1 message capturé")]
+    [InlineData("fr", 2, "2 messages capturés")]
+    public void CountPicksTheSingularOnlyWhereTheLanguageUsesIt(string language, long count, string expected)
+    {
+        Texts.SetLanguage(language);
+
+        Assert.Equal(expected, Texts.Count("archive.postsCount", count));
+    }
+
+    [Theory]
+    [InlineData(1, "пост")]
+    [InlineData(2, "поста")]
+    [InlineData(4, "поста")]
+    [InlineData(5, "постов")]
+    [InlineData(11, "постов")]
+    [InlineData(12, "постов")]
+    [InlineData(21, "пост")]
+    [InlineData(22, "поста")]
+    [InlineData(25, "постов")]
+    [InlineData(101, "пост")]
+    [InlineData(111, "постов")]
+    public void RussianUsesOneFewAndManyForms(long count, string noun)
+    {
+        Texts.SetLanguage("ru");
+
+        Assert.Equal("Последний захват: 5.11.2026 · " + count + " " + noun,
+            Texts.Count("archive.captured", count, "5.11.2026", count));
+    }
+
+    [Fact]
+    public void CountFormatsEveryArgumentAndKeepsTheOtherCountsPlural()
+    {
+        Assert.Equal("12 media in 1 thread", Texts.Count("media.count", 1, 12, 1));
+        Assert.Equal("12 media in 3 threads", Texts.Count("media.count", 3, 12, 3));
+        Assert.Equal("12 media in 1 thread, 2 missing", Texts.Count("media.countMissing", 1, 12, 1, 2));
+        Texts.SetLanguage("de");
+        Assert.Equal("12 Medien in 1 Thread", Texts.Count("media.count", 1, 12, 1));
+    }
+
+    [Fact]
+    public void CountWithoutAnySingularFormUsesTheBaseKeyAndUnknownKeysShowTheKey()
+    {
+        Assert.Equal("3 results", Texts.Count("downloads.searchCount", 3));
+        Assert.Equal("1 result", Texts.Count("downloads.searchCount", 1));
+        Assert.Equal("1 Treffer", WithLanguage("de", () => Texts.Count("downloads.searchCount", 1)));
+        Assert.Equal("no.such.key", Texts.Count("no.such.key", 1));
+    }
+
+    [Fact]
+    public void PackWithoutSingularFormFallsBackToItsOwnBaseText()
+    {
+        using TempDirectory directory = new TempDirectory();
+        WritePack(directory, "xx", new Dictionary<string, string> { ["archive.postsCount"] = "{0} xx-posts" });
+        Texts.InitializeWithoutBundlesForTests(directory.Path);
+        Texts.SetLanguage("xx");
+
+        Assert.Equal("1 xx-posts", Texts.Count("archive.postsCount", 1));
+        // A key the pack lacks entirely shows the English text, with English number rules.
+        Assert.Equal("1 result", Texts.Count("downloads.searchCount", 1));
+    }
+
+    [Fact]
+    public void PackMayAddPluralVariantsOfEnglishKeysButTheyNeedMatchingPlaceholders()
+    {
+        using TempDirectory directory = new TempDirectory();
+        WritePack(directory, "ru", new Dictionary<string, string>
+        {
+            ["archive.postsCount"] = "{0} постов",
+            ["archive.postsCount.one"] = "{0} пост",
+            ["archive.postsCount.few"] = "{0} поста"
+        });
+        Texts.InitializeWithoutBundlesForTests(directory.Path);
+        Texts.SetLanguage("ru");
+
+        Assert.Empty(Texts.Warnings);
+        Assert.Equal(new[] { "21 пост", "23 поста", "25 постов" },
+            new[] { 21L, 23L, 25L }.Select(count => Texts.Count("archive.postsCount", count)));
+
+        using TempDirectory bad = new TempDirectory();
+        WritePack(bad, "ru", new Dictionary<string, string>
+        {
+            ["archive.postsCount"] = "{0} постов",
+            ["archive.postsCount.few"] = "{0} {1} поста"
+        });
+        Texts.SetLanguage("en");
+        Texts.InitializeWithoutBundlesForTests(bad.Path);
+
+        Assert.Contains("ru.json", Assert.Single(Texts.Warnings));
+    }
+
+    [Fact]
+    public void EverySingularKeyBelongsToABaseKeyWithTheSamePlaceholdersInEnglishAndGerman()
+    {
+        foreach (IReadOnlyDictionary<string, string> catalog in new[] { BuiltInCatalog.English, BuiltInCatalog.German })
+        {
+            string[] ones = catalog.Keys.Where(key => key.EndsWith(".one", StringComparison.Ordinal)).ToArray();
+            Assert.NotEmpty(ones);
+            foreach (string key in ones)
+            {
+                string baseKey = key[..^4];
+                Assert.True(catalog.ContainsKey(baseKey), "No base text for " + key);
+                Assert.Equal(Placeholders(catalog[baseKey]), Placeholders(catalog[key]));
+            }
+        }
+        Assert.Empty(Texts.ValidateBuiltInCatalogs());
+    }
+
+    [Theory]
+    [InlineData("en", 1, "one")] [InlineData("en", 0, "other")] [InlineData("en", 2, "other")]
+    [InlineData("de-AT", 1, "one")] [InlineData("de", 5, "other")]
+    [InlineData("es", 1, "one")] [InlineData("es", 0, "other")]
+    [InlineData("fr", 0, "one")] [InlineData("fr", 1, "one")] [InlineData("fr", 2, "other")]
+    [InlineData("ru", 1, "one")] [InlineData("ru", 3, "few")] [InlineData("ru", 0, "many")] [InlineData("ru", 12, "many")] [InlineData("ru", 22, "few")]
+    [InlineData("ru", -1, "one")] [InlineData("pl", 5, "many")] [InlineData("cs", 3, "few")] [InlineData("ja", 1, "other")]
+    public void PluralCategories(string language, long count, string expected) =>
+        Assert.Equal(expected, PluralRules.Category(language, count));
+
+    [Theory]
+    [InlineData(-5L, "0 B")]
+    [InlineData(0L, "0 B")]
+    [InlineData(999L, "999 B")]
+    [InlineData(1_000L, "1 KB")]
+    [InlineData(1_500L, "1.5 KB")]
+    [InlineData(45_000L, "45 KB")]
+    [InlineData(999_499L, "999 KB")]
+    [InlineData(999_500L, "1 MB")]
+    [InlineData(1_234_567L, "1.2 MB")]
+    [InlineData(5_800_000L, "5.8 MB")]
+    [InlineData(999_949_999L, "999.9 MB")]
+    [InlineData(999_960_000L, "1 GB")]
+    [InlineData(2_500_000_000L, "2.5 GB")]
+    [InlineData(long.MaxValue, "9223372 TB")]
+    public void SizeTextUsesDecimalUnitsAndNeverRoundsASmallFileToZeroMegabytes(long bytes, string expected) =>
+        Assert.Equal(expected, SizeText.Format(bytes, CultureInfo.InvariantCulture));
+
+    [Fact]
+    public void SizeTextFollowsTheSelectedLanguageAndTheLegacyHelperDelegatesToIt()
+    {
+        Texts.SetLanguage("de");
+
+        Assert.Equal("1,2 MB", SizeText.Format(1_234_567));
+        Assert.Equal("1,2 MB", Utils.ToHumanReadableSize(1_234_567));
+        Texts.SetLanguage("en");
+        Assert.Equal("1.2 MB", SizeText.Format(1_234_567));
+    }
+
+    private static string WithLanguage(string language, Func<string> action)
+    {
+        Texts.SetLanguage(language);
+        try { return action(); }
+        finally { Texts.SetLanguage("en"); }
+    }
+
+    private static HashSet<string> Placeholders(string format) =>
+        System.Text.RegularExpressions.Regex.Matches(format, @"\{\d+[^}]*\}").Select(match => match.Value).ToHashSet(StringComparer.Ordinal);
+
+    private static void WritePack(TempDirectory directory, string code, Dictionary<string, string> strings) =>
+        File.WriteAllText(Path.Combine(directory.Path, code + ".json"), JsonSerializer.Serialize(new Dictionary<string, object>
+        {
+            ["schemaVersion"] = 1, ["code"] = code, ["nativeName"] = code, ["strings"] = strings
+        }));
+}

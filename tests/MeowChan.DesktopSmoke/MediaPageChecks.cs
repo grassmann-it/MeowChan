@@ -276,7 +276,7 @@ internal static partial class MediaPageChecks
             Require(page.PresentCount == presented && name.IsQueryPending, "A burst of keystrokes must not rebuild the grid before the delay.");
             await UntilAsync(() => Shown() == "200:200" && !name.IsQueryPending);
             Require(page.PresentCount == presented + 1, "The burst must rebuild the grid once: " + (page.PresentCount - presented));
-            Require(name.ResultText == Texts.T("search.count", 1), "The field must show the hit count: " + name.ResultText);
+            Require(name.ResultText == Texts.Count("search.count", 1), "The field must show the hit count: " + name.ResultText);
             name.ClearAndFocus();
             Require(name.Text == string.Empty && page.ShownEntries.Count == 3 && name.ResultText == null, "Clearing must apply at once.");
             page.SearchImmediateEntries = 2000;

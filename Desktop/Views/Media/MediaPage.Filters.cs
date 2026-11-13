@@ -460,7 +460,7 @@ public sealed partial class MediaPage
     private void UpdateSearchResult()
     {
         _nameFilter.Debounce = (_snapshot?.Entries.Count ?? 0) > SearchImmediateEntries ? NameFilterDebounce : TimeSpan.Zero;
-        _nameFilter.ResultText = string.IsNullOrEmpty(_nameFilter.Text) || _filterFailed || _snapshot == null ? null : Texts.T("search.count", _shown.Count);
+        _nameFilter.ResultText = string.IsNullOrEmpty(_nameFilter.Text) || _filterFailed || _snapshot == null ? null : Texts.Count("search.count", _shown.Count);
     }
 
     // Sets another filter combo without that combo's own change reaction.

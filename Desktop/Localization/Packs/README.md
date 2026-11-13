@@ -17,7 +17,7 @@ intentionally empty saved-search sentinels are omitted because schema v1 rejects
 empty translations; their English fallback stays empty. Tests compare each pack
 with the compiled English catalog and validate exact formatting contracts through
 the production loader. Key coverage is **not** language-quality or complete-UI QA.
-Future key additions require matching pack updates. The keys of `InlineTextCatalog` (formerly hard-coded English/German pairs in product code) were machine-translated into es/fr/ru and have had no human proofreading yet. Proper names and technical
+Future key additions require matching pack updates. The singular keys `<key>.one` of `CountCatalog` are part of that coverage; the Russian pack adds `<key>.few` (2-4, 22-24, ...) where its text needs it. Such `.few` keys are optional extras that exist only in the pack, not in the English catalog; user packs may omit all plural variants. The keys of `InlineTextCatalog` (formerly hard-coded English/German pairs in product code) were machine-translated into es/fr/ru and have had no human proofreading yet. Proper names and technical
 terms may legitimately match English. The About-window photo credit and logo
 description (`about.photoCredit`, `about.photoCreditFlickr`, `about.logoDescription`,
 `about.logoSimba`, `about.logoMila`)

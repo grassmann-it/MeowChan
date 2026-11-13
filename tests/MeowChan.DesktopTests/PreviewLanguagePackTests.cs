@@ -14,6 +14,14 @@ public sealed class PreviewLanguagePackTests : IDisposable
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }
     private static void Reset() { Texts.InitializeWithoutBundlesForTests(); Texts.SetLanguage("en"); }
 
+    // Languages with more number forms than English add optional "<key>.few" style variants of an English key.
+    private static bool PluralVariantOfEnglishKey(string key)
+    {
+        int dot = key.LastIndexOf('.');
+        return dot > 0 && !BuiltInCatalog.English.ContainsKey(key) && BuiltInCatalog.English.ContainsKey(key[..dot])
+            && key[(dot + 1)..] is "zero" or "two" or "few" or "many";
+    }
+
     [Theory]
     [InlineData("es", "Español (Untested)")]
     [InlineData("fr", "Français (Untested)")]
@@ -31,7 +39,7 @@ public sealed class PreviewLanguagePackTests : IDisposable
         // alone would hide. Runtime loader below also validates all placeholders.
         var translations = entries.ToDictionary(p => p.Name, p => p.Value.GetString()!, StringComparer.Ordinal);
         Assert.Equal(BuiltInCatalog.English.Where(pair => !string.IsNullOrWhiteSpace(pair.Value)).Select(pair => pair.Key).Order(StringComparer.Ordinal),
-            translations.Keys.Order(StringComparer.Ordinal));
+            translations.Keys.Where(key => !PluralVariantOfEnglishKey(key)).Order(StringComparer.Ordinal));
         Assert.All(translations.Values, value => Assert.False(string.IsNullOrWhiteSpace(value)));
         Assert.InRange(new FileInfo(pack).Length, 1, 2_000_000);
 

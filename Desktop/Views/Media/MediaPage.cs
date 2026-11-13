@@ -237,7 +237,7 @@ public sealed partial class MediaPage : UserControl
         List<string> parts = new();
         if (_progress is { } progress && progress.ThreadsTotal > 0) parts.Add(Texts.T("media.indexing", progress.ThreadsDone, progress.ThreadsTotal));
         if (_snapshot != null) parts.Add(_filterActive && !_filterFailed ? Texts.T("media.filter.count", _shown.Count, _unfiltered)
-            : missing > 0 ? Texts.T("media.countMissing", _shown.Count, threads, missing) : Texts.T("media.count", _shown.Count, threads));
+            : missing > 0 ? Texts.Count("media.countMissing", threads, _shown.Count, threads, missing) : Texts.Count("media.count", threads, _shown.Count, threads));
         if (_snapshot != null && _snapshot.Entries.Count(entry => entry.BooruPostId != null) is > 0 and int provider)
             parts.Add(Texts.T("booru.media.statusCount", provider));
         if (_snapshot is { Complete: false } && _building == null) parts.Add(Texts.T("media.incomplete"));
