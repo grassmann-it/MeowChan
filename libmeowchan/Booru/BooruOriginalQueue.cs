@@ -367,19 +367,28 @@ internal sealed class BooruOriginalQueue
             if (observation is { } seen)
             {
                 // One durable write for the claim, its finding and the decided intent (write-ahead Requested or
-                // Unavailable). The decision runs on the merged record inside the catalog write.
-                record = _catalog.RecordObservation(seen.Post, seen.ObservedAtUtc, seen.Kind, seen.WatcherId, seen.Query,
-                    merged =>
-                    {
-                        wasRequested = merged.OriginalIntent == BooruOriginalIntent.Requested;
-                        step = Decide(merged, mode, existing, out plan, out error);
-                        return step switch
+                // Unavailable). The decision runs on the merged record inside the catalog write. Only this
+                // persistence boundary is translated; an IOException later returned by the shared queue must stay
+                // an admission_failed result for the watcher.
+                try
+                {
+                    record = _catalog.RecordObservation(seen.Post, seen.ObservedAtUtc, seen.Kind, seen.WatcherId, seen.Query,
+                        merged =>
                         {
-                            AdmissionStep.Unavailable => BooruOriginalIntent.Unavailable,
-                            AdmissionStep.Admit when !wasRequested => BooruOriginalIntent.Requested,
-                            _ => null
-                        };
-                    }, cancellationToken);
+                            wasRequested = merged.OriginalIntent == BooruOriginalIntent.Requested;
+                            step = Decide(merged, mode, existing, out plan, out error);
+                            return step switch
+                            {
+                                AdmissionStep.Unavailable => BooruOriginalIntent.Unavailable,
+                                AdmissionStep.Admit when !wasRequested => BooruOriginalIntent.Requested,
+                                _ => null
+                            };
+                        }, cancellationToken);
+                }
+                catch (Exception exception) when (BooruCatalogPersistenceException.IsStoreWriteFailure(exception))
+                {
+                    throw new BooruCatalogPersistenceException(exception);
+                }
             }
             else
             {
