@@ -225,6 +225,36 @@ namespace MeowChan
         internal const int ClipboardTextLimitKiBMinimum = Desktop.ClipboardUrlMonitor.MinimumTextLimitKiB;
         internal const int ClipboardTextLimitKiBMaximum = Desktop.ClipboardUrlMonitor.MaximumTextLimitKiB;
 
+        // Network and disk statistics (Desktop/Stats). Every number is a setting with a default, a minimum and a maximum;
+        // the fixed technical ceilings (tray tooltip text 120 characters, io-stats.json 16 MiB when read) are documented only.
+        /// <summary>Sampling interval of the network and disk counters in milliseconds while the window is visible.</summary>
+        public int StatsSampleIntervalMs { get; set; } = StatsSampleIntervalMsDefault;
+        internal const int StatsSampleIntervalMsDefault = 1000, StatsSampleIntervalMsMinimum = 500, StatsSampleIntervalMsMaximum = 10_000;
+        /// <summary>How many samples the statistics graph keeps (its width in samples); the time span is this times the interval.</summary>
+        public int StatsHistorySamples { get; set; } = StatsHistorySamplesDefault;
+        internal const int StatsHistorySamplesDefault = 120, StatsHistorySamplesMinimum = 30, StatsHistorySamplesMaximum = 3600;
+        /// <summary>Sampling interval in milliseconds while the window is hidden, downloads are active and the tray tooltip shows statistics. Nothing is sampled while hidden and idle.</summary>
+        public int StatsBackgroundIntervalMs { get; set; } = StatsBackgroundIntervalMsDefault;
+        internal const int StatsBackgroundIntervalMsDefault = 5000, StatsBackgroundIntervalMsMinimum = 2000, StatsBackgroundIntervalMsMaximum = 60_000;
+        /// <summary>Whether the tray tooltip shows the current rates.</summary>
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool StatsTrayTooltip { get; set; } = true;
+        /// <summary>Whether the tray menu starts with two statistics lines.</summary>
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool StatsTrayMenu { get; set; } = true;
+        /// <summary>Whether the per-day totals are kept in the profile (io-stats.json) so "today" and the retention total survive a restart.</summary>
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool StatsPersist { get; set; } = true;
+        /// <summary>How many days of totals are kept (today included); older days are dropped when the statistics load and at midnight.</summary>
+        public int StatsRetentionDays { get; set; } = StatsRetentionDaysDefault;
+        internal const int StatsRetentionDaysDefault = 30, StatsRetentionDaysMinimum = 1, StatsRetentionDaysMaximum = 365;
+        /// <summary>How often changed totals are written to io-stats.json, in minutes (they are also written at exit).</summary>
+        public int StatsPersistIntervalMinutes { get; set; } = StatsPersistIntervalMinutesDefault;
+        internal const int StatsPersistIntervalMinutesDefault = 5, StatsPersistIntervalMinutesMinimum = 1, StatsPersistIntervalMinutesMaximum = 60;
+        /// <summary>Most sources (rows and keys per day); further sources are summed into one "other" row.</summary>
+        public int StatsMaxSources { get; set; } = StatsMaxSourcesDefault;
+        internal const int StatsMaxSourcesDefault = 64, StatsMaxSourcesMinimum = 8, StatsMaxSourcesMaximum = 256;
+
         // Manual import limits (contract manual-import-v1 §4). Every limit is a setting; the stores enforce technical ceilings.
         /// <summary>Most files (new and already present) one import batch may hold.</summary>
         public int ImportMaxFilesPerBatch { get; set; } = Import.ManualImportLimits.DefaultMaximumFiles;
@@ -696,6 +726,18 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ClipboardUrlLimit), "ClipboardUrlLimit is outside its supported range (" + ClipboardUrlLimitMinimum + " to " + ClipboardUrlLimitMaximum + ").");
             if (ClipboardTextLimitKiB is < ClipboardTextLimitKiBMinimum or > ClipboardTextLimitKiBMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ClipboardTextLimitKiB), "ClipboardTextLimitKiB is outside its supported range (" + ClipboardTextLimitKiBMinimum + " to " + ClipboardTextLimitKiBMaximum + ").");
+            if (StatsSampleIntervalMs is < StatsSampleIntervalMsMinimum or > StatsSampleIntervalMsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(StatsSampleIntervalMs), "StatsSampleIntervalMs is outside its supported range (" + StatsSampleIntervalMsMinimum + " to " + StatsSampleIntervalMsMaximum + ").");
+            if (StatsHistorySamples is < StatsHistorySamplesMinimum or > StatsHistorySamplesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(StatsHistorySamples), "StatsHistorySamples is outside its supported range (" + StatsHistorySamplesMinimum + " to " + StatsHistorySamplesMaximum + ").");
+            if (StatsBackgroundIntervalMs is < StatsBackgroundIntervalMsMinimum or > StatsBackgroundIntervalMsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(StatsBackgroundIntervalMs), "StatsBackgroundIntervalMs is outside its supported range (" + StatsBackgroundIntervalMsMinimum + " to " + StatsBackgroundIntervalMsMaximum + ").");
+            if (StatsRetentionDays is < StatsRetentionDaysMinimum or > StatsRetentionDaysMaximum)
+                throw new ArgumentOutOfRangeException(nameof(StatsRetentionDays), "StatsRetentionDays is outside its supported range (" + StatsRetentionDaysMinimum + " to " + StatsRetentionDaysMaximum + ").");
+            if (StatsPersistIntervalMinutes is < StatsPersistIntervalMinutesMinimum or > StatsPersistIntervalMinutesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(StatsPersistIntervalMinutes), "StatsPersistIntervalMinutes is outside its supported range (" + StatsPersistIntervalMinutesMinimum + " to " + StatsPersistIntervalMinutesMaximum + ").");
+            if (StatsMaxSources is < StatsMaxSourcesMinimum or > StatsMaxSourcesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(StatsMaxSources), "StatsMaxSources is outside its supported range (" + StatsMaxSourcesMinimum + " to " + StatsMaxSourcesMaximum + ").");
             if (ImportMaxFilesPerBatch is < ImportMaxFilesPerBatchMinimum or > ImportMaxFilesPerBatchMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ImportMaxFilesPerBatch), "ImportMaxFilesPerBatch is outside its supported range (" + ImportMaxFilesPerBatchMinimum + " to " + ImportMaxFilesPerBatchMaximum + ").");
             if (ImportMaxBatchGiB is < ImportMaxBatchGiBMinimum or > ImportMaxBatchGiBMaximum)
@@ -788,6 +830,15 @@ namespace MeowChan
                 ThumbnailCacheTiles = ThumbnailCacheTiles,
                 ClipboardUrlLimit = ClipboardUrlLimit,
                 ClipboardTextLimitKiB = ClipboardTextLimitKiB,
+                StatsSampleIntervalMs = StatsSampleIntervalMs,
+                StatsHistorySamples = StatsHistorySamples,
+                StatsBackgroundIntervalMs = StatsBackgroundIntervalMs,
+                StatsTrayTooltip = StatsTrayTooltip,
+                StatsTrayMenu = StatsTrayMenu,
+                StatsPersist = StatsPersist,
+                StatsRetentionDays = StatsRetentionDays,
+                StatsPersistIntervalMinutes = StatsPersistIntervalMinutes,
+                StatsMaxSources = StatsMaxSources,
                 ImportMaxFilesPerBatch = ImportMaxFilesPerBatch,
                 ImportMaxBatchGiB = ImportMaxBatchGiB,
                 ImportMaxFileMiB = ImportMaxFileMiB,
@@ -908,6 +959,15 @@ namespace MeowChan
             ThumbnailCacheTiles = source.ThumbnailCacheTiles;
             ClipboardUrlLimit = source.ClipboardUrlLimit;
             ClipboardTextLimitKiB = source.ClipboardTextLimitKiB;
+            StatsSampleIntervalMs = source.StatsSampleIntervalMs;
+            StatsHistorySamples = source.StatsHistorySamples;
+            StatsBackgroundIntervalMs = source.StatsBackgroundIntervalMs;
+            StatsTrayTooltip = source.StatsTrayTooltip;
+            StatsTrayMenu = source.StatsTrayMenu;
+            StatsPersist = source.StatsPersist;
+            StatsRetentionDays = source.StatsRetentionDays;
+            StatsPersistIntervalMinutes = source.StatsPersistIntervalMinutes;
+            StatsMaxSources = source.StatsMaxSources;
             ImportMaxFilesPerBatch = source.ImportMaxFilesPerBatch;
             ImportMaxBatchGiB = source.ImportMaxBatchGiB;
             ImportMaxFileMiB = source.ImportMaxFileMiB;
@@ -992,6 +1052,15 @@ namespace MeowChan
             ThumbnailCacheTiles = source.ThumbnailCacheTiles;
             ClipboardUrlLimit = source.ClipboardUrlLimit;
             ClipboardTextLimitKiB = source.ClipboardTextLimitKiB;
+            StatsSampleIntervalMs = source.StatsSampleIntervalMs;
+            StatsHistorySamples = source.StatsHistorySamples;
+            StatsBackgroundIntervalMs = source.StatsBackgroundIntervalMs;
+            StatsTrayTooltip = source.StatsTrayTooltip;
+            StatsTrayMenu = source.StatsTrayMenu;
+            StatsPersist = source.StatsPersist;
+            StatsRetentionDays = source.StatsRetentionDays;
+            StatsPersistIntervalMinutes = source.StatsPersistIntervalMinutes;
+            StatsMaxSources = source.StatsMaxSources;
             ImportMaxFilesPerBatch = source.ImportMaxFilesPerBatch;
             ImportMaxBatchGiB = source.ImportMaxBatchGiB;
             ImportMaxFileMiB = source.ImportMaxFileMiB;
