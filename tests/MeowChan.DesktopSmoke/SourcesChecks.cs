@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
+using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using Avalonia.Interactivity;
 using Avalonia.Input;
@@ -10,6 +11,10 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Http;
 using SourceMaturity = MeowChan.PluginSdk.SourceMaturity;
+using SourceWording = MeowChan.Desktop.Plugins.SourceWording;
+using SourceWordingMaintenance = MeowChan.Desktop.Plugins.SourceWordingMaintenance;
+using SourceWordingMaturity = MeowChan.Desktop.Plugins.SourceWordingMaturity;
+using SourceWordingClassification = MeowChan.Desktop.Plugins.SourceWordingClassification;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -51,15 +56,16 @@ internal static class SourcesChecks
             Console.WriteLine("SMOKE productive source card: source=" + selectedSource.SourceId
                 + "; labels=" + string.Join(" | ", selectedText.Take(2))
                 + "; visual-text-count=" + selectedCard.GetVisualDescendants().OfType<TextBlock>().Count() + ".");
-            // Since b38a8b7 the card name carries the source-wording tier (e.g. "MeowChan · experimental"),
-            // whose exact bundled wording is pinned by BundledSourceWordingEvidenceTests.
+            // The card name is the plain source name; maintenance, maturity and status are chips, and only where the source deviates.
             SourceRow selectedRow = SourcesSnapshot.From(window.SessionHost.GetProviderDescriptors(), window.SessionHost.GetView(),
                 window.SessionHost.GetSourceMediaIntegrityPolicies()).Single(row => row.Id == selectedSource.SourceId);
-            string selectedName = selectedSource.DisplayName
-                + (selectedRow.Classification is { } tier ? " · " + MeowChan.Desktop.Plugins.SourceWording.DescribeLabels(tier) : string.Empty);
-            Require(selectedText.Length >= 2 && selectedText[0] == "● " + selectedName
-                && selectedText[1] == selectedSource.BaseUri.AbsoluteUri,
-                "The productive Sources details disagreed with the selected source card.");
+            string[] expectedChips = selectedRow.Badges.Where(badge => badge.Deviates).Select(badge => badge.ChipText).ToArray();
+            string[] shownChips = selectedLabels.Children.OfType<WrapPanel>().Single().Children.OfType<Border>()
+                .Select(chip => chip.GetLogicalDescendants().OfType<TextBlock>().Single().Text ?? string.Empty).ToArray();
+            Require(selectedText.Length >= 2 && selectedText[0] == selectedSource.DisplayName
+                && selectedText[1] == selectedSource.BaseUri.AbsoluteUri && shownChips.SequenceEqual(expectedChips),
+                "The productive Sources details disagreed with the selected source card: " + string.Join(" | ", selectedText.Take(2))
+                + " / chips " + string.Join(", ", shownChips) + " (expected " + string.Join(", ", expectedChips) + ").");
             livePage.FindControl<Button>("SourceRulesButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Console.WriteLine("SMOKE productive source rules: selected=" + selectedSource.SourceId
                 + "; actual=" + window.RulesPage.SelectedScopeChoice?.Scope + ".");
@@ -236,6 +242,7 @@ internal static class SourcesChecks
             }
             await CheckNavigationAsync(window, wide: targetWidth >= 1120);
             await CheckWatchPreviewAsync(page, providers, view, () => showAll);
+            await CheckBadgesAsync(window, page, view, targetWidth);
             page.Refresh([], view, true);
             Require(page.FindControl<TextBlock>("SourcesEmpty")!.IsVisible && !page.FindControl<Border>("SourceDetailsPanel")!.IsVisible,
                 "Empty provider registry did not show its genuine empty state.");
@@ -298,6 +305,91 @@ internal static class SourcesChecks
             await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - restoreWidth) <= 1);
             page.Refresh(providers, view, true);
             page.SelectSource("thread-only");
+        }
+    }
+    // Maturity order, chips only for deviations, the selection bar instead of a text marker, the complete meta line and the
+    // "Experimental" sentence; at 1440 x 920 in both themes and both languages.
+    private static async Task CheckBadgesAsync(MainWindow window, SourcesPage page, DesktopSessionView view, double restoreWidth)
+    {
+        static ProviderDescriptor Provider(string id, string name) => new(id, name, new Uri("https://" + id + ".invalid/"),
+            ProviderCapabilities.ThreadWatch | ProviderCapabilities.BoardCatalog, [id + ".invalid"], "fixture", true);
+        static SourceMediaIntegrityPolicyView Policy(string id, string name, SourceWordingMaintenance maintenance,
+            SourceWordingMaturity maturity, bool active) => new(new("profile", "owner." + id, id, false, 1), false, active,
+            SourceMaturity.Unspecified, new SourceWordingClassification(id, name, maintenance, maturity));
+        ProviderDescriptor[] providers =
+        [
+            Provider("zeta", "Zeta stable"), Provider("alpha", "Alpha experimental"), Provider("mid", "Mid plain"), Provider("third", "Third stable")
+        ];
+        SourceMediaIntegrityPolicyView[] policies =
+        [
+            Policy("zeta", "Zeta stable", SourceWordingMaintenance.MeowChan, SourceWordingMaturity.Stable, true),
+            Policy("alpha", "Alpha experimental", SourceWordingMaintenance.MeowChan, SourceWordingMaturity.Experimental, true),
+            Policy("mid", "Mid plain", SourceWordingMaintenance.Unknown, SourceWordingMaturity.Unclassified, false),
+            Policy("third", "Third stable", SourceWordingMaintenance.ThirdParty, SourceWordingMaturity.Stable, true)
+        ];
+        Func<IReadOnlyList<SourceMediaIntegrityPolicyView>>? original = page.GetSourceMediaIntegrityPolicies;
+        string language = Texts.Language;
+        double restoreHeight = window.Height;
+        StackPanel cards = page.FindControl<StackPanel>("SourceCards")!;
+        static string NameOf(Button card) => ((StackPanel)card.Content!).Children.OfType<TextBlock>().First().Text ?? string.Empty;
+        static string[] ChipsOf(Button card) => ((StackPanel)card.Content!).Children.OfType<WrapPanel>().Single().Children.OfType<Border>()
+            .Select(chip => chip.GetLogicalDescendants().OfType<TextBlock>().Single().Text ?? string.Empty).ToArray();
+        try
+        {
+            page.GetSourceMediaIntegrityPolicies = () => policies;
+            window.Width = 1440; window.Height = 920;
+            await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - 1440) <= 1 && Math.Abs(window.Bounds.Height - 920) <= 1);
+            foreach (string badgeLanguage in new[] { "en", "de" })
+            {
+                Texts.SetLanguage(badgeLanguage);
+                page.Refresh(providers, view, true);
+                Button[] ordered = cards.Children.OfType<Button>().ToArray();
+                Require(ordered.Select(NameOf).SequenceEqual(["Third stable", "Zeta stable", "Mid plain", "Alpha experimental"]),
+                    "The source list was not sorted stable, unclassified, experimental and alphabetical: " + string.Join(", ", ordered.Select(NameOf)));
+                Require(ChipsOf(ordered[0]).Length == 0 && ChipsOf(ordered[1]).Length == 0
+                    && ChipsOf(ordered[2]).SequenceEqual([Texts.T("sources.maintenance.unverified"), Texts.T("sources.badge.status.inactive")])
+                    && ChipsOf(ordered[3]).SequenceEqual([Texts.T("sources.maturity.experimental")]),
+                    "A source that follows the norm showed a chip, or a deviating one did not: " + string.Join(" / ", ordered.Select(card => string.Join(",", ChipsOf(card)))));
+                Border warning = ((StackPanel)ordered[3].Content!).Children.OfType<WrapPanel>().Single().Children.OfType<Border>().Single();
+                Require(warning.Classes.Contains("chip-warning") && warning.Classes.Contains("chip-badge"),
+                    "The Experimental chip lost its warning tone.");
+                Require(!ordered.Select(NameOf).Any(name => name.Contains('●')), "A source name still carries the old text marker.");
+
+                // Zeta is the norm: complete meta line, no sentence. Alpha is experimental: the sentence explains it.
+                ordered[1].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                Require(ordered[1].Classes.Contains("selected") && !ordered[3].Classes.Contains("selected")
+                    && page.FindControl<TextBlock>("SourceMeta")!.Text == SourceWording.DescribeMeta(SourceWording.Badges(
+                        policies[0].Classification, true, false))
+                    && !page.FindControl<TextBlock>("SourceExperimental")!.IsVisible,
+                    "A source that follows the norm did not show its complete meta line without the Experimental sentence: " + page.FindControl<TextBlock>("SourceMeta")!.Text);
+                ordered[3].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                page.FindControl<ScrollViewer>("SourcesScroll")!.ScrollToHome();
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                Require(ordered[3].Classes.Contains("selected") && !ordered[1].Classes.Contains("selected")
+                    && page.FindControl<TextBlock>("SourceExperimental")!.IsVisible
+                    && page.FindControl<TextBlock>("SourceExperimental")!.Text == Texts.T("sources.experimentalNote")
+                    && page.FindControl<TextBlock>("SourceMeta")!.Text!.Contains(Texts.T("sources.maturity.experimental")),
+                    "The Experimental source did not show its meta line and the sentence that explains it.");
+                await CaptureBothThemesAsync(window, $"smoke-sources-badges-{badgeLanguage}");
+                // A refresh keeps the cards (and their focus) and only moves them when the order changes.
+                Button[] again = cards.Children.OfType<Button>().ToArray();
+                page.Refresh(providers, view, true);
+                Require(cards.Children.OfType<Button>().SequenceEqual(again), "A refresh with the same order rebuilt or moved the source cards.");
+                policies[2] = Policy("mid", "Mid plain", SourceWordingMaintenance.MeowChan, SourceWordingMaturity.Stable, true);
+                page.Refresh(providers, view, true);
+                Require(cards.Children.OfType<Button>().Select(NameOf).SequenceEqual(["Mid plain", "Third stable", "Zeta stable", "Alpha experimental"])
+                    && cards.Children.OfType<Button>().First() == again[2] && ChipsOf(again[2]).Length == 0,
+                    "A source whose maturity changed was not moved with its card, or kept a stale chip.");
+                policies[2] = Policy("mid", "Mid plain", SourceWordingMaintenance.Unknown, SourceWordingMaturity.Unclassified, false);
+            }
+        }
+        finally
+        {
+            page.GetSourceMediaIntegrityPolicies = original;
+            Texts.SetLanguage(language);
+            window.Width = restoreWidth; window.Height = restoreHeight;
+            await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - restoreWidth) <= 1);
         }
     }
     // The preview length is the "Sources page: watch rows per source" setting: three rows minimum, the rest one link away under Downloads.

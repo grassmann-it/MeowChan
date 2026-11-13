@@ -118,7 +118,7 @@ internal static class SourceIntegrityChecks
             Program.CaptureWindow(window, CaptureName("save-failure"));
             failSave = false;
 
-            await SelectSourceCardAsync(window, sources, 0);
+            await SelectSourceCardAsync(window, sources, providers[0].DisplayName);
             pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
             int before = invocations.Count;
             await ActivatePermissionAsync(window, sources);
@@ -165,13 +165,16 @@ internal static class SourceIntegrityChecks
                 Navigate(window, "nav.sources");
                 sources.Refresh(providers, session.GetView(), true); sources.SelectSource(PluginUxFixture.SourceId);
                 TextBlock badge = C<TextBlock>(sources, "SourceExperimental"), scope = C<TextBlock>(sources, "SourceMediaIntegrityScope");
-                // The badge carries the classification sentence: unverified maintenance (no trusted evidence in
-                // this fixture) plus the declared Experimental maturity, never a bare or stale label.
-                string classification = SourceWording.Describe(new SourceWordingClassification(PluginUxFixture.SourceId,
-                    providers[0].DisplayName, SourceWordingMaintenance.Unknown, SourceWordingMaturity.Experimental));
-                Require(badge.Text == classification && badge.Text!.Contains(Texts.T("sources.maturity.experimental"), StringComparison.Ordinal)
+                TextBlock meta = C<TextBlock>(sources, "SourceMeta");
+                // The meta line is always complete: unverified maintenance (no trusted evidence in this fixture) plus the declared
+                // Experimental maturity. The sentence below it explains "Experimental" and is shown for that maturity only.
+                string expectedMeta = SourceWording.DescribeMeta(SourceWording.Badges(new SourceWordingClassification(PluginUxFixture.SourceId,
+                    providers[0].DisplayName, SourceWordingMaintenance.Unknown, SourceWordingMaturity.Experimental), isActive: true, isBuiltIn: false));
+                Require(meta.Text == expectedMeta && meta.Text!.Contains(Texts.T("sources.maturity.experimental"), StringComparison.Ordinal)
+                    && badge.IsVisible && badge.Text == Texts.T("sources.experimentalNote")
                     && scope.Text == Texts.T("sources.providerMismatchScope", providers[0].DisplayName)
-                    && !scope.Text!.Contains("commit", StringComparison.OrdinalIgnoreCase), "The source scope or Experimental classification was stale or exposed an internal commit term.");
+                    && !scope.Text!.Contains("commit", StringComparison.OrdinalIgnoreCase), "The source scope, meta line or Experimental note was stale or exposed an internal commit term.");
+                AssertTextFits(meta);
                 await RevealAsync(window, badge); AssertTextFits(badge);
                 Program.CaptureWindow(window, CaptureName("badge-" + cell));
                 await RevealAsync(window, permission);
@@ -276,9 +279,11 @@ internal static class SourceIntegrityChecks
         await Program.WaitUntilAsync(() => !page.IsBusy);
         Require(C<CheckBox>(page, "SourceAllowProviderMismatch").IsChecked == (expectedAfter ?? intended), "The permission control did not render the saved state after completion.");
     }
-    private static async Task SelectSourceCardAsync(MainWindow window, SourcesPage page, int index)
+    // The list is sorted by maturity, so a card is found by its name, never by its position.
+    private static async Task SelectSourceCardAsync(MainWindow window, SourcesPage page, string name)
     {
-        Button card = C<StackPanel>(page, "SourceCards").Children.OfType<Button>().ElementAt(index);
+        Button card = C<StackPanel>(page, "SourceCards").Children.OfType<Button>().Single(candidate =>
+            candidate.Content is StackPanel labels && labels.Children.OfType<TextBlock>().First().Text == name);
         if (!card.IsEffectivelyVisible) await ActivateAsync(C<Button>(page, "SourceBackButton"));
         await RevealAsync(window, card); await ActivateAsync(card);
     }
