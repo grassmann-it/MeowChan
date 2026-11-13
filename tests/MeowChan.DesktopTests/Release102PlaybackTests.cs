@@ -6,7 +6,6 @@ namespace MeowChan.DesktopTests;
 public sealed class Release102PlaybackTests
 {
     [Theory]
-    [InlineData("gallery.slideshow-toggle")]
     [InlineData("gallery.overlay-toggle")]
     [InlineData("gallery.overlay-autohide-toggle")]
     [InlineData("gallery.post-overlay-toggle")]
@@ -20,6 +19,20 @@ public sealed class Release102PlaybackTests
             Assert.DoesNotContain(effective.Issues, issue => issue.BlocksSave);
             Assert.Single(effective.For(id));
             Assert.Equal(CommandScope.Gallery, CommandCatalog.Get(id).Scope);
+        }
+    }
+
+    [Fact]
+    public void SlideshowHasTheSingleKeyDefaultAndCanStillBeRebound()
+    {
+        // The shortcut rework (K-F) gave the slideshow S; a saved binding still replaces it without blocking.
+        Assert.Contains(CommandCatalog.Get("gallery.slideshow-toggle").DefaultGestures, gesture => gesture.Key == "S");
+        var section = new ShortcutBindingsSection().Set("gallery.slideshow-toggle", [ShortcutGesture.Parse("Primary+Shift+F9")]);
+        foreach (var platform in Enum.GetValues<ShortcutPlatform>())
+        {
+            var effective = EffectiveShortcutBindings.Build(section, platform);
+            Assert.DoesNotContain(effective.Issues, issue => issue.BlocksSave);
+            Assert.Single(effective.For("gallery.slideshow-toggle"));
         }
     }
 
