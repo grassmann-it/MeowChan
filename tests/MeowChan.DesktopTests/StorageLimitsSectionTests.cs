@@ -106,6 +106,45 @@ public sealed class StorageLimitsSectionTests : IDisposable
         }
     }
 
+    // How each language words "a lower limit deletes nothing"; the page says it once, in its introduction.
+    private static readonly (string Language, string Intro, string[] Variants)[] LowerLimitSentence =
+    {
+        ("en", "Lowering a limit never deletes anything", new[] { "Lowering" }),
+        ("de", "Eine kleinere Grenze löscht nichts", new[] { "kleinere Grenze" }),
+        ("es", "Reducir un límite nunca borra nada", new[] { "Reducir el límite", "Reducir un límite", "Bajar el límite", "Reducirlo" }),
+        ("fr", "Abaisser une limite ne supprime jamais rien", new[] { "Abaisser la limite", "Abaisser une limite", "Réduire une limite" }),
+        ("ru", "Уменьшение лимита ничего не удаляет", new[] { "Уменьшение лимита", "Меньший предел" }),
+    };
+
+    [Fact]
+    public void TheLowerLimitSentenceStandsOnceInTheIntroductionAndInNoHintOfThePage()
+    {
+        XDocument markup = XDocument.Load(Path.Combine(RepositoryRoot(), "Desktop/Views/Settings/SettingsEditor.axaml"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement page = Assert.Single(markup.Descendants(), e => (string?)e.Attribute(x + "Name") == "SettingsWorkerBudgetsPage");
+        XElement intro = Assert.Single(page.Descendants(), e => (string?)e.Attribute(x + "Name") == "StorageLimitsIntroText");
+        // The introduction comes before the first limit row of the page.
+        XElement firstRow = page.Descendants().First(e => (string?)e.Attribute("Classes") == "settings-row");
+        Assert.True(intro.IsBefore(firstRow));
+        string[] hints = page.Descendants().Select(e => (string?)e.Attribute("Text"))
+            .Where(text => text != null && text.StartsWith("{Binding ") && text.EndsWith("Hint}"))
+            .Select(text => text!["{Binding ".Length..^1]).Distinct().ToArray();
+        Assert.True(hints.Length >= 20, string.Join(", ", hints));
+        // The hint properties only look up a text; an uninitialized editor is enough to read them without a window.
+        object editor = RuntimeHelpers.GetUninitializedObject(typeof(SettingsEditor));
+        foreach ((string language, string sentence, string[] variants) in LowerLimitSentence)
+        {
+            Texts.SetLanguage(language);
+            Assert.Contains(sentence, Texts.T("budgets.intro"));
+            foreach (string hint in hints)
+            {
+                string text = (string)typeof(SettingsEditor).GetProperty(hint)!.GetValue(editor)!;
+                foreach (string variant in variants)
+                    Assert.False(text.Contains(variant, StringComparison.Ordinal), $"{language} {hint} repeats the introduction: {text}");
+            }
+        }
+    }
+
     private static string RepositoryRoot([CallerFilePath] string path = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, "../.."));
 }
