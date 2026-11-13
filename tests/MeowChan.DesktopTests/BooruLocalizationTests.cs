@@ -108,7 +108,7 @@ public sealed class BooruLocalizationTests : IDisposable
     {
         Assert.Contains("stay in your library", BuiltInCatalog.English["booru.ui.watchers.removeNote"]);
         Assert.Contains("not deleted", BuiltInCatalog.English["booru.ui.watcher.removeAsk"]);
-        Assert.Contains("bleiben in Ihrer Bibliothek", BuiltInCatalog.German["booru.ui.watchers.removeNote"]);
+        Assert.Contains("bleiben in deiner Bibliothek", BuiltInCatalog.German["booru.ui.watchers.removeNote"]);
         Assert.Contains("blieben erhalten", BuiltInCatalog.German["booru.ui.watcher.msg.removed"]);
     }
 

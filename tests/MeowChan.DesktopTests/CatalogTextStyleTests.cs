@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
@@ -21,5 +22,28 @@ public sealed class CatalogTextStyleTests
                 offenders.Add("command: " + command.Id);
 
         Assert.True(offenders.Count == 0, "Use the single character '…' attached to the preceding word: " + string.Join(", ", offenders));
+    }
+
+    // "Ihre"/"Sie" that refer to a thing, not to the reader ("Sie bleiben erhalten", "Ihre Bytes"), are not formal address.
+    private static readonly HashSet<string> ThirdPersonIhr = new(StringComparer.Ordinal)
+    {
+        "sources.providerMismatchInactive", "transfer.conflicts.error.promoteUnavailable"
+    };
+
+    private static readonly Regex FormalSie = new(
+        @"(?<=[\p{Ll}\d,;)] )Sie\b|(?<![\p{L}])Sie (?:können|müssen|sollten|möchten|wollen|dürfen)\b",
+        RegexOptions.CultureInvariant);
+
+    [Fact]
+    public void GermanTextsAddressTheReaderWithDuNeverWithSie()
+    {
+        List<string> offenders = new();
+        foreach (KeyValuePair<string, string> entry in BuiltInCatalog.German)
+        {
+            if (FormalSie.IsMatch(entry.Value)
+                || (!ThirdPersonIhr.Contains(entry.Key) && Regex.IsMatch(entry.Value, @"\bIhr(?:e|en|em|er|es)?\b", RegexOptions.CultureInvariant)))
+                offenders.Add(entry.Key);
+        }
+        Assert.True(offenders.Count == 0, "German texts use \"du\", not \"Sie\": " + string.Join(", ", offenders));
     }
 }

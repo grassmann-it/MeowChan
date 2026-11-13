@@ -37,7 +37,7 @@ internal static class RulesCatalog
         ("templates.replaceWarning", "Included groups replace their entire input, including unfinished or invalid text. This copies values only; the rule is not saved yet.", "Enthaltene Gruppen ersetzen ihre gesamte Eingabe, auch unfertigen oder ungültigen Text. Die Werte werden nur kopiert; die Regel ist noch nicht gespeichert."),
         ("templates.applied", "Copied into draft, not saved. Undo restores the previous input; Discard reloads the saved rule.", "In Entwurf übernommen, noch nicht gespeichert. Rücknahme stellt die vorherige Eingabe her; Verwerfen lädt die gespeicherte Regel."),
         ("templates.noGrants", "Grants and plugin runtime settings are not part of this template.", "Rechte und Plugin-Laufzeiteinstellungen gehören nicht zu dieser Vorlage."),
-        ("templates.editorStale", "Templates changed. Cancel and reopen this editor after reloading; your input is kept until then.", "Vorlagen wurden geändert. Nach Neuladen diesen Editor abbrechen und neu öffnen; Ihre Eingabe bleibt bis dahin erhalten."),
+        ("templates.editorStale", "Templates changed. Cancel and reopen this editor after reloading; your input is kept until then.", "Vorlagen wurden geändert. Nach Neuladen diesen Editor abbrechen und neu öffnen; deine Eingabe bleibt bis dahin erhalten."),
         ("draft.discardTitle", "Discard unsaved changes to {0}?", "Ungespeicherte Änderungen an {0} verwerfen?"),
         ("draft.discardBody", "This reloads the saved values. Other drafts are kept.", "Dies lädt die gespeicherten Werte. Andere Entwürfe bleiben erhalten."),
         ("draft.keepEditing", "Keep editing", "Weiter bearbeiten"),
