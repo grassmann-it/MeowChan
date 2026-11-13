@@ -37,7 +37,7 @@ public sealed class ApiReleaseReviewTests
             typeof(SettingsSchema), typeof(IReadOnlyList<InformationEntry>), typeof(string), typeof(Uri), typeof(Uri)];
         ConstructorInfo constructor = Assert.Single(typeof(PluginDescription).GetConstructors());
         Assert.Equal(signature, constructor.GetParameters().Select(p => p.ParameterType).ToArray());
-        MethodInfo deconstruct = Assert.Single(typeof(PluginDescription).GetMethods().Where(m => m.Name == "Deconstruct"));
+        MethodInfo deconstruct = Assert.Single(typeof(PluginDescription).GetMethods(), m => m.Name == "Deconstruct");
         Assert.Equal(signature.Select(t => t.MakeByRefType()).ToArray(),
             deconstruct.GetParameters().Select(p => p.ParameterType).ToArray());
         AssertInitOnly(typeof(PluginDescription).GetProperty("DeclarationStatus")!);

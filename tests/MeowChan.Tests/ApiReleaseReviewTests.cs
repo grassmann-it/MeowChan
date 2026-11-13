@@ -94,7 +94,7 @@ public sealed class ApiReleaseReviewTests
     {
         ConstructorInfo constructor = Assert.Single(type.GetConstructors());
         Assert.Equal(signature, constructor.GetParameters().Select(p => p.ParameterType).ToArray());
-        MethodInfo deconstruct = Assert.Single(type.GetMethods().Where(m => m.Name == "Deconstruct"));
+        MethodInfo deconstruct = Assert.Single(type.GetMethods(), m => m.Name == "Deconstruct");
         Assert.Equal(signature.Select(t => t.MakeByRefType()).ToArray(),
             deconstruct.GetParameters().Select(p => p.ParameterType).ToArray());
     }
