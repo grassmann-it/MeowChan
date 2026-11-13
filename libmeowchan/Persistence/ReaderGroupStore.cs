@@ -55,6 +55,10 @@ internal sealed class ReaderGroupStore
             if (current.Snapshot!.Revision != expectedRevision) throw new ReaderGroupsConflictException();
             // Even an unchanged draft is an admitted mutation request, not a passive read.
             if (ReaderGroupsValidation.SameGroups(current.Snapshot.Groups, captured.Groups)) return current.Snapshot;
+            // Only growth is refused: with the limit lowered below the saved count, renames and removals still work.
+            if (captured.Groups.Count > _lease.StoreLimits.ReaderGroups && captured.Groups.Count > current.Snapshot.Groups.Count)
+                throw PrivateStoreLimit.Refusal(PrivateStoreLimitKind.ReaderGroups, _lease.StoreLimits.ReaderGroups,
+                    "The reader group limit is reached.");
             ReaderGroupsSnapshot next = captured with { Revision = checked(expectedRevision + 1) };
             Publish(next, backup: true, admission, cancellationToken);
             AfterAdmittedSaveMutationForTests?.Invoke(admission);

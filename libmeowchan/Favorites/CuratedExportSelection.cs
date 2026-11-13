@@ -67,6 +67,7 @@ internal sealed record CuratedExportLedgerItem(FavoriteAssetKey Key, CuratedExpo
 internal sealed class CuratedExportSelection
 {
     // Defensive in-memory validation ceilings, NOT measured decoder/copy/disk budgets or release promises.
+    // Independent of the favorite entry setting: a curated export of more than this many entries stays refused (see Help.md).
     internal const int MaximumSelectionEntries = FavoriteStore.MaximumEntries;
     internal const int MaximumManifests = 1_024;
     internal const int MaximumRows = 200_000;

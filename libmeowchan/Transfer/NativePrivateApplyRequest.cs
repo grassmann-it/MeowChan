@@ -249,7 +249,7 @@ internal sealed class NativePrivateApplyRequest
             if (index >= fences.Length || fences[index] is not { } fence || fence.Kind != kind) throw Invalid();
             index++;
             long cap = kind == NativePrivateApplyStoreKind.PostBookmarksAndNotes
-                ? PostBookmarkStore.MaximumDocumentBytes : FavoriteStore.MaximumBytes;
+                ? PostBookmarkStore.MaximumDocumentBytes : ProfileStoreLimits.FavoriteFileCeilingBytes;
             ValidateImage(fence.Before, cap); ValidateImage(fence.ExpectedAfter, cap);
             if (kind == NativePrivateApplyStoreKind.PostBookmarksAndNotes)
             {

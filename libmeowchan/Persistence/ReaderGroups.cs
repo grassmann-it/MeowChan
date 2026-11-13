@@ -26,7 +26,8 @@ internal sealed class ReaderGroupsConflictException : InvalidOperationException
 
 internal static class ReaderGroupsValidation
 {
-    public const int MaximumGroups = 500;
+    /// <summary>Default group limit. The limit is a setting; reading and validating accept up to <see cref="ProfileStoreLimits.ReaderGroupCeiling"/>.</summary>
+    public const int MaximumGroups = ProfileStoreLimits.DefaultReaderGroups;
     public const int MaximumMembers = 1000;
     public const int MaximumMemberships = 20000;
     public const int MaximumBytes = 16 * 1024 * 1024;
@@ -36,8 +37,8 @@ internal static class ReaderGroupsValidation
         ArgumentNullException.ThrowIfNull(snapshot);
         if (snapshot.SchemaVersion != 1 || snapshot.Revision < 0 || snapshot.Revision == long.MaxValue)
             throw new InvalidDataException("Invalid reader groups schema or revision.");
-        if (snapshot.Groups == null || snapshot.Groups.Count > MaximumGroups)
-            throw new InvalidDataException($"At most {MaximumGroups} reader groups are allowed.");
+        if (snapshot.Groups == null || snapshot.Groups.Count > ProfileStoreLimits.ReaderGroupCeiling)
+            throw new InvalidDataException($"At most {ProfileStoreLimits.ReaderGroupCeiling} reader groups are allowed.");
         HashSet<Guid> ids = new();
         List<ReaderGroup> groups = new();
         int count = 0;

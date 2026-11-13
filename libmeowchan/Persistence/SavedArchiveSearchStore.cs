@@ -29,7 +29,8 @@ internal sealed class SavedSearchRevisionException(SavedArchiveSearchSnapshot cu
 /// <summary>Passive optional profile store. Only the existing session host owns its lease.</summary>
 internal sealed class SavedArchiveSearchStore
 {
-    internal const int MaximumSearches = 500;
+    /// <summary>Default saved-search limit. The limit is a setting; reads accept up to <see cref="ProfileStoreLimits.SavedSearchCeiling"/>.</summary>
+    internal const int MaximumSearches = ProfileStoreLimits.DefaultSavedSearches;
     internal const int MaximumFileBytes = 8 * 1024 * 1024;
     private readonly ProfileLease _lease;
     private readonly string _path;
@@ -156,7 +157,10 @@ internal sealed class SavedArchiveSearchStore
             throw new SavedSearchRevisionException(disk);
         List<SavedArchiveSearch> candidate = disk.Searches.ToList();
         change(candidate);
-        if (candidate.Count > MaximumSearches) throw new InvalidDataException("At most 500 saved searches are supported.");
+        // Only growth is refused: with the limit lowered below the saved count, renames and removals still work.
+        if (candidate.Count > _lease.StoreLimits.SavedSearches && candidate.Count > disk.Searches.Count)
+            throw PrivateStoreLimit.Refusal(PrivateStoreLimitKind.SavedSearches, _lease.StoreLimits.SavedSearches,
+                "The saved search limit is reached.");
         long next = checked(revision + 1);
         string json = SerializeForCommit(next, candidate);
         if (File.Exists(_path) && !Read(_path + ".bak", missingIsEmpty: true).CanWrite)
@@ -227,7 +231,7 @@ internal sealed class SavedArchiveSearchStore
         bool unknownEnvelopeFields = root.EnumerateObject().Any(x => x.Name is not ("schemaVersion" or "revision" or "searches"));
         bool unsupported = unknownEnvelopeFields;
         JsonElement array = root.GetProperty("searches");
-        if (array.ValueKind != JsonValueKind.Array || array.GetArrayLength() > MaximumSearches) throw new InvalidDataException("Invalid saved searches list.");
+        if (array.ValueKind != JsonValueKind.Array || array.GetArrayLength() > ProfileStoreLimits.SavedSearchCeiling) throw new InvalidDataException("Invalid saved searches list.");
         List<SavedArchiveSearch> entries = new();
         HashSet<Guid> ids = new();
         foreach (JsonElement item in array.EnumerateArray())

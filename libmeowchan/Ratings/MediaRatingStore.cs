@@ -16,7 +16,9 @@ public sealed record MediaRatingCommit(FavoriteAssetKey Key, int? Value, bool Ch
 /// <summary>Profile-owned ratings for exact committed media versions. Never resolves media bytes.</summary>
 public sealed class MediaRatingStore
 {
+    /// <summary>Default entry limit. The limit is a setting; reads accept up to a fixed technical ceiling.</summary>
     public const int MaximumEntries = 50_000;
+    /// <summary>The former fixed size limit, kept for API compatibility. The limit is now a setting (default 8 MiB); reads accept up to a fixed technical ceiling.</summary>
     public const int MaximumBytes = 8_000_000;
     private sealed record Document(int Version, List<MediaRatingEntry> Entries);
     private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
@@ -47,7 +49,9 @@ public sealed class MediaRatingStore
             else if (index >= 0) document.Entries[index] = new(key, value.Value);
             else
             {
-                if (document.Entries.Count >= MaximumEntries) throw new InvalidDataException("The ratings index has reached its entry limit.");
+                if (document.Entries.Count >= _lease.StoreLimits.FavoriteEntries)
+                    throw PrivateStoreLimit.Refusal(PrivateStoreLimitKind.FavoriteEntries, _lease.StoreLimits.FavoriteEntries,
+                        "The ratings index has reached its entry limit.");
                 document.Entries.Add(new(key, value.Value));
             }
             Write(document, token);
@@ -71,7 +75,10 @@ public sealed class MediaRatingStore
     private void Write(Document document, CancellationToken token)
     {
         string json = JsonSerializer.Serialize(document);
-        if (Encoding.UTF8.GetByteCount(json) > MaximumBytes) throw new InvalidDataException("The ratings index has reached its size limit.");
+        int written = Encoding.UTF8.GetByteCount(json);
+        if (written > _lease.StoreLimits.FavoriteFileBytes && written > ProfileStoreLimits.FileLength(_path))
+            throw PrivateStoreLimit.Refusal(PrivateStoreLimitKind.FavoriteFile, _lease.StoreLimits.FavoriteFileBytes,
+                "The ratings index has reached its size limit.");
         // The backup is replaced by the current primary only after its existing
         // contents are known to be supported. Never rotate away unknown data.
         try { ReadDocument(_path + ".bak"); }
@@ -97,7 +104,7 @@ public sealed class MediaRatingStore
     private static Document ReadDocument(string path)
     {
         RejectLink(path);
-        if (new FileInfo(path).Length > MaximumBytes) throw new InvalidDataException("The ratings index exceeds its size limit.");
+        if (new FileInfo(path).Length > ProfileStoreLimits.FavoriteFileCeilingBytes) throw new InvalidDataException("The ratings index exceeds its size limit.");
         Document? document;
         try
         {
@@ -110,7 +117,7 @@ public sealed class MediaRatingStore
         }
         catch (Exception error) when (error is JsonException or DecoderFallbackException)
         { throw new InvalidDataException("The ratings index is invalid.", error); }
-        if (document?.Version != 1 || document.Entries == null || document.Entries.Count > MaximumEntries)
+        if (document?.Version != 1 || document.Entries == null || document.Entries.Count > ProfileStoreLimits.FavoriteEntryCeiling)
             throw new InvalidDataException("The ratings index version or entry count is invalid.");
         HashSet<FavoriteAssetKey> seen = new();
         foreach (MediaRatingEntry entry in document.Entries)

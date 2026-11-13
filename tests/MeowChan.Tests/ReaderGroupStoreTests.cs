@@ -130,7 +130,7 @@ public sealed class ReaderGroupStoreTests
         ResourceId[] limit = Enumerable.Range(0, 1000).Select(index => A with { Thread = index.ToString() }).ToArray();
         ReaderGroupsValidation.Copy(Snapshot(limit));
         Assert.Throws<InvalidDataException>(() => ReaderGroupsValidation.Copy(Snapshot(limit.Append(B).ToArray())));
-        ReaderGroupsSnapshot maximum = new(1, 0, Enumerable.Range(0, 500).Select(_ => new ReaderGroup(Guid.NewGuid(), "same", Array.Empty<ResourceId>())).ToArray());
+        ReaderGroupsSnapshot maximum = new(1, 0, Enumerable.Range(0, ProfileStoreLimits.ReaderGroupCeiling).Select(_ => new ReaderGroup(Guid.NewGuid(), "same", Array.Empty<ResourceId>())).ToArray());
         ReaderGroupsValidation.Copy(maximum);
         ReaderGroupsSnapshot total = new(1, 0, Enumerable.Range(0, 20).Select(_ => new ReaderGroup(Guid.NewGuid(), "same", limit)).ToArray());
         ReaderGroupsValidation.Copy(total);

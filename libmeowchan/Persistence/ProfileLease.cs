@@ -33,6 +33,9 @@ public sealed class ProfileLease : IDisposable
     // It is intentionally internal: the kernel is not a public import/apply API.
     internal ProfileAdmission Admission => _admission;
 
+    /// <summary>Write limits of the profile's private lists (user settings); the defaults are the former fixed values.</summary>
+    internal ProfileStoreLimits StoreLimits { get; } = new();
+
     private ProfileLease(string profileDirectory, FileStream lockStream, bool wasEmpty)
     {
         ProfileDirectory = profileDirectory;

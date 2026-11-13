@@ -33,7 +33,9 @@ public sealed record ThreadFavoriteCommit(ResourceId Thread, bool Favorite, bool
 /// <summary>Profile-owned thread marks, independent of media, archive membership and watch state.</summary>
 public sealed partial class ThreadFavoriteStore
 {
+    /// <summary>Default entry limit. The limit is a setting; reads accept up to a fixed technical ceiling.</summary>
     public const int MaximumEntries = 50_000;
+    /// <summary>The former fixed size limit, kept for API compatibility. The limit is now a setting (default 8 MiB); reads accept up to a fixed technical ceiling.</summary>
     public const int MaximumBytes = 8_000_000;
     private sealed record Document(int Version, long Revision, List<ResourceId> Threads,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? InstanceId = null,
@@ -87,16 +89,18 @@ public sealed partial class ThreadFavoriteStore
         if (unchanged) return new ThreadFavoriteCommit(thread, favorite, false, current);
         if (favorite)
         {
-            if (document.Threads.Count >= MaximumEntries)
-                throw new InvalidDataException("The thread favorites index has reached its entry limit.");
+            if (document.Threads.Count >= _lease.StoreLimits.FavoriteEntries)
+                throw PrivateStoreLimit.Refusal(PrivateStoreLimitKind.FavoriteEntries, _lease.StoreLimits.FavoriteEntries,
+                    "The thread favorites index has reached its entry limit.");
             document.Threads.Add(thread);
         }
         else document.Threads.RemoveAt(index);
         document = document with { Revision = checked(document.Revision + 1) };
         string json = JsonSerializer.Serialize(document);
         byte[] bytes = StrictUtf8.GetBytes(json);
-        if (bytes.Length > MaximumBytes)
-            throw new InvalidDataException("The thread favorites index has reached its size limit.");
+        if (bytes.Length > _lease.StoreLimits.FavoriteFileBytes && bytes.Length > ProfileStoreLimits.FileLength(_path))
+            throw PrivateStoreLimit.Refusal(PrivateStoreLimitKind.FavoriteFile, _lease.StoreLimits.FavoriteFileBytes,
+                "The thread favorites index has reached its size limit.");
         // A future or malformed backup must never be rotated away by an older writer.
         AtomicJsonFile.WriteAllText(_path, json, backupCurrentFile: true, token);
         return new ThreadFavoriteCommit(thread, favorite, true, Snapshot(document, bytes));
@@ -153,7 +157,7 @@ public sealed partial class ThreadFavoriteStore
     {
         using FileStream stream = RegularProfileFile.OpenRead(path);
         long length = stream.Length;
-        if (length > MaximumBytes)
+        if (length > ProfileStoreLimits.FavoriteFileCeilingBytes)
             throw new InvalidDataException("The thread favorites index exceeds its size limit.");
 
         byte[] bytes = new byte[checked((int)length)];
@@ -190,7 +194,7 @@ public sealed partial class ThreadFavoriteStore
                 throw new InvalidDataException("The thread favorites index version or revision is invalid.");
 
             JsonElement threads = root.GetProperty("Threads");
-            if (threads.ValueKind != JsonValueKind.Array || threads.GetArrayLength() > MaximumEntries)
+            if (threads.ValueKind != JsonValueKind.Array || threads.GetArrayLength() > ProfileStoreLimits.FavoriteEntryCeiling)
                 throw new InvalidDataException("The thread favorites index entry count is invalid.");
 
             List<ResourceId> values = new(threads.GetArrayLength());

@@ -173,9 +173,10 @@ public sealed class MediaRatingCoreTests
         string file = Path.Combine(temp.Path, "media-ratings.json");
         MediaRatingStore store = new(temp.Path, lease); store.Set(Key, 3);
         byte[] original = File.ReadAllBytes(file);
-        Assert.Throws<InvalidDataException>(() => store.Set(Key with { MediaIdentifier = new string('x', MediaRatingStore.MaximumBytes) }, 1));
+        Assert.Throws<InvalidDataException>(() => store.Set(Key with { MediaIdentifier = new string('x', ProfileStoreLimits.DefaultFavoriteFileBytes) }, 1));
         Assert.Equal(original, File.ReadAllBytes(file));
-        File.WriteAllText(file, new string(' ', MediaRatingStore.MaximumBytes + 1));
+        // Reads accept up to the fixed technical ceiling, so a lowered write limit never hides a saved file.
+        using (FileStream sparse = File.OpenWrite(file)) sparse.SetLength(ProfileStoreLimits.FavoriteFileCeilingBytes + 1L);
         Assert.Throws<InvalidDataException>(() => store.List());
     }
     [Fact]
@@ -185,7 +186,7 @@ public sealed class MediaRatingCoreTests
         MediaRatingStore store = new(temp.Path, lease);
         Assert.Throws<ArgumentException>(() => new MediaRatingStore(Path.Combine(temp.Path, "other"), lease));
         string file = Path.Combine(temp.Path, "media-ratings.json");
-        File.WriteAllText(file, JsonSerializer.Serialize(new { Version = 1, Entries = new MediaRatingEntry?[MediaRatingStore.MaximumEntries + 1] }));
+        File.WriteAllText(file, JsonSerializer.Serialize(new { Version = 1, Entries = new MediaRatingEntry?[ProfileStoreLimits.FavoriteEntryCeiling + 1] }));
         Assert.Contains("count", Assert.Throws<InvalidDataException>(() => store.List()).Message);
         Assert.Throws<InvalidDataException>(() => store.Set(Key, null));
         File.Delete(file); lease.Dispose();

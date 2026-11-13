@@ -24,7 +24,7 @@ internal sealed partial class PostBookmarkStore
             token.ThrowIfCancellationRequested();
             var marker = new PrivateStoreOperationMarker(operationId, contentPlanSha256, BookmarkStoreKind);
             PrivateStoreOperationMarker.Validate(marker, BookmarkStoreKind);
-            if (additions is null || additions.Count > MaximumEntries) throw PrivateStoreBatchFiles.Invalid();
+            if (additions is null || additions.Count > ProfileStoreLimits.BookmarkCeiling) throw PrivateStoreBatchFiles.Invalid();
             try
             {
                 // Snapshot and precheck the entire incoming budget before building
@@ -61,7 +61,7 @@ internal sealed partial class PostBookmarkStore
                     }
                     else added.Add(entry);
                 }
-                if ((long)existing.Count + added.Count > MaximumEntries) throw PrivateStoreBatchFiles.Invalid();
+                if (added.Count > 0 && (long)existing.Count + added.Count > _lease.StoreLimits.Bookmarks) throw PrivateStoreBatchFiles.Invalid();
                 if (added.Count == 0)
                     return new PrivateStoreBatch(_batchOwner, marker,
                         new(BookmarkStoreKind, current.Image, current.Image), null, 0);

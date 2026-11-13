@@ -78,7 +78,7 @@ public sealed class ThreadFavoriteStoreTests
             Revision = 0L,
             Threads = new[] { new ResourceId("", "board", "42") }
         });
-        int sourceLength = ThreadFavoriteStore.MaximumBytes - emptySource.Length;
+        int sourceLength = ProfileStoreLimits.DefaultFavoriteFileBytes - emptySource.Length;
         Assert.True(sourceLength > 0);
         byte[] exact = JsonSerializer.SerializeToUtf8Bytes(new
         {
@@ -86,14 +86,17 @@ public sealed class ThreadFavoriteStoreTests
             Revision = 0L,
             Threads = new[] { new ResourceId(new string('a', sourceLength), "board", "42") }
         });
-        Assert.Equal(ThreadFavoriteStore.MaximumBytes, exact.Length);
+        Assert.Equal(ProfileStoreLimits.DefaultFavoriteFileBytes, exact.Length);
         File.WriteAllBytes(path, exact);
 
         ThreadFavoriteSnapshot snapshot = new ThreadFavoriteStore(temp.Path, lease).ReadSnapshot();
         Assert.Equal(0, snapshot.Revision);
         Assert.Equal(sourceLength, Assert.Single(snapshot.Threads).Source.Length);
 
+        // Reads accept everything up to the fixed technical ceiling, so a lowered write limit never hides a saved file.
         File.WriteAllBytes(path, [.. exact, (byte)' ']);
+        Assert.Single(new ThreadFavoriteStore(temp.Path, lease).ReadSnapshot().Threads);
+        using (FileStream sparse = File.OpenWrite(path)) sparse.SetLength(ProfileStoreLimits.FavoriteFileCeilingBytes + 1L);
         Assert.Throws<InvalidDataException>(() => new ThreadFavoriteStore(temp.Path, lease).ReadSnapshot());
     }
 
@@ -273,13 +276,16 @@ public sealed class ThreadFavoriteStoreTests
         ResourceId[] ids = Enumerable.Range(0, ThreadFavoriteStore.MaximumEntries + 1)
             .Select(index => new ResourceId("s", "b", index.ToString(System.Globalization.CultureInfo.InvariantCulture))).ToArray();
         byte[] exact = JsonSerializer.SerializeToUtf8Bytes(new { Version = 1, Revision = 0L, Threads = ids[..^1] });
-        Assert.True(exact.Length < ThreadFavoriteStore.MaximumBytes);
+        Assert.True(exact.Length < ProfileStoreLimits.DefaultFavoriteFileBytes);
         File.WriteAllBytes(path, exact);
         ThreadFavoriteStore store = new(temp.Path, lease);
         Assert.Equal(ThreadFavoriteStore.MaximumEntries, store.ReadSnapshot().Threads.Count);
         Assert.Throws<InvalidDataException>(() => store.Set(ids[^1], true));
         Assert.Equal(exact, File.ReadAllBytes(path));
-        byte[] over = JsonSerializer.SerializeToUtf8Bytes(new { Version = 1, Revision = 0L, Threads = ids });
+        // The reading ceiling, not the write limit, bounds the file: one entry more than the ceiling is one document too many.
+        ResourceId[] tooMany = Enumerable.Range(0, ProfileStoreLimits.FavoriteEntryCeiling + 1)
+            .Select(index => new ResourceId("s", "b", index.ToString(System.Globalization.CultureInfo.InvariantCulture))).ToArray();
+        byte[] over = JsonSerializer.SerializeToUtf8Bytes(new { Version = 1, Revision = 0L, Threads = tooMany });
         File.WriteAllBytes(path, over);
         Assert.Throws<InvalidDataException>(() => store.ReadSnapshot());
         Assert.Equal(over, File.ReadAllBytes(path));

@@ -29,7 +29,7 @@ public sealed partial class FavoriteStore
                 PrivateStoreOperationMarker.Validate(marker, NativePrivateApplyStoreKind.MediaFavorites);
                 if (additions is null) throw PrivateStoreBatchFiles.Invalid();
                 int count = additions.Count;
-                if (count < 0 || count > MaximumEntries) throw PrivateStoreBatchFiles.Invalid();
+                if (count < 0 || count > ProfileStoreLimits.FavoriteEntryCeiling) throw PrivateStoreBatchFiles.Invalid();
 
                 // Validate/copy just the supplied additions, never a whole incoming
                 // collection. Bound cumulative UTF8 values BEFORE indices, sorting or
@@ -66,7 +66,7 @@ public sealed partial class FavoriteStore
                     // Positive-only union has no replace, unmark or delete operation.
                     if (existing.Add(entry.Key)) added.Add(entry);
                 }
-                if (existing.Count > MaximumEntries) throw PrivateStoreBatchFiles.Invalid();
+                if (existing.Count > _lease.StoreLimits.FavoriteEntries && added.Count > 0) throw PrivateStoreBatchFiles.Invalid();
                 token.ThrowIfCancellationRequested();
                 if (added.Count == 0)
                     return new PrivateStoreBatch(_batchOwner, marker, new(NativePrivateApplyStoreKind.MediaFavorites,
@@ -83,7 +83,7 @@ public sealed partial class FavoriteStore
                     .ThenBy(e => e.Key.Sha256, StringComparer.Ordinal));
                 var next = new Document(3, values, current.Primary?.InstanceId ?? operationId,
                     checked(current.Image.Revision + 1), marker);
-                byte[] bytes = PrivateStoreBatchFiles.SerializeBounded(next, MaximumBytes);
+                byte[] bytes = PrivateStoreBatchFiles.SerializeBounded(next, (int)_lease.StoreLimits.FavoriteFileBytes);
                 token.ThrowIfCancellationRequested();
                 return new PrivateStoreBatch(_batchOwner, marker, new(NativePrivateApplyStoreKind.MediaFavorites,
                     current.Image, PrivateStoreBatchFiles.Image(bytes, 3, next.InstanceId, next.Revision),
@@ -209,7 +209,7 @@ public sealed partial class FavoriteStore
     {
         ArgumentNullException.ThrowIfNull(document);
         var retired = document with { Version = 2, OperationMarker = null };
-        return PrivateStoreBatchFiles.SerializeBounded(retired, MaximumBytes);
+        return PrivateStoreBatchFiles.SerializeBounded(retired, ProfileStoreLimits.FavoriteFileCeilingBytes);
     }
 
     internal PrivateStoreBatchInspection CommitPreparedBatch(PrivateStoreBatch batch, CancellationToken token = default)
@@ -253,9 +253,9 @@ public sealed partial class FavoriteStore
 
     private static void CountBatchText(string? text, ref long total)
     {
-        if (text is null || text.Length > MaximumBytes - total) throw PrivateStoreBatchFiles.Invalid();
+        if (text is null || text.Length > ProfileStoreLimits.FavoriteFileCeilingBytes - total) throw PrivateStoreBatchFiles.Invalid();
         total = checked(total + StrictUtf8.GetByteCount(text));
-        if (total > MaximumBytes) throw PrivateStoreBatchFiles.Invalid();
+        if (total > ProfileStoreLimits.FavoriteFileCeilingBytes) throw PrivateStoreBatchFiles.Invalid();
     }
 
     private void EnsureOwnBatch(PrivateStoreBatch batch)
@@ -275,7 +275,7 @@ public sealed partial class FavoriteStore
 
     private static (Document? Document, NativePrivateApplyStoreImage Image) ReadBatchImage(string path)
     {
-        byte[]? bytes = PrivateStoreBatchFiles.ReadBytes(path, MaximumBytes);
+        byte[]? bytes = PrivateStoreBatchFiles.ReadBytes(path, ProfileStoreLimits.FavoriteFileCeilingBytes);
         if (bytes is null) return (null, PrivateStoreBatchFiles.Missing());
         Document document = ParseDocument(bytes);
         return (document, PrivateStoreBatchFiles.Image(bytes, document.Version, document.InstanceId, document.Revision));
