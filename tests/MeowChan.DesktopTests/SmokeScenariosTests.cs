@@ -49,6 +49,20 @@ public sealed class SmokeScenariosTests
     }
 
     [Fact]
+    public void FilterPointerRegressionRunsNativeClicksAsAStandaloneNightlyGate()
+    {
+        SmokeScenario entry = Assert.Single(SmokeScenarios.All, candidate => candidate.Id == "filter-pointer-selection");
+        Assert.Equal(SmokeScenarioKind.Root, entry.Kind);
+        Assert.Equal("MEOWCHAN_FILTER_POINTER_SELECTION_ONLY", entry.Selector);
+        Assert.Null(entry.NightlySkip);
+        Assert.Empty(entry.Requires);
+        Assert.Equal("new(SmokeStage.Ready, mainWindow => FilterPointerSelectionChecks.RunAsync(mainWindow))", Binding(entry.Id));
+        string claim = entry.Pass!(_ => null);
+        Assert.Contains("native", claim, StringComparison.Ordinal);
+        Assert.Contains("no provider requests", claim, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EachKindHasTheSelectorShapeAndClaimItsDispatchNeeds()
     {
         HashSet<string> conditions = SmokeScenarios.All.Select(entry => entry.Selector).ToHashSet(StringComparer.Ordinal);
