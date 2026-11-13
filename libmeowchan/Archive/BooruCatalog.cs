@@ -242,10 +242,13 @@ internal readonly record struct BooruCatalogStoreCounters(long FullReads, long W
 /// empty catalog.
 /// <para>
 /// Caching: the last validated, frozen (immutable) snapshot is kept together with the identity of the
-/// file it came from (device, inode, size, modification and change time on Unix). A read reuses it only
-/// while the file on disk still has exactly that identity; any other change underneath (another writer,
-/// a restored copy, damage) makes the next read parse and validate the file again, failing closed as
-/// before. The store's own successful write replaces the cache with the snapshot it wrote; a failed
+/// file it came from (device, inode, size, modification and change time on Unix; volume, file id, size,
+/// last-write and change time on Windows). A read reuses it only while the file on disk still has exactly
+/// that identity; any other change underneath (another writer, a restored copy, damage) makes the next read
+/// parse and validate the file again, failing closed as before. A same-size rewrite within the file
+/// system's timestamp resolution can still go unseen: external writers while MeowChan runs are not
+/// supported (the profile lease excludes a second instance, and the store itself only replaces the file
+/// by rename). The store's own successful write replaces the cache with the snapshot it wrote; a failed
 /// write drops it. Because the cached snapshot was validated, a mutation validates only the records it
 /// changes (identity uniqueness is kept by the indexes); that is the same rule set the full validation
 /// applies per record, so the written document satisfies exactly the old fail-closed checks.
