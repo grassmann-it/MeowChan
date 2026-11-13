@@ -16,7 +16,7 @@ internal static class TagSuggestionCatalog
         ("tags.suggest.sourceGroup", "Danbooru source tags · choosing one creates an own tag", "Danbooru-Quelltags · Auswahl legt einen eigenen Tag an"),
         ("tags.suggest.sourceLabel", "{0} · Danbooru ({1})", "{0} · Danbooru ({1})"),
         ("tags.suggest.sourceName", "{0}, Danbooru source tag, saved posts with it: {1}. Choosing it creates an own tag with this name.",
-            "{0}, Danbooru-Quelltag, gespeicherte Beiträge damit: {1}. Die Auswahl legt einen eigenen Tag mit diesem Namen an."),
+            "{0}, Danbooru-Quelltag, gespeicherte Posts damit: {1}. Die Auswahl legt einen eigenen Tag mit diesem Namen an."),
         ("tags.suggest.hint", "Type to see matching own tags. Enter or a comma at the end adds the tag; Tab completes the highlighted suggestion.",
             "Tippen zeigt passende eigene Tags. Enter oder ein Komma am Ende fügt den Tag hinzu; Tab vervollständigt den markierten Vorschlag."),
     };
