@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Controls.Presenters;
@@ -399,10 +400,24 @@ internal static class ReaderIdeaChecks
             "A selection inside the second link did not ask about exactly that address.");
         Require(page.FindControl<SelectableTextBlock>("ReaderLinkUrl")!.Inlines!.OfType<Run>().Any(run => run.Text == "second.example" && run.FontWeight == FontWeight.Bold),
             "The confirmation did not highlight the host.");
+        Require(Named("ReaderLinkCancel").IsFocused, "The link confirmation did not start with the focus on Cancel.");
+        // Assistive technology gets the address; the dialog counts as an open reader dialog (shortcuts stand still) and Tab cycles inside it.
+        Require(page.IsReaderDialogOpen, "The link confirmation did not count as an open reader dialog.");
+        Require(AutomationProperties.GetName(page.FindControl<SelectableTextBlock>("ReaderLinkUrl")!) == "https://second.example/b"
+            && AutomationProperties.GetName(page.FindControl<Control>("ReaderLinkDialog")!).Contains("https://second.example/b", StringComparison.Ordinal)
+            && AutomationProperties.GetHelpText(Named("ReaderLinkCancel")).Contains("second.example", StringComparison.Ordinal),
+            "The confirmation did not announce the address to assistive technology.");
+        Control dialogRoot = page.FindControl<Control>("ReaderLinkDialog")!;
+        IFocusManager focusManager = fixture.Window.FocusManager ?? throw new InvalidOperationException("The reader window has no focus manager.");
+        for (int step = 0; step < 8; step++)
+        {
+            focusManager.TryMoveFocus(NavigationDirection.Next);
+            Require(focusManager.GetFocusedElement() is Visual moved && (ReferenceEquals(moved, dialogRoot) || dialogRoot.IsVisualAncestorOf(moved)),
+                "Tab left the link confirmation after " + (step + 1) + " steps.");
+        }
+        Named("ReaderLinkCancel").Focus();
         // The start focus is on Cancel, so a held or doubled Enter cannot confirm: a second Enter closes the dialog, nothing opens.
-        Require(ReferenceEquals(TopLevel.GetTopLevel(page)!.FocusManager!.GetFocusedElement(), Named("ReaderLinkCancel")),
-            "The link confirmation did not start with the focus on Cancel.");
-        Control focused = (Control)TopLevel.GetTopLevel(page)!.FocusManager!.GetFocusedElement()!;
+        Control focused = Named("ReaderLinkCancel");
         focused.RaiseEvent(KeyEvent(InputElement.KeyDownEvent, Avalonia.Input.Key.Enter, focused));
         await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
         Require(!page.IsExternalLinkDialogOpen && launched.Count == 0, "A second Enter opened the link or left the dialog open.");
@@ -430,9 +445,12 @@ internal static class ReaderIdeaChecks
         Require(!spoiler.HasHiddenSpoilers && !page.IsExternalLinkDialogOpen && launched.Count == 0, "Enter opened a link inside a hidden spoiler.");
         await Enter(spoiler);
         Require(page.IsExternalLinkDialogOpen && page.PendingExternalLink == new Uri("https://spoiler.example/x"), "A revealed link did not ask on Enter.");
-        // Escape cancels through the reader key handling.
+        // Escape cancels through the reader key handling alone; the overlay dismissal is a separate path.
         spoiler.RaiseEvent(KeyEvent(InputElement.KeyDownEvent, Avalonia.Input.Key.Escape, spoiler));
-        page.TryDismissOverlay();
+        Require(!page.IsExternalLinkDialogOpen && launched.Count == 0, "Escape through the reader key handling did not cancel the confirmation.");
+        await Enter(spoiler);
+        Require(page.IsExternalLinkDialogOpen, "The link did not ask a second time.");
+        Require(page.TryDismissOverlay() && !page.IsExternalLinkDialogOpen, "The overlay dismissal did not cancel the confirmation.");
         Require(!page.IsExternalLinkDialogOpen && launched.Count == 0, "Escape did not cancel the confirmation.");
 
         // Open, and not asking again this session (not persisted: only this page remembers it).

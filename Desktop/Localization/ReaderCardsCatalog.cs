@@ -14,6 +14,8 @@ internal static class ReaderCardsCatalog
         ("reader.link.hint", "The address is shown as your browser reads it. Only open links you trust.", "Die Adresse steht so da, wie dein Browser sie liest. Öffne nur Links, denen du vertraust."),
         ("reader.link.remember", "Don't ask again this session", "Für diese Sitzung nicht mehr fragen"),
         ("reader.link.open", "Open", "Öffnen"),
+        ("reader.link.openNamed", "Open {0}", "{0} öffnen"),
+        ("reader.link.dialogName", "Open this link in your browser: {0}", "Diesen Link im Browser öffnen: {0}"),
         ("reader.repliesToggle", "Show or hide the replies", "Antworten ein- oder ausblenden"),
         ("reader.quotedPosts", "Quoted posts", "Zitierte Posts"),
         ("reader.quoteNotCaptured", "(not captured)", "(nicht erfasst)"),

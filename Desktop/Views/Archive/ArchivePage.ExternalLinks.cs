@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Input;
@@ -48,15 +49,29 @@ public partial class ArchivePage
         inlines.Add(new Run(tail) { [!TextElement.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted") });
         ReaderLinkUrl.Inlines = inlines;
         ReaderLinkRemember.IsChecked = false;
-        LocalizeReaderLink();
+        LocalizeReaderLink(prefix + host + tail);
         ReaderLinkDialog.IsVisible = true;
         // The start focus is on Cancel: the Enter (or its auto-repeat) that opened this dialog must never confirm it.
         // Opening is a conscious Tab or click.
         ReaderLinkCancel.Focus();
     }
 
-    private void LocalizeReaderLink()
+    // The address as one string, for assistive technology: the inlines alone are not announced as text.
+    private string _externalLinkAddress = string.Empty;
+
+    private void LocalizeReaderLink(string? address = null)
     {
+        if (address != null) _externalLinkAddress = address;
+        // The dialog is modal for the keyboard: Tab cycles inside it and never reaches the dimmed posts below.
+        KeyboardNavigation.SetTabNavigation(ReaderLinkDialog, KeyboardNavigationMode.Cycle);
+        string announcement = Texts.T("reader.link.dialogName", _externalLinkAddress);
+        AutomationProperties.SetName(ReaderLinkDialog, announcement);
+        AutomationProperties.SetName(ReaderLinkUrl, _externalLinkAddress);
+        AutomationProperties.SetLiveSetting(ReaderLinkUrl, AutomationLiveSetting.Assertive);
+        // Focus starts on Cancel, so the screen reader reads the address along with it; Open names its target too.
+        AutomationProperties.SetHelpText(ReaderLinkCancel, announcement);
+        AutomationProperties.SetName(ReaderLinkOpen, Texts.T("reader.link.openNamed", _externalLinkAddress));
+        AutomationProperties.SetHelpText(ReaderLinkOpen, announcement);
         ReaderLinkTitle.Text = Texts.T("reader.link.title");
         ReaderLinkHint.Text = Texts.T("reader.link.hint");
         ReaderLinkRemember.Content = Texts.T("reader.link.remember");

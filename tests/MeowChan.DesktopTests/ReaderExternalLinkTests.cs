@@ -1,5 +1,6 @@
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
 
@@ -172,6 +173,37 @@ public sealed class ReaderExternalLinkTests
         string source = File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop", "Views", "Archive", "ArchivePage.ExternalLinks.cs"));
         Assert.Contains("ReaderLinkCancel.Focus();", source);
         Assert.DoesNotContain("ReaderLinkOpen.Focus()", source);
+    }
+
+    [Fact]
+    public void TheConfirmationAnnouncesTheAddressCyclesTabAndBlocksReaderShortcuts()
+    {
+        string links = File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop", "Views", "Archive", "ArchivePage.ExternalLinks.cs"));
+        Assert.Contains("KeyboardNavigation.SetTabNavigation(ReaderLinkDialog, KeyboardNavigationMode.Cycle)", links);
+        Assert.Contains("AutomationProperties.SetName(ReaderLinkDialog,", links);
+        Assert.Contains("AutomationProperties.SetName(ReaderLinkUrl, _externalLinkAddress)", links);
+        Assert.Contains("AutomationProperties.SetHelpText(ReaderLinkCancel,", links);
+        string reader = File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop", "Views", "Archive", "ArchivePage.Reader.cs"));
+        Assert.Contains("internal bool IsReaderDialogOpen => IsExternalLinkDialogOpen ||", reader);
+        // Its Escape must run before the dialog guard that would otherwise swallow it.
+        int escape = reader.IndexOf("IsExternalLinkDialogOpen)", reader.IndexOf("private async void OnReaderKeyDown", StringComparison.Ordinal), StringComparison.Ordinal);
+        int guard = reader.IndexOf("if (!_largeReader || IsReaderDialogOpen) return;", StringComparison.Ordinal);
+        Assert.True(escape > 0 && guard > escape, "The link dialog's Escape must precede the IsReaderDialogOpen guard.");
+    }
+
+    [Theory]
+    [InlineData("reader.link.openNamed")]
+    [InlineData("reader.link.dialogName")]
+    public void TheAnnouncementTextsExistInAllFivePacksWithTheAddressPlaceholder(string key)
+    {
+        Assert.Contains(ReaderCardsCatalog.Entries, entry => entry.Key == key && entry.English.Contains("{0}") && entry.German.Contains("{0}"));
+        foreach (string language in new[] { "es", "fr", "ru" })
+        {
+            string pack = File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop", "Localization", "Packs", language + ".json"));
+            Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(pack, "\"" + System.Text.RegularExpressions.Regex.Escape(key) + "\":").Count);
+            System.Text.RegularExpressions.Match line = System.Text.RegularExpressions.Regex.Match(pack, "\"" + System.Text.RegularExpressions.Regex.Escape(key) + "\": \"([^\"]*)\"");
+            Assert.True(line.Success && line.Groups[1].Value.Contains("{0}"), language + " " + key);
+        }
     }
 
     private static string RepositoryRoot()

@@ -2983,6 +2983,8 @@
     "reader.link.hint": "La dirección se muestra como la lee su navegador. Abra solo enlaces de confianza.",
     "reader.link.remember": "No volver a preguntar en esta sesión",
     "reader.link.open": "Abrir",
+    "reader.link.openNamed": "Abrir {0}",
+    "reader.link.dialogName": "Abrir este enlace en su navegador: {0}",
     "reader.repliesToggle": "Mostrar u ocultar las respuestas",
     "reader.quotedPosts": "Publicaciones citadas",
     "reader.quoteNotCaptured": "(no capturada)",

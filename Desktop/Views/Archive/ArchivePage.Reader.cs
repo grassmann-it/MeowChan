@@ -25,7 +25,7 @@ namespace MeowChan;
 public partial class ArchivePage
 {
     internal Action? FullscreenRequested { get; set; }
-    internal bool IsReaderDialogOpen => IsFilenameSearchOpen || _urlTextExportBusy || ArchiveExportDialog.IsVisible || _cleanupDialog != null;
+    internal bool IsReaderDialogOpen => IsExternalLinkDialogOpen || IsFilenameSearchOpen || _urlTextExportBusy || ArchiveExportDialog.IsVisible || _cleanupDialog != null;
     internal bool TryDismissOverlay(object? source = null)
     {
         if (IsExternalLinkDialogOpen) { CloseExternalLinkDialog(); return true; }
@@ -508,13 +508,15 @@ public partial class ArchivePage
     private async void OnReaderKeyDown(object? sender, KeyEventArgs e)
     {
         if (IsThreadFindSource(e.Source)) return;
-        if (e.Handled || ShortcutService.IsCapturing || !_largeReader || IsReaderDialogOpen) return;
+        if (e.Handled || ShortcutService.IsCapturing) return;
+        // The link confirmation is a dialog (IsReaderDialogOpen), but its Escape comes first and works in both readers.
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && IsExternalLinkDialogOpen)
         {
             e.Handled = true;
             CloseExternalLinkDialog();
             return;
         }
+        if (!_largeReader || IsReaderDialogOpen) return;
         // An open quote preview is dismissed first: Escape must not also close the reader.
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && IsQuotePreviewOpen)
         {
