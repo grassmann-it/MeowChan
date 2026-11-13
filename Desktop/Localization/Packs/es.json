@@ -2906,6 +2906,7 @@
     "import.check.progress": "Comprobando {0} de {1} · {2} de {3}",
     "import.check.cancelled": "Comprobación detenida. Cambie la selección para comprobar de nuevo.",
     "import.check.failed": "No se pudo comprobar la selección.",
+    "import.open.failed": "No se pudo abrir la importación porque no se pudo leer el catálogo de importación. Vuelve a intentarlo más tarde; los detalles están en el archivo de registro.",
     "import.counts": "{0} nuevos · {1} ya existentes · {2} no compatibles · {3} ilegibles",
     "import.dedupe.linked": "Los archivos que ya tiene no se copian; el lote solo los vincula.",
     "import.dedupe.incomplete": "La comprobación de duplicados está incompleta porque no se pudieron leer todos los medios. Los archivos no encontrados cuentan como nuevos.",

@@ -21,6 +21,7 @@ internal static class ManualImportCatalog
         ("import.check.progress", "Checking {0} of {1} · {2} of {3}", "Prüfe {0} von {1} · {2} von {3}"),
         ("import.check.cancelled", "Check stopped. Change the selection to check again.", "Prüfung angehalten. Ändere die Auswahl, um erneut zu prüfen."),
         ("import.check.failed", "The selection could not be checked.", "Die Auswahl konnte nicht geprüft werden."),
+        ("import.open.failed", "The import could not be opened because the import catalog could not be read. Try again later; details are in the log file.", "Der Import konnte nicht geöffnet werden, weil der Importkatalog nicht gelesen werden konnte. Versuche es später erneut; Details stehen in der Logdatei."),
         ("import.counts", "{0} new · {1} already there · {2} not supported · {3} not readable", "{0} neu · {1} schon vorhanden · {2} nicht unterstützt · {3} nicht lesbar"),
         ("import.dedupe.linked", "Files you already have are not copied; the batch only links to them.", "Bereits vorhandene Dateien werden nicht kopiert; der Stapel verweist nur auf sie."),
         ("import.dedupe.incomplete", "The duplicate check is incomplete because not all media could be read. Files not found count as new.", "Die Duplikatprüfung ist unvollständig, weil nicht alle Medien gelesen werden konnten. Nicht gefundene Dateien gelten als neu."),

@@ -2906,6 +2906,7 @@
     "import.check.progress": "Vérification {0} sur {1} · {2} sur {3}",
     "import.check.cancelled": "Vérification arrêtée. Modifiez la sélection pour vérifier à nouveau.",
     "import.check.failed": "La sélection n’a pas pu être vérifiée.",
+    "import.open.failed": "L’importation n’a pas pu être ouverte, car le catalogue d’importation n’a pas pu être lu. Réessayez plus tard ; les détails se trouvent dans le fichier journal.",
     "import.counts": "{0} nouveaux · {1} déjà présents · {2} non pris en charge · {3} illisibles",
     "import.dedupe.linked": "Les fichiers déjà présents ne sont pas copiés ; le lot y fait seulement référence.",
     "import.dedupe.incomplete": "La recherche de doublons est incomplète car tous les médias n’ont pas pu être lus. Les fichiers non trouvés comptent comme nouveaux.",

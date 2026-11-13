@@ -9,6 +9,7 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Import;
+using Serilog;
 
 namespace MeowChan;
 
@@ -60,8 +61,9 @@ public partial class MainWindow
         if (_isClosing || !ReferenceEquals(session, _session) || _session.State != DesktopSessionState.Ready) return;
         if (failure != null)
         {
-            UnhandledErrors.TryRecover(failure, "import.open");
-            ShowNotification(Texts.T("import.title"), failure.Message, NotificationType.Warning, operation: "import.open");
+            // The exception text is English and may hold a profile path: it goes to the log, the user gets a sentence.
+            Log.Warning(failure, "Could not check the import catalog before opening the import dialog.");
+            ShowNotification(Texts.T("import.title"), Texts.T("import.open.failed"), NotificationType.Warning, operation: "import.open");
             return;
         }
         if (_manualImportDialog is { } open)
