@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Downloader;
+using MeowChan.Http;
 
 namespace MeowChan.Storage;
 
@@ -138,7 +139,7 @@ public sealed partial class MediaStore
 
             if (item.ExpectedSize.HasValue && expectedMd5 != null)
             {
-                FileDigest? digest = await TryHashFileAsync(destination, cancellationToken, item.ExpectedSize.Value).ConfigureAwait(false);
+                FileDigest? digest = await TryHashFileAsync(destination, cancellationToken, item.ExpectedSize.Value, CountersFor(item)).ConfigureAwait(false);
                 if (digest != null && MatchesExpected(item, expectedMd5, digest))
                 {
                     ValidateOriginalPublicationPath(manifestRead.Manifest, destination);
@@ -158,7 +159,7 @@ public sealed partial class MediaStore
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     FileDigest? candidateDigest = await TryHashFileAsync(candidatePath, cancellationToken,
-                        item.ExpectedSize.Value).ConfigureAwait(false);
+                        item.ExpectedSize.Value, CountersFor(item)).ConfigureAwait(false);
                     if (candidateDigest == null || candidateDigest.Sha256 != candidateSha256
                         || !MatchesExpected(item, expectedMd5, candidateDigest))
                     {
@@ -244,6 +245,7 @@ public sealed partial class MediaStore
         string destination = GetDestination(item);
         MediaIntegrityValidation.ValidateItem(item);
         byte[]? expectedMd5 = ValidateExpectedMetadata(item);
+        SourceCounters counters = CountersFor(item);
         string directory = Path.GetDirectoryName(destination)!;
         cancellationToken.ThrowIfCancellationRequested();
         Directory.CreateDirectory(directory);
@@ -257,7 +259,7 @@ public sealed partial class MediaStore
             await using (FileStream temporaryStream = new(temporaryPath, FileMode.CreateNew, FileAccess.Write,
                 FileShare.None, 81920, FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
-                digest = await CopyAndHashAsync(source, temporaryStream, cancellationToken, throttleAsync, item.MaximumActualBytes).ConfigureAwait(false);
+                digest = await CopyAndHashAsync(source, temporaryStream, cancellationToken, throttleAsync, item.MaximumActualBytes, counters).ConfigureAwait(false);
                 policy = MediaIntegrityValidation.AuthorizeAssessment(item, Actual(digest));
                 if (policy != null && policy != startedPolicy) throw new InvalidDataException("Source permission changed during transfer.");
                 if (expectedSha256 != null && digest.Sha256 != expectedSha256)
@@ -286,7 +288,7 @@ public sealed partial class MediaStore
                 if (boundPath != null)
                 {
                     publishedPath = boundPath;
-                    reused = await HasSameContentAsync(boundPath, digest, cancellationToken).ConfigureAwait(false);
+                    reused = await HasSameContentAsync(boundPath, digest, cancellationToken, counters).ConfigureAwait(false);
                     if (!reused && (File.Exists(boundPath) || Directory.Exists(boundPath)))
                         throw new InvalidDataException("The immutable bound asset was modified.");
                 }
@@ -294,7 +296,7 @@ public sealed partial class MediaStore
                 else if (manifestRead.Manifest.Entries.TryGetValue(Path.GetFileName(destination), out MediaManifestEntry? entry)
                     && EntryMatchesItem(entry, item)
                     && TryGetEntryPath(directory, entry!.FileName, out string? recordedPath)
-                    && await HasSameContentAsync(recordedPath!, digest, cancellationToken).ConfigureAwait(false))
+                    && await HasSameContentAsync(recordedPath!, digest, cancellationToken, counters).ConfigureAwait(false))
                 {
                     publishedPath = recordedPath!;
                     reused = true;
@@ -302,7 +304,7 @@ public sealed partial class MediaStore
                 else if (File.Exists(destination) || Directory.Exists(destination))
                 {
                     if (!Directory.Exists(destination)
-                        && await HasSameContentAsync(destination, digest, cancellationToken).ConfigureAwait(false))
+                        && await HasSameContentAsync(destination, digest, cancellationToken, counters).ConfigureAwait(false))
                     {
                         reused = true;
                     }
@@ -319,7 +321,7 @@ public sealed partial class MediaStore
                             }
 
                             if (!Directory.Exists(publishedPath)
-                                && await HasSameContentAsync(publishedPath, digest, cancellationToken).ConfigureAwait(false))
+                                && await HasSameContentAsync(publishedPath, digest, cancellationToken, counters).ConfigureAwait(false))
                             {
                                 reused = true;
                                 break;
@@ -459,9 +461,23 @@ public sealed partial class MediaStore
             && (item.ExpectedSha1 == null || SameBase64Digest(item.ExpectedSha1, Convert.ToBase64String(digest.Sha1)));
     }
 
+    /// <summary>
+    /// The disk counters a download item's media work belongs to, resolved once per operation. The source is the
+    /// item's board name, which is also the key of its network counters.
+    /// </summary>
+    private static SourceCounters CountersFor(DownloadItem item)
+        => TransferMeter.For(item.ImageBoard.Name);
+
+    /// <summary>
+    /// With a <paramref name="destination"/> every written chunk counts as a disk write; without one the source is a
+    /// file being read back and every chunk counts as a disk read. Work without a download item counts under
+    /// <see cref="TransferMeter.LocalKey"/>.
+    /// </summary>
     private static async Task<FileDigest> CopyAndHashAsync(Stream source, Stream? destination,
-        CancellationToken cancellationToken, Func<int, CancellationToken, Task>? throttleAsync = null, long? maximumBytes = null)
+        CancellationToken cancellationToken, Func<int, CancellationToken, Task>? throttleAsync = null, long? maximumBytes = null,
+        SourceCounters? counters = null)
     {
+        counters ??= TransferMeter.For(TransferMeter.LocalKey);
         using IncrementalHash sha256 = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         using IncrementalHash md5 = IncrementalHash.CreateHash(HashAlgorithmName.MD5);
         using IncrementalHash sha1 = IncrementalHash.CreateHash(HashAlgorithmName.SHA1);
@@ -480,6 +496,11 @@ public sealed partial class MediaStore
             if (destination != null)
             {
                 await destination.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
+                Interlocked.Add(ref counters.DiskWritten, bytesRead);
+            }
+            else
+            {
+                Interlocked.Add(ref counters.DiskRead, bytesRead);
             }
 
             sha256.AppendData(buffer, 0, bytesRead);
@@ -499,7 +520,7 @@ public sealed partial class MediaStore
     }
 
     private async Task<FileDigest?> TryHashFileAsync(string path, CancellationToken cancellationToken,
-        long? expectedLength = null)
+        long? expectedLength = null, SourceCounters? counters = null)
     {
         if (Directory.Exists(path))
         {
@@ -515,7 +536,7 @@ public sealed partial class MediaStore
             }
 
             _onFileHashStarting?.Invoke(path);
-            return await CopyAndHashAsync(stream, null, cancellationToken).ConfigureAwait(false);
+            return await CopyAndHashAsync(stream, null, cancellationToken, counters: counters).ConfigureAwait(false);
         }
         catch (FileNotFoundException)
         {
@@ -527,9 +548,10 @@ public sealed partial class MediaStore
         }
     }
 
-    private async Task<bool> HasSameContentAsync(string path, FileDigest expected, CancellationToken cancellationToken)
+    private async Task<bool> HasSameContentAsync(string path, FileDigest expected, CancellationToken cancellationToken,
+        SourceCounters? counters = null)
     {
-        FileDigest? actual = await TryHashFileAsync(path, cancellationToken, expected.Length).ConfigureAwait(false);
+        FileDigest? actual = await TryHashFileAsync(path, cancellationToken, expected.Length, counters).ConfigureAwait(false);
         return actual != null && actual.Length == expected.Length && actual.Sha256 == expected.Sha256;
     }
 
@@ -555,7 +577,7 @@ public sealed partial class MediaStore
             return cached;
         }
 
-        FileDigest? digest = await TryHashFileAsync(actualPath, cancellationToken, entry.Length).ConfigureAwait(false);
+        FileDigest? digest = await TryHashFileAsync(actualPath, cancellationToken, entry.Length, CountersFor(item)).ConfigureAwait(false);
         if (digest == null || !string.Equals(digest.Sha256, entry.Sha256, StringComparison.OrdinalIgnoreCase)
             || !MatchesExpected(item, expectedMd5, digest))
         {

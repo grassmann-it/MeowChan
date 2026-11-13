@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Downloader;
+using MeowChan.Http;
 
 namespace MeowChan.Storage;
 
@@ -181,7 +182,7 @@ public sealed partial class MediaStore
         if (first == null) return null;
         MediaManifestAsset asset = manifest.Assets[first.AssetId];
         if (!TryGetEntryPath(directory, asset.Entry.FileName, out string? path)) throw new InvalidDataException("Invalid bound asset path.");
-        FileDigest? digest = await TryHashFileAsync(path!, token, first.Actual.Length).ConfigureAwait(false);
+        FileDigest? digest = await TryHashFileAsync(path!, token, first.Actual.Length, CountersFor(item)).ConfigureAwait(false);
         if (digest == null || !MediaIntegrityValidation.MatchesMeasured(first.Actual, Actual(digest))) return null;
         // A historic binding may omit SHA-1, while passive evidence knows it. Once
         // bytes are measured here, do not return success against contrary evidence.
