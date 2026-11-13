@@ -36,7 +36,7 @@ internal static class UpdateCatalog
         ("settings.storageLimits", "Storage and limits", "Speicher und Grenzen"),
         ("budgets.intro", "Limits for disk space, local data and background processes. Lowering a limit never deletes anything; it only stops further growth.", "Grenzen für Speicherplatz, lokale Daten und Hintergrundprozesse. Eine kleinere Grenze löscht nichts, sie verhindert nur weiteres Wachstum."),
         ("settings.parallelEffective", "Effective: {0} simultaneous media transfers (the smaller of the two values)", "Wirksam: {0} gleichzeitige Mediendateitransfers (der kleinere der beiden Werte)"),
-        ("budgets.nextSession", "Changes take effect next time MeowChan starts. Increase limits only after measuring resource use.", "Änderungen gelten beim nächsten Start von MeowChan. Grenzen nur nach Messung des Ressourcenbedarfs erhöhen."),
+        ("budgets.nextSession", "Changes take effect next time MeowChan starts. Increase limits only after measuring resource use.", "Änderungen gelten beim nächsten Start von MeowChan. Erhöhe Grenzen nur nach Messung des Ressourcenbedarfs."),
         ("budgets.workers", "Active production workers", "Aktive Produktionsworker"),
         ("budgets.idle", "Idle timeout (minutes)", "Leerlauf bis Beenden (Minuten)"),
         ("budgets.sourceHeap", "Source worker heap limit (MiB)", "Heapgrenze für Quellenworker (MiB)"),

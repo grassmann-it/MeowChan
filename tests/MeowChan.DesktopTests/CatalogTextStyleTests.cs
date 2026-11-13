@@ -46,4 +46,13 @@ public sealed class CatalogTextStyleTests
         }
         Assert.True(offenders.Count == 0, "German texts use \"du\", not \"Sie\": " + string.Join(", ", offenders));
     }
+
+    [Fact]
+    public void GermanLimitHintsAddressTheReaderInsteadOfUsingABareInfinitive()
+    {
+        // "Erhöhe „{1}“ unter {2}", not "„{1}“ unter {2} erhöhen": the du form, as in the rest of the German texts.
+        Regex bareInfinitive = new(@"„\{\d\}“(?: oder „\{\d\}“)? unter \{\d\} erhöhen|Grenzen nur nach Messung des Ressourcenbedarfs erhöhen", RegexOptions.CultureInvariant);
+        string[] offenders = BuiltInCatalog.German.Where(entry => bareInfinitive.IsMatch(entry.Value)).Select(entry => entry.Key).ToArray();
+        Assert.True(offenders.Length == 0, "Use the du form (\"Erhöhe ...\"): " + string.Join(", ", offenders));
+    }
 }
