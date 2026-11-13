@@ -125,7 +125,7 @@ public partial class DiagnosticsPage
 
     private bool CanSubmitFrozen(DiagnosticRetryTarget item, bool media)
     {
-        if (_ended || !_available || !StillHasProblem(item, media)) return false;
+        if (_ended || !_available || IsRemoved(item.Target) || !StillHasProblem(item, media)) return false;
         bool admitted = media ? RetryMediaAsync != null && CanRetryMedia?.Invoke(item.Target) == true
             : _retry != null && _canRetry?.Invoke(item.Target) == true;
         // An advisory callback can itself refresh/end the owner synchronously.

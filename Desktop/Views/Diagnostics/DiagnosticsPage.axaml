@@ -86,11 +86,11 @@
             <TextBlock x:Name="DiagnosticCopyPrivacy" Tag="diagnostics.copyPrivacy" Classes="muted localized"
                        TextWrapping="Wrap" />
             <WrapPanel Classes="workspace-toolbar">
-                <Button x:Name="RetryDiagnosticButton" Tag="check.action" Classes="localized" Click="OnRetryClick" />
+                <Button x:Name="RetryDiagnosticButton" Tag="check.action" Classes="localized" Click="OnRetryClick" ToolTip.ShowOnDisabled="True" />
                 <Button x:Name="RetryDiagnosticSelectionButton" Click="OnRetryDiagnosticSelection" />
                 <Button x:Name="RetryDiagnosticFilteredButton" Click="OnRetryDiagnosticFiltered" />
                 <Button x:Name="CopyDiagnosticButton" Tag="diagnostics.copy" Classes="localized" Click="OnCopyClick" />
-                <Button x:Name="OpenDiagnosticWatchButton" Tag="diagnostics.openWatch" Classes="localized" Click="OnOpenWatchClick" />
+                <Button x:Name="OpenDiagnosticWatchButton" Tag="diagnostics.openWatch" Classes="localized" Click="OnOpenWatchClick" ToolTip.ShowOnDisabled="True" />
                 <Button x:Name="ManageMediaRatingsButton" Click="OnManageMediaRatingsClick" />
             </WrapPanel>
         </StackPanel>

@@ -142,10 +142,17 @@ internal static class DiagnosticsChecks
                         Program.CaptureWindow(window, $"smoke-diagnostics-details-{theme.ToLowerInvariant()}-{mode.ToLowerInvariant()}-{language}.png");
                         requested = null;
                         Click(page.FindControl<Button>("RetryDiagnosticButton")!);
-                        await Program.WaitUntilAsync(() => requested != null && page.FindControl<Button>("RetryDiagnosticButton")!.IsEnabled);
-                        Require(requested == new DiagnosticTarget(DiagnosticTargetKind.Thread, 9123)
-                            && page.FindControl<TextBlock>("DiagnosticsActionError")!.Text == Texts.T("diagnostics.removed"),
+                        // UX round 2 #4: a Stale result turns the removed watch's actions off, with the reason as tooltip.
+                        await Program.WaitUntilAsync(() => requested != null
+                            && page.FindControl<TextBlock>("DiagnosticsActionError")!.Text == Texts.T("diagnostics.removed"));
+                        Require(requested == new DiagnosticTarget(DiagnosticTargetKind.Thread, 9123),
                             "Retry did not preserve the exact selected watch lifetime or its stale result.");
+                        foreach (string removedAction in new[] { "RetryDiagnosticButton", "OpenDiagnosticWatchButton", "RetryDiagnosticSelectionButton" })
+                            Require(!page.FindControl<Button>(removedAction)!.IsEnabled,
+                                removedAction + " stayed enabled for a watch the host reported as removed.");
+                        Require(ToolTip.GetTip(page.FindControl<Button>("RetryDiagnosticButton")!) as string == Texts.T("diagnostics.removed"),
+                            "The disabled check action does not say that the watch was removed.");
+                        Program.CaptureWindow(window, $"smoke-diagnostics-removed-{theme.ToLowerInvariant()}-{mode.ToLowerInvariant()}-{language}.png");
                         await Program.WaitUntilAsync(() => VisibleHeight(page, page.FindControl<TextBlock>("DiagnosticsActionError")!) >= 16);
                         Require(Fits(page, page.FindControl<Button>("RetryDiagnosticButton")!),
                             "A diagnostic error obstructed its retry action.");

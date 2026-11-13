@@ -29,7 +29,12 @@ public partial class DiagnosticsPage : UserControl
     private int _actionGeneration;
     private enum ActionContextKind { Global, Diagnostic, SessionFeedback }
     private readonly record struct ActionContext(ActionContextKind Kind, string? DiagnosticKey = null, long? FeedbackId = null);
-    private sealed record ActionFeedback(ActionContext Context, string Message, bool Failed);
+    // MessageKey, when set, re-reads the text on every render, so a language switch translates it too.
+    private sealed record ActionFeedback(ActionContext Context, string Message, bool Failed, string? MessageKey = null);
+    // Watches the host reported as removed (a Stale check result). Their rows stay until the next
+    // snapshot, which drops them; until then their watch actions are off and say why.
+    private readonly HashSet<DiagnosticTarget> _removedTargets = new();
+    private bool IsRemoved(DiagnosticTarget? target) => target != null && _removedTargets.Contains(target);
     private ActionFeedback? _actionFeedback;
     internal Func<IReadOnlyList<MeowChan.Downloader.DownloadTargetWaitState>>? GetTargetWaitStates { get; set; }
     internal Func<Task>? CheckTargetsAsync { get; set; }
@@ -45,6 +50,9 @@ public partial class DiagnosticsPage : UserControl
     public DiagnosticsPage()
     {
         InitializeComponent(); InitializeContextMenu(); _diagnosticFiltersReady = true;
+        // A page that is shown before its first session refresh still carries its labels and headers.
+        ApplyStaticLabels();
+        RefreshSelection();
         CommandRouter? ratings = null;
         AttachedToVisualTree += (_, _) =>
         {
@@ -69,6 +77,7 @@ public partial class DiagnosticsPage : UserControl
     {
         if (_ended) return;
         _available = available;
+        _removedTargets.Clear();
         DiagnosticsSnapshot snapshot = DiagnosticsSnapshot.From(view, GetTargetWaitStates?.Invoke());
         this.FindControl<TextBlock>("DiagnosticsSummary")!.Text = Texts.T("downloads.statusSummary",
             snapshot.Threads, snapshot.Boards, snapshot.Queued, snapshot.Active);
@@ -76,6 +85,15 @@ public partial class DiagnosticsPage : UserControl
         _entries = snapshot.Entries.Concat(PlatformDiagnostics.Entries()).ToArray(); // problems first, platform facts last
         RefreshDiagnosticSources();
         ApplyDiagnosticFilters();
+        ApplyStaticLabels();
+        this.FindControl<Button>("ManageMediaRatingsButton")!.IsEnabled = _available && ManageMediaRatingsAsync != null;
+        RefreshSelection();
+        RefreshFeedback();
+    }
+
+    // Labels, column headers and filter texts that need no session snapshot.
+    private void ApplyStaticLabels()
+    {
         foreach (Control control in this.GetLogicalDescendants().OfType<Control>())
         {
             if (control.Tag is not string key || !control.Classes.Contains("localized")) continue;
@@ -85,14 +103,12 @@ public partial class DiagnosticsPage : UserControl
         CommandBindings.ApplyLabeled(this.FindControl<Button>("CopyDiagnosticButton")!, "diagnostics.copy", Texts.T("diagnostics.copy"));
         AutomationProperties.SetHelpText(this.FindControl<Button>("CopyDiagnosticButton")!, Texts.T("diagnostics.copyPrivacy"));
         CommandBindings.ApplyLabeled(this.FindControl<Button>("OpenDiagnosticWatchButton")!, "watch.show-in-downloads", Texts.T("diagnostics.openWatch"));
+        DataGrid grid = this.FindControl<DataGrid>("DiagnosticsGrid")!;
         grid.Columns[0].Header = Texts.T("diagnostics.category");
         grid.Columns[1].Header = Texts.T("diagnostics.resource");
         grid.Columns[2].Header = Texts.T("diagnostics.message");
         CommandBindings.Apply(this.FindControl<Button>("ManageMediaRatingsButton")!, "media.rating.manage");
-        this.FindControl<Button>("ManageMediaRatingsButton")!.IsEnabled = _available && ManageMediaRatingsAsync != null;
         RefreshDiagnosticFilterLabels();
-        RefreshSelection();
-        RefreshFeedback();
     }
 
     private DiagnosticEntry? Selected => this.FindControl<DataGrid>("DiagnosticsGrid")!.SelectedItem as DiagnosticEntry;
@@ -134,12 +150,19 @@ public partial class DiagnosticsPage : UserControl
         AutomationProperties.SetName(this.FindControl<TextBox>("DiagnosticDetails")!,
             selected == null ? Texts.T("diagnostics.choose") : selected.Summary);
         this.FindControl<Button>("CopyDiagnosticButton")!.IsEnabled = _available && Selected != null;
-        this.FindControl<Button>("OpenDiagnosticWatchButton")!.IsEnabled = _available && Selected?.Target != null;
-        CommandBindings.ApplyLabeled(this.FindControl<Button>("RetryDiagnosticButton")!, "watch.check",
+        // A removed watch keeps its rows until the next snapshot; its watch actions stay off and say why.
+        bool removed = IsRemoved(Selected?.Target);
+        string? removedReason = removed ? Texts.T("diagnostics.removed") : null;
+        Button open = this.FindControl<Button>("OpenDiagnosticWatchButton")!;
+        open.IsEnabled = _available && Selected?.Target != null && !removed;
+        ToolTip.SetTip(open, removedReason);
+        Button retry = this.FindControl<Button>("RetryDiagnosticButton")!;
+        CommandBindings.ApplyLabeled(retry, "watch.check",
             Texts.T(Selected?.DownloadTargetPath != null ? "targets.check" : Selected?.Target?.Kind == DiagnosticTargetKind.Board ? "check.boardAction" : "check.action"));
-        this.FindControl<Button>("RetryDiagnosticButton")!.IsEnabled = _available && !_retryBusy
+        retry.IsEnabled = _available && !_retryBusy
             && (Selected?.DownloadTargetPath != null && CheckTargetsAsync != null
-                || Selected?.Target is DiagnosticTarget target && _retry != null && _canRetry?.Invoke(target) == true);
+                || Selected?.Target is DiagnosticTarget target && !removed && _retry != null && _canRetry?.Invoke(target) == true);
+        ToolTip.SetTip(retry, removedReason);
         RefreshDiagnosticBatchControls();
         RenderDiagnosticActionFeedback();
     }
@@ -149,12 +172,13 @@ public partial class DiagnosticsPage : UserControl
         RenderDiagnosticActionFeedback();
         return ++_actionGeneration;
     }
-    private void ShowDiagnosticActionFeedback(int generation, ActionContext context, string message, bool failed = true)
+    private void ShowDiagnosticActionFeedback(int generation, ActionContext context, string message, bool failed = true,
+        string? messageKey = null)
     {
         if (_ended || generation != _actionGeneration) return;
         if (context.Kind == ActionContextKind.SessionFeedback)
             AutomationProperties.SetLiveSetting(this.FindControl<TextBlock>("DiagnosticsActionError")!, AutomationLiveSetting.Assertive);
-        _actionFeedback = new(context, message, failed);
+        _actionFeedback = new(context, message, failed, messageKey);
         RenderDiagnosticActionFeedback();
     }
     private void RenderDiagnosticActionFeedback()
@@ -168,7 +192,8 @@ public partial class DiagnosticsPage : UserControl
             _ => false
         });
         TextBlock text = this.FindControl<TextBlock>("DiagnosticsActionError")!;
-        text.Text = current ? _actionFeedback!.Message : string.Empty;
+        text.Text = !current ? string.Empty
+            : _actionFeedback!.MessageKey is { } key ? Texts.T(key) : _actionFeedback.Message;
         text.Classes.Set("error", !current || _actionFeedback!.Failed);
     }
     private async void OnCopyClick(object? sender, RoutedEventArgs e)

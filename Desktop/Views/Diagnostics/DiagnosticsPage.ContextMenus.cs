@@ -96,8 +96,8 @@ public partial class DiagnosticsPage
         if (frozen.Target is DiagnosticTarget target && frozen.Kind != DiagnosticKind.Storage)
         {
             Add("watch.check", () => _ = RetryFrozenDiagnosticAsync(frozen),
-                !_retryBusy && IsCurrentDiagnostic(frozen) && _retry != null && _canRetry?.Invoke(target) == true);
-            Add("watch.show-in-downloads", () => OpenFrozenDiagnostic(frozen), _openWatch != null);
+                !_retryBusy && !IsRemoved(target) && IsCurrentDiagnostic(frozen) && _retry != null && _canRetry?.Invoke(target) == true);
+            Add("watch.show-in-downloads", () => OpenFrozenDiagnostic(frozen), _openWatch != null && !IsRemoved(target));
         }
     }
 
@@ -123,7 +123,8 @@ public partial class DiagnosticsPage
         if (_ended || !_available || frozen.Target is not DiagnosticTarget target) return;
         int generation = BeginDiagnosticAction();
         if (!IsCurrentDiagnostic(frozen) || _openWatch?.Invoke(target) != true)
-            ShowDiagnosticActionFeedback(generation, new(ActionContextKind.Diagnostic, frozen.Key), Texts.T("diagnostics.removed"));
+            ShowDiagnosticActionFeedback(generation, new(ActionContextKind.Diagnostic, frozen.Key), Texts.T("diagnostics.removed"),
+                messageKey: "diagnostics.removed");
     }
 
     private async Task RetryFrozenDiagnosticAsync(DiagnosticEntry frozen)
@@ -132,7 +133,7 @@ public partial class DiagnosticsPage
             || frozen.Target is not DiagnosticTarget target || _retry == null || !IsCurrentDiagnostic(frozen)) return;
         _retryBusy = true;
         int generation = BeginDiagnosticAction();
-        string? message = null;
+        string? message = null, messageKey = null;
         bool failed = false;
         try
         {
@@ -143,10 +144,11 @@ public partial class DiagnosticsPage
             CheckRequestStatus result = await _retry(target);
             message = CheckActionText.ForResult(result, target.Kind);
             failed = result is not (CheckRequestStatus.Scheduled or CheckRequestStatus.AlreadyScheduled);
+            if (result == CheckRequestStatus.Stale) { _removedTargets.Add(target); messageKey = "diagnostics.removed"; }
         }
         catch (Exception exception) { message = Texts.T("check.failed", exception.Message); failed = true; }
         finally { _retryBusy = false; if (!_ended) RefreshSelection(); }
         if (!_ended && message != null)
-            ShowDiagnosticActionFeedback(generation, new(ActionContextKind.Diagnostic, frozen.Key), message, failed);
+            ShowDiagnosticActionFeedback(generation, new(ActionContextKind.Diagnostic, frozen.Key), message, failed, messageKey);
     }
 }
