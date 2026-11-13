@@ -7,6 +7,7 @@ using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Persistence;
+using MeowChan.Testing;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -26,9 +27,9 @@ internal static class FilterPointerSelectionChecks
             Texts.SetLanguage("en");
             using ProfileLease lease = ProfileLease.Acquire(directory);
             await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(directory, lease);
-            foreach (string board in new[] { "g", "pol" })
+            foreach (string boardName in new[] { "g", "pol" })
                 await catalog.RegisterThreadAsync(new ArchiveThreadRegistration(
-                    new ResourceId("2ch", board, board), "https://filter-pointer.invalid/" + board, board, directory, true));
+                    new ResourceId("2ch", boardName, boardName), "https://filter-pointer.invalid/" + boardName, boardName, directory, true));
 
             page = new(token => ArchiveReader.OpenAsync(directory, token), (_, _) => Task.CompletedTask, _ => { })
             { IsAvailable = true };
@@ -58,7 +59,7 @@ internal static class FilterPointerSelectionChecks
             async Task<Control> SuggestionRowAsync(IdentitySuggestionBox field, string value, string? sourceValue)
             {
                 await Program.WaitUntilAsync(() => field.IsDropDownOpen && field.ItemsSource?.Cast<IdentitySuggestion>()
-                    .Any(item => item.Value == value && item.Source == sourceValue));
+                    .Any(item => item.Value == value && item.Source == sourceValue) == true);
                 Popup popup = field.GetVisualDescendants().OfType<Popup>().FirstOrDefault()
                     ?? throw new InvalidOperationException(field.Name + " suggestion popup is missing.");
                 SelectingItemsControl list = popup.Child as SelectingItemsControl
@@ -93,7 +94,7 @@ internal static class FilterPointerSelectionChecks
 
             await TypeWithNativeFocusAsync(board, boardInput, "pol");
             await Program.WaitUntilAsync(() => board.IsDropDownOpen && board.ItemsSource?.Cast<IdentitySuggestion>()
-                .Any(item => item.Value == "pol" && item.Source == "2ch"));
+                .Any(item => item.Value == "pol" && item.Source == "2ch") == true);
             await native.KeyAsync(MediaNativeInput.Down);
             await native.KeyAsync(MediaNativeInput.Enter);
             await Program.WaitUntilAsync(() => page.DraftBoards.Contains(new ArchiveBoardConstraint("2ch", "pol"))
