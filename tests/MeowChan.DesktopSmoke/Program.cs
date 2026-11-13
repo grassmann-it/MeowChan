@@ -625,17 +625,21 @@ internal static class Program
             thread = thread with { Snapshot = thread.Snapshot with { RequestProgress = null } };
             await synthetic.UpdateAsync(thread);
             await WaitUntilAsync(() => VisibleText(window, "Downloading"));
+            FailureInfo retained = new(FailureKind.Timeout, "Smoke retained check failure");
             await synthetic.UpdateAsync(thread with
             {
                 Snapshot = thread.Snapshot with
                 {
                     Downloads = new DownloadCounts(3, 2),
                     Activity = ThreadActivity.Finished,
-                    LastCheckFailure = new FailureInfo(FailureKind.Timeout, "Smoke retained check failure")
+                    LastCheckFailure = retained
                 }
             });
-            if (threadRow.Status != "Check failed · Finished" || threadRow.Queued != 3 || threadRow.Active != 2
-                || threadRow.ErrorDetails != "Smoke retained check failure")
+            // One failure, one wording: row and inspector come from the shared presentation (headline first).
+            if (threadRow.Status != "Check failed · Finished · Timed out" || threadRow.Queued != 3 || threadRow.Active != 2
+                || threadRow.ErrorDetails != MeowChan.Desktop.DiagnosticFailurePresentation.Inspector(retained, MeowChan.Desktop.DiagnosticOperation.Thread)
+                || !threadRow.ErrorDetails.StartsWith("Timed out" + Environment.NewLine, StringComparison.Ordinal)
+                || !threadRow.ErrorDetails.EndsWith("Smoke retained check failure", StringComparison.Ordinal))
                 throw new InvalidOperationException("Typed queue counts or retained check failures were not projected.");
             Console.WriteLine("SMOKE request waiting/backoff rendered; typed queue counts and retained check failure projected.");
             await PresentationChecks.CheckDetailsAsync(mainWindow, threadRow);

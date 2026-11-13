@@ -32,7 +32,7 @@ internal static class DiagnosticEvidenceChecks
         "diagnostics.observed.operation", "diagnostics.observed.evidence", "diagnostics.observed.next",
         "diagnostics.observed.thread", "diagnostics.observed.media", "diagnostics.observed.watchUrl",
         "diagnostics.observed.mediaItem", "diagnostics.observed.http403", "diagnostics.observed.http404",
-        "diagnostics.observed.media404", "diagnostics.observed.checkSource",
+        "diagnostics.observed.media404", "diagnostics.observed.checkSourceRetry", "check.action",
         "diagnostics.includeWaiting", "diagnostics.copyPrivacy"
     ];
 
@@ -250,7 +250,8 @@ internal static class DiagnosticEvidenceChecks
         string http = kind == DiagnosticKind.Media ? "Http · HTTP 404" : "Http · HTTP 403";
         string[] expected = [operation, catalog["diagnostics.observed.evidence"] + ":", fact, http, raw,
             catalog["diagnostics.observed.watchUrl"] + ": " + WatchUrl(watch),
-            catalog["diagnostics.observed.next"] + ": " + catalog["diagnostics.observed.checkSource"]];
+            catalog["diagnostics.observed.next"] + ": "
+                + string.Format(Texts.Culture, catalog["diagnostics.observed.checkSourceRetry"], catalog["check.action"])];
         foreach (string fragment in expected)
             Require(details.Text!.Contains(fragment, StringComparison.Ordinal), "Missing actual detail fragment: " + fragment);
         Require(!details.Text!.Contains(catalog[kind == DiagnosticKind.Media ? "diagnostics.observed.http403" : "diagnostics.observed.media404"], StringComparison.Ordinal),

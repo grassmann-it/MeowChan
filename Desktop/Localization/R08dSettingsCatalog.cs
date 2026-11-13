@@ -55,7 +55,7 @@ internal static class R08dSettingsCatalog
         ("feedback.copy", "Copy message", "Meldung kopieren"),
         ("feedback.time", "Time", "Zeit"),
         ("feedback.warning", "Warning", "Warnung"),
-        ("feedback.open", "View session messages in Diagnostics", "Sitzungsmeldungen unter Diagnose öffnen"),
+        ("feedback.open", "Open Diagnostics", "Diagnose öffnen"),
         ("feedback.repeated", "Repeated {0} times", "{0}-mal aufgetreten"),
         ("feedback.working", "Working…", "Wird ausgeführt…"),
         ("shortcuts.warning", "Some shortcuts could not be activated. Review Keyboard shortcuts in Settings; existing data was preserved.", "Einige Tastenkürzel konnten nicht aktiviert werden. Prüfe Tastenkürzel in den Einstellungen; vorhandene Daten bleiben erhalten."),

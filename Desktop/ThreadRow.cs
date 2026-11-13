@@ -162,9 +162,12 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
             activity += " · " + request;
         }
 
-        if (snapshot.LastCheckFailure != null)
+        // One failure, one wording: the row carries the same headline Downloads details, Diagnostics and Sources use.
+        string? checkHeadline = snapshot.LastCheckFailure is FailureInfo checkFailure
+            ? DiagnosticFailurePresentation.Headline(checkFailure, DiagnosticOperation.Thread) : null;
+        if (checkHeadline != null)
         {
-            activity = Texts.T("status.checkFailed", activity);
+            activity = Texts.T("status.checkFailed", activity) + " · " + checkHeadline;
         }
 
         Status = snapshot.SourceState switch
@@ -180,17 +183,19 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
             Progress += " · " + Texts.T("progress.excluded", snapshot.Content.ExcludedMedia);
         Queued = snapshot.Downloads.Queued;
         Active = snapshot.Downloads.Active;
-        string[] allMediaErrors = snapshot.MediaFailures.Values.Select(mediaFailure => mediaFailure.Message).Distinct().ToArray();
+        string[] allMediaErrors = snapshot.MediaFailures.Values
+            .Select(mediaFailure => DiagnosticFailurePresentation.Line(mediaFailure, DiagnosticOperation.Media)).Distinct().ToArray();
         string[] mediaErrors = allMediaErrors.Take(5).ToArray();
         ErrorDetails = string.Join(Environment.NewLine, allMediaErrors.Length > 5 ? mediaErrors.Append(Texts.T("work.moreItems", allMediaErrors.Length - 5)) : mediaErrors);
         if (snapshot.LastCheckFailure is FailureInfo failure)
         {
-            ErrorDetails = string.IsNullOrEmpty(ErrorDetails) ? failure.Message : failure.Message + Environment.NewLine + ErrorDetails;
+            string inspector = DiagnosticFailurePresentation.Inspector(failure, DiagnosticOperation.Thread);
+            ErrorDetails = string.IsNullOrEmpty(ErrorDetails) ? inspector : inspector + Environment.NewLine + ErrorDetails;
         }
         if (snapshot.Content?.CaptureFailure is FailureInfo captureFailure)
-            ErrorDetails += (ErrorDetails.Length == 0 ? string.Empty : Environment.NewLine) + Texts.T("nav.archive") + ": " + captureFailure.Message;
+            ErrorDetails += (ErrorDetails.Length == 0 ? string.Empty : Environment.NewLine) + Texts.T("nav.archive") + ": " + DiagnosticFailurePresentation.Line(captureFailure, DiagnosticOperation.Capture);
         if (snapshot.Content?.SelectionFailure is FailureInfo selectionFailure)
-            ErrorDetails += (ErrorDetails.Length == 0 ? string.Empty : Environment.NewLine) + Texts.T("nav.rules") + ": " + selectionFailure.Message;
+            ErrorDetails += (ErrorDetails.Length == 0 ? string.Empty : Environment.NewLine) + Texts.T("nav.rules") + ": " + DiagnosticFailurePresentation.Line(selectionFailure, DiagnosticOperation.Selection);
 
         IssueDetails = ErrorDetails;
         ContextDetails = string.Empty;
@@ -221,7 +226,7 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
         // Durable media work does not erase the current check failure. Keep the
         // full failure in details and the lifecycle cue in the compact surface.
         if (snapshot.Work != null && snapshot.LastCheckFailure != null)
-            CompactStatus = Texts.T("status.checkFailed", CompactStatus);
+            CompactStatus = Texts.T("status.checkFailed", CompactStatus) + " · " + checkHeadline;
         if (snapshot.Work == null && _isPaused
             && snapshot.Activity is not (ThreadActivity.Stopped or ThreadActivity.Finished or ThreadActivity.NotFound))
             CompactStatus += " · " + Texts.T("work.paused");

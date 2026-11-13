@@ -44,7 +44,8 @@ public sealed class DiagnosticFailurePresentationTests : IDisposable
             Assert.Contains("Http · HTTP 403" + Environment.NewLine + failure.Message, details);
             Assert.Contains(Texts.T("diagnostics.observed.code", "source-refused"), details);
             Assert.Contains(DiagnosticFailurePresentation.Operation(operation), details);
-            Assert.EndsWith(DiagnosticFailurePresentation.Next("diagnostics.observed.checkSource"), details);
+            Assert.EndsWith(DiagnosticFailurePresentation.Next("diagnostics.observed.checkSourceRetry",
+                DiagnosticFailurePresentation.RetryButton(operation)), details);
             Assert.DoesNotContain("You are banned", details);
             Assert.DoesNotContain("Login required", details);
             Assert.DoesNotContain("CAPTCHA required", details);
@@ -95,7 +96,7 @@ public sealed class DiagnosticFailurePresentationTests : IDisposable
         FailureInfo throttled = new(FailureKind.Http, "rate-detail", HttpStatusCode.TooManyRequests);
         string details = DiagnosticFailurePresentation.Format(throttled, DiagnosticOperation.Thread);
         Assert.Contains(Texts.T("diagnostics.observed.http429"), details);
-        Assert.EndsWith(DiagnosticFailurePresentation.Next("diagnostics.observed.retry"), details);
+        Assert.EndsWith(DiagnosticFailurePresentation.Next("diagnostics.observed.retry", Texts.T("check.action")), details);
         Assert.DoesNotContain(Texts.T("diagnostics.observed.wait"), details);
         Assert.DoesNotContain(Texts.T("diagnostics.attempt", 0), details);
         Assert.DoesNotContain(Texts.T("request.cooldown"), details);
@@ -142,7 +143,7 @@ public sealed class DiagnosticFailurePresentationTests : IDisposable
         AssertNoTransportStage(details);
         Assert.DoesNotContain(Texts.T("diagnostics.observed.http429"), details);
         Assert.DoesNotContain(Texts.T("diagnostics.observed.timeout"), details);
-        Assert.EndsWith(DiagnosticFailurePresentation.Next("diagnostics.observed.retry"), details);
+        Assert.EndsWith(DiagnosticFailurePresentation.Next("diagnostics.observed.retry", Texts.T("check.action")), details);
     }
 
     [Fact]
@@ -196,7 +197,7 @@ public sealed class DiagnosticFailurePresentationTests : IDisposable
 
     [Theory]
     [InlineData(FailureKind.Storage, "diagnostics.observed.storage", "diagnostics.observed.checkStorage")]
-    [InlineData(FailureKind.InvalidData, "diagnostics.observed.invalidData", "diagnostics.observed.checkSource")]
+    [InlineData(FailureKind.InvalidData, "diagnostics.observed.invalidData", "diagnostics.observed.checkSourceRetry")]
     public void LocalStorageAndInvalidDataRemainDifferentFromTransport(FailureKind kind, string evidence, string next)
     {
         FailureInfo failure = new(kind, "opaque local detail");
@@ -207,7 +208,10 @@ public sealed class DiagnosticFailurePresentationTests : IDisposable
             string details = DiagnosticFailurePresentation.Format(failure, operation);
             Assert.Contains(Texts.T(evidence), details);
             Assert.Contains(DiagnosticFailurePresentation.Operation(operation), details);
-            Assert.EndsWith(DiagnosticFailurePresentation.Next(next), details);
+            // A filter exclusion has nothing to retry, so it names no button; every other step quotes its button.
+            Assert.EndsWith(operation == DiagnosticOperation.Selection
+                ? DiagnosticFailurePresentation.Next("diagnostics.observed.checkSource")
+                : DiagnosticFailurePresentation.Next(next, DiagnosticFailurePresentation.RetryButton(operation)), details);
             AssertNoTransportStage(details);
             Assert.DoesNotContain("HTTP ", details);
             Assert.DoesNotContain(Texts.T(kind == FailureKind.Storage
@@ -258,7 +262,7 @@ public sealed class DiagnosticFailurePresentationTests : IDisposable
         Assert.Contains(Texts.T("diagnostics.attempt", 2), details);
         Assert.Contains(RequestStatus.Format(progress)!, details);
         Assert.EndsWith(DiagnosticFailurePresentation.Next(waits
-            ? "diagnostics.observed.wait" : "diagnostics.observed.retry"), details);
+            ? "diagnostics.observed.wait" : "diagnostics.observed.retry", Texts.T("check.action")), details);
         if (!waits) Assert.DoesNotContain(Texts.T("diagnostics.observed.wait"), details);
     }
 
@@ -292,7 +296,7 @@ public sealed class DiagnosticFailurePresentationTests : IDisposable
             Assert.All(entries, entry =>
             {
                 Assert.Contains(Texts.T("diagnostics.observed.http429"), entry.Details);
-                Assert.EndsWith(DiagnosticFailurePresentation.Next("diagnostics.observed.retry"), entry.Details);
+                Assert.EndsWith(DiagnosticFailurePresentation.Next("diagnostics.observed.retry", Texts.T("check.action")), entry.Details);
                 Assert.DoesNotContain(Texts.T("diagnostics.observed.wait"), entry.Details);
                 Assert.DoesNotContain("Earliest retry:", entry.Details);
                 Assert.DoesNotContain(Texts.T("check.scheduled"), entry.Details);
@@ -328,7 +332,7 @@ public sealed class DiagnosticFailurePresentationTests : IDisposable
             ReportedRetry.ToLocalTime().ToString("g", Texts.Culture)), work.Details);
         Assert.EndsWith(DiagnosticFailurePresentation.Next("diagnostics.observed.wait"), work.Details);
         // No media identity/due matching is invented across the two separate projections.
-        Assert.EndsWith(DiagnosticFailurePresentation.Next("diagnostics.observed.retry"), standalone.Details);
+        Assert.EndsWith(DiagnosticFailurePresentation.Next("diagnostics.observed.retry", Texts.T("check.action")), standalone.Details);
         Assert.DoesNotContain(Texts.T("diagnostics.observed.wait"), standalone.Details);
         Assert.DoesNotContain(UnobservedEndpoint, work.Details);
     }
@@ -365,7 +369,7 @@ public sealed class DiagnosticFailurePresentationTests : IDisposable
         Assert.Contains(retryLine, entry.Details);
         Assert.StartsWith(Texts.T("diagnostics.observed.watchUrl") + ": " + WatchUrl + Environment.NewLine, entry.Details);
         Assert.DoesNotContain(UnobservedEndpoint, entry.Details);
-        Assert.EndsWith(DiagnosticFailurePresentation.Next("diagnostics.observed.retry"), entry.Details);
+        Assert.EndsWith(DiagnosticFailurePresentation.Next("diagnostics.observed.retry", Texts.T("check.action")), entry.Details);
         Assert.DoesNotContain(DiagnosticFailurePresentation.Next("diagnostics.observed.wait"), entry.Details);
         // Removing only the reported time must produce exactly the no-time projection.
         string withTime = DiagnosticFailurePresentation.Format(reported, DiagnosticOperation.Thread);
@@ -459,7 +463,7 @@ public sealed class DiagnosticFailurePresentationTests : IDisposable
         Assert.Contains("Excluded", entry.Details);
         Assert.Contains("filter_nomatch", entry.Details);
         Assert.DoesNotContain(DiagnosticFailurePresentation.Operation(DiagnosticOperation.Media), entry.Details);
-        Assert.DoesNotContain(DiagnosticFailurePresentation.Next("diagnostics.observed.retry"), entry.Details);
+        Assert.DoesNotContain(DiagnosticFailurePresentation.Next("diagnostics.observed.retry", Texts.T("check.action")), entry.Details);
         Assert.DoesNotContain(DiagnosticFailurePresentation.Next("diagnostics.observed.wait"), entry.Details);
         Assert.DoesNotContain(Texts.T("diagnostics.observed.unknown"), entry.Details);
         AssertNoTransportStage(entry.Details);
@@ -484,7 +488,8 @@ public sealed class DiagnosticFailurePresentationTests : IDisposable
         Assert.True(entry.IsProblem);
         Assert.Contains(Texts.T("targets.freeSpace"), entry.Details);
         Assert.Contains(Texts.T("targets.nextCheck", ReportedRetry.ToLocalTime()), entry.Details);
-        Assert.EndsWith(DiagnosticFailurePresentation.Next("diagnostics.observed.checkStorage"), entry.Details);
+        Assert.EndsWith(DiagnosticFailurePresentation.Next("diagnostics.observed.checkStorage",
+            DiagnosticFailurePresentation.RetryButton(DiagnosticOperation.Storage)), entry.Details);
         Assert.DoesNotContain(Texts.T("diagnostics.observed.storage"), entry.Details);
         AssertNoTransportStage(entry.Details);
         Assert.Empty(DiagnosticRetryScope.Capture(new[] { entry }));
@@ -543,7 +548,9 @@ public sealed class DiagnosticFailurePresentationTests : IDisposable
         Assert.Contains(string.Format(Texts.Culture, catalog["diagnostics.observed.code"], "source-refused"), refreshed.Details);
         Assert.Contains(string.Format(Texts.Culture, catalog["diagnostics.observed.retryAt"],
             ReportedRetry.ToLocalTime().ToString("g", Texts.Culture)), refreshed.Details);
-        Assert.EndsWith(catalog["diagnostics.observed.next"] + ": " + catalog["diagnostics.observed.checkSource"], refreshed.Details);
+        Assert.EndsWith(catalog["diagnostics.observed.next"] + ": "
+            + string.Format(Texts.Culture, catalog["diagnostics.observed.checkSourceRetry"], catalog["check.action"]), refreshed.Details);
+        Assert.Contains(catalog["failure.short.refused"], refreshed.Details);
         Assert.NotEqual(frozenDetails, refreshed.Details);
         Assert.Equal(frozenDetails, frozen.Details);
         Assert.Equal(frozen.Key, refreshed.Key);
@@ -565,9 +572,12 @@ public sealed class DiagnosticFailurePresentationTests : IDisposable
     {
         "operation", "evidence", "next", "watchUrl", "mediaItem", "thread", "board", "media", "capture", "selection",
         "unknown", "dns", "connection", "tls", "http403", "http404", "media404", "http429", "cancelled", "timeout",
-        "storage", "invalidData", "retryAt", "retry", "wait", "checkStorage", "checkSource", "code"
+        "storage", "invalidData", "retryAt", "retry", "wait", "checkStorage", "checkSource", "checkSourceRetry", "code"
     }.Select(key => "diagnostics.observed." + key)
-        .Concat(new[] { "diagnostics.includeWaiting", "diagnostics.copyPrivacy" }).ToArray();
+        .Concat(new[] { "diagnostics.includeWaiting", "diagnostics.copyPrivacy", "check.action", "feedback.open",
+            "failure.short.refused", "failure.short.notFound", "failure.short.throttled", "failure.short.dns",
+            "failure.short.connection", "failure.short.tls", "failure.short.timeout", "failure.short.cancelled",
+            "failure.short.storage", "failure.short.invalidData", "failure.short.unknown", "failure.short.retryAt" }).ToArray();
 
     private static IReadOnlyDictionary<string, string> Catalog(string language)
     {
