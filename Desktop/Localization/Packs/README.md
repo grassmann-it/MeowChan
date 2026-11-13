@@ -186,6 +186,22 @@ posts line of the details) are **unreviewed machine translations**. They word th
 causes on every surface (archive, media page, gallery); en and de are the built-in
 reference.
 
+### Simplified Chinese glossary (`zh-Hans.json`)
+
+`zh-Hans.json` (`简体中文 (Untested)`) is an **unreviewed AI-authored preview** with no
+native or layout review. It has no plural variants. Terms chosen for the Sources and
+archive surfaces:
+
+| English | Simplified Chinese | Note |
+| --- | --- | --- |
+| Sources chips: built-in / not activated | 内置 / 未激活 | `sources.badge.type.builtin`, `sources.badge.status.inactive` |
+| Content (archive filter) | 内容 | `archive.filter.content`; not 媒体, which names the files |
+| selection anchor | 锚点 | `archive.selectionPage`: `锚点：#{1}` |
+| key names Ctrl, Shift | unchanged | `key.ctrl`, `key.shift` stay Latin |
+
+Sentences use full-width punctuation (，。：); keep placeholders, units and keyboard
+keys unchanged.
+
 ### Japanese glossary (`ja.json`)
 
 `ja.json` (`ja` · 日本語 (Untested)) is an **unreviewed AI-authored translation** with
@@ -207,6 +223,10 @@ carries no `.one`/`.few` keys. Fixed terms:
 | Storage and limits | 保存容量と上限 | "Raise X under Y" → `Y の「X」を引き上げてください` |
 | free-space reserve | 空き容量の予約 | |
 | batch (import) | バッチ | |
+| Sources chips: built-in / not activated | 組み込み / 未有効化 | `sources.badge.type.builtin`, `sources.badge.status.inactive`; 有効 is the active state |
+| Content (archive filter) | 内容 | `archive.filter.content`; not メディア, which names the files |
+| selection anchor | 基点 | `archive.selectionPage`: `基点: #{1}` |
+| key names Ctrl, Shift | unchanged | `key.ctrl`, `key.shift` stay Latin |
 
 Booru, Danbooru, MeowChan, keyboard keys and units stay unchanged. Japanese sentences
 use full-width 、。「」？！ and （）; label colons stay half-width (`ラベル: {0}`).
@@ -239,6 +259,10 @@ short (저장, 설정, 삭제). Fixed terms:
 | spoiler | 스포일러 |
 | Storage and limits | 저장 공간 및 한도 |
 | capture | 캡처 |
+| Sources chips: built-in / not activated | 기본 제공 / 활성화되지 않음 |
+| Content (archive filter) | 콘텐츠 (not 미디어, which names the files) |
+| selection anchor | 기준점 |
+| key names Ctrl, Shift | unchanged |
 | Booru, Danbooru | unchanged |
 
 Particles after a placeholder or other variable text use the neutral software notation
@@ -271,6 +295,11 @@ plugin, worker and URL stay as they are. One term per concept:
 | rating | avaliação (Danbooru: classificação) | hodnocení |
 | Storage and limits | Armazenamento e limites | Úložiště a limity |
 | provider | provedor | poskytovatel |
+| Sources chip: built-in | Integrada | Vestavěný |
+| Sources chip: not activated | Não ativada | Neaktivovaný |
+| Content (archive filter) | Conteúdo | Obsah |
+| selection anchor | âncora | kotva |
+| key names Ctrl, Shift | unchanged | unchanged |
 
 Plural variants: cs adds `<key>.few` (2–4; base = other) where a number directly governs a
 noun and `<key>.one`/`<key>.few` for the `limit.*` texts; other counted cs texts use the
@@ -302,6 +331,10 @@ quoted UI names, the ellipsis character … and the typographic apostrophe ’.
 | rating (Danbooru content rating) | classificazione | Kept apart from the user’s own star rating, as es/fr do. The query term `rating:` and its values g/s/q/e stay unchanged. |
 | capture | acquisizione / acquisire | |
 | bookmark / saved search | segnalibro / ricerca salvata | |
+| Sources chips: built-in / not activated | Integrata / Non attivata | `sources.badge.type.builtin`, `sources.badge.status.inactive` |
+| Content (archive filter) | Contenuto | `archive.filter.content`; not *media*, which names the files |
+| selection anchor | ancora | `archive.selectionPage`: *ancora: #{1}* |
+| key names | Ctrl, **Maiusc** | `key.ctrl` stays *Ctrl*; `key.shift` is *Maiusc* (the Italian keyboard label), unlike the other new packs, which keep *Shift* |
 | Booru, Danbooru | unchanged | |
 
 Plural variants: Italian uses one/other. The pack carries every English `.one`
@@ -343,6 +376,10 @@ Terms used consistently:
 | worker (process) | proces roboczy |
 | retry / cooldown | ponowienie / przerwa (okres oczekiwania) |
 | batch (import) | partia |
+| Sources chips: built-in / not activated | Wbudowane / Nieaktywowane |
+| Content (archive filter) | Zawartość |
+| selection anchor | kotwica |
+| key names Ctrl, Shift | unchanged |
 | Storage and limits | Pamięć i limity |
 
 Booru, Danbooru and the Danbooru rating names (General, Sensitive, Questionable,
