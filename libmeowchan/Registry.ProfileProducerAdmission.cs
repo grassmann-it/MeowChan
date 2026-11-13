@@ -75,6 +75,9 @@ public sealed partial class Registry
             if (_producerLease != null) _queue.BindProfileLease(_producerLease);
             if (!_producerPrepared && !_producerSuspended && _producerEpoch == null)
             {
+                // Diagnose the public migration without changing the prepared host path.
+                if (_producerLease?.Admission.Phase == ProfileAdmissionPhase.Starting)
+                    throw new InvalidOperationException("Await Registry.StartAsync(lease) before restoring or writing to a new profile-bound session.");
                 // Lazy standalone producers also require Ready; a Startup command
                 // must never lend its role to a monitor or physical media job.
                 ProfileProducerEpoch epoch = new(_producerLease?.Admission.EnterOrdinaryWriter());

@@ -26,6 +26,16 @@ public sealed partial class Registry
     /// return its task. Failure after claiming startup is terminal for this instance.
     /// The caller retains ownership of the lease and supplied stores/runtime.
     /// </summary>
+    /// <remarks>
+    /// For a freshly acquired profile lease, await this method instead of
+    /// <see cref="RestoreAsync"/> before accepting user commands, even when
+    /// session persistence is disabled. It initializes an attached content runtime
+    /// and performs restore itself; a subsequent RestoreAsync is unnecessary.
+    /// All profile-bound components must use this exact lease instance. Complete
+    /// provider/store setup before calling; stop/dispose this registry before
+    /// disposing the borrowed runtime, provider resources or lease.
+    /// An unbound, in-memory registry does not require profile startup.
+    /// </remarks>
     public Task StartAsync(ProfileLease lease, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(lease);
