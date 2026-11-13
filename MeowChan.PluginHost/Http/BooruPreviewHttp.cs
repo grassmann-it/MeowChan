@@ -36,7 +36,7 @@ public sealed class BooruPreviewHttp : IDisposable
     private readonly Dictionary<string, LinkedListNode<(string Url, byte[] Bytes)>> _cache = new(StringComparer.Ordinal);
     private readonly LinkedList<(string Url, byte[] Bytes)> _order = new();
     private int _requests;
-    private bool _disposed;
+    private volatile bool _disposed;
 
     /// <param name="transport">Borrowed transport; it must not follow redirects and must not attach credentials.</param>
     /// <param name="source">The post-search source whose declared preview hosts form the allowlist.</param>
@@ -73,6 +73,8 @@ public sealed class BooruPreviewHttp : IDisposable
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            // A preview queued behind the gate may have waited across disposal: it must not start a request.
+            if (_disposed) return null;
             if (TryGetCached(key, out cached)) return cached;
             using CancellationTokenSource deadline = new(ResponseTimeout, _clock);
             using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token);
@@ -95,6 +97,7 @@ public sealed class BooruPreviewHttp : IDisposable
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("image/png"));
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("image/gif"));
         request.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("identity"));
+        if (_disposed) return null;
         Interlocked.Increment(ref _requests);
         using HttpResponseMessage response = await _transport.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token)
             .ConfigureAwait(false);
@@ -150,7 +153,8 @@ public sealed class BooruPreviewHttp : IDisposable
     {
         lock (_cacheSync)
         {
-            if (_cache.ContainsKey(key)) return;
+            // A request that was in flight at disposal must not repopulate the cleared cache.
+            if (_disposed || _cache.ContainsKey(key)) return;
             _cache[key] = _order.AddFirst((key, bytes));
             while (_cache.Count > MaximumCachedPreviews && _order.Last is { } last)
             {
@@ -160,6 +164,10 @@ public sealed class BooruPreviewHttp : IDisposable
         }
     }
 
+    /// <summary>
+    /// Idempotent. Waiting previews return null without a request; requests already in flight finish on the borrowed
+    /// transport, which is not disposed here, and their bytes are not cached.
+    /// </summary>
     public void Dispose()
     {
         _disposed = true;
