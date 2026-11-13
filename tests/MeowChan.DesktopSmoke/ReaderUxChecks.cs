@@ -72,6 +72,7 @@ internal static class ReaderUxChecks
                 "Reader UX " + thread, ThreadSourceState.Archived, DateTimeOffset.UtcNow, threadMedia, posts));
         }
         if (!deletionFixture) await ReaderStabilityChecks.SeedAsync(catalog, media);
+        if (!deletionFixture) await ReaderPostWidthChecks.SeedAsync(catalog, media);
     }
 
     internal static async Task RunAsync(MainWindow window)
@@ -110,6 +111,11 @@ internal static class ReaderUxChecks
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_RETURNS_ONLY") == "1")
         {
             await ReaderReturnChecks.RunAsync(window);
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_POST_WIDTH_ONLY") == "1")
+        {
+            await ReaderPostWidthChecks.RunAsync(window);
             return;
         }
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_STABILITY_ONLY") == "1")
