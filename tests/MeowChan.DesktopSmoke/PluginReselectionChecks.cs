@@ -332,8 +332,7 @@ internal static class PluginReselectionChecks
         foreach (Expander details in new[] { technical, configurationDetails })
         {
             Require(!details.IsExpanded, "Technical details should not overwhelm the initial repair review.");
-            ToggleButton header = details.GetVisualDescendants().OfType<ToggleButton>()
-                .Single(button => ReferenceEquals(button.TemplatedParent, details));
+            ToggleButton header = PluginNativeRepairHelper.ExpanderHeader(details);
             await ClickAsync(modal, input, header);
             await Program.WaitUntilAsync(() => details.IsExpanded && (details.Content as Control)?.IsEffectivelyVisible == true);
         }
@@ -349,6 +348,7 @@ internal static class PluginReselectionChecks
             configuration.Text == RecordingStore.Configuration && configuration.Text == store.Row.ConfigurationJson &&
             configuration.IsEffectivelyVisible && AutomationProperties.GetName(configuration) == Texts.T("plugins.reselection.configuration"),
             "Full exact configuration is not read-only, copyable and reviewable.");
+        await PluginNativeRepairHelper.VerifyRawConfigurationCopyAsync(modal, input, configuration, RecordingStore.Configuration);
         Require(labels.Contains(Texts.T("plugins.reselection.backup")) && labels.Contains(Texts.T("plugins.reselection.policy")), "Safety/backup explanation missing.");
         Require(labels.Contains(Texts.T("plugins.reselection.blocked.pinned")), "Blocked reason is not localized.");
         foreach (BundledCandidateRepair repair in store.RepairRows.Where(row => !row.CanReauthorize))
@@ -358,8 +358,7 @@ internal static class PluginReselectionChecks
         // A second native click must return to the compact decision without discarding any review data.
         foreach (Expander details in new[] { configurationDetails, technical })
         {
-            ToggleButton header = details.GetVisualDescendants().OfType<ToggleButton>()
-                .Single(button => ReferenceEquals(button.TemplatedParent, details));
+            ToggleButton header = PluginNativeRepairHelper.ExpanderHeader(details);
             await ClickAsync(modal, input, header);
             await Program.WaitUntilAsync(() => !details.IsExpanded);
         }
@@ -385,13 +384,8 @@ internal static class PluginReselectionChecks
     private static Button ReauthorizeConfirm(Window modal, string id) => Buttons(modal).Single(b => AutomationProperties.GetName(b) == Texts.T("plugins.repair.reauthorize.confirmNamed", id));
     private static CheckBox Ack(Button confirm) => ((StackPanel)confirm.Parent!).Children.OfType<CheckBox>().Single();
     private static Button Cancel(Window modal) => Buttons(modal).Single(b => Equals(b.Content, Texts.T("plugins.repair.cancel")));
-    private static async Task ClickAsync(Window window, MediaNativeInput input, Control control)
-    {
-        await Program.WaitUntilAsync(() => { window.UpdateLayout(); control.BringIntoView(); window.UpdateLayout();
-            Point? point = control.TranslatePoint(default, window);
-            return point is { } p && p.Y >= 0 && p.Y + control.Bounds.Height <= window.ClientSize.Height && control.Bounds.Width > 0; });
-        await input.ClickAsync(control); await Settle();
-    }
+    private static Task ClickAsync(Window window, MediaNativeInput input, Control control) =>
+        PluginNativeRepairHelper.ClickAsync(window, input, control);
     private static Button ById(Window modal, string id) => Buttons(modal).Single(b => AutomationProperties.GetAutomationId(b) == id);
     private static async Task SavedAsync(PluginsPage page, Window modal)
     {
