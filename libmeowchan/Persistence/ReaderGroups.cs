@@ -27,7 +27,7 @@ internal sealed class ReaderGroupsConflictException : InvalidOperationException
 internal static class ReaderGroupsValidation
 {
     /// <summary>Default group limit. The limit is a setting; reading and validating accept up to <see cref="ProfileStoreLimits.ReaderGroupCeiling"/>.</summary>
-    public const int MaximumGroups = ProfileStoreLimits.DefaultReaderGroups;
+    public const int DefaultGroups = ProfileStoreLimits.DefaultReaderGroups;
     public const int MaximumMembers = 1000;
     public const int MaximumMemberships = 20000;
     public const int MaximumBytes = 16 * 1024 * 1024;

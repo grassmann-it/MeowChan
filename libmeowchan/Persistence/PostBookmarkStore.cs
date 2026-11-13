@@ -57,7 +57,7 @@ internal sealed class PostBookmarkConflictException : IOException
 internal sealed partial class PostBookmarkStore
 {
     /// <summary>Default bookmark limit. The limit is a setting; reads accept up to <see cref="ProfileStoreLimits.BookmarkCeiling"/>.</summary>
-    internal const int MaximumEntries = ProfileStoreLimits.DefaultBookmarks;
+    internal const int DefaultEntries = ProfileStoreLimits.DefaultBookmarks;
     internal const int MaximumNoteCodepoints = 8_000;
     internal const int MaximumDocumentBytes = 32 * 1024 * 1024;
     private readonly ProfileLease _lease;

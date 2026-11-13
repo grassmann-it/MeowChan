@@ -30,7 +30,7 @@ internal sealed class SavedSearchRevisionException(SavedArchiveSearchSnapshot cu
 internal sealed class SavedArchiveSearchStore
 {
     /// <summary>Default saved-search limit. The limit is a setting; reads accept up to <see cref="ProfileStoreLimits.SavedSearchCeiling"/>.</summary>
-    internal const int MaximumSearches = ProfileStoreLimits.DefaultSavedSearches;
+    internal const int DefaultSearches = ProfileStoreLimits.DefaultSavedSearches;
     internal const int MaximumFileBytes = 8 * 1024 * 1024;
     private readonly ProfileLease _lease;
     private readonly string _path;

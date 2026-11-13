@@ -27,6 +27,18 @@ public sealed class ProfileStoreLimitsSharedConstantsTests
 #pragma warning restore CS0618
     }
 
+    [Fact]
+    public void TheListDefaultsAreNamedAsDefaultsAndComeFromTheSharedLimits()
+    {
+        // These were called Maximum*, but they are only the defaults of settings whose ceilings are far higher.
+        Assert.Equal(ProfileStoreLimits.DefaultBookmarks, PostBookmarkStore.DefaultEntries);
+        Assert.Equal(ProfileStoreLimits.DefaultSavedSearches, SavedArchiveSearchStore.DefaultSearches);
+        Assert.Equal(ProfileStoreLimits.DefaultReaderGroups, ReaderGroupsValidation.DefaultGroups);
+        Assert.True(PostBookmarkStore.DefaultEntries < ProfileStoreLimits.BookmarkCeiling);
+        Assert.True(SavedArchiveSearchStore.DefaultSearches < ProfileStoreLimits.SavedSearchCeiling);
+        Assert.True(ReaderGroupsValidation.DefaultGroups < ProfileStoreLimits.ReaderGroupCeiling);
+    }
+
     [Theory]
     [InlineData(8_000_000)]
     [InlineData(8_000_001)]
