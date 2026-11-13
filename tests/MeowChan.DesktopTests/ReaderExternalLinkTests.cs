@@ -77,6 +77,32 @@ public sealed class ReaderExternalLinkTests
         Assert.Equal("https://ok.example/a", Assert.Single(document.Segments, segment => segment.Link != null).Link!.OriginalString);
     }
 
+    [Theory]
+    [InlineData("https://\u0378.example/")] // Unassigned code point in the host.
+    [InlineData("https://a\u00ADb.example/")]
+    [InlineData("https://\u2488.example/")] // Digit full stop: forbidden in IDNA.
+    [InlineData("https://ex\uD800ample.org/")] // Lone surrogate.
+    [InlineData("https://-.example/")]
+    public void AHostTheIdnMappingRejectsNeverThrowsAndIsNeverAnOpenableLink(string text)
+    {
+        Uri? uri = null;
+        Exception? parse = Record.Exception(() => uri = ReaderExternalLink.Parse(text));
+        Assert.Null(parse);
+        if (uri == null) return; // Not a link: stays text, nothing to click.
+        // If a runtime accepts the host, the confirmation can still show it in ASCII without throwing.
+        Assert.Null(Record.Exception(() => ReaderExternalLink.Display(uri)));
+        Assert.True(System.Text.Ascii.IsValid(ReaderExternalLink.Display(uri).Host));
+    }
+
+    [Fact]
+    public void IsOpenableAnswersFalseInsteadOfThrowingWhenTheIdnHostIsRejected()
+    {
+        // A Uri the IRI parser accepted but whose IdnHost throws must not reach the dialog or the launcher.
+        foreach (string text in new[] { "https://\u0378.example/", "https://\u2488.example/", "https://a.b\u0378.example/x" })
+            if (Uri.TryCreate(text, UriKind.Absolute, out Uri? uri))
+                Assert.Null(Record.Exception(() => ReaderExternalLink.IsOpenable(uri)));
+    }
+
     [Fact]
     public void AnAddressLongerThanTheLimitIsNotALink() =>
         Assert.Null(ReaderExternalLink.Parse("https://example.org/" + new string('a', ReaderExternalLink.MaxLength)));

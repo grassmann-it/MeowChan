@@ -36,7 +36,18 @@ internal static class ReaderExternalLink
     /// <summary>Whether this is an address the reader may ever hand to the system: http or https, a host, no user information.</summary>
     internal static bool IsOpenable(Uri? uri) => uri is { IsAbsoluteUri: true, UserInfo.Length: 0 }
         && uri.Scheme is "http" or "https" && uri.Host.Length > 0
-        && !uri.GetLeftPart(UriPartial.Authority).Contains('@', StringComparison.Ordinal);
+        && !uri.GetLeftPart(UriPartial.Authority).Contains('@', StringComparison.Ordinal)
+        && HasAsciiHost(uri);
+
+    /// <summary>
+    /// The confirmation shows the ASCII (punycode) host, so a host that has none is no link. <see cref="Uri.IdnHost"/> throws
+    /// <see cref="UriFormatException"/> for a Unicode host the IDN mapping rejects, which the IRI parser can let through.
+    /// </summary>
+    private static bool HasAsciiHost(Uri uri)
+    {
+        try { return uri.IdnHost.Length > 0 && System.Text.Ascii.IsValid(uri.IdnHost); }
+        catch (UriFormatException) { return false; }
+    }
 
     /// <summary>The address as the confirmation shows it: the host in its ASCII (punycode) form, so look-alike hosts are visible.</summary>
     internal static (string Prefix, string Host, string Tail) Display(Uri uri)
