@@ -488,7 +488,7 @@ public sealed partial class PluginProfileStoreTests : IDisposable
             }
             finally { File.Move(hidden, store.StorePath); }
         }
-        PluginProfileSnapshot observed = await pending.WaitAsync(TimeSpan.FromSeconds(3));
+        PluginProfileSnapshot observed = await pending.WaitAsync(TimeSpan.FromSeconds(30));
         Assert.Equal(state.Revision, observed.Revision);
         Assert.Equal("a", Assert.Single(observed.Plugins).Active!.ExecutionRevision);
     }

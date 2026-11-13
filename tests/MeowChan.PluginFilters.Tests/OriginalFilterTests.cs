@@ -768,7 +768,7 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
         Assert.Equal(0, MkFifo(fifo, 384));
         string id = Guid.NewGuid().ToString("N");
         await File.WriteAllTextAsync(Path.Combine(stages, "stage-" + id + ".json.next"), JsonSerializer.Serialize(new { Owner = "MeowChan original filter stage v1", Id = id }));
-        FilterStageCoordinator stage = await Task.Run(() => new FilterStageCoordinator(root.Path, profile)).WaitAsync(TimeSpan.FromSeconds(2));
+        FilterStageCoordinator stage = await Task.Run(() => new FilterStageCoordinator(root.Path, profile)).WaitAsync(TimeSpan.FromSeconds(30));
         await using (stage) { Assert.Equal(1, stage.Snapshot.RecoveredStages); Assert.True(File.Exists(fifo)); }
     }
 

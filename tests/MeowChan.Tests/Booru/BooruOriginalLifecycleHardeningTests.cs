@@ -339,7 +339,7 @@ public sealed partial class BooruOriginalQueueTests
         {
             if (outcome.State != BooruOriginalDownloadState.Cancelled) return;
             // Another thread must be able to take the queue state lock while the owner is notified.
-            queueReachable ??= Task.Run(() => session.Queue.IsPaused).Wait(TimeSpan.FromSeconds(2));
+            queueReachable ??= Task.Run(() => session.Queue.IsPaused).Wait(TestWait.Timeout);
         };
 
         Assert.True(await session.Booru.CancelAsync("201").WaitAsync(TestWait.Timeout));

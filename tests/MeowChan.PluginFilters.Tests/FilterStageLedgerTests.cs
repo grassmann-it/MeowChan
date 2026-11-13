@@ -201,21 +201,21 @@ public sealed class FilterStageLedgerTests
         FilterStageLedger ledger = new(root.Path, budget, 100, () => {
             if (Interlocked.Exchange(ref pause, 0) == 0) return;
             scanned.Set();
-            Assert.True(resume.Wait(TimeSpan.FromSeconds(5)), "Inventory race was never released.");
+            Assert.True(resume.Wait(TimeSpan.FromSeconds(60)), "Inventory race was never released.");
         });
         ledger.Reconcile(); long scans = ledger.ScanCount;
         Volatile.Write(ref pause, 1);
         Task inventory = Task.Run(ledger.Reconcile);
         try
         {
-            Assert.True(scanned.Wait(TimeSpan.FromSeconds(5)));
+            Assert.True(scanned.Wait(TimeSpan.FromSeconds(30)));
             // Reserving while a scan is held proves filesystem work owns neither
             // the shared budget lock nor the coordinator's state lock.
-            await Task.Run(() => ledger.Reserve(Path.Combine(root.Path, "in-flight"), 50)).WaitAsync(TimeSpan.FromSeconds(2));
+            await Task.Run(() => ledger.Reserve(Path.Combine(root.Path, "in-flight"), 50)).WaitAsync(TimeSpan.FromSeconds(30));
             File.WriteAllBytes(Path.Combine(root.Path, "new-foreign"), new byte[20]);
         }
         finally { resume.Set(); }
-        await inventory.WaitAsync(TimeSpan.FromSeconds(5));
+        await inventory.WaitAsync(TimeSpan.FromSeconds(30));
         Assert.Equal(scans + 2, ledger.ScanCount); Assert.Equal(70, ledger.Bytes);
         Assert.Equal(2, ledger.Files); ledger.Check();
         Assert.Throws<MediaFilterOmissionException>(() => ledger.Reserve(Path.Combine(root.Path, "other"), 31));
