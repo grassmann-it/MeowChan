@@ -45,11 +45,17 @@ internal static class FilterPointerSelectionChecks
             using MediaNativeInput native = new(host);
             IdentitySuggestionBox source = page.FindControl<IdentitySuggestionBox>("ArchiveSourceFilter")!;
             IdentitySuggestionBox board = page.FindControl<IdentitySuggestionBox>("ArchiveBoardFilter")!;
+            // Expanding the surface schedules layout/template creation. Surface visibility alone
+            // does not mean that either editor's inner TextBox has been materialized yet.
+            await Program.WaitUntilAsync(() => source.GetVisualDescendants().OfType<TextBox>().Any(input => input.Bounds.Width > 0)
+                && board.GetVisualDescendants().OfType<TextBox>().Any(input => input.Bounds.Width > 0));
             TextBox sourceInput = source.GetVisualDescendants().OfType<TextBox>().First();
             TextBox boardInput = board.GetVisualDescendants().OfType<TextBox>().First();
 
             async Task TypeWithNativeFocusAsync(IdentitySuggestionBox field, TextBox input, string text)
             {
+                field.BringIntoView();
+                await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => { }, Avalonia.Threading.DispatcherPriority.Background);
                 await native.ClickAsync(input);
                 input.Text = text;
                 await Program.WaitUntilAsync(() => field.Text == text && field.IsKeyboardFocusWithin);
@@ -65,9 +71,10 @@ internal static class FilterPointerSelectionChecks
                     ?? popup.Child?.GetVisualDescendants().OfType<SelectingItemsControl>()
                         .FirstOrDefault(item => item.Name == "PART_SelectingItemsControl")
                     ?? throw new InvalidOperationException(field.Name + " suggestion list is missing.");
-                Control row = list.GetVisualDescendants().OfType<ListBoxItem>().FirstOrDefault(item => item.DataContext is IdentitySuggestion candidate
-                    && candidate.Value == value && candidate.Source == sourceValue)
-                    ?? throw new InvalidOperationException(field.Name + " suggestion row is not realized: " + value);
+                await Program.WaitUntilAsync(() => list.GetVisualDescendants().OfType<ListBoxItem>().Any(item => item.DataContext is IdentitySuggestion candidate
+                    && candidate.Value == value && candidate.Source == sourceValue && item.Bounds.Width > 0 && item.Bounds.Height > 0));
+                Control row = list.GetVisualDescendants().OfType<ListBoxItem>().First(item => item.DataContext is IdentitySuggestion candidate
+                    && candidate.Value == value && candidate.Source == sourceValue);
                 Require(row.IsEffectivelyVisible && row.Bounds.Width > 0 && row.Bounds.Height > 0,
                     field.Name + " suggestion row is not laid out.");
                 return row;
@@ -78,6 +85,7 @@ internal static class FilterPointerSelectionChecks
             await TypeWithNativeFocusAsync(source, sourceInput, "2");
             Control sourceRow = await SuggestionRowAsync(source, "2ch", null);
             await native.ClickAsync(sourceRow);
+            Console.WriteLine($"SMOKE source after native click: text={source.Text}; open={source.IsDropDownOpen}; draft=[{string.Join(",", page.DraftSources)}]; editorFocus={sourceInput.IsKeyboardFocusWithin}");
             await Program.WaitUntilAsync(() => page.DraftSources.Contains("2ch", StringComparer.Ordinal)
                 && !source.IsDropDownOpen && source.Text == "" && sourceInput.IsKeyboardFocusWithin);
             Require(ReferenceEquals(page.AppliedSearchSpec, applied), "Native source selection executed Search instead of adding a draft filter.");
