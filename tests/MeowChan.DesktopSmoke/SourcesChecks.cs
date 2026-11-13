@@ -383,6 +383,21 @@ internal static class SourcesChecks
                     "A source whose maturity changed was not moved with its card, or kept a stale chip.");
                 policies[2] = Policy("mid", "Mid plain", SourceWordingMaintenance.Unknown, SourceWordingMaturity.Unclassified, false);
             }
+            // The switch point between the one-pane and the two-pane layout is a page width of 886 DIP; capture just above it
+            // (two panes, the list column at its narrowest) so the chips are seen where the room is tightest.
+            window.Width += 892 - page.Bounds.Width;
+            await Program.WaitUntilAsync(() => Math.Abs(page.Bounds.Width - 892) <= 1.5);
+            foreach (string narrowLanguage in new[] { "en", "de" })
+            {
+                Texts.SetLanguage(narrowLanguage);
+                page.Refresh(providers, view, true);
+                page.SelectSource("alpha");
+                page.FindControl<ScrollViewer>("SourcesScroll")!.ScrollToHome();
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                Require(page.FindControl<Border>("SourceDetailsPanel")!.IsEffectivelyVisible && page.FindControl<StackPanel>("SourcesListPane")!.IsEffectivelyVisible,
+                    "At 892 DIP the Sources page was not in its two-pane layout.");
+                await CaptureBothThemesAsync(window, $"smoke-sources-886-{narrowLanguage}");
+            }
         }
         finally
         {
