@@ -213,8 +213,9 @@ def step_preflight(ctx):
     ALLOWED_OUT.mkdir(parents=True, exist_ok=True)
     require(shutil.disk_usage(ALLOWED_OUT).free >= MIN_FREE_BYTES, 'less than 6 GiB free for the build and the profile')
     require(candidate_lib.product_version(ctx.root) == EXPECTED_VERSION, f'product version is not {EXPECTED_VERSION}')
-    candidate_lib.require_frozen(ctx.root, ctx.sha)
+    state = candidate_lib.require_frozen(ctx.root, ctx.sha)
     candidate_lib.require_fresh_outputs(ctx.root)
+    require(state['branch'] is None, 'the candidate must be a fresh detached worktree (use git worktree add --detach)')
     commit = subprocess.run(['git', 'cat-file', '-e', RELEASE_REVISION + '^{commit}'], cwd=ctx.root).returncode == 0
     require(commit, 'pinned 1.0.2 commit is not available as a local Git object (no fetch is attempted)')
     tag = subprocess.run(['git', 'rev-parse', '--verify', '-q', 'v1.0.2^{commit}'], cwd=ctx.root, capture_output=True, text=True)
@@ -310,7 +311,9 @@ def trx_outcome(path):
 
 
 def step_cycles(ctx):
-    text = run(ctx, 'cycles-test', ctx.test_command(), env=ctx.test_env(), timeout=1500, check=False)
+    # Passing TRX files can precede a testhost/teardown failure. The process must
+    # also succeed; an earlier failed step must never become green from its files.
+    text = run(ctx, 'cycles-test', ctx.test_command(), env=ctx.test_env(), timeout=1500)
     trx = ctx.out / 'test-results/ap04.trx'
     require(trx.is_file(), 'no TRX produced (see logs/cycles-test.log)')
     outcomes = trx_outcome(trx)
