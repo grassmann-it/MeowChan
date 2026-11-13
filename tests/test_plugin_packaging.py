@@ -331,6 +331,11 @@ class PluginPackagingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'plugin files differ'):
             PACKAGE.verify(self.root, 'linux-x64')
 
+        (self.root / 'plugins/sources/extra.cs').unlink()
+        self.json('plugins/Unknown.plugin.json', {'SchemaVersion': 1})
+        with self.assertRaisesRegex(ValueError, 'plugin files differ|required plugin inventory'):
+            PACKAGE.verify(self.root, 'linux-x64')
+
     def test_manifest_shape_and_payload_artifacts_are_fail_closed(self):
         self.fixture()
         manifest = self.root / 'plugins' / (PACKAGE.PLUGINS[0] + '.plugin.json')
@@ -352,6 +357,29 @@ class PluginPackagingTests(unittest.TestCase):
         link = self.root / 'plugins/assemblies/MeowChan.Plugin.FourChan.link.dll'
         link.symlink_to(extra)
         with self.assertRaisesRegex(ValueError, 'link or special file'):
+            PACKAGE.verify(self.root, 'linux-x64')
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX hardlink fixture')
+    def test_plugin_tree_hardlinks_are_rejected_before_inventory(self):
+        self.fixture()
+        source = self.put('outside-plugin.dll', b'outside')
+        link = self.root / 'plugins/assemblies/MeowChan.Plugin.FourChan.hardlink.dll'
+        os.link(source, link)
+        with self.assertRaisesRegex(ValueError, 'hardlink'):
+            PACKAGE.verify(self.root, 'linux-x64')
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX root-link fixture')
+    def test_plugin_root_parent_symlink_is_not_an_artifact_alias(self):
+        self.fixture()
+        parent = self.root.parent / (self.root.name + '-alias')
+        parent.symlink_to(self.root, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, 'root path contains a symlink'):
+            PACKAGE.verify(parent, 'linux-x64')
+
+    def test_empty_unknown_plugin_directory_is_rejected(self):
+        self.fixture()
+        (self.root / 'plugins/unknown').mkdir()
+        with self.assertRaisesRegex(ValueError, 'directory inventory'):
             PACKAGE.verify(self.root, 'linux-x64')
 
     def test_roslyn_must_not_be_in_main_process_dependency_graph(self):

@@ -132,6 +132,40 @@ class DesktopPackageTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'missing or empty'):
                     package.validate_payload(root)
 
+    @unittest.skipIf(os.name == 'nt', 'POSIX hardlink fixture')
+    def test_payload_hardlinks_are_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = payload(Path(temporary) / 'publish')
+            source = root / 'outside-source.bin'
+            source.write_bytes(b'outside')
+            os.link(source, root / 'copied-hardlink.bin')
+            with self.assertRaisesRegex(ValueError, 'hardlink'):
+                package.validate_payload(root)
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX symlink fixture')
+    def test_payload_root_parent_symlink_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = payload(Path(temporary) / 'publish')
+            alias = Path(temporary) / 'publish-alias'
+            alias.symlink_to(root, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, 'root path contains a symlink'):
+                package.validate_payload(alias)
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX hardlink fixture')
+    def test_bundled_license_hardlinks_are_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.bundled_linux(Path(temporary) / 'publish')
+            source = root / 'license-outside.bin'
+            source.write_bytes(b'outside')
+            license_path = root / 'linux-video-licenses/copyright/libvlc5'
+            license_path.unlink()
+            os.link(source, license_path)
+            inventory = json.loads((root / 'linux-video-runtime-inventory.json').read_text())
+            inventory['license_files']['copyright/libvlc5'] = hashlib.sha256(source.read_bytes()).hexdigest()
+            (root / 'linux-video-runtime-inventory.json').write_text(json.dumps(inventory))
+            with self.assertRaisesRegex(ValueError, 'hardlink'):
+                package.validate(root, 'linux-x64')
+
     @unittest.skipIf(os.name == 'nt', 'POSIX symlink fixture')
     def test_build_profile_and_nested_link_artifacts_are_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:

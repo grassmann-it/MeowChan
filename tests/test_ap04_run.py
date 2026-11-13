@@ -173,11 +173,57 @@ class CandidateTests(unittest.TestCase):
             self.make_packages(packages, sha)
             candidate = cand.identity(temp, sha, packages)
             (Path(packages) / 'unlisted-dependency-artifact').write_bytes(b'not in the manifest')
-            self.assertIn('package files changed after recording', cand.verify(temp, candidate))
+            self.assertTrue(any('package artifact root inventory' in problem for problem in cand.verify(temp, candidate)))
             (Path(packages) / 'unlisted-dependency-artifact').unlink()
             manifest = Path(packages) / 'linux-x64-package-manifest.json'
             manifest.write_text(manifest.read_text().replace('"version": "1.1.0"', '"version": "1.1.0"\n'))
             self.assertIn('package files changed after recording', cand.verify(temp, candidate))
+
+    def test_package_root_inventory_rejects_unknown_files_and_directories_at_identity(self):
+        with tempfile.TemporaryDirectory() as temp, tempfile.TemporaryDirectory() as packages:
+            sha = make_repo(temp)
+            self.make_packages(packages, sha)
+            (Path(packages) / 'unknown-public-asset').write_bytes(b'not part of the three formats')
+            with self.assertRaisesRegex(ValueError, 'root inventory'):
+                cand.package_set(packages, sha, '1.1.0')
+
+            (Path(packages) / 'unknown-public-asset').unlink()
+            (Path(packages) / 'empty-directory').mkdir()
+            with self.assertRaisesRegex(ValueError, 'unexpected directory'):
+                cand.package_set(packages, sha, '1.1.0')
+
+    @unittest.skipUnless(hasattr(os, 'link'), 'hardlink mutation requires POSIX')
+    def test_package_and_build_artifact_inputs_reject_hardlinks(self):
+        with tempfile.TemporaryDirectory() as temp, tempfile.TemporaryDirectory() as packages:
+            sha = make_repo(temp)
+            self.make_packages(packages, sha)
+            source = Path(packages) / 'outside-artifact'
+            source.write_bytes(b'outside')
+            linked = Path(packages) / 'MeowChan-1.1.0-linux-x64.AppImage'
+            linked.unlink()
+            os.link(source, linked)
+            with self.assertRaisesRegex(ValueError, 'single-link|hardlink'):
+                cand.package_set(packages, sha, '1.1.0')
+
+            with tempfile.TemporaryDirectory() as built:
+                build_source = Path(built) / 'outside.dll'
+                build_source.write_bytes(b'outside')
+                os.link(build_source, Path(built) / 'MeowChan.dll')
+                with self.assertRaisesRegex(ValueError, 'hardlink'):
+                    cand.tree_files(built)
+
+    def test_sha256sums_rejects_traversal_and_missing_package_entries(self):
+        with tempfile.TemporaryDirectory() as temp, tempfile.TemporaryDirectory() as packages:
+            sha = make_repo(temp)
+            rows = self.make_packages(packages, sha)
+            sums = Path(packages) / 'SHA256SUMS'
+            sums.write_text(''.join(f"{row['sha256']}  {row['file']}\n" for row in rows[:-1]) +
+                            f"{'a' * 64}  ../outside\n")
+            with self.assertRaisesRegex(ValueError, 'unsafe SHA256SUMS path'):
+                cand.package_set(packages, sha, '1.1.0', sha256sums=sums)
+            sums.write_text(''.join(f"{row['sha256']}  {row['file']}\n" for row in rows[:-1]))
+            with self.assertRaisesRegex(ValueError, 'SHA256SUMS'):
+                cand.package_set(packages, sha, '1.1.0', sha256sums=sums)
 
     def test_package_and_build_roots_reject_symlink_components(self):
         with tempfile.TemporaryDirectory() as temp:

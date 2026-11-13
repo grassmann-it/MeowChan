@@ -7,6 +7,7 @@ restore graph owns all helper/plugin dependencies; verification never repairs a 
 import argparse
 import hashlib
 import json
+import os
 import re
 import stat
 import struct
@@ -38,6 +39,29 @@ def _reject_payload_component(relative, label='package'):
         raise ValueError(f'{label} contains a build or profile artifact: {relative}')
 
 
+def _ordinary_directory(path, label='package root'):
+    """Return a directory whose path components cannot redirect outside the payload."""
+    absolute = Path(os.path.abspath(path))
+    current = Path(absolute.root)
+    for part in absolute.parts[1:]:
+        current /= part
+        if current.is_symlink():
+            raise ValueError(f'{label} path contains a symlink: {current}')
+    if not absolute.is_dir():
+        raise ValueError(f'{label} must be a regular directory: {path}')
+    return absolute
+
+
+def _require_single_link_file(path, label):
+    if not path.exists() and not path.is_symlink():
+        raise ValueError(f'Missing package file: {path}')
+    if path.is_symlink() or not path.is_file():
+        raise ValueError(f'{label} is not a regular file: {path}')
+    mode = path.stat().st_mode
+    if not stat.S_ISREG(mode) or path.stat().st_nlink != 1:
+        raise ValueError(f'{label} must be a single-link regular file: {path}')
+
+
 def regular(root, relative, maximum=128 * 1024 * 1024):
     if not isinstance(relative, str) or not relative or '\\' in relative or ':' in relative or relative.startswith('/'):
         raise ValueError('Invalid relative package path: ' + repr(relative))
@@ -50,7 +74,8 @@ def regular(root, relative, maximum=128 * 1024 * 1024):
         current = current / part
         if current.is_symlink():
             raise ValueError('Plugin package paths cannot traverse symlinks: ' + relative)
-    if not current.exists() or not stat.S_ISREG(current.stat().st_mode) or not 0 < current.stat().st_size <= maximum:
+    _require_single_link_file(current, 'Package file')
+    if not 0 < current.stat().st_size <= maximum:
         raise ValueError('Missing, empty, oversized or special package file: ' + relative)
     return current
 
@@ -141,10 +166,7 @@ def verify_toolchain(root):
 def verify(root, runtime, development=False):
     if runtime not in RUNTIMES:
         raise ValueError('Unsupported plugin package runtime')
-    root = Path(root)
-    if root.is_symlink() or not root.is_dir():
-        raise ValueError('Plugin package root must be a regular directory')
-    root = root.absolute()
+    root = _ordinary_directory(root)
     for subtree in ('plugin-worker', 'plugin-compiler', 'plugins'):
         directory = root / subtree
         if directory.is_symlink() or not directory.is_dir():
@@ -154,6 +176,8 @@ def verify(root, runtime, development=False):
             _reject_payload_component(relative)
             if path.is_symlink() or not (path.is_file() or path.is_dir()):
                 raise ValueError('Plugin payload contains a link or special file: ' + relative)
+            if path.is_file() and path.stat().st_nlink != 1:
+                raise ValueError('Plugin payload contains a hardlink: ' + relative)
     for directory, name in (('plugin-worker', 'MeowChan.PluginWorker'), ('plugin-compiler', 'MeowChan.PluginCompiler')):
         helper = root / directory
         native_architecture(regular(helper, name + ('.exe' if runtime.startswith('win-') else '')), runtime)
@@ -175,6 +199,13 @@ def verify(root, runtime, development=False):
     expected_sources = {'sources/' + name for name in SOURCES}
     expected_files = expected_manifests | expected_assemblies | expected_sources
     actual_files = {path.relative_to(plugin_root).as_posix() for path in plugin_root.rglob('*') if path.is_file()}
+    actual_dirs = {path.relative_to(plugin_root).as_posix() for path in plugin_root.rglob('*') if path.is_dir()}
+    if actual_dirs != {'assemblies', 'sources'}:
+        missing = sorted({'assemblies', 'sources'} - actual_dirs)
+        extra = sorted(actual_dirs - {'assemblies', 'sources'})
+        detail = f' missing={missing}' if missing else ''
+        detail += f' extra={extra}' if extra else ''
+        raise ValueError('Plugin directory inventory differs from the required inventory.' + detail)
     actual_manifests = {path.name for path in plugin_root.glob('*.plugin.json')}
     if actual_manifests != expected_manifests:
         raise ValueError('Shipped plugin manifests differ from the required plugin inventory')
