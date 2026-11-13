@@ -26,6 +26,29 @@ internal sealed partial class DesktopSessionHost
     private BooruWorkbenchServices? _booruServicesOverride;
     private bool _booruClosed;
 
+    // One family for the whole profile session; F4 plugin disable stops a host, never this reversible family.
+    private BooruProducerLifecycle _booruProducers = null!;
+    internal BooruProducerLifecycle BooruProducers => _booruProducers;
+    internal Func<CancellationToken, Task>? BeforeBooruStartForTests { get; set; }
+
+    private void OpenBooruProducers()
+    {
+        lock (_lifecycle)
+            if (_state is not (DesktopSessionState.Starting or DesktopSessionState.Ready))
+                throw new InvalidOperationException("Session stopping before Danbooru producer activation.");
+        // Changed observers may reenter the host. Stop in the gap wins because Open refuses a stopped family.
+        _booruProducers.Open();
+    }
+
+    private void SyncBooruSessionPause()
+    {
+        BooruSessionComposition[] owners;
+        lock (_booruSync) owners = _booruTransportOwners.ToArray();
+        // A composition may already recover/start before it is published as _booru. Include those owners too;
+        // each one reads the current queue state itself so an old snapshot cannot overwrite a later pause.
+        foreach (BooruSessionComposition owner in owners) owner.SyncSessionPause();
+    }
+
     /// <summary>
     /// The ports behind the Danbooru window: the production composition while the Danbooru plugin is enabled, null
     /// otherwise (the menu entry then stays hidden). The UI never creates a queue, a store or a scheduler of its own.
@@ -141,13 +164,15 @@ internal sealed partial class DesktopSessionHost
                 return;
             }
             BooruSessionComposition composition = BooruSessionComposition.Create(binding, _downloadQueue, catalog,
-                Path.GetFullPath(Config.DownloadPath), BooruClockForTests, BooruSchedulerOptionsForTests);
+                Path.GetFullPath(Config.DownloadPath), _booruProducers, BooruClockForTests, BooruSchedulerOptionsForTests);
             // Recovery may hand originals to the shared queue before StartAsync completes. The session owns
             // their transport even if this composition never publishes; release only after both drains.
             lock (_booruSync) _booruTransportOwners.Add(composition);
             try
             {
                 // Shutdown cancels this token before it waits for the gate, so a start never outlives the session.
+                if (BeforeBooruStartForTests is { } beforeStart)
+                    await beforeStart(_startupCancellation.Token).ConfigureAwait(false);
                 await composition.StartAsync(_startupCancellation.Token).ConfigureAwait(false);
             }
             catch (Exception exception)
@@ -164,6 +189,8 @@ internal sealed partial class DesktopSessionHost
                     changed = true;
                 }
             }
+            // Re-read after publication as well; SetPaused includes starting/unpublished owners in its snapshot.
+            if (changed) SyncBooruSessionPause();
             if (!changed)
             {
                 await composition.StopAsync().ConfigureAwait(false);

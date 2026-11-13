@@ -70,6 +70,10 @@ internal sealed class BooruProviderBinding
 internal sealed class BooruSessionComposition : IAsyncDisposable
 {
     private readonly HttpClient _mediaClient;
+    private readonly DownloadQueue _queue;
+    private readonly BooruProducerLifecycle _producers;
+    private readonly object _sessionPauseSync = new();
+    private DanbooruWatcherHost _watcherHost = null!;
     private BooruPreviewHttp _previewHttp;
     private readonly BooruOriginalQueuePort _queuePort;
     private readonly BooruSchedulerWatcherPort _watcherPort;
@@ -85,9 +89,11 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
     private int _stopped;
 
     private BooruSessionComposition(BooruProviderBinding binding, DownloadQueue queue, BooruCatalogStore catalog,
-        string outputRoot, TimeProvider? clock, DanbooruWatcherSchedulerOptions? options)
+        string outputRoot, BooruProducerLifecycle producers, TimeProvider? clock, DanbooruWatcherSchedulerOptions? options)
     {
         _binding = binding;
+        _queue = queue;
+        _producers = producers;
         _clock = clock;
         _options = options;
         _enabled = binding.IsEnabled() ? 1 : 0;
@@ -100,7 +106,7 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
         {
             Originals = new BooruOriginalQueue(queue, catalog, outputRoot, _mediaClient, timeProvider: clock);
             SearchPort = new BooruWatcherSearchPort(Search, binding.Services, binding.GetWorkerAsync, clock);
-            WatcherHost = CreateWatcherHost();
+            _watcherHost = CreateWatcherHost();
             _previewHttp = new BooruPreviewHttp(binding.Transport, binding.Source, timeProvider: clock);
             _queuePort = new BooruOriginalQueuePort(Originals, catalog, binding.Source.SourceId, _availability);
             _watcherPort = new BooruSchedulerWatcherPort(WatcherHost.Scheduler, catalog, binding.Source.SourceId, _availability);
@@ -121,7 +127,7 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
     internal BooruSearchService Search { get; }
     internal BooruOriginalQueue Originals { get; }
     internal BooruWatcherSearchPort SearchPort { get; }
-    internal DanbooruWatcherHost WatcherHost { get; private set; }
+    internal DanbooruWatcherHost WatcherHost => Volatile.Read(ref _watcherHost);
     internal BooruWorkbenchServices Services { get; }
     internal BooruPreviewHttp Previews => _previewHttp;
 
@@ -129,13 +135,14 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
     internal bool IsAvailable => _availability.IsAvailable;
 
     internal static BooruSessionComposition Create(BooruProviderBinding binding, DownloadQueue queue, BooruCatalogStore catalog,
-        string outputRoot, TimeProvider? clock = null, DanbooruWatcherSchedulerOptions? options = null)
+        string outputRoot, BooruProducerLifecycle producers, TimeProvider? clock = null, DanbooruWatcherSchedulerOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(binding);
         ArgumentNullException.ThrowIfNull(queue);
         ArgumentNullException.ThrowIfNull(catalog);
+        ArgumentNullException.ThrowIfNull(producers);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputRoot);
-        return new BooruSessionComposition(binding, queue, catalog, outputRoot, clock, options);
+        return new BooruSessionComposition(binding, queue, catalog, outputRoot, producers, clock, options);
     }
 
     /// <summary>
@@ -149,6 +156,7 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
         {
             if (_started || Volatile.Read(ref _stopped) != 0) return;
             _started = true;
+            SyncSessionPause();
             using BooruPortAvailabilityGate.Lease? start = _availability.TryEnter(cancellationToken);
             if (start != null && start.TryStart(() => WatcherHost.StartAsync(start.Token), out Task pending))
                 await pending.ConfigureAwait(false);
@@ -157,8 +165,30 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
         finally { _lifecycle.Release(); }
     }
 
-    private DanbooruWatcherHost CreateWatcherHost() => new(Catalog, Originals,
-        new BooruAvailabilityWatcherSearchPort(SearchPort, _availability), _clock, _options);
+    private DanbooruWatcherHost CreateWatcherHost()
+    {
+        // SyncSessionPause is called before either the first Start or an F4 replacement can start its loop.
+        return new DanbooruWatcherHost(Catalog, Originals,
+            new BooruAvailabilityWatcherSearchPort(SearchPort, _availability), _clock, _options, _producers);
+    }
+
+    /// <summary>Read the confirmed shared queue state afresh, including during a concurrent F4 host replacement.</summary>
+    internal void SyncSessionPause()
+    {
+        // Serialize the fresh queue read and its application. Without this, a slower start/re-enable sync could
+        // temporarily overwrite a completed Pause with an older false snapshot before its convergence recheck.
+        // No outer session/transport-owner monitor is held; observers can still inspect/reenter the session.
+        lock (_sessionPauseSync)
+            while (true)
+            {
+                // Aborted starts remain transport owners for F1; they no longer have a live pause target.
+                if (Volatile.Read(ref _stopped) != 0) return;
+                DanbooruWatcherHost host = WatcherHost;
+                bool paused = _queue.IsPaused;
+                host.SetSessionPaused(paused);
+                if (ReferenceEquals(host, WatcherHost) && paused == _queue.IsPaused) return;
+            }
+    }
 
     private void OnAvailabilityChanged()
     {
@@ -186,13 +216,15 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
             if (Volatile.Read(ref _stopped) != 0 || _availability.IsStopped || !_binding.IsEnabled()) return;
             // StopAsync is terminal in B5. Recreate only its lifecycle owner, after a real drain, over the SAME
             // OriginalQueue/catalog/search services. Never reuse pending manual requests from the disabled run.
-            WatcherHost = CreateWatcherHost();
+            Volatile.Write(ref _watcherHost, CreateWatcherHost());
+            SyncSessionPause();
             _watcherPort.ReplaceScheduler(WatcherHost.Scheduler);
             _watcherStopped = false;
             _previewHttp = new BooruPreviewHttp(_binding.Transport, _binding.Source, timeProvider: _clock);
             _availability.Open();
             if (_started)
             {
+                SyncSessionPause();
                 using BooruPortAvailabilityGate.Lease? start = _availability.TryEnter(CancellationToken.None);
                 if (start != null && start.TryStart(() => WatcherHost.StartAsync(start.Token), out Task pending))
                     await pending.ConfigureAwait(false);

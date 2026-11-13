@@ -66,6 +66,39 @@ public sealed class BooruPortAvailabilityTests
     }
 
     [Fact]
+    public async Task ReenabledHostKeepsTheGlobalPauseBeforeItsFirstAutomaticOrManualCheck()
+    {
+        await using Fixture f = new();
+        f.Composition.WatcherHost.Scheduler.Load();
+        Assert.True(f.Composition.WatcherHost.Scheduler.AddWatcher("cat").Accepted);
+        string watcher = Assert.Single(f.Composition.WatcherHost.Scheduler.GetSnapshot().Watchers).WatcherId;
+        await f.StartAsync();
+        DanbooruWatcherHost old = f.Composition.WatcherHost;
+        Assert.True(old.Scheduler.SessionPaused);
+        Assert.Equal(DanbooruWatcherScheduler.SessionPausedCode,
+            (await old.Scheduler.CheckNowAsync(watcher).WaitAsync(Deadline)).Code);
+        Assert.Equal(0, f.Worker.Calls);
+
+        f.SetEnabled(false);
+        f.SetEnabled(true);
+        await WaitAsync(() => f.Composition.IsAvailable && !ReferenceEquals(old, f.Composition.WatcherHost)
+            && f.Composition.WatcherHost.Scheduler.GetSnapshot().Running);
+        DanbooruWatcherScheduler replacement = f.Composition.WatcherHost.Scheduler;
+        Assert.True(replacement.SessionPaused);
+        Assert.Equal(BooruProducerPhase.Open, f.Producers.Phase); // disable is not a terminal session cut
+        Assert.Equal(1L, f.Producers.Generation);
+        Assert.Equal(DanbooruWatcherScheduler.SessionPausedCode,
+            (await replacement.CheckNowAsync(watcher).WaitAsync(Deadline)).Code);
+        Assert.Equal(0, f.Worker.Calls);
+        Assert.False(replacement.GetSnapshot().Watchers.Single().BaselineEstablished);
+
+        await f.Queue.SetPausedAsync(false);
+        f.Composition.SyncSessionPause();
+        await WaitAsync(() => replacement.GetSnapshot().Watchers.Single().BaselineEstablished);
+        Assert.Equal(1, f.Worker.Calls);
+    }
+
+    [Fact]
     public async Task StopPermanentlyRevokesHeldPortsButAnAcceptedDownloadCanStillFinish()
     {
         await using Fixture f = new();
@@ -212,7 +245,7 @@ public sealed class BooruPortAvailabilityTests
     [InlineData(true)]
     public async Task AManualCheckDrainsItsOldWorkerAndDiscardsTheLatePageBeforeReenable(bool stop)
     {
-        await using Fixture f = new();
+        await using Fixture f = new(paused: false);
         string watcher = f.SeedPausedWatcher();
         await f.StartAsync();
         f.Worker.Hold = true;
@@ -295,7 +328,7 @@ public sealed class BooruPortAvailabilityTests
     [Fact]
     public async Task AQueuedManualRequestCannotSurviveDisableAndRunOnReenable()
     {
-        await using Fixture f = new();
+        await using Fixture f = new(paused: false);
         string watcher = f.SeedPausedWatcher(); // loaded scheduler, but its loop has not started yet
         TaskCompletionSource registered = Signal();
         f.Composition.Services.Watchers.Changed += () => registered.TrySetResult();
@@ -369,7 +402,7 @@ public sealed class BooruPortAvailabilityTests
         private volatile bool _enabled = true;
         private readonly BooruProviderBinding _binding;
 
-        internal Fixture()
+        internal Fixture(bool paused = true)
         {
             string profile = Path.Combine(_directory.Path, "profile");
             _lease = ProfileLease.Acquire(profile);
@@ -379,6 +412,9 @@ public sealed class BooruPortAvailabilityTests
             Catalog = new BooruCatalogStore(profile, _lease);
             Catalog.Read();
             _lease.Admission.CompleteStartup();
+            Producers = new BooruProducerLifecycle(_lease.Admission);
+            Producers.Open();
+            Queue.SetPaused(paused);
             Http = new MemoryHttp();
             _transport = new HttpClient(Http) { Timeout = Timeout.InfiniteTimeSpan };
             RequestPolicyState policy = new();
@@ -392,13 +428,15 @@ public sealed class BooruPortAvailabilityTests
             Worker = new MemoryWorker();
             _binding = new BooruProviderBinding(source, services, _transport, policy,
                 _ => Task.FromResult<IPluginWorkerClient?>(_enabled ? Worker : null), () => _enabled);
-            Composition = BooruSessionComposition.Create(_binding, Queue, Catalog, Path.Combine(_directory.Path, "media"));
+            Composition = BooruSessionComposition.Create(_binding, Queue, Catalog, Path.Combine(_directory.Path, "media"), Producers);
+            Composition.SyncSessionPause();
         }
 
         internal MemoryHttp Http { get; }
         internal MemoryWorker Worker { get; }
         internal DownloadQueue Queue { get; }
         internal BooruCatalogStore Catalog { get; }
+        internal BooruProducerLifecycle Producers { get; }
         internal BooruSessionComposition Composition { get; }
 
         internal string SeedPausedWatcher()
@@ -412,11 +450,14 @@ public sealed class BooruPortAvailabilityTests
 
         internal async Task StartAsync()
         {
-            await Queue.SetPausedAsync(true);
             await Composition.StartAsync(CancellationToken.None).WaitAsync(Deadline);
         }
 
-        internal void BeginProfileShutdown() => _lease.Admission.BeginShutdown();
+        internal void BeginProfileShutdown()
+        {
+            Producers.BeginStop();
+            _lease.Admission.BeginShutdown();
+        }
 
         internal void SetEnabled(bool enabled)
         {
@@ -430,7 +471,9 @@ public sealed class BooruPortAvailabilityTests
             Worker.Release.TrySetResult();
             try
             {
+                Producers.BeginStop();
                 await Composition.StopAsync().WaitAsync(Deadline);
+                await Producers.StopAsync().WaitAsync(Deadline);
                 await Queue.StopAllAsync().WaitAsync(Deadline);
             }
             finally

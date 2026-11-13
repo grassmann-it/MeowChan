@@ -123,6 +123,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 TimeSpan.FromSeconds(Config.RecheckTimer), Config.RecheckTimer, store, Config.SaveUrlsOnExit, _logger, _content, workStore);
             _registry.PrepareProfileProducers(_profileLease);
             ApplyBooruCatalogLimit();
+            _booruProducers = new MeowChan.Booru.BooruProducerLifecycle(_profileLease.Admission);
             _hostFinalWriteParticipant = new HostFinalWriteParticipant(this);
             _registry.RegisterProfileFinalWriteParticipant(_hostFinalWriteParticipant);
             _registry.ConfigureBoardAdmission(new MeowChan.Admission.BoardAdmissionStore(_profileLease.ProfileDirectory, _profileLease));
@@ -244,6 +245,9 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 await _registry.ActivatePreparedProfileProducersAsync(
                     sealBeforeFailureDrain: _profileLease.Admission.BeginShutdown,
                     notifyBeforeFailureDrain: _hostFinalWriteParticipant.FailTransition).ConfigureAwait(false);
+            // Open outside _lifecycle: family observers may inspect/cancel the host. Shutdown marks the family
+            // stopped before taking that monitor, so no late generation can survive a concurrent stop.
+            if (State == DesktopSessionState.Starting) OpenBooruProducers();
             lock (_lifecycle)
                 if (_state == DesktopSessionState.Starting)
                 {
@@ -268,9 +272,12 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         catch (Exception exception)
         {
             _logger.Error(exception, "Failed to restore the desktop session.");
+            // Startup can fail after its first Booru generation opened. Close ingress before sealing the profile,
+            // and release the generation below even when Registry rollback itself fails.
+            _booruProducers.BeginStop();
             lock (_lifecycle)
             {
-                if (_state == DesktopSessionState.Starting)
+                if (_state is DesktopSessionState.Starting or DesktopSessionState.Ready)
                 {
                     if (_profileLease.Admission.Phase == ProfileAdmissionPhase.Starting)
                         FinishProfileStartup(succeeded: false);
@@ -288,10 +295,12 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 await DrainFailedStartupFinalWritesAsync().ConfigureAwait(false);
             }
             catch (Exception drainError) { _logger.Error(drainError, "Failed to drain the startup producer subtree."); }
+            try { await _booruProducers.StopAsync().ConfigureAwait(false); }
+            catch (Exception drainError) { _logger.Error(drainError, "Failed to drain the startup Danbooru producer family."); }
             lock (_lifecycle)
             {
                 _startupError = exception.Message;
-                if (_state == DesktopSessionState.Starting)
+                if (_state is DesktopSessionState.Starting or DesktopSessionState.Ready)
                 {
                     if (_profileLease.Admission.Phase == ProfileAdmissionPhase.Starting)
                         FinishProfileStartup(succeeded: false);
@@ -652,7 +661,12 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 await _registry.SetPausedAdmittedAsync(paused, admission).ConfigureAwait(false);
                 PublishConfig(candidate);
             }
-            finally { IsPauseTransitioning = false; SignalChanged(); }
+            finally
+            {
+                // Follow the queue's actual state even if the registry transition failed after changing it.
+                try { SyncBooruSessionPause(); }
+                finally { IsPauseTransitioning = false; SignalChanged(); }
+            }
         }
         finally { _commands.Release(); }
         SignalChanged();
@@ -737,6 +751,9 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     internal Task BeginShutdown()
     {
         FinalWriteShutdownPlan plan;
+        // Terminal cut before profile seal. Already accepted work retains its generation until physical drain.
+        // Changed callbacks must never execute under the outer host monitor.
+        _booruProducers.BeginStop();
         lock (_lifecycle)
         {
             if (_finalWriteShutdownPlan == null)
@@ -792,6 +809,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         await Drain(Task.WhenAll(queueStopped, registryStopped)).ConfigureAwait(false);
         // An unpublished start may still own a transport: drain its cleanup before releasing all owners.
         await Drain(booruStopped).ConfigureAwait(false);
+        await Drain(_booruProducers.StopAsync()).ConfigureAwait(false);
         ReleaseBooruAfterQueue();
         try { await Updates.DisposeAsync().ConfigureAwait(false); _updatesQuiescent = true; } catch (Exception error) { errors.Add(error); }
         if (errors.Count != 0) throw new AggregateException("Engine shutdown reported failures.", errors);

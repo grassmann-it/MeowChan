@@ -7,6 +7,7 @@ using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Updates;
 using MeowChan.Downloader;
 using MeowChan.Interfaces;
+using MeowChan.Persistence;
 using MeowChan.PluginHost.Http;
 using MeowChan.Tests.Shared;
 
@@ -174,6 +175,70 @@ public sealed class BooruCompositionHostTests
         Assert.Empty(stub.Violations);
     }
 
+    [Fact]
+    public async Task GlobalPauseReachesAnUnpublishedCompositionBeforeItsFirstCheck()
+    {
+        using TempDirectory profile = new();
+        using DanbooruStub stub = new();
+        using DanbooruTestBinding binding = new(stub, enabled: false);
+        await using DesktopSessionHost host = await StartAsync(profile.Path, stub, () => binding.Binding);
+        await Field<Task>(host, "_booruStart").WaitAsync(Deadline);
+        TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        host.BeforeBooruStartForTests = token =>
+        {
+            entered.TrySetResult();
+            return release.Task.WaitAsync(token);
+        };
+        binding.SetEnabled(true);
+        try
+        {
+            await entered.Task.WaitAsync(Deadline);
+            BooruSessionComposition pending = Assert.Single(TransportOwners(host));
+            Assert.Null(host.BooruComposition);
+            await host.SetPausedAsync(true).WaitAsync(Deadline);
+            // The session must synchronize registered transport owners, not only the published composition.
+            Assert.True(pending.WatcherHost.Scheduler.SessionPaused);
+        }
+        finally { release.TrySetResult(); }
+        await WaitAsync(() => host.BooruComposition != null, "the paused composition after its start was released");
+        DanbooruWatcherScheduler scheduler = host.BooruComposition!.WatcherHost.Scheduler;
+        Assert.True(scheduler.SessionPaused); // the older pre-pause snapshot did not overwrite the confirmed pause
+        Assert.True(scheduler.AddWatcher("cat_ears").Accepted);
+        string watcher = scheduler.GetSnapshot().Watchers.Single().WatcherId;
+        Assert.Equal(DanbooruWatcherScheduler.SessionPausedCode,
+            (await scheduler.CheckNowAsync(watcher).WaitAsync(Deadline)).Code);
+        Assert.Equal(0, stub.MetadataRequests);
+    }
+
+    [Fact]
+    public async Task StartupFailureAfterOpeningTheBooruGenerationDrainsItAndCannotLeaveReadyAuthority()
+    {
+        using TempDirectory profile = new(); // A genuine new profile reaches the post-Ready initial save seam.
+        using DanbooruStub stub = new();
+        await using DesktopSessionHost host = new(profile.Path, Array.Empty<IImageBoard>(),
+            updateSessionFactory: (path, config) => new UpdateSession(path, config, stub.Client(), disableEnvironment: () => "1"));
+        host.Config.AutomaticUpdateChecks = false;
+        host.Config.SaveUrlsOnExit = false;
+        host.Config.DownloadPath = Path.Combine(profile.Path, "media");
+        bool observerUnderHostMonitor = false;
+        host.BooruProducers.Changed += () => observerUnderHostMonitor |= Monitor.IsEntered(Field<object>(host, "_lifecycle"));
+        host.BeforeStartupInitialSaveForTests = () =>
+        {
+            Assert.Equal(BooruProducerPhase.Open, host.BooruProducers.Phase);
+            throw new InvalidOperationException("Synthetic post-activation startup failure.");
+        };
+        await host.StartAsync().WaitAsync(Deadline);
+        Assert.Equal(DesktopSessionState.RecoveryFailed, host.State);
+        Assert.Contains("Synthetic post-activation startup failure", host.StartupError);
+        Assert.Equal((BooruProducerPhase.Stopped, 1L), (host.BooruProducers.Phase, host.BooruProducers.Generation));
+        Assert.True(Field<ProfileLease>(host, "_profileLease").Admission.DrainAsync().IsCompletedSuccessfully);
+        Assert.Throws<InvalidOperationException>(host.BooruProducers.Open);
+        await host.StopAsync().WaitAsync(Deadline);
+        Assert.False(observerUnderHostMonitor);
+        Assert.Empty(stub.Requests);
+    }
+
     private sealed class AbortedStartClock(bool cancelled) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow()
@@ -277,7 +342,10 @@ public sealed class BooruCompositionHostTests
         stub.Add(new(5001));
         stub.Publish("cat_ears", 5001);
         using DanbooruTestBinding binding = new(stub);
-        await using DesktopSessionHost host = await StartAsync(profile.Path, stub, () => binding.Binding, paused: true);
+        // F3: a globally paused session no longer checks watchers. Admitted originals stay visibly queued because
+        // the stub holds their transfer, not because the session is paused.
+        stub.HoldOriginals();
+        await using DesktopSessionHost host = await StartAsync(profile.Path, stub, () => binding.Binding);
         IBooruWatcherPort watchers = host.BooruServices!.Watchers;
         int changed = 0;
         watchers.Changed += () => Interlocked.Increment(ref changed);
@@ -329,9 +397,85 @@ public sealed class BooruCompositionHostTests
         Assert.Equal((BooruWatcherCommandStatus.Rejected, BooruCodes.WatcherRemoved), (gone.Status, gone.Code));
         Assert.Equal(2, host.BooruComposition.Originals.ActiveCount);
         Assert.Equal(2, ReadCatalog(host).Posts.Count(post => post.Findings.Any(finding => finding.Kind == BooruFindingKind.Watcher)));
-        Assert.Equal(new[] { "https://danbooru.donmai.us/posts.json?tags=cat_ears&page=1&limit=20" }, stub.Requests.Distinct());
+        Assert.Equal(new[] { "https://danbooru.donmai.us/posts.json?tags=cat_ears&page=1&limit=20" },
+            stub.Requests.Where(url => new Uri(url).AbsolutePath.EndsWith(".json", StringComparison.Ordinal)).Distinct());
         // Baseline, one manual check, the paused one-time check and at most the new watcher's own baseline.
         Assert.InRange(stub.MetadataRequests, 3, 4);
+        Assert.Empty(stub.Violations);
+    }
+
+    [Fact]
+    public async Task TheGlobalSessionPauseHoldsAutomaticAndManualWatcherChecksUntilResume()
+    {
+        using TempDirectory profile = new();
+        using DanbooruStub stub = new();
+        stub.Add(new(5001));
+        stub.Publish("cat_ears", 5001);
+        using DanbooruTestBinding binding = new(stub);
+        await using DesktopSessionHost host = await StartAsync(profile.Path, stub, () => binding.Binding, paused: true);
+        DanbooruWatcherScheduler scheduler = host.BooruComposition!.WatcherHost.Scheduler;
+        Assert.True(scheduler.SessionPaused); // set from the confirmed session pause before the first pick
+        IBooruWatcherPort watchers = host.BooruServices!.Watchers;
+        Assert.Equal(BooruWatcherCommandStatus.Done, (await watchers.CreateAsync("cat_ears", CancellationToken.None)).Status);
+        BooruWatcherView created = Assert.Single(await watchers.ListAsync(CancellationToken.None));
+        await Task.Delay(300);
+        Assert.Equal(0, stub.MetadataRequests);
+        DanbooruWatcherCheckSummary manual = await scheduler.CheckNowAsync(created.WatcherId).WaitAsync(Deadline);
+        Assert.Equal((DanbooruWatcherCheckKind.Rejected, DanbooruWatcherScheduler.SessionPausedCode), (manual.Kind, manual.Code));
+        Assert.Equal(0, stub.MetadataRequests);
+
+        await host.SetPausedAsync(false).WaitAsync(Deadline);
+        Assert.False(scheduler.SessionPaused);
+        await WaitAsync(async () => (await watchers.ListAsync(CancellationToken.None)).Single().BaselineEstablished,
+            "the baseline after resume");
+        Assert.Equal(1, stub.MetadataRequests);
+        await host.SetPausedAsync(true).WaitAsync(Deadline);
+        Assert.True(scheduler.SessionPaused);
+        Assert.Equal(DanbooruWatcherScheduler.SessionPausedCode,
+            (await scheduler.CheckNowAsync(created.WatcherId).WaitAsync(Deadline)).Code);
+        Assert.Equal(1, stub.MetadataRequests);
+        Assert.Empty(stub.Violations);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AProfileExclusiveOperationDrainsABlockedWatcherCheckBeforeItsDelegate(bool safeToResume)
+    {
+        using TempDirectory profile = new();
+        using DanbooruStub stub = new();
+        stub.Add(new(5001));
+        stub.Publish("cat_ears", 5001);
+        using DanbooruTestBinding binding = new(stub);
+        await using DesktopSessionHost host = await StartAsync(profile.Path, stub, () => binding.Binding);
+        DanbooruWatcherScheduler scheduler = host.BooruComposition!.WatcherHost.Scheduler;
+        Task entered = stub.HoldMetadata();
+        Assert.True(scheduler.AddWatcher("cat_ears").Accepted);
+        await entered.WaitAsync(Deadline); // the automatic baseline is in flight
+        Assert.Equal(1, host.BooruProducers.Generation);
+
+        bool checkEndedBeforeDelegate = false;
+        ProfileExclusiveOutcome<int> outcome = await host.RunWithProfileProducerExclusiveAsync(_ =>
+        {
+            checkEndedBeforeDelegate = scheduler.GetSnapshot().CheckingWatcherId is null
+                && host.BooruProducers.Phase == BooruProducerPhase.Suspended;
+            return Task.FromResult(safeToResume ? ProfileExclusiveOutcome<int>.SafeToResume(0)
+                : ProfileExclusiveOutcome<int>.RecoveryRequired(0));
+        }).WaitAsync(Deadline);
+        Assert.True(checkEndedBeforeDelegate);
+        Assert.Equal(nameof(DanbooruWatcherState.Active), Assert.Single(ReadCatalog(host).Watchers).State);
+        stub.ReleaseMetadata();
+        if (safeToResume)
+        {
+            Assert.Equal((BooruProducerPhase.Open, 2L), (host.BooruProducers.Phase, host.BooruProducers.Generation));
+            await WaitAsync(() => scheduler.GetSnapshot().Watchers.Single().BaselineEstablished, "the replayed baseline");
+            Assert.Equal(2, stub.MetadataRequests); // the cut request and exactly one replay
+        }
+        else
+        {
+            Assert.Equal(BooruProducerPhase.RecoveryRequired, host.BooruProducers.Phase);
+            Assert.Equal(1, stub.MetadataRequests);
+        }
         Assert.Empty(stub.Violations);
     }
 

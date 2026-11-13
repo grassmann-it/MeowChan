@@ -59,6 +59,8 @@ internal sealed class DanbooruStub : HttpMessageHandler
     private readonly Dictionary<string, List<long>> _queries = new(StringComparer.Ordinal);
     private readonly Dictionary<string, byte[]> _cdn = new(StringComparer.Ordinal);
     private TaskCompletionSource? _originalHold;
+    private TaskCompletionSource? _metadataHold;
+    private TaskCompletionSource _metadataEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     internal ConcurrentQueue<string> Requests { get; } = new();
     internal ConcurrentQueue<string> Violations { get; } = new();
@@ -104,6 +106,24 @@ internal sealed class DanbooruStub : HttpMessageHandler
         hold?.TrySetResult();
     }
 
+    /// <summary>Metadata requests wait (honouring cancellation) until <see cref="ReleaseMetadata"/>.</summary>
+    internal Task HoldMetadata()
+    {
+        lock (_gate)
+        {
+            _metadataHold ??= new(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (_metadataEntered.Task.IsCompleted) _metadataEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            return _metadataEntered.Task;
+        }
+    }
+
+    internal void ReleaseMetadata()
+    {
+        TaskCompletionSource? hold;
+        lock (_gate) { hold = _metadataHold; _metadataHold = null; }
+        hold?.TrySetResult();
+    }
+
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         Uri url = request.RequestUri!;
@@ -133,6 +153,13 @@ internal sealed class DanbooruStub : HttpMessageHandler
             content.Headers.ContentType = new MediaTypeHeaderValue("image/png");
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = content, RequestMessage = request };
         }
+        TaskCompletionSource? metadataHold;
+        lock (_gate)
+        {
+            metadataHold = _metadataHold;
+            if (metadataHold != null) _metadataEntered.TrySetResult();
+        }
+        if (metadataHold != null) await metadataHold.Task.WaitAsync(cancellationToken);
         (HttpStatusCode status, string json) = Render(url);
         return new HttpResponseMessage(status)
         {
