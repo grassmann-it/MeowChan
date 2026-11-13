@@ -27,7 +27,8 @@ public partial class ArchivePage
         {
             _cleanupRouter = new(this);
             _cleanupRouter.Register(new("archive.cleanup", this,
-                () => !_ended && IsEffectivelyVisible && ArchiveCleanupOpen.IsEffectivelyVisible,
+                // The page, not the button: a view may keep the button under the header's More, and the shortcut must still work.
+                () => !_ended && IsEffectivelyVisible,
                 CanOpenArchiveCleanup, () => _ = OpenArchiveCleanupAsync(), Priority: 100));
             AddHandler(KeyDownEvent, RouteArchiveCleanupCommand, RoutingStrategies.Bubble);
         }
@@ -79,7 +80,8 @@ public partial class ArchivePage
             if (!_ended)
             {
                 UpdateArchiveCleanupAction();
-                if (origin.IsEffectivelyVisible && origin.IsEffectivelyEnabled) origin.Focus();
+                // A view may keep the button under the header's More: focus returns to that More.
+                if (ActionOriginFocusTarget(origin) is { IsEffectivelyEnabled: true } target) target.Focus();
                 else ArchiveThreads.Focus();
             }
         }

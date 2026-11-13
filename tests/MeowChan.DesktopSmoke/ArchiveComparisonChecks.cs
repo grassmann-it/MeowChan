@@ -240,7 +240,7 @@ internal static class ArchiveComparisonChecks
             evidence.Fixture = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(descriptor))).ToLowerInvariant();
             File.WriteAllText(Path.Combine(output, "fixture.json"), descriptor);
             evidence.Write("source-and-fixture", new { baseline = Baseline, fixture = evidence.Fixture, profile = "disposable", rowCount = 24 });
-            page = new ArchivePage(token => ArchiveReader.OpenAsync(profile, token), (_, _) => Task.CompletedTask, _ => { }) { IsAvailable = true };
+            page = new ArchivePage(token => ArchiveReader.OpenAsync(profile, token), (_, _) => Task.CompletedTask, _ => { }) { IsAvailable = true, ArchiveColumnModePreference = "Advanced" };
             host = new Window { Title = "URSA14/15 bounded comparison — harness", Width = 1100, Height = 760, Content = page };
             evidence.Window = host; evidence.Owner = owner; evidence.Product = page; host.Show(owner);
             await Settle();

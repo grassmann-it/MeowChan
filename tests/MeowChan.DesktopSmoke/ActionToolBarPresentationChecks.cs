@@ -157,7 +157,9 @@ internal static class ActionToolBarPresentationChecks
                 await WaitForRequestedSize(owner, host, 1380, 850, expectedScale,
                     $"{item.Language}/{item.Theme}/{item.Mode}/focus-transition");
                 Button gallery = page.FindControl<Button>("ArchiveResultsGallery")!;
-                double never = archive.Items.OfType<Control>().Where(c => ToolBar.GetOverflowMode(c) == OverflowMode.Never).Sum(c => c.DesiredSize.Width);
+                // WV2: the List/Table toggles are AsNeeded now (Always in Barebones), so the bar items in front of the gallery that stay on the bar are the required width.
+                double never = archive.Items.OfType<Control>().TakeWhile(c => !ReferenceEquals(c, gallery))
+                    .Where(c => c.IsVisible && ToolBar.GetOverflowMode(c) != OverflowMode.Always).Sum(c => c.DesiredSize.Width);
                 double small = never + archive.MoreWidth() + 1, large = small + gallery.DesiredSize.Width + 1;
                 archive.Width = small; await Settle(owner, host);
                 Require(archive.OverflowHost!.Children.Contains(gallery), "Controlled measured small toolbar did not overflow gallery.");

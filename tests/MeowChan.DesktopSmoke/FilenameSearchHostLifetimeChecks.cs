@@ -546,7 +546,7 @@ internal static class FilenameSearchHostLifetimeChecks
                     // Existing manifest seam isolates unrelated reader projection. Never open media files.
                     return Task.FromResult(new MediaAssetSnapshot(directory, MediaManifestStatus.Missing, null, null,
                         Array.Empty<MediaAssetReference>()));
-                }) { ArchiveLayoutPreference = "Table" };
+                }) { ArchiveLayoutPreference = "Table", ArchiveColumnModePreference = "Advanced" };
             Page.ReadArchiveMediaInventoryAsync = (_, _) => Task.FromResult(new ArchiveThreadMediaCount(null));
             Page.AttachArchiveCleanup(owner.SessionHost);
             Page.AttachSavedSearches(owner.SessionHost);

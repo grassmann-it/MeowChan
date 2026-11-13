@@ -360,6 +360,7 @@ internal static class UrlTextExportPageBoundaryChecks
             Window = new Window { Width = 960, Height = 700, Content = Page,
                 Title = "Synthetic URLtext page boundary", ShowInTaskbar = false };
             Page.ArchiveLayoutPreference = "Table";
+            Page.ArchiveColumnModePreference = "Advanced"; // the full bar: this fixture drives the moved buttons
             // Only seed passive, applied-search data, never modal/busy/lifetime flags.
             // This makes the direct all-results regression non-vacuous without a DB.
             Seed("_appliedSearch", ArchiveSearchRequest.Create(new ArchiveSearchSpec()));

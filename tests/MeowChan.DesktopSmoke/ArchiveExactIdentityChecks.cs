@@ -39,7 +39,7 @@ internal static class ArchiveExactIdentityChecks
                     await catalog.RegisterThreadAsync(new ArchiveThreadRegistration(new ResourceId(source, board, "thread"),
                         "https://exact-identity.fixture/" + number, "exact-" + number, directory, true));
                 }
-            page = new ArchivePage(token => ArchiveReader.OpenAsync(directory, token), (_, _) => Task.CompletedTask, _ => { }) { IsAvailable = true };
+            page = new ArchivePage(token => ArchiveReader.OpenAsync(directory, token), (_, _) => Task.CompletedTask, _ => { }) { IsAvailable = true, ArchiveColumnModePreference = "Advanced" };
             host = new Window { Title = "Archive exact identity regression — harness", Width = 900, Height = 700, Content = page };
             host.Show(owner);
             C<Expander>("ArchiveFilters").IsExpanded = true;

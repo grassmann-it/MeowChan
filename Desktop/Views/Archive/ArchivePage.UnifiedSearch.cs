@@ -144,6 +144,7 @@ public partial class ArchivePage
     {
         _archiveHashRejected = false;
         UpdateUnifiedSearch();
+        ApplyArchiveSearchScope(); // a scope other than Text shows its chip in every work view
         UpdateActions();
     }
 

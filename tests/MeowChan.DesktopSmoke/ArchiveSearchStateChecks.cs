@@ -42,7 +42,7 @@ internal static class ArchiveSearchStateChecks
                 if (gate != null) await gate.Task; // deliberately ignores cancellation: publication must guard it
                 if (fail) throw new IOException("Injected catalog failure");
                 return await ArchiveReader.OpenAsync(directory);
-            }, (_, _) => Task.CompletedTask, _ => { }) { IsAvailable = true, GetWorkSnapshots = () => work.ToArray() };
+            }, (_, _) => Task.CompletedTask, _ => { }) { IsAvailable = true, GetWorkSnapshots = () => work.ToArray(), ArchiveColumnModePreference = "Advanced" };
             ArchiveSearchSpec all = new(sources: ["A", "B"], boards: [new("A", "x"), new("B", "y")], sort: ArchiveThreadSort.Title);
             Require(!await page.ApplySearchSpecAsync(all), "First failed search unexpectedly succeeded.");
             Require(page.AppliedSearchSpec == null && !page.FindControl<StackPanel>("ArchiveEmptyState")!.IsVisible,

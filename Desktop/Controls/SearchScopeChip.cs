@@ -173,7 +173,8 @@ public sealed class SearchScopeChip : Button
         menu.Closed += (_, _) => { if (ReferenceEquals(OpenMenu, menu)) OpenMenu = null; };
         ContextMenu = menu;
         OpenMenu = menu;
-        menu.Open(this);
+        // A work view may have taken the chip off the field (it is hidden while the scope is Text): the menu then opens at the field.
+        menu.Open(IsEffectivelyVisible || Owner == null ? this : Owner);
         if (current != null) Dispatcher.UIThread.Post(() => current.Focus(NavigationMethod.Tab));
     }
 

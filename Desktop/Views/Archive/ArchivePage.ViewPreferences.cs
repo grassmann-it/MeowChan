@@ -39,7 +39,14 @@ public partial class ArchivePage
     internal string ArchiveColumnModePreference
     {
         get => _archiveColumnMode;
-        set { _archiveColumnMode = WorkViewSetting.Parse(value, WorkView.Simple, exact: true).ToSetting(); ApplyArchiveColumns(); UpdateLayoutMode(); }
+        set
+        {
+            _archiveColumnMode = WorkViewSetting.Parse(value, WorkView.Simple, exact: true).ToSetting();
+            bool viewChanged = NoteArchiveWorkView();
+            ApplyArchiveColumns();
+            ApplyArchiveWorkView(viewChanged);
+            UpdateLayoutMode();
+        }
     }
 
     /// <summary>The page's work view; an unknown setting is Simple, as it always was here.</summary>

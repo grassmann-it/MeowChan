@@ -63,7 +63,7 @@ public partial class ArchivePage
         {
             if (item is SplitButton split)
             {
-                // AP2: the saved-searches split button overflows like every other feature action (policy row archive.results.other).
+                // AP2: the saved-searches split button overflows like every other feature action (its policy row decides).
                 WorkViewPresenter.ApplyToolBarItem(split, ArchiveWorkView, "archive.results.other");
                 if (split.Name == "ArchiveSavedSearches") ApplySavedSearchSplit();
                 continue;
@@ -106,5 +106,6 @@ public partial class ArchivePage
         AutomationProperties.SetName(toolbar, Texts.T("nav.archive"));
         toolbar.RefreshOverflowLabel();
         toolbar.InvalidateMeasure();
+        ApplyArchiveHeaderActions();
     }
 }

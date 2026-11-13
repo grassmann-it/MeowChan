@@ -102,6 +102,11 @@ internal static class WorkViewCaptures
                                 if (page == "downloads") CheckShellAndDownloads(window, view);
                                 string file = $"smoke-wv-{page}-{view.ToLowerInvariant()}-{theme.ToLowerInvariant()}-{language}-{w:0}x{h:0}.png";
                                 Program.CaptureWindow(window, file, output);
+                                if (page == "archive")
+                                {
+                                    WorkViewArchiveChecks.RequirePlacement(window, view);
+                                    await WorkViewArchiveChecks.CaptureFilterSurfaceAsync(window, view, file.Replace("smoke-wv-archive-", "smoke-wv-archive-filters-"), output);
+                                }
                                 cells.Add(new(page, view, theme, language, sizeName, file, $"{window.ClientSize.Width:0}x{window.ClientSize.Height:0}"));
                             }
                         }

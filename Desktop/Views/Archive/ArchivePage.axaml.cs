@@ -127,6 +127,7 @@ public partial class ArchivePage : UserControl
         InitializePaginationFocus();
         InitializeArchivePresentation();
         InitializeFilterSurface();
+        InitializeArchiveWorkView();
         InitializeArchiveMediaCounts();
         InitializeReaderDisplay();
         InitializeReaderView(); AttachPostFilter(); AttachConversationView();
@@ -1092,7 +1093,6 @@ public partial class ArchivePage : UserControl
         Control<Button>("ArchiveLayoutTable").Content = Texts.T("gallery.table");
         RefreshArchiveResultActions();
         LocalizeArchiveColumns();
-        CommandBindings.Apply(RefreshArchiveButton, "archive.refresh", iconOnly: true);
         CommandBindings.Apply(SearchArchiveButton, "archive.search", iconOnly: true);
         CommandBindings.Apply(ArchiveBackButton, "archive.back-to-list");
         CommandBindings.Apply(PreviousThreadsButton, "archive.previous-page", iconOnly: true);

@@ -178,8 +178,7 @@ public sealed class WorkViewPolicyTests
             Assert.Equal(downloadsTools, WorkViewPresenter.ToolBarMode(WorkViewPolicy.Resolve("downloads.toolbar.copy-urls", view)));
             Assert.Equal(former, WorkViewPresenter.ToolBarMode(WorkViewPolicy.Resolve("archive.results.other", view)));
             Assert.Equal(Ursa.Controls.OverflowMode.AsNeeded, WorkViewPresenter.ToolBarMode(WorkViewPolicy.Resolve("archive.results.gallery", view)));
-            Assert.Equal(Ursa.Controls.OverflowMode.Never, WorkViewPresenter.ToolBarMode(WorkViewPolicy.Resolve("archive.results.layout-list", view)));
-            Assert.Equal(Ursa.Controls.OverflowMode.Never, WorkViewPresenter.ToolBarMode(WorkViewPolicy.Resolve("archive.results.layout-table", view)));
+            // WV2: the List/Table choice is no longer fixed on the bar in Barebones (plan §1.4); WorkViewArchiveTests covers the archive rows.
             Assert.Equal(!barebones, WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve("downloads.header.heading", view)));
             Assert.Equal(advanced, WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve("downloads.intake.url-hint", view)));
             foreach (string page in MainPageOrder.CommandIds.Skip(1))

@@ -11,6 +11,7 @@ using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Persistence;
 
 namespace MeowChan;
@@ -29,6 +30,7 @@ public partial class ArchivePage
         Button manager = CommandBindings.CreateButton("post-bookmarks.open-manager", () => { if (!IsFilenameSearchOpen) OpenPostBookmarks?.Invoke(); },
             () => !_ended && !IsFilenameSearchOpen && _available && OpenPostBookmarks != null, iconWithLabel: true);
         manager.Name = "ArchivePostBookmarks";
+        WorkViewElement.SetId(manager, "archive.results.bookmarks");
         ArchiveResultActions.Items.Add(manager);
         // Installed on the pane itself: the same handler survives reader detach/reattach.
         ArchiveReaderPane.AddHandler(ContextRequestedEvent, OnPostBookmarkContext,

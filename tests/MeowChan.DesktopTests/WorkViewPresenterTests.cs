@@ -48,13 +48,17 @@ public sealed class WorkViewPresenterTests
     [Fact]
     public void RequiredToolbarItemsNeverOverflow()
     {
-        ToggleButton list = new();
-        WorkViewElement.SetId(list, "archive.results.layout-list");
-        foreach (WorkView view in WorkViewSetting.All)
-        {
-            WorkViewPresenter.ApplyToolBarItem(list, view);
-            Assert.Equal(OverflowMode.Never, ToolBar.GetOverflowMode(list));
-        }
+        // No page row of a toolbar item is Required since WV2 moved the archive List/Table choice under More in Barebones;
+        // the rule stays: whatever row is Required in a view takes the Never mode, and a row of that kind is checked when one exists.
+        Assert.Equal(OverflowMode.Never, WorkViewPresenter.ToolBarMode(Presence.Required));
+        foreach (WorkViewEntry entry in WorkViewPolicy.Entries.Where(entry => entry.Kind == WorkViewKind.Action))
+            foreach (WorkView view in WorkViewSetting.All.Where(view => entry.For(view) == Presence.Required))
+            {
+                ToggleButton button = new();
+                WorkViewElement.SetId(button, entry.Id);
+                WorkViewPresenter.ApplyToolBarItem(button, view);
+                Assert.Equal(OverflowMode.Never, ToolBar.GetOverflowMode(button));
+            }
     }
 
     [Fact]

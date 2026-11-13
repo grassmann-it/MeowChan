@@ -140,7 +140,7 @@ public partial class ArchivePage
             {
                 UpdateTransferPreviewAction();
                 if (retained) Message(Texts.T("transfer.import.cleanupRetained"), true);
-                if (origin.IsEffectivelyVisible && origin.IsEffectivelyEnabled) origin.Focus();
+                if (ActionOriginFocusTarget(origin) is { IsEffectivelyEnabled: true } target) target.Focus();
             }
         }
     }
@@ -209,7 +209,7 @@ public partial class ArchivePage
             {
                 UpdateTransferPreviewAction();
                 if (retained) Message(Texts.T("transfer.preview.cleanupRetained"), true);
-                if (origin.IsEffectivelyVisible && origin.IsEffectivelyEnabled) origin.Focus();
+                if (ActionOriginFocusTarget(origin) is { IsEffectivelyEnabled: true } target) target.Focus();
             }
         }
     }

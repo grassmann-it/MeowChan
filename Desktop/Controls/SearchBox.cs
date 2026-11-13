@@ -86,16 +86,24 @@ public class SearchBox : TextBox
         set
         {
             if (ReferenceEquals(_scopeChip, value)) return;
+            if (_scopeChip != null) _scopeChip.PropertyChanged -= OnScopeChipPropertyChanged;
             _scopeChip = value;
+            if (value != null) value.PropertyChanged += OnScopeChipPropertyChanged;
             if (value != null && value.Owner is { } previous && !ReferenceEquals(previous, this)) previous.ScopeChip = null;
             if (value != null) value.Owner = this;
             ApplyLeadingContent();
         }
     }
 
+    // A work view may hide the chip (Barebones, Text scope): the magnifier shows instead, and Alt+Down / F4 still opens the menu.
+    private void OnScopeChipPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == IsVisibleProperty) ApplyLeadingContent();
+    }
+
     private void ApplyLeadingContent()
     {
-        object? leading = _scopeChip != null ? _scopeChip : _icon.IsVisible ? _icon : null;
+        object? leading = _scopeChip is { IsVisible: true } ? _scopeChip : _icon.IsVisible ? _icon : null;
         if (!ReferenceEquals(InnerLeftContent, leading)) InnerLeftContent = leading;
     }
 

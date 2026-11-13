@@ -35,7 +35,7 @@ internal static class ArchiveFilterSurfaceChecks
             for (int i = 0; i < 60; i++)
                 await catalog.RegisterThreadAsync(new ArchiveThreadRegistration(new ResourceId("filter", "x", i.ToString()),
                     "https://filter-surface.fixture.invalid/" + i, "Filter surface " + i.ToString("D3"), directory, true));
-            page = new ArchivePage(token => ArchiveReader.OpenAsync(directory, token), (_, _) => Task.CompletedTask, _ => { }) { IsAvailable = true };
+            page = new ArchivePage(token => ArchiveReader.OpenAsync(directory, token), (_, _) => Task.CompletedTask, _ => { }) { IsAvailable = true, ArchiveColumnModePreference = "Advanced" };
             host = new Window { Title = "Archive filter surface — diagnostic", Width = 1520, Height = 920, Content = page };
             host.Show(owner);
             host.Activate();
