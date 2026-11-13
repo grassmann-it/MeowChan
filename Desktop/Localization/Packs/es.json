@@ -285,6 +285,7 @@
     "diagnostics.selectionGone": "La entrada seleccionada ya no está en la instantánea actual. Seleccione otra para continuar.",
     "diagnostics.session": "Sesión",
     "diagnostics.warning": "Advertencia",
+    "diagnostics.platform": "Plataforma",
     "diagnostics.check": "Error de comprobación",
     "diagnostics.media": "Error de medios",
     "diagnostics.request": "Solicitud",

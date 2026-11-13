@@ -114,6 +114,7 @@ internal static class BuiltInCatalog
         ("diagnostics.selectionGone", "The selected entry is no longer in the current snapshot. Select another entry to continue.", "Der gewählte Eintrag ist nicht mehr im aktuellen Stand enthalten. Zum Fortfahren einen anderen Eintrag auswählen."),
         ("diagnostics.session", "Session", "Sitzung"),
         ("diagnostics.warning", "Warning", "Warnung"),
+        ("diagnostics.platform", "Platform", "Plattform"),
         ("diagnostics.check", "Check error", "Abruffehler"),
         ("diagnostics.media", "Media error", "Medienfehler"),
         ("diagnostics.request", "Request", "Anfrage"),

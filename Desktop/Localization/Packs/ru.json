@@ -285,6 +285,7 @@
     "diagnostics.selectionGone": "Выбранной записи больше нет в текущем снимке. Выберите другую запись для продолжения.",
     "diagnostics.session": "Сеанс",
     "diagnostics.warning": "Предупреждение",
+    "diagnostics.platform": "Платформа",
     "diagnostics.check": "Ошибка проверки",
     "diagnostics.media": "Ошибка медиа",
     "diagnostics.request": "Запрос",

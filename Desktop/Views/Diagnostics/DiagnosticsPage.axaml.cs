@@ -73,7 +73,7 @@ public partial class DiagnosticsPage : UserControl
         this.FindControl<TextBlock>("DiagnosticsSummary")!.Text = Texts.T("downloads.statusSummary",
             snapshot.Threads, snapshot.Boards, snapshot.Queued, snapshot.Active);
         DataGrid grid = this.FindControl<DataGrid>("DiagnosticsGrid")!;
-        _entries = snapshot.Entries;
+        _entries = snapshot.Entries.Concat(PlatformDiagnostics.Entries()).ToArray(); // problems first, platform facts last
         RefreshDiagnosticSources();
         ApplyDiagnosticFilters();
         foreach (Control control in this.GetLogicalDescendants().OfType<Control>())

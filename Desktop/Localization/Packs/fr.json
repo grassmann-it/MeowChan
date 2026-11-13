@@ -285,6 +285,7 @@
     "diagnostics.selectionGone": "L’entrée sélectionnée ne figure plus dans l’état actuel. Sélectionnez une autre entrée pour continuer.",
     "diagnostics.session": "Session",
     "diagnostics.warning": "Avertissement",
+    "diagnostics.platform": "Plateforme",
     "diagnostics.check": "Erreur de vérification",
     "diagnostics.media": "Erreur de média",
     "diagnostics.request": "Requête",

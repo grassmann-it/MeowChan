@@ -102,7 +102,8 @@ public partial class DiagnosticsPage
             }
             finally { _refreshingDiagnostics = false; }
         }
-        this.FindControl<TextBlock>("DiagnosticsEmpty")!.IsVisible = visible.Length == 0;
+        // The platform information rows are always there; "empty" means no request and no problem.
+        this.FindControl<TextBlock>("DiagnosticsEmpty")!.IsVisible = visible.All(entry => entry.Kind == DiagnosticKind.Information);
     }
 
     private void RefreshDiagnosticFilterLabels()
