@@ -79,6 +79,8 @@ public partial class ArchivePage
     private void AddDraftTag(bool include)
     {
         if (ArchiveTagChoice.SelectedItem is not TagChoice { Id: Guid id }) return;
+        if (DraftTagRefusal(include ? _draftIncludeTags : _draftExcludeTags, include ? _draftExcludeTags : _draftIncludeTags, id) is string refusal)
+        { SearchEditorError(refusal); return; }
         try
         {
             _ = new ArchiveTagFilter(include ? _draftIncludeTags.Append(id) : _draftIncludeTags,
@@ -91,6 +93,17 @@ public partial class ArchivePage
         DraftEdited("tags");
         RenderDraftSets();
     }
+
+    /// <summary>
+    /// Why the chosen tag cannot join the list, as a localized sentence, or null when it can. A list holds at most
+    /// <see cref="ArchiveTagFilter.MaximumTagsPerList"/> tags (a fixed limit of the search definition), and a tag cannot
+    /// be included and excluded at once. Adding a tag that is already in the list changes nothing and is allowed.
+    /// </summary>
+    internal static string? DraftTagRefusal(IReadOnlyCollection<Guid> list, IReadOnlyCollection<Guid> otherList, Guid id) =>
+        list.Contains(id) ? null
+        : otherList.Contains(id) ? Texts.T("tags.filter.error.both")
+        : list.Count >= ArchiveTagFilter.MaximumTagsPerList ? Texts.T("tags.filter.error.tooMany", ArchiveTagFilter.MaximumTagsPerList)
+        : null;
 
     private ArchiveTagFilter? ReadTagFilterDraft() => ArchiveTagFilter.OrNull(_draftIncludeTags, _draftExcludeTags,
         ArchiveTagMode.SelectedIndex == 1 ? ArchiveTagMatch.Any : ArchiveTagMatch.All);

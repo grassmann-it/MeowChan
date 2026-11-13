@@ -2081,6 +2081,8 @@
     "tags.filter.describeExclude": "Sans les étiquettes",
     "tags.filter.error.unknown": "Cette recherche fait référence à une étiquette qui n’existe plus. Retirez-la du filtre et relancez la recherche. Rien n’a été recherché.",
     "tags.filter.error.unavailable": "Cette recherche utilise des étiquettes, mais vos étiquettes personnelles n’ont pas pu être chargées. Rien n’a été recherché.",
+    "tags.filter.error.tooMany": "Une liste du filtre d’étiquettes contient au plus {0} étiquettes. Retirez une étiquette de cette liste avant d’en ajouter une autre.",
+    "tags.filter.error.both": "Cette étiquette figure déjà dans l’autre liste. Une étiquette ne peut pas être à la fois incluse et exclue.",
     "tags.filter.pending": "Incluez ou excluez l’étiquette choisie, ou effacez le choix, avant de rechercher.",
     "tags.manage.open": "Gérer les étiquettes…",
     "tags.manage.title": "Gérer les étiquettes",

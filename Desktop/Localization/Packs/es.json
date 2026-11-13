@@ -2082,6 +2082,8 @@
     "tags.filter.describeExclude": "Sin etiquetas",
     "tags.filter.error.unknown": "Esta búsqueda hace referencia a una etiqueta que ya no existe. Quítela del filtro y busque de nuevo. No se buscó nada.",
     "tags.filter.error.unavailable": "Esta búsqueda usa etiquetas, pero no se pudieron cargar sus etiquetas propias. No se buscó nada.",
+    "tags.filter.error.tooMany": "Una lista del filtro de etiquetas admite como máximo {0} etiquetas. Quita una etiqueta de esta lista antes de añadir otra.",
+    "tags.filter.error.both": "Esta etiqueta ya está en la otra lista. Una etiqueta no puede estar incluida y excluida a la vez.",
     "tags.filter.pending": "Incluya o excluya la etiqueta elegida, o borre la selección, antes de buscar.",
     "tags.manage.open": "Gestionar etiquetas…",
     "tags.manage.title": "Gestionar etiquetas",

@@ -46,6 +46,8 @@ internal static class TagBarCatalog
         ("tags.filter.describeExclude", "Without tags", "Ohne Tags"),
         ("tags.filter.error.unknown", "This search refers to a tag that no longer exists. Remove it from the filter and search again. Nothing was searched.", "Diese Suche verweist auf einen Tag, den es nicht mehr gibt. Entferne ihn aus dem Filter und suche erneut. Es wurde nicht gesucht."),
         ("tags.filter.error.unavailable", "This search uses tags, but your own tags could not be loaded. Nothing was searched.", "Diese Suche verwendet Tags, aber die eigenen Tags konnten nicht geladen werden. Es wurde nicht gesucht."),
+        ("tags.filter.error.tooMany", "A tag filter list holds at most {0} tags. Remove a tag from this list before adding another.", "Eine Liste im Tagfilter fasst höchstens {0} Tags. Entferne einen Tag aus dieser Liste, bevor du einen weiteren hinzufügst."),
+        ("tags.filter.error.both", "This tag is already in the other list. A tag cannot be included and excluded at the same time.", "Dieser Tag steht schon in der anderen Liste. Ein Tag kann nicht zugleich eingeschlossen und ausgeschlossen sein."),
         ("tags.manage.open", "Manage tags…", "Tags verwalten…"),
         ("tags.manage.title", "Manage tags", "Tags verwalten"),
         ("tags.manage.intro", "Rename or delete your own tags. Tags stay local in this profile.", "Eigene Tags umbenennen oder löschen. Tags bleiben lokal in diesem Profil."),
