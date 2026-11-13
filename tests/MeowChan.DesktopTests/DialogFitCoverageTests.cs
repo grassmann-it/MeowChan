@@ -26,6 +26,7 @@ public sealed class DialogFitCoverageTests
         "Desktop/Views/Admission/BoardAdmissionWindow.cs",
         "Desktop/Views/Archive/FilenameSearchDialog.cs",
         "Desktop/Views/Media/ManualImportDialog.cs",
+        "Desktop/Views/Collections/ReaderGroupsDialog.axaml.cs",
     };
 
     [Theory]
@@ -39,6 +40,7 @@ public sealed class DialogFitCoverageTests
     [InlineData("Desktop/Views/Admission/BoardAdmissionWindow.cs")]
     [InlineData("Desktop/Views/Archive/FilenameSearchDialog.cs")]
     [InlineData("Desktop/Views/Media/ManualImportDialog.cs")]
+    [InlineData("Desktop/Views/Collections/ReaderGroupsDialog.axaml.cs")]
     public void TheWindowsOfTheAuditStillFitThemselvesToTheScreen(string path) =>
         Assert.Matches(@"DialogFit\.OnOpen\(this\)", File.ReadAllText(Source(path)));
 

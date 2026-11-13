@@ -108,6 +108,7 @@ public partial class ReaderGroupsDialog : Window
         _host = host; _origin = origin;
         AvaloniaXamlLoader.Load(this);
         WindowChrome.WrapContent(this);
+        DialogFit.OnOpen(this);
         C<ListBox>("Groups").ItemTemplate = new FuncDataTemplate<GroupRow>((row, _) => RowText(row));
         foreach (string list in new[] { "GroupMembers", "GroupCandidates" })
             C<ListBox>(list).ItemTemplate = new FuncDataTemplate<MemberRow>((row, _) => RowText(row));
