@@ -41,6 +41,25 @@ internal static class MediaTileThumbnails
     internal static Bitmap Remember(MediaLibraryTile tile, Bitmap bitmap) =>
         MediaLibraryGrouping.ByteKey(tile.Entry) is { } key ? Cache.Add(key, bitmap) : bitmap;
 
+    /// <summary>
+    /// The key of a preview of a saved file in <see cref="Cache"/>: the same bytes identity as <see cref="MediaLibraryGrouping"/> (hash and
+    /// length), so the archive tiles, the reader and the media page share one decoded preview; <paramref name="size"/> names a
+    /// preview made at another size than the tile default. Null when the file has no hash.
+    /// </summary>
+    internal static string? ByteKey(MediaAssetReference asset, string size = "") =>
+        string.IsNullOrEmpty(asset.Sha256) ? null : asset.Sha256.ToLowerInvariant() + ":" + asset.Length + size;
+
+    /// <summary>
+    /// The kept preview under <paramref name="key"/>, leased to the caller, or the one <paramref name="decode"/> makes, kept under it.
+    /// Give the result back with <see cref="Release"/>. Without a key nothing is kept.
+    /// </summary>
+    internal static async Task<Bitmap?> KeepAsync(string? key, Func<Task<Bitmap?>> decode)
+    {
+        if (key != null && Cache.TryAcquire(key) is { } hit) return hit;
+        Bitmap? bitmap = await decode().ConfigureAwait(false);
+        return bitmap != null && key != null ? Cache.Add(key, bitmap) : bitmap;
+    }
+
     /// <summary>Gives back a preview from <see cref="TryGetCached"/>, <see cref="Remember"/> or <see cref="LoadAsync"/>.</summary>
     internal static void Release(Bitmap bitmap) => Cache.Release(bitmap);
 

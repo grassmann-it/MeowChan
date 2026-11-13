@@ -668,20 +668,24 @@ public partial class ArchivePage : UserControl
                 if (match == null) throw new InvalidDataException(Texts.T(assets.Any(asset =>
                     asset.Asset.MediaIdentifier == attachment.MediaId && asset.Asset.Variant == attachment.Variant)
                     ? "archive.differentVersion" : "archive.notSaved"));
-                return await Task.Run(async () =>
+                // The normal-size previews are kept by their bytes (the large ones are about 3 MiB each and are not), so scrolling the
+                // reader back shows them at once. The image size is the tile default, so the media page and the archive tiles share it.
+                bool video = SavedMediaTypes.Classify(match.Asset.OriginalFileName ?? match.Asset.Path) == SavedMediaKind.Video;
+                string? key = large ? null : MediaTileThumbnails.ByteKey(match.Asset, video ? "@poster240x180" : string.Empty);
+                return await MediaTileThumbnails.KeepAsync(key, () => Task.Run(async () =>
                 {
                     await _thumbnailGate.WaitAsync(loading.Token).ConfigureAwait(false);
                     try
                     {
                         loading.Token.ThrowIfCancellationRequested(); // Coverage can change while queued for a slot.
-                        if (SavedMediaTypes.Classify(match.Asset.OriginalFileName ?? match.Asset.Path) == SavedMediaKind.Video)
+                        if (video)
                             return await VideoPosterCache.LoadAsync(match.Manifest, match.Asset,
                                 Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1"),
                                 large ? 1040 : 240, large ? 720 : 180, loading.Token).ConfigureAwait(false);
                         return await DecodeThumbnailAsync(match, loading.Token, large ? 1040 : 240, large ? 720 : 180).ConfigureAwait(false);
                     }
                     finally { _thumbnailGate.Release(); }
-                }, loading.Token);
+                }, loading.Token)).ConfigureAwait(false);
             },
             OpenPreview = async () =>
             {
@@ -728,13 +732,16 @@ public partial class ArchivePage : UserControl
         setBinding(resolved?.Binding);
         if (resolved == null || SavedMediaTypes.Classify(resolved.Asset.OriginalFileName ?? resolved.Asset.Path) != SavedMediaKind.Image)
             return null;
-        await _thumbnailGate.WaitAsync(loading.Token);
-        try
+        return await MediaTileThumbnails.KeepAsync(MediaTileThumbnails.ByteKey(resolved.Asset, "@160x120"), async () =>
         {
-            loading.Token.ThrowIfCancellationRequested();
-            return await DecodeThumbnailAsync(new(resolved.Snapshot, resolved.Asset), loading.Token, 160, 120);
-        }
-        finally { _thumbnailGate.Release(); }
+            await _thumbnailGate.WaitAsync(loading.Token);
+            try
+            {
+                loading.Token.ThrowIfCancellationRequested();
+                return await DecodeThumbnailAsync(new(resolved.Snapshot, resolved.Asset), loading.Token, 160, 120);
+            }
+            finally { _thumbnailGate.Release(); }
+        });
     }, cancellationToken);
 
     internal static ArchiveAssetRow? FindMatchingAsset(ResourceId resource, string postId,

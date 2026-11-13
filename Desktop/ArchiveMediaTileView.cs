@@ -37,8 +37,9 @@ public sealed class ArchiveMediaTileView : UserControl
     private bool _visible;
     private Rect _viewport;
     private readonly List<Visual> _visibilityAncestors = new();
-    internal Func<ArchiveAssetRow, CancellationToken, Task<Bitmap?>> ThumbnailDecoder { get; set; }
-        = static (row, token) => DecodeAsync(row, token, System.IO.Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1"));
+    private static readonly Func<ArchiveAssetRow, CancellationToken, Task<Bitmap?>> DefaultThumbnailDecoder =
+        static (row, token) => DecodeAsync(row, token, System.IO.Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1"));
+    internal Func<ArchiveAssetRow, CancellationToken, Task<Bitmap?>> ThumbnailDecoder { get; set; } = DefaultThumbnailDecoder;
 
     // Saved-media tiles show the same local video poster as the reader's post
     // attachments and the Medien page (cache keyed by the verified bytes); images
@@ -146,6 +147,18 @@ public sealed class ArchiveMediaTileView : UserControl
     {
         if (DataContext is not ArchiveAssetRow row || _loading != null || _bitmap != null || !IsEffectivelyVisible) return;
         int request = _request;
+        Func<ArchiveAssetRow, CancellationToken, Task<Bitmap?>> decode = ThumbnailDecoder;
+        // A preview that was decoded before (here, on the Media page or in the reader) is kept by its bytes and shown at once when
+        // the tile scrolls back into view. Only the built-in decoder takes part, so a replaced decoder is never mixed with it.
+        string? key = ReferenceEquals(decode, DefaultThumbnailDecoder) ? MediaTileThumbnails.ByteKey(row.Asset) : null;
+        if (key != null && MediaTileThumbnails.Cache.TryAcquire(key) is { } kept)
+        {
+            _bitmap = kept;
+            _image.Source = kept;
+            _message.Text = string.Empty;
+            UpdateDescription();
+            return;
+        }
         using CancellationTokenSource loading = new();
         _loading = loading;
         _message.Text = Texts.T("archive.loadingThumbnail");
@@ -154,10 +167,11 @@ public sealed class ArchiveMediaTileView : UserControl
         {
             await ThumbnailGate.WaitAsync(loading.Token);
             Bitmap? bitmap;
-            Func<ArchiveAssetRow, CancellationToken, Task<Bitmap?>> decode = ThumbnailDecoder;
             try { bitmap = await Task.Run(() => decode(row, loading.Token), loading.Token); }
             finally { ThumbnailGate.Release(); }
-            if (request != _request || !_visible || !IsEffectivelyVisible || !ReferenceEquals(DataContext, row) || loading.IsCancellationRequested) { bitmap?.Dispose(); return; }
+            if (key != null && bitmap != null) bitmap = MediaTileThumbnails.Cache.Add(key, bitmap);
+            if (request != _request || !_visible || !IsEffectivelyVisible || !ReferenceEquals(DataContext, row) || loading.IsCancellationRequested)
+            { if (bitmap != null) MediaTileThumbnails.Release(bitmap); return; }
             _bitmap = bitmap;
             _image.Source = bitmap;
             // The tile has no path line below it, unlike the preview pane, so name only what is missing.
@@ -181,7 +195,7 @@ public sealed class ArchiveMediaTileView : UserControl
     {
         ++_request;
         _loading?.Cancel(); _loading = null;
-        _image.Source = null; _bitmap?.Dispose(); _bitmap = null;
+        _image.Source = null; if (_bitmap != null) MediaTileThumbnails.Release(_bitmap); _bitmap = null;
         _message.Text = string.Empty;
         UpdateDescription();
     }
