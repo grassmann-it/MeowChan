@@ -4,9 +4,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using MeowChan.Archive;
@@ -93,7 +93,7 @@ public partial class ArchivePage
     private void NameSavedSearchArrow()
     {
         string name = MeowChan.Desktop.Localization.Texts.T("savedSearch.split.more");
-        foreach (Button more in ArchiveSavedSearches.GetTemplateChildren().OfType<Button>().Where(button => button.Name == "PART_SecondaryButton"))
+        foreach (Button more in ArchiveSavedSearches.GetVisualDescendants().OfType<Button>().Where(button => button.Name == "PART_SecondaryButton"))
         {
             AutomationProperties.SetName(more, name);
             ToolTip.SetTip(more, name);
