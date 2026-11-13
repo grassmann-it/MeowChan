@@ -51,6 +51,6 @@ public static class ProviderHttpClientFactory
             AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli,
             PooledConnectionLifetime = TimeSpan.FromMinutes(10)
         };
-        return new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+        return new HttpClient(new MeteringHandler(handler)) { Timeout = Timeout.InfiniteTimeSpan };
     }
 }

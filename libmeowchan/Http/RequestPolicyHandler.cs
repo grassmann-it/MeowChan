@@ -333,6 +333,8 @@ public sealed class RequestPolicyHandler : HttpMessageHandler
         Action<RequestPolicyProgress>? observer, int attemptNumber, Action startBudget)
     {
         using HttpRequestMessage request = CloneRequest(original);
+        // The metering handler at the transport counts this attempt for the source that owns the policy client.
+        request.Options.Set(MeteringHandler.SourceKey, _source);
         CancellationTokenSource? headers = null;
         CancellationTokenSource? attempt = null;
         try
