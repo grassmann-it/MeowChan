@@ -491,13 +491,15 @@ public partial class ArchivePage : UserControl
             {
                 string text = ArchivePresentation.PlainText(post.Html);
                 if (text.Length > 65536) text = text[..65536] + "\n\n" + Texts.T("archive.displayLimit");
-                string header = "#" + post.PostId + (string.IsNullOrEmpty(post.Author) ? string.Empty : " · " + post.Author)
-                    + (post.PostedAt.HasValue ? " · " + post.PostedAt.Value.ToLocalTime().ToString("g", Texts.Culture) : string.Empty)
-                    + (post.IsDeleted ? " · " + Texts.T("archive.deletedPost") : string.Empty);
-                return new ArchivePostRow(post.PostId, header, post.Subject ?? string.Empty, text,
+                return new ArchivePostRow(post.PostId, post.Subject ?? string.Empty, text,
                     Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment => CreateAttachmentRow(_thread.Summary.Id, attachment, post.PostId, _mediaReady.Task)).ToArray()))
-                { Quotes = Array.AsReadOnly(ArchiveQuoteParser.Parse(_thread.Summary.Id, _thread.Summary.Url, post)
-                    .Select(quote => new ArchiveQuoteRow(quote)).ToArray()) };
+                {
+                    Author = post.Author ?? string.Empty,
+                    Posted = post.PostedAt?.ToLocalTime().ToString("g", Texts.Culture) ?? string.Empty,
+                    IsDeleted = post.IsDeleted,
+                    Quotes = Array.AsReadOnly(ArchiveQuoteParser.Parse(_thread.Summary.Id, _thread.Summary.Url, post)
+                        .Select(quote => new ArchiveQuoteRow(quote)).ToArray())
+                };
             }).ToArray();
             ListBox postList = ArchivePosts;
             // A new page is a new index space. Do not carry its predecessor's

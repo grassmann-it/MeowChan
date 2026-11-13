@@ -207,5 +207,5 @@ public sealed class ReaderMediaActivationTests
     }
 
     private static ArchivePostRow Post(string id, params CapturedAttachment[] attachments) =>
-        new(id, id, string.Empty, "body", attachments.Select(attachment => new ArchiveAttachmentRow(attachment)).ToArray());
+        new(id, string.Empty, "body", attachments.Select(attachment => new ArchiveAttachmentRow(attachment)).ToArray());
 }

@@ -2774,6 +2774,11 @@
     "drop.files.title": "La importación de tus propios archivos llegará más adelante",
     "drop.files.detail": "Por ahora, suelta enlaces de hilos o tablones, o pégalos en el campo de URL.",
     "drop.empty.title": "Nada que añadir",
-    "drop.empty.detail": "Suelta enlaces de hilos o tablones como texto."
+    "drop.empty.detail": "Suelta enlaces de hilos o tablones como texto.",
+    "reader.postNumber": "N.º {0}",
+    "reader.copyPostNumber": "Copiar >>{0} para citar esta publicación",
+    "reader.postNumberCopied": "Se copió >>{0} al portapapeles.",
+    "reader.copyFailed": "El portapapeles no está disponible; no se copió nada.",
+    "reader.replyCount": "Respuestas: {0}"
   }
 }

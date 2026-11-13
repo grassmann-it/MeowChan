@@ -331,6 +331,13 @@
                                                     <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
                                                     <Setter Property="BorderThickness" Value="3,2,2,2" />
                                                 </Style>
+                                                <Style Selector="Button.reader-post-number">
+                                                    <Setter Property="HorizontalAlignment" Value="Left" />
+                                                    <Setter Property="BorderThickness" Value="0" />
+                                                    <Setter Property="Padding" Value="4,2" />
+                                                    <Setter Property="MinHeight" Value="24" />
+                                                    <Setter Property="FontSize" Value="12" />
+                                                </Style>
                                                 <!-- Remaining reference buttons (expanded backlinks) read as links, not raised buttons. -->
                                                 <Style Selector="Button.reader-quote">
                                                     <Setter Property="Background" Value="Transparent" />
@@ -343,8 +350,20 @@
                                             <ListBox.ItemTemplate>
                                                 <DataTemplate x:DataType="desktop:ArchivePostRow">
                                                     <StackPanel Margin="8,8,8,12" Spacing="6">
-                                                        <TextBlock Text="{Binding Header}" Classes="workspace-meta" />
-                                                        <TextBlock Text="{Binding Subject}" Classes="section-title" TextWrapping="Wrap" />
+                                                        <!-- One header line: Subject · Name · Date · No.; the number copies ">>No.".
+                                                             The reply count sits at the right; the expander below stays the source. -->
+                                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                                            <WrapPanel ItemSpacing="8" LineSpacing="2" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding Subject}" IsVisible="{Binding HasSubject}" Classes="section-title" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                                <TextBlock Text="{Binding Author}" IsVisible="{Binding HasAuthor}" Classes="workspace-meta" VerticalAlignment="Center" />
+                                                                <TextBlock Text="{Binding Posted}" IsVisible="{Binding HasPosted}" Classes="workspace-meta" VerticalAlignment="Center" />
+                                                                <Button Classes="link reader-post-number" Content="{Binding NumberLabel}" ToolTip.Tip="{Binding CopyNumberLabel}"
+                                                                        AutomationProperties.Name="{Binding CopyNumberLabel}" Click="OnCopyPostNumberClick" VerticalAlignment="Center" />
+                                                                <TextBlock Text="{Binding RemovedLabel}" IsVisible="{Binding IsDeleted}" Classes="workspace-meta" VerticalAlignment="Center" />
+                                                            </WrapPanel>
+                                                            <TextBlock Grid.Column="1" Text="{Binding BacklinkCountLabel}" IsVisible="{Binding HasBacklinks}" Classes="workspace-meta"
+                                                                       ToolTip.Tip="{Binding BacklinksLabel}" VerticalAlignment="Center" />
+                                                        </Grid>
                                                         <desktop:ReaderPostLayout>
                                                             <ItemsControl ItemsSource="{Binding Attachments}" IsVisible="{Binding HasAttachments}" HorizontalAlignment="Left">
                                                                 <ItemsControl.ItemTemplate>

@@ -8,7 +8,7 @@ public sealed class ArchivePresentationTests
     [Fact]
     public void InlineReplyRowReportsCountAndBoundedLoadedPage()
     {
-        ArchivePostRow row = new("123", "#123", "", "", Array.Empty<ArchiveAttachmentRow>());
+        ArchivePostRow row = new("123", "", "", Array.Empty<ArchiveAttachmentRow>());
         List<string> changes = new();
         row.PropertyChanged += (_, eventArgs) => changes.Add(eventArgs.PropertyName!);
         row.SetBacklinkCount(3);
@@ -25,9 +25,32 @@ public sealed class ArchivePresentationTests
     }
 
     [Fact]
+    public void HeaderFieldsAreSeparateAndTheNumberQuotesThePost()
+    {
+        ArchivePostRow row = new("123", "Subject", "Body", Array.Empty<ArchiveAttachmentRow>())
+        { Author = "Anonymous", Posted = "13.11.2026 10:00", IsDeleted = true };
+        Assert.True(row.HasSubject && row.HasAuthor && row.HasPosted && row.IsDeleted);
+        Assert.Equal(">>123", row.QuoteReference);
+        Assert.Contains("123", row.NumberLabel);
+        Assert.Contains(">>123", row.CopyNumberLabel);
+        ArchivePostRow bare = new("124", "", "", Array.Empty<ArchiveAttachmentRow>());
+        Assert.False(bare.HasSubject || bare.HasAuthor || bare.HasPosted || bare.IsDeleted);
+        List<string> changes = new();
+        bare.PropertyChanged += (_, eventArgs) => changes.Add(eventArgs.PropertyName!);
+        Assert.False(bare.HasBacklinks);
+        bare.SetBacklinkCount(0);
+        Assert.False(bare.HasBacklinks);
+        bare.SetBacklinkCount(4);
+        Assert.True(bare.HasBacklinks);
+        Assert.Contains("4", bare.BacklinkCountLabel);
+        Assert.Contains(nameof(bare.HasBacklinks), changes);
+        Assert.Contains(nameof(bare.BacklinkCountLabel), changes);
+    }
+
+    [Fact]
     public void ReplyStateOnlyCollapsesConfirmedSuccessfulZero()
     {
-        ArchivePostRow row = new("123", "#123", "", "", Array.Empty<ArchiveAttachmentRow>());
+        ArchivePostRow row = new("123", "", "", Array.Empty<ArchiveAttachmentRow>());
         Assert.True(row.CanExpandReplies); // Count has not arrived yet.
         row.SetRepliesError("local index unavailable");
         Assert.False(row.HasConfirmedNoReplies);
@@ -43,7 +66,7 @@ public sealed class ArchivePresentationTests
     [Fact]
     public void RetryingPageErrorKeepsZeroCountExpanderVisibleUntilLoadingCompletes()
     {
-        ArchivePostRow row = new("123", "#123", "", "", Array.Empty<ArchiveAttachmentRow>());
+        ArchivePostRow row = new("123", "", "", Array.Empty<ArchiveAttachmentRow>());
         row.SetBacklinkCount(0);
         row.SetRepliesError("local page unavailable");
         List<string> changes = new();

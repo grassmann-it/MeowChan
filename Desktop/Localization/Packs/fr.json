@@ -2774,6 +2774,11 @@
     "drop.files.title": "L'importation de vos propres fichiers arrive plus tard",
     "drop.files.detail": "En attendant, déposez des liens de fils ou de tableaux, ou collez-les dans le champ d'URL.",
     "drop.empty.title": "Rien à ajouter",
-    "drop.empty.detail": "Déposez des liens de fils ou de tableaux sous forme de texte."
+    "drop.empty.detail": "Déposez des liens de fils ou de tableaux sous forme de texte.",
+    "reader.postNumber": "N° {0}",
+    "reader.copyPostNumber": "Copier >>{0} pour citer ce message",
+    "reader.postNumberCopied": ">>{0} copié dans le presse-papiers.",
+    "reader.copyFailed": "Le presse-papiers n’est pas disponible ; rien n’a été copié.",
+    "reader.replyCount": "Réponses : {0}"
   }
 }

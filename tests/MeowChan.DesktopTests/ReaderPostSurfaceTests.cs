@@ -142,6 +142,28 @@ public sealed class ReaderPostSurfaceTests
     }
 
     [Fact]
+    public void HeaderIsOneLineInImageboardOrderWithACopyableNumber()
+    {
+        XElement header = PostRoot().Elements().First();
+        Assert.Equal(A + "Grid", header.Name);
+        Assert.Equal("*,Auto", (string?)header.Attribute("ColumnDefinitions"));
+        XElement line = Assert.Single(header.Elements(A + "WrapPanel"));
+        Assert.Equal(new[] { "{Binding Subject}", "{Binding Author}", "{Binding Posted}", "{Binding NumberLabel}", "{Binding RemovedLabel}" },
+            line.Elements().Select(element => (string?)element.Attribute("Text") ?? (string?)element.Attribute("Content")));
+        XElement number = Assert.Single(line.Elements(A + "Button"));
+        Assert.Equal("link reader-post-number", (string?)number.Attribute("Classes"));
+        Assert.Equal("OnCopyPostNumberClick", (string?)number.Attribute("Click"));
+        Assert.Equal("{Binding CopyNumberLabel}", (string?)number.Attribute("AutomationProperties.Name"));
+        Assert.Equal("{Binding CopyNumberLabel}", (string?)number.Attribute("ToolTip.Tip"));
+        Assert.Equal("24", Setting(PostStyle("Button.reader-post-number"), "MinHeight"));
+        XElement count = Assert.Single(header.Elements(A + "TextBlock"));
+        Assert.Equal("1", (string?)count.Attribute("Grid.Column"));
+        Assert.Equal("{Binding BacklinkCountLabel}", (string?)count.Attribute("Text"));
+        Assert.Equal("{Binding HasBacklinks}", (string?)count.Attribute("IsVisible"));
+        Assert.DoesNotContain(PostRoot().Descendants(), element => (string?)element.Attribute("Text") == "{Binding Header}");
+    }
+
+    [Fact]
     public void ReaderFontAndAttachmentLayoutRetainTheirExistingBindings()
     {
         XElement root = PostRoot();

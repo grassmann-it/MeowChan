@@ -65,10 +65,21 @@ internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
         + (MediaProvenanceText.Summary(Binding) is { Length: > 0 } provenance ? "\n" + provenance : string.Empty);
 }
 
-internal sealed record ArchivePostRow(string Id, string Header, string Subject, string Body,
+// One header line in imageboard order: Subject · Name · Date · No. (the number copies ">>No.").
+internal sealed record ArchivePostRow(string Id, string Subject, string Body,
     IReadOnlyList<ArchiveAttachmentRow> Attachments) : System.ComponentModel.INotifyPropertyChanged
 {
     public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+    public string Author { get; init; } = string.Empty;
+    public string Posted { get; init; } = string.Empty;
+    public bool IsDeleted { get; init; }
+    public bool HasSubject => Subject.Length > 0;
+    public bool HasAuthor => Author.Length > 0;
+    public bool HasPosted => Posted.Length > 0;
+    public string RemovedLabel => Texts.T("archive.deletedPost");
+    public string NumberLabel => Texts.T("reader.postNumber", Id);
+    public string QuoteReference => ">>" + Id;
+    public string CopyNumberLabel => Texts.T("reader.copyPostNumber", Id);
     public bool HasAttachments => Attachments.Count > 0;
     public bool IsTextOnly => !HasAttachments;
     public IReadOnlyList<ArchiveQuoteRow> Quotes { get; init; } = Array.Empty<ArchiveQuoteRow>();
@@ -80,6 +91,9 @@ internal sealed record ArchivePostRow(string Id, string Header, string Subject, 
     private int _repliesOffset;
     private string? _repliesError;
     public int? BacklinkCount => _backlinkCount;
+    // Header summary only; the expander below the text stays the detailed, interactive source.
+    public bool HasBacklinks => _backlinkCount > 0;
+    public string BacklinkCountLabel => Texts.T("reader.replyCount", (_backlinkCount ?? 0).ToString(Texts.Culture));
     public string BacklinksLabel => Texts.T("archive.backlinks", Id) + " · " +
         (_backlinkCount?.ToString(Texts.Culture) ?? "…");
     // Only a confirmed, successful zero is non-interactive. Unknown/error states
@@ -107,7 +121,7 @@ internal sealed record ArchivePostRow(string Id, string Header, string Subject, 
     {
         _backlinkCount = count;
         Changed(nameof(BacklinkCount), nameof(BacklinksLabel), nameof(HasMoreReplies), nameof(RepliesPageLabel),
-            nameof(HasConfirmedNoReplies), nameof(CanExpandReplies));
+            nameof(HasConfirmedNoReplies), nameof(CanExpandReplies), nameof(HasBacklinks), nameof(BacklinkCountLabel));
     }
     public void SetReplies(IReadOnlyList<ArchiveQuoteRow> replies, int total, int offset)
     {
