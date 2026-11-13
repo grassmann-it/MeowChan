@@ -370,6 +370,8 @@ public partial class PluginsPage : UserControl
         C<TextBlock>("PluginType").Text = PluginContentPresentation.DescribeType(presentation.DescriptionMetadata);
         string classifications = PluginContentPresentation.DescribeSourceClassifications(presentation);
         C<Border>("PluginExperimentalChip").IsVisible = presentation.HasSourceClassifications;
+        // The warning tone of the Sources "Experimental" chip; the words say it too.
+        C<Border>("PluginExperimentalChip").Classes.Set("chip-warning", presentation.HasExperimentalSources);
         TextBlock classificationText = C<TextBlock>("PluginExperimental");
         classificationText.Text = classifications;
         AutomationProperties.SetName(classificationText, classifications);
