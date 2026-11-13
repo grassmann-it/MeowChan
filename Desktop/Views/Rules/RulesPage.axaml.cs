@@ -21,6 +21,10 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
 {
     // The limit is typed in MiB, like every other size of the app (1 MiB = 1024 * 1024 bytes); the rule stores whole bytes.
     private const decimal BytesPerMebibyte = 1_048_576m;
+    // Layout threshold, not a user limit: below this window height (dip) the one-sentence subtitle gives way to the form
+    // and moves into the title's tooltip and help text. The minimum window (500 dip) otherwise keeps barely 150 dip of form.
+    internal const double SubtitleMinWindowHeight = 600;
+    private bool _subtitleHidden;
     private readonly Func<MediaRuleSet> _getRules;
     private readonly Func<IEnumerable<MediaRule>, string, Task<MediaRuleSet>> _saveRules;
     private readonly Dictionary<MediaRuleScope, RuleDraft> _drafts = new Dictionary<MediaRuleScope, RuleDraft>();
@@ -589,6 +593,8 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         RulesHeader.Width = width;
         // The footer content shares the 880 dip column of the body: status starts and the buttons end on its edges.
         RulesFooter.Width = width;
+        _subtitleHidden = (TopLevel.GetTopLevel(this)?.ClientSize.Height ?? e.NewSize.Height) < SubtitleMinWindowHeight;
+        RefreshSubtitlePresentation();
         bool narrow = width < 700;
         foreach (Grid row in RulesContent.GetVisualDescendants().OfType<Grid>().Where(row => row.Classes.Contains("rule-row")))
         {
@@ -621,10 +627,19 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         RuleMegabytesInput.Classes.Set("workspace-invalid", HasMegabytesError);
         RuleExtensionsInput.Classes.Set("workspace-invalid", HasExtensionsError);
         RefreshOriginActionLabels();
+        RefreshSubtitlePresentation();
         RefreshFilterEditor();
         RuleExtensionsInput.Bind(_draft.ExtensionInput);
         RefreshBreadcrumb();
         RefreshTemplatesPanel();
+    }
+    private void RefreshSubtitlePresentation()
+    {
+        if (_ended) return;
+        RulesSubtitle.IsVisible = !_subtitleHidden;
+        // A hidden element leaves the accessibility tree, so the sentence stays reachable at the title.
+        ToolTip.SetTip(RulesTitle, _subtitleHidden ? Subtitle : null);
+        Avalonia.Automation.AutomationProperties.SetHelpText(RulesTitle, _subtitleHidden ? Subtitle : string.Empty);
     }
     private void RefreshOriginActionLabels()
     {

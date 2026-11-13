@@ -575,7 +575,7 @@
     "rules.removeExtension": "Quitar extensión {0}",
     "rules.currentScope": "Ámbito actual",
     "nav.rules": "Reglas",
-    "rules.subtitle": "Elija medios por fuente, tablón o hilo. Las reglas de hilo tienen prioridad sobre las de tablón, después las de fuente y los valores predeterminados.",
+    "rules.subtitle": "Las reglas de hilo prevalecen sobre las de tablón, luego las de fuente y por último los valores predeterminados.",
     "rules.savedScopes": "Reglas y borradores",
     "rules.open": "Editar ámbito",
     "rules.newScope": "Elegir otro ámbito",

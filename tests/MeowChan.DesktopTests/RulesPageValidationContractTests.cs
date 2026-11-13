@@ -71,6 +71,25 @@ public sealed class RulesPageValidationContractTests
         finally { Texts.SetLanguage(original); }
     }
 
+    [Fact]
+    public void SubtitleIsOneSentenceInEveryLanguageAndHidesBelowTheWindowHeightThreshold()
+    {
+        string original = Texts.Language;
+        try
+        {
+            foreach (string language in new[] { "en", "de", "fr", "es", "ru" })
+            {
+                Texts.SetLanguage(language);
+                string subtitle = Texts.T("rules.subtitle");
+                Assert.NotEqual("rules.subtitle", subtitle);
+                Assert.DoesNotContain(". ", subtitle.TrimEnd('.'));
+            }
+        }
+        finally { Texts.SetLanguage(original); }
+        Assert.Equal(600, RulesPage.SubtitleMinWindowHeight);
+        Assert.Contains("RulesSubtitle.IsVisible = !_subtitleHidden;", ReadSource("Desktop/Views/Rules/RulesPage.axaml.cs"));
+    }
+
     private static string Between(string source, string start, string end)
     {
         int from = source.IndexOf(start, StringComparison.Ordinal);

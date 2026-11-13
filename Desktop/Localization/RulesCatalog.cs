@@ -44,7 +44,7 @@ internal static class RulesCatalog
         ("rules.removeExtension", "Remove extension {0}", "Endung {0} entfernen"),
         ("rules.currentScope", "Current scope", "Aktueller Bereich"),
         ("nav.rules", "Rules", "Regeln"),
-        ("rules.subtitle", "Choose media by source, board or thread. Thread rules take priority over board rules, then source rules and defaults.", "Medien je Quelle, Board oder Thread auswählen. Threadregeln haben Vorrang vor Boardregeln, dann folgen Quellenregeln und Standardwerte."),
+        ("rules.subtitle", "Thread rules take priority over board rules, then source rules, then defaults.", "Threadregeln gehen vor Boardregeln, dann Quellenregeln, dann Standardwerte."),
         ("rules.savedScopes", "Rules and drafts", "Regeln und Entwürfe"),
         ("rules.open", "Edit scope", "Bereich bearbeiten"),
         ("rules.newScope", "Choose another scope", "Anderen Bereich wählen"),

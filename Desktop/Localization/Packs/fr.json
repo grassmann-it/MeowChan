@@ -575,7 +575,7 @@
     "rules.removeExtension": "Retirer l’extension de fichier {0}",
     "rules.currentScope": "Périmètre actuel",
     "nav.rules": "Règles",
-    "rules.subtitle": "Choisissez les médias par source, tableau ou fil. Les règles de fil priment sur celles du tableau, puis viennent celles de la source et les valeurs par défaut.",
+    "rules.subtitle": "Les règles de fil priment sur celles du tableau, puis celles de la source, puis les valeurs par défaut.",
     "rules.savedScopes": "Règles et brouillons",
     "rules.open": "Modifier le périmètre",
     "rules.newScope": "Choisir un autre périmètre",

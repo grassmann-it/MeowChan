@@ -8,8 +8,8 @@
              SizeChanged="OnRulesSizeChanged">
     <Grid RowDefinitions="Auto,*,Auto">
         <StackPanel x:Name="RulesHeader" Margin="20,12,20,12" Spacing="5" MaxWidth="880" HorizontalAlignment="Center">
-            <TextBlock Text="{Binding Title}" Classes="page-title" />
-            <TextBlock Text="{Binding Subtitle}" Classes="muted" TextWrapping="Wrap" />
+            <TextBlock x:Name="RulesTitle" Text="{Binding Title}" Classes="page-title" />
+            <TextBlock x:Name="RulesSubtitle" Text="{Binding Subtitle}" Classes="muted" TextWrapping="Wrap" />
         </StackPanel>
         <ScrollViewer x:Name="RulesScroll" Grid.Row="1" Margin="20,0,20,16" HorizontalScrollBarVisibility="Disabled">
             <StackPanel x:Name="RulesContent" MaxWidth="880" HorizontalAlignment="Center" Spacing="16">
