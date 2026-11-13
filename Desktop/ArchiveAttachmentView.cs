@@ -77,7 +77,7 @@ public sealed class ArchiveAttachmentView : UserControl
     private readonly ArchiveFavoriteButton _favorite = new() { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
 
     /// <summary>Bounded placeholder/loaded-preview height retained for the existing reader geometry contract.</summary>
-    internal static double PreviewHeight(double width, double maximumHeight, Avalonia.Media.Imaging.PixelSize? loadedSize)
+    internal static double PreviewHeight(double width, double maximumHeight, Avalonia.PixelSize? loadedSize)
     {
         if (loadedSize is { Width: > 0, Height: > 0 } size)
             return Math.Min(maximumHeight, width * size.Height / size.Width);
