@@ -56,7 +56,9 @@ internal sealed class PostFilterStore
     private PostFilterSnapshot LoadCore()
     {
         _recoverySource = null; _recoveryIdentity = null;
-        try { return _current = Read(_path, missingIsEmpty: true); }
+        // A missing primary is empty only when there is no backup either. Otherwise
+        // exporting or replacing an "empty" store would silently discard recoverable policy.
+        try { return _current = Read(_path, missingIsEmpty: false); }
         catch (Exception error) when (IsReadError(error))
         {
             try
@@ -68,6 +70,10 @@ internal sealed class PostFilterStore
                     _recoveryIdentity = FileIdentity(_path);
                     return _current = backup with { State = PostFilterStoreState.RecoveryAvailable, Error = error.Message };
                 }
+            }
+            catch (FileNotFoundException) when (error is FileNotFoundException)
+            {
+                return _current = PostFilterSnapshot.Empty(PostFilterStoreState.Ready);
             }
             catch (Exception backupError) when (IsReadError(backupError)) { }
             return _current = PostFilterSnapshot.Empty(PostFilterStoreState.Failed, error.Message);
@@ -199,6 +205,102 @@ internal sealed class PostFilterStore
             }, admission, token);
         });
 
+    /// <summary>
+    /// Replaces the complete post-filter image for an explicit profile transfer or backup restore.
+    /// The caller supplies only a snapshot that has already passed the transfer codec; this method
+    /// still validates it again at the store boundary and derives the target revision locally.
+    /// </summary>
+    internal PostFilterSnapshot RestoreSnapshot(PostFilterSnapshot incoming, long expectedRevision,
+        CancellationToken token = default)
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(token);
+        return RestoreSnapshotAdmitted(incoming, expectedRevision, admission, token);
+    }
+
+    internal PostFilterSnapshot RestoreSnapshotAdmitted(PostFilterSnapshot incoming, long expectedRevision,
+        ProfileAdmissionToken admission, CancellationToken token = default) => _lease.RunStoreWrite(admission, () =>
+    {
+        ArgumentNullException.ThrowIfNull(incoming);
+        token.ThrowIfCancellationRequested();
+        ValidateRestorableSnapshot(incoming);
+        PostFilterSnapshot current = _current ?? LoadCore();
+        PostFilterSnapshot disk = LoadCore();
+        if (current.Revision != expectedRevision || disk.Revision != expectedRevision
+            || !current.CanWrite || !disk.CanWrite
+            || Serialize(current.Revision, current.HiddenPostsAction, current.Rules, current.HiddenPosts)
+                != Serialize(disk.Revision, disk.HiddenPostsAction, disk.Rules, disk.HiddenPosts))
+            throw new PostFilterRevisionException(disk);
+
+        // A lowered configured limit may leave older data above the limit readable. A
+        // replacement may not use a transfer to grow such a store past its current limit.
+        if (incoming.Rules.Count > _lease.StoreLimits.PostFilterRules
+            && incoming.Rules.Count > disk.Rules.Count)
+            throw PrivateStoreLimit.Refusal(PrivateStoreLimitKind.PostFilterRules, _lease.StoreLimits.PostFilterRules,
+                "The post filter rule limit is reached.");
+        if (incoming.HiddenPosts.Count > _lease.StoreLimits.HiddenPosts
+            && incoming.HiddenPosts.Count > disk.HiddenPosts.Count)
+            throw PrivateStoreLimit.Refusal(PrivateStoreLimitKind.HiddenPosts, _lease.StoreLimits.HiddenPosts,
+                "The hidden post limit is reached.");
+
+        long next = checked(expectedRevision + 1);
+        string json = SerializeForCommit(next, incoming.HiddenPostsAction, incoming.Rules, incoming.HiddenPosts);
+        if (File.Exists(_path) && !BackupMayBeRotated())
+            throw new InvalidOperationException("The post filters backup is damaged or unsupported. No files were changed.");
+        BeforeAdmittedMutationForTests?.Invoke(admission);
+        AtomicJsonFile.WriteAllText(_path, json, backupCurrentFile: true, token);
+        _current = new(next, incoming.HiddenPostsAction,
+            Array.AsReadOnly(incoming.Rules.ToArray()), Array.AsReadOnly(incoming.HiddenPosts.ToArray()),
+            PostFilterStoreState.Ready);
+        AfterAdmittedMutationForTests?.Invoke(admission);
+        return _current;
+    });
+
+    private static void ValidateRestorableSnapshot(PostFilterSnapshot snapshot)
+    {
+        if (snapshot.State != PostFilterStoreState.Ready || snapshot.Error != null || snapshot.Revision < 0
+            || !Enum.IsDefined(snapshot.HiddenPostsAction) || snapshot.Rules == null || snapshot.HiddenPosts == null
+            || snapshot.Rules.Count > ProfileStoreLimits.PostFilterRuleCeiling
+            || snapshot.HiddenPosts.Count > ProfileStoreLimits.HiddenPostCeiling)
+            throw new InvalidDataException("The post filter transfer snapshot is not supported.");
+
+        HashSet<Guid> ruleIds = new();
+        HashSet<string> duplicateRules = new(StringComparer.Ordinal);
+        foreach (PostFilterRule rule in snapshot.Rules)
+        {
+            if (rule == null || !rule.CanApply || rule.RawDefinition != null || rule.Id == Guid.Empty
+                || !ruleIds.Add(rule.Id))
+                throw new InvalidDataException("The post filter transfer snapshot contains an invalid rule.");
+            PostFilterRuleDraft normalized;
+            try
+            {
+                normalized = PostFilterRules.Normalize(new(rule.Field, rule.Match, rule.Pattern,
+                    rule.Action, rule.Replies, rule.Source, rule.Board, rule.Enabled));
+            }
+            catch (ArgumentException error)
+            {
+                throw new InvalidDataException("The post filter transfer snapshot contains an invalid rule.", error);
+            }
+            if (normalized.Field != rule.Field || normalized.Match != rule.Match || normalized.Pattern != rule.Pattern
+                || normalized.Action != rule.Action || normalized.Source != rule.Source || normalized.Board != rule.Board)
+                throw new InvalidDataException("The post filter transfer snapshot contains an unnormalized rule.");
+            if (!duplicateRules.Add(rule.DuplicateKey))
+                throw new InvalidDataException("The post filter transfer snapshot contains duplicate rules.");
+        }
+
+        HashSet<(ResourceId Thread, string Post)> hidden = new();
+        foreach (HiddenPost entry in snapshot.HiddenPosts)
+        {
+            if (entry == null) throw new InvalidDataException("The post filter transfer snapshot contains an invalid hidden post.");
+            try { PostFilterRules.ValidateHiddenPost(entry.Thread, entry.Post); }
+            catch (ArgumentException error)
+            {
+                throw new InvalidDataException("The post filter transfer snapshot contains an invalid hidden post.", error);
+            }
+            if (!hidden.Add(entry.Key))
+                throw new InvalidDataException("The post filter transfer snapshot contains duplicate hidden posts.");
+        }
+    }
+
     // ---- Mutation core -----------------------------------------------------------------------------------------------
 
     private sealed class Work
@@ -279,8 +381,12 @@ internal sealed class PostFilterStore
 
     private static string FileIdentity(string path)
     {
-        using FileStream stream = Open(path);
-        return Convert.ToHexString(SHA256.HashData(stream));
+        try
+        {
+            using FileStream stream = Open(path);
+            return Convert.ToHexString(SHA256.HashData(stream));
+        }
+        catch (FileNotFoundException) { return "missing"; }
     }
 
     // The system messages of open failures name the full profile path, and load errors reach the dialog's text.
