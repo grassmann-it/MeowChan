@@ -66,6 +66,8 @@ internal static class BundledChangeDialogChecks
                 Require(store.Writes.Count == before, "Cancel mutated the profile.");
 
                 modal = await OpenAsync(owner, page);
+                Require(!Save(modal).IsEnabled && Changes(modal).IsChecked == false && Rights(modal).IsChecked == false,
+                    "Close/reopen revived the preceding row's consent.");
                 using (MediaNativeInput input = new(modal))
                 {
                     await ClickAsync(modal, input, Changes(modal));
@@ -74,6 +76,33 @@ internal static class BundledChangeDialogChecks
                 }
                 await ClosedAsync(page, modal);
                 Require(store.Writes.Count == before, "Escape after both consents mutated the profile.");
+
+                store.RemovedValues = true;
+                modal = await OpenAsync(owner, page);
+                using (MediaNativeInput input = new(modal))
+                {
+                    Require(Changes(modal).IsChecked == false && Rights(modal).IsChecked == false,
+                        "Escape/reopen revived consent.");
+                    await ClickAsync(modal, input, Changes(modal));
+                    await ClickAsync(modal, input, Rights(modal));
+                    await ClickAsync(modal, input, ById<Button>(modal, "BundledChangeReviewSchemaAcknowledgement:fixture"));
+                    RequireFreshChangeConsent(modal, store, before, "Removed-values acknowledgement");
+                    await ClickAsync(modal, input, Changes(modal));
+                    Require(Save(modal).IsEnabled, "Explicit reconfirmation after removed values did not enable Save.");
+                    CheckBox detachedChanges = Changes(modal);
+                    await ClickAsync(modal, input, ById<Button>(modal, "BundledApprovalReload"));
+                    await Program.WaitUntilAsync(() => ById<Button>(modal, "BundledApprovalReload").IsEnabled &&
+                        !ReferenceEquals(Changes(modal), detachedChanges));
+                    Require(Changes(modal).IsChecked == false && Rights(modal).IsChecked == false && !Save(modal).IsEnabled,
+                        "Refresh revived an old row's change/rights consent.");
+                    Require(ById<Button>(modal, "BundledChangeReviewSchemaAcknowledgement:fixture").IsEffectivelyVisible,
+                        "Refresh inherited removed-values acknowledgement.");
+                    Save(modal).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Require(store.Writes.Count == before, "Unconfirmed refreshed row dispatched a mutation.");
+                    await ClickAsync(modal, input, Close(modal));
+                }
+                await ClosedAsync(page, modal);
+                store.RemovedValues = false;
 
                 // An independently hashed but malformed payload must not create editable/actionable controls.
                 store.Malformed = true;
@@ -105,7 +134,17 @@ internal static class BundledChangeDialogChecks
                 {
                     await ClickAsync(modal, input, Changes(modal));
                     await ClickAsync(modal, input, Rights(modal));
+                    await PluginNativeRepairHelper.ReplaceTextAsync(modal, input, label, "valid edited label");
+                    RequireFreshChangeConsent(modal, store, before, "Valid plugin edit");
+                    await ClickAsync(modal, input, Changes(modal));
+                    Require(Save(modal).IsEnabled, "Explicit consent after valid plugin edit did not enable Save.");
+                    await PluginNativeRepairHelper.ReplaceTextAsync(modal, input, limit, "11");
+                    RequireFreshChangeConsent(modal, store, before, "Valid source edit");
+                    await ClickAsync(modal, input, Changes(modal));
+                    Require(Save(modal).IsEnabled, "Explicit consent after valid source edit did not enable Save.");
                     await PluginNativeRepairHelper.ReplaceTextAsync(modal, input, limit, "1.5");
+                    RequireFreshChangeConsent(modal, store, before, "Invalid source edit");
+                    await ClickAsync(modal, input, Changes(modal));
                     await ClickAsync(modal, input, Save(modal));
                     await Program.WaitUntilAsync(() => limit.IsFocused, () =>
                         "Invalid source integer must own native focus, not the first (valid) plugin editor; focused=" +
@@ -119,7 +158,19 @@ internal static class BundledChangeDialogChecks
                     Program.CaptureWindow(modal, "smoke-bundled-change-invalid-field-" + current + ".png");
                     // Correct the very same controls in the very same owned modal, not a settings-page detour.
                     await PluginNativeRepairHelper.ReplaceTextAsync(modal, input, limit, "23");
+                    RequireFreshChangeConsent(modal, store, before, "Source correction after rejected Save");
+                    await ClickAsync(modal, input, Changes(modal));
+                    await PluginNativeRepairHelper.ReplaceTextAsync(modal, input, label, " ");
+                    RequireFreshChangeConsent(modal, store, before, "Invalid required plugin edit");
+                    await ClickAsync(modal, input, Changes(modal));
+                    await ClickAsync(modal, input, Save(modal));
+                    await Program.WaitUntilAsync(() => label.IsFocused,
+                        () => "Invalid required plugin text must retain the native correction focus.");
+                    Require(store.Writes.Count == before && modal.IsVisible, "Invalid plugin configuration escaped validation.");
                     await PluginNativeRepairHelper.ReplaceTextAsync(modal, input, label, "corrected label ü");
+                    RequireFreshChangeConsent(modal, store, before, "Plugin correction after rejected Save");
+                    await ClickAsync(modal, input, Changes(modal));
+                    Require(Save(modal).IsEnabled, "Corrected configuration needs an effective new explicit acknowledgement.");
                     Require(ReferenceEquals(limit, source.FindField("limit")) && modal.IsVisible, "Correction replaced the modal/editor.");
                     VerifyReviewEvidence(modal, store);
                     Program.CaptureWindow(modal, "smoke-bundled-change-ready-" + current + ".png");
@@ -159,10 +210,21 @@ internal static class BundledChangeDialogChecks
                 Require(untouched.SequenceEqual(afterReview) && fixture.ForbiddenCalls == 0,
                     "Review mutated the underlying catalog or invoked plugin execution/network services.");
                 Console.WriteLine("PLUGIN_CHANGE_REVIEW " + JsonSerializer.Serialize(new { result = "pass", language = current,
-                    nativeOwnedModal = true, nativeConfigurationPaste = true, invalidSourceFocus = true, sameModalCorrection = true, exactChangeDispatch = true, pendingOnly = true }));
+                    nativeOwnedModal = true, nativeConfigurationPaste = true, invalidSourceFocus = true, sameModalCorrection = true,
+                    editConsentInvalidation = true, removedValuesConsentInvalidation = true, refreshConsentReset = true,
+                    exactChangeDispatch = true, pendingOnly = true }));
             }
         }
         finally { page.EndLifetime(); host.Content = previous; Texts.SetLanguage(language); }
+    }
+
+    private static void RequireFreshChangeConsent(Window modal, RecordingStore store, int before, string action)
+    {
+        Require(Changes(modal).IsChecked == false && !Save(modal).IsEnabled,
+            action + " retained the old configuration consent.");
+        Require(Rights(modal).IsChecked == true, action + " erased independent permission consent.");
+        Save(modal).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Require(store.Writes.Count == before, action + " allowed an unconfirmed routed Save.");
     }
 
     private static void VerifyReviewEvidence(Window modal, RecordingStore store)
@@ -207,6 +269,8 @@ internal static class BundledChangeDialogChecks
         internal long StartRevision { get; private set; }
         internal long Revision { get; private set; } = 940;
         internal bool Malformed { get; set; }
+        internal bool RemovedValues { get; set; }
+        private BundledCandidateRepair RemovedValuesRow { get; }
         internal Func<bool>? Admit { get; set; }
         private bool _saved;
         private PluginReleaseSnapshot? _pending;
@@ -235,8 +299,24 @@ internal static class BundledChangeDialogChecks
             string json = Encoding.UTF8.GetString(SdkJson.Serialize(Review));
             ValidRow = new("fixture", "old-fixture", "new-fixture", "fixture-slot", "/fixture/old", "/fixture/new", "old-execution", "new-execution", true, "description-changed")
             { ChangeReviewJson = json, ChangeFingerprint = Hash(json) };
+            var removedReview = Review with
+            {
+                PreviousDescription = old with
+                {
+                    Settings = plugin with { Fields = plugin.Fields.Append(new SettingDefinition("removed-plugin", SettingScope.Plugin, SettingKind.Text, "Removed plugin value")).ToArray() },
+                    Sources = [previousSource with { Settings = source with { Fields = source.Fields.Append(new SettingDefinition("removed-source", SettingScope.Source, SettingKind.Text, "Removed source value")).ToArray() } }]
+                },
+                PreviousConfiguration = configuration with
+                {
+                    PluginSettings = new("1", configuration.PluginSettings.Values.Append(new SettingValue("removed-plugin", SettingKind.Text, Text: "historical plugin value")).ToArray()),
+                    SourceSettings = new Dictionary<string, SettingsSnapshot> { ["review-source"] = new("1",
+                        configuration.SourceSettings["review-source"].Values.Append(new SettingValue("removed-source", SettingKind.Text, Text: "historical source value")).ToArray()) }
+                }
+            };
+            string removedJson = Encoding.UTF8.GetString(SdkJson.Serialize(removedReview));
+            RemovedValuesRow = ValidRow with { ChangeReviewJson = removedJson, ChangeFingerprint = Hash(removedJson) };
         }
-        internal void Reset() { _saved = false; _pending = null; Malformed = false; StartRevision = Revision; }
+        internal void Reset() { _saved = false; _pending = null; Malformed = RemovedValues = false; StartRevision = Revision; }
         private static string Hash(string value) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
         public event Action<PluginLifecycleChange>? LifecycleChanged { add { } remove { } }
         public event Action<PluginGrantChange>? GrantChanged { add { } remove { } }
@@ -248,7 +328,8 @@ internal static class BundledChangeDialogChecks
         }
         public Task<BundledCandidateRepairPreview> PreviewBundledRepairsAsync(CancellationToken cancellationToken = default)
         {
-            var row = Malformed ? ValidRow with { ChangeReviewJson = "{", ChangeFingerprint = Hash("{") } : ValidRow;
+            var row = Malformed ? ValidRow with { ChangeReviewJson = "{", ChangeFingerprint = Hash("{") } :
+                RemovedValues ? RemovedValuesRow : ValidRow;
             return Task.FromResult(new BundledCandidateRepairPreview(Revision, _saved ? [] : [row]));
         }
         public Task<BundledCandidateReselectionPreview> PreviewBundledReselectionsAsync(CancellationToken cancellationToken = default) =>

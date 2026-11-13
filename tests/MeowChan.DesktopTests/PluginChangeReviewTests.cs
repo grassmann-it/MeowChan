@@ -149,6 +149,132 @@ public sealed class PluginChangeReviewTests
         Assert.Contains(errors, error => error.Scope == "source" && error.Error.Code == "removed_setting");
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ChangeConsentIsInvalidatedByValidPluginOrSourceEditEvenWhenValueIsRestored(bool sourceScope)
+    {
+        BundledPluginChangeDraft draft = new(ScopedSettingsReview());
+        BundledPluginChangeConsent consent = new(draft);
+        consent.AcknowledgeRemovedValues();
+        Assert.False(consent.IsAcknowledged); // Removing values does not itself confirm configuration.
+        consent.SetAcknowledged(true);
+        int invalidations = 0;
+        consent.Invalidated += () => invalidations++;
+        PluginSettingsDraft editor = sourceScope ? draft.Sources["source"] : draft.Plugin;
+        string key = sourceScope ? "limit" : "label";
+        string original = editor.Text(key);
+        editor.Set(key, sourceScope ? "19" : "reviewed later · λ");
+        _ = draft.Configuration(out var errors);
+        Assert.Empty(errors);
+        Assert.False(consent.IsAcknowledged);
+        Assert.Equal(1, invalidations);
+
+        editor.Set(key, original);
+        Assert.False(consent.IsAcknowledged); // Undoing the edit is not explicit consent either.
+        consent.SetAcknowledged(true);
+        Assert.True(consent.IsAcknowledged);
+        editor.Set(key, original); // Identical editor notifications do not create a new edit.
+        Assert.True(consent.IsAcknowledged);
+        Assert.Equal(1, invalidations);
+        consent.SetAcknowledged(false);
+        Assert.False(consent.IsAcknowledged);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InvalidConfigurationCorrectionNeedsNewExplicitChangeConsent(bool sourceScope)
+    {
+        var review = ScopedSettingsReview();
+        if (!sourceScope)
+        {
+            // Make the plugin editor numeric too, so both scope paths test invalid raw input.
+            var numeric = new SettingsSchema("2", [new("label", SettingScope.Plugin, SettingKind.Integer, "Label", IsRequired: true, Minimum: 1)]);
+            review = review with { NewDescription = review.NewDescription with { Settings = numeric } };
+        }
+        BundledPluginChangeDraft draft = new(review);
+        BundledPluginChangeConsent consent = new(draft);
+        consent.AcknowledgeRemovedValues();
+        PluginSettingsDraft editor = sourceScope ? draft.Sources["source"] : draft.Plugin;
+        string key = sourceScope ? "limit" : "label";
+        editor.Set(key, "not an integer");
+        consent.SetAcknowledged(true);
+        _ = draft.Configuration(out var invalidErrors); // Same rejection as the dialog's Save path.
+        Assert.NotEmpty(invalidErrors);
+        Assert.True(consent.IsAcknowledged); // Validation alone cannot provide a new consent.
+
+        editor.Set(key, "31");
+        var corrected = draft.Configuration(out var errors);
+        Assert.Empty(errors);
+        Assert.False(consent.IsAcknowledged);
+        consent.SetAcknowledged(true);
+        Assert.True(consent.IsAcknowledged);
+        Assert.Equal(31L, Assert.Single(sourceScope ? corrected.SourceSettings["source"].Values : corrected.PluginSettings.Values).Integer);
+    }
+
+    [Theory]
+    [InlineData("plugin")]
+    [InlineData("source")]
+    [InlineData("removed-source")]
+    public void RemovingHistoricalValuesInvalidatesChangeConsentAndRequiresSeparateReconfirmation(string scope)
+    {
+        var review = ScopedSettingsReview();
+        // Keep exactly the selected removed-values case, including a source without an editor.
+        var sources = new Dictionary<string, SettingsSnapshot>
+        {
+            ["source"] = new("1", scope == "source" ? review.PreviousConfiguration.SourceSettings["source"].Values :
+                [new("limit", SettingKind.Integer, Integer: 7)])
+        };
+        if (scope == "removed-source") sources["historical-source"] = new("1", [new("old", SettingKind.Text, Text: "historical")]);
+        var pluginValues = review.PreviousConfiguration.PluginSettings.Values.ToList();
+        if (scope == "plugin") pluginValues.Add(new("removed", SettingKind.Text, Text: "historical"));
+        review = review with { PreviousConfiguration = new("old", new("1", pluginValues), sources) };
+        BundledPluginChangeDraft draft = new(review);
+        BundledPluginChangeConsent consent = new(draft);
+        consent.SetAcknowledged(true);
+        _ = draft.Configuration(out var beforeErrors);
+        Assert.NotEmpty(beforeErrors);
+        Assert.True(draft.NeedsRemovedValueAcknowledgement);
+
+        consent.AcknowledgeRemovedValues();
+        Assert.False(consent.IsAcknowledged);
+        Assert.False(draft.NeedsRemovedValueAcknowledgement);
+        var configuration = draft.Configuration(out var errors);
+        Assert.Empty(errors);
+        Assert.DoesNotContain(configuration.PluginSettings.Values, value => value.Key == "removed");
+        Assert.DoesNotContain(configuration.SourceSettings["source"].Values, value => value.Key == "removed");
+        Assert.False(configuration.SourceSettings.ContainsKey("historical-source"));
+        consent.SetAcknowledged(true);
+        Assert.True(consent.IsAcknowledged);
+    }
+
+    [Fact]
+    public void RecreatedRowConsentDoesNotInheritAcknowledgementOrRespondToDetachedDraftEdits()
+    {
+        var review = ScopedSettingsReview();
+        BundledPluginChangeDraft oldDraft = new(review);
+        BundledPluginChangeConsent oldConsent = new(oldDraft);
+        oldConsent.AcknowledgeRemovedValues();
+        oldConsent.SetAcknowledged(true);
+        // RenderRows (refresh) and a new modal (close/reopen) both create fresh row-local state.
+        for (int render = 0; render < 2; render++)
+        {
+            BundledPluginChangeDraft freshDraft = new(review);
+            BundledPluginChangeConsent freshConsent = new(freshDraft);
+            Assert.False(freshConsent.IsAcknowledged);
+            freshConsent.AcknowledgeRemovedValues();
+            Assert.False(freshConsent.IsAcknowledged);
+            oldDraft.Plugin.Set("label", "detached " + render);
+            oldConsent.SetAcknowledged(true);
+            Assert.False(freshConsent.IsAcknowledged);
+            freshConsent.SetAcknowledged(true);
+            freshDraft.Sources["source"].Set("limit", "37");
+            Assert.False(freshConsent.IsAcknowledged);
+            Assert.True(oldConsent.IsAcknowledged);
+        }
+    }
+
     private static BundledPluginChangeReview ScopedSettingsReview()
     {
         SourceDescription source = new("source", "Offline review source", new Uri("https://review.test/"),

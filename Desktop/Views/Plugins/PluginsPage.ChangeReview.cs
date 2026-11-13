@@ -162,6 +162,7 @@ public partial class PluginsPage
         Grid.SetColumn(((Grid)content.Children[^1]).Children[1], 1);
 
         BundledPluginChangeDraft draft = new(review);
+        BundledPluginChangeConsent consent = new(draft);
         StackPanel settingsPanel = new() { Spacing = 6 };
         StackPanel editorPanel = new() { Spacing = 8 };
         Dictionary<PluginSettingsEditor, string> editors = new();
@@ -187,7 +188,7 @@ public partial class PluginsPage
         }
         void AcknowledgeRemoved(object? sender, Avalonia.Interactivity.RoutedEventArgs args)
         {
-            draft.AcknowledgeRemovedValues();
+            consent.AcknowledgeRemovedValues();
             RenderEditors();
         }
         void AddReviewEditor(StackPanel host, string title, string scope, PluginSettingsDraft settings)
@@ -247,14 +248,25 @@ public partial class PluginsPage
         AutomationProperties.SetName(save, PluginChangeReviewCatalog.T("plugins.changeReview.save"));
         void UpdateSave()
         {
-            save.IsEnabled = !saving() && coherent() && approval.MayOffer(row.PluginId) && changes.IsChecked == true &&
+            save.IsEnabled = !saving() && coherent() && approval.MayOffer(row.PluginId) && consent.IsAcknowledged && changes.IsChecked == true &&
                 (!hasRights || rights?.IsChecked == true);
             updateSubmit();
         }
-        changes.IsCheckedChanged += (_, _) => UpdateSave();
+        consent.Invalidated += () =>
+        {
+            changes.IsChecked = false;
+            UpdateSave();
+        };
+        changes.IsCheckedChanged += (_, _) =>
+        {
+            consent.SetAcknowledged(changes.IsChecked == true);
+            UpdateSave();
+        };
         if (rights is not null) rights.IsCheckedChanged += (_, _) => UpdateSave();
         save.Click += async (_, _) =>
         {
+            // Recheck current consent and the existing admission guards even for a routed click.
+            UpdateSave();
             if (!save.IsEnabled) return;
             PluginConfiguration configuration = draft.Configuration(out IReadOnlyList<PluginConfigurationFieldError> errors);
             foreach ((PluginSettingsEditor editor, string scope) in editors)
