@@ -96,6 +96,16 @@ class PrivateAudioTests(MockOnlyTestCase):
             self.assertIn('unix:'+str(Path(tmp)/'runtime/pulse/native'), pulse)
 
 
+    def test_socket_parent_exists_before_either_backend_starts(self):
+        for backend in (audio.BACKEND_PULSEAUDIO, audio.BACKEND_PIPEWIRE):
+            with self.subTest(backend=backend), tempfile.TemporaryDirectory() as tmp:
+                env = audio.environment(Path(tmp), backend)
+                parent = Path(env['PULSE_SOCKET']).parent
+                self.assertEqual(parent, Path(tmp)/'runtime/pulse')
+                self.assertTrue(parent.is_dir())
+                self.assertFalse(parent.is_symlink())
+                self.assertEqual(parent.stat().st_mode & 0o777, 0o700)
+
     def check_proof(self, sinks=None, modules=None, sources=None, cards=None, default=None, short_modules=None):
         values = [sinks if sinks is not None else [
                       {'name': audio.SINK, 'mute': True, 'owner_module': 1,

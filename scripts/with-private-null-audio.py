@@ -77,6 +77,8 @@ def environment(base, backend=BACKEND_PULSEAUDIO):
                PULSE_RUNTIME_PATH=str(base/'runtime/pulse'),
                PULSE_COOKIE=str(base/'config/pulse/cookie'), PULSE_SINK=SINK,
                ALSA_CONFIG_PATH=str(base/'config/alsa-null.conf'))
+    # The explicit PipeWire-Pulse socket address does not create its parent.
+    (base/'runtime/pulse').mkdir(mode=0o700)
     config = base/'config'
     (config/'alsa-null.conf').write_text('pcm.!default { type null }\nctl.!default { type null }\n')
     (config/'pulse').mkdir(mode=0o700)
