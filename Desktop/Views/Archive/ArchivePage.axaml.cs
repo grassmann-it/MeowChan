@@ -332,8 +332,8 @@ public partial class ArchivePage : UserControl
         _retainedMediaPosition = CaptureMediaPosition();
         _mediaProjectionPending = true;
         _selectedThread = id;
-        CloseThreadFind();
         _mediaMenuPresenter.Invalidate();
+        CloseThreadFind();
         _thread = null;
         _assets = Array.Empty<ArchiveAssetRow>();
         _busy = true;

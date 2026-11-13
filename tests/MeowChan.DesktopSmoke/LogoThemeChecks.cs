@@ -272,6 +272,7 @@ internal static class LogoThemeChecks
     {
         string mode = window.SessionHost.Config.WorkspaceMode;
         Size original = window.Bounds.Size;
+        Exception? failureBeforeCleanup = null;
         try
         {
             foreach (var (workspace, width, height) in new[] { ("Barebones", 640, 480), ("Simple", 760, 500) })
@@ -289,12 +290,16 @@ internal static class LogoThemeChecks
                 }
             }
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            await PresentationChecks.SwitchModeAsync(window, mode);
-            window.Width = original.Width; window.Height = original.Height;
-            await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - original.Width) <= 1);
-            if (window.ActualThemeVariant != ThemeVariant.Light) await ToggleAsync(window, toggle, ThemeVariant.Light);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                await PresentationChecks.SwitchModeAsync(window, mode);
+                window.Width = original.Width; window.Height = original.Height;
+                await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - original.Width) <= 1);
+                if (window.ActualThemeVariant != ThemeVariant.Light) await ToggleAsync(window, toggle, ThemeVariant.Light);
+            }, ex => Console.Error.WriteLine("SMOKE logo narrow-header cleanup failed: " + ex));
         }
     }
 

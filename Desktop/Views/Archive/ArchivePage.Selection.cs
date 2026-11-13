@@ -142,8 +142,8 @@ public partial class ArchivePage
         CancelReferences();
         CancelInlineReplies();
         ClosePreview();
-        CloseThreadFind();
         _mediaMenuPresenter.Invalidate();
+        CloseThreadFind();
         _thread = null;
         _selectedThread = null;
         _assets = Array.Empty<ArchiveAssetRow>();
