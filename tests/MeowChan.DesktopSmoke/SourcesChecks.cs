@@ -4,6 +4,7 @@ using Avalonia.Controls.Notifications;
 using Avalonia.VisualTree;
 using Avalonia.Interactivity;
 using Avalonia.Input;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
@@ -155,6 +156,7 @@ internal static class SourcesChecks
                     page.FindControl<ScrollViewer>("SourcesScroll")!.ScrollToHome();
                     await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                     Program.CaptureWindow(window, $"smoke-sources-{mode.ToLowerInvariant()}-{language}.png");
+                    if (mode == "Simple") await CaptureBothThemesAsync(window, $"smoke-sources-{mode.ToLowerInvariant()}-{language}");
                     page.FindControl<Button>("SourceRulesButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     Require(editedSource == "4chan", "Source rules targeted a display label instead of canonical source identity.");
                     page.FindControl<Button>("SourceAddButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -173,6 +175,7 @@ internal static class SourcesChecks
                     openWatch.BringIntoView();
                     await Program.WaitUntilAsync(() => Fits(window, openWatch));
                     Program.CaptureWindow(window, $"smoke-sources-details-{mode.ToLowerInvariant()}-{language}.png");
+                    if (mode == "Simple") await CaptureBothThemesAsync(window, $"smoke-sources-details-{mode.ToLowerInvariant()}-{language}");
                     page.Refresh(providers, view with { Threads = [] }, true);
                     Require(!page.FindControl<Button>("SourceOpenWatchButton")!.IsEnabled, "Removed watch left navigation enabled.");
                     Require(page.FindControl<TextBox>("SourceUrlInput")!.Text == submitted, "Refresh lost the retained URL draft.");
@@ -200,6 +203,7 @@ internal static class SourcesChecks
                 && page.FindControl<TextBlock>("SourceCaptureAvailability")!.Text == Texts.T("sources.captureUnavailable")
                 && page.FindControl<TextBlock>("SourceVersion")!.Text!.Contains("fixture-version"),
                 "Thread-only provider selection or optional descriptor details were lost after refresh.");
+            await CaptureWideAsync(window, page, providers, view, targetWidth);
             if (page.Bounds.Width >= 886)
             {
                 // Opening details retained _showDetails; shrinking must move focus out of the hidden list.
@@ -238,6 +242,56 @@ internal static class SourcesChecks
             window.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         }
         Console.WriteLine("SMOKE sources: passive capabilities, current cooldowns, exact watch actions, shared admission drafts and compact EN/DE views passed.");
+    }
+    // Light and dark captures of the same state; the page itself has no theme-specific logic, so this is evidence only.
+    private static async Task CaptureBothThemesAsync(MainWindow window, string name)
+    {
+        ThemeVariant? original = Application.Current!.RequestedThemeVariant;
+        try
+        {
+            foreach ((ThemeVariant variant, string suffix) in new[] { (ThemeVariant.Dark, "dark"), (ThemeVariant.Light, "light") })
+            {
+                Application.Current.RequestedThemeVariant = variant;
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                await Program.WaitUntilAsync(() => window.ActualThemeVariant == variant);
+                Program.CaptureWindow(window, $"{name}-{suffix}.png");
+            }
+        }
+        finally
+        {
+            Application.Current!.RequestedThemeVariant = original;
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        }
+    }
+
+    // The wide two-pane layout (1440 x 920 where the screen allows it) in both themes and both languages, then the former size again.
+    private static async Task CaptureWideAsync(MainWindow window, SourcesPage page, ProviderDescriptor[] providers,
+        DesktopSessionView view, double restoreWidth)
+    {
+        double restoreHeight = window.Height;
+        string language = Texts.Language;
+        try
+        {
+            window.Width = 1440; window.Height = 920;
+            await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - 1440) <= 1 && Math.Abs(window.Bounds.Height - 920) <= 1);
+            foreach (string wideLanguage in new[] { "en", "de" })
+            {
+                Texts.SetLanguage(wideLanguage);
+                page.Refresh(providers, view, true);
+                ((Button)page.FindControl<StackPanel>("SourceCards")!.Children[0]).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                page.FindControl<ScrollViewer>("SourcesScroll")!.ScrollToHome();
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                await CaptureBothThemesAsync(window, $"smoke-sources-wide-{wideLanguage}");
+            }
+        }
+        finally
+        {
+            Texts.SetLanguage(language);
+            window.Width = restoreWidth; window.Height = restoreHeight;
+            await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - restoreWidth) <= 1);
+            page.Refresh(providers, view, true);
+            page.SelectSource("thread-only");
+        }
     }
     private static async Task CheckSubmitFocusAsync(ContentControl host,
         ProviderDescriptor[] providers, DesktopSessionView view)
