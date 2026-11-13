@@ -308,11 +308,18 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                                 .Append(new AcceptedSdkUpgrade(pluginId, release.ExecutionRevision)).ToArray() };
                     }
                 }
-                plugins.Add(next);
+                // The activation attempt above clears Active and advances the lifecycle fence so that a
+                // blocked or failed start never keeps presenting a stale active build. When the attempt
+                // ends exactly where it began, nothing changed: keep the persisted entry (and its fence)
+                // so a clean start on an unchanged profile writes nothing.
+                plugins.Add(SameExceptRevision(old, next) ? old : next);
             }
             return document with { Profile = state with { Plugins = plugins } };
         }, cancellationToken);
     }
+
+    private static bool SameExceptRevision(PluginActivationSnapshot old, PluginActivationSnapshot next) =>
+        SdkJson.Serialize(old).AsSpan().SequenceEqual(SdkJson.Serialize(next with { LifecycleRevision = old.LifecycleRevision }));
 
     private async Task<PluginProfileSnapshot> MutateStartupDocumentAsync(long expectedRevision,
         Func<BundledProfileDocument, Task<BundledProfileDocument>> update, CancellationToken cancellationToken)
@@ -320,7 +327,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         // Same lock order as explicit reselection: live source permissions, then
         // profile writer lease. Never inherit a permission added during async IO.
         if (repairPermissionGate is not null) await repairPermissionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try { return await MutateDocumentAsync(expectedRevision, update, cancellationToken).ConfigureAwait(false); }
+        try { return await MutateDocumentAsync(expectedRevision, update, cancellationToken, skipWriteWhenUnchanged: true).ConfigureAwait(false); }
         finally { repairPermissionGate?.Release(); }
     }
 
@@ -539,7 +546,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
 
     private async Task<PluginProfileSnapshot> MutateDocumentAsync(long expectedRevision,
         Func<BundledProfileDocument, Task<BundledProfileDocument>> update, CancellationToken cancellationToken,
-        bool preserveReselectionBackup = false)
+        bool preserveReselectionBackup = false, bool skipWriteWhenUnchanged = false)
     {
         Directory.CreateDirectory(directory);
         await using FileStream lease = await AcquireLockAsync(cancellationToken).ConfigureAwait(false);
@@ -550,6 +557,12 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         PluginProfileSnapshot state = document.Profile;
         if (state.Revision != expectedRevision) throw new PluginProfileConflictException(expectedRevision, state.Revision);
         BundledProfileDocument updated = await update(document).ConfigureAwait(false);
+        // A startup observation that changes nothing must not advance the profile revision or
+        // rewrite the file; an existing profile stays byte-identical across clean starts.
+        // A v1 document is never skipped: every startup still carries it through the writer
+        // (pre-v2 backup policy and migration), exactly as before.
+        if (skipWriteWhenUnchanged && original is not null && originalVersion != FormatVersion && !preserveReselectionBackup &&
+            SdkJson.Serialize(document).AsSpan().SequenceEqual(SdkJson.Serialize(updated))) return Clone(state);
         if (preserveReselectionBackup && original is not null)
             updated = updated with { ReselectionBackupSha256 = document.ReselectionBackupSha256
                 ?? Convert.ToHexStringLower(SHA256.HashData(original)) };
