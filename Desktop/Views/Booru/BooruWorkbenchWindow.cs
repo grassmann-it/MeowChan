@@ -59,6 +59,9 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     internal const string WatcherOpenPrefix = "BooruWatcherOpen:";
     internal const string WatcherCopyPrefix = "BooruWatcherCopy:";
     internal const string LinkNoteName = "BooruLinkNote";
+    internal const string InputIssueName = "BooruInputIssue";
+    internal const string NoticeName = "BooruNotice";
+    internal const string WatcherNoticeName = "BooruWatcherNotice";
 
     private const int PreviewSize = 112;
     private const int MaximumTagsShown = 24;
@@ -83,6 +86,8 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     private readonly Button _cancel = new() { Name = CancelName };
     private readonly SelectableTextBlock _queryLine = new() { Name = QueryName, Classes = { "workspace-meta", "mono" } };
     private readonly TextBlock _queryHint = new() { Classes = { "workspace-help" } };
+    // Why the field is not accepted, shown under it: the red border alone is colour only.
+    private readonly TextBlock _inputIssue = new() { Name = InputIssueName, Classes = { "workspace-error" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly Border _statusHost = new() { Name = StatusName };
     private readonly TextBlock _statusText = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Button _retry = new() { Name = RetryName };
@@ -94,13 +99,13 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     private readonly Button _createWatcher = new() { Name = CreateWatcherName, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly TextBlock _createHint = new() { Classes = { "workspace-help" } };
     private readonly Border _noticeHost = new();
-    private readonly TextBlock _noticeText = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _noticeText = new() { Name = NoticeName, TextWrapping = TextWrapping.Wrap };
     private readonly StackPanel _results = new() { Name = ResultsName, Spacing = 8 };
     private readonly TextBlock _watchersIntro = new() { Classes = { "workspace-help" } };
     private readonly Border _removeNoteHost = new() { Name = RemoveNoteName, Classes = { "workspace-status" } };
     private readonly TextBlock _removeNote = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Border _watcherNoticeHost = new();
-    private readonly TextBlock _watcherNoticeText = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _watcherNoticeText = new() { Name = WatcherNoticeName, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _watchersState = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Button _watchersReload = new();
     private readonly StackPanel _watchers = new() { Name = WatchersName, Spacing = 8 };
@@ -110,6 +115,12 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
 
     private (string Key, string Argument, bool Problem)? _linkNoteState;
     private string? _resultsKey;
+    // The cards are rebuilt on every change; their newest state is repeated in the persistent notice lines (live regions).
+    private readonly BooruLiveMirror<(BooruRowLoad, string?)?> _loadMirror = new();
+    private readonly BooruLiveMirror<BooruNotice> _watcherMirror = new(ReferenceEqualityComparer.Instance);
+    private string? _confirmingId;
+    // A focused control that a running command disabled; focus returns to it once it is enabled again.
+    private (Panel Panel, string Name, int Card)? _pendingFocus;
     private string? _watchersKey;
     private bool _paused;
     private string _cooling = string.Empty;
@@ -256,6 +267,8 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
 
         StackPanel tab = new() { Spacing = 12, Margin = new Thickness(0, 12, 0, 0) };
         tab.Children.Add(inputRow);
+        AutomationProperties.SetLiveSetting(_inputIssue, AutomationLiveSetting.Polite);
+        tab.Children.Add(_inputIssue);
         tab.Children.Add(_queryLine);
         tab.Children.Add(_queryHint);
         tab.Children.Add(watcherRow);
@@ -331,7 +344,11 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         if (e.Key == Key.Escape && !(_mode.IsDropDownOpen))
         {
             e.Handled = true;
-            Close();
+            // An open removal question is answered "Cancel" first; only then does Escape close the window.
+            if (ReferenceEquals(_tabs.SelectedItem, _watchersTab)
+                && _model.Watchers.View.Rows.FirstOrDefault(row => row.ConfirmingRemoval) is { } asking)
+                _model.Watchers.CancelRemoval(asking.WatcherId);
+            else Close();
         }
     }
 
@@ -388,10 +405,18 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         AutomationProperties.SetName(_input, Texts.T("booru.ui.input.label"));
         bool invalid = view.Parsed.Kind == BooruInputKind.Invalid;
         _input.Classes.Set("workspace-invalid", invalid);
-        AutomationProperties.SetHelpText(_input, invalid ? BooruText.Issue(view.Parsed.Issue) : string.Empty);
+        string issue = invalid ? BooruText.Issue(view.Parsed.Issue) : string.Empty;
+        AutomationProperties.SetHelpText(_input, issue);
+        _inputIssue.Text = issue;
+        _inputIssue.IsVisible = invalid;
 
         _submit.Content = Texts.T(view.Mode == BooruInputMode.Post ? "booru.ui.lookup" : "booru.ui.search");
         _submit.IsEnabled = model.CanSubmit;
+        // A disabled Search names its reason (the input issue or the provider pause) to the mouse and to assistive technology.
+        string? submitWhy = model.CanSubmit ? null : invalid ? issue : paused ? BooruText.SearchStatus(view, paused) : null;
+        ToolTip.SetTip(_submit, submitWhy);
+        ToolTip.SetShowOnDisabled(_submit, true);
+        AutomationProperties.SetHelpText(_submit, submitWhy ?? string.Empty);
         _cancel.Content = Texts.T("booru.ui.cancel");
         _cancel.IsVisible = view.IsBusy;
 
@@ -414,16 +439,31 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         AutomationProperties.SetHelpText(_createWatcher, _createWatcher.IsEnabled ? _createHint.Text : Texts.T("booru.ui.watcher.createNeedsTags"));
         ToolTip.SetTip(_createWatcher, _createWatcher.IsEnabled ? _createHint.Text : Texts.T("booru.ui.watcher.createNeedsTags"));
 
-        if (view.Notice is { } notice)
+        _loadMirror.Update(view.Rows.Select(row => (row.Post.PostId,
+            row.Load == BooruRowLoad.Idle ? default((BooruRowLoad, string?)?) : (row.Load, row.LoadCode))), view.Notice);
+        if (_loadMirror.RowId is { } mirrored && view.Rows.FirstOrDefault(row => row.Post.PostId == mirrored) is { } loadRow
+            && BooruText.Load(loadRow) is { } loadText)
         {
-            _noticeText.Text = BooruText.Notice(notice);
-            ApplyTone(_noticeHost, notice.Kind);
+            _noticeText.Text = Texts.T("booru.ui.post.title", loadRow.Post.PostId) + ": " + loadText;
+            ApplyTone(_noticeHost, LoadTone(loadRow.Load));
+            _noticeHost.IsVisible = true;
         }
-        _noticeHost.IsVisible = view.Notice is not null;
+        else
+        {
+            if (view.Notice is { } notice)
+            {
+                _noticeText.Text = BooruText.Notice(notice);
+                ApplyTone(_noticeHost, notice.Kind);
+            }
+            _noticeHost.IsVisible = view.Notice is not null;
+        }
 
+        // Errors interrupt (as the dialog error strips do); progress and limits wait their turn.
+        BooruNoticeKind tone = ToneOf(view.Status);
+        AutomationProperties.SetLiveSetting(_statusText, tone == BooruNoticeKind.Error ? AutomationLiveSetting.Assertive : AutomationLiveSetting.Polite);
         _statusText.Text = BooruText.SearchStatus(view, paused);
         _statusHost.IsVisible = true;
-        ApplyTone(_statusHost, ToneOf(view.Status));
+        ApplyTone(_statusHost, tone);
         _retry.Content = Texts.T("booru.ui.status.retry");
         _retry.IsVisible = view.Status is BooruSearchStatus.Offline or BooruSearchStatus.Failed;
         _retry.IsEnabled = !paused;
@@ -443,7 +483,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         if (force || key != _resultsKey)
         {
             _resultsKey = key;
-            RebuildPanel(_results, () => view.Rows.Select(CreateResultCard).ToList());
+            RebuildPanel(_results, () => view.Rows.Select(CreateResultCard).ToList(), fallback: () => null);
             PruneBitmaps(view.Rows);
         }
     }
@@ -453,12 +493,26 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         BooruWatcherListModel model = _model.Watchers;
         _watchersIntro.Text = Texts.T("booru.ui.watchers.intro");
         _removeNote.Text = Texts.T("booru.ui.watchers.removeNote");
-        if (view.Notice is { } notice)
+        _watcherMirror.Update(view.Rows.Select(row => (row.WatcherId, row.Message)), view.Notice);
+        if (_watcherMirror.RowId is { } mirrored && view.Rows.FirstOrDefault(row => row.WatcherId == mirrored) is { } messageRow)
         {
-            _watcherNoticeText.Text = BooruText.Notice(notice);
-            ApplyTone(_watcherNoticeHost, notice.Kind);
+            // While the row's next command runs it has no message; the line keeps the previous one instead of flashing.
+            if (messageRow.Message is { } message)
+            {
+                _watcherNoticeText.Text = messageRow.Watcher.Query + ": " + BooruText.Notice(message);
+                ApplyTone(_watcherNoticeHost, message.Kind);
+            }
+            _watcherNoticeHost.IsVisible = true;
         }
-        _watcherNoticeHost.IsVisible = view.Notice is not null;
+        else
+        {
+            if (view.Notice is { } notice)
+            {
+                _watcherNoticeText.Text = BooruText.Notice(notice);
+                ApplyTone(_watcherNoticeHost, notice.Kind);
+            }
+            _watcherNoticeHost.IsVisible = view.Notice is not null;
+        }
         if (view.Storage is { NearLimit: true } storage)
         {
             _storageText.Text = Texts.T("booru.ui.watchers.catalogSize", Size(storage.DocumentBytes), Size(storage.LimitBytes),
@@ -482,29 +536,83 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         string key = string.Join('\n', Texts.Language, _cooling, string.Join('|', view.Rows.Select(row => string.Join(',',
             row.WatcherId, row.Watcher, row.Busy, row.ConfirmingRemoval, row.Message?.Key, row.Message is { } message
                 ? string.Join(',', message.Args.Select(arg => arg?.ToString())) : string.Empty))));
+        // Opening the removal question moves focus to its safe answer; closing it returns focus to "Remove".
+        string? confirming = view.Rows.FirstOrDefault(row => row.ConfirmingRemoval)?.WatcherId;
+        string? moveTo = null;
+        if (!string.Equals(confirming, _confirmingId, StringComparison.Ordinal))
+        {
+            moveTo = confirming is not null ? RemoveCancelPrefix + confirming : RemovePrefix + _confirmingId;
+            _confirmingId = confirming;
+        }
         if (force || key != _watchersKey)
         {
             _watchersKey = key;
-            RebuildPanel(_watchers, () => view.Rows.Select(CreateWatcherCard).ToList());
+            RebuildPanel(_watchers, () => view.Rows.Select(CreateWatcherCard).ToList(), moveTo, () => _watchersTab, waitWhileDisabled: true);
         }
     }
 
-    /// <summary>Replaces the children while keeping keyboard focus on the same named control when it survives.</summary>
-    private void RebuildPanel(Panel panel, Func<List<Control>> build)
+    /// <summary>
+    /// Replaces the children while keeping keyboard focus inside the panel when it was there: on <paramref name="moveTo"/>
+    /// when given, else on the same named control (or its pause/resume counterpart) when it survives enabled. A surviving but
+    /// disabled one is waited for when <paramref name="waitWhileDisabled"/> (a running command), otherwise, and when the
+    /// control is gone, focus goes to the first enabled button of the same card or its nearest neighbour, then to
+    /// <paramref name="fallback"/>. Without a fallback a vanished control leaves focus where the platform puts it.
+    /// </summary>
+    private void RebuildPanel(Panel panel, Func<List<Control>> build, string? moveTo = null, Func<Control?>? fallback = null,
+        bool waitWhileDisabled = false)
     {
-        string? focusedName = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is Control { Name: { } name }
-            && panel.GetVisualDescendants().Contains((Visual)TopLevel.GetTopLevel(this)!.FocusManager!.GetFocusedElement()!)
-            ? name : null;
+        Visual? focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Visual;
+        int card = -1;
+        if (focused is not null)
+            for (int index = 0; index < panel.Children.Count; index++)
+                if (ReferenceEquals(panel.Children[index], focused) || panel.Children[index].IsVisualAncestorOf(focused)) { card = index; break; }
+        string? focusedName = card >= 0 && focused is Control { Name: { } name } ? name : null;
+        if (_pendingFocus is { } pending && ReferenceEquals(pending.Panel, panel))
+        {
+            _pendingFocus = null;
+            // Focus that fell out of the window when its button was disabled comes back; focus the user moved elsewhere stays.
+            if (card < 0 && (focused is null || ReferenceEquals(focused, this))) { card = pending.Card; focusedName = pending.Name; }
+        }
         panel.Children.Clear();
         foreach (Control child in build()) panel.Children.Add(child);
-        if (focusedName is null) return;
+        if (card < 0) return;
         Dispatcher.UIThread.Post(() =>
         {
             if (_closed) return;
-            Control? same = panel.GetVisualDescendants().OfType<Control>().FirstOrDefault(control => control.Name == focusedName && control.IsEffectivelyEnabled);
-            same?.Focus(NavigationMethod.Tab);
+            Control? target = Enabled(panel, moveTo) ?? Enabled(panel, focusedName) ?? Enabled(panel, Counterpart(focusedName));
+            if (target is null && waitWhileDisabled && focusedName is not null
+                && panel.GetVisualDescendants().OfType<Control>().Any(control => control.Name == focusedName))
+            {
+                _pendingFocus = (panel, focusedName, card);
+                return;
+            }
+            if (target is null && fallback is not null)
+            {
+                if (panel.Children.Count > 0)
+                    target = panel.Children[Math.Min(card, panel.Children.Count - 1)].GetVisualDescendants().OfType<Button>()
+                        .FirstOrDefault(button => button.IsEffectivelyEnabled && button.IsEffectivelyVisible && button.Focusable);
+                target ??= fallback();
+            }
+            target?.Focus(NavigationMethod.Tab);
         }, DispatcherPriority.Loaded);
     }
+
+    private static Control? Enabled(Panel panel, string? name) => name is null ? null
+        : panel.GetVisualDescendants().OfType<Control>().FirstOrDefault(control => control.Name == name && control.IsEffectivelyEnabled);
+
+    private static string? Counterpart(string? name) =>
+        name is null ? null
+        : name.StartsWith(PausePrefix, StringComparison.Ordinal) ? ResumePrefix + name[PausePrefix.Length..]
+        : name.StartsWith(ResumePrefix, StringComparison.Ordinal) ? PausePrefix + name[ResumePrefix.Length..]
+        : null;
+
+    private static BooruNoticeKind LoadTone(BooruRowLoad load) => load switch
+    {
+        BooruRowLoad.Queued or BooruRowLoad.AlreadyQueued or BooruRowLoad.AlreadyLoaded => BooruNoticeKind.Success,
+        BooruRowLoad.Handing => BooruNoticeKind.Info,
+        BooruRowLoad.Failed => BooruNoticeKind.Error,
+        _ => BooruNoticeKind.Warning
+    };
 
     private static BooruNoticeKind ToneOf(BooruSearchStatus status) => status switch
     {
@@ -527,9 +635,9 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     private Control CreateResultCard(BooruResultRowView row)
     {
         BooruPostView post = row.Post;
+        // The title line names the card; the border itself carries no name, so "Post #n" is read once.
         Border card = new() { Name = "BooruResult:" + post.PostId };
         card.Classes.Add("workspace-section");
-        AutomationProperties.SetName(card, Texts.T("booru.ui.post.title", post.PostId));
 
         Grid grid = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 12 };
         grid.Children.Add(CreatePreview(row));
@@ -539,7 +647,8 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         if (post.PostUrl is { } url)
         {
             SelectableTextBlock link = new() { Text = url.ToString(), Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
-            AutomationProperties.SetName(link, Texts.T("booru.ui.post.urlLabel"));
+            // The address itself is what is read; "Post page" only describes it.
+            AutomationProperties.SetHelpText(link, Texts.T("booru.ui.post.urlLabel"));
             info.Children.Add(link);
         }
         if (BooruPostLinks.TryCanonical(post, out string canonical))
@@ -567,7 +676,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
                 BooruRowLoad.Failed => "workspace-error",
                 _ => "workspace-warning"
             });
-            AutomationProperties.SetLiveSetting(state, AutomationLiveSetting.Polite);
+            // Announced through the persistent notice line (_noticeText); this rebuilt line would stay silent.
             info.Children.Add(state);
         }
         Grid.SetColumn(info, 1);
@@ -581,6 +690,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         string? why = post.OriginalAccess != BooruOriginalAccess.Available ? BooruText.Original(post.OriginalAccess, withdrawn)
             : BooruText.Load(row);
         ToolTip.SetTip(load, why ?? loadName);
+        ToolTip.SetShowOnDisabled(load, true);
         if (why is not null) AutomationProperties.SetHelpText(load, why);
         load.Click += async (_, _) => await _model.Search.LoadOriginalAsync(post.PostId);
         Grid.SetColumn(load, 2);
@@ -658,8 +768,10 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         frame.Classes.Add("raised");
         if (row.Preview == BooruPreviewState.Ready && PreviewBitmap(row) is { } bitmap)
         {
-            frame.Child = new Image { Source = bitmap, Stretch = Stretch.Uniform };
-            AutomationProperties.SetName(frame, Texts.T("booru.ui.post.title", row.Post.PostId));
+            // Decorative next to the card's title line; not a second "Post #n".
+            Image image = new() { Source = bitmap, Stretch = Stretch.Uniform };
+            AutomationProperties.SetAccessibilityView(image, AccessibilityView.Raw);
+            frame.Child = image;
         }
         else
         {
@@ -669,11 +781,13 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
                 BooruPreviewState.None => "booru.ui.post.noPreview",
                 _ => "booru.ui.post.previewUnavailable"
             };
-            frame.Child = new TextBlock
+            TextBlock placeholder = new()
             {
-                Text = Texts.T(key), Classes = { "workspace-meta" }, TextAlignment = TextAlignment.Center,
+                Text = Texts.T(key), Classes = { "workspace-meta" }, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap,
                 HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6)
             };
+            AutomationProperties.SetAccessibilityView(placeholder, AccessibilityView.Raw);
+            frame.Child = placeholder;
         }
         return frame;
     }
@@ -782,9 +896,9 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         BooruWatcherListModel model = _model.Watchers;
         BooruWatcherView watcher = row.Watcher;
         DateTimeOffset? cooling = model.ActiveCooldown(watcher);
+        // The query line names the card; the border itself carries no name, so the query is read once.
         Border card = new() { Name = "BooruWatcher:" + watcher.WatcherId };
         card.Classes.Add("workspace-section");
-        AutomationProperties.SetName(card, watcher.Query);
         StackPanel panel = new() { Spacing = 6 };
 
         Grid head = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
@@ -841,7 +955,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
                 BooruNoticeKind.Error => "workspace-error",
                 _ => "workspace-meta"
             });
-            AutomationProperties.SetLiveSetting(text, AutomationLiveSetting.Polite);
+            // Announced through the persistent watcher notice line (_watcherNoticeText); this rebuilt line would stay silent.
             panel.Children.Add(text);
         }
 
@@ -871,15 +985,16 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
             StackPanel confirmPanel = new() { Spacing = 8 };
             confirmPanel.Children.Add(new TextBlock { Text = Texts.T("booru.ui.watcher.removeAsk", watcher.Query), TextWrapping = TextWrapping.Wrap });
             WrapPanel confirmActions = new() { Classes = { "workspace-toolbar" } };
+            // Safe answer first; it also gets the focus when the question opens (RenderWatchers).
+            Button no = new() { Name = RemoveCancelPrefix + watcher.WatcherId, Content = Texts.T("booru.ui.cancel") };
+            no.Click += (_, _) => model.CancelRemoval(watcher.WatcherId);
             Button yes = new() { Name = RemoveConfirmPrefix + watcher.WatcherId, Content = Texts.T("booru.ui.watcher.removeConfirm") };
             yes.Classes.Add("danger");
             AutomationProperties.SetName(yes, Texts.T("booru.ui.watcher.removeFor", watcher.Query));
             yes.IsEnabled = !row.Busy;
             yes.Click += async (_, _) => await model.ConfirmRemovalAsync(watcher.WatcherId);
-            Button no = new() { Name = RemoveCancelPrefix + watcher.WatcherId, Content = Texts.T("booru.ui.cancel") };
-            no.Click += (_, _) => model.CancelRemoval(watcher.WatcherId);
-            confirmActions.Children.Add(yes);
             confirmActions.Children.Add(no);
+            confirmActions.Children.Add(yes);
             confirmPanel.Children.Add(confirmActions);
             confirm.Child = confirmPanel;
             panel.Children.Add(confirm);
@@ -896,6 +1011,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         AutomationProperties.SetName(button, accessible);
         string why = BooruText.WatcherBlock(block, cooling);
         ToolTip.SetTip(button, block == BooruWatcherBlock.None ? accessible : why);
+        ToolTip.SetShowOnDisabled(button, true);
         if (block != BooruWatcherBlock.None) AutomationProperties.SetHelpText(button, why);
         button.Click += async (_, _) => await action();
         return button;

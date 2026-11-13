@@ -56,6 +56,7 @@ internal static class BooruWorkbenchChecks
 
             // ---- search: the query is visible exactly as sent -------------------------------------------------------
             TextBox input = Find<TextBox>(window, BooruWorkbenchWindow.InputName);
+            await CheckInvalidInputAsync(window, input);
             input.Text = "cat blue_eyes";
             await Program.WaitUntilAsync(() => Find<SelectableTextBlock>(window, BooruWorkbenchWindow.QueryName).Text == "Query sent to Danbooru: cat blue_eyes",
                 () => "query line: " + Find<SelectableTextBlock>(window, BooruWorkbenchWindow.QueryName).Text);
@@ -113,6 +114,7 @@ internal static class BooruWorkbenchChecks
             await Program.WaitUntilAsync(() => Text(window).Contains("Added to the download queue."), () => "queued state not shown");
             Require(h.Queue.Loads.Count == 1 && h.Queue.Loads[0] == ("101", BooruLoadOrigin.Search), "Load original did not hand over exactly once.");
             Require(!Find<Button>(window, BooruWorkbenchWindow.LoadPrefix + "101").IsEnabled, "Load original stayed enabled after queuing.");
+            await CheckResultAnnouncementsAsync(window);
 
             // ---- a non-loadable original is explained and disabled ----------------------------------------------------
             h.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page(query, page, true,
@@ -230,6 +232,12 @@ internal static class BooruWorkbenchChecks
             int checks = h.Watchers.Checks;
             Click(Find<Button>(window, BooruWorkbenchWindow.CheckPrefix + "w-active"));
             await Program.WaitUntilAsync(() => h.Watchers.Checks == checks + 1 && Text(window).Contains("Check finished: 2 new posts"), () => "check result missing");
+            await Program.WaitUntilAsync(() => Find<TextBlock>(window, BooruWorkbenchWindow.WatcherNoticeName).Text?.StartsWith("cat blue_eyes: Check finished: 2 new posts", StringComparison.Ordinal) == true
+                    && Find<TextBlock>(window, BooruWorkbenchWindow.WatcherNoticeName).IsEffectivelyVisible,
+                () => "watcher notice line does not repeat the check result: " + Find<TextBlock>(window, BooruWorkbenchWindow.WatcherNoticeName).Text);
+            Require(AutomationProperties.GetLiveSetting(Find<TextBlock>(window, BooruWorkbenchWindow.WatcherNoticeName)) == AutomationLiveSetting.Polite,
+                "The watcher notice line is not a polite live region.");
+            RequireSilentCards(window, "BooruWatcher:");
             Click(Find<Button>(window, BooruWorkbenchWindow.PausePrefix + "w-active"));
             await Program.WaitUntilAsync(() => Exists(window, BooruWorkbenchWindow.ResumePrefix + "w-active")
                 && !Exists(window, BooruWorkbenchWindow.PausePrefix + "w-active"), () => "pause not reflected");
@@ -238,6 +246,9 @@ internal static class BooruWorkbenchChecks
             await Program.WaitUntilAsync(() => Exists(window, BooruWorkbenchWindow.PausePrefix + "w-active")
                 && Find<Button>(window, BooruWorkbenchWindow.CheckPrefix + "w-active").IsEnabled, () => "resume not reflected");
             Require(h.Watchers.Checks == checks + 1, "Resuming ran a check.");
+
+            // removal: keyboard focus on the safe answer, Escape answers the question, focus kept after removal
+            await CheckRemovalKeyboardAsync(window, h);
 
             // removal: inline confirmation, notice about local media, nothing deleted
             Click(Find<Button>(window, BooruWorkbenchWindow.RemovePrefix + "w-error"));
@@ -252,6 +263,8 @@ internal static class BooruWorkbenchChecks
             Click(Find<Button>(window, BooruWorkbenchWindow.RemoveConfirmPrefix + "w-error"));
             await Program.WaitUntilAsync(() => Cards(window, "BooruWatcher:").Count == 4 && Text(window).Contains("Watcher removed. Downloaded files and tags were kept."),
                 () => "removal result missing");
+            await Program.WaitUntilAsync(() => Focused(window) is Button focusedAfter && Cards(window, "BooruWatcher:").Any(card => card.IsVisualAncestorOf(focusedAfter)),
+                () => "focus after removal: " + Describe(Focused(window)));
             Require(h.Queue.Loads.Count == 2, "Removing a watcher touched the download side.");
             int callsAfter = h.Watchers.Calls.Count;
             await Task.Delay(300);
@@ -286,6 +299,7 @@ internal static class BooruWorkbenchChecks
             h.Clock.Advance(TimeSpan.FromHours(3));
             await Task.Delay(300);
             Require(h.ProviderRequests == total, "A request happened after the window was closed.");
+            Console.WriteLine("SMOKE booru workbench accessibility: invalid input explained under the field and on the disabled Search; load and watcher results repeated once in the persistent polite notice lines, rebuilt cards silent and unnamed; URL line keeps its text; removal question focuses Cancel first, Escape cancels it (window stays), focus returns to Remove and stays in the list after removal.");
             Console.WriteLine("SMOKE booru workbench: menu hidden without ports and shown with fakes; no request on open; exact query visible; 3 result cards with previews, provider rating and original availability; bounded paging; one explicit load; offline, 429 (disabled and not retried), restricted, error and empty states; post link one-shot; canonical post link open/copy on result and watcher cards with failure note; watcher notification for queued originals (none for zero); watcher create/check/pause/resume/remove with confirmation and local-media notice; EN/DE/ES/FR/RU live; light and dark screenshots in " + shots);
         }
         finally
@@ -350,6 +364,77 @@ internal static class BooruWorkbenchChecks
         Require(Cards(window, "BooruResult:").Count == 0, "Result cards stayed visible in the " + status + " state.");
         Capture(window, shots, shot);
     }
+
+    // ---- accessibility (1.1.0 audit H1-H3, M2, M3) ---------------------------------------------------------------------------
+
+    private static async Task CheckInvalidInputAsync(BooruWorkbenchWindow window, TextBox input)
+    {
+        TextBlock issue = Find<TextBlock>(window, BooruWorkbenchWindow.InputIssueName);
+        Button submit = Find<Button>(window, BooruWorkbenchWindow.SubmitName);
+        Require(!issue.IsVisible, "An input issue is visible for an empty field.");
+        input.Text = "cat blue_eyes red_hair";
+        await Program.WaitUntilAsync(() => window.Model.Search.View.Parsed.Kind == BooruInputKind.Invalid && issue.IsEffectivelyVisible,
+            () => "invalid input not explained under the field: " + issue.Text);
+        string expected = BooruText.Issue(window.Model.Search.View.Parsed.Issue);
+        Require(issue.Text == expected && issue.Classes.Contains("workspace-error"), "The visible input issue is wrong: " + issue.Text);
+        Require(AutomationProperties.GetLiveSetting(issue) == AutomationLiveSetting.Polite, "The input issue is not a polite live region.");
+        Require(!submit.IsEnabled && AutomationProperties.GetHelpText(submit) == expected && ToolTip.GetTip(submit) as string == expected
+            && ToolTip.GetShowOnDisabled(submit), "The disabled Search does not name its reason.");
+        Require(AutomationProperties.GetHelpText(input) == expected, "The field lost its issue help text.");
+        input.Text = string.Empty;
+        await Program.WaitUntilAsync(() => !issue.IsVisible && string.IsNullOrEmpty(AutomationProperties.GetHelpText(submit)),
+            () => "the input issue stayed after clearing the field");
+    }
+
+    private static async Task CheckResultAnnouncementsAsync(BooruWorkbenchWindow window)
+    {
+        TextBlock notice = Find<TextBlock>(window, BooruWorkbenchWindow.NoticeName);
+        await Program.WaitUntilAsync(() => notice.Text == "Post #101: Added to the download queue." && notice.IsEffectivelyVisible,
+            () => "the search notice line does not repeat the load result: " + notice.Text);
+        Require(AutomationProperties.GetLiveSetting(notice) == AutomationLiveSetting.Polite, "The search notice line is not a polite live region.");
+        RequireSilentCards(window, "BooruResult:");
+        Control card = Cards(window, "BooruResult:").First(control => control.Name == "BooruResult:101");
+        Require(card.GetVisualDescendants().OfType<Control>().Count(control => AutomationProperties.GetName(control) == "Post #101") == 0
+            && card.GetVisualDescendants().OfType<TextBlock>().Count(text => text.Text == "Post #101") == 1,
+            "\"Post #101\" is named more than once in its card.");
+        SelectableTextBlock link = card.GetVisualDescendants().OfType<SelectableTextBlock>().Single(text => text.Text == "https://danbooru.donmai.us/posts/101");
+        Require(string.IsNullOrEmpty(AutomationProperties.GetName(link)) && AutomationProperties.GetHelpText(link) == "Post page",
+            "The URL line is hidden behind a name.");
+    }
+
+    private static void RequireSilentCards(Window window, string prefix)
+    {
+        // Rebuilt card lines never announce (their peers are new); the persistent notice lines do it once instead.
+        foreach (Control card in Cards(window, prefix))
+        {
+            Require(string.IsNullOrEmpty(AutomationProperties.GetName(card)), "Card " + card.Name + " repeats its title as a name.");
+            Require(card.GetVisualDescendants().OfType<Control>().All(control => AutomationProperties.GetLiveSetting(control) == AutomationLiveSetting.Off),
+                "Card " + card.Name + " carries its own live region.");
+        }
+    }
+
+    private static async Task CheckRemovalKeyboardAsync(BooruWorkbenchWindow window, BooruUiHarness h)
+    {
+        Button remove = Find<Button>(window, BooruWorkbenchWindow.RemovePrefix + "w-error");
+        remove.Focus(NavigationMethod.Tab);
+        await Program.WaitUntilAsync(() => ReferenceEquals(Focused(window), remove), () => "Remove not focused: " + Describe(Focused(window)));
+        Click(remove);
+        await Program.WaitUntilAsync(() => Focused(window) is Button { Name: { } name } && name == BooruWorkbenchWindow.RemoveCancelPrefix + "w-error",
+            () => "the removal question did not focus Cancel: " + Describe(Focused(window)));
+        Button cancel = Find<Button>(window, BooruWorkbenchWindow.RemoveCancelPrefix + "w-error");
+        Button confirm = Find<Button>(window, BooruWorkbenchWindow.RemoveConfirmPrefix + "w-error");
+        Require(cancel.Parent is Panel answers && answers.Children.IndexOf(cancel) < answers.Children.IndexOf(confirm),
+            "The destructive answer comes before Cancel.");
+        cancel.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+        await Program.WaitUntilAsync(() => !Exists(window, BooruWorkbenchWindow.RemoveConfirmPrefix + "w-error")
+                && Focused(window) is Button { Name: { } back } && back == BooruWorkbenchWindow.RemovePrefix + "w-error",
+            () => "Escape did not answer the question with Cancel: " + Describe(Focused(window)));
+        Require(window.IsVisible && !h.Watchers.Calls.Contains("remove:w-error"), "Escape closed the window or removed the watcher.");
+    }
+
+    private static object? Focused(Window window) => window.FocusManager?.GetFocusedElement();
+
+    private static string Describe(object? focused) => focused is Control { Name: { } name } ? focused.GetType().Name + ":" + name : focused?.GetType().Name ?? "nothing";
 
     // ---- helpers ------------------------------------------------------------------------------------------------------------
 
