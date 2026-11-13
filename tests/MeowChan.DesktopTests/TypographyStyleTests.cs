@@ -23,7 +23,7 @@ public sealed class TypographyStyleTests
     {
         Assert.Equal("tnum", Setting(Style("TextBlock.tnum, SelectableTextBlock.tnum, DataGrid TextBlock"), "FontFeatures"));
         string main = File.ReadAllText(Root("Desktop/Shell/MainWindow.axaml"));
-        Assert.Contains("x:Name=\"WorkspaceCounts\" Grid.Column=\"1\" Classes=\"muted tnum\"", main);
+        Assert.Contains("x:Name=\"WorkspaceCounts\" Grid.Column=\"2\" Classes=\"muted tnum\"", main);
         Assert.Contains("Classes=\"mono muted tnum\"", main);
         string archive = File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.axaml"));
         foreach (string name in new[] { "ArchiveThreadPage", "ArchivePostPage", "ArchiveSelectionSummary", "ArchiveReferencesPage" })
