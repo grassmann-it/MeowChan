@@ -22,18 +22,21 @@ internal static class FavoriteStar
     /// </summary>
     internal static Border Create(bool marked, int size = 16, bool tinted = true)
     {
-        // The mask is read when the icon joins a visual tree, so a control that is built before the platform runs (a unit test, a
-        // control made off screen) costs no asset read; every icon file is decoded once and shared (CommandBindings.IconMask).
-        string name = Commands.CommandCatalog.IconForState("favorites.toggle", marked ? "marked" : "unmarked");
-        Border icon = new() { Width = size, Height = size, Tag = marked ? MarkedTag : UnmarkedTag };
-        icon.AttachedToVisualTree += (_, _) =>
-            icon.OpacityMask ??= new ImageBrush { Source = Commands.CommandBindings.IconMask(name), Stretch = Stretch.Uniform };
-        icon.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center;
-        icon.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
+        // One drawing: the star of WorkspaceIcons (outline / filled path on the 16 dip grid), scaled to <size>; this wrapper only carries
+        // the state tag and the favourite tint. The path builds its geometry when it joins a visual tree (no platform at construction).
+        Avalonia.Controls.Shapes.Path star = WorkspaceIcons.Create(marked ? WorkspaceIcons.StarFilled : WorkspaceIcons.Star, inheritForeground: !(marked && tinted));
         // Gold only reads on the dark surfaces; the theme key carries the darker amber for Light (FavoriteTintContrastTests).
-        if (marked && tinted) icon[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Favorite");
-        else icon.Bind(Border.BackgroundProperty, icon.GetObservable(TextElement.ForegroundProperty));
-        return icon;
+        if (marked && tinted)
+        {
+            star[!Avalonia.Controls.Shapes.Shape.StrokeProperty] = new DynamicResourceExtension("Workspace.Favorite");
+            star[!Avalonia.Controls.Shapes.Shape.FillProperty] = new DynamicResourceExtension("Workspace.Favorite");
+        }
+        star.Stretch = Stretch.Uniform; star.Width = size; star.Height = size;
+        return new Border
+        {
+            Width = size, Height = size, Tag = marked ? MarkedTag : UnmarkedTag, Child = star, IsHitTestVisible = false,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
+        };
     }
 
     /// <summary>True or false for the content a favourite control shows, null when the content is no favourite star.</summary>
