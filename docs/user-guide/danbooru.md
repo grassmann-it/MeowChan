@@ -84,6 +84,11 @@ fünf Seiten mit je 20 Posts begrenzt. Wenn sie ihr Budget erreicht, merkt sich
 MeowChan den Cursor unter dem ältesten gelesenen Post und setzt die nächste
 Prüfung darunter fort. Dadurch werden neue Posts, die währenddessen erscheinen,
 nicht einfach durch eine verschobene Seitennummer übersprungen.
+Sind die übrigen neuen Posts nicht mehr erreichbar, meldet die Suchbeobachtung das
+und bietet **Neu ab jetzt** an. Das nimmt die Lücke in Kauf: Die Beobachtung wird
+ohne Löschen lokaler Daten beendet und für dieselbe Suche mit einer frischen
+Baseline neu angelegt. Posts in der Lücke werden nicht geladen; bereits geladene
+Dateien bleiben.
 
 **Jetzt prüfen** führt eine einmalige begrenzte Prüfung unabhängig vom Zeitplan
 aus. Eine pausierte Suchbeobachtung bleibt danach pausiert und wird nicht erneut
@@ -103,6 +108,16 @@ ein längeres `Retry-After` innerhalb des Jobbudgets wird ebenfalls berücksicht
 Bis zur erlaubten Zeit wird keine weitere Provideranfrage gesendet.
 Ein temporärer Providerfehler löscht keine Suchbeobachtung und pausiert nicht
 still die übrigen lokalen Medien.
+
+Ist das Danbooru-Plugin deaktiviert oder läuft es nicht, werden neue Suchen,
+Postabrufe, **Original laden** und Befehle für Suchbeobachtungen mit dem Hinweis
+abgelehnt, dass das Plugin nicht verfügbar ist; es läuft auch keine Prüfung. Eine
+Prüfung, die beim Deaktivieren noch läuft, wird verworfen und legt keine Baseline
+fest. Bereits in die Downloadwarteschlange aufgenommene Originale bleiben dort und
+folgen den normalen Warteschlangenregeln; gespeicherte Suchbeobachtungen und der
+lokale Katalog bleiben erhalten. Beim erneuten Aktivieren startet die Planung der
+Beobachtungen aus dem gespeicherten Katalog neu. Sobald das Beenden beginnt,
+stoppen die Beobachtungen zuerst und neue Danbooru-Anfragen werden abgelehnt.
 
 Nach einem automatischen Check, der neue Originale in die Downloadwarteschlange
 legt, zeigt MeowChan eine Info-Meldung mit dem Titel **Danbooru-Suchbeobachtung**.

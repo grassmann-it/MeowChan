@@ -234,8 +234,21 @@ one-shot and watcher findings retain their provenance.
 - **More new posts than one check covers.** Each check reads no more than 5 pages
   of 20 posts. If its budget runs out, a saved post-ID cursor continues below the
   oldest post read on a later check. A partial check is not reported as complete.
+  If the remaining new posts can no longer be reached, the watcher says so and
+  offers **Restart from now**. That accepts the gap: it ends the watcher without
+  deleting local data and creates a new one for the same search with a fresh
+  baseline. Posts in the gap are not downloaded; files already downloaded stay.
 - **Remove.** Ends that watcher, but keeps downloaded media, provider metadata,
   findings and your own tags. Creating a watcher later creates a new observation.
+- **Plugin disabled or quitting.** While the Danbooru plugin is disabled or not
+  running, new searches, lookups, **Load original** and watcher commands are
+  refused with a notice that the plugin is not available, and no watcher check
+  runs. A check still in flight when the plugin is disabled is discarded and
+  establishes no baseline. Originals already accepted into the download queue
+  stay there under the ordinary queue rules; saved watchers and the local
+  catalog remain. Enabling the plugin again restarts watcher scheduling from the
+  saved catalog. Once shutdown begins, watchers stop first and new Danbooru
+  requests are refused.
 
 When an automatic check finishes after adding originals to the download queue,
 MeowChan shows one information notification titled **Danbooru watcher**. It names
@@ -572,10 +585,15 @@ Open **Statistics** with Ctrl+8 (Command+8 on macOS), from **Tools** or the app
 menu, or by clicking the header graph. It shows measured network and media-disk
 traffic, history and rows per source. These are MeowChan's own counters, including
 media transfers, imports and integrity reads, not operating-system totals.
-Thumbnail and archive-file I/O are not counted. The page has **three history
+Thumbnail and archive-file I/O are not counted. Network counts the response data
+MeowChan receives, without headers or encryption; **upload is not measured**, only
+the number of requests is shown. The page has **three history
 graphs**: network download, disk writing and disk reading, each with its own
 scale. Reading back local files is separate from writing, not added to the
-header's disk rate. Retries or failed transfers can contribute bytes without a
+header's disk rate. The header values read **Net ↓** (network download) and
+**Disk** (written to disk); they show neither disk reads nor upload. Disk reads
+appear on this page only; the one header choice is the **Header graph** setting
+below. Retries or failed transfers can contribute bytes without a
 saved file.
 **Reset statistics** asks for confirmation before clearing the counters, not media.
 
@@ -879,7 +897,9 @@ Changes stay in the Settings draft until **Save** succeeds; then they apply to t
 open reader and are kept for this profile. **Discard draft** restores the saved
 values. Changing categories or the interface language keeps the draft. Invalid
 numeric input prevents saving and identifies the field to correct; a failed save
-does not apply the draft.
+does not apply the draft. Applying a saved change keeps your place in the open
+reader: it does not jump to another post, take keyboard focus or switch the
+thread's tab.
 
 | Setting | Default | Allowed |
 | --- | --- | --- |
@@ -901,7 +921,10 @@ current reading position in view; conversation subtrees can span pages.
 **Since opening post** and **Relative to now**. The exact local date remains in the
 tooltip. If the opening post has no timestamp, **Since opening post** falls back to
 System format; a post with no timestamp has no date text. Relative text is calculated
-when the page is rendered, not refreshed by a timer.
+when the page is rendered, not refreshed by a timer. Quote previews use the same
+format; their tooltip shows the full local date. A preview of a post from another
+thread has no known opening post here, so **Since opening post** shows System
+format for it.
 
 **Spoilers** offers **Keep hidden** (default), **Show on hover** and **Always show**.
 The conversation switch itself stays under **View** and is not a saved preference.
@@ -1389,7 +1412,11 @@ already identified update.
    prefilled. Removed fields require an explicit acknowledgement; their old
    values remain in the retained old plugin version.
 3. Confirm the capability/settings changes. If existing special permissions
-   are listed, confirm those separately for this exact new build.
+   are listed, confirm those separately for this exact new build. Editing a
+   setting in the dialog, or using the acknowledgement for removed values,
+   clears the change confirmation, even if you put the old value back; tick it
+   again after your last edit. The separate permission confirmation is not
+   cleared by edits.
 4. Choose **Save reviewed plugin for next start**, then restart the application.
    Saving does not activate the updated plugin in the running session.
 

@@ -7,6 +7,7 @@ using MeowChan.Booru;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Stats;
 using MeowChan.Import;
 using MeowChan.PluginHost.Http;
 using MeowChan.Persistence;
@@ -275,6 +276,117 @@ public sealed class HelpDocumentationTests
         Assert.Contains("auch bei einer pausierten Beobachtung", guide);
         Assert.DoesNotContain("genau eine Anfrage", guide);
         Assert.Contains("Jetzt prüfen ist kein Fortsetzen", guide);
+    }
+
+    [Fact]
+    public void StatisticsHelpNamesTheShippedHeaderValuesAndMeasurementLimits()
+    {
+        // The catalogs are read as data (no language state); the display seams are the production header rules.
+        string[] names = ["stats.header.net", "stats.header.disk", "stats.footnote"];
+        Dictionary<string, string> english = IoStatsPageTexts.Entries.Where(entry => names.Contains(entry.Key))
+            .ToDictionary(entry => entry.Key, entry => entry.English, StringComparer.Ordinal);
+        Assert.Equal(names.Order(StringComparer.Ordinal), english.Keys.Order(StringComparer.Ordinal));
+        string netLabel = english["stats.header.net"].Replace("{0}", "").Trim();
+        string diskLabel = english["stats.header.disk"].Replace("{0}", "").Trim();
+        Assert.Contains("Upload is not measured", english["stats.footnote"], StringComparison.Ordinal);
+        Assert.Contains("without headers or encryption", english["stats.footnote"], StringComparison.Ordinal);
+
+        // The header disk value is the written rate only, and neither it nor the label set carries reads or upload.
+        IoRates rates = new(NetDown: 10, DiskWrite: 20, DiskRead: 3000, Requests: 4);
+        Assert.Equal(20, IoStatsDisplay.HeaderDiskRate(rates));
+        Assert.False(IoStatsDisplay.HeaderShowsDiskValue(IoStatsDisplay.HeaderGraphNetwork));
+        Assert.True(IoStatsDisplay.HeaderShowsDiskValue(IoStatsDisplay.HeaderGraphAuto));
+        Assert.True(IoStatsDisplay.HeaderShowsDiskValue(IoStatsDisplay.HeaderGraphNetworkAndDisk));
+        Assert.False(IoStatsDisplay.HeaderShowsDisk(IoStatsDisplay.HeaderGraphAuto, "Simple"));
+        Assert.True(IoStatsDisplay.HeaderShowsDisk(IoStatsDisplay.HeaderGraphAuto, "Advanced"));
+        Assert.True(IoStatsDisplay.HeaderShowsDisk(IoStatsDisplay.HeaderGraphNetworkAndDisk, "Simple"));
+
+        string text = Plain(Section(Read(Help), "Statistics and disk traffic"));
+        Assert.Contains($"The header values read {netLabel} (network download) and {diskLabel} (written to disk)", text, StringComparison.Ordinal);
+        Assert.Contains("they show neither disk reads nor upload", text, StringComparison.Ordinal);
+        Assert.Contains("upload is not measured, only the number of requests is shown", text, StringComparison.Ordinal);
+        Assert.Contains("response data MeowChan receives, without headers or encryption", text, StringComparison.Ordinal);
+        Assert.Contains("Automatic shows labeled network-download and disk-write values in every work view", text, StringComparison.Ordinal);
+        Assert.Contains("the disk history graph is drawn only in Advanced", text, StringComparison.Ordinal);
+        Assert.Contains("Network only hides the disk value and its graph", text, StringComparison.Ordinal);
+        // The requested header Read+Write / Down+Up choice is not part of this candidate and must not be described as shipped.
+        Assert.DoesNotContain("Read/Write", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Down/Up", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Read and write in the header", text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ReaderApplyAndQuotePreviewDateGuidanceMatchesTheProductSeams()
+    {
+        // A preview whose target thread is not the open one has no opening post (see ReaderSettingsExcerptTests for the
+        // style rendering and the live-apply anchor checks); this pins the guidance to that seam.
+        ResourceId other = new("4chan", "g", "999");
+        Assert.Null(ArchivePage.ExcerptOpeningPostAt(null, other));
+        Assert.Null(ArchivePage.ExcerptOpeningPostAt(null, null));
+
+        string display = Plain(Section(Read(Help), "Reader display settings"));
+        Assert.Contains("keeps your place in the open reader", display, StringComparison.Ordinal);
+        Assert.Contains("does not jump to another post, take keyboard focus or switch the thread's tab", display, StringComparison.Ordinal);
+        Assert.Contains("Quote previews use the same format; their tooltip shows the full local date", display, StringComparison.Ordinal);
+        Assert.Contains("a post from another thread has no known opening post here, so Since opening post shows System format", display, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PluginChangeConsentGuidanceMatchesTheDialogAndItsSeparateConfirmations()
+    {
+        // The invalidation behavior itself is exercised by PluginChangeReviewTests (BundledPluginChangeConsent).
+        Dictionary<string, string> english = PluginChangeReviewCatalog.Entries
+            .Where(entry => entry.Key is "plugins.changeReview.ackChanges" or "plugins.changeReview.ackRights"
+                or "plugins.changeReview.save")
+            .ToDictionary(entry => entry.Key, entry => entry.English, StringComparer.Ordinal);
+        Assert.Equal(3, english.Count);
+        Assert.NotEqual(english["plugins.changeReview.ackChanges"], english["plugins.changeReview.ackRights"]);
+        Assert.Contains("capability/settings changes", english["plugins.changeReview.ackChanges"], StringComparison.Ordinal);
+        Assert.Contains("separately", english["plugins.changeReview.ackRights"], StringComparison.Ordinal);
+
+        string text = Plain(Section(Read(Help), "Changed bundled-plugin capabilities or settings"));
+        Assert.Contains("Editing a setting in the dialog, or using the acknowledgement for removed values, clears the change confirmation, even if you put the old value back", text, StringComparison.Ordinal);
+        Assert.Contains("tick it again after your last edit", text, StringComparison.Ordinal);
+        Assert.Contains("The separate permission confirmation is not cleared by edits", text, StringComparison.Ordinal);
+        Assert.Contains("Save reviewed plugin for next start", text, StringComparison.Ordinal);
+        Assert.Equal("Save reviewed plugin for next start", english["plugins.changeReview.save"]);
+    }
+
+    [Fact]
+    public void DanbooruDisabledPluginAndGapRestartGuidanceMatchesTheShippedTexts()
+    {
+        (string Key, string English, string German)[] ui = BooruUiCatalog.Entries;
+        (string Key, string English, string German)[] codes = MeowChan.Desktop.Booru.BooruCodeCatalog.Entries;
+        (string Key, string English, string German) unavailable = Assert.Single(codes, entry => entry.Key == "booru.watcher.problem.source_unavailable");
+        (string Key, string English, string German) closing = Assert.Single(codes, entry => entry.Key == "booru.watcher.problem.scheduler_stopped");
+        (string Key, string English, string German) blocked = Assert.Single(codes, entry => entry.Key == "booru.watcher.problem.continuation_blocked");
+        (string Key, string English, string German) restart = Assert.Single(ui, entry => entry.Key == "booru.ui.watcher.restart");
+        (string Key, string English, string German) restarted = Assert.Single(ui, entry => entry.Key == "booru.ui.watcher.msg.restarted");
+        (string Key, string English, string German) title = Assert.Single(ui, entry => entry.Key == "booru.ui.notify.queued.title");
+        Assert.Contains("disabled or not running", unavailable.English, StringComparison.Ordinal);
+        Assert.Contains("Nothing was requested", unavailable.English, StringComparison.Ordinal);
+        Assert.Contains("watchers are no longer checked", closing.English, StringComparison.Ordinal);
+        Assert.Contains($"\"{restart.English}\"", blocked.English, StringComparison.Ordinal);
+        Assert.Contains("Posts in the gap are not downloaded; files already downloaded stay", restarted.English, StringComparison.Ordinal);
+
+        string help = Plain(Section(Read(Help), "Saved watchers"));
+        string guide = Plain(Read(DanbooruGuide));
+        Assert.Contains($"offers {restart.English}. That accepts the gap", help, StringComparison.Ordinal);
+        Assert.Contains("ends the watcher without deleting local data and creates a new one for the same search with a fresh baseline", help, StringComparison.Ordinal);
+        Assert.Contains("Posts in the gap are not downloaded; files already downloaded stay", help, StringComparison.Ordinal);
+        Assert.Contains($"bietet {restart.German} an", guide, StringComparison.Ordinal);
+        Assert.Contains("Posts in der Lücke werden nicht geladen; bereits geladene Dateien bleiben", guide, StringComparison.Ordinal);
+        Assert.Contains($"Titel {title.German}", guide, StringComparison.Ordinal);
+        Assert.Contains($"titled {title.English}", help, StringComparison.Ordinal);
+
+        Assert.Contains("While the Danbooru plugin is disabled or not running, new searches, lookups, Load original and watcher commands are refused with a notice that the plugin is not available, and no watcher check runs", help, StringComparison.Ordinal);
+        Assert.Contains("A check still in flight when the plugin is disabled is discarded and establishes no baseline", help, StringComparison.Ordinal);
+        Assert.Contains("Originals already accepted into the download queue stay there", help, StringComparison.Ordinal);
+        Assert.Contains("Enabling the plugin again restarts watcher scheduling from the saved catalog", help, StringComparison.Ordinal);
+        Assert.Contains("Once shutdown begins, watchers stop first and new Danbooru requests are refused", help, StringComparison.Ordinal);
+        Assert.Contains("Ist das Danbooru-Plugin deaktiviert oder läuft es nicht, werden neue Suchen, Postabrufe, Original laden und Befehle für Suchbeobachtungen mit dem Hinweis abgelehnt, dass das Plugin nicht verfügbar ist", guide, StringComparison.Ordinal);
+        Assert.Contains("Eine Prüfung, die beim Deaktivieren noch läuft, wird verworfen und legt keine Baseline fest", guide, StringComparison.Ordinal);
+        Assert.Contains("Beim erneuten Aktivieren startet die Planung der Beobachtungen aus dem gespeicherten Katalog neu", guide, StringComparison.Ordinal);
     }
 
     [Fact]
