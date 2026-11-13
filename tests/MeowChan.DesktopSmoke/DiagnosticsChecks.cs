@@ -166,6 +166,7 @@ internal static class DiagnosticsChecks
                     }
                 }
             }
+            await RunHealthyAsync(window, page);
             TaskCompletionSource<CheckRequestStatus> delayedRetry = new TaskCompletionSource<CheckRequestStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
             retryOperation = _ => delayedRetry.Task;
             DesktopBoardEntry board = SnapshotFixtures.Board(9124) with
@@ -217,6 +218,41 @@ internal static class DiagnosticsChecks
             Click(window.FindControl<Button>("ThemeToggleButton")!);
         ThemeVariant expected = theme == "Light" ? ThemeVariant.Light : theme == "Dark" ? ThemeVariant.Dark : ThemeVariant.Default;
         await Program.WaitUntilAsync(() => Config.LoadConfig().Theme == theme && Application.Current?.RequestedThemeVariant == expected);
+    }
+
+    // MS-R2: a healthy session lists only the always-present platform rows. The "no problems" hint is shown then and must
+    // not draw over those rows, which the tester copies into reports.
+    private static async Task RunHealthyAsync(MainWindow window, DiagnosticsPage page)
+    {
+        DesktopSessionView healthy = new DesktopSessionView(Array.Empty<DesktopThreadEntry>(), Array.Empty<DesktopBoardEntry>(),
+            Array.Empty<string>(), DesktopSessionState.Ready, null);
+        foreach (string language in new[] { "en", "de" })
+        {
+            Texts.SetLanguage(language);
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => { }, Avalonia.Threading.DispatcherPriority.Background);
+            page.Refresh(healthy, true);
+            TextBlock hint = page.FindControl<TextBlock>("DiagnosticsEmpty")!;
+            DataGrid grid = page.FindControl<DataGrid>("DiagnosticsGrid")!;
+            DiagnosticEntry[] rows = grid.ItemsSource!.Cast<DiagnosticEntry>().ToArray();
+            Require(rows.Length > 0 && rows.All(entry => entry.Kind == DiagnosticKind.Information),
+                "The healthy diagnostics fixture should list only the platform information rows.");
+            hint.BringIntoView();
+            await Program.WaitUntilAsync(() =>
+            {
+                window.UpdateLayout();
+                return hint.IsEffectivelyVisible && hint.Bounds.Height > 0 && grid.GetVisualDescendants().OfType<DataGridRow>()
+                    .Count(row => row.IsEffectivelyVisible && row.Bounds.Height > 0) == rows.Length;
+            });
+            Require(hint.Text == Texts.T("diagnostics.empty"), "The healthy diagnostics hint lost its text.");
+            Rect hintRect = new Rect(hint.TranslatePoint(new Point(0, 0), page)!.Value, hint.Bounds.Size);
+            foreach (DataGridRow row in grid.GetVisualDescendants().OfType<DataGridRow>().Where(row => row.IsEffectivelyVisible))
+            {
+                Rect rowRect = new Rect(row.TranslatePoint(new Point(0, 0), page)!.Value, row.Bounds.Size);
+                Require(!hintRect.Intersects(rowRect),
+                    $"The healthy diagnostics hint {hintRect} draws over the platform row {rowRect} ({(row.DataContext as DiagnosticEntry)?.Key}).");
+            }
+            Program.CaptureWindow(window, $"smoke-diagnostics-healthy-{language}.png");
+        }
     }
 
     private static double VisibleHeight(Control viewport, Control control)

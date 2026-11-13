@@ -33,8 +33,12 @@
                 <TextBlock Tag="diagnostics.current" Classes="section-title localized" TextWrapping="Wrap" />
                 <Grid x:Name="DiagnosticSplit" ColumnDefinitions="*,0" RowDefinitions="Auto,Auto" RowSpacing="12">
                     <Border x:Name="DiagnosticListPane" Classes="panel">
-                        <Grid>
-                            <DataGrid x:Name="DiagnosticsGrid" AutoGenerateColumns="False" IsReadOnly="True" Height="200"
+                        <!-- The "no problems" hint has its own row above the list: the platform information rows are
+                             always listed, so an overlay inside the grid cell would draw over them (MS-R2). -->
+                        <Grid RowDefinitions="Auto,Auto">
+                            <TextBlock x:Name="DiagnosticsEmpty" Tag="diagnostics.empty" Classes="muted localized"
+                                       Margin="12,10,12,6" TextWrapping="Wrap" />
+                            <DataGrid x:Name="DiagnosticsGrid" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" Height="200"
                                       GridLinesVisibility="None" SelectionMode="Extended" RowHeight="44"
                                       CanUserReorderColumns="False" SelectionChanged="OnSelectionChanged">
                                 <DataGrid.Columns>
@@ -43,8 +47,6 @@
                                     <DataGridTextColumn MinWidth="180" Width="*" Binding="{Binding Summary, DataType=desktop:DiagnosticEntry}" />
                                 </DataGrid.Columns>
                             </DataGrid>
-                            <TextBlock x:Name="DiagnosticsEmpty" Tag="diagnostics.empty" Classes="muted localized"
-                                       Margin="16,55,16,16" TextWrapping="Wrap" HorizontalAlignment="Center" />
                         </Grid>
                     </Border>
                     <Border x:Name="DiagnosticDetailPane" Grid.Row="1" Classes="workspace-section">
