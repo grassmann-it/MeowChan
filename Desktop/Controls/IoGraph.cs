@@ -264,7 +264,7 @@ public sealed class IoGraph : Control
     private static StreamGeometry Line(Point[] points)
     {
         StreamGeometry line = new();
-        using StreamGeometryContext path = line.Open()
+        using (StreamGeometryContext path = line.Open())
         {
             path.BeginFigure(points[0], false);
             for (int i = 1; i < points.Length; i++) path.LineTo(points[i]);
