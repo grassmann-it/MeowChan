@@ -137,11 +137,12 @@ public sealed class BooruHostHttpTests
         {
             Task<HostHttpResult> pending = services.SendHttpAsync(Get(), job.Operation, default);
             await EventuallyAsync(() => sends == 1);
+            await clock.WaitForTimerAsync(BooruHostHttp.RetryDelay); // parked on the retry delay before any time passes
             Assert.False(pending.IsCompleted);
             clock.Advance(TimeSpan.FromSeconds(1.999));
             Assert.Equal(1, sends);
             clock.Advance(TimeSpan.FromMilliseconds(1));
-            HostHttpResponse result = Assert.IsType<HostHttpResponse>(await pending.WaitAsync(TimeSpan.FromSeconds(1)));
+            HostHttpResponse result = Assert.IsType<HostHttpResponse>(await pending.WaitAsync(Bound));
             Assert.Equal(200, result.StatusCode);
             Assert.Equal(2, sends);
         }
@@ -162,8 +163,9 @@ public sealed class BooruHostHttpTests
         {
             Task<HostHttpResult> pending = services.SendHttpAsync(Get(), job.Operation, default);
             await EventuallyAsync(() => sends == 1);
+            await clock.WaitForTimerAsync(BooruHostHttp.RetryDelay);
             clock.Advance(TimeSpan.FromSeconds(2));
-            HostHttpResponse result = Assert.IsType<HostHttpResponse>(await pending.WaitAsync(TimeSpan.FromSeconds(1)));
+            HostHttpResponse result = Assert.IsType<HostHttpResponse>(await pending.WaitAsync(Bound));
             Assert.Equal(503, result.StatusCode);
             Assert.Equal(2, sends);
         }
@@ -269,7 +271,7 @@ public sealed class BooruHostHttpTests
             Task<HostHttpResult> pending = services.SendHttpAsync(Get(), job.Operation, default);
             await EventuallyAsync(() => sends == 1);
             clock.Advance(BooruHostHttp.ResponseTimeout);
-            HostHttpFailure result = Assert.IsType<HostHttpFailure>(await pending.WaitAsync(TimeSpan.FromSeconds(1)));
+            HostHttpFailure result = Assert.IsType<HostHttpFailure>(await pending.WaitAsync(Bound));
             Assert.Equal("http-timeout", result.Failure.Code);
         }
         finally { services.CloseJob(job); }
@@ -669,9 +671,13 @@ public sealed class BooruHostHttpTests
     private static HttpResponseMessage Response(HttpStatusCode status, string body) => Response(status, Encoding.UTF8.GetBytes(body));
     private static HttpResponseMessage Response(HttpStatusCode status, byte[] body) => new(status) { Content = new ByteArrayContent(body) };
 
+    // Only a hang guard: every wait below ends on a signal or on the awaited state, never on this limit.
+    private static readonly TimeSpan Bound = TimeSpan.FromSeconds(30);
+
     private static async Task EventuallyAsync(Func<bool> predicate)
     {
-        for (int i = 0; i < 100 && !predicate(); ++i) await Task.Delay(1);
+        using CancellationTokenSource guard = new(Bound);
+        while (!predicate() && !guard.IsCancellationRequested) await Task.Delay(1);
         Assert.True(predicate());
     }
 

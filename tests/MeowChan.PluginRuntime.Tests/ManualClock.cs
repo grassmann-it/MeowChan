@@ -13,8 +13,32 @@ internal sealed class ManualClock : TimeProvider
     {
         Entry entry = new(this, callback, state, dueTime, period);
         lock (_gate) _timers.Add(entry);
-        if (dueTime <= TimeSpan.Zero) entry.Fire();
+        // Fire() ignores a timer that is not due yet; calling it unconditionally also covers an Advance that passed the due time
+        // between the entry's construction and its registration, which the Advance snapshot would otherwise never see.
+        entry.Fire();
         return entry;
+    }
+    /// <summary>True while a not yet disposed timer has exactly <paramref name="remaining"/> left on this frozen clock.</summary>
+    internal bool HasTimer(TimeSpan remaining)
+    {
+        lock (_gate)
+        {
+            DateTimeOffset now = GetUtcNow();
+            return _timers.Any(timer => !timer.Disposed && timer.Due - now == remaining);
+        }
+    }
+    /// <summary>
+    /// Waits until the code under test is parked on a timer with exactly <paramref name="remaining"/> left, so that a following
+    /// <see cref="Advance"/> cannot overtake the moment the delay's due time is computed. The limit only guards against a hang.
+    /// </summary>
+    internal async Task WaitForTimerAsync(TimeSpan remaining, TimeSpan? limit = null)
+    {
+        using CancellationTokenSource guard = new(limit ?? TimeSpan.FromSeconds(30));
+        while (!HasTimer(remaining))
+        {
+            if (guard.IsCancellationRequested) throw new TimeoutException("No timer with " + remaining + " remaining was registered.");
+            await Task.Delay(1);
+        }
     }
     internal void Advance(TimeSpan amount)
     {
@@ -28,8 +52,17 @@ internal sealed class ManualClock : TimeProvider
         private long _due = owner.GetUtcNow().Ticks + Math.Max(0, due.Ticks);
         internal bool Disposed { get; private set; }
         internal DateTimeOffset Due => new(_due, TimeSpan.Zero);
-        public bool Change(TimeSpan dueTime, TimeSpan period) { _due = owner.GetUtcNow().Ticks + Math.Max(0, dueTime.Ticks); return !Disposed; }
-        internal void Fire() { if (Disposed || Due > owner.GetUtcNow()) return; if (period == Timeout.InfiniteTimeSpan) Disposed = true; else _due = owner.GetUtcNow().Ticks + period.Ticks; callback(state); }
+        public bool Change(TimeSpan dueTime, TimeSpan period) { lock (owner._gate) { _due = owner.GetUtcNow().Ticks + Math.Max(0, dueTime.Ticks); return !Disposed; } }
+        internal void Fire()
+        {
+            // Claimed under the gate so that a concurrent Advance and the registration check cannot both run a one-shot callback.
+            lock (owner._gate)
+            {
+                if (Disposed || Due > owner.GetUtcNow()) return;
+                if (period == Timeout.InfiniteTimeSpan) Disposed = true; else _due = owner.GetUtcNow().Ticks + period.Ticks;
+            }
+            callback(state);
+        }
         public void Dispose() => Disposed = true;
         public ValueTask DisposeAsync() { Dispose(); return ValueTask.CompletedTask; }
     }

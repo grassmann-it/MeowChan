@@ -173,8 +173,9 @@ public sealed class BooruHostHttpContractTests
             }
             Task<HostHttpResult> last = rig.Send(job);
             await EventuallyAsync(() => rig.Sends == BooruHostHttp.MaximumSendsPerJob);
+            await rig.Clock.WaitForTimerAsync(BooruHostHttp.RetryDelay);
             rig.Clock.Advance(BooruHostHttp.RetryDelay);
-            HostHttpFailure failure = Assert.IsType<HostHttpFailure>(await last.WaitAsync(TimeSpan.FromSeconds(2)));
+            HostHttpFailure failure = Assert.IsType<HostHttpFailure>(await last.WaitAsync(Bound));
             Assert.Equal("booru-budget", failure.Failure.Code);
             Assert.Equal(502, failure.Failure.HttpStatusCode);
             Assert.Equal(20, rig.Sends);
@@ -194,8 +195,9 @@ public sealed class BooruHostHttpContractTests
         {
             Task<HostHttpResult> pending = rig.Send(job);
             await EventuallyAsync(() => rig.Sends == 1);
+            await rig.Clock.WaitForTimerAsync(BooruHostHttp.RetryDelay);
             rig.Clock.Advance(BooruHostHttp.RetryDelay);
-            Assert.IsType<HostHttpResponse>(await pending.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.IsType<HostHttpResponse>(await pending.WaitAsync(Bound));
             Assert.Equal(2, rig.Sends);
             Assert.Equal(2, job.Sends);
         }
@@ -211,8 +213,9 @@ public sealed class BooruHostHttpContractTests
         {
             Task<HostHttpResult> pending = rig.Send(job);
             await EventuallyAsync(() => rig.Sends == 1);
+            await rig.Clock.WaitForTimerAsync(BooruHostHttp.RetryDelay);
             rig.Clock.Advance(BooruHostHttp.RetryDelay);
-            Assert.Equal("http-network", Assert.IsType<HostHttpFailure>(await pending.WaitAsync(TimeSpan.FromSeconds(2))).Failure.Code);
+            Assert.Equal("http-network", Assert.IsType<HostHttpFailure>(await pending.WaitAsync(Bound)).Failure.Code);
             Assert.Equal(2, rig.Sends);
         }
         finally { rig.Services.CloseJob(job); }
@@ -242,11 +245,12 @@ public sealed class BooruHostHttpContractTests
             {
                 Task<HostHttpResult> pending = rig.Send(job);
                 await EventuallyAsync(() => rig.Sends == 1);
+                await rig.Clock.WaitForTimerAsync(expected);
                 rig.Clock.Advance(expected - TimeSpan.FromMilliseconds(1));
                 await Task.Delay(20);
                 Assert.Equal(1, rig.Sends);
                 rig.Clock.Advance(TimeSpan.FromMilliseconds(1));
-                Assert.IsType<HostHttpResponse>(await pending.WaitAsync(TimeSpan.FromSeconds(2)));
+                Assert.IsType<HostHttpResponse>(await pending.WaitAsync(Bound));
                 Assert.Equal(2, rig.Sends);
             }
             finally { rig.Services.CloseJob(job); }
@@ -265,7 +269,7 @@ public sealed class BooruHostHttpContractTests
         BooruJob job = rig.Services.OpenJob();
         try
         {
-            HostHttpFailure failure = Assert.IsType<HostHttpFailure>(await rig.Send(job).WaitAsync(TimeSpan.FromSeconds(2)));
+            HostHttpFailure failure = Assert.IsType<HostHttpFailure>(await rig.Send(job).WaitAsync(Bound));
             Assert.Equal("booru-budget", failure.Failure.Code);
             Assert.Equal(503, failure.Failure.HttpStatusCode);
             Assert.Equal(1, rig.Sends);
@@ -282,7 +286,7 @@ public sealed class BooruHostHttpContractTests
         {
             // now + 2 s == deadline: retryAt >= deadline is a refusal.
             rig.Clock.Advance(BooruHostHttp.MaximumJobLifetime - BooruHostHttp.RetryDelay);
-            Assert.Equal("booru-budget", Assert.IsType<HostHttpFailure>(await rig.Send(job).WaitAsync(TimeSpan.FromSeconds(2))).Failure.Code);
+            Assert.Equal("booru-budget", Assert.IsType<HostHttpFailure>(await rig.Send(job).WaitAsync(Bound)).Failure.Code);
             Assert.Equal(1, rig.Sends);
         }
         finally { rig.Services.CloseJob(job); }
@@ -297,7 +301,7 @@ public sealed class BooruHostHttpContractTests
             BooruJob job = rig.Services.OpenJob();
             try
             {
-                Assert.Equal((int)status, Assert.IsType<HostHttpResponse>(await rig.Send(job).WaitAsync(TimeSpan.FromSeconds(2))).StatusCode);
+                Assert.Equal((int)status, Assert.IsType<HostHttpResponse>(await rig.Send(job).WaitAsync(Bound)).StatusCode);
                 Assert.Equal(1, rig.Sends);
             }
             finally { rig.Services.CloseJob(job); }
@@ -317,7 +321,7 @@ public sealed class BooruHostHttpContractTests
             Task<HostHttpResult> pending = rig.Send(job);
             await EventuallyAsync(() => rig.Sends == 1);
             rig.Clock.Advance(TimeSpan.FromSeconds(10)); // 15 s window is clamped to the 120 s deadline
-            Assert.Equal("booru-budget", Assert.IsType<HostHttpFailure>(await pending.WaitAsync(TimeSpan.FromSeconds(2))).Failure.Code);
+            Assert.Equal("booru-budget", Assert.IsType<HostHttpFailure>(await pending.WaitAsync(Bound)).Failure.Code);
             Assert.Equal(1, rig.Sends);
         }
         finally { rig.Services.CloseJob(job); }
@@ -577,7 +581,7 @@ public sealed class BooruHostHttpContractTests
             await Task.Delay(20);
             Assert.False(pending.IsCompleted);
             rig.Clock.Advance(TimeSpan.FromMilliseconds(1));
-            Assert.Equal("http-timeout", Assert.IsType<HostHttpFailure>(await pending.WaitAsync(TimeSpan.FromSeconds(2))).Failure.Code);
+            Assert.Equal("http-timeout", Assert.IsType<HostHttpFailure>(await pending.WaitAsync(Bound)).Failure.Code);
             Assert.Equal(1, rig.Sends);
             Assert.Equal(1, job.Sends);
         }
@@ -676,9 +680,13 @@ public sealed class BooruHostHttpContractTests
         throw new InvalidOperationException("unreachable");
     }
 
+    // Only a hang guard: every wait below ends on a signal or on the awaited state, never on this limit.
+    private static readonly TimeSpan Bound = TimeSpan.FromSeconds(30);
+
     private static async Task EventuallyAsync(Func<bool> predicate)
     {
-        for (int i = 0; i < 200 && !predicate(); ++i) await Task.Delay(5);
+        using CancellationTokenSource guard = new(Bound);
+        while (!predicate() && !guard.IsCancellationRequested) await Task.Delay(2);
         Assert.True(predicate());
     }
 

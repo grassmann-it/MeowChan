@@ -16,7 +16,8 @@ namespace MeowChan.PluginRuntime.Tests;
 /// </summary>
 public sealed class BooruJobLifetimeTests
 {
-    private static readonly TimeSpan Bound = TimeSpan.FromSeconds(5);
+    // Only a hang guard: every wait ends on a signal or on the awaited state, never on this limit.
+    private static readonly TimeSpan Bound = TimeSpan.FromSeconds(30);
 
     [Fact]
     public void CloseCancelsTheJobTokenAndRefusesFurtherReservations()
@@ -105,7 +106,7 @@ public sealed class BooruJobLifetimeTests
 
         Task<HostHttpResult> pending = services.SendHttpAsync(Get(), job.Operation, default);
         await EventuallyAsync(() => Volatile.Read(ref sends) == 1);
-        await Task.Delay(20); // let the attempt reach the retry delay (the clock is frozen)
+        await clock.WaitForTimerAsync(BooruHostHttp.RetryDelay); // the attempt is parked on the retry delay (the clock is frozen)
         Assert.False(pending.IsCompleted);
         services.CloseJob(job);
 
@@ -418,7 +419,8 @@ public sealed class BooruJobLifetimeTests
 
     private static async Task EventuallyAsync(Func<bool> predicate)
     {
-        for (int i = 0; i < 500 && !predicate(); ++i) await Task.Delay(2);
+        using CancellationTokenSource guard = new(Bound);
+        while (!predicate() && !guard.IsCancellationRequested) await Task.Delay(2);
         Assert.True(predicate());
     }
 
