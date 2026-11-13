@@ -63,6 +63,7 @@ internal sealed class ManualImportDialog : Window
     private readonly Button _showBatch = new() { Name = "ManualImportShowBatch", Classes = { "primary" }, IsVisible = false };
     private readonly Button _close = new() { Name = "ManualImportClose" };
     private readonly SourceTagSuggestions _sources = new();
+    private readonly Grid _tagRow = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
     private bool _closed;
     private bool _syncing;
 
@@ -95,7 +96,7 @@ internal sealed class ManualImportDialog : Window
         _sources.Read = readSourceTags;
         _target.Tag = targetFolder;
         Name = "ManualImportDialog";
-        Width = 640; Height = 720; MinWidth = 420; MinHeight = 480;
+        Width = 640; Height = 720; MinWidth = 420; MinHeight = 560;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         WindowChrome.Apply(this);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
@@ -113,7 +114,7 @@ internal sealed class ManualImportDialog : Window
 
         WrapPanel pick = new() { ItemSpacing = 6, LineSpacing = 6, Children = { _addFiles, _addFolder } };
         WrapPanel switches = new() { ItemSpacing = 12, LineSpacing = 4, Children = { _subfolders, _otherFiles } };
-        Grid tagRow = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
+        Grid tagRow = _tagRow;
         tagRow.Children.Add(_tagInput); tagRow.Children.Add(_tagAdd); Grid.SetColumn(_tagAdd, 1);
         StackPanel body = new() { Spacing = 10, Margin = new Thickness(16) };
         foreach (Control control in new Control[] { _heading, _intro, _target, _rootsLabel, _roots, pick, switches, _progress, _progressText,
@@ -311,6 +312,9 @@ internal sealed class ManualImportDialog : Window
         }
         _addFiles.IsEnabled = _addFolder.IsEnabled = _subfolders.IsEnabled = _otherFiles.IsEnabled = editable;
         _name.IsEnabled = _tagInput.IsEnabled = _tagAdd.IsEnabled = editable;
+        // A finished batch has nothing left to edit: the name and tag fields give way so the summary stays in view.
+        bool finished = _session.Stage == ManualImportStage.Done;
+        _nameLabel.IsVisible = _name.IsVisible = _tagRow.IsVisible = !finished;
         if (!_tagInput.IsEnabled) _tagInput.Dismiss();
 
         _tagChips.Children.Clear();
