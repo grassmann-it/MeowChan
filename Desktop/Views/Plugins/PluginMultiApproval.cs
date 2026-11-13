@@ -98,7 +98,12 @@ internal sealed class PluginMultiApproval(IPluginProfileStore store)
                         row.OldCandidateId == choice.Repair!.OldCandidateId).ToArray();
                     // Record value equality includes every identity, path, execution, blocker and rights string.
                     same = preview.ProfileRevision == expected && matches.Length == 1 && matches[0] == choice.Repair &&
-                        (choice.Kind == PluginApprovalKind.Reauthorization ? matches[0].CanReauthorize : matches[0].CanConfirm);
+                        (choice.Kind switch
+                        {
+                            PluginApprovalKind.Reauthorization => matches[0].CanReauthorize,
+                            PluginApprovalKind.ChangeReview => matches[0].CanReviewChanges,
+                            _ => matches[0].CanConfirm
+                        });
                 }
                 // A stop or cancellation during the preview read wins over its result: nothing was dispatched.
                 if (_stop || token.IsCancellationRequested || !admit())

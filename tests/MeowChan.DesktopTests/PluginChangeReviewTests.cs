@@ -53,6 +53,39 @@ public sealed class PluginChangeReviewTests
         Assert.False(PluginsPage.TryReadBundledChangeReview(row with { PluginId = "other" }, out _));
     }
 
+    [Theory]
+    [InlineData("previousDescription", "sources")]
+    [InlineData("previousDescription", "settings")]
+    [InlineData("previousConfiguration", "pluginSettings")]
+    [InlineData("previousConfiguration", "sourceSettings")]
+    [InlineData("permissions", "filterGrants")]
+    [InlineData("permissions", "sourceIds")]
+    public void NestedNullReviewDataIsRejectedWithoutCrashing(string section, string field)
+    {
+        BundledPluginChangeReview review = new(Description(), Description(),
+            new("old", new("1", []), new Dictionary<string, SettingsSnapshot>()), new([], []));
+        var node = System.Text.Json.Nodes.JsonNode.Parse(SdkJson.Serialize(review))!;
+        node[section]![field] = null;
+        string json = node.ToJsonString();
+        BundledCandidateRepair row = new("fixture", "old", "new", "slot", "/old", "/new", "old-execution", "new-execution", true, "description-changed")
+        { ChangeReviewJson = json, ChangeFingerprint = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(json))) };
+        Assert.False(PluginsPage.TryReadBundledChangeReview(row, out _));
+    }
+
+    [Fact]
+    public void ReadableComparisonDisclosesNetworkHostsAndFilterDataAccess()
+    {
+        SourceDescription source = new("source", "Example source", new Uri("https://media.review.test/"), SourceCapabilities.ThreadRead,
+            [], [new("media.review.test", HttpHostPurpose.Metadata)], new("1", []));
+        FilterDescription filter = new("filter", "Example filter", "Reads images", FilterDataAccess.OriginalImage, new("1", []), ["image/png"]);
+        PluginDescription description = Description() with { Sources = [source], Filters = [filter], DeclarationStatus = PluginDeclarationStatus.Available };
+        string text = PluginsPage.CapabilitySummary(description);
+        Assert.Contains("media.review.test", text);
+        Assert.Contains("Example filter", text);
+        Assert.Contains(nameof(FilterDataAccess.OriginalImage), text);
+        Assert.Contains("image/png", text);
+    }
+
     [Fact]
     public void CatalogHasEnglishAndGermanConsentTextWithMatchingPlaceholders()
     {

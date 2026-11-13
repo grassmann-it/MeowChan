@@ -31,12 +31,18 @@ public partial class PluginsPage
             if (!string.Equals(fingerprint, row.ChangeFingerprint, StringComparison.Ordinal)) return false;
             BundledPluginChangeReview candidate = SdkJson.Deserialize<BundledPluginChangeReview>(
                 Encoding.UTF8.GetBytes(row.ChangeReviewJson));
-            if (candidate.PreviousDescription is null || candidate.NewDescription is null ||
+            if (candidate is null || candidate.PreviousDescription is null || candidate.NewDescription is null ||
                 candidate.PreviousConfiguration is null || candidate.Permissions is null ||
                 candidate.PreviousDescription.PluginId != row.PluginId || candidate.NewDescription.PluginId != row.PluginId ||
                 candidate.PreviousDescription.Sources is null || candidate.NewDescription.Sources is null ||
                 candidate.NewDescription.Filters is null || candidate.NewDescription.Settings is null ||
+                SdkValidation.ValidateDescription(candidate.PreviousDescription).Count != 0 ||
                 SdkValidation.ValidateDescription(candidate.NewDescription).Count != 0 ||
+                candidate.PreviousConfiguration.PluginSettings?.Values is null ||
+                candidate.PreviousConfiguration.PluginSettings.Values.Any(value => value is null) ||
+                candidate.PreviousConfiguration.SourceSettings is null ||
+                candidate.PreviousConfiguration.SourceSettings.Any(pair => string.IsNullOrWhiteSpace(pair.Key) ||
+                    pair.Value?.Values is null || pair.Value.Values.Any(value => value is null)) ||
                 !candidate.PreviousDescription.Sources.Select(source => source.SourceId).Order(StringComparer.Ordinal)
                     .SequenceEqual(candidate.NewDescription.Sources.Select(source => source.SourceId).Order(StringComparer.Ordinal)) ||
                 candidate.Permissions.FilterGrants is null || candidate.Permissions.SourceIds is null ||
@@ -62,12 +68,53 @@ public partial class PluginsPage
         PluginChangeReviewCatalog.T("plugins.changeReview.newConfig",
             description.Settings.Fields.Count + description.Sources.Sum(source => source.Settings.Fields.Count));
 
-    private static string CapabilitySummary(PluginDescription description)
+    // Keep network and data-access changes in the readable comparison, not only raw JSON.
+    internal static string CapabilitySummary(PluginDescription description)
     {
-        if (description.Sources.Count == 0) return PluginChangeReviewCatalog.T("plugins.changeReview.noCapabilities");
-        return string.Join(Environment.NewLine, description.Sources.Select(source =>
-            PluginChangeReviewCatalog.T("plugins.changeReview.sourceCapabilities", source.Name,
-                PluginContentPresentation.DescribeCapabilities(source.Capabilities))));
+        List<string> lines = new() { description.Name + " · " + description.PluginVersion + " · SDK " + description.SdkVersion,
+            description.Description, PluginChangeReviewCatalog.T("plugins.changeReview.sources") };
+        if (description.Sources.Count == 0) lines.Add(PluginChangeReviewCatalog.T("plugins.changeReview.noCapabilities"));
+        foreach (SourceDescription source in description.Sources)
+        {
+            lines.Add(PluginChangeReviewCatalog.T("plugins.changeReview.sourceCapabilities", source.Name + " (" + source.SourceId + ")",
+                PluginContentPresentation.DescribeCapabilities(source.Capabilities)));
+            lines.Add(source.BaseUri.ToString());
+            lines.Add(PluginChangeReviewCatalog.T("plugins.changeReview.domains", string.Join(", ",
+                source.HttpHosts.Select(host => host.Host + " [" + host.Purpose + "]"))));
+            lines.AddRange(source.Routes.Select(route => route.Kind + ": " + route.Host + route.PathTemplate));
+        }
+        lines.Add(PluginChangeReviewCatalog.T("plugins.changeReview.filters"));
+        if (description.Filters.Count == 0) lines.Add(PluginChangeReviewCatalog.T("plugins.changeReview.noFilters"));
+        foreach (FilterDescription filter in description.Filters)
+        {
+            lines.Add(PluginChangeReviewCatalog.T("plugins.changeReview.filterCapabilities", filter.Name + " (" + filter.Key + ")", filter.RequiredAccess));
+            lines.Add(filter.Description);
+            lines.Add(string.Join(", ", filter.SupportedMimeTypes));
+        }
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static string PreviousSettingsSummary(BundledPluginChangeReview review)
+    {
+        List<string> lines = new();
+        Add(review.PreviousDescription.Name, review.PreviousDescription.Settings, review.PreviousConfiguration.PluginSettings);
+        foreach ((string id, SettingsSnapshot values) in review.PreviousConfiguration.SourceSettings)
+            Add(id, review.PreviousDescription.Sources.FirstOrDefault(source => source.SourceId == id)?.Settings, values);
+        return lines.Count == 0 ? PluginChangeReviewCatalog.T("plugins.changeReview.noSettings") : string.Join(Environment.NewLine, lines);
+        void Add(string name, SettingsSchema? schema, SettingsSnapshot values)
+        {
+            foreach (SettingValue value in values.Values)
+            {
+                string label = schema?.Fields.FirstOrDefault(field => field.Key == value.Key)?.Label ?? value.Key;
+                string text = value.Kind switch
+                {
+                    SettingKind.Boolean => value.Boolean?.ToString() ?? "",
+                    SettingKind.Integer => value.Integer?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
+                    _ => value.Text ?? ""
+                };
+                lines.Add(name + " · " + label + ": " + text);
+            }
+        }
     }
 
     private static string RightsSummary(BundledRepairPermissions permissions)
@@ -95,7 +142,7 @@ public partial class PluginsPage
 
         content.Children.Add(new TextBlock { Text = PluginChangeReviewCatalog.T("plugins.changeReview.plugin", review.NewDescription.Name),
             FontWeight = Avalonia.Media.FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
-        content.Children.Add(new TextBlock { Text = PluginChangeReviewCatalog.T("plugins.changeReview.explanation", review.NewDescription.Name), TextWrapping = TextWrapping.Wrap });
+        content.Children.Add(new TextBlock { Text = PluginChangeReviewCatalog.T("plugins.changeReview.explanation"), TextWrapping = TextWrapping.Wrap });
         content.Children.Add(new TextBlock { Text = PluginChangeReviewCatalog.T("plugins.changeReview.capabilities"), FontWeight = Avalonia.Media.FontWeight.SemiBold });
         content.Children.Add(new Grid
         {
@@ -122,6 +169,7 @@ public partial class PluginsPage
         void RenderEditors()
         {
             editorPanel.Children.Clear();
+            editors.Clear();
             if (draft.NeedsRemovedValueAcknowledgement)
             {
                 removedAcknowledgement ??= new Button { Content = Texts.T("plugins.acceptSchema"), HorizontalAlignment = HorizontalAlignment.Left };
@@ -147,6 +195,8 @@ public partial class PluginsPage
             if (settings.Schema.Fields.Count == 0 && settings.UnmappedValues.Count == 0) return;
             PluginSettingsEditor editor = new(settings, "bundled-change:" + row.PluginId + ":" + scope);
             editors[editor] = scope;
+            // One acknowledgement for removed values, not an additional button in every scope.
+            if (editor.SchemaAcknowledgement is { } acknowledgement) acknowledgement.IsVisible = false;
             Expander expander = new() { Header = title, Content = editor, IsExpanded = true,
                 HorizontalAlignment = HorizontalAlignment.Stretch };
             host.Children.Add(expander);
@@ -164,6 +214,12 @@ public partial class PluginsPage
             }
         });
         Grid.SetColumn(((Grid)settingsPanel.Children[^1]).Children[1], 1);
+        settingsPanel.Children.Add(new TextBlock { Text = PluginChangeReviewCatalog.T("plugins.changeReview.oldSettings"), FontWeight = FontWeight.SemiBold });
+        settingsPanel.Children.Add(new TextBlock { Text = PreviousSettingsSummary(review), TextWrapping = TextWrapping.Wrap });
+        settingsPanel.Children.Add(new TextBlock { Text = PluginChangeReviewCatalog.T("plugins.changeReview.schema",
+            review.PreviousDescription.Settings.Version, review.NewDescription.Settings.Version), TextWrapping = TextWrapping.Wrap });
+        if (editorPanel.Children.Count == 0)
+            settingsPanel.Children.Add(new TextBlock { Text = PluginChangeReviewCatalog.T("plugins.changeReview.noEditableSettings"), TextWrapping = TextWrapping.Wrap });
         settingsPanel.Children.Add(editorPanel);
         Expander settingsExpander = new() { Header = PluginChangeReviewCatalog.T("plugins.changeReview.settings"), Content = settingsPanel,
             IsExpanded = true, HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -181,10 +237,12 @@ public partial class PluginsPage
             AutomationProperties.SetAutomationId(rights, "BundledChangeReviewRights:" + row.PluginId);
             content.Children.Add(rights);
         }
+        content.Children.Add(new TextBlock { Text = PluginChangeReviewCatalog.T("plugins.changeReview.ackNeeded"), TextWrapping = TextWrapping.Wrap });
         content.Children.Add(changes);
         TextBlock validation = new() { IsVisible = false, TextWrapping = TextWrapping.Wrap, Classes = { "error", "workspace-error" } };
         content.Children.Add(validation);
-        Button save = new() { Content = PluginChangeReviewCatalog.T("plugins.changeReview.save"), HorizontalAlignment = HorizontalAlignment.Left };
+        Button save = new() { Content = new TextBlock { Text = PluginChangeReviewCatalog.T("plugins.changeReview.save"), TextWrapping = TextWrapping.Wrap },
+            HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center };
         AutomationProperties.SetAutomationId(save, "BundledChangeReviewSave:" + row.PluginId);
         AutomationProperties.SetName(save, PluginChangeReviewCatalog.T("plugins.changeReview.save"));
         void UpdateSave()
@@ -205,15 +263,23 @@ public partial class PluginsPage
             {
                 validation.Text = PluginChangeReviewCatalog.T("plugins.changeReview.invalidFields");
                 validation.IsVisible = true;
-                PluginSettingsEditor? first = editorPanel.GetVisualDescendants().OfType<PluginSettingsEditor>().FirstOrDefault();
-                if (first is not null && !first.TryFocusFirstError(() => coherent() && !saving())) first.Focus();
-                else if (removedAcknowledgement is not null && draft.NeedsRemovedValueAcknowledgement) removedAcknowledgement.Focus();
+                bool focused = false;
+                foreach ((PluginSettingsEditor editor, string scope) in editors)
+                {
+                    if (!errors.Any(error => error.Scope == scope) ||
+                        !editor.TryFocusFirstError(() => coherent() && !saving())) continue;
+                    focused = true;
+                    break;
+                }
+                if (!focused && removedAcknowledgement is not null && draft.NeedsRemovedValueAcknowledgement)
+                { removedAcknowledgement.BringIntoView(); removedAcknowledgement.Focus(); }
                 return;
             }
             validation.IsVisible = false;
             await saveAsync(new[] { new PluginApprovalChoice(PluginApprovalKind.ChangeReview, revision, Repair: row,
                 ChangeConfiguration: configuration, AcknowledgeChanges: true, AuthorizePermissions: hasRights && rights?.IsChecked == true) });
         };
+        save.Classes.Add("primary");
         content.Children.Add(save);
         Expander technical = new() { Header = PluginChangeReviewCatalog.T("plugins.changeReview.technical"), IsExpanded = false,
             Content = new TextBox { Text = PluginChangeReviewCatalog.T("plugins.changeReview.identities", row.OldCandidateId, row.NewCandidateId ?? "?",

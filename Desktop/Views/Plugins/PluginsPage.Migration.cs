@@ -109,6 +109,7 @@ public partial class PluginsPage
                 string label = count == 1 ? Texts.T("plugins.approval.submitOne") : Texts.T("plugins.approval.submit", count);
                 submit.Content = RepairText(label);
                 AutomationProperties.SetName(submit, label);
+                submit.IsVisible = reauthorizations.Count > 0;
                 submit.IsEnabled = !saving && coherent && count > 0;
             }
             void SetStatus(string key)
@@ -155,7 +156,9 @@ public partial class PluginsPage
                         await ReloadAsync();
                         if (!SessionCurrent() || closeRequested) return;
                         RenderRows(); // All unconsumed checkboxes are freshly UNCHECKED, also on failure.
-                        SetStatus(approval.IssueKey ?? (coherent ? "plugins.approval.reviewAgain" : "plugins.approval.needsReview"));
+                        SetStatus(approval.IssueKey ?? (!coherent ? "plugins.approval.needsReview" :
+                            choices.Count == 1 && choices[0].Kind == PluginApprovalKind.ChangeReview
+                                ? "plugins.changeReview.saved" : "plugins.approval.reviewAgain"));
                         // The dialog stays open so receipts remain readable; with nothing left, Close is the next step.
                         Emphasise(approval.IssueKey is null && coherent && !actionable);
                     }
@@ -184,8 +187,12 @@ public partial class PluginsPage
                 reauthorizations.Clear();
                 AutomationProperties.SetAutomationId(repairRows, "BundledProvenRepairs");
                 AutomationProperties.SetAutomationId(selectionRows, "BundledNewSelections");
-                repairRows.Children.Add(RepairText(Texts.T("plugins.reselection.repairSection")));
-                repairRows.Children.Add(RepairText(Texts.T("plugins.repair.policy")));
+                bool onlyChangeReviews = preview.Rows.Count > 0 && preview.Rows.All(row => row.CanReviewChanges) && selections.Rows.Count == 0;
+                if (!onlyChangeReviews)
+                {
+                    repairRows.Children.Add(RepairText(Texts.T("plugins.reselection.repairSection")));
+                    repairRows.Children.Add(RepairText(Texts.T("plugins.repair.policy")));
+                }
                 if (preview.Rows.Count == 0) repairRows.Children.Add(RepairText(Texts.T("plugins.repair.empty")));
                 int repairRowIndex = 0;
                 foreach (BundledCandidateRepair row in preview.Rows.OrderByDescending(row => row.CanReviewChanges || row.CanReauthorize || row.CanConfirm))
@@ -329,14 +336,15 @@ public partial class PluginsPage
                     selectionRows.Children.Add(new Border { Child = content, Padding = new Thickness(12), BorderThickness = new Thickness(1) });
                 }
                 actionable = reauthorizations.Any(item => item.Ack.IsEnabled) ||
-                    preview.Rows.Any(row => !row.CanReauthorize && row.CanConfirm && coherent && approval.MayOffer(row.PluginId)) ||
+                    preview.Rows.Any(row => (row.CanReviewChanges || !row.CanReauthorize && row.CanConfirm) && coherent && approval.MayOffer(row.PluginId)) ||
                     selections.Rows.Any(row => row.CanConfirm && coherent && approval.MayOffer(row.PluginId));
                 // Keep every proven repair available, but do not bury usable new choices below legacy denials.
                 bool hasNewChoice = selections.Rows.Any(row => row.CanConfirm);
                 if (receipts.Children.Count != 0) rows.Children.Add(receipts);
-                rows.Children.Add(hasNewChoice ? selectionRows : repairRows);
-                rows.Children.Add(hasNewChoice ? repairRows : selectionRows);
-                rows.Children.Add(RepairText(Texts.T("plugins.approval.policy")));
+                if (hasNewChoice) rows.Children.Add(selectionRows);
+                if (preview.Rows.Count != 0 || selections.Rows.Count == 0) rows.Children.Add(repairRows);
+                if (!hasNewChoice && selections.Rows.Count != 0) rows.Children.Add(selectionRows);
+                if (reauthorizations.Count > 1) rows.Children.Add(RepairText(Texts.T("plugins.approval.policy")));
                 UpdateSubmit();
             }
             RenderRows();

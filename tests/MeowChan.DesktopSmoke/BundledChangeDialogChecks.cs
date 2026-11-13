@@ -145,7 +145,8 @@ internal static class BundledChangeDialogChecks
                 }
                 await ClosedAsync(page, modal);
                 Require(store.Writes.Count == before + 1, "One save dispatched more than once.");
-                Require(untouched.SequenceEqual(SdkJson.Serialize(await fixture.Store.ReadAsync())) && fixture.ForbiddenCalls == 0,
+                byte[] afterReview = SdkJson.Serialize(await fixture.Store.ReadAsync());
+                Require(untouched.SequenceEqual(afterReview) && fixture.ForbiddenCalls == 0,
                     "Review mutated the underlying catalog or invoked plugin execution/network services.");
                 Console.WriteLine("PLUGIN_CHANGE_REVIEW " + JsonSerializer.Serialize(new { result = "pass", language = current,
                     nativeOwnedModal = true, invalidSourceFocus = true, sameModalCorrection = true, exactChangeDispatch = true, pendingOnly = true }));

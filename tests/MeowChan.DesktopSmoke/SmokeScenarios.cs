@@ -89,6 +89,7 @@ internal static partial class SmokeScenarios
         Mode("video-contrast", "real decoded video time, ended and corrupt-media error contrast in Light/Dark") with { NightlyEnvironment = [Video] },
         Mode("plugins", NormalPass),
         Nested("plugin-reselection", "MEOWCHAN_PLUGIN_RESELECTION_ONLY", "--plugins"),
+        Nested("plugin-change-review", "MEOWCHAN_PLUGIN_CHANGE_REVIEW_ONLY", "--plugins"),
         Mode("archive-cleanup", "archive cleanup: private preview, explicit confirmation, real deletion, durable invariants and controlled failures"),
         Mode("shell-load", "shell load: bounded offline gallery/load fixture, separate process watchdog, correlated UI/commit/resource measurements"),
         Root("startup-first-frame", "MEOWCHAN_STARTUP_FIRST_FRAME_ONLY", "startup first frame: isolated timing separations and post-startup managed navigation probes; no latency SLO or physical-presentation claim")

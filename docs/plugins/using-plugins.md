@@ -250,9 +250,22 @@ rights to carry over (no filter grant, no
 restricted source with size/MD5 exception) is taken over automatically. A changed
 build that would keep existing rights stays off until you review it in **Review
 bundled repairs** and explicitly authorize those rights for that exact new
-execution revision. A changed description (capabilities, routes, hosts, filters,
-settings schema, names or metadata) is shown as blocked and cannot be confirmed
-there.
+execution revision. A change to capabilities, routes, hosts, filters, settings,
+names or metadata requires a separate, explicit decision. For a uniquely proven
+bundled target with the same source identities, **Review bundled repairs** now
+shows that review in the same dialog: compare the old and new declaration, correct
+settings in the embedded form, and acknowledge the changes. Any existing special
+rights require their own confirmation; ordinary repair cannot bypass either decision.
+
+**Save reviewed plugin for next start** records the exact reviewed build and
+validated settings without live activation. Restart the app after saving. The old
+release/configuration and the pre-selection backup remain available; nothing in
+this dialog deletes or resets the profile. Paths, execution hashes and exact JSON
+are under **Technical details** rather than obscuring the review.
+
+Missing delivery proof, conflicting source ownership, ambiguous candidates, changed
+source identities or a pinned rollback remain blockers. A stale preview must be
+reloaded; it never silently changes the build or permissions being approved.
 
 ### SDK 1.0.0 to 1.1.0 transition
 
