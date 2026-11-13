@@ -115,8 +115,12 @@ public sealed partial class MediaPage : UserControl
     internal Func<MediaLibraryIndexCacheFile, CancellationToken, Task<MediaLibrarySnapshot?>> LoadCache { get; set; } =
         (file, token) => file.LoadAsync(token);
     internal MediaLibraryIndexCacheFile? CacheFile => _cacheFile;
-    /// <summary>The page's manifest views; the import dialog's dedupe check reuses them instead of reading every manifest again.</summary>
-    internal MediaManifestCache ManifestCache => _manifests;
+    /// <summary>
+    /// A manifest cache of the same kind as the page's own (real reader with file identities, or the page's custom opener) that
+    /// belongs to the caller. A caller that builds an index on the side (the import check) must not use or invalidate the page's
+    /// views: its reuse comes from the identities recorded in <see cref="Snapshot"/>.
+    /// </summary>
+    internal MediaManifestCache CreateManifestCache() => new(_manifests.UsesIdentity ? null : _openManifest);
     internal bool LoadingCache => _loadingCache;
     internal MediaLibraryIndexCacheWrite? LastCacheWrite => _cacheWrite;
     /// <summary>One entry per tile: the occurrence each tile shows. Gallery windows are made from this list.</summary>

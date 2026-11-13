@@ -22,6 +22,20 @@ public sealed class ManualImportDesktopTests : IDisposable
     public ManualImportDesktopTests() { Texts.Initialize(); Texts.SetLanguage("en"); }
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage(_previous); }
 
+    // FB-R10: the dedupe check builds its index on the side; it reuses the Media page's snapshot, not its manifest views, and never
+    // invalidates the page's shared cache (which would make the page's thumbnails and sound check prove file identities again).
+    // MediaPage needs Avalonia's asset loader, which this host does not start, so this is a source contract.
+    [Fact]
+    public void TheDedupeCheckKeepsItsOwnManifestCacheAndNeverInvalidatesThePages()
+    {
+        string source = File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(ThisFile())!, "../../Desktop/Shell/MainWindow.ManualImport.cs")));
+        Assert.DoesNotContain(".ManifestCache", source);
+        Assert.Contains("state.Manifests ??= page?.CreateManifestCache()", source);
+        Assert.Contains("previous = page?.Snapshot ?? state.Last", source);
+    }
+
+    private static string ThisFile([System.Runtime.CompilerServices.CallerFilePath] string path = "") => path;
+
     private static ManualImportPlan Plan(params ManualImportCandidate[] items) =>
         new(items, ManualImportPlanStatus.Ready, true, items.Count(item => item.Importable), items.Sum(item => item.Length), false, null);
 

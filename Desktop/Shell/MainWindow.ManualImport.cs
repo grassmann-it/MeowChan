@@ -112,7 +112,7 @@ public partial class MainWindow
         session.AddRoots(roots);
     }
 
-    /// <summary>What one dialog session keeps between index builds when the Media page is not there to share its own.</summary>
+    /// <summary>What one dialog session keeps between index builds: its own manifest cache, the last index and whether the saved one was tried.</summary>
     private sealed class KnownMediaState
     {
         internal MediaManifestCache? Manifests;
@@ -122,10 +122,12 @@ public partial class MainWindow
 
     private async Task<ManualImportKnownMedia> BuildKnownMediaAsync(KnownMediaState state, CancellationToken token)
     {
-        // The Media page's manifest views and index are reused when it exists: unchanged manifests are not opened or
-        // hashed again, so adding one file costs about what a refresh of that page costs, not a cold scan.
+        // The Media page's index is reused when it exists: a thread whose manifest files still have the identities recorded in it is
+        // not opened or hashed again, so adding one file costs about what a refresh of that page costs, not a cold scan. The check
+        // keeps its own manifest cache: invalidating the page's shared one would make its thumbnail and sound-check views prove
+        // their file identity again after every check, and the reuse does not depend on kept views.
         MediaPage? page = _mediaPage;
-        MediaManifestCache manifests = page?.ManifestCache ?? (state.Manifests ??= new MediaManifestCache());
+        MediaManifestCache manifests = state.Manifests ??= page?.CreateManifestCache() ?? new MediaManifestCache();
         manifests.Invalidate(); // Files may have changed since the views were read: they prove their identity first.
         MediaLibrarySnapshot? previous = page?.Snapshot ?? state.Last;
         if (previous == null && !state.CacheTried)
