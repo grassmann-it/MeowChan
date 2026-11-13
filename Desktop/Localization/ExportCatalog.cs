@@ -12,7 +12,7 @@ internal static class ExportCatalog
         ("export.legacyAssociate", "Associate selected older export with this thread", "Gewählten älteren Export diesem Thread zuordnen"),
         ("export.legacyFound", "Found {0} source-matching candidates (at most 500 folders checked). Verify the folder before explicitly associating it.", "{0} Kandidaten mit passender Quelle gefunden (höchstens 500 Ordner geprüft). Ordner vor dem ausdrücklichen Zuordnen prüfen."),
         ("export.legacyAssociated", "Older export associated. Updating it will preserve its previous content.", "Älterer Export zugeordnet. Beim Aktualisieren bleibt sein bisheriger Inhalt erhalten."),
-        ("export.hint", "Export the latest local capture to an independent HTML folder. Nothing is downloaded.", "Letzte lokale Erfassung als eigenständigen HTMLordner exportieren. Es wird nichts heruntergeladen."),
+        ("export.hint", "Export the latest local capture to an independent HTML folder. Nothing is downloaded.", "Letzte lokale Erfassung als eigenständigen HTML-Ordner exportieren. Es wird nichts heruntergeladen."),
         ("export.associatedDate", "Associated", "Zugeordnet"),
         ("export.known", "This thread has previous exports. Choose a target and how to export.", "Dieser Thread wurde bereits exportiert. Ziel und Exportart wählen."),
         ("export.new", "Create new folder", "Neuen Ordner erstellen"),
