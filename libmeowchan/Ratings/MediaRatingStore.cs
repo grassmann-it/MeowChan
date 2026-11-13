@@ -110,9 +110,12 @@ public sealed class MediaRatingStore
         {
             // Never replace malformed bytes inside an identity with U+FFFD. Decode before
             // parsing so every property, including otherwise ignored properties, is validated.
-            string json = StrictUtf8.GetString(File.ReadAllBytes(path));
+            byte[] bytes = File.ReadAllBytes(path);
+            string json = StrictUtf8.GetString(bytes);
             // Accept an optional UTF-8 BOM without enabling UTF-16/32 encoding detection.
             if (json.Length > 0 && json[0] == '\uFEFF') json = json[1..];
+            // The serializer keeps the last of two equal names: a second "Entries" would silently replace every rating.
+            if (JsonDuplicateProperties.Any(bytes)) throw new InvalidDataException("The ratings index repeats a property.");
             document = JsonSerializer.Deserialize<Document>(json);
         }
         catch (Exception error) when (error is JsonException or DecoderFallbackException)

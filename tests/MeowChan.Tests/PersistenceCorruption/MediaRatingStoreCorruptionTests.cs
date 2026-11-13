@@ -28,28 +28,40 @@ internal sealed class MediaRatingStoreAdapter : StoreAdapter
         string.Join("|", new MediaRatingStore(directory, lease).List().Select(entry => entry.Key.MediaIdentifier + "=" + entry.Value)) + "#");
 
     internal override void Mutate(string directory, ProfileLease lease) => new MediaRatingStore(directory, lease).Set(Key(3), 4);
-
-    private const string DuplicateProperty =
-        "BUG: MediaRatingStore accepts a repeated \"Entries\" property and keeps the last one, so a duplicate silently empties "
-        + "the rating list instead of being rejected as it is by FavoriteStore.CheckObject.";
-
-    internal override IReadOnlyDictionary<string, string> KnownBugs => new Dictionary<string, string>
-    {
-        ["primary:duplicate-array-property-different-value"] = DuplicateProperty,
-        ["primary-good-backup:duplicate-array-property-different-value"] = DuplicateProperty,
-        ["both:duplicate-array-property-different-value"] = DuplicateProperty,
-        ["backup:duplicate-array-property-different-value"] = DuplicateProperty
-    };
 }
 
 public sealed class MediaRatingStoreCorruptionTests(ITestOutputHelper log) : BackedStoreCorruptionTests(log)
 {
     internal override StoreAdapter Adapter { get; } = new MediaRatingStoreAdapter();
 
-    [Fact(Skip = "BUG: media-ratings.json is parsed without a duplicate-property check, so a document whose \"Entries\" property appears "
-        + "twice reads as the last (empty) one: every rating silently disappears and the store still reports the document as good, so "
-        + "the next rating writes that empty list over the user's data. Its sibling stores reject this (FavoriteStore.CheckObject at "
-        + "libmeowchan/Favorites/FavoriteStore.cs:334-345, ThreadFavoriteStore.CheckObject at libmeowchan/Favorites/ThreadFavoriteStore.cs:231-240).")]
+    // A repeated property is damage: the store refuses it and writes nothing, so the good copies stay.
+    [Fact]
     public void ARepeatedEntriesPropertyNeverSilentlyEmptiesTheRatings() =>
-        CorruptionScenarios.DamagedPrimary(new MediaRatingStoreAdapter(), "duplicate-array-property-different-value", null, "bug");
+        CorruptionScenarios.DamagedPrimary(new MediaRatingStoreAdapter(), "duplicate-array-property-different-value", null, "duplicate");
+
+    [Fact]
+    public void ARepeatedPropertyInsideAnEntryIsDamageToo()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        MediaRatingStoreAdapter adapter = new();
+        adapter.Seed(temp.Path, lease);
+        string path = adapter.PrimaryPath(temp.Path);
+        byte[] before = File.ReadAllBytes(path);
+        // A second "Value" in the first entry: the serializer would keep 1 instead of the stored rating.
+        File.WriteAllText(path, File.ReadAllText(path).Replace("\"Value\":", "\"Value\":1,\"Value\":", StringComparison.Ordinal));
+        Assert.NotEqual(before, File.ReadAllBytes(path));
+        Assert.Equal(ReadKind.Unusable, adapter.Read(temp.Path, lease).Kind);
+    }
+
+    [Fact]
+    public void FilesWrittenByTheStoreStillLoad()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        MediaRatingStoreAdapter adapter = new();
+        adapter.Seed(temp.Path, lease);
+        adapter.Mutate(temp.Path, lease);
+        Assert.Equal(ReadKind.Data, adapter.Read(temp.Path, lease).Kind);
+    }
 }
