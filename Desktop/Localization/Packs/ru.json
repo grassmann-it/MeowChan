@@ -705,7 +705,7 @@
     "post.copy.numberDone": "Номер сообщения скопирован",
     "post.copy.linkDone": "Ссылка на сообщение скопирована",
     "post.copy.failed": "Не удалось скопировать в буфер обмена.",
-    "archive.threadFavorite.loading": "Состояние избранного для треда загружается …",
+    "archive.threadFavorite.loading": "Состояние избранного для треда загружается…",
     "reader.live.reason.notWatched": "Невозможно: этот тред не отслеживается.",
     "reader.live.reason.captureOff": "Невозможно: для этого треда отключён захват сообщений.",
     "reader.live.reason.sourceArchived": "Невозможно: тред заархивирован на источнике.",

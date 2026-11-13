@@ -24,7 +24,7 @@ internal static class ArchiveExportStatusLanguageRefreshChecks
     private static readonly (string Code, string Start, string Working)[] Languages =
     [
         ("en", "Export", "Preparing export…"),
-        ("de", "Exportieren", "Export wird vorbereitet …"),
+        ("de", "Exportieren", "Export wird vorbereitet…"),
         ("es", "Exportar", "Preparando exportación…"),
         ("fr", "Exporter", "Préparation de l’export…"),
         ("ru", "Экспортировать", "Подготовка экспорта…")

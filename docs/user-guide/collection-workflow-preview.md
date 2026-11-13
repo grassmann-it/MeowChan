@@ -38,7 +38,7 @@ Die Favoritenübersicht löst die gewählte Menge gegen gespeicherte lokale Mani
 
 ## Transferpaket prüfen und anwenden
 
-Im Archivkopf öffnen Sie **Transferpaket prüfen …** und wählen im Dialog über **Transferpaket wählen …** eine vorhandene lokale ZIP-Datei. MeowChan prüft sie mit dem produktiven Paketleser und zeigt ein begrenztes Inventar: Threads, Beiträge, eindeutige Payloads, Bytegröße sowie Status vorhandener Originale, Vorschauen und erhaltener Bindungen. Für einen öffentlichen `chan-v4`-Einzelthread kann der Dialog anschließend einen Neu- oder Merge-Plan anwenden.
+Im Archivkopf öffnen Sie **Transferpaket prüfen…** und wählen im Dialog über **Transferpaket wählen…** eine vorhandene lokale ZIP-Datei. MeowChan prüft sie mit dem produktiven Paketleser und zeigt ein begrenztes Inventar: Threads, Beiträge, eindeutige Payloads, Bytegröße sowie Status vorhandener Originale, Vorschauen und erhaltener Bindungen. Für einen öffentlichen `chan-v4`-Einzelthread kann der Dialog anschließend einen Neu- oder Merge-Plan anwenden.
 
 Der Ablauf ist bei Apply ausdrücklich begrenzt:
 

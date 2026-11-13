@@ -18,7 +18,7 @@ internal static class MediaHashSearchCatalog
         ("mediahash.next", "Next 100", "Nächste 100"),
         ("mediahash.ready", "Enter a complete SHA-256 and explicitly start the search.", "Vollständigen SHA-256 eingeben und die Suche ausdrücklich starten."),
         ("mediahash.invalid", "Use exactly 64 ASCII hex characters. Spaces, prefixes, MD5 and shortened hashes are not accepted.", "Genau 64 ASCII-Hexzeichen verwenden. Leerzeichen, Präfixe, MD5 und verkürzte Hashes werden nicht akzeptiert."),
-        ("mediahash.searching", "Searching this captured inventory…", "Dieses erfasste Inventar wird durchsucht …"),
+        ("mediahash.searching", "Searching this captured inventory…", "Dieses erfasste Inventar wird durchsucht…"),
         ("mediahash.missing", "The captured media manifest is missing. Matches and measurement availability are unknown.", "Das erfasste Medienmanifest fehlt. Treffer und vorhandene Messwerte sind unbekannt."),
         ("mediahash.corrupt", "The captured media manifest is corrupt. Matches and measurement availability are unknown.", "Das erfasste Medienmanifest ist beschädigt. Treffer und vorhandene Messwerte sind unbekannt."),
         ("mediahash.noMeasurements", "No complete SHA-256 measurement is recorded in this captured inventory. No measurement was started.", "In diesem erfassten Inventar ist kein vollständiger SHA-256-Messwert gespeichert. Es wurde keine Messung gestartet."),

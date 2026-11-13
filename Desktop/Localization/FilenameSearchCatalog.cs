@@ -17,7 +17,7 @@ internal static class FilenameSearchCatalog
         ("filename.search.select", "Go to post of selected hit", "Zum Post des gewählten Treffers"),
         ("filename.search.close", "Close", "Schließen"),
         ("filename.search.idle", "Enter text and choose Search. Empty text matches all known names.", "Text eingeben und Suchen wählen. Leerer Text findet alle bekannten Namen."),
-        ("filename.search.reading", "Reading catalog…", "Katalog wird gelesen …"),
+        ("filename.search.reading", "Reading catalog…", "Katalog wird gelesen…"),
         ("filename.search.invalid", "Use at most 512 UTF-16 characters and no NUL. Input is not trimmed.", "Höchstens 512 UTF-16-Zeichen und kein NUL verwenden. Die Eingabe wird nicht getrimmt."),
         ("filename.search.failed", "The catalog could not be read. Search again to retry.", "Der Katalog konnte nicht gelesen werden. Zum Wiederholen erneut suchen."),
         ("filename.search.canceled", "Search cancelled.", "Suche abgebrochen."),

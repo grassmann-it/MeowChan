@@ -171,7 +171,7 @@ public sealed class GalleryMediaActionsTests : IDisposable
     {
         Assert.Equal("Original…", GalleryViewer.CompactLabelFor("GalleryExportOriginal"));
         Texts.SetLanguage("de");
-        Assert.Equal("Original …", GalleryViewer.CompactLabelFor("GalleryExportOriginal"));
+        Assert.Equal("Original…", GalleryViewer.CompactLabelFor("GalleryExportOriginal"));
     }
 
     [Fact]

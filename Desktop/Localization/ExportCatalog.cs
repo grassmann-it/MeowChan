@@ -18,7 +18,7 @@ internal static class ExportCatalog
         ("export.new", "Create new folder", "Neuen Ordner erstellen"),
         ("export.update", "Update selected export", "Gewählten Export aktualisieren"),
         ("export.previous", "Open previous export", "Früheren Export öffnen"),
-        ("export.associate", "Associate export folder…", "Exportordner zuordnen …"),
+        ("export.associate", "Associate export folder…", "Exportordner zuordnen…"),
         ("export.missing", "missing or unavailable", "fehlt oder nicht verfügbar"),
         ("export.preserve", "Keep the previous folder if content changes or is reduced", "Bisherigen Ordner bei Änderungen oder reduziertem Inhalt erhalten"),
         ("export.backupHint", "Updating replaces the selected export. Modified files, extra files or content missing from the new capture are preserved in a separate backup folder.", "Die Aktualisierung ersetzt den gewählten Export. Geänderte Dateien, Zusatzdateien oder im neuen Stand fehlende Inhalte bleiben in einem separaten Sicherungsordner erhalten."),

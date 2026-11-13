@@ -138,7 +138,7 @@ public sealed class CommandScopeGalleryLocalizationTests : IDisposable
 
     [Theory]
     [InlineData("en", "Close", "Fit", "Post", "Favorite", "Original…", "Full screen")]
-    [InlineData("de", "Schließen", "Einpassen", "Post", "Favorit", "Original …", "Vollbild")]
+    [InlineData("de", "Schließen", "Einpassen", "Post", "Favorit", "Original…", "Vollbild")]
     [InlineData("es", "Cerrar", "Ajustar", "Publicación", "Favorito", "Original…", "Pantalla completa")]
     [InlineData("fr", "Fermer", "Ajuster", "Message", "Favori", "Original…", "Plein écran")]
     [InlineData("ru", "Закрыть", "Вписать", "Пост", "Избранное", "Оригинал…", "Полный экран")]

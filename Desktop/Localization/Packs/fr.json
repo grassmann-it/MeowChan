@@ -705,7 +705,7 @@
     "post.copy.numberDone": "Numéro de la publication copié",
     "post.copy.linkDone": "Lien de la publication copié",
     "post.copy.failed": "Copie dans le presse-papiers impossible.",
-    "archive.threadFavorite.loading": "Chargement de l’état de favori du fil …",
+    "archive.threadFavorite.loading": "Chargement de l’état de favori du fil…",
     "reader.live.reason.notWatched": "Impossible : ce fil n’est pas suivi.",
     "reader.live.reason.captureOff": "Impossible : la capture des publications est désactivée pour ce fil.",
     "reader.live.reason.sourceArchived": "Impossible : ce fil est archivé sur sa source.",

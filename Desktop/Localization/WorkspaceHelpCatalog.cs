@@ -11,7 +11,7 @@ internal static class WorkspaceHelpCatalog
         ("macmenu.file", "File", "Ablage"),
         ("macmenu.edit", "Edit", "Bearbeiten"),
         ("macmenu.find", "Find", "Suchen"),
-        ("macmenu.find.entry", "Find…", "Suchen …"),
+        ("macmenu.find.entry", "Find…", "Suchen…"),
         ("macmenu.view", "View", "Darstellung"),
         ("macmenu.go", "Go", "Gehe zu"),
         ("macmenu.window", "Window", "Fenster"),

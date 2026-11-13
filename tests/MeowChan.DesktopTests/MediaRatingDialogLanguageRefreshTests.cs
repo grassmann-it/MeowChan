@@ -64,7 +64,7 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
 
     [Theory]
     [InlineData("en", "Manage saved ratings…", "Remove rating", "Remove selected rating…")]
-    [InlineData("de", "Gespeicherte Bewertungen verwalten …", "Bewertung entfernen", "Ausgewählte Bewertung entfernen …")]
+    [InlineData("de", "Gespeicherte Bewertungen verwalten…", "Bewertung entfernen", "Ausgewählte Bewertung entfernen…")]
     [InlineData("es", "Gestionar valoraciones guardadas…", "Quitar valoración", "Quitar valoración seleccionada…")]
     [InlineData("fr", "Gérer les évaluations enregistrées…", "Supprimer l’évaluation", "Supprimer l’évaluation sélectionnée…")]
     [InlineData("ru", "Управление сохранёнными оценками…", "Удалить оценку", "Удалить выбранную оценку…")]

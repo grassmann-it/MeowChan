@@ -20,7 +20,7 @@ internal static class GalleryActionsCatalog
         ("post.copy.numberDone", "Post number copied", "Post-Nummer kopiert"),
         ("post.copy.linkDone", "Post link copied", "Post-Link kopiert"),
         ("post.copy.failed", "Could not copy to the clipboard.", "Konnte nicht in die Zwischenablage kopieren."),
-        ("archive.threadFavorite.loading", "Thread favorite status is loading …", "Favoritenstatus wird geladen …"),
+        ("archive.threadFavorite.loading", "Thread favorite status is loading…", "Favoritenstatus wird geladen…"),
         ("reader.live.reason.notWatched", "Not possible: this thread is not being watched.", "Nicht möglich: Dieser Thread wird nicht beobachtet."),
         ("reader.live.reason.captureOff", "Not possible: post capture is off for this thread.", "Nicht möglich: Die Post-Erfassung ist für diesen Thread aus."),
         ("reader.live.reason.sourceArchived", "Not possible: this thread is archived at its source.", "Nicht möglich: Der Thread ist am Ursprung archiviert."),

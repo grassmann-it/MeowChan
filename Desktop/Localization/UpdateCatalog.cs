@@ -10,7 +10,7 @@ internal static class UpdateCatalog
         ("updates.privacy", "Checks GitHub at most once every 24 hours, sending only the MeowChan version as User-Agent; no IDs or telemetry.", "Prüft GitHub höchstens alle 24 Stunden und sendet nur die MeowChan-Version als User-Agent; keine IDs oder Telemetrie."),
         ("updates.disabled", "Update checking is disabled by MEOWCHAN_DISABLE_UPDATE_CHECK=1 for this installation.", "Die Updateprüfung ist für diese Installation durch MEOWCHAN_DISABLE_UPDATE_CHECK=1 deaktiviert."),
         ("updates.check", "Check for updates", "Nach Updates suchen"),
-        ("updates.checking", "Checking for updates…", "Suche nach Updates …"),
+        ("updates.checking", "Checking for updates…", "Suche nach Updates…"),
         ("updates.available", "Version {0} available", "Version {0} verfügbar"),
         ("updates.current", "You are using the latest version.", "Du verwendest die aktuelle Version."),
         ("updates.unchecked", "No update check yet.", "Noch keine Updateprüfung."),

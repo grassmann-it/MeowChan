@@ -705,7 +705,7 @@
     "post.copy.numberDone": "Número de la publicación copiado",
     "post.copy.linkDone": "Enlace de la publicación copiado",
     "post.copy.failed": "No se pudo copiar al portapapeles.",
-    "archive.threadFavorite.loading": "Se está cargando el estado de favorito del hilo …",
+    "archive.threadFavorite.loading": "Se está cargando el estado de favorito del hilo…",
     "reader.live.reason.notWatched": "No es posible: este hilo no está en seguimiento.",
     "reader.live.reason.captureOff": "No es posible: la captura de publicaciones está desactivada para este hilo.",
     "reader.live.reason.sourceArchived": "No es posible: este hilo está archivado en su fuente.",
