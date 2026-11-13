@@ -40,7 +40,7 @@ internal sealed class ClipboardUrlMonitor
     internal IReadOnlyList<string> Pending { get; private set; } = Array.Empty<string>();
     /// <summary>Most URLs of one text that are checked (the "Clipboard: URLs checked per read" setting).</summary>
     internal int UrlLimit { get; private set; } = MaximumUrls;
-    /// <summary>Largest text, in UTF-16 units, that is searched at all (the "Clipboard: text searched (KiB)" setting).</summary>
+    /// <summary>Largest text, in UTF-8 bytes, that is searched at all (the "Clipboard: text searched (KiB)" setting).</summary>
     internal int TextLimit { get; private set; } = MaximumTextLength;
     /// <summary>What the last poll had to leave out, until the clipboard changes or the user dismisses the suggestion.</summary>
     internal ClipboardNotice Notice { get; private set; }
@@ -129,8 +129,8 @@ internal sealed class ClipboardUrlMonitor
         {
             string? text = await readClipboard();
             if (!Current()) return;
-            // Check length before hashing, whitespace scanning or candidate extraction.
-            if (text != null && text.Length > TextLimit)
+            // Check the UTF-8 byte budget before hashing, whitespace scanning or candidate extraction.
+            if (text != null && !FitsTextLimit(text, TextLimit))
             {
                 Pending = Array.Empty<string>(); _pendingHash = _lastTextHash = null;
                 if (baselineOnly) ++_generation; // Retry a baseline, never classify after an oversized read.
@@ -210,13 +210,13 @@ internal sealed class ClipboardUrlMonitor
 
     /// <summary>
     /// The supported URLs among the first <paramref name="maximumUrls"/> URL-shaped matches of a text no longer than
-    /// <paramref name="maximumTextLength"/>. <paramref name="truncated"/> is true when a further match existed.
+    /// <paramref name="maximumTextLength"/> UTF-8 bytes. <paramref name="truncated"/> is true when a further match existed.
     /// </summary>
     internal static IReadOnlyList<string> ExtractCandidates(string text, IReadOnlyCollection<string> supportedHosts,
         int maximumUrls, int maximumTextLength, out bool truncated)
     {
         truncated = false;
-        if (text.Length > maximumTextLength) return Array.Empty<string>();
+        if (!FitsTextLimit(text, maximumTextLength)) return Array.Empty<string>();
         HashSet<string> hosts = new(supportedHosts, StringComparer.OrdinalIgnoreCase);
         HashSet<string> distinct = new(StringComparer.Ordinal);
         List<string> result = new();
@@ -229,6 +229,16 @@ internal sealed class ClipboardUrlMonitor
             if (distinct.Add(normalized)) result.Add(normalized);
         }
         return Array.AsReadOnly(result.ToArray());
+    }
+
+    private static bool FitsTextLimit(string text, int maximumTextBytes)
+    {
+        // Every UTF-16 code unit contributes at least one UTF-8 byte. Rejecting by
+        // character count first both preserves the byte-budget result and bounds
+        // the work performed by the exact encoding measurement below.
+        return maximumTextBytes >= 0
+            && text.Length <= maximumTextBytes
+            && Encoding.UTF8.GetByteCount(text) <= maximumTextBytes;
     }
 
     private static bool TryNormalizeSupportedUrl(string? value, HashSet<string> hosts, out string normalized)
