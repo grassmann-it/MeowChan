@@ -103,11 +103,12 @@ public static class ArchiveHtmlExporter
         Directory.CreateDirectory(stage);
         try
         {
-            ArchiveHtmlExportResult rendered = await RenderAsync(snapshot, stage, "index.html", "style.css", "media/",
+            ArchiveHtmlExportResult rendered = await RenderAsync(snapshot, stage, "index.html", "", "media/",
                 new Dictionary<string, string>(StringComparer.Ordinal), null, false, options, progress, token).ConfigureAwait(false);
             ArchivedThreadView view = snapshot.View;
             List<string> warnings = rendered.Warnings.ToList();
             await File.WriteAllTextAsync(Path.Combine(stage, "style.css"), Css, new UTF8Encoding(false), token).ConfigureAwait(false);
+            await HtmlExportChrome.WriteCatsAsync(stage, token).ConfigureAwait(false);
             ArchiveExportMetadata metadata = await ArchiveExportMetadataFile.CreateAsync(stage, view, options,
                 update?.Existing.Metadata.ExportId ?? Guid.NewGuid(),
                 (update?.Existing.Metadata.Generation ?? 0) + 1, token).ConfigureAwait(false);
@@ -130,7 +131,7 @@ public static class ArchiveHtmlExporter
         finally { if (Directory.Exists(stage)) Directory.Delete(stage, recursive: true); }
     }
     internal static async Task<ArchiveHtmlExportResult> RenderAsync(ArchiveExportSnapshot snapshot, string stage,
-        string pagePath, string cssReference, string mediaPrefix, Dictionary<string, string> copied,
+        string pagePath, string rootPrefix, string mediaPrefix, Dictionary<string, string> copied,
         Func<ArchiveQuote, string?>? quoteResolver, bool verifyEachOrigin, ArchiveHtmlExportOptions options,
         IProgress<ArchiveHtmlExportProgress>? progress, CancellationToken token)
     {
@@ -162,11 +163,13 @@ public static class ArchiveHtmlExporter
         HashSet<string> capturedIds = view.Posts.Select(post => post.PostId).ToHashSet(StringComparer.Ordinal);
         int files = 0;
         int posts = 0;
+        int shown = 0;
+        string exportedAt = DateTimeOffset.UtcNow.ToString("u", CultureInfo.InvariantCulture);
         Directory.CreateDirectory(Path.Combine(stage, "media"));
         await using FileStream output = new(Path.Combine(stage, pagePath), FileMode.CreateNew, FileAccess.Write, FileShare.None,
             81920, FileOptions.Asynchronous);
         await using StreamWriter html = new(output, new UTF8Encoding(false));
-        await html.WriteLineAsync("<!doctype html><html lang=\"" + text.Language + "\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"" + ContentSecurityPolicy + "\"><title>" + Encode(view.Summary.Title) + "</title><link rel=\"stylesheet\" href=\"" + Encode(cssReference) + "\"></head><body>" + HtmlExportChrome.ThemeInputs(text) + "<div class=\"page\"><header class=\"top\"><div class=\"bar\"><div class=\"heading\"><h1>" + Encode(view.Summary.Title) + "</h1><p class=\"source\">" + Encode(view.Summary.Id.Source + " /" + view.Summary.Id.Board + "/ " + view.Summary.Id.Thread) + "</p></div><div class=\"controls\">" + HtmlExportChrome.ThemeSwitch(text) + "</div></div><p class=\"meta\">"
+        await html.WriteLineAsync("<!doctype html><html lang=\"" + text.Language + "\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"" + ContentSecurityPolicy + "\"><title>" + Encode(view.Summary.Title) + "</title><link rel=\"stylesheet\" href=\"" + Encode(rootPrefix + "style.css") + "\"></head><body>" + HtmlExportChrome.ThemeInputs(text) + HtmlExportChrome.AboutInput(text) + "<div class=\"page\"><header class=\"top\"><div class=\"bar\"><div class=\"heading\"><h1>" + Encode(view.Summary.Title) + "</h1><p class=\"source\">" + Encode(view.Summary.Id.Source + " /" + view.Summary.Id.Board + "/ " + view.Summary.Id.Thread) + "</p></div><div class=\"controls\">" + HtmlExportChrome.ThemeSwitch(text) + HtmlExportChrome.AboutButton(text) + "</div></div><p class=\"meta\">"
             + text.Html(HtmlExportText.LastCapture, view.Summary.LastCapturedAt?.ToString("u", CultureInfo.InvariantCulture) ?? text.Get(HtmlExportText.NoPosts))
             + "</p><p class=\"meta\">" + text.Html(HtmlExportText.Retention) + " "
             + text.Html(quoteResolver == null ? HtmlExportText.ExternalThreads : HtmlExportText.UncapturedReferences) + "</p></header><main>");
@@ -227,7 +230,22 @@ public static class ArchiveHtmlExporter
         }
         await html.WriteLineAsync("</main><footer><h2>" + text.Html(HtmlExportText.ExportResult) + "</h2><p>" + text.Html(HtmlExportText.ResultCounts, posts, files, omissions.Count) + "</p>");
         foreach (string warning in warnings.Distinct()) await html.WriteLineAsync("<p class=\"omission\">" + text.WarningHtml(warning) + "</p>");
-        await html.WriteLineAsync("<p>" + text.Html(HtmlExportText.VerifiedOffline) + "</p></footer></div></body></html>");
+        await html.WriteLineAsync("<p>" + text.Html(HtmlExportText.VerifiedOffline) + "</p></footer>");
+        // About: only what the exporter already knows, every value encoded like post content.
+        DateTimeOffset[] postedAt = view.Posts.Where(post => post.PostedAt != null).Select(post => post.PostedAt!.Value).ToArray();
+        await html.WriteLineAsync(HtmlExportChrome.About(text, rootPrefix, new (HtmlExportText, string?)[]
+        {
+            (HtmlExportText.AboutSource, view.Summary.Id.Source + " /" + view.Summary.Id.Board + "/"),
+            (HtmlExportText.AboutThreadNumber, view.Summary.Id.Thread),
+            (HtmlExportText.AboutThreadTitle, view.Summary.Title),
+            (HtmlExportText.AboutPosts, posts.ToString(CultureInfo.InvariantCulture)),
+            (HtmlExportText.AboutMedia, shown.ToString(CultureInfo.InvariantCulture)),
+            (HtmlExportText.AboutFirstPost, postedAt.Length == 0 ? null : postedAt.Min().ToString("u", CultureInfo.InvariantCulture)),
+            (HtmlExportText.AboutLastPost, postedAt.Length == 0 ? null : postedAt.Max().ToString("u", CultureInfo.InvariantCulture)),
+            (HtmlExportText.AboutLastCapture, view.Summary.LastCapturedAt?.ToString("u", CultureInfo.InvariantCulture)),
+            (HtmlExportText.AboutExported, exportedAt),
+        }));
+        await html.WriteLineAsync("</div></body></html>");
         await html.FlushAsync(token).ConfigureAwait(false);
         await html.DisposeAsync().ConfigureAwait(false);
         await output.DisposeAsync().ConfigureAwait(false);
@@ -311,6 +329,7 @@ public static class ArchiveHtmlExporter
                 string extension = Path.GetExtension(relative);
                 bool image = extension is ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp";
                 bool video = extension is ".webm" or ".mp4";
+                shown++;
                 string size = chosen is { } sized ? " <span class=\"size\">" + text.Html(HtmlExportText.SavedFile, sized.Asset.Length) + "</span>" : "";
                 await html.WriteLineAsync("<figure class=\"" + (video ? "file video" : "file") + "\"><figcaption>"
                     + (image ? "<span class=\"name\">" + label + "</span>" : "<a class=\"name\" href=\"" + relative + "\" download>" + label + "</a>") + size + "</figcaption>");
@@ -446,6 +465,21 @@ public static class ArchiveHtmlExporter
         .segments label:hover{background:var(--hover)}
         #theme-system:checked~.page label[for=theme-system],#theme-light:checked~.page label[for=theme-light],#theme-dark:checked~.page label[for=theme-dark]{background:var(--accent-surface);box-shadow:inset 0 -2px 0 var(--accent);font-weight:600}
         #theme-system:focus-visible~.page label[for=theme-system],#theme-light:focus-visible~.page label[for=theme-light],#theme-dark:focus-visible~.page label[for=theme-dark]{outline:2px solid var(--accent);outline-offset:-2px}
+        .button{display:inline-block;padding:3px 12px;font-size:.8125rem;line-height:1.5;color:var(--text);background:var(--raised);border:1px solid var(--edge);border-radius:5px;cursor:pointer;user-select:none;-webkit-user-select:none}
+        .button:hover{background:var(--hover)}
+        #about-open:focus-visible:not(:checked)~.page .about-button,#about-open:focus-visible:checked~.page .about-close{outline:2px solid var(--accent);outline-offset:2px}
+        .about-layer{display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:10;align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
+        #about-open:checked~.page .about-layer{display:flex}
+        .scrim{position:absolute;top:0;right:0;bottom:0;left:0;background:var(--scrim);cursor:pointer}
+        .about{position:relative;box-sizing:border-box;width:100%;max-width:28rem;max-height:100%;overflow:auto;background:var(--panel);border:1px solid var(--edge);border-radius:8px;box-shadow:var(--shadow);padding:20px}
+        .about h2{font-size:1rem;font-weight:600;margin:0 0 12px}
+        .about dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;margin:0;font-size:.875rem}
+        .about dt{color:var(--muted)}
+        .about dd{margin:0;overflow-wrap:anywhere}
+        .about .made{margin:16px 0 0;font-size:.875rem}
+        .cats{display:block;width:240px;max-width:100%;height:auto;margin:16px auto 8px}
+        .about .credit{margin:8px 0 0;font-size:.75rem;color:var(--muted)}
+        .about-actions{margin:16px 0 0;text-align:right}
         header.top,footer{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px 20px}
         header.top{margin-bottom:24px}
         header.top p{margin:4px 0 0}
@@ -501,7 +535,7 @@ public static class ArchiveHtmlExporter
         --greentext:#386217;--code:#ece7dd;--spoiler:#ece7dd;--warning:#795100;padding:0;min-height:0;font-size:11pt}
         html{background:#fff}
         .page>*{max-width:none}
-        .controls{display:none}
+        .controls,.about-layer,#about-open:checked~.page .about-layer{display:none}
         article{break-inside:avoid-page}
         .post-head,.file{break-inside:avoid}
         .spoiler{color:inherit}

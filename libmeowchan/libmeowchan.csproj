@@ -29,6 +29,8 @@
     <Compile Include="../Shared/PerformanceDiagnostics.cs" Link="Diagnostics/PerformanceDiagnostics.cs" />
     <None Include="../LICENSE" Pack="true" PackagePath="/" />
     <None Update="README.md" Pack="true" PackagePath="/" />
+    <!-- The MeowChan cat pair shown in the About dialog of HTML exports (derived from Assets/meowchan*.png, see THIRD-PARTY-NOTICES). -->
+    <EmbeddedResource Include="Archive/HtmlExportAssets/meowchan-cats.png" LogicalName="MeowChan.Archive.meowchan-cats.png" />
   </ItemGroup>
   <ItemGroup>
     <AdditionalFiles Include="PublicAPI.Shipped.txt" />

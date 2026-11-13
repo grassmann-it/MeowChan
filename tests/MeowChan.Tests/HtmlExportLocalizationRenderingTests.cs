@@ -59,7 +59,9 @@ public sealed class HtmlExportLocalizationRenderingTests
         Assert.Contains("Content-Security-Policy", html);
         Assert.DoesNotContain("<script", html);
         Assert.DoesNotContain("fixture-script", html);
-        Assert.DoesNotContain("https://", html);
+        // The only address in the page is the fixed credit link of the About dialog, never captured content.
+        Assert.Equal(1, html.Split("https://").Length - 1);
+        Assert.Contains("<a href=\"https://grassmann-it.de\" rel=\"noopener noreferrer\">grassmann-it.de</a>", html);
         Assert.DoesNotContain(directory.Path, html);
         Assert.Equal(2, result.PostCount);
         Assert.Equal(1, result.FileCount);

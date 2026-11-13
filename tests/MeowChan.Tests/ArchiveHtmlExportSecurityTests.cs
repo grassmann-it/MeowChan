@@ -30,9 +30,9 @@ public sealed partial class ArchiveHtmlExportSecurityTests
     // Real tags only: captured text is encoded, so it never contains a raw '<' or '>'.
     [GeneratedRegex("<[a-zA-Z][^<>]*>")] private static partial Regex Tag();
     [GeneratedRegex("<(iframe|object|embed|form|base|frame|svg|math|template)\\b", RegexOptions.IgnoreCase)] private static partial Regex ActiveElement();
-    [GeneratedRegex("^(#p-[0-9a-f]+|(\\.\\./)?media/[0-9a-f]{64}\\.(png|jpg|jpeg|gif|webp|bmp|webm|mp4|bin)|(\\.\\./)?style\\.css)$")] private static partial Regex ThreadPageUrl();
+    [GeneratedRegex("^(#p-[0-9a-f]+|(\\.\\./)?media/[0-9a-f]{64}\\.(png|jpg|jpeg|gif|webp|bmp|webm|mp4|bin)|(\\.\\./)?style\\.css|(\\.\\./)?meowchan-cats\\.png|https://grassmann-it\\.de)$")] private static partial Regex ThreadPageUrl();
     [GeneratedRegex("^([0-9a-f]{64}\\.html)?#p-[0-9a-f]+$|^\\.\\./index\\.html$")] private static partial Regex CollectionNavigationUrl();
-    [GeneratedRegex("^threads/[0-9a-f]{64}\\.html(#p-[0-9a-f]+)?$|^style\\.css$")] private static partial Regex CollectionIndexUrl();
+    [GeneratedRegex("^threads/[0-9a-f]{64}\\.html(#p-[0-9a-f]+)?$|^style\\.css$|^meowchan-cats\\.png$|^https://grassmann-it\\.de$")] private static partial Regex CollectionIndexUrl();
 
     private static CapturedThreadSnapshot Snapshot(ResourceId id, string media) => new(id, "https://boards.4chan.org/" + id.Board + "/thread/" + id.Thread,
         "Title " + Hostile, ThreadSourceState.Archived, DateTimeOffset.UnixEpoch, media,
@@ -62,8 +62,16 @@ public sealed partial class ArchiveHtmlExportSecurityTests
         return directory;
     }
 
-    private static void AssertInertPage(string html, Regex allowedUrls)
+    private const string CreditLink = "<a href=\"https://grassmann-it.de\" rel=\"noopener noreferrer\">grassmann-it.de</a>";
+
+    private static void AssertInertPage(string html, Regex allowedUrls, string catsPath)
     {
+        // About dialog: the one external href is our fixed credit link (with rel), the one extra image is the bundled
+        // cat pair under its fixed name; nothing else may point outside the folder.
+        Assert.Equal(1, html.Split("=\"https://").Length - 1);
+        Assert.Equal(1, html.Split(CreditLink).Length - 1);
+        Assert.Equal(1, html.Split(" src=\"" + catsPath + "\"").Length - 1);
+        Assert.Contains("<input class=\"toggle\" type=\"checkbox\" id=\"about-open\"", html);
         // Exactly one CSP meta tag with exactly today's policy, ahead of the style sheet link.
         string meta = "<meta http-equiv=\"Content-Security-Policy\" content=\"" + Csp + "\">";
         Assert.Equal(1, html.Split("Content-Security-Policy").Length - 1);
@@ -114,11 +122,12 @@ public sealed partial class ArchiveHtmlExportSecurityTests
         string html = await File.ReadAllTextAsync(result.IndexPath);
 
         Assert.Equal(1, result.FileCount);
-        AssertInertPage(html, ThreadPageUrl());
+        AssertInertPage(html, ThreadPageUrl(), "meowchan-cats.png");
         AssertEncodedFields(html);
         Assert.Matches("<img loading=\"lazy\" src=\"media/[0-9a-f]{64}\\.png\"", html);
         Assert.Contains("href=\"style.css\"", html);
         Assert.Equal(ArchiveHtmlExporter.Css, await File.ReadAllTextAsync(Path.Combine(result.Directory, "style.css")));
+        await AssertCatsAsync(result.Directory, result.Metadata!.Files.Select(file => file.Path));
     }
 
     [Fact]
@@ -135,16 +144,26 @@ public sealed partial class ArchiveHtmlExportSecurityTests
             Path.Combine(directory.Path, "export"));
 
         string index = await File.ReadAllTextAsync(result.IndexPath);
-        AssertInertPage(index, CollectionIndexUrl());
+        AssertInertPage(index, CollectionIndexUrl(), "meowchan-cats.png");
         Assert.Contains("Title " + System.Net.WebUtility.HtmlEncode(Hostile), index);
         foreach (ArchiveCollectionMember member in result.Metadata!.Members)
         {
             string page = await File.ReadAllTextAsync(Path.Combine(result.Directory, member.PagePath));
-            AssertInertPage(page, new Regex(ThreadPageUrl() + "|" + CollectionNavigationUrl()));
+            AssertInertPage(page, new Regex(ThreadPageUrl() + "|" + CollectionNavigationUrl()), "../meowchan-cats.png");
             AssertEncodedFields(page);
             Assert.Contains("href=\"../style.css\"", page);
         }
         Assert.Equal(ArchiveHtmlExporter.Css, await File.ReadAllTextAsync(Path.Combine(result.Directory, "style.css")));
+        await AssertCatsAsync(result.Directory, result.Metadata.Files.Select(file => file.Path));
+    }
+
+    // The cat pair is a fixed, small PNG next to index.html, recorded in the export inventory like every other file.
+    private static async Task AssertCatsAsync(string directory, IEnumerable<string> inventory)
+    {
+        byte[] cats = await File.ReadAllBytesAsync(Path.Combine(directory, "meowchan-cats.png"));
+        Assert.Equal(new byte[] { 0x89, (byte)'P', (byte)'N', (byte)'G' }, cats[..4]);
+        Assert.InRange(cats.Length, 1, 128 * 1024);
+        Assert.Contains("meowchan-cats.png", inventory);
     }
 
     // The style sheet loads nothing: no url(), @import or @font-face (fonts are local family names only), no

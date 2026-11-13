@@ -72,7 +72,7 @@ public sealed class ArchiveHtmlExportFormattingTests
 
         int body = html.IndexOf("<body>", StringComparison.Ordinal), page = html.IndexOf("<div class=\"page\">", StringComparison.Ordinal);
         string inputs = html[(body + "<body>".Length)..page];
-        Assert.Equal("<input class=\"toggle\" type=\"radio\" name=\"theme\" id=\"theme-system\" checked aria-label=\"Farbschema: Systemvorgabe\">"
+        Assert.StartsWith("<input class=\"toggle\" type=\"radio\" name=\"theme\" id=\"theme-system\" checked aria-label=\"Farbschema: Systemvorgabe\">"
             + "<input class=\"toggle\" type=\"radio\" name=\"theme\" id=\"theme-light\" aria-label=\"Farbschema: Hell\">"
             + "<input class=\"toggle\" type=\"radio\" name=\"theme\" id=\"theme-dark\" aria-label=\"Farbschema: Dunkel\">", inputs);
         foreach (string id in new[] { "theme-system", "theme-light", "theme-dark" })
@@ -88,6 +88,41 @@ public sealed class ArchiveHtmlExportFormattingTests
         Assert.Contains(".toggle{position:fixed;top:0;left:0;width:1px;height:1px;margin:0;opacity:0;pointer-events:none}", css);
         Assert.DoesNotContain(":has(", css);
         Assert.DoesNotContain("<script", html);
+    }
+
+    // About dialog (same checkbox technique as the theme switch): thread facts the exporter already knows, the writing
+    // MeowChan version, the fixed credit link and the logo pair with the app's photographer credit, in the export language.
+    [Theory]
+    [InlineData("en", "Source and board", "Collected and exported with MeowChan ", "MeowChan by ", "Simba and Mila, the MeowChan cats", "Close")]
+    [InlineData("de", "Quelle und Board", "Gesammelt und exportiert mit MeowChan ", "MeowChan von ", "Simba und Mila, die MeowChan-Katzen", "Schließen")]
+    public async Task TheAboutDialogShowsThreadFactsVersionAndCreditsInTheExportLanguage(string language, string source,
+        string collected, string madeBy, string alt, string close)
+    {
+        using TempDirectory directory = new();
+        ArchiveHtmlExportResult export = await ExportAsync(directory.Path, language);
+        string html = await File.ReadAllTextAsync(export.IndexPath);
+        HtmlExportLocalization text = new(language);
+
+        Assert.Contains("<label class=\"button about-button\" for=\"about-open\" aria-hidden=\"true\">" + text.Html(HtmlExportText.About) + "</label>", html);
+        Assert.Contains("<dt>" + System.Net.WebUtility.HtmlEncode(source) + "</dt><dd>4chan /g/</dd>", html);
+        Assert.Contains("<dt>" + text.Html(HtmlExportText.AboutThreadNumber) + "</dt><dd>500</dd>", html);
+        Assert.Contains("<dt>" + text.Html(HtmlExportText.AboutThreadTitle) + "</dt><dd>Formatting</dd>", html);
+        Assert.Contains("<dt>" + text.Html(HtmlExportText.AboutPosts) + "</dt><dd>2</dd>", html);
+        Assert.Contains("<dt>" + text.Html(HtmlExportText.AboutMedia) + "</dt><dd>0</dd>", html);
+        // The fixture posts carry no time: shown as unspecified, never invented.
+        Assert.Contains("<dt>" + text.Html(HtmlExportText.AboutFirstPost) + "</dt><dd>" + text.Html(HtmlExportText.Unspecified) + "</dd>", html);
+        Assert.Contains(System.Net.WebUtility.HtmlEncode(collected + HtmlExportChrome.Version), html);
+        Assert.Matches("^[0-9]+\\.[0-9]+\\.[0-9]+", HtmlExportChrome.Version);
+        Assert.Contains(System.Net.WebUtility.HtmlEncode(madeBy) + "<a href=\"https://grassmann-it.de\" rel=\"noopener noreferrer\">grassmann-it.de</a>", html);
+        Assert.Contains("<img class=\"cats\" loading=\"lazy\" src=\"meowchan-cats.png\" width=\"300\" height=\"150\" alt=\"" + System.Net.WebUtility.HtmlEncode(alt) + "\">", html);
+        Assert.Contains(text.Html(HtmlExportText.PhotoCredit, "Alexander Huxel · Webentwicklung Huxel"), html);
+        Assert.Contains("<label class=\"button about-close\" for=\"about-open\">" + System.Net.WebUtility.HtmlEncode(close) + "</label>", html);
+        Assert.DoesNotContain("@", html.Replace("@media", ""));
+        Assert.True(File.Exists(Path.Combine(export.Directory, "meowchan-cats.png")));
+        string css = await File.ReadAllTextAsync(Path.Combine(export.Directory, "style.css"));
+        Assert.Contains("#about-open:checked~.page .about-layer{display:flex}", css);
+        int print = css.IndexOf("@media print{", StringComparison.Ordinal);
+        Assert.Contains(".controls,.about-layer,#about-open:checked~.page .about-layer{display:none}", css[print..]);
     }
 
     [Fact]

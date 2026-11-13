@@ -51,7 +51,26 @@ internal enum HtmlExportText
     Theme,
     ThemeSystem,
     ThemeLight,
-    ThemeDark
+    ThemeDark,
+    About,
+    AboutTitle,
+    AboutClose,
+    AboutSource,
+    AboutThreadNumber,
+    AboutThreadTitle,
+    AboutPosts,
+    AboutMedia,
+    AboutThreads,
+    AboutCopiedMedia,
+    AboutFirstPost,
+    AboutLastPost,
+    AboutLastCapture,
+    AboutExported,
+    CollectedWith,
+    MadeBy,
+    CatsAlt,
+    PhotoCredit,
+    ThemeHint
 }
 
 /// <summary>Small, dependency-free localization surface for generated HTML framing text.</summary>
@@ -103,7 +122,26 @@ internal sealed class HtmlExportLocalization
         [HtmlExportText.Theme] = "Theme",
         [HtmlExportText.ThemeSystem] = "System",
         [HtmlExportText.ThemeLight] = "Light",
-        [HtmlExportText.ThemeDark] = "Dark"
+        [HtmlExportText.ThemeDark] = "Dark",
+        [HtmlExportText.About] = "About",
+        [HtmlExportText.AboutTitle] = "About this export",
+        [HtmlExportText.AboutClose] = "Close",
+        [HtmlExportText.AboutSource] = "Source and board",
+        [HtmlExportText.AboutThreadNumber] = "Thread number",
+        [HtmlExportText.AboutThreadTitle] = "Title",
+        [HtmlExportText.AboutPosts] = "Captured posts",
+        [HtmlExportText.AboutMedia] = "Media files on this page",
+        [HtmlExportText.AboutThreads] = "Exported threads",
+        [HtmlExportText.AboutCopiedMedia] = "Copied media files",
+        [HtmlExportText.AboutFirstPost] = "First post",
+        [HtmlExportText.AboutLastPost] = "Last post",
+        [HtmlExportText.AboutLastCapture] = "Last capture",
+        [HtmlExportText.AboutExported] = "Exported",
+        [HtmlExportText.CollectedWith] = "Collected and exported with MeowChan {0}",
+        [HtmlExportText.MadeBy] = "MeowChan by {0}",
+        [HtmlExportText.CatsAlt] = "Simba and Mila, the MeowChan cats",
+        [HtmlExportText.PhotoCredit] = "Cat logos: Simba (orange) and Mila (grey), each derived from a photograph by {0}. They are used with the photographer's permission for the projects of Tom Graßmann, on condition of attribution by name; the photographs are not covered by MeowChan's license.",
+        [HtmlExportText.ThemeHint] = "The theme choice applies to this view only and is not saved."
     };
 
     private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<HtmlExportText, string>> Translations =
@@ -155,7 +193,26 @@ internal sealed class HtmlExportLocalization
                 [HtmlExportText.Theme] = "Farbschema",
                 [HtmlExportText.ThemeSystem] = "Systemvorgabe",
                 [HtmlExportText.ThemeLight] = "Hell",
-                [HtmlExportText.ThemeDark] = "Dunkel"
+                [HtmlExportText.ThemeDark] = "Dunkel",
+                [HtmlExportText.About] = "Über",
+                [HtmlExportText.AboutTitle] = "Über diesen Export",
+                [HtmlExportText.AboutClose] = "Schließen",
+                [HtmlExportText.AboutSource] = "Quelle und Board",
+                [HtmlExportText.AboutThreadNumber] = "Threadnummer",
+                [HtmlExportText.AboutThreadTitle] = "Titel",
+                [HtmlExportText.AboutPosts] = "Erfasste Posts",
+                [HtmlExportText.AboutMedia] = "Mediendateien auf dieser Seite",
+                [HtmlExportText.AboutThreads] = "Exportierte Threads",
+                [HtmlExportText.AboutCopiedMedia] = "Kopierte Mediendateien",
+                [HtmlExportText.AboutFirstPost] = "Erster Post",
+                [HtmlExportText.AboutLastPost] = "Letzter Post",
+                [HtmlExportText.AboutLastCapture] = "Letzte Erfassung",
+                [HtmlExportText.AboutExported] = "Exportiert",
+                [HtmlExportText.CollectedWith] = "Gesammelt und exportiert mit MeowChan {0}",
+                [HtmlExportText.MadeBy] = "MeowChan von {0}",
+                [HtmlExportText.CatsAlt] = "Simba und Mila, die MeowChan-Katzen",
+                [HtmlExportText.PhotoCredit] = "Katzenlogos: Simba (orange) und Mila (grau), jeweils abgeleitet von einem Foto von {0}. Sie werden mit Erlaubnis des Fotografen für die Projekte von Tom Graßmann verwendet, unter der Bedingung der Namensnennung; die Fotos fallen nicht unter die Lizenz von MeowChan.",
+                [HtmlExportText.ThemeHint] = "Die Wahl des Farbschemas gilt nur für diese Ansicht und wird nicht gespeichert."
             },
             ["es"] = new Dictionary<HtmlExportText, string>
             {
@@ -203,7 +260,26 @@ internal sealed class HtmlExportLocalization
                 [HtmlExportText.Theme] = "Tema",
                 [HtmlExportText.ThemeSystem] = "Sistema",
                 [HtmlExportText.ThemeLight] = "Claro",
-                [HtmlExportText.ThemeDark] = "Oscuro"
+                [HtmlExportText.ThemeDark] = "Oscuro",
+                [HtmlExportText.About] = "Acerca de",
+                [HtmlExportText.AboutTitle] = "Acerca de esta exportación",
+                [HtmlExportText.AboutClose] = "Cerrar",
+                [HtmlExportText.AboutSource] = "Fuente y tablón",
+                [HtmlExportText.AboutThreadNumber] = "Número de hilo",
+                [HtmlExportText.AboutThreadTitle] = "Título",
+                [HtmlExportText.AboutPosts] = "Publicaciones capturadas",
+                [HtmlExportText.AboutMedia] = "Archivos multimedia en esta página",
+                [HtmlExportText.AboutThreads] = "Hilos exportados",
+                [HtmlExportText.AboutCopiedMedia] = "Archivos multimedia copiados",
+                [HtmlExportText.AboutFirstPost] = "Primera publicación",
+                [HtmlExportText.AboutLastPost] = "Última publicación",
+                [HtmlExportText.AboutLastCapture] = "Última captura",
+                [HtmlExportText.AboutExported] = "Exportado",
+                [HtmlExportText.CollectedWith] = "Recopilado y exportado con MeowChan {0}",
+                [HtmlExportText.MadeBy] = "MeowChan por {0}",
+                [HtmlExportText.CatsAlt] = "Simba y Mila, los gatos de MeowChan",
+                [HtmlExportText.PhotoCredit] = "Logotipos de gato: Simba (naranja) y Mila (gris), cada uno derivado de una fotografía de {0}. Se usan con el permiso del fotógrafo para los proyectos de Tom Graßmann, con la condición de citar su nombre; las fotografías no están cubiertas por la licencia de MeowChan.",
+                [HtmlExportText.ThemeHint] = "La elección del tema solo se aplica a esta vista y no se guarda."
             },
             ["fr"] = new Dictionary<HtmlExportText, string>
             {
@@ -251,7 +327,26 @@ internal sealed class HtmlExportLocalization
                 [HtmlExportText.Theme] = "Thème",
                 [HtmlExportText.ThemeSystem] = "Système",
                 [HtmlExportText.ThemeLight] = "Clair",
-                [HtmlExportText.ThemeDark] = "Sombre"
+                [HtmlExportText.ThemeDark] = "Sombre",
+                [HtmlExportText.About] = "À propos",
+                [HtmlExportText.AboutTitle] = "À propos de cet export",
+                [HtmlExportText.AboutClose] = "Fermer",
+                [HtmlExportText.AboutSource] = "Source et forum",
+                [HtmlExportText.AboutThreadNumber] = "Numéro du fil",
+                [HtmlExportText.AboutThreadTitle] = "Titre",
+                [HtmlExportText.AboutPosts] = "Messages capturés",
+                [HtmlExportText.AboutMedia] = "Fichiers multimédias sur cette page",
+                [HtmlExportText.AboutThreads] = "Fils exportés",
+                [HtmlExportText.AboutCopiedMedia] = "Fichiers multimédias copiés",
+                [HtmlExportText.AboutFirstPost] = "Premier message",
+                [HtmlExportText.AboutLastPost] = "Dernier message",
+                [HtmlExportText.AboutLastCapture] = "Dernière capture",
+                [HtmlExportText.AboutExported] = "Exporté",
+                [HtmlExportText.CollectedWith] = "Collecté et exporté avec MeowChan {0}",
+                [HtmlExportText.MadeBy] = "MeowChan par {0}",
+                [HtmlExportText.CatsAlt] = "Simba et Mila, les chats de MeowChan",
+                [HtmlExportText.PhotoCredit] = "Logos de chat : Simba (orange) et Mila (gris), chacun dérivé d'une photographie de {0}. Ils sont utilisés avec l'autorisation du photographe pour les projets de Tom Graßmann, à condition de le citer nommément ; les photographies ne sont pas couvertes par la licence de MeowChan.",
+                [HtmlExportText.ThemeHint] = "Le choix du thème ne s’applique qu’à cet affichage et n’est pas enregistré."
             },
             ["ru"] = new Dictionary<HtmlExportText, string>
             {
@@ -299,7 +394,26 @@ internal sealed class HtmlExportLocalization
                 [HtmlExportText.Theme] = "Тема",
                 [HtmlExportText.ThemeSystem] = "Системная",
                 [HtmlExportText.ThemeLight] = "Светлая",
-                [HtmlExportText.ThemeDark] = "Тёмная"
+                [HtmlExportText.ThemeDark] = "Тёмная",
+                [HtmlExportText.About] = "Сведения",
+                [HtmlExportText.AboutTitle] = "Об этом экспорте",
+                [HtmlExportText.AboutClose] = "Закрыть",
+                [HtmlExportText.AboutSource] = "Источник и доска",
+                [HtmlExportText.AboutThreadNumber] = "Номер треда",
+                [HtmlExportText.AboutThreadTitle] = "Заголовок",
+                [HtmlExportText.AboutPosts] = "Сохранённые публикации",
+                [HtmlExportText.AboutMedia] = "Медиафайлы на этой странице",
+                [HtmlExportText.AboutThreads] = "Экспортированные треды",
+                [HtmlExportText.AboutCopiedMedia] = "Скопированные медиафайлы",
+                [HtmlExportText.AboutFirstPost] = "Первая публикация",
+                [HtmlExportText.AboutLastPost] = "Последняя публикация",
+                [HtmlExportText.AboutLastCapture] = "Последний захват",
+                [HtmlExportText.AboutExported] = "Экспортировано",
+                [HtmlExportText.CollectedWith] = "Собрано и экспортировано с помощью MeowChan {0}",
+                [HtmlExportText.MadeBy] = "MeowChan от {0}",
+                [HtmlExportText.CatsAlt] = "Simba и Mila, кошки MeowChan",
+                [HtmlExportText.PhotoCredit] = "Логотипы с котами: Simba (рыжий) и Mila (серая), каждый получен из фотографии автора {0}. Они используются с разрешения фотографа для проектов Tom Graßmann при условии указания его имени; фотографии не охватываются лицензией MeowChan.",
+                [HtmlExportText.ThemeHint] = "Выбор темы действует только для этого просмотра и не сохраняется."
             }
         };
 

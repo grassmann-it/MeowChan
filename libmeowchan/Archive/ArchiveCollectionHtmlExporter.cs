@@ -132,7 +132,7 @@ public static class ArchiveCollectionHtmlExporter
                 string? Resolve(ArchiveQuote quote) => quote.Target != null && captured.TryGetValue(quote.Target.Thread, out HashSet<string>? ids)
                     && ids.Contains(quote.Target.PostId) ? (quote.Target.Thread == view.Summary.Id ? "" : Path.GetFileName(PagePath(quote.Target.Thread)))
                         + "#" + ArchiveHtmlExporter.PostAnchor(quote.Target.PostId) : null;
-                ArchiveHtmlExportResult rendered = await ArchiveHtmlExporter.RenderAsync(snapshot, stage, page, "../style.css", "../media/",
+                ArchiveHtmlExportResult rendered = await ArchiveHtmlExporter.RenderAsync(snapshot, stage, page, "../", "../media/",
                     copied, Resolve, true, options, new ForwardProgress(value => progress?.Report(new(completed, snapshots.Count,
                         posts + value.PostsWritten, copied.Count))), token).ConfigureAwait(false);
                 posts += rendered.PostCount;
@@ -144,9 +144,10 @@ public static class ArchiveCollectionHtmlExporter
                 progress?.Report(new(completed, snapshots.Count, posts, copied.Count));
             }
             await File.WriteAllTextAsync(Path.Combine(stage, "style.css"), ArchiveHtmlExporter.Css, new UTF8Encoding(false), token).ConfigureAwait(false);
+            await HtmlExportChrome.WriteCatsAsync(stage, token).ConfigureAwait(false);
             await using (StreamWriter index = new(Path.Combine(stage, "index.html"), false, new UTF8Encoding(false)))
             {
-                await index.WriteLineAsync("<!doctype html><html lang=\"" + text.Language + "\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"" + ArchiveHtmlExporter.ContentSecurityPolicy + "\"><title>" + text.Html(HtmlExportText.CollectionTitle) + "</title><link rel=\"stylesheet\" href=\"style.css\"></head><body>" + HtmlExportChrome.ThemeInputs(text) + "<div class=\"page\"><header class=\"top\"><div class=\"bar\"><div class=\"heading\"><h1>" + text.Html(HtmlExportText.CollectionTitle) + "</h1></div><div class=\"controls\">" + HtmlExportChrome.ThemeSwitch(text) + "</div></div><p class=\"meta\">" + text.Html(HtmlExportText.CollectionIntro) + "</p></header><main>");
+                await index.WriteLineAsync("<!doctype html><html lang=\"" + text.Language + "\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"" + ArchiveHtmlExporter.ContentSecurityPolicy + "\"><title>" + text.Html(HtmlExportText.CollectionTitle) + "</title><link rel=\"stylesheet\" href=\"style.css\"></head><body>" + HtmlExportChrome.ThemeInputs(text) + HtmlExportChrome.AboutInput(text) + "<div class=\"page\"><header class=\"top\"><div class=\"bar\"><div class=\"heading\"><h1>" + text.Html(HtmlExportText.CollectionTitle) + "</h1></div><div class=\"controls\">" + HtmlExportChrome.ThemeSwitch(text) + HtmlExportChrome.AboutButton(text) + "</div></div><p class=\"meta\">" + text.Html(HtmlExportText.CollectionIntro) + "</p></header><main>");
                 foreach (ArchiveExportSnapshot snapshot in snapshots)
                 {
                     token.ThrowIfCancellationRequested();
@@ -160,7 +161,14 @@ public static class ArchiveCollectionHtmlExporter
                     await index.WriteLineAsync("</p></article>");
                 }
                 await index.WriteLineAsync("</main><footer><p>" + text.Html(HtmlExportText.CollectionCounts, snapshots.Count, posts, copied.Count, omissions.Count)
-                    + "</p><p>" + text.Html(HtmlExportText.Offline) + "</p></footer></div></body></html>");
+                    + "</p><p>" + text.Html(HtmlExportText.Offline) + "</p></footer>"
+                    + HtmlExportChrome.About(text, "", new (HtmlExportText, string?)[]
+                    {
+                        (HtmlExportText.AboutThreads, snapshots.Count.ToString(CultureInfo.InvariantCulture)),
+                        (HtmlExportText.AboutPosts, posts.ToString(CultureInfo.InvariantCulture)),
+                        (HtmlExportText.AboutCopiedMedia, copied.Count.ToString(CultureInfo.InvariantCulture)),
+                        (HtmlExportText.AboutExported, DateTimeOffset.UtcNow.ToString("u", CultureInfo.InvariantCulture)),
+                    }) + "</div></body></html>");
                 await index.FlushAsync(token).ConfigureAwait(false);
             }
             ArchiveCollectionExportMetadata metadata = await ArchiveCollectionExportMetadataFile.CreateAsync(stage, members, options,

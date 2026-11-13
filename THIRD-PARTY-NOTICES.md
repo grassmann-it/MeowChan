@@ -290,6 +290,12 @@ proprietary theme assemblies are no longer dependencies or distributed assets.
     ("Credit and permission"). The preparation script itself assesses no rights
     (its manifest keeps the rights gate "not assessed"); the credit and statement
     below are the rights record for both sets.
+  - Cat pair of the HTML export: `libmeowchan/Archive/HtmlExportAssets/meowchan-cats.png`
+    (300 x 150, Simba left, Mila right), downscaled side by side from
+    `Assets/meowchan.png` and `Assets/meowchan-dark.png` without crop or
+    recolour. It is embedded in libmeowchan and copied as `meowchan-cats.png`
+    into every HTML export, where the About dialog shows it with the
+    photographer credit below.
 
   Cat photographs for both sets: Alexander Huxel · Webentwicklung Huxel,
   <https://webentwicklung-huxel.de/>, Flickr

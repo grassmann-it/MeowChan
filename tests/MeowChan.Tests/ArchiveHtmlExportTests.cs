@@ -41,7 +41,9 @@ public sealed class ArchiveHtmlExportTests
         Assert.DoesNotContain("<script", html);
         Assert.DoesNotContain("secret-script", html);
         Assert.DoesNotContain(directory.Path, html);
-        Assert.DoesNotContain("https://", html);
+        // The only address in the page is the fixed credit link of the About dialog, never captured content.
+        Assert.Equal(1, html.Split("https://").Length - 1);
+        Assert.Contains("<a href=\"https://grassmann-it.de\" rel=\"noopener noreferrer\">grassmann-it.de</a>", html);
         Assert.Contains("Content-Security-Policy", html);
         Assert.Contains("Removed at source", html);
         Assert.Contains("<article id=\"p-313233\" class=\"op\">", html); // The thread-number post is the OP.
