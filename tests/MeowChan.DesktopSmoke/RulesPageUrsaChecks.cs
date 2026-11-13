@@ -57,6 +57,11 @@ internal static partial class RulesPageChecks
             list.SelectedIndex = -1; list.SelectedIndex = 0;
             await Program.WaitUntilAsync(() => list.IsFocused && list.IsEffectivelyVisible);
             Require(ReferenceEquals(list, Named<ComboBox>("RuleTemplateList")), "Selecting a template detached its focused list.");
+            // Grouped template actions: the selection row (preview first) exists only with a selection, undo only while it is available.
+            await Program.WaitUntilAsync(() => Shown("templates-preview") && Shown("templates-edit") && Shown("templates-delete") && Shown("templates-create"));
+            Require(!Shown("templates-undo-apply"), "Template undo was offered although no template copy can be undone.");
+            list.BringIntoView(); window.UpdateLayout();
+            Program.CaptureWindow(window, "smoke-rules-templates-selected.png");
             Button previewTrigger = Named<Button>("templates-preview"); previewTrigger.Focus(NavigationMethod.Tab);
             await fixture.ExecuteTemplateCommandAsync("rules.template-preview");
             await Program.WaitUntilAsync(() => Named<TextBlock>("RuleTemplatePreviewHeading").IsFocused && Fits(window, Named<TextBlock>("RuleTemplatePreviewHeading")));
@@ -111,6 +116,9 @@ internal static partial class RulesPageChecks
             Require(ruleWrites == 0, "Deleting a template wrote an active rule.");
         }
         finally { templatePublicationGate?.TrySetResult(); fixture.EndLifetime(); host.Content = retained; }
-        T Named<T>(string name) where T : Control => fixture.GetVisualDescendants().OfType<T>().First(c => c.Name == name);
+        bool Shown(string name) => fixture.GetVisualDescendants().OfType<Button>().Any(c => c.Name == name && c.IsEffectivelyVisible);
+        T Named<T>(string name) where T : Control => fixture.GetVisualDescendants().OfType<T>().FirstOrDefault(c => c.Name == name)
+            ?? throw new InvalidOperationException($"The Rules fixture has no {typeof(T).Name} named '{name}'; named {typeof(T).Name}s: "
+                + string.Join(", ", fixture.GetVisualDescendants().OfType<T>().Where(c => !string.IsNullOrEmpty(c.Name)).Select(c => c.Name)));
     }
 }

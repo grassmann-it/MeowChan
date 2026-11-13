@@ -37,6 +37,7 @@ public partial class RulesPage
     private Button? _templateReloadButton;
     private readonly Dictionary<string, Button> _templateActionButtons = new();
     private StackPanel? _templatePreviewHost, _templateEditorHost;
+    private WrapPanel? _templateSelectionActions;
     private string? _templateListPresentation;
     private TemplatePreview? _renderedTemplatePreview;
     private string? _renderedPreviewLanguage;
@@ -157,13 +158,21 @@ public partial class RulesPage
                     _selectedTemplate = (_templateList.SelectedItem as TemplateChoice)?.Id;
                     _templatePreview = null; RefreshTemplatesPanel();
                 };
-                panel.Children.Add(_templateList);
-                WrapPanel actions = new(); actions.Classes.Add("workspace-actions"); panel.Children.Add(actions);
-                foreach (string id in new[] { "create", "edit", "delete", "preview", "undo-apply" })
+                // Row 1: the list and the one action that needs no selection. Row 2 belongs to the selected template
+                // (preview first, then edit and delete) and appears only with a selection; undo only while it is available.
+                Grid pick = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
+                Grid.SetColumn(_templateList, 0); pick.Children.Add(_templateList);
+                _templateActionButtons.Add("create", AddTemplateButton(pick, "templates.create",
+                    async () => await ExecuteTemplateCommandAsync("rules.template-create")));
+                Grid.SetColumn(_templateActionButtons["create"], 1);
+                panel.Children.Add(pick);
+                _templateSelectionActions = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 }; panel.Children.Add(_templateSelectionActions);
+                foreach (string id in new[] { "preview", "edit", "delete", "undo-apply" })
                 {
                     string command = "rules.template-" + id;
-                    Button button = AddTemplateButton(actions, "templates." + id, async () => await ExecuteTemplateCommandAsync(command));
+                    Button button = AddTemplateButton(_templateSelectionActions, "templates." + id, async () => await ExecuteTemplateCommandAsync(command));
                     _templateActionButtons.Add(id, button);
+                    if (id == "preview") button.Classes.Add("primary");
                     if (id == "delete") { button.Classes.Add("danger"); _templateDeleteConfirmation = new(button); }
                 }
                 _templateUndoView = TemplateText(string.Empty); panel.Children.Add(_templateUndoView);
@@ -194,7 +203,14 @@ public partial class RulesPage
             {
                 CommandBindings.Apply(button, "rules.template-" + id);
                 button.IsEnabled = CanExecuteTemplateCommand("rules.template-" + id);
+                button.IsVisible = id switch
+                {
+                    "create" => true,
+                    "undo-apply" => _draft.TemplateUndo != null && !_draft.Stale,
+                    _ => _templates != null && _selectedTemplate != null
+                };
             }
+            _templateSelectionActions!.IsVisible = _templateActionButtons.Where(item => item.Key != "create").Any(item => item.Value.IsVisible);
             _templateUndoView!.Text = Texts.T("templates.undoUnavailable"); _templateUndoView.IsVisible = _draft.TemplateUndoInvalidated;
             if (!ReferenceEquals(_renderedTemplatePreview, _templatePreview) || _renderedPreviewLanguage != Texts.Language)
             {
