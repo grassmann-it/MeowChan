@@ -2867,7 +2867,7 @@
     "reader.replyCount": "Respostas: {0}",
     "reader.link.title": "Abrir este link no navegador?",
     "reader.link.hint": "O endereço é mostrado como o navegador o lê. Abra apenas links em que você confia.",
-    "reader.link.remember": "Não perguntar de novo nesta sessão",
+    "reader.link.remember": "Não perguntar de novo para nenhum link nesta sessão",
     "reader.link.open": "Abrir",
     "reader.repliesToggle": "Mostrar ou ocultar as respostas",
     "reader.quotedPosts": "Postagens citadas",

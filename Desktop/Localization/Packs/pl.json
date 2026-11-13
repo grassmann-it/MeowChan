@@ -2885,7 +2885,7 @@
     "reader.replyCount": "Odpowiedzi: {0}",
     "reader.link.title": "Otworzyć ten link w przeglądarce?",
     "reader.link.hint": "Adres jest pokazany tak, jak odczytuje go przeglądarka. Otwieraj tylko linki, którym ufasz.",
-    "reader.link.remember": "Nie pytaj ponownie w tej sesji",
+    "reader.link.remember": "Nie pytaj ponownie o żaden link w tej sesji",
     "reader.link.open": "Otwórz",
     "reader.repliesToggle": "Pokaż lub ukryj odpowiedzi",
     "reader.quotedPosts": "Cytowane posty",

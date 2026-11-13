@@ -2908,7 +2908,7 @@
     "reader.replyCount": "返信: {0}",
     "reader.link.title": "このリンクをブラウザーで開きますか？",
     "reader.link.hint": "アドレスはブラウザーが解釈する形で表示されています。信頼できるリンクだけを開いてください。",
-    "reader.link.remember": "このセッション中は再度確認しない",
+    "reader.link.remember": "このセッション中はどのリンクも再度確認しない",
     "reader.link.open": "開く",
     "reader.repliesToggle": "返信の表示／非表示",
     "reader.quotedPosts": "引用された投稿",

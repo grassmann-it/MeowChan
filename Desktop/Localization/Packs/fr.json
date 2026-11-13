@@ -2997,7 +2997,7 @@
     "reader.replyCount": "Réponses : {0}",
     "reader.link.title": "Ouvrir ce lien dans votre navigateur ?",
     "reader.link.hint": "L'adresse est affichée comme votre navigateur la lit. N'ouvrez que des liens de confiance.",
-    "reader.link.remember": "Ne plus demander pendant cette session",
+    "reader.link.remember": "Ne plus demander pour aucun lien pendant cette session",
     "reader.link.open": "Ouvrir",
     "reader.link.openNamed": "Ouvrir {0}",
     "reader.link.failed": "Le lien n’a pas pu être ouvert. Vérifiez qu’un navigateur web par défaut est configuré.",

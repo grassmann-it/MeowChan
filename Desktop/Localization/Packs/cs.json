@@ -2882,7 +2882,7 @@
     "reader.replyCount": "Odpovědi: {0}",
     "reader.link.title": "Otevřít tento odkaz v prohlížeči?",
     "reader.link.hint": "Adresa je zobrazena tak, jak ji čte váš prohlížeč. Otevírejte jen odkazy, kterým důvěřujete.",
-    "reader.link.remember": "V této relaci se už neptat",
+    "reader.link.remember": "V této relaci se už neptat u žádného odkazu",
     "reader.link.open": "Otevřít",
     "reader.repliesToggle": "Zobrazit nebo skrýt odpovědi",
     "reader.quotedPosts": "Citované příspěvky",

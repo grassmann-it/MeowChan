@@ -2908,7 +2908,7 @@
     "reader.replyCount": "回复：{0}",
     "reader.link.title": "要在浏览器中打开此链接吗？",
     "reader.link.hint": "显示的是浏览器所解析的地址。请只打开你信任的链接。",
-    "reader.link.remember": "本次会话中不再询问",
+    "reader.link.remember": "本次会话中对所有链接都不再询问",
     "reader.link.open": "打开",
     "reader.repliesToggle": "显示或隐藏回复",
     "reader.quotedPosts": "被引用的帖子",

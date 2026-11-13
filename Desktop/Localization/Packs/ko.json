@@ -2908,7 +2908,7 @@
     "reader.replyCount": "답글: {0}",
     "reader.link.title": "이 링크를 브라우저에서 열까요?",
     "reader.link.hint": "주소는 브라우저가 해석하는 대로 표시됩니다. 신뢰하는 링크만 여세요.",
-    "reader.link.remember": "이 세션에서는 다시 묻지 않기",
+    "reader.link.remember": "이 세션에서는 모든 링크에 대해 다시 묻지 않기",
     "reader.link.open": "열기",
     "reader.repliesToggle": "답글 표시 또는 숨기기",
     "reader.quotedPosts": "인용된 게시물",
