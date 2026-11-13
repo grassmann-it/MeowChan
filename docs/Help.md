@@ -62,9 +62,11 @@ behaves as if it never happened. `MEOWCHAN_DISABLE_UPDATE_CHECK=1` still wins.
 4. Let media download. Progress means **saved / selected media**, with rule exclusions separate. A living thread remains watched even at 100%. New watches capture posts by default; older restored watches can be media-only until capture is explicitly enabled. Pause now requests a full pause of source checks and active transfers. The Pausing state remains until cancellation has quiesced; Resume retries unfinished work.
 5. Open Archive. Select the thread to inspect it, double-click its card or row to open the large reader, or right-click for **Read posts**, **Open in gallery** and **Export as HTML**. Downloads thread rows also open the reader on double-click; use Shift+Enter or the context menu for the gallery; board rows retain their details action. Opening local content never initiates a download. Saved media remain usable offline; post reading requires captured posts.
 
-The header shows download speed from received media bytes. Wider windows also show
-a compact network/disk-history graph; click it to open **Statistics**. This is
-separate from saved/selected media progress and is not system-wide traffic.
+The header labels the network download rate **Net ↓** and the disk-write rate
+**Disk** (unless **Header graph → Network only** is selected). Where the compact
+histories are visible, network download and disk writing have separate graph rows,
+each with its own scale; click the header rates/graphs to open **Statistics**.
+These are separate from saved/selected media progress and are not system-wide traffic.
 
 ### Desktop view defaults
 
@@ -243,8 +245,9 @@ setting; it is not a notification for every provider hit.
 #### Waiting, local data and offline use
 
 Metadata sends start at least one second apart. HTTP 429 causes a provider-wide
-pause of at least 60 seconds; longer `Retry-After` values are honored up to a
-24-hour cap. HTTP 502/503 permits at most one retry, no earlier than two seconds
+pause of at least 60 seconds; a longer valid `Retry-After` is not shortened to
+24 hours. Only the technical maximum representable date bounds that deadline.
+HTTP 502/503 permits at most one retry, no earlier than two seconds
 after the failed response. A longer `Retry-After` is honored only within the
 operation budget. A metadata operation has at most 20 sends
 including retries, a 120-second lifetime and a 15-second deadline per response.
@@ -569,8 +572,11 @@ Open **Statistics** with Ctrl+8 (Command+8 on macOS), from **Tools** or the app
 menu, or by clicking the header graph. It shows measured network and media-disk
 traffic, history and rows per source. These are MeowChan's own counters, including
 media transfers, imports and integrity reads, not operating-system totals.
-Thumbnail and archive-file I/O are not counted. Disk rate combines reads and
-writes; retries or failed transfers can contribute bytes without a saved file.
+Thumbnail and archive-file I/O are not counted. The page has **three history
+graphs**: network download, disk writing and disk reading, each with its own
+scale. Reading back local files is separate from writing, not added to the
+header's disk rate. Retries or failed transfers can contribute bytes without a
+saved file.
 **Reset statistics** asks for confirmation before clearing the counters, not media.
 
 Settings → **Behavior → Statistics** controls the sampling and persistence:
@@ -587,15 +593,21 @@ Settings → **Behavior → Statistics** controls the sampling and persistence:
 At the defaults, 120 readings at one second cover two minutes. When the window is
 hidden, sampling needs active downloads and the statistics tooltip option; hidden
 and idle does not run the sampling timer. The tray's statistics tooltip and its
-two menu lines can each be disabled. The menu lines open Statistics.
+two menu lines can each be disabled. Like the header, the tray's disk rate counts
+**writes only**, not reads. The menu lines open Statistics.
 
 **Keep statistics on this computer** is on by default. It saves daily totals in
 `io-stats.json` in the profile, at the configured interval when changed and at
 exit. With it off, totals last for the session and an existing file remains
 untouched. Retention includes today; older days are pruned on load and at midnight.
 Further sources beyond the row limit are grouped as **Other sources**.
-**Header graph → Automatic** shows network and disk in Advanced, network only in
-other views; the Statistics page always shows both. These controls do not alter
+**Header graph → Automatic** shows labeled network-download and disk-write values
+in every work view where the header rates fit; the disk history graph is drawn
+only in **Advanced**.
+**Network and disk** draws both history rows in every view where the header graphs
+fit; **Network only** hides the disk value and its graph. Each history row has its
+own scale. The Statistics page always keeps its three separate histories,
+including disk reads, regardless of this setting. These controls do not alter
 provider limits, download rules or the saved-media progress count.
 
 ### Animations
@@ -655,10 +667,12 @@ moves through the frozen current thread list/search in its sort order, across
 pages, without wrapping. A single thread opened without that scope has no global
 thread sequence. Input fields keep their native arrow-key behavior.
 
-The lower-right navigation cross overlays the thread in narrow windows instead
-of shortening its scrolling viewport. At the end of a page, extra scrollable
-clearance lets you move the final post above the cross. Wide layouts can keep
-the cross in unused space beside the text; pagination and scrollbar remain usable.
+The lower-right navigation cross is an **auto-hiding overlay**. It reserves no
+side lane, does not shorten the viewport and adds no extra scrollable tail after
+the final post. It fades out while the pointer is idle, and reappears on pointer
+movement over the reader or briefly after a navigation shortcut. It stays visible
+while the pointer is over or near it, or it has keyboard focus. Pagination and
+the scrollbar remain usable; hiding the cross does not change the content layout.
 
 In selected post content, **Enter or Space** opens the first available image or video
 in attachment order. Text selections, editors, buttons, links and dialogs keep their
@@ -707,8 +721,10 @@ and give the current medium more room. Navigation remains available; restore the
 controls when you want to use the gallery tools or read the saved-post context.
 This changes the gallery layout independently of F11 window fullscreen. The gallery toolbar keeps Close,
 Previous, position, Next, Fit, 1:1, the post panel, Favorite and Tools visible. Use **⋯ (More gallery actions)**
-for zoom, rating, tags, original export, slideshow settings, overlays, fullscreen and shortcut help; their shortcuts
-still work directly. In a narrow window the toolbar uses icons and the post panel floats over the image.
+for zoom, rating, tags, original export, slideshow settings, overlays, fullscreen
+and shortcut help; these are overflow menu actions, not additional always-visible
+toolbar buttons. Their shortcuts still work directly. In a narrow window the
+toolbar uses icons and the post panel floats over the image.
 
 **Unreleased source-build controls:** Settings → Reading & media → **Gallery &
 playback** offers **Manual**, **Repeat current video**, and **Slideshow**. The same

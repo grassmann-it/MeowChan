@@ -1,4 +1,4 @@
-# Danbooru-Suche und Suchbeobachtungen (MeowChan 1.1)
+# Danbooru-Suche und Suchbeobachtungen (MeowChan 1.1.0)
 
 MeowChan behandelt Danbooru in der 1.1-Linie als **öffentliche,
 schreibgeschützte Quelle**. Die Oberfläche zeigt Treffer und Provider-Metadaten;
@@ -96,7 +96,8 @@ normalen Warteschlangenregeln. **Fortsetzen** umgeht keinen Cooldown; die global
 Sitzungspause verhindert ebenfalls neue Prüfungen.
 
 Bei HTTP 429 bleibt die Suchbeobachtung erhalten und wartet mindestens 60 Sekunden.
-Ein längeres `Retry-After` wird berücksichtigt, aber höchstens 24 Stunden. **Vor**
+Ein längeres gültiges `Retry-After` wird nicht auf 24 Stunden verkürzt; nur das
+technisch maximal darstellbare Datum begrenzt diesen Zeitpunkt. **Vor**
 dem einzigen 502/503-Wiederholungsversuch wartet der Host mindestens zwei Sekunden;
 ein längeres `Retry-After` innerhalb des Jobbudgets wird ebenfalls berücksichtigt.
 Bis zur erlaubten Zeit wird keine weitere Provideranfrage gesendet.
