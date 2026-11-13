@@ -67,6 +67,9 @@ public sealed class SectionNavigationController : IDisposable
             double maximum = Math.Max(0, _scroll.Extent.Height - _scroll.Viewport.Height);
             _scroll.Offset = new Vector(_scroll.Offset.X, Math.Clamp(_scroll.Offset.Y + point.Value.Y, 0, maximum));
             target.Focusable = true;
+            // A plain text heading stays focusable for keyboard and screen-reader navigation, but a focus ring around it reads
+            // like an empty input; the scroll position already shows where the jump landed.
+            if (target is TextBlock) target.FocusAdorner = null;
             AutomationProperties.SetName(target, section.Title);
             target.Focus(NavigationMethod.Directional);
             Navigated?.Invoke();
