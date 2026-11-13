@@ -494,6 +494,7 @@ public partial class ArchivePage
             return;
         }
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None || CommandBindings.Matches(e, "reader.close")) { e.Handled = true; CloseReaderRequested?.Invoke(); return; }
+        if (TryPageByShortcut(e)) return;
         if (ReaderArrowBelongsToNativeControl(e.Source, e.Key)) return;
         // The reader guard deliberately permits its post list and tab content.
         // A generic native-input check would also reject Home/End/Page remaps
@@ -509,6 +510,29 @@ public partial class ArchivePage
         e.Handled = true;
         await (ReaderNavigationTask = NavigateReaderAsync(post, thread));
     }
+
+    // The results-page gesture (Alt+PageUp/PageDown, Option-Command-arrows on macOS) also pages the thread's posts and the
+    // backlinks inside the reader: pagination.previous/next share it and never apply where the results list has the focus.
+    private bool TryPageByShortcut(KeyEventArgs e)
+    {
+        if (e.Handled || ShortcutService.IsCapturing || _busy || _thread == null) return false;
+        bool previous = ShortcutService.Current.Matches(e, "pagination.previous");
+        if (!previous && !ShortcutService.Current.Matches(e, "pagination.next")) return false;
+        bool references = PreviousReferences.IsEffectivelyVisible;
+        Button button = references ? (previous ? PreviousReferences : NextReferences) : previous ? PreviousPostsButton : NextPostsButton;
+        if (!button.IsEffectivelyVisible || !button.IsEnabled) return false;
+        e.Handled = true;
+        if (references) { if (previous) OnPreviousReferences(button, e); else OnNextReferences(button, e); }
+        else if (previous) OnPreviousPosts(button, e);
+        else OnNextPosts(button, e);
+        return true;
+    }
+
+    // The beside-the-list preview has no reader tunnel: its post list passes the same gesture on from its own bubble.
+    private void InitializePostPageKeys() => ArchivePosts.KeyDown += (_, e) =>
+    {
+        if (!_largeReader && !IsReaderDialogOpen) TryPageByShortcut(e);
+    };
 
     private void CancelReaderMediaActivation() => _readerMediaActivationCancellation?.Cancel();
 

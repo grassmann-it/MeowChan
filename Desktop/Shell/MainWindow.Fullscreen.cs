@@ -675,6 +675,9 @@ public partial class MainWindow
                 ("ReaderPreviousPost", "reader.previous-post"), ("ReaderNextPost", "reader.next-post"),
                 ("ReaderPreviousThread", "reader.previous-thread"), ("ReaderNextThread", "reader.next-thread") })
                 if (_archivePage?.FindControl<Button>(pair.Item1)?.IsEnabled == true) ids.Insert(0, pair.Item2);
+            foreach (var pair in new[] { ("ArchiveHistoryBack", "reader.history-back"), ("ArchiveGalleryReturn", "gallery.return"),
+                ("ArchiveMediaReturn", "media.return"), ("PreviousPostsButton", "pagination.previous"), ("NextPostsButton", "pagination.next") })
+                if (_archivePage?.FindControl<Button>(pair.Item1) is { IsEffectivelyVisible: true, IsEnabled: true }) ids.Insert(0, pair.Item2);
         }
         else if (_selectedPage == WorkspacePage.Downloads && _restoreCompleted && !WorkspaceCommandBusy)
         {

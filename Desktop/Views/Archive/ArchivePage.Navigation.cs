@@ -199,6 +199,9 @@ public partial class ArchivePage
         Message(string.Empty);
         MediaLoadTask = LoadMediaAsync(view);
     }
+    internal bool CanGoHistoryBack => ArchiveHistoryBack.IsVisible && ArchiveHistoryBack.IsEnabled && !_busy && !_ended
+        && !IsFilenameSearchOpen && _history.Last != null;
+    internal void GoHistoryBackByShortcut() { if (CanGoHistoryBack) OnHistoryBack(null, new RoutedEventArgs()); }
     private async void OnHistoryBack(object? sender, RoutedEventArgs e)
     {
         if (IsFilenameSearchOpen) return;

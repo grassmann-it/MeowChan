@@ -57,14 +57,42 @@ public partial class MainWindow
         MediaReturnTask = _mediaPage!.ReturnToAsync(point);
     }
 
-    // Alt+Left by default. It is resolved here, before the archive's lists see it: a post list would otherwise keep the
-    // arrow. Text fields, combo boxes, sliders, menus and open popups keep the key; so does an unrelated page.
+    // One Back gesture (Alt+Left, Command-Left on macOS) for three "back" buttons that are never needed at the same time:
+    // the previous reading position, the gallery the reader was opened from and the media page. The innermost one wins;
+    // a command rebound to another gesture only answers to its own. It is resolved here, before the archive's lists see
+    // it: a post list would otherwise keep the arrow. Text fields, combo boxes, sliders, menus and open popups keep the
+    // key; so does an unrelated page.
+    private static readonly string[] BackCommands = { "reader.history-back", "gallery.return", "media.return" };
+
+    private bool CanRunBack(string id) => id switch
+    {
+        "reader.history-back" => _archivePage?.CanGoHistoryBack == true,
+        "gallery.return" => _archivePage?.CanReturnToGallery == true,
+        _ => CanReturnToMedia
+    };
+
+    private void RunBack(string id)
+    {
+        switch (id)
+        {
+            case "reader.history-back": _archivePage?.GoHistoryBackByShortcut(); break;
+            case "gallery.return": _archivePage?.ReturnToGalleryByShortcut(); break;
+            default: ReturnToMedia(); break;
+        }
+    }
+
     private bool TryRouteMediaReturn(KeyEventArgs e)
     {
-        if (_mediaReturn == null || e.Handled || !ShortcutService.Current.Matches(e, "media.return")) return false;
-        if (!CanReturnToMedia || !CommandRouter.IsRoutingContextActive(this, e.Source) || OwnsArrowKeys(e.Source)) return false;
+        if (e.Handled || _isClosing || _selectedPage != WorkspacePage.Archive || ShortcutService.IsCapturing) return false;
+        string? id = BackCommands.FirstOrDefault(candidate => ShortcutService.Current.Matches(e, candidate));
+        if (id == null) return false;
+        if (_archivePage?.IsArchiveCleanupOpen == true || _archivePage?.IsReaderDialogOpen == true) return false;
+        if (!CommandRouter.IsRoutingContextActive(this, e.Source) || OwnsArrowKeys(e.Source)) return false;
+        // A rebound command is tried only for its own gesture; each of the three has its own availability.
+        id = BackCommands.FirstOrDefault(candidate => ShortcutService.Current.Matches(e, candidate) && CanRunBack(candidate));
+        if (id == null) return false;
         e.Handled = true;
-        ReturnToMedia();
+        RunBack(id);
         return true;
     }
 
