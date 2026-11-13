@@ -6,7 +6,8 @@ internal static class SourcesCatalog
     {
         ("nav.sources", "Sources", "Quellen"),
         ("sources.title", "Sources", "Quellen"),
-        ("sources.subtitle", "Supported sources and the threads and boards being watched. This view does not check whether a website is reachable.", "Unterstützte Quellen und beobachtete Threads und Boards. Diese Ansicht prüft nicht, ob eine Website erreichbar ist."),
+        ("sources.subtitle", "Supported websites, their capabilities and what you watch there.", "Unterstützte Websites, ihre Fähigkeiten und was du dort beobachtest."),
+        ("sources.experimental", "Experimental", "Experimentell"),
         ("sources.tier.meowchanExperimental", "MeowChan · experimental", "MeowChan · experimental"),
         ("sources.tierClassification.meowchanExperimental", "Product tier: MeowChan · experimental. This is not website-operator approval, and it does not relax integrity or activation checks.", "Produktstufe: MeowChan · experimental. Keine Zustimmung des Websitebetreibers; Integritäts- oder Aktivierungsprüfungen werden nicht gelockert."),
         ("sources.maintenance.unverified", "Maintenance unverified", "Pflege ungeprüft"),
@@ -61,7 +62,7 @@ internal static class SourcesCatalog
         ("sources.watchCounts", "Threads: {0} · Boards: {1} · Queued: {2} · Active: {3}", "Threads: {0} · Boards: {1} · Wartend: {2} · Aktiv: {3}"),
         ("sources.mediaCounts", "{0} queued · {1} active", "{0} wartend · {1} aktiv"),
         ("sources.watches", "Watched threads and boards", "Beobachtete Threads und Boards"),
-        ("sources.work", "Work", "Downloads"),
-        ("sources.observation", "Observation", "Beobachtung")
+        ("sources.showAll", "Show all {0} in Downloads", "Alle {0} unter Downloads zeigen"),
+        ("sources.reachabilityNote", "This view does not check whether a website is reachable.", "Ob eine Website erreichbar ist, wird hier nicht geprüft.")
     };
 }

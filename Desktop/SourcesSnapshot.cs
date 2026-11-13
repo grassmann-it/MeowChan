@@ -6,7 +6,11 @@ using MeowChan.Desktop.Plugins;
 
 namespace MeowChan.Desktop;
 
-internal sealed record SourceWatchRow(DiagnosticTarget Target, string Resource, string Work, string Observation);
+internal sealed record SourceWatchRow(DiagnosticTarget Target, string Resource, string Work, string Observation)
+{
+    /// <summary>The list shows a watch in two lines: the URL, then this.</summary>
+    public string Status => Work + " · " + Observation;
+}
 internal sealed record SourceRow(ProviderDescriptor Descriptor, string Summary, IReadOnlyList<SourceWatchRow> Watches)
 {
     internal SourceMediaIntegrityPolicyView? MediaIntegrityPolicy { get; init; }

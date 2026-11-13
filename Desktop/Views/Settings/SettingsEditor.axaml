@@ -319,6 +319,14 @@
                             </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding ReaderGroupLimitHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="SourcesWatchPreviewRowsFieldLabel" Text="{Binding SourcesWatchPreviewRowsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="SourcesWatchPreviewRowsInput" Value="{Binding SourcesWatchPreviewRows, Mode=TwoWay}" Minimum="3" Maximum="200" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=SourcesWatchPreviewRowsFieldLabel}" AutomationProperties.Name="{Binding SourcesWatchPreviewRowsLabel}" AutomationProperties.HelpText="{Binding SourcesWatchPreviewRowsHelp}" />
+                                <TextBlock x:Name="SourcesWatchPreviewRowsInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding SourcesWatchPreviewRowsHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
                     <TextBlock x:Name="LimitsPreviewsHeading" Text="{Binding PreviewsGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,14,0,0" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ExportConfirmFilesFieldLabel" Text="{Binding ExportConfirmFilesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />

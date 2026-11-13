@@ -9,7 +9,7 @@ internal static class StorageLimitsCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
-        ("budgets.group.lists", "Favorites, ratings, bookmarks and groups", "Favoriten, Bewertungen, Lesezeichen und Gruppen"),
+        ("budgets.group.lists", "Favorites, ratings, bookmarks, groups and source watches", "Favoriten, Bewertungen, Lesezeichen, Gruppen und Quellenbeobachtungen"),
         ("budgets.group.previews", "Previews and export", "Vorschauen und Export"),
         ("budgets.group.import", "Import", "Import"),
         ("budgets.favoriteEntries", "Favorites and ratings: entries per list", "Favoriten und Bewertungen: Einträge je Liste"),
@@ -22,6 +22,8 @@ internal static class StorageLimitsCatalog
         ("budgets.savedSearchesHint", "How many archive searches you can save. The file size (8 MiB) is a fixed technical limit. Allowed: 50 to 5000.", "Wie viele Archivsuchen du speichern kannst. Die Dateigröße (8 MiB) ist eine feste technische Grenze. Erlaubt: 50 bis 5000."),
         ("budgets.readerGroups", "Reader groups", "Readergruppen"),
         ("budgets.readerGroupsHint", "How many reader groups you can create. Members per group (1000), memberships over all groups (20000) and the file size (16 MiB) are fixed technical limits. Allowed: 50 to 5000.", "Wie viele Readergruppen du anlegen kannst. Mitglieder je Gruppe (1000), Zuordnungen über alle Gruppen (20000) und die Dateigröße (16 MiB) sind feste technische Grenzen. Erlaubt: 50 bis 5000."),
+        ("budgets.sourcesWatchPreviewRows", "Sources page: watch rows per source", "Quellen-Seite: Beobachtungen je Quelle"),
+        ("budgets.sourcesWatchPreviewRowsHint", "Rows of a source's watch list on the Sources page. The rest is one click away under Downloads; nothing is hidden or removed. Allowed: 3 to 200.", "Zeilen in der Beobachtungsliste einer Quelle auf der Quellen-Seite. Den Rest erreichst du mit einem Klick unter Downloads; nichts wird ausgeblendet oder entfernt. Erlaubt: 3 bis 200."),
         ("budgets.exportConfirmFiles", "Ask before “Export all matches” above (files)", "Rückfrage bei „Alle Treffer exportieren…“ ab (Dateien)"),
         ("budgets.exportConfirmFilesHint", "“Export all matches…” on the Media page asks for confirmation when it would copy more files than this, or more than the size below. Nothing is cut short: after you confirm, every file is exported. Allowed: 10 to 100000 files.", "„Alle Treffer exportieren…“ auf der Medienseite fragt vorher nach, wenn mehr Dateien kopiert würden als hier eingestellt oder mehr als die Größe darunter. Nichts wird abgeschnitten: Nach deiner Bestätigung wird jede Datei exportiert. Erlaubt: 10 bis 100000 Dateien."),
         ("budgets.exportConfirmGiB", "Ask before “Export all matches” above (GiB)", "Rückfrage bei „Alle Treffer exportieren…“ ab (GiB)"),

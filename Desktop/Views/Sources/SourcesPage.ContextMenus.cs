@@ -18,7 +18,7 @@ public partial class SourcesPage
 {
     private void InitializeContextMenus()
     {
-        DataGrid grid = this.FindControl<DataGrid>("SourceWatchesGrid")!;
+        ListBox grid = this.FindControl<ListBox>("SourceWatchesList")!;
         grid.ContextMenu = new ContextMenu();
         grid.ContextMenu.Opening += (_, args) =>
         {
@@ -69,19 +69,19 @@ public partial class SourcesPage
 
     private void OnWatchContextPointer(object? sender, PointerPressedEventArgs e)
     {
-        if (sender is not DataGrid grid || !e.GetCurrentPoint(grid).Properties.IsRightButtonPressed) return;
-        DataGridRow? row = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<DataGridRow>().FirstOrDefault();
+        if (sender is not ListBox grid || !e.GetCurrentPoint(grid).Properties.IsRightButtonPressed) return;
+        ListBoxItem? row = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>().FirstOrDefault();
         grid.SelectedItem = row?.DataContext is SourceWatchRow watch ? watch : null;
         if (row == null) grid.ContextMenu?.Close();
     }
 
     private void OnWatchContextRequested(object? sender, ContextRequestedEventArgs e)
     {
-        if (sender is DataGrid grid && grid.SelectedItem is not SourceWatchRow)
+        if (sender is ListBox grid && grid.SelectedItem is not SourceWatchRow)
             e.Handled = true;
     }
 
-    private void BuildWatchContextMenu(DataGrid grid)
+    private void BuildWatchContextMenu(ListBox grid)
     {
         ContextMenu menu = grid.ContextMenu!;
         menu.Items.Clear();

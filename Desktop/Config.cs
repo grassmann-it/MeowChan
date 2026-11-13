@@ -184,6 +184,11 @@ namespace MeowChan
         internal const int ReaderGroupLimitDefault = Persistence.ProfileStoreLimits.DefaultReaderGroups;
         internal const int ReaderGroupLimitMinimum = Persistence.ProfileStoreLimits.MinimumReaderGroups;
         internal const int ReaderGroupLimitMaximum = Persistence.ProfileStoreLimits.ReaderGroupCeiling;
+        /// <summary>Rows in a source's watch list on the Sources page before "Show all in Downloads" takes over. Every watch stays reachable under Downloads.</summary>
+        public int SourcesWatchPreviewRows { get; set; } = SourcesWatchPreviewRowsDefault;
+        internal const int SourcesWatchPreviewRowsDefault = 8;
+        internal const int SourcesWatchPreviewRowsMinimum = 3;
+        internal const int SourcesWatchPreviewRowsMaximum = 200;
         /// <summary>File count above which "Export all matches" on the Media page asks before it starts. A confirmed export is never cut short.</summary>
         public int ExportConfirmFiles { get; set; } = ExportConfirmFilesDefault;
         internal const int ExportConfirmFilesDefault = Gallery.MediaLibraryExportSize.ConfirmAboveFiles;
@@ -675,6 +680,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(SavedSearchLimit), "SavedSearchLimit is outside its supported range (" + SavedSearchLimitMinimum + " to " + SavedSearchLimitMaximum + ").");
             if (ReaderGroupLimit is < ReaderGroupLimitMinimum or > ReaderGroupLimitMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReaderGroupLimit), "ReaderGroupLimit is outside its supported range (" + ReaderGroupLimitMinimum + " to " + ReaderGroupLimitMaximum + ").");
+            if (SourcesWatchPreviewRows is < SourcesWatchPreviewRowsMinimum or > SourcesWatchPreviewRowsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(SourcesWatchPreviewRows), "SourcesWatchPreviewRows is outside its supported range (" + SourcesWatchPreviewRowsMinimum + " to " + SourcesWatchPreviewRowsMaximum + ").");
             if (ExportConfirmFiles is < ExportConfirmFilesMinimum or > ExportConfirmFilesMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ExportConfirmFiles), "ExportConfirmFiles is outside its supported range (" + ExportConfirmFilesMinimum + " to " + ExportConfirmFilesMaximum + ").");
             if (ExportConfirmGiB is < ExportConfirmGiBMinimum or > ExportConfirmGiBMaximum)
@@ -773,6 +780,7 @@ namespace MeowChan
                 PostBookmarkLimit = PostBookmarkLimit,
                 SavedSearchLimit = SavedSearchLimit,
                 ReaderGroupLimit = ReaderGroupLimit,
+                SourcesWatchPreviewRows = SourcesWatchPreviewRows,
                 ExportConfirmFiles = ExportConfirmFiles,
                 ExportConfirmGiB = ExportConfirmGiB,
                 PosterCacheLimitMiB = PosterCacheLimitMiB,
@@ -892,6 +900,7 @@ namespace MeowChan
             PostBookmarkLimit = source.PostBookmarkLimit;
             SavedSearchLimit = source.SavedSearchLimit;
             ReaderGroupLimit = source.ReaderGroupLimit;
+            SourcesWatchPreviewRows = source.SourcesWatchPreviewRows;
             ExportConfirmFiles = source.ExportConfirmFiles;
             ExportConfirmGiB = source.ExportConfirmGiB;
             PosterCacheLimitMiB = source.PosterCacheLimitMiB;
@@ -975,6 +984,7 @@ namespace MeowChan
             PostBookmarkLimit = source.PostBookmarkLimit;
             SavedSearchLimit = source.SavedSearchLimit;
             ReaderGroupLimit = source.ReaderGroupLimit;
+            SourcesWatchPreviewRows = source.SourcesWatchPreviewRows;
             ExportConfirmFiles = source.ExportConfirmFiles;
             ExportConfirmGiB = source.ExportConfirmGiB;
             PosterCacheLimitMiB = source.PosterCacheLimitMiB;

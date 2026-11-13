@@ -86,8 +86,8 @@ internal static class SourcesChecks
             downloadsInput.Text = string.Empty;
         }
         string? editedSource = null;
-        int handoffs = 0;
-        SourcesPage page = new SourcesPage(_ => false, source => editedSource = source, () => { }, () => handoffs++);
+        int handoffs = 0, showAll = 0;
+        SourcesPage page = new SourcesPage(_ => false, source => editedSource = source, () => { }, () => handoffs++, () => showAll++);
         host.Content = page;
         DesktopThreadEntry thread = SnapshotFixtures.Thread(991, "123", "Source fixture") with
         {
@@ -166,11 +166,19 @@ internal static class SourcesChecks
                     page.FindControl<Button>("SourceAddToDownloadsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     Require(handoffs == handoffsBefore + 1, "The add-in-Downloads button did not hand over to Downloads exactly once.");
                     page.Refresh(providers, view, true);
-                    DataGrid watches = page.FindControl<DataGrid>("SourceWatchesGrid")!;
+                    ListBox watches = page.FindControl<ListBox>("SourceWatchesList")!;
                     watches.BringIntoView();
                     await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-                    watches.SelectedItem = watches.ItemsSource!.Cast<SourceWatchRow>().Single();
-                    await Program.WaitUntilAsync(() => page.FindControl<TextBox>("SourceWatchDetails")!.Text?.Contains("25") == true);
+                    SourceWatchRow watchRow = watches.ItemsSource!.Cast<SourceWatchRow>().Single();
+                    watches.SelectedItem = watchRow;
+                    // One watch is two lines: its URL, then the status with the current request pause. No grid, no second copy.
+                    await Program.WaitUntilAsync(() => watches.GetVisualDescendants().OfType<TextBlock>().Count() == 2);
+                    string?[] watchLines = watches.GetVisualDescendants().OfType<TextBlock>().Select(text => text.Text).ToArray();
+                    Require(watchLines[0] == watchRow.Resource && watchLines[1] == watchRow.Status && watchLines[1]!.Contains("25")
+                        && !page.GetVisualDescendants().OfType<DataGrid>().Any(),
+                        "A watch was not shown as its URL line plus one status line.");
+                    Require(!page.FindControl<Button>("SourceAllWatchesButton")!.IsVisible,
+                        "A single watch offered a \"show all\" link although nothing is beyond the preview.");
                     page.FindControl<Button>("SourceOpenWatchButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     Require(!string.IsNullOrWhiteSpace(page.FindControl<TextBlock>("SourcesActionError")!.Text), "Stale watch action was silently accepted.");
                     await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -227,6 +235,7 @@ internal static class SourcesChecks
                 await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - targetWidth) <= 1);
             }
             await CheckNavigationAsync(window, wide: targetWidth >= 1120);
+            await CheckWatchPreviewAsync(page, providers, view, () => showAll);
             page.Refresh([], view, true);
             Require(page.FindControl<TextBlock>("SourcesEmpty")!.IsVisible && !page.FindControl<Border>("SourceDetailsPanel")!.IsVisible,
                 "Empty provider registry did not show its genuine empty state.");
@@ -289,6 +298,41 @@ internal static class SourcesChecks
             await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - restoreWidth) <= 1);
             page.Refresh(providers, view, true);
             page.SelectSource("thread-only");
+        }
+    }
+    // The preview length is the "Sources page: watch rows per source" setting: three rows minimum, the rest one link away under Downloads.
+    private static async Task CheckWatchPreviewAsync(SourcesPage page, ProviderDescriptor[] providers, DesktopSessionView view, Func<int> showAllClicks)
+    {
+        DesktopThreadEntry[] threads = Enumerable.Range(0, 5)
+            .Select(index => SnapshotFixtures.Thread(1100 + index, (200 + index).ToString(), "Preview fixture " + index)).ToArray();
+        DesktopSessionView many = view with { Threads = threads };
+        Func<int>? original = page.GetWatchPreviewRows;
+        ListBox list = page.FindControl<ListBox>("SourceWatchesList")!;
+        Button all = page.FindControl<Button>("SourceAllWatchesButton")!;
+        try
+        {
+            page.SelectSource("4chan");
+            foreach ((int setting, int shown, bool link) in new[] { (3, 3, true), (4, 4, true), (5, 5, false), (200, 5, false), (1, 3, true) })
+            {
+                page.GetWatchPreviewRows = () => setting;
+                page.Refresh(providers, many, true);
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                Require(list.ItemsSource!.Cast<SourceWatchRow>().Count() == shown && all.IsVisible == link,
+                    $"Watch preview setting {setting} showed {list.ItemsSource!.Cast<SourceWatchRow>().Count()} rows (expected {shown}, link {link}).");
+                if (link) Require((all.Content as string) == Texts.T("sources.showAll", 5),
+                    "The show-all link did not name the number of watches: " + all.Content);
+            }
+            page.GetWatchPreviewRows = () => 3;
+            page.Refresh(providers, many, true);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            int before = showAllClicks();
+            all.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(showAllClicks() == before + 1, "The show-all link did not hand over to Downloads exactly once.");
+        }
+        finally
+        {
+            page.GetWatchPreviewRows = original;
+            page.Refresh(providers, view, true);
         }
     }
     private static async Task CheckNavigationAsync(MainWindow window, bool wide)

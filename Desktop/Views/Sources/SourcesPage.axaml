@@ -3,10 +3,6 @@
              xmlns:desktop="clr-namespace:MeowChan.Desktop"
              xmlns:ursa="https://irihi.tech/ursa"
              x:Class="MeowChan.SourcesPage" SizeChanged="OnPageSizeChanged">
-    <UserControl.Styles>
-        <Style Selector="DataGridCell TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
-        <Style Selector="DataGridColumnHeader TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
-    </UserControl.Styles>
     <ScrollViewer x:Name="SourcesScroll" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="12" Spacing="8">
             <Grid x:Name="SourcesPageHeader" ColumnDefinitions="*,Auto" ColumnSpacing="12">
@@ -61,17 +57,23 @@
                     </WrapPanel>
                     <TextBlock Tag="sources.watches" Classes="section-title localized" />
                     <TextBlock x:Name="SourceWatchSummary" Classes="workspace-help" TextWrapping="Wrap" />
-                    <DataGrid x:Name="SourceWatchesGrid" AutoGenerateColumns="False" IsReadOnly="True"
-                              GridLinesVisibility="None" SelectionMode="Single" RowHeight="40"
-                              MaxHeight="240" SelectionChanged="OnWatchSelectionChanged">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn MinWidth="150" Width="2*" Binding="{Binding Resource, DataType=desktop:SourceWatchRow}" />
-                            <DataGridTextColumn MinWidth="140" Width="140" Binding="{Binding Work, DataType=desktop:SourceWatchRow}" />
-                            <DataGridTextColumn MinWidth="190" Width="*" Binding="{Binding Observation, DataType=desktop:SourceWatchRow}" />
-                        </DataGrid.Columns>
-                    </DataGrid>
-                    <TextBox x:Name="SourceWatchDetails" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="100" />
-                    <Button x:Name="SourceOpenWatchButton" Tag="diagnostics.openWatch" Classes="localized" HorizontalAlignment="Left" Click="OnOpenWatchClick" />
+                    <ListBox x:Name="SourceWatchesList" SelectionMode="Single" ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionChanged="OnWatchSelectionChanged"
+                             DoubleTapped="OnWatchDoubleTapped" KeyDown="OnWatchKeyDown">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="desktop:SourceWatchRow">
+                                <StackPanel Spacing="2" Margin="0,4">
+                                    <TextBlock Text="{Binding Resource}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Resource}" />
+                                    <TextBlock Text="{Binding Status}" Classes="workspace-meta" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <WrapPanel Classes="workspace-toolbar">
+                        <Button x:Name="SourceOpenWatchButton" Tag="diagnostics.openWatch" Classes="localized" Click="OnOpenWatchClick" />
+                        <Button x:Name="SourceAllWatchesButton" Classes="subtle" Click="OnAllWatchesClick" IsVisible="False" />
+                    </WrapPanel>
+                    <TextBlock Tag="sources.reachabilityNote" Classes="workspace-help localized" TextWrapping="Wrap" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <ursa:LoadingIcon x:Name="SourcesOperationLoading" Width="16" Height="16" VerticalAlignment="Center" IsVisible="False" Focusable="False" />
                         <TextBlock x:Name="SourcesOperationStatus" VerticalAlignment="Center" Classes="muted" AutomationProperties.LiveSetting="Polite" TextWrapping="Wrap" />

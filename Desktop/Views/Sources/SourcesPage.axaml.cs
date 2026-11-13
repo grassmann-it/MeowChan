@@ -23,6 +23,7 @@ public partial class SourcesPage : UserControl
     private readonly Action<string>? _editRules;
     private readonly Action? _openDiagnostics;
     private readonly Action? _addToDownloads;
+    private readonly Action? _openDownloads;
     private IReadOnlyList<SourceRow> _rows = Array.Empty<SourceRow>();
     private sealed record SourceCard(Button Control, TextBlock Name, TextBlock Address, TextBlock Observation);
     private sealed record SourceMediaIntegritySaveError(string PluginOwnerId, string SourceId, string Message);
@@ -37,6 +38,8 @@ public partial class SourcesPage : UserControl
     internal Action<string>? OpenPluginSettings { get; set; }
     internal Func<IReadOnlyList<SourceMediaIntegrityPolicyView>>? GetSourceMediaIntegrityPolicies { get; set; }
     internal Func<string, string, bool, long, Task>? SetSourceMediaIntegrityPermission { get; set; }
+    /// <summary>The "Sources page: watch rows per source" setting; read on every render so a saved change shows on the next visit.</summary>
+    internal Func<int>? GetWatchPreviewRows { get; set; }
     internal bool IsBusy => _busy;
     internal event EventHandler? BusyChanged;
 
@@ -46,13 +49,15 @@ public partial class SourcesPage : UserControl
     }
 
     /// <param name="addToDownloads">Goes to Downloads and focuses its URL field; the Sources page itself admits nothing.</param>
+    /// <param name="openDownloads">Goes to Downloads for the watches beyond the preview. Downloads has no per-source filter, so none is applied.</param>
     internal SourcesPage(Func<DiagnosticTarget, bool> openWatch, Action<string> editRules,
-        Action openDiagnostics, Action addToDownloads) : this()
+        Action openDiagnostics, Action addToDownloads, Action openDownloads) : this()
     {
         _openWatch = openWatch;
         _editRules = editRules;
         _openDiagnostics = openDiagnostics;
         _addToDownloads = addToDownloads;
+        _openDownloads = openDownloads;
     }
 
     internal void Refresh(IReadOnlyList<ProviderDescriptor> providers, DesktopSessionView view, bool available)
@@ -186,16 +191,21 @@ public partial class SourcesPage : UserControl
         this.FindControl<TextBlock>("SourceCaptureAvailability")!.Text = Texts.T(row.Descriptor.CaptureAvailable
             ? "sources.captureAvailable" : "sources.captureUnavailable");
         this.FindControl<TextBlock>("SourceWatchSummary")!.Text = row.Summary;
-        DataGrid grid = this.FindControl<DataGrid>("SourceWatchesGrid")!;
-        if (grid.ItemsSource is not IReadOnlyList<SourceWatchRow> displayed || !displayed.SequenceEqual(row.Watches))
+        ListBox watchList = this.FindControl<ListBox>("SourceWatchesList")!;
+        int previewRows = Math.Clamp(GetWatchPreviewRows?.Invoke() ?? Config.SourcesWatchPreviewRowsDefault,
+            Config.SourcesWatchPreviewRowsMinimum, Config.SourcesWatchPreviewRowsMaximum);
+        IReadOnlyList<SourceWatchRow> shownWatches = row.Watches.Count <= previewRows ? row.Watches : row.Watches.Take(previewRows).ToArray();
+        if (watchList.ItemsSource is not IReadOnlyList<SourceWatchRow> displayed || !displayed.SequenceEqual(shownWatches))
         {
-            DiagnosticTarget? selected = (grid.SelectedItem as SourceWatchRow)?.Target;
-            grid.ItemsSource = row.Watches;
-            grid.SelectedItem = row.Watches.FirstOrDefault(watch => watch.Target == selected);
+            DiagnosticTarget? selected = (watchList.SelectedItem as SourceWatchRow)?.Target;
+            watchList.ItemsSource = shownWatches;
+            watchList.SelectedItem = shownWatches.FirstOrDefault(watch => watch.Target == selected);
         }
-        grid.Columns[0].Header = Texts.T("diagnostics.resource");
-        grid.Columns[1].Header = Texts.T("sources.work");
-        grid.Columns[2].Header = Texts.T("sources.observation");
+        watchList.IsVisible = shownWatches.Count > 0;
+        Button allWatches = this.FindControl<Button>("SourceAllWatchesButton")!;
+        allWatches.IsVisible = row.Watches.Count > shownWatches.Count;
+        allWatches.Content = Texts.T("sources.showAll", row.Watches.Count);
+        allWatches.IsEnabled = _available && !_busy && _openDownloads != null;
         foreach (string name in new[] { "SourceRulesButton", "SourceDiagnosticsButton", "SourceAddToDownloadsButton" })
             this.FindControl<Button>(name)!.IsEnabled = _available && !_busy;
         RefreshWatchSelection();
@@ -290,14 +300,19 @@ public partial class SourcesPage : UserControl
         }, DispatcherPriority.Loaded);
     }
 
-    private SourceWatchRow? SelectedWatch => this.FindControl<DataGrid>("SourceWatchesGrid")!.SelectedItem as SourceWatchRow;
+    private SourceWatchRow? SelectedWatch => this.FindControl<ListBox>("SourceWatchesList")!.SelectedItem as SourceWatchRow;
     private void OnWatchSelectionChanged(object? sender, SelectionChangedEventArgs e) => RefreshWatchSelection();
-    private void RefreshWatchSelection()
-    {
+    private void RefreshWatchSelection() =>
         this.FindControl<Button>("SourceOpenWatchButton")!.IsEnabled = _available && !_busy && SelectedWatch != null;
-        this.FindControl<TextBox>("SourceWatchDetails")!.Text = SelectedWatch is SourceWatchRow watch
-            ? watch.Resource + Environment.NewLine + watch.Work + Environment.NewLine + watch.Observation : string.Empty;
+    // Double click and Enter on a selected row are the same action as the button below the list.
+    private void OnWatchDoubleTapped(object? sender, TappedEventArgs e) { if (SelectedWatch != null) OnOpenWatchClick(sender, e); }
+    private void OnWatchKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || SelectedWatch == null) return;
+        e.Handled = true;
+        OnOpenWatchClick(sender, e);
     }
+    private void OnAllWatchesClick(object? sender, RoutedEventArgs e) { if (_available && !_busy) _openDownloads?.Invoke(); }
     private void OnPluginClick(object? sender, RoutedEventArgs e) { if (Selected is SourceRow row) OpenPluginSettings?.Invoke(row.Id); }
     internal void SelectSource(string sourceId)
     {
