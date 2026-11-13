@@ -348,7 +348,7 @@ internal static class MediaHashSearchChecks
             string label = RowText(rows[index]);
             Require(label == MediaHashSearchDialog.RowLabel(asset) && label.Contains(asset.AssetId, StringComparison.Ordinal)
                 && label.Contains(asset.MediaIdentifier, StringComparison.Ordinal) && label.Contains(asset.Variant, StringComparison.Ordinal),
-                "Full IDs/variant/captured IsCurrent not preserved in row text.");
+                "Full IDs and variant not preserved in row text.");
         }
         Console.WriteLine(Marker + "PAGE_EXACT_OK offset=" + offset + " count=" + count + " total=" + Matches + " no_dedup_same_object_refs");
     }
