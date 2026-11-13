@@ -121,9 +121,9 @@ public sealed class GalleryMediaActionsTests : IDisposable
     public void ThePostNumberIsTheQuoteAndTheTextStartsWithTheSubject()
     {
         Assert.Equal(">>123", PostMenuText.Number("123"));
-        ArchivePostRow plain = new("1", "#1", "", "Body line", Array.Empty<ArchiveAttachmentRow>());
+        ArchivePostRow plain = new("1", "", "Body line", Array.Empty<ArchiveAttachmentRow>());
         Assert.Equal("Body line", PostMenuText.Text(plain));
-        ArchivePostRow subject = new("1", "#1", " Subject ", "Body line", Array.Empty<ArchiveAttachmentRow>());
+        ArchivePostRow subject = new("1", " Subject ", "Body line", Array.Empty<ArchiveAttachmentRow>());
         Assert.Equal("Subject" + Environment.NewLine + "Body line", PostMenuText.Text(subject));
     }
 
