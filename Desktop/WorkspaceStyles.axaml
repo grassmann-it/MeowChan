@@ -376,6 +376,24 @@
     </Style>
     <Style Selector="Button.subtle"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /></Style>
     <Style Selector="Button.danger"><Setter Property="Foreground" Value="{DynamicResource Workspace.Error}" /></Style>
+    <!-- UX round 3 (Dark outlines made every action row a row of boxes): a ghost button is the quiet secondary action inside
+         cards, rows and inspector panels. At rest it is only its label (Text 11:1 or more on every surface, so the label, not an
+         outline, identifies it); the interactive outline (ControlBorder, 3:1 on Raised and every surface below it) and the Raised fill appear on pointer
+         over, the accent outline when pressed; keyboard focus keeps the shared focus ring. The one action of a row that must stay
+         findable (the primary one, Remove) keeps its outline. Disabled: text colour only, no outline. -->
+    <Style Selector="Button.ghost"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /></Style>
+    <Style Selector="Button.ghost:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
+    <Style Selector="Button.ghost:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+    </Style>
+    <Style Selector="Button.ghost:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
     <Style Selector="Button.header-icon">
         <Setter Property="Width" Value="{StaticResource Workspace.Size.Control}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Control}" />
         <Setter Property="Padding" Value="6" /><Setter Property="BorderBrush" Value="Transparent" />

@@ -230,7 +230,7 @@
                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                         <Button x:Name="ArchiveBackButton" Tag="archive.back" Classes="localized" Click="OnBackClick" />
                         <TextBlock x:Name="ArchiveReaderTitle" Grid.Column="1" Classes="section-title" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                        <Button x:Name="CapturePostsButton" Grid.Column="2" Click="OnCaptureClick" />
+                        <Button x:Name="CapturePostsButton" Grid.Column="2" Classes="ghost" Click="OnCaptureClick" />
                     </Grid>
                     <!-- Wide readers carry up to ten labelled actions; rarely used ones overflow into More instead of wrapping. -->
                     <desktop:ActionToolBar x:Name="ReaderToolbar">
