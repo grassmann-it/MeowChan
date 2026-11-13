@@ -56,12 +56,14 @@ internal sealed partial class GalleryViewer : UserControl
     private readonly TextBlock _status = new() { Name = "GalleryStatus", TextWrapping = TextWrapping.Wrap, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), IsHitTestVisible = false };
     private readonly TextBlock _scope = new() { Name = "GalleryScope", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _provenance = new() { Name = "GalleryProvenance", [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap, IsVisible = false };
-    private readonly TextBlock _warnings = new() { Name = "GalleryWarnings", [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap };
+    // Warnings travel as diagnostics and never fill this line; keep it out of the layout so it does not leave an empty row.
+    private readonly TextBlock _warnings = new() { Name = "GalleryWarnings", [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly SelectableTextBlock _favoriteError = new() { Name = "GalleryFavoriteError", Classes = { "workspace-error" },
         TextWrapping = TextWrapping.Wrap, Focusable = true, IsVisible = false };
     private readonly Button _readPosts;
     private readonly TextBlock _position = new() { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
-    private readonly TextBlock _compactPosition = new() { Name = "GalleryCompactPosition", VerticalAlignment = VerticalAlignment.Center, IsVisible = false };
+    private readonly TextBlock _compactPosition = new() { Name = "GalleryCompactPosition", VerticalAlignment = VerticalAlignment.Center,
+        HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center, MinWidth = 44 };
     private readonly List<Control> _secondaryTools = new();
     private readonly ToggleButton _toolsToggle;
     private bool _mediaFocus;
@@ -197,7 +199,8 @@ internal sealed partial class GalleryViewer : UserControl
     internal bool OwnsOverlayWindow(Window window) =>
         _nativeOverlayActive && ReferenceEquals(TopLevel.GetTopLevel(_nativeVideoOverlay), window);
     internal IEnumerable<Visual> GetGalleryVisualDescendants() =>
-        ((Visual)this).GetVisualDescendants().Concat(_nativeVideoOverlay.GetVisualDescendants()).Distinct();
+        ((Visual)this).GetVisualDescendants().Concat(_nativeVideoOverlay.GetVisualDescendants())
+            .Concat(_overflowPanel.GetVisualDescendants()).Prepend(_overflowPanel).Distinct();
     internal bool TryDismissOverlay()
     {
         if (IsFavoriteConfirmOpen) { CloseFavoriteConfirm(); return true; }
@@ -292,31 +295,41 @@ internal sealed partial class GalleryViewer : UserControl
         StackPanel zoom = ToolGroup("GalleryZoomTools");
         StackPanel media = ToolGroup("GalleryMediaTools");
         StackPanel view = ToolGroup("GalleryViewTools");
+        // Frequent controls stay on the toolbar; the rare ones are rows of the "⋯" menu (GalleryViewer.Overflow.cs).
         _close = Command(navigation, "GalleryClose", Texts.T("gallery.viewer0"), () => CloseRequested?.Invoke());
         _previous = Command(navigation, "GalleryPrevious", Texts.T("gallery.viewer1"), () => Move(-1));
         navigation.Children.Add(_compactPosition);
         _next = Command(navigation, "GalleryNext", Texts.T("gallery.viewer2"), () => Move(1));
         _fit = Command(zoom, "GalleryFit", Texts.T("gallery.fit"), Fit);
         _actual = Command(zoom, "GalleryActual", "1:1", ActualPixels);
-        _zoomOut = Command(zoom, "GalleryMinus", "−", () => Zoom(1 / 1.1));
-        _zoomIn = Command(zoom, "GalleryPlus", "+", () => Zoom(1.1));
         _contextToggle = (ToggleButton)Command(media, "GalleryToggleContext", Texts.T("gallery.context"), () => SetContextOpen(!_contextOpen));
         _favorite = (ToggleButton)Command(media, "GalleryFavorite", Texts.T("viewer.favorite.add"), ToggleFavorite);
-        CommandBindings.Apply(_ratingButton, "media.rating.edit");
-        _ratingButton.Click += (_, _) => { if (_entry != null) RatingEditRequested?.Invoke(_entry); };
-        media.Children.Add(_ratingButton);
-        _exportOriginal = Command(media, "GalleryExportOriginal", Texts.T("viewer.menu.exportOriginal"), () =>
-        { if (_entry != null) ExportOriginalRequested?.Invoke(_entry); });
-        CreateTagsButton(media);
-        Command(view, "GalleryFullscreen", Texts.T("viewer.fullscreen"), () => FullscreenRequested?.Invoke());
-        _helpButton = Command(view, "GalleryHelp", Texts.T("viewer.help"), () => SetHelp(!_helpOpen));
         _readPosts = Command(view, "GalleryReadPosts", Texts.T("gallery.read"), () => { PauseSlideshow(); ReadPostsRequested?.Invoke(); });
         _readPosts.IsVisible = false;
+        view.Children.Add(_overflowButton);
+        _zoomIn = Command(_overflowPanel, "GalleryPlus", "+", () => Zoom(1.1), overflow: true, keepOpen: true);
+        _zoomOut = Command(_overflowPanel, "GalleryMinus", "−", () => Zoom(1 / 1.1), overflow: true, keepOpen: true);
+        AddOverflowSeparator();
+        CommandBindings.Apply(_ratingButton, "media.rating.edit");
+        _ratingButton.Click += (_, _) => { if (_entry != null) RatingEditRequested?.Invoke(_entry); };
+        AddOverflowItem(_ratingButton, "media.rating.edit", label: () => CommandCatalog.Label("media.rating.edit"));
+        CreateTagsButton(_overflowPanel);
+        _exportOriginal = Command(_overflowPanel, "GalleryExportOriginal", Texts.T("viewer.menu.exportOriginal"), () =>
+        { if (_entry != null) ExportOriginalRequested?.Invoke(_entry); }, overflow: true);
         _secondaryTools.AddRange(new Control[] { zoom, media, view });
-        StackPanel focusTools = ToolGroup("GalleryFocusTools");
-        _toolsToggle = (ToggleButton)Command(focusTools, "GalleryToolsToggle", string.Empty, () => SetMediaFocus(!_mediaFocus));
-        InitializePlaybackControls(toolbar, focusTools);
-        InitializeGifControls(focusTools);
+        _focusTools = ToolGroup("GalleryFocusTools");
+        _toolsToggle = (ToggleButton)Command(_focusTools, "GalleryToolsToggle", string.Empty, () => SetMediaFocus(!_mediaFocus));
+        InitializePlaybackControls(toolbar, _focusTools);
+        InitializeGifControls(_focusTools);
+        AddOverflowSeparator();
+        _overflowPanel.Children.Add(_slideshowHome);
+        AddOverflowSeparator();
+        AddOverflowItem(_overlayToggle, "gallery.overlay-toggle", check: true);
+        AddOverflowItem(_postOverlayToggle, "gallery.post-overlay-toggle", check: true);
+        Command(_overflowPanel, "GalleryFullscreen", Texts.T("viewer.fullscreen"), () => FullscreenRequested?.Invoke(), overflow: true);
+        _helpButton = Command(_overflowPanel, "GalleryHelp", Texts.T("viewer.help"), () => SetHelp(!_helpOpen), overflow: true);
+        InitializeOverflowMenu();
+        PlaceSlideshowToggle();
         UpdateMediaFocusPresentation();
         // Reserve navigation below the picture; secondary tools collapse only on request.
         // The media viewport keeps its black matte; the footer follows the host theme.
@@ -376,6 +389,7 @@ internal sealed partial class GalleryViewer : UserControl
         SizeChanged += (_, _) =>
         {
             _chrome.MaxWidth = Math.Max(0, Bounds.Width - 16);
+            UpdateToolbarDensity();
             LayoutContext();
         };
         _viewport.SizeChanged += (_, _) => FitIfAutomatic();
@@ -436,6 +450,18 @@ internal sealed partial class GalleryViewer : UserControl
         SetRating(_ratingValue, _ratingError, _ratingAvailable);
         if (IsFavoriteConfirmOpen) UpdateFavoriteConfirmText();
         UpdateTagsButton();
+        PresentToolbarControls();
+        RefreshFileOnlyText();
+        UpdateHelpButtonTooltip();
+        UpdateContext(); UpdateQuality(); UpdateHelp();
+        RefreshPlaybackControls();
+        RefreshOverflowItems();
+        RefreshGifTransport();
+    }
+
+    // Names, icons, labels and tooltips of the toolbar and menu controls from the current language, shortcuts and density.
+    private void PresentToolbarControls()
+    {
         var labels = new Dictionary<string, string>
         {
             ["GalleryClose"] = "gallery.viewer0", ["GalleryPrevious"] = "gallery.viewer1",
@@ -444,23 +470,19 @@ internal sealed partial class GalleryViewer : UserControl
             ["GalleryReadPosts"] = "gallery.read", ["GalleryFullscreen"] = "viewer.fullscreen",
             ["GalleryHelp"] = "viewer.help"
         };
-        foreach (Button button in this.GetVisualDescendants().OfType<Button>()
-            .Concat(_nativeVideoOverlay.GetVisualDescendants().OfType<Button>()).Distinct())
+        foreach (Button button in GetGalleryVisualDescendants().OfType<Button>())
         {
             if (button.Name != null && CommandId(button.Name) is { } id)
             {
-                CommandBindings.Apply(button, id, iconOnly: IsIconOnly(button.Name));
+                CommandBindings.Apply(button, id, iconOnly: IsIconOnly(button.Name) && button.Tag is not OverflowItem);
                 ApplyCompactLabel(button, button.Name);
             }
             else if (button.Name != null && labels.TryGetValue(button.Name, out string? key))
             { button.Content = Texts.T(key); AutomationProperties.SetName(button, Texts.T(key)); }
         }
         ApplyCloseLabel();
-        RefreshFileOnlyText();
-        UpdateHelpButtonTooltip();
-        UpdateContext(); UpdateQuality(); UpdateFavorite(); UpdateContextButton(); UpdateHelp(); UpdateMediaFocusPresentation();
-        RefreshPlaybackControls();
-        RefreshGifTransport();
+        UpdateFavorite(); UpdateContextButton(); UpdateMediaFocusPresentation();
+        RefreshOverflowItems();
     }
 
     private void OnShortcutBindingsChanged() => OnLanguageChanged(this, EventArgs.Empty);
@@ -536,6 +558,16 @@ internal sealed partial class GalleryViewer : UserControl
     {
         string? label = visibleLabel ?? CompactLabelFor(name);
         if (label == null || CommandId(name) is not { } id) return;
+        if (button.Tag is OverflowItem) return; // A menu row shows its own text.
+        if (_compactToolbar)
+        {
+            // Narrow viewer: the icon alone; the name, tooltip and shortcut stay on the control.
+            Border only = (Border)CommandBindings.Icon(id, 16);
+            only.Bind(Border.BackgroundProperty, only.GetObservable(TextElement.ForegroundProperty));
+            button.Classes.Set("command-icon", true);
+            button.Content = only;
+            return;
+        }
         StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
         Border icon = (Border)CommandBindings.Icon(id, 14);
         // Semi sets the checked/pressed/disabled foreground on the content
@@ -546,7 +578,7 @@ internal sealed partial class GalleryViewer : UserControl
         button.Content = content;
     }
 
-    private Button Command(Panel panel, string name, string label, Action action)
+    private Button Command(Panel panel, string name, string label, Action action, bool overflow = false, bool keepOpen = false)
     {
         string? id = CommandId(name);
         Button button = name is "GalleryToggleContext" or "GalleryFavorite" or "GalleryToolsToggle"
@@ -555,10 +587,17 @@ internal sealed partial class GalleryViewer : UserControl
         if (id == null) { button.Content = label; AutomationProperties.SetName(button, label); }
         else
         {
-            CommandBindings.Apply(button, id, iconOnly: IsIconOnly(name));
-            ApplyCompactLabel(button, name);
+            CommandBindings.Apply(button, id, iconOnly: IsIconOnly(name) && !overflow);
+            if (!overflow) ApplyCompactLabel(button, name);
         }
         button.Click += (_, _) => action();
+        if (overflow)
+        {
+            AddOverflowItem(button, id ?? throw new InvalidOperationException("Menu row without command: " + name),
+                keepOpen: keepOpen, label: name == "GalleryFullscreen" ? () => Texts.T("viewer.fullscreen") : () => CommandCatalog.Label(id),
+                host: panel);
+            return button;
+        }
         panel.Children.Add(button); return button;
     }
     internal void SetPosition(string label, bool previous, bool next)
@@ -648,6 +687,12 @@ internal sealed partial class GalleryViewer : UserControl
     {
         CommandBindings.ApplyLabeled(_toolsToggle, "gallery.tools-toggle",
             Texts.T(_mediaFocus ? "viewer.tools.show" : "viewer.tools.hide"), 14);
+        if (_compactToolbar)
+        {
+            Border only = (Border)CommandBindings.Icon("gallery.tools-toggle", 16);
+            only.Bind(Border.BackgroundProperty, only.GetObservable(TextElement.ForegroundProperty));
+            _toolsToggle.Content = only; // The label stays as name and tooltip.
+        }
         _toolsToggle.IsChecked = _mediaFocus;
         UpdateMediaFocusVisibility();
     }
@@ -657,8 +702,10 @@ internal sealed partial class GalleryViewer : UserControl
         foreach (Control control in _secondaryTools) control.IsVisible = !_mediaFocus;
         // The legacy action remains routable, but must never reappear as duplicate chrome.
         _autoHideToggle.IsVisible = false;
-        _compactPosition.IsVisible = _mediaFocus;
-        _quality.IsVisible = _position.IsVisible = _scope.IsVisible = !_mediaFocus;
+        // The position sits between the arrows, always; the caption no longer repeats it.
+        _compactPosition.IsVisible = true;
+        _position.IsVisible = false;
+        _quality.IsVisible = _scope.IsVisible = !_mediaFocus;
         _provenance.IsVisible = !_mediaFocus && !string.IsNullOrEmpty(_provenance.Text);
         _ratingStatus.IsVisible = !_mediaFocus;
         // Diagnostic notices have no visibility or auto-hide authority. The capability

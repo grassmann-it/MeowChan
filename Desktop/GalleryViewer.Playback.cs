@@ -93,9 +93,15 @@ internal sealed partial class GalleryViewer
         _slideshow = new GallerySlideshowController(RequestSlideshowNext);
         _slideshow.SetMode(_playbackPreferences.Mode);
         _slideshow.SetImageDuration(TimeSpan.FromSeconds(_playbackPreferences.ImageSeconds));
-        StackPanel playback = new() { Name = "GalleryPlaybackTools", Classes = { "workspace-tool-group" } };
-        playback.Children.Add(_playbackMode);
-        playback.Children.Add(_slideshowSeconds);
+        // Playback choices are rows of the "⋯" menu: a caption above each choice, then the slideshow control
+        // (it moves to the toolbar while a slideshow is chosen, see PlaceSlideshowToggle).
+        _slideshowHome = new StackPanel { Name = "GalleryPlaybackTools", Spacing = 2 };
+        foreach (ComboBox choice in new[] { _playbackMode, _slideshowSeconds })
+        { choice.HorizontalAlignment = HorizontalAlignment.Stretch; choice.Margin = new Thickness(6, 0); }
+        _slideshowHome.Children.Add(_modeCaption);
+        _slideshowHome.Children.Add(_playbackMode);
+        _slideshowHome.Children.Add(_secondsCaption);
+        _slideshowHome.Children.Add(_slideshowSeconds);
         _slideshowSeconds.SelectionChanged += (_, _) =>
         {
             int index = _slideshowSeconds.SelectedIndex;
@@ -104,13 +110,6 @@ internal sealed partial class GalleryViewer
         };
         _slideshowSeconds.DropDownOpened += (_, _) => { HoldSlideshowAdvance(); RefreshPlaybackControls(); };
         _slideshowSeconds.DropDownClosed += (_, _) => RefreshPlaybackControls();
-        toolbar.Children.Add(playback);
-        _secondaryTools.Add(playback);
-        // Pause remains reachable even when the optional secondary tools are collapsed.
-        focusTools.Children.Add(_slideshowToggle);
-        // Independent wrap items also fit the existing narrow window sizes in German.
-        foreach (ToggleButton toggle in new[] { _overlayToggle, _postOverlayToggle })
-        { toolbar.Children.Add(toggle); _secondaryTools.Add(toggle); }
         _playbackMode.DropDownOpened += (_, _) => { HoldSlideshowAdvance(); RefreshPlaybackControls(); };
         _playbackMode.DropDownClosed += (_, _) => RefreshPlaybackControls();
         _playbackMode.SelectionChanged += (_, _) =>
@@ -241,6 +240,8 @@ internal sealed partial class GalleryViewer
                 string tip = CommandBindings.Tooltip(id, reason, label);
                 ToolTip.SetTip(button, tip); AutomationProperties.SetHelpText(button, tip);
             }
+            PlaceSlideshowToggle();
+            RefreshOverflowItems();
             RefreshSlideshowStatus();
             UpdateMediaFocusVisibility();
             _lastRunning = _slideshow.IsRunning;
@@ -290,7 +291,7 @@ internal sealed partial class GalleryViewer
 
     private static void SetToggleLabel(ToggleButton button, string label)
     {
-        button.Content = label;
+        SetButtonLabel(button, label);
         AutomationProperties.SetName(button, label);
         ToolTip.SetTip(button, label);
     }

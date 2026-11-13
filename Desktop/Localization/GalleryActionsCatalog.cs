@@ -27,6 +27,8 @@ internal static class GalleryActionsCatalog
         ("reader.live.reason.sourceArchived", "Not possible: this thread is archived at its source.", "Nicht möglich: Der Thread ist am Ursprung archiviert."),
         ("reader.live.reason.sourceGone", "Not possible: this thread is no longer available at its source.", "Nicht möglich: Der Thread ist am Ursprung nicht mehr vorhanden."),
         ("gallery.slideshow.seconds", "{0} s", "{0} s"),
-        ("gallery.slideshow.secondsLabel", "Seconds per image in the slideshow", "Sekunden pro Bild in der Diashow")
+        ("gallery.slideshow.secondsLabel", "Seconds per image in the slideshow", "Sekunden pro Bild in der Diashow"),
+        ("gallery.overflow.label", "More gallery actions", "Weitere Galerieaktionen"),
+        ("gallery.overflow.help", "Zoom, rating, tags, export, playback, view options and shortcut help", "Zoom, Bewertung, Tags, Export, Wiedergabe, Ansichtsoptionen und Tastaturhilfe")
     };
 }

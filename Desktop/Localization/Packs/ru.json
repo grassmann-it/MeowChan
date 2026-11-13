@@ -752,6 +752,8 @@
     "reader.live.reason.sourceGone": "Невозможно: тред больше недоступен на источнике.",
     "gallery.slideshow.seconds": "{0} с",
     "gallery.slideshow.secondsLabel": "Секунд на изображение в слайд-шоу",
+    "gallery.overflow.label": "Другие действия галереи",
+    "gallery.overflow.help": "Масштаб, оценка, теги, экспорт, воспроизведение, параметры вида и справка по сочетаниям клавиш",
     "reader.previousPost": "↑ Предыдущий пост",
     "reader.nextPost": "Следующий пост ↓",
     "reader.previousThread": "← Предыдущий тред",
