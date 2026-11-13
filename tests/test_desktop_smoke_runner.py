@@ -118,6 +118,11 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
         self.assertEqual("1", prepared["MEOWCHAN_DISABLE_UPDATE_CHECK"])
         self.assertEqual(":99", prepared["DISPLAY"])
 
+    def test_children_run_with_motion_off_unless_the_caller_chose(self):
+        # D1: captures and smokes must not depend on a transition; the motion smoke removes the variable inside its own process.
+        self.assertEqual("off", runner.prepare_environment({}, False, self.root)["MEOWCHAN_MOTION"])
+        self.assertEqual("on", runner.prepare_environment({"MEOWCHAN_MOTION": "on"}, False, self.root)["MEOWCHAN_MOTION"])
+
     def test_missing_tools_fail_without_starting_any_process(self):
         with mock.patch.object(runner.sys, "platform", "linux"), \
                 mock.patch.object(runner.shutil, "which", return_value=None), \

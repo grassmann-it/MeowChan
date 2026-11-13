@@ -90,6 +90,7 @@ public partial class MainWindow : Window
             {
                 Application.Current.RequestedThemeVariant = ThemeForPreference(_config.Theme);
             }
+            MeowChan.Desktop.Motion.MotionPolicy.SetSetting(_config.Animations);
             // After the saved theme, so the first logo decoded is the one shown.
             ThemeLogo.Follow(this);
             // Both cats side by side in the header, whatever the theme; only the window icon follows it.
@@ -1223,6 +1224,7 @@ public partial class MainWindow : Window
         if (Application.Current != null)
             Application.Current.RequestedThemeVariant = ThemeForPreference(_config.Theme);
         if (OperatingSystem.IsWindows()) RefreshTrayMenuIcons();
+        MeowChan.Desktop.Motion.MotionPolicy.SetSetting(_config.Animations);
         Texts.SetLanguage(_config.Language);
         ApplyWorkspacePreferences();
         ApplyGalleryPreferences();

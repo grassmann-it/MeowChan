@@ -69,6 +69,7 @@ namespace MeowChan
         private string _relativePathBaseDirectory = Path.GetFullPath(Environment.CurrentDirectory);
         [JsonIgnore] internal string DownloadPathBaseDirectory => _relativePathBaseDirectory;
         private string _theme = "Dark";
+        private string _animations = "System";
         private string _language = "en";
         private string _workspaceMode = "Barebones";
         private int _videoVolume = 70;
@@ -223,6 +224,17 @@ namespace MeowChan
             get => _theme;
             set => _theme = string.Equals(value?.Trim(), "Light", StringComparison.OrdinalIgnoreCase) ? "Light"
                 : string.Equals(value?.Trim(), "System", StringComparison.OrdinalIgnoreCase) ? "System" : "Dark";
+        }
+
+        /// <summary>
+        /// D1: "System" follows the operating system's reduced-motion setting, "On" always animates, "Off" never does.
+        /// The environment (MEOWCHAN_MOTION, MEOWCHAN_REDUCED_MOTION) still wins over this setting; see <see cref="Desktop.Motion.MotionPolicy"/>.
+        /// </summary>
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string Animations
+        {
+            get => _animations;
+            set => _animations = Desktop.Motion.MotionPolicy.NormalizeSetting(value);
         }
 
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
@@ -701,6 +713,7 @@ namespace MeowChan
                 PluginEditorExecutable = PluginEditorExecutable,
                 PluginEditorArguments = (string[])PluginEditorArguments.Clone(),
                 Theme = Theme,
+                Animations = Animations,
                 Language = Language,
                 WorkspaceMode = WorkspaceMode,
                 CompactDensity = CompactDensity,
@@ -808,6 +821,7 @@ namespace MeowChan
 
             ShortcutBindings = source.ShortcutBindings.Clone();
             Theme = source.Theme;
+            Animations = source.Animations;
             Language = source.Language;
             WorkspaceMode = source.WorkspaceMode;
             CompactDensity = source.CompactDensity;
@@ -881,6 +895,7 @@ namespace MeowChan
 
             ShortcutBindings = source.ShortcutBindings.Clone();
             Theme = source.Theme;
+            Animations = source.Animations;
             Language = source.Language;
             foreach (string mode in new[] { "Barebones", "Simple", "Advanced" })
             {

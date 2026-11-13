@@ -242,6 +242,7 @@ internal sealed class FeedbackToastContent : Grid
         Title = title; Message = message;
         Entry = entry;
         Name = "FeedbackToastContent";
+        Classes.Add("toast-content"); // D1: arrival animation (WorkspaceStyles), absent under motion-off.
         ColumnDefinitions = new ColumnDefinitions("*,Auto");
         MaxWidth = 420;
         StackPanel text = new() { Spacing = 4 };

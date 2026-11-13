@@ -90,6 +90,18 @@
                             </ComboBox>
                         </Grid>
                     </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                            <StackPanel VerticalAlignment="Center" Spacing="3">
+                                <TextBlock x:Name="AnimationsFieldLabel" Text="{Binding AnimationsLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding AnimationsHint}" Classes="muted workspace-help" />
+                            </StackPanel>
+                            <ComboBox x:Name="AnimationsInput" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=AnimationsFieldLabel}" AutomationProperties.Name="{Binding AnimationsLabel}" AutomationProperties.HelpText="{Binding AnimationsHint}" Grid.Column="1" HorizontalAlignment="Stretch"
+                                      ItemsSource="{Binding AnimationsChoices}" SelectedItem="{Binding SelectedAnimations, Mode=TwoWay}">
+                                <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </Grid>
+                    </Border>
                     <Border Padding="0,10">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                             <TextBlock x:Name="DensityFieldLabel" Text="{Binding DensityLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />

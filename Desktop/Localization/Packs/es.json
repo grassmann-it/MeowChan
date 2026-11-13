@@ -2992,6 +2992,11 @@
     "limit.favoriteFile": "El archivo de esta lista ha alcanzado su límite de tamaño de {0} y no se puede añadir nada nuevo. Aumenta «{1}» en {2}; quitar entradas sigue funcionando.",
     "limit.postBookmarks": "Se ha alcanzado el límite de {0} marcadores de publicaciones. Aumenta «{1}» en {2}; los marcadores y notas existentes se conservan.",
     "limit.savedSearches": "Se ha alcanzado el límite de {0} búsquedas guardadas. Aumenta «{1}» en {2}; las búsquedas existentes se conservan.",
-    "limit.readerGroups": "Se ha alcanzado el límite de {0} grupos de lectura. Aumenta «{1}» en {2}; los grupos existentes se conservan."
+    "limit.readerGroups": "Se ha alcanzado el límite de {0} grupos de lectura. Aumenta «{1}» en {2}; los grupos existentes se conservan.",
+    "settings.animations": "Animaciones",
+    "settings.animations.hint": "Fundidos breves y cambios al pasar el puntero. «Seguir el sistema» usa el ajuste de movimiento reducido de tu sistema. Las barras de progreso y los indicadores de carga se mantienen siempre.",
+    "settings.animations.system": "Seguir el sistema",
+    "settings.animations.on": "Activadas",
+    "settings.animations.off": "Desactivadas"
   }
 }

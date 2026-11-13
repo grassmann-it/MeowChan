@@ -81,6 +81,7 @@ namespace MeowChan
             if (_statusMessageState != null) StatusMessage = _statusMessageState.Render();
         }
         private SettingsChoice? _selectedTheme;
+        private SettingsChoice? _selectedAnimations;
         private SettingsChoice? _selectedWorkspaceMode;
         private LanguageInfo? _selectedLanguage;
         private bool _compactDensity;
@@ -149,6 +150,7 @@ namespace MeowChan
 
 
         public IReadOnlyList<SettingsChoice> ThemeChoices { get; private set; } = Array.Empty<SettingsChoice>();
+        public IReadOnlyList<SettingsChoice> AnimationsChoices { get; private set; } = Array.Empty<SettingsChoice>();
         public IReadOnlyList<SettingsChoice> ReadingFontSizeChoices { get; private set; } = Array.Empty<SettingsChoice>();
         public IReadOnlyList<SettingsChoice> GalleryPlaybackModeChoices { get; private set; } = Array.Empty<SettingsChoice>();
         public IReadOnlyList<SettingsChoice> WorkspaceChoices { get; private set; } = Array.Empty<SettingsChoice>();
@@ -430,6 +432,8 @@ namespace MeowChan
         public string CloseToTrayLabel => Texts.T("settings.closeToTray");
         public string MinimizeToTrayLabel => Texts.T("settings.minimizeToTray");
         public string ThemeLabel => Texts.T("settings.theme");
+        public string AnimationsLabel => Texts.T("settings.animations");
+        public string AnimationsHint => Texts.T("settings.animations.hint");
         public string LanguageLabel => Texts.T("settings.language");
         public string LanguagePacksLabel => Texts.T("settings.languagePacksTitle");
         public string LanguagePacksHint => Texts.T("settings.languagePacks");
@@ -450,6 +454,12 @@ namespace MeowChan
         public bool CanForgetReadingPosition => _forgetReadingPosition != null && IsEditable;
         public bool RememberReadingPosition { get => _rememberReadingPosition; set => SetField(ref _rememberReadingPosition, value, nameof(RememberReadingPosition)); }
         public string SupportedSources => Texts.T("settings.supportedSources");
+
+        public SettingsChoice? SelectedAnimations
+        {
+            get => _selectedAnimations;
+            set => SetField(ref _selectedAnimations, value, nameof(SelectedAnimations));
+        }
 
         public SettingsChoice? SelectedTheme
         {
@@ -868,7 +878,7 @@ namespace MeowChan
                     nameof(BehaviorTitle), nameof(DownloadPathLabel), nameof(BrowseLabel), nameof(PathHint),
                     nameof(RecheckLabel), nameof(BandwidthLabel), nameof(ParallelLabel), nameof(ParallelSafetyLabel), nameof(ParallelSafetyHint), nameof(RestoreSessionLabel),
                     nameof(MonitorClipboardLabel), nameof(MonitorClipboardHint),
-                    nameof(BoardAdmissionWizardLabel), nameof(CloseToTrayLabel), nameof(MinimizeToTrayLabel), nameof(ThemeLabel),
+                    nameof(BoardAdmissionWizardLabel), nameof(CloseToTrayLabel), nameof(MinimizeToTrayLabel), nameof(ThemeLabel), nameof(AnimationsLabel), nameof(AnimationsHint),
                     nameof(LanguageLabel), nameof(LanguagePacksLabel), nameof(LanguagePacksHint), nameof(WorkspaceModeLabel),
                     nameof(DensityLabel), nameof(CompactLabel), nameof(ModeHint), nameof(SaveLabel),
                     nameof(CancelLabel), nameof(RememberReadingPositionLabel), nameof(ReadingPositionHint), nameof(ForgetReadingPositionLabel),
@@ -913,19 +923,26 @@ namespace MeowChan
             string mode = SelectedWorkspaceMode?.Value ?? _config.WorkspaceMode;
             string language = SelectedLanguage?.Code ?? _config.Language;
             string readingFontSize = SelectedReadingFontSize?.Value ?? _config.ReadingFontSize;
+            string animations = SelectedAnimations?.Value ?? _config.Animations;
             bool wasRefreshing = _refreshingLanguageLabels;
             _refreshingLanguageLabels = true;
-            try { RefreshChoices(theme, mode, language, readingFontSize); }
+            try { RefreshChoices(theme, mode, language, readingFontSize, animations); }
             finally { _refreshingLanguageLabels = wasRefreshing; }
         }
 
-        private void RefreshChoices(string theme, string mode, string language, string? readingFontSize = null)
+        private void RefreshChoices(string theme, string mode, string language, string? readingFontSize = null, string? animations = null)
         {
             ThemeChoices = new SettingsChoice[]
             {
                 new SettingsChoice("Dark", Texts.T("theme.dark")),
                 new SettingsChoice("Light", Texts.T("theme.light")),
                 new SettingsChoice("System", Texts.T("r08d.settings.systemTheme"))
+            };
+            AnimationsChoices = new SettingsChoice[]
+            {
+                new SettingsChoice(MeowChan.Desktop.Motion.MotionPolicy.System, Texts.T("settings.animations.system")),
+                new SettingsChoice(MeowChan.Desktop.Motion.MotionPolicy.On, Texts.T("settings.animations.on")),
+                new SettingsChoice(MeowChan.Desktop.Motion.MotionPolicy.Off, Texts.T("settings.animations.off"))
             };
             ReadingFontSizeChoices = new SettingsChoice[]
             {
@@ -958,10 +975,12 @@ namespace MeowChan
                 languages.Add(new LanguageInfo(language, Texts.T("settings.unavailableLanguage", language)));
             LanguageChoices = languages;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ThemeChoices)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AnimationsChoices)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ReadingFontSizeChoices)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(WorkspaceChoices)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LanguageChoices)));
             SelectedTheme = ThemeChoices.First(item => item.Value == theme);
+            SelectedAnimations = AnimationsChoices.First(item => item.Value == (animations ?? _config.Animations));
             SelectedReadingFontSize = ReadingFontSizeChoices.First(item => item.Value == (readingFontSize ?? _config.ReadingFontSize));
             SelectedWorkspaceMode = WorkspaceChoices.First(item => item.Value == mode);
             SelectedLanguage = LanguageChoices.First(item => string.Equals(item.Code, language, StringComparison.OrdinalIgnoreCase));
@@ -1060,6 +1079,7 @@ namespace MeowChan
                 candidate.MinimizeToTray = MinimizeToTray;
                 candidate.CloseToTray = CloseToTray;
                 candidate.Theme = SelectedTheme?.Value ?? _config.Theme;
+                candidate.Animations = SelectedAnimations?.Value ?? _config.Animations;
                 candidate.Language = SelectedLanguage?.Code ?? _config.Language;
                 candidate.WorkspaceMode = SelectedWorkspaceMode?.Value ?? _config.WorkspaceMode;
                 if (CompactDensity != _initialCompactDensity)
@@ -1307,7 +1327,7 @@ namespace MeowChan
             {
                 field = value;
                 bool rebindingChoice = _refreshingLanguageLabels && propertyName is
-                    nameof(SelectedTheme) or nameof(SelectedWorkspaceMode) or nameof(SelectedLanguage) or
+                    nameof(SelectedTheme) or nameof(SelectedAnimations) or nameof(SelectedWorkspaceMode) or nameof(SelectedLanguage) or
                     nameof(SelectedReadingFontSize) or nameof(SelectedGalleryPlaybackMode);
                 if (!rebindingChoice && propertyName is not (nameof(IsBusy) or nameof(ErrorMessage) or nameof(ErrorDetails) or nameof(StatusMessage)))
                 {

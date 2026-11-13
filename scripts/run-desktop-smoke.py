@@ -101,6 +101,9 @@ def prepare_environment(base: dict[str, str], isolated: bool, directory: Path) -
     environment["MEOWCHAN_PROFILE"] = str((directory / "profile").resolve())
     # GUI fixtures must never schedule real update requests in their private profiles.
     environment["MEOWCHAN_DISABLE_UPDATE_CHECK"] = "1"
+    # D1: captures and smokes run with motion off, so no screenshot or timing depends on a transition; the "motion" smoke
+    # (MEOWCHAN_MOTION_ONLY=1) removes it inside its own process, and an explicit value from the caller is kept.
+    environment.setdefault("MEOWCHAN_MOTION", "off")
     if isolated:
         for name in SESSION_VARIABLES:
             environment.pop(name, None)

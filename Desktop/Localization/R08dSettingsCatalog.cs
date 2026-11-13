@@ -141,6 +141,12 @@ internal static class R08dSettingsCatalog
         ("r08d.settings.videoVolume", "Remembered video volume (%)", "Gemerkte Videolautstärke (%)"),
         ("r08d.settings.shortcutHelp", "Show brief shortcut help", "Kurzhilfe zu Tastenkürzeln anzeigen"),
         ("r08d.settings.systemTheme", "System", "System"),
+        ("settings.animations", "Animations", "Animationen"),
+        ("settings.animations.hint", "Short fades and hover changes. \"Follow system\" uses your system's reduced-motion setting. Progress bars and spinners always stay.",
+            "Kurze Einblendungen und Hover-Übergänge. \"System folgen\" übernimmt die Einstellung deines Systems für reduzierte Bewegung. Fortschrittsbalken und Spinner bleiben immer."),
+        ("settings.animations.system", "Follow system", "System folgen"),
+        ("settings.animations.on", "On", "An"),
+        ("settings.animations.off", "Off", "Aus"),
         ("r08d.settings.about", "About · Credits · Licenses", "Über · Danksagungen · Lizenzen"),
         ("r08d.rules.preview", "Effective after saving", "Wirksam nach Speichern"),
     };

@@ -747,4 +747,78 @@
         <Setter Property="Stroke" Value="{DynamicResource Workspace.OnAccent}" /><Setter Property="StrokeThickness" Value="2" />
         <Setter Property="StrokeLineCap" Value="Round" /><Setter Property="StrokeJoin" Value="Round" />
     </Style>
+
+    <!-- D1 motion (design language 4.5, E4/E5). Every rule below applies only under a TopLevel WITHOUT the class motion-off
+         (MotionPolicy puts it on windows when the environment, the "Animations" setting or the operating system says off), so
+         switching at run time needs no restart. Only Opacity and Background/BorderBrush/Foreground move; nothing
+         changes size, margin or radius, and nothing here targets virtualised rows or tiles (selection and recycling stay instant).
+         Durations: Hover 80 ms, Fade 120 ms, Reveal 180 ms, Enter 260 ms (spec 4.5). Progress and spinners are not touched. -->
+    <Style Selector=":is(TopLevel):not(.motion-off) Button /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.08" />
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.08" />
+                <BrushTransition Property="Foreground" Duration="0:0:0.08" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector=":is(TopLevel):not(.motion-off) ToggleButton /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.08" />
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.08" />
+                <BrushTransition Property="Foreground" Duration="0:0:0.08" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <!-- The filter chip is a control that tints itself (no template part), so the control carries the transition. -->
+    <Style Selector=":is(TopLevel):not(.motion-off) ursa|ClosableTag.chip">
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.08" />
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.08" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <!-- A filter chip appears with a short fade (the tag bar's own chips are rebuilt often and tile chips are recycled: no fade there). -->
+    <Style Selector=":is(TopLevel):not(.motion-off) ursa|ClosableTag.chip.chip-filter">
+        <Style.Animations>
+            <Animation Duration="0:0:0.12" Easing="CubicEaseOut">
+                <KeyFrame Cue="0%"><Setter Property="Opacity" Value="0" /></KeyFrame>
+                <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+            </Animation>
+        </Style.Animations>
+    </Style>
+    <!-- Toast (FeedbackToastContent): 260 ms fade on arrival (opacity only: no RenderTransform keyframes, Avalonia has no animator for them); the live region carries the message either way. -->
+    <Style Selector=":is(TopLevel):not(.motion-off) Grid.toast-content">
+        <Style.Animations>
+            <Animation Duration="0:0:0.26" Easing="CubicEaseOut">
+                <KeyFrame Cue="0%"><Setter Property="Opacity" Value="0" /></KeyFrame>
+                <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+            </Animation>
+        </Style.Animations>
+    </Style>
+    <!-- In-window overlay (filter surface, bars): hidden until the caller adds .shown; the caller keeps IsVisible true while it fades
+         (180 ms in, and removes .shown for the 180 ms out before IsVisible=False). Under motion-off the class does nothing: the
+         overlay is simply visible or not. Applies to Border only; one element, static shadow. -->
+    <Style Selector=":is(TopLevel):not(.motion-off) Border.motion-overlay">
+        <Setter Property="Opacity" Value="0" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.18" Easing="CubicEaseOut" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector=":is(TopLevel):not(.motion-off) Border.motion-overlay.shown">
+        <Setter Property="Opacity" Value="1" />
+    </Style>
+    <!-- Image that arrives asynchronously (see ImageFade): 150 ms fade of Opacity. Never used on recycled tiles or cache hits. -->
+    <Style Selector=":is(TopLevel):not(.motion-off) Image.motion-fade-in">
+        <Setter Property="Transitions">
+            <Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" /></Transitions>
+        </Setter>
+    </Style>
+    <!-- E5: motion-off also silences transitions the theme brings along on the roles above. -->
+    <Style Selector=":is(TopLevel).motion-off Button /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Transitions" Value="{x:Null}" /></Style>
+    <Style Selector=":is(TopLevel).motion-off ToggleButton /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Transitions" Value="{x:Null}" /></Style>
 </Styles>

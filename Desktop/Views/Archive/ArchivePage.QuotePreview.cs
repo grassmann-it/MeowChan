@@ -32,6 +32,8 @@ public partial class ArchivePage
     private int _jumpFlashRevision;
 
     internal bool IsQuotePreviewOpen => QuotePreviewPopup.IsOpen;
+    /// <summary>True while a hover/focus preview waits for its delay timer.</summary>
+    internal bool IsQuotePreviewPending => _quotePreviewTimer?.IsEnabled == true;
     internal ArchiveQuoteRow? QuotePreviewRow => QuotePreviewPopup.IsOpen ? _quotePreviewRow : null;
 
     private void OnInlineQuoteHover(object? sender, ReaderQuoteHoverEventArgs e)

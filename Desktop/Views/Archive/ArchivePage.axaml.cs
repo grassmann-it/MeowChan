@@ -807,7 +807,8 @@ public partial class ArchivePage : UserControl
             }, cancellationToken);
             if (_ended || request != _previewRequest || !ArchivePreview.IsVisible) { bitmap?.Dispose(); return; }
             _preview = bitmap;
-            ArchivePreviewImage.Source = bitmap;
+            // D1: the preview is one asynchronous load, so it fades in (not under motion-off).
+            MeowChan.Desktop.Motion.ImageFade.Show(ArchivePreviewImage, bitmap, arrivedAsync: true);
             ArchivePreviewMessage.Text = bitmap == null ? Texts.T("archive.previewUnavailable") : string.Empty;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }

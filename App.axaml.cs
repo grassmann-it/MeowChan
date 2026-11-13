@@ -53,6 +53,8 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            // D1: every window that opens follows the motion policy (class motion-off); the saved setting arrives with the main window.
+            MeowChan.Desktop.Motion.MotionPolicy.Install();
             desktop.Exit += (_, _) => Texts.Changed -= OnLanguageChanged;
             LinuxVideoPreflightResult? video = null;
             try
