@@ -36,16 +36,16 @@
                              current values and a click opens the statistics page. The inner parts are not exposed separately. -->
                         <Button x:Name="TransferSpeed" Classes="subtle header-graph" VerticalAlignment="Center" Click="OnTransferSpeedClick">
                             <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="8" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
-                                <controls:IoGraph x:Name="TransferSpeedGraph" Width="96" Height="28" IsHitTestVisible="False"
+                                <controls:IoGraph x:Name="TransferSpeedGraph" Width="128" MinWidth="120" Height="28" HistoryWindowSeconds="60" IsHitTestVisible="False"
                                                   Stroke="{DynamicResource Workspace.Accent}" Fill="{DynamicResource Workspace.AccentSurface}"
                                                   DiskStroke="{DynamicResource Workspace.Stats.Disk}" />
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
-                                    <TextBlock x:Name="TransferSpeedLabel" Width="96" FontSize="{StaticResource Workspace.Text.Caption}" Classes="mono muted"
+                                    <TextBlock x:Name="TransferSpeedLabel" Width="100" FontSize="11" FontFamily="{DynamicResource Workspace.Font.UI}" FontFeatures="tnum" Classes="muted"
                                                Text="↓ 0 B/s" />
                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                         <Path x:Name="TransferDiskIcon" Width="10" Height="10" Stretch="Uniform" StrokeThickness="1.2"
                                               Data="M 1,2.5 L 9,2.5 L 9,7.5 L 1,7.5 Z M 6,5 L 8,5" Stroke="{DynamicResource Workspace.Stats.Disk}" VerticalAlignment="Center" />
-                                        <TextBlock x:Name="TransferDiskLabel" Width="82" FontSize="{StaticResource Workspace.Text.Caption}" Classes="mono muted"
+                                        <TextBlock x:Name="TransferDiskLabel" Width="86" FontSize="11" FontFamily="{DynamicResource Workspace.Font.UI}" FontFeatures="tnum" Classes="muted"
                                                    Text="0 B/s" />
                                     </StackPanel>
                                 </StackPanel>

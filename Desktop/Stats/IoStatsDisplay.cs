@@ -68,6 +68,24 @@ internal static class IoStatsDisplay
     internal static int HistorySeconds(int samples, int sampleIntervalMs) =>
         (int)Math.Round(Math.Max(samples, 0) * (double)Math.Max(sampleIntervalMs, 0) / 1000.0, MidpointRounding.AwayFromZero);
 
+    /// <summary>
+    /// A graph covers sample intervals, including the interval before the oldest retained sample. The extra position at
+    /// the left is not a fabricated sample: it makes capacity × interval the actual time axis, even while filling up.
+    /// A recent window keeps only sample instants within that window; no older spike participates in its scale.
+    /// </summary>
+    internal static (int Skip, int Capacity) GraphWindow(IoSeries series, int intervalMs, int recentSeconds = 0)
+    {
+        int intervals = Math.Max(series.Capacity, series.Count);
+        if (recentSeconds > 0)
+            intervals = Math.Min(intervals, (int)Math.Min(int.MaxValue - 1L, (long)recentSeconds * 1000 / Math.Max(intervalMs, 1)));
+        int capacity = Math.Max(1, intervals + 1);
+        return (Math.Max(0, series.Count - capacity), capacity);
+    }
+
+    /// <summary>Exact, culture-aware seconds for a relative axis. No wall clock, rounding to whole seconds or locale dates.</summary>
+    internal static string HistorySecondsText(int samples, int intervalMs, CultureInfo? culture = null) =>
+        (Math.Max(samples, 0) * (double)Math.Max(intervalMs, 0) / 1000).ToString("0.###", culture ?? Texts.Culture);
+
     /// <summary>Requests per second with one decimal below 10, whole above, in the current language.</summary>
     internal static string RequestRate(double perSecond, CultureInfo? culture = null)
     {

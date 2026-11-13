@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Avalonia.Media;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop.Stats;
 
@@ -8,9 +9,9 @@ namespace MeowChan.Desktop.Stats;
 internal sealed class StatisticsRow : INotifyPropertyChanged
 {
     private string _name = string.Empty, _now = string.Empty, _session = string.Empty, _today = string.Empty, _retained = string.Empty,
-        _diskWritten = string.Empty, _diskRead = string.Empty, _requests = string.Empty, _errors = string.Empty;
+        _diskWritten = string.Empty, _diskRead = string.Empty, _requests = string.Empty, _errors = string.Empty, _details = string.Empty;
 
-    internal StatisticsRow(IoStatsRowText text) { Key = text.Key; IsTotal = text.IsTotal; Update(text); }
+    internal StatisticsRow(IoStatsRowText text, int retentionDays = Config.StatsRetentionDaysDefault) { Key = text.Key; IsTotal = text.IsTotal; Update(text, retentionDays); }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -27,11 +28,19 @@ internal sealed class StatisticsRow : INotifyPropertyChanged
     public string Requests { get => _requests; private set => Set(ref _requests, value); }
     public string Errors { get => _errors; private set => Set(ref _errors, value); }
 
+    public string Details { get => _details; private set => Set(ref _details, value); }
+
     /// <summary>Takes the new texts; only properties that changed raise an event.</summary>
-    internal void Update(IoStatsRowText text)
+    internal void Update(IoStatsRowText text, int retentionDays = Config.StatsRetentionDaysDefault)
     {
         Name = text.Name; Now = text.Now; Session = text.Session; Today = text.Today; Retained = text.Retained;
         DiskWritten = text.DiskWritten; DiskRead = text.DiskRead; Requests = text.Requests; Errors = text.Errors;
+        Details = string.Join("\n",
+            Texts.T("stats.col.today") + ": " + Today,
+            Texts.T("stats.col.retained", retentionDays) + ": " + Retained,
+            Texts.T("stats.col.diskWritten") + ": " + DiskWritten,
+            Texts.T("stats.col.diskRead") + ": " + DiskRead,
+            Texts.T("stats.col.requests") + ": " + Requests);
     }
 
     private void Set(ref string field, string value, [CallerMemberName] string? property = null)
