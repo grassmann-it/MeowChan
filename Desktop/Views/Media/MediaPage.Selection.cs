@@ -93,6 +93,17 @@ public sealed partial class MediaPage
         return false;
     }
 
+    // While rows are being replaced (a presentation runs in the background), Ctrl+A means every tile of the new rows: the grid
+    // selects the old ones now, and ApplyPresent carries "everything" over, not only the old tiles that remain. Without a running
+    // presentation the grid's own Ctrl+A applies.
+    private void OnSelectAllWhilePresenting(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || !_presentPending || _tiles.Count == 0 || !CommandBindings.Matches(e, "media.select-all")) return;
+        _grid.Selection.SelectAll();
+        _selectAllStamp = _selectionStamp;
+        e.Handled = true;
+    }
+
     private void UpdateSelectionBar()
     {
         // The status line only needs two numbers: the grid knows the count, and the unsaved ones are one pass over the positions

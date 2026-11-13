@@ -172,6 +172,7 @@ public sealed partial class MediaPage : UserControl
         _goDownloads.Click += (_, _) => GoToDownloadsRequested?.Invoke();
         _grid.DoubleTapped += (_, _) => _ = OpenSelectedAsync();
         _grid.KeyDown += OnGridKeyDown;
+        _grid.AddHandler(KeyDownEvent, OnSelectAllWhilePresenting, RoutingStrategies.Tunnel);
         _grid.SelectionChanged += (_, _) => { if (_restoring) return; _selectionStamp++; ShowSelectionNote(null); UpdateSelectionBar(); };
         InstallReturnInterruption();
         Texts.Changed += OnLanguageChanged;
@@ -296,6 +297,8 @@ public sealed partial class MediaPage : UserControl
     // Counts the user's own selection changes: a presentation computed in the background keeps the selection it was started with
     // only when nothing was selected or unselected meanwhile.
     private long _selectionStamp;
+    // The selection stamp right after a Ctrl+A that came while a presentation was running (-1: none).
+    private long _selectAllStamp = -1;
     private PresentIndexHolder? _presentIndex;
 
     private sealed class PresentIndexHolder(MediaLibrarySnapshot snapshot)
@@ -472,7 +475,11 @@ public sealed partial class MediaPage : UserControl
         _filterReset.IsEnabled = _filterActive;
         UpdateAudioNote();
         // The selection may have changed while the rows were made; then it is carried over from what is selected now.
-        IReadOnlyList<int> restored = input.SelectionStamp == _selectionStamp ? result.Restored
+        // Ctrl+A pressed meanwhile (and nothing changed the selection after it) meant every tile of the new list, not of the old one.
+        bool allRequested = _selectAllStamp == _selectionStamp;
+        _selectAllStamp = -1;
+        IReadOnlyList<int> restored = allRequested ? Enumerable.Range(0, result.Tiles.Count).ToArray()
+            : input.SelectionStamp == _selectionStamp ? result.Restored
             : MediaLibrarySelection.Restore(SelectedTiles.Select(MediaLibraryTileKey.Of).ToArray(), result.Tiles);
         _tiles = result.Tiles;
         _shown = result.Shown;

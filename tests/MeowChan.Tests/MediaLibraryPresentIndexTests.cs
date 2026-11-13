@@ -93,6 +93,27 @@ public sealed class MediaLibraryPresentIndexTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void RunsOnTwoThreadsWithDifferentSeedsAndSortsOnOneIndexEachGiveTheirOwnResult()
+    {
+        // A replaced presentation may still be running on the index when the next one starts (see MediaPage.Present).
+        MediaLibraryEntry[] all = Library(40, 12, seed: 9);
+        MediaLibraryPresentIndex index = new(all);
+        (MediaLibrarySort Sort, int Seed)[] runs = [(MediaLibrarySort.Random, 1), (MediaLibrarySort.Random, 2), (MediaLibrarySort.Newest, 0), (MediaLibrarySort.ByThread, 0)];
+        IReadOnlyList<MediaLibraryTile>[] expected = runs.Select(run => MediaLibraryGrouping.Build(all, all, run.Sort, true, run.Seed)).ToArray();
+        using Barrier start = new(runs.Length);
+        Task<IReadOnlyList<MediaLibraryTile>[]>[] workers = Enumerable.Range(0, runs.Length).Select(worker => Task.Run(() =>
+        {
+            start.SignalAndWait();
+            List<IReadOnlyList<MediaLibraryTile>> results = new();
+            for (int round = 0; round < 20; round++) results.Add(index.Build(null, runs[worker].Sort, true, runs[worker].Seed));
+            return results.ToArray();
+        })).ToArray();
+        Task.WaitAll(workers);
+        for (int worker = 0; worker < runs.Length; worker++)
+            foreach (IReadOnlyList<MediaLibraryTile> built in workers[worker].Result) AssertSame(expected[worker], built);
+    }
+
+    [Fact]
     public void FavoritesThatCannotBeReadMakeEveryTileUnknownLikeTheGeneralPath()
     {
         MediaLibraryEntry[] all = Library(10, 6);
