@@ -284,9 +284,10 @@ public sealed class HelpDocumentationTests
         // F2/F3 runtime integration is parent-owned; this pins the Help wording that must
         // accompany it without starting a watcher, host or transfer operation.
         string watcher = Plain(Section(Read(Help), "Saved watchers"));
-        Assert.Contains("While the global session pause is on, no watcher starts a check, neither automatically nor through Check now", watcher, StringComparison.Ordinal);
-        Assert.Contains("A check already running only finishes the page it is reading", watcher, StringComparison.Ordinal);
-        Assert.Contains("After Resume it continues below the saved cursor; individual pauses and cooldowns are kept", watcher, StringComparison.Ordinal);
+        Assert.Contains("automatic watcher checks do not start", watcher, StringComparison.Ordinal);
+        Assert.Contains("An automatic check already running only finishes the page it is reading", watcher, StringComparison.Ordinal);
+        Assert.Contains("Check now still runs one manual check, without unpausing the session or bypassing provider cooldowns", watcher, StringComparison.Ordinal);
+        Assert.Contains("automatic checks continue below the saved cursor; individual pauses and cooldowns are kept", watcher, StringComparison.Ordinal);
 
         string cards = Plain(Section(Read(Help), "Reading posts as cards"));
         Assert.Contains("Post-filter profile transfer and backup are host APIs only", cards, StringComparison.Ordinal);

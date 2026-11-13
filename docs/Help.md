@@ -231,10 +231,12 @@ one-shot and watcher findings retain their provenance.
   send nothing.
 - **Pause and Resume.** Pause stops automatic checks for this watcher; originals
   already admitted follow the ordinary queue rules. Resume enables the schedule
-  again without bypassing a cooldown. While the global session pause is on, no
-  watcher starts a check, neither automatically nor through **Check now**. A check
-  already running only finishes the page it is reading. After Resume it continues
-  below the saved cursor; individual pauses and cooldowns are kept.
+  again without bypassing a cooldown. While the global session pause is on,
+  automatic watcher checks do not start. An automatic check already running only
+  finishes the page it is reading. **Check now** still runs one manual check,
+  without unpausing the session or bypassing provider cooldowns. After Resume,
+  automatic checks continue below the saved cursor; individual pauses and cooldowns
+  are kept.
 - **More new posts than one check covers.** Each check reads no more than 5 pages
   of 20 posts. If its budget runs out, a saved post-ID cursor continues below the
   oldest post read on a later check. A partial check is not reported as complete.
