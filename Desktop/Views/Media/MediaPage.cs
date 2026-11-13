@@ -18,6 +18,7 @@ using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
@@ -46,16 +47,12 @@ public sealed partial class MediaPage : UserControl
     private readonly Button _refresh = new() { Name = "MediaRefresh" };
     private readonly TextBlock _status = new() { Name = "MediaStatus", TextWrapping = Avalonia.Media.TextWrapping.Wrap };
     private readonly ListBox _grid = new() { Name = "MediaGrid", SelectionMode = SelectionMode.Multiple, Classes = { "workspace-selection-bar" } };
-    private readonly TextBlock _empty = new() { Name = "MediaEmpty", TextWrapping = Avalonia.Media.TextWrapping.Wrap, TextAlignment = Avalonia.Media.TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, IsVisible = false, Classes = { "muted" } };
+    private readonly TextBlock _empty = new() { Name = "MediaEmpty", IsVisible = false };
     // An empty library points back to where media comes from; a filter that matches nothing offers its reset (MediaPage.FilterChips.cs).
     private readonly Button _goDownloads = new() { Name = "MediaGoDownloads", Classes = { "primary" } };
     private readonly WrapPanel _emptyActions = new() { Name = "MediaEmptyActions", ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
-    // Same pattern as the empty Downloads list: centered, one sentence, one primary action.
-    private readonly StackPanel _emptyState = new()
-    {
-        Name = "MediaEmptyState", VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center,
-        MaxWidth = 360, Margin = new Thickness(28), Spacing = 12, IsVisible = false
-    };
+    // The shared empty state (centered, one sentence, one primary action); its sentence and actions are added in the constructor.
+    private readonly WorkspaceEmptyState _emptyState = new() { Name = "MediaEmptyState", IsVisible = false };
     // Everything under the title: it is hidden while the library is empty, so the empty page shows the sentence and its action only.
     private readonly StackPanel _headerBody = new() { Spacing = 4 };
     private MediaLibrarySnapshot? _snapshot;
@@ -164,6 +161,7 @@ public sealed partial class MediaPage : UserControl
         ScrollViewer.SetHorizontalScrollBarVisibility(_grid, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
         Panel body = new();
         _emptyActions.Children.Add(_goDownloads);
+        _empty.Classes.Add(WorkspaceEmptyState.TextClass);
         _emptyState.Children.Add(_empty); _emptyState.Children.Add(_emptyActions);
         body.Children.Add(_grid); body.Children.Add(_emptyState);
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };

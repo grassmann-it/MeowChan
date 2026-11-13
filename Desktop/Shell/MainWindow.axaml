@@ -282,14 +282,12 @@
                         <DataGrid.ContextMenu><ContextMenu /></DataGrid.ContextMenu>
                     </DataGrid>
                                     <!-- The text never takes input; only the next-step button below it does. -->
-                                    <StackPanel x:Name="ThreadsEmptyPanel" VerticalAlignment="Center" HorizontalAlignment="Center"
-                                                MaxWidth="360" Margin="28" Spacing="12">
-                                        <TextBlock x:Name="ThreadsEmptyState" Tag="downloads.empty" Classes="localized muted"
-                                                   HorizontalAlignment="Center" TextAlignment="Center"
-                                                   TextWrapping="Wrap" IsHitTestVisible="False" />
+                                    <controls:WorkspaceEmptyState x:Name="ThreadsEmptyPanel">
+                                        <TextBlock x:Name="ThreadsEmptyState" Tag="downloads.empty" Classes="localized workspace-empty-text"
+                                                   IsHitTestVisible="False" />
                                         <Button x:Name="ThreadsEmptyImportButton" Classes="primary" HorizontalAlignment="Center"
                                                 Click="OnEmptyStateImportClick" />
-                                    </StackPanel>
+                                    </controls:WorkspaceEmptyState>
                                 </Grid>
                                 <Grid x:Name="BoardsResultPanel" Grid.Row="2" Grid.ColumnSpan="2" IsVisible="False">
 <DataGrid x:Name="BoardsDataGrid"
@@ -329,14 +327,12 @@
                         <DataGrid.ContextMenu><ContextMenu /></DataGrid.ContextMenu>
                     </DataGrid>
                                     <!-- Same next step as the Threads state: the URL on the clipboard is imported (a board URL discovers its threads). -->
-                                    <StackPanel x:Name="BoardsEmptyPanel" VerticalAlignment="Center" HorizontalAlignment="Center"
-                                                MaxWidth="360" Margin="28" Spacing="12">
-                                        <TextBlock x:Name="BoardsEmptyState" Tag="downloads.boardsEmpty" Classes="localized muted"
-                                                   HorizontalAlignment="Center" TextAlignment="Center"
-                                                   TextWrapping="Wrap" IsHitTestVisible="False" />
+                                    <controls:WorkspaceEmptyState x:Name="BoardsEmptyPanel">
+                                        <TextBlock x:Name="BoardsEmptyState" Tag="downloads.boardsEmpty" Classes="localized workspace-empty-text"
+                                                   IsHitTestVisible="False" />
                                         <Button x:Name="BoardsEmptyImportButton" Classes="primary" HorizontalAlignment="Center"
                                                 Click="OnEmptyStateImportClick" />
-                                    </StackPanel>
+                                    </controls:WorkspaceEmptyState>
                                 </Grid>
                         <desktop:ActionToolBar x:Name="WorkspaceListActions" Grid.Column="1"
                                     HorizontalAlignment="Stretch" VerticalAlignment="Center" Margin="8,0,8,0">

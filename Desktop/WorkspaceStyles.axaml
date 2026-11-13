@@ -455,6 +455,8 @@
         <x:Double x:Key="Workspace.Size.IconCaption">10</x:Double>
         <Thickness x:Key="Workspace.Inset.Section">16</Thickness>
         <Thickness x:Key="Workspace.Inset.Message">12</Thickness>
+        <Thickness x:Key="Workspace.Inset.EmptyState">28</Thickness>
+        <x:Double x:Key="Workspace.Size.EmptyStateWidth">360</x:Double>
         <Thickness x:Key="Workspace.Inset.Footer">16,12</Thickness>
         <Thickness x:Key="Workspace.Inset.Chip">8,4</Thickness>
         <Thickness x:Key="Workspace.Inset.ChipCompact">6,1</Thickness>
@@ -488,6 +490,17 @@
     </Style>
     <Style Selector="ProgressBar"><Setter Property="Background" Value="{DynamicResource Workspace.ProgressTrack}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Progress}" /></Style>
     <Style Selector="TextBlock.muted, SelectableTextBlock.muted"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /></Style>
+    <!-- DS-P3: the empty state of a list or grid (controls:WorkspaceEmptyState): centred, one muted sentence, at most one primary action. -->
+    <Style Selector="controls|WorkspaceEmptyState">
+        <Setter Property="HorizontalAlignment" Value="Center" /><Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="MaxWidth" Value="{StaticResource Workspace.Size.EmptyStateWidth}" />
+        <Setter Property="Margin" Value="{StaticResource Workspace.Inset.EmptyState}" />
+        <Setter Property="Spacing" Value="{StaticResource Workspace.Space.12}" />
+    </Style>
+    <Style Selector="TextBlock.workspace-empty-text, SelectableTextBlock.workspace-empty-text">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+        <Setter Property="HorizontalAlignment" Value="Center" /><Setter Property="TextAlignment" Value="Center" /><Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
     <Style Selector="TextBlock.brand"><Setter Property="FontSize" Value="19" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
     <Style Selector="TextBlock.page-title"><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Title}" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
     <Style Selector="TextBlock.section-title"><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Section}" /><Setter Property="FontWeight" Value="SemiBold" /></Style>

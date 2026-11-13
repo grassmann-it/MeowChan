@@ -195,12 +195,11 @@
                             </ContextMenu></DataGrid.ContextMenu>
                         </DataGrid>
                         <!-- Same pattern as the empty Downloads list: centred, one sentence, one primary next step. -->
-                        <StackPanel x:Name="ArchiveEmptyState" VerticalAlignment="Center" HorizontalAlignment="Center"
-                                    MaxWidth="360" Margin="20" Spacing="12" IsVisible="False">
-                            <TextBlock x:Name="ArchiveEmpty" Classes="muted" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+                        <controls:WorkspaceEmptyState x:Name="ArchiveEmptyState" IsVisible="False">
+                            <TextBlock x:Name="ArchiveEmpty" Classes="workspace-empty-text" />
                             <Button x:Name="ArchiveGoDownloads" Classes="primary" HorizontalAlignment="Center" Click="OnGoDownloadsClick" />
                             <Button x:Name="ArchiveResetFilters" Classes="primary" HorizontalAlignment="Center" Click="OnResetArchiveFiltersClick" />
-                        </StackPanel>
+                        </controls:WorkspaceEmptyState>
                         <!-- ARCH-DENSE-01 slice 2: the pager is docked under the list inside the results
                              box; it is its own row, so it never covers a list row. -->
                         <Border x:Name="ArchiveResultsBar" Grid.Row="1" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource Workspace.Border}" Padding="8,4">
