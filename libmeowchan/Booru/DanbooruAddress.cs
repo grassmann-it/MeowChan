@@ -39,16 +39,50 @@ internal sealed record DanbooruAddress(DanbooruAddressKind Kind, string? PostId,
 
     /// <summary>
     /// The address spans of a line, trailing commas trimmed, in order. Entry splitting uses them so a comma inside an
-    /// address does not cut it.
+    /// address does not cut it. A space does not end an address either unless another URL follows: an unencoded
+    /// <c>tags=blue_sky cat</c> stays one entry, as it did when only commas and line breaks split. Words after a
+    /// comma start the next entry.
     /// </summary>
     internal static IEnumerable<(int Start, int Length)> FindSpans(string text)
     {
+        int floor = 0;
         foreach (Match match in SpanPattern.Matches(text))
         {
-            int length = match.Length;
-            while (length > 0 && text[match.Index + length - 1] == ',') length--;
-            if (length > 0) yield return (match.Index, length);
+            if (match.Index < floor) continue;
+            int end = match.Index + match.Length;
+            if (text[end - 1] != ',') end = ExtendOverSpaces(text, end);
+            while (end > match.Index && text[end - 1] == ',') end--;
+            floor = end;
+            if (end > match.Index) yield return (match.Index, end - match.Index);
         }
+    }
+
+    // Appends the words that follow the address after blanks, up to a comma (a new entry), a line break or the next URL.
+    private static int ExtendOverSpaces(string text, int end)
+    {
+        while (true)
+        {
+            int word = end;
+            while (word < text.Length && text[word] != '\r' && text[word] != '\n' && char.IsWhiteSpace(text[word])) word++;
+            if (word == end || word >= text.Length || text[word] == ',' || StartsUrl(text, word)) return end;
+            int stop = word;
+            while (stop < text.Length && !char.IsWhiteSpace(text[stop]) && !CommaBeforeUrl(text, stop)) stop++;
+            if (stop == word) return end;
+            end = stop;
+            if (text[end - 1] == ',') return end;
+        }
+    }
+
+    private static bool StartsUrl(string text, int index) =>
+        string.Compare(text, index, "http://", 0, 7, StringComparison.OrdinalIgnoreCase) == 0
+        || string.Compare(text, index, "https://", 0, 8, StringComparison.OrdinalIgnoreCase) == 0;
+
+    private static bool CommaBeforeUrl(string text, int index)
+    {
+        if (text[index] != ',') return false;
+        int next = index + 1;
+        while (next < text.Length && char.IsWhiteSpace(text[next])) next++;
+        return StartsUrl(text, next);
     }
 
     /// <summary>

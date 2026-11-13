@@ -134,4 +134,24 @@ public sealed class DanbooruAddressTests
         Assert.Equal("https://boards.4chan.org/g/thread/1", DanbooruAddress.RedactForLog("https://boards.4chan.org/g/thread/1"));
         Assert.Equal(string.Empty, DanbooruAddress.RedactForLog(null));
     }
+
+    [Theory]
+    [InlineData("https://danbooru.donmai.us/posts?tags=blue_sky cat", "https://danbooru.donmai.us/posts?tags=blue_sky cat")]
+    [InlineData("a, https://danbooru.donmai.us/posts?tags=blue_sky  cat solo , b", "https://danbooru.donmai.us/posts?tags=blue_sky  cat solo")]
+    [InlineData("https://danbooru.donmai.us/posts?tags=rating:g,s cat", "https://danbooru.donmai.us/posts?tags=rating:g,s cat")]
+    [InlineData("https://danbooru.donmai.us/posts?tags=blue_sky cat, dog", "https://danbooru.donmai.us/posts?tags=blue_sky cat")]
+    [InlineData("https://danbooru.donmai.us/posts?tags=blue_sky , dog", "https://danbooru.donmai.us/posts?tags=blue_sky")]
+    public void ASpaceDoesNotEndAnAddressUnlessACommaOrAnotherUrlFollows(string line, string expected)
+    {
+        (int start, int length) span = Assert.Single(DanbooruAddress.FindSpans(line));
+        Assert.Equal(expected, line.Substring(span.start, span.length));
+    }
+
+    [Fact]
+    public void ASpaceBeforeTheNextUrlStillSplitsTwoAddresses()
+    {
+        const string line = "https://danbooru.donmai.us/posts?tags=a b https://safebooru.donmai.us/posts/5 https://boards.4chan.org/g/";
+        string[] spans = DanbooruAddress.FindSpans(line).Select(span => line.Substring(span.Start, span.Length)).ToArray();
+        Assert.Equal(new[] { "https://danbooru.donmai.us/posts?tags=a b", "https://safebooru.donmai.us/posts/5" }, spans);
+    }
 }
