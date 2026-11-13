@@ -2737,6 +2737,12 @@
     "booru.media.tags.search.none": "Marca primero al menos una etiqueta.",
     "booru.media.tags.search.tooMany": "Una búsqueda en Danbooru admite como máximo {0} etiquetas, pero hay {1} marcadas. Desmarca algunas o cópialas como etiquetas simples.",
     "booru.media.tags.search.unusable": "La etiqueta {0} no se puede usar en esta búsqueda en Danbooru, que solo admite etiquetas simples. Cópiala como etiqueta simple.",
-    "booru.media.tags.search.copied": "La ventana de Danbooru no está disponible ahora. En su lugar se copió la consulta: {0}"
+    "booru.media.tags.search.copied": "La ventana de Danbooru no está disponible ahora. En su lugar se copió la consulta: {0}",
+    "drop.links.title": "Suelta enlaces de hilos para descargarlos",
+    "drop.links.detail": "Se añaden igual que los enlaces escritos en el campo de URL.",
+    "drop.files.title": "La importación de tus propios archivos llegará más adelante",
+    "drop.files.detail": "Por ahora, suelta enlaces de hilos o tablones, o pégalos en el campo de URL.",
+    "drop.empty.title": "Nada que añadir",
+    "drop.empty.detail": "Suelta enlaces de hilos o tablones como texto."
   }
 }

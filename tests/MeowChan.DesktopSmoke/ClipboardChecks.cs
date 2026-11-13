@@ -14,6 +14,9 @@ internal static class ClipboardChecks
 {
     private static FixtureClipboard? _clipboard;
 
+    // Null without the isolated fixture (non-Linux); drop checks compare it before and after.
+    internal static int? FixtureReadCount => _clipboard?.ReadCount;
+
     // Avalonia X11 resolves the window clipboard through this platform service.
     // Install after platform services, before App creates any windows.
     public static void Install()

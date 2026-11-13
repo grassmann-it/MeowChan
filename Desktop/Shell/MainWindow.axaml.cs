@@ -133,6 +133,7 @@ public partial class MainWindow : Window
             try { SetupTrayIcon(); }
             finally { RecordStartupTiming(StartupTimingPoint.TrayEnd); }
             InitializeClipboardMonitor();
+            InitializeUrlDrop();
             Opened += OnMainWindowOpened;
             UpdateInteractionState();
             _restoreTask = RestoreSessionAsync();

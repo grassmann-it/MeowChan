@@ -8,7 +8,8 @@
     <!-- Paint the complete allocated client root explicitly. Template/native decoration
          margins are outside this root and require separate native evidence.
          This does not change native frame geometry or normal restore behavior. -->
-    <Grid x:Name="WorkspaceRoot" RowDefinitions="48,*,26,52" Background="{DynamicResource Workspace.Background}">
+    <Grid x:Name="WorkspaceRoot" RowDefinitions="48,*,26,52" Background="{DynamicResource Workspace.Background}"
+          DragDrop.AllowDrop="True">
         <Border x:Name="WorkspaceTitleBarFrame" Classes="shell-bar" BorderThickness="0,0,0,1">
             <Grid x:Name="WorkspaceTitleBar" ColumnDefinitions="*,Auto" Background="Transparent"
                   WindowDecorationProperties.ElementRole="User" PointerPressed="OnTitleBarPointerPressed">
@@ -455,6 +456,19 @@
         </Border>
         <ContentControl x:Name="ReaderHost" Grid.Row="1" Grid.RowSpan="3" IsVisible="False" Background="{DynamicResource Workspace.Background}" />
         <ContentControl x:Name="GalleryHost" Grid.Row="1" Grid.RowSpan="3" IsVisible="False" />
+        <!-- Drop feedback only (MainWindow.DragDrop.cs). It is not hit-testable, so the control below
+             stays the drop target and the routed drag events still bubble to WorkspaceRoot. -->
+        <Grid x:Name="DropOverlay" Grid.RowSpan="4" ZIndex="150" IsVisible="False" IsHitTestVisible="False">
+            <Border Background="{DynamicResource Workspace.Background}" Opacity="0.82" />
+            <Border x:Name="DropOverlayCard" Classes="panel" BorderThickness="2" BorderBrush="{DynamicResource Workspace.Accent}"
+                    Padding="28,22" Margin="20" MaxWidth="520" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel Spacing="6">
+                    <TextBlock x:Name="DropOverlayTitle" Classes="section-title" TextWrapping="Wrap" TextAlignment="Center"
+                               AutomationProperties.LiveSetting="Polite" />
+                    <TextBlock x:Name="DropOverlayDetail" Classes="muted" TextWrapping="Wrap" TextAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </Grid>
         <Border x:Name="ShellHelpOverlay" Grid.RowSpan="4" IsVisible="False" ZIndex="200"
                 Classes="panel" Margin="20" MaxWidth="620"
                 HorizontalAlignment="Stretch" VerticalAlignment="Center">

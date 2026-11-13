@@ -2737,6 +2737,12 @@
     "booru.media.tags.search.none": "Marquez d'abord au moins un tag.",
     "booru.media.tags.search.tooMany": "Une recherche Danbooru accepte {0} tags au maximum, mais {1} sont marqués. Démarquez-en ou copiez-les comme simples tags.",
     "booru.media.tags.search.unusable": "Le tag {0} ne peut pas être utilisé dans cette recherche Danbooru, qui n'accepte que des tags simples. Copiez-le comme simple tag.",
-    "booru.media.tags.search.copied": "La fenêtre Danbooru n'est pas disponible pour le moment. La requête a été copiée à la place : {0}"
+    "booru.media.tags.search.copied": "La fenêtre Danbooru n'est pas disponible pour le moment. La requête a été copiée à la place : {0}",
+    "drop.links.title": "Déposez des liens de fils pour les télécharger",
+    "drop.links.detail": "Ils sont ajoutés exactement comme des liens saisis dans le champ d'URL.",
+    "drop.files.title": "L'importation de vos propres fichiers arrive plus tard",
+    "drop.files.detail": "En attendant, déposez des liens de fils ou de tableaux, ou collez-les dans le champ d'URL.",
+    "drop.empty.title": "Rien à ajouter",
+    "drop.empty.detail": "Déposez des liens de fils ou de tableaux sous forme de texte."
   }
 }
