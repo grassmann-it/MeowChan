@@ -90,6 +90,28 @@ public sealed class PaletteContrastTests
         }
     }
 
+    // The charcoal bars of the Light theme are the download progress bars (Workspace.Progress is #333333 there; title bar, header,
+    // footer and toolbars are warm Panel/Background tones, not dark grey). The fill is the bar: it needs 3:1 against every surface it
+    // is drawn on and against its own track. The empty track is only the remaining extent (the count beside it says the same) and
+    // stays a soft tone, so it is deliberately not held to 3:1. Scrollbar thumbs are bars too.
+    [Theory, InlineData("Dark"), InlineData("Light")]
+    public void ProgressBarFillReadsOnItsTrackAndOnEverySurfaceItIsDrawnOn(string theme)
+    {
+        AssertContrast(theme, "Workspace.Progress", "Workspace.ProgressTrack", 3.0);
+        foreach (string surface in new[] { "Workspace.Background", "Workspace.Panel", "Workspace.Raised", "Workspace.Card", "Workspace.Hover", "Workspace.AccentSurface", "Workspace.Overlay" })
+            AssertContrast(theme, "Workspace.Progress", surface, 3.0);
+    }
+
+    [Fact]
+    public void LightScrollbarThumbsReadOnTheSurfacesTheyScrollOver()
+    {
+        foreach (string surface in new[] { "Workspace.Background", "Workspace.Panel", "Workspace.Card", "Workspace.Overlay" })
+        {
+            AssertContrast("Light", "ScrollBarThumbForeground", surface, 3.0);
+            AssertContrast("Light", "ScrollBarThumbPointeroverForeground", surface, 3.0);
+        }
+    }
+
     // Status colours are an addition to text, icon and surface, but they should still not collapse into one another
     // or into the accent for a viewer with normal colour vision (CIELAB dE76 from the dictionary values).
     [Theory]
