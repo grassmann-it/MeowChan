@@ -19,7 +19,7 @@ internal static class StoreLimitText
         return kind switch
         {
             PrivateStoreLimitKind.FavoriteEntries => Texts.Count("limit.favoriteEntries", limit, limit, Texts.T("budgets.favoriteEntries"), page),
-            PrivateStoreLimitKind.FavoriteFile => Texts.T("limit.favoriteFile", (limit / (1024 * 1024)).ToString("N0", Texts.Culture) + " MiB", Texts.T("budgets.favoriteFile"), page),
+            PrivateStoreLimitKind.FavoriteFile => Texts.T("limit.favoriteFile", SizeText.Format(limit, Texts.Culture), Texts.T("budgets.favoriteFile"), page),
             PrivateStoreLimitKind.Bookmarks => Texts.Count("limit.postBookmarks", limit, limit, Texts.T("budgets.postBookmarks"), page),
             PrivateStoreLimitKind.SavedSearches => Texts.Count("limit.savedSearches", limit, limit, Texts.T("budgets.savedSearches"), page),
             PrivateStoreLimitKind.ReaderGroups => Texts.Count("limit.readerGroups", limit, limit, Texts.T("budgets.readerGroups"), page),

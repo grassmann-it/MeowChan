@@ -126,6 +126,21 @@ public sealed class StoreLimitSettingsTests
     }
 
     [Fact]
+    public void AFileLimitWithAFractionIsNamedLikeTheUsageNextToItNotCutDown()
+    {
+        string previous = Texts.Language;
+        try
+        {
+            InvalidDataException refusal = PrivateStoreLimit.Refusal(PrivateStoreLimitKind.FavoriteFile, 12L * 1024 * 1024 + 512 * 1024, "English store message");
+            Texts.SetLanguage("en");
+            Assert.Contains("12.5 MiB", StoreLimitText.Describe(refusal));
+            Texts.SetLanguage("de");
+            Assert.Contains("12,5 MiB", StoreLimitText.Describe(refusal));
+        }
+        finally { Texts.SetLanguage(previous); }
+    }
+
+    [Fact]
     public void ALimitReachedIsTurnedIntoASentenceThatNamesTheSettingInEveryLanguage()
     {
         string previous = Texts.Language;
