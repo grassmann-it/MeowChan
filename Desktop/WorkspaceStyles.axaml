@@ -766,6 +766,10 @@
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /><Setter Property="BorderThickness" Value="0,1,0,0" />
         <Setter Property="Padding" Value="0,12,0,0" />
     </Style>
+    <!-- A square "⋯" menu button (Plugins list and detail): only the icon, centred. -->
+    <Style Selector="Button.plugin-overflow">
+        <Setter Property="Padding" Value="0" /><Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
     <!-- A badge that states a plain fact (plugin type, file version, plugin id): the chip outline on a raised surface, no accent. -->
     <Style Selector="Border.chip-badge.chip-neutral"><Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /></Style>
 

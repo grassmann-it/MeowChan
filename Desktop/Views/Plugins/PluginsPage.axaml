@@ -36,8 +36,11 @@
       <!-- The empty hint sits in the top stack: a hidden row of its own would still add the grid's row spacing twice. -->
       <Grid x:Name="PluginListPane" RowDefinitions="Auto,*,Auto" RowSpacing="8">
         <StackPanel Spacing="8">
-          <ComboBox x:Name="PluginCategory" HorizontalAlignment="Stretch" SelectionChanged="OnCategoryChanged" />
-          <Button x:Name="PluginListActions" Click="OnPluginListActionsClick" HorizontalAlignment="Left" />
+          <!-- The selected plugin's menu sits beside the category as a square "⋯" of the input height, not as a lone row. -->
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <ComboBox x:Name="PluginCategory" HorizontalAlignment="Stretch" SelectionChanged="OnCategoryChanged" />
+            <Button x:Name="PluginListActions" Grid.Column="1" Classes="plugin-overflow" Width="32" Height="32" Click="OnPluginListActionsClick" />
+          </Grid>
           <TextBlock x:Name="PluginsEmpty" TextWrapping="Wrap" Classes="muted" />
         </StackPanel>
         <ScrollViewer x:Name="PluginListScroll" Grid.Row="1">
@@ -80,7 +83,7 @@
                 <Button x:Name="PluginSelectCandidate" Click="OnSelectCandidateClick" />
                 <Button x:Name="PluginApproveSdkTransition" Click="OnApproveSdkTransitionClick" IsVisible="False" />
                 <Button x:Name="PluginWatches" Click="OnWatchesClick" />
-                <Button x:Name="PluginMoreActions" Click="OnPluginMoreActionsClick" />
+                <Button x:Name="PluginMoreActions" Classes="plugin-overflow" Width="30" Click="OnPluginMoreActionsClick" />
               </WrapPanel>
               <TextBlock x:Name="PluginExperimentalHint" Classes="workspace-help" TextWrapping="Wrap" IsVisible="False" />
               <TextBlock x:Name="PluginDraftSummary" Classes="workspace-status" TextWrapping="Wrap" IsVisible="False" />
