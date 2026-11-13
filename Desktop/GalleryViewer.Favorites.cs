@@ -32,7 +32,9 @@ internal sealed partial class GalleryViewer
         // A drawn star (outline: not saved, filled gold: saved) and, while a write is pending, a trailing "…" (P6: no font glyphs).
         Child = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, IsHitTestVisible = false,
             Children = { WorkspaceIcons.Create(WorkspaceIcons.Star, inheritForeground: false), new TextBlock { Name = "GalleryFavoritePending", Text = "…",
-                FontSize = 16, Foreground = Brushes.White, IsVisible = false, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false } } }
+                FontSize = 16, Foreground = Brushes.White, IsVisible = false, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false },
+                // A Border, a StackPanel and a Path have no automation peer: the saved / saving state is also a hidden text (content view), so a screen reader reads it.
+                new TextBlock { Name = "GalleryFavoriteStateText", Classes = { "visually-hidden" } } } }
     }.BadgeCorners();
 
     /// <summary>The state a favourite badge shows: saved (filled star) and pending (trailing "…"). Tests and the refresh read it back.</summary>
@@ -53,6 +55,7 @@ internal sealed partial class GalleryViewer
         panel.Children[1].IsVisible = pending;
         AutomationProperties.SetName(badge, label);
         AutomationProperties.SetName(panel, label);
+        if (panel.Children.Count > 2 && panel.Children[2] is TextBlock stateText) { stateText.Text = label; AutomationProperties.SetAccessibilityView(stateText, AccessibilityView.Content); }
     }
 
     private void InitializeFavoriteIndicators()

@@ -1082,6 +1082,13 @@
         <Setter Property="HorizontalAlignment" Value="Center" /><Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="IsHitTestVisible" Value="False" />
     </Style>
+    <!-- A text that is only for assistive technology (a drawn icon or badge has no automation peer of its own): it takes no room, draws nothing
+         and is no hit target, but stays in the content view with its text as the name. -->
+    <Style Selector="TextBlock.visually-hidden">
+        <Setter Property="Width" Value="1" /><Setter Property="Height" Value="1" /><Setter Property="Opacity" Value="0" />
+        <Setter Property="FontSize" Value="1" /><Setter Property="IsHitTestVisible" Value="False" /><Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="HorizontalAlignment" Value="Left" /><Setter Property="VerticalAlignment" Value="Top" />
+    </Style>
     <Style Selector="Path.glyph-icon.glyph-small"><Setter Property="Width" Value="10" /><Setter Property="Height" Value="10" /></Style>
     <Style Selector="Path.glyph-icon.glyph-thin"><Setter Property="StrokeThickness" Value="1" /></Style>
     <Style Selector="Path.glyph-icon.glyph-heavy"><Setter Property="StrokeThickness" Value="2" /></Style>

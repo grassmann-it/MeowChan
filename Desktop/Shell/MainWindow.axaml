@@ -226,9 +226,13 @@
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Title}" VerticalAlignment="Center" FontWeight="Medium" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}" />
                                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                                                <!-- A drawn up arrow (P6), not the "↑" glyph; the border carries the tooltip and the accessible name. -->
+                                                <!-- A drawn up arrow (P6), not the "↑" glyph; the border carries the tooltip. A Border and a Path have no automation peer, so the
+                                                     accessible name is a visually hidden text that stays in the content view of the row. -->
                                                 <Border Background="Transparent" IsVisible="{Binding IsHighPriority}" VerticalAlignment="Center" ToolTip.Tip="{Binding PriorityDescription}" AutomationProperties.Name="{Binding PriorityDescription}">
-                                                    <Path Classes="glyph-icon" Data="M8,13 L8,3 M4,7 L8,3 L12,7" Stroke="{DynamicResource Workspace.Text}" />
+                                                    <Grid>
+                                                        <Path Classes="glyph-icon" Data="M8,13 L8,3 M4,7 L8,3 L12,7" Stroke="{DynamicResource Workspace.Text}" />
+                                                        <TextBlock Text="{Binding PriorityDescription}" Classes="visually-hidden" AutomationProperties.AccessibilityView="Content" />
+                                                    </Grid>
                                                 </Border>
                                                 <TextBlock Text="{Binding ThreadId, StringFormat='#{0}'}" VerticalAlignment="Center" Classes="muted inline-thread-id" FontSize="{StaticResource Workspace.Text.Meta}" />
                                             </StackPanel>
