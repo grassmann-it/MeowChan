@@ -53,11 +53,13 @@ public partial class MainWindow : Window
     private NativeMenuItem? _trayOpenItem;
     private NativeMenuItem? _trayFolderItem;
     private NativeMenuItem? _trayExitItem;
+    private NativeMenuItem? _trayPauseItem;
+    private bool? _trayPauseIconPaused;
     private IPlatformSettings? _trayPlatformSettings;
     private readonly Dictionary<string, Bitmap> _trayMenuIcons = new Dictionary<string, Bitmap>();
     private readonly List<AdmissionFeedback> _admissionResults = new List<AdmissionFeedback>();
 
-    private sealed record AdmissionFeedback(string Url, AdmissionStatus? Status, string? Error, bool Skipped = false);
+    private sealed record AdmissionFeedback(string Url, AdmissionStatus? Status, string? Error, bool Skipped = false, long? WatchId = null);
 
     public ObservableCollection<ThreadRow> UrlList { get; } = new ObservableCollection<ThreadRow>();
     public ObservableCollection<BoardRow> BoardsList { get; } = new ObservableCollection<BoardRow>();
@@ -128,6 +130,7 @@ public partial class MainWindow : Window
             RegisterRuleTemplateCommands();
             WireWorkspaceCommands();
             InitializeSelectionCommands();
+            InitializeStatusColumnRedundancy();
             Texts.Changed += OnLanguageChanged;
             RecordStartupTiming(StartupTimingPoint.TrayBegin);
             try { SetupTrayIcon(); }
@@ -227,6 +230,7 @@ public partial class MainWindow : Window
         // need neither plugins nor the registry can already be chosen; their own actions stay gated.
         bool earlyPages = navigationReady || EarlyPageChoice;
         UpdatePauseControls(ready && !WorkspaceEditorBusy);
+        RefreshTray();
         if (_postBookmarksMenu != null) _postBookmarksMenu.IsEnabled = navigationReady;
 
         if (_settingsEditor != null) _settingsEditor.IsAvailable = ready;
@@ -295,6 +299,7 @@ public partial class MainWindow : Window
                 epoch: projection.Epoch, revision: projection.Version,
                 value: (long)System.Diagnostics.Stopwatch.GetElapsedTime(projection.CapturedAtTimestamp).TotalMicroseconds);
         UpdatePauseControls(_restoreCompleted && !WorkspaceEditorBusy);
+        RefreshTray();
         NotifyNewWarnings(projection.View);
         RefreshWorkspaceStatusText();
         if (_galleryCoversWorkspace)
@@ -332,7 +337,7 @@ public partial class MainWindow : Window
         CaptureDownloadSearchInput();
         _threadReconciliation = new(projection.View.Threads, _threadRows, UrlList,
             entry => entry.WatchId, row => row.WatchId,
-            entry => { ThreadRow row = new(entry); row.SetPaused(projection.IsPaused); return row; },
+            entry => { ThreadRow row = new(entry); row.SetPaused(projection.IsPaused); row.StatusColumnVisible = _statusColumnVisible; return row; },
             (row, entry) => { row.UpdateSnapshot(entry); row.SetPaused(projection.IsPaused); },
             row => { _threadFilterExclusions.Remove(row.WatchId); row.Dispose(); },
             projection.Epoch, projection.Version);
@@ -467,7 +472,7 @@ public partial class MainWindow : Window
         try
         {
             DesktopAdmissionResult result = await _session.AddAsync(url);
-            _admissionResults.Add(new AdmissionFeedback(url, result.Status, null));
+            _admissionResults.Add(new AdmissionFeedback(url, result.Status, null, WatchId: result.WatchId));
             return result;
         }
         catch (Exception exception)
@@ -583,6 +588,10 @@ public partial class MainWindow : Window
             }))
         };
         rows.Children.Add(report);
+        // A URL that is already watched says where: one link per duplicate (the first few) selects its row.
+        foreach (AdmissionFeedback duplicate in _admissionResults
+                     .Where(item => item.Status == AdmissionStatus.AlreadyPresent && item.WatchId != null).Take(MaxDuplicateLinks))
+            rows.Children.Add(CreateShowInListLink(duplicate));
         if (repairSources != null)
         {
             rows.Children.Add(new SelectableTextBlock
@@ -591,6 +600,38 @@ public partial class MainWindow : Window
                 TextWrapping = TextWrapping.Wrap, FontSize = 12
             });
         }
+    }
+
+    private const int MaxDuplicateLinks = 5;
+
+    private Button CreateShowInListLink(AdmissionFeedback duplicate)
+    {
+        string label = Texts.T("admission.showInList");
+        Button link = new()
+        {
+            Name = "AdmissionShowInListButton", HorizontalAlignment = HorizontalAlignment.Left, MinHeight = 28,
+            Padding = new Thickness(10, 2), MaxWidth = 460,
+            Content = new TextBlock { Text = label + " · " + duplicate.Url, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 12 }
+        };
+        link.Classes.Add("subtle");
+        AutomationProperties.SetName(link, label + ": " + duplicate.Url);
+        ToolTip.SetTip(link, duplicate.Url);
+        long watchId = duplicate.WatchId!.Value;
+        link.Click += (_, _) => ShowAdmissionDuplicate(watchId);
+        return link;
+    }
+
+    // Selects the existing row and opens its details. A row hidden by the search filter cannot be selected: say so.
+    private void ShowAdmissionDuplicate(long watchId)
+    {
+        if (_isClosing || _sessionRowsApplying) return;
+        bool isThread = _threadRows.TryGetValue(watchId, out ThreadRow? threadRow);
+        BoardRow? boardRow = null;
+        bool exists = isThread || _boardRows.TryGetValue(watchId, out boardRow);
+        bool visible = isThread ? VisibleThreads.Contains(threadRow!) : boardRow != null && VisibleBoards.Contains(boardRow);
+        if (visible && OpenDiagnosticWatch(new DiagnosticTarget(isThread ? DiagnosticTargetKind.Thread : DiagnosticTargetKind.Board, watchId))) return;
+        ShowNotification(Texts.T("notification.session"), Texts.T(exists && !visible ? "admission.showInListHidden" : "diagnostics.removed"),
+            NotificationType.Information, operation: "admission.show-duplicate");
     }
 
     private async Task<string?> ReadClipboardAsync()
@@ -695,7 +736,7 @@ public partial class MainWindow : Window
     {
         _trayPlatformSettings = Application.Current?.PlatformSettings;
         _trayLogo = ThemeLogo.Follow(trayIcon);
-        trayIcon.ToolTipText = "MeowChan - Image Downloader";
+        trayIcon.ToolTipText = TrayMenuModel.BaseTooltip;
         NativeMenu menu = new NativeMenu();
         NativeMenuItem openItem = CreateTrayCommandItem("app.show");
         _trayOpenItem = openItem;
@@ -711,11 +752,17 @@ public partial class MainWindow : Window
         _clipboardMenuItem = CreateTrayCommandItem("watch.import-clipboard");
         _clipboardMenuItem.Click += async (sender, e) => await ImportClipboardAsync();
         menu.Items.Add(_clipboardMenuItem);
+        // Pause stays reachable while the window lives in the tray; the entry names the action it will perform.
+        _trayPauseItem = new NativeMenuItem();
+        _trayPauseIconPaused = null;
+        _trayPauseItem.Click += (sender, e) => OnPauseClick(sender, new RoutedEventArgs());
+        menu.Items.Add(_trayPauseItem);
         NativeMenuItem exitItem = CreateTrayCommandItem("app.quit");
         _trayExitItem = exitItem;
         exitItem.Click += async (sender, e) => await CloseApplicationAsync();
         menu.Items.Add(exitItem);
         trayIcon.Menu = menu;
+        RefreshTray();
         trayIcon.Clicked += (sender, e) =>
         {
             if (IsVisible && WindowState != WindowState.Minimized)
@@ -805,6 +852,8 @@ public partial class MainWindow : Window
         _trayOpenItem = null;
         _trayFolderItem = null;
         _trayExitItem = null;
+        _trayPauseItem = null;
+        _trayPauseIconPaused = null;
         _trayMinimizeRequest++;
         _trayHostMonitor?.Stop();
         _trayHostMonitor = null;
@@ -836,12 +885,13 @@ public partial class MainWindow : Window
         return item;
     }
 
-    private void ApplyTrayCommandItem(NativeMenuItem item, string command)
+    private void ApplyTrayCommandItem(NativeMenuItem item, string command, string? icon = null)
     {
-        CommandBindings.Apply(item, command);
+        // A state-dependent entry (pause) sets its own header; the command binding would reset it.
+        if (icon == null) CommandBindings.Apply(item, command);
         // Native menu exporters require actual tinted pixels, rather than an Avalonia mask.
         (item.Icon as Bitmap)?.Dispose();
-        string icon = CommandCatalog.Get(command).Icon;
+        icon ??= CommandCatalog.Get(command).Icon;
         bool dark = OperatingSystem.IsWindows() ? ActualThemeVariant == ThemeVariant.Dark
             : _trayPlatformSettings?.GetColorValues().ThemeVariant == PlatformThemeVariant.Dark;
         string cacheKey = icon + (dark ? ":light" : ":dark");
@@ -874,6 +924,30 @@ public partial class MainWindow : Window
         if (_trayFolderItem != null) ApplyTrayCommandItem(_trayFolderItem, "location.open-folder");
         if (_clipboardMenuItem != null) ApplyTrayCommandItem(_clipboardMenuItem, "watch.import-clipboard");
         if (_trayExitItem != null) ApplyTrayCommandItem(_trayExitItem, "app.quit");
+        _trayPauseIconPaused = null;
+        RefreshTray();
+    }
+
+    // Pause entry and tooltip follow the authoritative projection; the native menu is only touched when something changed.
+    private void RefreshTray()
+    {
+        if (_isClosing || _trayIcon == null) return;
+        bool paused = _session.Projection.IsPaused;
+        if (_trayPauseItem is NativeMenuItem pause)
+        {
+            string header = TrayMenuModel.PauseHeader(paused, CommandCatalog.ShortcutDisplay("session.pause"));
+            if (!Equals(pause.Header, header)) pause.Header = header;
+            bool enabled = TrayMenuModel.PauseEnabled(_restoreCompleted, WorkspaceEditorBusy, _session.Projection.IsPauseTransitioning);
+            if (pause.IsEnabled != enabled) pause.IsEnabled = enabled;
+            if (_trayPauseIconPaused != paused)
+            {
+                _trayPauseIconPaused = paused;
+                ApplyTrayCommandItem(pause, "session.pause", TrayMenuModel.PauseIcon(paused));
+            }
+        }
+        int active = paused ? 0 : UrlList.Sum(row => row.Active);
+        string tip = TrayMenuModel.Tooltip(paused, active);
+        if (_trayIcon.ToolTipText != tip) _trayIcon.ToolTipText = tip;
     }
 
     protected override async void OnClosing(WindowClosingEventArgs e)

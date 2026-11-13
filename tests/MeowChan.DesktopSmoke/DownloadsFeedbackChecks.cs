@@ -1,0 +1,118 @@
+using System.Reflection;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.Controls.Notifications;
+using Avalonia.VisualTree;
+using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
+
+namespace MeowChan.DesktopSmoke;
+
+/// <summary>
+/// Rendered undo toast (action button beside the close X), the pause entry of the tray when this run has a
+/// tray, the "show in list" link of an already watched address and the plain-language retry reason.
+/// Fake action only: nothing is removed, admitted or downloaded.
+/// </summary>
+internal static class DownloadsFeedbackChecks
+{
+    private const BindingFlags Instance = BindingFlags.Instance | BindingFlags.NonPublic;
+
+    internal static async Task RunAsync(MainWindow window)
+    {
+        Config config = window.SessionHost.Config;
+        bool information = config.ShowInformationNotifications;
+        string language = Texts.Language;
+        try
+        {
+            config.ShowInformationNotifications = true;
+            foreach (string current in new[] { "en", "de" })
+            {
+                Texts.SetLanguage(current);
+                await CheckActionToastAsync(window, current);
+            }
+            CheckTrayPauseEntry(window);
+            await CheckDuplicateLinkAsync(window);
+        }
+        finally
+        {
+            config.ShowInformationNotifications = information;
+            Texts.SetLanguage(language);
+        }
+        Console.WriteLine("SMOKE downloads feedback: undo toast with action, tray pause entry, show-in-list link passed.");
+    }
+
+    private static NotificationCard[] Cards(MainWindow window) => window.GetVisualDescendants().OfType<NotificationCard>().ToArray();
+
+    private static async Task CheckActionToastAsync(MainWindow window, string language)
+    {
+        int runs = 0;
+        MethodInfo show = typeof(MainWindow).GetMethod("ShowActionNotification", Instance)!;
+        string label = Texts.T("watch.undo");
+        show.Invoke(window, new object?[] { Texts.T("notification.session"), Texts.T("watch.removed", 2), NotificationType.Information,
+            new FeedbackToastAction(label, () => { runs++; return Task.CompletedTask; }), null, "smoke.watch-removed-" + language });
+        FeedbackToastContent? toast = null;
+        await Program.WaitUntilAsync(() =>
+        {
+            window.UpdateLayout();
+            toast = Cards(window).Select(card => card.Content).OfType<FeedbackToastContent>().FirstOrDefault(content => content.ActionButton != null);
+            return toast?.ActionButton is { IsEffectivelyVisible: true, Bounds.Width: > 0 } && toast.DismissButton.IsEffectivelyVisible;
+        });
+        Button action = toast!.ActionButton!;
+        Require(action.Bounds.Height >= 28 && (string)action.Content! == label && AutomationProperties.GetName(action) == label,
+            "The undo toast action has no visible, named button in " + language + ".");
+        Require(AutomationProperties.GetName(toast) == FeedbackToastContent.AccessibleName(toast.Title, toast.Message),
+            "The toast with an action lost its accessible name.");
+        Require(toast.GetVisualDescendants().OfType<SelectableTextBlock>().Any(text =>
+            AutomationProperties.GetLiveSetting(text) == AutomationLiveSetting.Polite), "The toast message lost its live region.");
+        Program.CaptureWindow(window, "smoke-downloads-undo-toast-" + language + ".png");
+        SmokeActionClick.Execute(action);
+        await Program.WaitUntilAsync(() => !Cards(window).Any(card => ReferenceEquals(card.Content, toast)));
+        Require(runs == 1, "The toast action ran " + runs + " times.");
+    }
+
+    private static void CheckTrayPauseEntry(MainWindow window)
+    {
+        // A run without a native tray (no host, no-tray mode) has no entry to inspect.
+        if (typeof(MainWindow).GetField("_trayIcon", Instance)!.GetValue(window) == null) return;
+        Avalonia.Controls.NativeMenuItem? pause = (Avalonia.Controls.NativeMenuItem?)typeof(MainWindow).GetField("_trayPauseItem", Instance)!.GetValue(window);
+        Require(pause != null, "The tray menu has no pause entry.");
+        bool paused = window.SessionHost.Projection.IsPaused;
+        Require(pause!.Header is string header && header.StartsWith(Texts.T(paused ? "action.resume" : "action.pause"), StringComparison.Ordinal),
+            "The tray pause entry does not name the action it will perform.");
+    }
+
+    private static async Task CheckDuplicateLinkAsync(MainWindow window)
+    {
+        Type feedbackType = typeof(MainWindow).GetNestedType("AdmissionFeedback", BindingFlags.NonPublic)!;
+        System.Collections.IList results = (System.Collections.IList)typeof(MainWindow).GetField("_admissionResults", Instance)!.GetValue(window)!;
+        MethodInfo refresh = typeof(MainWindow).GetMethod("RefreshAdmissionResults", Instance)!;
+        DesktopThreadEntry entry = SnapshotFixtures.Thread(98951, "98951", "Duplicate fixture");
+        await using SyntheticShellRows rows = await SyntheticShellRows.CreateAsync(window, new[] { entry });
+        results.Clear();
+        results.Add(Activator.CreateInstance(feedbackType, entry.Snapshot.Url, MeowChan.AdmissionStatus.AlreadyPresent, null, false, (long?)entry.WatchId));
+        try
+        {
+            refresh.Invoke(window, null);
+            Button link = window.FindControl<StackPanel>("AdmissionResultRows")!.Children.OfType<Button>()
+                .Single(button => button.Name == "AdmissionShowInListButton");
+            Require(AutomationProperties.GetName(link) == Texts.T("admission.showInList") + ": " + entry.Snapshot.Url,
+                "The show-in-list link has no accessible name with its address.");
+            SmokeActionClick.Execute(link);
+            DataGrid grid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
+            // Either the row was selected, or the link said why not; it never does nothing.
+            await Program.WaitUntilAsync(() => ReferenceEquals(grid.SelectedItem, rows.Threads[0])
+                || Cards(window).Any(card => card.Content is FeedbackToastContent toast
+                    && (toast.Message == Texts.T("diagnostics.removed") || toast.Message == Texts.T("admission.showInListHidden"))));
+        }
+        finally
+        {
+            results.Clear();
+            refresh.Invoke(window, null);
+        }
+    }
+
+    private static void Require(bool condition, string message)
+    {
+        if (!condition) throw new InvalidOperationException(message);
+    }
+}

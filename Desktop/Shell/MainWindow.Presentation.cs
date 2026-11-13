@@ -394,6 +394,22 @@ public partial class MainWindow
             Texts.T(visible ? "action.hideDetails" : "action.showDetails"));
     }
 
+    private bool _statusColumnVisible;
+
+    // With the Status column shown, the compact status in the transfer column only appears when it adds something.
+    private void InitializeStatusColumnRedundancy()
+    {
+        DataGridColumn? status = ThreadsDataGrid.Columns.FirstOrDefault(column => column.SortMemberPath == nameof(ThreadRow.Status));
+        if (status == null) return;
+        void Sync()
+        {
+            _statusColumnVisible = status.IsVisible;
+            foreach (ThreadRow row in _threadRows.Values) row.StatusColumnVisible = _statusColumnVisible;
+        }
+        status.PropertyChanged += (_, e) => { if (e.Property == DataGridColumn.IsVisibleProperty) Sync(); };
+        Sync();
+    }
+
     private object? GetWorkspaceSelection()
     {
         if (_sessionRowsApplying) return null;
@@ -470,6 +486,13 @@ public partial class MainWindow
         errors.Text = string.IsNullOrWhiteSpace(error) ? Texts.T("detail.noError") : error;
         errors.Classes.Set("error", !string.IsNullOrWhiteSpace(error));
         InspectorErrorSection.IsVisible = !string.IsNullOrWhiteSpace(error);
+        // A retry is the one useful action when the work needs it: it gets the primary look and a named next step.
+        bool needsRetry = selected is ThreadRow { NeedsIntervention: true } && !_isClosing;
+        InspectorMediaRetryButton.Classes.Set("primary", needsRetry);
+        InspectorMediaRetryButton.Classes.Set("subtle", !needsRetry);
+        InspectorNextStep.IsVisible = needsRetry;
+        InspectorNextStep.Text = needsRetry ? WorkNextStep.Text(CommandCatalog.Label("watch.retry-media"),
+            CommandCatalog.ShortcutDisplay("watch.retry-media")) : string.Empty;
         InspectorRemoveHint.Text = Texts.T(isThread ? "detail.removeHint" : "detail.boardRemoveHint");
         foreach (string name in new[] { "InspectorOpenFolderButton", "InspectorOpenBrowserButton", "InspectorCopyUrlButton" })
             WorkspaceControl<Button>(name).IsEnabled = !_isClosing;

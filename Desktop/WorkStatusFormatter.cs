@@ -12,6 +12,8 @@ public sealed record WorkStatusPresentation(string Status, string Progress, stri
     public string ExceptionHint { get; init; } = string.Empty;
     public string IssueDetails { get; init; } = string.Empty;
     public string ContextDetails { get; init; } = string.Empty;
+    /// <summary>The generic "needs a retry" state: the next step is the retry command, not waiting.</summary>
+    public bool NeedsIntervention { get; init; }
 }
 
 /// <summary>Passive, shared projection of authoritative work; displaying it never schedules work.</summary>
@@ -103,7 +105,8 @@ public static class WorkStatusFormatter
         {
             ExceptionHint = string.Join(" · ", exceptions),
             IssueDetails = string.Join(Environment.NewLine, issues.Distinct()),
-            ContextDetails = string.Join(Environment.NewLine, context.Distinct())
+            ContextDetails = string.Join(Environment.NewLine, context.Distinct()),
+            NeedsIntervention = key == "work.intervention"
         };
     }
 }

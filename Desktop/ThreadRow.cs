@@ -63,6 +63,22 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
     public string Status { get; private set; } = string.Empty;
     // Row-only projection: never use this in the authoritative detail/status column.
     public string CompactStatus { get; private set; } = string.Empty;
+    // The shell sets this while the Status column is visible: the same words twice in one row only cost room
+    // for the real addition (hint, pause, cooldown). The text stays in tooltip and accessible name.
+    private bool _statusColumnVisible;
+    internal bool StatusColumnVisible
+    {
+        get => _statusColumnVisible;
+        set
+        {
+            if (_statusColumnVisible == value) return;
+            _statusColumnVisible = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowCompactStatus)));
+        }
+    }
+    public bool ShowCompactStatus => !(_statusColumnVisible && CompactStatus == Status);
+    /// <summary>The next step for this row is the retry command (the generic "needs a retry" state).</summary>
+    public bool NeedsIntervention { get; private set; }
     public bool IsHighPriority { get; private set; }
     public string PriorityBadge => IsHighPriority ? "↑" : string.Empty;
     public string PriorityDescription => IsHighPriority
@@ -177,9 +193,11 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
 
         IssueDetails = ErrorDetails;
         ContextDetails = string.Empty;
+        NeedsIntervention = false;
         if (snapshot.Work is ThreadWorkSnapshot work)
         {
             WorkStatusPresentation presentation = WorkStatusFormatter.Format(work, _isPaused);
+            NeedsIntervention = presentation.NeedsIntervention;
             Status = presentation.Status;
             IssueDetails = string.Join(Environment.NewLine, new[] { presentation.IssueDetails, ErrorDetails }.Where(value => !string.IsNullOrEmpty(value)));
             ContextDetails = presentation.ContextDetails;

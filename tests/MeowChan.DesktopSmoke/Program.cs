@@ -541,6 +541,7 @@ internal static class Program
             }
 
             await MediaRetryChecks.RunAsync(mainWindow);
+            await DownloadsFeedbackChecks.RunAsync(mainWindow);
             await ComparisonCaptures.RunAsync(mainWindow);
             await ClipboardChecks.RunAsync(mainWindow);
             await UrlDropChecks.RunAsync(mainWindow);

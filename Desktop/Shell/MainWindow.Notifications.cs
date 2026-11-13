@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -24,7 +25,7 @@ public partial class MainWindow
     private bool _feedbackDismissWired;
     private ICommand? _feedbackDismissGesture;
     private sealed record PendingFeedback(string Title, string Message, NotificationType Type,
-        FeedbackCategory Category, SessionFeedback? Entry);
+        FeedbackCategory Category, SessionFeedback? Entry, FeedbackToastAction? Action = null);
     private readonly Queue<PendingFeedback> _startupNotifications = new();
 
     // CallerMemberName is a safe fallback for future callers: even an unclassified error is retained.
@@ -33,14 +34,20 @@ public partial class MainWindow
         ShowNotificationCore(title, message, type, context, operation,
             KnownNotificationFaultKey(type, operation, message));
 
+    // A toast with one optional action button (for example "Undo"). The action is only offered while the
+    // toast is shown; the diagnostics history keeps the message, never the action.
+    private void ShowActionNotification(string title, string message, NotificationType type, FeedbackToastAction action,
+        string? context = null, [CallerMemberName] string operation = "ui") =>
+        ShowNotificationCore(title, message, type, context, operation, action: action);
+
     // Separate helper preserves the five-parameter reflection entry point. Future structured
     // owners may supply a fault key, but disappearance/text changes never imply recovery.
     private void ShowNotificationCore(string title, string message, NotificationType type,
-        string? context, string operation, string? faultKey = null)
+        string? context, string operation, string? faultKey = null, FeedbackToastAction? action = null)
     {
         if (!Dispatcher.UIThread.CheckAccess())
         {
-            Dispatcher.UIThread.Post(() => ShowNotificationCore(title, message, type, context, operation, faultKey));
+            Dispatcher.UIThread.Post(() => ShowNotificationCore(title, message, type, context, operation, faultKey, action));
             return;
         }
         if (_allowClose) return;
@@ -72,7 +79,7 @@ public partial class MainWindow
             ShellActionErrorBanner.Type = type;
             ShellActionErrorBanner.IsVisible = true;
         }
-        PendingFeedback feedback = new(title, message, type, category, entry);
+        PendingFeedback feedback = new(title, message, type, category, entry, action);
         if (!_hasOpened) _startupNotifications.Enqueue(feedback);
         else RenderNotification(feedback);
     }
@@ -201,12 +208,16 @@ public partial class MainWindow
             if (feedback.Entry != null) DismissShellFeedback(feedback.Entry);
             if (toast.IsKeyboardFocusWithin) RestoreFeedbackDismissFocus();
             _notificationManager.Close(toast);
-        });
+        }, feedback.Action);
         // Semi 12.1.0.1 has no template close button. Only the explicit content action acknowledges
         // a fault. Do not use onClose: expiry, max-item eviction and CloseAll also call it.
-        _notificationManager.Show(content, feedback.Type);
+        _notificationManager.Show(content, feedback.Type,
+            ToastDuration.For(feedback.Type, feedback.Title.Length + feedback.Message.Length, feedback.Action != null));
     }
 }
+
+/// <summary>The single optional button of a toast. The label is already localized when the toast is shown.</summary>
+internal sealed record FeedbackToastAction(string Label, Func<Task> Invoke);
 
 /// <summary>Small theme-independent toast content; expiry has no acknowledgement callback.</summary>
 internal sealed class FeedbackToastContent : Grid
@@ -215,11 +226,18 @@ internal sealed class FeedbackToastContent : Grid
     internal string Message { get; }
     internal SessionFeedback? Entry { get; }
     internal Button DismissButton { get; }
+    internal Button? ActionButton { get; }
 
     private bool _attached;
+    private Task? _actionRun;
+    private readonly FeedbackToastAction? _action;
+    private readonly Action<FeedbackToastContent> _dismiss;
 
-    internal FeedbackToastContent(string title, string message, SessionFeedback? entry, Action<FeedbackToastContent> dismiss)
+    internal FeedbackToastContent(string title, string message, SessionFeedback? entry, Action<FeedbackToastContent> dismiss,
+        FeedbackToastAction? action = null)
     {
+        _action = action;
+        _dismiss = dismiss;
         Title = title; Message = message;
         Entry = entry;
         Name = "FeedbackToastContent";
@@ -233,6 +251,18 @@ internal sealed class FeedbackToastContent : Grid
         // everything else (information such as the Danbooru watcher result, success, warnings) waits its turn.
         AutomationProperties.SetLiveSetting(body, LiveSettingFor(entry));
         text.Children.Add(body);
+        if (action != null)
+        {
+            ActionButton = new Button
+            {
+                Name = "FeedbackToastActionButton", Content = action.Label, FontWeight = Avalonia.Media.FontWeight.SemiBold,
+                MinHeight = 32, Padding = new Avalonia.Thickness(12, 2), HorizontalAlignment = HorizontalAlignment.Left,
+                Command = new DelegateCommand(() => _ = RunActionAsync())
+            };
+            ActionButton.Classes.Add("subtle");
+            AutomationProperties.SetName(ActionButton, action.Label);
+            text.Children.Add(ActionButton);
+        }
         // The card has no peer of its own; the name lets a reader that enters the toast (dismiss button) hear what it says.
         AutomationProperties.SetName(this, AccessibleName(title, message));
         Children.Add(new ScrollViewer { Content = text, MaxHeight = 160,
@@ -255,6 +285,18 @@ internal sealed class FeedbackToastContent : Grid
             LocalizeDismissButton();
         };
         DetachedFromVisualTree += (_, _) => { _attached = false; Texts.Changed -= OnLanguageChanged; };
+    }
+
+    /// <summary>Runs the toast action once; the toast closes afterwards, whether it worked or not.</summary>
+    internal Task RunActionAsync() => _actionRun ??= RunActionCoreAsync();
+
+    private async Task RunActionCoreAsync()
+    {
+        if (_action == null) return;
+        if (ActionButton != null) ActionButton.IsEnabled = false;
+        try { await _action.Invoke(); }
+        catch (Exception exception) { Serilog.Log.Warning(exception, "A toast action failed."); }
+        finally { _dismiss(this); }
     }
 
     internal static AutomationLiveSetting LiveSettingFor(SessionFeedback? entry) =>

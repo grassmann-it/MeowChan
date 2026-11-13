@@ -226,7 +226,7 @@
                                     <DataTemplate x:DataType="desktop:ThreadRow">
                                         <StackPanel VerticalAlignment="Center" Spacing="0" ToolTip.Tip="{Binding CompactDetails}" AutomationProperties.Name="{Binding CompactDetails}">
                                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                                                <TextBlock Text="{Binding CompactStatus}" VerticalAlignment="Center" FontSize="12" Classes="muted compact-work-status" TextTrimming="CharacterEllipsis" AutomationProperties.Name="{Binding CompactStatus}" />
+                                                <TextBlock Text="{Binding CompactStatus}" IsVisible="{Binding ShowCompactStatus}" VerticalAlignment="Center" FontSize="12" Classes="muted compact-work-status" TextTrimming="CharacterEllipsis" AutomationProperties.Name="{Binding CompactStatus}" />
                                                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center" ToolTip.Tip="{Binding Progress}" AutomationProperties.Name="{Binding SavedProgress}">
                                                     <TextBlock Text="{Binding CompletedMedia}" Classes="mono" FontSize="12" />
                                                     <TextBlock Text="/" Classes="muted mono" FontSize="12" />
@@ -351,6 +351,7 @@
                                         <SelectableTextBlock x:Name="InspectorError" Classes="workspace-error" TextWrapping="Wrap" />
                                     </StackPanel>
                                     <SelectableTextBlock x:Name="InspectorContext" Classes="workspace-warning" TextWrapping="Wrap" IsVisible="False" />
+                                    <TextBlock x:Name="InspectorNextStep" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
                                     <WrapPanel Classes="workspace-toolbar" Orientation="Horizontal">
                                         <Button x:Name="InspectorCheckButton" Tag="check.action" Classes="localized subtle" Content="Check now / retry missing" Click="OnCheckSelectionClick" />
                                         <Button x:Name="InspectorMediaRetryButton" Tag="work.retry" Classes="localized subtle" Content="Retry missing media" Click="OnRetryMissingMediaClick" />

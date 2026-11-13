@@ -300,14 +300,65 @@ public partial class MainWindow
     private Task RemoveDownloadSelectionAsync(bool boards)
     {
         long[] ids = boards ? SelectedBoards().Select(row => row.WatchId).ToArray() : SelectedThreads().Select(row => row.WatchId).ToArray();
-        return RunSelectionCommandAsync(ids, id => RemoveVisibleDownloadWatchAsync(id, boards));
+        return RemoveWatchesWithUndoAsync(ids, boards, id => RemoveVisibleDownloadWatchAsync(id, boards));
     }
 
-    private Task RemoveVisibleDownloadWatchAsync(long id, bool boards)
+    // Removing a watch is deliberately light (no confirmation), so the way back is an undo toast. The
+    // addresses are remembered before the removal; only watches that were really removed are offered.
+    private async Task RemoveWatchesWithUndoAsync(IReadOnlyList<long> ids, bool boards, Func<long, Task<bool>> remove)
     {
-        if (_sessionRowsApplying) return Task.CompletedTask;
-        if (boards ? !SelectedBoards().Any(row => row.WatchId == id) : !SelectedThreads().Any(row => row.WatchId == id)) return Task.CompletedTask;
-        return boards ? _session.RemoveBoardAsync(id) : _session.RemoveThreadAsync(id);
+        List<string> removed = new();
+        await RunSelectionCommandAsync(ids, async id =>
+        {
+            string? url = boards ? (_boardRows.TryGetValue(id, out BoardRow? board) ? board.Url : null)
+                : _threadRows.TryGetValue(id, out ThreadRow? thread) ? thread.Url : null;
+            if (await remove(id) && url != null) removed.Add(url);
+        });
+        if (removed.Count > 0 && !_isClosing) ShowWatchRemovedToast(new WatchRemovalUndo(removed, ReadmitRemovedWatchesAsync));
+    }
+
+    private void ShowWatchRemovedToast(WatchRemovalUndo undo) => ShowActionNotification(
+        Texts.T("notification.session"), Texts.T("watch.removed", undo.Count), NotificationType.Information,
+        new FeedbackToastAction(Texts.T("watch.undo"), () => UndoWatchRemovalAsync(undo)), operation: "watch.removed");
+
+    private async Task UndoWatchRemovalAsync(WatchRemovalUndo undo)
+    {
+        WatchUndoOutcome outcome = await undo.RunAsync();
+        if (_isClosing) return;
+        switch (outcome)
+        {
+            case WatchUndoOutcome.Restored:
+                ShowNotification(Texts.T("notification.session"), Texts.T("watch.undoDone", undo.Restored), NotificationType.Information, operation: "watch.undo");
+                break;
+            case WatchUndoOutcome.Partial:
+                ShowNotification(Texts.T("notification.session"), Texts.T("watch.undoPartial", undo.Count - undo.Restored, undo.Count), NotificationType.Warning, operation: "watch.undo");
+                break;
+            default:
+                ShowNotification(Texts.T("notification.session"), Texts.T("watch.undoUnavailable"), NotificationType.Warning, operation: "watch.undo");
+                break;
+        }
+    }
+
+    // The same admission as the Add row, so the result is the normal URL report. Null: it could not start.
+    private async Task<int?> ReadmitRemovedWatchesAsync(string text)
+    {
+        if (!_restoreCompleted || _isClosing || _importing || WorkspaceCommandBusy) return null;
+        _importing = true;
+        UpdateInteractionState();
+        try
+        {
+            await SubmitInputAsync(text);
+            return _admissionResults.Count(item => item.Status is AdmissionStatus.Added or AdmissionStatus.AlreadyPresent);
+        }
+        finally { _importing = false; UpdateInteractionState(); }
+    }
+
+    private async Task<bool> RemoveVisibleDownloadWatchAsync(long id, bool boards)
+    {
+        if (_sessionRowsApplying) return false;
+        if (boards ? !SelectedBoards().Any(row => row.WatchId == id) : !SelectedThreads().Any(row => row.WatchId == id)) return false;
+        await (boards ? _session.RemoveBoardAsync(id) : _session.RemoveThreadAsync(id));
+        return true;
     }
 
     private bool IsCurrentDownloadTarget(DiagnosticTarget target) => target.Kind == DiagnosticTargetKind.Board
@@ -348,16 +399,23 @@ public partial class MainWindow
             if (frozen.Length > 1) text += " · " + responses.Count + "/" + frozen.Length;
             ShowNotification(Texts.T("notification.session"), text, NotificationType.Information, context: string.Join(",", frozen.Select(target => target.WatchId)), operation: "selection.check");
         }
-        if (retried) ShowNotification(Texts.T("notification.session"), Texts.Count(acceptedMedia == 0 ? "work.retryNone"
-            : _session.Projection.IsPaused ? "work.retryPaused" : "work.retryAccepted", acceptedMedia),
+        if (retried) ShowNotification(Texts.T("notification.session"), acceptedMedia == 0
+            ? Texts.T(RetryNoneKey(frozen.Where(target => target.Kind == DiagnosticTargetKind.Thread).Select(target => target.WatchId)))
+            : Texts.Count(_session.Projection.IsPaused ? "work.retryPaused" : "work.retryAccepted", acceptedMedia),
             NotificationType.Information, context: string.Join(",", frozen.Select(target => target.WatchId)), operation: "selection.media-retry");
     }
+
+    // The reason is read from the current row after the host declined, so the toast names what is true now.
+    private string RetryNoneKey(IEnumerable<long> watchIds) => RetryNoneClassifier.KeyFor(RetryNoneClassifier.Combine(
+        watchIds.Select(id => _threadRows.TryGetValue(id, out ThreadRow? row)
+            ? RetryNoneClassifier.Classify(row.Snapshot.Work, watchExists: true)
+            : RetryNoneReason.Removed)));
 
     private Task RemoveArchiveWatchesAsync(IReadOnlyList<ResourceId> ids)
     {
         long[] watchIds = ids.Select(id => _threadRows.Values.FirstOrDefault(row => row.Snapshot.Id == id)?.WatchId)
             .OfType<long>().Distinct().ToArray();
-        return RunSelectionCommandAsync(watchIds, _session.RemoveThreadAsync);
+        return RemoveWatchesWithUndoAsync(watchIds, boards: false, async id => { await _session.RemoveThreadAsync(id); return true; });
     }
     private Task CheckArchiveWatchesAsync(IReadOnlyList<ResourceId> ids, bool retry)
     {

@@ -75,7 +75,7 @@ public static class CommandCatalog
         new("navigation.app-menu", "command.navigation.app-menu", "App menu", "Appmenü", "more-horizontal", null, CommandScope.Application, new[] { "header" }),
         new("app.show", "command.app.show", "Show MeowChan", "MeowChan anzeigen", "monitor", null, CommandScope.Application, new[] { "tray" }),
         new("app.quit", "command.app.quit", "Quit", "Beenden", "power", null, CommandScope.Application, new[] { "app-menu", "tray", "startup-error" }),
-        new("session.pause", "command.session.pause", "Pause / Resume", "Pausieren / Fortsetzen", "pause", "Primary+Shift+P", CommandScope.Application, new[] { "header", "app-menu", "workspace-keyboard", "tray:planned" }),
+        new("session.pause", "command.session.pause", "Pause / Resume", "Pausieren / Fortsetzen", "pause", "Primary+Shift+P", CommandScope.Application, new[] { "header", "app-menu", "workspace-keyboard", "tray" }),
         new("appearance.theme", "command.appearance.theme", "Change theme", "Farbschema wechseln", "moon", null, CommandScope.Settings | CommandScope.Application, new[] { "header", "settings" }),
         new("window.minimize", "command.window.minimize", "Minimize window", "Fenster minimieren", "minus", null, CommandScope.Application, new[] { "window-caption" }),
         new("window.maximize", "command.window.maximize", "Maximize / Restore window", "Fenster maximieren / Wiederherstellen", "square", null, CommandScope.Application, new[] { "window-caption", "titlebar-double-click" }),

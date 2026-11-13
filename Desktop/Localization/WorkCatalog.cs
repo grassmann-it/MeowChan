@@ -29,7 +29,17 @@ internal static class WorkCatalog
         ("work.retry", "Retry missing media", "Fehlende Medien erneut versuchen"),
         ("work.retryAccepted", "Requested one retry for {0} media files. Queue and source limits still apply.", "Ein Wiederholungsversuch für {0} Mediendateien angefordert. Warteschlange und Quellenlimits gelten weiterhin."),
         ("work.retryPaused", "Requested one retry for {0} media files. Transfers wait until the session resumes; source limits still apply.", "Ein Wiederholungsversuch für {0} Mediendateien angefordert. Transfers warten auf das Fortsetzen der Sitzung; Quellenlimits gelten weiterhin."),
-        ("work.retryNone", "Nothing to retry: all missing media are already queued, or this thread has no missing media left.", "Nichts zu wiederholen: Alle fehlenden Medien sind schon eingereiht oder dieser Thread hat keine fehlenden Medien mehr."),
-        ("work.retryFailed", "The media retry could not be scheduled: {0}", "Der Medienversuch konnte nicht geplant werden: {0}")
+        ("work.retryNoneRemoved", "Nothing to retry: this watch was removed.", "Nichts zu wiederholen: Diese Beobachtung wurde entfernt."),
+        ("work.retryNoneStopped", "Nothing to retry: watching this thread was stopped.", "Nichts zu wiederholen: Die Beobachtung dieses Threads wurde beendet."),
+        ("work.retryNoneComplete", "Nothing to retry: this thread has no missing media left.", "Nichts zu wiederholen: Dieser Thread hat keine fehlenden Medien mehr."),
+        ("work.retryNoneQueued", "Nothing to retry: all missing media are already queued.", "Nichts zu wiederholen: Alle fehlenden Medien sind schon eingereiht."),
+        ("work.retryNoneUnavailable", "Retry not possible right now: this watch is not active in the session.", "Wiederholen gerade nicht möglich: Diese Beobachtung ist in der Sitzung nicht aktiv."),
+        ("work.nextStep", "Next step: {0}.", "Nächster Schritt: {0}."),
+        ("work.retryFailed", "The media retry could not be scheduled: {0}", "Der Medienversuch konnte nicht geplant werden: {0}"),
+        ("watch.removed", "Removed from watching: {0} · downloaded files are kept", "Aus Beobachtung entfernt: {0} · heruntergeladene Dateien bleiben erhalten"),
+        ("watch.undo", "Undo", "Rückgängig"),
+        ("watch.undoDone", "Watching again: {0}. Added as a new watch; position and priority are not restored.", "Wieder in Beobachtung: {0}. Als neue Beobachtung aufgenommen; Position und Priorität werden nicht wiederhergestellt."),
+        ("watch.undoPartial", "{0} of {1} could not be watched again. The URL results under Downloads show why.", "{0} von {1} konnten nicht wieder aufgenommen werden. Die URL-Ergebnisse unter Downloads nennen den Grund."),
+        ("watch.undoUnavailable", "Undo is not possible right now. Paste the addresses again to watch them.", "Rückgängig ist gerade nicht möglich. Füge die Adressen erneut ein, um sie wieder zu beobachten.")
     };
 }

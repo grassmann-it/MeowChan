@@ -108,8 +108,8 @@ public partial class MainWindow
         if (!frozen.Boards) AddUserPriorityMenus(menu, ready);
         Add("rules.edit-scope", () => EditFrozenRules(frozen.Lead));
         menu.Items.Add(new Separator());
-        Add("watch.remove", async () => await RunSelectionCommandAsync(frozen.WatchIds,
-            id => RemoveVisibleDownloadWatchAsync(id, frozen.Boards)), count: frozen.WatchIds.Length);
+        Add("watch.remove", async () => await RemoveWatchesWithUndoAsync(frozen.WatchIds,
+            frozen.Boards, id => RemoveVisibleDownloadWatchAsync(id, frozen.Boards)), count: frozen.WatchIds.Length);
     }
 
     private DownloadMenuTarget? RevalidateDownloadMenu(DownloadMenuTarget frozen)
