@@ -42,7 +42,7 @@ def detect_backend():
     if all(shutil.which(name) for name in ('dbus-daemon', 'pactl', 'pulseaudio')):
         return BACKEND_PULSEAUDIO
     if all(shutil.which(name) for name in
-           ('dbus-daemon', 'pactl', 'pipewire', 'pipewire-pulse')):
+           ('dbus-daemon', 'pactl', 'pipewire', 'pipewire-pulse', 'pw-dump')):
         return BACKEND_PIPEWIRE
     raise RuntimeError('no supported private software-audio backend found')
 
@@ -110,6 +110,7 @@ context.properties = {
 }
 context.spa-libs = {
     audio.convert.* = audioconvert/libspa-audioconvert
+    audio.adapt = audioconvert/libspa-audioconvert
     support.* = support/libspa-support
 }
 context.modules = [
@@ -137,6 +138,11 @@ context.objects = [
         media.class = Audio/Sink
         audio.position = "FL,FR"
         monitor.passthrough = true
+        adapter.auto-port-config = {
+            mode = dsp
+            monitor = true
+            position = preserve
+        }
       }
     }
     { factory = metadata
@@ -155,6 +161,7 @@ context.properties = {
 }
 context.spa-libs = {
     audio.convert.* = audioconvert/libspa-audioconvert
+    audio.adapt = audioconvert/libspa-audioconvert
     support.* = support/libspa-support
 }
 context.modules = [

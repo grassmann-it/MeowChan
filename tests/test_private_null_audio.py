@@ -15,7 +15,7 @@ spec.loader.exec_module(audio)
 
 class PrivateAudioTests(unittest.TestCase):
     def test_backend_detection_is_explicit_and_prefers_pulseaudio(self):
-        available = {'dbus-daemon', 'pactl', 'pulseaudio', 'pipewire', 'pipewire-pulse'}
+        available = {'dbus-daemon', 'pactl', 'pulseaudio', 'pipewire', 'pipewire-pulse', 'pw-dump'}
         with patch.object(audio.shutil, 'which',
                           side_effect=lambda name: '/usr/bin/'+name if name in available else None):
             self.assertEqual(audio.detect_backend(), audio.BACKEND_PULSEAUDIO)
@@ -23,6 +23,12 @@ class PrivateAudioTests(unittest.TestCase):
         with patch.object(audio.shutil, 'which',
                           side_effect=lambda name: '/usr/bin/'+name if name in available else None):
             self.assertEqual(audio.detect_backend(), audio.BACKEND_PIPEWIRE)
+        for required in ('dbus-daemon', 'pactl', 'pipewire', 'pipewire-pulse', 'pw-dump'):
+            with self.subTest(missing=required), patch.object(
+                    audio.shutil, 'which', side_effect=lambda name:
+                    '/usr/bin/'+name if name in available and name != required else None):
+                with self.assertRaises(RuntimeError):
+                    audio.detect_backend()
         available.remove('pipewire-pulse')
         with patch.object(audio.shutil, 'which', return_value=None), self.assertRaises(RuntimeError):
             audio.detect_backend()
@@ -61,6 +67,12 @@ class PrivateAudioTests(unittest.TestCase):
             pulse = (Path(tmp)/'pipewire-pulse.conf').read_text()
             self.assertEqual(env['PIPEWIRE_REMOTE'], 'disabled-private-no-server')
             self.assertIn('support.null-audio-sink', pipewire)
+            # No session manager exists to configure ports on our behalf.
+            self.assertIn('audio.adapt = audioconvert/libspa-audioconvert', pipewire)
+            self.assertIn('adapter.auto-port-config = {', pipewire)
+            self.assertIn('mode = dsp', pipewire)
+            self.assertIn('monitor = true', pipewire)
+            self.assertIn('position = preserve', pipewire)
             self.assertIn('libpipewire-module-access', pipewire)
             self.assertNotIn('session-manager', pipewire)
             self.assertNotIn('alsa', pipewire.lower())
