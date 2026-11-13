@@ -15,7 +15,7 @@ internal static class ArchiveColumnsCatalog
         ("archive.media.countUnavailable", "Saved media versions: unavailable", "Gespeicherte Medienversionen: nicht verfügbar"),
         ("archive.media.countHint", "Total archived versions across the thread's recorded media folders, independent of media filters. File presence and length checked; checksums are verified when opened.", "Gesamtbestand in den erfassten Medienordnern des Threads, unabhängig von Medienfiltern. Dateiverfügbarkeit und Länge geprüft; Prüfsummen werden beim Öffnen geprüft."),
         ("archive.media.missingVersions", "Not counted: {0:N0} recorded files are missing or have changed.", "Nicht mitgezählt: {0:N0} erfasste Dateien fehlen oder haben sich verändert."),
-        ("archive.media.currentProgress", "Current download work: {0}", "Aktueller Downloadauftrag: {0}"),
+        ("archive.media.currentProgress", "Current download work: {0}", "Aktueller Download: {0}"),
         ("archive.columns.source", "Source", "Quelle"),
         ("archive.columns.work", "Work", "Downloads"),
         ("archive.columns.lastCapture", "Last capture", "Letzte Erfassung"),
