@@ -46,6 +46,8 @@
                     <SolidColorBrush x:Key="Workspace.Hover">#30363E</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.OnAccent">#121416</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentHover">#8ABBFF</SolidColorBrush>
+                    <!-- AccentHover as text colour (checked media toggle on hover): same value as AccentHover in Dark (4.8:1 or more on AccentSurface). -->
+                    <SolidColorBrush x:Key="Workspace.AccentHoverText">#8ABBFF</SolidColorBrush>
                     <!-- Status colours (palette review 2026-11-13): salmon #F49B9B and mint #83D4AC had the same lightness, so
                          under protanopia/deuteranopia they collapsed (dE 8-15). Error is a step darker and warmer (coral), Success
                          a step lighter; the smallest simulated distance between any two of Error, Warning, Success and Accent rises
@@ -231,6 +233,10 @@
                     <SolidColorBrush x:Key="Workspace.Hover">#D2CABE</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.OnAccent">#FFFFFF</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentHover">#9A4B0B</SolidColorBrush>
+                    <!-- UX review 2026-11-13: AccentHover (#9A4B0B) is a solid-button surface (white text 6.20:1) but as a text colour it is 4.30:1 on
+                         AccentSurface, 4.25:1 on Raised and 3.82:1 on Hover. As text the hover tone is one step darker, as Pressed is in Light:
+                         #6E3305 is 6.81:1 on AccentSurface, 6.05:1 on Hover. -->
+                    <SolidColorBrush x:Key="Workspace.AccentHoverText">#6E3305</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Error">#A52736</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ErrorSurface">#F4E0E3</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Warning">#795100</SolidColorBrush>
@@ -321,7 +327,8 @@
                     <SolidColorBrush x:Key="Workspace.ChipSelectedBorder">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.TagCategory.Artist">#9E2B2B</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.TagCategory.Copyright">#6B3BA3</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.TagCategory.Character">#2E6B3A</SolidColorBrush>
+                    <!-- #2E6B3A was 4.39:1 on ChipSurface; #275D33 is 5.33:1 on ChipSurface and 6.60:1 on Panel. -->
+                    <SolidColorBrush x:Key="Workspace.TagCategory.Character">#275D33</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.TagCategory.Meta">#795100</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.TagCategory.General">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="ClosableTagForeground">#1A1A1A</SolidColorBrush>
@@ -387,6 +394,42 @@
                     <SolidColorBrush x:Key="ComboBoxSelectorFocusBackground">#DBD5CB</SolidColorBrush>
                     <!-- In Light the red close hover itself is 4.80:1 on Panel; its edge is the same red. -->
                     <SolidColorBrush x:Key="Workspace.CaptionCloseEdge">#C42B1C</SolidColorBrush>
+                    <!-- UX review 2026-11-13 (Light list 4, 7, 12, 13, 14, 15): Semi's translucent greys and its blue left in Light.
+                         Disabled text is opaque Workspace.Muted instead of 35 % black (2.11:1 on Panel; Muted is 6.66:1; disabled stays WCAG-exempt
+                         but readable). Radio buttons follow the checkbox overrides above: unchecked ring in the interactive outline (#726858, 4.64:1
+                         on Panel, the Workspace.ControlBorder value of the hover-contrast pass), checked and hover states in the accent tones.
+                         Expander text, chevron and rule, the menu/command/date separators (8 % black, 1.16:1) and the one settings slider use palette
+                         values; separators and the slider ticks are the decorative border (#948A7D, 2.88:1), the slider track is ProgressTrack. -->
+                    <SolidColorBrush x:Key="CheckBoxDisabledForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonDisabledForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="ExpanderHeaderDisabledForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="TextBoxDisabledForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonUncheckIconDefaultBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonUncheckIconPointeroverBorderBrush">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonUncheckIconPressedBorderBrush">#662F05</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonCheckIconDefaultBackground">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonCheckIconDefaultBorderBrush">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonCheckIconPointeroverBackground">#9A4B0B</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonCheckIconPointeroverBorderBrush">#9A4B0B</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonCheckIconPressedBackground">#662F05</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonCheckIconPressedBorderBrush">#662F05</SolidColorBrush>
+                    <SolidColorBrush x:Key="ExpanderIconForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="ExpanderContentForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ExpanderHeaderForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ExpanderSeparatorBorderBrush">#948A7D</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemSeparatorBackground">#948A7D</SolidColorBrush>
+                    <SolidColorBrush x:Key="CommandBarSeparatorBackground">#948A7D</SolidColorBrush>
+                    <SolidColorBrush x:Key="DateTimePickerSeparatorBackground">#948A7D</SolidColorBrush>
+                    <SolidColorBrush x:Key="SliderTrackBackground">#857D74</SolidColorBrush>
+                    <SolidColorBrush x:Key="SliderTrackForeground">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="SliderThumbBorderBrush">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="SliderThumbPointeroverBorderBrush">#9A4B0B</SolidColorBrush>
+                    <SolidColorBrush x:Key="SliderThumbPressedBorderBrush">#662F05</SolidColorBrush>
+                    <SolidColorBrush x:Key="SliderTickForeground">#948A7D</SolidColorBrush>
+                    <!-- Provision (no use today): a hyperlink button in the accent tones, the hover tone dark as for text. -->
+                    <SolidColorBrush x:Key="HyperlinkButtonForeground">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="HyperlinkButtonPointeroverForeground">#6E3305</SolidColorBrush>
+                    <SolidColorBrush x:Key="HyperlinkButtonPressedForeground">#662F05</SolidColorBrush>
                     <!-- QW-20: marked-favorite tint; Gold is 1.2:1 here. Dark amber is 4.8:1 on Workspace.Panel, 4.3:1 on Background, 3.9:1 on Raised. -->
                     <SolidColorBrush x:Key="Workspace.Favorite">#8A5F00</SolidColorBrush>
                 </ResourceDictionary>
@@ -828,7 +871,7 @@
     <Style Selector="ToggleButton.media-control:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
-        <Setter Property="Foreground" Value="{DynamicResource Workspace.AccentHover}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.AccentHoverText}" />
     </Style>
     <Style Selector="Button.media-control:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.media-control:disabled /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
@@ -900,14 +943,15 @@
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
-    <!-- Disabled: dimmed as a whole, no colour change, so the form (filled/outlined) stays recognisable. -->
+    <!-- Disabled: dimmed as a whole, no colour change, so the form (filled/outlined) stays recognisable. UX review 2026-11-13: 0.75 instead of
+         0.6, the label stays 6.17:1 on ChipSurface (3.99:1 at 0.6) and the outline 2.71:1 on Panel (2.15:1) in Light. -->
     <Style Selector="Button.chip:disabled /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.ChipSurface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipBorder}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
     <Style Selector="Button.chip.chip-available:disabled /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent" /></Style>
-    <Style Selector="Button.chip:disabled"><Setter Property="Opacity" Value="0.6" /></Style>
+    <Style Selector="Button.chip:disabled"><Setter Property="Opacity" Value="0.75" /></Style>
     <Style Selector="Path.chip-thread-mark">
         <Setter Property="Width" Value="9" /><Setter Property="Height" Value="9" /><Setter Property="Margin" Value="0,0,4,0" />
         <Setter Property="Stroke" Value="{Binding $parent[Button].Foreground}" /><Setter Property="StrokeThickness" Value="1" />

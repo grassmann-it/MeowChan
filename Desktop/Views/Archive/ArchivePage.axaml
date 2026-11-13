@@ -503,7 +503,7 @@
                                                                         <ItemsControl.ItemTemplate>
                                                                             <DataTemplate x:DataType="desktop:ArchiveQuoteRow">
                                                                                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                                                                                    <Rectangle Width="3" RadiusX="1.5" RadiusY="1.5" Fill="{DynamicResource Workspace.Accent}" Opacity="0.55" />
+                                                                                    <Rectangle Width="3" RadiusX="1.5" RadiusY="1.5" Fill="{DynamicResource Workspace.Accent}" Opacity="0.8" />
                                                                                     <Button Grid.Column="1" Classes="reader-reply-card" ToolTip.Tip="{Binding AccessibleLabel}" AutomationProperties.Name="{Binding AccessibleLabel}"
                                                                                             commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
                                                                                         <StackPanel Spacing="2">

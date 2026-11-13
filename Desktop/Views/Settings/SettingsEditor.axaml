@@ -712,7 +712,7 @@
                     <StackPanel x:Name="SettingsStatisticsSection" Spacing="8" Margin="0,14,0,0">
                         <StackPanel.Styles>
                             <!-- An unavailable row stays readable but is visibly set apart; its tooltip names the switch it depends on. -->
-                            <Style Selector="TextBlock.workspace-field-label:disabled"><Setter Property="Opacity" Value="0.6" /></Style>
+                            <Style Selector="TextBlock.workspace-field-label:disabled"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /></Style>
                         </StackPanel.Styles>
                         <TextBlock x:Name="SettingsStatisticsHeading" Text="{Binding StatisticsTitle}" Classes="workspace-field-label" FontWeight="SemiBold" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding StatisticsIntro}" Classes="workspace-help" TextWrapping="Wrap" />

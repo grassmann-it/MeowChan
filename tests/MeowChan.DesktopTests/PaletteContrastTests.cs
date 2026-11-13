@@ -186,6 +186,114 @@ public sealed class PaletteContrastTests
         }
     }
 
+    // AccentHover is a button surface (white text 6.20:1 in Light); as a text colour it fell to 3.82:1 on Hover. The checked media toggle
+    // under the pointer uses its own text token, 4.5:1 or more on every surface the toggle sits on.
+    [Theory, InlineData("Dark"), InlineData("Light")]
+    public void AccentHoverTextReadsOnEverySurfaceTheCheckedMediaToggleSitsOn(string theme)
+    {
+        foreach (string surface in new[] { "Workspace.AccentSurface", "Workspace.Hover", "Workspace.Raised", "Workspace.Panel", "Workspace.Background", "Workspace.Card" })
+            AssertContrast(theme, "Workspace.AccentHoverText", surface, 4.5);
+        string styles = File.ReadAllText(Root("Desktop/WorkspaceStyles.axaml"));
+        Assert.Contains("Property=\"Foreground\" Value=\"{DynamicResource Workspace.AccentHoverText}\"", styles);
+        Assert.DoesNotContain("Property=\"Foreground\" Value=\"{DynamicResource Workspace.AccentHover}\"", styles);
+    }
+
+    [Theory, InlineData("Dark"), InlineData("Light")]
+    public void TagCategoryCaptionColoursReadOnChipsAndPanels(string theme)
+    {
+        foreach (string category in new[] { "Artist", "Copyright", "Character", "Meta", "General" })
+            foreach (string surface in new[] { "Workspace.ChipSurface", "Workspace.Panel", "Workspace.Raised" })
+                AssertContrast(theme, "Workspace.TagCategory." + category, surface, 4.5);
+    }
+
+    // Light list 4, 7, 12-15: Semi's translucent greys and blue are replaced by palette values (see the comment in WorkspaceStyles.axaml).
+    [Fact]
+    public void LightDisabledTextIsOpaqueMutedInsteadOfThirtyFivePercentBlack()
+    {
+        foreach (string key in new[] { "CheckBoxDisabledForeground", "RadioButtonDisabledForeground", "ExpanderHeaderDisabledForeground", "TextBoxDisabledForeground" })
+        {
+            Assert.Equal(Color("Light", "Workspace.Muted"), Color("Light", key));
+            foreach (string surface in new[] { "Workspace.Panel", "Workspace.Background", "Workspace.Card", "Workspace.Raised" })
+                AssertContrast("Light", key, surface, 4.5);
+        }
+    }
+
+    [Fact]
+    public void LightRadioButtonsUseTheInteractiveOutlineAndTheAccentTonesNotSemiBlue()
+    {
+        foreach (string surface in new[] { "Workspace.Background", "Workspace.Panel", "Workspace.Raised", "Workspace.Card", "Workspace.Overlay" })
+            AssertContrast("Light", "RadioButtonUncheckIconDefaultBorderBrush", surface, 4.5);
+        AssertContrast("Light", "RadioButtonUncheckIconDefaultBorderBrush", "Workspace.AccentSurface", 3.0);
+        Assert.Equal(Color("Light", "Workspace.Accent"), Color("Light", "RadioButtonUncheckIconPointeroverBorderBrush"));
+        Assert.Equal(Color("Light", "Workspace.Accent"), Color("Light", "RadioButtonCheckIconDefaultBackground"));
+        Assert.Equal(Color("Light", "Workspace.Accent"), Color("Light", "RadioButtonCheckIconDefaultBorderBrush"));
+        Assert.Equal(Color("Light", "Workspace.AccentHover"), Color("Light", "RadioButtonCheckIconPointeroverBackground"));
+        Assert.Equal(Color("Light", "Workspace.AccentHover"), Color("Light", "RadioButtonCheckIconPointeroverBorderBrush"));
+        Assert.Equal(Color("Light", "ButtonSolidPrimaryPressedBackground"), Color("Light", "RadioButtonCheckIconPressedBackground"));
+        Assert.Equal(Color("Light", "ButtonSolidPrimaryPressedBackground"), Color("Light", "RadioButtonCheckIconPressedBorderBrush"));
+        Assert.Equal(Color("Light", "ButtonSolidPrimaryPressedBackground"), Color("Light", "RadioButtonUncheckIconPressedBorderBrush"));
+        foreach (string state in new[] { "Default", "Pointerover" })
+            AssertContrast("Light", "RadioButtonCheckIcon" + state + "Background", "Workspace.Panel", 3.0);
+    }
+
+    [Fact]
+    public void LightExpanderSeparatorAndSliderKeysUsePaletteValues()
+    {
+        AssertContrast("Light", "ExpanderIconForeground", "Workspace.Panel", 4.5);
+        AssertContrast("Light", "ExpanderContentForeground", "Workspace.Panel", 4.5);
+        AssertContrast("Light", "ExpanderHeaderForeground", "Workspace.Panel", 4.5);
+        Assert.Equal(Color("Light", "Workspace.Muted"), Color("Light", "ExpanderIconForeground"));
+        Assert.Equal(Color("Light", "Workspace.Text"), Color("Light", "ExpanderContentForeground"));
+        Assert.Equal(Color("Light", "Workspace.Text"), Color("Light", "ExpanderHeaderForeground"));
+        foreach (string key in new[] { "ExpanderSeparatorBorderBrush", "MenuItemSeparatorBackground", "CommandBarSeparatorBackground", "DateTimePickerSeparatorBackground", "SliderTickForeground" })
+        {
+            Assert.Equal(Color("Light", "Workspace.Border"), Color("Light", key));
+            AssertContrast("Light", key, "Workspace.Panel", 2.8);
+        }
+        Assert.Equal(Color("Light", "Workspace.ProgressTrack"), Color("Light", "SliderTrackBackground"));
+        AssertContrast("Light", "SliderTrackBackground", "Workspace.Panel", 3.0);
+        foreach (string key in new[] { "SliderTrackForeground", "SliderThumbBorderBrush", "SliderThumbPointeroverBorderBrush", "SliderThumbPressedBorderBrush" })
+            AssertContrast("Light", key, "Workspace.Panel", 4.5);
+        Assert.Equal(Color("Light", "Workspace.Accent"), Color("Light", "SliderTrackForeground"));
+        Assert.Equal(Color("Light", "Workspace.Accent"), Color("Light", "SliderThumbBorderBrush"));
+        // A hyperlink button (provision) reads as text in all of its states.
+        foreach (string key in new[] { "HyperlinkButtonForeground", "HyperlinkButtonPointeroverForeground", "HyperlinkButtonPressedForeground" })
+            foreach (string surface in new[] { "Workspace.Panel", "Workspace.Hover", "Workspace.AccentSurface" })
+                AssertContrast("Light", key, surface, 4.5);
+    }
+
+    // The dimming rows of the review: disabled chips at 0.75 (label 6.17:1 on ChipSurface), the disabled settings field label in Muted
+    // (6.66:1 on Panel, was 60 % opacity at 4.32:1) and the archive quote bar at 0.8 (4.79:1 on Card, was 0.55 at 2.71:1).
+    [Fact]
+    public void DimmedRowsKeepTheirTextAndMarksReadable()
+    {
+        string styles = File.ReadAllText(Root("Desktop/WorkspaceStyles.axaml"));
+        Assert.Contains("<Style Selector=\"Button.chip:disabled\"><Setter Property=\"Opacity\" Value=\"0.75\" /></Style>", styles);
+        Assert.DoesNotContain("Button.chip:disabled\"><Setter Property=\"Opacity\" Value=\"0.6\"", styles);
+        string settings = File.ReadAllText(Root("Desktop/Views/Settings/SettingsEditor.axaml"));
+        Assert.Contains("Selector=\"TextBlock.workspace-field-label:disabled\"><Setter Property=\"Foreground\" Value=\"{DynamicResource Workspace.Muted}\" />", settings);
+        Assert.DoesNotContain("workspace-field-label:disabled\"><Setter Property=\"Opacity\"", settings);
+        string archive = File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.axaml"));
+        Assert.Contains("Fill=\"{DynamicResource Workspace.Accent}\" Opacity=\"0.8\"", archive);
+        Assert.DoesNotContain("Opacity=\"0.55\"", archive);
+        // 0.75 x the chip label (Workspace.Text on ChipSurface composited over Panel) and the 0.8 quote bar over Card, in Light.
+        Assert.True(Composite("#1A1A1A", "Workspace.ChipSurface", 0.75, "Workspace.Panel") >= 4.5);
+        Assert.True(CompositeOver("Workspace.Accent", "Workspace.Card", 0.8) >= 4.5);
+    }
+
+    private static double Composite(string foregroundHex, string surfaceKey, double opacity, string underKey)
+    {
+        string surface = Color("Light", surfaceKey), under = Color("Light", underKey);
+        string chip = Blend(surface, under, opacity), label = Blend(foregroundHex, under, opacity);
+        return Contrast(label, chip);
+    }
+
+    private static double CompositeOver(string fillKey, string underKey, double opacity) =>
+        Contrast(Blend(Color("Light", fillKey), Color("Light", underKey), opacity), Color("Light", underKey));
+
+    private static string Blend(string top, string under, double alpha) => "#" + string.Concat(Enumerable.Range(0, 3).Select(index =>
+        ((int)Math.Round(Channel(top, index) * alpha + Channel(under, index) * (1 - alpha))).ToString("X2", CultureInfo.InvariantCulture)));
+
     [Fact]
     public void LightScrollbarThumbsReadOnTheSurfacesTheyScrollOver()
     {
