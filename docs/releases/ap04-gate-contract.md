@@ -24,7 +24,9 @@ fixture.
 `--linux-package-dir` and `--sha256sums` bind a Linux package artifact root to the candidate:
 the manifest source commit/version, all three listed assets, the full package-root inventory,
 and the matching checksum file are re-hashed at identity and final verification. A mutation,
-replacement, missing file, symlink, or unlisted file makes final verification fail.
+replacement, missing file, symlink, newly added unlisted file, or special file (including a FIFO
+or Unix socket) makes final verification fail. Existing ordinary unlisted files are inventoried,
+not silently ignored; the separate package-inventory gate enforces the public allowlist.
 
 Those package files are **not executed** by AP04. A matching package root is dependency/artifact
 provenance, not a packaged-apphost smoke test. The report therefore records

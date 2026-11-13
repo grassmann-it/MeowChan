@@ -104,6 +104,7 @@ def tree_files(directory):
     files = {}
     for path in sorted(base.rglob('*')):
         require(not path.is_symlink(), 'link in hashed tree: ' + str(path))
+        require(path.is_file() or path.is_dir(), 'special file in hashed tree: ' + str(path))
         if path.is_file() and path.suffix not in SKIP_SUFFIXES:
             files[path.relative_to(base).as_posix()] = digest_file(path)
     require(files, 'no files below ' + str(directory))
@@ -137,6 +138,7 @@ def artifact_files(directory):
     files = {}
     for path in sorted(base.rglob('*')):
         require(not path.is_symlink(), 'link in artifact root: ' + str(path))
+        require(path.is_file() or path.is_dir(), 'special file in artifact root: ' + str(path))
         if path.is_file():
             files[path.relative_to(base).as_posix()] = digest_file(path)
     require(files, 'artifact root is empty: ' + str(directory))
@@ -153,7 +155,7 @@ def summary_digest(files):
 def parse_sha256sums(path):
     source = ordinary_path(path, 'SHA256SUMS')
     result = {}
-    for line in Path(path).read_text(encoding='utf-8').splitlines():
+    for line in source.read_text(encoding='utf-8').splitlines():
         if not line.strip():
             continue
         match = re.fullmatch(r'([0-9a-fA-F]{64}) [ *](.+)', line)

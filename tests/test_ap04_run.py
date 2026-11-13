@@ -9,6 +9,8 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
+import socket
 from pathlib import Path
 import shutil
 import subprocess
@@ -176,6 +178,40 @@ class CandidateTests(unittest.TestCase):
             manifest = Path(packages) / 'linux-x64-package-manifest.json'
             manifest.write_text(manifest.read_text().replace('"version": "1.1.0"', '"version": "1.1.0"\n'))
             self.assertIn('package files changed after recording', cand.verify(temp, candidate))
+
+    def test_package_and_build_roots_reject_symlink_components(self):
+        with tempfile.TemporaryDirectory() as temp:
+            parent = Path(temp)
+            actual = parent / 'actual'
+            actual.mkdir()
+            self.make_packages(actual, SHA)
+            (actual / 'SHA256SUMS').write_text('')
+            link = parent / 'alias'
+            link.symlink_to(actual, target_is_directory=True)
+            for probe in (lambda: cand.package_set(link, SHA, '1.1.0'),
+                          lambda: cand.tree_files(link),
+                          lambda: cand.parse_sha256sums(link / 'SHA256SUMS')):
+                with self.subTest(probe=probe), self.assertRaisesRegex(ValueError, 'symlink'):
+                    probe()
+
+    @unittest.skipUnless(hasattr(os, 'mkfifo'), 'FIFO mutation requires POSIX')
+    def test_fifo_is_not_silently_omitted_from_artifact_or_build_inventory(self):
+        with tempfile.TemporaryDirectory() as temp, tempfile.TemporaryDirectory() as packages:
+            sha = make_repo(temp)
+            self.make_packages(packages, sha)
+            candidate = cand.identity(temp, sha, packages)
+            os.mkfifo(Path(packages) / 'unexpected.pipe')
+            self.assertTrue(any('special file' in problem for problem in cand.verify(temp, candidate)))
+            with self.assertRaisesRegex(ValueError, 'special file'):
+                cand.tree_files(packages)
+
+    @unittest.skipUnless(hasattr(socket, 'AF_UNIX'), 'Unix socket mutation requires AF_UNIX')
+    def test_socket_is_not_silently_omitted_from_package_inventory(self):
+        with tempfile.TemporaryDirectory() as temp, socket.socket(socket.AF_UNIX) as server:
+            self.make_packages(temp, SHA)
+            server.bind(str(Path(temp) / 'unexpected.sock'))
+            with self.assertRaisesRegex(ValueError, 'special file'):
+                cand.artifact_files(temp)
 
     def test_package_checksum_reaches_the_report_prefix(self):
         with tempfile.TemporaryDirectory() as temp, tempfile.TemporaryDirectory() as packages:
