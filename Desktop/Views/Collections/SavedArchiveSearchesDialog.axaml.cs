@@ -84,6 +84,10 @@ public partial class SavedArchiveSearchesDialog : Window
         {
             if (_router.Route(e)) return;
             if (e.Key == Key.Escape) { e.Handled = true; if (_edit != EditKind.None) CancelEdit(); else Close(); }
+            // Enter in the name field is the keyboard form of the primary button (save or rename).
+            else if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && (_edit is EditKind.Create or EditKind.Rename)
+                && ReferenceEquals(e.Source, NameInput) && Button("SavedSearchConfirm").IsEnabled)
+            { e.Handled = true; _ = ConfirmAsync(); }
         };
         AddHandler(PointerPressedEvent, OnInitialFocusPointer, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(KeyDownEvent, OnInitialFocusKey, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -371,9 +375,10 @@ public partial class SavedArchiveSearchesDialog : Window
         this.FindControl<Grid>("SavedSearchWorkspace")!.IsVisible = _edit == EditKind.None;
         ArrangeWorkspace();
         this.FindControl<TextBlock>("SavedSearchSelectionName")!.Text = Selected?.Name ?? "";
+        // Without a selection the detail pane says what to do next instead of staying blank.
         this.FindControl<TextBlock>("SavedSearchSelectionDefinition")!.Text = Selected is { } selected
             ? selected.Definition is { } spec ? SavedArchiveSearchDescription.Describe(spec, TagName) : Texts.T("savedSearch.unsupported") + " " + selected.UnsupportedReason
-            : "";
+            : _snapshot == null ? "" : Texts.T(_snapshot.Searches.Count == 0 ? "savedSearch.empty" : "savedSearch.choose");
         foreach (string id in new[] { "SavedSearchCreate", "SavedSearchApply", "SavedSearchRename", "SavedSearchReplace", "SavedSearchDelete" })
         {
             Button(id).IsVisible = _edit == EditKind.None;

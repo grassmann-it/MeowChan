@@ -42,6 +42,8 @@ internal static class ArchiveCatalog
         ("savedSearch.title", "Saved searches", "Gespeicherte Suchen"),
         ("savedSearch.hint", "Saved definitions run again against the current local archive. Unsaved search fields are excluded when saving.", "Gespeicherte Definitionen werden im aktuellen lokalen Archiv erneut gesucht. Ungesuchte Suchfelder werden beim Speichern nicht übernommen."),
         ("savedSearch.name", "Search name", "Name der Suche"),
+        ("savedSearch.empty", "No saved searches yet. Apply a search in the archive, then save it here with “Save applied search…”.", "Noch keine gespeicherten Suchen. Wende im Archiv eine Suche an und speichere sie hier mit „Angewandte Suche speichern…“."),
+        ("savedSearch.choose", "Select a saved search to apply, rename, replace or delete it.", "Wähle eine gespeicherte Suche, um sie anzuwenden, umzubenennen, zu ersetzen oder zu löschen."),
         ("savedSearch.unsupported", "This definition cannot be applied.", "Diese Definition kann nicht angewandt werden."),
         ("savedSearch.working", "Working…", "Vorgang läuft…"),
         ("savedSearch.applyFailed", "The search was not applied. The previous result and search fields remain available. Close this dialog to retry from the archive.", "Die Suche wurde nicht angewandt. Das vorherige Ergebnis und die Suchfelder bleiben erhalten. Zum Wiederholen im Archiv diesen Dialog schließen."),

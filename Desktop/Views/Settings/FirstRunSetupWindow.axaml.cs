@@ -4,13 +4,15 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop;
 
-/// <summary>Only the explicit accept action may submit a completion. Browse/Check/Later/X never do.</summary>
+/// <summary>Only the explicit accept action may submit a completion. Browse/Check/Later/X never do.
+/// Enter inside one of the three inputs is the keyboard form of the Accept button; Escape is the keyboard form of Later.</summary>
 internal partial class FirstRunSetupWindow : Window
 {
     private readonly Config _baseline;
@@ -56,6 +58,16 @@ internal partial class FirstRunSetupWindow : Window
         Texts.Changed += OnLanguageChanged;
         DownloadDestinationValidator.Shared.CleanupFailed += OnCleanupFailure;
         Opened += (_, _) => { if (!_closed && !_hasAction) SetupFolderInput.Focus(); };
+        KeyDown += OnWindowKeyDown;
+    }
+
+    // Escape never commits and is ignored while an admitted write runs; Enter in an input accepts only when idle.
+    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || e.KeyModifiers != KeyModifiers.None || _closed) return;
+        if (e.Key == Key.Escape && !_committing) { e.Handled = true; Close(); }
+        else if (e.Key == Key.Enter && e.Source is TextBox && !_busy && !_accepting
+            && _result.Outcome != FirstRunSetupOutcome.Completed) { e.Handled = true; OnAcceptClick(this, new RoutedEventArgs()); }
     }
 
     internal async Task<FirstRunSetupRunResult> ShowAsync(Window owner)
@@ -344,6 +356,7 @@ internal partial class FirstRunSetupWindow : Window
         _closed = true;
         _checkWait?.Cancel(); // ends the caller wait, not physical IO or an admitted commit
         Texts.Changed -= OnLanguageChanged;
+        KeyDown -= OnWindowKeyDown;
         DownloadDestinationValidator.Shared.CleanupFailed -= OnCleanupFailure;
         base.OnClosed(e);
     }

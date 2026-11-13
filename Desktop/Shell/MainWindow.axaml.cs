@@ -458,7 +458,12 @@ public partial class MainWindow : Window
             {
                 FirstRunSetupRunResult result = await FirstRunSetupCoordinator.RunAsync(this, _session);
                 if (result.Outcome == FirstRunSetupOutcome.Completed && !_isClosing)
+                {
                     _settingsEditor?.RefreshConfirmedFirstRunSetup();
+                    // The window just closes: confirm where new downloads go.
+                    ShowNotification(Texts.T("notification.settings"), Texts.T("setup.done", _config.DownloadPath),
+                        NotificationType.Success, operation: "setup.done");
+                }
                 if (result.Outcome == FirstRunSetupOutcome.PreparationFailed && !_isClosing)
                     ShowNotification(Texts.T("notification.error"), result.Message ?? Texts.T("setup.prepareFailed"), NotificationType.Error, operation: "setup.prepare");
             }
