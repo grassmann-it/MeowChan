@@ -43,6 +43,7 @@ public partial class MainWindow
             ReadUserData = ReadMediaLibraryUserData,
             ReadBooruCatalog = _session.ReadBooruCatalog,
             CacheLimitBytes = () => (long)_session.Config.MediaIndexCacheLimitMiB * 1024 * 1024,
+            CacheCountLimits = () => (_session.Config.MediaIndexMaxEntries, _session.Config.MediaIndexMaxThreads),
             ExportAllConfirmSource = () => (_session.Config.ExportConfirmFiles, (long)_session.Config.ExportConfirmGiB * 1024 * 1024 * 1024),
             ReadImportCatalog = _session.ReadManualImportCatalog,
             TagServices = new(_session.GetPublishedPrivateTagSnapshot,

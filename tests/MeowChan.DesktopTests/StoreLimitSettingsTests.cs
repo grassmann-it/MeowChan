@@ -34,6 +34,10 @@ public sealed class StoreLimitSettingsTests
         (nameof(Config.ImportMaxFileMiB), 4_096, 1, 1_048_576, "importFileMiB"),
         (nameof(Config.ImportMaxTotalFiles), 50_000, 1, 500_000, "importTotal"),
         (nameof(Config.ImportCatalogLimitMiB), 32, 1, 128, "importCatalogMiB"),
+        (nameof(Config.ImportMaxTagsPerBatch), 32, 1, 256, "importTags"),
+        (nameof(Config.ImportMaxBatches), 100_000, 1_000, 1_000_000, "importBatches"),
+        (nameof(Config.MediaIndexMaxEntries), 1_000_000, 100_000, 5_000_000, "mediaIndexEntries"),
+        (nameof(Config.MediaIndexMaxThreads), 200_000, 20_000, 1_000_000, "mediaIndexThreads"),
     };
 
     private static int Get(Config config, string property) => (int)typeof(Config).GetProperty(property)!.GetValue(config)!;
@@ -188,6 +192,38 @@ public sealed class StoreLimitSettingsTests
             }
         }
         finally { Texts.SetLanguage(previous); }
+    }
+
+    [Fact]
+    public void TheMediaIndexCountRefusalNamesBothSettingsInEveryLanguage()
+    {
+        string previous = Texts.Language;
+        try
+        {
+            foreach (string language in Languages)
+            {
+                Texts.SetLanguage(language);
+                string text = Texts.T("media.cache.tooMany", "1,000,000", "200,000", Texts.T("budgets.mediaIndexEntries"), Texts.T("budgets.mediaIndexThreads"), Texts.T("settings.storageLimits"));
+                Assert.Contains(Texts.T("budgets.mediaIndexEntries"), text);
+                Assert.Contains(Texts.T("budgets.mediaIndexThreads"), text);
+                Assert.Contains(Texts.T("settings.storageLimits"), text);
+                Assert.DoesNotContain("fixed", text);
+                Assert.DoesNotContain("{", text);
+            }
+        }
+        finally { Texts.SetLanguage(previous); }
+    }
+
+    [Fact]
+    public void ImportTagsAboveTheConfiguredLimitAreRefusedByTheDialogSessionAndNameTheSetting()
+    {
+        ManualImportSession session = new((_, _, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(),
+            DateTimeOffset.UnixEpoch) { MaximumTags = 2 };
+        Assert.True(session.AddTag("one"));
+        Assert.True(session.AddTag("two"));
+        Assert.False(session.AddTag("three"));
+        Assert.Equal(("import.tags.tooMany", 2), (session.MessageKey, (int)session.MessageArguments.Single()));
+        Assert.Contains(Texts.T("budgets.importTags"), ManualImportSession.MessageText(session.MessageKey!, session.MessageArguments));
     }
 
     [Fact]

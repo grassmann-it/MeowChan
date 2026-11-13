@@ -40,6 +40,7 @@ public partial class MainWindow
             (request, progress, token) => _session.PlanManualImportAsync(request, BuildKnownMediaAsync, progress, token),
             (plan, options, progress, token) => _session.RunManualImportAsync(plan, options, progress, token),
             DateTimeOffset.Now);
+        session.MaximumTags = _session.Config.ImportMaxTagsPerBatch;
         ManualImportDialog dialog = new(session, _session.ManualImportFolder, () => _session.GetPublishedPrivateTagSnapshot().Snapshot,
             _session.ReadBooruCatalog)
         {

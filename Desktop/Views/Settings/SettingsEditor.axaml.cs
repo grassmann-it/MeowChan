@@ -146,6 +146,10 @@ namespace MeowChan
         private decimal? _importMaxBatchGiB;
         private decimal? _importMaxFileMiB;
         private decimal? _importMaxTotalFiles;
+        private decimal? _importMaxTagsPerBatch;
+        private decimal? _importMaxBatches;
+        private decimal? _mediaIndexMaxEntries;
+        private decimal? _mediaIndexMaxThreads;
         private decimal? _importCatalogLimitMiB;
 
 
@@ -253,6 +257,10 @@ namespace MeowChan
             ImportMaxBatchGiB = config.ImportMaxBatchGiB;
             ImportMaxFileMiB = config.ImportMaxFileMiB;
             ImportMaxTotalFiles = config.ImportMaxTotalFiles;
+            ImportMaxTagsPerBatch = config.ImportMaxTagsPerBatch;
+            ImportMaxBatches = config.ImportMaxBatches;
+            MediaIndexMaxEntries = config.MediaIndexMaxEntries;
+            MediaIndexMaxThreads = config.MediaIndexMaxThreads;
             ImportCatalogLimitMiB = config.ImportCatalogLimitMiB;
 
             RefreshChoices(config.Theme, config.WorkspaceMode, config.Language);
@@ -285,6 +293,10 @@ namespace MeowChan
             ResetNumber(ImportMaxBatchGiBInput, ImportMaxBatchGiB!.Value);
             ResetNumber(ImportMaxFileMiBInput, ImportMaxFileMiB!.Value);
             ResetNumber(ImportMaxTotalFilesInput, ImportMaxTotalFiles!.Value);
+            ResetNumber(ImportMaxTagsPerBatchInput, ImportMaxTagsPerBatch!.Value);
+            ResetNumber(ImportMaxBatchesInput, ImportMaxBatches!.Value);
+            ResetNumber(MediaIndexMaxEntriesInput, MediaIndexMaxEntries!.Value);
+            ResetNumber(MediaIndexMaxThreadsInput, MediaIndexMaxThreads!.Value);
             ResetNumber(ImportCatalogLimitMiBInput, ImportCatalogLimitMiB!.Value);
             ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
 
@@ -375,6 +387,18 @@ namespace MeowChan
         public string ImportMaxTotalFilesLabel => Texts.T("budgets.importTotal");
         public string ImportMaxTotalFilesHint => Texts.T("budgets.importTotalHint");
         public decimal? ImportMaxTotalFiles { get => _importMaxTotalFiles; set => SetField(ref _importMaxTotalFiles, value, nameof(ImportMaxTotalFiles)); }
+        public string ImportMaxTagsPerBatchLabel => Texts.T("budgets.importTags");
+        public string ImportMaxTagsPerBatchHint => Texts.T("budgets.importTagsHint");
+        public decimal? ImportMaxTagsPerBatch { get => _importMaxTagsPerBatch; set => SetField(ref _importMaxTagsPerBatch, value, nameof(ImportMaxTagsPerBatch)); }
+        public string ImportMaxBatchesLabel => Texts.T("budgets.importBatches");
+        public string ImportMaxBatchesHint => Texts.T("budgets.importBatchesHint");
+        public decimal? ImportMaxBatches { get => _importMaxBatches; set => SetField(ref _importMaxBatches, value, nameof(ImportMaxBatches)); }
+        public string MediaIndexMaxEntriesLabel => Texts.T("budgets.mediaIndexEntries");
+        public string MediaIndexMaxEntriesHint => Texts.T("budgets.mediaIndexEntriesHint");
+        public decimal? MediaIndexMaxEntries { get => _mediaIndexMaxEntries; set => SetField(ref _mediaIndexMaxEntries, value, nameof(MediaIndexMaxEntries)); }
+        public string MediaIndexMaxThreadsLabel => Texts.T("budgets.mediaIndexThreads");
+        public string MediaIndexMaxThreadsHint => Texts.T("budgets.mediaIndexThreadsHint");
+        public decimal? MediaIndexMaxThreads { get => _mediaIndexMaxThreads; set => SetField(ref _mediaIndexMaxThreads, value, nameof(MediaIndexMaxThreads)); }
         public string ImportCatalogLimitMiBLabel => Texts.T("budgets.importCatalogMiB");
         public string ImportCatalogLimitMiBHint => Texts.T("budgets.importCatalogMiBHint");
         public decimal? ImportCatalogLimitMiB { get => _importCatalogLimitMiB; set => SetField(ref _importCatalogLimitMiB, value, nameof(ImportCatalogLimitMiB)); }
@@ -759,6 +783,10 @@ namespace MeowChan
             ImportMaxBatchGiB = _config.ImportMaxBatchGiB;
             ImportMaxFileMiB = _config.ImportMaxFileMiB;
             ImportMaxTotalFiles = _config.ImportMaxTotalFiles;
+            ImportMaxTagsPerBatch = _config.ImportMaxTagsPerBatch;
+            ImportMaxBatches = _config.ImportMaxBatches;
+            MediaIndexMaxEntries = _config.MediaIndexMaxEntries;
+            MediaIndexMaxThreads = _config.MediaIndexMaxThreads;
             ImportCatalogLimitMiB = _config.ImportCatalogLimitMiB;
 
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
@@ -788,6 +816,10 @@ namespace MeowChan
             ResetNumber(ImportMaxBatchGiBInput, ImportMaxBatchGiB!.Value);
             ResetNumber(ImportMaxFileMiBInput, ImportMaxFileMiB!.Value);
             ResetNumber(ImportMaxTotalFilesInput, ImportMaxTotalFiles!.Value);
+            ResetNumber(ImportMaxTagsPerBatchInput, ImportMaxTagsPerBatch!.Value);
+            ResetNumber(ImportMaxBatchesInput, ImportMaxBatches!.Value);
+            ResetNumber(MediaIndexMaxEntriesInput, MediaIndexMaxEntries!.Value);
+            ResetNumber(MediaIndexMaxThreadsInput, MediaIndexMaxThreads!.Value);
             ResetNumber(ImportCatalogLimitMiBInput, ImportCatalogLimitMiB!.Value);
             ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
 
@@ -869,7 +901,7 @@ namespace MeowChan
                     nameof(BudgetRestartHint), nameof(ProductionWorkersLabel), nameof(WorkerIdleMinutesLabel), nameof(SourceHeapMiBLabel),
                     nameof(FilterHeapMiBLabel), nameof(BooruCatalogMiBLabel), nameof(BooruCatalogMiBHint), nameof(BooruCatalogMiBHelp),
                     nameof(PrivateTagLimitLabel), nameof(PrivateTagLimitHint), nameof(PrivateTagLimitHelp),
-                    nameof(PrivateTagFileMiBLabel), nameof(PrivateTagFileMiBHint), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBLabel), nameof(MediaIndexCacheMiBHint), nameof(MediaIndexCacheMiBHelp), nameof(FavoriteEntryLimitLabel), nameof(FavoriteEntryLimitHint), nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBLabel), nameof(FavoriteFileLimitMiBHint), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitLabel), nameof(PostBookmarkLimitHint), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitLabel), nameof(SavedSearchLimitHint), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitLabel), nameof(ReaderGroupLimitHint), nameof(ReaderGroupLimitHelp), nameof(ExportConfirmFilesLabel), nameof(ExportConfirmFilesHint), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBLabel), nameof(ExportConfirmGiBHint), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBLabel), nameof(PosterCacheLimitMiBHint), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitLabel), nameof(PosterCacheFileLimitHint), nameof(PosterCacheFileLimitHelp), nameof(ImportMaxFilesPerBatchLabel), nameof(ImportMaxFilesPerBatchHint), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBLabel), nameof(ImportMaxBatchGiBHint), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBLabel), nameof(ImportMaxFileMiBHint), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesLabel), nameof(ImportMaxTotalFilesHint), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBLabel), nameof(ImportCatalogLimitMiBHint), nameof(ImportCatalogLimitMiBHelp), nameof(ListsGroupLabel), nameof(PreviewsGroupLabel), nameof(ImportGroupLabel), nameof(SettingsTitle), nameof(SettingsSubtitle), nameof(DownloadsTitle),
+                    nameof(PrivateTagFileMiBLabel), nameof(PrivateTagFileMiBHint), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBLabel), nameof(MediaIndexCacheMiBHint), nameof(MediaIndexCacheMiBHelp), nameof(FavoriteEntryLimitLabel), nameof(FavoriteEntryLimitHint), nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBLabel), nameof(FavoriteFileLimitMiBHint), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitLabel), nameof(PostBookmarkLimitHint), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitLabel), nameof(SavedSearchLimitHint), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitLabel), nameof(ReaderGroupLimitHint), nameof(ReaderGroupLimitHelp), nameof(ExportConfirmFilesLabel), nameof(ExportConfirmFilesHint), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBLabel), nameof(ExportConfirmGiBHint), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBLabel), nameof(PosterCacheLimitMiBHint), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitLabel), nameof(PosterCacheFileLimitHint), nameof(PosterCacheFileLimitHelp), nameof(ImportMaxFilesPerBatchLabel), nameof(ImportMaxFilesPerBatchHint), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBLabel), nameof(ImportMaxBatchGiBHint), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBLabel), nameof(ImportMaxFileMiBHint), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesLabel), nameof(ImportMaxTotalFilesHint), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBLabel), nameof(ImportCatalogLimitMiBHint), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchLabel), nameof(ImportMaxTagsPerBatchHint), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesLabel), nameof(ImportMaxBatchesHint), nameof(ImportMaxBatchesHelp), nameof(MediaIndexMaxEntriesLabel), nameof(MediaIndexMaxEntriesHint), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsLabel), nameof(MediaIndexMaxThreadsHint), nameof(MediaIndexMaxThreadsHelp), nameof(ListsGroupLabel), nameof(PreviewsGroupLabel), nameof(ImportGroupLabel), nameof(SettingsTitle), nameof(SettingsSubtitle), nameof(DownloadsTitle),
                     nameof(InterfaceTitle), nameof(ReadingMediaTitle), nameof(ReadingFontSizeLabel), nameof(VideoAutoplayLabel),
                     nameof(VideoStartMutedLabel), nameof(VideoVolumeLabel), nameof(ShowShortcutHelpLabel), nameof(AboutLabel),
                     nameof(GalleryPlaybackTitle), nameof(GalleryPlaybackModeLabel), nameof(GallerySlideshowSecondsLabel), nameof(GallerySlideshowSecondsHelp),
@@ -1126,6 +1158,10 @@ namespace MeowChan
                 candidate.ImportMaxBatchGiB = GetInteger(ImportMaxBatchGiB, ImportMaxBatchGiBLabel, Config.ImportMaxBatchGiBMinimum, Config.ImportMaxBatchGiBMaximum);
                 candidate.ImportMaxFileMiB = GetInteger(ImportMaxFileMiB, ImportMaxFileMiBLabel, Config.ImportMaxFileMiBMinimum, Config.ImportMaxFileMiBMaximum);
                 candidate.ImportMaxTotalFiles = GetInteger(ImportMaxTotalFiles, ImportMaxTotalFilesLabel, Config.ImportMaxTotalFilesMinimum, Config.ImportMaxTotalFilesMaximum);
+                candidate.ImportMaxTagsPerBatch = GetInteger(ImportMaxTagsPerBatch, ImportMaxTagsPerBatchLabel, Config.ImportMaxTagsPerBatchMinimum, Config.ImportMaxTagsPerBatchMaximum);
+                candidate.ImportMaxBatches = GetInteger(ImportMaxBatches, ImportMaxBatchesLabel, Config.ImportMaxBatchesMinimum, Config.ImportMaxBatchesMaximum);
+                candidate.MediaIndexMaxEntries = GetInteger(MediaIndexMaxEntries, MediaIndexMaxEntriesLabel, Config.MediaIndexMaxEntriesMinimum, Config.MediaIndexMaxEntriesMaximum);
+                candidate.MediaIndexMaxThreads = GetInteger(MediaIndexMaxThreads, MediaIndexMaxThreadsLabel, Config.MediaIndexMaxThreadsMinimum, Config.MediaIndexMaxThreadsMaximum);
                 candidate.ImportCatalogLimitMiB = GetInteger(ImportCatalogLimitMiB, ImportCatalogLimitMiBLabel, Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum);
 
                 if (!BandwidthLimiterMB.HasValue || BandwidthLimiterMB.Value <= 0)
@@ -1228,6 +1264,10 @@ namespace MeowChan
             ImportMaxBatchGiB = _config.ImportMaxBatchGiB;
             ImportMaxFileMiB = _config.ImportMaxFileMiB;
             ImportMaxTotalFiles = _config.ImportMaxTotalFiles;
+            ImportMaxTagsPerBatch = _config.ImportMaxTagsPerBatch;
+            ImportMaxBatches = _config.ImportMaxBatches;
+            MediaIndexMaxEntries = _config.MediaIndexMaxEntries;
+            MediaIndexMaxThreads = _config.MediaIndexMaxThreads;
             ImportCatalogLimitMiB = _config.ImportCatalogLimitMiB;
 
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
@@ -1257,6 +1297,10 @@ namespace MeowChan
             ResetNumber(ImportMaxBatchGiBInput, ImportMaxBatchGiB!.Value);
             ResetNumber(ImportMaxFileMiBInput, ImportMaxFileMiB!.Value);
             ResetNumber(ImportMaxTotalFilesInput, ImportMaxTotalFiles!.Value);
+            ResetNumber(ImportMaxTagsPerBatchInput, ImportMaxTagsPerBatch!.Value);
+            ResetNumber(ImportMaxBatchesInput, ImportMaxBatches!.Value);
+            ResetNumber(MediaIndexMaxEntriesInput, MediaIndexMaxEntries!.Value);
+            ResetNumber(MediaIndexMaxThreadsInput, MediaIndexMaxThreads!.Value);
             ResetNumber(ImportCatalogLimitMiBInput, ImportCatalogLimitMiB!.Value);
             ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
 

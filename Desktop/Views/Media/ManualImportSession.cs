@@ -57,6 +57,8 @@ internal sealed class ManualImportSession
     internal string? MessageKey { get; private set; }
     internal object[] MessageArguments { get; private set; } = Array.Empty<object>();
     internal string BatchName { get; set; }
+    /// <summary>Most own tags the batch may carry (a setting; the dialog refuses the next one and names it).</summary>
+    internal int MaximumTags { get; set; } = ManualImportCatalogStore.DefaultMaximumTags;
     internal bool Busy => Stage is ManualImportStage.Checking or ManualImportStage.Importing;
     /// <summary>The task of the current or last check/import; tests await it.</summary>
     internal Task WorkTask { get; private set; } = Task.CompletedTask;
@@ -125,7 +127,7 @@ internal sealed class ManualImportSession
         }
         if (!_tags.Any(tag => PrivateTagName.TryCreate(tag, out PrivateTagName? known, out _) && known!.Key == name.Key))
         {
-            if (_tags.Count >= ManualImportCatalogStore.MaximumTags) { SetMessage("import.tags.tooMany", ManualImportCatalogStore.MaximumTags); Changed(); return false; }
+            if (_tags.Count >= MaximumTags) { SetMessage("import.tags.tooMany", MaximumTags); Changed(); return false; }
             _tags.Add(name.Display);
         }
         SetMessage(null);
@@ -253,6 +255,7 @@ internal sealed class ManualImportSession
         ManualImportError.CatalogDamaged => "import.error.damaged",
         ManualImportError.CatalogNewer => "import.error.newer",
         ManualImportError.TooManyImportedFiles => "import.error.total",
+        ManualImportError.TooManyBatches => "import.error.batches",
         ManualImportError.CatalogTooLarge => "import.error.catalogSize",
         ManualImportError.NotEnoughSpace => "import.error.space",
         ManualImportError.TooManyFiles => "import.limit.files",
@@ -273,6 +276,8 @@ internal sealed class ManualImportSession
             "import.limit.files" => Texts.T(key, arguments.Concat(new object[] { Texts.T("budgets.importFiles"), page }).ToArray()),
             "import.limit.batch" => Texts.T(key, Texts.T("budgets.importBatchGiB"), page),
             "import.error.total" => Texts.T(key, Texts.T("budgets.importTotal"), page),
+            "import.error.batches" => Texts.T(key, Texts.T("budgets.importBatches"), page),
+            "import.tags.tooMany" => Texts.T(key, arguments.Concat(new object[] { Texts.T("budgets.importTags"), page }).ToArray()),
             "import.error.catalogSize" => Texts.T(key, Texts.T("budgets.importCatalogMiB"), page),
             _ => Texts.T(key, arguments)
         };

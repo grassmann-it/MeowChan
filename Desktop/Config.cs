@@ -203,12 +203,24 @@ namespace MeowChan
         public int ImportMaxFileMiB { get; set; } = (int)(Import.ManualImportLimits.DefaultMaximumFileBytes / (1024L * 1024));
         /// <summary>Most imported files over all batches.</summary>
         public int ImportMaxTotalFiles { get; set; } = Import.ManualImportCatalogStore.DefaultMaximumTotalItems;
+        /// <summary>Most own tags one import batch may carry.</summary>
+        public int ImportMaxTagsPerBatch { get; set; } = Import.ManualImportCatalogStore.DefaultMaximumTags;
+        /// <summary>Most import batches over time; lowering it only stops new batches.</summary>
+        public int ImportMaxBatches { get; set; } = Import.ManualImportCatalogStore.DefaultMaximumBatches;
+        /// <summary>Most entries the saved media index may hold; above it the index is rebuilt at every start instead of saved.</summary>
+        public int MediaIndexMaxEntries { get; set; } = Gallery.MediaLibraryIndexCache.DefaultEntryLimit;
+        /// <summary>Most threads the saved media index may hold.</summary>
+        public int MediaIndexMaxThreads { get; set; } = Gallery.MediaLibraryIndexCache.DefaultThreadLimit;
         /// <summary>Write limit of the import catalog file in MiB; lowering it only stops growth.</summary>
         public int ImportCatalogLimitMiB { get; set; } = Import.ManualImportCatalogStore.DefaultDocumentLimitBytes / (1024 * 1024);
         internal const int ImportMaxFilesPerBatchMinimum = 1, ImportMaxFilesPerBatchMaximum = Import.ManualImportCatalogStore.MaximumItemsPerBatch;
         internal const int ImportMaxBatchGiBMinimum = 1, ImportMaxBatchGiBMaximum = 16 * 1024;
         internal const int ImportMaxFileMiBMinimum = 1, ImportMaxFileMiBMaximum = 1024 * 1024;
         internal const int ImportMaxTotalFilesMinimum = 1, ImportMaxTotalFilesMaximum = Import.ManualImportCatalogStore.MaximumTotalItemsCeiling;
+        internal const int ImportMaxTagsPerBatchMinimum = 1, ImportMaxTagsPerBatchMaximum = Import.ManualImportCatalogStore.MaximumTagsCeiling;
+        internal const int ImportMaxBatchesMinimum = Import.ManualImportCatalogStore.MinimumMaximumBatches, ImportMaxBatchesMaximum = Import.ManualImportCatalogStore.MaximumBatchesCeiling;
+        internal const int MediaIndexMaxEntriesMinimum = Gallery.MediaLibraryIndexCache.MinimumEntryLimit, MediaIndexMaxEntriesMaximum = Gallery.MediaLibraryIndexCache.EntryCeiling;
+        internal const int MediaIndexMaxThreadsMinimum = Gallery.MediaLibraryIndexCache.MinimumThreadLimit, MediaIndexMaxThreadsMaximum = Gallery.MediaLibraryIndexCache.ThreadCeiling;
         internal const int ImportCatalogLimitMiBMinimum = 1, ImportCatalogLimitMiBMaximum = Import.ManualImportCatalogStore.MaximumDocumentBytes / (1024 * 1024);
 
         internal Import.ManualImportLimits ImportLimits => new(ImportMaxFilesPerBatch, ImportMaxBatchGiB * 1024L * 1024 * 1024,
@@ -631,6 +643,14 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ImportMaxFileMiB), "ImportMaxFileMiB is outside its supported range (" + ImportMaxFileMiBMinimum + " to " + ImportMaxFileMiBMaximum + ").");
             if (ImportMaxTotalFiles is < ImportMaxTotalFilesMinimum or > ImportMaxTotalFilesMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ImportMaxTotalFiles), "ImportMaxTotalFiles is outside its supported range (" + ImportMaxTotalFilesMinimum + " to " + ImportMaxTotalFilesMaximum + ").");
+            if (ImportMaxTagsPerBatch is < ImportMaxTagsPerBatchMinimum or > ImportMaxTagsPerBatchMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ImportMaxTagsPerBatch), "ImportMaxTagsPerBatch is outside its supported range (" + ImportMaxTagsPerBatchMinimum + " to " + ImportMaxTagsPerBatchMaximum + ").");
+            if (ImportMaxBatches is < ImportMaxBatchesMinimum or > ImportMaxBatchesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ImportMaxBatches), "ImportMaxBatches is outside its supported range (" + ImportMaxBatchesMinimum + " to " + ImportMaxBatchesMaximum + ").");
+            if (MediaIndexMaxEntries is < MediaIndexMaxEntriesMinimum or > MediaIndexMaxEntriesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(MediaIndexMaxEntries), "MediaIndexMaxEntries is outside its supported range (" + MediaIndexMaxEntriesMinimum + " to " + MediaIndexMaxEntriesMaximum + ").");
+            if (MediaIndexMaxThreads is < MediaIndexMaxThreadsMinimum or > MediaIndexMaxThreadsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(MediaIndexMaxThreads), "MediaIndexMaxThreads is outside its supported range (" + MediaIndexMaxThreadsMinimum + " to " + MediaIndexMaxThreadsMaximum + ").");
             if (ImportCatalogLimitMiB is < ImportCatalogLimitMiBMinimum or > ImportCatalogLimitMiBMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ImportCatalogLimitMiB), "ImportCatalogLimitMiB is outside its supported range (" + ImportCatalogLimitMiBMinimum + " to " + ImportCatalogLimitMiBMaximum + ").");
             if (PluginEditorExecutable is { Length: > 4096 } || PluginEditorExecutable?.Any(char.IsControl) == true
@@ -707,6 +727,10 @@ namespace MeowChan
                 ImportMaxBatchGiB = ImportMaxBatchGiB,
                 ImportMaxFileMiB = ImportMaxFileMiB,
                 ImportMaxTotalFiles = ImportMaxTotalFiles,
+                ImportMaxTagsPerBatch = ImportMaxTagsPerBatch,
+                ImportMaxBatches = ImportMaxBatches,
+                MediaIndexMaxEntries = MediaIndexMaxEntries,
+                MediaIndexMaxThreads = MediaIndexMaxThreads,
                 ImportCatalogLimitMiB = ImportCatalogLimitMiB,
 
                 ShortcutBindings = ShortcutBindings.Clone(),
@@ -817,6 +841,10 @@ namespace MeowChan
             ImportMaxBatchGiB = source.ImportMaxBatchGiB;
             ImportMaxFileMiB = source.ImportMaxFileMiB;
             ImportMaxTotalFiles = source.ImportMaxTotalFiles;
+            ImportMaxTagsPerBatch = source.ImportMaxTagsPerBatch;
+            ImportMaxBatches = source.ImportMaxBatches;
+            MediaIndexMaxEntries = source.MediaIndexMaxEntries;
+            MediaIndexMaxThreads = source.MediaIndexMaxThreads;
             ImportCatalogLimitMiB = source.ImportCatalogLimitMiB;
 
             ShortcutBindings = source.ShortcutBindings.Clone();
@@ -891,6 +919,10 @@ namespace MeowChan
             ImportMaxBatchGiB = source.ImportMaxBatchGiB;
             ImportMaxFileMiB = source.ImportMaxFileMiB;
             ImportMaxTotalFiles = source.ImportMaxTotalFiles;
+            ImportMaxTagsPerBatch = source.ImportMaxTagsPerBatch;
+            ImportMaxBatches = source.ImportMaxBatches;
+            MediaIndexMaxEntries = source.MediaIndexMaxEntries;
+            MediaIndexMaxThreads = source.MediaIndexMaxThreads;
             ImportCatalogLimitMiB = source.ImportCatalogLimitMiB;
 
             ShortcutBindings = source.ShortcutBindings.Clone();

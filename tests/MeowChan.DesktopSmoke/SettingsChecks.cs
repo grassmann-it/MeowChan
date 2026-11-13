@@ -264,7 +264,7 @@ internal static class SettingsChecks
                 foreach (string name in new[] { "RecheckTimerInput", "BandwidthInput", "ParallelDownloadsInput", "ReserveInput",
                     "ProductionWorkersInput", "WorkerIdleMinutesInput", "SourceHeapMiBInput", "FilterHeapMiBInput",
                     "PrivateTagLimitInput", "PrivateTagFileMiBInput", "MediaIndexCacheMiBInput",
-                    "FavoriteEntryLimitInput", "FavoriteFileLimitMiBInput", "PostBookmarkLimitInput", "SavedSearchLimitInput", "ReaderGroupLimitInput", "ExportConfirmFilesInput", "ExportConfirmGiBInput", "PosterCacheLimitMiBInput", "PosterCacheFileLimitInput", "ImportMaxFilesPerBatchInput", "ImportMaxBatchGiBInput", "ImportMaxFileMiBInput", "ImportMaxTotalFilesInput", "ImportCatalogLimitMiBInput" })
+                    "FavoriteEntryLimitInput", "FavoriteFileLimitMiBInput", "PostBookmarkLimitInput", "SavedSearchLimitInput", "ReaderGroupLimitInput", "ExportConfirmFilesInput", "ExportConfirmGiBInput", "PosterCacheLimitMiBInput", "PosterCacheFileLimitInput", "ImportMaxFilesPerBatchInput", "ImportMaxBatchGiBInput", "ImportMaxFileMiBInput", "ImportMaxTotalFilesInput", "ImportCatalogLimitMiBInput", "ImportMaxTagsPerBatchInput", "ImportMaxBatchesInput", "MediaIndexMaxEntriesInput", "MediaIndexMaxThreadsInput" })
                 {
                     Console.WriteLine($"SMOKE settings field begin: language={language}; field={name}; window={window.Bounds}; state={window.WindowState}.");
                     window.Editor.CancelChanges();

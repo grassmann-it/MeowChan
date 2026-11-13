@@ -227,6 +227,31 @@ public sealed class MediaLibraryIndexCacheTests
     }
 
     [Fact]
+    public async Task TheEntryAndThreadLimitsAreSettingsThatOnlyStopTheSaveAndNeverMakeASavedIndexUnreadable()
+    {
+        Assert.Equal((1_000_000, 100_000, 5_000_000, 200_000, 20_000, 1_000_000), (MediaLibraryIndexCache.DefaultEntryLimit, MediaLibraryIndexCache.MinimumEntryLimit,
+            MediaLibraryIndexCache.EntryCeiling, MediaLibraryIndexCache.DefaultThreadLimit, MediaLibraryIndexCache.MinimumThreadLimit, MediaLibraryIndexCache.ThreadCeiling));
+        using TempDirectory temp = new();
+        string path = Path.Combine(temp.Path, "cache", MediaLibraryIndexCache.FileName);
+        MediaLibrarySnapshot index = MediaLibraryIndexBenchmark.Synthetic(2_000);
+        MediaLibraryIndexCacheFile store = new(path);
+        // Over a (test-sized) entry limit nothing is written, and the page is told it is the count that stopped the save.
+        MediaLibraryIndexCacheWrite refused = await store.SaveAsync(index, MediaLibraryIndexCache.DefaultLimitBytes, 1_000, MediaLibraryIndexCache.DefaultThreadLimit);
+        Assert.Equal(MediaLibraryIndexCacheWriteStatus.TooManyEntries, refused.Status);
+        Assert.False(File.Exists(path));
+        // The same refusal is remembered while the counts still exceed the limit, and not once the limit was raised.
+        Assert.Same(refused, await store.SaveAsync(index, MediaLibraryIndexCache.DefaultLimitBytes, 1_000, MediaLibraryIndexCache.DefaultThreadLimit));
+        Assert.Equal(MediaLibraryIndexCacheWriteStatus.TooManyEntries,
+            (await store.SaveAsync(index, MediaLibraryIndexCache.DefaultLimitBytes, MediaLibraryIndexCache.DefaultEntryLimit, 1)).Status);
+        Assert.Equal(MediaLibraryIndexCacheWriteStatus.Written, (await store.SaveAsync(index, MediaLibraryIndexCache.DefaultLimitBytes)).Status);
+        // A saved index larger than a lowered limit stays readable: reads accept up to the technical ceilings.
+        MediaLibrarySnapshot read = (await new MediaLibraryIndexCacheFile(path).LoadAsync())!;
+        Assert.Equal(index.Entries, read.Entries);
+        Assert.True(MediaLibraryIndexCache.ExceedsCountLimits(read, 1_000, MediaLibraryIndexCache.DefaultThreadLimit));
+        Assert.False(MediaLibraryIndexCache.ExceedsCountLimits(read, MediaLibraryIndexCache.DefaultEntryLimit, MediaLibraryIndexCache.DefaultThreadLimit));
+    }
+
+    [Fact]
     public async Task TheWriteLimitStopsTheSaveSaysSoAndNeverMakesTheSavedIndexUnreadable()
     {
         using TempDirectory temp = new();

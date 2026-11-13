@@ -148,6 +148,10 @@ public partial class SettingsEditor
     public string ImportMaxBatchGiBHelp => FieldHelp(nameof(ImportMaxBatchGiBInput), Texts.T("settings.unitGiB") + ". " + ImportMaxBatchGiBHint);
     public string ImportMaxFileMiBHelp => FieldHelp(nameof(ImportMaxFileMiBInput), Texts.T("settings.unitMiB") + ". " + ImportMaxFileMiBHint);
     public string ImportMaxTotalFilesHelp => FieldHelp(nameof(ImportMaxTotalFilesInput), Texts.T("settings.unitCount") + ". " + ImportMaxTotalFilesHint);
+    public string ImportMaxTagsPerBatchHelp => FieldHelp(nameof(ImportMaxTagsPerBatchInput), Texts.T("settings.unitCount") + ". " + ImportMaxTagsPerBatchHint);
+    public string ImportMaxBatchesHelp => FieldHelp(nameof(ImportMaxBatchesInput), Texts.T("settings.unitCount") + ". " + ImportMaxBatchesHint);
+    public string MediaIndexMaxEntriesHelp => FieldHelp(nameof(MediaIndexMaxEntriesInput), Texts.T("settings.unitCount") + ". " + MediaIndexMaxEntriesHint);
+    public string MediaIndexMaxThreadsHelp => FieldHelp(nameof(MediaIndexMaxThreadsInput), Texts.T("settings.unitCount") + ". " + MediaIndexMaxThreadsHint);
     public string ImportCatalogLimitMiBHelp => FieldHelp(nameof(ImportCatalogLimitMiBInput), Texts.T("settings.unitMiB") + ". " + ImportCatalogLimitMiBHint);
 
     private void NotifyFieldHelpChanged()
@@ -156,7 +160,7 @@ public partial class SettingsEditor
             nameof(ParallelDownloadsHelp), nameof(ParallelDownloadsSafetyHelp), nameof(ReserveInputHelp), nameof(ProductionWorkersHelp),
             nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp), nameof(BooruCatalogMiBHelp),
             nameof(PrivateTagLimitHelp), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBHelp),
-            nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitHelp), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitHelp), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBHelp) })
+            nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitHelp), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitHelp), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesHelp), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsHelp) })
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
     }
 
@@ -224,6 +228,14 @@ public partial class SettingsEditor
             Config.ImportMaxFileMiBMinimum, Config.ImportMaxFileMiBMaximum, true);
         yield return (ImportMaxTotalFilesInput, ImportMaxTotalFiles, ImportMaxTotalFilesLabel, Texts.T("settings.unitCount"),
             Config.ImportMaxTotalFilesMinimum, Config.ImportMaxTotalFilesMaximum, true);
+        yield return (ImportMaxTagsPerBatchInput, ImportMaxTagsPerBatch, ImportMaxTagsPerBatchLabel, Texts.T("settings.unitCount"),
+            Config.ImportMaxTagsPerBatchMinimum, Config.ImportMaxTagsPerBatchMaximum, true);
+        yield return (ImportMaxBatchesInput, ImportMaxBatches, ImportMaxBatchesLabel, Texts.T("settings.unitCount"),
+            Config.ImportMaxBatchesMinimum, Config.ImportMaxBatchesMaximum, true);
+        yield return (MediaIndexMaxEntriesInput, MediaIndexMaxEntries, MediaIndexMaxEntriesLabel, Texts.T("settings.unitCount"),
+            Config.MediaIndexMaxEntriesMinimum, Config.MediaIndexMaxEntriesMaximum, true);
+        yield return (MediaIndexMaxThreadsInput, MediaIndexMaxThreads, MediaIndexMaxThreadsLabel, Texts.T("settings.unitCount"),
+            Config.MediaIndexMaxThreadsMinimum, Config.MediaIndexMaxThreadsMaximum, true);
         yield return (ImportCatalogLimitMiBInput, ImportCatalogLimitMiB, ImportCatalogLimitMiBLabel, Texts.T("settings.unitMiB"),
             Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum, true);
     }

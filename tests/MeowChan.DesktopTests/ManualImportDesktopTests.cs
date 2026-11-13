@@ -104,6 +104,8 @@ public sealed class ManualImportDesktopTests : IDisposable
             ("import.limit.batch", Array.Empty<object>(), "budgets.importBatchGiB"),
             ("import.error.total", Array.Empty<object>(), "budgets.importTotal"),
             ("import.error.catalogSize", Array.Empty<object>(), "budgets.importCatalogMiB"),
+            ("import.error.batches", Array.Empty<object>(), "budgets.importBatches"),
+            ("import.tags.tooMany", new object[] { 32 }, "budgets.importTags"),
         };
         foreach (string language in new[] { "en", "de", "es", "fr", "ru" })
         {

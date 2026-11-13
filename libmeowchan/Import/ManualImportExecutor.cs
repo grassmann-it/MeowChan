@@ -72,7 +72,7 @@ internal sealed class ManualImportExecutor
         string name = (options.BatchName ?? string.Empty).Trim();
         if (!ManualImportCatalogStore.ValidName(name, ManualImportCatalogStore.MaximumBatchNameLength))
             throw new ManualImportException(ManualImportError.InvalidRequest);
-        string[] tags = NormalizeTags(options.Tags);
+        string[] tags = NormalizeTags(options.Tags, _catalog.MaximumTagsPerBatch);
         ManualImportCandidate[] fresh = plan.New.Where(item => item.Sha256 != null).ToArray();
         ManualImportCandidate[] linked = plan.Items.Where(item => item.Sha256 != null && item.Disposition
             is ManualImportDisposition.AlreadyInLibrary or ManualImportDisposition.DuplicateInSelection).ToArray();
@@ -84,6 +84,7 @@ internal sealed class ManualImportExecutor
         ManualImportCatalogSnapshot catalog = _catalog.Read(token);
         if (catalog.ItemCount + fresh.Length + linked.Length > _catalog.MaximumTotalItems)
             throw new ManualImportException(ManualImportError.TooManyImportedFiles);
+        if (catalog.Batches.Count >= _catalog.MaximumBatchCount) throw new ManualImportException(ManualImportError.TooManyBatches);
         long needed = fresh.Sum(item => item.Length);
         if (needed > 0 && _freeSpace(downloadRoot) is long free && free - Math.Max(0, options.ReserveBytes) < needed)
             throw new ManualImportException(ManualImportError.NotEnoughSpace);
@@ -259,7 +260,7 @@ internal sealed class ManualImportExecutor
         return subjects;
     }
 
-    internal static string[] NormalizeTags(IReadOnlyList<string>? tags)
+    internal static string[] NormalizeTags(IReadOnlyList<string>? tags, int maximumTags = ManualImportCatalogStore.DefaultMaximumTags)
     {
         List<string> names = new();
         HashSet<string> keys = new(StringComparer.Ordinal);
@@ -269,7 +270,7 @@ internal sealed class ManualImportExecutor
                 throw new ManualImportException(ManualImportError.InvalidRequest);
             if (keys.Add(name.Key)) names.Add(name.Display);
         }
-        if (names.Count > ManualImportCatalogStore.MaximumTags) throw new ManualImportException(ManualImportError.InvalidRequest);
+        if (names.Count > maximumTags) throw new ManualImportException(ManualImportError.InvalidRequest);
         return names.ToArray();
     }
 

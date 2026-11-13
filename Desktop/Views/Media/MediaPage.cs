@@ -104,6 +104,8 @@ public sealed partial class MediaPage : UserControl
     internal static readonly TimeSpan ProgressInterval = TimeSpan.FromMilliseconds(100);
     /// <summary>Write limit of the saved index in bytes; the shell reads the setting each time. Null: the default limit.</summary>
     internal Func<long>? CacheLimitBytes { get; set; }
+    /// <summary>The configured limits of entries and threads the saved index may hold (settings).</summary>
+    internal Func<(int Entries, int Threads)>? CacheCountLimits { get; set; }
     /// <summary>Reads the saved index; tests replace it to hold the load open.</summary>
     internal Func<MediaLibraryIndexCacheFile, CancellationToken, Task<MediaLibrarySnapshot?>> LoadCache { get; set; } =
         (file, token) => file.LoadAsync(token);
@@ -236,7 +238,8 @@ public sealed partial class MediaPage : UserControl
             {
                 long limit = CacheLimitBytes?.Invoke() ?? MediaLibraryIndexCache.DefaultLimitBytes;
                 // Written only when the index differs from what the file holds; otherwise this is a comparison in memory.
-                try { _cacheWrite = await Task.Run(() => file.SaveAsync(built, limit, building.Token), building.Token); }
+                (int entryLimit, int threadLimit) = CacheCountLimits?.Invoke() ?? (MediaLibraryIndexCache.DefaultEntryLimit, MediaLibraryIndexCache.DefaultThreadLimit);
+                try { _cacheWrite = await Task.Run(() => file.SaveAsync(built, limit, entryLimit, threadLimit, building.Token), building.Token); }
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException) { } // A cache is optional.
                 if (!ReferenceEquals(_building, building)) return;
             }
@@ -333,7 +336,10 @@ public sealed partial class MediaPage : UserControl
         string setting = Texts.T("budgets.mediaIndexCache"), category = Texts.T("settings.storageLimits");
         return write.Status switch
         {
-            MediaLibraryIndexCacheWriteStatus.TooManyEntries => Texts.T("media.cache.tooMany", MediaLibraryIndexCache.MaximumEntries.ToString("N0", Texts.Culture)),
+            MediaLibraryIndexCacheWriteStatus.TooManyEntries => Texts.T("media.cache.tooMany",
+                (CacheCountLimits?.Invoke().Entries ?? MediaLibraryIndexCache.DefaultEntryLimit).ToString("N0", Texts.Culture),
+                (CacheCountLimits?.Invoke().Threads ?? MediaLibraryIndexCache.DefaultThreadLimit).ToString("N0", Texts.Culture),
+                Texts.T("budgets.mediaIndexEntries"), Texts.T("budgets.mediaIndexThreads"), category),
             MediaLibraryIndexCacheWriteStatus.TooLarge => Texts.T("media.cache.overLimit", Size(write.LimitBytes), setting, category),
             _ when write.NearOrOverLimit => Texts.T("media.cache.nearLimit", Size(write.Bytes), Size(write.LimitBytes), setting, category),
             _ => null

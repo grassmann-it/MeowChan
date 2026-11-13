@@ -34,9 +34,17 @@ internal static class MediaLibraryIndexCache
     internal const long MinimumLimitBytes = 16L * 1024 * 1024;
     /// <summary>From this share of the write limit on, the page warns before the cache stops being saved.</summary>
     internal const double WarningShare = 0.75;
-    /// <summary>Fixed technical ceilings of the in-memory index the cache can describe (not settings).</summary>
-    internal const int MaximumEntries = 1_000_000;
-    internal const int MaximumThreads = 200_000;
+    /// <summary>
+    /// Entries and threads of the in-memory index a cache file may describe. The write limits are settings (defaults: the
+    /// former fixed values, so default behavior does not change); reads accept up to the fixed technical ceilings, so
+    /// lowering a setting never makes an existing cache unreadable.
+    /// </summary>
+    internal const int DefaultEntryLimit = 1_000_000;
+    internal const int MinimumEntryLimit = 100_000;
+    internal const int EntryCeiling = 5_000_000;
+    internal const int DefaultThreadLimit = 200_000;
+    internal const int MinimumThreadLimit = 20_000;
+    internal const int ThreadCeiling = 1_000_000;
     // Version 2 adds the local tag slot of loose entries; version 3 adds the Danbooru post id of downloaded provider media;
     // version 4 adds the manifest file identities ("I") and the provider manifests ("Pm"), so an unchanged manifest is not
     // read again, and the item id ("Im") of manually imported files. A version 3 document is still read (it simply has
@@ -95,7 +103,7 @@ internal static class MediaLibraryIndexCache
     private static MediaLibrarySnapshot? Validate(Document? document, Reader reader)
     {
         if (document is not { Version: CurrentVersion or PreviousVersion } || document.Threads == null || document.Entries == null
-            || document.Threads.Count > MaximumThreads || document.Entries.Count > MaximumEntries) return null;
+            || document.Threads.Count > ThreadCeiling || document.Entries.Count > EntryCeiling) return null;
         // A version 3 document never carries what version 4 added.
         if (document.Version == PreviousVersion && (reader.SawIdentity || reader.SawImport || document.Pm != null)) return null;
         HashSet<ResourceId> known = new();
@@ -126,19 +134,23 @@ internal static class MediaLibraryIndexCache
 
     /// <summary>Atomic replace within the default limit. Failures are ignored by callers: the index is rebuilt next time.</summary>
     internal static void Save(string path, MediaLibrarySnapshot snapshot, CancellationToken token = default) =>
-        SaveAsync(path, snapshot, DefaultLimitBytes, token).GetAwaiter().GetResult();
+        SaveAsync(path, snapshot, DefaultLimitBytes, DefaultEntryLimit, DefaultThreadLimit, token).GetAwaiter().GetResult();
 
     /// <summary>
     /// Writes the index as a stream to a temporary file and replaces the cache atomically. Stops as soon as the document
     /// would exceed <paramref name="limitBytes"/> (clamped to the technical ceiling) and then leaves the existing cache as
     /// it was; the result says so, so the page can tell the user instead of silently rebuilding on every start.
     /// </summary>
+    internal static Task<MediaLibraryIndexCacheWrite> SaveAsync(string path, MediaLibrarySnapshot snapshot, long limitBytes,
+        CancellationToken token = default) => SaveAsync(path, snapshot, limitBytes, DefaultEntryLimit, DefaultThreadLimit, token);
+
+    /// <summary>As above, with the configured limits of entries and threads (clamped to the technical ceilings).</summary>
     internal static async Task<MediaLibraryIndexCacheWrite> SaveAsync(string path, MediaLibrarySnapshot snapshot, long limitBytes,
-        CancellationToken token = default)
+        int entryLimit, int threadLimit, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         long limit = Math.Clamp(limitBytes, 1, MaximumBytes);
-        if (snapshot.Entries.Count > MaximumEntries || snapshot.Threads.Count > MaximumThreads)
+        if (ExceedsCountLimits(snapshot, entryLimit, threadLimit))
             return new(MediaLibraryIndexCacheWriteStatus.TooManyEntries, 0, limit, null);
         Document document = new()
         {
@@ -171,6 +183,10 @@ internal static class MediaLibraryIndexCache
             catch (UnauthorizedAccessException) { }
         }
     }
+
+    /// <summary>True when the index has more entries or threads than the configured limits allow a cache file to hold.</summary>
+    internal static bool ExceedsCountLimits(MediaLibrarySnapshot snapshot, int entryLimit, int threadLimit) =>
+        snapshot.Entries.Count > Math.Clamp(entryLimit, 1, EntryCeiling) || snapshot.Threads.Count > Math.Clamp(threadLimit, 1, ThreadCeiling);
 
     private static ResourceId Id(string? source, string? board, string? thread)
     {
@@ -360,7 +376,7 @@ internal static class MediaLibraryIndexCache
         {
             if (json.TokenType == JsonTokenType.Null) throw Damaged();
             Reader shared = reader ?? throw new NotSupportedException();
-            if (++shared.Threads > MaximumThreads) throw Damaged();
+            if (++shared.Threads > ThreadCeiling) throw Damaged();
             shared.Tick();
             string? source = null, board = null, thread = null;
             long revision = 0;
@@ -412,7 +428,7 @@ internal static class MediaLibraryIndexCache
         {
             if (json.TokenType == JsonTokenType.Null) throw Damaged();
             Reader shared = reader ?? throw new NotSupportedException();
-            if (++shared.Entries > MaximumEntries) throw Damaged();
+            if (++shared.Entries > EntryCeiling) throw Damaged();
             shared.Tick();
             string? source = null, board = null, thread = null, title = null, post = null, key = null, dir = null, asset = null, sha = null,
                 mid = null, variant = null, fileName = null, slot = null, providerPost = null, importItem = null;
@@ -598,7 +614,11 @@ internal sealed class MediaLibraryIndexCacheFile(string path)
         finally { _gate.Release(); }
     }
 
-    internal async Task<MediaLibraryIndexCacheWrite> SaveAsync(MediaLibrarySnapshot snapshot, long limitBytes, CancellationToken cancellationToken = default)
+    internal Task<MediaLibraryIndexCacheWrite> SaveAsync(MediaLibrarySnapshot snapshot, long limitBytes, CancellationToken cancellationToken = default) =>
+        SaveAsync(snapshot, limitBytes, MediaLibraryIndexCache.DefaultEntryLimit, MediaLibraryIndexCache.DefaultThreadLimit, cancellationToken);
+
+    internal async Task<MediaLibraryIndexCacheWrite> SaveAsync(MediaLibrarySnapshot snapshot, long limitBytes, int entryLimit, int threadLimit,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -611,12 +631,14 @@ internal sealed class MediaLibraryIndexCacheFile(string path)
                 // The file stays readable even above a lowered limit; the page still says how close it is.
                 return new(MediaLibraryIndexCacheWriteStatus.Unchanged, _bytes, limit, known);
             }
-            if (_refused is { } refused && refused.LimitBytes == limit && MediaLibrarySnapshot.SameContent(_refusedSnapshot, snapshot))
+            // A refusal for too many entries stands only while the counts still exceed the (possibly raised) limits.
+            if (_refused is { } refused && refused.LimitBytes == limit && MediaLibrarySnapshot.SameContent(_refusedSnapshot, snapshot)
+                && (refused.Status != MediaLibraryIndexCacheWriteStatus.TooManyEntries || MediaLibraryIndexCache.ExceedsCountLimits(snapshot, entryLimit, threadLimit)))
             {
                 SkippedWrites++;
                 return refused;
             }
-            MediaLibraryIndexCacheWrite result = await MediaLibraryIndexCache.SaveAsync(path, snapshot, limit, cancellationToken).ConfigureAwait(false);
+            MediaLibraryIndexCacheWrite result = await MediaLibraryIndexCache.SaveAsync(path, snapshot, limit, entryLimit, threadLimit, cancellationToken).ConfigureAwait(false);
             if (result.Status == MediaLibraryIndexCacheWriteStatus.Written)
             {
                 Writes++;

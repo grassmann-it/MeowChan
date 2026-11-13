@@ -376,6 +376,38 @@
                             </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding ImportCatalogLimitMiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="ImportMaxTagsPerBatchFieldLabel" Text="{Binding ImportMaxTagsPerBatchLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="ImportMaxTagsPerBatchInput" Value="{Binding ImportMaxTagsPerBatch, Mode=TwoWay}" Minimum="1" Maximum="256" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ImportMaxTagsPerBatchFieldLabel}" AutomationProperties.Name="{Binding ImportMaxTagsPerBatchLabel}" AutomationProperties.HelpText="{Binding ImportMaxTagsPerBatchHelp}" />
+                                <TextBlock x:Name="ImportMaxTagsPerBatchInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding ImportMaxTagsPerBatchHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="ImportMaxBatchesFieldLabel" Text="{Binding ImportMaxBatchesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="ImportMaxBatchesInput" Value="{Binding ImportMaxBatches, Mode=TwoWay}" Minimum="1000" Maximum="1000000" Increment="1000" AutomationProperties.LabeledBy="{Binding ElementName=ImportMaxBatchesFieldLabel}" AutomationProperties.Name="{Binding ImportMaxBatchesLabel}" AutomationProperties.HelpText="{Binding ImportMaxBatchesHelp}" />
+                                <TextBlock x:Name="ImportMaxBatchesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding ImportMaxBatchesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="MediaIndexMaxEntriesFieldLabel" Text="{Binding MediaIndexMaxEntriesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="MediaIndexMaxEntriesInput" Value="{Binding MediaIndexMaxEntries, Mode=TwoWay}" Minimum="100000" Maximum="5000000" Increment="10000" AutomationProperties.LabeledBy="{Binding ElementName=MediaIndexMaxEntriesFieldLabel}" AutomationProperties.Name="{Binding MediaIndexMaxEntriesLabel}" AutomationProperties.HelpText="{Binding MediaIndexMaxEntriesHelp}" />
+                                <TextBlock x:Name="MediaIndexMaxEntriesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding MediaIndexMaxEntriesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="MediaIndexMaxThreadsFieldLabel" Text="{Binding MediaIndexMaxThreadsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="MediaIndexMaxThreadsInput" Value="{Binding MediaIndexMaxThreads, Mode=TwoWay}" Minimum="20000" Maximum="1000000" Increment="10000" AutomationProperties.LabeledBy="{Binding ElementName=MediaIndexMaxThreadsFieldLabel}" AutomationProperties.Name="{Binding MediaIndexMaxThreadsLabel}" AutomationProperties.HelpText="{Binding MediaIndexMaxThreadsHelp}" />
+                                <TextBlock x:Name="MediaIndexMaxThreadsInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding MediaIndexMaxThreadsHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
                     <Expander x:Name="SettingsWorkerBudgetsHeading" Header="{Binding AdvancedBudgetsLabel}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                         <StackPanel Spacing="10" Margin="0,8,0,0">
                             <TextBlock Text="{Binding BudgetRestartHint}" Classes="muted" TextWrapping="Wrap" />

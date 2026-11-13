@@ -34,6 +34,8 @@ internal sealed partial class DesktopSessionHost
                 _manualImportStore ??= new(_profileLease.ProfileDirectory, _profileLease);
                 _manualImportStore.DocumentLimitBytes = (long)Config.ImportCatalogLimitMiB * 1024 * 1024;
                 _manualImportStore.MaximumTotalItems = Config.ImportMaxTotalFiles;
+                _manualImportStore.MaximumBatchCount = Config.ImportMaxBatches;
+                _manualImportStore.MaximumTagsPerBatch = Config.ImportMaxTagsPerBatch;
                 return _manualImportStore;
             }
         }

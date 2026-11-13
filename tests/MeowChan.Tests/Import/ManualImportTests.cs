@@ -157,6 +157,37 @@ public sealed class ManualImportTests
         Assert.Equal(2, fixture.Store.Read().Revision);
     }
 
+    [Fact]
+    public void TheBatchCountAndTagLimitsAreSettingsThatStopOnlyGrowthAndNeverMakeACatalogUnreadable()
+    {
+        Assert.Equal((100_000, 1_000, 1_000_000, 32, 256), (ManualImportCatalogStore.DefaultMaximumBatches, ManualImportCatalogStore.MinimumMaximumBatches,
+            ManualImportCatalogStore.MaximumBatchesCeiling, ManualImportCatalogStore.DefaultMaximumTags, ManualImportCatalogStore.MaximumTagsCeiling));
+        using Fixture fixture = new();
+        Assert.Throws<ArgumentOutOfRangeException>(() => fixture.Store.MaximumBatchCount = ManualImportCatalogStore.MinimumMaximumBatches - 1);
+        Assert.Throws<ArgumentOutOfRangeException>(() => fixture.Store.MaximumBatchCount = ManualImportCatalogStore.MaximumBatchesCeiling + 1);
+        Assert.Throws<ArgumentOutOfRangeException>(() => fixture.Store.MaximumTagsPerBatch = 0);
+        Assert.Throws<ArgumentOutOfRangeException>(() => fixture.Store.MaximumTagsPerBatch = ManualImportCatalogStore.MaximumTagsCeiling + 1);
+        // Reading accepts a batch with more tags than the default write limit (a lowered setting never hides saved data).
+        string[] tags = Enumerable.Range(0, 100).Select(index => "tag" + index).ToArray();
+        using ProfileAdmissionToken admission = fixture.Lease.Admission.EnterStoreWriter();
+        ManualImportBatch first = Batch(items: Item()) with { Tags = tags };
+        fixture.Store.PutBatchAdmitted(first, 0, admission);
+        Assert.Equal(100, Assert.Single(fixture.Store.Read().Batches).Tags.Count);
+        // The batch count is checked against the configured limit (the minimum is 1,000, so fill up to it with small batches).
+        fixture.Store.MaximumTotalItems = 5_000;
+        fixture.Store.MaximumBatchCount = ManualImportCatalogStore.MinimumMaximumBatches;
+        long revision = 1;
+        for (int index = 1; index < ManualImportCatalogStore.MinimumMaximumBatches; index++)
+            fixture.Store.PutBatchAdmitted(Batch(items: Item()), revision++, admission);
+        Assert.Equal(ManualImportError.TooManyBatches, Assert.Throws<ManualImportException>(
+            () => fixture.Store.PutBatchAdmitted(Batch(items: Item()), revision, admission)).Error);
+        // Changing an existing batch is no growth, and raising the setting lifts the refusal.
+        fixture.Store.PutBatchAdmitted(first with { TagsApplied = true }, revision++, admission);
+        fixture.Store.MaximumBatchCount = 2_000;
+        fixture.Store.PutBatchAdmitted(Batch(items: Item()), revision, admission);
+        Assert.Equal(ManualImportCatalogStore.MinimumMaximumBatches + 1, fixture.Store.Read().Batches.Count);
+    }
+
     // ---- Planner ----
 
     [Fact]

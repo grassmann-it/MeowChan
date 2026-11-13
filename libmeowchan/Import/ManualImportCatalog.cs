@@ -93,6 +93,8 @@ internal enum ManualImportError
     Conflict,
     /// <summary>The import would exceed the configured total number of imported files.</summary>
     TooManyImportedFiles,
+    /// <summary>The import would exceed the configured number of import batches.</summary>
+    TooManyBatches,
     /// <summary>The catalog file would exceed its configured size limit.</summary>
     CatalogTooLarge,
     /// <summary>The selection has more files than one batch may hold.</summary>
@@ -116,6 +118,7 @@ internal sealed class ManualImportException : Exception
         ManualImportError.CatalogNewer => "The import catalog was written by a newer version.",
         ManualImportError.Conflict => "The import catalog changed meanwhile.",
         ManualImportError.TooManyImportedFiles => "The configured number of imported files would be exceeded.",
+        ManualImportError.TooManyBatches => "The configured number of import batches would be exceeded.",
         ManualImportError.CatalogTooLarge => "The import catalog would exceed its configured size.",
         ManualImportError.TooManyFiles => "The selection has more files than one batch may hold.",
         ManualImportError.BatchTooLarge => "The selection is larger than one batch may be.",
@@ -144,17 +147,24 @@ internal sealed class ManualImportCatalogStore
     internal const int MaximumItemsPerBatch = 20_000;
     internal const int MaximumTotalItemsCeiling = 500_000;
     internal const int DefaultMaximumTotalItems = 50_000;
-    internal const int MaximumBatches = 100_000;
+    /// <summary>Technical ceiling of the batches a catalog may hold (reads and the configurable write limit).</summary>
+    internal const int MaximumBatchesCeiling = 1_000_000;
+    internal const int DefaultMaximumBatches = 100_000;
+    internal const int MinimumMaximumBatches = 1_000;
     internal const int MaximumBatchNameLength = 200;
     internal const int MaximumNameLength = 255;
     internal const int MaximumDirectoryLength = 4096;
-    internal const int MaximumTags = 32;
+    /// <summary>Technical ceiling of the own tags one batch may carry (reads and the configurable write limit).</summary>
+    internal const int MaximumTagsCeiling = 256;
+    internal const int DefaultMaximumTags = 32;
 
     private readonly object _sync = new();
     private readonly ProfileLease _lease;
     private readonly string _path;
     private long _documentLimitBytes = DefaultDocumentLimitBytes;
     private int _maximumTotalItems = DefaultMaximumTotalItems;
+    private int _maximumBatches = DefaultMaximumBatches;
+    private int _maximumTags = DefaultMaximumTags;
 
     internal ManualImportCatalogStore(string profileDirectory, ProfileLease lease)
     {
@@ -188,6 +198,28 @@ internal sealed class ManualImportCatalogStore
         }
     }
 
+    /// <summary>Configured maximum of import batches (setting). Only stops a new batch; nothing is removed.</summary>
+    internal int MaximumBatchCount
+    {
+        get => Volatile.Read(ref _maximumBatches);
+        set
+        {
+            if (value is < MinimumMaximumBatches or > MaximumBatchesCeiling) throw new ArgumentOutOfRangeException(nameof(value));
+            Volatile.Write(ref _maximumBatches, value);
+        }
+    }
+
+    /// <summary>Configured maximum of own tags per new batch (setting). Batches already saved keep all their tags.</summary>
+    internal int MaximumTagsPerBatch
+    {
+        get => Volatile.Read(ref _maximumTags);
+        set
+        {
+            if (value is < 1 or > MaximumTagsCeiling) throw new ArgumentOutOfRangeException(nameof(value));
+            Volatile.Write(ref _maximumTags, value);
+        }
+    }
+
     /// <summary>Reads and validates the catalog. Missing file: empty catalog. Damaged or newer: <see cref="ManualImportException"/>.</summary>
     internal ManualImportCatalogSnapshot Read(CancellationToken token = default) => _lease.RunExclusive(() =>
     {
@@ -218,6 +250,8 @@ internal sealed class ManualImportCatalogStore
                 Validate(next);
                 if (batch.Items.Count > before && next.ItemCount > MaximumTotalItems)
                     throw new ManualImportException(ManualImportError.TooManyImportedFiles);
+                if (index < 0 && next.Batches.Count > MaximumBatchCount)
+                    throw new ManualImportException(ManualImportError.TooManyBatches);
                 Publish(next, token);
                 return next;
             }
@@ -343,7 +377,7 @@ internal sealed class ManualImportCatalogStore
             long revision = Long(fields["Revision"]);
             if (revision < 0) throw Damaged();
             JsonElement batches = fields["Batches"];
-            if (batches.ValueKind != JsonValueKind.Array || batches.GetArrayLength() > MaximumBatches) throw Damaged();
+            if (batches.ValueKind != JsonValueKind.Array || batches.GetArrayLength() > MaximumBatchesCeiling) throw Damaged();
             ManualImportCatalogSnapshot snapshot = new(revision, batches.EnumerateArray().Select(ParseBatch).ToArray());
             Validate(snapshot);
             return snapshot;
@@ -422,7 +456,7 @@ internal sealed class ManualImportCatalogStore
     /// <summary>Semantic rules every stored and every written catalog satisfies.</summary>
     internal static void Validate(ManualImportCatalogSnapshot snapshot)
     {
-        if (snapshot.Revision < 0 || snapshot.Batches.Count > MaximumBatches || snapshot.ItemCount > MaximumTotalItemsCeiling) throw Damaged();
+        if (snapshot.Revision < 0 || snapshot.Batches.Count > MaximumBatchesCeiling || snapshot.ItemCount > MaximumTotalItemsCeiling) throw Damaged();
         HashSet<Guid> batchIds = new(), itemIds = new();
         foreach (ManualImportBatch batch in snapshot.Batches)
         {
@@ -433,7 +467,7 @@ internal sealed class ManualImportCatalogStore
                 || batch.CompletedAtUtc is { } completed && (completed.Offset != TimeSpan.Zero || completed < batch.CreatedAtUtc)
                 || !ValidDirectory(batch.Directory)
                 || batch.SourceLabel != null && (!ValidName(batch.SourceLabel, MaximumNameLength) || batch.SourceLabel.IndexOfAny(new[] { '/', '\\' }) >= 0)
-                || batch.Tags == null || batch.Tags.Count > MaximumTags || batch.Items == null || batch.Items.Count > MaximumItemsPerBatch)
+                || batch.Tags == null || batch.Tags.Count > MaximumTagsCeiling || batch.Items == null || batch.Items.Count > MaximumItemsPerBatch)
                 throw Damaged();
             HashSet<string> tagKeys = new(StringComparer.Ordinal);
             foreach (string tag in batch.Tags)
