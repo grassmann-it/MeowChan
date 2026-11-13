@@ -945,6 +945,7 @@
     "export.legacyFind": "Buscar exportaciones antiguas en la carpeta contenedora de destino",
     "export.legacyAssociate": "Asociar la exportación antigua seleccionada a este hilo",
     "export.legacyFound": "Se encontraron {0} candidatos coincidentes con la fuente (se comprobaron como máximo 500 carpetas). Verifique la carpeta antes de asociarla explícitamente.",
+    "export.legacyNone": "No se encontró ninguna carpeta con la fuente correspondiente junto al destino (se revisaron como máximo 500 carpetas). Elija otra carpeta de destino y busque de nuevo.",
     "export.legacyAssociated": "Exportación antigua asociada. Al actualizarla se conservará su contenido anterior.",
     "export.hint": "Exporta la última captura local a una carpeta HTML independiente. No se descarga nada.",
     "export.associatedDate": "Asociada",

@@ -373,7 +373,13 @@ internal sealed class MediaHashSearchDialog : Window
     private void OnPrevious(object? sender, Avalonia.Interactivity.RoutedEventArgs e) { _operation.MovePage(-1); Refresh(); }
     private void OnNext(object? sender, Avalonia.Interactivity.RoutedEventArgs e) { _operation.MovePage(1); Refresh(); }
     private void OnClose(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => Close();
-    private void OnKeyDown(object? sender, KeyEventArgs e) { if (e.Key == Key.Escape) { e.Handled = true; Close(); } }
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape) { e.Handled = true; Close(); }
+        // Enter in the hash box is the keyboard form of the explicit search button.
+        else if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && ReferenceEquals(e.Source, _input) && _search.IsEnabled)
+        { e.Handled = true; OnSearch(sender, new Avalonia.Interactivity.RoutedEventArgs()); }
+    }
     private void OnClosed(object? sender, EventArgs e) => _ = TerminateAsync();
     internal Task TerminateAsync()
     {

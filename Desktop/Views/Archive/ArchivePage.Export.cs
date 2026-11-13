@@ -356,7 +356,7 @@ public partial class ArchivePage
             if (!ExportRequestIsCurrent(request)) return;
             Control<ComboBox>("ArchiveExportLegacy").ItemsSource = candidates.Select(candidate => candidate.Directory).ToArray();
             Control<ComboBox>("ArchiveExportLegacy").SelectedIndex = candidates.Count > 0 ? 0 : -1;
-            ExportStatus(ArchiveExportStatusText.Localized("export.legacyFound", candidates.Count));
+            ExportStatus(ArchiveExportStatusText.Localized(candidates.Count == 0 ? "export.legacyNone" : "export.legacyFound", candidates.Count));
         }
         catch (OperationCanceledException) when (_exportLookupCancellation?.IsCancellationRequested == true)
         { if (ExportRequestIsCurrent(request)) ExportStatus(ArchiveExportStatusText.Localized("archive.exportCancelled")); }
@@ -399,5 +399,9 @@ public partial class ArchivePage
     private void OnExportKeyDown(object? sender, KeyEventArgs e)
     { if (e.Handled || MeowChan.Desktop.Commands.ShortcutService.IsCapturing) return;
       if (e.Key == Key.Escape) { e.Handled = true; OnExportClose(sender, e); }
+      // Enter in the destination box is the keyboard form of the primary "Export" button.
+      else if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && e.Source is TextBox { Name: "ArchiveExportDestination" }
+          && _exportCard != null && Control<Button>("ArchiveExportStart").IsEnabled)
+      { e.Handled = true; OnExportStart(sender, e); }
       else if (_exportCard != null) MeowChan.Desktop.Commands.CommandBindings.RouteVisibleActions(_exportCard, e); }
 }

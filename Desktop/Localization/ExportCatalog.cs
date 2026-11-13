@@ -22,6 +22,7 @@ internal static class ExportCatalog
         ("export.missing", "missing or unavailable", "fehlt oder nicht verfügbar"),
         ("export.preserve", "Keep the previous folder if content changes or is reduced", "Bisherigen Ordner bei Änderungen oder reduziertem Inhalt erhalten"),
         ("export.backupHint", "Updating replaces the selected export. Modified files, extra files or content missing from the new capture are preserved in a separate backup folder.", "Die Aktualisierung ersetzt den gewählten Export. Geänderte Dateien, Zusatzdateien oder im neuen Stand fehlende Inhalte bleiben in einem separaten Sicherungsordner erhalten."),
+        ("export.legacyNone", "No source-matching folder found next to the target (at most 500 folders checked). Choose another target folder and search again.", "Kein Ordner mit passender Quelle neben dem Ziel gefunden (höchstens 500 Ordner geprüft). Wähle einen anderen Zielordner und suche erneut."),
         ("export.openHint", "Available after a successful export in this dialog", "Nach erfolgreichem Export in diesem Dialog verfügbar"),
         ("export.confirm", "Select an available previous export and confirm preserving its changed or reduced content.", "Verfügbaren früheren Export wählen und den Erhalt geänderter oder reduzierter Inhalte bestätigen."),
         ("export.backup", "Previous content preserved: {0}", "Bisheriger Inhalt erhalten: {0}"),

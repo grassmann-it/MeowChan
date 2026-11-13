@@ -945,6 +945,7 @@
     "export.legacyFind": "Rechercher les anciens exports dans le dossier parent cible",
     "export.legacyAssociate": "Associer l’ancien export sélectionné à ce fil",
     "export.legacyFound": "{0} candidats correspondant à la source trouvés (au plus 500 dossiers vérifiés). Vérifiez le dossier avant de l’associer explicitement.",
+    "export.legacyNone": "Aucun dossier correspondant à la source n’a été trouvé à côté de la cible (500 dossiers vérifiés au maximum). Choisissez un autre dossier cible et relancez la recherche.",
     "export.legacyAssociated": "Ancien export associé. Sa mise à jour conservera son contenu précédent.",
     "export.hint": "Exportez la dernière capture locale dans un dossier HTML indépendant. Rien n’est téléchargé.",
     "export.associatedDate": "Associé",

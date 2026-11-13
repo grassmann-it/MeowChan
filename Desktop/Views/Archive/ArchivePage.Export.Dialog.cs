@@ -198,7 +198,7 @@ public partial class ArchivePage
         Control<Button>("ArchiveExportBrowse").Content = Texts.T("archive.exportBrowse");
         Control<Button>("ArchiveExportClose").Content = Texts.T(_exportRunning ? "archive.exportCancel" : "action.close");
         Control<Button>("ArchiveExportOpen").Content = Texts.T("action.openFolder");
-        ToolTip.SetTip(Control<Button>("ArchiveExportOpen"), Texts.T("export.openHint"));
+        ToolTip.SetTip(Control<Button>("ArchiveExportOpen"), Texts.T("export.openHint")); ToolTip.SetShowOnDisabled(Control<Button>("ArchiveExportOpen"), true);
         Control<Button>("ArchiveExportStart").Content = Texts.T("archive.exportStart");
     }
 }
