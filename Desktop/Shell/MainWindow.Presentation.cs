@@ -56,6 +56,7 @@ public partial class MainWindow
             ?? typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? string.Empty);
         ApplyWorkspacePreferences();
         InitializeWindowPreferences();
+        InstallMacMenu();
         StartSpeedSampling();
     }
 

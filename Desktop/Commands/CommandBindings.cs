@@ -55,6 +55,14 @@ public static class CommandBindings
         return item;
     }
 
+    public static NativeMenuItem CreateNativeMenuItem(string id, Action execute, Func<bool>? canExecute = null,
+        Func<string>? label = null, Func<string?>? shortcut = null)
+    {
+        var item = new NativeMenuItem { Command = new DelegateCommand(execute, canExecute) };
+        Apply(item, id, label, shortcut);
+        return item;
+    }
+
     public static Button CreateButton(string id, Action execute, Func<bool>? canExecute = null,
         Func<string?>? unavailableReason = null, bool iconOnly = false, int iconSize = 16,
         bool iconWithLabel = false)
@@ -79,11 +87,14 @@ public static class CommandBindings
         AutomationProperties.SetHelpText(item, tip);
     }
 
-    public static void Apply(NativeMenuItem item, string id)
+    /// <summary>A native menu entry. <paramref name="label"/> and <paramref name="shortcut"/> let the menu bar show its own
+    /// title and only the chords it may advertise; both are read again whenever the bindings or the language change.</summary>
+    public static void Apply(NativeMenuItem item, string id, Func<string>? label = null, Func<string?>? shortcut = null)
     {
-        Observe(item, () => Apply(item, id));
+        Observe(item, () => Apply(item, id, label, shortcut));
         var definition = CommandCatalog.Get(id);
-        item.Header = CommandCatalog.Label(id) + (CommandCatalog.ShortcutDisplay(id) is string display ? "  " + display : "");
+        string? display = shortcut != null ? shortcut() : CommandCatalog.ShortcutDisplay(id);
+        item.Header = (label?.Invoke() ?? CommandCatalog.Label(id)) + (string.IsNullOrEmpty(display) ? "" : "  " + display);
         // Clipboard import is a Downloads shortcut. The native tray action remains
         // explicit and must not register an application-wide paste accelerator.
         item.Gesture = null; // Routed context checks own execution; native accelerators cannot enforce them.

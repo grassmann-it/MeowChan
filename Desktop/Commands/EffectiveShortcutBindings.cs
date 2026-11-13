@@ -122,6 +122,7 @@ public sealed class EffectiveShortcutBindings
         ["media.export-original"] = 2, ["media.show-in-folder"] = 2,
         // One Back gesture and one page gesture for several commands that never apply at the same time.
         ["reader.history-back"] = 2, ["gallery.return"] = 2, ["pagination.previous"] = 2, ["pagination.next"] = 2,
+        ["window.minimize"] = 2,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     /// <summary>Whether an issue deserves the startup warning: only what silences or blocks a binding
@@ -187,6 +188,7 @@ public sealed class EffectiveShortcutBindings
             "archive.previous-page" => Of("Primary+Alt+Left", "Alt+PageUp"),
             "archive.next-page" => Of("Primary+Alt+Right", "Alt+PageDown"),
             "media.return" or "reader.history-back" or "gallery.return" => Of("Primary+Left"),
+            "window.minimize" => Of("Primary+M"),
             "pagination.previous" => Of("Primary+Alt+Left", "Alt+PageUp"),
             "pagination.next" => Of("Primary+Alt+Right", "Alt+PageDown"),
             "media.details" => Of("I", "Primary+I"),

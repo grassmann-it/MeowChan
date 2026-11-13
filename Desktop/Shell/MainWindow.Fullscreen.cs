@@ -790,6 +790,9 @@ public partial class MainWindow
         }
         if (CommandBindings.Matches(e, "viewer.shortcut-help") && (_gallery == null || _gallerySuspended))
         { e.Handled = true; ShowShellHelp(); return; }
+        // Command-M on macOS (the Window menu entry): the menu bar never owns a key equivalent, the window resolves it.
+        if (CommandBindings.Matches(e, "window.minimize") && !CommandRouter.IsNativeInput(e.Source, e.Key))
+        { e.Handled = true; MinimizeWindow(toTray: false); return; }
         if (_archivePage?.IsReaderDialogOpen == true) return;
         if (TryRouteMediaReturn(e)) return;
         // Native video -> image retirement can clear focus before the next key.
