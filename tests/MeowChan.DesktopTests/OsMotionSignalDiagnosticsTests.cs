@@ -87,6 +87,21 @@ public sealed class OsMotionSignalDiagnosticsTests : IDisposable
     }
 
     [Fact]
+    public void TheUnreadReasonCarriesNoHomeDirectoryIntoTheDiagnosticsRow()
+    {
+        // MS-R8: an exception text with a user path (or a D-Bus address under it) must not reach the row a tester pastes.
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        Assert.False(string.IsNullOrWhiteSpace(home) || home.Length <= 1, "The test needs a profile directory.");
+        OsMotionSignal.Record(OsMotionStatus.Unavailable("kdeglobals", "Could not read " + Path.Combine(home, ".config", "kdeglobals") + "\nsecond line"));
+        Assert.DoesNotContain(home, OsMotionSignal.Status.Reason);
+        DiagnosticEntry entry = Assert.Single(PlatformDiagnostics.Entries(), item => item.Key == PlatformDiagnostics.MotionKey);
+        Assert.DoesNotContain(home, entry.Summary);
+        Assert.DoesNotContain(home, entry.Details);
+        Assert.Contains("Could not read ~", entry.Details);
+        Assert.DoesNotContain("second line", entry.Details);
+    }
+
+    [Fact]
     public void ThePlatformEntryIsNeverARetryOrProblemTarget()
     {
         DiagnosticEntry[] entries = PlatformDiagnostics.Entries().ToArray();

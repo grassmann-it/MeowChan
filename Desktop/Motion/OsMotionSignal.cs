@@ -45,10 +45,11 @@ internal sealed record OsMotionStatus(OsMotionState State, string Source, string
         _ => "not read yet"
     };
 
-    // Exception messages can carry file names; keep one short line only.
+    // Exception messages can carry file names; keep one short line only, without the home directory (the reason is shown in
+    // Diagnostics, whose platform rows a tester pastes into reports). Sanitized before cutting, so no path is split.
     private static string Shorten(string reason)
     {
-        string line = reason.Split('\n', 2)[0].Trim();
+        string line = PlatformSummary.Sanitize(reason.Split('\n', 2)[0]).Trim();
         return line.Length <= 160 ? line : line[..160] + "...";
     }
 }
