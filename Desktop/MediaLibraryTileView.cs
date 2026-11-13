@@ -73,6 +73,9 @@ internal sealed record MediaLibraryTileRow(MediaLibraryTile Tile, int Index, Fun
 /// </summary>
 internal sealed class MediaLibraryTileView : UserControl
 {
+    private static int _pendingLoads;
+    /// <summary>Tile previews waiting for a load slot or being loaded right now, over all media pages (the sound check waits for them).</summary>
+    internal static int PendingThumbnailLoads => Volatile.Read(ref _pendingLoads);
     // Four loads at a time: with the file check remembered per session a load is mostly decoding, which spreads over the cores.
     private static readonly SemaphoreSlim ThumbnailGate = new(4, 4);
     private readonly Image _image = new() { Stretch = Stretch.Uniform, MaxWidth = 174, MaxHeight = 120 };
@@ -355,6 +358,7 @@ internal sealed class MediaLibraryTileView : UserControl
         using CancellationTokenSource loading = new();
         _loading = loading;
         _placeholder.Text = Texts.T("archive.loadingThumbnail");
+        Interlocked.Increment(ref _pendingLoads);
         try
         {
             await ThumbnailGate.WaitAsync(loading.Token);
@@ -369,7 +373,11 @@ internal sealed class MediaLibraryTileView : UserControl
         }
         catch (OperationCanceledException) { }
         catch (Exception) { if (request == _request) _placeholder.Text = Texts.T("archive.previewUnavailable"); }
-        finally { if (ReferenceEquals(_loading, loading)) _loading = null; }
+        finally
+        {
+            Interlocked.Decrement(ref _pendingLoads);
+            if (ReferenceEquals(_loading, loading)) _loading = null;
+        }
     }
 
     private void Discard(Bitmap? bitmap)

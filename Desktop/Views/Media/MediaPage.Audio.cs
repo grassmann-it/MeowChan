@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Threading;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Storage;
@@ -69,6 +70,7 @@ public sealed partial class MediaPage
             Dispatcher.UIThread.Post(() => OnAudioUpdate(scan, map, progress));
         try
         {
+            WaitForFirstThumbnailWave(scan.Token);
             if (current.Count == 0 && cachePath != null && MediaAudioCache.Load(cachePath) is { } stored) { current = stored; Post(stored, null); }
             MediaAudioMap result = MediaLibraryAudioScanner.Scan(snapshot, current, entry => OpenForAudioProbe(entry, scan.Token),
                 (map, progress) => Post(map, progress), cachePath, scan.Token);
@@ -79,6 +81,21 @@ public sealed partial class MediaPage
         {
             Post(current, null); // Whatever could not be checked stays unknown.
         }
+    }
+
+    /// <summary>How long the sound check lets the first tiles begin loading their previews, and the longest it waits for them.</summary>
+    internal static TimeSpan AudioScanGrace { get; set; } = TimeSpan.FromMilliseconds(400);
+    internal static TimeSpan AudioScanMaximumWait { get; set; } = TimeSpan.FromSeconds(6);
+
+    // The sound check opens a file per video (up to tens of thousands) and competes with the index save and the tiles' previews for the
+    // disk. It starts after the save (it is started from there) and, here, once the first wave of previews is through: a short grace
+    // for the visible tiles to begin, then until no preview is waiting or loading, but never for long (scrolling keeps loading).
+    private static void WaitForFirstThumbnailWave(CancellationToken token)
+    {
+        System.Diagnostics.Stopwatch waited = System.Diagnostics.Stopwatch.StartNew();
+        if (token.WaitHandle.WaitOne(AudioScanGrace)) return;
+        while (waited.Elapsed < AudioScanMaximumWait && MediaLibraryTileView.PendingThumbnailLoads > 0)
+            if (token.WaitHandle.WaitOne(100)) return;
     }
 
     private Stream? OpenForAudioProbe(MediaLibraryEntry entry, CancellationToken token)
