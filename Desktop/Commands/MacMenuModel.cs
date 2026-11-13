@@ -49,7 +49,7 @@ public static class MacMenuModel
             MacMenuNode.Submenu("macmenu.find", new[]
             {
                 MacMenuNode.Resolving("macmenu.find.entry", "input.focus-search", "input.focus-media-search",
-                    "input.focus-download-search", "reader.find"),
+                    "input.focus-download-search", "input.focus-settings-search", "reader.find"),
                 MacMenuNode.Command("reader.find-next"), MacMenuNode.Command("reader.find-previous")
             })
         }),

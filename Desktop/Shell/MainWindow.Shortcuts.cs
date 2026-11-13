@@ -31,6 +31,10 @@ public partial class MainWindow
             Register(_settingsEditor, () => _selectedPage == WorkspacePage.Settings && !_largeReaderOpen && _gallery == null,
                 () => _settingsEditor.CanOpenSectionNavigation, _settingsEditor.OpenSectionNavigation,
                 () => _settingsEditor.SelectedSectionId, _settingsEditor.CanGoToSection, _settingsEditor.GoToSection);
+        if (_settingsEditor != null)
+            _shortcutRouter.Register(new CommandRegistration("input.focus-settings-search", _settingsEditor,
+                () => _selectedPage == WorkspacePage.Settings && !_largeReaderOpen && _gallery == null,
+                () => true, _settingsEditor.FocusSearch, Priority: 100, AllowInTextInput: true));
         if (_pluginsPage != null)
         {
             Register(_pluginsPage, () => _selectedPage == WorkspacePage.Plugins && !_largeReaderOpen && _gallery == null,

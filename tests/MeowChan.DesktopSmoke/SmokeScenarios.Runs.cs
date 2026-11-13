@@ -194,6 +194,7 @@ internal static partial class SmokeScenarios
         },
         ["picker-lifetime"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsPickerLifetimeChecks.RunAsync(mainWindow)),
         ["settings-category"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsCategoryChecks.RunAsync(mainWindow)),
+        ["settings-search"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsSearchChecks.RunAsync(mainWindow)),
         ["settings-statistics"] = new(SmokeStage.AfterCommandRefresh, mainWindow => StatisticsSettingsChecks.RunAsync(mainWindow)),
         ["settings-lifetime"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsPageChecks.RunLateSaveFailureAsync(mainWindow)),
         ["path-input"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsPathInputChecks.RunAsync(mainWindow)),

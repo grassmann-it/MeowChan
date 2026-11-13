@@ -187,6 +187,7 @@ public partial class SettingsEditor
         SettingsSections.Refresh();
         SettingsSections.IsVisible = !SettingsCategories.IsVisible;
         RefreshCategoryLinks(sections);
+        SearchLanguageRefreshed();
 
         void AddOptional(string id, string name)
         {

@@ -289,6 +289,7 @@ namespace MeowChan
             DataContext = this;
             ApplyCommandIcons();
             InitializeSectionNavigation();
+            InitializeSearch();
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
             ResetNumber(ParallelDownloadsSafetyInput, ParallelDownloadsSafetyLimit!.Value);

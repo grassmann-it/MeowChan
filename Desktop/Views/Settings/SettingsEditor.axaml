@@ -22,6 +22,19 @@
             <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
             <Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" />
         </Style>
+        <!-- The setting the search jumped to. -->
+        <Style Selector="Panel.settings-search-hit">
+            <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        </Style>
+        <Style Selector="Border.settings-search-hit">
+            <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        </Style>
+        <Style Selector="CheckBox.settings-search-hit">
+            <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        </Style>
+        <Style Selector="TextBlock.settings-search-hit">
+            <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        </Style>
         <!-- Keyboard focus enters the template's text box, so it needs the field semantics too. -->
         <Style Selector="NumericUpDown /template/ TextBox#PART_TextBox">
             <Setter Property="AutomationProperties.Name" Value="{Binding (AutomationProperties.Name), RelativeSource={RelativeSource TemplatedParent}}" />
