@@ -659,7 +659,6 @@
     "archive.loadingMedia": "Carregando mídias salvas… As postagens já podem ser lidas.",
     "progress.excluded": "{0} excluídas",
     "export.target": "Destino",
-    "export.options": "Opções",
     "export.scopeDetails": "Tópicos incluídos",
     "export.originalHint": "Copia esta seleção congelada de originais locais verificados. Nada é baixado.",
     "export.older": "Exportações antigas sem metadados",

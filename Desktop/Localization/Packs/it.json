@@ -659,7 +659,6 @@
     "archive.loadingMedia": "Caricamento dei media salvati… I post sono pronti per la lettura.",
     "progress.excluded": "{0} esclusi",
     "export.target": "Destinazione",
-    "export.options": "Opzioni",
     "export.scopeDetails": "Thread inclusi",
     "export.originalHint": "Copia questa selezione congelata di originali locali verificati. Non viene scaricato nulla.",
     "export.older": "Esportazioni precedenti senza metadati",

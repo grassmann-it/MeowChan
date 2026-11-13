@@ -665,7 +665,6 @@
     "archive.loadingMedia": "Wczytywanie zapisanych mediów… Posty są gotowe do czytania.",
     "progress.excluded": "Wykluczone: {0}",
     "export.target": "Miejsce docelowe",
-    "export.options": "Opcje",
     "export.scopeDetails": "Uwzględnione wątki",
     "export.originalHint": "Skopiuj ten zamrożony wybór zweryfikowanych lokalnych oryginałów. Nic nie jest pobierane.",
     "export.older": "Starsze eksporty bez metadanych",

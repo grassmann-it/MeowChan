@@ -959,7 +959,6 @@
     "archive.loadingMedia": "正在加载已保存的媒体…帖子已可阅读。",
     "progress.excluded": "已排除 {0} 个",
     "export.target": "目标位置",
-    "export.options": "选项",
     "export.scopeDetails": "包含的串",
     "export.originalHint": "复制这份冻结选择中经过验证的本地原图。不会下载任何内容。",
     "export.older": "没有元数据的旧导出",

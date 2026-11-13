@@ -1004,7 +1004,6 @@
     "archive.loadingMedia": "Chargement des médias enregistrés… Les messages sont prêts à être lus.",
     "progress.excluded": "{0} exclus",
     "export.target": "Destination",
-    "export.options": "Options",
     "export.scopeDetails": "Fils inclus",
     "export.originalHint": "Copiez cette sélection figée d’originaux locaux vérifiés. Rien n’est téléchargé.",
     "export.older": "Anciens exports sans métadonnées",

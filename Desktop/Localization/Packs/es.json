@@ -1004,7 +1004,6 @@
     "archive.loadingMedia": "Cargando medios guardados… Las publicaciones ya se pueden leer.",
     "progress.excluded": "{0} excluidos",
     "export.target": "Destino",
-    "export.options": "Opciones",
     "export.scopeDetails": "Hilos incluidos",
     "export.originalHint": "Copia esta selección fijada de originales locales verificados. No se descarga nada.",
     "export.older": "Exportaciones antiguas sin metadatos",

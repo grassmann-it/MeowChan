@@ -665,7 +665,6 @@
     "archive.loadingMedia": "Načítají se uložená média… Příspěvky už lze číst.",
     "progress.excluded": "vyloučeno: {0}",
     "export.target": "Cíl",
-    "export.options": "Možnosti",
     "export.scopeDetails": "Zahrnutá vlákna",
     "export.originalHint": "Zkopíruje tento zafixovaný výběr ověřených místních originálů. Nic se nestahuje.",
     "export.older": "Starší exporty bez metadat",

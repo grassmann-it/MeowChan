@@ -959,7 +959,6 @@
     "archive.loadingMedia": "保存済みメディアを読み込んでいます… 投稿は読めます。",
     "progress.excluded": "除外 {0}",
     "export.target": "保存先",
-    "export.options": "オプション",
     "export.scopeDetails": "含まれるスレッド",
     "export.originalHint": "検証済みのローカルオリジナルのこの固定された選択をコピーします。何もダウンロードしません。",
     "export.older": "メタデータのない古いエクスポート",

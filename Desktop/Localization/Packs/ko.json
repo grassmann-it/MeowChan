@@ -959,7 +959,6 @@
     "archive.loadingMedia": "저장된 미디어를 불러오는 중… 게시물은 바로 읽을 수 있습니다.",
     "progress.excluded": "{0}개 제외됨",
     "export.target": "대상",
-    "export.options": "옵션",
     "export.scopeDetails": "포함된 스레드",
     "export.originalHint": "검증된 로컬 원본의 고정된 선택 항목을 복사합니다. 아무것도 다운로드하지 않습니다.",
     "export.older": "메타데이터가 없는 이전 내보내기",
