@@ -1238,7 +1238,7 @@ public partial class MainWindow : Window
     {
         if (_isClosing) return;
         if (Application.Current != null)
-            Application.Current.RequestedThemeVariant = ThemeForPreference(_config.Theme);
+            MeowChan.Desktop.Motion.MotionPolicy.WhileThemeChanges(() => Application.Current.RequestedThemeVariant = ThemeForPreference(_config.Theme));
         if (OperatingSystem.IsWindows()) RefreshTrayMenuIcons();
         MeowChan.Desktop.Motion.MotionPolicy.SetSetting(_config.Animations);
         Texts.SetLanguage(_config.Language);

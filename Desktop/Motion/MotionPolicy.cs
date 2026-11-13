@@ -1,6 +1,9 @@
 using System;
 using Avalonia;
+using System.Runtime.CompilerServices;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 
 namespace MeowChan.Desktop.Motion;
@@ -26,12 +29,14 @@ internal static class MotionPolicy
     private static string _setting = System;
     private static bool _osReduced;
     private static bool _installed;
+    private static int _themeChanges;
+    private static readonly ConditionalWeakTable<TopLevel, object> Attached = new();
 
     /// <summary>Raised on the UI thread whenever the effective answer may have changed.</summary>
     internal static event EventHandler? Changed;
 
     /// <summary>True when nothing may animate right now (environment, then setting, then the operating system).</summary>
-    internal static bool IsOff => Resolve(FromEnvironment(Environment.GetEnvironmentVariable), _setting, _osReduced);
+    internal static bool IsOff => _themeChanges > 0 || Resolve(FromEnvironment(Environment.GetEnvironmentVariable), _setting, _osReduced);
 
     /// <summary>The reader and every other caller ask this: should short fades be skipped?</summary>
     internal static bool Reduced => IsOff;
@@ -111,11 +116,42 @@ internal static class MotionPolicy
         target.Classes.Set(OffClass, IsOff);
     }
 
+    /// <summary>
+    /// Runs a theme change (RequestedThemeVariant) with motion off, so the buttons and chips switch their brushes at once instead of
+    /// cross-fading between the two themes (spec: no theme crossfade). Motion comes back after the next background pass, when the new
+    /// values are in place; nothing is left to animate.
+    /// </summary>
+    internal static void WhileThemeChanges(Action change)
+    {
+        ArgumentNullException.ThrowIfNull(change);
+        BeginThemeChange();
+        try { change(); }
+        finally { EndThemeChange(); }
+    }
+
+    private static void BeginThemeChange()
+    {
+        _themeChanges++;
+        Raise();
+    }
+
+    private static void EndThemeChange() =>
+        Dispatcher.UIThread.Post(() => { _themeChanges--; Raise(); }, DispatcherPriority.Background);
+
     /// <summary>Follows the policy for the lifetime of <paramref name="top"/> (windows and popup roots).</summary>
     internal static void Attach(TopLevel top)
     {
         ArgumentNullException.ThrowIfNull(top);
-        EventHandler handler = (_, _) => Apply(top);
+        if (Attached.TryGetValue(top, out _)) return;
+        Attached.Add(top, top);
+        // Weak: a popup root that never raises Closed must not be kept alive by the static event.
+        WeakReference<TopLevel> weak = new(top);
+        EventHandler? handler = null;
+        handler = (_, _) =>
+        {
+            if (weak.TryGetTarget(out TopLevel? alive)) Apply(alive);
+            else Changed -= handler;
+        };
         Changed += handler;
         top.Closed += (_, _) => Changed -= handler;
         Apply(top);
@@ -130,6 +166,15 @@ internal static class MotionPolicy
         if (_installed) return;
         _installed = true;
         Window.WindowOpenedEvent.AddClassHandler<Window>((window, _) => Attach(window));
+        // Popups (menus, flyouts, drop-downs, tooltips) live in their own native root on desktop and do not inherit the window's
+        // class, so each popup root follows the policy as soon as it has its template.
+        TemplatedControl.TemplateAppliedEvent.AddClassHandler<PopupRoot>((root, _) => Attach(root));
+        Control.LoadedEvent.AddClassHandler<PopupRoot>((root, _) => Attach(root));
+        if (Application.Current is { } app)
+        {
+            // An operating-system theme change (theme Default) cannot be wrapped by the caller; best effort, same suppression.
+            app.ActualThemeVariantChanged += (_, _) => { if (_themeChanges == 0) { BeginThemeChange(); EndThemeChange(); } };
+        }
         OsMotionSignal.Start(SetOsReduced);
     }
 

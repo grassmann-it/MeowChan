@@ -245,6 +245,18 @@ internal static class ComparisonCaptures
         Button add = window.FindControl<Button>("AddUrlButton")!;
         add.Focus(NavigationMethod.Tab);
         await Program.WaitUntilAsync(() => add.IsFocused);
+        // The adorner is added on focus and arranged on the next layout pass; a capture taken before that drew the ring
+        // at its unarranged size (shifted up-left, right and bottom missing). Wait for the arranged ring, then check it.
+        Avalonia.Controls.Primitives.AdornerLayer layer = Avalonia.Controls.Primitives.AdornerLayer.GetAdornerLayer(add)
+            ?? throw new InvalidOperationException("No adorner layer for the Add button.");
+        await Program.WaitUntilAsync(() => layer.Children.OfType<Control>().Any(item => ReferenceEquals(Avalonia.Controls.Primitives.AdornerLayer.GetAdornedElement(item), add)));
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => window.UpdateLayout(), Avalonia.Threading.DispatcherPriority.Render);
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => { }, Avalonia.Threading.DispatcherPriority.Render);
+        Control ring = layer.Children.OfType<Control>().First(item => ReferenceEquals(Avalonia.Controls.Primitives.AdornerLayer.GetAdornedElement(item), add));
+        Point? ringOrigin = ring.TranslatePoint(new Point(0, 0), window), addOrigin = add.TranslatePoint(new Point(0, 0), window);
+        if (ringOrigin is not { } ro || addOrigin is not { } ao || Math.Abs(ro.X - (ao.X - 4)) > 0.6 || Math.Abs(ro.Y - (ao.Y - 4)) > 0.6
+            || Math.Abs(ring.Bounds.Width - (add.Bounds.Width + 8)) > 0.6 || Math.Abs(ring.Bounds.Height - (add.Bounds.Height + 8)) > 0.6)
+            throw new InvalidOperationException($"The focus ring must surround the Add button by 4 dip: ring {ringOrigin} {ring.Bounds}, button {addOrigin} {add.Bounds}.");
         Program.CaptureWindow(window, fileName);
         window.FindControl<TextBox>("UrlInput")!.Focus();
     }

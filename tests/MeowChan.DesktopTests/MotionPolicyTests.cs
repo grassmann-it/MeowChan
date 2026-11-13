@@ -184,6 +184,16 @@ public sealed class MotionPolicyTests
     }
 
     [Fact]
+    public void PopupRootsFollowThePolicyAndThemeChangesRunWithMotionOff()
+    {
+        string policy = File.ReadAllText(Root("Desktop/Motion/MotionPolicy.cs"));
+        Assert.Contains("AddClassHandler<PopupRoot>", policy);
+        Assert.Contains("ConditionalWeakTable<TopLevel", policy);
+        Assert.Contains("WeakReference<TopLevel>", policy);
+        Assert.Contains("MotionPolicy.WhileThemeChanges(() => Application.Current.RequestedThemeVariant", File.ReadAllText(Root("Desktop/Shell/MainWindow.axaml.cs")));
+    }
+
+    [Fact]
     public void ThumbnailTilesDoNotFadeBecauseNoCacheHitSignalExists()
     {
         foreach (string tile in new[] { "Desktop/MediaLibraryTileView.cs", "Desktop/ArchiveMediaTileView.cs" })

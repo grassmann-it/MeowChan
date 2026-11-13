@@ -282,11 +282,12 @@
              content, and remains separate from selected/error border state.
              D4 (E7): two shells. The outer 2-px ring is the accent; the inner 1-px ring is the window background, so the
              focus stays readable on a solid accent button and on accent-tinted rows (both colours differ from every surface
-             they touch by at least 3:1 in Light and Dark). The outer border keeps Margin -4 (the 4-dip offset). -->
+             they touch by at least 3:1 in Light and Dark). The outer border keeps Margin -4 (the 4-dip offset); the adorner layer must not clip it, or the right and bottom of the ring are
+             cut by 8 dip (the clip rectangle is the control's own, measured from the ring's shifted origin). -->
         <Template x:Key="Workspace.FocusAdorner">
             <Border BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="2"
                     CornerRadius="{StaticResource Workspace.Radius.Control}" Margin="-4"
-                    IsHitTestVisible="False">
+                    AdornerLayer.IsClipEnabled="False" IsHitTestVisible="False">
                 <Border BorderBrush="{DynamicResource Workspace.Background}" BorderThickness="1"
                         CornerRadius="{StaticResource Workspace.Radius.Badge}" IsHitTestVisible="False" />
             </Border>

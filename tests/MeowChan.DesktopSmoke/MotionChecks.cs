@@ -2,8 +2,10 @@ using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
+using Avalonia.Controls.Primitives;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Feedback;
@@ -104,6 +106,59 @@ internal static class MotionChecks
             await UntilAsync(() => Math.Abs(second.Opacity - 1) < 0.001, "the toast never became fully visible");
             content.Children.Remove(second);
 
+            // Popups: a menu or flyout lives in its own root, which must follow the policy too (open while on, switched, opened while off).
+            Button inPopup = new() { Content = "In popup", Width = 120, Height = 32 };
+            Flyout flyout = new() { Content = inPopup, ShowMode = FlyoutShowMode.Standard };
+            ContentPresenter PopupPresenter() => inPopup.GetVisualDescendants().OfType<ContentPresenter>().First(item => item.Name == "PART_ContentPresenter");
+            MotionPolicy.SetSetting(MotionPolicy.On);
+            await UntilAsync(() => !window.Classes.Contains("motion-off"), "motion on for the popup");
+            flyout.ShowAt(button);
+            await UntilAsync(() => inPopup.IsEffectivelyVisible && inPopup.Bounds.Width > 0 && inPopup.GetVisualDescendants().OfType<ContentPresenter>().Any(), "flyout content");
+            TopLevel popupRoot = TopLevel.GetTopLevel(inPopup)!;
+            Console.WriteLine("SMOKE motion popup host: " + popupRoot.GetType().Name);
+            Require(!popupRoot.Classes.Contains("motion-off") && PopupPresenter().Transitions is { Count: 3 }, "A popup opened while motion is on must animate.");
+            MotionPolicy.SetSetting(MotionPolicy.Off);
+            await UntilAsync(() => popupRoot.Classes.Contains("motion-off") && PopupPresenter().Transitions == null, "switching motion off must reach an open popup");
+            flyout.Hide();
+            await UntilAsync(() => !flyout.IsOpen, "flyout hide"); await Task.Delay(150);
+            flyout.ShowAt(button);
+            await UntilAsync(() => inPopup.IsEffectivelyVisible && inPopup.GetVisualDescendants().OfType<ContentPresenter>().Any(), "flyout content again");
+            Require(TopLevel.GetTopLevel(inPopup)!.Classes.Contains("motion-off") && PopupPresenter().Transitions == null, "A popup opened while motion is off must not animate.");
+            flyout.Hide();
+            await UntilAsync(() => !flyout.IsOpen, "flyout hide again"); await Task.Delay(150);
+            MotionPolicy.SetSetting(MotionPolicy.On);
+            await UntilAsync(() => !window.Classes.Contains("motion-off"), "motion on after the popups");
+
+            // Theme switch: the brushes change at once, with no 80 ms cross-fade, and motion is back afterwards.
+            Application app = Application.Current!;
+            ThemeVariant originalTheme = app.RequestedThemeVariant ?? ThemeVariant.Default;
+            ThemeVariant otherTheme = app.ActualThemeVariant == ThemeVariant.Dark ? ThemeVariant.Light : ThemeVariant.Dark;
+            Color Ink() => (Presenter().Background as ISolidColorBrush)?.Color ?? default;
+            Color before = Ink(), immediately = default;
+            MotionPolicy.WhileThemeChanges(() =>
+            {
+                app.RequestedThemeVariant = otherTheme;
+                immediately = Ink();
+                Require(window.Classes.Contains("motion-off"), "Motion must be off while the theme changes.");
+            });
+            await Task.Delay(40);
+            Color midway = Ink();
+            await UntilAsync(() => !window.Classes.Contains("motion-off"), "motion must come back after the theme change");
+            await Task.Delay(200);
+            Color settled = Ink();
+            Console.WriteLine($"SMOKE motion theme ink: before={before} immediately={immediately} midway={midway} settled={settled}");
+            Require(before != settled, "The probe button must change its ink with the theme.");
+            Require(immediately == settled && midway == settled, "The theme switch must not cross-fade the button ink.");
+            // Control: the same switch without the wrapper does cross-fade (informational; shows the check can fail).
+            Color control = settled;
+            app.RequestedThemeVariant = originalTheme == ThemeVariant.Default ? (otherTheme == ThemeVariant.Dark ? ThemeVariant.Light : ThemeVariant.Dark) : originalTheme;
+            await Task.Delay(30);
+            control = Ink();
+            Console.WriteLine($"SMOKE motion theme control (no wrapper): ink after 30 ms={control} (settled before={settled})");
+            await Task.Delay(250);
+            MotionPolicy.WhileThemeChanges(() => app.RequestedThemeVariant = originalTheme);
+            await UntilAsync(() => !window.Classes.Contains("motion-off"), "motion back after restoring the theme");
+
             // Image fade: only an asynchronous, visible arrival fades; the helper leaves Opacity at 1 once it has finished.
             Require(!ImageFade.ShouldFade(false, true, true, false) && !ImageFade.ShouldFade(true, false, true, false)
                 && !ImageFade.ShouldFade(true, true, false, false) && !ImageFade.ShouldFade(true, true, true, true) && ImageFade.ShouldFade(true, true, true, false),
@@ -149,6 +204,8 @@ internal static class MotionChecks
             Console.WriteLine($"SMOKE motion frames: n={frames.Count} mean={mean:0.0} ms p95={p95:0.0} ms max={max:0.0} ms (software rendering under Xvfb; limit on the mean {MeanFrameLimitMs} ms, design target 16 ms on real hardware)");
             Require(mean <= MeanFrameLimitMs, $"Mean frame interval {mean:0.0} ms exceeds {MeanFrameLimitMs} ms during the fades.");
 
+            await FocusRingGeometryAsync(window);
+
             Console.WriteLine("SMOKE motion: policy (environment > setting > OS) toggled the class on an open window at run time; hover, overlay, toast and image fade exist only with motion on; frame interval measured.");
         }
         finally
@@ -160,6 +217,33 @@ internal static class MotionChecks
             window.Close();
             owner.Activate();
         }
+    }
+
+    // The double focus ring sits 4 dip outside the control on every side (a negative Margin once shifted it up-left instead).
+    internal static async Task FocusRingGeometryAsync(Window owner)
+    {
+        Button button = new() { Content = "Focus probe", Width = 160, Height = 32, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+        Window window = new() { Width = 400, Height = 200, Content = new Grid { Children = { button } }, Title = "Focus ring probe", ShowInTaskbar = false };
+        try
+        {
+            window.Show(owner);
+            await UntilAsync(() => window.IsVisible && button.IsEffectivelyVisible && button.Bounds.Width > 0, "focus probe window");
+            button.Focus(Avalonia.Input.NavigationMethod.Tab, Avalonia.Input.KeyModifiers.None);
+            AdornerLayer layer = AdornerLayer.GetAdornerLayer(button) ?? throw new InvalidOperationException("No adorner layer for the probe button.");
+            await UntilAsync(() => layer.Children.OfType<Control>().Any(item => ReferenceEquals(AdornerLayer.GetAdornedElement(item), button)), "the focus adorner never appeared");
+            await IdleAsync();
+            Control adorner = layer.Children.OfType<Control>().First(item => ReferenceEquals(AdornerLayer.GetAdornedElement(item), button));
+            Point topLeft = adorner.TranslatePoint(new Point(0, 0), window) ?? throw new InvalidOperationException("Adorner not in the window.");
+            Point bottomRight = adorner.TranslatePoint(new Point(adorner.Bounds.Width, adorner.Bounds.Height), window)!.Value;
+            Point buttonTopLeft = button.TranslatePoint(new Point(0, 0), window)!.Value;
+            Rect ring = new(topLeft, bottomRight), target = new(buttonTopLeft, button.Bounds.Size);
+            Console.WriteLine($"SMOKE focus ring: ring={ring} button={target} bounds={adorner.Bounds} clip={adorner.Clip != null}");
+            Require(adorner.Clip == null, "The focus ring must not be clipped (AdornerLayer.IsClipEnabled=False).");
+            Require(Math.Abs(ring.Left - (target.Left - 4)) < 0.6 && Math.Abs(ring.Top - (target.Top - 4)) < 0.6
+                && Math.Abs(ring.Right - (target.Right + 4)) < 0.6 && Math.Abs(ring.Bottom - (target.Bottom + 4)) < 0.6,
+                $"The focus ring must surround the button by 4 dip on every side: ring {ring}, button {target}.");
+        }
+        finally { window.Close(); owner.Activate(); }
     }
 
     private static Task IdleAsync() => Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Render).GetTask();

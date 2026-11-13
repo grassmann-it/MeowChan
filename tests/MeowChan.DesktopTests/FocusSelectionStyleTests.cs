@@ -24,6 +24,8 @@ public sealed class FocusSelectionStyleTests
         Assert.Equal("2", (string?)outer.Attribute("BorderThickness"));
         Assert.Equal("-4", (string?)outer.Attribute("Margin"));
         Assert.Equal("False", (string?)outer.Attribute("IsHitTestVisible"));
+        // The ring lies outside the control; the adorner layer's own clip would cut its right and bottom side by 8 dip.
+        Assert.Equal("False", (string?)outer.Attribute("AdornerLayer.IsClipEnabled"));
         XElement inner = Assert.Single(outer.Elements(A + "Border"));
         Assert.Equal("{DynamicResource Workspace.Background}", (string?)inner.Attribute("BorderBrush"));
         Assert.Equal("1", (string?)inner.Attribute("BorderThickness"));
