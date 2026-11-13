@@ -59,6 +59,12 @@ internal static class IoStatsDisplay
         _ => string.Equals(workspaceMode?.Trim(), "Advanced", StringComparison.OrdinalIgnoreCase)
     };
 
+    /// <summary>
+    /// Whether the header shows the disk value (the written rate with its label): in every work view unless the setting is
+    /// "Network". Whether the disk row also gets a graph is <see cref="HeaderShowsDisk"/>.
+    /// </summary>
+    internal static bool HeaderShowsDiskValue(string? setting) => NormalizeHeaderGraph(setting) != HeaderGraphNetwork;
+
     /// <summary>The graph sentence for a header that draws the network row only (no disk value is named).</summary>
     internal static string GraphDescriptionNetworkOnly(IoRates rate, IoActivity activity, CultureInfo? culture = null) =>
         Texts.T("stats.graph.nameNet", ByteUnits.Rate(rate.NetDown, culture), activity.Active);

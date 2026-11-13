@@ -36,7 +36,7 @@ public sealed class StatsHeaderGraphTests : IDisposable
     }
 
     [Theory]
-    // Automatic follows the work view: disk only in Advanced.
+    // Automatic follows the work view: the disk graph only in Advanced.
     [InlineData("Auto", "Advanced", true)]
     [InlineData("Auto", "Simple", false)]
     [InlineData("Auto", "Barebones", false)]
@@ -50,8 +50,52 @@ public sealed class StatsHeaderGraphTests : IDisposable
     // Unknown text behaves like Auto.
     [InlineData("nonsense", "Advanced", true)]
     [InlineData("nonsense", "Simple", false)]
-    public void TheHeaderDrawsTheDiskRowByTheSettingAndTheWorkView(string setting, string mode, bool disk) =>
+    public void TheHeaderDrawsTheDiskGraphByTheSettingAndTheWorkView(string setting, string mode, bool disk) =>
         Assert.Equal(disk, IoStatsDisplay.HeaderShowsDisk(setting, mode));
+
+    [Theory]
+    [InlineData("Auto", true)]
+    [InlineData("NetworkAndDisk", true)]
+    [InlineData("nonsense", true)]
+    [InlineData("Network", false)]
+    [InlineData("network", false)]
+    public void TheDiskValueShowsInEveryViewUnlessTheSettingIsNetwork(string setting, bool shown) =>
+        Assert.Equal(shown, IoStatsDisplay.HeaderShowsDiskValue(setting));
+
+    [Fact]
+    public void TheLabelledHeaderValuesExistInAllTwelveLanguages()
+    {
+        foreach (string language in new[] { "en", "de", "es", "fr", "ru", "zh-Hans", "ja", "ko", "pt-BR", "cs", "it", "pl" })
+        {
+            Texts.SetLanguage(language);
+            foreach (string key in new[] { "stats.header.net", "stats.header.disk" })
+            {
+                string text = Texts.T(key, "X");
+                Assert.NotEqual(key, text);
+                Assert.Contains("X", text);
+                Assert.DoesNotContain("{", text);
+            }
+            Assert.Contains("↓", Texts.T("stats.header.net", "X"));
+        }
+        Texts.SetLanguage("en");
+        Assert.Equal("Net ↓ 2.0 KiB/s", Texts.T("stats.header.net", "2.0 KiB/s"));
+        Assert.Equal("Disk 37.8 MiB/s", Texts.T("stats.header.disk", "37.8 MiB/s"));
+    }
+
+    [Fact]
+    public void TheTaglineIsTheCatSentenceInEveryLanguage()
+    {
+        Texts.SetLanguage("en");
+        Assert.Equal("Open-source imageboard downloader — now with 100% more cats", Texts.T("shell.subtitle"));
+        Texts.SetLanguage("de");
+        Assert.Equal("Open-Source-Imageboard-Downloader — jetzt mit 100 % mehr Katzen", Texts.T("shell.subtitle"));
+        foreach (string language in new[] { "es", "fr", "ru", "zh-Hans", "ja", "ko", "pt-BR", "cs", "it", "pl" })
+        {
+            Texts.SetLanguage(language);
+            Assert.DoesNotContain("YChan", Texts.T("shell.subtitle"));
+            Assert.Contains("100", Texts.T("shell.subtitle"));
+        }
+    }
 
     [Fact]
     public void SwitchingTheWorkViewUpdatesAutomaticImmediatelyAndLeavesExplicitValuesAlone()
@@ -168,9 +212,9 @@ public sealed class StatsHeaderGraphTests : IDisposable
             }
         }
         Texts.SetLanguage("en");
-        Assert.Equal("Chooses what the graph at the top shows. Automatic: network and disk in the Advanced view, network only otherwise.", Texts.T("stats.headerGraph.hint"));
+        Assert.Equal("Chooses what the header shows. Automatic: network and disk values in every view, with a graph for each only in the Advanced view.", Texts.T("stats.headerGraph.hint"));
         Texts.SetLanguage("de");
-        Assert.Equal("Legt fest, was der Graph oben zeigt. Automatisch: Netz und Datenträger in der erweiterten Ansicht, sonst nur das Netz.", Texts.T("stats.headerGraph.hint"));
+        Assert.Equal("Legt fest, was die Kopfleiste zeigt. Automatisch: Netz- und Datenträgerwerte in jeder Ansicht, ein Graph für jeden nur in der erweiterten Ansicht.", Texts.T("stats.headerGraph.hint"));
         Assert.Equal("Graph in der Kopfleiste", Texts.T("stats.headerGraph.label"));
     }
 

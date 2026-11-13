@@ -311,6 +311,7 @@ public partial class MainWindow
         RefreshShellCommands();
         RefreshSpeedLabel();
         ShowStoreLimitWarning();
+        ToolTip.SetTip(WorkspaceSubtitle, Texts.T("shell.subtitle"));
         ToolTip.SetTip(InspectorCloseButton, Texts.T("action.hideDetails") + " · Esc");
         AutomationProperties.SetName(InspectorCloseButton, Texts.T("action.hideDetails"));
         AutomationProperties.SetName(WorkspaceMenuItem, Texts.T("nav.settings"));

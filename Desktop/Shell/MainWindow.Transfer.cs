@@ -20,7 +20,8 @@ public partial class MainWindow
     private IoStatsSubscription? _ioClaim;
     private CoalescedUiUpdate? _ioUpdate;
     private string? _graphDescription;
-    private bool _headerShowsDisk = true;
+    private bool _headerShowsDisk = true;      // the disk value (label and written rate) is shown
+    private bool _headerDiskGraph = true;       // ... and its row also draws a graph
 
     /// <summary>The claim this window currently holds on the statistics hub (None while nothing needs samples).</summary>
     internal IoStatsVisibility IoStatsClaim => _ioClaim?.Visibility ?? IoStatsVisibility.None;
@@ -35,6 +36,20 @@ public partial class MainWindow
         ApplyHeaderGraphMode();
         ApplyIoSnapshot(force: true);
         UpdateSpeedSamplingState();
+        WorkspaceHeader.LayoutUpdated += OnHeaderLayoutUpdated;
+        UpdateHeaderTagline();
+    }
+
+    // The tagline lives in the header's star column; below this width it would be a stub, so it disappears.
+    private const double HeaderTaglineMinimumWidth = 200;
+
+    // A layout pass is the one place where the star column's width is known; the property only changes when the width really does.
+    private void OnHeaderLayoutUpdated(object? sender, EventArgs e) => UpdateHeaderTagline();
+
+    private void UpdateHeaderTagline()
+    {
+        bool fits = WorkspaceHeader.ColumnDefinitions[1].ActualWidth >= HeaderTaglineMinimumWidth;
+        if (WorkspaceSubtitle.IsVisible != fits) WorkspaceSubtitle.IsVisible = fits;
     }
 
     /// <summary>
@@ -43,10 +58,13 @@ public partial class MainWindow
     /// </summary>
     private void ApplyHeaderGraphMode()
     {
-        bool disk = IoStatsDisplay.HeaderShowsDisk(_config.StatsHeaderGraph, _config.WorkspaceMode);
-        if (disk == _headerShowsDisk && TransferDiskRow.IsVisible == disk) return;
-        _headerShowsDisk = disk;
-        TransferDiskRow.IsVisible = disk;
+        bool value = IoStatsDisplay.HeaderShowsDiskValue(_config.StatsHeaderGraph);
+        bool graph = value && IoStatsDisplay.HeaderShowsDisk(_config.StatsHeaderGraph, _config.WorkspaceMode);
+        if (value == _headerShowsDisk && graph == _headerDiskGraph && TransferDiskRow.IsVisible == value) return;
+        (_headerShowsDisk, _headerDiskGraph) = (value, graph);
+        TransferDiskRow.IsVisible = value;
+        // Without a graph the slot stays (invisible), so the two value labels keep one column.
+        TransferDiskGraph.Opacity = graph ? 1 : 0;
         _graphDescription = null; // the sentence names the disk only while it is drawn
         if (_ioStats != null) ApplyIoSnapshot(force: true);
     }
@@ -54,6 +72,7 @@ public partial class MainWindow
     private void StopSpeedSampling()
     {
         PropertyChanged -= OnSpeedWindowPropertyChanged;
+        WorkspaceHeader.LayoutUpdated -= OnHeaderLayoutUpdated;
         if (_ioStats != null) _ioStats.Sampled -= OnIoStatsSampled;
         _ioClaim?.Dispose();
         _ioClaim = null;
@@ -92,9 +111,9 @@ public partial class MainWindow
         IoStatsSnapshot snapshot = hub.Snapshot();
         // Each row has its own history and its own scale; the disk row is what MeowChan writes, never what it reads back.
         if (TransferSpeedGraph.IsVisible) TransferSpeedGraph.SetSeries(snapshot.Series);
-        if (_headerShowsDisk && TransferDiskGraph.IsVisible) TransferDiskGraph.SetSeries(snapshot.Series);
-        TransferSpeedLabel.Text = "↓ " + ByteUnits.Rate(snapshot.Rate.NetDown);
-        if (_headerShowsDisk) TransferDiskLabel.Text = ByteUnits.Rate(IoStatsDisplay.HeaderDiskRate(snapshot.Rate));
+        if (_headerDiskGraph && TransferDiskGraph.IsVisible) TransferDiskGraph.SetSeries(snapshot.Series);
+        TransferSpeedLabel.Text = Texts.T("stats.header.net", ByteUnits.Rate(snapshot.Rate.NetDown));
+        if (_headerShowsDisk) TransferDiskLabel.Text = Texts.T("stats.header.disk", ByteUnits.Rate(IoStatsDisplay.HeaderDiskRate(snapshot.Rate)));
         if (_selectedPage == WorkspacePage.Statistics) _statisticsPage?.Apply(snapshot);
         // Set the name and tip only when the sentence changes: no live region, so nothing is read out every second.
         string description = IoStatsDisplay.GraphDescription(snapshot.Rate, snapshot.Activity, _headerShowsDisk);

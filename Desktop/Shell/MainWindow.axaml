@@ -31,6 +31,10 @@
                         <TextBlock Classes="brand" VerticalAlignment="Center" AutomationProperties.Name="MeowChan"><Run Text="Meow" /><Run Text="Chan" Foreground="{DynamicResource Workspace.Accent}" /></TextBlock>
                         <TextBlock x:Name="WorkspaceVersion" Classes="muted" FontSize="12" VerticalAlignment="Center" />
                     </StackPanel>
+                    <!-- The tagline sits in the star column between the brand and the graph. It is trimmed with an ellipsis and
+                         hidden altogether when that column gets too narrow (OnHeaderTaglineColumnWidth), so it never pushes the graph or the window controls. -->
+                    <TextBlock x:Name="WorkspaceSubtitle" Grid.Column="1" Tag="shell.subtitle" Classes="localized muted" FontSize="12"
+                               VerticalAlignment="Center" FontStyle="Italic" TextTrimming="CharacterEllipsis" />
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                         <!-- Network download and disk writing, each its own row with its own scale and its current value beside it.
                              A button, so keyboard and screen reader reach it: the name is the current values and a click opens
@@ -40,20 +44,14 @@
                                 <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="8">
                                     <controls:IoGraph x:Name="TransferSpeedGraph" Source="NetDown" Width="96" Height="15" VerticalAlignment="Center" IsHitTestVisible="False"
                                                       Stroke="{DynamicResource Workspace.Accent}" Fill="{DynamicResource Workspace.AccentSurface}" />
-                                    <TextBlock x:Name="TransferSpeedLabel" Grid.Column="1" Width="96" FontSize="{StaticResource Workspace.Text.Caption}" Classes="mono muted"
-                                               VerticalAlignment="Center" Text="↓ 0 B/s" />
+                                    <TextBlock x:Name="TransferSpeedLabel" Grid.Column="1" Width="124" TextTrimming="CharacterEllipsis" FontSize="{StaticResource Workspace.Text.Caption}" Classes="mono muted"
+                                               VerticalAlignment="Center" Text="Net ↓ 0 B/s" />
                                 </Grid>
                                 <Grid x:Name="TransferDiskRow" ColumnDefinitions="Auto,Auto" ColumnSpacing="8">
                                     <controls:IoGraph x:Name="TransferDiskGraph" Source="DiskWrite" Width="96" Height="15" VerticalAlignment="Center" IsHitTestVisible="False"
                                                       Stroke="{DynamicResource Workspace.Stats.Disk}" Fill="{DynamicResource Workspace.Stats.DiskSurface}" />
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                        <!-- A disk with an arrow into it: writing. -->
-                                        <Path x:Name="TransferDiskIcon" Width="12" Height="12" Stretch="Uniform" StrokeThickness="1.2" StrokeLineCap="Round" StrokeJoin="Round"
-                                              Data="M 6,0.5 L 6,5 M 4,3 L 6,5 L 8,3 M 1.5,7.5 L 10.5,7.5 L 10.5,11.5 L 1.5,11.5 Z"
-                                              Stroke="{DynamicResource Workspace.Stats.Disk}" VerticalAlignment="Center" />
-                                        <TextBlock x:Name="TransferDiskLabel" Width="84" FontSize="{StaticResource Workspace.Text.Caption}" Classes="mono muted"
-                                                   Text="0 B/s" />
-                                    </StackPanel>
+                                    <TextBlock x:Name="TransferDiskLabel" Grid.Column="1" Width="124" TextTrimming="CharacterEllipsis" FontSize="{StaticResource Workspace.Text.Caption}"
+                                               Classes="mono muted" VerticalAlignment="Center" Text="Disk 0 B/s" />
                                 </Grid>
                             </StackPanel>
                         </Button>
