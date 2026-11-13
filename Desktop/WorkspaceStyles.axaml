@@ -443,6 +443,11 @@
         <Setter Property="SelectionBrush" Value="{DynamicResource Workspace.Accent}" />
         <Setter Property="SelectionForegroundBrush" Value="{DynamicResource Workspace.OnAccent}" />
     </Style>
+    <!-- A checkbox in a horizontal control row (filter rows: Diagnostics, Reader status line, toolbars) sits on the row's
+         centre line with the 32 dip inputs and buttons beside it, not at the top of the line. Vertical lists are unaffected. -->
+    <Style Selector="WrapPanel[Orientation=Horizontal] > CheckBox, StackPanel[Orientation=Horizontal] > CheckBox">
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
     <Style Selector="ComboBox.footer-mode"><Setter Property="MinHeight" Value="28" /><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /></Style>
     <Style Selector="DataGrid">
         <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />

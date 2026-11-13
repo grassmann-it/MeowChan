@@ -79,6 +79,7 @@ internal static class PluginPageCaptureChecks
                     }
                 }
             }
+            await CaptureDiagnosticsFilterRowAsync(window);
             Require(fixture.ForbiddenCalls == 0, "The capture pass compiled, described, started or probed a plugin.");
             Console.WriteLine("PLUGIN_PAGE_CAPTURES PASS: 1440x920, 900x760 and 860x760 (one pane), Dark and Light, EN and DE; evidence only.");
         }
@@ -88,6 +89,36 @@ internal static class PluginPageCaptureChecks
             Texts.SetLanguage(language); Application.Current!.RequestedThemeVariant = theme;
             await PresentationChecks.SwitchModeAsync(window, mode);
             window.Width = width; window.Height = height;
+        }
+    }
+
+    // The Diagnostics filter row mixes a combo box, a text box, two checkboxes and a button: the checkboxes sit on the
+    // row's centre line (shared WorkspaceStyles rule for horizontal rows), checked to the pixel and captured in both themes.
+    private static async Task CaptureDiagnosticsFilterRowAsync(MainWindow window)
+    {
+        window.GetLogicalDescendants().OfType<MenuItem>().First(item => Equals(item.Tag, "nav.diagnostics"))
+            .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        window.Width = 1440; window.Height = 920;
+        Control text = null!, problems = null!, waiting = null!;
+        await Program.WaitUntilAsync(() =>
+        {
+            text = window.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(control => control.Name == "DiagnosticTextFilter")!;
+            problems = window.GetVisualDescendants().OfType<CheckBox>().FirstOrDefault(control => control.Name == "DiagnosticProblemsOnly")!;
+            waiting = window.GetVisualDescendants().OfType<CheckBox>().FirstOrDefault(control => control.Name == "DiagnosticIncludeWaiting")!;
+            return text?.IsEffectivelyVisible == true && problems != null && waiting != null
+                && PresentationChecks.MatchesRequestedSize(window, 1440, 920);
+        });
+        foreach (ThemeVariant variant in new[] { ThemeVariant.Dark, ThemeVariant.Light })
+        {
+            Application.Current!.RequestedThemeVariant = variant;
+            text.BringIntoView();
+            await Program.WaitUntilAsync(() => window.ActualThemeVariant == variant);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            double Centre(Control control) => control.TranslatePoint(new Point(0, control.Bounds.Height / 2), window)!.Value.Y;
+            foreach (Control box in new[] { problems, waiting })
+                Require(box.VerticalAlignment == Avalonia.Layout.VerticalAlignment.Center && Math.Abs(Centre(box) - Centre(text)) <= 1,
+                    $"The Diagnostics filter checkbox {box.Name} is not centred on the filter row: {Centre(box)} vs {Centre(text)}.");
+            Program.CaptureWindow(window, "smoke-diagnostics-filter-row-" + variant.Key!.ToString()!.ToLowerInvariant() + ".png");
         }
     }
 
