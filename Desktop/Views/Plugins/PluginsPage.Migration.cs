@@ -188,21 +188,28 @@ public partial class PluginsPage
                 repairRows.Children.Add(RepairText(Texts.T("plugins.repair.policy")));
                 if (preview.Rows.Count == 0) repairRows.Children.Add(RepairText(Texts.T("plugins.repair.empty")));
                 int repairRowIndex = 0;
-                foreach (BundledCandidateRepair row in preview.Rows.OrderByDescending(row => row.CanReauthorize || row.CanConfirm))
+                foreach (BundledCandidateRepair row in preview.Rows.OrderByDescending(row => row.CanReviewChanges || row.CanReauthorize || row.CanConfirm))
                 {
                     string automationPrefix = "BundledRepairReauthorization" + repairRowIndex++;
                     BundledRepairPermissions? permissions = ReadBundledRepairPermissions(row);
                     StackPanel content = new() { Spacing = 6 };
                     content.Children.Add(new TextBlock { Text = row.PluginId, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
-                    content.Children.Add(RepairText(Texts.T("plugins.repair.identities", row.OldCandidateId,
-                        row.NewCandidateId ?? Texts.T("plugins.repair.unknown"), row.SlotId ?? Texts.T("plugins.repair.unknown"))));
-                    content.Children.Add(RepairText(Texts.T("plugins.repair.paths", row.OldPath ?? Texts.T("plugins.repair.unknown"),
-                        row.NewPath ?? Texts.T("plugins.repair.unknown"))));
-                    content.Children.Add(RepairText(Texts.T("plugins.repair.executions", row.OldExecutionRevision ?? Texts.T("plugins.repair.unknown"),
-                        row.NewExecutionRevision ?? Texts.T("plugins.repair.unknown"))));
+                    Expander technical = new() { Header = PluginChangeReviewCatalog.T("plugins.changeReview.technical"), IsExpanded = false,
+                        Content = RepairText(Texts.T("plugins.repair.identities", row.OldCandidateId,
+                            row.NewCandidateId ?? Texts.T("plugins.repair.unknown"), row.SlotId ?? Texts.T("plugins.repair.unknown")) + "\n" +
+                            Texts.T("plugins.repair.paths", row.OldPath ?? Texts.T("plugins.repair.unknown"), row.NewPath ?? Texts.T("plugins.repair.unknown")) + "\n" +
+                            Texts.T("plugins.repair.executions", row.OldExecutionRevision ?? Texts.T("plugins.repair.unknown"),
+                                row.NewExecutionRevision ?? Texts.T("plugins.repair.unknown"))) };
+                    content.Children.Add(technical);
                     content.Children.Add(RepairText(Texts.T(permissions is not null ? "plugins.repair.reauthorize.ready" :
                         row.BlockedReason is { } reason ? "plugins.repair.blocked." + reason :
                         row.BuildChanged ? "plugins.repair.changed" : "plugins.repair.sameBuild")));
+                    if (row.CanReviewChanges)
+                    {
+                        AddBundledChangeReviewRow(repairRows, row, preview.ProfileRevision, approval, SaveAsync,
+                            () => coherent, () => saving, UpdateSubmit);
+                        continue;
+                    }
                     if (row.CanReauthorize)
                     {
                         // Keep this permission decision bound to the exact backend row, fingerprint and profile revision.
@@ -280,21 +287,23 @@ public partial class PluginsPage
                     StackPanel content = new() { Spacing = 6 };
                     content.Children.Add(RepairText(Texts.T("plugins.reselection.section")));
                     content.Children.Add(new TextBlock { Text = row.PluginId, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
-                    content.Children.Add(RepairText(Texts.T("plugins.repair.identities", row.OldCandidateId,
-                        row.NewCandidateId ?? Texts.T("plugins.repair.unknown"), row.SlotId ?? Texts.T("plugins.repair.unknown"))));
-                    content.Children.Add(RepairText(Texts.T("plugins.repair.paths", row.OldPath ?? Texts.T("plugins.repair.unknown"),
-                        row.NewPath ?? Texts.T("plugins.repair.unknown"))));
-                    content.Children.Add(RepairText(Texts.T("plugins.repair.executions", row.OldExecutionRevision ?? Texts.T("plugins.repair.unknown"),
-                        row.NewExecutionRevision ?? Texts.T("plugins.repair.unknown"))));
-                    content.Children.Add(RepairText(Texts.T("plugins.reselection.configuration")));
+                    Expander technical = new() { Header = PluginChangeReviewCatalog.T("plugins.changeReview.technical"), IsExpanded = false,
+                        Content = RepairText(Texts.T("plugins.repair.identities", row.OldCandidateId,
+                            row.NewCandidateId ?? Texts.T("plugins.repair.unknown"), row.SlotId ?? Texts.T("plugins.repair.unknown")) + "\n" +
+                            Texts.T("plugins.repair.paths", row.OldPath ?? Texts.T("plugins.repair.unknown"), row.NewPath ?? Texts.T("plugins.repair.unknown")) + "\n" +
+                            Texts.T("plugins.repair.executions", row.OldExecutionRevision ?? Texts.T("plugins.repair.unknown"),
+                                row.NewExecutionRevision ?? Texts.T("plugins.repair.unknown"))) };
+                    content.Children.Add(technical);
+                    Expander configurationDetails = new() { Header = PluginChangeReviewCatalog.T("plugins.changeReview.technical"), IsExpanded = false };
                     TextBox configuration = new()
                     {
-                        Text = row.ConfigurationJson ?? Texts.T("plugins.reselection.configurationUnavailable"),
+                        Text = Texts.T("plugins.reselection.configuration") + "\n" + (row.ConfigurationJson ?? Texts.T("plugins.reselection.configurationUnavailable")),
                         IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 240,
                         HorizontalAlignment = HorizontalAlignment.Stretch
                     };
-                    AutomationProperties.SetName(configuration, Texts.T("plugins.reselection.configuration"));
-                    content.Children.Add(configuration);
+                    AutomationProperties.SetName(configurationDetails, Texts.T("plugins.reselection.configuration"));
+                    configurationDetails.Content = configuration;
+                    content.Children.Add(configurationDetails);
                     content.Children.Add(RepairText(ReselectionReason(row)));
                     CheckBox acknowledgement = new()
                     {

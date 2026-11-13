@@ -5,13 +5,15 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.PluginHost.Configuration;
+using MeowChan.PluginSdk;
 
 namespace MeowChan;
 
-internal enum PluginApprovalKind { Repair, Reauthorization, Reselection }
+internal enum PluginApprovalKind { Repair, Reauthorization, Reselection, ChangeReview }
 internal enum PluginApprovalState { Saved, NotExecuted, NeedsReview, Failed, CheckStore }
 internal sealed record PluginApprovalChoice(PluginApprovalKind Kind, long Revision,
-    BundledCandidateRepair? Repair = null, BundledCandidateReselection? Selection = null)
+    BundledCandidateRepair? Repair = null, BundledCandidateReselection? Selection = null,
+    PluginConfiguration? ChangeConfiguration = null, bool AcknowledgeChanges = false, bool AuthorizePermissions = false)
 {
     internal string PluginId => Repair?.PluginId ?? Selection!.PluginId;
 }
@@ -42,7 +44,9 @@ internal sealed class PluginMultiApproval(IPluginProfileStore store)
     {
         if (Saving) return InFlight!;
         // Take an owned, immutable-by-caller list before any await. No newly checked rows join it.
-        PluginApprovalChoice[] frozen = selected.ToArray();
+        // Own the nested settings values before any asynchronous boundary. The dialog can keep
+        // editing its draft while the writer rechecks the exact frozen row.
+        PluginApprovalChoice[] frozen = selected.Select(CloneChoice).ToArray();
         TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         InFlight = completion.Task; // Publish the lock even when a store completes synchronously.
         _ = CompleteAsync();
@@ -65,6 +69,8 @@ internal sealed class PluginMultiApproval(IPluginProfileStore store)
         long expected = frozen[0].Revision;
         if (frozen.Any(choice => choice.Revision != expected || !MayOffer(choice.PluginId) || !Eligible(choice)) ||
             frozen.Select(choice => choice.PluginId).Distinct(StringComparer.Ordinal).Count() != frozen.Length ||
+            (frozen.Any(choice => choice.Kind == PluginApprovalKind.ChangeReview) &&
+                (frozen.Length != 1 || frozen[0].Kind != PluginApprovalKind.ChangeReview)) ||
             (frozen.Length > 1 && frozen.Any(choice => choice.Kind != PluginApprovalKind.Reauthorization)))
         { IssueKey = "plugins.approval.needsReview"; return; }
 
@@ -108,6 +114,8 @@ internal sealed class PluginMultiApproval(IPluginProfileStore store)
                 {
                     PluginApprovalKind.Reauthorization => store.ReauthorizeBundledRepairAsync(choice.Repair!, expected, token),
                     PluginApprovalKind.Repair => store.ConfirmBundledRepairAsync(choice.Repair!, expected, token),
+                    PluginApprovalKind.ChangeReview => store.ConfirmBundledChangeAsync(choice.Repair!, choice.ChangeConfiguration!,
+                        choice.AcknowledgeChanges, choice.AuthorizePermissions, expected, token),
                     _ => store.ConfirmBundledReselectionAsync(choice.Selection!, expected, token)
                 });
                 _consumed.Add(choice.PluginId);
@@ -144,9 +152,19 @@ internal sealed class PluginMultiApproval(IPluginProfileStore store)
 
     private static bool Eligible(PluginApprovalChoice choice) => choice.Kind switch
     {
-        PluginApprovalKind.Reauthorization => choice.Selection is null && choice.Repair?.CanReauthorize == true,
-        PluginApprovalKind.Repair => choice.Selection is null && choice.Repair?.CanConfirm == true,
-        PluginApprovalKind.Reselection => choice.Repair is null && choice.Selection?.CanConfirm == true,
+        PluginApprovalKind.Reauthorization => choice.Selection is null && choice.ChangeConfiguration is null && choice.Repair?.CanReauthorize == true,
+        PluginApprovalKind.Repair => choice.Selection is null && choice.ChangeConfiguration is null && choice.Repair?.CanConfirm == true,
+        PluginApprovalKind.Reselection => choice.Repair is null && choice.ChangeConfiguration is null && choice.Selection?.CanConfirm == true,
+        PluginApprovalKind.ChangeReview => choice.Selection is null && choice.Repair?.CanReviewChanges == true &&
+            choice.ChangeConfiguration is not null && choice.AcknowledgeChanges,
         _ => false
     };
+
+    private static PluginApprovalChoice CloneChoice(PluginApprovalChoice choice)
+    {
+        PluginConfiguration? configuration = choice.ChangeConfiguration is { } value
+            ? SdkJson.Deserialize<PluginConfiguration>(SdkJson.Serialize(value))
+            : null;
+        return choice with { ChangeConfiguration = configuration };
+    }
 }
