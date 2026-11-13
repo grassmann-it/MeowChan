@@ -46,11 +46,15 @@
                     <SolidColorBrush x:Key="Workspace.Hover">#30363E</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.OnAccent">#121416</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentHover">#8ABBFF</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.Error">#F49B9B</SolidColorBrush>
+                    <!-- Status colours (palette review 2026-11-13): salmon #F49B9B and mint #83D4AC had the same lightness, so
+                         under protanopia/deuteranopia they collapsed (dE 8-15). Error is a step darker and warmer (coral), Success
+                         a step lighter; the smallest simulated distance between any two of Error, Warning, Success and Accent rises
+                         from 8.4 to 24.8. Error stays 5.5:1 on Raised and 5.3:1 on ErrorSurface, Success 11.2:1 / 9.5:1. -->
+                    <SolidColorBrush x:Key="Workspace.Error">#DF857C</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ErrorSurface">#3C2428</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Warning">#E8BE72</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.WarningSurface">#352C1D</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.Success">#83D4AC</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Success">#A7EFCB</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.SuccessSurface">#20382D</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Progress">#C9CFD6</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ProgressTrack">#30363E</SolidColorBrush>
@@ -89,7 +93,7 @@
                     <SolidColorBrush x:Key="Workspace.ChipSurface">#24282D</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ChipBorder">#7D8793</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ChipSourceBorder">#7D8793</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.ChipExcludeBorder">#F49B9B</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ChipExcludeBorder">#DF857C</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ChipSelectedSurface">#25344A</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ChipSelectedBorder">#6AA7FF</SolidColorBrush>
                     <!-- Danbooru category marks: an addition to the named category, never the only carrier. -->
@@ -145,7 +149,10 @@
                     <SolidColorBrush x:Key="Workspace.ErrorSurface">#F4E0E3</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Warning">#795100</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.WarningSurface">#F2E5C4</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.Success">#2D4023</SolidColorBrush>
+                    <!-- Palette review 2026-11-13: #2D4023 was a near-black olive (CIELAB chroma 20) that read as grey and sat 8 dE
+                         from Error under protanopia. A clear bluish green at the same text contrast: 4.87:1 on Background, 5.59:1
+                         on Panel, 4.57:1 on Raised, 6.17:1 on Card, 5.66:1 on SuccessSurface; simulated distance to Error 8.2 -> 14.4. -->
+                    <SolidColorBrush x:Key="Workspace.Success">#1D6941</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.SuccessSurface">#E8F0E4</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Progress">#333333</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ProgressTrack">#D4CFC7</SolidColorBrush>
