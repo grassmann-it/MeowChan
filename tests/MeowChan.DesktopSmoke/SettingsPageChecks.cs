@@ -217,6 +217,7 @@ internal static class SettingsPageChecks
                     Click(editor.FindControl<Button>("CancelSettingsButton")!);
                 }
             }
+            if (footerOnly) await CheckAdvancedMinimumWithBannerAsync(window, editor);
         }
         finally
         {
@@ -227,6 +228,59 @@ internal static class SettingsPageChecks
             window.WindowState = state;
             editor.CancelChanges();
             Navigate(window, false);
+            // The next capture must not show a layout taken while the restored size is still in flight
+            // (UX round 2 #1: the old "top" capture showed the page overflowing mid-resize).
+            if (state == WindowState.Normal)
+                await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
+        }
+    }
+
+    // UX round 2 #1: Advanced at 760 x 500 with a retained shell error banner and the long Downloads
+    // section. The page body scrolls; the Save/Discard footer stays above the status bar.
+    private static async Task CheckAdvancedMinimumWithBannerAsync(MainWindow window, SettingsEditor editor)
+    {
+        Ursa.Controls.Banner banner = window.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!;
+        TextBlock bannerText = window.FindControl<TextBlock>("ShellActionError")!;
+        bool bannerVisible = banner.IsVisible;
+        string? bannerMessage = bannerText.Text;
+        try
+        {
+            // The sequence of the full settings smoke: leave the page at the Barebones minimum and switch
+            // to Advanced (a larger minimum) while the page is hidden, then come back.
+            Navigate(window, false);
+            await PresentationChecks.SwitchModeAsync(window, "Advanced");
+            window.Width = 760;
+            window.Height = 500;
+            Navigate(window, true);
+            await Program.WaitUntilAsync(() => window.WindowState == WindowState.Normal
+                && PresentationChecks.MatchesRequestedSize(window, 760, 500));
+            banner.IsVisible = true;
+            bannerText.Text = "Retained error for the settings minimum-size layout";
+            foreach (string language in new[] { "en", "de" })
+            {
+                Texts.SetLanguage(language);
+                await SettingsSectionChecks.OpenAsync(editor, "settings.downloads");
+                ScrollViewer body = editor.FindControl<ScrollViewer>("SettingsScrollViewer")!;
+                body.Offset = new Vector(0, 0);
+                Border footer = editor.FindControl<Grid>("SettingsFooter")!.Parent as Border
+                    ?? throw new InvalidOperationException("The settings footer lost its border.");
+                Border status = (Border)window.FindControl<TextBlock>("WorkspaceStatus")!.Parent!.Parent!;
+                await Program.WaitUntilAsync(() => InViewport(window, editor.FindControl<Button>("SaveSettingsButton")!)
+                    && InViewport(window, editor.FindControl<Button>("CancelSettingsButton")!));
+                window.UpdateLayout();
+                double Bottom(Control control) => control.TranslatePoint(new Point(0, control.Bounds.Height), window)!.Value.Y;
+                double Top(Control control) => control.TranslatePoint(default, window)!.Value.Y;
+                Program.CaptureWindow(window, $"smoke-settings-page-advanced-minimum-banner-{language}.png");
+                Require(Bottom(body) <= Top(footer) + 1 && Bottom(footer) <= Top(status) + 1 && Bottom(editor) <= Top(status) + 1,
+                    $"Settings page overflowed at 760x500: body bottom {Bottom(body)}, footer {Top(footer)}-{Bottom(footer)}, "
+                    + $"editor bottom {Bottom(editor)}, status top {Top(status)}.");
+                Require(body.Extent.Height > body.Viewport.Height, "The minimum-size Downloads section did not need the body to scroll.");
+            }
+        }
+        finally
+        {
+            bannerText.Text = bannerMessage;
+            banner.IsVisible = bannerVisible;
         }
     }
 
