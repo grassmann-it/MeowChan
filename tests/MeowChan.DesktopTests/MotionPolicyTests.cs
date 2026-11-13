@@ -146,11 +146,25 @@ public sealed class MotionPolicyTests
         foreach (XElement style in motion)
         {
             string selector = (string)style.Attribute("Selector")!;
-            if (style.Elements(A + "Setter").Any(setter => (string?)setter.Attribute("Property") == "Transitions" && (string?)setter.Attribute("Value") == "{x:Null}"))
-                Assert.StartsWith(":is(TopLevel).motion-off ", selector);
+            if (style.Elements(A + "Setter").Any(setter => (string?)setter.Attribute("Property") == "Transitions"
+                && ((string?)setter.Attribute("Value") == "{x:Null}" || (setter.Element(A + "Transitions") is { } list && !list.HasElements))))
+                Assert.True(selector.StartsWith(":is(TopLevel).motion-off ", StringComparison.Ordinal)
+                    || selector.StartsWith(":is(TopLevel):not(.motion-off) ListBoxItem ", StringComparison.Ordinal)
+                    || selector.StartsWith(":is(TopLevel):not(.motion-off) DataGridRow ", StringComparison.Ordinal), selector);
             else
                 Assert.StartsWith(":is(TopLevel):not(.motion-off) ", selector);
         }
+    }
+
+    [Fact]
+    public void ButtonsInVirtualisedContainersNeverTransitionAndTheRulesComeAfterTheGlobalOnes()
+    {
+        string[] selectors = XDocument.Load(Root("Desktop/WorkspaceStyles.axaml")).Root!.Elements(A + "Style")
+            .Select(style => (string?)style.Attribute("Selector") ?? "").ToArray();
+        int global = Array.IndexOf(selectors, ":is(TopLevel):not(.motion-off) ToggleButton /template/ ContentPresenter#PART_ContentPresenter");
+        Assert.True(global > 0);
+        foreach (string container in new[] { "ListBoxItem Button", "ListBoxItem ToggleButton", "DataGridRow Button", "DataGridRow ToggleButton" })
+            Assert.True(Array.IndexOf(selectors, ":is(TopLevel):not(.motion-off) " + container + " /template/ ContentPresenter#PART_ContentPresenter") > global, container);
     }
 
     [Fact]
@@ -199,6 +213,17 @@ public sealed class MotionPolicyTests
         foreach (string tile in new[] { "Desktop/MediaLibraryTileView.cs", "Desktop/ArchiveMediaTileView.cs" })
             Assert.DoesNotContain("ImageFade", File.ReadAllText(Root(tile)));
     }
+
+    [Theory]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(null, false, false)]
+    [InlineData(true, null, true)]
+    [InlineData(null, null, false)]
+    public void OnLinuxEitherKdeOrThePortalCanReduceMotionAndNeitherUndoesTheOther(bool? kde, bool? portal, bool expected) =>
+        Assert.Equal(expected, OsMotionSignal.CombineLinux(kde, portal));
 
     [Theory]
     [InlineData("[KDE]\nAnimationDurationFactor=0\n", true)]

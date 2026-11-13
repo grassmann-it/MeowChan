@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -61,13 +62,17 @@ internal sealed record OsMotionStatus(OsMotionState State, string Source, string
 /// <item>Windows: <c>SystemParametersInfo(SPI_GETCLIENTAREAANIMATION)</c>, read at start and whenever a window is activated.</item>
 /// <item>macOS: <c>NSWorkspace.accessibilityDisplayShouldReduceMotion</c>, read at start and whenever a window is activated.</item>
 /// <item>Linux: the settings portal's <c>org.gnome.desktop.interface enable-animations</c> (read once, then watched through the
-/// portal's <c>SettingChanged</c> signal on the session bus), and KDE's <c>AnimationDurationFactor=0</c> in kdeglobals at start.</item>
+/// portal's <c>SettingChanged</c> signal on the session bus), and KDE's <c>AnimationDurationFactor=0</c> in kdeglobals at start.
+/// The two Linux sources are combined with OR: motion is reduced when either says so. A KDE desktop usually also runs a GTK portal
+/// that answers "animations enabled" from its own defaults; that must not undo the user's "Instant" in the KDE settings.</item>
 /// </list>
 /// </summary>
 internal static class OsMotionSignal
 {
     private static DBusConnection? _portal;
     private static OsMotionStatus _status = OsMotionStatus.None;
+    private static bool? _kdeReduced, _portalReduced;
+    private static readonly ConditionalWeakTable<Avalonia.Controls.Window, object> Activation = new();
 
     /// <summary>The outcome of the latest read; shown in Diagnostics and written to the log whenever it changes.</summary>
     internal static OsMotionStatus Status => Volatile.Read(ref _status);
@@ -101,7 +106,8 @@ internal static class OsMotionSignal
         {
             if (OperatingSystem.IsLinux())
             {
-                if (ReadKdeGlobals() is { } kde)
+                _kdeReduced = ReadKdeGlobals();
+                if (_kdeReduced is { } kde)
                 {
                     Record(OsMotionStatus.FromValue("kdeglobals", kde));
                     changed(kde);
@@ -112,11 +118,15 @@ internal static class OsMotionSignal
             {
                 if (ReadNow() is { } reduced) changed(reduced);
                 // The system setting is not observable from here on Windows and macOS; a window activation is the cheap re-read.
+                // WindowOpened comes once per Show(), so a window shown again after Hide() must not get a second handler.
                 Avalonia.Controls.Window.WindowOpenedEvent.AddClassHandler<Avalonia.Controls.Window>((window, _) =>
+                {
+                    if (!Activation.TryAdd(window, window)) return;
                     window.Activated += (_, _) =>
                     {
                         if (ReadNow() is { } now) changed(now);
-                    });
+                    };
+                });
             }
         }
         catch (Exception exception) { Record(OsMotionStatus.Unavailable("startup", exception.GetType().Name + ": " + exception.Message)); }
@@ -184,6 +194,15 @@ internal static class OsMotionSignal
     /// <summary>The portal value means "animations enabled"; reduced motion is its negation.</summary>
     internal static bool ReducedFromEnableAnimations(bool enabled) => !enabled;
 
+    /// <summary>Linux: reduced when the KDE setting or the portal says so; unknown sources count as "allowed".</summary>
+    internal static bool CombineLinux(bool? kdeReduced, bool? portalReduced) => kdeReduced == true || portalReduced == true;
+
+    private static bool PortalSays(bool enabled)
+    {
+        _portalReduced = ReducedFromEnableAnimations(enabled);
+        return CombineLinux(_kdeReduced, _portalReduced);
+    }
+
     private static async Task WatchPortalAsync(Action<bool> changed)
     {
         try
@@ -194,6 +213,9 @@ internal static class OsMotionSignal
                 return;
             }
             DBusConnection connection = new(DBusAddress.Session);
+            bool kept = false;
+            try
+            {
             using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(3));
             await connection.ConnectAsync().AsTask().WaitAsync(timeout.Token);
             bool? initial = await connection.CallMethodAsync(ReadOne(connection),
@@ -201,7 +223,7 @@ internal static class OsMotionSignal
             if (initial is { } enabled)
             {
                 Record(OsMotionStatus.FromValue("settings portal", ReducedFromEnableAnimations(enabled)));
-                Dispatcher.UIThread.Post(() => changed(ReducedFromEnableAnimations(enabled)));
+                Dispatcher.UIThread.Post(() => changed(PortalSays(enabled)));
             }
             else RecordUnavailableUnlessDetected("settings portal", "enable-animations is not a boolean");
             MatchRule rule = new()
@@ -215,10 +237,17 @@ internal static class OsMotionSignal
                     if (exception == null && value.Namespace == PortalNamespace && value.Key == PortalKey && value.Value is { } now)
                     {
                         Record(OsMotionStatus.FromValue("settings portal", ReducedFromEnableAnimations(now)));
-                        Dispatcher.UIThread.Post(() => changed(ReducedFromEnableAnimations(now)));
+                        Dispatcher.UIThread.Post(() => changed(PortalSays(now)));
                     }
                 }, ObserverFlags.None, null, null, false).AsTask().WaitAsync(timeout.Token);
             _portal = connection; // Keep the subscription for the life of the process.
+            kept = true;
+            }
+            finally
+            {
+                // A timeout or error must not leave a half-open connection behind (WaitAsync only stops the waiting).
+                if (!kept) connection.Dispose();
+            }
         }
         catch (OperationCanceledException) { RecordUnavailableUnlessDetected("settings portal", "no answer from the settings portal within 3 s"); }
         catch (Exception exception) { RecordUnavailableUnlessDetected("settings portal", exception.GetType().Name + ": " + exception.Message); }

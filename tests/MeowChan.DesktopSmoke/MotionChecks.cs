@@ -129,6 +129,47 @@ internal static class MotionChecks
             MotionPolicy.SetSetting(MotionPolicy.On);
             await UntilAsync(() => !window.Classes.Contains("motion-off"), "motion on after the popups");
 
+            // Buttons in virtualised containers never transition (E6); the same button outside a list does.
+            Button inRow = new() { Content = "In row", Width = 100, Height = 28 };
+            ListBox rows = new() { Items = { new ListBoxItem { Content = inRow } }, Width = 200, Height = 60, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom };
+            content.Children.Add(rows);
+            await UntilAsync(() => inRow.GetVisualDescendants().OfType<ContentPresenter>().Any(), "row button template");
+            ContentPresenter RowPresenter() => inRow.GetVisualDescendants().OfType<ContentPresenter>().First(item => item.Name == "PART_ContentPresenter");
+            Require(RowPresenter().Transitions is not { Count: > 0 } && Presenter().Transitions is { Count: 3 }, "A button in a list row must not transition; one outside must: row=" + (RowPresenter().Transitions?.Count.ToString() ?? "null") + " outside=" + (Presenter().Transitions?.Count.ToString() ?? "null") + " logical=" + string.Join(">", Avalonia.LogicalTree.LogicalExtensions.GetLogicalAncestors(inRow).Select(node => node.GetType().Name).Take(5)));
+            content.Children.Remove(rows);
+
+            // A plain Popup (the reader's quote preview is one) gets the class as well.
+            Popup popup = new() { PlacementTarget = button, Child = new Button { Content = "In Popup" }, IsLightDismissEnabled = false };
+            content.Children.Add(popup);
+            MotionPolicy.SetSetting(MotionPolicy.Off);
+            popup.IsOpen = true;
+            await UntilAsync(() => popup.Child!.IsEffectivelyVisible && popup.Child is Visual, "popup content");
+            Require(TopLevel.GetTopLevel(popup.Child as Visual)!.Classes.Contains("motion-off"), "A Popup root must carry motion-off while motion is off.");
+            popup.IsOpen = false;
+            content.Children.Remove(popup);
+            MotionPolicy.SetSetting(MotionPolicy.On);
+            await UntilAsync(() => !window.Classes.Contains("motion-off"), "motion on after the popup");
+
+            // Handlers do not pile up: hiding and showing a window again attaches it to the policy once (WindowOpened fires per Show).
+            int opened = 0;
+            Window cycle = new() { Width = 200, Height = 120, Title = "Motion cycle", ShowInTaskbar = false };
+            cycle.Opened += (_, _) => opened++;
+            int subscribersBefore = MotionPolicy.Subscribers;
+            cycle.Show(window);
+            await UntilAsync(() => opened >= 1, "cycle window opened");
+            int afterFirst = MotionPolicy.Subscribers;
+            for (int index = 0; index < 4; index++)
+            {
+                cycle.Hide();
+                await IdleAsync();
+                cycle.Show(window);
+                await Task.Delay(150); // Whether Avalonia raises Opened again is reported below; the subscription count is what matters.
+            }
+            Console.WriteLine($"SMOKE motion handlers: Opened fired {opened} times for 5 shows; subscribers before={subscribersBefore} after first={afterFirst} after cycle={MotionPolicy.Subscribers}");
+            Require(afterFirst == subscribersBefore + 1 && MotionPolicy.Subscribers == afterFirst, "Showing a window again must not add another policy subscription.");
+            cycle.Close();
+
             // Theme switch: the brushes change at once, with no 80 ms cross-fade, and motion is back afterwards.
             Application app = Application.Current!;
             ThemeVariant originalTheme = app.RequestedThemeVariant ?? ThemeVariant.Default;

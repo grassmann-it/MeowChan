@@ -791,6 +791,14 @@
             </Transitions>
         </Setter>
     </Style>
+    <!-- E6: buttons inside virtualised containers (tile chips, favourite stars, reader quote buttons) never transition: recycling
+         a container changes their classes and states, and every such change would otherwise start an 80 ms brush fade. These
+         rules come after the two above and carry the same class condition (a rule without one has a lower value priority and would
+         lose to them, however late it stands). -->
+    <Style Selector=":is(TopLevel):not(.motion-off) ListBoxItem Button /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Transitions"><Transitions /></Setter></Style>
+    <Style Selector=":is(TopLevel):not(.motion-off) ListBoxItem ToggleButton /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Transitions"><Transitions /></Setter></Style>
+    <Style Selector=":is(TopLevel):not(.motion-off) DataGridRow Button /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Transitions"><Transitions /></Setter></Style>
+    <Style Selector=":is(TopLevel):not(.motion-off) DataGridRow ToggleButton /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Transitions"><Transitions /></Setter></Style>
     <!-- The filter chip is a control that tints itself (no template part), so the control carries the transition. -->
     <Style Selector=":is(TopLevel):not(.motion-off) ursa|ClosableTag.chip">
         <Setter Property="Transitions">

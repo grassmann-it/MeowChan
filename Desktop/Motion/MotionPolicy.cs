@@ -29,7 +29,7 @@ internal static class MotionPolicy
     private static string _setting = System;
     private static bool _osReduced;
     private static bool _installed;
-    private static int _themeChanges;
+    private static int _themeChanges, _subscribers;
     private static readonly ConditionalWeakTable<TopLevel, object> Attached = new();
 
     /// <summary>Raised on the UI thread whenever the effective answer may have changed.</summary>
@@ -40,6 +40,9 @@ internal static class MotionPolicy
 
     /// <summary>The reader and every other caller ask this: should short fades be skipped?</summary>
     internal static bool Reduced => IsOff;
+
+    /// <summary>Live <see cref="Changed"/> subscriptions made by <see cref="Attach"/> (one per window or popup root, never more).</summary>
+    internal static int Subscribers => _subscribers;
 
     internal static string Setting => _setting;
     internal static bool OsReduced => _osReduced;
@@ -150,10 +153,11 @@ internal static class MotionPolicy
         handler = (_, _) =>
         {
             if (weak.TryGetTarget(out TopLevel? alive)) Apply(alive);
-            else Changed -= handler;
+            else { Changed -= handler; _subscribers--; }
         };
         Changed += handler;
-        top.Closed += (_, _) => Changed -= handler;
+        _subscribers++;
+        top.Closed += (_, _) => { Changed -= handler; _subscribers--; };
         Apply(top);
     }
 
