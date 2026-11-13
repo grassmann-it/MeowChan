@@ -23,5 +23,10 @@ internal static class ReaderCardsCatalog
         ("reader.foldMore", "Show more ({0} lines)", "Mehr anzeigen ({0} Zeilen)"),
         ("reader.foldLess", "Show less", "Weniger anzeigen"),
         ("reader.spoilerHidden", "Spoiler, hidden", "Spoiler, verborgen"),
+        ("reader.postWidth", "Post width", "Postbreite"),
+        ("reader.postWidth.hint", "Fit to content makes each post as wide as its text and pictures need, up to a reading width, like on an imageboard. Centered column gives every post the full reading width in the middle. Full width stretches every post across the reader.", "„An Inhalt anpassen“ macht jeden Post so breit, wie Text und Bilder es brauchen, höchstens bis zur Lesebreite, wie auf einem Imageboard. „Zentrierte Spalte“ gibt jedem Post die volle Lesebreite in der Mitte. „Volle Breite“ zieht jeden Post über den ganzen Reader."),
+        ("reader.postWidth.fit", "Fit to content", "An Inhalt anpassen"),
+        ("reader.postWidth.full", "Full width", "Volle Breite"),
+        ("reader.postWidth.column", "Centered column", "Zentrierte Spalte"),
     };
 }

@@ -30,7 +30,11 @@ public partial class MainWindow
             _config.VideoAutoplay, _config.VideoStartMuted, _desiredGalleryVolume ?? _config.VideoVolume);
         _presentedGalleryPlayback = _desiredGalleryPlayback ?? GalleryPlaybackPreferences.FromConfig(_config);
         _gallery?.ConfigurePlayback(_presentedGalleryPlayback);
-        if (_archivePage != null) _archivePage.ReadingFontSizePreference = ReadingFontSize();
+        if (_archivePage != null)
+        {
+            _archivePage.ReadingFontSizePreference = ReadingFontSize();
+            _archivePage.ReaderPostWidthPreference = _config.ReaderPostWidth;
+        }
     }
 
     private void QueueGalleryPlaybackPreference(GalleryPlaybackPreferences preferences)

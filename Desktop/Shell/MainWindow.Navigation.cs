@@ -127,6 +127,7 @@ public partial class MainWindow
         };
         _archivePage.FullscreenRequested = ToggleFullscreen;
         _archivePage.ReadingFontSizePreference = ReadingFontSize();
+        _archivePage.ReaderPostWidthPreference = _config.ReaderPostWidth;
         _archivePage.GetFavorites = _session.GetFavorites;
         _archivePage.GetMediaRating = _session.GetMediaRating;
         _archivePage.SetMediaRatingAsync = SetMediaRatingAsync;

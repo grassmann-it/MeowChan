@@ -96,6 +96,7 @@ namespace MeowChan
         private bool _galleryOverlayControls;
         private bool _galleryOverlayPostContext;
         private SettingsChoice? _selectedReadingFontSize;
+        private SettingsChoice? _selectedReaderPostWidth;
         private bool _videoAutoplay;
         private bool _videoStartMuted;
         private int _videoVolume;
@@ -160,6 +161,7 @@ namespace MeowChan
         public IReadOnlyList<SettingsChoice> ThemeChoices { get; private set; } = Array.Empty<SettingsChoice>();
         public IReadOnlyList<SettingsChoice> AnimationsChoices { get; private set; } = Array.Empty<SettingsChoice>();
         public IReadOnlyList<SettingsChoice> ReadingFontSizeChoices { get; private set; } = Array.Empty<SettingsChoice>();
+        public IReadOnlyList<SettingsChoice> ReaderPostWidthChoices { get; private set; } = Array.Empty<SettingsChoice>();
         public IReadOnlyList<SettingsChoice> GalleryPlaybackModeChoices { get; private set; } = Array.Empty<SettingsChoice>();
         public IReadOnlyList<SettingsChoice> WorkspaceChoices { get; private set; } = Array.Empty<SettingsChoice>();
         public IReadOnlyList<LanguageInfo> LanguageChoices { get; private set; } = Array.Empty<LanguageInfo>();
@@ -437,6 +439,8 @@ namespace MeowChan
         public string InterfaceTitle => Texts.T("settings.interface");
         public string ReadingMediaTitle => Texts.T("r08d.settings.readingMedia");
         public string ReadingFontSizeLabel => Texts.T("r08d.settings.readingFontSize");
+        public string ReaderPostWidthLabel => Texts.T("reader.postWidth");
+        public string ReaderPostWidthHint => Texts.T("reader.postWidth.hint");
         public string VideoAutoplayLabel => Texts.T("r08d.settings.videoAutoplay");
         public string VideoStartMutedLabel => Texts.T("r08d.settings.videoStartMuted");
         public string VideoVolumeLabel => Texts.T("r08d.settings.videoVolume");
@@ -522,6 +526,11 @@ namespace MeowChan
         {
             get => _selectedReadingFontSize;
             set => SetField(ref _selectedReadingFontSize, value, nameof(SelectedReadingFontSize));
+        }
+        public SettingsChoice? SelectedReaderPostWidth
+        {
+            get => _selectedReaderPostWidth;
+            set => SetField(ref _selectedReaderPostWidth, value, nameof(SelectedReaderPostWidth));
         }
         public bool VideoAutoplay { get => _videoAutoplay; set => SetField(ref _videoAutoplay, value, nameof(VideoAutoplay)); }
         public bool VideoStartMuted { get => _videoStartMuted; set => SetField(ref _videoStartMuted, value, nameof(VideoStartMuted)); }
@@ -938,7 +947,7 @@ namespace MeowChan
                     nameof(FilterHeapMiBLabel), nameof(BooruCatalogMiBLabel), nameof(BooruCatalogMiBHint), nameof(BooruCatalogMiBHelp),
                     nameof(PrivateTagLimitLabel), nameof(PrivateTagLimitHint), nameof(PrivateTagLimitHelp),
                     nameof(PrivateTagFileMiBLabel), nameof(PrivateTagFileMiBHint), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBLabel), nameof(MediaIndexCacheMiBHint), nameof(MediaIndexCacheMiBHelp), nameof(FavoriteEntryLimitLabel), nameof(FavoriteEntryLimitHint), nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBLabel), nameof(FavoriteFileLimitMiBHint), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitLabel), nameof(PostBookmarkLimitHint), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitLabel), nameof(SavedSearchLimitHint), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitLabel), nameof(ReaderGroupLimitHint), nameof(ReaderGroupLimitHelp), nameof(SourcesWatchPreviewRowsLabel), nameof(SourcesWatchPreviewRowsHint), nameof(SourcesWatchPreviewRowsHelp), nameof(ExportConfirmFilesLabel), nameof(ExportConfirmFilesHint), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBLabel), nameof(ExportConfirmGiBHint), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBLabel), nameof(PosterCacheLimitMiBHint), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitLabel), nameof(PosterCacheFileLimitHint), nameof(PosterCacheFileLimitHelp), nameof(ThumbnailCacheTilesLabel), nameof(ThumbnailCacheTilesHint), nameof(ThumbnailCacheTilesHelp), nameof(ClipboardUrlLimitLabel), nameof(ClipboardUrlLimitHint), nameof(ClipboardUrlLimitHelp), nameof(ClipboardTextLimitKiBLabel), nameof(ClipboardTextLimitKiBHint), nameof(ClipboardTextLimitKiBHelp), nameof(ImportMaxFilesPerBatchLabel), nameof(ImportMaxFilesPerBatchHint), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBLabel), nameof(ImportMaxBatchGiBHint), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBLabel), nameof(ImportMaxFileMiBHint), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesLabel), nameof(ImportMaxTotalFilesHint), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBLabel), nameof(ImportCatalogLimitMiBHint), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchLabel), nameof(ImportMaxTagsPerBatchHint), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesLabel), nameof(ImportMaxBatchesHint), nameof(ImportMaxBatchesHelp), nameof(MediaIndexMaxEntriesLabel), nameof(MediaIndexMaxEntriesHint), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsLabel), nameof(MediaIndexMaxThreadsHint), nameof(MediaIndexMaxThreadsHelp), nameof(ListsGroupLabel), nameof(PreviewsGroupLabel), nameof(ImportGroupLabel), nameof(SettingsTitle), nameof(SettingsSubtitle), nameof(DownloadsTitle),
-                    nameof(InterfaceTitle), nameof(ReadingMediaTitle), nameof(ReadingFontSizeLabel), nameof(VideoAutoplayLabel),
+                    nameof(InterfaceTitle), nameof(ReadingMediaTitle), nameof(ReadingFontSizeLabel), nameof(ReaderPostWidthLabel), nameof(ReaderPostWidthHint), nameof(VideoAutoplayLabel),
                     nameof(VideoStartMutedLabel), nameof(VideoVolumeLabel), nameof(ShowShortcutHelpLabel), nameof(AboutLabel),
                     nameof(GalleryPlaybackTitle), nameof(GalleryPlaybackModeLabel), nameof(GallerySlideshowSecondsLabel), nameof(GallerySlideshowSecondsHelp),
                     nameof(GalleryPlaybackModeHelp), nameof(GalleryMediaFocusLabel), nameof(GalleryOverlayControlsLabel),
@@ -994,13 +1003,14 @@ namespace MeowChan
             string readingFontSize = SelectedReadingFontSize?.Value ?? _config.ReadingFontSize;
             string animations = SelectedAnimations?.Value ?? _config.Animations;
             string statsHeaderGraph = SelectedStatsHeaderGraph?.Value ?? _config.StatsHeaderGraph;
+            string readerPostWidth = SelectedReaderPostWidth?.Value ?? _config.ReaderPostWidth;
             bool wasRefreshing = _refreshingLanguageLabels;
             _refreshingLanguageLabels = true;
-            try { RefreshChoices(theme, mode, language, readingFontSize, animations, statsHeaderGraph); }
+            try { RefreshChoices(theme, mode, language, readingFontSize, animations, statsHeaderGraph, readerPostWidth); }
             finally { _refreshingLanguageLabels = wasRefreshing; }
         }
 
-        private void RefreshChoices(string theme, string mode, string language, string? readingFontSize = null, string? animations = null, string? statsHeaderGraph = null)
+        private void RefreshChoices(string theme, string mode, string language, string? readingFontSize = null, string? animations = null, string? statsHeaderGraph = null, string? readerPostWidth = null)
         {
             ThemeChoices = new SettingsChoice[]
             {
@@ -1019,6 +1029,12 @@ namespace MeowChan
                 new SettingsChoice("Small", Texts.T("r08d.settings.fontSmall")),
                 new SettingsChoice("Normal", Texts.T("r08d.settings.fontNormal")),
                 new SettingsChoice("Large", Texts.T("r08d.settings.fontLarge"))
+            };
+            ReaderPostWidthChoices = new SettingsChoice[]
+            {
+                new SettingsChoice(Config.ReaderPostWidthFit, Texts.T("reader.postWidth.fit")),
+                new SettingsChoice(Config.ReaderPostWidthFull, Texts.T("reader.postWidth.full")),
+                new SettingsChoice(Config.ReaderPostWidthColumn, Texts.T("reader.postWidth.column"))
             };
             string galleryMode = SelectedGalleryPlaybackMode?.Value ?? _initialGalleryPlayback.Mode.ToString();
             GalleryPlaybackModeChoices = new SettingsChoice[]
@@ -1047,11 +1063,13 @@ namespace MeowChan
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ThemeChoices)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AnimationsChoices)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ReadingFontSizeChoices)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ReaderPostWidthChoices)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(WorkspaceChoices)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LanguageChoices)));
             SelectedTheme = ThemeChoices.First(item => item.Value == theme);
             SelectedAnimations = AnimationsChoices.First(item => item.Value == (animations ?? _config.Animations));
             SelectedReadingFontSize = ReadingFontSizeChoices.First(item => item.Value == (readingFontSize ?? _config.ReadingFontSize));
+            SelectedReaderPostWidth = ReaderPostWidthChoices.First(item => item.Value == (readerPostWidth ?? _config.ReaderPostWidth));
             SelectedWorkspaceMode = WorkspaceChoices.First(item => item.Value == mode);
             SelectedLanguage = LanguageChoices.First(item => string.Equals(item.Code, language, StringComparison.OrdinalIgnoreCase));
             RefreshStatsHeaderGraphChoices(statsHeaderGraph ?? _config.StatsHeaderGraph);
@@ -1162,6 +1180,7 @@ namespace MeowChan
                     candidate.ReadingFontSize = selectedReadingFontSize;
                 candidate.SettingsBaselineReadingFontSize = _initialReadingFontSize;
                 candidate.SettingsBaselineWorkspaceMode = _initialWorkspaceMode;
+                candidate.ReaderPostWidth = SelectedReaderPostWidth?.Value ?? _config.ReaderPostWidth;
                 candidate.VideoAutoplay = VideoAutoplay;
                 candidate.VideoStartMuted = VideoStartMuted;
                 candidate.VideoVolume = VideoVolume;
@@ -1426,7 +1445,7 @@ namespace MeowChan
                 field = value;
                 bool rebindingChoice = _refreshingLanguageLabels && propertyName is
                     nameof(SelectedTheme) or nameof(SelectedAnimations) or nameof(SelectedWorkspaceMode) or nameof(SelectedLanguage) or
-                    nameof(SelectedReadingFontSize) or nameof(SelectedGalleryPlaybackMode) or nameof(SelectedStatsHeaderGraph);
+                    nameof(SelectedReadingFontSize) or nameof(SelectedReaderPostWidth) or nameof(SelectedGalleryPlaybackMode) or nameof(SelectedStatsHeaderGraph);
                 if (!rebindingChoice && propertyName is not (nameof(IsBusy) or nameof(ErrorMessage) or nameof(ErrorDetails) or nameof(StatusMessage)))
                 {
                     _draftRevision++;
