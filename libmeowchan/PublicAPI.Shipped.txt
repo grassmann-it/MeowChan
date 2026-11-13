@@ -1843,10 +1843,10 @@ const MeowChan.Archive.ArchiveCollectionExportMetadataFile.Name = "meowchan-coll
 const MeowChan.Archive.ArchiveExportMetadataFile.Name = "meowchan-export.json" -> string!
 const MeowChan.Downloader.DownloadQueue.MaximumParallelDownloadsSafetyLimit = 256 -> int
 const MeowChan.Downloader.DownloadQueue.ProtectiveParallelDownloadsCeiling = 32 -> int
-const MeowChan.Favorites.ThreadFavoriteStore.MaximumBytes = 8000000 -> int
+const MeowChan.Favorites.ThreadFavoriteStore.MaximumBytes = 8388608 -> int
 const MeowChan.Favorites.ThreadFavoriteStore.MaximumEntries = 50000 -> int
 const MeowChan.Http.RequestPolicyHandler.MaximumAttempts = 3 -> int
-const MeowChan.Ratings.MediaRatingStore.MaximumBytes = 8000000 -> int
+const MeowChan.Ratings.MediaRatingStore.MaximumBytes = 8388608 -> int
 const MeowChan.Ratings.MediaRatingStore.MaximumEntries = 50000 -> int
 override MeowChan.Archive.ArchiveSearchSpec.Equals(object? obj) -> bool
 override MeowChan.Archive.ArchiveSearchSpec.GetHashCode() -> int
