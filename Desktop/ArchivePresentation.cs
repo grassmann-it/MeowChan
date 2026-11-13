@@ -226,6 +226,24 @@ internal static class ArchivePresentation
 {
     internal static string PlainText(string? html) => ArchiveText.PlainText(html);
 
+    /// <summary>
+    /// The excerpt of a post that quote previews and reply cards show: a header "&gt;&gt;No. · author · date" and the first
+    /// lines of the text (the first attachment name when the post has no text). Only the limits differ between the two.
+    /// </summary>
+    internal static (string Header, string Body) PostExcerpt(CapturedPost post, int maxLines, int maxCharacters)
+    {
+        ArgumentNullException.ThrowIfNull(post);
+        string header = string.Join(" \u00B7 ", new[]
+        {
+            Texts.T("reader.postNumber", post.PostId), post.Author ?? string.Empty,
+            post.PostedAt?.ToLocalTime().ToString("g", Texts.Culture) ?? string.Empty
+        }.Where(part => part.Length > 0));
+        string body = ArchivePage.ShortenText(PlainText(post.Html), maxLines, maxCharacters);
+        if (body.Length == 0 && post.Attachments?.FirstOrDefault(attachment => !string.IsNullOrEmpty(attachment.OriginalFileName)) is { } file)
+            body = file.OriginalFileName!;
+        return (header, body);
+    }
+
     // 4chan/8kun number the opening post with the thread number, so a thread whose OP was not
     // captured has none. Other sources: the first captured post opens the thread.
     internal static string? OpeningPostId(ArchivedThreadView thread) => OpeningPostId(thread.Summary.Id,

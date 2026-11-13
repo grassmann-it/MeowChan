@@ -123,14 +123,7 @@ public partial class ArchivePage
     {
         ArchiveQuoteRow row = new(quote, true, thread);
         if (PreviewPost(row) is not { } post) return row;
-        string header = string.Join(" \u00B7 ", new[]
-        {
-            Texts.T("reader.postNumber", post.PostId), post.Author ?? string.Empty,
-            post.PostedAt?.ToLocalTime().ToString("g", Texts.Culture) ?? string.Empty
-        }.Where(part => part.Length > 0));
-        string excerpt = ShortenText(ArchivePresentation.PlainText(post.Html), ReplyCardMaxLines, ReplyCardMaxCharacters);
-        if (excerpt.Length == 0 && post.Attachments?.FirstOrDefault(attachment => !string.IsNullOrEmpty(attachment.OriginalFileName)) is { } file)
-            excerpt = file.OriginalFileName!;
+        (string header, string excerpt) = ArchivePresentation.PostExcerpt(post, ReplyCardMaxLines, ReplyCardMaxCharacters);
         return row with { ReplyHeader = header, ReplyExcerpt = excerpt };
     }
 }

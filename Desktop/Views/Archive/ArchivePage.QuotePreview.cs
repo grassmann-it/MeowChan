@@ -145,14 +145,7 @@ public partial class ArchivePage
     {
         if (_ended || _quotePreviewRow is not { } row || _quotePreviewTarget is not { } target || !target.IsEffectivelyVisible
             || PreviewPost(row) is not { } post) { CloseQuotePreview(); return; }
-        string header = string.Join(" · ", new[]
-        {
-            Texts.T("reader.postNumber", post.PostId), post.Author ?? string.Empty,
-            post.PostedAt?.ToLocalTime().ToString("g", Texts.Culture) ?? string.Empty
-        }.Where(part => part.Length > 0));
-        string body = ShortenQuotePreview(ArchivePresentation.PlainText(post.Html));
-        if (body.Length == 0 && post.Attachments?.FirstOrDefault(attachment => !string.IsNullOrEmpty(attachment.OriginalFileName)) is { } file)
-            body = file.OriginalFileName!;
+        (string header, string body) = ArchivePresentation.PostExcerpt(post, QuotePreviewMaxLines, QuotePreviewMaxCharacters);
         QuotePreviewHeader.Text = header;
         QuotePreviewSubject.Text = post.Subject ?? string.Empty;
         QuotePreviewSubject.IsVisible = !string.IsNullOrEmpty(post.Subject);
