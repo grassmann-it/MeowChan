@@ -32,6 +32,8 @@ public sealed class ConfigCorruptionTests
         (nameof(Config.ExportConfirmGiB), Config.ExportConfirmGiBMinimum, Config.ExportConfirmGiBMaximum),
         (nameof(Config.PosterCacheLimitMiB), Config.PosterCacheLimitMiBMinimum, Config.PosterCacheLimitMiBMaximum),
         (nameof(Config.PosterCacheFileLimit), Config.PosterCacheFileLimitMinimum, Config.PosterCacheFileLimitMaximum),
+        (nameof(Config.AudioProbeCacheLimitMiB), Config.AudioProbeCacheLimitMiBMinimum, Config.AudioProbeCacheLimitMiBMaximum),
+        (nameof(Config.AudioProbeCacheEntries), Config.AudioProbeCacheEntriesMinimum, Config.AudioProbeCacheEntriesMaximum),
         (nameof(Config.ImportMaxFilesPerBatch), Config.ImportMaxFilesPerBatchMinimum, Config.ImportMaxFilesPerBatchMaximum),
         (nameof(Config.ImportMaxBatchGiB), Config.ImportMaxBatchGiBMinimum, Config.ImportMaxBatchGiBMaximum),
         (nameof(Config.ImportMaxFileMiB), Config.ImportMaxFileMiBMinimum, Config.ImportMaxFileMiBMaximum),

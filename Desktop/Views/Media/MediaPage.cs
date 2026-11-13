@@ -111,6 +111,8 @@ public sealed partial class MediaPage : UserControl
     internal Func<long>? CacheLimitBytes { get; set; }
     /// <summary>The configured limits of entries and threads the saved index may hold (settings).</summary>
     internal Func<(int Entries, int Threads)>? CacheCountLimits { get; set; }
+    /// <summary>The configured write limits of the saved sound check of videos (settings); the shell reads them each time. Null: the default limits.</summary>
+    internal Func<MediaAudioCacheLimits>? AudioCacheLimits { get; set; }
     /// <summary>Reads the saved index; tests replace it to hold the load open.</summary>
     internal Func<MediaLibraryIndexCacheFile, CancellationToken, Task<MediaLibrarySnapshot?>> LoadCache { get; set; } =
         (file, token) => file.LoadAsync(token);

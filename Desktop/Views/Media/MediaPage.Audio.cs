@@ -78,7 +78,7 @@ public sealed partial class MediaPage
                 if (!waited) { waited = true; WaitForFirstThumbnailWave(scan.Token); }
                 return OpenForAudioProbe(entry, scan.Token);
             },
-                (map, progress) => Post(map, progress), cachePath, scan.Token);
+                (map, progress) => Post(map, progress), cachePath, scan.Token, AudioCacheLimits?.Invoke());
             Post(result, null);
         }
         catch (OperationCanceledException) { }

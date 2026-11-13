@@ -67,6 +67,111 @@ public sealed class MediaLibraryAudioTests
         Assert.Equal(new[] { path }, Directory.GetFiles(Path.GetDirectoryName(path)!));
     }
 
+    private static MediaAudioMap Many(int count) => MediaAudioMap.Empty.With(Enumerable.Range(0, count)
+        .Select(i => new KeyValuePair<string, MediaAudio>(MediaAudioMap.KeyOf(i.ToString("x64"), 1000 + i), i % 3 == 0 ? MediaAudio.HasSound : MediaAudio.Silent)));
+
+    [Fact]
+    public void TheDefaultWriteLimitsAreTheFormerFixedLimitsAndTheCeilingsAreAboveThem()
+    {
+        Assert.Equal(64L * 1024 * 1024, MediaAudioCache.DefaultLimitBytes);
+        Assert.Equal(400_000, MediaAudioCache.DefaultEntryLimit);
+        Assert.Equal(new MediaAudioCacheLimits(64L * 1024 * 1024, 400_000), MediaAudioCacheLimits.Default);
+        Assert.True(MediaAudioCache.MinimumLimitBytes < MediaAudioCache.DefaultLimitBytes && MediaAudioCache.DefaultLimitBytes < MediaAudioCache.MaximumBytes);
+        Assert.True(MediaAudioCache.MinimumEntryLimit < MediaAudioCache.DefaultEntryLimit && MediaAudioCache.DefaultEntryLimit < MediaAudioCache.EntryCeiling);
+        // The largest legal entry is about 130 bytes: a file at the entry ceiling fits the byte ceiling, so no ceiling hides the other.
+        Assert.True(MediaAudioCache.EntryCeiling * 130L <= MediaAudioCache.MaximumBytes);
+    }
+
+    [Fact]
+    public void AMapAboveTheEntryLimitIsWrittenSmallerAndStaysReadable()
+    {
+        using TempDirectory temp = new();
+        string path = Path.Combine(temp.Path, MediaAudioCache.FileName);
+        MediaAudioMap map = Many(3000);
+
+        Assert.True(MediaAudioCache.Save(path, map, new(MediaAudioCache.DefaultLimitBytes, 1000)));
+        MediaAudioMap shrunk = MediaAudioCache.Load(path)!;
+        Assert.Equal(1000, shrunk.Count);
+        // The first entries in key order stay; their answers are unchanged.
+        foreach (KeyValuePair<string, MediaAudio> pair in shrunk.Entries) Assert.Equal(map.Get(pair.Key), pair.Value);
+        Assert.Equal(map.Entries.Select(pair => pair.Key).Order(StringComparer.Ordinal).Take(1000), shrunk.Entries.Select(pair => pair.Key).Order(StringComparer.Ordinal));
+
+        // A raised limit writes everything again; the setting never needs to match what an earlier write used.
+        Assert.True(MediaAudioCache.Save(path, map, new(MediaAudioCache.DefaultLimitBytes, 5000)));
+        Assert.Equal(3000, MediaAudioCache.Load(path)!.Count);
+        // No limit given: the defaults, so existing callers behave as before.
+        Assert.True(MediaAudioCache.Save(path, map));
+        Assert.Equal(3000, MediaAudioCache.Load(path)!.Count);
+        // Zero entries is a valid, empty cache.
+        Assert.True(MediaAudioCache.Save(path, map, new(MediaAudioCache.DefaultLimitBytes, 0)));
+        Assert.Equal(0, MediaAudioCache.Load(path)!.Count);
+    }
+
+    [Fact]
+    public void AMapAboveTheByteLimitIsWrittenSmallerAndNeverLargerThanTheLimit()
+    {
+        using TempDirectory temp = new();
+        string path = Path.Combine(temp.Path, MediaAudioCache.FileName);
+        MediaAudioMap map = Many(3000);
+        Assert.True(MediaAudioCache.Save(path, map));
+        long full = new FileInfo(path).Length;
+
+        foreach (long limit in new[] { full - 1, full / 2, full / 7, 400 })
+        {
+            Assert.True(MediaAudioCache.Save(path, map, new(limit, MediaAudioCache.EntryCeiling)));
+            long size = new FileInfo(path).Length;
+            Assert.True(size <= limit, size + " > " + limit);
+            MediaAudioMap? loaded = MediaAudioCache.Load(path);
+            Assert.NotNull(loaded);
+            Assert.True(loaded!.Count < 3000);
+            foreach (KeyValuePair<string, MediaAudio> pair in loaded.Entries) Assert.Equal(map.Get(pair.Key), pair.Value);
+        }
+        // A limit that even the empty document does not fit writes nothing and leaves the earlier file alone.
+        Assert.True(MediaAudioCache.Save(path, map));
+        Assert.False(MediaAudioCache.Save(path, map, new(5, MediaAudioCache.EntryCeiling)));
+        Assert.Equal(3000, MediaAudioCache.Load(path)!.Count);
+        Assert.Equal(new[] { path }, Directory.GetFiles(temp.Path));
+    }
+
+    [Fact]
+    public void ReadsAcceptWhatAHigherSettingWroteAndLimitsAboveTheCeilingsAreCappedOnWrite()
+    {
+        using TempDirectory temp = new();
+        string path = Path.Combine(temp.Path, MediaAudioCache.FileName);
+        // More than the default entry limit (and the default 64 MiB would hold): written under the maximum settings, read with no setting at all.
+        MediaAudioMap big = Many(MediaAudioCache.DefaultEntryLimit + 10_000);
+        Assert.True(MediaAudioCache.Save(path, big, new(MediaAudioCache.MaximumBytes, MediaAudioCache.EntryCeiling)));
+        Assert.Equal(MediaAudioCache.DefaultEntryLimit + 10_000, MediaAudioCache.Load(path)!.Count);
+        // The file the default limits would have written is smaller, and lowering the setting afterwards only shrinks it.
+        Assert.True(MediaAudioCache.Save(path, big));
+        Assert.Equal(MediaAudioCache.DefaultEntryLimit, MediaAudioCache.Load(path)!.Count);
+        // A value above the ceiling is capped on write, never written as an unreadable file.
+        MediaAudioMap small = Many(5);
+        Assert.True(MediaAudioCache.Save(path, small, new(long.MaxValue, int.MaxValue)));
+        Assert.Equal(5, MediaAudioCache.Load(path)!.Count);
+        Assert.True(MediaAudioCache.Save(path, small, new(MediaAudioCache.DefaultLimitBytes, -1)));
+        Assert.Equal(0, MediaAudioCache.Load(path)!.Count);
+    }
+
+    [Fact]
+    public void TheScanSavesWithinTheGivenLimitsButReturnsEveryAnswer()
+    {
+        using TempDirectory temp = new();
+        string path = Path.Combine(temp.Path, MediaAudioCache.FileName);
+        MediaLibraryEntry a = Entry("1", 'a'), b = Entry("2", 'b'), c = Entry("3", 'c');
+        MediaLibrarySnapshot snapshot = Snapshot(true, a, b, c);
+
+        MediaAudioMap result = MediaLibraryAudioScanner.Scan(snapshot, MediaAudioMap.Empty, _ => new MemoryStream(Silent), null, path,
+            default, new MediaAudioCacheLimits(MediaAudioCache.DefaultLimitBytes, 2));
+
+        Assert.Equal(3, result.Count);
+        Assert.Equal(2, MediaAudioCache.Load(path)!.Count);
+        // Without limits the same scan saves all three.
+        File.Delete(path);
+        MediaLibraryAudioScanner.Scan(snapshot, MediaAudioMap.Empty, _ => new MemoryStream(Silent), null, path);
+        Assert.Equal(3, MediaAudioCache.Load(path)!.Count);
+    }
+
     [Fact]
     public void AnswersOfAnotherProbeVersionAreIgnoredSoTheFileIsProbedAgain()
     {

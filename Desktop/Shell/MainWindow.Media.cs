@@ -44,6 +44,7 @@ public partial class MainWindow
             ReadBooruCatalog = _session.ReadBooruCatalog,
             CacheLimitBytes = () => (long)_session.Config.MediaIndexCacheLimitMiB * 1024 * 1024,
             CacheCountLimits = () => (_session.Config.MediaIndexMaxEntries, _session.Config.MediaIndexMaxThreads),
+            AudioCacheLimits = () => new((long)_session.Config.AudioProbeCacheLimitMiB * 1024 * 1024, _session.Config.AudioProbeCacheEntries),
             ExportAllConfirmSource = () => (_session.Config.ExportConfirmFiles, (long)_session.Config.ExportConfirmGiB * 1024 * 1024 * 1024),
             ReadImportCatalog = _session.ReadManualImportCatalog,
             TagServices = new(_session.GetPublishedPrivateTagSnapshot,

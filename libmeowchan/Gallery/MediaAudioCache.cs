@@ -56,6 +56,15 @@ internal sealed class MediaAudioMap
 }
 
 /// <summary>
+/// What a cache write may hold: the file size and the number of entries (both settings, Settings, Storage and limits).
+/// A write above either limit keeps only the entries that fit; it never makes an existing file unreadable.
+/// </summary>
+internal readonly record struct MediaAudioCacheLimits(long Bytes, int Entries)
+{
+    internal static MediaAudioCacheLimits Default { get; } = new(MediaAudioCache.DefaultLimitBytes, MediaAudioCache.DefaultEntryLimit);
+}
+
+/// <summary>
 /// Disposable file copy of the audio results, next to the media index cache. It holds no user data and no
 /// index rows. Any problem (missing, damaged, newer, oversized, unknown field) means "no cache": the caller
 /// probes again. An entry made by another probe version is ignored, not trusted, so a parser change re-probes.
@@ -63,8 +72,19 @@ internal sealed class MediaAudioMap
 internal static class MediaAudioCache
 {
     internal const string FileName = "media-audio-v1.json";
-    internal const long MaximumBytes = 64L * 1024 * 1024;
-    internal const int MaximumEntries = 400_000;
+    /// <summary>
+    /// Fixed technical ceiling of the file: a larger file is never read and nothing larger is ever written. The user's write
+    /// limits (settings) are at most the ceilings, so lowering a setting never makes an existing file unreadable; the next
+    /// write only makes it smaller.
+    /// </summary>
+    internal const long MaximumBytes = 128L * 1024 * 1024;
+    /// <summary>Entries a file may describe, at most (about 110 bytes each, so this fits <see cref="MaximumBytes"/>).</summary>
+    internal const int EntryCeiling = 1_000_000;
+    /// <summary>Default write limits: the former fixed limits, so default behavior does not change.</summary>
+    internal const long DefaultLimitBytes = 64L * 1024 * 1024;
+    internal const long MinimumLimitBytes = 16L * 1024 * 1024;
+    internal const int DefaultEntryLimit = 400_000;
+    internal const int MinimumEntryLimit = 50_000;
     private const int CurrentVersion = 1;
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private static readonly JsonSerializerOptions Options = new()
@@ -87,7 +107,7 @@ internal static class MediaAudioCache
             byte[] bytes = new byte[checked((int)stream.Length)];
             stream.ReadExactly(bytes);
             Document? document = JsonSerializer.Deserialize<Document>(StrictUtf8.GetString(bytes), Options);
-            if (document is not { Version: CurrentVersion } || document.Entries == null || document.Entries.Count > MaximumEntries) return null;
+            if (document is not { Version: CurrentVersion } || document.Entries == null || document.Entries.Count > EntryCeiling) return null;
             HashSet<string> seen = new(StringComparer.Ordinal);
             List<KeyValuePair<string, MediaAudio>> current = new();
             foreach (EntryDto entry in document.Entries)
@@ -103,15 +123,30 @@ internal static class MediaAudioCache
         { return null; }
     }
 
-    /// <summary>Atomic replace. Returns false when nothing was written (too large); IO failures throw for the caller to ignore.</summary>
-    internal static bool Save(string path, MediaAudioMap map, CancellationToken token = default)
+    /// <summary>
+    /// Atomic replace. A map above <paramref name="limits"/> (default: the default limits) is written with the first entries in
+    /// key order that fit, never above the technical ceilings; the rest is probed again when needed. Returns false when nothing
+    /// was written (not even an empty document fits); IO failures throw for the caller to ignore.
+    /// </summary>
+    internal static bool Save(string path, MediaAudioMap map, MediaAudioCacheLimits? limits = null, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(map);
-        if (map.Count > MaximumEntries) return false;
-        Document document = new(CurrentVersion, map.Entries.OrderBy(pair => pair.Key, StringComparer.Ordinal)
-            .Select(pair => new EntryDto(pair.Key[..64], long.Parse(pair.Key[65..], System.Globalization.CultureInfo.InvariantCulture), MediaAudioProbe.Version, Name(pair.Value))).ToList());
-        string json = JsonSerializer.Serialize(document, Options);
-        if (StrictUtf8.GetByteCount(json) > MaximumBytes) return false;
+        MediaAudioCacheLimits effective = limits ?? MediaAudioCacheLimits.Default;
+        long maximumBytes = Math.Min(Math.Max(0, effective.Bytes), MaximumBytes);
+        int keep = Math.Min(Math.Max(0, effective.Entries), EntryCeiling);
+        List<EntryDto> all = map.Entries.OrderBy(pair => pair.Key, StringComparer.Ordinal)
+            .Select(pair => new EntryDto(pair.Key[..64], long.Parse(pair.Key[65..], System.Globalization.CultureInfo.InvariantCulture), MediaAudioProbe.Version, Name(pair.Value))).ToList();
+        keep = Math.Min(keep, all.Count);
+        string json = Serialize(all, keep);
+        long size = StrictUtf8.GetByteCount(json);
+        while (size > maximumBytes && keep > 0)
+        {
+            // Entries are about the same size: scale the count, always at least one entry less.
+            keep = Math.Min(keep - 1, (int)(keep * (double)maximumBytes / size));
+            json = Serialize(all, keep);
+            size = StrictUtf8.GetByteCount(json);
+        }
+        if (size > maximumBytes) return false;
         // A cache needs neither a backup nor a preserved copy of the previous version: plain atomic replace.
         string directory = Path.GetDirectoryName(Path.GetFullPath(path))!;
         Directory.CreateDirectory(directory);
@@ -134,6 +169,9 @@ internal static class MediaAudioCache
         }
         return true;
     }
+
+    private static string Serialize(List<EntryDto> all, int count) =>
+        JsonSerializer.Serialize(new Document(CurrentVersion, count == all.Count ? all : all.GetRange(0, count)), Options);
 
     private static string Name(MediaAudio state) => state switch { MediaAudio.HasSound => "sound", MediaAudio.Silent => "silent", _ => "unknown" };
 

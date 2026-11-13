@@ -372,6 +372,22 @@
                     </Grid>
                     <TextBlock Text="{Binding PosterCacheFileLimitHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="AudioProbeCacheLimitMiBFieldLabel" Text="{Binding AudioProbeCacheLimitMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="AudioProbeCacheLimitMiBInput" Value="{Binding AudioProbeCacheLimitMiB, Mode=TwoWay}" Minimum="16" Maximum="128" Increment="16" AutomationProperties.LabeledBy="{Binding ElementName=AudioProbeCacheLimitMiBFieldLabel}" AutomationProperties.Name="{Binding AudioProbeCacheLimitMiBLabel}" AutomationProperties.HelpText="{Binding AudioProbeCacheLimitMiBHelp}" />
+                                <TextBlock x:Name="AudioProbeCacheLimitMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding AudioProbeCacheLimitMiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="AudioProbeCacheEntriesFieldLabel" Text="{Binding AudioProbeCacheEntriesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="AudioProbeCacheEntriesInput" Value="{Binding AudioProbeCacheEntries, Mode=TwoWay}" Minimum="50000" Maximum="1000000" Increment="50000" AutomationProperties.LabeledBy="{Binding ElementName=AudioProbeCacheEntriesFieldLabel}" AutomationProperties.Name="{Binding AudioProbeCacheEntriesLabel}" AutomationProperties.HelpText="{Binding AudioProbeCacheEntriesHelp}" />
+                                <TextBlock x:Name="AudioProbeCacheEntriesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding AudioProbeCacheEntriesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ThumbnailCacheTilesFieldLabel" Text="{Binding ThumbnailCacheTilesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ThumbnailCacheTilesInput" Value="{Binding ThumbnailCacheTiles, Mode=TwoWay}" Minimum="32" Maximum="8192" Increment="32" AutomationProperties.LabeledBy="{Binding ElementName=ThumbnailCacheTilesFieldLabel}" AutomationProperties.Name="{Binding ThumbnailCacheTilesLabel}" AutomationProperties.HelpText="{Binding ThumbnailCacheTilesHelp}" />

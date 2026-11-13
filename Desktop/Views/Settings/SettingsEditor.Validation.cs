@@ -145,6 +145,8 @@ public partial class SettingsEditor
     public string ExportConfirmGiBHelp => FieldHelp(nameof(ExportConfirmGiBInput), Texts.T("settings.unitGiB") + ". " + ExportConfirmGiBHint);
     public string PosterCacheLimitMiBHelp => FieldHelp(nameof(PosterCacheLimitMiBInput), Texts.T("settings.unitMiB") + ". " + PosterCacheLimitMiBHint);
     public string PosterCacheFileLimitHelp => FieldHelp(nameof(PosterCacheFileLimitInput), Texts.T("settings.unitCount") + ". " + PosterCacheFileLimitHint);
+    public string AudioProbeCacheLimitMiBHelp => FieldHelp(nameof(AudioProbeCacheLimitMiBInput), Texts.T("settings.unitMiB") + ". " + AudioProbeCacheLimitMiBHint);
+    public string AudioProbeCacheEntriesHelp => FieldHelp(nameof(AudioProbeCacheEntriesInput), Texts.T("settings.unitCount") + ". " + AudioProbeCacheEntriesHint);
     public string ThumbnailCacheTilesHelp => FieldHelp(nameof(ThumbnailCacheTilesInput), Texts.T("settings.unitCount") + ". " + ThumbnailCacheTilesHint);
     public string ClipboardUrlLimitHelp => FieldHelp(nameof(ClipboardUrlLimitInput), Texts.T("settings.unitCount") + ". " + ClipboardUrlLimitHint);
     public string ClipboardTextLimitKiBHelp => FieldHelp(nameof(ClipboardTextLimitKiBInput), Texts.T("settings.unitKiB") + ". " + ClipboardTextLimitKiBHint);
@@ -164,7 +166,7 @@ public partial class SettingsEditor
             nameof(ParallelDownloadsHelp), nameof(ParallelDownloadsSafetyHelp), nameof(ReserveInputHelp), nameof(ProductionWorkersHelp),
             nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp), nameof(BooruCatalogMiBHelp),
             nameof(PrivateTagLimitHelp), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBHelp),
-            nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitHelp), nameof(SourcesWatchPreviewRowsHelp), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitHelp), nameof(ThumbnailCacheTilesHelp), nameof(ClipboardUrlLimitHelp), nameof(ClipboardTextLimitKiBHelp), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesHelp), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsHelp) })
+            nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitHelp), nameof(SourcesWatchPreviewRowsHelp), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitHelp), nameof(AudioProbeCacheLimitMiBHelp), nameof(AudioProbeCacheEntriesHelp), nameof(ThumbnailCacheTilesHelp), nameof(ClipboardUrlLimitHelp), nameof(ClipboardTextLimitKiBHelp), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesHelp), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsHelp) })
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
         NotifyStatisticsHelpChanged();
     }
@@ -227,6 +229,10 @@ public partial class SettingsEditor
             Config.PosterCacheLimitMiBMinimum, Config.PosterCacheLimitMiBMaximum, true);
         yield return (PosterCacheFileLimitInput, PosterCacheFileLimit, PosterCacheFileLimitLabel, Texts.T("settings.unitCount"),
             Config.PosterCacheFileLimitMinimum, Config.PosterCacheFileLimitMaximum, true);
+        yield return (AudioProbeCacheLimitMiBInput, AudioProbeCacheLimitMiB, AudioProbeCacheLimitMiBLabel, Texts.T("settings.unitMiB"),
+            Config.AudioProbeCacheLimitMiBMinimum, Config.AudioProbeCacheLimitMiBMaximum, true);
+        yield return (AudioProbeCacheEntriesInput, AudioProbeCacheEntries, AudioProbeCacheEntriesLabel, Texts.T("settings.unitCount"),
+            Config.AudioProbeCacheEntriesMinimum, Config.AudioProbeCacheEntriesMaximum, true);
         yield return (ThumbnailCacheTilesInput, ThumbnailCacheTiles, ThumbnailCacheTilesLabel, Texts.T("settings.unitCount"),
             Config.ThumbnailCacheTilesMinimum, Config.ThumbnailCacheTilesMaximum, true);
         yield return (ClipboardUrlLimitInput, ClipboardUrlLimit, ClipboardUrlLimitLabel, Texts.T("settings.unitCount"),

@@ -209,6 +209,16 @@ namespace MeowChan
         internal const int PosterCacheFileLimitDefault = Desktop.VideoPosterCache.DefaultCacheFiles;
         internal const int PosterCacheFileLimitMinimum = 32;
         internal const int PosterCacheFileLimitMaximum = 50_000;
+        /// <summary>Size limit of the saved sound check of videos (cache/media-audio-v1.json) in MiB. It is derived data: above the limit only the entries that fit are saved and the rest is checked again when needed. A larger saved file stays readable up to the fixed ceiling.</summary>
+        public int AudioProbeCacheLimitMiB { get; set; } = AudioProbeCacheLimitMiBDefault;
+        internal const int AudioProbeCacheLimitMiBDefault = (int)(Gallery.MediaAudioCache.DefaultLimitBytes / (1024 * 1024));
+        internal const int AudioProbeCacheLimitMiBMinimum = (int)(Gallery.MediaAudioCache.MinimumLimitBytes / (1024 * 1024));
+        internal const int AudioProbeCacheLimitMiBMaximum = (int)(Gallery.MediaAudioCache.MaximumBytes / (1024 * 1024));
+        /// <summary>Most videos (distinct files) the saved sound check keeps.</summary>
+        public int AudioProbeCacheEntries { get; set; } = AudioProbeCacheEntriesDefault;
+        internal const int AudioProbeCacheEntriesDefault = Gallery.MediaAudioCache.DefaultEntryLimit;
+        internal const int AudioProbeCacheEntriesMinimum = Gallery.MediaAudioCache.MinimumEntryLimit;
+        internal const int AudioProbeCacheEntriesMaximum = Gallery.MediaAudioCache.EntryCeiling;
         /// <summary>How many decoded tile previews of the Media page stay in memory (up to about 0.17 MiB each, a video poster 0.33 MiB), so scrolling back shows them at once.</summary>
         public int ThumbnailCacheTiles { get; set; } = ThumbnailCacheTilesDefault;
         internal const int ThumbnailCacheTilesDefault = Desktop.MediaThumbnailCache.DefaultCapacity;
@@ -742,6 +752,10 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(PosterCacheLimitMiB), "PosterCacheLimitMiB is outside its supported range (" + PosterCacheLimitMiBMinimum + " to " + PosterCacheLimitMiBMaximum + ").");
             if (PosterCacheFileLimit is < PosterCacheFileLimitMinimum or > PosterCacheFileLimitMaximum)
                 throw new ArgumentOutOfRangeException(nameof(PosterCacheFileLimit), "PosterCacheFileLimit is outside its supported range (" + PosterCacheFileLimitMinimum + " to " + PosterCacheFileLimitMaximum + ").");
+            if (AudioProbeCacheLimitMiB is < AudioProbeCacheLimitMiBMinimum or > AudioProbeCacheLimitMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(AudioProbeCacheLimitMiB), "AudioProbeCacheLimitMiB is outside its supported range (" + AudioProbeCacheLimitMiBMinimum + " to " + AudioProbeCacheLimitMiBMaximum + ").");
+            if (AudioProbeCacheEntries is < AudioProbeCacheEntriesMinimum or > AudioProbeCacheEntriesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(AudioProbeCacheEntries), "AudioProbeCacheEntries is outside its supported range (" + AudioProbeCacheEntriesMinimum + " to " + AudioProbeCacheEntriesMaximum + ").");
             if (ThumbnailCacheTiles is < ThumbnailCacheTilesMinimum or > ThumbnailCacheTilesMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ThumbnailCacheTiles), "ThumbnailCacheTiles is outside its supported range (" + ThumbnailCacheTilesMinimum + " to " + ThumbnailCacheTilesMaximum + ").");
             if (ClipboardUrlLimit is < ClipboardUrlLimitMinimum or > ClipboardUrlLimitMaximum)
@@ -849,6 +863,8 @@ namespace MeowChan
                 ExportConfirmGiB = ExportConfirmGiB,
                 PosterCacheLimitMiB = PosterCacheLimitMiB,
                 PosterCacheFileLimit = PosterCacheFileLimit,
+                AudioProbeCacheLimitMiB = AudioProbeCacheLimitMiB,
+                AudioProbeCacheEntries = AudioProbeCacheEntries,
                 ThumbnailCacheTiles = ThumbnailCacheTiles,
                 ClipboardUrlLimit = ClipboardUrlLimit,
                 ClipboardTextLimitKiB = ClipboardTextLimitKiB,
@@ -980,6 +996,8 @@ namespace MeowChan
             ExportConfirmGiB = source.ExportConfirmGiB;
             PosterCacheLimitMiB = source.PosterCacheLimitMiB;
             PosterCacheFileLimit = source.PosterCacheFileLimit;
+            AudioProbeCacheLimitMiB = source.AudioProbeCacheLimitMiB;
+            AudioProbeCacheEntries = source.AudioProbeCacheEntries;
             ThumbnailCacheTiles = source.ThumbnailCacheTiles;
             ClipboardUrlLimit = source.ClipboardUrlLimit;
             ClipboardTextLimitKiB = source.ClipboardTextLimitKiB;
@@ -1075,6 +1093,8 @@ namespace MeowChan
             ExportConfirmGiB = source.ExportConfirmGiB;
             PosterCacheLimitMiB = source.PosterCacheLimitMiB;
             PosterCacheFileLimit = source.PosterCacheFileLimit;
+            AudioProbeCacheLimitMiB = source.AudioProbeCacheLimitMiB;
+            AudioProbeCacheEntries = source.AudioProbeCacheEntries;
             ThumbnailCacheTiles = source.ThumbnailCacheTiles;
             ClipboardUrlLimit = source.ClipboardUrlLimit;
             ClipboardTextLimitKiB = source.ClipboardTextLimitKiB;

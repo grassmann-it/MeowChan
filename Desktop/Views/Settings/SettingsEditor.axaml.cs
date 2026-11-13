@@ -144,6 +144,8 @@ namespace MeowChan
         private decimal? _exportConfirmGiB;
         private decimal? _posterCacheLimitMiB;
         private decimal? _posterCacheFileLimit;
+        private decimal? _audioProbeCacheLimitMiB;
+        private decimal? _audioProbeCacheEntries;
         private decimal? _thumbnailCacheTiles;
         private decimal? _clipboardUrlLimit;
         private decimal? _clipboardTextLimitKiB;
@@ -260,6 +262,8 @@ namespace MeowChan
             ExportConfirmGiB = config.ExportConfirmGiB;
             PosterCacheLimitMiB = config.PosterCacheLimitMiB;
             PosterCacheFileLimit = config.PosterCacheFileLimit;
+            AudioProbeCacheLimitMiB = config.AudioProbeCacheLimitMiB;
+            AudioProbeCacheEntries = config.AudioProbeCacheEntries;
             ThumbnailCacheTiles = config.ThumbnailCacheTiles;
             ClipboardUrlLimit = config.ClipboardUrlLimit;
             ClipboardTextLimitKiB = config.ClipboardTextLimitKiB;
@@ -301,6 +305,8 @@ namespace MeowChan
             ResetNumber(ExportConfirmGiBInput, ExportConfirmGiB!.Value);
             ResetNumber(PosterCacheLimitMiBInput, PosterCacheLimitMiB!.Value);
             ResetNumber(PosterCacheFileLimitInput, PosterCacheFileLimit!.Value);
+            ResetNumber(AudioProbeCacheLimitMiBInput, AudioProbeCacheLimitMiB!.Value);
+            ResetNumber(AudioProbeCacheEntriesInput, AudioProbeCacheEntries!.Value);
             ResetNumber(ThumbnailCacheTilesInput, ThumbnailCacheTiles!.Value);
             ResetNumber(ClipboardUrlLimitInput, ClipboardUrlLimit!.Value);
             ResetNumber(ClipboardTextLimitKiBInput, ClipboardTextLimitKiB!.Value);
@@ -395,6 +401,12 @@ namespace MeowChan
         public string PosterCacheFileLimitHint => Texts.T("budgets.posterCacheFilesHint");
         public string ThumbnailCacheTilesHint => Texts.T("budgets.thumbnailCacheTilesHint");
         public decimal? PosterCacheFileLimit { get => _posterCacheFileLimit; set => SetField(ref _posterCacheFileLimit, value, nameof(PosterCacheFileLimit)); }
+        public string AudioProbeCacheLimitMiBLabel => Texts.T("budgets.audioCacheMiB");
+        public string AudioProbeCacheLimitMiBHint => Texts.T("budgets.audioCacheMiBHint");
+        public decimal? AudioProbeCacheLimitMiB { get => _audioProbeCacheLimitMiB; set => SetField(ref _audioProbeCacheLimitMiB, value, nameof(AudioProbeCacheLimitMiB)); }
+        public string AudioProbeCacheEntriesLabel => Texts.T("budgets.audioCacheEntries");
+        public string AudioProbeCacheEntriesHint => Texts.T("budgets.audioCacheEntriesHint");
+        public decimal? AudioProbeCacheEntries { get => _audioProbeCacheEntries; set => SetField(ref _audioProbeCacheEntries, value, nameof(AudioProbeCacheEntries)); }
         public decimal? ThumbnailCacheTiles { get => _thumbnailCacheTiles; set => SetField(ref _thumbnailCacheTiles, value, nameof(ThumbnailCacheTiles)); }
         public string ClipboardUrlLimitLabel => Texts.T("budgets.clipboardUrls");
         public string ClipboardUrlLimitHint => Texts.T("budgets.clipboardUrlsHint");
@@ -816,6 +828,8 @@ namespace MeowChan
             ExportConfirmGiB = _config.ExportConfirmGiB;
             PosterCacheLimitMiB = _config.PosterCacheLimitMiB;
             PosterCacheFileLimit = _config.PosterCacheFileLimit;
+            AudioProbeCacheLimitMiB = _config.AudioProbeCacheLimitMiB;
+            AudioProbeCacheEntries = _config.AudioProbeCacheEntries;
             ThumbnailCacheTiles = _config.ThumbnailCacheTiles;
             ClipboardUrlLimit = _config.ClipboardUrlLimit;
             ClipboardTextLimitKiB = _config.ClipboardTextLimitKiB;
@@ -854,6 +868,8 @@ namespace MeowChan
             ResetNumber(ExportConfirmGiBInput, ExportConfirmGiB!.Value);
             ResetNumber(PosterCacheLimitMiBInput, PosterCacheLimitMiB!.Value);
             ResetNumber(PosterCacheFileLimitInput, PosterCacheFileLimit!.Value);
+            ResetNumber(AudioProbeCacheLimitMiBInput, AudioProbeCacheLimitMiB!.Value);
+            ResetNumber(AudioProbeCacheEntriesInput, AudioProbeCacheEntries!.Value);
             ResetNumber(ThumbnailCacheTilesInput, ThumbnailCacheTiles!.Value);
             ResetNumber(ClipboardUrlLimitInput, ClipboardUrlLimit!.Value);
             ResetNumber(ClipboardTextLimitKiBInput, ClipboardTextLimitKiB!.Value);
@@ -946,7 +962,7 @@ namespace MeowChan
                     nameof(BudgetRestartHint), nameof(ProductionWorkersLabel), nameof(WorkerIdleMinutesLabel), nameof(SourceHeapMiBLabel),
                     nameof(FilterHeapMiBLabel), nameof(BooruCatalogMiBLabel), nameof(BooruCatalogMiBHint), nameof(BooruCatalogMiBHelp),
                     nameof(PrivateTagLimitLabel), nameof(PrivateTagLimitHint), nameof(PrivateTagLimitHelp),
-                    nameof(PrivateTagFileMiBLabel), nameof(PrivateTagFileMiBHint), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBLabel), nameof(MediaIndexCacheMiBHint), nameof(MediaIndexCacheMiBHelp), nameof(FavoriteEntryLimitLabel), nameof(FavoriteEntryLimitHint), nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBLabel), nameof(FavoriteFileLimitMiBHint), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitLabel), nameof(PostBookmarkLimitHint), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitLabel), nameof(SavedSearchLimitHint), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitLabel), nameof(ReaderGroupLimitHint), nameof(ReaderGroupLimitHelp), nameof(SourcesWatchPreviewRowsLabel), nameof(SourcesWatchPreviewRowsHint), nameof(SourcesWatchPreviewRowsHelp), nameof(ExportConfirmFilesLabel), nameof(ExportConfirmFilesHint), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBLabel), nameof(ExportConfirmGiBHint), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBLabel), nameof(PosterCacheLimitMiBHint), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitLabel), nameof(PosterCacheFileLimitHint), nameof(PosterCacheFileLimitHelp), nameof(ThumbnailCacheTilesLabel), nameof(ThumbnailCacheTilesHint), nameof(ThumbnailCacheTilesHelp), nameof(ClipboardUrlLimitLabel), nameof(ClipboardUrlLimitHint), nameof(ClipboardUrlLimitHelp), nameof(ClipboardTextLimitKiBLabel), nameof(ClipboardTextLimitKiBHint), nameof(ClipboardTextLimitKiBHelp), nameof(ImportMaxFilesPerBatchLabel), nameof(ImportMaxFilesPerBatchHint), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBLabel), nameof(ImportMaxBatchGiBHint), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBLabel), nameof(ImportMaxFileMiBHint), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesLabel), nameof(ImportMaxTotalFilesHint), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBLabel), nameof(ImportCatalogLimitMiBHint), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchLabel), nameof(ImportMaxTagsPerBatchHint), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesLabel), nameof(ImportMaxBatchesHint), nameof(ImportMaxBatchesHelp), nameof(MediaIndexMaxEntriesLabel), nameof(MediaIndexMaxEntriesHint), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsLabel), nameof(MediaIndexMaxThreadsHint), nameof(MediaIndexMaxThreadsHelp), nameof(ListsGroupLabel), nameof(PreviewsGroupLabel), nameof(ImportGroupLabel), nameof(SettingsTitle), nameof(SettingsSubtitle), nameof(DownloadsTitle),
+                    nameof(PrivateTagFileMiBLabel), nameof(PrivateTagFileMiBHint), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBLabel), nameof(MediaIndexCacheMiBHint), nameof(MediaIndexCacheMiBHelp), nameof(FavoriteEntryLimitLabel), nameof(FavoriteEntryLimitHint), nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBLabel), nameof(FavoriteFileLimitMiBHint), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitLabel), nameof(PostBookmarkLimitHint), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitLabel), nameof(SavedSearchLimitHint), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitLabel), nameof(ReaderGroupLimitHint), nameof(ReaderGroupLimitHelp), nameof(SourcesWatchPreviewRowsLabel), nameof(SourcesWatchPreviewRowsHint), nameof(SourcesWatchPreviewRowsHelp), nameof(ExportConfirmFilesLabel), nameof(ExportConfirmFilesHint), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBLabel), nameof(ExportConfirmGiBHint), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBLabel), nameof(PosterCacheLimitMiBHint), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitLabel), nameof(PosterCacheFileLimitHint), nameof(PosterCacheFileLimitHelp), nameof(AudioProbeCacheLimitMiBLabel), nameof(AudioProbeCacheLimitMiBHint), nameof(AudioProbeCacheLimitMiBHelp), nameof(AudioProbeCacheEntriesLabel), nameof(AudioProbeCacheEntriesHint), nameof(AudioProbeCacheEntriesHelp), nameof(ThumbnailCacheTilesLabel), nameof(ThumbnailCacheTilesHint), nameof(ThumbnailCacheTilesHelp), nameof(ClipboardUrlLimitLabel), nameof(ClipboardUrlLimitHint), nameof(ClipboardUrlLimitHelp), nameof(ClipboardTextLimitKiBLabel), nameof(ClipboardTextLimitKiBHint), nameof(ClipboardTextLimitKiBHelp), nameof(ImportMaxFilesPerBatchLabel), nameof(ImportMaxFilesPerBatchHint), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBLabel), nameof(ImportMaxBatchGiBHint), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBLabel), nameof(ImportMaxFileMiBHint), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesLabel), nameof(ImportMaxTotalFilesHint), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBLabel), nameof(ImportCatalogLimitMiBHint), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchLabel), nameof(ImportMaxTagsPerBatchHint), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesLabel), nameof(ImportMaxBatchesHint), nameof(ImportMaxBatchesHelp), nameof(MediaIndexMaxEntriesLabel), nameof(MediaIndexMaxEntriesHint), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsLabel), nameof(MediaIndexMaxThreadsHint), nameof(MediaIndexMaxThreadsHelp), nameof(ListsGroupLabel), nameof(PreviewsGroupLabel), nameof(ImportGroupLabel), nameof(SettingsTitle), nameof(SettingsSubtitle), nameof(DownloadsTitle),
                     nameof(InterfaceTitle), nameof(ReadingMediaTitle), nameof(ReadingFontSizeLabel), nameof(ReaderPostWidthLabel), nameof(ReaderPostWidthHint), nameof(VideoAutoplayLabel),
                     nameof(VideoStartMutedLabel), nameof(VideoVolumeLabel), nameof(ShowShortcutHelpLabel), nameof(AboutLabel),
                     nameof(GalleryPlaybackTitle), nameof(GalleryPlaybackModeLabel), nameof(GallerySlideshowSecondsLabel), nameof(GallerySlideshowSecondsHelp),
@@ -1214,6 +1230,8 @@ namespace MeowChan
                 candidate.ExportConfirmGiB = GetInteger(ExportConfirmGiB, ExportConfirmGiBLabel, Config.ExportConfirmGiBMinimum, Config.ExportConfirmGiBMaximum);
                 candidate.PosterCacheLimitMiB = GetInteger(PosterCacheLimitMiB, PosterCacheLimitMiBLabel, Config.PosterCacheLimitMiBMinimum, Config.PosterCacheLimitMiBMaximum);
                 candidate.PosterCacheFileLimit = GetInteger(PosterCacheFileLimit, PosterCacheFileLimitLabel, Config.PosterCacheFileLimitMinimum, Config.PosterCacheFileLimitMaximum);
+                candidate.AudioProbeCacheLimitMiB = GetInteger(AudioProbeCacheLimitMiB, AudioProbeCacheLimitMiBLabel, Config.AudioProbeCacheLimitMiBMinimum, Config.AudioProbeCacheLimitMiBMaximum);
+                candidate.AudioProbeCacheEntries = GetInteger(AudioProbeCacheEntries, AudioProbeCacheEntriesLabel, Config.AudioProbeCacheEntriesMinimum, Config.AudioProbeCacheEntriesMaximum);
                 candidate.ThumbnailCacheTiles = GetInteger(ThumbnailCacheTiles, ThumbnailCacheTilesLabel, Config.ThumbnailCacheTilesMinimum, Config.ThumbnailCacheTilesMaximum);
                 candidate.ClipboardUrlLimit = GetInteger(ClipboardUrlLimit, ClipboardUrlLimitLabel, Config.ClipboardUrlLimitMinimum, Config.ClipboardUrlLimitMaximum);
                 candidate.ClipboardTextLimitKiB = GetInteger(ClipboardTextLimitKiB, ClipboardTextLimitKiBLabel, Config.ClipboardTextLimitKiBMinimum, Config.ClipboardTextLimitKiBMaximum);
@@ -1325,6 +1343,8 @@ namespace MeowChan
             ExportConfirmGiB = _config.ExportConfirmGiB;
             PosterCacheLimitMiB = _config.PosterCacheLimitMiB;
             PosterCacheFileLimit = _config.PosterCacheFileLimit;
+            AudioProbeCacheLimitMiB = _config.AudioProbeCacheLimitMiB;
+            AudioProbeCacheEntries = _config.AudioProbeCacheEntries;
             ThumbnailCacheTiles = _config.ThumbnailCacheTiles;
             ClipboardUrlLimit = _config.ClipboardUrlLimit;
             ClipboardTextLimitKiB = _config.ClipboardTextLimitKiB;
@@ -1363,6 +1383,8 @@ namespace MeowChan
             ResetNumber(ExportConfirmGiBInput, ExportConfirmGiB!.Value);
             ResetNumber(PosterCacheLimitMiBInput, PosterCacheLimitMiB!.Value);
             ResetNumber(PosterCacheFileLimitInput, PosterCacheFileLimit!.Value);
+            ResetNumber(AudioProbeCacheLimitMiBInput, AudioProbeCacheLimitMiB!.Value);
+            ResetNumber(AudioProbeCacheEntriesInput, AudioProbeCacheEntries!.Value);
             ResetNumber(ThumbnailCacheTilesInput, ThumbnailCacheTiles!.Value);
             ResetNumber(ClipboardUrlLimitInput, ClipboardUrlLimit!.Value);
             ResetNumber(ClipboardTextLimitKiBInput, ClipboardTextLimitKiB!.Value);
