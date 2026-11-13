@@ -47,8 +47,9 @@ public sealed class SurfaceStyleTests
     {
         string media = File.ReadAllText(Root("Desktop/Views/Media/MediaPage.FilterSurface.cs"));
         Assert.Contains("Classes = { \"workspace-overlay\" }", media);
-        Assert.Contains("OverlayReveal.Follow(surface)", media);
+        Assert.Contains("new FilterSurfaceController(this, _filters, surface", media);
         Assert.Contains("new FilterSurfaceController(this, ArchiveFilters, ArchiveFilterSurface", File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.FilterSurface.cs")));
+        Assert.Contains("OverlayReveal.Follow(surface)", File.ReadAllText(Root("Desktop/Controls/FilterSurfaceController.cs")));
     }
 
     [Fact]

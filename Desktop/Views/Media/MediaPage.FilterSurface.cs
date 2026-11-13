@@ -1,4 +1,3 @@
-using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -6,8 +5,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Styling;
-using Avalonia.Threading;
-using Avalonia.VisualTree;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -21,6 +19,7 @@ public sealed partial class MediaPage
     private readonly Button _filterClose = new() { Name = "MediaFilterClose", HorizontalAlignment = HorizontalAlignment.Right };
     private readonly ScrollViewer _filterScroll = new() { Name = "MediaFilterSurfaceScroll" };
     private Border? _filterSurface;
+    private FilterSurfaceController? _filterSurfaceController;
 
     internal bool IsFilterSurfaceOpen => _filters.IsExpanded;
 
@@ -43,59 +42,17 @@ public sealed partial class MediaPage
             Name = "MediaFilterSurface", Child = content, Padding = new Thickness(10, 8), Margin = new Thickness(12, 0, 12, 8),
             VerticalAlignment = VerticalAlignment.Top, ZIndex = 10, IsVisible = false, Classes = { "workspace-overlay" }
         };
-        MeowChan.Desktop.Motion.OverlayReveal.Follow(surface);
         KeyboardNavigation.SetTabNavigation(surface, KeyboardNavigationMode.Cycle);
-        surface.KeyDown += OnFilterSurfaceKeyDown;
         _filterClose.Click += (_, _) => CloseFilterSurface(restoreFocus: true);
-        _filters.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == Expander.IsExpandedProperty) OnFilterSurfaceToggled(e.GetNewValue<bool>());
-        };
+        _filterSurfaceController = new FilterSurfaceController(this, _filters, surface, () => _lifetime.IsCancellationRequested, drivesVisibility: true);
         return _filterSurface = surface;
     }
 
-    private ToggleButton? FilterSurfaceToggle => _filters.GetVisualDescendants().OfType<ToggleButton>().FirstOrDefault();
+    private ToggleButton? FilterSurfaceToggle => _filterSurfaceController?.Toggle;
 
-    private bool FocusWithin(Control owner) => TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is Visual focused
-        && focused.GetSelfAndVisualAncestors().Contains(owner);
+    private bool FocusWithin(Control owner) => FilterSurfaceController.FocusWithin(this, owner);
 
-    private void OnFilterSurfaceToggled(bool open)
-    {
-        if (_filterSurface is not { } surface || _lifetime.IsCancellationRequested) return;
-        if (!open)
-        {
-            // Hiding the surface must not strand keyboard focus on an invisible field.
-            bool focused = FocusWithin(surface);
-            surface.IsVisible = false;
-            if (focused) FilterSurfaceToggle?.Focus(NavigationMethod.Tab);
-            return;
-        }
-        surface.IsVisible = true;
-        // Only a deliberate open from the toggle moves focus in; a programmatic open keeps the current focus.
-        if (!FocusWithin(_filters)) return;
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (_lifetime.IsCancellationRequested || !IsFilterSurfaceOpen || !surface.IsEffectivelyVisible) return;
-            surface.GetVisualDescendants().OfType<InputElement>()
-                .FirstOrDefault(element => element.Focusable && element.IsEffectivelyEnabled && element.IsEffectivelyVisible)
-                ?.Focus(NavigationMethod.Tab);
-        }, DispatcherPriority.Loaded);
-    }
-
-    internal void CloseFilterSurface(bool restoreFocus)
-    {
-        bool focused = _filterSurface != null && FocusWithin(_filterSurface);
-        _filters.IsExpanded = false;
-        if (restoreFocus || focused) FilterSurfaceToggle?.Focus(NavigationMethod.Tab);
-    }
-
-    private void OnFilterSurfaceKeyDown(object? sender, KeyEventArgs e)
-    {
-        // Open dropdowns handle their own Escape first.
-        if (e.Handled || e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None) return;
-        e.Handled = true;
-        CloseFilterSurface(restoreFocus: true);
-    }
+    internal void CloseFilterSurface(bool restoreFocus) => _filterSurfaceController?.Close(restoreFocus);
 
     // Filters apply live, so the toggle says how many are on while the fields are hidden (C3: "Filters (3)", one per chip).
     private void UpdateFilterToggle()
