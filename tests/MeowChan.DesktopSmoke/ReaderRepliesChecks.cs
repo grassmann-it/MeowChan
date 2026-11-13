@@ -174,6 +174,10 @@ internal static class ReaderRepliesChecks
         await page.FocusPostAsync("120");
         Require(list.SelectedItem is ArchivePostRow { Id: "120" },
             "The inactive-card fixture did not finish moving selection away from the sampled posts.");
+        // Keep keyboard focus out of the virtualized containers too: an inactive but focused post
+        // correctly has an accent edge, which is a different state from the plain-card contract.
+        Require(page.FindControl<Button>("ReaderTagsOpen")!.Focus(),
+            "The inactive-card fixture could not move focus to the reader toolbar.");
         await Program.WaitUntilAsync(() =>
         {
             list.ScrollIntoView(opening); list.UpdateLayout();
@@ -190,8 +194,8 @@ internal static class ReaderRepliesChecks
             .Single(presenter => ReferenceEquals(presenter.TemplatedParent, item));
         Color? Surface(ListBoxItem item) => (Presenter(item).Background as ISolidColorBrush)?.Color;
         ListBoxItem opItem = Container(opening), replyItem = Container(reply);
-        Require(!opItem.IsSelected && !replyItem.IsSelected,
-            "Inactive-card fixture lost selection: selected=" + (list.SelectedItem as ArchivePostRow)?.Id);
+        Require(!opItem.IsSelected && !replyItem.IsSelected && !opItem.IsKeyboardFocusWithin && !replyItem.IsKeyboardFocusWithin,
+            "Inactive-card fixture retained selection or focus: selected=" + (list.SelectedItem as ArchivePostRow)?.Id);
         Program.CaptureWindow(window, "smoke-reader-cards-inactive-" + window.ActualThemeVariant.Key + ".png");
         Require(opItem.Classes.Contains("reader-op") && Surface(opItem) == Colors.Transparent
             && (Presenter(opItem).BorderBrush as ISolidColorBrush)?.Color == Colors.Transparent
