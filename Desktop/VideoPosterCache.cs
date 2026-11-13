@@ -22,7 +22,7 @@ internal static class VideoPosterCache
     /// <summary>Default number of files in the cache (the limit is a setting).</summary>
     internal const int DefaultCacheFiles = 2048;
     // Fixed technical limit (documented in Help.md): videos above this size never get a preview.
-    private const long MaximumVideoBytes = 512L * 1024 * 1024;
+    internal const long MaximumVideoBytes = 512L * 1024 * 1024;
     private static long _cacheBytes = DefaultCacheBytes;
     private static int _cacheFiles = DefaultCacheFiles;
 
@@ -36,6 +36,8 @@ internal static class VideoPosterCache
         Volatile.Write(ref _cacheFiles, Math.Max(1, maximumFiles));
     }
     private static readonly SemaphoreSlim Gate = new(1, 1);
+    /// <summary>One native decode session at a time across posters and scrub previews (<see cref="VideoScrubPreviewCache"/> shares it).</summary>
+    internal static SemaphoreSlim NativeDecodeGate => Gate;
     private static readonly object FailuresLock = new();
     private static readonly Dictionary<string, DateTime> Failures = new(StringComparer.Ordinal);
     private static int _pending;
