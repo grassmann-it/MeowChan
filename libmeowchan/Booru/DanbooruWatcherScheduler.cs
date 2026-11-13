@@ -37,11 +37,11 @@ namespace MeowChan.Booru;
 /// <c>profile_suspended</c>. A new generation wakes the loop.
 /// </para>
 /// <para>
-/// Global session pause (F3): a transient gate, never persisted. While it is set no check starts, neither automatic
-/// nor manual (<c>session_paused</c>), matching the explicit-check contract of chan watches under the queue's session
-/// pause. A running check finishes the page in flight (its posts are admitted and its progress persisted) and stops
-/// before the next page. Individual pause, cursor, high-water mark and cooldown stay as they are; clearing the gate
-/// wakes the loop.
+/// Global session pause (F3): a transient gate, never persisted. While it is set no automatic check starts; a running
+/// automatic check finishes the page in flight (its posts are admitted and its progress persisted) and stops before
+/// the next page. An explicit manual check (Check now) still runs, with the same provider-cooldown and watcher rules
+/// as without the pause (product decision 14.11.2026); only a profile transition blocks it. Individual pause, cursor,
+/// high-water mark and cooldown stay as they are; clearing the gate wakes the loop.
 /// </para>
 /// </summary>
 internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
@@ -269,8 +269,8 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     /// <summary>
     /// Requests one bounded manual check, independent of the regular interval. It never runs in parallel
     /// with another check and never bypasses the provider cooldown. Paused watchers may be checked
-    /// manually; they stay Paused afterwards. While the global session pause is set (<c>session_paused</c>) or the
-    /// profile is in an exclusive transition (<c>profile_suspended</c>) the request is rejected and sends nothing.
+    /// manually; they stay Paused afterwards. The global session pause does not block it (it only stops automatic
+    /// checks); a profile exclusive transition does (<c>profile_suspended</c>, nothing is sent).
     /// </summary>
     internal Task<DanbooruWatcherCheckSummary> CheckNowAsync(string watcherId)
     {
@@ -280,7 +280,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
         {
             if (Unavailable() is { } unavailable) return Task.FromResult(Rejected(unavailable, now, true));
             if (_removed.Contains(watcherId)) return Task.FromResult(Rejected("watcher_removed", now, true));
-            if (HoldCodeLocked() is { } hold) return Task.FromResult(Rejected(hold, now, true));
+            if (HoldCodeLocked(manual: true) is { } hold) return Task.FromResult(Rejected(hold, now, true));
             if (!_watchers.TryGetValue(watcherId, out DanbooruWatcher? watcher))
                 return Task.FromResult(Rejected("watcher_not_found", now, true));
             if (_running?.WatcherId == watcherId || _claimed == watcherId)
@@ -360,28 +360,19 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
 
     /// <summary>
     /// Sets the transient global session pause gate (F3). Set it from the confirmed session pause before the first
-    /// start and after every confirmed change. Pausing answers queued manual requests with <c>session_paused</c> and
-    /// lets a running check stop after its page in flight; resuming wakes the loop. Nothing is persisted: individual
-    /// pause, cursor, high-water mark and cooldown are untouched.
+    /// start and after every confirmed change. Pausing lets a running automatic check stop after its page in flight;
+    /// queued and running manual checks are not affected. Resuming wakes the loop. Nothing is persisted: individual
+    /// pause, cursor, high-water mark and cooldown are untouched. The clock is not read here, so a composition may
+    /// set the gate before any clock-dependent work starts.
     /// </summary>
     internal void SetSessionPaused(bool paused)
     {
-        List<ManualRequest> dropped = new();
         lock (_sync)
         {
             if (_sessionPaused == paused) return;
             _sessionPaused = paused;
-            if (paused)
-            {
-                dropped.AddRange(_manual);
-                _manual.Clear();
-            }
             _wake.TrySetResult();
         }
-        // The clock is read only when a queued request must be answered (composition may set the gate early).
-        DateTimeOffset now = dropped.Count == 0 ? default : _time.GetUtcNow();
-        foreach (ManualRequest request in dropped)
-            request.Completion.TrySetResult(Rejected(SessionPausedCode, now, true));
         RaiseChanged();
     }
 
@@ -404,9 +395,12 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
         RaiseChanged();
     }
 
-    /// <summary>Transient reasons why no check may start now; never persisted. Null means "no hold".</summary>
-    private string? HoldCodeLocked() =>
-        _lifecycle is { IsOpen: false } ? ProfileSuspendedCode : _sessionPaused ? SessionPausedCode : null;
+    /// <summary>
+    /// Transient reasons why no check may start now; never persisted. Null means "no hold". A profile transition holds
+    /// every check; the global session pause holds automatic checks only.
+    /// </summary>
+    private string? HoldCodeLocked(bool manual) =>
+        _lifecycle is { IsOpen: false } ? ProfileSuspendedCode : _sessionPaused && !manual ? SessionPausedCode : null;
 
     private static bool IsHoldCode(string? code) => code is SessionPausedCode or ProfileSuspendedCode;
 
@@ -550,9 +544,9 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     private (string WatcherId, bool Manual, ManualRequest? Request)? PickWorkLocked(DateTimeOffset now, out DateTimeOffset? wakeAt)
     {
         wakeAt = null;
-        if (HoldCodeLocked() is { } hold)
+        if (HoldCodeLocked(manual: true) is { } hold)
         {
-            // Session pause or profile transition: nothing starts; the gate change wakes the loop.
+            // Profile transition: nothing starts; the lifecycle change wakes the loop.
             foreach (ManualRequest request in _manual) request.Completion.TrySetResult(Rejected(hold, now, true));
             _manual.Clear();
             return null;
@@ -577,6 +571,10 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
             }
             return (request.WatcherId, true, request);
         }
+
+        // Global session pause: manual requests above still run; nothing starts automatically until it is cleared,
+        // which wakes the loop.
+        if (_sessionPaused) return null;
 
         if (cooldown is { } until && until > now)
         {
@@ -918,10 +916,10 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                 return Summary(kind, started, counters, null, manual);
             }
             if (check.IsCancellationRequested) return CancelRun(watcherId, current, started, counters, manual, running);
-            // The page in flight is durable; stop before the next one for a session pause (F3) or an announced
-            // profile transition (F2). The stored cursor continues the traversal after Resume.
+            // The page in flight is durable; stop before the next one for a session pause (F3, automatic checks only)
+            // or an announced profile transition (F2). The stored cursor continues the traversal after Resume.
             bool sessionPaused;
-            lock (_sync) sessionPaused = _sessionPaused;
+            lock (_sync) sessionPaused = _sessionPaused && !manual;
             if (sessionPaused || running.Use is { IsUncut: false })
                 return CancelRun(watcherId, current, started, counters, manual, running,
                     sessionPaused && running.Use is not { IsUncut: false } ? SessionPausedCode : null);
@@ -1008,7 +1006,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     /// <summary>Gates that must hold before a check may send anything. Null means "may start".</summary>
     private DanbooruWatcherCheckSummary? Gate(DanbooruWatcher watcher, DateTimeOffset now, bool manual)
     {
-        if (HoldCodeLocked() is { } hold) return Rejected(hold, now, manual);
+        if (HoldCodeLocked(manual) is { } hold) return Rejected(hold, now, manual);
         if (ProviderCooldownLocked(now) is { } until && until > now)
             return Rejected("provider_cooldown", now, manual, until);
         DanbooruWatcherTransition preview = DanbooruWatcher.BeginCheck(watcher, now, manual);

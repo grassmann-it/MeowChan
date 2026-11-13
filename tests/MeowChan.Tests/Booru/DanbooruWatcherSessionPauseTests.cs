@@ -5,9 +5,10 @@ using TempDirectory = MeowChan.Tests.TempDirectory;
 namespace MeowChan.Tests.Booru;
 
 /// <summary>
-/// F3: the global session pause is a transient gate of the watcher scheduler. It stops automatic and manual metadata
-/// checks (the explicit-check contract of chan watches under the queue session pause), lets a running check finish
-/// only its page in flight, never rewrites stored watcher state and wakes the loop on resume. In-memory provider only.
+/// F3: the global session pause is a transient gate of the watcher scheduler. It stops automatic metadata checks,
+/// lets a running automatic check finish only its page in flight, never rewrites stored watcher state and wakes the
+/// loop on resume. An explicit manual check (Check now) still runs under the usual cooldown and watcher rules
+/// (decision 14.11.2026). In-memory provider only.
 /// </summary>
 public sealed class DanbooruWatcherSessionPauseTests
 {
@@ -19,7 +20,7 @@ public sealed class DanbooruWatcherSessionPauseTests
     private static long[] Range(long newest, int count) => Enumerable.Range(0, count).Select(index => newest - index).ToArray();
 
     [Fact]
-    public async Task APausedSessionStartsNoAutomaticOrManualCheckAndResumeRunsExactlyOneBaseline()
+    public async Task APausedSessionStartsNoAutomaticCheckButAManualCheckRunsAndResumeAddsNoSecondBaseline()
     {
         using TempDirectory directory = new();
         await using SchedulerProfile profile = new(directory.Path);
@@ -32,19 +33,34 @@ public sealed class DanbooruWatcherSessionPauseTests
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId; // commands stay available
         BooruWatcherRecord before = Assert.Single(profile.Catalog.Read().Watchers);
 
+        // Automatic: the due baseline is held and nothing is written.
         Assert.Null(await scheduler.RunNextAsync());
-        DanbooruWatcherCheckSummary manual = await scheduler.CheckNowAsync(id).WaitAsync(TestWait.Timeout);
-        Assert.Equal(DanbooruWatcherCheckKind.Rejected, manual.Kind);
-        Assert.Equal(DanbooruWatcherScheduler.SessionPausedCode, manual.Code);
-        Assert.True(manual.Manual);
         Assert.Equal(0, search.CallCount);
         Assert.Equal(before, Assert.Single(profile.Catalog.Read().Watchers));
         Assert.Equal(DanbooruWatcherState.Active, scheduler.GetStatus(id)!.State); // no persisted pause
 
-        scheduler.SetSessionPaused(false);
-        Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, (await scheduler.RunNextAsync())!.Kind);
+        // Manual: Check now runs despite the global pause.
+        Task<DanbooruWatcherCheckSummary> manual = scheduler.CheckNowAsync(id);
+        DanbooruWatcherCheckSummary ran = (await scheduler.RunNextAsync())!;
+        Assert.True(ran.Manual);
+        Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, ran.Kind);
+        Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, (await manual.WaitAsync(TestWait.Timeout)).Kind);
+        Assert.Equal(1, search.CallCount);
+        Assert.True(scheduler.SessionPaused);
+
+        // Still paused: a later automatic check that becomes due stays held.
+        search.Publish("cat", 101);
+        clock.Advance(Interval);
         Assert.Null(await scheduler.RunNextAsync());
         Assert.Equal(1, search.CallCount);
+
+        scheduler.SetSessionPaused(false);
+        DanbooruWatcherCheckSummary automatic = (await scheduler.RunNextAsync())!;
+        Assert.False(automatic.Manual);
+        Assert.Equal(DanbooruWatcherCheckKind.Completed, automatic.Kind); // no second baseline
+        Assert.Equal(1, automatic.Queued);
+        Assert.Null(await scheduler.RunNextAsync());
+        Assert.Equal(2, search.CallCount);
     }
 
     [Fact]
@@ -151,6 +167,10 @@ public sealed class DanbooruWatcherSessionPauseTests
 
         scheduler.SetSessionPaused(true);
         Assert.Null(await scheduler.RunNextAsync());
+        // A manual check during the global pause keeps today's Check now rules: the provider cooldown still holds.
+        DanbooruWatcherCheckSummary manual = await scheduler.CheckNowAsync(cat).WaitAsync(TestWait.Timeout);
+        Assert.Equal((DanbooruWatcherCheckKind.Rejected, "provider_cooldown"), (manual.Kind, manual.Code));
+        Assert.Equal(retryAt, manual.RetryAtUtc);
         scheduler.SetSessionPaused(false);
 
         Assert.Equal(before, profile.Catalog.Read().Watchers.OrderBy(item => item.WatcherId).ToArray());
@@ -164,24 +184,60 @@ public sealed class DanbooruWatcherSessionPauseTests
     }
 
     [Fact]
-    public async Task AQueuedManualCheckIsAnsweredWhenTheSessionIsPaused()
+    public async Task AQueuedManualCheckStillRunsWhenTheSessionIsPausedAndStaysPausedIndividually()
     {
         using TempDirectory directory = new();
         await using SchedulerProfile profile = new(directory.Path);
         SchedulerClock clock = new(T0);
         FakeDanbooruSearch search = new(clock);
+        search.Publish("cat", 100);
         await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
         scheduler.Load();
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
+        Assert.True(scheduler.Pause(id).Accepted); // individually paused, as the existing Check now contract allows
         Task<DanbooruWatcherCheckSummary> queued = scheduler.CheckNowAsync(id);
         Assert.False(queued.IsCompleted);
 
         scheduler.SetSessionPaused(true);
-        DanbooruWatcherCheckSummary answered = await queued.WaitAsync(TestWait.Timeout);
-        Assert.Equal(DanbooruWatcherCheckKind.Rejected, answered.Kind);
-        Assert.Equal(DanbooruWatcherScheduler.SessionPausedCode, answered.Code);
-        Assert.Null(await scheduler.RunNextAsync());
-        Assert.Equal(0, search.CallCount);
+        Assert.False(queued.IsCompleted); // the global pause does not answer or drop it
+        DanbooruWatcherCheckSummary ran = (await scheduler.RunNextAsync())!;
+        Assert.True(ran.Manual);
+        Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, (await queued.WaitAsync(TestWait.Timeout)).Kind);
+        Assert.Equal(1, search.CallCount);
+        Assert.Equal(DanbooruWatcherState.Paused, scheduler.GetStatus(id)!.State);
+    }
+
+    [Fact]
+    public async Task AManualCheckInFlightIsNotStoppedByASessionPause()
+    {
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock);
+        CountingAdmission admission = new();
+        search.Publish("cat", 100);
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        scheduler.Load();
+        string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
+        await scheduler.RunNextAsync();
+
+        search.Publish("cat", Range(160, 60)); // three pages of new posts
+        TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        search.Hold = async (_, _, _) => { entered.TrySetResult(); await release.Task; };
+        Task<DanbooruWatcherCheckSummary> manual = scheduler.CheckNowAsync(id);
+        Task<DanbooruWatcherCheckSummary?> running = scheduler.RunNextAsync();
+        await entered.Task.WaitAsync(TestWait.Timeout);
+        scheduler.SetSessionPaused(true);
+        search.Hold = null;
+        release.SetResult();
+
+        DanbooruWatcherCheckSummary done = (await running.WaitAsync(TestWait.Timeout))!;
+        Assert.True(done.Manual);
+        Assert.Equal(DanbooruWatcherCheckKind.Completed, done.Kind);
+        Assert.Equal(4, done.PagesRead); // 3 full pages and the page reaching the known post
+        Assert.Equal(60, admission.QueuedCount);
+        Assert.Equal(done, await manual.WaitAsync(TestWait.Timeout));
     }
 
     /// <summary>
