@@ -229,16 +229,13 @@ public sealed class MediaMenuCompositionTests : IDisposable
     }
 
     [Fact]
-    public async Task ASessionRefusesAfterInvalidationOrWhenItsGuardFails()
+    public void ASessionIsNoLongerCurrentAfterInvalidationOrWhenItsGuardFails()
     {
         bool current = true;
         MediaMenuSession session = new(MediaMenuSurface.Gallery, Target(), () => current);
-        int calls = 0;
-        await session.RunAsync(() => { calls++; return Task.CompletedTask; });
-        Assert.Equal(1, calls);
+        Assert.True(session.IsCurrent);
         current = false;
         Assert.False(session.IsCurrent);
-        await session.RunAsync(() => { calls++; return Task.CompletedTask; });
         current = true;
         Assert.True(session.IsCurrent);
         int invalidated = 0;
@@ -246,9 +243,8 @@ public sealed class MediaMenuCompositionTests : IDisposable
         session.Invalidate();
         session.Invalidate();
         Assert.Equal(1, invalidated);
+        Assert.True(session.IsInvalidated);
         Assert.False(session.IsCurrent);
-        await session.RunAsync(() => { calls++; return Task.CompletedTask; });
-        Assert.Equal(1, calls);
     }
 
     [Fact]

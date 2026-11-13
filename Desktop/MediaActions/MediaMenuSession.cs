@@ -1,5 +1,4 @@
 using System;
-using System.Threading.Tasks;
 
 namespace MeowChan.Desktop.MediaActions;
 
@@ -33,12 +32,5 @@ internal sealed class MediaMenuSession
         if (_invalidated) return;
         _invalidated = true;
         Invalidated?.Invoke();
-    }
-
-    /// <summary>Runs an action only if the menu is still current at the moment it is chosen; never after invalidation.</summary>
-    internal async Task RunAsync(Func<Task> action)
-    {
-        if (!IsCurrent) return;
-        await action();
     }
 }
