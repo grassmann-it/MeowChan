@@ -95,8 +95,8 @@ public sealed class WorkspaceTokenTests
         string[] legacy =
         {
             "Workspace.Background", "Workspace.Panel", "Workspace.Raised", "Workspace.Border", "Workspace.ControlBorder",
-            "Workspace.Text", "Workspace.Muted", "Workspace.Accent", "Workspace.AccentSurface", "Workspace.ReaderActiveSurface",
-            "Workspace.ReaderPostSeparatorHeight", "Workspace.Hover", "Workspace.OnAccent", "Workspace.AccentHover",
+            "Workspace.Text", "Workspace.Muted", "Workspace.Accent", "Workspace.AccentSurface",
+            "Workspace.ReaderPage", "Workspace.ReaderPostSurface", "Workspace.ReaderPostEdge", "Workspace.Hover", "Workspace.OnAccent", "Workspace.AccentHover",
             "Workspace.Error", "Workspace.ErrorSurface", "Workspace.Warning", "Workspace.WarningSurface",
             "Workspace.Success", "Workspace.SuccessSurface", "Workspace.Progress", "Workspace.ProgressTrack"
         };

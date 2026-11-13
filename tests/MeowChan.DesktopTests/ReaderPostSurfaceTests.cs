@@ -3,103 +3,114 @@ using System.Xml.Linq;
 
 namespace MeowChan.DesktopTests;
 
-// Parsed source contracts only: no Avalonia application, GUI, profile IO, or
-// claims about rendered contrast, theme resolution, DPI, or accessibility acceptance.
+// Parsed source contracts only: no Avalonia application, GUI or profile IO. Contrast checks use the
+// dictionary hex values, not rendered pixels; theme resolution, DPI and accessibility acceptance stay smoke/capture evidence.
 public sealed class ReaderPostSurfaceTests
 {
     private static readonly XNamespace A = "https://github.com/avaloniaui";
     private static readonly XNamespace X = "http://schemas.microsoft.com/winfx/2006/xaml";
     private static readonly XNamespace Desktop = "clr-namespace:MeowChan.Desktop";
-    private const string SeparatorHeight = "Workspace.ReaderPostSeparatorHeight";
-
     [Theory]
-    [InlineData("Dark", "1")]
-    [InlineData("Light", "0")]
-    public void DecorativeRuleIsDarkOnlyWithoutChangingPaletteBrushes(string theme, string height)
+    [InlineData("Dark", "#121416", "#20242A", "#5A636E")]
+    [InlineData("Light", "#E3DFD8", "#FAF7F1", "#7A7062")]
+    public void PostCardTokensReplaceTheSeparatorWithoutChangingThePalette(string theme, string page, string card, string edge)
     {
-        XElement styles = Source("Desktop/WorkspaceStyles.axaml");
-        XElement dictionary = Assert.Single(styles.Descendants(A + "ResourceDictionary")
-            .Where(element => (string?)element.Attribute(X + "Key") == theme));
-        XElement resource = Assert.Single(dictionary.Elements()
-            .Where(element => (string?)element.Attribute(X + "Key") == SeparatorHeight));
-        Assert.Equal(X + "Double", resource.Name);
-        Assert.Equal(height, resource.Value);
-        // Reuse the existing decorative border role, not a new contrast/palette role.
+        XElement dictionary = Theme(theme);
+        Assert.Equal(page, Resource(dictionary, "Workspace.ReaderPage").Value);
+        Assert.Equal(card, Resource(dictionary, "Workspace.ReaderPostSurface").Value);
+        Assert.Equal(edge, Resource(dictionary, "Workspace.ReaderPostEdge").Value);
+        // The page is the window background tone; the shared palette roles stay as they were.
+        Assert.Equal(page, Resource(dictionary, "Workspace.Background").Value);
         Assert.Equal(theme == "Dark" ? "#2D3239" : "#A89F92", Resource(dictionary, "Workspace.Border").Value);
         Assert.Equal(theme == "Dark" ? "#1B1E22" : "#EFECE6", Resource(dictionary, "Workspace.Panel").Value);
-        Assert.Equal(theme == "Dark" ? "#152233" : "#E8E0D5", Resource(dictionary, "Workspace.ReaderActiveSurface").Value);
+        foreach (string retired in new[] { "Workspace.ReaderActiveSurface", "Workspace.ReaderPostSeparatorHeight" })
+            Assert.DoesNotContain(dictionary.Elements(), element => (string?)element.Attribute(X + "Key") == retired);
+    }
+
+    // Dictionary values, not rendered pixels: the edge is a non-text boundary (>= 3:1 against the page);
+    // reading text, meta and links stay >= 4.5:1 on the card and on the active card.
+    [Theory]
+    [InlineData("Dark")]
+    [InlineData("Light")]
+    public void CardEdgeAndPostTextMeetTheirContrastTargets(string theme)
+    {
+        XElement dictionary = Theme(theme);
+        string Hex(string key) => Resource(dictionary, key).Value;
+        Assert.True(Contrast(Hex("Workspace.ReaderPostEdge"), Hex("Workspace.ReaderPage")) >= 3.0);
+        Assert.True(Contrast(Hex("Workspace.Accent"), Hex("Workspace.ReaderPage")) >= 3.0);
+        foreach (string surface in new[] { "Workspace.ReaderPostSurface", "Workspace.AccentSurface", "Workspace.ReaderPage" })
+            foreach (string text in new[] { "Workspace.Text", "Workspace.Muted", "Workspace.Accent" })
+                Assert.True(Contrast(Hex(text), Hex(surface)) >= 4.5, $"{theme}: {text} on {surface}");
     }
 
     [Fact]
-    public void SeparatorOverlaysTheExistingGapWithoutASecondCardOrExtraLayoutRow()
+    public void PostsSitOnThePageToneWithoutASeparatorRule()
     {
+        XElement posts = Posts();
+        Assert.Equal("{DynamicResource Workspace.ReaderPage}", (string?)posts.Attribute("Background"));
+        Assert.Equal("2,4", (string?)posts.Attribute("Padding"));
         XElement root = PostRoot();
-        Assert.Equal(A + "Grid", root.Name);
-        Assert.Empty(root.Attributes()); // No background, fixed size, rows, padding, or clipping.
-        Assert.Equal(new[] { A + "StackPanel", A + "Border" }, root.Elements().Select(element => element.Name));
-        XElement body = root.Element(A + "StackPanel")!;
-        Assert.Equal("8,8,8,12", (string?)body.Attribute("Margin"));
-        Assert.Equal("6", (string?)body.Attribute("Spacing"));
-        Assert.Null(body.Attribute("Background"));
-        Assert.Empty(body.Descendants(A + "Border")); // No cards around quotes/replies/attachments.
-
-        XElement rule = root.Element(A + "Border")!;
-        Assert.Equal("{DynamicResource " + SeparatorHeight + "}", (string?)rule.Attribute("Height"));
-        Assert.Equal("{DynamicResource Workspace.Border}", (string?)rule.Attribute("Background"));
-        Assert.Equal("8,0", (string?)rule.Attribute("Margin"));
-        Assert.Equal("Bottom", (string?)rule.Attribute("VerticalAlignment"));
-        Assert.Null(rule.Attribute("BorderThickness"));
-        Assert.Null(rule.Attribute("CornerRadius"));
-        Assert.Empty(rule.Elements());
+        Assert.Equal(A + "StackPanel", root.Name);
+        Assert.Equal("8,8,8,12", (string?)root.Attribute("Margin"));
+        Assert.Equal("6", (string?)root.Attribute("Spacing"));
+        Assert.Null(root.Attribute("Background"));
+        Assert.Empty(root.Descendants(A + "Border")); // The card is the item itself; no card in the card.
+        Assert.DoesNotContain(Source("Desktop/Views/Archive/ArchivePage.axaml").Descendants(), element =>
+            element.Attributes().Any(attribute => attribute.Value.Contains("ReaderPostSeparatorHeight", StringComparison.Ordinal)));
     }
 
-    [Fact]
-    public void SeparatorResourceIsConsumedOnlyByThePostTemplateNotTheToolbarOrOtherTabs()
+    [Theory]
+    [InlineData("ListBoxItem")]
+    [InlineData("ListBoxItem /template/ ContentPresenter")]
+    public void InactivePostIsACardWithAnEdge(string selector)
     {
-        XElement page = Source("Desktop/Views/Archive/ArchivePage.axaml");
-        XElement rule = Assert.Single(page.Descendants().Where(element => element.Attributes().Any(attribute =>
-            attribute.Value == "{DynamicResource " + SeparatorHeight + "}")));
-        Assert.Equal(A + "Border", rule.Name);
-        Assert.Contains(rule.Ancestors(A + "ListBox"), element =>
-            (string?)element.Attribute(X + "Name") == "ArchivePosts");
-        Assert.DoesNotContain(rule.Ancestors(), element =>
-            (string?)element.Attribute(X + "Name") == "ReaderToolbar");
+        XElement style = PostStyle(selector);
+        Assert.Equal("{DynamicResource Workspace.ReaderPostSurface}", Setting(style, "Background"));
+        Assert.Equal("{DynamicResource Workspace.ReaderPostEdge}", Setting(style, "BorderBrush"));
+        Assert.Equal("1", Setting(style, "BorderThickness"));
+        Assert.Equal("4", Setting(style, "CornerRadius"));
+        if (selector == "ListBoxItem")
+        {
+            Assert.Equal("6,4", Setting(style, "Margin"));
+            Assert.Equal("Stretch", Setting(style, "HorizontalContentAlignment"));
+        }
     }
 
-    [Fact]
-    public void DecorativeRuleCannotInterceptMediaQuoteOrKeyboardInteraction()
+    [Theory]
+    [InlineData("ListBoxItem:pointerover /template/ ContentPresenter")]
+    [InlineData("ListBoxItem:pressed /template/ ContentPresenter")]
+    public void SemiHoverAndPressedTintsDoNotRecolourCards(string selector)
     {
-        XElement rule = PostRoot().Element(A + "Border")!;
-        Assert.Equal("False", (string?)rule.Attribute("IsHitTestVisible"));
-        Assert.Equal("Raw", (string?)rule.Attribute("AutomationProperties.AccessibilityView"));
-        Assert.Null(rule.Attribute("Focusable"));
-        Assert.DoesNotContain(rule.Attributes(), attribute =>
-            attribute.Name.LocalName.StartsWith("Pointer", StringComparison.Ordinal) ||
-            attribute.Name.LocalName.StartsWith("Key", StringComparison.Ordinal));
+        Assert.Equal("{DynamicResource Workspace.ReaderPostSurface}", Setting(PostStyle(selector), "Background"));
     }
 
     [Theory]
     [InlineData("ListBoxItem:selected")]
     [InlineData("ListBoxItem:selected /template/ ContentPresenter")]
     [InlineData("ListBoxItem:selected:pointerover /template/ ContentPresenter")]
+    [InlineData("ListBoxItem:selected:pressed /template/ ContentPresenter")]
     [InlineData("ListBoxItem:selected:focus /template/ ContentPresenter")]
-    public void ActivePostSurfaceKeepsItsExistingPrecedence(string selector)
+    public void ActivePostCardKeepsItsSurfaceInEveryState(string selector)
     {
-        Assert.Equal("{DynamicResource Workspace.ReaderActiveSurface}", Setting(PostStyle(selector), "Background"));
+        Assert.Equal("{DynamicResource Workspace.AccentSurface}", Setting(PostStyle(selector), "Background"));
+        string[] order = Posts().Element(A + "ListBox.Styles")!.Elements(A + "Style")
+            .Select(style => (string?)style.Attribute("Selector") ?? "").ToArray();
+        // Later styles win: the active surface must follow the suppressed hover/pressed tints.
+        Assert.True(Array.IndexOf(order, selector) > Array.IndexOf(order, "ListBoxItem:pressed /template/ ContentPresenter"));
     }
 
     [Fact]
-    public void SelectionEdgeAndKeyboardFocusRemainSeparateFromTheDecorativeRule()
+    public void SelectionEdgeAndKeyboardFocusRemainDistinct()
     {
         foreach (string selector in new[] { "ListBoxItem:selected", "ListBoxItem:selected /template/ ContentPresenter" })
         {
             XElement style = PostStyle(selector);
             Assert.Equal("{DynamicResource Workspace.Accent}", Setting(style, "BorderBrush"));
-            Assert.Equal("3,0,0,0", Setting(style, "BorderThickness"));
+            Assert.Equal("3,1,1,1", Setting(style, "BorderThickness"));
         }
         XElement focus = PostStyle("ListBoxItem:focus-visible /template/ ContentPresenter");
         Assert.Equal("{DynamicResource Workspace.Accent}", Setting(focus, "BorderBrush"));
-        Assert.Equal("3,1,1,1", Setting(focus, "BorderThickness"));
+        Assert.Equal("3,2,2,2", Setting(focus, "BorderThickness"));
         XElement styles = Source("Desktop/WorkspaceStyles.axaml");
         XElement adornerStyle = Assert.Single(styles.Elements(A + "Style").Where(style =>
             ((string?)style.Attribute("Selector"))?.Split(", ").Contains("ListBoxItem") == true &&
@@ -108,6 +119,26 @@ public sealed class ReaderPostSurfaceTests
         XElement adorner = Assert.Single(styles.Descendants(A + "Template").Where(element =>
             (string?)element.Attribute(X + "Key") == "Workspace.FocusAdorner"));
         Assert.Equal("-4", (string?)adorner.Element(A + "Border")!.Attribute("Margin"));
+    }
+
+    [Fact]
+    public void ReferenceButtonsReadAsLinks()
+    {
+        XElement style = PostStyle("Button.reader-quote");
+        Assert.Equal("Transparent", Setting(style, "Background"));
+        Assert.Equal("0", Setting(style, "BorderThickness"));
+        Assert.Equal("{DynamicResource Workspace.Accent}", Setting(style, "Foreground"));
+        Assert.Equal("24", Setting(style, "MinHeight"));
+    }
+
+    [Theory]
+    [InlineData(13, 19)]
+    [InlineData(15, 22)]
+    [InlineData(18, 26)]
+    [InlineData(22, 32)]
+    public void ReadingLineHeightFollowsTheReadingSize(double fontSize, double lineHeight)
+    {
+        Assert.Equal(lineHeight, MeowChan.Desktop.ReaderBodyTextBlock.ReadingLineHeight(fontSize));
     }
 
     [Fact]
@@ -169,6 +200,24 @@ public sealed class ReaderPostSurfaceTests
 
     private static string? Setting(XElement style, string property) => (string?)Assert.Single(style.Elements(A + "Setter")
         .Where(element => (string?)element.Attribute("Property") == property)).Attribute("Value");
+
+    private static XElement Theme(string theme) => Assert.Single(Source("Desktop/WorkspaceStyles.axaml")
+        .Descendants(A + "ResourceDictionary").Where(element => (string?)element.Attribute(X + "Key") == theme));
+
+    private static double Contrast(string first, string second)
+    {
+        static double Luminance(string hex)
+        {
+            double[] channel = Enumerable.Range(0, 3).Select(index =>
+            {
+                double value = Convert.ToInt32(hex.Substring(1 + index * 2, 2), 16) / 255d;
+                return value <= 0.04045 ? value / 12.92 : Math.Pow((value + 0.055) / 1.055, 2.4);
+            }).ToArray();
+            return 0.2126 * channel[0] + 0.7152 * channel[1] + 0.0722 * channel[2];
+        }
+        double a = Luminance(first), b = Luminance(second);
+        return (Math.Max(a, b) + 0.05) / (Math.Min(a, b) + 0.05);
+    }
 
     private static XElement Resource(XElement dictionary, string key) => Assert.Single(dictionary.Elements()
         .Where(element => (string?)element.Attribute(X + "Key") == key));

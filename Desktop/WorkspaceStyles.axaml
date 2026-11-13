@@ -14,7 +14,6 @@
                     <SolidColorBrush x:Key="Workspace.Muted">#A4ADB8</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Accent">#6AA7FF</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentSurface">#25344A</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.ReaderActiveSurface">#152233</SolidColorBrush>
                     <!-- D0 surface tokens (design language 4.3): level 2 card with a 1-px CardEdge, level 4 overlay
                          (menu, flyout, filter surface, toast) with the app's only shadow, and the scrim behind blocking
                          in-window overlays. Overlay equals Panel today (separate key so it can be tinted later).
@@ -25,8 +24,12 @@
                     <SolidColorBrush x:Key="Workspace.Overlay">#1B1E22</SolidColorBrush>
                     <BoxShadows x:Key="Workspace.Shadow.Overlay">0 4 16 0 #66000000</BoxShadows>
                     <SolidColorBrush x:Key="Workspace.Scrim">#66000000</SolidColorBrush>
-                    <!-- Decorative reader rule only; do not change the shared palette or row height. -->
-                    <x:Double x:Key="Workspace.ReaderPostSeparatorHeight">1</x:Double>
+                    <!-- Reader post cards (study 2026-11-13, variant A): cards on the darker page tone. The edge is
+                         3.03:1 against the page (non-text minimum 3:1), the card 1.18:1 above it. The active card
+                         uses Workspace.AccentSurface with the accent edge. -->
+                    <SolidColorBrush x:Key="Workspace.ReaderPage">#121416</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ReaderPostSurface">#20242A</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ReaderPostEdge">#5A636E</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Hover">#30363E</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.OnAccent">#121416</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentHover">#8ABBFF</SolidColorBrush>
@@ -73,14 +76,17 @@
                     <SolidColorBrush x:Key="Workspace.Muted">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Accent">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentSurface">#E7D4BE</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.ReaderActiveSurface">#E8E0D5</SolidColorBrush>
                     <!-- D0 surface tokens (see the Dark block). Light CardEdge equals ControlBorder; Overlay equals Panel. -->
                     <SolidColorBrush x:Key="Workspace.Card">#FAF7F1</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.CardEdge">#7A7062</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Overlay">#EFECE6</SolidColorBrush>
                     <BoxShadows x:Key="Workspace.Shadow.Overlay">0 4 16 0 #26000000</BoxShadows>
                     <SolidColorBrush x:Key="Workspace.Scrim">#33000000</SolidColorBrush>
-                    <x:Double x:Key="Workspace.ReaderPostSeparatorHeight">0</x:Double>
+                    <!-- Reader post cards: warm near-white cards on the page tone. Edge = ControlBorder, 3.66:1
+                         against the page; card 1.24:1 above it. Active card: AccentSurface + accent edge. -->
+                    <SolidColorBrush x:Key="Workspace.ReaderPage">#E3DFD8</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ReaderPostSurface">#FAF7F1</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ReaderPostEdge">#7A7062</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Hover">#D2CABE</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.OnAccent">#FFFFFF</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentHover">#9A4B0B</SolidColorBrush>
