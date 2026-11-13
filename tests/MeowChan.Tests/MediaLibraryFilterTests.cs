@@ -160,10 +160,11 @@ public sealed class MediaLibraryFilterTests
         Assert.False(first.SameSourcesAs(Data()));
     }
 
-    // T1: "without own tags" is the start of tagging. It reads the same tags as the tag filter (media and thread tags), only for files
-    // that can carry media tags, and combines with every other part of the filter.
+    // T1: "without media tags" is the start of tagging. It reads the media tags the tag filter reads, only for files that can carry
+    // them, and combines with every other part of the filter. A thread tag does not count: the file still waits for its own tag,
+    // while the tag filter keeps finding it through that thread tag.
     [Fact]
-    public void WithoutOwnTagsKeepsOnlyTaggableFilesWithoutMediaOrThreadTagsAndCombines()
+    public void WithoutMediaTagsKeepsTaggableFilesWithoutMediaTagsAlsoInTaggedThreadsAndCombines()
     {
         MediaLibraryEntry threadTagged = Entry("a", "1", 'a'), mediaTagged = Entry("b", "1", 'b'), plain = Entry("b", "2", 'c', name: "plain.png"),
             plainFavorite = Entry("b", "3", 'd'), missing = Entry("b", "4", 'e', missing: true),
@@ -174,16 +175,20 @@ public sealed class MediaLibraryFilterTests
         MediaLibraryEntry[] all = [threadTagged, mediaTagged, plain, plainFavorite, missing, noSubject];
         Assert.Null(MediaTagSubjects.Of(noSubject));
 
-        Assert.False(new MediaLibraryFilter(withoutOwnTags: true).IsEmpty);
-        Assert.Equal(new[] { "b:2", "b:3" }, Posts(MediaLibraryFilterEngine.Apply(all, new(withoutOwnTags: true), data)));
-        Assert.Equal(new[] { "b:3" }, Posts(MediaLibraryFilterEngine.Apply(all, new(withoutOwnTags: true, favoritesOnly: true), data)));
-        Assert.Equal(new[] { "b:2" }, Posts(MediaLibraryFilterEngine.Apply(all, new(withoutOwnTags: true, nameContains: "plain"), data)));
-        // An included tag and "without own tags" contradict each other: nothing, never the wider list.
-        Assert.Empty(MediaLibraryFilterEngine.Apply(all, new(tags: new ArchiveTagFilter([Cute], null), withoutOwnTags: true), data));
-        Assert.All(all, entry => Assert.Equal(entry == plain || entry == plainFavorite, data.LacksOwnTags(entry)));
+        Assert.False(new MediaLibraryFilter(withoutMediaTags: true).IsEmpty);
+        Assert.Equal(new[] { "a:1", "b:2", "b:3" }, Posts(MediaLibraryFilterEngine.Apply(all, new(withoutMediaTags: true), data)));
+        // Both at once: the file in the tagged thread is untagged as a medium and still matches its thread's tag.
+        Assert.Equal(new[] { "a:1" }, Posts(MediaLibraryFilterEngine.Apply(all, new(tags: new ArchiveTagFilter([Rpt], null)), data)));
+        Assert.Equal(new[] { "a:1" }, Posts(MediaLibraryFilterEngine.Apply(all, new(tags: new ArchiveTagFilter([Rpt], null), withoutMediaTags: true), data)));
+        Assert.Equal(new[] { "b:2", "b:3" }, Posts(MediaLibraryFilterEngine.Apply(all, new(tags: new ArchiveTagFilter(null, [Rpt]), withoutMediaTags: true), data)));
+        Assert.Equal(new[] { "b:3" }, Posts(MediaLibraryFilterEngine.Apply(all, new(withoutMediaTags: true, favoritesOnly: true), data)));
+        Assert.Equal(new[] { "b:2" }, Posts(MediaLibraryFilterEngine.Apply(all, new(withoutMediaTags: true, nameContains: "plain"), data)));
+        // An included media tag and "without media tags" contradict each other: nothing, never the wider list.
+        Assert.Empty(MediaLibraryFilterEngine.Apply(all, new(tags: new ArchiveTagFilter([Cute], null), withoutMediaTags: true), data));
+        Assert.All(all, entry => Assert.Equal(entry == threadTagged || entry == plain || entry == plainFavorite, data.LacksMediaTags(entry)));
         // Unavailable tags are unknown, never "no tags".
         Assert.Equal(MediaLibraryFilterError.TagsUnavailable, Assert.Throws<MediaLibraryFilterException>(() =>
-            MediaLibraryFilterEngine.Apply(all, new(withoutOwnTags: true), new MediaLibraryUserData(null, [], []))).Error);
+            MediaLibraryFilterEngine.Apply(all, new(withoutMediaTags: true), new MediaLibraryUserData(null, [], []))).Error);
         Assert.Null(MediaLibraryUntagged.Of(all, MediaLibraryUserData.Unavailable));
     }
 
@@ -201,7 +206,7 @@ public sealed class MediaLibraryFilterTests
         {
             IReadOnlyList<MediaLibraryEntry> passing = MediaLibraryFilterEngine.Apply(all, filter, data);
             MediaLibraryFilter narrowed = new(filter.Tags, filter.Kind, filter.FavoritesOnly, filter.MinimumRating, filter.Source, filter.Board,
-                filter.NameContains, filter.Thread, filter.Sound, withoutOwnTags: true);
+                filter.NameContains, filter.Thread, filter.Sound, withoutMediaTags: true);
             int shown = MediaLibraryGrouping.Build(all, MediaLibraryFilterEngine.Apply(all, narrowed, data), MediaLibrarySort.ByThread, includeMissing: false).Count;
             Assert.Equal(shown, untagged.CountTiles(passing));
         }

@@ -4,8 +4,8 @@ using System.Collections.Generic;
 namespace MeowChan.Gallery;
 
 /// <summary>
-/// The media page's "N without own tags" count. Which occurrences of one index lack own tags is decided once per index and
-/// tag state by <see cref="MediaLibraryUserData.LacksOwnTags"/>, the same rule as the filter, so recounting after every filter
+/// The media page's "N without media tags" count. Which occurrences of one index lack media tags is decided once per index and
+/// tag state by <see cref="MediaLibraryUserData.LacksMediaTags"/>, the same rule as the filter, so recounting after every filter
 /// change is one lookup per passing occurrence. No IO.
 /// </summary>
 internal sealed class MediaLibraryUntagged
@@ -18,7 +18,7 @@ internal sealed class MediaLibraryUntagged
         Entries = entries;
         Data = data;
         foreach (MediaLibraryEntry entry in entries)
-            if (data.LacksOwnTags(entry)) _untagged[entry] = MediaLibraryGrouping.ByteKey(entry);
+            if (data.LacksMediaTags(entry)) _untagged[entry] = MediaLibraryGrouping.ByteKey(entry);
     }
 
     internal IReadOnlyList<MediaLibraryEntry> Entries { get; }
@@ -37,8 +37,8 @@ internal sealed class MediaLibraryUntagged
         ReferenceEquals(Entries, entries) && ReferenceEquals(Data, data);
 
     /// <summary>
-    /// Tiles the page would show if "without own tags" were added to the filter that let <paramref name="passing"/> through:
-    /// equal bytes are one tile, shown when any of its occurrences lacks own tags (as <see cref="MediaLibraryGrouping.Build"/>).
+    /// Tiles the page would show if "without media tags" were added to the filter that let <paramref name="passing"/> through:
+    /// equal bytes are one tile, shown when any of its occurrences lacks media tags (as <see cref="MediaLibraryGrouping.Build"/>).
     /// </summary>
     internal int CountTiles(IEnumerable<MediaLibraryEntry> passing)
     {

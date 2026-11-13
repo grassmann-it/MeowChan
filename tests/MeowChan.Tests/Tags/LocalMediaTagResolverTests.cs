@@ -133,9 +133,10 @@ public sealed class LocalMediaTagResolverTests
         Assert.Equal(3, MediaLibraryTagging.TargetsToAdd(tags, cat, candidates).Count);
     }
 
-    // T1: a loose file counts as untagged until its own local registration carries a tag; its equal-byte twins stay untagged.
+    // T1: a loose file counts as untagged until its own local registration carries a media tag; its equal-byte twins stay untagged,
+    // and the thread tag that every one of them carries does not change that.
     [Fact]
-    public async Task WithoutOwnTagsResolvesLooseFilesThroughTheirLocalRegistration()
+    public async Task WithoutMediaTagsResolvesLooseFilesThroughTheirLocalRegistration()
     {
         using TempDirectory temp = new();
         (string first, _) = await SeedLooseAsync(temp.Path);
@@ -146,11 +147,13 @@ public sealed class LocalMediaTagResolverTests
         {
             PrivateTagStore store = new(temp.Path, lease);
             TagId cat = store.Define("cat").Tag;
+            store.SetThread(store.Define("rpt").Tag, Loose, true);
             tags = store.SetMediaSubjects(cat, [MediaTagSubjects.Of(a1)!], true).Snapshot;
         }
         MediaLibraryUserData data = new(tags, [], []);
+        Assert.All(index.Entries, entry => Assert.NotEmpty(data.TagsOf(entry))); // The tag filter finds all of them by the thread tag.
 
-        IReadOnlyList<MediaLibraryEntry> untagged = MediaLibraryFilterEngine.Apply(index.Entries, new MediaLibraryFilter(withoutOwnTags: true), data);
+        IReadOnlyList<MediaLibraryEntry> untagged = MediaLibraryFilterEngine.Apply(index.Entries, new MediaLibraryFilter(withoutMediaTags: true), data);
         Assert.Equal(index.Entries.Where(entry => entry != a1).OrderBy(entry => entry.AssetId + entry.Directory),
             untagged.OrderBy(entry => entry.AssetId + entry.Directory));
         // The tagged copy's twins keep the shared bytes' tile in the count; the other file is a tile of its own.

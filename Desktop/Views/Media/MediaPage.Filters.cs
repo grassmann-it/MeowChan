@@ -23,7 +23,7 @@ public sealed partial class MediaPage
     private readonly ComboBox _sourceFilter = new() { Name = "MediaSourceFilter", MinWidth = 130 };
     private readonly ComboBox _boardFilter = new() { Name = "MediaBoardFilter", MinWidth = 130 };
     private readonly CheckBox _favoritesOnly = new() { Name = "MediaFavoritesOnly" };
-    private readonly CheckBox _withoutOwnTags = new() { Name = "MediaWithoutOwnTags" };
+    private readonly CheckBox _withoutMediaTags = new() { Name = "MediaWithoutMediaTags" };
     private readonly ComboBox _minRating = new() { Name = "MediaMinRating", MinWidth = 130 };
     private readonly ComboBox _tagChoice = new() { Name = "MediaTagChoice", MinWidth = 160 };
     private readonly Button _tagInclude = new() { Name = "MediaTagInclude" };
@@ -36,7 +36,7 @@ public sealed partial class MediaPage
     private readonly List<Guid> _excludeTags = new();
     private (ResourceId Thread, string Title)? _threadFilter;
     private MediaLibraryUserData _userData = MediaLibraryUserData.Unavailable;
-    // T1: which occurrences lack own tags, decided once per index and tag state; the status line counts the tiles among the matches.
+    // T1: which occurrences lack media tags, decided once per index and tag state; the status line counts the tiles among the matches.
     private MediaLibraryUntagged? _untagged;
     private int? _untaggedTiles;
     private readonly TextBlock _untaggedText = new() { TextWrapping = Avalonia.Media.TextWrapping.NoWrap };
@@ -59,7 +59,7 @@ public sealed partial class MediaPage
     private Control BuildFilterRow()
     {
         WrapPanel row = new() { ItemSpacing = 8, LineSpacing = 6 };
-        foreach (Control control in new Control[] { _nameFilter, _kindFilter, _soundFilter, _sourceFilter, _boardFilter, _favoritesOnly, _withoutOwnTags, _minRating,
+        foreach (Control control in new Control[] { _nameFilter, _kindFilter, _soundFilter, _sourceFilter, _boardFilter, _favoritesOnly, _withoutMediaTags, _minRating,
             _tagChoice, _tagInclude, _tagExclude, _tagMode, _filterReset, _audioNote })
         { control.VerticalAlignment = VerticalAlignment.Center; row.Children.Add(control); }
         AutomationProperties.SetLiveSetting(_filterError, AutomationLiveSetting.Assertive);
@@ -82,7 +82,7 @@ public sealed partial class MediaPage
         _sourceFilter.SelectionChanged += (_, _) => { if (_localizing) return; RenderSourceOptions(); FilterEdited(); };
         _boardFilter.SelectionChanged += (_, _) => { if (_localizing) return; RenderBoardOptions(); FilterEdited(); };
         _favoritesOnly.IsCheckedChanged += (_, _) => FilterEdited();
-        _withoutOwnTags.IsCheckedChanged += (_, _) => FilterEdited();
+        _withoutMediaTags.IsCheckedChanged += (_, _) => FilterEdited();
         _tagChoice.SelectionChanged += (_, _) => UpdateTagButtons();
         _tagInclude.Click += (_, _) => AddTag(include: true);
         _tagExclude.Click += (_, _) => AddTag(include: false);
@@ -138,7 +138,7 @@ public sealed partial class MediaPage
             _favoritesOnly.IsChecked == true, _minRating.SelectedIndex > 0 ? _minRating.SelectedIndex : null,
             source, board?.Board, _nameFilter.Text, _threadFilter?.Thread,
             (MediaLibrarySoundFilter)Math.Clamp(_soundFilter.SelectedIndex, 0, (int)MediaLibrarySoundFilter.WithoutSound),
-            _withoutOwnTags.IsChecked == true);
+            _withoutMediaTags.IsChecked == true);
     }
 
     /// <summary>Entries that pass the filter; empty with an explanation when the filter cannot be applied.</summary>
@@ -155,7 +155,7 @@ public sealed partial class MediaPage
             MediaLibraryFilterResult result = MediaLibraryFilterEngine.Evaluate(entries, filter, _userData, _audio);
             passing = result.Passing;
             _audioUnknown = result.UnknownSoundVideos;
-            _untaggedTiles = filter.WithoutOwnTags ? null : UntaggedOf(entries)?.CountTiles(passing);
+            _untaggedTiles = filter.WithoutMediaTags ? null : UntaggedOf(entries)?.CountTiles(passing);
         }
         catch (MediaLibraryFilterException exception)
         {
@@ -189,7 +189,7 @@ public sealed partial class MediaPage
         return _untagged;
     }
 
-    /// <summary>The "N without tags" link of the status line: shown while it would narrow the matches to untagged media.</summary>
+    /// <summary>The "N without media tags" link of the status line: shown while it would narrow the matches to untagged media.</summary>
     private Control BuildStatusRow(TextBlock status)
     {
         _untaggedLink.Content = _untaggedText;
@@ -211,11 +211,11 @@ public sealed partial class MediaPage
         AutomationProperties.SetName(_untaggedLink, hint);
     }
 
-    /// <summary>Applies "without own tags" on top of the current filters: the starting point for tagging.</summary>
+    /// <summary>Applies "without media tags" on top of the current filters: the starting point for tagging.</summary>
     internal void ShowUntagged()
     {
         bool focused = _untaggedLink.IsFocused;
-        _withoutOwnTags.IsChecked = true;
+        _withoutMediaTags.IsChecked = true;
         // The link hides once the filter is on; keyboard focus continues on the tiles to tag.
         if (focused) FocusGrid();
     }
@@ -250,7 +250,7 @@ public sealed partial class MediaPage
             _boardFilter.SelectedIndex = 0;
             RenderSourceOptions();
             _favoritesOnly.IsChecked = false;
-            _withoutOwnTags.IsChecked = false;
+            _withoutMediaTags.IsChecked = false;
             _minRating.SelectedIndex = 0;
             _tagMode.SelectedIndex = 0;
             _includeTags.Clear(); _excludeTags.Clear();
@@ -298,8 +298,8 @@ public sealed partial class MediaPage
         if (_threadFilter is { } thread)
             chips.Add((Texts.T("media.filter.threadChip", thread.Title), () => { _threadFilter = null; FilterEdited(); }));
         // Reached from the status line while the filter fields are closed, so it is removable without opening them.
-        if (_withoutOwnTags.IsChecked == true)
-            chips.Add((Texts.T("media.filter.withoutTags"), () => { _withoutOwnTags.IsChecked = false; }));
+        if (_withoutMediaTags.IsChecked == true)
+            chips.Add((Texts.T("media.filter.withoutTags"), () => { _withoutMediaTags.IsChecked = false; }));
         _filterChips.Children.Clear();
         foreach ((string label, Action remove) in chips) _filterChips.Children.Add(ArchivePage.CreateFilterTag(label, remove));
         _filterChips.IsVisible = chips.Count > 0;
@@ -400,8 +400,8 @@ public sealed partial class MediaPage
         finally { _localizing = localizing; }
         _nameFilter.Watermark = Texts.T("media.filter.name");
         _favoritesOnly.Content = Texts.T("media.filter.favorites");
-        _withoutOwnTags.Content = Texts.T("media.filter.withoutTags");
-        ToolTip.SetTip(_withoutOwnTags, Texts.T("media.filter.withoutTagsHint"));
+        _withoutMediaTags.Content = Texts.T("media.filter.withoutTags");
+        ToolTip.SetTip(_withoutMediaTags, Texts.T("media.filter.withoutTagsHint"));
         _tagInclude.Content = Texts.T("tags.filter.include");
         _tagExclude.Content = Texts.T("tags.filter.exclude");
         _filterReset.Content = Texts.T("media.filter.reset");
