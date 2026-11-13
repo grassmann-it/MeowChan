@@ -36,8 +36,6 @@
                         <TextBlock Classes="brand" VerticalAlignment="Center" AutomationProperties.Name="MeowChan"><Run Text="Meow" /><Run Text="Chan" Foreground="{DynamicResource Workspace.Accent}" /></TextBlock>
                         <TextBlock x:Name="WorkspaceVersion" Classes="muted" FontSize="12" VerticalAlignment="Center" />
                     </StackPanel>
-                    <TextBlock x:Name="WorkspaceSubtitle" Grid.Column="1" Tag="shell.subtitle" Classes="localized muted"
-                               VerticalAlignment="Center" FontStyle="Italic" TextTrimming="CharacterEllipsis" />
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                         <Grid x:Name="TransferSpeed" ColumnDefinitions="Auto,Auto" ColumnSpacing="8" VerticalAlignment="Center">
                             <desktop:DownloadSpeedGraph x:Name="TransferSpeedGraph" Width="96" Height="24" IsHitTestVisible="False"

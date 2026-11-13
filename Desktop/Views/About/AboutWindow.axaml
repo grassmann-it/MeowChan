@@ -48,6 +48,7 @@
             <TabItem x:Name="AboutTab">
                 <ScrollViewer x:Name="AboutScrollViewer" VerticalScrollBarVisibility="Auto">
                     <StackPanel Spacing="16" Margin="12">
+                        <TextBlock x:Name="TaglineText" Classes="muted" FontStyle="Italic" TextWrapping="Wrap"/>
                         <TextBlock x:Name="DescriptionText" FontSize="15" TextWrapping="Wrap"/>
                         <TextBlock x:Name="AuthorText"/>
                         <Border x:Name="UpdateSection" Classes="workspace-section">

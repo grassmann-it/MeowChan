@@ -178,7 +178,6 @@ public partial class MainWindow
 
             WorkspaceHeading.IsVisible = !barebones;
             UpdatePageNavigation();
-            WorkspaceSubtitle.IsVisible = !barebones;
             WorkspaceVersion.IsVisible = true;
             WorkspaceHeader.Margin = barebones ? new Thickness(12, 0) : new Thickness(20, 0);
             Grid body = WorkspaceBody;
@@ -304,7 +303,6 @@ public partial class MainWindow
         RefreshShellCommands();
         RefreshSpeedLabel();
         ShowStoreLimitWarning();
-        ToolTip.SetTip(WorkspaceSubtitle, Texts.T("shell.subtitle"));
         ToolTip.SetTip(InspectorCloseButton, Texts.T("action.hideDetails") + " · Esc");
         AutomationProperties.SetName(InspectorCloseButton, Texts.T("action.hideDetails"));
         AutomationProperties.SetName(WorkspaceMenuItem, Texts.T("nav.settings"));

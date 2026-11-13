@@ -73,6 +73,7 @@ public partial class AboutWindow : Window
         ToolTip.SetTip(CatLogoDark, Texts.T("about.logoMila"));
         VersionText.Text = Texts.T("shell.version", _version);
         CopyVersionButton.Content = Texts.T("about.copyVersion");
+        TaglineText.Text = Texts.T("shell.subtitle");
         DescriptionText.Text = Texts.T("about.description");
         AuthorText.Text = Texts.T("about.author");
         ProjectLink.Content = Texts.T("about.project");
