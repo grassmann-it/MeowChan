@@ -862,14 +862,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         return corners;
     }
 
-    private static string Size(long bytes)
-    {
-        string[] units = { "B", "KiB", "MiB", "GiB" };
-        double value = bytes;
-        int unit = 0;
-        while (value >= 1024 && unit < units.Length - 1) { value /= 1024; unit++; }
-        return (unit == 0 ? value.ToString("0", Texts.Culture) : value.ToString("0.#", Texts.Culture)) + " " + units[unit];
-    }
+    private static string Size(long bytes) => SizeText.FormatBinary(bytes);
 
     private Control CreateTags(BooruPostView post)
     {
