@@ -282,11 +282,12 @@ internal sealed class FeedbackToastContent : Grid
             HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled });
         DismissButton = new Button
         {
-            Name = "FeedbackToastDismissButton", Content = MeowChan.Desktop.Controls.WorkspaceIcons.Close(),
+            Name = "FeedbackToastDismissButton", Content = MeowChan.Desktop.Controls.WorkspaceIcons.Create(MeowChan.Desktop.Controls.WorkspaceIcons.Close),
             Margin = new Avalonia.Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top,
             Command = new DelegateCommand(() => dismiss(this))
         };
-        DismissButton.Classes.Add("subtle"); DismissButton.Classes.Add("icon-square");
+        DismissButton.Classes.Add("subtle");
+        DismissButton.Classes.Add(MeowChan.Desktop.Controls.WorkspaceIcons.SquareClass);
         LocalizeDismissButton();
         SetColumn(DismissButton, 1);
         Children.Add(DismissButton);

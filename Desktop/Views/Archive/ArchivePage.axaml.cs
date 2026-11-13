@@ -118,7 +118,7 @@ public partial class ArchivePage : UserControl
 
     public ArchivePage()
     {
-        InitializeComponent(); InitializeThreadFind(); InitializePostPageKeys(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeMediaSelection(); InitializeThreadFavoriteCommands(); InitializePrivateTags(); InitializeStatusOverlay();
+        InitializeComponent(); InitializeThreadFind(); InitializePostPageKeys(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeMediaSelection(); InitializeThreadFavoriteCommands(); InitializePrivateTags(); InitializeStatusOverlay(); InitializeReaderToolbarIcons();
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         ArchivePosts.AutoScrollToSelectedItem = false;
         ArchiveMediaTiles.AutoScrollToSelectedItem = false;
@@ -1059,6 +1059,21 @@ public partial class ArchivePage : UserControl
         }
         if (anchor != null) await RestoreReaderAnchorAsync(anchor, focusIntent: focusIntent);
     }
+    // The Reader toolbar rule (P6): every labelled action carries an icon before its text, none is text alone. The ones that set their
+    // text in code (tags, find, view, the two searches, the two conditional returns) keep a string as content; the icon comes from
+    // their content template, so what sets or reads the label is unchanged. Close, gallery, read, full screen, history and export
+    // get theirs from CommandBindings in Localize.
+    private void InitializeReaderToolbarIcons()
+    {
+        CommandBindings.ShowIconBeforeText(ReaderTagsOpen, CommandCatalog.Get("thread.tags").Icon);
+        CommandBindings.ShowIconBeforeText(ReaderFindOpen, CommandCatalog.Get("reader.find").Icon);
+        CommandBindings.ShowIconBeforeText(ReaderViewOpen, "eye");
+        CommandBindings.ShowIconBeforeText(ReaderFilenameSearchOpen, "file-text");
+        CommandBindings.ShowIconBeforeText(ReaderHashSearchOpen, "crosshair");
+        CommandBindings.ShowIconBeforeText(ReaderUnreadReturn, CommandCatalog.Get("reader.history-back").Icon);
+        CommandBindings.ShowIconBeforeText(ReaderSkipUnavailableGroupMember, CommandCatalog.Get("reader.skip-unavailable-group-member").Icon);
+    }
+
     private void Localize()
     {
         foreach (Control control in this.GetLogicalDescendants().Concat(ArchiveReaderPane.GetLogicalDescendants()).OfType<Control>().Distinct())

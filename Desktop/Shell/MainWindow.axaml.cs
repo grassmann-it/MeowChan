@@ -78,6 +78,7 @@ public partial class MainWindow : Window
             session?.DisposeAsync().AsTask().GetAwaiter().GetResult();
             throw;
         }
+        InitializeGlyphIcons();
         _session = session ?? new DesktopSessionHost();
         _config = _session.Config;
         InitializeStartupWindowSize();

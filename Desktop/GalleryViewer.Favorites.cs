@@ -4,6 +4,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
@@ -28,8 +29,31 @@ internal sealed partial class GalleryViewer
         Padding = new Thickness(7, 3),
         Background = new SolidColorBrush(Color.FromArgb(210, 24, 26, 31)),
         IsHitTestVisible = false, Focusable = false, IsVisible = false, ZIndex = 16,
-        Child = new TextBlock { Foreground = Brushes.White, IsHitTestVisible = false }.SubtitleText()
+        // A drawn star (outline: not saved, filled gold: saved) and, while a write is pending, a trailing "…" (P6: no font glyphs).
+        Child = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, IsHitTestVisible = false,
+            Children = { WorkspaceIcons.Create(WorkspaceIcons.Star, inheritForeground: false), new TextBlock { Name = "GalleryFavoritePending", Text = "…",
+                FontSize = 16, Foreground = Brushes.White, IsVisible = false, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false } } }
     }.BadgeCorners();
+
+    /// <summary>The state a favourite badge shows: saved (filled star) and pending (trailing "…"). Tests and the refresh read it back.</summary>
+    internal static (bool Saved, bool Pending) FavoriteBadgeState(Border badge)
+    {
+        StackPanel panel = (StackPanel)badge.Child!;
+        return (WorkspaceIcons.KeyOf(panel.Children[0]) == WorkspaceIcons.StarFilled, panel.Children[1].IsVisible);
+    }
+
+    private static void ShowFavoriteBadgeState(Border badge, bool saved, bool pending, string label)
+    {
+        StackPanel panel = (StackPanel)badge.Child!;
+        Avalonia.Controls.Shapes.Path star = (Avalonia.Controls.Shapes.Path)panel.Children[0];
+        star.Tag = saved ? WorkspaceIcons.StarFilled : WorkspaceIcons.Star;
+        IBrush ink = saved ? Brushes.Gold : Brushes.White;
+        star.Stroke = ink;
+        star.Fill = saved ? ink : Brushes.Transparent;
+        panel.Children[1].IsVisible = pending;
+        AutomationProperties.SetName(badge, label);
+        AutomationProperties.SetName(panel, label);
+    }
 
     private void InitializeFavoriteIndicators()
     {
@@ -45,11 +69,7 @@ internal sealed partial class GalleryViewer
             ? state + " · " + Texts.T("gallery.saving") : state;
         foreach (Border badge in new[] { _favoriteIndicator, _nativeFavoriteIndicator })
         {
-            var text = (TextBlock)badge.Child!;
-            text.Text = (_favoriteSelected ? "★" : "☆") + (_favoritePending ? " …" : "");
-            text.Foreground = _favoriteSelected ? Brushes.Gold : Brushes.White;
-            AutomationProperties.SetName(badge, label);
-            AutomationProperties.SetName(text, label);
+            ShowFavoriteBadgeState(badge, _favoriteSelected, _favoritePending, label);
         }
         // Never imply "not saved" while a new selection's persisted status is unknown.
         bool visible = _entry != null && _favoriteKnown && !_terminalRetirement;

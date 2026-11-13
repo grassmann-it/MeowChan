@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -45,6 +46,21 @@ internal static class WorkspaceChips
 
     /// <summary>The provider tag categories with their own mark colour; anything else is shown as general.</summary>
     internal static readonly string[] Categories = { "artist", "copyright", "character", "meta", "general" };
+
+    /// <summary>
+    /// The content of a chip that removes itself when pressed: the name (a TextBlock, so underscores stay literal) and a small drawn
+    /// cross, not a "✕" in the text. The chip's tooltip and accessible name say what pressing it does.
+    /// </summary>
+    internal static StackPanel RemovableContent(string name)
+    {
+        TextBlock label = new() { Text = name, VerticalAlignment = VerticalAlignment.Center };
+        return new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6,
+            Children = { label, WorkspaceIcons.Create(WorkspaceIcons.CloseSmall) } };
+    }
+
+    /// <summary>The name a chip built by <see cref="RemovableContent"/> shows (without the cross), or null for other content.</summary>
+    internal static string? RemovableName(object? content) =>
+        (content as StackPanel)?.Children.OfType<TextBlock>().FirstOrDefault()?.Text;
 
     internal static T MarkOwn<T>(T control, bool compact = false) where T : Control => Add(control, Chip, Own, compact ? Compact : null);
     internal static T MarkOffered<T>(T control) where T : Control => Add(control, Chip, Available);

@@ -518,12 +518,12 @@ internal static class ReaderUxChecks
                 await Program.WaitUntilAsync(() => surface.GetVisualDescendants().OfType<ArchiveThreadFavoriteButton>().Any(button =>
                     button.IsEffectivelyVisible && button.IsEnabled
                     && button.DataContext is ArchiveThreadRow row && row.Summary.Id == rows[0].Summary.Id
-                    && button.Content is TextBlock { Text: "★" }));
+                    && MeowChan.Desktop.Controls.WorkspaceIcons.KeyOf(button.Content) == "star-filled"));
                 Require(!window.SessionHost.GetThreadFavorites().Contains(rows[1].Summary.Id),
                     layout + " thread-favorite menu targeted the changed selection instead of its frozen lead.");
                 Require(surface.GetVisualDescendants().OfType<ArchiveThreadFavoriteButton>().Any(button =>
                     button.DataContext is ArchiveThreadRow row && row.Summary.Id == rows[0].Summary.Id
-                    && button.Content is TextBlock { Text: "★" }), layout + " row did not display the committed star.");
+                    && MeowChan.Desktop.Controls.WorkspaceIcons.KeyOf(button.Content) == "star-filled"), layout + " row did not display the committed star.");
                 menu.Close();
                 await window.SessionHost.SetThreadFavoriteAsync(rows[0].Summary.Id, false);
                 await page.ActivateAsync();
@@ -559,15 +559,15 @@ internal static class ReaderUxChecks
                 Texts.SetLanguage(language);
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                 string add = language == "de" ? "Thread als Favorit markieren" : "Favorite thread";
-                Require(Avalonia.Automation.AutomationProperties.GetName(star) == add && star.Content is TextBlock { Text: "☆" },
+                Require(Avalonia.Automation.AutomationProperties.GetName(star) == add && MeowChan.Desktop.Controls.WorkspaceIcons.KeyOf(star.Content) == "star",
                     "Reader thread star lost its localized add label or unmarked state.");
                 star.Focus(); Click(star);
-                await Program.WaitUntilAsync(() => Marked() && star.Content is TextBlock { Text: "★" });
+                await Program.WaitUntilAsync(() => Marked() && MeowChan.Desktop.Controls.WorkspaceIcons.KeyOf(star.Content) == "star-filled");
                 string remove = language == "de" ? "Threadfavorit entfernen" : "Remove thread favorite";
                 Require(Avalonia.Automation.AutomationProperties.GetName(star) == remove,
                     "Reader thread star lost its localized remove label.");
                 Click(star);
-                await Program.WaitUntilAsync(() => !Marked() && star.Content is TextBlock { Text: "☆" });
+                await Program.WaitUntilAsync(() => !Marked() && MeowChan.Desktop.Controls.WorkspaceIcons.KeyOf(star.Content) == "star");
             }
             Config customized = original.Clone();
             customized.ShortcutBindings = customized.ShortcutBindings.Set("thread.favorite-toggle",
@@ -582,7 +582,7 @@ internal static class ReaderUxChecks
                 toolbarOrigin.Focus();
                 toolbarOrigin.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F9, KeyModifiers = modifiers });
                 bool expected = attempt == 0;
-                await Program.WaitUntilAsync(() => Marked() == expected && star.Content is TextBlock text && text.Text == (expected ? "★" : "☆"));
+                await Program.WaitUntilAsync(() => Marked() == expected && MeowChan.Desktop.Controls.WorkspaceIcons.KeyOf(star.Content) == (expected ? "star-filled" : "star"));
             }
             var bookmarksAfter = await window.SessionHost.ReadPostBookmarksAsync();
             Require(mediaBefore.SequenceEqual(window.SessionHost.GetFavorites()) && bookmarksBefore.Revision == bookmarksAfter.Revision

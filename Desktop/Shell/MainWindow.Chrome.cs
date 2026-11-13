@@ -20,6 +20,15 @@ public partial class MainWindow
     private static Geometry MaximizeGeometry => _maximizeGeometry ??= Geometry.Parse(WindowChromePolicy.MaximizePath);
     private static Geometry RestoreGeometry => _restoreGeometry ??= Geometry.Parse(WindowChromePolicy.RestorePath);
 
+    // The shell's drawn marks that XAML cannot name (P6): the "more" icon of the application menu, the close icons of the
+    // feedback banner and the details panel. Their geometry is built when they are first shown (WorkspaceIcons).
+    private void InitializeGlyphIcons()
+    {
+        WorkspaceMenuItem.Header = MeowChan.Desktop.Controls.WorkspaceIcons.Create(MeowChan.Desktop.Controls.WorkspaceIcons.More);
+        MeowChan.Desktop.Controls.WorkspaceIcons.Attach(ShellFeedbackDismissIcon, MeowChan.Desktop.Controls.WorkspaceIcons.Close);
+        InspectorCloseButton.Content = MeowChan.Desktop.Controls.WorkspaceIcons.Create(MeowChan.Desktop.Controls.WorkspaceIcons.Close);
+    }
+
     // Square corners on Windows (DWM) and native corners and traffic lights on macOS (header
     // starts after them). MEOWCHAN_WINDOW_CHROME=system fallback: the platform caption returns,
     // the header row stays as an in-window bar (branding, menu, header commands) without own

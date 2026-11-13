@@ -199,9 +199,12 @@ public static class CommandBindings
         return string.IsNullOrWhiteSpace(unavailableReason) ? result : result + " · " + unavailableReason;
     }
 
-    public static Control Icon(string id, int size = 16, string? state = null)
+    public static Control Icon(string id, int size = 16, string? state = null) =>
+        IconFromKey(CommandCatalog.IconForState(id, state), size);
+
+    /// <summary>The catalog mask <paramref name="icon"/> (a file name of Assets/icons/feather/masks, e.g. "search") as a themed icon.</summary>
+    internal static Control IconFromKey(string icon, int size = 16)
     {
-        string icon = CommandCatalog.IconForState(id, state);
         return new Border
         {
             Width = size,
@@ -227,9 +230,30 @@ public static class CommandBindings
         }
     }
 
-    private static Control ButtonIcon(string id, int size, TextBlock? label = null)
+    /// <summary>
+    /// Shows the catalog icon <paramref name="icon"/> before the text of a button whose content is a string, without replacing that
+    /// string: the content template draws the icon and the text, so code that sets or reads <c>Content</c> keeps working and every
+    /// action of a toolbar carries an icon (the Reader toolbar rule) whatever sets its label. A button that holds a control as
+    /// content (a button of <see cref="ApplyLabeled"/>) is not templated.
+    /// </summary>
+    internal static void ShowIconBeforeText(Button button, string icon, int size = 16)
     {
-        Border icon = (Border)Icon(id, size);
+        button.ContentTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<object>((content, _) =>
+        {
+            TextBlock text = new() { Text = content?.ToString(), VerticalAlignment = VerticalAlignment.Center };
+            return new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 5,
+                VerticalAlignment = VerticalAlignment.Center,
+                Children = { ButtonIcon(icon, size, text, byKey: true), text }
+            };
+        });
+    }
+
+    private static Control ButtonIcon(string id, int size, TextBlock? label = null, bool byKey = false)
+    {
+        Border icon = (Border)(byKey ? IconFromKey(id, size) : Icon(id, size));
         // Follow the rendered label, including Semi's TextBlock-specific disabled
         // opacity. Icon-only content inherits the presenter's state foreground.
         icon.Bind(Border.BackgroundProperty, label is null

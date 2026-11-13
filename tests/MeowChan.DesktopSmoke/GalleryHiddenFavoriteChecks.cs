@@ -236,7 +236,7 @@ internal static class GalleryHiddenFavoriteChecks
                 Border badge = Badge();
                 Require(badge.IsEffectivelyVisible && !badge.IsHitTestVisible && !badge.Focusable,
                     "Current favorite badge disappeared with controls or steals input.");
-                Require(((TextBlock)badge.Child!).Text == (saved ? "★" : "☆") + (pending ? " …" : "")
+                Require(GalleryViewer.FavoriteBadgeState(badge) == (saved, pending)
                     && (AutomationProperties.GetName(badge) ?? "").StartsWith(
                         Texts.T(saved ? "viewer.favorite.saved" : "viewer.favorite.unsaved"), StringComparison.Ordinal),
                     "Current favorite glyph/accessibility label does not represent persisted truth.");

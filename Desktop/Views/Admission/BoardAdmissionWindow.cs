@@ -304,7 +304,7 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
         AutomationProperties.SetName(field, Texts.T("wizard.ruleField"));
         AutomationProperties.SetName(action, Texts.T("wizard.ruleAction"));
         AutomationProperties.SetName(text, Texts.T("wizard.ruleText"));
-        var remove = new Button { Name = "BoardAdmissionRemoveRule", Content = "×" }; Avalonia.Automation.AutomationProperties.SetName(remove, Texts.T("wizard.removeRule"));
+        var remove = new Button { Name = "BoardAdmissionRemoveRule" }; WorkspaceIcons.MakeSquare(remove, WorkspaceIcons.Close, Texts.T("wizard.removeRule"), subtle: false);
         RefreshCommandHelp(remove, "admission.remove-rule");
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*,Auto"), ColumnSpacing = 8 };
         grid.Children.Add(field); Grid.SetColumn(action, 1); grid.Children.Add(action); Grid.SetColumn(text, 2); grid.Children.Add(text); Grid.SetColumn(remove, 3); grid.Children.Add(remove);

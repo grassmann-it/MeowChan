@@ -300,9 +300,8 @@ internal sealed class ManualImportDialog : Window
             string root = _session.Roots[index];
             Grid row = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
             TextBlock text = new() { Text = root, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
-            Button remove = new() { Content = "✕", IsEnabled = editable };
-            string hint = Texts.T("import.roots.remove", System.IO.Path.GetFileName(root));
-            AutomationProperties.SetName(remove, hint); ToolTip.SetTip(remove, hint);
+            Button remove = new() { IsEnabled = editable };
+            MeowChan.Desktop.Controls.WorkspaceIcons.MakeSquare(remove, MeowChan.Desktop.Controls.WorkspaceIcons.Close, Texts.T("import.roots.remove", System.IO.Path.GetFileName(root)), subtle: false);
             remove.Click += (_, _) => _session.RemoveRoot(at);
             row.Children.Add(text); row.Children.Add(remove); Grid.SetColumn(remove, 1);
             _roots.Children.Add(row);
@@ -318,7 +317,7 @@ internal sealed class ManualImportDialog : Window
         foreach (string tag in _session.Tags)
         {
             string name = tag;
-            Button chip = new() { Content = new TextBlock { Text = name + "  ✕" }, IsEnabled = editable };
+            Button chip = new() { Content = MeowChan.Desktop.Controls.WorkspaceChips.RemovableContent(name), IsEnabled = editable };
             string hint = Texts.T("import.tags.remove", name);
             AutomationProperties.SetName(chip, hint); ToolTip.SetTip(chip, hint);
             chip.Click += (_, _) => _session.RemoveTag(name);

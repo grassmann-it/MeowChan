@@ -48,7 +48,7 @@
                         <ToggleButton x:Name="ArchiveLayoutTable" Content="Table" Classes="media-control" ursa:ToolBar.OverflowMode="Never" />
                         <Button x:Name="ArchiveResultsGallery" Tag="gallery.results" Classes="localized" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveThreadColumnsButton" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" IsVisible="False" />
-                        <Button x:Name="ArchiveFavoritesOverview" Content="★ Favorites" ursa:ToolBar.OverflowMode="AsNeeded" />
+                        <Button x:Name="ArchiveFavoritesOverview" Content="Favorites" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveFilenameSearchOpen" Click="OnFilenameSearchClick" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveResultsExport" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveReaderGroups" Content="Reader groups" Click="OnReaderGroupsClick" />
@@ -451,9 +451,9 @@
                                                                     Click="OnReplyToggleClick" VerticalAlignment="Center">
                                                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                                                     <TextBlock Text="{Binding BacklinkCountLabel}" Classes="workspace-meta" VerticalAlignment="Center" />
-                                                                    <Path Classes="reader-reply-chevron" Data="M 0,0 L 3.5,3.5 L 7,0" Stroke="{DynamicResource Workspace.Muted}" StrokeThickness="1.4"
+                                                                    <Path Classes="reader-reply-chevron" Data="M 0,0 L 3.5,3.5 L 7,0" Stroke="{DynamicResource Workspace.Muted}" StrokeThickness="1.5"
                                                                           IsVisible="{Binding !RepliesExpanded}" VerticalAlignment="Center" />
-                                                                    <Path Classes="reader-reply-chevron" Data="M 0,3.5 L 3.5,0 L 7,3.5" Stroke="{DynamicResource Workspace.Muted}" StrokeThickness="1.4"
+                                                                    <Path Classes="reader-reply-chevron" Data="M 0,3.5 L 3.5,0 L 7,3.5" Stroke="{DynamicResource Workspace.Muted}" StrokeThickness="1.5"
                                                                           IsVisible="{Binding RepliesExpanded}" VerticalAlignment="Center" />
                                                                 </StackPanel>
                                                             </Button>
@@ -575,7 +575,7 @@
                                     <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="6">
                                         <Button x:Name="ArchiveMediaMode" Tag="gallery.tiles" Classes="localized" Click="OnMediaModeClick" />
                                         <Button x:Name="ArchiveMediaColumnsButton" Content="Columns" Click="OnArchiveColumnsClick" IsVisible="False" />
-                                        <Button x:Name="ArchiveFavoritesFilter" Content="☆ Favorites only" Click="OnArchiveFavoritesFilterClick" />
+                                        <Button x:Name="ArchiveFavoritesFilter" Content="Favorites only" Click="OnArchiveFavoritesFilterClick" />
                                         <ComboBox x:Name="ArchiveRatingFilter" MinWidth="140" SelectionChanged="OnMediaRatingFilterChanged" />
                                         <ComboBox x:Name="ArchiveMediaSort" MinWidth="160" SelectedIndex="0" SelectionChanged="OnMediaSortChanged" />
                                         <ComboBox x:Name="ArchiveVersionScope" SelectedIndex="1" SelectionChanged="OnVersionScopeChanged" MinWidth="210" />

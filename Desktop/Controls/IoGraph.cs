@@ -105,7 +105,7 @@ public sealed class IoGraph : Control
     public static readonly StyledProperty<IBrush?> GuideStrokeProperty = AvaloniaProperty.Register<IoGraph, IBrush?>(nameof(GuideStroke));
     public static readonly StyledProperty<bool> ShowDiskProperty = AvaloniaProperty.Register<IoGraph, bool>(nameof(ShowDisk));
     public static readonly StyledProperty<IoGraphSource> SourceProperty = AvaloniaProperty.Register<IoGraph, IoGraphSource>(nameof(Source));
-    public static readonly StyledProperty<double> LineThicknessProperty = AvaloniaProperty.Register<IoGraph, double>(nameof(LineThickness), 1.3);
+    public static readonly StyledProperty<double> LineThicknessProperty = AvaloniaProperty.Register<IoGraph, double>(nameof(LineThickness), 1.5);
 
     /// <summary>Zero keeps the page history; a positive value limits this graph to recent seconds.</summary>
     public int HistoryWindowSeconds { get; set; }

@@ -67,7 +67,8 @@
                         </Button>
                     </StackPanel>
                     <Menu Grid.Column="3" VerticalAlignment="Center">
-                        <MenuItem x:Name="WorkspaceMenuItem" Header="⋯">
+                        <!-- The "more" icon is the header, set in code (WorkspaceIcons); the name and tooltip come from the command adapter. -->
+                        <MenuItem x:Name="WorkspaceMenuItem">
                             <!-- Group 1: every main page, in footer order (Downloads, Archive, Media | Rules, Sources, Plugins | Diagnostics, Statistics). -->
                             <MenuItem x:Name="DownloadsMenuItem" Tag="nav.downloads" Classes="localized" Header="Downloads" Click="OnDownloadsNavigationClick" />
                             <MenuItem x:Name="ArchiveMenuItem" Tag="nav.archive" Classes="localized" Header="Archive" Click="OnArchiveNavigationClick" />
@@ -123,7 +124,7 @@
                         AutomationProperties.Name="{Binding #ShellFeedbackDismissLabel.Text}"
                         ToolTip.Tip="{Binding #ShellFeedbackDismissLabel.Text}">
                     <Grid>
-                        <Path Classes="workspace-icon icon-close" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <Path x:Name="ShellFeedbackDismissIcon" Classes="glyph-icon" />
                         <!-- The normal workspace localizer also refreshes this accessible-only label. -->
                         <TextBlock x:Name="ShellFeedbackDismissLabel" Tag="feedback.dismiss" Classes="localized" IsVisible="False" />
                     </Grid>
@@ -225,7 +226,10 @@
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Title}" VerticalAlignment="Center" FontWeight="Medium" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}" />
                                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                                                <TextBlock Text="{Binding PriorityBadge}" IsVisible="{Binding IsHighPriority}" ToolTip.Tip="{Binding PriorityDescription}" AutomationProperties.Name="{Binding PriorityDescription}" />
+                                                <!-- A drawn up arrow (P6), not the "↑" glyph; the border carries the tooltip and the accessible name. -->
+                                                <Border Background="Transparent" IsVisible="{Binding IsHighPriority}" VerticalAlignment="Center" ToolTip.Tip="{Binding PriorityDescription}" AutomationProperties.Name="{Binding PriorityDescription}">
+                                                    <Path Classes="glyph-icon" Data="M8,13 L8,3 M4,7 L8,3 L12,7" Stroke="{DynamicResource Workspace.Text}" />
+                                                </Border>
                                                 <TextBlock Text="{Binding ThreadId, StringFormat='#{0}'}" VerticalAlignment="Center" Classes="muted inline-thread-id" FontSize="{StaticResource Workspace.Text.Meta}" />
                                             </StackPanel>
                                         </Grid>
@@ -355,7 +359,7 @@
                     <Grid RowDefinitions="Auto,*">
                         <Grid Margin="16,10,10,8" ColumnDefinitions="*,Auto">
                             <TextBlock Tag="detail.title" Classes="localized section-title" Text="Details" VerticalAlignment="Center" />
-                            <Button x:Name="InspectorCloseButton" Grid.Column="1" Content="×" Classes="subtle" MinWidth="30" Padding="8,2" Click="OnDetailsToggleClick" />
+                            <Button x:Name="InspectorCloseButton" Grid.Column="1" Classes="subtle icon-square" Click="OnDetailsToggleClick" />
                         </Grid>
                         <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel Margin="16,2,16,16" Spacing="12">

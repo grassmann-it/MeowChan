@@ -4,7 +4,7 @@ using MeowChan.Desktop.Controls;
 
 namespace MeowChan.DesktopTests;
 
-// DS-P3: dismiss controls are icon-square buttons with a stroke path. Parsed sources only; no Avalonia application.
+// DS-P3/P6: dismiss controls are icon-square buttons with a drawn stroke path. Parsed sources only; no Avalonia application.
 public sealed class IconSquareDismissTests
 {
     private static readonly XNamespace A = "https://github.com/avaloniaui";
@@ -18,22 +18,19 @@ public sealed class IconSquareDismissTests
         Assert.Contains("icon-square", ((string?)dismiss.Attribute("Classes"))!.Split(' '));
         Assert.Equal("{Binding #ShellFeedbackDismissLabel.Text}", (string?)dismiss.Attribute("AutomationProperties.Name"));
         Assert.Equal("{Binding #ShellFeedbackDismissLabel.Text}", (string?)dismiss.Attribute("ToolTip.Tip"));
-        Assert.Contains(dismiss.Descendants(), element => element.Name.LocalName == "Path" && ((string?)element.Attribute("Classes"))!.Contains("icon-close"));
+        Assert.Contains(dismiss.Descendants(), element => element.Name.LocalName == "Path" && (string?)element.Attribute(X + "Name") == "ShellFeedbackDismissIcon");
         Assert.DoesNotContain(dismiss.Descendants(), element => (string?)element.Attribute("Text") == "×");
     }
 
+    // One icon-square definition (P6) and one icon system: the close mark is the drawn WorkspaceIcons.Close on a 16 dip grid.
     [Fact]
-    public void TheCloseIconIsA16DipStrokeInTheOwnersForeground()
+    public void TheCloseIconIsADrawn16DipStrokeAndTheSquareHasTheInputHeight()
     {
-        string selector = "Path.workspace-icon";
-        Assert.Equal("{StaticResource Workspace.Size.Icon}", Setting(selector, "Width"));
-        Assert.Equal("{Binding $parent[Button].Foreground}", Setting(selector, "Stroke"));
-        Assert.Equal("1.5", Setting(selector, "StrokeThickness"));
+        Assert.Equal("{StaticResource Workspace.Size.Icon}", Setting("Path.glyph-icon", "Width"));
+        Assert.Equal("1.5", Setting("Path.glyph-icon", "StrokeThickness"));
         Assert.Equal("{StaticResource Workspace.Size.Input}", Setting("Button.icon-square", "Width"));
         Assert.Equal("{StaticResource Workspace.Size.Input}", Setting("Button.icon-square", "Height"));
-        var close = WorkspaceIcons.Close();
-        Assert.Contains("icon-close", close.Classes);
-        Assert.Contains("workspace-icon", close.Classes);
+        Assert.Equal("M4,4 L12,12 M12,4 L4,12", WorkspaceIcons.DataOf(WorkspaceIcons.Close));
     }
 
     private static IEnumerable<XElement> Styles() => XDocument.Load(Root("Desktop/WorkspaceStyles.axaml")).Root!.Elements(A + "Style");
