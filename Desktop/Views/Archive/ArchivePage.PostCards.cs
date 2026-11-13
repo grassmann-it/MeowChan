@@ -8,11 +8,18 @@ using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
 
-// Reader post cards: header actions of one post.
+// Reader post cards: header actions and inline references of one post.
 public partial class ArchivePage
 {
     // Test seam for the clipboard write; production uses the window clipboard.
     internal Func<string, Task>? CopyPostReference { get; set; }
+
+    // A click on an inline >>No. in the post text navigates exactly like its quote button.
+    private async void OnInlineQuoteInvoked(object? sender, ReaderQuoteInvokedEventArgs e)
+    {
+        e.Handled = true;
+        await NavigateQuoteAsync(e.Quote);
+    }
 
     private async void OnCopyPostNumberClick(object? sender, RoutedEventArgs e)
     {

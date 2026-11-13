@@ -96,6 +96,13 @@ internal sealed record ArchivePostRow(string Id, string Subject, string Body,
     public bool HasAttachments => Attachments.Count > 0;
     public bool IsTextOnly => !HasAttachments;
     public IReadOnlyList<ArchiveQuoteRow> Quotes { get; init; } = Array.Empty<ArchiveQuoteRow>();
+    private ReaderBodyDocument? _bodyDocument;
+    // Greentext and inline >>No. over the unchanged plain Body (built once, after Quotes is set).
+    public ReaderBodyDocument BodyDocument => _bodyDocument ??= ReaderBodyFormatting.Format(Body, Quotes);
+    // Only a reference the text does not contain keeps its visible button; the row is otherwise the
+    // keyboard/screen-reader path for the inline references and opens on keyboard focus.
+    public bool HasUnplacedQuotes => BodyDocument.HasUnplacedQuotes;
+    public string QuotesLabel => Texts.T("reader.quotedPosts");
     private int? _backlinkCount;
     private IReadOnlyList<ArchiveQuoteRow> _replies = Array.Empty<ArchiveQuoteRow>();
     private bool _repliesExpanded;

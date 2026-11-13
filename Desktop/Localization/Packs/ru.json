@@ -2779,6 +2779,7 @@
     "reader.copyPostNumber": "Скопировать >>{0}, чтобы процитировать этот пост",
     "reader.postNumberCopied": ">>{0} скопировано в буфер обмена.",
     "reader.copyFailed": "Буфер обмена недоступен; ничего не скопировано.",
-    "reader.replyCount": "Ответов: {0}"
+    "reader.replyCount": "Ответов: {0}",
+    "reader.quotedPosts": "Цитируемые посты"
   }
 }

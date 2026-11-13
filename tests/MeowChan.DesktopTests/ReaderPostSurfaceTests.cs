@@ -174,7 +174,9 @@ public sealed class ReaderPostSurfaceTests
         XElement attachment = Assert.Single(attachments.Descendants(Desktop + "ArchiveAttachmentView"));
         Assert.Equal("0,2,0,8", (string?)attachment.Attribute("Margin"));
         XElement body = Assert.Single(layout.Descendants(Desktop + "ReaderBodyTextBlock"));
-        Assert.Equal("{Binding Body}", (string?)body.Attribute("Text"));
+        Assert.Equal("{Binding BodyDocument}", (string?)body.Attribute("Document"));
+        Assert.Null(body.Attribute("Text")); // Text/Inlines are chosen by the control from the document.
+        Assert.Equal("OnInlineQuoteInvoked", (string?)body.Attribute("QuoteInvoked"));
         Assert.Equal("{Binding IsTextOnly}", (string?)body.Attribute("IsTextOnly"));
         Assert.Equal("{Binding $parent[ListBox].FontSize}", (string?)body.Attribute("FontSize"));
         Assert.Equal("Wrap", (string?)body.Attribute("TextWrapping"));
@@ -187,7 +189,7 @@ public sealed class ReaderPostSurfaceTests
         XElement root = PostRoot();
         XElement[] quoteButtons = root.Descendants(A + "Button").Where(element =>
             (string?)element.Attribute("Click") == "OnQuoteClick").ToArray();
-        Assert.Equal(2, quoteButtons.Length); // Quote and expanded backlink templates.
+        Assert.Equal(2, quoteButtons.Length); // Keyboard quote row and expanded backlink templates.
         foreach (XElement button in quoteButtons)
         {
             Assert.Equal("{Binding Label}", (string?)button.Attribute("Content"));
@@ -205,6 +207,38 @@ public sealed class ReaderPostSurfaceTests
         Assert.Equal("{Binding RepliesExpanded, Mode=TwoWay}", (string?)backlinks.Attribute("IsExpanded"));
         Assert.Equal("OnRepliesExpanded", (string?)backlinks.Attribute("Expanded"));
         Assert.Equal("OnRepliesCollapsed", (string?)backlinks.Attribute("Collapsed"));
+    }
+
+    [Fact]
+    public void InlineReferencesKeepAKeyboardRowAfterTheText()
+    {
+        XElement root = PostRoot(); // One parsed document: the order check compares element identity.
+        XElement body = Assert.Single(root.Descendants(Desktop + "ReaderBodyTextBlock"));
+        XElement keys = Assert.Single(body.ElementsAfterSelf(A + "ItemsControl"));
+        Assert.Equal("{Binding Quotes}", (string?)keys.Attribute("ItemsSource"));
+        Assert.Equal("reader-quote-keys", (string?)keys.Attribute("Classes"));
+        Assert.Equal("{Binding HasUnplacedQuotes}", (string?)keys.Attribute("Classes.reader-quotes-visible"));
+        Assert.Equal("{Binding QuotesLabel}", (string?)keys.Attribute("AutomationProperties.Name"));
+        Assert.Single(keys.Descendants(A + "Button").Where(button => (string?)button.Attribute("Click") == "OnQuoteClick"));
+        // Collapsed only while neither focused nor needed for an unplaced reference.
+        XElement collapsed = PostStyle("ItemsControl.reader-quote-keys:not(:focus-within):not(.reader-quotes-visible)");
+        Assert.Equal("0", Setting(collapsed, "MaxHeight"));
+        // Reading order: text, then quotes, then backlinks.
+        XElement[] order = root.Descendants().Where(element => element == body || element == keys
+            || element.Name == A + "Expander").ToArray();
+        Assert.Equal(new[] { body, keys }, order.Take(2));
+        Assert.Equal(A + "Expander", order[2].Name);
+    }
+
+    [Theory]
+    [InlineData("Dark", "#9CCB6A")]
+    [InlineData("Light", "#386217")]
+    public void GreentextMeetsTextContrastOnEveryPostSurface(string theme, string green)
+    {
+        XElement dictionary = Theme(theme);
+        Assert.Equal(green, Resource(dictionary, "Workspace.ReaderGreentext").Value);
+        foreach (string surface in new[] { "Workspace.ReaderPostSurface", "Workspace.AccentSurface", "Workspace.ReaderPage" })
+            Assert.True(Contrast(green, Resource(dictionary, surface).Value) >= 4.5, $"{theme}: greentext on {surface}");
     }
 
     private static XElement PostRoot()

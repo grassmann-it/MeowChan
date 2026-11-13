@@ -10,5 +10,6 @@ internal static class ReaderCardsCatalog
         ("reader.postNumberCopied", "Copied >>{0} to the clipboard.", ">>{0} in die Zwischenablage kopiert."),
         ("reader.copyFailed", "The clipboard is unavailable; nothing was copied.", "Die Zwischenablage ist nicht verfügbar; nichts wurde kopiert."),
         ("reader.replyCount", "Replies: {0}", "Antworten: {0}"),
+        ("reader.quotedPosts", "Quoted posts", "Zitierte Posts"),
     };
 }

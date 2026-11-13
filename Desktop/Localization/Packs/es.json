@@ -2779,6 +2779,7 @@
     "reader.copyPostNumber": "Copiar >>{0} para citar esta publicación",
     "reader.postNumberCopied": "Se copió >>{0} al portapapeles.",
     "reader.copyFailed": "El portapapeles no está disponible; no se copió nada.",
-    "reader.replyCount": "Respuestas: {0}"
+    "reader.replyCount": "Respuestas: {0}",
+    "reader.quotedPosts": "Publicaciones citadas"
   }
 }

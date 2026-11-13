@@ -338,7 +338,11 @@
                                                     <Setter Property="MinHeight" Value="24" />
                                                     <Setter Property="FontSize" Value="12" />
                                                 </Style>
-                                                <!-- Remaining reference buttons (expanded backlinks) read as links, not raised buttons. -->
+                                                <Style Selector="ItemsControl.reader-quote-keys:not(:focus-within):not(.reader-quotes-visible)">
+                                                    <Setter Property="MaxHeight" Value="0" />
+                                                    <Setter Property="ClipToBounds" Value="True" />
+                                                </Style>
+                                                <!-- Reference buttons (keyboard quote row, expanded backlinks) read as links, not raised buttons. -->
                                                 <Style Selector="Button.reader-quote">
                                                     <Setter Property="Background" Value="Transparent" />
                                                     <Setter Property="BorderThickness" Value="0" />
@@ -373,16 +377,23 @@
                                                                 </ItemsControl.ItemTemplate>
                                                             </ItemsControl>
                                                             <StackPanel Spacing="6">
-                                                                <!-- The Semi text theme sets FontSize locally; explicitly honor the reader preference. -->
-                                                                <desktop:ReaderBodyTextBlock Text="{Binding Body}" IsTextOnly="{Binding IsTextOnly}" FontSize="{Binding $parent[ListBox].FontSize}" TextWrapping="Wrap" />
-                                                                <ItemsControl ItemsSource="{Binding Quotes}">
-                                                                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                                                                    <ItemsControl.ItemTemplate>
-                                                                        <DataTemplate x:DataType="desktop:ArchiveQuoteRow">
-                                                                            <Button Classes="reader-quote" Content="{Binding Label}" ToolTip.Tip="{Binding AccessibleLabel}" AutomationProperties.Name="{Binding AccessibleLabel}" commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick" Margin="0,2,6,2" HorizontalAlignment="Left" />
-                                                                        </DataTemplate>
-                                                                    </ItemsControl.ItemTemplate>
-                                                                </ItemsControl>
+                                                                <StackPanel>
+                                                                    <!-- The Semi text theme sets FontSize locally; explicitly honor the reader preference.
+                                                                         Greentext and >>No. are runs over the plain text; a click on >>No. opens it like the buttons. -->
+                                                                    <desktop:ReaderBodyTextBlock Document="{Binding BodyDocument}" IsTextOnly="{Binding IsTextOnly}" FontSize="{Binding $parent[ListBox].FontSize}"
+                                                                                                 TextWrapping="Wrap" QuoteInvoked="OnInlineQuoteInvoked" />
+                                                                    <!-- Keyboard/screen-reader path for the inline references (inline runs are not focusable):
+                                                                         after the text in tab and reading order, zero height until it holds keyboard focus. -->
+                                                                    <ItemsControl ItemsSource="{Binding Quotes}" Classes="reader-quote-keys" Classes.reader-quotes-visible="{Binding HasUnplacedQuotes}"
+                                                                                  AutomationProperties.Name="{Binding QuotesLabel}">
+                                                                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate x:DataType="desktop:ArchiveQuoteRow">
+                                                                                <Button Classes="reader-quote" Content="{Binding Label}" ToolTip.Tip="{Binding AccessibleLabel}" AutomationProperties.Name="{Binding AccessibleLabel}" commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick" Margin="0,2,6,2" HorizontalAlignment="Left" />
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                </StackPanel>
                                                                 <TextBlock Text="{Binding BacklinksLabel}" IsVisible="{Binding HasConfirmedNoReplies}" Classes="muted" FontSize="12" />
                                                                 <Expander Header="{Binding BacklinksLabel}" IsVisible="{Binding CanExpandReplies}" IsExpanded="{Binding RepliesExpanded, Mode=TwoWay}"
                                                                           Expanded="OnRepliesExpanded" Collapsed="OnRepliesCollapsed" HorizontalAlignment="Left" MinHeight="0" Padding="0">

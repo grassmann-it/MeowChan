@@ -2779,6 +2779,7 @@
     "reader.copyPostNumber": "Copier >>{0} pour citer ce message",
     "reader.postNumberCopied": ">>{0} copié dans le presse-papiers.",
     "reader.copyFailed": "Le presse-papiers n’est pas disponible ; rien n’a été copié.",
-    "reader.replyCount": "Réponses : {0}"
+    "reader.replyCount": "Réponses : {0}",
+    "reader.quotedPosts": "Messages cités"
   }
 }
