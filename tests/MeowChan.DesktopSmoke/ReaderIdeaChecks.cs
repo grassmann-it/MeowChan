@@ -368,7 +368,8 @@ internal static class ReaderIdeaChecks
         ]);
         ArchivePage page = fixture.Page;
         List<Uri> launched = [];
-        page.ExternalLinkLauncher = uri => { launched.Add(uri); return Task.CompletedTask; };
+        bool launcherStarts = true;
+        page.ExternalLinkLauncher = uri => { launched.Add(uri); return Task.FromResult(launcherStarts); };
         async Task<ReaderBodyTextBlock> Realize(string id)
         {
             ArchivePostRow row = fixture.List.ItemsSource!.Cast<ArchivePostRow>().Single(post => post.Id == id);
@@ -466,6 +467,11 @@ internal static class ReaderIdeaChecks
         await Enter(one);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         Require(!page.IsExternalLinkDialogOpen && launched.Count == 2, "After the session choice the link did not open without asking.");
+        // A launcher that starts nothing (no default browser) is reported in the user's language, not silently and not as raw text.
+        launcherStarts = false;
+        await Enter(one);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        Require(page.FindControl<TextBlock>("ArchiveErrorText")!.Text == MeowChan.Desktop.Localization.Texts.T("reader.link.failed"), "A launcher that started nothing was not reported.");
         Console.WriteLine("SMOKE reader links: confirmation with highlighted punycode host, selection and sole-link Enter, spoiler, userinfo, session choice and seam passed.");
     }
 

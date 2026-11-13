@@ -2983,6 +2983,8 @@
     "reader.link.remember": "Ne plus demander pendant cette session",
     "reader.link.open": "Ouvrir",
     "reader.link.openNamed": "Ouvrir {0}",
+    "reader.link.failed": "Le lien n’a pas pu être ouvert. Vérifiez qu’un navigateur web par défaut est configuré.",
+    "reader.link.failedWith": "Le lien n’a pas pu être ouvert : {0}",
     "reader.link.dialogName": "Ouvrir ce lien dans votre navigateur : {0}",
     "reader.repliesToggle": "Afficher ou masquer les réponses",
     "reader.quotedPosts": "Messages cités",

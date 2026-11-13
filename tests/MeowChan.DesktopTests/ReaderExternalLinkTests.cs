@@ -244,6 +244,30 @@ public sealed class ReaderExternalLinkTests
         Assert.True(escape > 0 && guard > escape, "The link dialog's Escape must precede the IsReaderDialogOpen guard.");
     }
 
+    [Fact]
+    public void ALauncherThatStartsNothingOrThrowsIsReportedInTheUsersLanguage()
+    {
+        string source = File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop", "Views", "Archive", "ArchivePage.ExternalLinks.cs"));
+        Assert.Contains("started = await top.Launcher.LaunchUriAsync(uri);", source); // The result is no longer discarded.
+        Assert.Contains("Texts.T(\"reader.link.failed\")", source);
+        Assert.DoesNotContain("Message(exception.Message", source); // No raw system text as the message.
+    }
+
+    [Theory]
+    [InlineData("reader.link.failed", false)]
+    [InlineData("reader.link.failedWith", true)]
+    public void TheFailureTextsExistInAllFivePacks(string key, bool hasDetail)
+    {
+        Assert.Contains(ReaderCardsCatalog.Entries, entry => entry.Key == key && entry.English.Contains("{0}") == hasDetail && entry.German.Contains("{0}") == hasDetail);
+        foreach (string language in new[] { "es", "fr", "ru" })
+        {
+            string pack = File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop", "Localization", "Packs", language + ".json"));
+            System.Text.RegularExpressions.MatchCollection all = System.Text.RegularExpressions.Regex.Matches(pack, "\"" + System.Text.RegularExpressions.Regex.Escape(key) + "\": \"([^\"]*)\"");
+            Assert.Single(all);
+            Assert.Equal(hasDetail, all[0].Groups[1].Value.Contains("{0}"));
+        }
+    }
+
     [Theory]
     [InlineData("reader.link.openNamed")]
     [InlineData("reader.link.dialogName")]

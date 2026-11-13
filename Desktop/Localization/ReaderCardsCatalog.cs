@@ -15,6 +15,8 @@ internal static class ReaderCardsCatalog
         ("reader.link.remember", "Don't ask again this session", "Für diese Sitzung nicht mehr fragen"),
         ("reader.link.open", "Open", "Öffnen"),
         ("reader.link.openNamed", "Open {0}", "{0} öffnen"),
+        ("reader.link.failed", "The link could not be opened. Check that a default web browser is set up.", "Der Link konnte nicht geöffnet werden. Prüfe, ob ein Standardbrowser eingerichtet ist."),
+        ("reader.link.failedWith", "The link could not be opened: {0}", "Der Link konnte nicht geöffnet werden: {0}"),
         ("reader.link.dialogName", "Open this link in your browser: {0}", "Diesen Link im Browser öffnen: {0}"),
         ("reader.repliesToggle", "Show or hide the replies", "Antworten ein- oder ausblenden"),
         ("reader.quotedPosts", "Quoted posts", "Zitierte Posts"),

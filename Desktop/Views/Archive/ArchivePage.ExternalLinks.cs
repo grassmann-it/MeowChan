@@ -21,8 +21,8 @@ public partial class ArchivePage
     private Control? _externalLinkReturnFocus;
     private bool _externalLinksTrusted;
 
-    /// <summary>Test seam: receives the validated address instead of the system launcher. Nothing is opened when it is set.</summary>
-    internal Func<Uri, Task>? ExternalLinkLauncher { get; set; }
+    /// <summary>Test seam: receives the validated address instead of the system launcher and answers whether it started. Nothing is opened when it is set.</summary>
+    internal Func<Uri, Task<bool>>? ExternalLinkLauncher { get; set; }
     internal bool IsExternalLinkDialogOpen => ReaderLinkDialog.IsVisible;
     internal Uri? PendingExternalLink => ReaderLinkDialog.IsVisible ? _pendingExternalLink : null;
     internal bool ExternalLinksTrusted => _externalLinksTrusted;
@@ -102,14 +102,20 @@ public partial class ArchivePage
     private async Task LaunchExternalLinkAsync(Uri uri)
     {
         if (!ReaderExternalLink.IsOpenable(uri)) return;
+        bool started = false;
+        string? detail = null;
         try
         {
-            if (ExternalLinkLauncher is { } seam) await seam(uri);
-            else if (TopLevel.GetTopLevel(this) is { } top) await top.Launcher.LaunchUriAsync(uri);
+            if (ExternalLinkLauncher is { } seam) started = await seam(uri);
+            else if (TopLevel.GetTopLevel(this) is { } top) started = await top.Launcher.LaunchUriAsync(uri);
         }
-        catch (Exception exception) when (!_ended)
+        catch (Exception exception)
         {
-            Message(exception.Message, true);
+            detail = exception.Message;
         }
+        // LaunchUriAsync answers false when nothing was started (no default browser, a restricted environment): say so in
+        // the user's language; the system's own text, when there is one, only follows as detail.
+        if (started || _ended) return;
+        Message(string.IsNullOrWhiteSpace(detail) ? Texts.T("reader.link.failed") : Texts.T("reader.link.failedWith", detail), true);
     }
 }

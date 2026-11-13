@@ -2983,6 +2983,8 @@
     "reader.link.remember": "Больше не спрашивать в этом сеансе",
     "reader.link.open": "Открыть",
     "reader.link.openNamed": "Открыть {0}",
+    "reader.link.failed": "Не удалось открыть ссылку. Проверьте, что настроен браузер по умолчанию.",
+    "reader.link.failedWith": "Не удалось открыть ссылку: {0}",
     "reader.link.dialogName": "Открыть эту ссылку в браузере: {0}",
     "reader.repliesToggle": "Показать или скрыть ответы",
     "reader.quotedPosts": "Цитируемые посты",
