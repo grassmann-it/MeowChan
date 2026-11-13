@@ -92,6 +92,8 @@
                     <SolidColorBrush x:Key="ClosableTagCloseButtonForeground">#A4ADB8</SolidColorBrush>
                     <SolidColorBrush x:Key="ClosableTagCloseButtonPointeroverForeground">#EEF1F4</SolidColorBrush>
                     <SolidColorBrush x:Key="ClosableTagCloseButtonPressedForeground">#6AA7FF</SolidColorBrush>
+                    <!-- QW-20: marked-favorite tint; Gold is 10.6-13.2:1 on the dark surfaces. -->
+                    <SolidColorBrush x:Key="Workspace.Favorite">#FFD700</SolidColorBrush>
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="Workspace.Background">#E3DFD8</SolidColorBrush>
@@ -210,6 +212,8 @@
                     <SolidColorBrush x:Key="ClosableTagCloseButtonForeground">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="ClosableTagCloseButtonPointeroverForeground">#1A1A1A</SolidColorBrush>
                     <SolidColorBrush x:Key="ClosableTagCloseButtonPressedForeground">#803B06</SolidColorBrush>
+                    <!-- QW-20: marked-favorite tint; Gold is 1.2:1 here. Dark amber is 4.8:1 on Workspace.Panel, 4.3:1 on Background, 3.9:1 on Raised. -->
+                    <SolidColorBrush x:Key="Workspace.Favorite">#8A5F00</SolidColorBrush>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>

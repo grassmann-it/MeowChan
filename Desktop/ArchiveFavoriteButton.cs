@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Avalonia.Automation;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Media;
@@ -18,6 +19,7 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
     private bool _running;
     private Func<string?>? _errorSource;
     private string? _error;
+    private bool _tinted;
 
     internal ArchiveFavoriteButton()
     {
@@ -63,8 +65,14 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
             Spacing = 4, MaxWidth = 220,
             Children = { icon, new TextBlock { Text = _error, TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Left } }
         };
-        if (marked && _error == null) Foreground = Brushes.Gold;
-        else ClearValue(ForegroundProperty);
+        bool tinted = marked && _error == null;
+        if (tinted != _tinted)
+        {
+            _tinted = tinted;
+            // Gold only reads on the dark surfaces; the theme key carries a darker amber for Light.
+            if (tinted) this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Favorite");
+            else ClearValue(ForegroundProperty);
+        }
         string label = Texts.T(marked ? "viewer.favorite.remove" : "viewer.favorite.add");
         string description = _error == null ? (IsEnabled ? label : Texts.T("archive.notSaved")) : label + ": " + _error;
         ToolTip.SetTip(this, description);
