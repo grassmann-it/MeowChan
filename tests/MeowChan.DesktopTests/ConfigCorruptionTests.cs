@@ -276,17 +276,38 @@ public sealed class ConfigCorruptionTests
         finally { Directory.Delete(outside, recursive: true); }
     }
 
-    [Fact(Skip = "BUG: settings.json is read with File.ReadAllText and no size limit (Config.TryRead), so a huge or sparse file is read fully into memory before it is judged.")]
-    public void AnOversizedSettingsFileIsNeverReadIntoMemory()
+    // Far above the fixed ceiling (sparse, so it takes no disk space): judged from its length, never read.
+    [Theory]
+    [InlineData(256L * 1024 * 1024)]
+    [InlineData(Config.SettingsFileCeilingBytes + 1L)]
+    public void AnOversizedSettingsFileIsNeverReadIntoMemory(long size)
     {
         using Profile profile = new();
-        const long size = 256L * 1024 * 1024;
         Damage.WriteSparse(profile.Primary, size);
+        string[] names = profile.Names();
         long before = GC.GetTotalAllocatedBytes(precise: false);
         Config config = Load(profile.Directory);
         long used = GC.GetTotalAllocatedBytes(precise: false) - before;
-        Assert.True(used < size / 2, $"Loading allocated {used} bytes for a file of {size}.");
+        Assert.True(used < Config.SettingsFileCeilingBytes, $"Loading allocated {used} bytes for a file of {size}.");
         Assert.Equal(ProfileOrigin.BackupRecovery, config.Origin);
+        Assert.Equal(16, config.BooruCatalogLimitMiB);
+        Assert.Throws<InvalidOperationException>(() => config.SaveConfig(profile.Directory));
+        Assert.True(names.SequenceEqual(profile.Names()), "The directory changed.");
+        Assert.Equal(size, new FileInfo(profile.Primary).Length);
+        Assert.Equal(profile.GoodBackup, File.ReadAllBytes(profile.Backup));
+    }
+
+    [Fact]
+    public void ASettingsFileJustBelowTheCeilingIsStillRead()
+    {
+        using Profile profile = new();
+        string padded = Encoding.UTF8.GetString(profile.GoodPrimary).TrimEnd();
+        padded = padded[..^1] + new string(' ', Config.SettingsFileCeilingBytes - padded.Length - 64) + "}";
+        File.WriteAllText(profile.Primary, padded);
+        Assert.True(new FileInfo(profile.Primary).Length <= Config.SettingsFileCeilingBytes);
+        Config config = Load(profile.Directory);
+        Assert.Equal(ProfileOrigin.ExistingValid, config.Origin);
+        Assert.Equal(17, config.BooruCatalogLimitMiB);
     }
 
     [Fact(Skip = "BUG: Config.LoadWarning is an English text built from the exception message and the full file path, and MainWindow shows it as is (MainWindow.axaml.cs:193) instead of a localized text.")]

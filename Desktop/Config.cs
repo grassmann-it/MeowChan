@@ -1099,6 +1099,30 @@ namespace MeowChan
             }
         }
 
+        /// <summary>
+        /// Fixed read ceiling of settings.json and its .bak, not a setting. A real settings file holds a few KiB (even
+        /// with every source permission, layout and shortcut filled in it stays far below 1 MiB); a larger file is judged
+        /// damaged from its length alone and is never read into memory.
+        /// </summary>
+        internal const int SettingsFileCeilingBytes = 4 * 1024 * 1024;
+
+        /// <summary>Reads at most <see cref="SettingsFileCeilingBytes"/>, decoded as <see cref="File.ReadAllText(string)"/> decodes.</summary>
+        private static string ReadSettingsText(string filePath)
+        {
+            using FileStream stream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            long length = stream.Length;
+            if (length > SettingsFileCeilingBytes)
+                throw new InvalidDataException($"The settings file is larger than its fixed {SettingsFileCeilingBytes / (1024 * 1024)} MiB ceiling.");
+            byte[] bytes = new byte[length];
+            try { stream.ReadExactly(bytes); }
+            catch (EndOfStreamException) { throw new InvalidDataException("The settings file changed while it was read."); }
+            // Never judge a prefix: a file that grew meanwhile is read again on the next start.
+            if (stream.ReadByte() != -1)
+                throw new InvalidDataException("The settings file changed while it was read.");
+            using StreamReader reader = new(new MemoryStream(bytes, writable: false), System.Text.Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            return reader.ReadToEnd();
+        }
+
         private static LoadStatus TryRead(string filePath, string relativePathBaseDirectory, out Config? config, out string? error)
         {
             config = null;
@@ -1106,7 +1130,7 @@ namespace MeowChan
             string json;
             try
             {
-                json = File.ReadAllText(filePath);
+                json = ReadSettingsText(filePath);
             }
             catch (FileNotFoundException)
             {
@@ -1115,6 +1139,12 @@ namespace MeowChan
             catch (DirectoryNotFoundException)
             {
                 return LoadStatus.Missing;
+            }
+            catch (InvalidDataException ex)
+            {
+                // Too large or changing under the read: damaged like a document that does not parse.
+                error = ex.Message;
+                return LoadStatus.Invalid;
             }
 
             // An inaccessible document is not a damaged document. Propagate read
