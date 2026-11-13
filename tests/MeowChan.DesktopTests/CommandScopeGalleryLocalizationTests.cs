@@ -68,7 +68,7 @@ public sealed class CommandScopeGalleryLocalizationTests : IDisposable
     {
         var expected = new (string Key, string English, string German, string Spanish, string French, string Russian)[]
         {
-            ("command.scope.gallery-open.reader", "Large reader post area · current thread", "Beitragsbereich im großen Reader · aktuell gelesener Thread", "Área de publicaciones del lector grande · hilo actual", "Zone de publications du grand lecteur · fil actuel", "Область сообщений в большом просмотрщике · текущий тред"),
+            ("command.scope.gallery-open.reader", "Large reader post area · current thread", "Post-Bereich im großen Reader · aktuell gelesener Thread", "Área de publicaciones del lector grande · hilo actual", "Zone de publications du grand lecteur · fil actuel", "Область сообщений в большом просмотрщике · текущий тред"),
             ("command.scope.export-open-html.reader", "Current reader thread · outside inputs and dialogs", "Aktuell gelesener Thread · außerhalb von Eingaben und Dialogen", "Hilo actual del lector · fuera de entradas y diálogos", "Fil actuel du lecteur · hors des champs de saisie et des dialogues", "Текущий тред в просмотрщике · вне полей ввода и диалогов"),
             ("command.scope.archive.select-page", "Results list · this page only", "Ergebnisliste · nur diese Seite", "Lista de resultados · solo esta página", "Liste des résultats · cette page uniquement", "Список результатов · только эта страница"),
             ("command.scope.archive.page-navigation", "Results-list focus · within page boundaries", "Fokus in der Ergebnisliste · innerhalb der Seitengrenzen", "Foco en la lista de resultados · dentro de los límites de página", "Focus sur la liste des résultats · dans les limites des pages", "Фокус в списке результатов · в пределах страниц"),
@@ -138,7 +138,7 @@ public sealed class CommandScopeGalleryLocalizationTests : IDisposable
 
     [Theory]
     [InlineData("en", "Close", "Fit", "Post", "Favorite", "Export", "Full screen")]
-    [InlineData("de", "Schließen", "Einpassen", "Beitrag", "Favorit", "Export", "Vollbild")]
+    [InlineData("de", "Schließen", "Einpassen", "Post", "Favorit", "Export", "Vollbild")]
     [InlineData("es", "Cerrar", "Ajustar", "Publicación", "Favorito", "Exportar", "Pantalla completa")]
     [InlineData("fr", "Fermer", "Ajuster", "Message", "Favori", "Exporter", "Plein écran")]
     [InlineData("ru", "Закрыть", "Вписать", "Пост", "Избранное", "Экспорт", "Полный экран")]

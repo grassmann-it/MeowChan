@@ -14,7 +14,7 @@ internal static class FilenameSearchCatalog
         ("filename.search.cancel", "Cancel search", "Suche abbrechen"),
         ("filename.search.previous", "Previous page", "Vorherige Seite"),
         ("filename.search.next", "Next page", "Nächste Seite"),
-        ("filename.search.select", "Go to post of selected hit", "Zum Beitrag des gewählten Treffers"),
+        ("filename.search.select", "Go to post of selected hit", "Zum Post des gewählten Treffers"),
         ("filename.search.close", "Close", "Schließen"),
         ("filename.search.idle", "Enter text and choose Search. Empty text matches all known names.", "Text eingeben und Suchen wählen. Leerer Text findet alle bekannten Namen."),
         ("filename.search.reading", "Reading catalog…", "Katalog wird gelesen …"),
@@ -27,7 +27,7 @@ internal static class FilenameSearchCatalog
         ("filename.search.unknown", "unknown", "unbekannt"),
         ("filename.search.deleted", "deleted", "gelöscht"),
         ("filename.search.notDeleted", "not marked deleted", "nicht als gelöscht markiert"),
-        ("filename.search.row", "Original name claim: {0}\nSource: {1} · Board: {2} · Thread: {3} · Post: {4}\nVariant: {5} · Position: {6}\nAttachment revision: {7} · Catalog thread revision: {8}\nPost: {9} · Attachment: {10} · Current bytes: unknown", "Ursprünglicher Namensclaim: {0}\nQuelle: {1} · Board: {2} · Thread: {3} · Beitrag: {4}\nVariante: {5} · Position: {6}\nAnhangrevision: {7} · Katalogthreadrevision: {8}\nBeitrag: {9} · Anhang: {10} · Aktuelle Bytes: unbekannt")
+        ("filename.search.row", "Original name claim: {0}\nSource: {1} · Board: {2} · Thread: {3} · Post: {4}\nVariant: {5} · Position: {6}\nAttachment revision: {7} · Catalog thread revision: {8}\nPost: {9} · Attachment: {10} · Current bytes: unknown", "Ursprünglicher Namensclaim: {0}\nQuelle: {1} · Board: {2} · Thread: {3} · Post: {4}\nVariante: {5} · Position: {6}\nAnhangrevision: {7} · Katalogthreadrevision: {8}\nPost: {9} · Anhang: {10} · Aktuelle Bytes: unbekannt")
     };
 
     internal static string Resolve(string key, string language, params object?[] args)

@@ -8,7 +8,7 @@ internal static class R08dArchiveCommandsCatalog
         ("archive.moreReplies", "Show more replies", "Weitere Antworten anzeigen"),
         ("archive.allMedia", "All media", "Alle Medien"),
         ("archive.noFavorites", "No favorites in this selection.", "Keine Favoriten in dieser Auswahl."),
-        ("archive.command.singleRead", "Select one thread to read its posts.", "Zum Lesen der Beiträge bitte genau einen Thread auswählen."),
+        ("archive.command.singleRead", "Select one thread to read its posts.", "Zum Lesen der Posts bitte genau einen Thread auswählen."),
         ("archive.command.detailsTitle", "Archive details", "Archivdetails"),
         ("archive.command.busy", "Wait for the current archive operation to finish.", "Bitte den laufenden Archivvorgang abwarten."),
         ("archive.command.noWatch", "This archive entry has no active watch.", "Dieser Archiveintrag wird nicht aktiv beobachtet."),

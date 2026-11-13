@@ -12,9 +12,9 @@ internal static class MediaMenuCatalog
         ("media.menu.reason.unavailable", "Not available here right now.", "Hier gerade nicht verfügbar."),
         ("media.menu.reason.notInSequence", "This file is hidden by the current filter, so the gallery cannot open on it.", "Diese Datei ist durch den aktuellen Filter ausgeblendet; die Galerie kann nicht darauf öffnen."),
         ("media.menu.reason.severalSelected", "Several items are selected. Select a single item to use this action.", "Mehrere Einträge sind markiert. Für diese Aktion einen einzelnen Eintrag markieren."),
-        ("media.menu.reason.severalPosts", "This saved file belongs to several posts. Use this action from the post you mean.", "Diese gespeicherte Datei gehört zu mehreren Beiträgen. Die Aktion beim gemeinten Beitrag verwenden."),
-        ("media.menu.reason.providerPost", "The provider's post address is not available.", "Die Beitragsadresse des Anbieters ist nicht verfügbar."),
+        ("media.menu.reason.severalPosts", "This saved file belongs to several posts. Use this action from the post you mean.", "Diese gespeicherte Datei gehört zu mehreren Posts. Die Aktion beim gemeinten Post verwenden."),
+        ("media.menu.reason.providerPost", "The provider's post address is not available.", "Die Post-Adresse des Anbieters ist nicht verfügbar."),
         ("media.menu.note.selection", "These actions apply to the item you clicked. The selection actions below apply to all {0} selected items.", "Diese Aktionen gelten für den angeklickten Eintrag. Die Auswahlaktionen darunter gelten für alle {0} markierten Einträge."),
-        ("media.menu.details.posts", "Posts: {0}", "Beiträge: {0}")
+        ("media.menu.details.posts", "Posts: {0}", "Posts: {0}")
     };
 }

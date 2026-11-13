@@ -26,7 +26,7 @@ internal static class MediaLibraryCatalog
         ("media.notReady", "Media can be shown once the session is ready.", "Medien lassen sich anzeigen, sobald die Sitzung bereit ist."),
         ("media.tile.missing", "Not saved", "Nicht gespeichert"),
         ("media.tile.thread", "Thread: {0}", "Thread: {0}"),
-        ("media.tile.unassigned", "No post", "Ohne Beitrag"),
+        ("media.tile.unassigned", "No post", "Ohne Post"),
         ("media.open", "Open in gallery", "In der Galerie öffnen"),
         ("media.showInThread", "Show in thread", "Im Thread zeigen"),
         ("media.galleryFailed", "These media could not be opened. Use Refresh and try again.", "Diese Medien konnten nicht geöffnet werden. Aktualisieren und erneut versuchen."),

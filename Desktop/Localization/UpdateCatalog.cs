@@ -35,7 +35,7 @@ internal static class UpdateCatalog
         ("budgets.sourceHeap", "Source worker heap limit (MiB)", "Heapgrenze für Quellenworker (MiB)"),
         ("budgets.filterHeap", "Filter worker heap limit (MiB)", "Heapgrenze für Filterworker (MiB)"),
         ("budgets.booruCatalog", "Danbooru catalog limit (MiB)", "Grenze des Danbooru-Katalogs (MiB)"),
-        ("budgets.booruCatalogHint", "The local file with Danbooru posts, findings and watchers. When it reaches this size, watchers and original downloads cannot save new posts. Lowering the limit never deletes anything; it only stops further growth. Allowed: 8 to 128 MiB.", "Die lokale Datei mit Danbooru-Posts, Fundstellen und Watchern. Erreicht sie diese Größe, können Watcher und Original-Downloads keine neuen Posts mehr speichern. Eine kleinere Grenze löscht nichts, sie verhindert nur weiteres Wachstum. Erlaubt: 8 bis 128 MiB."),
+        ("budgets.booruCatalogHint", "The local file with Danbooru posts, findings and watchers. When it reaches this size, watchers and original downloads cannot save new posts. Lowering the limit never deletes anything; it only stops further growth. Allowed: 8 to 128 MiB.", "Die lokale Datei mit Danbooru-Posts, Fundstellen und Suchbeobachtungen. Erreicht sie diese Größe, können Suchbeobachtungen und Original-Downloads keine neuen Posts mehr speichern. Eine kleinere Grenze löscht nichts, sie verhindert nur weiteres Wachstum. Erlaubt: 8 bis 128 MiB."),
         ("budgets.range", "{0} must be a whole number from {1} to {2}.", "{0} muss eine ganze Zahl von {1} bis {2} sein.")
     ];
 }

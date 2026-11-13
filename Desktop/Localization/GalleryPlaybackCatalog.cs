@@ -24,7 +24,7 @@ internal static class GalleryPlaybackCatalog
         ("viewer.playback.status.ready", "Ready — start slideshow explicitly", "Bereit — Diashow bewusst starten"),
         ("viewer.playback.status.running", "Slideshow running", "Diashow läuft"),
         ("viewer.playback.status.loading", "Waiting for the medium to load", "Wartet auf das Laden des Mediums"),
-        ("viewer.playback.status.context", "Paused — close post context to continue", "Pausiert — Beitragskontext zum Fortsetzen schließen"),
+        ("viewer.playback.status.context", "Paused — close post context to continue", "Pausiert — Post-Kontext zum Fortsetzen schließen"),
         ("viewer.playback.status.help", "Paused — close help to continue", "Pausiert — Hilfe zum Fortsetzen schließen"),
         ("viewer.playback.status.menu", "Paused — close the menu or dialog", "Pausiert — Menü oder Dialog schließen"),
         ("viewer.playback.status.inactive", "Paused — gallery is not active", "Pausiert — Galerie ist nicht aktiv"),
@@ -43,7 +43,7 @@ internal static class GalleryPlaybackCatalog
         ("viewer.playback.controlsOverlay", "Auto-hide controls overlay", "Controls-Overlay automatisch ausblenden"),
         ("viewer.playback.autoHide", "Auto-hide", "Auto-Hide"),
         ("viewer.playback.autoHideHelp", "Reveal controls at the bottom edge; leave the panel to hide it. Keyboard access remains available.", "Controls am unteren Rand einblenden; beim Verlassen einklappen. Tastaturzugriff bleibt verfügbar."),
-        ("viewer.playback.postOverlay", "Post overlay", "Beitrags-Overlay"),
+        ("viewer.playback.postOverlay", "Post overlay", "Post-Overlay"),
         ("viewer.playback.overlayUnavailable", "Overlay unavailable for this native video surface. Controls remain docked.", "Overlay für diese native Videofläche nicht verfügbar. Controls bleiben angedockt."),
         ("viewer.playback.enableOverlay", "Enable a supported controls overlay first", "Zuerst ein unterstütztes Controls-Overlay aktivieren"),
     };
