@@ -194,7 +194,6 @@ public partial class DiagnosticsPage : UserControl
         TextBlock text = this.FindControl<TextBlock>("DiagnosticsActionError")!;
         text.Text = !current ? string.Empty
             : _actionFeedback!.MessageKey is { } key ? Texts.T(key) : _actionFeedback.Message;
-        text.Classes.Set("error", !current || _actionFeedback!.Failed);
     }
     private async void OnCopyClick(object? sender, RoutedEventArgs e)
     {

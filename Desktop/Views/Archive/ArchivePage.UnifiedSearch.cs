@@ -215,7 +215,7 @@ public partial class ArchivePage
         ArchiveSearchScopeHint.TextWrapping = archive == SearchScope.Sha256 && _archiveHashRejected
             ? Avalonia.Media.TextWrapping.Wrap : Avalonia.Media.TextWrapping.NoWrap;
         ToolTip.SetTip(ArchiveSearchScopeHint, archiveHint.Length > 0 ? archiveHint : null);
-        ArchiveSearchScopeHint.Classes.Set("error", archive == SearchScope.Sha256 && _archiveHashRejected);
+        ArchiveSearchScopeHint.Classes.Set("workspace-error", archive == SearchScope.Sha256 && _archiveHashRejected);
         ArchiveSearchScopeHint.Classes.Set("muted", !(archive == SearchScope.Sha256 && _archiveHashRejected));
         if (archive != SearchScope.Text) SearchArchiveButton.IsEnabled = CanRunArchiveScope;
 
@@ -232,10 +232,10 @@ public partial class ArchivePage
         {
             ReaderFindRetry.IsVisible = false;
             ReaderFindStatus.Text = ScopeHint(reader, _readerHashRejected);
-            ReaderFindStatus.Classes.Set("error", reader == SearchScope.Sha256 && _readerHashRejected);
+            ReaderFindStatus.Classes.Set("workspace-error", reader == SearchScope.Sha256 && _readerHashRejected);
             ReaderFindExcerpt.Inlines?.Clear();
         }
-        else ReaderFindStatus.Classes.Set("error", false);
+        else ReaderFindStatus.Classes.Set("workspace-error", false);
     }
 
     private void OnArchiveScopedKeyDown(object? sender, KeyEventArgs e)
