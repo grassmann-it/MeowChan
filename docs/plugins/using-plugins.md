@@ -66,6 +66,13 @@ details** take you to the relevant part of that plugin. Unavailable actions show
 their reason. Enable/disable does not save a settings draft; candidate selection
 and rollback remain choices for the next start.
 
+The list shows one card per plugin, active plugins first, then disabled ones, then those
+that are unavailable or not loaded; a plugin that needs attention carries a chip. A plugin
+that comes from several files still has one card ("Files: 2"); its detail lists the files
+under **Files (n)**, and choosing one shows that file's details, build and settings. The
+count in the header counts plugins, not files. Which file is used from the next start on is
+still chosen with **Use this version next start**.
+
 The plugin's overview shows three steps: **Installed** (the file is in the plugin
 folder), **Enabled** (the plugin is switched on) and **Active** (this build is in use;
 **Active after restart** while a new or changed build waits for the next start), with one

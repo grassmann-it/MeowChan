@@ -92,6 +92,7 @@ internal static class PluginPageCaptureChecks
                 }
             }
             await CaptureDiagnosticsFilterRowAsync(window);
+            await PluginGroupChecks.RunAsync(window);
             Require(fixture.ForbiddenCalls == 0, "The capture pass compiled, described, started or probed a plugin.");
             Console.WriteLine("PLUGIN_PAGE_CAPTURES PASS: 1440x920, 900x760 and 860x760 (one pane), Dark and Light, EN and DE; evidence only.");
         }

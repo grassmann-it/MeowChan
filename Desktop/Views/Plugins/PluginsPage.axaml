@@ -82,6 +82,12 @@
               <!-- Installed → Enabled → Active: three chips built in code, then the one next action as a sentence. -->
               <WrapPanel x:Name="PluginStepChips" ItemSpacing="6" LineSpacing="6" />
               <TextBlock x:Name="PluginLifecycleNext" Classes="workspace-help" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+              <!-- Several files for one plugin: the list shows one card; the files are chosen here. -->
+              <StackPanel x:Name="PluginFilesPanel" Spacing="4" IsVisible="False">
+                <TextBlock x:Name="PluginFilesHeading" Classes="section-title" TextWrapping="Wrap" />
+                <TextBlock x:Name="PluginFilesHint" Classes="workspace-help" TextWrapping="Wrap" />
+                <StackPanel x:Name="PluginFileChoices" Spacing="4" />
+              </StackPanel>
               <WrapPanel x:Name="PluginPrimaryActions" Classes="workspace-toolbar">
                 <Button x:Name="PluginEnabled" Click="OnEnabledClick" />
                 <Button x:Name="PluginSelectCandidate" Click="OnSelectCandidateClick" />

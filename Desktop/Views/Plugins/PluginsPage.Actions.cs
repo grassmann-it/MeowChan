@@ -230,7 +230,7 @@ public partial class PluginsPage
     private void OnPluginListActionsClick(object? sender, RoutedEventArgs e)
     { if (_selectedKey is { } key) OpenPluginActionMenu(key, C<Button>("PluginListActions")); }
 
-    private Control PluginActionOrigin(string key) => _cards.TryGetValue(key, out var card) && card.IsEffectivelyVisible
+    private Control PluginActionOrigin(string key) => _cards.TryGetValue(CardKey(key), out var card) && card.IsEffectivelyVisible
         ? card : this.FindControl<Button>("PluginMoreActions") ?? (Control)C<ComboBox>("PluginCategory");
 
     private void OnPluginActionPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -241,6 +241,8 @@ public partial class PluginsPage
         SelectionListItem? row = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<SelectionListItem>().FirstOrDefault();
         string? key = row == null ? null : _cards.FirstOrDefault(pair => ReferenceEquals(pair.Value, row)).Key;
         if (key == null) { ClosePluginActionMenu(); return; }
+        // The card stands for all files of its plugin: on the shown plugin the menu is that of the file shown.
+        if (_selectedKey != null && CardKey(_selectedKey) == key) key = _selectedKey;
         OpenPluginActionMenu(key, row!, anchor: e.GetPosition(row!));
     }
 
@@ -251,7 +253,7 @@ public partial class PluginsPage
         e.Handled = true;
         // Pointer requests were resolved against a real row in PointerPressed, never the old selection.
         if (e.TryGetPosition(list, out _)) return;
-        if (_selectedKey is { } key && _cards.TryGetValue(key, out var row) && list.Items.Contains(row))
+        if (_selectedKey is { } key && _cards.TryGetValue(CardKey(key), out var row) && list.Items.Contains(row))
             OpenPluginActionMenu(key, row);
     }
 
@@ -451,7 +453,7 @@ public partial class PluginsPage
             if (_ended || !IsEffectivelyVisible || IsDiscardConfirmationOpen) return;
             if (_selectedKey == key && origin.IsAttachedToVisualTree() && origin.IsEffectivelyVisible && origin.IsEffectivelyEnabled)
             { origin.Focus(); return; }
-            if (_selectedKey == key && key != null && _cards.TryGetValue(key, out var row) && row.IsEffectivelyVisible)
+            if (_selectedKey == key && key != null && _cards.TryGetValue(CardKey(key), out var row) && row.IsEffectivelyVisible)
             { row.BringIntoView(); row.Focus(); return; }
             if (Selected == null) C<ComboBox>("PluginCategory").Focus();
         }, DispatcherPriority.Loaded);
