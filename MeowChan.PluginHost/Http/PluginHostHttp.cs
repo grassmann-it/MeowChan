@@ -184,6 +184,8 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
             {
                 using HttpRequestMessage forwarded = new(request.Method, request.RequestUri);
                 foreach (var header in request.Headers) forwarded.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                // The forwarded copy must keep the source the policy handler attached for the metering handler below.
+                if (request.Options.TryGetValue(MeteringHandler.SourceKey, out string? meteredSource)) forwarded.Options.Set(MeteringHandler.SourceKey, meteredSource);
                 HttpResponseMessage response = await transport.SendAsync(forwarded, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
                 if ((int)response.StatusCode is >= 400 and <= 599) history?.Failed(response.StatusCode);
                 return response;
@@ -440,7 +442,7 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
     public void Dispose() { lock (_sync) { foreach (HttpClient client in _clients.Values) client.Dispose(); _clients.Clear(); _booru.Dispose(); _transport.Dispose(); } }
 
     /// <summary>Creates a transport with visible response bytes and no invisible redirects/retries.</summary>
-    public static HttpClient CreateTransport() => new(new HttpClientHandler
+    public static HttpClient CreateTransport() => new(new MeteringHandler(new HttpClientHandler
     {
         AllowAutoRedirect = false,
         // The shared transport must not silently attach profile/browser credentials to
@@ -454,5 +456,6 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
         // Accept-Encoding itself; OriginalMedia requests advertise identity and
         // therefore keep their payload bytes unchanged.
         AutomaticDecompression = DecompressionMethods.None
-    }) { Timeout = Timeout.InfiniteTimeSpan };
+    // Wire bytes of every metadata, original-media and booru request are counted per source at this one point.
+    })) { Timeout = Timeout.InfiniteTimeSpan };
 }

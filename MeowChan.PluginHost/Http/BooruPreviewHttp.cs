@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using MeowChan.Http;
 using MeowChan.PluginSdk;
 
 namespace MeowChan.PluginHost.Http;
@@ -28,6 +29,7 @@ public sealed class BooruPreviewHttp : IDisposable
     public static readonly TimeSpan ResponseTimeout = TimeSpan.FromSeconds(15);
 
     private readonly HttpClient _transport;
+    private readonly string _sourceId;
     private readonly HashSet<string> _hosts;
     private readonly string _userAgent;
     private readonly TimeProvider _clock;
@@ -45,6 +47,7 @@ public sealed class BooruPreviewHttp : IDisposable
     {
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         ArgumentNullException.ThrowIfNull(source);
+        _sourceId = source.SourceId;
         _hosts = source.HttpHosts.Where(host => host.Purpose.HasFlag(HttpHostPurpose.PreviewMedia))
             .Select(host => host.Host).ToHashSet(StringComparer.OrdinalIgnoreCase);
         _userAgent = BooruUserAgent.Build(productVersion ?? BooruUserAgent.ProductVersion());
@@ -97,6 +100,7 @@ public sealed class BooruPreviewHttp : IDisposable
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("image/png"));
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("image/gif"));
         request.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("identity"));
+        request.Options.Set(MeteringHandler.SourceKey, _sourceId);
         if (_disposed) return null;
         Interlocked.Increment(ref _requests);
         using HttpResponseMessage response = await _transport.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token)
