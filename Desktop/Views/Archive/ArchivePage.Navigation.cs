@@ -144,6 +144,7 @@ public partial class ArchivePage
         _backlinkPost = null;
         ArchiveReferences.ItemsSource = null;
         ArchiveReferencesTitle.Text = string.Empty;
+        ShowReferencesTab(null);
         PreviousReferences.IsEnabled = false;
         NextReferences.IsEnabled = false;
     }
@@ -251,6 +252,21 @@ public partial class ArchivePage
         if (previous.Anchor != null) await RestoreReaderAnchorAsync(previous.Anchor);
         ReaderPositionChanged(deliberate: true);
     }
+    /// <summary>
+    /// The References tab exists only while captured replies are listed. A known count above zero shows it as "References (n)";
+    /// null hides it (or, with present, keeps it shown while the list loads); zero hides it.
+    /// </summary>
+    private void ShowReferencesTab(int? total, bool present = false)
+    {
+        _referencesCount = total;
+        bool show = present || total is > 0;
+        if (!show && ArchiveContentTabs.SelectedItem == ArchiveReferencesTab) ArchiveContentTabs.SelectedIndex = 0;
+        ArchiveReferencesTab.IsVisible = show;
+        ArchiveReferencesTab.Header = ReferencesTabHeader();
+    }
+    private int? _referencesCount;
+    private string ReferencesTabHeader() => _referencesCount is > 0 and var count
+        ? Texts.T("archive.referencesCount", count.ToString(Texts.Culture)) : Texts.T("archive.references");
     private async Task LoadBacklinksAsync()
     {
         if (_busy || _ended || !CanRead || _openReader == null || _backlinkPost == null) return;
@@ -260,6 +276,7 @@ public partial class ArchivePage
         _referenceCancellation = loading;
         ClearOperationError("reference");
         ArchivePostId post = _backlinkPost;
+        ShowReferencesTab(null, present: true); // present while loading, so the selection below is a visible tab
         ArchiveContentTabs.SelectedIndex = 2;
         ArchiveReferencesTitle.Text = Texts.T("archive.loading");
         try
@@ -273,6 +290,9 @@ public partial class ArchivePage
             ArchiveReferencesPage.Text = PageLabel(_referenceOffset, _referenceTotal);
             PreviousReferences.IsEnabled = _referenceOffset > 0;
             NextReferences.IsEnabled = _referenceOffset + PageSize < _referenceTotal;
+            // A post nobody replied to has nothing to list: the tab goes away and the reader shows the posts again.
+            ShowReferencesTab(_referenceTotal);
+            if (_referenceTotal == 0) ArchiveContentTabs.SelectedIndex = 0;
         }
         catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
         catch (Exception exception) { if (!_ended && request == _referenceRequest) OperationMessage("reference", exception.Message, true); }

@@ -3432,6 +3432,8 @@
     "command.reader.close.toArchive": "Torna all’archivio",
     "command.reader.close.toDownloads": "Torna ai download",
     "rules.thisThread": "Regole di questo thread…",
-    "media.rulesThreadUnavailable": "Questo media non appartiene a un thread scaricato, quindi non ci sono regole del thread da modificare."
+    "media.rulesThreadUnavailable": "Questo media non appartiene a un thread scaricato, quindi non ci sono regole del thread da modificare.",
+    "archive.referencesCount": "Riferimenti ({0})",
+    "archive.referencesHelp": "Risposte acquisite che citano il post selezionato. Scegline una per saltarci."
   }
 }

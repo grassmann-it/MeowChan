@@ -363,6 +363,9 @@ internal static class ReaderNavigationOverlayChecks
     {
         WrapPanel navigation = page.FindControl<WrapPanel>("ReaderNavigation")!;
         TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
+        // The References tab exists only while captured replies are listed; with none it is not there to be chosen.
+        Require(!page.FindControl<TabItem>("ArchiveReferencesTab")!.IsVisible || page.FindControl<ListBox>("ArchiveReferences")!.ItemCount > 0,
+            "The References tab is shown without any reference.");
         Control reservedContent = tabs.SelectedIndex == 1
             ? page.FindControl<Grid>("ArchiveMediaSurface")! : page.FindControl<ListBox>("ArchiveReferences")!;
         Rect pad = Bounds(navigation, window), content = Bounds(reservedContent, window);

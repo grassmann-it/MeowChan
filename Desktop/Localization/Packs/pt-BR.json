@@ -3432,6 +3432,8 @@
     "command.reader.close.toArchive": "Voltar ao acervo",
     "command.reader.close.toDownloads": "Voltar aos downloads",
     "rules.thisThread": "Regras deste tópico…",
-    "media.rulesThreadUnavailable": "Esta mídia não pertence a um tópico baixado, então não há regras de tópico para editar."
+    "media.rulesThreadUnavailable": "Esta mídia não pertence a um tópico baixado, então não há regras de tópico para editar.",
+    "archive.referencesCount": "Referências ({0})",
+    "archive.referencesHelp": "Respostas capturadas que citam a postagem selecionada. Escolha uma para ir até ela."
   }
 }

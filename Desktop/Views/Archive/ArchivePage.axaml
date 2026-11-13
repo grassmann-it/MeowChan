@@ -23,7 +23,7 @@
                     <RowDefinition Height="Auto" MaxHeight="260" />
                     <RowDefinition Height="2*" />
                 </Grid.RowDefinitions>
-                <ScrollViewer x:Name="ArchiveSearchPanelScroll" MaxHeight="260" HorizontalScrollBarVisibility="Disabled"><Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+                <ScrollViewer x:Name="ArchiveSearchPanelScroll" MaxHeight="260" HorizontalScrollBarVisibility="Disabled"><Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="0">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                         <controls:SearchBox x:Name="ArchiveSearchText" MaxLength="512" KeyDown="OnSearchKeyDown" />
                         <Button x:Name="SearchArchiveButton" Grid.Column="1" Tag="archive.search" Classes="localized" Click="OnSearchClick" />
@@ -31,7 +31,7 @@
                     <!-- P2: the expander stays the filter toggle (command, IsExpanded, draft marker);
                          its fields open as ArchiveFilterSurface over the results instead of
                          pushing them down inside this capped search area. -->
-                    <Expander x:Name="ArchiveFilters" Grid.Row="1" HorizontalAlignment="Stretch">
+                    <Expander x:Name="ArchiveFilters" Grid.Row="1" HorizontalAlignment="Stretch" Margin="0,8,0,0">
                         <Expander.Styles>
                             <Style Selector="Expander /template/ :is(Control)#ExpanderContent, Expander /template/ :is(Control)#PART_ContentPresenter, Expander /template/ :is(Control)#ExpanderContentLayoutContainer">
                                 <Setter Property="MaxHeight" Value="0" />
@@ -39,13 +39,15 @@
                         </Expander.Styles>
                     </Expander>
                     <WrapPanel x:Name="ArchiveAppliedFilters" Grid.Row="2" ItemSpacing="6" LineSpacing="6" />
-                    <StackPanel Grid.Row="3" Spacing="6">
+                    <StackPanel x:Name="ArchiveSearchErrorHost" Grid.Row="3" Spacing="8">
                         <TextBlock x:Name="ArchiveSearchError" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                         <Button x:Name="ArchiveRetrySearch" Click="OnRetrySearch" IsVisible="False" HorizontalAlignment="Left" />
                     </StackPanel>
-                    <desktop:ActionToolBar x:Name="ArchiveResultActions" Grid.Row="4">
-                        <ToggleButton x:Name="ArchiveLayoutList" Content="List" Classes="media-control" ursa:ToolBar.OverflowMode="Never" />
-                        <ToggleButton x:Name="ArchiveLayoutTable" Content="Table" Classes="media-control" ursa:ToolBar.OverflowMode="Never" />
+                    <!-- 8-dip rhythm: the gaps are margins of what is shown (the empty rows between cost nothing), so the view
+                         toggle sits 8 below "Filters and sorting" and 8 above the first card. -->
+                    <desktop:ActionToolBar x:Name="ArchiveResultActions" Grid.Row="4" Margin="0,8,0,0">
+                        <ToggleButton x:Name="ArchiveLayoutList" Content="List" Classes="media-control" Padding="12,4" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="Never" />
+                        <ToggleButton x:Name="ArchiveLayoutTable" Content="Table" Classes="media-control" Padding="12,4" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="Never" />
                         <Button x:Name="ArchiveResultsGallery" Tag="gallery.results" Classes="localized" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveThreadColumnsButton" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" IsVisible="False" />
                         <Button x:Name="ArchiveFavoritesOverview" Content="Favorites" ursa:ToolBar.OverflowMode="AsNeeded" />
@@ -609,15 +611,19 @@
                                         </WrapPanel><WrapPanel HorizontalAlignment="Right" ItemSpacing="8" LineSpacing="6"><Button x:Name="ArchiveEditRatingButton" IsEnabled="False" Click="OnEditMediaRatingClick" /><Button x:Name="PreviewArchiveMediaButton" Tag="archive.preview" Classes="localized" Click="OnPreviewClick" /><Button x:Name="ArchiveManageRatingsButton" Click="OnManageMediaRatingsClick" /></WrapPanel></StackPanel>
                                 </Grid>
                             </TabItem>
-                            <TabItem x:Name="ArchiveReferencesTab">
-                                <Grid RowDefinitions="Auto,*,Auto" Margin="8" RowSpacing="8">
-                                    <TextBlock x:Name="ArchiveReferencesTitle" TextWrapping="Wrap" Classes="muted" />
-                                    <ListBox x:Name="ArchiveReferences" Grid.Row="1">
+                            <!-- Only present while there are captured replies to show: LoadBacklinksAsync shows it with its count. -->
+                            <TabItem x:Name="ArchiveReferencesTab" IsVisible="False">
+                                <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="8" RowSpacing="8">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock x:Name="ArchiveReferencesHelp" Tag="archive.referencesHelp" Classes="muted localized" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="ArchiveReferencesTitle" TextWrapping="Wrap" FontWeight="SemiBold" />
+                                    </StackPanel>
+                                    <ListBox x:Name="ArchiveReferences" Grid.Row="2">
                                         <ListBox.ItemTemplate><DataTemplate x:DataType="desktop:ArchiveQuoteRow">
                                             <Button Content="{Binding Label}" commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick" HorizontalAlignment="Stretch" Margin="0,3" />
                                         </DataTemplate></ListBox.ItemTemplate>
                                     </ListBox>
-                                    <Grid x:Name="ArchiveReferencesNavigation" Grid.Row="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                                    <Grid x:Name="ArchiveReferencesNavigation" Grid.Row="3" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                                         <Button x:Name="PreviousReferences" Tag="archive.previous" Classes="localized" Click="OnPreviousReferences" />
                                         <TextBlock x:Name="ArchiveReferencesPage" Grid.Column="1" Classes="tnum" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                         <Button x:Name="NextReferences" Grid.Column="2" Tag="archive.next" Classes="localized" Click="OnNextReferences" />

@@ -3425,6 +3425,8 @@
     "command.reader.close.toArchive": "Retour aux archives",
     "command.reader.close.toDownloads": "Retour aux téléchargements",
     "rules.thisThread": "Règles de ce fil…",
-    "media.rulesThreadUnavailable": "Ce média n’appartient pas à un fil téléchargé ; il n’y a donc aucune règle de fil à modifier."
+    "media.rulesThreadUnavailable": "Ce média n’appartient pas à un fil téléchargé ; il n’y a donc aucune règle de fil à modifier.",
+    "archive.referencesCount": "Références ({0})",
+    "archive.referencesHelp": "Réponses enregistrées qui citent le message sélectionné. Choisissez-en une pour y accéder."
   }
 }

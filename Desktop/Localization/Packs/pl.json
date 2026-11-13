@@ -3465,6 +3465,8 @@
     "command.reader.close.toArchive": "Wróć do archiwum",
     "command.reader.close.toDownloads": "Wróć do pobierania",
     "rules.thisThread": "Reguły tego wątku…",
-    "media.rulesThreadUnavailable": "To medium nie należy do pobranego wątku, więc nie ma reguł wątku do edycji."
+    "media.rulesThreadUnavailable": "To medium nie należy do pobranego wątku, więc nie ma reguł wątku do edycji.",
+    "archive.referencesCount": "Odwołania ({0})",
+    "archive.referencesHelp": "Zapisane odpowiedzi cytujące wybrany post. Wybierz jedną, aby do niej przejść."
   }
 }

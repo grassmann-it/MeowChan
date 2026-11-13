@@ -3394,6 +3394,8 @@
     "command.reader.close.toArchive": "アーカイブに戻る",
     "command.reader.close.toDownloads": "ダウンロードに戻る",
     "rules.thisThread": "このスレッドのルール…",
-    "media.rulesThreadUnavailable": "このメディアはダウンロード済みスレッドに属していないため、編集できるスレッドのルールはありません。"
+    "media.rulesThreadUnavailable": "このメディアはダウンロード済みスレッドに属していないため、編集できるスレッドのルールはありません。",
+    "archive.referencesCount": "参照 ({0})",
+    "archive.referencesHelp": "選択した投稿を引用している、取得済みの返信です。選ぶとその位置に移動します。"
   }
 }

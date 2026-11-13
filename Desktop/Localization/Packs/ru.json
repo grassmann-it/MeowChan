@@ -3439,6 +3439,8 @@
     "command.reader.close.toArchive": "Вернуться в архив",
     "command.reader.close.toDownloads": "Вернуться к загрузкам",
     "rules.thisThread": "Правила этого треда…",
-    "media.rulesThreadUnavailable": "Этот медиафайл не относится к загруженному треду, поэтому правил треда для правки нет."
+    "media.rulesThreadUnavailable": "Этот медиафайл не относится к загруженному треду, поэтому правил треда для правки нет.",
+    "archive.referencesCount": "Ссылки ({0})",
+    "archive.referencesHelp": "Сохранённые ответы, цитирующие выбранный пост. Выберите один, чтобы перейти к нему."
   }
 }

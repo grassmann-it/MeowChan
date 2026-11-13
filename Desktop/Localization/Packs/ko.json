@@ -3394,6 +3394,8 @@
     "command.reader.close.toArchive": "보관함으로 돌아가기",
     "command.reader.close.toDownloads": "다운로드로 돌아가기",
     "rules.thisThread": "이 스레드의 규칙…",
-    "media.rulesThreadUnavailable": "이 미디어는 내려받은 스레드에 속하지 않아 편집할 스레드 규칙이 없습니다."
+    "media.rulesThreadUnavailable": "이 미디어는 내려받은 스레드에 속하지 않아 편집할 스레드 규칙이 없습니다.",
+    "archive.referencesCount": "참조 ({0})",
+    "archive.referencesHelp": "선택한 게시물을 인용한 수집된 답글입니다. 하나를 고르면 그곳으로 이동합니다."
   }
 }

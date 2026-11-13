@@ -133,6 +133,10 @@ internal static class R08dPresentationChecks
                 Button table = fixture.FindControl<Button>("ArchiveLayoutTable")!;
                 Button favorites = fixture.FindControl<Button>("ArchiveFavoritesOverview")!;
                 ActionToolBar actions = fixture.FindControl<ActionToolBar>("ArchiveResultActions")!;
+                // Archive view toggle on the 8-dip rhythm: 8 below "Filters and sorting", 8 above the first card, one control size.
+                if (actions.Margin.Top != 8 || fixture.FindControl<Grid>("ArchiveListPane")!.RowSpacing != 8
+                    || list.MinHeight != 32 || table.MinHeight != 32 || list.Padding != table.Padding)
+                    throw new InvalidOperationException("The archive view toggle is off the 8-dip rhythm: " + actions.Margin + " " + list.Padding + " " + table.Padding);
                 bool ActionHit(Button button)
                 {
                     TopLevel? root = TopLevel.GetTopLevel(button);

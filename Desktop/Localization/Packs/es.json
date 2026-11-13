@@ -3425,6 +3425,8 @@
     "command.reader.close.toArchive": "Volver al Archivo",
     "command.reader.close.toDownloads": "Volver a Descargas",
     "rules.thisThread": "Reglas de este hilo…",
-    "media.rulesThreadUnavailable": "Este medio no pertenece a un hilo descargado, así que no hay reglas de hilo que editar."
+    "media.rulesThreadUnavailable": "Este medio no pertenece a un hilo descargado, así que no hay reglas de hilo que editar.",
+    "archive.referencesCount": "Referencias ({0})",
+    "archive.referencesHelp": "Respuestas capturadas que citan la publicación seleccionada. Elija una para saltar a ella."
   }
 }

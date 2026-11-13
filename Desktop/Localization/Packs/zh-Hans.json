@@ -3394,6 +3394,8 @@
     "command.reader.close.toArchive": "返回归档",
     "command.reader.close.toDownloads": "返回下载",
     "rules.thisThread": "此串的规则…",
-    "media.rulesThreadUnavailable": "此媒体不属于已下载的串，因此没有可编辑的串规则。"
+    "media.rulesThreadUnavailable": "此媒体不属于已下载的串，因此没有可编辑的串规则。",
+    "archive.referencesCount": "引用 ({0})",
+    "archive.referencesHelp": "引用了所选帖子的已采集回复。选择其中一条即可跳转过去。"
   }
 }

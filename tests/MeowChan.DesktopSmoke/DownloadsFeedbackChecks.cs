@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopSmoke;
@@ -33,13 +34,14 @@ internal static class DownloadsFeedbackChecks
             await CheckUpdateToastAsync(window);
             CheckTrayPauseEntry(window);
             await CheckDuplicateLinkAsync(window);
+            await CheckArchiveBridgeHintAsync(window);
         }
         finally
         {
             config.ShowInformationNotifications = information;
             Texts.SetLanguage(language);
         }
-        Console.WriteLine("SMOKE downloads feedback: undo toast with action, tray pause entry, show-in-list link passed.");
+        Console.WriteLine("SMOKE downloads feedback: undo toast with action, tray pause entry, show-in-list link, one-time Archive hint and empty toolbar passed.");
     }
 
     private static NotificationCard[] Cards(MainWindow window) => window.GetVisualDescendants().OfType<NotificationCard>().ToArray();
@@ -138,6 +140,73 @@ internal static class DownloadsFeedbackChecks
         {
             results.Clear();
             refresh.Invoke(window, null);
+        }
+    }
+
+    /// <summary>
+    /// UX flows AP1: an empty Downloads page offers no list tools; the first successful Add shows one line that names the
+    /// Archive (with its shortcut) and offers "Open in Archive"; answering it (or using the action) stores that for good.
+    /// Fake admission results only: nothing is admitted or downloaded.
+    /// </summary>
+    private static async Task CheckArchiveBridgeHintAsync(MainWindow window)
+    {
+        Type feedbackType = typeof(MainWindow).GetNestedType("AdmissionFeedback", BindingFlags.NonPublic)!;
+        System.Collections.IList results = (System.Collections.IList)typeof(MainWindow).GetField("_admissionResults", Instance)!.GetValue(window)!;
+        MethodInfo refresh = typeof(MainWindow).GetMethod("RefreshAdmissionResults", Instance)!;
+        MethodInfo refreshSearch = typeof(MainWindow).GetMethod("RefreshDownloadSearchPresentation", Instance)!;
+        MethodInfo noteStart = typeof(MainWindow).GetMethod("NoteAdmissionStart", Instance)!;
+        MethodInfo navigate = typeof(MainWindow).GetMethod("NavigateWorkspace", Instance)!;
+        FieldInfo page = typeof(MainWindow).GetField("_selectedPage", Instance)!;
+        Config config = window.SessionHost.Config;
+        bool seen = config.ArchiveBridgeHintSeen;
+        string language = Texts.Language;
+        Border hint = window.FindControl<Border>("ArchiveBridgeHint") ?? throw new InvalidOperationException("The Archive hint was not built.");
+        try
+        {
+            Texts.SetLanguage("en");
+            config.ArchiveBridgeHintSeen = false;
+            // Without a thread or board the list tools have nothing to act on; they are hidden, not just disabled.
+            refreshSearch.Invoke(window, null);
+            if (window.FindControl<DataGrid>("ThreadsDataGrid")!.ItemsSource is System.Collections.ICollection { Count: 0 })
+            {
+                Require(!window.FindControl<Button>("CopyAllUrlsButton")!.IsVisible && !window.FindControl<Button>("DownloadsColumnsButton")!.IsVisible,
+                    "An empty Downloads page still shows its list tools.");
+                Require(window.FindControl<TextBlock>("ThreadsEmptyState")!.Text == Texts.T("downloads.empty"), "The empty guide changed text.");
+            }
+            noteStart.Invoke(window, null);
+            DesktopThreadEntry entry = SnapshotFixtures.Thread(98961, "98961", "Hint fixture");
+            results.Clear();
+            results.Add(Activator.CreateInstance(feedbackType, entry.Snapshot.Url, MeowChan.AdmissionStatus.Added, null, false, (long?)null));
+            refresh.Invoke(window, null);
+            bool startedEmpty = (bool)typeof(MainWindow).GetField("_admissionStartedEmpty", Instance)!.GetValue(window)!;
+            if (startedEmpty)
+            {
+                Require(hint.IsVisible, "The first successful Add did not show the Archive hint.");
+                string text = window.FindControl<TextBlock>("ArchiveBridgeHintText")!.Text ?? string.Empty;
+                Require(text.Contains(CommandCatalog.Label("navigation.archive"), StringComparison.Ordinal), "The hint does not name the Archive: " + text);
+                Require(window.FindControl<Button>("ArchiveBridgeHintOpen")!.Content as string == Texts.T("downloads.archiveHint.open"), "The hint action is not 'Open in Archive'.");
+                Texts.SetLanguage("de");
+                await Task.Yield();
+                Require((window.FindControl<TextBlock>("ArchiveBridgeHintText")!.Text ?? string.Empty).Contains("Archiv", StringComparison.Ordinal),
+                    "The hint did not follow the language switch.");
+                Texts.SetLanguage("en");
+                SmokeActionClick.Execute(window.FindControl<Button>("ArchiveBridgeHintOpen")!);
+                await Program.WaitUntilAsync(() => page.GetValue(window)?.ToString() == "Archive");
+                Require(!hint.IsVisible && config.ArchiveBridgeHintSeen, "The hint stays after its action was used.");
+                navigate.Invoke(window, new object?[] { Enum.Parse(page.FieldType, "Downloads"), true });
+                // Once answered it never returns, whatever the next Add reports.
+                noteStart.Invoke(window, null);
+                refresh.Invoke(window, null);
+                Require(!hint.IsVisible, "The hint came back after it was answered.");
+            }
+        }
+        finally
+        {
+            results.Clear();
+            refresh.Invoke(window, null);
+            Texts.SetLanguage(language);
+            config.ArchiveBridgeHintSeen = seen;
+            refreshSearch.Invoke(window, null);
         }
     }
 

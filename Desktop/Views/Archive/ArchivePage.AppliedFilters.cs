@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -64,7 +65,7 @@ public partial class ArchivePage
     private void UpdateAppliedFilters()
     {
         WrapPanel panel = ArchiveAppliedFilters; panel.Children.Clear();
-        if (_appliedSearch == null) return;
+        if (_appliedSearch == null) { SyncSearchPanelGaps(); return; }
         var tags = AppliedFilterLabels(_appliedSearch.Spec, TagFilterName);
         if (tags.Count > 0)
         {
@@ -77,6 +78,13 @@ public partial class ArchivePage
             var item = tags[i]; int index = i;
             panel.Children.Add(CreateFilterTag(item.Label, async () => await RemoveAppliedFilter(item.Field, item.Value, index), item.Field == "tagExclude"));
         }
+        SyncSearchPanelGaps();
+    }
+    /// <summary>The search panel's rows carry no gap of their own; a row that shows something gets its 8 dip above it.</summary>
+    private void SyncSearchPanelGaps()
+    {
+        ArchiveAppliedFilters.Margin = ArchiveAppliedFilters.Children.Count > 0 ? new Thickness(0, 8, 0, 0) : default;
+        ArchiveSearchErrorHost.Margin = ArchiveSearchError.IsVisible || ArchiveRetrySearch.IsVisible ? new Thickness(0, 8, 0, 0) : default;
     }
     private static string CanonicalField(ArchiveSearchSpec spec, string field) => ArchiveSearchSpecJson.Serialize(field switch
     {

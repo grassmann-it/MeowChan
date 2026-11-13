@@ -161,6 +161,7 @@ public partial class ArchivePage
         object? referenceSelection = ArchiveReferences.SelectedItem;
         string? referenceTitle = ArchiveReferencesTitle.Text;
         string? referencePage = ArchiveReferencesPage.Text;
+        int? referencesCount = _referencesCount;
         var scroll = this.GetVisualDescendants().OfType<ScrollViewer>()
             .Select(view => (View: view, Offset: view.Offset)).ToArray();
         return () =>
@@ -185,6 +186,7 @@ public partial class ArchivePage
             ArchiveReferences.SelectedItem = referenceSelection;
             ArchiveReferencesTitle.Text = referenceTitle;
             ArchiveReferencesPage.Text = referencePage;
+            ShowReferencesTab(referencesCount, present: backlinkPost != null && referencesCount == null);
             PreviousReferences.IsEnabled = backlinkPost != null && referenceOffset > 0;
             NextReferences.IsEnabled = backlinkPost != null && referenceOffset + PageSize < referenceTotal;
             CloseThreadFind();

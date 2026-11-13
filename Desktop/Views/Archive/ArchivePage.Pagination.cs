@@ -140,6 +140,7 @@ public partial class ArchivePage
         ArchiveAppliedFilters.IsEnabled = ready;
         Button retry = ArchiveRetrySearch;
         retry.IsVisible = _retryList != null; retry.IsEnabled = ready && _retryList != null;
+        SyncSearchPanelGaps();
         Pagination pagination = ArchiveResultsPagination;
         _updatingPagination = true;
         try

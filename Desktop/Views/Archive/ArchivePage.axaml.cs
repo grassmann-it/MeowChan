@@ -1117,7 +1117,7 @@ public partial class ArchivePage : UserControl
         CommandBindings.Apply(ReaderNextThread, "reader.next-thread", iconOnly: true);
         CommandBindings.Apply(ArchiveResultsGallery, "gallery.open-results", iconWithLabel: true);
         CommandBindings.Apply(ArchiveFavoritesOverview, "favorites.open", iconWithLabel: true);
-        ArchiveReferencesTab.Header = Texts.T("archive.references");
+        ArchiveReferencesTab.Header = ReferencesTabHeader();
         ArchivePostsTab.Header = Texts.T("archive.posts");
         ArchiveMediaTab.Header = Texts.T("archive.media");
         ArchiveMediaMode.Content = Texts.T(_mediaTiles ? "gallery.list" : "gallery.tiles");

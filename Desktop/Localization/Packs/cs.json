@@ -3460,6 +3460,8 @@
     "command.reader.close.toArchive": "Zpět do archivu",
     "command.reader.close.toDownloads": "Zpět na stahování",
     "rules.thisThread": "Pravidla pro toto vlákno…",
-    "media.rulesThreadUnavailable": "Toto médium nepatří ke staženému vláknu, proto zde nejsou žádná pravidla vlákna k úpravě."
+    "media.rulesThreadUnavailable": "Toto médium nepatří ke staženému vláknu, proto zde nejsou žádná pravidla vlákna k úpravě.",
+    "archive.referencesCount": "Odkazy ({0})",
+    "archive.referencesHelp": "Zachycené odpovědi, které citují vybraný příspěvek. Výběrem některé na ni přeskočíte."
   }
 }
