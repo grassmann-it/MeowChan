@@ -620,6 +620,27 @@
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Caption}" /><Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
+    <!-- A badge that marks a deviation (Sources list: "Experimental"). The tone is an addition: the word says it too. -->
+    <Style Selector="Border.chip-badge.chip-warning">
+        <Setter Property="Background" Value="{DynamicResource Workspace.WarningSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Warning}" />
+    </Style>
+    <Style Selector="Border.chip-badge.chip-warning TextBlock.chip-label">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Warning}" />
+    </Style>
+
+    <!-- Sources list: the selected card carries a bar at its start edge (as DataGrid and selection-bar lists do), not a text marker. -->
+    <Style Selector="Button.source-card">
+        <Setter Property="BorderThickness" Value="3,0,0,0" /><Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.source-card.selected, Button.source-card.selected:pointerover">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+    </Style>
+    <Style Selector="Button.source-card.selected /template/ ContentPresenter#PART_ContentPresenter, Button.source-card.selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+    </Style>
+
     <Style Selector="controls|ChipOutline.chip-source">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Stroke" Value="{DynamicResource Workspace.ChipSourceBorder}" />

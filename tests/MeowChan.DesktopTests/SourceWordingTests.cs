@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Plugins;
@@ -209,6 +210,54 @@ public sealed class SourceWordingTests : IDisposable
     }
 
     [Fact]
+    public void BadgesNameTypeMaintenanceMaturityAndStatusAndMarkOnlyDeviations()
+    {
+        IReadOnlyList<SourceBadge> norm = SourceWording.Badges(
+            new("s", "S", SourceWordingMaintenance.MeowChan, SourceWordingMaturity.Stable), isActive: true, isBuiltIn: false);
+        Assert.Equal([SourceBadgeKind.Type, SourceBadgeKind.Maintenance, SourceBadgeKind.Maturity, SourceBadgeKind.Status],
+            norm.Select(badge => badge.Kind));
+        Assert.Equal(["Plugin", "MeowChan", "Stable", "Active"], norm.Select(badge => badge.Value));
+        Assert.DoesNotContain(norm, badge => badge.Deviates || badge.Warning);
+
+        IReadOnlyList<SourceBadge> unknown = SourceWording.Badges(null, isActive: false, isBuiltIn: true);
+        Assert.Equal(["Built-in", "unverified", "Unclassified", "Not activated"], unknown.Select(badge => badge.Value));
+        // Unverified maintenance and an inactive plugin are chips; an unclassified maturity is not (the detail view says it).
+        Assert.Equal(["Maintenance unverified", "Not activated"], unknown.Where(badge => badge.Deviates).Select(badge => badge.ChipText));
+        Assert.DoesNotContain(unknown, badge => badge.Warning);
+
+        SourceBadge experimental = Assert.Single(SourceWording.Badges(
+            new("s", "S", SourceWordingMaintenance.ThirdParty, SourceWordingMaturity.Experimental), true, false)
+            .Where(badge => badge.Deviates));
+        Assert.Equal(("Experimental", true), (experimental.ChipText, experimental.Warning));
+    }
+
+    [Fact]
+    public void BadgeValuesAreOneWordGermanAndTheMetaLineIsAlwaysComplete()
+    {
+        Texts.SetLanguage("de");
+        IReadOnlyList<SourceBadge> badges = SourceWording.Badges(
+            new("s", "S", SourceWordingMaintenance.Unknown, SourceWordingMaturity.Experimental), isActive: false, isBuiltIn: false);
+        Assert.Equal(["Plugin", "ungeprüft", "Experimentell", "Nicht aktiviert"], badges.Select(badge => badge.Value));
+        Assert.Equal("Pflege ungeprüft", badges.Single(badge => badge.Kind == SourceBadgeKind.Maintenance).ChipText);
+        Assert.Equal("Typ: Plugin · Pflege: ungeprüft · Reife: Experimentell · Status: Nicht aktiviert", SourceWording.DescribeMeta(badges));
+        foreach (string language in new[] { "en", "es", "fr", "ru" })
+        {
+            Texts.SetLanguage(language);
+            string meta = SourceWording.DescribeMeta(SourceWording.Badges(null, true, true));
+            Assert.DoesNotContain("{", meta, StringComparison.Ordinal);
+            Assert.NotEqual("sources.metaLine", meta);
+        }
+    }
+
+    [Fact]
+    public void BadgesDoNotChangeTheLabelsAnOldPinStillExpects()
+    {
+        // DescribeLabels stays as it was for the plugin page and its pins; the Sources list uses Badges instead.
+        SourceWordingClassification stable = new("s", "S", SourceWordingMaintenance.ThirdParty, SourceWordingMaturity.Stable);
+        Assert.Equal("Third-party · Stable", SourceWording.DescribeLabels(stable));
+    }
+
+    [Fact]
     public void MaintenanceAndMaturityRemainIndependentInBothLanguages()
     {
         foreach ((SourceWordingMaintenance maintenance, SourceWordingMaturity maturity) in Combinations())
@@ -231,7 +280,8 @@ public sealed class SourceWordingTests : IDisposable
             string german = SourceWording.DescribeLabels(classification);
             if (maintenance == SourceWordingMaintenance.MeowChan && maturity == SourceWordingMaturity.Experimental)
             {
-                Assert.Equal("MeowChan · experimental", german);
+                // Was the English literal in German; the German tier is spelled in German now.
+                Assert.Equal("MeowChan · experimentell", german);
                 continue;
             }
             Assert.Contains(MaintenanceLabel(maintenance, "de"), german, StringComparison.Ordinal);

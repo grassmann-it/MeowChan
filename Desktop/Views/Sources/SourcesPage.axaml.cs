@@ -25,7 +25,10 @@ public partial class SourcesPage : UserControl
     private readonly Action? _addToDownloads;
     private readonly Action? _openDownloads;
     private IReadOnlyList<SourceRow> _rows = Array.Empty<SourceRow>();
-    private sealed record SourceCard(Button Control, TextBlock Name, TextBlock Address, TextBlock Observation);
+    private sealed record SourceCard(Button Control, TextBlock Name, WrapPanel Chips, TextBlock Address, TextBlock Observation)
+    {
+        internal string ChipSignature { get; set; } = string.Empty;
+    }
     private sealed record SourceMediaIntegritySaveError(string PluginOwnerId, string SourceId, string Message);
     private SourceMediaIntegritySaveError? _sourceMediaIntegritySaveError;
     private readonly Dictionary<string, SourceCard> _sourceCards = new Dictionary<string, SourceCard>(StringComparer.Ordinal);
@@ -81,10 +84,12 @@ public partial class SourcesPage : UserControl
                 TextBlock name = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap }; name.Classes.Add("section-title");
                 TextBlock address = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap }; address.Classes.Add("workspace-meta");
                 TextBlock observation = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap }; observation.Classes.Add("workspace-help");
+                WrapPanel chips = new WrapPanel { ItemSpacing = 6, LineSpacing = 4, IsVisible = false };
                 StackPanel labels = new StackPanel { Spacing = 4 };
-                labels.Children.Add(name); labels.Children.Add(address); labels.Children.Add(observation);
+                labels.Children.Add(name); labels.Children.Add(chips); labels.Children.Add(address); labels.Children.Add(observation);
                 Button select = new Button { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
                     HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, Padding = new Thickness(14) };
+                select.Classes.Add("source-card");
                 string sourceId = row.Id;
                 select.Click += (_, _) =>
                 {
@@ -96,19 +101,41 @@ public partial class SourcesPage : UserControl
                 };
                 select.Content = labels;
                 AttachSourceContextMenu(select, sourceId);
-                card = new SourceCard(select, name, address, observation);
+                card = new SourceCard(select, name, chips, address, observation);
                 _sourceCards.Add(row.Id, card); cards.Children.Add(select);
             }
-            card.Name.Text = (row.Id == _selectedId ? "● " : "") + SourceDisplayName(row);
+            card.Name.Text = row.Name;
+            RenderChips(card, row);
             card.Address.Text = row.Address;
             card.Observation.Text = row.Summary;
             card.Control.IsEnabled = !_busy;
         }
+        // The list is sorted by maturity; a change of maturity or name moves the card, it never rebuilds it.
+        for (int index = 0; index < _rows.Count; index++)
+        {
+            Button control = _sourceCards[_rows[index].Id].Control;
+            int current = cards.Children.IndexOf(control);
+            if (current != index) cards.Children.Move(current, index);
+        }
         RenderDetails();
     }
 
-    private static string SourceDisplayName(SourceRow row) => row.Name +
-        (row.Classification is { } classification ? " · " + SourceWording.DescribeLabels(classification) : string.Empty);
+    /// <summary>A chip only where the source deviates from the norm; a source that is fine shows no chip at all.</summary>
+    private static void RenderChips(SourceCard card, SourceRow row)
+    {
+        SourceBadge[] deviating = row.Badges.Where(badge => badge.Deviates).ToArray();
+        string signature = string.Join("|", deviating.Select(badge => (badge.Warning ? "!" : "") + badge.ChipText));
+        card.Chips.IsVisible = deviating.Length > 0;
+        if (signature == card.ChipSignature) return;
+        card.ChipSignature = signature;
+        card.Chips.Children.Clear();
+        foreach (SourceBadge badge in deviating)
+        {
+            Border chip = Desktop.Controls.WorkspaceChips.CreateBadge("SourceChip", badge.ChipText, compact: true);
+            if (badge.Warning) chip.Classes.Add("chip-warning");
+            card.Chips.Children.Add(chip);
+        }
+    }
 
     private void SetSelectedSource(string? sourceId)
     {
@@ -122,8 +149,6 @@ public partial class SourcesPage : UserControl
         RenderOperationFeedback();
         foreach (KeyValuePair<string, SourceCard> source in _sourceCards)
         {
-            source.Value.Name.Text = (source.Key == _selectedId ? "● " : "")
-                + (_rows.FirstOrDefault(row => row.Id == source.Key) is { } sourceRow ? SourceDisplayName(sourceRow) : source.Key);
             source.Value.Control.Classes.Set("selected", source.Key == _selectedId);
             source.Value.Control.IsEnabled = !_busy;
         }
@@ -215,8 +240,13 @@ public partial class SourcesPage : UserControl
     {
         SourceMediaIntegrityPolicyView? policy = row.MediaIntegrityPolicy;
         TextBlock classificationText = this.FindControl<TextBlock>("SourceExperimental")!;
-        string classification = row.Classification is { } wording ? SourceWording.Describe(wording) : string.Empty;
-        classificationText.IsVisible = classification.Length > 0;
+        // The meta line is always complete; the sentence below explains "Experimental" and is there only for it.
+        TextBlock metaText = this.FindControl<TextBlock>("SourceMeta")!;
+        metaText.Text = SourceWording.DescribeMeta(row.Badges);
+        AutomationProperties.SetName(metaText, metaText.Text);
+        bool experimental = row.Classification?.Maturity == SourceWordingMaturity.Experimental;
+        string classification = experimental ? Texts.T("sources.experimentalNote") : string.Empty;
+        classificationText.IsVisible = experimental;
         classificationText.Text = classification;
         AutomationProperties.SetName(classificationText, classification);
         this.FindControl<StackPanel>("SourceMediaIntegrityPanel")!.IsVisible = policy != null

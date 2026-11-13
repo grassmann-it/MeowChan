@@ -15,6 +15,9 @@ internal sealed record SourceRow(ProviderDescriptor Descriptor, string Summary, 
 {
     internal SourceMediaIntegrityPolicyView? MediaIntegrityPolicy { get; init; }
     internal SourceWordingClassification? Classification { get; init; }
+    /// <summary>A source with no policy record is built in; the policy also says whether its plugin is activated.</summary>
+    public IReadOnlyList<SourceBadge> Badges => SourceWording.Badges(Classification,
+        MediaIntegrityPolicy?.IsActive ?? true, MediaIntegrityPolicy is null);
     public string Id => Descriptor.SourceId;
     public string Name => Descriptor.DisplayName;
     public string Address => Descriptor.BaseUri.AbsoluteUri;
@@ -26,6 +29,7 @@ internal static class SourcesSnapshot
     internal static IReadOnlyList<SourceRow> From(IReadOnlyList<ProviderDescriptor> providers, DesktopSessionView view,
         IReadOnlyList<SourceMediaIntegrityPolicyView>? policies = null)
     {
+        // Sorted by maturity (stable, unclassified, experimental), alphabetical within each group.
         return Array.AsReadOnly(providers.Select(provider =>
         {
             DesktopThreadEntry[] threads = view.Threads.Where(thread => thread.Snapshot.Id.Source == provider.SourceId).ToArray();
@@ -65,7 +69,9 @@ internal static class SourcesSnapshot
                 Classification = policy?.Classification ?? (policy is null ? null : SourceWording.Classify(
                     policy.Snapshot.PluginOwnerId, provider.SourceId, provider.DisplayName, policy.Maturity))
             };
-        }).ToArray());
+        }).OrderBy(row => SourceWording.MaturityRank(row.Classification))
+          .ThenBy(row => row.Name, StringComparer.OrdinalIgnoreCase)
+          .ThenBy(row => row.Id, StringComparer.Ordinal).ToArray());
     }
     internal static SourceMediaIntegrityPolicyView? FindPolicy(string sourceId, IReadOnlyList<SourceMediaIntegrityPolicyView>? policies)
     {
