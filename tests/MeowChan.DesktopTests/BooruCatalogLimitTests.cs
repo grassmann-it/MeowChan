@@ -94,6 +94,47 @@ public sealed class BooruCatalogLimitTests
     }
 
     [Fact]
+    public async Task AboveALoweredLimitPauseResumeRemoveAndCancelStillWorkWhileGrowthStaysBlocked()
+    {
+        using TempDirectory profile = new();
+        using MeowChan.Persistence.ProfileLease lease = MeowChan.Persistence.ProfileLease.Acquire(profile.Path);
+        BooruCatalogStore catalog = new(profile.Path, lease);
+        lease.Admission.CompleteStartup();
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        catalog.UpsertPost(new BooruPostClaim("danbooru", "5", BooruPostClaimPresence.Tags), now);
+        catalog.SetOriginalIntent("danbooru", "5", BooruOriginalIntent.Requested);
+        await using DanbooruWatcherScheduler scheduler = new(catalog, new NoSearch(), new NoAdmission());
+        scheduler.Load();
+        string kept = Assert.IsType<DanbooruWatcherStatus>(scheduler.AddWatcher("cat").Watcher).WatcherId;
+        string removed = Assert.IsType<DanbooruWatcherStatus>(scheduler.AddWatcher("dog").Watcher).WatcherId;
+
+        // About 9 MiB in one post: written under the default limit, then the limit drops below the document.
+        catalog.UpsertPost(new BooruPostClaim("danbooru", "95", BooruPostClaimPresence.Tags)
+        {
+            Tags = Enumerable.Range(0, 600).Select(index => new BooruPostClaimTag(index.ToString("D4") + new string('t', 15_000),
+                BooruPostClaimTagCategory.General)).ToArray()
+        }, now);
+        catalog.DocumentLimitBytes = BooruCatalogStore.MinimumDocumentLimitBytes;
+        Assert.True(new FileInfo(catalog.FilePath).Length > catalog.DocumentLimitBytes);
+
+        // Growth is still refused ...
+        InvalidDataException full = Assert.Throws<InvalidDataException>(() =>
+            catalog.UpsertPost(new BooruPostClaim("danbooru", "96", BooruPostClaimPresence.Tags), now));
+        Assert.Equal(BooruCatalogStore.FullMessage, full.Message);
+        Assert.False(scheduler.AddWatcher("bird").Accepted);
+
+        // ... but the user keeps control over watchers and downloads.
+        AssertAccepted(scheduler.Pause(kept));
+        Assert.Equal(DanbooruWatcherState.Paused, scheduler.GetStatus(kept)!.State);
+        AssertAccepted(scheduler.Resume(kept));
+        AssertAccepted(scheduler.Remove(removed));
+        Assert.Null(scheduler.GetStatus(removed));
+        Assert.Equal(BooruOriginalIntent.Cancelled,
+            catalog.SetOriginalIntent("danbooru", "5", BooruOriginalIntent.Cancelled).OriginalIntent);
+        Assert.Equal("Removed", Assert.Single(catalog.Read().Watchers, w => w.WatcherId == removed).State);
+    }
+
+    [Fact]
     public void TheWarningNamesTheSettingInEveryBuiltInLanguage()
     {
         string previous = Texts.Language;
@@ -128,6 +169,8 @@ public sealed class BooruCatalogLimitTests
         Assert.Equal(Config.BooruCatalogMaximumLimitMiB.ToString(), (string?)field.Attribute("Maximum"));
         Assert.Contains(markup.Descendants(), e => (string?)e.Attribute("Text") == "{Binding BooruCatalogMiBHint}");
     }
+
+    private static void AssertAccepted(DanbooruWatcherCommandResult result) => Assert.True(result.Accepted, result.Code);
 
     private static string RepositoryRoot([CallerFilePath] string path = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, "../.."));

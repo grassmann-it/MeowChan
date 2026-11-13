@@ -560,7 +560,8 @@ internal sealed class BooruCatalogStore
                 BooruPostRecord current = cache.Snapshot.Posts[index];
                 RejectLinkedWithoutAsset(current, intent);
                 if (current.OriginalIntent == intent) return current;
-                return WritePostLocked(cache, index, current with { OriginalIntent = intent }, admission, cancellationToken);
+                return WritePostLocked(cache, index, current with { OriginalIntent = intent }, admission, cancellationToken,
+                    stateChangeOnly: true);
             }
         });
     }
@@ -758,7 +759,7 @@ internal sealed class BooruCatalogStore
 
     /// <summary>Replaces (or appends, index -1) one post and writes the document. Caller holds the write lock.</summary>
     private BooruPostRecord WritePostLocked(Cache cache, int index, BooruPostRecord next, ProfileAdmissionToken admission,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, bool stateChangeOnly = false)
     {
         BooruPostRecord frozen = FreezePostRecord(next);
         // The cached snapshot is validated; the changed record is validated by the same per-record rules, and the
@@ -766,7 +767,7 @@ internal sealed class BooruCatalogStore
         ValidatePostRecord(frozen);
         BooruPostRecord[] posts = CopyWith(cache.Snapshot.Posts, index, frozen);
         WriteLocked(cache, cache.Snapshot with { Posts = Array.AsReadOnly(posts) },
-            index < 0 ? PostKey(frozen.SourceId, frozen.PostId) : null, null, admission, cancellationToken);
+            index < 0 ? PostKey(frozen.SourceId, frozen.PostId) : null, null, admission, cancellationToken, stateChangeOnly);
         return frozen;
     }
 
@@ -777,7 +778,9 @@ internal sealed class BooruCatalogStore
         ValidateStoredWatcher(canonical);
         BooruWatcherRecord[] watchers = CopyWith(cache.Snapshot.Watchers, index, canonical);
         WriteLocked(cache, cache.Snapshot with { Watchers = Array.AsReadOnly(watchers) },
-            null, index < 0 ? canonical.WatcherId : null, admission, cancellationToken);
+            null, index < 0 ? canonical.WatcherId : null, admission, cancellationToken,
+            // Removing a watcher only swaps its state and drops traversal progress.
+            stateChangeOnly: index >= 0 && canonical.State == "Removed");
         return canonical;
     }
 
@@ -803,13 +806,23 @@ internal sealed class BooruCatalogStore
         return result;
     }
 
+    /// <summary>
+    /// A write that only changes the state of an existing record (cancel a download, remove a watcher) may exceed the
+    /// previous document size by the few bytes a longer state name takes, even above the limit; it cannot add content.
+    /// </summary>
+    internal const int StateChangeSlackBytes = 4096;
+
     private void WriteLocked(Cache previous, BooruCatalogSnapshot snapshot, string? addedPostKey, string? addedWatcherId,
-        ProfileAdmissionToken admission, CancellationToken cancellationToken)
+        ProfileAdmissionToken admission, CancellationToken cancellationToken, bool stateChangeOnly = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
         byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(snapshot, _json);
         long limit = DocumentLimitBytes;
-        if (bytes.Length > limit) throw CatalogFull(bytes.Length, limit);
+        // The limit stops growth only: a write that does not enlarge the document (pause, resume, a shrinking
+        // rewrite) stays possible even when the document is already above a limit that was lowered afterwards, and a
+        // pure state change (cancel, remove) gets a small slack because a longer state name is a few bytes larger.
+        long allowed = Math.Max(limit, previous.DocumentBytes) + (stateChangeOnly ? StateChangeSlackBytes : 0);
+        if (bytes.Length > allowed) throw CatalogFull(bytes.Length, limit);
 
         string directory = Path.GetDirectoryName(_path)!;
         Directory.CreateDirectory(directory);
