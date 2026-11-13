@@ -31,7 +31,7 @@ internal static class UpdateCatalog
         ("updates.error.persistence", "Update information could not be saved in this profile. Check its access permissions.", "Updateinformationen konnten nicht in diesem Profil gespeichert werden. Zugriffsrechte prüfen."),
         ("updates.error.skip", "This version could not be skipped. Check the profile's access permissions.", "Diese Version konnte nicht übersprungen werden. Zugriffsrechte des Profils prüfen."),
         ("budgets.reserve", "Free-space reserve (GiB)", "Speicherplatzreserve (GiB)"),
-        ("budgets.reserveHint", "Downloads wait when a target has less free space. Unknown file sizes can still exhaust the disk; no files are deleted.", "Downloads warten, wenn am Ziel weniger Platz frei ist. Bei unbekannter Dateigröße kann der Platz trotzdem ausgehen; keine Dateien werden gelöscht."),
+        ("budgets.reserveHint", "Downloads wait when a target has less free space. Unknown file sizes can still exhaust the disk; no files are deleted. Allowed: 0 to 65536 GiB.", "Downloads warten, wenn am Ziel weniger Platz frei ist. Bei unbekannter Dateigröße kann der Platz trotzdem ausgehen; keine Dateien werden gelöscht. Erlaubt: 0 bis 65536 GiB."),
         ("budgets.advanced", "Advanced: plugin processes", "Erweitert: Pluginprozesse"),
         ("settings.storageLimits", "Storage and limits", "Speicher und Grenzen"),
         ("budgets.intro", "Limits for disk space, local data and background processes. Lowering a limit never deletes anything; it only stops further growth.", "Grenzen für Speicherplatz, lokale Daten und Hintergrundprozesse. Eine kleinere Grenze löscht nichts, sie verhindert nur weiteres Wachstum."),

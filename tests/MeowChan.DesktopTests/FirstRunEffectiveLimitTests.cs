@@ -34,8 +34,8 @@ public sealed class FirstRunEffectiveLimitTests : IDisposable
     [InlineData("48", 12, 48, 12)]
     [InlineData("48", 64, 48, 48)]
     [InlineData("48", 1, 48, 1)]
-    [InlineData("1000", 256, 1000, 256)]
-    [InlineData("2147483647", 256, int.MaxValue, 256)]
+    [InlineData("200", 256, 200, 200)]
+    [InlineData("256", 256, 256, 256)]
     public void PreviewShowsRequestedSavedCapAndTheirMinimum(string raw, int cap, int requested, int effective)
     {
         Assert.Equal(Expected("setup.parallelEffective", "en", effective, requested, cap),
@@ -62,6 +62,9 @@ public sealed class FirstRunEffectiveLimitTests : IDisposable
     [InlineData("-1")]
     [InlineData("0.5")]
     [InlineData("32.5")]
+    [InlineData("257")]
+    [InlineData("1000")]
+    [InlineData("2147483647")]
     [InlineData("2147483648")]
     [InlineData("79228162514264337593543950336")]
     [InlineData("1e2")]
@@ -80,7 +83,7 @@ public sealed class FirstRunEffectiveLimitTests : IDisposable
     [InlineData("de-DE", "48,0", 48)]
     [InlineData("fr-FR", "48,0", 48)]
     [InlineData("en-US", " +64 ", 64)]
-    [InlineData("de-DE", "2147483647", int.MaxValue)]
+    [InlineData("de-DE", "256", 256)]
     public void PreviewUsesAcceptParserAndInputCultureRatherThanDisplayLanguage(string culture, string raw, int requested)
     {
         CultureInfo inputCulture = CultureInfo.GetCultureInfo(culture);

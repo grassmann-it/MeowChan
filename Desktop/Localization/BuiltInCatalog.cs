@@ -249,6 +249,8 @@ internal static class BuiltInCatalog
         ("settings.bandwidth", "Bandwidth limit (MiB/s)", "Bandbreitenlimit (MiB/s)"),
         ("settings.parallelDownloads", "Parallel downloads", "Parallele Downloads"),
         ("settings.parallelLabel", "Parallel downloads", "Parallele Downloads"),
+        ("settings.parallelHint", "How many media files are transferred at the same time. The resource limit below caps it; the smaller value applies. Allowed: 1 to 256.", "Wie viele Mediendateien gleichzeitig übertragen werden. Die Ressourcenobergrenze darunter deckelt den Wert; der kleinere gilt. Erlaubt: 1 bis 256."),
+        ("settings.bandwidthHint", "Top speed of all downloads together. Allowed: more than 0 up to 100000 MiB/s.", "Höchstgeschwindigkeit aller Downloads zusammen. Erlaubt: mehr als 0 bis 100000 MiB/s."),
         ("settings.parallelSafetyLimit", "Media transfer resource limit", "Ressourcenobergrenze für Mediendownloads"),
         ("settings.parallelSafetyHint", "Upper limit for open media transfers and their memory use (1–256, default 32). Watched threads and queued files are not limited by it.", "Obergrenze für offene Mediendateitransfers und deren Speicherbedarf (1–256, Standard 32). Beobachtete Threads und wartende Dateien begrenzt sie nicht."),
         ("settings.monitorClipboard", "Scan clipboard for URLs", "Zwischenablage nach URLs durchsuchen"),

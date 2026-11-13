@@ -444,11 +444,13 @@ namespace MeowChan
         public string ParallelLabel => Texts.T("settings.parallelDownloads");
         public string ParallelSafetyLabel => Texts.T("settings.parallelSafetyLimit");
         public string ParallelSafetyHint => Texts.T("settings.parallelSafetyHint");
+        public string ParallelHint => Texts.T("settings.parallelHint");
+        public string BandwidthHint => Texts.T("settings.bandwidthHint");
         // Live from the two drafts: the smaller value is what the queue applies. Empty while
         // either draft is not a valid whole number (the field errors already say why).
         public string ParallelEffectiveText =>
             MaxParallelDownloads is { } requested && ParallelDownloadsSafetyLimit is { } cap
-            && requested >= 1 && requested == decimal.Truncate(requested) && requested <= int.MaxValue
+            && requested >= Config.MaxParallelDownloadsMinimum && requested == decimal.Truncate(requested) && requested <= Config.MaxParallelDownloadsMaximum
             && cap >= 1 && cap == decimal.Truncate(cap) && cap <= Downloader.DownloadQueue.MaximumParallelDownloadsSafetyLimit
                 ? Texts.T("settings.parallelEffective", (int)Math.Min(requested, cap)) : string.Empty;
         private void RaiseParallelEffectiveChanged()
@@ -916,7 +918,7 @@ namespace MeowChan
                     nameof(GalleryPlaybackModeHelp), nameof(GalleryMediaFocusLabel), nameof(GalleryOverlayControlsLabel),
                     nameof(GalleryAutoHideControlsLabel), nameof(GalleryOverlayPostContextLabel), nameof(GalleryOverlayHelp), nameof(GalleryPlaybackProfileHelp),
                     nameof(BehaviorTitle), nameof(DownloadPathLabel), nameof(BrowseLabel), nameof(PathHint),
-                    nameof(RecheckLabel), nameof(BandwidthLabel), nameof(ParallelLabel), nameof(ParallelSafetyLabel), nameof(ParallelSafetyHint), nameof(RestoreSessionLabel),
+                    nameof(RecheckLabel), nameof(BandwidthLabel), nameof(BandwidthHint), nameof(ParallelLabel), nameof(ParallelHint), nameof(ParallelSafetyLabel), nameof(ParallelSafetyHint), nameof(RestoreSessionLabel),
                     nameof(MonitorClipboardLabel), nameof(MonitorClipboardHint),
                     nameof(BoardAdmissionWizardLabel), nameof(CloseToTrayLabel), nameof(MinimizeToTrayLabel), nameof(ThemeLabel), nameof(AnimationsLabel), nameof(AnimationsHint),
                     nameof(LanguageLabel), nameof(LanguagePacksLabel), nameof(LanguagePacksHint), nameof(WorkspaceModeLabel),
@@ -1112,7 +1114,7 @@ namespace MeowChan
                 candidate.ShortcutBindings = ShortcutsEditor.Draft.Clone();
                 candidate.DownloadPath = normalizedPath!;
                 candidate.RecheckTimer = GetPositiveInteger(RecheckTimer, Texts.T("settings.recheckLabel"));
-                candidate.MaxParallelDownloads = GetPositiveInteger(MaxParallelDownloads, Texts.T("settings.parallelLabel"));
+                candidate.MaxParallelDownloads = GetInteger(MaxParallelDownloads, Texts.T("settings.parallelLabel"), Config.MaxParallelDownloadsMinimum, Config.MaxParallelDownloadsMaximum);
                 candidate.ParallelDownloadsSafetyLimit = GetInteger(ParallelDownloadsSafetyLimit, ParallelSafetyLabel, 1, Downloader.DownloadQueue.MaximumParallelDownloadsSafetyLimit);
                 candidate.SaveUrlsOnExit = SaveUrlsOnExit;
                 candidate.ShowBoardAdmissionWizard = ShowBoardAdmissionWizard;
@@ -1144,7 +1146,7 @@ namespace MeowChan
                 candidate.ShowWarningNotifications = ShowWarningNotifications;
                 candidate.ShowErrorNotifications = ShowErrorNotifications;
                 candidate.IncludePrereleaseUpdates = IncludePrereleaseUpdates;
-                candidate.MinimumFreeSpaceGiB = GetInteger(MinimumFreeSpaceGiB, ReserveLabel, 0, int.MaxValue);
+                candidate.MinimumFreeSpaceGiB = GetInteger(MinimumFreeSpaceGiB, ReserveLabel, Config.MinimumFreeSpaceGiBMinimum, Config.MinimumFreeSpaceGiBMaximum);
                 candidate.PluginMaximumProductionWorkers = GetInteger(ProductionWorkers, ProductionWorkersLabel, 1, 8);
                 candidate.PluginWorkerIdleMinutes = GetInteger(WorkerIdleMinutes, WorkerIdleMinutesLabel, 1, 30);
                 candidate.PluginSourceHeapMiB = GetInteger(SourceHeapMiB, SourceHeapMiBLabel, 128, 1024);

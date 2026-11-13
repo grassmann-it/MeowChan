@@ -110,7 +110,7 @@ public partial class SettingsEditor
         try
         {
             if (!ValidateDestinationSyntax(out string? path) || !ValidateNumericDraft()) return;
-            await CheckDestinationAsync(path!, GetInteger(MinimumFreeSpaceGiB, ReserveLabel, 0, int.MaxValue));
+            await CheckDestinationAsync(path!, GetInteger(MinimumFreeSpaceGiB, ReserveLabel, Config.MinimumFreeSpaceGiBMinimum, Config.MinimumFreeSpaceGiBMaximum));
         }
         finally { IsBusy = false; }
     }
@@ -123,8 +123,8 @@ public partial class SettingsEditor
     private string FieldHelp(string field, string baseline) => _fieldHelpErrors.TryGetValue(field, out Func<string>? error) ? error() : baseline;
     public string DownloadPathHelp => FieldHelp(nameof(DownloadPathInput), PathHint);
     public string RecheckTimerHelp => FieldHelp(nameof(RecheckTimerInput), SecondsHelp);
-    public string BandwidthInputHelp => FieldHelp(nameof(BandwidthInput), BandwidthHelp);
-    public string ParallelDownloadsHelp => FieldHelp(nameof(ParallelDownloadsInput), Texts.T("settings.unitCount"));
+    public string BandwidthInputHelp => FieldHelp(nameof(BandwidthInput), BandwidthHelp + ". " + BandwidthHint);
+    public string ParallelDownloadsHelp => FieldHelp(nameof(ParallelDownloadsInput), Texts.T("settings.unitCount") + ". " + ParallelHint);
     public string ParallelDownloadsSafetyHelp => FieldHelp(nameof(ParallelDownloadsSafetyInput), ParallelSafetyHint);
     public string ReserveInputHelp => FieldHelp(nameof(ReserveInput), Texts.T("settings.unitGiB") + ". " + ReserveHint);
     public string ProductionWorkersHelp => FieldHelp(nameof(ProductionWorkersInput), Texts.T("settings.unitCount") + ". " + BudgetRestartHint);
@@ -187,10 +187,10 @@ public partial class SettingsEditor
     private IEnumerable<(NumericUpDown Input, decimal? Value, string Label, string Unit, decimal Min, decimal Max, bool Integer)> NumericFields()
     {
         yield return (RecheckTimerInput, RecheckTimer, RecheckLabel, SecondsHelp, 10, 4294967, true);
-        yield return (BandwidthInput, BandwidthLimiterMB, BandwidthLabel, BandwidthHelp, 0, long.MaxValue / (1024m * 1024m), false);
-        yield return (ParallelDownloadsInput, MaxParallelDownloads, ParallelLabel, Texts.T("settings.unitCount"), 1, int.MaxValue, true);
+        yield return (BandwidthInput, BandwidthLimiterMB, BandwidthLabel, BandwidthHelp, 0, Config.BandwidthLimiterMaximumMiB, false);
+        yield return (ParallelDownloadsInput, MaxParallelDownloads, ParallelLabel, Texts.T("settings.unitCount"), Config.MaxParallelDownloadsMinimum, Config.MaxParallelDownloadsMaximum, true);
         yield return (ParallelDownloadsSafetyInput, ParallelDownloadsSafetyLimit, ParallelSafetyLabel, Texts.T("settings.unitCount"), 1, Downloader.DownloadQueue.MaximumParallelDownloadsSafetyLimit, true);
-        yield return (ReserveInput, MinimumFreeSpaceGiB, ReserveLabel, Texts.T("settings.unitGiB"), 0, int.MaxValue, true);
+        yield return (ReserveInput, MinimumFreeSpaceGiB, ReserveLabel, Texts.T("settings.unitGiB"), Config.MinimumFreeSpaceGiBMinimum, Config.MinimumFreeSpaceGiBMaximum, true);
         yield return (ProductionWorkersInput, ProductionWorkers, ProductionWorkersLabel, Texts.T("settings.unitCount"), 1, 8, true);
         yield return (WorkerIdleMinutesInput, WorkerIdleMinutes, WorkerIdleMinutesLabel, Texts.T("settings.unitMinutes"), 1, 30, true);
         yield return (SourceHeapMiBInput, SourceHeapMiB, SourceHeapMiBLabel, Texts.T("settings.unitMiB"), 128, 1024, true);

@@ -190,18 +190,20 @@
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                             <TextBlock x:Name="BandwidthFieldLabel" Text="{Binding BandwidthLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                                <desktop:SettingsNumberInput x:Name="BandwidthInput" AutomationProperties.LabeledBy="{Binding ElementName=BandwidthFieldLabel}" AutomationProperties.Name="{Binding BandwidthLabel}" AutomationProperties.HelpText="{Binding BandwidthInputHelp}" Value="{Binding BandwidthLimiterMB, Mode=TwoWay}" Minimum="0" Increment="0.1" />
+                                <desktop:SettingsNumberInput x:Name="BandwidthInput" AutomationProperties.LabeledBy="{Binding ElementName=BandwidthFieldLabel}" AutomationProperties.Name="{Binding BandwidthLabel}" AutomationProperties.HelpText="{Binding BandwidthInputHelp}" Value="{Binding BandwidthLimiterMB, Mode=TwoWay}" Minimum="0" Maximum="100000" Increment="0.1" />
                                 <TextBlock x:Name="BandwidthInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
+                            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" Text="{Binding BandwidthHint}" Classes="muted" TextWrapping="Wrap" />
                         </Grid>
                     </Border>
                     <Border Padding="0,10">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                             <TextBlock x:Name="ParallelFieldLabel" Text="{Binding ParallelLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                                <desktop:SettingsNumberInput x:Name="ParallelDownloadsInput" AutomationProperties.LabeledBy="{Binding ElementName=ParallelFieldLabel}" AutomationProperties.Name="{Binding ParallelLabel}" Value="{Binding MaxParallelDownloads, Mode=TwoWay}" Minimum="1" Maximum="2147483647" Increment="1" AutomationProperties.HelpText="{Binding ParallelDownloadsHelp}" />
+                                <desktop:SettingsNumberInput x:Name="ParallelDownloadsInput" AutomationProperties.LabeledBy="{Binding ElementName=ParallelFieldLabel}" AutomationProperties.Name="{Binding ParallelLabel}" Value="{Binding MaxParallelDownloads, Mode=TwoWay}" Minimum="1" Maximum="256" Increment="1" AutomationProperties.HelpText="{Binding ParallelDownloadsHelp}" />
                                 <TextBlock x:Name="ParallelDownloadsInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
+                            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" Text="{Binding ParallelHint}" Classes="muted" TextWrapping="Wrap" />
                         </Grid>
                     </Border>
                     <Border Padding="0,10">
@@ -223,7 +225,7 @@
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ReserveFieldLabel" Text="{Binding ReserveLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                                <desktop:SettingsNumberInput x:Name="ReserveInput" Value="{Binding MinimumFreeSpaceGiB, Mode=TwoWay}" Minimum="0" Maximum="2147483647" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReserveFieldLabel}" AutomationProperties.Name="{Binding ReserveLabel}" AutomationProperties.HelpText="{Binding ReserveInputHelp}" />
+                                <desktop:SettingsNumberInput x:Name="ReserveInput" Value="{Binding MinimumFreeSpaceGiB, Mode=TwoWay}" Minimum="0" Maximum="65536" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReserveFieldLabel}" AutomationProperties.Name="{Binding ReserveLabel}" AutomationProperties.HelpText="{Binding ReserveInputHelp}" />
                                 <TextBlock x:Name="ReserveInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>

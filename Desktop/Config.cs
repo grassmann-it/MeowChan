@@ -101,8 +101,14 @@ namespace MeowChan
         public bool DownloadsPaused { get; set; }
         public bool MinimizeToTray { get; set; }
         public bool CloseToTray { get; set; }
+        /// <summary>Top speed of all downloads together in bytes per second. Edited in MiB/s; the maximum is a sanity bound far above any link.</summary>
         public long BandwidthLimiter { get; set; } = 1024 * 1024;
+        internal const int BandwidthLimiterMaximumMiB = 100_000;
+        internal const long BandwidthLimiterMaximumBytes = BandwidthLimiterMaximumMiB * 1024L * 1024L;
+        /// <summary>Requested simultaneous media transfers. The effective value is the smaller of this and <see cref="ParallelDownloadsSafetyLimit"/>, so the maximum is that limit's ceiling.</summary>
         public int MaxParallelDownloads { get; set; } = 5;
+        internal const int MaxParallelDownloadsMinimum = 1;
+        internal const int MaxParallelDownloadsMaximum = Downloader.DownloadQueue.MaximumParallelDownloadsSafetyLimit;
         public int ParallelDownloadsSafetyLimit { get; set; } = Downloader.DownloadQueue.ProtectiveParallelDownloadsCeiling;
         [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
         public bool AutomaticUpdateChecks { get; set; } = true;
@@ -114,7 +120,10 @@ namespace MeowChan
         public bool ShowWarningNotifications { get; set; } = true;
         [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
         public bool ShowErrorNotifications { get; set; } = true;
+        /// <summary>Downloads wait while a target has less free space than this. The maximum (64 TiB) keeps a typo from silencing every download.</summary>
         public int MinimumFreeSpaceGiB { get; set; } = 1;
+        internal const int MinimumFreeSpaceGiBMinimum = 0;
+        internal const int MinimumFreeSpaceGiBMaximum = 65_536;
         public int PluginMaximumProductionWorkers { get; set; } = 4;
         public int PluginWorkerIdleMinutes { get; set; } = 5;
         public int PluginSourceHeapMiB { get; set; } = 256;
@@ -622,10 +631,10 @@ namespace MeowChan
                 throw new InvalidDataException($"Unsupported settings schema version: {SchemaVersion}.");
             if (RecheckTimer < 10 || TimeSpan.FromSeconds(RecheckTimer).TotalMilliseconds > uint.MaxValue - 1)
                 throw new ArgumentOutOfRangeException(nameof(RecheckTimer), "The recheck interval must be between 10 seconds and the supported timer maximum.");
-            if (BandwidthLimiter <= 0)
-                throw new ArgumentOutOfRangeException(nameof(BandwidthLimiter), "The bandwidth limit must be greater than zero.");
-            if (MaxParallelDownloads <= 0)
-                throw new ArgumentOutOfRangeException(nameof(MaxParallelDownloads), "Parallel downloads must be greater than zero.");
+            if (BandwidthLimiter <= 0 || BandwidthLimiter > BandwidthLimiterMaximumBytes)
+                throw new ArgumentOutOfRangeException(nameof(BandwidthLimiter), "The bandwidth limit must be greater than zero and at most " + BandwidthLimiterMaximumMiB + " MiB/s.");
+            if (MaxParallelDownloads is < MaxParallelDownloadsMinimum or > MaxParallelDownloadsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(MaxParallelDownloads), "Parallel downloads must be between " + MaxParallelDownloadsMinimum + " and " + MaxParallelDownloadsMaximum + ".");
             if (ParallelDownloadsSafetyLimit is < 1 or > Downloader.DownloadQueue.MaximumParallelDownloadsSafetyLimit)
                 throw new ArgumentOutOfRangeException(nameof(ParallelDownloadsSafetyLimit), "The parallel download safety limit must be between 1 and 256.");
             if (PluginMaximumProductionWorkers is < 1 or > 8)
@@ -636,8 +645,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(PluginSourceHeapMiB), "The plugin limit must be between 128 and 1024.");
             if (PluginFilterHeapMiB is < 256 or > 2048)
                 throw new ArgumentOutOfRangeException(nameof(PluginFilterHeapMiB), "The plugin limit must be between 256 and 2048.");
-            if (MinimumFreeSpaceGiB < 0)
-                throw new ArgumentOutOfRangeException(nameof(MinimumFreeSpaceGiB), "Free-space reserve must not be negative.");
+            if (MinimumFreeSpaceGiB is < MinimumFreeSpaceGiBMinimum or > MinimumFreeSpaceGiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(MinimumFreeSpaceGiB), "Free-space reserve must be between " + MinimumFreeSpaceGiBMinimum + " and " + MinimumFreeSpaceGiBMaximum + " GiB.");
             if (BooruCatalogLimitMiB is < BooruCatalogMinimumLimitMiB or > BooruCatalogMaximumLimitMiB)
                 throw new ArgumentOutOfRangeException(nameof(BooruCatalogLimitMiB), "The Danbooru catalog limit must be between 8 and 128 MiB.");
             if (PrivateTagLimit is < PrivateTagMinimumLimit or > PrivateTagMaximumLimit)
@@ -1198,6 +1207,11 @@ namespace MeowChan
                     if (!document.RootElement.TryGetProperty(nameof(DownloadPath), out _))
                         config.DownloadPath = GetDefaultDownloadPath("oChan");
                 }
+                // These three limits had no maximum before 1.1.0. A larger value an older version saved keeps the
+                // file loadable and is reduced to today's maximum, which is also what was effective for parallel downloads.
+                if (config.MaxParallelDownloads > MaxParallelDownloadsMaximum) config.MaxParallelDownloads = MaxParallelDownloadsMaximum;
+                if (config.BandwidthLimiter > BandwidthLimiterMaximumBytes) config.BandwidthLimiter = BandwidthLimiterMaximumBytes;
+                if (config.MinimumFreeSpaceGiB > MinimumFreeSpaceGiBMaximum) config.MinimumFreeSpaceGiB = MinimumFreeSpaceGiBMaximum;
 
                 config._relativePathBaseDirectory = relativePathBaseDirectory;
                 if (config.SchemaVersion != 1)

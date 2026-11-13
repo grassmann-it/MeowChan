@@ -13,7 +13,7 @@ public sealed class DesktopSessionUserPriorityTests
     {
         using TempDirectory directory = new();
         new Config { DownloadsPaused = true, AutomaticUpdateChecks = false,
-            DownloadPath = Path.Combine(directory.Path, "media"), MaxParallelDownloads = 1000 }.SaveConfig(directory.Path);
+            DownloadPath = Path.Combine(directory.Path, "media"), MaxParallelDownloads = 200 }.SaveConfig(directory.Path);
         using NoNetwork handler = new();
         using HttpClient client = new(handler);
         await using DesktopSessionHost host = new(directory.Path, [new FourChanImageBoard(client)]);
