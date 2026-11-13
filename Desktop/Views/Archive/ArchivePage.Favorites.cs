@@ -399,6 +399,10 @@ public partial class ArchivePage
                 FavoriteExportResult result = await FavoriteOriginalExporter.ExportAsync(assets, destination.Text, run.Token);
                 Notice(Texts.T("viewer.export.result", result.Copied, result.AlreadyExists,
                     result.Missing + missingCount, result.Failed, result.Cancelled));
+                // As in the thread dialog: after the copy Close is the primary action (Start stays spent).
+                start.Classes.Set("primary", false);
+                cancel.Classes.Set("subtle", false);
+                cancel.Classes.Set("primary", true);
             }
             catch (OperationCanceledException) when (run.IsCancellationRequested) { Notice(Texts.T("viewer.export.cancelled")); }
             catch (Exception ex) { Fail(ex.Message); }

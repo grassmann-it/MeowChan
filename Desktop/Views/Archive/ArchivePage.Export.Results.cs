@@ -7,7 +7,6 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using MeowChan.Archive;
-using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;

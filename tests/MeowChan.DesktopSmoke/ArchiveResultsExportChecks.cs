@@ -209,7 +209,9 @@ internal static class ArchiveResultsExportChecks
             await Program.WaitUntilAsync(() => Equals(close.Content, Texts.T("action.close")));
             Check(dialog.IsVisible && AutomationProperties.GetName(close) == Texts.T("action.close"),
                 "Original copy closed early or did not restore Close after " + scenario + ".");
-            if (scenario == "success") Check(Directory.GetFiles(originalDestination, "*", SearchOption.AllDirectories).Any(), "Successful original export wrote no file.");
+            if (scenario == "success") Check(Directory.GetFiles(originalDestination, "*", SearchOption.AllDirectories).Any()
+                && close.Classes.Contains("primary") && !start.Classes.Contains("primary"),
+                "Successful original export wrote no file or kept Start as the primary action.");
             close.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
             await shown;
             }
