@@ -260,7 +260,11 @@ public sealed class ReaderPostSurfaceTests
         Assert.Equal("{Binding HasUnreadLine}", (string?)line.Attribute("IsVisible"));
         Assert.Equal("{Binding UnreadLabel}", (string?)line.Attribute("AutomationProperties.Name"));
         Assert.Equal("{Binding UnreadLabel}", (string?)line.Element(A + "TextBlock")!.Attribute("Text"));
-        Assert.Equal("{DynamicResource Workspace.Accent}", (string?)line.Element(A + "Rectangle")!.Attribute("Fill"));
+        Assert.All(line.Elements(A + "Rectangle"), rule => Assert.Equal("{DynamicResource Workspace.Accent}", (string?)rule.Attribute("Fill")));
+        Assert.Equal(2, line.Elements(A + "Rectangle").Count()); // A rule on both sides of the count.
+        // The divider cancels the card's inner margin, so it runs to the card edges instead of sitting inside the padding.
+        Assert.Equal("-8,-8,-8,0", (string?)line.Attribute("Margin"));
+        Assert.Equal("8,8,8,12", (string?)PostRoot().Attribute("Margin"));
     }
 
     [Theory]

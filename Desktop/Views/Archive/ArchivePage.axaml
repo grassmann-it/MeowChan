@@ -389,10 +389,12 @@
                                             <ListBox.ItemTemplate>
                                                 <DataTemplate x:DataType="desktop:ArchivePostRow">
                                                     <StackPanel Margin="8,8,8,12" Spacing="6">
-                                                        <!-- Reading mark: a thin accent line above the first post after the last one read. -->
-                                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" IsVisible="{Binding HasUnreadLine}" AutomationProperties.Name="{Binding UnreadLabel}">
-                                                            <TextBlock Text="{Binding UnreadLabel}" Classes="workspace-meta" FontWeight="SemiBold" Foreground="{DynamicResource Workspace.Accent}" VerticalAlignment="Center" />
-                                                            <Rectangle Grid.Column="1" Height="2" Fill="{DynamicResource Workspace.Accent}" VerticalAlignment="Center" />
+                                                        <!-- Reading mark: a full-width divider at the top edge of the first post after the last one read. It runs to the
+                                                             card edges (it cancels the card's inner margin) and carries the count between two rules. -->
+                                                        <Grid ColumnDefinitions="14,Auto,*" ColumnSpacing="8" Margin="-8,-8,-8,0" IsVisible="{Binding HasUnreadLine}" AutomationProperties.Name="{Binding UnreadLabel}">
+                                                            <Rectangle Height="2" Fill="{DynamicResource Workspace.Accent}" VerticalAlignment="Center" />
+                                                            <TextBlock Grid.Column="1" Text="{Binding UnreadLabel}" Classes="workspace-meta" FontWeight="SemiBold" Foreground="{DynamicResource Workspace.Accent}" VerticalAlignment="Center" Margin="0,4" />
+                                                            <Rectangle Grid.Column="2" Height="2" Fill="{DynamicResource Workspace.Accent}" VerticalAlignment="Center" />
                                                         </Grid>
                                                         <!-- One header line: Subject · Name · Date · No.; the number copies ">>No.".
                                                              The reply counter at the right opens the nested reply cards below the text. -->

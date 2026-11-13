@@ -125,7 +125,7 @@ public static class CommandCatalog
         new("archive.capture-toggle", "command.archive.capture-toggle", "Start / stop post capture", "Post-Erfassung starten / stoppen", "circle", null, CommandScope.Reader | CommandScope.Application, new[] { "reader-header" }),
         new("reader.close", "command.reader.close", "Close reader", "Reader schließen", "x", "Escape", CommandScope.Reader, new[] { "large-reader-toolbar" }),
         new("reader.expand", "command.reader.expand", "Expand reader", "Reader vergrößern", "external-link", null, CommandScope.Reader, new[] { "embedded-reader-toolbar" }),
-        new("reader.history-back", "command.reader.history-back", "Back to previous reading position", "Zur vorherigen Leseposition", "corner-up-left", "Alt+Left", CommandScope.Reader, new[] { "reader-toolbar" }, new[] { "reader-history" }),
+        new("reader.history-back", "command.reader.history-back", "Back to last read", "Zurück zum Lesestand", "corner-up-left", "Alt+Left", CommandScope.Reader, new[] { "reader-toolbar" }, new[] { "reader-history" }),
         new("reader.previous-thread", "command.reader.previous-thread", "Previous thread", "Voriger Thread", "arrow-left", "Left", CommandScope.Reader, new[] { "large-reader-navigation" }),
         new("reader.next-thread", "command.reader.next-thread", "Next thread", "Nächster Thread", "arrow-right", "Right", CommandScope.Reader, new[] { "large-reader-navigation" }),
         new("reader.previous-post", "command.reader.previous-post", "Previous post", "Voriger Post", "arrow-up", "Up", CommandScope.Reader, new[] { "large-reader-navigation" }),

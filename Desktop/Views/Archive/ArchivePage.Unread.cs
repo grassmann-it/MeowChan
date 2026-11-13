@@ -34,6 +34,7 @@ public partial class ArchivePage
         string label = Texts.T("reader.unreadReturn");
         ReaderUnreadReturn.Content = label;
         Avalonia.Automation.AutomationProperties.SetName(ReaderUnreadReturn, label);
+        ToolTip.SetTip(ReaderUnreadReturn, Texts.T("reader.unreadReturnTip")); // The toolbar's own Back carries the same name.
     }
 
     // Where the first unread post is, and how many follow the last read one (0 when there is no mark or nothing new).

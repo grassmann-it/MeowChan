@@ -10,7 +10,7 @@ internal static class CountCatalog
     internal static readonly (string Key, string English, string German)[] Entries =
     {
         ("archive.postsCount.one", "{0} captured post", "{0} erfasster Post"),
-        ("reader.unreadLine.one", "{0} new post since last time", "{0} neuer Post seit zuletzt"),
+        ("reader.unreadLine.one", "{0} new post since your last visit", "{0} neuer Post seit deinem letzten Besuch"),
         ("reader.foldMore.one", "Show more ({0} line)", "Mehr anzeigen ({0} Zeile)"),
         ("archive.captured.one", "Last capture: {0} · {1} post", "Letzte Erfassung: {0} · {1} Post"),
         ("archive.delete.deleted.one", "Deleted {0} thread.", "{0} Thread gelöscht."),

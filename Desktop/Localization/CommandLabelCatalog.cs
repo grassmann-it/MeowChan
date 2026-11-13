@@ -87,7 +87,7 @@ internal static class CommandLabelCatalog
         ("command.archive.capture-toggle", "Start / stop post capture", "Post-Erfassung starten / stoppen"),
         ("command.reader.close", "Close reader", "Reader schließen"),
         ("command.reader.expand", "Expand reader", "Reader vergrößern"),
-        ("command.reader.history-back", "Back to previous reading position", "Zur vorherigen Leseposition"),
+        ("command.reader.history-back", "Back to last read", "Zurück zum Lesestand"),
         ("command.reader.previous-thread", "Previous thread", "Voriger Thread"),
         ("command.reader.next-thread", "Next thread", "Nächster Thread"),
         ("command.reader.previous-post", "Previous post", "Voriger Post"),
