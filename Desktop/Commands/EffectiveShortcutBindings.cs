@@ -190,7 +190,7 @@ public sealed class EffectiveShortcutBindings
                 new ShortcutGesture("OemQuestion", new[] { "Primary", "Shift" }, "?"),
                 new ShortcutGesture("OemQuestion", new[] { "Shift" }, "?"), ShortcutGesture.Parse("F1")
             }),
-            "watch.remove" => Of("Primary+Back", "Back", "Delete"),
+            "watch.remove" => Of("Primary+Back", "Delete"),
             "archive.delete-permanently" => Of("Primary+Shift+Back", "Shift+Delete"),
             "thread.details" => Of("Primary+I", "Alt+Enter"),
             "watch.check" => Of("Primary+Alt+R", "F5"),

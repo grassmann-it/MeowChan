@@ -48,7 +48,7 @@ public sealed class MacShortcutDefaultsTests
 
     [Theory]
     [InlineData("window.fullscreen", "⌃⌘F / F11 (Fn)", "F11")]
-    [InlineData("watch.remove", "⌘⌫ / ⌫ / ⌦", "Delete")]
+    [InlineData("watch.remove", "⌘⌫ / ⌦", "Delete")]
     [InlineData("archive.delete-permanently", "⇧⌘⌫ / ⇧⌦", "Shift+Delete")]
     [InlineData("thread.details", "⌘I / ⌥↩", "Alt+Enter")]
     [InlineData("watch.check", "⌥⌘R / F5 (Fn)", "F5")]
@@ -94,7 +94,9 @@ public sealed class MacShortcutDefaultsTests
     {
         var mac = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.MacOS);
         Assert.True(mac.Matches(new KeyEventArgs { Key = Key.Back, KeyModifiers = KeyModifiers.Meta }, "watch.remove"));
-        Assert.True(mac.Matches(new KeyEventArgs { Key = Key.Back }, "watch.remove"));
+        // A bare Backspace (deleting a character after leaving a text field) never removes watches by default.
+        Assert.False(mac.Matches(new KeyEventArgs { Key = Key.Back }, "watch.remove"));
+        Assert.DoesNotContain(mac.For("watch.remove"), gesture => gesture.Key == "Back" && gesture.Modifiers.Count == 0);
         Assert.True(mac.Matches(new KeyEventArgs { Key = Key.Back, KeyModifiers = KeyModifiers.Meta | KeyModifiers.Shift }, "archive.delete-permanently"));
         Assert.True(mac.Matches(new KeyEventArgs { Key = Key.F, KeyModifiers = KeyModifiers.Meta | KeyModifiers.Control }, "window.fullscreen"));
         Assert.True(mac.Matches(new KeyEventArgs { Key = Key.Left, KeyModifiers = KeyModifiers.Meta }, "media.return"));
@@ -104,6 +106,18 @@ public sealed class MacShortcutDefaultsTests
         var linux = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux);
         Assert.False(linux.Matches(new KeyEventArgs { Key = Key.Back }, "watch.remove"));
         Assert.True(linux.Matches(new KeyEventArgs { Key = Key.Left, KeyModifiers = KeyModifiers.Alt }, "media.return"));
+    }
+
+    [Fact]
+    public void ASavedBareBackspaceRemovalOnMacIsAUserBindingAndKeepsWorking()
+    {
+        var section = new ShortcutBindingsSection().Set("watch.remove", [ShortcutGesture.Parse("Back")]);
+        string before = section.Raw.GetRawText();
+        var bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.MacOS);
+        Assert.Equal("⌫", bindings.Display("watch.remove"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Back }, "watch.remove"));
+        Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.Back, KeyModifiers = KeyModifiers.Meta }, "watch.remove"));
+        Assert.Equal(before, section.Raw.GetRawText());
     }
 
     [Fact]
