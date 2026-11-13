@@ -9,8 +9,8 @@ namespace MeowChan.Desktop.Controls;
 
 /// <summary>
 /// Pure graph geometry: a stable stepped scale with a slowly decaying remembered maximum, and thinned sample positions.
-/// Every graph has its own scale; the two-direction disk graph shares one scale between its write and read series, never
-/// with the network. Values are never summed across series.
+/// Every graph has its own scale; a two-direction graph shares one scale between its two series, never with another
+/// medium. Values are never summed across series.
 /// </summary>
 internal static class IoGraphGeometry
 {
@@ -74,8 +74,10 @@ internal static class IoGraphGeometry
 
 public enum IoGraphSource
 {
-    /// <summary>Network download only. Upload is not measured, so no graph claims to show it.</summary>
+    /// <summary>Network download only.</summary>
     NetDown,
+    /// <summary>Network download (primary) and application request payload upload (secondary) under one network scale.</summary>
+    NetworkIo,
     DiskWrite,
     DiskRead,
     /// <summary>
@@ -86,10 +88,10 @@ public enum IoGraphSource
 }
 
 /// <summary>
-/// One source per graph, chosen by <see cref="Source"/>. <see cref="IoGraphSource.DiskIo"/> is the only two-series mode; it
-/// draws disk write and disk read as two separate curves and never adds them up. The old combined network-plus-disk graph is
-/// gone: <see cref="ShowDisk"/> and <see cref="DiskStroke"/> stay only so existing markup still compiles and have no mode of
-/// their own.
+/// One source per graph, chosen by <see cref="Source"/>. <see cref="IoGraphSource.NetworkIo"/> and
+/// <see cref="IoGraphSource.DiskIo"/> are the two two-series modes; each draws its directions as separate curves and never
+/// adds them up or shares a scale with the other medium. The old combined network-plus-disk graph is gone:
+/// <see cref="ShowDisk"/> and <see cref="DiskStroke"/> stay only so existing markup still compiles and have no mode of their own.
 /// </summary>
 public sealed class IoGraph : Control
 {
@@ -124,7 +126,7 @@ public sealed class IoGraph : Control
 
     public IBrush? Stroke { get => GetValue(StrokeProperty); set => SetValue(StrokeProperty, value); }
     public IBrush? Fill { get => GetValue(FillProperty); set => SetValue(FillProperty, value); }
-    /// <summary>The stroke of the dashed secondary series (disk read in <see cref="IoGraphSource.DiskIo"/>).</summary>
+    /// <summary>The stroke of the dashed secondary series (upload or disk read, depending on <see cref="Source"/>).</summary>
     public IBrush? SecondaryStroke { get => GetValue(SecondaryStrokeProperty); set => SetValue(SecondaryStrokeProperty, value); }
     /// <summary>Markup compatibility: used for the secondary series only when <see cref="SecondaryStroke"/> is not set.</summary>
     public IBrush? DiskStroke { get => GetValue(DiskStrokeProperty); set => SetValue(DiskStrokeProperty, value); }
@@ -134,18 +136,18 @@ public sealed class IoGraph : Control
     public IoGraphSource Source { get => GetValue(SourceProperty); set => SetValue(SourceProperty, value); }
     public double LineThickness { get => GetValue(LineThicknessProperty); set => SetValue(LineThicknessProperty, value); }
 
-    /// <summary>The scale of the graph; in <see cref="IoGraphSource.DiskIo"/> one scale for write and read together.</summary>
+    /// <summary>The scale of the graph; in a two-direction mode, both directions use one shared scale.</summary>
     internal double Peak { get; private set; } = IoGraphGeometry.DefaultMinimumPeak;
     internal int SampleCount => _values.Length;
     internal bool HasTraffic => !_idle;
     internal bool IsIdle => _idle;
     /// <summary>The largest visible value of any drawn series (never a sum of two series).</summary>
     internal double TrafficPeak { get; private set; }
-    /// <summary>The largest visible value of the primary series (disk write in <see cref="IoGraphSource.DiskIo"/>).</summary>
+    /// <summary>The largest visible value of the primary series (download for network, write for disk).</summary>
     internal double PrimaryTrafficPeak { get; private set; }
-    /// <summary>The largest visible value of the secondary series; zero outside <see cref="IoGraphSource.DiskIo"/>.</summary>
+    /// <summary>The largest visible value of the secondary series; zero outside the two-direction modes.</summary>
     internal double SecondaryTrafficPeak { get; private set; }
-    internal bool HasSecondarySeries => Source == IoGraphSource.DiskIo;
+    internal bool HasSecondarySeries => Source is IoGraphSource.NetworkIo or IoGraphSource.DiskIo;
     internal int SecondarySampleCount => _secondary.Length;
     internal int WindowIntervals => Math.Max(0, _capacity - 1);
     internal IBrush? EffectiveSecondaryStroke => SecondaryStroke ?? DiskStroke ?? Stroke;
@@ -160,7 +162,12 @@ public sealed class IoGraph : Control
             IoGraphSource.DiskRead => series.DiskRead,
             _ => series.NetDown
         };
-        float[]? secondary = source == IoGraphSource.DiskIo ? series.DiskRead : null;
+        float[]? secondary = source switch
+        {
+            IoGraphSource.NetworkIo => series.NetUp,
+            IoGraphSource.DiskIo => series.DiskRead,
+            _ => null
+        };
         (int skip, int capacity) = IoStatsDisplay.GraphWindow(series, SampleIntervalMs?.Invoke() ?? 1000, HistoryWindowSeconds);
         // The graph only reads the snapshot; it never writes into the arrays it shares with the page history.
         _values = Window(primary, skip);
@@ -218,11 +225,11 @@ public sealed class IoGraph : Control
         }
         using (context.PushOpacity(_idle ? 0.55 : 0.35))
             context.DrawLine(new Pen(Stroke, 1), new Point(1, bottom), new Point(width + 1, bottom));
-        if (_idle || _values.Length < 2) return;
+        if (_idle || (_values.Length < 2 && _secondary.Length < 2)) return;
         if (_geometryDirty || _geometrySize != Bounds.Size) BuildGeometry(bottom); // cached until new samples, a new source or a new size
         if (_area is { } area) context.DrawGeometry(Fill, null, area);
         if (_line is { } line) context.DrawGeometry(null, new Pen(Stroke, LineThickness), line);
-        // Read lies over write: where both curves meet, the gaps of the dashes keep the solid write line visible.
+        // The secondary direction lies over the primary: where both curves meet, the gaps of the dashes keep the solid line visible.
         if (_secondaryLine is { } secondaryLine)
             context.DrawGeometry(null, new Pen(EffectiveSecondaryStroke, LineThickness, new DashStyle(SecondaryDashes, 0)), secondaryLine);
     }
