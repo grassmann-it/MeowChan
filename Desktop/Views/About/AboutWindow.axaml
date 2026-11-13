@@ -5,13 +5,17 @@
         Title="About MeowChan"
         Width="800" Height="660" MinWidth="440" MinHeight="400"
         WindowStartupLocation="CenterOwner"
-        WindowDecorations="BorderOnly" ExtendClientAreaToDecorationsHint="True" ExtendClientAreaTitleBarHeightHint="48"
+        WindowDecorations="BorderOnly" ExtendClientAreaToDecorationsHint="True" ExtendClientAreaTitleBarHeightHint="{x:Static desktop:WorkspaceMetrics.TitleBarHeight}"
         Background="{DynamicResource Workspace.Background}"
         Foreground="{DynamicResource Workspace.Text}">
     <Window.Styles>
         <Style Selector="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/></Style>
     </Window.Styles>
-    <Grid RowDefinitions="48,*" Background="{DynamicResource Workspace.Background}">
+    <Grid Background="{DynamicResource Workspace.Background}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="{x:Static desktop:WorkspaceMetrics.TitleBarRow}" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
         <desktop:WindowChromeBar x:Name="AppCaption" />
         <!-- UX103 P7 dialog frame: fixed header, local error strip, body, fixed footer. Each tab
              keeps its own scrolling (licenses list/text side by side), so the body region itself does

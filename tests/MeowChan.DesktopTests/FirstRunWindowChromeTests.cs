@@ -15,14 +15,15 @@ public sealed class FirstRunWindowChromeTests
 
         Assert.Equal("BorderOnly", (string?)window.Attribute("WindowDecorations"));
         Assert.Equal("True", (string?)window.Attribute("ExtendClientAreaToDecorationsHint"));
-        Assert.Equal("48", (string?)window.Attribute("ExtendClientAreaTitleBarHeightHint"));
+        Assert.Equal("{x:Static desktop:WorkspaceMetrics.TitleBarHeight}", (string?)window.Attribute("ExtendClientAreaTitleBarHeightHint"));
         Assert.Equal("720", (string?)window.Attribute("Width"));
         Assert.Equal("700", (string?)window.Attribute("Height"));
         Assert.Equal("440", (string?)window.Attribute("MinWidth"));
         Assert.Equal("400", (string?)window.Attribute("MinHeight"));
 
         XElement root = window.Elements().Single(e => e.Name.LocalName == "Grid");
-        Assert.Equal("48,*", (string?)root.Attribute("RowDefinitions"));
+        Assert.Equal(new[] { "{x:Static desktop:WorkspaceMetrics.TitleBarRow}", "*" },
+            root.Element(root.Name.Namespace + "Grid.RowDefinitions")!.Elements().Select(row => (string?)row.Attribute("Height")));
         Assert.Equal("{DynamicResource Workspace.Background}", (string?)root.Attribute("Background"));
         Assert.Single(root.Elements().Where(e => e.Name.LocalName == "WindowChromeBar"));
 

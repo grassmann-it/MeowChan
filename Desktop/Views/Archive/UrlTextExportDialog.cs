@@ -110,7 +110,7 @@ internal sealed class UrlTextExportDialog : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         WindowDecorations = WindowDecorations.BorderOnly;
         ExtendClientAreaToDecorationsHint = true;
-        ExtendClientAreaTitleBarHeightHint = 48;
+        ExtendClientAreaTitleBarHeightHint = WorkspaceMetrics.TitleBarHeight;
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
         _heading.Classes.Add("section-title");
@@ -128,7 +128,7 @@ internal sealed class UrlTextExportDialog : Window
         _labels.Margin = new Thickness(16, 0, 16, 16);
         // Heading fixed, consent labels scroll, failures in the local strip, actions and status in the footer.
         var frame = MeowChan.Desktop.Controls.DialogFrame.Build(_heading, _labels, footer, MeowChan.Desktop.Controls.DialogFrame.ErrorStrip(_error));
-        var layout = new Grid { RowDefinitions = new RowDefinitions("48,*") };
+        var layout = new Grid { RowDefinitions = WorkspaceMetrics.TitleBarRows("*") };
         layout.Children.Add(_chrome);
         layout.Children.Add(frame); Grid.SetRow(frame, 1);
         Content = layout;

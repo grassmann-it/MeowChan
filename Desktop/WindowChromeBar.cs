@@ -31,7 +31,7 @@ public sealed class WindowChromeBar : UserControl
 
     public WindowChromeBar()
     {
-        Height = 48;
+        Height = WorkspaceMetrics.TitleBarHeight;
         var frame = new Border { BorderThickness = new Thickness(0, 0, 0, 1) };
         frame.Classes.Add("shell-bar");
         var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Background = Brushes.Transparent };

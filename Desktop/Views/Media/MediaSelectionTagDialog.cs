@@ -64,7 +64,7 @@ internal sealed class MediaSelectionTagDialog : Window
         Width = 560; Height = 640; MinWidth = 380; MinHeight = 380;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         WindowDecorations = WindowDecorations.BorderOnly;
-        ExtendClientAreaToDecorationsHint = true; ExtendClientAreaTitleBarHeightHint = 48;
+        ExtendClientAreaToDecorationsHint = true; ExtendClientAreaTitleBarHeightHint = WorkspaceMetrics.TitleBarHeight;
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
@@ -88,7 +88,7 @@ internal sealed class MediaSelectionTagDialog : Window
             body.Children.Add(control);
         WrapPanel footer = new() { Margin = new Thickness(16, 0, 16, 16), HorizontalAlignment = HorizontalAlignment.Right };
         footer.Children.Add(_close);
-        Grid layout = new() { RowDefinitions = new RowDefinitions("48,*,Auto") };
+        Grid layout = new() { RowDefinitions = WorkspaceMetrics.TitleBarRows("*,Auto") };
         layout.Children.Add(_chrome);
         ScrollViewer scroll = new() { Content = body, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
         layout.Children.Add(scroll); Grid.SetRow(scroll, 1);

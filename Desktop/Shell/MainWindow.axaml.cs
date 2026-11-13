@@ -115,7 +115,7 @@ public partial class MainWindow : Window
             _notificationManager = new WindowNotificationManager(this)
             {
                 Position = NotificationPosition.TopRight,
-                Margin = new Thickness(0, 48, 0, 0),
+                Margin = new Thickness(0, WorkspaceMetrics.TitleBarHeight, 0, 0),
                 MaxItems = 3
             };
             InitializeWorkspacePages();

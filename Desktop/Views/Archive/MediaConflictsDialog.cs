@@ -57,7 +57,7 @@ internal sealed class MediaConflictsDialog : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         WindowDecorations = WindowDecorations.BorderOnly;
         ExtendClientAreaToDecorationsHint = true;
-        ExtendClientAreaTitleBarHeightHint = 48;
+        ExtendClientAreaTitleBarHeightHint = WorkspaceMetrics.TitleBarHeight;
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
         _heading.Classes.Add("section-title");
@@ -77,7 +77,7 @@ internal sealed class MediaConflictsDialog : Window
         footerContent.Children.Add(_status); footerContent.Children.Add(actions);
         Border footer = new() { Child = footerContent, Margin = new Thickness(16, 0, 16, 16) };
         footer.Classes.Add("workspace-dialog-footer");
-        Grid layout = new() { RowDefinitions = new RowDefinitions("48,*") };
+        Grid layout = new() { RowDefinitions = WorkspaceMetrics.TitleBarRows("*") };
         layout.Children.Add(_chrome);
         Grid frame = DialogFrame.Build(_heading, body, footer);
         layout.Children.Add(frame); Grid.SetRow(frame, 1);

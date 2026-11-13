@@ -61,7 +61,7 @@ internal sealed class NativeTransferPreviewDialog : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         WindowDecorations = WindowDecorations.BorderOnly;
         ExtendClientAreaToDecorationsHint = true;
-        ExtendClientAreaTitleBarHeightHint = 48;
+        ExtendClientAreaTitleBarHeightHint = WorkspaceMetrics.TitleBarHeight;
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
 
@@ -103,7 +103,7 @@ internal sealed class NativeTransferPreviewDialog : Window
         Border footer = new() { Child = footerContent, Margin = new Thickness(16, 0, 16, 16) };
         footer.Classes.Add("workspace-dialog-footer");
 
-        Grid layout = new() { RowDefinitions = new RowDefinitions("48,*") };
+        Grid layout = new() { RowDefinitions = WorkspaceMetrics.TitleBarRows("*") };
         layout.Children.Add(_chrome);
         Grid frame = DialogFrame.Build(header, body, footer, DialogFrame.ErrorStrip(_error));
         layout.Children.Add(frame);

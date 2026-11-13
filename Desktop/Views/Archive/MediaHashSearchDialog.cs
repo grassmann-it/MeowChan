@@ -271,7 +271,7 @@ internal sealed class MediaHashSearchDialog : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         WindowDecorations = WindowDecorations.BorderOnly;
         ExtendClientAreaToDecorationsHint = true;
-        ExtendClientAreaTitleBarHeightHint = 48;
+        ExtendClientAreaTitleBarHeightHint = WorkspaceMetrics.TitleBarHeight;
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
         _heading.Classes.Add("section-title");
@@ -289,7 +289,7 @@ internal sealed class MediaHashSearchDialog : Window
         var frame = DialogFrame.Build(header, body, buttons);
         // The caption bar sits outside the frame; the window keeps cycling Tab through both.
         KeyboardNavigation.SetTabNavigation(frame, KeyboardNavigationMode.Continue);
-        var grid = new Grid { RowDefinitions = new RowDefinitions("48,*") };
+        var grid = new Grid { RowDefinitions = WorkspaceMetrics.TitleBarRows("*") };
         grid.Children.Add(_chrome);
         grid.Children.Add(frame); Grid.SetRow(frame, 1);
         Content = grid;

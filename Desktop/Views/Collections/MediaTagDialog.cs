@@ -56,7 +56,7 @@ internal sealed class MediaTagDialog : Window
         Width = 480; Height = 460; MinWidth = 340; MinHeight = 320;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         WindowDecorations = WindowDecorations.BorderOnly;
-        ExtendClientAreaToDecorationsHint = true; ExtendClientAreaTitleBarHeightHint = 48;
+        ExtendClientAreaToDecorationsHint = true; ExtendClientAreaTitleBarHeightHint = WorkspaceMetrics.TitleBarHeight;
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
 
@@ -73,7 +73,7 @@ internal sealed class MediaTagDialog : Window
         footer.Children.Add(_close);
         // Every status of this dialog is a failure (unavailable index or refused change).
         var frame = DialogFrame.Build(header, body, footer, DialogFrame.ErrorStrip(_status));
-        var layout = new Grid { RowDefinitions = new RowDefinitions("48,*") };
+        var layout = new Grid { RowDefinitions = WorkspaceMetrics.TitleBarRows("*") };
         layout.Children.Add(_chrome);
         layout.Children.Add(frame); Grid.SetRow(frame, 1);
         Content = layout;

@@ -37,7 +37,7 @@ public sealed class WindowChromePolicyTests
         XElement window = XDocument.Load(Source(path)).Root!;
         Assert.Equal("BorderOnly", (string?)window.Attribute("WindowDecorations"));
         Assert.Equal("True", (string?)window.Attribute("ExtendClientAreaToDecorationsHint"));
-        Assert.Equal("48", (string?)window.Attribute("ExtendClientAreaTitleBarHeightHint"));
+        Assert.Equal("{x:Static desktop:WorkspaceMetrics.TitleBarHeight}", (string?)window.Attribute("ExtendClientAreaTitleBarHeightHint"));
         Assert.Equal("CenterOwner", (string?)window.Attribute("WindowStartupLocation"));
         Assert.Equal(width, (string?)window.Attribute("Width"));
         Assert.Equal(height, (string?)window.Attribute("Height"));
@@ -47,7 +47,8 @@ public sealed class WindowChromePolicyTests
         Assert.Null(window.Attribute("CanMaximize"));
         Assert.Null(window.Attribute("CanMinimize"));
         XElement root = window.Elements().Single(e => e.Name.LocalName == "Grid");
-        Assert.Equal("48,*", (string?)root.Attribute("RowDefinitions"));
+        Assert.Equal(new[] { "{x:Static desktop:WorkspaceMetrics.TitleBarRow}", "*" },
+            root.Element(root.Name.Namespace + "Grid.RowDefinitions")!.Elements().Select(row => (string?)row.Attribute("Height")));
         Assert.Equal("{DynamicResource Workspace.Background}", (string?)root.Attribute("Background"));
         Assert.Null(root.Attribute("Margin"));
         Assert.Single(root.Elements().Where(e => e.Name.LocalName == "WindowChromeBar"));

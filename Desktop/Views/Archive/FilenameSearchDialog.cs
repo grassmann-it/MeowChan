@@ -197,7 +197,7 @@ internal sealed class FilenameSearchDialog : Window
         Width = 820; Height = 680; MinWidth = 360; MinHeight = 380;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         WindowDecorations = WindowDecorations.BorderOnly;
-        ExtendClientAreaToDecorationsHint = true; ExtendClientAreaTitleBarHeightHint = 48;
+        ExtendClientAreaToDecorationsHint = true; ExtendClientAreaTitleBarHeightHint = WorkspaceMetrics.TitleBarHeight;
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
@@ -223,7 +223,7 @@ internal sealed class FilenameSearchDialog : Window
         };
         // The caption bar sits outside the frame; the window keeps cycling Tab through both.
         KeyboardNavigation.SetTabNavigation(frame, KeyboardNavigationMode.Continue);
-        var layout = new Grid { RowDefinitions = new RowDefinitions("48,*") };
+        var layout = new Grid { RowDefinitions = WorkspaceMetrics.TitleBarRows("*") };
         layout.Children.Add(_chrome); layout.Children.Add(frame); Grid.SetRow(frame, 1); Content = layout;
         _query.PropertyChanged += OnQueryChanged;
         _query.AddHandler(KeyDownEvent, OnQueryKey, Avalonia.Interactivity.RoutingStrategies.Tunnel);

@@ -67,7 +67,7 @@ internal sealed class TagManagerDialog : Window
         Width = 520; Height = 560; MinWidth = 340; MinHeight = 360;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         WindowDecorations = WindowDecorations.BorderOnly;
-        ExtendClientAreaToDecorationsHint = true; ExtendClientAreaTitleBarHeightHint = 48;
+        ExtendClientAreaToDecorationsHint = true; ExtendClientAreaTitleBarHeightHint = WorkspaceMetrics.TitleBarHeight;
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
@@ -97,7 +97,7 @@ internal sealed class TagManagerDialog : Window
         var footer = new StackPanel { Spacing = 8 };
         footer.Children.Add(_status); footer.Children.Add(close);
         var frame = DialogFrame.Build(_intro, body, footer, DialogFrame.ErrorStrip(_error));
-        var layout = new Grid { RowDefinitions = new RowDefinitions("48,*") };
+        var layout = new Grid { RowDefinitions = WorkspaceMetrics.TitleBarRows("*") };
         layout.Children.Add(_chrome);
         layout.Children.Add(frame); Grid.SetRow(frame, 1);
         Content = layout;
