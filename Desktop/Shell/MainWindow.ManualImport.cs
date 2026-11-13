@@ -53,7 +53,7 @@ public partial class MainWindow
         // Whatever the check throws, the opening flag must come back down: a stuck flag would swallow every later import and drop.
         try { blocked = await Task.Run(session.ManualImportBlocked); }
         catch (ObjectDisposedException) { _manualImportPending.Clear(); return; }
-        catch (Exception error) when (error is not OutOfMemoryException) { failure = error; }
+        catch (Exception checkError) when (checkError is not OutOfMemoryException) { failure = checkError; }
         finally { _manualImportOpening = false; }
         string[] roots = _manualImportPending.ToArray();
         _manualImportPending.Clear();
