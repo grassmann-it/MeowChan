@@ -308,3 +308,46 @@ Plural variants: Italian uses one/other. The pack carries every English `.one`
 key and additionally `.one` for `limit.favoriteEntries`, `limit.postBookmarks`,
 `limit.savedSearches` and `limit.readerGroups` (as ru does), because the noun after
 the number changes in the singular. No `.few` keys.
+
+## Polish glossary (`pl.json`, unreviewed preview)
+
+The Polish pack is an AI-authored preview like the others. It avoids direct address
+(imperative/impersonal forms such as „Zapisz”, „Nie udało się zapisać…”); where
+address is unavoidable it uses the capitalised „Ty/Twój” forms consistently. Quotes are „…”.
+Terms used consistently:
+
+| English | Polski |
+| --- | --- |
+| post | post (gen. postu) |
+| thread | wątek |
+| board | tablica |
+| archive | archiwum |
+| capture / captured | przechwycenie / przechwycony |
+| media / media file | media / plik multimedialny |
+| gallery | galeria |
+| reader | czytnik |
+| viewer | przeglądarka mediów |
+| watch / watcher | obserwacja (verb: obserwować) |
+| download(s) | pobieranie / pobrane pliki |
+| tag / own tags / source tags | tag / własne tagi / tagi źródłowe |
+| plugin | wtyczka |
+| source / provider | źródło / dostawca |
+| settings | ustawienia |
+| favorite(s) | ulubione |
+| rating | ocena |
+| bookmark | zakładka |
+| saved search | zapisane wyszukiwanie |
+| rule / scope / draft | reguła / zakres / wersja robocza |
+| build / candidate / rollback | kompilacja / kandydat / wycofanie |
+| permission grant | uprawnienie (nadanie uprawnienia) |
+| worker (process) | proces roboczy |
+| retry / cooldown | ponowienie / przerwa (okres oczekiwania) |
+| batch (import) | partia |
+| Storage and limits | Pamięć i limity |
+
+Booru, Danbooru and the Danbooru rating names (General, Sensitive, Questionable,
+Explicit) stay as they are, because they match the `rating:` search syntax.
+Counted texts carry `.one` (1) and `.few` (2–4, 22–24, … but not 12–14); the base
+value is the „many” form (0, 5+, 12–14). Texts that are not counted use a
+count-agnostic „Etykieta: {0}” form.
+
