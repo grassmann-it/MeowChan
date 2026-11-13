@@ -207,7 +207,7 @@ internal static class PluginCatalog
         ("plugins.worker.waiting", "Waiting for capacity", "Wartet auf Kapazität"),
         ("plugins.worker.starting", "Starting", "Startet"),
         ("plugins.worker.unavailable", "Unavailable", "Nicht verfügbar"),
-        ("plugins.worker.stopped", "Stopped", "Beendet"),
+        ("plugins.worker.stopped", "Stopped", "Gestoppt"),
         ("plugins.worker.idle", "Idle", "Leerlauf"),
         ("plugins.worker.waiting-for-worker", "Waiting for worker capacity", "Wartet auf Workerkapazität"),
         ("plugins.worker.waiting-for-call", "Waiting to run a request", "Wartet auf Ausführung einer Anfrage"),

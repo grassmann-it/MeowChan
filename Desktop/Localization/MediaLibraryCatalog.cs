@@ -35,7 +35,7 @@ internal static class MediaLibraryCatalog
         ("media.tile.thread", "Thread: {0}", "Thread: {0}"),
         ("media.tile.unassigned", "No post", "Ohne Post"),
         ("media.open", "Open in gallery", "In der Galerie öffnen"),
-        ("media.showInThread", "Show in thread", "Im Thread zeigen"),
+        ("media.showInThread", "Show in thread", "Im Thread anzeigen"),
         ("media.galleryFailed", "These media could not be opened. Use Refresh and try again.", "Diese Medien konnten nicht geöffnet werden. Aktualisieren und erneut versuchen."),
         ("media.tile.inThreads", "in {0} threads", "in {0} Threads"),
         ("media.tile.sameThread", "{0} places in this thread", "{0} Fundstellen in diesem Thread"),

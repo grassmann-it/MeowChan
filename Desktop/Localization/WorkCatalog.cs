@@ -11,7 +11,7 @@ internal static class WorkCatalog
         ("work.runout", "Finishing remaining media", "Restliche Medien werden geladen"),
         ("work.intervention", "Needs a retry", "Erneuter Versuch nötig"),
         ("work.completed", "Completed", "Abgeschlossen"),
-        ("work.stopped", "Manually stopped", "Manuell beendet"),
+        ("work.stopped", "Manually stopped", "Manuell gestoppt"),
         ("work.repairing", "Retrying missing media", "Fehlende Medien werden erneut versucht"),
         ("work.paused", "Globally paused", "Pausiert (global)"),
         ("work.saved", "{0}/{1} saved / selected", "{0}/{1} gespeichert / ausgewählt"),

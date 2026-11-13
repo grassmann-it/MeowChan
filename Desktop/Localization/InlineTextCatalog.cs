@@ -47,7 +47,7 @@ internal static class InlineTextCatalog
         ("archive.cleanup.filter.kept", "Keep: more than 2", "Behalten: mehr als 2"),
         ("archive.cleanup.refresh", "Check again", "Neu prüfen"),
         ("archive.cleanup.selectShown", "Select shown candidates", "Sichtbare Kandidaten auswählen"),
-        ("archive.cleanup.clearSelection", "Clear selection", "Auswahl leeren"),
+        ("archive.cleanup.clearSelection", "Clear selection", "Auswahl aufheben"),
         ("archive.cleanup.review", "Review deletion…", "Löschung prüfen…"),
         ("archive.cleanup.confirm", "Permanently delete locally", "Lokal endgültig löschen"),
         ("archive.cleanup.back", "Back to selection", "Zurück zur Auswahl"),
