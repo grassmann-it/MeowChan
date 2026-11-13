@@ -93,7 +93,7 @@
                 <Button x:Name="PluginSelectCandidate" Click="OnSelectCandidateClick" />
                 <Button x:Name="PluginApproveSdkTransition" Click="OnApproveSdkTransitionClick" IsVisible="False" />
                 <Button x:Name="PluginWatches" Click="OnWatchesClick" />
-                <Button x:Name="PluginMoreActions" Classes="plugin-overflow" Width="30" Click="OnPluginMoreActionsClick" />
+                <Button x:Name="PluginMoreActions" Classes="plugin-overflow" Width="32" Click="OnPluginMoreActionsClick" />
               </WrapPanel>
               <TextBlock x:Name="PluginExperimentalHint" Classes="workspace-help" TextWrapping="Wrap" IsVisible="False" />
               <TextBlock x:Name="PluginDraftSummary" Classes="workspace-status" TextWrapping="Wrap" IsVisible="False" />

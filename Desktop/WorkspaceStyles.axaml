@@ -441,7 +441,8 @@
         <CornerRadius x:Key="Workspace.Radius.Group">8</CornerRadius>
         <CornerRadius x:Key="Workspace.Radius.Chip">12</CornerRadius>
         <CornerRadius x:Key="Workspace.Radius.ChipCompact">9</CornerRadius>
-        <x:Double x:Key="Workspace.Size.Control">30</x:Double>
+        <x:Double x:Key="Workspace.Size.Control">32</x:Double>
+        <x:Double x:Key="Workspace.Size.HeaderIcon">30</x:Double>
         <x:Double x:Key="Workspace.Size.Input">32</x:Double>
         <x:Double x:Key="Workspace.Size.Nav">36</x:Double>
         <!-- The one prominent entry row of the app (Downloads URL box and its Add button): 36 instead of Input 32, by design. -->
@@ -539,7 +540,7 @@
         <Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style Selector="Button.header-icon">
-        <Setter Property="Width" Value="{StaticResource Workspace.Size.Control}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Control}" />
+        <Setter Property="Width" Value="{StaticResource Workspace.Size.HeaderIcon}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.HeaderIcon}" />
         <Setter Property="Padding" Value="6" /><Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <!-- The network/disk graph in the header is a button: compact, no outline until it has focus or the pointer. -->

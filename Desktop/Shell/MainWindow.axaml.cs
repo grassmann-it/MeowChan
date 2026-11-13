@@ -629,7 +629,7 @@ public partial class MainWindow : Window
         string label = Texts.T("admission.showInList");
         Button link = new()
         {
-            Name = "AdmissionShowInListButton", HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left, MinHeight = 28,
+            Name = "AdmissionShowInListButton", HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
             Padding = new Thickness(10, 2), MaxWidth = 460,
             Content = new TextBlock { Text = label + " · " + duplicate.Url, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 12 }
         };
