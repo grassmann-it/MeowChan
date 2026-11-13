@@ -229,7 +229,7 @@
   searches, the date field (which shows its pattern in your language) and the SHA-256 search
   explain themselves in plain words; the cleanup, board admission, filename search, import and
   reader group windows fit small screens; screen readers get names for the license list, the URL
-  import report and the board preview. Reader cards with media use the card width as one block,
+  import report and the board preview. Reader cards with media are one block (their width follows the **Post width** setting),
   and the navigation cross rests at 40 percent over the content. Danbooru results and watchers are
   cards, dialog headings and counters use one type step and tabular figures, and popups share
   one shadow and corner radius.
@@ -245,9 +245,67 @@
   and keeps its place when you return while the list is still being filled, post lookup in an
   archived thread uses a cached index, and a verified file is remembered by its full file identity,
   so a swapped file of the same size and date is checked again.
-<!-- TODO(b10): stack b10 (statistics, network/disk rates and tray lines, Rules page rework,
-     HTML export themes, link confirmation hardening, post width setting, audio probe limits)
-     is not in goal yet. Describe it here once it has landed; do not describe it before. -->
+- Add a **Statistics** page (**Ctrl/Cmd+8**) that counts the network and disk traffic of
+  MeowChan's own media: a history graph, a table per source (network now, this session, today
+  and the kept days, disk read and written, requests, errors) and a **Reset** that asks first.
+  Network counts the response data MeowChan receives (upload shows only the number of requests);
+  disk counts the media files MeowChan itself writes or reads back, not thumbnails, previews,
+  archive or index files. The header download graph is now a button with the network as a filled
+  area and the disk as a dashed line; a click opens the page, and the new setting **Header graph**
+  (Automatic, Network only, Network and disk) decides whether the disk line is drawn (Automatic:
+  network and disk in the Advanced view, network only otherwise). The tray tooltip shows the
+  current rates and the number of active downloads, the tray menu starts with two statistics lines
+  (a click opens the page), and nothing is measured while the window is hidden and nothing
+  downloads. A **Statistics** block on the Behavior page holds nine settings: update interval
+  (default 1000 ms, 500 to 10000), graph length (120 readings, 30 to 3600), update interval in the
+  tray (5000 ms, 2000 to 60000), tray tooltip and tray menu (on), keep statistics on this computer
+  (on), days kept (30, 1 to 365), saving interval (5 minutes, 1 to 60) and most sources (64, 8 to
+  256). Daily totals are kept in `io-stats.json` in your profile; with the switch off they last
+  only until you close MeowChan.
+- Rework the Rules page layout: the footer lines up with the 880 dip content column and is the
+  only place for the status; an invalid field shows its error at the field, **Save** stays
+  available, the footer names the invalid field and offers **Go to field**; the subtitle is one
+  sentence and gives way to the form below 600 dip window height; the template buttons are
+  grouped, and the actions for a selection appear only while something is selected.
+- Share one behaviour between the Archive and Media filter panels: **Esc** closes the panel and
+  returns focus to its toggle button in both.
+- Add the setting **Post width** under Reading & media: **Fit to content** (default) sizes every
+  post card to its header, text and media, up to a reading width of 1120 dip, left-aligned like a
+  post on an imageboard; **Centered column** gives every card the full reading width in the middle;
+  **Full width** stretches every card across the whole Reader. The open
+  Reader follows a change at once.
+- Make the limits of the saved sound check of videos settings under **Storage and limits**:
+  **Sound check cache: size** (default 64 MiB, 16 to 128) and **Sound check cache: videos**
+  (400000, 50000 to 1000000). Lowering one never makes an existing file unreadable; above the
+  limit only the answers that fit are saved and the rest is checked again when the Media page
+  opens.
+- Make the HTML export read like the Reader: reply posts are cards that fit their content up to
+  52 rem, the opening post sits on the page, each post has one header line, and files float beside
+  the text; narrow screens stack them and printing uses the light palette. Every exported page has
+  a switch **System / Light / Dark** that needs no script (nothing is stored, so a reload returns
+  to the system default) and an **About** button that opens a dialog with the thread facts the
+  export already knows, the MeowChan version, a link to grassmann-it.de (the one external
+  link; captured addresses stay inert) and the cats Simba and Mila with the photographer's
+  credit; the picture is copied as `meowchan-cats.png` next to `index.html`. The export still has
+  no script, no external load and the same strict content policy; its texts follow the export
+  language (English, German, Spanish, French and Russian; the other languages export in English).
+- Explain an unusable settings file at startup in your language instead of an English technical
+  sentence: the window says what happened (a usable backup exists, the file is from a newer
+  version, it is damaged without a backup, or the profile has data but no settings file), that
+  nothing was changed or deleted, the profile folder and the way out.
+- Stop a damaged backup (`.bak`) from blocking every save of reader groups, saved searches and
+  ratings: the damaged copy is moved to `.bak.bad` (a numbered name if that exists, nothing is
+  overwritten or deleted) and the good file becomes the backup. A backup from a newer version or
+  one that cannot be opened still refuses the save before any file changes, now with a sentence
+  that names the file and the way out. A settings file is no longer written when it would exceed
+  the 4 MiB that the next start can read, and the stores treat an undecodable property name as
+  damage instead of failing the check.
+- Harden the external link confirmation: it starts on **Cancel**, so a held Enter cannot open the
+  link; screen readers hear the full address, Tab stays inside the dialog, and reader shortcuts do
+  nothing while it is open; addresses with hidden Unicode format characters (direction overrides,
+  zero-width characters) and hosts that cannot be written in ASCII stay plain text; a link that
+  could not be started (no default browser) is reported in your language. Saving settings no
+  longer cuts running transitions short when the theme did not change.
 - Upgrade: archive schema 5 to 12, media manifest 4 to 5 (6 for imported representations),
   work journal pruning with one backup and a `user_version` stamp, new `private-tags.json`,
   media index cache (version 4; version 3 files are still read, so there is no cold rebuild
