@@ -74,17 +74,7 @@ public partial class ArchivePage
     internal int ReaderPageSize
     {
         get => _readerPageSize;
-        set
-        {
-            int size = Math.Clamp(value, ReaderPageSizeMinimum, ReaderPageSizeMaximum);
-            if (size == _readerPageSize) return;
-            ReaderAnchor? anchor = _thread != null ? CaptureReaderAnchor() : null;
-            _readerPageSize = size;
-            if (_thread == null) return;
-            if (anchor != null) _projectionPagePost = anchor.PostId;
-            RenderThread();
-            if (anchor != null) ReaderViewTask = RestoreReaderAnchorAsync(anchor, restoreFocus: false);
-        }
+        set => ApplyReaderDisplayPreferences(ReaderThumbnailWidth, ReaderDateStyle, value);
     }
 
     // Implemented by the post filters (P2) and the conversation view (P4) in their own files.
@@ -199,7 +189,7 @@ public partial class ArchivePage
     {
         // Without an open thread there is nothing to rebuild: the next thread resolves its view when it is shown.
         if (_ended || _thread == null) return;
-        if (_projectionAnchor == null)
+        if (_readerSettingsApply == null && _projectionAnchor == null)
         {
             _projectionAnchor = CaptureReaderAnchor();
             _projectionAnchorFocus = ArchivePosts.IsKeyboardFocusWithin;
@@ -209,7 +199,13 @@ public partial class ArchivePage
         Dispatcher.UIThread.Post(() =>
         {
             _projectionRebuildQueued = false;
-            if (_ended || _thread == null) { _projectionAnchor = null; return; }
+            if (_ended || _thread == null)
+            {
+                _projectionAnchor = null;
+                _readerSettingsApply?.Completion.TrySetResult();
+                _readerSettingsApply = null;
+                return;
+            }
             ReaderPostProjection? ready = ResolveProjection(out bool pending);
             if (!pending && ready != null) ApplyProjection(ready);
         }, DispatcherPriority.Background);
@@ -377,6 +373,7 @@ public partial class ArchivePage
 
     private void FinishProjectionBuild()
     {
+        DiscardStaleReaderSettingsApply();
         if (_projectionReady is not { } ready) return;
         _projectionReady = null;
         _pendingProjectionInputs = null;
@@ -409,7 +406,18 @@ public partial class ArchivePage
     private void ApplyProjection(ReaderPostProjection projection)
     {
         if (_ended || _thread == null || !projection.Matches(_thread)) return;
-        ReaderAnchor? anchor = _projectionAnchor;
+        if (_readerSettingsApply != null)
+        {
+            // A previous worker may finish between the setters and the queued turn. Retain its result, but only
+            // commit settings against the current inputs; never restore against an intermediate conversation tree.
+            _projection = projection;
+            if (_projectionRebuildQueued) return;
+            ReaderPostProjection? final = ResolveProjection(out bool pending);
+            if (pending || final == null) return;
+            projection = final;
+        }
+        ReaderSettingsApply? settings = TakeReaderSettingsApply(projection);
+        ReaderAnchor? anchor = settings == null ? _projectionAnchor : null;
         bool focus = _projectionAnchorFocus;
         _projectionAnchor = null;
         _projectionAnchorFocus = false;
@@ -417,6 +425,11 @@ public partial class ArchivePage
         _projection = projection;
         if (anchor != null && _projectionPagePost == null) _projectionPagePost = anchor.PostId;
         RenderThread();
+        if (settings != null)
+        {
+            ReaderViewTask = RestoreReaderSettingsAsync(settings);
+            return;
+        }
         if (anchor == null || Projection is not { Count: > 0 } shown) return;
         int nearest = shown.NearestPosition(anchor.PostId);
         if (nearest < 0) return;
@@ -428,6 +441,7 @@ public partial class ArchivePage
     // Called at the end of RenderThread: listeners learn about a new shown order once, after its rows exist.
     private void AnnounceProjection()
     {
+        DiscardStaleReaderSettingsApply();
         ReaderPostProjection? shown = Projection;
         if (ReferenceEquals(shown, _announcedProjection)) return;
         _announcedProjection = shown;

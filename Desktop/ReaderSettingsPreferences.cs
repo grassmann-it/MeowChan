@@ -14,13 +14,14 @@ internal static class ReaderSettingsPreferences
 
     internal static void Apply(ArchivePage reader, Config config)
     {
+        // Capture the original reader place before any of the inherited layout preferences are updated.
+        reader.ApplyReaderDisplayPreferences(config.ReaderThumbnailWidth, DateStyle(config), config.ReaderPageSize,
+            config.ReaderThreadingDepth);
         reader.ReaderFoldLinesPreference = config.ReaderFoldLines;
         reader.ReaderSpoilerModePreference = Spoilers(config);
         reader.QuotePreviewMaxLines = config.ReaderPreviewLines;
         reader.QuotePreviewDelayMilliseconds = config.ReaderPreviewDelayMs;
         reader.InlineReplyPageSize = config.ReaderReplyStep;
         reader.ReplyCardMaxLines = config.ReaderReplyLines;
-        reader.ReaderThreadingDepth = config.ReaderThreadingDepth;
-        reader.ApplyReaderDisplayPreferences(config.ReaderThumbnailWidth, DateStyle(config), config.ReaderPageSize);
     }
 }

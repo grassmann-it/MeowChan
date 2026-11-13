@@ -13,13 +13,7 @@ public partial class ArchivePage
     internal int ReaderThreadingDepth
     {
         get => _conversationOrdering?.Depth ?? ReaderConversationTree.DepthDefault;
-        set
-        {
-            int depth = ReaderConversationTree.ClampDepth(value);
-            if (_conversationOrdering == null || _conversationOrdering.Depth == depth) return;
-            _conversationOrdering.Depth = depth;
-            if (_readerView.Conversation) RequestProjectionRebuild();
-        }
+        set => ApplyReaderDisplayPreferences(ReaderThumbnailWidth, ReaderDateStyle, ReaderPageSize, value);
     }
 
     partial void AttachConversationView()

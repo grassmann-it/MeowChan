@@ -1,4 +1,9 @@
 using System.Globalization;
+using Avalonia;
+using Avalonia.Input;
+using Avalonia.Threading;
+using MeowChan.Interfaces;
+using MeowChan.Persistence;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia.Media.Imaging;
@@ -126,6 +131,7 @@ internal static class SettingsReaderDisplayChecks
             Require(editor.ReaderThumbnailWidth == host.Config.ReaderThumbnailWidth && editor.SelectedReaderDateStyle?.Value == host.Config.ReaderDateStyle,
                 "Discard did not restore the saved Reader P1 values.");
 
+            await CheckReaderLiveApplyAsync(window);
             await InvalidDraftAndSaveFailureAsync(window, host.Config);
 
             Console.WriteLine("SMOKE settings reader-display: native-window Reader/Gallery settings controls; managed expand/collapse, validation/error reveal, save/discard/failure/retry, hidden cap, language draft retention, live reader and profile limits passed. No OS pointer/keyboard or provider acceptance.");
@@ -143,6 +149,207 @@ internal static class SettingsReaderDisplayChecks
                 finally { editor.CancelChanges(); }
             }
         }
+    }
+
+    private static readonly ResourceId ReaderFixture = new("4chan", "g", "970000");
+    private static readonly ResourceId OtherFixture = new("4chan", "g", "980000");
+    private static readonly DateTimeOffset FixtureDate = new(2026, 11, 13, 12, 0, 0, TimeSpan.Zero);
+
+    // Seed the isolated smoke profile BEFORE session startup. No provider, replacement reader or private-field injection.
+    internal static async Task SeedReaderAsync(string profile)
+    {
+        using ProfileLease lease = ProfileLease.Acquire(profile);
+        await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
+        foreach (ResourceId id in new[] { ReaderFixture, OtherFixture })
+        {
+            int first = int.Parse(id.Thread!, CultureInfo.InvariantCulture);
+            CapturedPost[] posts = Enumerable.Range(0, 240).Select(index => new CapturedPost(
+                (first + index).ToString(CultureInfo.InvariantCulture), index, PostFieldPresence.All,
+                PostedAt: FixtureDate.AddMinutes(index), Author: "offline fixture",
+                Html: (index == 0 ? "" : "<a class=\"quotelink\" href=\"#p" + (first + index - 1) + "\">&gt;&gt;" + (first + index - 1) + "</a>")
+                    + "<p>" + string.Join(" ", Enumerable.Repeat("Local mixed-height reader text.", 2 + index % 9 * 4)) + "</p>",
+                Attachments: index % 5 == 0 ? new[] { new CapturedAttachment(0, "unavailable-local-" + index,
+                    OriginalFileName: "local-placeholder.png") } : null)).ToArray();
+            await catalog.CaptureAsync(new CapturedThreadSnapshot(id, "https://offline.invalid/thread/" + id.Thread,
+                "Settings live apply fixture", ThreadSourceState.Archived, FixtureDate, profile, posts));
+        }
+    }
+
+    private static async Task CheckReaderLiveApplyAsync(MainWindow owner)
+    {
+        ArchivePage page = owner.ArchivePage; // The exact consumer used by the production settings save.
+        SettingsEditor editor = owner.SettingsEditor;
+        Control pane = page.DetachReader();
+        Window reader = new() { Width = 1100, Height = 850, Content = pane, Title = "Offline settings anchor regression" };
+        TaskCompletionSource? release = null;
+        Exception? failureBeforeCleanup = null;
+        try
+        {
+            reader.Show(owner);
+            page.IsAvailable = true;
+            await page.LoadThreadAsync(ReaderFixture);
+            await page.WaitForReaderViewAsync();
+            ListBox list = page.FindControl<ListBox>("ArchivePosts")!;
+            TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
+            Button sentinel = page.FindControl<Button>("ArchiveOpenGallery")!;
+            await SettingsSectionChecks.OpenAsync(editor, "settings.reading-media");
+            SetNumber(editor, nameof(SettingsEditor.ReaderPageSize), 50);
+            SetNumber(editor, nameof(SettingsEditor.ReaderThumbnailWidth), 240);
+            SetNumber(editor, nameof(SettingsEditor.ReaderThreadingDepth), 6);
+            Select(editor.ReaderDateStyleChoices, "System", item => editor.SelectedReaderDateStyle = item);
+            await SaveAsync(editor);
+            await page.WaitForReaderViewAsync();
+            await page.FocusPostAsync("970132");
+            await SmokeDispatcher.SettleAsync();
+
+            foreach (string style in new[] { "SinceOp", "Long" })
+            {
+                var before = VisibleAnchor(list);
+                string? selection = (list.SelectedItem as ArchivePostRow)?.Id;
+                sentinel.Focus();
+                int renders = 0;
+                void Changed(object? sender, AvaloniaPropertyChangedEventArgs e)
+                {
+                    if (e.Property.Name == "ItemsSource" && list.ItemsSource is ArchivePostRow[]) renders++;
+                }
+                list.PropertyChanged += Changed;
+                try
+                {
+                    Select(editor.ReaderDateStyleChoices, style, item => editor.SelectedReaderDateStyle = item);
+                    await SaveAsync(editor); // Production editor -> host save -> shell -> same open reader.
+                    await page.WaitForReaderViewAsync().WaitAsync(TimeSpan.FromSeconds(15));
+                    await SmokeDispatcher.SettleAsync();
+                    CheckAnchor(list, before, "date-only " + style);
+                    Require((list.SelectedItem as ArchivePostRow)?.Id == selection && sentinel.IsFocused && tabs.SelectedIndex == 0,
+                        "Date-only apply stole focus, tab or the representable selection.");
+                    Require(renders == 1, "Date-only apply did not coalesce to one render: " + renders);
+                    ArchivePostRow row = list.ItemsSource!.Cast<ArchivePostRow>().First(item => item.Quotes.Count > 0);
+                    ReaderDateStyle selectedStyle = Enum.Parse<ReaderDateStyle>(style);
+                    Require(row.Posted == ReaderDateText.Posted(page.CurrentThread!.Posts[row.ThreadIndex].PostedAt, selectedStyle, FixtureDate)
+                        && row.PostedFull == ReaderDateText.PostedFull(page.CurrentThread.Posts[row.ThreadIndex].PostedAt),
+                        "Reader date or independent full-date tooltip value was lost.");
+                    page.RequestQuotePreview(row.Quotes[0], sentinel, default, immediate: true);
+                    CapturedPost quoted = page.CurrentThread.Posts.Single(post => post.PostId == row.Quotes[0].Quote.Target!.PostId);
+                    Require(page.IsQuotePreviewOpen && page.FindControl<TextBlock>("QuotePreviewHeader")!.Text!
+                        .EndsWith(ReaderDateText.Posted(quoted.PostedAt, selectedStyle, FixtureDate), StringComparison.Ordinal),
+                        "QuotePreview ignored the chosen date style / associated OP.");
+                    Require((string?)ToolTip.GetTip(page.FindControl<TextBlock>("QuotePreviewHeader")!) == ReaderDateText.PostedFull(quoted.PostedAt),
+                        "Quote preview did not retain a full-date tooltip.");
+                    page.CloseQuotePreview();
+                    await page.SetRepliesExpandedAsync(row, true);
+                    Require(row.Replies.Count > 0 && row.Replies[0].ReplyCardHeader.EndsWith(
+                        ReaderDateText.Posted(page.CurrentThread.Posts.Single(post => post.PostId == row.Replies[0].Quote.Origin.PostId).PostedAt,
+                            selectedStyle, FixtureDate), StringComparison.Ordinal), "Reply excerpt ignored the date style / associated OP.");
+                    await page.SetRepliesExpandedAsync(row, false);
+                    await SmokeDispatcher.SettleAsync();
+                }
+                finally { list.PropertyChanged -= Changed; }
+            }
+
+            page.ReaderView.Conversation = true;
+            await page.WaitForReaderViewAsync();
+            await page.FocusPostAsync("970132");
+            await SmokeDispatcher.SettleAsync();
+            var originalAnchor = VisibleAnchor(list);
+            sentinel.Focus();
+            int combinedRenders = 0;
+            void CombinedChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+            {
+                if (e.Property.Name == "ItemsSource" && list.ItemsSource is ArchivePostRow[]) combinedRenders++;
+            }
+            list.PropertyChanged += CombinedChanged;
+            try
+            {
+                SetNumber(editor, nameof(SettingsEditor.ReaderThumbnailWidth), 480);
+                SetNumber(editor, nameof(SettingsEditor.ReaderPageSize), 20);
+                SetNumber(editor, nameof(SettingsEditor.ReaderThreadingDepth), 1);
+                Select(editor.ReaderDateStyleChoices, "SinceOp", item => editor.SelectedReaderDateStyle = item);
+                await SaveAsync(editor);
+                await page.WaitForReaderViewAsync().WaitAsync(TimeSpan.FromSeconds(15));
+                await SmokeDispatcher.SettleAsync();
+                CheckAnchor(list, originalAnchor, "combined width/page/depth/date");
+                ArchivePostRow[] rows = list.ItemsSource!.Cast<ArchivePostRow>().ToArray();
+                Require(combinedRenders == 1 && rows.Length == 20 && rows.All(row => row.Depth <= 1 && row.SuppressReplyToggle)
+                    && rows.Any(row => row.Depth == 1) && sentinel.IsFocused,
+                    "Combined apply rendered an intermediate projection, lost depth/paging or stole focus.");
+            }
+            finally { list.PropertyChanged -= CombinedChanged; }
+
+            // Hold the final projection's restore. Real routed wheel input must invalidate it, even without a new jump.
+            async Task HoldApplyAsync(string style)
+            {
+                TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                page.BeforeReaderSettingsRestoreAsync = () => { entered.TrySetResult(); return release.Task; };
+                Select(editor.ReaderDateStyleChoices, style, item => editor.SelectedReaderDateStyle = item);
+                await SaveAsync(editor);
+                await entered.Task.WaitAsync(TimeSpan.FromSeconds(15));
+            }
+            await HoldApplyAsync("Long");
+            ScrollViewer scroll = list.GetVisualDescendants().OfType<ScrollViewer>().First();
+            using (Pointer pointer = new(Pointer.GetNextFreeId(), PointerType.Mouse, true))
+            {
+                Point point = scroll.TranslatePoint(new Point(40, 40), reader)!.Value;
+                scroll.RaiseEvent(new PointerWheelEventArgs(scroll, pointer, reader, point, 0,
+                    new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other), KeyModifiers.None, new Vector(0, -4)));
+            }
+            await SmokeDispatcher.SettleAsync();
+            var newerAnchor = VisibleAnchor(list);
+            object? newerSelection = list.SelectedItem;
+            release!.TrySetResult();
+            await page.WaitForReaderViewAsync();
+            await SmokeDispatcher.SettleAsync();
+            CheckAnchor(list, newerAnchor, "new interaction cancels restore");
+            Require(ReferenceEquals(newerSelection, list.SelectedItem), "Old settings restore replaced newer selection.");
+
+            await HoldApplyAsync("SinceOp");
+            await page.LoadThreadAsync(OtherFixture);
+            release!.TrySetResult();
+            page.BeforeReaderSettingsRestoreAsync = null;
+            await page.ReaderViewTask.WaitAsync(TimeSpan.FromSeconds(15));
+            Require(page.CurrentThread?.Summary.Id == OtherFixture
+                && list.ItemsSource!.Cast<ArchivePostRow>().All(row => row.Id.StartsWith("98", StringComparison.Ordinal)),
+                "A stale settings restore crossed the thread/content guard.");
+
+            foreach (int tab in new[] { 1, 2 })
+            {
+                tabs.SelectedIndex = tab;
+                sentinel.Focus();
+                Select(editor.ReaderDateStyleChoices, tab == 1 ? "Long" : "SinceOp", item => editor.SelectedReaderDateStyle = item);
+                await SaveAsync(editor);
+                await page.WaitForReaderViewAsync();
+                Require(tabs.SelectedIndex == tab && sentinel.IsFocused, "Settings activated Posts or stole focus from another reader tab.");
+            }
+            Console.WriteLine("SMOKE settings reader live apply: offline 240-post production save; date-only/excerpts/full tooltip, combined width/page/depth projection, wheel/thread guards and media/reference tab retention passed (managed input).");
+        }
+        catch (Exception error) { failureBeforeCleanup = error; throw; }
+        finally
+        {
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                release?.TrySetResult();
+                page.BeforeReaderSettingsRestoreAsync = null;
+                await page.WaitForReaderViewAsync().WaitAsync(TimeSpan.FromSeconds(15));
+                page.ReaderView.Conversation = false;
+                await page.WaitForReaderViewAsync();
+                reader.Content = null;
+                page.AttachReader(pane);
+                reader.Close();
+            }, error => Console.Error.WriteLine("SMOKE settings reader live apply cleanup: " + error));
+        }
+    }
+
+    private static (string Id, double Top) VisibleAnchor(ListBox list) => list.GetVisualDescendants().OfType<ListBoxItem>()
+        .Select(item => (Item: item, Top: item.TranslatePoint(default, list)?.Y ?? double.NaN))
+        .Where(item => item.Item.DataContext is ArchivePostRow && item.Top < list.Bounds.Height && item.Top + item.Item.Bounds.Height > 0)
+        .OrderBy(item => item.Top).Select(item => (((ArchivePostRow)item.Item.DataContext!).Id, item.Top)).First();
+
+    private static void CheckAnchor(ListBox list, (string Id, double Top) before, string context)
+    {
+        var row = list.ItemsSource!.Cast<ArchivePostRow>().SingleOrDefault(item => item.Id == before.Id);
+        Require(row != null && list.ContainerFromItem(row) is Control container
+            && container.TranslatePoint(default, list) is Point position && Math.Abs(position.Y - before.Top) <= 2,
+            context + ": original anchor post/top lost (2 DIP layout tolerance).");
     }
 
     // Open through the production shell, not ConfigureFit directly: this proves

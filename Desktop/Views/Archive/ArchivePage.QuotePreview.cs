@@ -154,6 +154,17 @@ public partial class ArchivePage
         return index < 0 ? null : _thread.GetPosts(index, 1).FirstOrDefault();
     }
 
+    private DateTimeOffset? ExcerptOpeningPostAt(ArchiveQuoteRow row) => ExcerptOpeningPostAt(_thread,
+        (row.Backlink ? row.Quote.Origin : row.Quote.Target)?.Thread);
+
+    // A preview must not borrow the OP of the randomly open reader for a foreign/unknown target.
+    internal static DateTimeOffset? ExcerptOpeningPostAt(ArchivedThreadView? thread, ResourceId? targetThread)
+    {
+        if (thread == null || targetThread == null || thread.Summary.Id != targetThread) return null;
+        string? op = ArchivePresentation.OpeningPostId(thread);
+        return op == null ? null : thread.Posts.FirstOrDefault(post => post.PostId == op)?.PostedAt;
+    }
+
     internal bool IsQuoteHighlightVisible => ReaderQuoteHighlight.IsVisible;
 
     private void HideQuoteHighlight()
@@ -186,8 +197,10 @@ public partial class ArchivePage
     {
         if (_ended || _quotePreviewRow is not { } row || _quotePreviewTarget is not { } target || !target.IsEffectivelyVisible
             || PreviewPost(row) is not { } post) { CloseQuotePreview(); return; }
-        (string header, string body) = ArchivePresentation.PostExcerpt(post, QuotePreviewMaxLines, QuotePreviewMaxCharacters);
+        (string header, string body) = ArchivePresentation.PostExcerpt(post, QuotePreviewMaxLines, QuotePreviewMaxCharacters,
+            ReaderDateStyle, ExcerptOpeningPostAt(row), DateTimeOffset.Now);
         QuotePreviewHeader.Text = header;
+        ToolTip.SetTip(QuotePreviewHeader, ReaderDateText.PostedFull(post.PostedAt));
         QuotePreviewSubject.Text = post.Subject ?? string.Empty;
         QuotePreviewSubject.IsVisible = !string.IsNullOrEmpty(post.Subject);
         QuotePreviewBody.Text = body;
