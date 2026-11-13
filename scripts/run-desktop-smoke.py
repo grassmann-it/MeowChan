@@ -31,7 +31,8 @@ SESSION_VARIABLES = ("DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DBUS_SESSION_B
                      "XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP", "XDG_SESSION_ID", "DESKTOP_SESSION", "KDE_FULL_SESSION")
 # Mirrors SmokeSelectors.BranchSelectors: scenario selectors without the _ONLY suffix.
 BRANCH_SELECTORS = (("MEOWCHAN_TEMPLATE_COMPARISON", "1"), ("MEOWCHAN_ARCHIVE_COMPARISON", "1"),
-                    ("MEOWCHAN_MEDIA_FIT_BENCHMARK", "1"), ("MEOWCHAN_URSA_NATIVE_SUITE", "groups"))
+                    ("MEOWCHAN_MEDIA_FIT_BENCHMARK", "1"), ("MEOWCHAN_MEDIA_SCALE_BENCHMARK", "1"),
+                    ("MEOWCHAN_URSA_NATIVE_SUITE", "groups"))
 # SmokeScenarios.FunctionalAudio: such registry entries run inside the private null-audio wrapper, as in CI.
 FUNCTIONAL_AUDIO = "MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO=1"
 # scripts/with-isolated-window-manager.py: the known sporadic startup failures of the private window manager.

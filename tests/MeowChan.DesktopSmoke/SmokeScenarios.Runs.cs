@@ -159,6 +159,12 @@ internal static partial class SmokeScenarios
             try { await GalleryFitBenchmark.RunAsync(mainWindow); }
             finally { GalleryImageDecoder.DecodeStarted = null; }
         }),
+        // Measures the session start itself, so it runs before the harness awaits it.
+        ["media-scale-benchmark"] = new(SmokeStage.BeforeSession, mainWindow => MediaScaleBenchmark.RunAsync(mainWindow))
+        {
+            Configure = MediaScaleBenchmark.Configure,
+            Seed = MediaScaleBenchmark.SeedAsync
+        },
         ["media-ratings"] = new(SmokeStage.Ready, mainWindow => MediaRatingChecks.RunAsync(mainWindow))
         {
             Configure = config => config.WorkspaceMode = Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_MODE") ?? "Advanced",

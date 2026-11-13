@@ -155,6 +155,8 @@ internal static partial class SmokeScenarios
         // Its NativeFeatureCheckpoint needs the external driver's MEOWCHAN_ACCESSIBILITY_EXCHANGE; the restore run never reaches it.
         Branch("ursa-native-suite-groups", "MEOWCHAN_URSA_NATIVE_SUITE=groups") with { NightlySkip = ExternalDriver, NightlySkipCoversNested = false },
         Branch("media-fit-benchmark", "MEOWCHAN_MEDIA_FIT_BENCHMARK") with { NightlySkip = "benchmark measurement, not a pass/fail check" },
+        // Tier: MEOWCHAN_MEDIA_SCALE=S|M|L; report directory: MEOWCHAN_MEDIA_SCALE_REPORT (MediaScaleBenchmark.cs).
+        Branch("media-scale-benchmark", "MEOWCHAN_MEDIA_SCALE_BENCHMARK") with { NightlySkip = "benchmark measurement on a large synthetic profile, not a pass/fail check" },
         Root("media-ratings", "MEOWCHAN_MEDIA_RATINGS_ONLY", env => env("MEOWCHAN_RATINGS_LATE_ERROR_ONLY") == "1"
             ? "ratings: targeted direct/menu late failures and detached tile refresh; exact keys and store reopen"
             : env("MEOWCHAN_RATINGS_PRESENTATION_ONLY") == "1"
