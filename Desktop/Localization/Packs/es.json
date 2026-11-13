@@ -2057,7 +2057,7 @@
     "tags.unavailable": "No se pudieron cargar las etiquetas propias. No se cambió nada.",
     "tags.notReady": "Las etiquetas se pueden cambiar cuando la sesión esté lista.",
     "tags.error.invalidName": "Este nombre de etiqueta no está permitido. Use de 1 a 128 caracteres sin saltos de línea ni caracteres de control.",
-    "tags.error.capacity": "Se alcanzó el límite de etiquetas. No se cambió nada.",
+    "tags.error.capacity": "Se alcanzó un límite técnico fijo de las etiquetas propias: como máximo 50000 asignaciones de etiquetas para hilos, medios y archivos locales cada uno, y como máximo 50000 archivos locales etiquetados con 64 versiones cada uno (100000 en total). Solo el número de etiquetas es un ajuste: «Límite de etiquetas propias» en Configuración → Almacenamiento y límites, como máximo 20000. No se cambió nada.",
     "tags.error.tagLimit": "Se alcanzó el límite de etiquetas propias. No se cambió nada. Puede aumentarlo en Configuración → Almacenamiento y límites → «Límite de etiquetas propias».",
     "tags.error.fileLimit": "El archivo de etiquetas propias alcanzó su límite de tamaño. No se cambió nada. Puede aumentarlo en Configuración → Almacenamiento y límites → «Límite del archivo de etiquetas propias (MiB)».",
     "tags.error.stale": "Las etiquetas cambiaron entretanto. No se cambió nada. Inténtelo de nuevo.",

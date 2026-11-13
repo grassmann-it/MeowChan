@@ -111,7 +111,7 @@ public sealed class PrivateTagLimitSettingsTests
                 string category = Texts.T("settings.storageLimits");
                 string settings = Texts.T("settings.title");
                 foreach ((string message, string setting) in new[] { ("tags.error.tagLimit", "budgets.privateTags"),
-                    ("tags.error.fileLimit", "budgets.privateTagFile") })
+                    ("tags.error.fileLimit", "budgets.privateTagFile"), ("tags.error.capacity", "budgets.privateTags") })
                 {
                     string text = Texts.T(message);
                     Assert.Contains(Texts.T(setting), text);
@@ -119,6 +119,9 @@ public sealed class PrivateTagLimitSettingsTests
                     Assert.Contains(settings, text);
                     Assert.DoesNotContain(message, text);
                 }
+                // The fixed-limit message names the fixed assignment limits, the setting and its maximum.
+                Assert.Contains("50000", Texts.T("tags.error.capacity"));
+                Assert.Contains("20000", Texts.T("tags.error.capacity"));
                 Assert.Contains("256", Texts.T("budgets.privateTagsHint"));
                 Assert.Contains("20000", Texts.T("budgets.privateTagsHint"));
                 Assert.Contains("128", Texts.T("budgets.privateTagFileHint"));

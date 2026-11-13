@@ -2056,7 +2056,7 @@
     "tags.unavailable": "Les étiquettes personnelles n’ont pas pu être chargées. Rien n’a été modifié.",
     "tags.notReady": "Les étiquettes pourront être modifiées dès que la session sera prête.",
     "tags.error.invalidName": "Ce nom d’étiquette n’est pas autorisé. Utilisez 1 à 128 caractères, sans saut de ligne ni caractère de contrôle.",
-    "tags.error.capacity": "La limite d’étiquettes est atteinte. Rien n’a été modifié.",
+    "tags.error.capacity": "Une limite technique fixe des étiquettes personnelles est atteinte : au plus 50000 affectations d’étiquettes chacune pour les fils, les médias et les fichiers locaux, et au plus 50000 fichiers locaux étiquetés avec 64 versions chacun (100000 au total). Seul le nombre d’étiquettes est un réglage : « Limite d’étiquettes personnelles » dans Paramètres → Stockage et limites, au plus 20000. Rien n’a été modifié.",
     "tags.error.tagLimit": "La limite d’étiquettes personnelles est atteinte. Rien n’a été modifié. Vous pouvez l’augmenter dans Paramètres → Stockage et limites → « Limite d’étiquettes personnelles ».",
     "tags.error.fileLimit": "Le fichier d’étiquettes personnelles a atteint sa limite de taille. Rien n’a été modifié. Vous pouvez l’augmenter dans Paramètres → Stockage et limites → « Limite du fichier d’étiquettes personnelles (MiB) ».",
     "tags.error.stale": "Les étiquettes ont changé entre-temps. Rien n’a été modifié. Réessayez.",
