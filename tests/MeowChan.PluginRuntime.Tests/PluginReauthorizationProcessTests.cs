@@ -80,6 +80,7 @@ public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output)
                 Assert.Equal(0, restarted.ImageReads); // Active metadata is not permission to run a disabled plugin.
             }
         }
+        Assert.Equal(first.StoreHash, second.StoreHash); // Second host reads the same already-settled persistent state.
         if (enabled) Assert.NotEqual(first.WorkerPid, second.WorkerPid);
         Assert.Equal(backupFiles, probe.BackupFiles());
 
@@ -87,6 +88,7 @@ public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output)
         Assert.Null(Plugin(third).Active);
         Assert.NotEqual(third.TargetExecution, third.ThirdExecution);
         Assert.Equal(third.ThirdExecution, third.Row!.NewExecutionRevision);
+        Assert.Equal(consent.TargetExecution, Plugin(third).LastGood!.ExecutionRevision);
         AssertRetained(seed, third);
         // Replaying B's frozen row with the LATEST profile revision is still not consent for C.
         string before = third.StoreHash;
@@ -129,8 +131,10 @@ public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output)
         var rejected = await probe.Run(fault == "stale" ? "consent" : "consent-" + fault);
         if (fault == "missing")
             Assert.Contains(rejected.Rejection, new[] { "IOException", "FileNotFoundException" });
+        else if (fault == "cancel")
+            Assert.Contains(rejected.Rejection, new[] { "OperationCanceledException", "TaskCanceledException" });
         else
-            Assert.Equal(fault == "cancel" ? "OperationCanceledException" : "InvalidOperationException", rejected.Rejection);
+            Assert.Equal("InvalidOperationException", rejected.Rejection);
         Assert.Equal(before, probe.StoreFiles());
         Assert.Null(Plugin(rejected).Active);
         Assert.Null(Plugin(rejected).Pending);
