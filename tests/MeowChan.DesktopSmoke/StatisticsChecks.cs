@@ -47,6 +47,7 @@ internal static class StatisticsChecks
             stop.Cancel();
             await traffic;
             await ResetAsync(window);
+            await StatisticsReadabilityChecks.RunAsync(window);
         }
         finally
         {
