@@ -28,7 +28,7 @@ internal static class MediaHashSearchCatalog
         ("mediahash.generation", "Captured generation: {0}", "Erfasste Generation: {0}"),
         ("mediahash.unavailable", "unavailable", "nicht verfügbar"),
         ("mediahash.omitted", "display value omitted", "Anzeigewert ausgelassen"),
-        ("mediahash.row", "Select asset {0} | media {1} | variant {2} | captured IsCurrent: {3}", "Asset {0} auswählen | Medium {1} | Variante {2} | erfasstes IsCurrent: {3}"),
+        ("mediahash.row", "Select asset {0} | media {1} | variant {2} | current version: {3}", "Asset {0} auswählen | Medium {1} | Variante {2} | aktuelle Fassung: {3}"),
         ("mediahash.yes", "yes", "ja"),
         ("mediahash.no", "no", "nein"),
         ("mediahash.failed", "The captured inventory search could not be completed. No file verification was attempted.", "Die Suche im erfassten Inventar konnte nicht abgeschlossen werden. Es wurde keine Dateiprüfung versucht."),

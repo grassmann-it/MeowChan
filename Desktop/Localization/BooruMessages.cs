@@ -62,7 +62,10 @@ internal static class BooruMessages
         if (code is not null && code.StartsWith("http-", StringComparison.Ordinal)
             && int.TryParse(code.AsSpan(5), NumberStyles.None, CultureInfo.InvariantCulture, out int status))
             return Texts.T("booru.failure.httpStatus", status);
-        return Texts.T("booru.failure.unknown", string.IsNullOrWhiteSpace(code) ? "?" : code);
+        // A blank code has nothing to name, so the reader gets the next step instead of "(?)".
+        return string.IsNullOrWhiteSpace(code)
+            ? Texts.T("booru.failure.unknownNoCode")
+            : Texts.T("booru.failure.unknown", code);
     }
 
     /// <summary>Text for a postponed request (<c>ReasonCode</c> plus the time of the next possible attempt).</summary>

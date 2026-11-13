@@ -349,7 +349,7 @@ internal static class BooruCodeTexts
 {
     internal static string Localized(string? code)
     {
-        if (string.IsNullOrWhiteSpace(code)) return Texts.T("booru.failure.unknown", "?");
+        if (string.IsNullOrWhiteSpace(code)) return Texts.T("booru.failure.unknownNoCode");
         if (BuiltInCatalog.English.ContainsKey("booru.watcher.problem." + code)) return BooruMessages.WatcherProblem(code);
         string text = BooruMessages.Failure(code);
         // An unlisted code keeps its own short form inside the surrounding sentence instead of a nested one.
