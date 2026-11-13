@@ -45,6 +45,7 @@ internal static class ReaderIdeaChecks
         await CheckFormattingAsync(owner);
         await CheckQuotePreviewAsync(owner);
         await CheckUnreadLineAsync(owner);
+        await CheckFoldAsync(owner);
     }
 
     private static async Task<Fixture> OpenAsync(MainWindow owner, string thread, Func<int, CapturedPost[]> posts, int initialCount = int.MaxValue)
@@ -185,7 +186,7 @@ internal static class ReaderIdeaChecks
         Require(!page.IsQuotePreviewOpen, "A dead reference opened a preview.");
 
         // Focus: the keyboard quote button previews after the delay; Escape closes only the preview.
-        Button key = Container(fixture, "312").GetVisualDescendants().OfType<Button>().First(button => button.Classes.Contains("reader-quote") && ((ArchiveQuoteRow)button.DataContext!).Quote == second.Quotes[0].Quote);
+        Button key = Container(fixture, "312").GetVisualDescendants().OfType<Button>().First(button => button.Classes.Contains("reader-quote") && button.DataContext is ArchiveQuoteRow row && row.Quote == second.Quotes[0].Quote);
         key.Focus(NavigationMethod.Tab);
         await Program.WaitUntilAsync(() => page.IsQuotePreviewOpen && ReferenceEquals(popup.PlacementTarget, key), () => "no preview on focus");
         key.RaiseEvent(KeyEvent(InputElement.KeyDownEvent, Avalonia.Input.Key.Escape, key));
@@ -272,6 +273,64 @@ internal static class ReaderIdeaChecks
         await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.PostCount == 13);
         Require(page.UnreadFirstNewPostId == null && list.ItemsSource!.Cast<ArchivePostRow>().All(row => row.UnreadCount == 0), "A fresh open kept the old mark.");
         Console.WriteLine("SMOKE reader I3: resume mark, line label, return button, manual refresh mark and fresh open passed.");
+    }
+
+
+    // I6: a body over 24 lines shows 18, a fade and "Show more (N lines)"; the choice survives a rebuild of the page and
+    // the thread find opens a folded post with a hit.
+    private static async Task CheckFoldAsync(MainWindow owner)
+    {
+        await using Fixture fixture = await OpenAsync(owner, "330", _ =>
+        [
+            new("330", 0, PostFieldPresence.All, Html: "<p>Short opening post.</p>"),
+            new("331", 1, PostFieldPresence.All, Html: "<p>" + string.Join("<br>", Enumerable.Range(1, 40).Select(line => "Long post line " + line + ".")) + "</p>"),
+            new("332", 2, PostFieldPresence.All, Html: "<p>Another short reply.</p>"),
+            new("333", 3, PostFieldPresence.All, Html: "<p>" + string.Join("<br>", Enumerable.Range(1, 40).Select(line => line == 35 ? "The needle is on line 35." : "Filler line " + line + ".")) + "</p>")
+        ]);
+        ArchivePage page = fixture.Page;
+        ListBox list = fixture.List;
+        ArchivePostRow[] rows = list.ItemsSource!.Cast<ArchivePostRow>().ToArray();
+        ArchivePostRow longPost = rows.Single(row => row.Id == "331"), shortPost = rows.Single(row => row.Id == "332"), needlePost = rows.Single(row => row.Id == "333");
+        list.ScrollIntoView(longPost);
+        await Program.WaitUntilAsync(() => list.GetVisualDescendants().OfType<ListBoxItem>().Any(item => ReferenceEquals(item.DataContext, longPost)));
+        await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
+        ReaderBodyTextBlock body = Body(fixture, "331");
+        Button FoldButton(string id) => Container(fixture, id).GetVisualDescendants().OfType<Button>().Single(button => button.Classes.Contains("reader-fold"));
+        double visible = ReaderBodyTextBlock.FoldVisibleLines * body.LineHeight;
+        Require(body.IsFoldable && body.IsFolded && body.LineCount >= 40 && Math.Abs(body.Bounds.Height - visible) < 1.5 && body.OpacityMask != null && body.ClipToBounds,
+            $"The long post was not folded to {ReaderBodyTextBlock.FoldVisibleLines} lines: lines={body.LineCount}, height={body.Bounds.Height}, expected {visible}");
+        Button more = FoldButton("331");
+        await Program.WaitUntilAsync(() => more.IsEffectivelyVisible, () => "the fold button never became visible");
+        Require(more.IsEffectivelyVisible && more.IsVisible && Equals(more.Content, MeowChan.Desktop.Localization.Texts.Count("reader.foldMore", body.LineCount - ReaderBodyTextBlock.FoldVisibleLines)),
+            $"The fold button did not name the hidden lines: {more.Content} / visible={more.IsEffectivelyVisible} / expected {MeowChan.Desktop.Localization.Texts.Count("reader.foldMore", body.LineCount - ReaderBodyTextBlock.FoldVisibleLines)}");
+        Program.CaptureWindow(fixture.Window, "smoke-reader-i6-folded.png");
+        Require(!FoldButton("332").IsVisible, "A short post offered a fold button.");
+        double foldedHeight = Container(fixture, "331").Bounds.Height;
+        more.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
+        Require(longPost.Expanded && !body.IsFolded && body.OpacityMask == null && body.Bounds.Height >= 40 * body.LineHeight - 1 && Container(fixture, "331").Bounds.Height > foldedHeight + 200
+            && Equals(more.Content, MeowChan.Desktop.Localization.Texts.T("reader.foldLess")), "Show more did not unfold the post: " + body.Bounds.Height);
+        Program.CaptureWindow(fixture.Window, "smoke-reader-i6-expanded.png");
+        // The state is remembered per post: a rebuilt page shows 331 unfolded and 333 folded.
+        await page.LoadThreadAsync(fixture.Id);
+        await Program.WaitUntilAsync(() => !page.IsBusy && list.ItemsSource is ArchivePostRow[]);
+        rows = list.ItemsSource!.Cast<ArchivePostRow>().ToArray();
+        Require(rows.Single(row => row.Id == "331").Expanded && !rows.Single(row => row.Id == "333").Expanded, "A rebuilt page forgot which posts were expanded.");
+        longPost = rows.Single(row => row.Id == "331"); needlePost = rows.Single(row => row.Id == "333");
+        // Fold it again, then let the find open the post that holds its hit.
+        longPost.Expanded = false;
+        Require(!longPost.Expanded, "The post did not fold again.");
+        page.FindControl<Button>("ReaderFindOpen")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Task opened = page.ThreadFindTask;
+        page.FindControl<TextBox>("ReaderFindQuery")!.Text = "needle";
+        await Program.WaitUntilAsync(() => !ReferenceEquals(opened, page.ThreadFindTask), () => "the find did not start");
+        await page.ThreadFindTask;
+        await Program.WaitUntilAsync(() => page.FindControl<Button>("ReaderFindNext")!.IsEnabled, () => "no find hit for the needle");
+        page.FindControl<Button>("ReaderFindNext")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Program.WaitUntilAsync(() => needlePost.Expanded || list.ItemsSource!.Cast<ArchivePostRow>().Single(row => row.Id == "333").Expanded, () => "the find did not open the folded post");
+        await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
+        Require(!Body(fixture, "333").IsFolded, "The post with the hit stayed folded.");
+        Console.WriteLine("SMOKE reader I6: fold to 18 lines with fade and count, unfold, remembered state and find expansion passed.");
     }
 
     private static void Require(bool condition, string message)

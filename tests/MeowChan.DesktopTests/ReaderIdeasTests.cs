@@ -52,4 +52,18 @@ public sealed class ReaderIdeasTests
         Assert.Contains("6", many.UnreadLabel);
         Assert.NotEqual(one.UnreadLabel.Replace("1", "{0}"), many.UnreadLabel.Replace("6", "{0}")); // Singular and plural differ.
     }
+    [Fact]
+    public void FoldShowsEighteenOfMoreThanTwentyFourLinesAndReportsExpansion()
+    {
+        Assert.Equal(24, ReaderBodyTextBlock.FoldThresholdLines);
+        Assert.Equal(18, ReaderBodyTextBlock.FoldVisibleLines);
+        List<bool> reported = [];
+        ArchivePostRow row = new("1", "", "text", Array.Empty<ArchiveAttachmentRow>()) { StartExpanded = true, ExpandedChanged = reported.Add };
+        Assert.True(row.Expanded);
+        Assert.Empty(reported); // Starting expanded is not a change.
+        row.Expanded = false;
+        row.Expanded = false;
+        row.Expanded = true;
+        Assert.Equal([false, true], reported);
+    }
 }

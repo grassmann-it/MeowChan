@@ -57,7 +57,9 @@ public sealed class ReaderThreadFindUiTests
         string reader = Source("Desktop/Views/Archive/ArchivePage.Reader.cs");
         Assert.Contains("if (IsThreadFindSource(e.Source)) return;", reader);
         string find = Source("Desktop/Views/Archive/ArchivePage.ThreadFind.cs");
-        Assert.Contains("ShowPost(result.Texts[result.Hits[_threadFindCursor].TextIndex].PostId)", find);
+        Assert.Contains("result.Texts[result.Hits[_threadFindCursor].TextIndex]", find);
+        Assert.Contains("ShowPost(hit.PostId)", find);
+        Assert.Contains("ExpandPostForFind(hit.PostId)", find); // A folded post with a body hit opens (I6).
         Assert.Contains("request == _threadFindRequest", find);
         Assert.Contains("result.Matches(_thread.Summary.Id, _thread.Summary.Revision)", find);
         Assert.Contains("CreateLinkedTokenSource(_lifetime.Token)", find);

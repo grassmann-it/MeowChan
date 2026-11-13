@@ -48,8 +48,45 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     public static readonly RoutedEvent<ReaderQuoteInvokedEventArgs> QuoteInvokedEvent =
         RoutedEvent.Register<ReaderBodyTextBlock, ReaderQuoteInvokedEventArgs>(nameof(QuoteInvoked), RoutingStrategies.Bubble);
 
+    public static readonly StyledProperty<bool> ExpandedProperty =
+        AvaloniaProperty.Register<ReaderBodyTextBlock, bool>(nameof(Expanded), defaultBindingMode: Avalonia.Data.BindingMode.TwoWay);
+
+    public static readonly DirectProperty<ReaderBodyTextBlock, bool> IsFoldableProperty =
+        AvaloniaProperty.RegisterDirect<ReaderBodyTextBlock, bool>(nameof(IsFoldable), block => block.IsFoldable);
+
+    public static readonly DirectProperty<ReaderBodyTextBlock, string> FoldLabelProperty =
+        AvaloniaProperty.RegisterDirect<ReaderBodyTextBlock, string>(nameof(FoldLabel), block => block._foldLabel);
+
     public static readonly RoutedEvent<ReaderQuoteHoverEventArgs> QuoteHoverEvent =
         RoutedEvent.Register<ReaderBodyTextBlock, ReaderQuoteHoverEventArgs>(nameof(QuoteHover), RoutingStrategies.Bubble);
+
+    /// <summary>A body over this many lines is folded until the post is expanded (presentation, not a resource limit).</summary>
+    internal const int FoldThresholdLines = 24;
+    /// <summary>The lines a folded body shows.</summary>
+    internal const int FoldVisibleLines = 18;
+
+    // Fade of the last lines of a folded body: the surface behind (card, active card or page) shows through.
+    private static readonly IBrush FoldFade = new LinearGradientBrush
+    {
+        StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative), EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative),
+        GradientStops = { new GradientStop(Colors.Black, 0), new GradientStop(Colors.Black, 0.72), new GradientStop(Colors.Transparent, 1) }
+    }.ToImmutable();
+
+    private int _lineCount;
+    private string _foldLabel = string.Empty;
+
+    /// <summary>The long body is shown in full (the owning post keeps this for the session).</summary>
+    public bool Expanded
+    {
+        get => GetValue(ExpandedProperty);
+        set => SetValue(ExpandedProperty, value);
+    }
+
+    /// <summary>Wrapped lines at the current width, measured with the last layout.</summary>
+    internal int LineCount => _lineCount;
+    public bool IsFoldable => _lineCount > FoldThresholdLines;
+    public string FoldLabel => _foldLabel;
+    internal bool IsFolded => IsFoldable && !Expanded;
 
     public bool IsTextOnly
     {
@@ -95,7 +132,34 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     private ArchiveQuoteRow? _hoverQuote;
     private bool _linkCursor;
 
+    static ReaderBodyTextBlock() => AffectsMeasure<ReaderBodyTextBlock>(ExpandedProperty);
+
     public ReaderBodyTextBlock() => UpdateReadingMetrics();
+
+    // A long body is clipped to its first lines inside the same measure pass, so the list never sees the full height.
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        Size size = base.MeasureOverride(availableSize);
+        int lines = TextLayout.TextLines.Count;
+        bool wasFoldable = IsFoldable;
+        if (lines != _lineCount)
+        {
+            _lineCount = lines; // Bindings read the getter when the change is raised.
+            RaisePropertyChanged(IsFoldableProperty, wasFoldable, IsFoldable);
+        }
+        string label = !IsFoldable ? string.Empty : Expanded ? Localization.Texts.T("reader.foldLess")
+            : Localization.Texts.Count("reader.foldMore", _lineCount - FoldVisibleLines);
+        if (label != _foldLabel)
+        {
+            string previous = _foldLabel;
+            _foldLabel = label;
+            RaisePropertyChanged(FoldLabelProperty, previous, label);
+        }
+        bool folded = IsFolded;
+        if (ClipToBounds != folded) ClipToBounds = folded;
+        if ((OpacityMask != null) != folded) OpacityMask = folded ? FoldFade : null;
+        return folded ? new Size(size.Width, Math.Min(size.Height, FoldVisibleLines * LineHeight)) : size;
+    }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {

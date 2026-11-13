@@ -404,8 +404,11 @@
                                                                 <StackPanel>
                                                                     <!-- The Semi text theme sets FontSize locally; explicitly honor the reader preference.
                                                                          Greentext and >>No. are runs over the plain text; a click on >>No. opens it like the buttons. -->
-                                                                    <desktop:ReaderBodyTextBlock Classes="reader-body" Document="{Binding BodyDocument}" SpoilersRevealed="{Binding SpoilersRevealed, Mode=TwoWay}" IsTextOnly="{Binding IsTextOnly}" FontSize="{Binding $parent[ListBox].FontSize}"
+                                                                    <desktop:ReaderBodyTextBlock x:Name="PostBody" Classes="reader-body" Document="{Binding BodyDocument}" SpoilersRevealed="{Binding SpoilersRevealed, Mode=TwoWay}" Expanded="{Binding Expanded, Mode=TwoWay}" IsTextOnly="{Binding IsTextOnly}" FontSize="{Binding $parent[ListBox].FontSize}"
                                                                                                  TextWrapping="Wrap" QuoteInvoked="OnInlineQuoteInvoked" QuoteHover="OnInlineQuoteHover" />
+                                                                    <!-- A body over 24 lines shows 18 and a fade; this button unfolds it (and folds it again). -->
+                                                                    <Button Classes="reader-quote reader-fold" IsVisible="{Binding #PostBody.IsFoldable}" Content="{Binding #PostBody.FoldLabel}"
+                                                                            Click="OnFoldToggleClick" HorizontalAlignment="Left" />
                                                                     <!-- Keyboard/screen-reader path for the inline references (inline runs are not focusable):
                                                                          after the text in tab and reading order, zero height until it holds keyboard focus. -->
                                                                     <ItemsControl ItemsSource="{Binding Quotes}" Classes="reader-quote-keys" Classes.reader-quotes-visible="{Binding HasUnplacedQuotes}"

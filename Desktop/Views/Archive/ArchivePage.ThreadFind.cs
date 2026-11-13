@@ -117,7 +117,12 @@ public partial class ArchivePage
         _threadFindCursor = forward ? ReaderThreadFindIndex.Next(_threadFindCursor, result.Hits.Count)
             : ReaderThreadFindIndex.Previous(_threadFindCursor, result.Hits.Count);
         if (_threadFindCursor >= 0)
-            ShowPost(result.Texts[result.Hits[_threadFindCursor].TextIndex].PostId);
+        {
+            ReaderFindText hit = result.Texts[result.Hits[_threadFindCursor].TextIndex];
+            if (hit.Field == ReaderFindField.Body) ExpandPostForFind(hit.PostId);
+            ShowPost(hit.PostId);
+            if (hit.Field == ReaderFindField.Body) ExpandPostForFind(hit.PostId); // The page may have been rebuilt around the hit.
+        }
         LocalizeThreadFind();
     }
     private void OnNextThreadFind(object? sender, RoutedEventArgs e) => MoveThreadFind(true);

@@ -109,6 +109,15 @@ internal sealed record ArchivePostRow(string Id, string Subject, string Body,
     // A reference to a post that was never captured is struck through and followed by a short note.
     public ReaderBodyDocument BodyDocument => _bodyDocument ??= ReaderBodyFormatting.Format(Body, Quotes, Marks,
         " " + Texts.T("reader.quoteNotCaptured"));
+    private bool _expanded;
+    // Set while the row is built (the page remembers expanded posts for the session) and when the post is folded or unfolded.
+    public bool StartExpanded { init => _expanded = value; }
+    public Action<bool>? ExpandedChanged { get; init; }
+    public bool Expanded
+    {
+        get => _expanded;
+        set { if (_expanded == value) return; _expanded = value; ExpandedChanged?.Invoke(value); Changed(nameof(Expanded)); }
+    }
     private bool _spoilersRevealed;
     // One reveal per post and session; the recycled body control shows whatever the post says.
     public bool SpoilersRevealed

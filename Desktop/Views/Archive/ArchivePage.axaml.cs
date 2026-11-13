@@ -492,6 +492,7 @@ public partial class ArchivePage : UserControl
             string? openingPost = ArchivePresentation.OpeningPostId(_thread);
             (string? unreadFirst, int unreadCount) = UnreadBoundary();
             _unreadFirstNewId = unreadFirst;
+            ResourceId threadId = _thread.Summary.Id;
             Dictionary<string, bool> capturedIds = new(StringComparer.Ordinal);
             bool IsDead(ArchiveQuote quote) => quote.Target is { } target && target.Thread == _thread.Summary.Id
                 && !(capturedIds.TryGetValue(target.PostId, out bool captured) ? captured
@@ -509,6 +510,8 @@ public partial class ArchivePage : UserControl
                     IsOpeningPost = post.PostId == openingPost,
                     UnreadCount = post.PostId == unreadFirst ? unreadCount : 0,
                     Marks = marks,
+                    StartExpanded = _expandedPosts.Contains((_thread.Summary.Id, post.PostId)),
+                    ExpandedChanged = open => SetPostExpanded(threadId, post.PostId, open),
                     Quotes = Array.AsReadOnly(ArchiveQuoteParser.Parse(_thread.Summary.Id, _thread.Summary.Url, post)
                         .Select(quote => new ArchiveQuoteRow(quote) { IsDead = IsDead(quote) }).ToArray())
                 };
