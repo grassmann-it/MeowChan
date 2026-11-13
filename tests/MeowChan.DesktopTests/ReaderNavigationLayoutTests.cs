@@ -9,42 +9,32 @@ public sealed class ReaderNavigationLayoutTests
     [Theory]
     [InlineData(320)]
     [InlineData(640)]
-    [InlineData(760)]
-    [InlineData(1263.9)]
-    public void NarrowReaderKeepsFullViewportInsteadOfReservingBottomOrSideLane(double width)
+    [InlineData(1264)]
+    [InlineData(1440)]
+    [InlineData(1920)]
+    [InlineData(3840)]
+    public void TheCrossIsAlwaysAnOverlayWithTailClearanceAtEveryWidth(double width)
     {
-        var layout = ReaderNavigationLayout.Resolve(true, width, 1120);
-        Assert.Equal(default, layout.PostMargin);
+        // The layout no longer depends on the surface width: no reserved side lane, only scroll extent at the end of the list.
+        Assert.True(width > 0);
+        var layout = ReaderNavigationLayout.Resolve(true);
         Assert.Equal(120, layout.TailInset);
+        Assert.Equal(ReaderNavigationLayout.OverlayTailInset, layout.TailInset);
     }
 
     [Fact]
-    public void OnlyGenuinelyFreeWideSpaceReservesTheSideLane()
+    public void ADockedReaderHasNoCrossAndNoClearance()
     {
-        var layout = ReaderNavigationLayout.Resolve(true, 1264, 1120);
-        Assert.Equal(new Thickness(0, 0, 144, 0), layout.PostMargin);
-        Assert.Equal(0, layout.TailInset);
-        Assert.Equal(default, ReaderNavigationLayout.Resolve(false, 1440, 1120));
+        Assert.Equal(default, ReaderNavigationLayout.Resolve(false));
+        Assert.Equal(0, ReaderNavigationLayout.Resolve(false).TailInset);
     }
 
     [Fact]
-    public void CardsKeepAtLeastTheMinimumWidthBesideTheCross()
+    public void TheCrossKeepsItsSizeAndDistanceFromTheEdge()
     {
-        // The post list has no maximum width any more: the lane exists while the cards keep 760 dip, not 1120.
-        Assert.Equal(760, ReaderNavigationLayout.MinimumCardWidth);
-        Assert.Equal(new Thickness(0, 0, 144, 0), ReaderNavigationLayout.Resolve(true, 904, ReaderNavigationLayout.MinimumCardWidth).PostMargin);
-        Assert.Equal(default, ReaderNavigationLayout.Resolve(true, 903.9, ReaderNavigationLayout.MinimumCardWidth).PostMargin);
-        Assert.Equal(new Thickness(0, 0, 144, 0), ReaderNavigationLayout.Resolve(true, 1400, ReaderNavigationLayout.MinimumCardWidth).PostMargin);
-    }
-
-    [Theory]
-    [InlineData(640, 640, 24)]
-    [InlineData(1260, 1190, 94)]
-    [InlineData(640, 650, 24)]
-    public void OverlayAlignsInsideTheCenteredListAndKeepsItsScrollbarClear(double surface, double postRight, double inset)
-    {
-        var layout = ReaderNavigationLayout.Resolve(true, surface, 1120);
-        Assert.Equal(inset, layout.RightInset(surface, postRight));
+        Assert.Equal(108, ReaderNavigationLayout.NavigationSize);
+        Assert.Equal(24, ReaderNavigationLayout.RightInset);
+        Assert.Equal(ReaderNavigationLayout.NavigationSize + 12, ReaderNavigationLayout.OverlayTailInset);
     }
 
     [Fact]

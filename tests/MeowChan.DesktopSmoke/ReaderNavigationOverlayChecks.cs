@@ -41,6 +41,7 @@ internal static class ReaderNavigationOverlayChecks
             historyCreated = true;
             await Program.WaitUntilAsync(() => history.IsEffectivelyVisible
                 && (page.FindControl<ListBox>("ArchivePosts")!.SelectedItem as ArchivePostRow)?.Id == "1003");
+            await CaptureEvidenceAsync(window, page, tabs);
             foreach (var size in new[] { (Mode: "Simple", Width: 1440d, Height: 920d),
                 (Mode: "Simple", Width: 760d, Height: 500d), (Mode: "Advanced", Width: 760d, Height: 500d),
                 (Mode: "Barebones", Width: 640d, Height: 480d),
@@ -68,11 +69,10 @@ internal static class ReaderNavigationOverlayChecks
                     window.UpdateLayout();
                     CheckGeometry(window, page);
                     CheckMediaCard(page, size.Width);
-                    // Over the content the cross rests faded; in the free side lane it is solid.
+                    // The cross always floats over the content and rests faded.
                     WrapPanel cross = page.FindControl<WrapPanel>("ReaderNavigation")!;
                     if (!cross.IsKeyboardFocusWithin)
-                        Require(page.FindControl<ListBox>("ArchivePosts")!.Margin.Right > 0 ? cross.Opacity == 1 : cross.Opacity < 1,
-                            $"The navigation cross had the wrong resting opacity {cross.Opacity} at {size.Width}.");
+                        Require(cross.Opacity < 1, $"The navigation cross had the wrong resting opacity {cross.Opacity} at {size.Width}.");
                     await CheckOverlayTailReadabilityAsync(window, page);
                     string name = $"smoke-reader-navigation-{size.Mode.ToLowerInvariant()}-{size.Width}x{size.Height}-{code}-{variant.ToString().ToLowerInvariant()}.png";
                     Program.CaptureWindow(window, name);
@@ -90,8 +90,7 @@ internal static class ReaderNavigationOverlayChecks
                 await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
                 CheckGeometry(window, page);
                 Thickness reserved = page.FindControl<ListBox>("ArchivePosts")!.Margin;
-                Require(reserved.Bottom == 0 && (transitionWidth < 946 ? reserved.Right == 0 : reserved.Right > 0),
-                    "Reader navigation reserved a bottom row or lost the genuinely free wide-screen side lane: window " + transitionWidth
+                Require(reserved == default, "Reader navigation reserved a lane next to or below the content: window " + transitionWidth
                     + ", surface " + page.FindControl<Grid>("ReaderContentSurface")!.Bounds.Width + ", margin " + reserved);
             }
             await PresentationChecks.SwitchModeAsync(window, "Barebones");
@@ -166,6 +165,43 @@ internal static class ReaderNavigationOverlayChecks
         Console.WriteLine("SMOKE reader navigation overlay: 24 EN/DE, Dark/Light, large and B/S/A minimum geometries plus both adaptive threshold edges and 12 explicit secondary-tab states; full-height overlaid narrow viewport, scrollable last-post clearance, scrollbar/pagebar spacing, controlled toolbar wrapping with visible history label, centered arrow cross and adjacent centered pagination, four accessible commands, retained secondary tabs and dialog hit-test passed.");
     }
 
+    // Optional review captures (MEOWCHAN_NAVCROSS_EVIDENCE_DIR): the posts and the media tab at 1440 and 1920 dip, dark and light.
+    private static async Task CaptureEvidenceAsync(MainWindow window, ArchivePage page, TabControl tabs)
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEOWCHAN_NAVCROSS_EVIDENCE_DIR");
+        if (string.IsNullOrEmpty(directory)) return;
+        Directory.CreateDirectory(directory);
+        await PresentationChecks.SwitchModeAsync(window, "Simple");
+        foreach (double evidenceWidth in new[] { 1440d, 1920d })
+        {
+            window.Width = evidenceWidth; window.Height = 920;
+            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, evidenceWidth, 920));
+            foreach (ThemeVariant variant in new[] { ThemeVariant.Dark, ThemeVariant.Light })
+            {
+                Application.Current!.RequestedThemeVariant = variant;
+                string key = $"{evidenceWidth:0}-{variant.ToString().ToLowerInvariant()}";
+                tabs.SelectedIndex = 0;
+                await page.FocusPostAsync("1003");
+                await Program.WaitUntilAsync(() => HasRenderedPost(page));
+                await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+                Program.CaptureWindow(window, $"thread-posts-{key}.png", directory);
+                foreach (bool tiles in new[] { true, false })
+                {
+                    tabs.SelectedIndex = 1;
+                    page.MediaTilesPreference = tiles;
+                    await page.MediaLoadTask;
+                    await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+                    Program.CaptureWindow(window, $"media-{(tiles ? "tiles" : "table")}-{key}.png", directory);
+                }
+                tabs.SelectedIndex = 2;
+                await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+                Program.CaptureWindow(window, $"references-{key}.png", directory);
+            }
+        }
+        tabs.SelectedIndex = 0;
+        await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+    }
+
     private static bool HasRenderedPost(ArchivePage page) => page.FindControl<ListBox>("ArchivePosts")!
         .GetVisualDescendants().OfType<ListBoxItem>().Any(item => item.IsEffectivelyVisible && item.Bounds.Width > 0);
 
@@ -190,11 +226,8 @@ internal static class ReaderNavigationOverlayChecks
         if (bodyAtItem.X > viewAtItem.X + view.Bounds.Width)
             Require(Math.Abs(bodyAtItem.Y - (viewAtItem.Y + labelTop.Y)) < 14, $"The text did not start at the file line: body {bodyAtItem}, file line {viewAtItem.Y + labelTop.Y}.");
         Grid surface = page.FindControl<Grid>("ReaderContentSurface")!;
-        if (windowWidth >= 1000)
-            Require(posts.Bounds.Width >= surface.Bounds.Width - ReaderNavigationLayoutLane - 1, $"The post list was capped: {posts.Bounds.Width} of {surface.Bounds.Width}.");
+        Require(posts.Bounds.Width >= surface.Bounds.Width - 1, $"The post list was capped or left a lane for the cross: {posts.Bounds.Width} of {surface.Bounds.Width}.");
     }
-
-    private const double ReaderNavigationLayoutLane = 144;
 
     private static void CheckGeometry(MainWindow window, ArchivePage page)
     {
@@ -237,11 +270,9 @@ internal static class ReaderNavigationOverlayChecks
             "Reader navigation still subtracts a full-width bottom lane from the thread viewport.");
         Require(posts.ItemsPanelRoot is VirtualizingStackPanel,
             "Overlay navigation disabled post virtualization.");
-        if (posts.Margin.Right == 0)
-            Require(postBounds.Intersect(pad).Height > 0 && postBounds.Intersect(pad).Width > 0,
-                "Narrow navigation is not an overlay inside the full-height thread viewport.");
-        else Require(postBounds.Right <= pad.Left - 4,
-            "Wide-screen navigation lost its free side lane.");
+        Require(posts.Margin == default && Math.Abs(postBounds.Right - Bounds(page.FindControl<Grid>("ReaderContentSurface")!, window).Right) <= 1
+            && postBounds.Intersect(pad).Height > 0 && postBounds.Intersect(pad).Width > 0,
+            "Navigation is not an overlay inside the full-width, full-height thread viewport.");
         Console.WriteLine($"SMOKE reader navigation geometry: mode={window.SessionHost.Config.WorkspaceMode}; language={Texts.Language}; theme={Application.Current!.RequestedThemeVariant}; client={window.ClientSize}; scale={window.RenderScaling}; toolbar={toolbar.Bounds.Height}; viewport={scroll.Viewport}; posts={postBounds}; pad={pad}; pagebar={pageBar}; reservation={posts.Margin}.");
         foreach (ScrollBar bar in posts.GetVisualDescendants().OfType<ScrollBar>()
             .Where(bar => bar.IsEffectivelyVisible && bar.Orientation == Orientation.Vertical && bar.Bounds.Width > 0))
@@ -263,7 +294,7 @@ internal static class ReaderNavigationOverlayChecks
     private static async Task CheckOverlayTailReadabilityAsync(MainWindow window, ArchivePage page)
     {
         ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
-        if (posts.Margin.Right > 0 || posts.ItemCount == 0) return;
+        if (posts.ItemCount == 0) return;
         object last = posts.Items[posts.ItemCount - 1]!;
         posts.ScrollIntoView(last);
         ScrollViewer scroll = posts.GetVisualDescendants().OfType<ScrollViewer>().First();
@@ -306,8 +337,32 @@ internal static class ReaderNavigationOverlayChecks
         }));
         Require(navigation.IsEffectivelyVisible && Contains(Bounds(page.FindControl<Grid>("ReaderContentSurface")!, window), pad),
             "Reader navigation disappeared or is clipped on a secondary tab.");
-        Require(content.Right + 4 <= pad.Left || content.Bottom + 4 <= pad.Top,
-            "Secondary-tab content can sit beneath reader navigation.");
+        // The content runs to the right edge and the cross floats over it; the last row can scroll clear of the cross.
+        Require(reservedContent.Margin == default && Math.Abs(content.Right - Bounds(tabs, window).Right) <= 24,
+            "Secondary-tab content does not use the full width: " + content + " in " + Bounds(tabs, window));
+        Require(pad.Right <= content.Right && pad.Left >= content.Left && pad.Bottom <= content.Bottom + 1,
+            "The cross does not float over its secondary-tab content: " + pad + " over " + content);
+        if (tabs.SelectedIndex == 1 && page.FindControl<ListBox>("ArchiveMediaTiles")!.IsVisible
+            && page.FindControl<ListBox>("ArchiveMediaTiles") is { ItemsPanelRoot: Panel tilesPanel } tiles
+            && tiles.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault() is ScrollViewer tilesScroll)
+        {
+            Console.WriteLine($"SMOKE reader navigation clearance: tiles padding={tiles.Padding} panel={tilesPanel.Bounds.Height} extent={tilesScroll.Extent.Height}");
+            Require(tiles.Padding.Bottom >= ReaderNavigationLayout.OverlayTailInset
+                && tilesScroll.Extent.Height >= tilesPanel.Bounds.Height + ReaderNavigationLayout.OverlayTailInset - 1,
+                "The media tiles have no scroll clearance below their last row for the cross: extent "
+                + tilesScroll.Extent.Height + ", panel " + tilesPanel.Bounds.Height);
+        }
+        if (tabs.SelectedIndex == 2 && page.FindControl<ListBox>("ArchiveReferences") is { ItemCount: > 0 } references)
+            Require(references.ContainerFromIndex(references.ItemCount - 1) is Control last
+                && last.Margin.Bottom >= ReaderNavigationLayout.OverlayTailInset,
+                "The references list has no scroll clearance below its last entry for the cross.");
+        // Only its four buttons take the pointer: the diagonal corner cells and the backdrop pass clicks to the content.
+        Visual? cornerHit = window.InputHitTest(new Point(pad.Left + 20, pad.Top + 20)) as Visual;
+        Require(cornerHit == null || !cornerHit.GetSelfAndVisualAncestors().Contains(navigation),
+            "The empty corner of the cross swallowed a click meant for the content.");
+        Visual? buttonHit = window.InputHitTest(Bounds(page.FindControl<Button>("ReaderNextPost")!, window).Center) as Visual;
+        Require(buttonHit != null && buttonHit.GetSelfAndVisualAncestors().Contains(page.FindControl<Button>("ReaderNextPost")!),
+            "A cross button is not hit-testable.");
         if (tabs.SelectedIndex == 2)
             foreach (string name in new[] { "ArchiveReferencesTitle", "PreviousReferences", "ArchiveReferencesPage", "NextReferences" })
             {
