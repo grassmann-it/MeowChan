@@ -398,7 +398,7 @@
                                                                 <StackPanel>
                                                                     <!-- The Semi text theme sets FontSize locally; explicitly honor the reader preference.
                                                                          Greentext and >>No. are runs over the plain text; a click on >>No. opens it like the buttons. -->
-                                                                    <desktop:ReaderBodyTextBlock Document="{Binding BodyDocument}" IsTextOnly="{Binding IsTextOnly}" FontSize="{Binding $parent[ListBox].FontSize}"
+                                                                    <desktop:ReaderBodyTextBlock Classes="reader-body" Document="{Binding BodyDocument}" IsTextOnly="{Binding IsTextOnly}" FontSize="{Binding $parent[ListBox].FontSize}"
                                                                                                  TextWrapping="Wrap" QuoteInvoked="OnInlineQuoteInvoked" />
                                                                     <!-- Keyboard/screen-reader path for the inline references (inline runs are not focusable):
                                                                          after the text in tab and reading order, zero height until it holds keyboard focus. -->

@@ -321,7 +321,7 @@ public static class ArchiveHtmlExporter
     private static string SafeExtension(string path) => Path.GetExtension(path).ToLowerInvariant() switch
     { ".png" => ".png", ".jpg" => ".jpg", ".jpeg" => ".jpeg", ".gif" => ".gif", ".webp" => ".webp", ".bmp" => ".bmp", ".webm" => ".webm", ".mp4" => ".mp4", _ => ".bin" };
     internal const string Css = """
-        :root{color-scheme:dark light;font:16px/1.5 system-ui,sans-serif;background:#15181c;color:#e0e3e6}
+        :root{color-scheme:dark light;font:16px/1.5 "Noto Sans",system-ui,sans-serif;background:#15181c;color:#e0e3e6}
         body{max-width:960px;margin:auto;padding:24px}header,footer,article{background:#20242a;border:1px solid #363b44;border-radius:6px;padding:20px;margin-bottom:16px}
         h1,h2{overflow-wrap:anywhere}h2{font-size:1.05rem}.body{white-space:pre-wrap;overflow-wrap:anywhere}.meta{color:#aab2be;font-size:.85rem}
         a{color:#88b8ff;overflow-wrap:anywhere}.quote,.omission{display:block;margin:8px 0}.omission{color:#e9bc7d;font-size:.9rem}figure{margin:16px 0}img,video{display:block;max-width:100%;max-height:600px}figcaption{overflow-wrap:anywhere}

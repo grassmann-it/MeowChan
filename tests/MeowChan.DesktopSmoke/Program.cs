@@ -235,7 +235,8 @@ internal static class Program
                 : _shellLoadMode ? AppBuilder.Configure<ShellLoadSmokeApp>()
                 : _visualMode ? AppBuilder.Configure<ShowcaseSmokeApp>() : AppBuilder.Configure<App>())
                 .UsePlatformDetect()
-                .WithInterFont();
+                .WithInterFont()
+                .With(ReaderFonts.ManagerOptions());
             if (xvfbEnvironment)
             {
                 Console.WriteLine("SMOKE isolated environment: " + (Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_KWIN") == "1" ? "headless KWin/XWayland" : "Xvfb/Openbox")

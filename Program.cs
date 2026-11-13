@@ -46,5 +46,6 @@ internal static class Program
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .WithInterFont()
+            .With(MeowChan.Desktop.ReaderFonts.ManagerOptions())
             .LogToTrace();
 }

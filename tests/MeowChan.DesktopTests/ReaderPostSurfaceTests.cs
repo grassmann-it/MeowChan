@@ -180,6 +180,7 @@ public sealed class ReaderPostSurfaceTests
         Assert.Equal("{Binding IsTextOnly}", (string?)body.Attribute("IsTextOnly"));
         Assert.Equal("{Binding $parent[ListBox].FontSize}", (string?)body.Attribute("FontSize"));
         Assert.Equal("Wrap", (string?)body.Attribute("TextWrapping"));
+        Assert.Equal("reader-body", (string?)body.Attribute("Classes")); // Reading font via the shared style, not a local FontFamily.
         Assert.DoesNotContain(root.DescendantsAndSelf(), element => element.Attribute("FontFamily") != null);
     }
 
