@@ -61,7 +61,9 @@ internal sealed class UpdateSession : IAsyncDisposable
         try
         {
             await RefreshAsync().ConfigureAwait(false);
-            await Task.Delay(TimeSpan.FromSeconds(30), _time, _lifetime.Token).ConfigureAwait(false);
+            // MEOWCHAN_UPDATE_SIMULATE: no network is involved, so a tester does not need to wait out the start-up quiet time.
+            bool simulating = UpdateService.ParseSimulated(Environment.GetEnvironmentVariable(UpdateService.SimulateVariable)) != null;
+            await Task.Delay(TimeSpan.FromSeconds(simulating ? 3 : 30), _time, _lifetime.Token).ConfigureAwait(false);
             while (true)
             {
                 await CheckAsync(UpdateCheckKind.Automatic).ConfigureAwait(false);

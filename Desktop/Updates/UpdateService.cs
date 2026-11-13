@@ -15,12 +15,24 @@ namespace MeowChan.Desktop.Updates;
 /// </summary>
 public sealed class UpdateService
 {
+    /// <summary>
+    /// Tester switch: <c>MEOWCHAN_UPDATE_SIMULATE=&lt;semantic version&gt;</c> makes every check answer as if that version were the
+    /// latest release, with no network request, so the update toast, footer notice and tray entry can be triggered on any machine.
+    /// Nothing of a simulated check is written to <c>update-state.json</c> (no check time, no found update, no skipped version):
+    /// the next start without the variable behaves as if it never happened. <c>MEOWCHAN_DISABLE_UPDATE_CHECK=1</c> still wins.
+    /// Unset, empty or not a valid semantic version: the switch is off and a real check runs.
+    /// </summary>
+    public const string SimulateVariable = "MEOWCHAN_UPDATE_SIMULATE";
     private static readonly TimeSpan AutomaticInterval = TimeSpan.FromHours(24);
     private readonly HttpClient _client;
     private readonly UpdateStateStore _store;
     private UpdateServiceOptions _options;
     private readonly TimeProvider _time;
     private readonly Func<string?> _disableEnvironment;
+    private readonly Func<string?> _simulateEnvironment;
+    private UpdateInfo? _simulatedFound;
+    private SemanticVersion? _simulatedSkipped;
+    private string? _simulationLogged;
     private readonly Action<UpdateCheckError, Exception?> _diagnostic;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private long _checkGeneration;
@@ -28,7 +40,7 @@ public sealed class UpdateService
 
     public UpdateService(HttpClient client, UpdateStateStore store, UpdateServiceOptions options,
         TimeProvider? timeProvider = null, Func<string?>? disableEnvironment = null,
-        Action<UpdateCheckError, Exception?>? diagnostic = null)
+        Action<UpdateCheckError, Exception?>? diagnostic = null, Func<string?>? simulateEnvironment = null)
     {
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(store);
@@ -43,6 +55,7 @@ public sealed class UpdateService
         _options = options;
         _time = timeProvider ?? TimeProvider.System;
         _disableEnvironment = disableEnvironment ?? (() => Environment.GetEnvironmentVariable("MEOWCHAN_DISABLE_UPDATE_CHECK"));
+        _simulateEnvironment = simulateEnvironment ?? (() => Environment.GetEnvironmentVariable(SimulateVariable));
         _diagnostic = diagnostic ?? ((error, exception) => Log.Information(exception, "Update check failed: {Reason}", error));
     }
 
@@ -76,15 +89,57 @@ public sealed class UpdateService
     public async Task<UpdateState> GetStateAsync(CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try { return _store.Load(); }
+        try
+        {
+            UpdateState state = _store.Load();
+            // A simulated update lives in memory only, and only while the switch is set.
+            return Simulated() is null ? state : state with { FoundUpdate = _simulatedFound, SkippedVersion = _simulatedSkipped };
+        }
         finally { _gate.Release(); }
     }
 
     public async Task SkipVersionAsync(SemanticVersion? version, CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try { _store.Save(_store.Load() with { SkippedVersion = version }, cancellationToken); }
+        try
+        {
+            if (Simulated() is not null) _simulatedSkipped = version;
+            else _store.Save(_store.Load() with { SkippedVersion = version }, cancellationToken);
+        }
         finally { _gate.Release(); }
+    }
+
+    /// <summary>The version the tester asked to simulate; null when the switch is unset or not a valid semantic version.</summary>
+    internal static SemanticVersion? ParseSimulated(string? value) =>
+        SemanticVersion.TryParse(value?.Trim(), out SemanticVersion? version) ? version : null;
+
+    private SemanticVersion? Simulated()
+    {
+        string? raw = _simulateEnvironment();
+        SemanticVersion? version = ParseSimulated(raw);
+        string key = version?.ToString() ?? (string.IsNullOrWhiteSpace(raw) ? string.Empty : "invalid:" + raw.Trim());
+        if (key.Length != 0 && key != _simulationLogged)
+        {
+            _simulationLogged = key;
+            if (version is null) Log.Warning("{Variable} is not a valid semantic version and is ignored; real update checks run.", SimulateVariable);
+            else Log.Warning("{Variable}={Version}: update checks are simulated, with no network request and nothing saved.", SimulateVariable, version);
+        }
+        return version;
+    }
+
+    private UpdateCheckResult Simulate(SemanticVersion version, UpdateCheckKind kind)
+    {
+        bool newer = version.CompareTo(_options.CurrentVersion) > 0 && (_options.IncludePrereleases || !version.IsPrerelease);
+        if (!newer)
+        {
+            _simulatedFound = null;
+            return new UpdateCheckResult(UpdateCheckStatus.UpToDate);
+        }
+        Uri release = UpdateReleaseParser.ReleaseUri("v" + version);
+        UpdateInfo update = new(version, release, release);
+        _simulatedFound = update;
+        bool skipped = kind == UpdateCheckKind.Automatic && version.Equals(_simulatedSkipped);
+        return new UpdateCheckResult(skipped ? UpdateCheckStatus.Skipped : UpdateCheckStatus.Available, update);
     }
 
     public async Task<UpdateCheckResult> CheckAsync(UpdateCheckKind kind, CancellationToken cancellationToken = default)
@@ -99,6 +154,7 @@ public sealed class UpdateService
         {
             disabled = Disabled(kind);
             if (disabled is not null) return disabled;
+            if (Simulated() is { } simulated) return Simulate(simulated, kind);
             if (generation != _checkGeneration && _lastResult is not null)
             {
                 if (_lastResult.Status is not (UpdateCheckStatus.Available or UpdateCheckStatus.Skipped)) return _lastResult;
