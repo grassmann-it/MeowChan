@@ -166,6 +166,7 @@ public partial class SettingsEditor
             nameof(PrivateTagLimitHelp), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBHelp),
             nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitHelp), nameof(SourcesWatchPreviewRowsHelp), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitHelp), nameof(ThumbnailCacheTilesHelp), nameof(ClipboardUrlLimitHelp), nameof(ClipboardTextLimitKiBHelp), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesHelp), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsHelp) })
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
+        NotifyStatisticsHelpChanged();
     }
 
     private void SetFieldErrorHelp(Control input, Func<string> message)
@@ -250,6 +251,7 @@ public partial class SettingsEditor
             Config.MediaIndexMaxThreadsMinimum, Config.MediaIndexMaxThreadsMaximum, true);
         yield return (ImportCatalogLimitMiBInput, ImportCatalogLimitMiB, ImportCatalogLimitMiBLabel, Texts.T("settings.unitMiB"),
             Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum, true);
+        foreach (var field in StatisticsNumericFields()) yield return field;
     }
 
     private void ClearFieldErrors()
@@ -287,6 +289,7 @@ public partial class SettingsEditor
     {
         foreach (var field in NumericFields())
         {
+            if (!IsStatisticsFieldActive(field.Input)) continue;
             string? key = null;
             bool parsed = decimal.TryParse(field.Input.Text, field.Input.ParsingNumberStyle, field.Input.NumberFormat, out decimal raw);
             bool InvalidNumber(decimal? value) => !value.HasValue || value < field.Min || value > field.Max ||

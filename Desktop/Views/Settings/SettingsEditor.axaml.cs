@@ -271,6 +271,7 @@ namespace MeowChan
             MediaIndexMaxThreads = config.MediaIndexMaxThreads;
             ImportCatalogLimitMiB = config.ImportCatalogLimitMiB;
 
+            LoadStatisticsDraft(config);
             RefreshChoices(config.Theme, config.WorkspaceMode, config.Language);
             DataContext = this;
             ApplyCommandIcons();
@@ -819,6 +820,7 @@ namespace MeowChan
             MediaIndexMaxThreads = _config.MediaIndexMaxThreads;
             ImportCatalogLimitMiB = _config.ImportCatalogLimitMiB;
 
+            LoadStatisticsDraft(_config);
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
@@ -956,6 +958,7 @@ namespace MeowChan
                     nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp), nameof(ErrorDetailsLabel),
                 })
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
+                RaiseStatisticsTextsChanged();
                 _refreshingLanguageLabels = true;
                 try
                 {
@@ -1204,6 +1207,7 @@ namespace MeowChan
                 candidate.MediaIndexMaxEntries = GetInteger(MediaIndexMaxEntries, MediaIndexMaxEntriesLabel, Config.MediaIndexMaxEntriesMinimum, Config.MediaIndexMaxEntriesMaximum);
                 candidate.MediaIndexMaxThreads = GetInteger(MediaIndexMaxThreads, MediaIndexMaxThreadsLabel, Config.MediaIndexMaxThreadsMinimum, Config.MediaIndexMaxThreadsMaximum);
                 candidate.ImportCatalogLimitMiB = GetInteger(ImportCatalogLimitMiB, ImportCatalogLimitMiBLabel, Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum);
+                ApplyStatisticsDraft(candidate, _config);
 
                 if (!BandwidthLimiterMB.HasValue || BandwidthLimiterMB.Value <= 0)
                 {
@@ -1315,6 +1319,7 @@ namespace MeowChan
             MediaIndexMaxThreads = _config.MediaIndexMaxThreads;
             ImportCatalogLimitMiB = _config.ImportCatalogLimitMiB;
 
+            LoadStatisticsDraft(_config);
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);

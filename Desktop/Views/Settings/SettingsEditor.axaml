@@ -503,8 +503,13 @@
                     <CheckBox x:Name="RestoreSessionInput" Content="{Binding RestoreSessionLabel}" IsChecked="{Binding SaveUrlsOnExit, Mode=TwoWay}" />
                     <CheckBox x:Name="CloseToTrayInput" Content="{Binding CloseToTrayLabel}" IsChecked="{Binding CloseToTray, Mode=TwoWay}" />
                     <CheckBox x:Name="MinimizeToTrayInput" Content="{Binding MinimizeToTrayLabel}" IsChecked="{Binding MinimizeToTray, Mode=TwoWay}" />
-                    <StackPanel x:Name="StatsHeaderGraphBlock" Spacing="6" Margin="0,14,0,0">
-                        <TextBlock x:Name="StatsHeaderGraphHeading" Text="{Binding StatsHeaderGraphBlockTitle}" Classes="section-title" />
+                    <StackPanel x:Name="SettingsStatisticsSection" Spacing="8" Margin="0,14,0,0">
+                        <StackPanel.Styles>
+                            <!-- An unavailable row stays readable but is visibly set apart; its tooltip names the switch it depends on. -->
+                            <Style Selector="TextBlock.workspace-field-label:disabled"><Setter Property="Opacity" Value="0.6" /></Style>
+                        </StackPanel.Styles>
+                        <TextBlock x:Name="SettingsStatisticsHeading" Text="{Binding StatisticsTitle}" Classes="workspace-field-label" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding StatisticsIntro}" Classes="muted workspace-help" TextWrapping="Wrap" />
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
                             <StackPanel VerticalAlignment="Center" Spacing="3">
                                 <TextBlock x:Name="StatsHeaderGraphFieldLabel" Text="{Binding StatsHeaderGraphLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
@@ -515,6 +520,66 @@
                                 <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
                             </ComboBox>
                         </Grid>
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                            <TextBlock x:Name="StatsSampleIntervalMsFieldLabel" Text="{Binding StatsSampleIntervalMsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="StatsSampleIntervalMsInput" Value="{Binding StatsSampleIntervalMs, Mode=TwoWay}" Minimum="500" Maximum="10000" Increment="100" AutomationProperties.LabeledBy="{Binding ElementName=StatsSampleIntervalMsFieldLabel}" AutomationProperties.Name="{Binding StatsSampleIntervalMsLabel}" AutomationProperties.HelpText="{Binding StatsSampleIntervalMsHelp}" />
+                                <TextBlock x:Name="StatsSampleIntervalMsInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding StatsSampleIntervalMsHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                            <TextBlock x:Name="StatsHistorySamplesFieldLabel" Text="{Binding StatsHistorySamplesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="StatsHistorySamplesInput" Value="{Binding StatsHistorySamples, Mode=TwoWay}" Minimum="30" Maximum="3600" Increment="10" AutomationProperties.LabeledBy="{Binding ElementName=StatsHistorySamplesFieldLabel}" AutomationProperties.Name="{Binding StatsHistorySamplesLabel}" AutomationProperties.HelpText="{Binding StatsHistorySamplesHelp}" />
+                                <TextBlock x:Name="StatsHistorySamplesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding StatsHistorySamplesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <CheckBox x:Name="StatsTrayTooltipInput" IsChecked="{Binding StatsTrayTooltip, Mode=TwoWay}" AutomationProperties.Name="{Binding StatsTrayTooltipLabel}" AutomationProperties.HelpText="{Binding StatsTrayTooltipHint}">
+                            <TextBlock Text="{Binding StatsTrayTooltipLabel}" TextWrapping="Wrap" />
+                        </CheckBox>
+                        <TextBlock Text="{Binding StatsTrayTooltipHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24" ToolTip.Tip="{Binding StatsBackgroundIntervalMsReason}" ToolTip.ShowOnDisabled="True">
+                            <TextBlock x:Name="StatsBackgroundIntervalMsFieldLabel" Text="{Binding StatsBackgroundIntervalMsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" IsEnabled="{Binding StatsBackgroundIntervalMsEnabled}" />
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="StatsBackgroundIntervalMsInput" Value="{Binding StatsBackgroundIntervalMs, Mode=TwoWay}" Minimum="2000" Maximum="60000" Increment="1000" IsEnabled="{Binding StatsBackgroundIntervalMsEnabled}" ToolTip.Tip="{Binding StatsBackgroundIntervalMsReason}" ToolTip.ShowOnDisabled="True" AutomationProperties.LabeledBy="{Binding ElementName=StatsBackgroundIntervalMsFieldLabel}" AutomationProperties.Name="{Binding StatsBackgroundIntervalMsLabel}" AutomationProperties.HelpText="{Binding StatsBackgroundIntervalMsHelp}" />
+                                <TextBlock x:Name="StatsBackgroundIntervalMsInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding StatsBackgroundIntervalMsHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <CheckBox x:Name="StatsTrayMenuInput" IsChecked="{Binding StatsTrayMenu, Mode=TwoWay}" AutomationProperties.Name="{Binding StatsTrayMenuLabel}" AutomationProperties.HelpText="{Binding StatsTrayMenuHint}">
+                            <TextBlock Text="{Binding StatsTrayMenuLabel}" TextWrapping="Wrap" />
+                        </CheckBox>
+                        <TextBlock Text="{Binding StatsTrayMenuHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <CheckBox x:Name="StatsPersistInput" IsChecked="{Binding StatsPersist, Mode=TwoWay}" AutomationProperties.Name="{Binding StatsPersistLabel}" AutomationProperties.HelpText="{Binding StatsPersistHint}">
+                            <TextBlock Text="{Binding StatsPersistLabel}" TextWrapping="Wrap" />
+                        </CheckBox>
+                        <TextBlock Text="{Binding StatsPersistHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24" ToolTip.Tip="{Binding StatsRetentionDaysReason}" ToolTip.ShowOnDisabled="True">
+                            <TextBlock x:Name="StatsRetentionDaysFieldLabel" Text="{Binding StatsRetentionDaysLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" IsEnabled="{Binding StatsRetentionDaysEnabled}" />
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="StatsRetentionDaysInput" Value="{Binding StatsRetentionDays, Mode=TwoWay}" Minimum="1" Maximum="365" Increment="1" IsEnabled="{Binding StatsRetentionDaysEnabled}" ToolTip.Tip="{Binding StatsRetentionDaysReason}" ToolTip.ShowOnDisabled="True" AutomationProperties.LabeledBy="{Binding ElementName=StatsRetentionDaysFieldLabel}" AutomationProperties.Name="{Binding StatsRetentionDaysLabel}" AutomationProperties.HelpText="{Binding StatsRetentionDaysHelp}" />
+                                <TextBlock x:Name="StatsRetentionDaysInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding StatsRetentionDaysHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24" ToolTip.Tip="{Binding StatsPersistIntervalMinutesReason}" ToolTip.ShowOnDisabled="True">
+                            <TextBlock x:Name="StatsPersistIntervalMinutesFieldLabel" Text="{Binding StatsPersistIntervalMinutesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" IsEnabled="{Binding StatsPersistIntervalMinutesEnabled}" />
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="StatsPersistIntervalMinutesInput" Value="{Binding StatsPersistIntervalMinutes, Mode=TwoWay}" Minimum="1" Maximum="60" Increment="1" IsEnabled="{Binding StatsPersistIntervalMinutesEnabled}" ToolTip.Tip="{Binding StatsPersistIntervalMinutesReason}" ToolTip.ShowOnDisabled="True" AutomationProperties.LabeledBy="{Binding ElementName=StatsPersistIntervalMinutesFieldLabel}" AutomationProperties.Name="{Binding StatsPersistIntervalMinutesLabel}" AutomationProperties.HelpText="{Binding StatsPersistIntervalMinutesHelp}" />
+                                <TextBlock x:Name="StatsPersistIntervalMinutesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding StatsPersistIntervalMinutesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                            <TextBlock x:Name="StatsMaxSourcesFieldLabel" Text="{Binding StatsMaxSourcesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="StatsMaxSourcesInput" Value="{Binding StatsMaxSources, Mode=TwoWay}" Minimum="8" Maximum="256" Increment="8" AutomationProperties.LabeledBy="{Binding ElementName=StatsMaxSourcesFieldLabel}" AutomationProperties.Name="{Binding StatsMaxSourcesLabel}" AutomationProperties.HelpText="{Binding StatsMaxSourcesHelp}" />
+                                <TextBlock x:Name="StatsMaxSourcesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding StatsMaxSourcesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
                     </StackPanel>
                     <TextBlock Text="{Binding SupportedSources}" Classes="muted workspace-help" />
                     <Button x:Name="AboutSettingsButton" Click="OnAboutButtonClick" HorizontalAlignment="Left" />
