@@ -64,9 +64,11 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     internal const string WatcherNoticeName = "BooruWatcherNotice";
     internal const string ResultTagPrefix = "BooruResultTag:";
     internal const string DetailsPrefix = "BooruResultDetails:";
+    internal const string MoreTagsPrefix = "BooruResultMoreTags:";
 
     private const int PreviewSize = 112;
     private const int MaximumTagsShown = 24;
+    private const int MaximumHiddenTagsNamed = 60;
     private const int MaximumPreviewBytes = 8 * 1024 * 1024;
 
     private sealed record CachedBitmap(byte[] Bytes, Bitmap Bitmap);
@@ -140,6 +142,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         Name = "BooruWorkbenchWindow";
         Width = 1000; Height = 760; MinWidth = 600; MinHeight = 520;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        DialogFit.OnOpen(this);
 
         Content = WindowChrome.Frame(this, DialogFrame.Build(BuildHeader(), new Border { Child = BuildBody(), Classes = { "workspace-dialog-body" } },
             BuildFooter(), DialogFrame.ErrorStrip(new TextBlock())));
@@ -878,6 +881,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
             return panel;
         }
         int shown = 0;
+        HashSet<string> shownNames = new(StringComparer.Ordinal);
         foreach (BooruTagCategory category in new[] { BooruTagCategory.Artist, BooruTagCategory.Copyright, BooruTagCategory.Character,
             BooruTagCategory.General, BooruTagCategory.Meta, BooruTagCategory.Unknown })
         {
@@ -885,6 +889,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
             if (names.Length == 0 || shown >= MaximumTagsShown) continue;
             string[] take = names.Take(MaximumTagsShown - shown).ToArray();
             shown += take.Length;
+            shownNames.UnionWith(take);
             // C1: source tags as compact dashed chips with their category mark; the category is named in front, so the mark is
             // only an addition. I8: Danbooru's category order (artist, copyright, character, general, meta); a chip adds its tag
             // to the search field (nothing is requested until Search).
@@ -908,7 +913,15 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
             panel.Children.Add(line);
         }
         if (post.Tags.Length > shown)
-            panel.Children.Add(new TextBlock { Text = Texts.T("booru.ui.tags.more", post.Tags.Length - shown), Classes = { "workspace-meta" } });
+        {
+            // The tags that do not fit are named for the mouse and for assistive technology; the details dialog of the saved medium lists all.
+            string[] hidden = post.Tags.Select(tag => tag.Name).Where(name => !shownNames.Contains(name)).ToArray();
+            string rest = string.Join(", ", hidden.Take(MaximumHiddenTagsNamed)) + (hidden.Length > MaximumHiddenTagsNamed ? "…" : string.Empty);
+            TextBlock more = new() { Name = MoreTagsPrefix + post.PostId, Text = Texts.T("booru.ui.tags.more", post.Tags.Length - shown), Classes = { "workspace-meta" } };
+            ToolTip.SetTip(more, rest);
+            AutomationProperties.SetHelpText(more, rest);
+            panel.Children.Add(more);
+        }
         return panel;
     }
 

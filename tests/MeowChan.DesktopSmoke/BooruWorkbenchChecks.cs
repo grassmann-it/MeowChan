@@ -54,6 +54,14 @@ internal static class BooruWorkbenchChecks
             Require(Text(window).Contains("adds no rating filter") || Text(window).Contains("no rating filter"),
                 "The no-rating-filter note is missing.");
             Require(!Text(window).Contains("18+"), "An 18+ notice appeared.");
+            // M10 / M5: the window title is a level-1 heading for screen readers, and the window fits the screen it opened on.
+            Require(window.GetVisualDescendants().OfType<TextBlock>().Any(block => block.Classes.Contains("page-title")
+                    && AutomationProperties.GetHeadingLevel(block) == 1),
+                "The window title is not a level-1 heading.");
+            if (window.Screens.ScreenFromWindow(window) is { } screen)
+                Require(window.Bounds.Height * window.RenderScaling <= screen.WorkingArea.Height + 1
+                    && window.Bounds.Width * window.RenderScaling <= screen.WorkingArea.Width + 1,
+                    "The Danbooru window is larger than the working area: " + window.Bounds + " on " + screen.WorkingArea);
 
             // ---- search: the query is visible exactly as sent -------------------------------------------------------
             TextBox input = Find<TextBox>(window, BooruWorkbenchWindow.InputName);
