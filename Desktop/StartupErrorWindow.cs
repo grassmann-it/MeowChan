@@ -24,7 +24,7 @@ public sealed class StartupErrorWindow : Window
         Width = 560;
         Height = 360;
         MinWidth = 340;
-        MinHeight = 240;
+        MinHeight = 280;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");

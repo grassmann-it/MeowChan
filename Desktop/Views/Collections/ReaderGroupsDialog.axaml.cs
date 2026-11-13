@@ -555,7 +555,7 @@ internal static class ReaderGroupsPrompt
         ReaderGroupsDialog.PresentationText accept, ReaderGroupsDialog.PresentationText cancel)
     {
         Window prompt = new() { Title = Texts.T("readerGroups.title"), Width = 500, MaxWidth = Math.Max(400, owner.Bounds.Width), Height = 300,
-            MinHeight = 180, WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false };
+            MinHeight = 260, WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false };
         bool closed = false;
         // Invalidate before dispatch: a queued click cannot approve old-language prose.
         using LanguageLifetime language = new(() =>

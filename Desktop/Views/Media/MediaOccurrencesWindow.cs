@@ -21,7 +21,7 @@ internal sealed class MediaOccurrencesWindow : Window
     {
         Name = "MediaOccurrences";
         Title = Texts.T("media.occurrences.title", tile.Entry.Name ?? tile.Entry.MediaId ?? string.Empty);
-        Width = 680; Height = 480; MinWidth = 340; MinHeight = 240;
+        Width = 680; Height = 480; MinWidth = 340; MinHeight = 280;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         TextBlock summary = new() { Name = "MediaOccurrencesSummary", TextWrapping = Avalonia.Media.TextWrapping.Wrap,
             Text = tile.ProviderPostCount == 0 ? Texts.T("media.occurrences.summary", tile.Occurrences.Count, tile.ThreadCount)

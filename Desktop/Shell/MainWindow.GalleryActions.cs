@@ -197,7 +197,7 @@ public partial class MainWindow
         Window dialog = new()
         {
             Name = "GalleryDetailsDialog", Title = CommandCatalog.Label("thread.details"), Width = 600, Height = 360,
-            MinWidth = 340, MinHeight = 240, WindowStartupLocation = WindowStartupLocation.CenterOwner
+            MinWidth = 340, MinHeight = 280, WindowStartupLocation = WindowStartupLocation.CenterOwner
         };
         SelectableTextBlock text = new()
         {

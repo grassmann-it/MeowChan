@@ -59,7 +59,7 @@ public partial class ArchivePage
     {
         if (IsFilenameSearchOpen) return;
         if (TopLevel.GetTopLevel(this) is not Window owner) { Message(content); return; }
-        Window dialog = new() { Title = title, Width = 600, Height = 360, MinWidth = 360, MinHeight = 220,
+        Window dialog = new() { Title = title, Width = 600, Height = 360, MinWidth = 360, MinHeight = 280,
             WindowStartupLocation = WindowStartupLocation.CenterOwner };
         TextBox details = new() { Text = content, IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap };
         TextBlock heading = new() { Text = title, TextWrapping = TextWrapping.Wrap };
