@@ -10,14 +10,14 @@ public sealed class CatalogShortcutGapTests
     {
         foreach (var platform in new[] { ShortcutPlatform.Linux, ShortcutPlatform.Windows, ShortcutPlatform.MacOS })
         {
-            string primary = platform == ShortcutPlatform.MacOS ? "⌘" : "Ctrl";
-            yield return new object[] { platform, "media.select-all", primary + "+A" };
-            yield return new object[] { platform, "thread.favorite-toggle", primary + "+D" };
-            yield return new object[] { platform, "thread.tags", primary + "+T" };
-            yield return new object[] { platform, "media.tags.edit", primary + "+T" };
-            yield return new object[] { platform, "archive.filters-toggle", primary + "+Shift+F" };
-            yield return new object[] { platform, "board.filters", primary + "+Shift+F" };
-            yield return new object[] { platform, "menu.context-open", "Shift+F10 / Menu" };
+            bool mac = platform == ShortcutPlatform.MacOS;
+            yield return new object[] { platform, "media.select-all", mac ? "⌘A" : "Ctrl+A" };
+            yield return new object[] { platform, "thread.favorite-toggle", mac ? "⌘D" : "Ctrl+D" };
+            yield return new object[] { platform, "thread.tags", mac ? "⌘T" : "Ctrl+T" };
+            yield return new object[] { platform, "media.tags.edit", mac ? "⌘T" : "Ctrl+T" };
+            yield return new object[] { platform, "archive.filters-toggle", mac ? "⇧⌘F" : "Ctrl+Shift+F" };
+            yield return new object[] { platform, "board.filters", mac ? "⇧⌘F" : "Ctrl+Shift+F" };
+            yield return new object[] { platform, "menu.context-open", mac ? "⇧F10 (Fn) / Menu" : "Shift+F10 / Menu" };
         }
     }
 

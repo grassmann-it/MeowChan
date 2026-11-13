@@ -32,10 +32,30 @@ public sealed record ShortcutGesture(string Key, IReadOnlyList<string> Modifiers
     public string Display(ShortcutPlatform platform)
     {
         var resolved = Resolve(platform);
+        if (platform == ShortcutPlatform.MacOS) return DisplayMac(resolved);
         string key = Key.StartsWith("D", StringComparison.Ordinal) && Key.Length == 2 && char.IsDigit(Key[1]) ? Key[1..] : Key;
         key = key switch { "OemComma" => ",", "OemPlus" => "+", "OemMinus" => "−", "Apps" => "Menu", _ => key };
-        string prefix = string.Join("+", Modifiers.Select(m => m == "Primary" ? platform == ShortcutPlatform.MacOS ? "⌘" : "Ctrl" : m == "Control" ? "Ctrl" : m));
+        string prefix = string.Join("+", Modifiers.Select(m => m == "Primary" ? "Ctrl" : m == "Control" ? "Ctrl" : m));
         return prefix.Length == 0 ? Symbol ?? key : prefix + "+" + (Symbol ?? key);
+    }
+
+    // Apple's order and glyphs: ⌃ ⌥ ⇧ ⌘ directly before the key, no "+". A typed symbol such as "?" already carries
+    // its Shift (⌘? and not ⇧⌘/). Function keys are marked because an Apple keyboard needs Fn for them by default.
+    private string DisplayMac(KeyGesture resolved)
+    {
+        KeyModifiers mods = resolved.KeyModifiers;
+        string prefix = (mods.HasFlag(KeyModifiers.Control) ? "⌃" : "") + (mods.HasFlag(KeyModifiers.Alt) ? "⌥" : "")
+            + (mods.HasFlag(KeyModifiers.Shift) && Symbol == null ? "⇧" : "") + (mods.HasFlag(KeyModifiers.Meta) ? "⌘" : "");
+        string key = Symbol ?? Key switch
+        {
+            "Back" => "⌫", "Delete" => "⌦", "Enter" or "Return" => "↩", "Escape" => "⎋", "Space" => "␣", "Tab" => "⇥",
+            "Left" => "←", "Right" => "→", "Up" => "↑", "Down" => "↓", "PageUp" or "Prior" => "⇞", "PageDown" or "Next" => "⇟",
+            "Home" => "↖", "End" => "↘", "OemComma" => ",", "OemPlus" => "+", "OemMinus" => "−", "Apps" => "Menu",
+            _ when Key.Length == 2 && Key[0] == 'D' && char.IsDigit(Key[1]) => Key[1..],
+            _ when Key.Length >= 2 && Key[0] == 'F' && int.TryParse(Key.AsSpan(1), out _) => Key + " (Fn)",
+            _ => Key.ToUpperInvariant()
+        };
+        return prefix + key;
     }
 }
 public sealed record ShortcutIssue(string CommandId, string Message, string? OtherCommandId = null, bool BlocksSave = true)
@@ -91,6 +111,10 @@ public sealed class EffectiveShortcutBindings
         ["navigation.plugins"] = 2, ["input.focus-media-search"] = 2,
         ["thread.favorite-toggle"] = 2, ["thread.tags"] = 2, ["media.tags.edit"] = 2,
         ["archive.filters-toggle"] = 2, ["board.filters"] = 2, ["media.select-all"] = 2, ["menu.context-open"] = 2,
+        // macOS standards of revision 2 (Defaults(command, MacOS)).
+        ["window.fullscreen"] = 2, ["viewer.shortcut-help"] = 2, ["watch.remove"] = 2, ["archive.delete-permanently"] = 2,
+        ["thread.details"] = 2, ["watch.check"] = 2, ["watch.retry-media"] = 2, ["archive.previous-page"] = 2,
+        ["archive.next-page"] = 2, ["media.return"] = 2,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     /// <summary>Whether an issue deserves the startup warning: only what silences or blocks a binding
@@ -112,8 +136,10 @@ public sealed class EffectiveShortcutBindings
         var resolved = g.Resolve(Platform);
         return resolved.KeyModifiers == e.KeyModifiers && (resolved.Key == e.Key || g.Symbol != null && g.Symbol == e.KeySymbol);
     });
-    public static IReadOnlyList<ShortcutGesture> Defaults(CommandDefinition command)
+    public static IReadOnlyList<ShortcutGesture> Defaults(CommandDefinition command) => Defaults(command, CurrentPlatform);
+    public static IReadOnlyList<ShortcutGesture> Defaults(CommandDefinition command, ShortcutPlatform platform)
     {
+        if (platform == ShortcutPlatform.MacOS && MacDefaults(command.Id) is { } mac) return mac;
         var list = new List<ShortcutGesture>();
         if (command.Shortcut is not null && command.Shortcut != "Escape") list.Add(ShortcutGesture.Parse(command.Shortcut));
         switch (command.Id)
@@ -127,6 +153,33 @@ public sealed class EffectiveShortcutBindings
         }
         return list.AsReadOnly();
     }
+
+    // macOS standards that differ from Windows/Linux (see the macOS shortcut note): never Fn as the only way (the F-key
+    // and forward-Delete gestures stay as extras), ⌘ for the main modifier, the Apple delete key is Key.Back.
+    // The whole list replaces the Windows/Linux one for that command; every entry here is also a yielding default.
+    private static IReadOnlyList<ShortcutGesture>? MacDefaults(string id)
+    {
+        static IReadOnlyList<ShortcutGesture> Of(params string[] gestures) => Array.AsReadOnly(gestures.Select(ShortcutGesture.Parse).ToArray());
+        return id switch
+        {
+            "window.fullscreen" => Of("Control+Primary+F", "F11"),
+            "viewer.shortcut-help" => Array.AsReadOnly(new[]
+            {
+                new ShortcutGesture("OemQuestion", new[] { "Primary", "Shift" }, "?"),
+                new ShortcutGesture("OemQuestion", new[] { "Shift" }, "?"), ShortcutGesture.Parse("F1")
+            }),
+            "watch.remove" => Of("Primary+Back", "Back", "Delete"),
+            "archive.delete-permanently" => Of("Primary+Shift+Back", "Shift+Delete"),
+            "thread.details" => Of("Primary+I", "Alt+Enter"),
+            "watch.check" => Of("Primary+Alt+R", "F5"),
+            "watch.retry-media" => Of("Primary+Alt+Shift+R", "Shift+F5"),
+            "archive.previous-page" => Of("Primary+Alt+Left", "Alt+PageUp"),
+            "archive.next-page" => Of("Primary+Alt+Right", "Alt+PageDown"),
+            "media.return" => Of("Primary+Left"),
+            _ => null
+        };
+    }
+
     public static string? InvalidReason(ShortcutGesture gesture, ShortcutPlatform platform)
         => InvalidIssueReason(gesture, platform)?.LegacyMessage;
     internal static ShortcutIssueReason? InvalidIssueReason(ShortcutGesture gesture, ShortcutPlatform platform)
@@ -150,7 +203,7 @@ public sealed class EffectiveShortcutBindings
     public static EffectiveShortcutBindings Build(ShortcutBindingsSection? section = null, ShortcutPlatform? platform = null)
     {
         var os = platform ?? CurrentPlatform;
-        var values = CommandCatalog.All.ToDictionary(c => c.Id, Defaults, StringComparer.Ordinal);
+        var values = CommandCatalog.All.ToDictionary(c => c.Id, c => Defaults(c, os), StringComparer.Ordinal);
         var issues = new List<ShortcutIssue>();
         section ??= new();
         if (!section.IsEditable) issues.Add(ShortcutIssue.FromReason("", new("unsupportedSchema", "Unsupported shortcut schema; defaults active / Unbekanntes Kürzelschema; Standards aktiv"), blocksSave: false));

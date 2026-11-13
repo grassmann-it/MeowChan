@@ -23,7 +23,7 @@ public sealed class NavigationMediaShortcutTests : IDisposable
     [Theory]
     [InlineData(ShortcutPlatform.Linux, "Ctrl+3")]
     [InlineData(ShortcutPlatform.Windows, "Ctrl+3")]
-    [InlineData(ShortcutPlatform.MacOS, "⌘+3")]
+    [InlineData(ShortcutPlatform.MacOS, "⌘3")]
     public void MediaJoinsTheOtherMainPagesWithItsOwnDefaultAndNoConflict(ShortcutPlatform platform, string display)
     {
         var bindings = EffectiveShortcutBindings.Build(platform: platform);

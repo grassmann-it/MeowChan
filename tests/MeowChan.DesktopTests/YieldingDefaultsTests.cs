@@ -43,15 +43,18 @@ public sealed class YieldingDefaultsTests
         if (id == "viewer.shortcut-help") yield return Identity(new("OemQuestion", new[] { "Shift" }, "?"));
     }
 
-    [Fact]
-    public void EveryCommandWhoseDefaultGainedAGestureIsListedAsYielding()
+    [Theory]
+    [InlineData(ShortcutPlatform.Linux)]
+    [InlineData(ShortcutPlatform.Windows)]
+    [InlineData(ShortcutPlatform.MacOS)]
+    public void EveryCommandWhoseDefaultGainedAGestureIsListedAsYielding(ShortcutPlatform platform)
     {
         var yielding = EffectiveShortcutBindings.YieldingDefaultCommandIds.ToHashSet(StringComparer.Ordinal);
         var unlisted = new List<string>();
         foreach (var command in CommandCatalog.All)
         {
             var before = RevisionOne(command.Id).ToHashSet(StringComparer.Ordinal);
-            if (EffectiveShortcutBindings.Defaults(command).Any(g => !before.Contains(Identity(g))) && !yielding.Contains(command.Id))
+            if (EffectiveShortcutBindings.Defaults(command, platform).Any(g => !before.Contains(Identity(g))) && !yielding.Contains(command.Id))
                 unlisted.Add(command.Id);
         }
         Assert.True(unlisted.Count == 0, "Defaults changed without a yielding entry: " + string.Join(", ", unlisted));
@@ -72,14 +75,14 @@ public sealed class YieldingDefaultsTests
         foreach (string id in EffectiveShortcutBindings.YieldingDefaultCommandIds)
         {
             var command = CommandCatalog.Get(id);
-            foreach (var gesture in EffectiveShortcutBindings.Defaults(command))
+            foreach (var gesture in EffectiveShortcutBindings.Defaults(command, platform))
             {
                 // About has no default of its own and, being a shell command, overlaps every non-modal context.
                 const string owner = "navigation.about";
                 // A gesture another stable default already owns in the same context is an ordinary conflict, not a yield.
                 if (CommandCatalog.All.Any(c => c.Id != id && !EffectiveShortcutBindings.YieldingDefaultCommandIds.Contains(c.Id)
                     && EffectiveShortcutBindings.ContextsOverlap(id, c.Id)
-                    && EffectiveShortcutBindings.Defaults(c).Any(g => EffectiveShortcutBindings.Equivalent(g, gesture, platform)))) continue;
+                    && EffectiveShortcutBindings.Defaults(c, platform).Any(g => EffectiveShortcutBindings.Equivalent(g, gesture, platform)))) continue;
                 var section = new ShortcutBindingsSection().Set(owner, [gesture]);
                 string before = section.Raw.GetRawText();
                 var bindings = EffectiveShortcutBindings.Build(section, platform);

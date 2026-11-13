@@ -17,7 +17,8 @@ public sealed class PowerUserCommandTests
     public void PlatformGesturesUseTheDeclaredShortcut(string id, string suffix)
     {
         Assert.Equal("Ctrl+" + suffix, CommandCatalog.ShortcutDisplay(id, false));
-        Assert.Equal("⌘+" + suffix, CommandCatalog.ShortcutDisplay(id, true));
+        // macOS shows Apple glyphs in Apple's order without "+": ⌘3, ⇧⌘P.
+        Assert.Equal(suffix == "Shift+P" ? "⇧⌘P" : "⌘" + suffix, CommandCatalog.ShortcutDisplay(id, true));
         KeyGesture gesture = CommandBindings.Gesture(id)!;
         Assert.Equal(suffix switch { "1" => Key.D1, "2" => Key.D2, "3" => Key.D3, "4" => Key.D4, "5" => Key.D5, "6" => Key.D6, "7" => Key.D7, _ => Key.P }, gesture.Key);
         Assert.True(CommandBindings.Matches(new KeyEventArgs { Key = gesture.Key, KeyModifiers = gesture.KeyModifiers }, id));
