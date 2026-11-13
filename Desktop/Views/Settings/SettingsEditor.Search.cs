@@ -242,11 +242,9 @@ public partial class SettingsEditor
     private static double Space(int token) =>
         Application.Current?.TryGetResource("Workspace.Space." + token, null, out object? value) == true && value is double size ? size : token;
 
-    // The marked row and the open list belong to a visit of the page: leaving it (another page, a closed window) clears them.
-    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    /// <summary>The marked row and the open list belong to a visit of the page: leaving it clears them (the typed text stays).</summary>
+    internal void EndSearchVisit()
     {
-        base.OnPropertyChanged(change);
-        if (change.Property != IsEffectivelyVisibleProperty || IsEffectivelyVisible) return;
         MarkSearchTarget(null);
         if (_searchPanel != null) _searchPanel.IsVisible = false;
     }

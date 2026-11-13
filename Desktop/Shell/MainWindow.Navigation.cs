@@ -313,6 +313,7 @@ public partial class MainWindow
         ++_readingResumeNavigationRevision;
         if (page != WorkspacePage.Plugins) _pluginsPage?.Deactivate();
         if (page != WorkspacePage.Statistics) _statisticsPage?.Deactivate();
+        if (page != WorkspacePage.Settings) _settingsEditor?.EndSearchVisit();
         if (_selectedPage == WorkspacePage.Rules && page != WorkspacePage.Rules) _rulesPage?.DeactivateRuleDecisions();
         _selectedPage = page;
         WorkspaceBody.IsVisible = page == WorkspacePage.Downloads;
