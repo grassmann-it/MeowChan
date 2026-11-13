@@ -183,6 +183,22 @@ public sealed class CountAndSizeTextTests : IDisposable
     public void OnlyEastSlavicAndPolishProduceManyForWholeCounts(string language) =>
         Assert.DoesNotContain("many", Enumerable.Range(0, 2000).Select(count => PluralRules.Category(language, count)));
 
+    [Fact]
+    public void CountedTextWithoutVariantsUsesTheBaseKeyForEveryNumberInChinese()
+    {
+        Texts.SetLanguage("zh-Hans");
+        try
+        {
+            // zh-Hans has no .one keys; 1 and 2 both use the base text, formatted in the zh-Hans culture.
+            string one = Texts.Count("archive.postsCount", 1);
+            string two = Texts.Count("archive.postsCount", 2);
+            Assert.NotEqual(BuiltInCatalog.English["archive.postsCount.one"].Replace("{0}", "1"), one);
+            Assert.Equal(one.Replace("1", "2"), two);
+            Assert.Contains("1", one);
+        }
+        finally { Texts.SetLanguage("en"); }
+    }
+
     [Theory]
     [InlineData(-5L, "0 B")]
     [InlineData(0L, "0 B")]

@@ -26,7 +26,7 @@ internal static class PreviewLanguagePackChecks
         Require(!Directory.Exists(Path.Combine(profile, "LanguagePacks")), "Bundled language smoke must not install a profile pack.");
         // Every embedded pack, as the loader discovered it (es, fr, ru, zh-Hans, and whatever later branches add).
         string[] bundled = Texts.BundledPackCodes().ToArray();
-        Require(bundled.Length >= 3, "Bundled preview packs are incomplete: " + string.Join(",", bundled));
+        Require(bundled.Length >= 4 && bundled.Contains("zh-Hans"), "Bundled preview packs are incomplete: " + string.Join(",", bundled));
         Require(Texts.Languages.Where(l => bundled.Contains(l.Code)).All(l => l.NativeName.EndsWith("(Untested)", StringComparison.Ordinal)), "Bundled preview marker missing.");
         byte[] initialSettings = File.ReadAllBytes(Path.Combine(profile, "settings.json"));
         Require(Texts.Warnings.Count == 0 && Texts.Languages.Count == 2 + bundled.Length, "Bundled preview packs did not load through normal initialization.");

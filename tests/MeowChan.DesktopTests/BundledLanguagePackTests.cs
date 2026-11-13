@@ -98,6 +98,7 @@ public sealed class BundledLanguagePackTests : IDisposable
     [InlineData("es", "Español (Untested)", "Configuración")]
     [InlineData("fr", "Français (Untested)", "Paramètres")]
     [InlineData("ru", "Русский (Untested)", "Настройки")]
+    [InlineData("zh-Hans", "简体中文 (Untested)", "设置")]
     public void RealAssemblyResourceLoadsEveryTranslationThroughNormalStartup(string code, string name, string title)
     {
         // No source-tree path, manual copy or Assembly.Location (empty in single-file apps).
@@ -133,6 +134,7 @@ public sealed class BundledLanguagePackTests : IDisposable
     [InlineData("es")]
     [InlineData("fr")]
     [InlineData("ru")]
+    [InlineData("zh-Hans")]
     public void ReinitializationPreservesExplicitSavedSelection(string code)
     {
         using TempDirectory directory = new();
@@ -147,6 +149,7 @@ public sealed class BundledLanguagePackTests : IDisposable
     [InlineData("es")]
     [InlineData("fr")]
     [InlineData("ru")]
+    [InlineData("zh-Hans")]
     public void ValidUserOverrideWinsWithoutRewritingItAndRemovalRestoresBundle(string code)
     {
         using TempDirectory directory = new();
