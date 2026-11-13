@@ -146,6 +146,7 @@ internal static partial class SmokeScenarios
         ["gallery-integrity-gui"] = new(SmokeStage.Ready, mainWindow => GalleryIntegrityChecks.RunAsync(mainWindow)),
         ["smoke-alpha2-copy"] = new(SmokeStage.Ready, mainWindow => Alpha2CopyChecks.RunAsync(mainWindow)),
         ["source-filter-wave"] = new(SmokeStage.Ready, mainWindow => SourceFilterWaveChecks.RunAsync(mainWindow)),
+        ["filter-pointer-selection"] = new(SmokeStage.Ready, mainWindow => FilterPointerSelectionChecks.RunAsync(mainWindow)),
         ["archive-media-counts"] = new(SmokeStage.Ready, async mainWindow =>
         {
             await ArchiveMediaCountsChecks.RunAsync(mainWindow);

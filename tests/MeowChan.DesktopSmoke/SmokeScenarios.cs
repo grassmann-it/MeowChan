@@ -150,6 +150,7 @@ internal static partial class SmokeScenarios
         Root("gallery-integrity-gui", "MEOWCHAN_GALLERY_INTEGRITY_GUI_ONLY", "gallery integrity: four EN/DE Light/Dark cells at actual scale, exact binding, summary/context/details and geometry") with { NightlyEnvironment = ["MEOWCHAN_GALLERY_INTEGRITY_EXPECT_SCALE=1"] },
         Root("smoke-alpha2-copy", "MEOWCHAN_SMOKE_ALPHA2_COPY_ONLY", "alpha2 copy: Sources granted/strict/null/inactive and Rules help at actual scale and minimum size") with { NightlyEnvironment = ["MEOWCHAN_ALPHA2_COPY_EXPECT_SCALE=1"] },
         Root("source-filter-wave", "MEOWCHAN_SOURCE_FILTER_WAVE_ONLY"),
+        Root("filter-pointer-selection", "MEOWCHAN_FILTER_POINTER_SELECTION_ONLY", "filter pointer selection: native X11 clicks on source/board suggestions and state dropdown; Enter comparison, draft-only changes and free text; private synthetic profile, no provider requests"),
         Root("archive-media-counts", "MEOWCHAN_ARCHIVE_MEDIA_COUNTS_ONLY"),
         Root("source-integrity-gui", "MEOWCHAN_SOURCE_INTEGRITY_GUI_ONLY", "source integrity: focused Sources/Plugins consent and Experimental fixture at the requested actual scale") with { NightlyEnvironment = ["MEOWCHAN_SOURCE_INTEGRITY_EXPECT_SCALE=1"] },
         Nested("experimental-activation-gui", "MEOWCHAN_EXPERIMENTAL_ACTIVATION_GUI_ONLY", "MEOWCHAN_SOURCE_INTEGRITY_GUI_ONLY"),
