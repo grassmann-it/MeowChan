@@ -71,14 +71,24 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
                 [AutomationProperties.NameProperty] = header + ": " + (item.Description ?? item.Label) };
         });
         Populating += (_, e) => { e.Cancel = true; };
-        // The base editor can try to reopen its popup on a click even though Escape or
-        // a scope change already cleared our candidates. Keep that dismissed list closed:
-        // only a fresh population (focus, changed text or explicit Up/Down) may reopen it.
-        DropDownOpening += (_, e) =>
+        // A click in an already-focused editor does not raise GotFocus or TextChanged.
+        // After Escape the base control may nevertheless reopen its now-empty popup.
+        // Treat that explicit editor click as a fresh request, not a revival of a
+        // dismissed candidate or a captured release. Keep the normal caret gesture.
+        AddHandler(PointerPressedEvent, (_, e) =>
         {
-            if (_ended || _suppressed || ItemsSource?.OfType<IdentitySuggestion>().Any() != true)
-                e.Cancel = true;
-        };
+            if (_ended || !_suppressed || !IsKeyboardFocusWithin || e.Pointer.Type != PointerType.Mouse
+                || e.GetCurrentPoint(null).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed
+                || e.Source is not Visual visual
+                || !visual.GetSelfAndVisualAncestors().OfType<TextBox>().Any(this.IsVisualAncestorOf)) return;
+            int revision = _revision;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (_ended || revision != _revision || !IsKeyboardFocusWithin) return;
+                _suppressed = false;
+                _ = PopulateAsync();
+            }, Avalonia.Threading.DispatcherPriority.Input);
+        }, RoutingStrategies.Tunnel);
         // Focus entering a suggestion (the popup is a logical child) is not the editor gaining focus:
         // repopulating then would clear the list under the click and fault the selection update.
         GotFocus += (_, e) =>
@@ -235,7 +245,8 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
             { Complete(completion); e.Handled = true; return; }
             Dismiss(); return;
         }
-        if ((e.Key == Key.Down || e.Key == Key.Up) && !IsDropDownOpen && !_ended && Candidates != null)
+        if ((e.Key == Key.Down || e.Key == Key.Up) && !_ended && Candidates != null
+            && (!IsDropDownOpen || _suppressed || ItemsSource?.OfType<IdentitySuggestion>().Any() != true))
         {
             // Escape or a prior accept closes the list; explicit navigation reopens it
             // without changing the draft, applying a search or accepting anything.
