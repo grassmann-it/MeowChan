@@ -51,6 +51,10 @@
   in the header opens the replies as nested cards, five more at a time. References to posts that
   were not captured are struck through, spoilers stay hidden until you click them or press
   Enter or Space, code is monospace, external links are underlined; the HTML export shows the same.
+  An external link opens in your browser only after a confirmation that shows the address with its
+  host in ASCII form; the confirmation starts on Cancel, and "Don't ask again this session" lasts
+  until you quit. Only http and https addresses of at most 2048 characters without user
+  information or hidden Unicode format characters count as links; anything else stays text.
 - Add the setting **Animations** (Follow system, On, Off): short fades, hover and chip transitions
   and toast changes follow the system reduced-motion setting or stay off. Progress bars and
   spinners always stay.
