@@ -132,6 +132,25 @@ class DesktopPackageTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'missing or empty'):
                     package.validate_payload(root)
 
+    @unittest.skipIf(os.name == 'nt', 'POSIX symlink fixture')
+    def test_build_profile_and_nested_link_artifacts_are_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            for relative in ('bin/stray.dll', 'obj/project.assets.json', 'profiles/local/state.json'):
+                with self.subTest(relative=relative):
+                    root = payload(Path(temporary) / relative.replace('/', '_'))
+                    path = root / relative
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(b'generated')
+                    with self.assertRaisesRegex(ValueError, 'artifact'):
+                        package.validate_payload(root)
+            root = payload(Path(temporary) / 'nested-link')
+            target = root / 'LICENSE'
+            link = root / 'native/subtree/link'
+            link.parent.mkdir(parents=True)
+            link.symlink_to(target)
+            with self.assertRaisesRegex(ValueError, 'symlink'):
+                package.validate_payload(root)
+
     def test_repository_docs_and_developer_outputs_are_rejected(self):
         files = ('README.md', 'CHANGELOG.md', 'MeowChan.pdb', 'MeowChan.xml', 'libmeowchan.pdb', 'libmeowchan.xml',
                  'docs/Help.md', 'docs/macos-signing.md', 'docs/releases/v0.9.0.md', 'docs/screenshots/desktop.png')

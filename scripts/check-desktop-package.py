@@ -24,6 +24,7 @@ LEGAL_FILES = ('LICENSE', 'THIRD-PARTY-NOTICES.md', *(f'docs/{name}' for name in
 FORBIDDEN_ROOT_DOCUMENTS = frozenset(('readme.md', 'changelog.md'))
 FORBIDDEN_REPOSITORY_ROOTS = frozenset(('desktop', 'libmeowchan', 'tests', 'samples'))
 FORBIDDEN_DEVELOPER_FILES = frozenset(('meowchan.pdb', 'meowchan.xml', 'libmeowchan.pdb', 'libmeowchan.xml'))
+FORBIDDEN_PAYLOAD_COMPONENTS = frozenset(('bin', 'obj', '.git', '.vs', 'profile', 'profiles'))
 RUNTIMES = ('win-x64', 'win-arm64', 'linux-x64', 'linux-arm64', 'osx-x64', 'osx-arm64')
 
 
@@ -43,6 +44,16 @@ def validate_payload(root: Path) -> dict:
         name = entry.name.casefold()
         if name in FORBIDDEN_ROOT_DOCUMENTS or name in FORBIDDEN_REPOSITORY_ROOTS or name in FORBIDDEN_DEVELOPER_FILES:
             raise ValueError('Repository/development artifact in desktop package: ' + entry.name)
+    for path in root.rglob('*'):
+        relative = path.relative_to(root)
+        if any(part.casefold() in FORBIDDEN_PAYLOAD_COMPONENTS for part in relative.parts):
+            raise ValueError('Build or profile artifact in desktop package: ' + relative.as_posix())
+        # The macOS packaging script intentionally presents Contents/MacOS as a
+        # symlinked alias view. Nested links are never part of a publish payload.
+        if path.is_symlink() and len(relative.parts) > 1:
+            raise ValueError('Nested desktop package symlink is not allowed: ' + relative.as_posix())
+        if not path.is_symlink() and not (path.is_file() or path.is_dir()):
+            raise ValueError('Desktop package contains a special file: ' + relative.as_posix())
     legal_bytes = sum(require_file(root, relative) for relative in LEGAL_FILES)
     documentation = root / 'docs'
     actual = {entry.name for entry in documentation.iterdir()}
