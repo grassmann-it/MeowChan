@@ -259,7 +259,8 @@ internal static class StatisticsChecks
         // The question is never the default: it opens on Cancel and Cancel keeps everything.
         long before = Hub(window).Snapshot().Total.Session.NetDown;
         page.ResetButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        await Program.WaitUntilAsync(() => page.IsResetConfirmationOpen);
+        await Program.WaitUntilAsync(() => page.IsResetConfirmationOpen && page.CancelButton.IsFocused,
+            () => $"open {page.IsResetConfirmationOpen}, cancel focused {page.CancelButton.IsFocused}");
         Require(page.CancelButton.IsFocused, "The reset question does not focus Cancel.");
         await Settle(window);
         Program.CaptureWindow(window, $"smoke-statistics-page-{variant}-confirm.png");

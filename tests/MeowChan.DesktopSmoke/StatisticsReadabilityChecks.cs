@@ -48,8 +48,9 @@ internal static class StatisticsReadabilityChecks
 
                 Point before = page.Graph.TranslatePoint(default, host)!.Value;
                 page.ResetButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                await SettleAsync();
-                Require(page.IsResetConfirmationOpen && page.CancelButton.IsFocused, "Flyout did not open on the safe answer.");
+                await Program.WaitUntilAsync(() => page.IsResetConfirmationOpen && page.CancelButton.IsFocused,
+                    () => $"open {page.IsResetConfirmationOpen}, cancel focused {page.CancelButton.IsFocused}");
+                Require(page.CancelButton.IsFocused, "Flyout did not open on the safe answer.");
                 Require(before == page.Graph.TranslatePoint(default, host), "Opening the reset question pushed the graph.");
                 Program.CaptureWindow(host, $"smoke-statistics-readability-confirm-{code}-{theme}.png");
                 page.FindControl<Border>("ResetConfirmPanel")!.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });

@@ -31,6 +31,7 @@ public partial class StatisticsPage : UserControl
     private bool _ended;
     private IDisposable? _statusHide;
     private bool _restoreResetFocus;
+    private long _resetFocusGeneration;
 
     public StatisticsPage()
     {
@@ -219,6 +220,7 @@ public partial class StatisticsPage : UserControl
         ResetStatusPanel.IsVisible = false;
         _statusHide?.Dispose();
         _restoreResetFocus = true;
+        ++_resetFocusGeneration;
         ResetConfirmation.ShowAt(ResetStatisticsButton);
     }
 
@@ -232,12 +234,20 @@ public partial class StatisticsPage : UserControl
 
     private void OnResetConfirmationOpened(object? sender, EventArgs e)
     {
-        // A popup takes focus during opening. Focus the safe answer after its content is attached.
+        // A native popup can apply its own initial focus after Opened. Make the safe answer the
+        // settled focus target too, but only once for this opening (not an unbounded focus loop).
         CancelResetButton.Focus();
+        long generation = _resetFocusGeneration;
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (generation == _resetFocusGeneration && !_ended && ResetConfirmation.IsOpen)
+                CancelResetButton.Focus();
+        }, DispatcherPriority.Loaded);
     }
 
     private void OnResetConfirmationClosed(object? sender, EventArgs e)
     {
+        ++_resetFocusGeneration;
         if (!_ended && IsVisible && !_resetting && _restoreResetFocus) ResetStatisticsButton.Focus();
     }
 
