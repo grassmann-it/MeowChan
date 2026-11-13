@@ -354,9 +354,12 @@ public partial class ArchivePage
         ShowPost(postId, null, reveal: false);
         UpdateReaderNavigation();
         ListBox posts = ArchivePosts;
+        // A jump the user did not ask to restore ends as soon as they take over: a wheel turn, a press or a paging key
+        // (each bumps the revision) must not be pulled back by the next pass.
+        int interactionBaseline = interactionRevision ?? _readerInteractionRevision;
         bool IsCurrent() => !_ended && focusRequest == _readerFocusRequest && request == _contentRequest
             && _thread?.Summary.Id == threadId
-            && (!interactionRevision.HasValue || interactionRevision == _readerInteractionRevision);
+            && interactionBaseline == _readerInteractionRevision;
         if (focusIntent != null && BeforePassiveReaderFocusAsync is { } beforeFocus) await beforeFocus();
         // ScrollIntoView realizes a virtualized target. Its measured height can
         // replace an estimate on the next layout; retry only while the request
@@ -365,19 +368,34 @@ public partial class ArchivePage
         // freshly scrolled-to target (a new page, the last item of a list) can still move it afterwards.
         bool confirmed = false;
         double? requestedOffset = null;
+        ArchivePostRow? targetRow = null;
+        // Focus must not cause a second competing BringIntoView request.
+        void Finish(Control? container)
+        {
+            if (restoreFocus && container != null)
+            {
+                if (focusIntent != null) focusIntent.Restore(container);
+                else container.Focus();
+            }
+            ReaderPositionChanged(deliberate: !interactionRevision.HasValue);
+        }
         for (int pass = 0; pass < 8; pass++)
         {
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
             if (!IsCurrent()) return;
             ArchivePostRow? row = posts.ItemsSource?.Cast<ArchivePostRow>().FirstOrDefault(post => post.Id == postId);
             if (row == null) return;
+            targetRow = row;
             ++_readerLayoutRevision;
             posts.SelectedItem = row;
             posts.UpdateLayout();
             // An offset the virtualizer did not keep (it re-estimates the extent around the realized items) is not retried
             // blindly: bring the target into view again so it is realized where the viewport is.
+            // The request is checked once: an offset that matched is settled, and a later deviation is not "lost" (it is the
+            // layout's or the user's own doing).
             bool offsetLost = requestedOffset is double requested
                 && Math.Abs((posts.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault()?.Offset.Y ?? requested) - requested) > 1;
+            requestedOffset = null;
             if (pass == 0 || offsetLost || posts.ContainerFromItem(row) == null) posts.ScrollIntoView(row);
             posts.UpdateLayout();
             if (posts.ContainerFromItem(row) is not Control container) continue;
@@ -398,15 +416,13 @@ public partial class ArchivePage
                 confirmed = true;
                 continue;
             }
-            // Focus must not cause a second competing BringIntoView request.
-            if (restoreFocus)
-            {
-                if (focusIntent != null) focusIntent.Restore(container);
-                else container.Focus();
-            }
-            ReaderPositionChanged(deliberate: !interactionRevision.HasValue);
+            Finish(container);
             return;
         }
+        // The passes ran out while the heights still moved (a very long thread with strongly varying heights): the target
+        // is selected, so focus and the reading position follow it where it is now instead of staying at the old place.
+        if (!IsCurrent()) return;
+        Finish(targetRow != null ? posts.ContainerFromItem(targetRow) as Control : null);
     }
     internal void SetReaderScope(IReadOnlyList<ResourceId> threads)
     {
