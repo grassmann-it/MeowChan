@@ -166,7 +166,7 @@ internal sealed class ArchiveCleanupDialog : Window
         body.Children.Add(_inventoryControls); body.Children.Add(_list); Grid.SetRow(_list, 1);
         body.Children.Add(bottom); Grid.SetRow(bottom, 2);
         _list.MinHeight = 100; _list.Height = 240;
-        Content = MeowChan.Desktop.Controls.DialogFrame.Build(header, body, footer, MeowChan.Desktop.Controls.DialogFrame.ErrorStrip(_error));
+        Content = WindowChrome.Frame(this, MeowChan.Desktop.Controls.DialogFrame.Build(header, body, footer, MeowChan.Desktop.Controls.DialogFrame.ErrorStrip(_error)));
         names.Complete();
         Localize();
         KeyDown += (_, e) =>

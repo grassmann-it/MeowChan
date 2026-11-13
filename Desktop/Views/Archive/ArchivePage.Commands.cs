@@ -71,7 +71,7 @@ public partial class ArchivePage
         Grid layout = MeowChan.Desktop.Controls.DialogFrame.Build(heading, body, footer);
         close.Click += (_, _) => dialog.Close();
         dialog.KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; dialog.Close(); } };
-        dialog.Content = layout;
+        dialog.Content = WindowChrome.Frame(dialog, layout, WindowChromeKind.Dialog);
         await dialog.ShowDialog(owner);
     }
 

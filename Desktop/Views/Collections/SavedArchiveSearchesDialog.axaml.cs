@@ -53,7 +53,7 @@ public partial class SavedArchiveSearchesDialog : Window
 
     internal SavedArchiveSearchesDialog(DesktopSessionHost host, ArchivePage page, ArchiveSearchSpec? initialDefinition = null)
     {
-        InitializeComponent(); _host = host; _page = page; _initialDefinition = initialDefinition;
+        InitializeComponent(); WindowChrome.WrapContent(this); _host = host; _page = page; _initialDefinition = initialDefinition;
         _router = new CommandRouter(this);
         AutomationProperties.SetLiveSetting(this.FindControl<TextBlock>("SavedSearchError")!, AutomationLiveSetting.Assertive);
         List.ItemTemplate = new FuncDataTemplate<SavedArchiveSearch>((entry, _) =>

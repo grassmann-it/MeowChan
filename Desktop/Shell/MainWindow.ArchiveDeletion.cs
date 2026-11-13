@@ -93,7 +93,7 @@ public partial class MainWindow
             header.Children.Add(heading); header.Children.Add(summary);
             detail.Margin = new Thickness(16, 4, 16, 16);
             detail.VerticalAlignment = VerticalAlignment.Top;
-            dialog.Content = DialogFrame.Build(header, detail, footer, DialogFrame.ErrorStrip(failure));
+            dialog.Content = WindowChrome.Frame(dialog, DialogFrame.Build(header, detail, footer, DialogFrame.ErrorStrip(failure)), WindowChromeKind.Dialog);
             bool executing = false;
             cancel.Click += (_, _) => dialog.Close();
             dialog.Closing += (_, e) => { if (executing) e.Cancel = true; };

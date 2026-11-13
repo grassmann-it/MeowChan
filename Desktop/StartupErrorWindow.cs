@@ -57,7 +57,8 @@ public sealed class StartupErrorWindow : Window
         _exitButton.Click += (_, _) => Close();
         Border footer = new() { Child = _exitButton };
         footer.Classes.Add("workspace-dialog-footer");
-        Content = DialogFrame.Build(_heading, errorPanel, footer);
+        // No owner: keeps minimize so the error stays reachable from the taskbar.
+        Content = WindowChrome.Frame(this, DialogFrame.Build(_heading, errorPanel, footer));
 
         // Texts has built-in English before Initialize, including for profile startup failures.
         ApplyTexts();

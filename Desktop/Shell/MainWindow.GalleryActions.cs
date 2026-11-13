@@ -214,7 +214,7 @@ public partial class MainWindow
         close.HorizontalAlignment = HorizontalAlignment.Right;
         TextBlock heading = new() { Text = dialog.Title, TextWrapping = TextWrapping.Wrap };
         heading.Classes.Add("section-title");
-        dialog.Content = DialogFrame.Build(heading, text, close);
+        dialog.Content = WindowChrome.Frame(dialog, DialogFrame.Build(heading, text, close), WindowChromeKind.Dialog);
         dialog.KeyDown += (_, key) => { if (key.Key == Key.Escape) { key.Handled = true; dialog.Close(); } };
         await dialog.ShowDialog(this);
         if (origin?.IsEffectivelyVisible == true) origin.Focus();

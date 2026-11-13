@@ -104,7 +104,7 @@ internal sealed class MediaRatingsManagerDialog : Window
         Grid frame = DialogFrame.Build(header, body, buttons, DialogFrame.ErrorStrip(_error));
         frame.Children.OfType<ScrollViewer>().Single(child => child.Name == DialogFrame.BodyName).VerticalScrollBarVisibility =
             Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled;
-        Content = frame;
+        Content = WindowChrome.Frame(this, frame);
         CommandRouter router = new(this);
         router.Register(new("media.rating.remove-selected", this, () => IsVisible, () => !_busy && _frozen == null && _list.SelectedItem is Row, BeginRemove, Priority: 300));
         KeyDown += (_, e) => router.Route(e);

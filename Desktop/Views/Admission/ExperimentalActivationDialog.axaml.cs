@@ -29,6 +29,7 @@ public partial class ExperimentalActivationDialog : Window
     {
         _original = _next = target; _activate = activate;
         AvaloniaXamlLoader.Load(this);
+        WindowChrome.WrapContent(this, WindowChromeKind.Dialog);
         C<Button>("ActivationCancel").Click += (_, _) => Dismiss();
         C<Button>("ActivationConfirm").Click += async (_, _) => await ActivateAsync();
         // A queued initial error reveal must not override a newer user scroll,

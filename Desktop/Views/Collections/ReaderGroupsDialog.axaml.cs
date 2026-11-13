@@ -107,6 +107,7 @@ public partial class ReaderGroupsDialog : Window
     {
         _host = host; _origin = origin;
         AvaloniaXamlLoader.Load(this);
+        WindowChrome.WrapContent(this);
         C<ListBox>("Groups").ItemTemplate = new FuncDataTemplate<GroupRow>((row, _) => RowText(row));
         foreach (string list in new[] { "GroupMembers", "GroupCandidates" })
             C<ListBox>(list).ItemTemplate = new FuncDataTemplate<MemberRow>((row, _) => RowText(row));
@@ -570,7 +571,8 @@ internal static class ReaderGroupsPrompt
         content.Children.Add(new ScrollViewer { Content = new TextBlock { Text = message.Render(), TextWrapping = Avalonia.Media.TextWrapping.Wrap } });
         Border footer = new() { Child = actions, Margin = new Thickness(-16, 0, -16, -16) };
         footer.Classes.Add("workspace-dialog-footer");
-        Grid.SetRow(footer, 1); content.Children.Add(footer); prompt.Content = content;
+        Grid.SetRow(footer, 1); content.Children.Add(footer);
+        prompt.Content = WindowChrome.Frame(prompt, content, WindowChromeKind.Dialog);
         prompt.Opened += (_, _) => no.Focus();
         // Fixed dialog dismissal, independent of all freely assigned application gestures.
         prompt.KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; prompt.Close(false); } };

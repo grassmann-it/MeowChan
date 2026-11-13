@@ -379,7 +379,7 @@ public partial class PluginsPage
             heading.Classes.Add("page-title");
             Border body = new() { Child = rows };
             body.Classes.Add("workspace-dialog-body");
-            window.Content = DialogFrame.Build(heading, body, footer, DialogFrame.ErrorStrip(issue));
+            window.Content = MeowChan.Desktop.WindowChrome.Frame(window, DialogFrame.Build(heading, body, footer, DialogFrame.ErrorStrip(issue)));
             window.KeyDown += (_, args) => { if (args.Key == Key.Escape) { window.Close(); args.Handled = true; } };
             window.Opened += (_, _) => cancel.Focus();
             await window.ShowDialog<object?>(owner);

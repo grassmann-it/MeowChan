@@ -82,7 +82,7 @@ internal sealed class BooruMediaDetailsDialog : Window
 
         Button close = new() { Name = "BooruDetailsClose", Content = Texts.T("action.close"), HorizontalAlignment = HorizontalAlignment.Right };
         close.Click += (_, _) => Close();
-        Content = DialogFrame.Build(heading, body, close);
+        Content = WindowChrome.Frame(this, DialogFrame.Build(heading, body, close));
         KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; Close(); } };
         // Like the other dialogs, start on the first action: the post page when the catalog has the post, otherwise Close.
         Opened += (_, _) => (_initialFocus ?? close).Focus();

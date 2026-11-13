@@ -62,7 +62,7 @@ internal sealed class MediaOccurrencesWindow : Window
         layout.Children.Add(new StackPanel { Spacing = 2, Children = { summary, favorite } });
         layout.Children.Add(list); Grid.SetRow(list, 1);
         layout.Children.Add(close); Grid.SetRow(close, 2);
-        Content = layout;
+        Content = WindowChrome.Frame(this, layout);
         KeyDown += (_, e) => { if (e.Key != Key.Escape) return; e.Handled = true; Close(); };
     }
 }

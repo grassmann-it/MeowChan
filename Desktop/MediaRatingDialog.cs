@@ -72,7 +72,8 @@ internal sealed class MediaRatingDialog : Window
         body.Children.Add(_identity); body.Children.Add(_confirmedValue);
         body.Children.Add(_rating); body.Children.Add(_value);
         _help.Classes.Add("workspace-help"); body.Children.Add(_help);
-        Content = DialogFrame.Build(_heading, body, actions, DialogFrame.ErrorStrip(_error, maxHeight: 96));
+        Content = WindowChrome.Frame(this, DialogFrame.Build(_heading, body, actions, DialogFrame.ErrorStrip(_error, maxHeight: 96)),
+            WindowChromeKind.Dialog);
         _rating.AddHandler(PointerReleasedEvent, async (_, e) =>
         {
             if (_busy) return;

@@ -112,7 +112,7 @@ public partial class ArchivePage
         Grid layout = MeowChan.Desktop.Controls.DialogFrame.Build(header, content, footer, MeowChan.Desktop.Controls.DialogFrame.ErrorStrip(error));
         ScrollViewer bodyScroll = layout.Children.OfType<ScrollViewer>().Single();
         bodyScroll.SizeChanged += (_, args) => content.Height = Math.Max(180, args.NewSize.Height - content.Margin.Bottom);
-        dialog.Content = layout;
+        dialog.Content = WindowChrome.Frame(dialog, layout);
         close.Click += (_, _) => dialog.Close();
         clearSearch.Click += (_, _) => { search.Text = string.Empty; search.Focus(); };
         dialog.KeyDown += (_, key) =>
@@ -334,7 +334,8 @@ public partial class ArchivePage
         footerContent.Children.Add(new ScrollViewer { Content = status, MaxHeight = 140, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled });
         footerContent.Children.Add(actions);
         Border footer = new() { Child = footerContent }; footer.Classes.Add("workspace-dialog-footer");
-        dialog.Content = MeowChan.Desktop.Controls.DialogFrame.Build(header, content, footer, MeowChan.Desktop.Controls.DialogFrame.ErrorStrip(error));
+        dialog.Content = WindowChrome.Frame(dialog, MeowChan.Desktop.Controls.DialogFrame.Build(header, content, footer,
+            MeowChan.Desktop.Controls.DialogFrame.ErrorStrip(error)), WindowChromeKind.Dialog);
         CancellationTokenSource run = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         bool running = false;
         dialog.Closing += (_, args) =>

@@ -139,8 +139,8 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         Width = 1000; Height = 760; MinWidth = 600; MinHeight = 520;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
-        Content = DialogFrame.Build(BuildHeader(), new Border { Child = BuildBody(), Classes = { "workspace-dialog-body" } },
-            BuildFooter(), DialogFrame.ErrorStrip(new TextBlock()));
+        Content = WindowChrome.Frame(this, DialogFrame.Build(BuildHeader(), new Border { Child = BuildBody(), Classes = { "workspace-dialog-body" } },
+            BuildFooter(), DialogFrame.ErrorStrip(new TextBlock())));
 
         _model.Search.Changed += OnModelChanged;
         _model.Watchers.Changed += OnModelChanged;

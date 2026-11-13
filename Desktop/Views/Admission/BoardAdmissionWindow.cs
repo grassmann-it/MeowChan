@@ -172,8 +172,8 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
         _apply.Classes.Add("primary"); _apply.Click += (_, _) => Accept();
         buttons.Children.Add(cancel); buttons.Children.Add(_apply);
         footer.Children.Add(buttons);
-        Content = DialogFrame.Build(intro, new Border { Child = body, Classes = { "workspace-dialog-body" } }, footer,
-            DialogFrame.ErrorStrip(new TextBlock()));
+        Content = MeowChan.Desktop.WindowChrome.Frame(this, DialogFrame.Build(intro,
+            new Border { Child = body, Classes = { "workspace-dialog-body" } }, footer, DialogFrame.ErrorStrip(new TextBlock())));
         Opened += async (_, _) => { foreach (var draft in _drafts) { if (_closing) break; await LoadAsync(draft); } };
         Texts.Changed += OnTextsChanged;
         ApplyTexts();

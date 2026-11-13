@@ -59,6 +59,8 @@ internal partial class PostBookmarksDialog : Window
     internal PostBookmarksDialog(DesktopSessionHost owner, Func<PostBookmarkKey, CancellationToken, Task<bool>> open)
     {
         AvaloniaXamlLoader.Load(this);
+        // Also shown modeless (bookmark list beside the reader), so it keeps minimize.
+        WindowChrome.WrapContent(this);
         _owner = owner; _open = open;
         Title = Texts.T("bookmarks.title");
         Texts.Changed += OnLanguageChanged;
@@ -440,7 +442,7 @@ internal partial class PostBookmarksDialog : Window
             TextBlock heading = new() { Text = Title, TextWrapping = TextWrapping.Wrap };
             heading.Classes.Add("section-title");
             TextBlock body = new() { Text = explanation, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(16, 0, 16, 12) };
-            confirm.Content = MeowChan.Desktop.Controls.DialogFrame.Build(heading, body, buttons);
+            confirm.Content = WindowChrome.Frame(confirm, MeowChan.Desktop.Controls.DialogFrame.Build(heading, body, buttons), WindowChromeKind.Dialog);
             cancel.Click += (_, _) => confirm.Close(false); accept.Click += (_, _) => confirm.Close(true);
             confirm.Opened += (_, _) => cancel.Focus();
             confirm.KeyDown += (_, e) => { if (!e.Handled && e.Key == Key.Escape) { e.Handled = true; confirm.Close(false); } };
