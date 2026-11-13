@@ -392,8 +392,10 @@ internal static class CorruptionScenarios
                 Assert.True(Directory.Exists(primary) && File.Exists(marker), $"{context}: the directory was removed or emptied.");
                 Assert.Equal("keep me", File.ReadAllText(marker));
             }
-            Assert.True(Same(backupBefore, File.Exists(adapter.BackupPath(directory)) ? File.ReadAllBytes(adapter.BackupPath(directory)) : null) || outcome == null,
-                $"{context}: the backup changed although the write failed.");
+            // Only a failed write must leave the backup alone (a successful one may have rotated the link itself into it).
+            if (outcome != null)
+                Assert.True(Same(backupBefore, File.Exists(adapter.BackupPath(directory)) ? File.ReadAllBytes(adapter.BackupPath(directory)) : null),
+                    $"{context}: the backup changed although the write failed.");
             Assert.Empty(Directory.EnumerateFileSystemEntries(directory, "*.tmp"));
             Assert.True(namesBefore.All(name => Directory.EnumerateFileSystemEntries(directory).Select(Path.GetFileName).Contains(name)) || outcome == null,
                 $"{context}: an entry disappeared although the write failed.");
@@ -446,8 +448,6 @@ public abstract class StoreCorruptionTests(ITestOutputHelper log)
     [MemberData(nameof(Damage.Primary), MemberType = typeof(Damage))]
     public void DamagedPrimaryIsHandled(string variant) => CorruptionScenarios.DamagedPrimary(Adapter, variant, null, "primary", log);
 
-    [Fact]
-    public void OversizedPrimaryIsNeverReadIntoMemory() => CorruptionScenarios.Oversized(Adapter, backup: false, log);
 
     [Theory]
     [InlineData("directory")]
@@ -474,11 +474,50 @@ public abstract class BackedStoreCorruptionTests(ITestOutputHelper log) : StoreC
     [MemberData(nameof(Damage.Backup), MemberType = typeof(Damage))]
     public void DamagedBackupNextToAGoodPrimaryIsHandled(string variant) => CorruptionScenarios.DamagedBackup(Adapter, variant, log);
 
-    [Fact]
-    public void OversizedBackupIsNeverReadIntoMemory() => CorruptionScenarios.Oversized(Adapter, backup: true, log);
 
     [Theory]
     [InlineData("directory")]
     [InlineData("symlink")]
     public void DirectoryOrLinkInPlaceOfTheBackupIsHandled(string kind) => CorruptionScenarios.NotARegularBackup(Adapter, kind, log);
+}
+
+/// <summary>
+/// Runs alone: the allocation counter is process-wide, so a test running in parallel would be counted as if the store had
+/// read the oversized file.
+/// </summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class AllocationMeasurementCollection
+{
+    public const string Name = "Allocation measurement";
+}
+
+/// <summary>A file above a store's read ceiling is refused from its length, never read into memory, and kept.</summary>
+[Collection(AllocationMeasurementCollection.Name)]
+public sealed class OversizedStoreFileTests(ITestOutputHelper log)
+{
+    private static readonly Dictionary<string, Func<StoreAdapter>> Stores = new(StringComparer.Ordinal)
+    {
+        ["favorites"] = () => new FavoriteStoreAdapter(),
+        ["thread-favorites"] = () => new ThreadFavoriteStoreAdapter(),
+        ["ratings"] = () => new MediaRatingStoreAdapter(),
+        ["post-bookmarks"] = () => new PostBookmarkStoreAdapter(),
+        ["saved-searches"] = () => new SavedArchiveSearchStoreAdapter(),
+        ["reader-groups"] = () => new ReaderGroupStoreAdapter(),
+        ["booru-catalog"] = () => new BooruCatalogAdapter(),
+        ["private-tags-v1"] = () => new PrivateTagStoreAdapter(),
+        ["private-tags-v2"] = () => new PrivateTagStoreV2Adapter(),
+        ["local-imports"] = () => new ManualImportCatalogAdapter(),
+        ["media-index-cache"] = () => new MediaIndexCacheAdapter()
+    };
+
+    public static IEnumerable<object[]> All() => Stores.Keys.Select(name => new object[] { name });
+    public static IEnumerable<object[]> Backed() => Stores.Where(store => store.Value().HasBackup).Select(store => new object[] { store.Key });
+
+    [Theory]
+    [MemberData(nameof(All))]
+    public void OversizedPrimaryIsNeverReadIntoMemory(string store) => CorruptionScenarios.Oversized(Stores[store](), backup: false, log);
+
+    [Theory]
+    [MemberData(nameof(Backed))]
+    public void OversizedBackupIsNeverReadIntoMemory(string store) => CorruptionScenarios.Oversized(Stores[store](), backup: true, log);
 }

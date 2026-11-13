@@ -277,27 +277,6 @@ public sealed class ConfigCorruptionTests
         finally { Directory.Delete(outside, recursive: true); }
     }
 
-    // Far above the fixed ceiling (sparse, so it takes no disk space): judged from its length, never read.
-    [Theory]
-    [InlineData(256L * 1024 * 1024)]
-    [InlineData(Config.SettingsFileCeilingBytes + 1L)]
-    public void AnOversizedSettingsFileIsNeverReadIntoMemory(long size)
-    {
-        using Profile profile = new();
-        Damage.WriteSparse(profile.Primary, size);
-        string[] names = profile.Names();
-        long before = GC.GetTotalAllocatedBytes(precise: false);
-        Config config = Load(profile.Directory);
-        long used = GC.GetTotalAllocatedBytes(precise: false) - before;
-        Assert.True(used < Config.SettingsFileCeilingBytes, $"Loading allocated {used} bytes for a file of {size}.");
-        Assert.Equal(ProfileOrigin.BackupRecovery, config.Origin);
-        Assert.Equal(16, config.BooruCatalogLimitMiB);
-        Assert.Throws<InvalidOperationException>(() => config.SaveConfig(profile.Directory));
-        Assert.True(names.SequenceEqual(profile.Names()), "The directory changed.");
-        Assert.Equal(size, new FileInfo(profile.Primary).Length);
-        Assert.Equal(profile.GoodBackup, File.ReadAllBytes(profile.Backup));
-    }
-
     [Fact]
     public void ASettingsFileJustBelowTheCeilingIsStillRead()
     {
@@ -365,5 +344,44 @@ public sealed class ConfigLoadWarningLocalizationTests : IDisposable
         Config config = Config.LoadConfig(temp.Path);
         Assert.Null(config.LocalizedLoadWarning());
         Assert.Equal(SettingsLoadProblem.None, config.LoadProblem);
+    }
+}
+
+/// <summary>Runs alone: the allocation counter is process-wide, so parallel tests would be counted as reading the file.</summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class SettingsAllocationCollection
+{
+    public const string Name = "Settings allocation measurement";
+}
+
+[Collection(SettingsAllocationCollection.Name)]
+public sealed class OversizedSettingsFileTests
+{
+    // Far above the fixed ceiling (sparse, so it takes no disk space): judged from its length, never read.
+    [Theory]
+    [InlineData(256L * 1024 * 1024)]
+    [InlineData(Config.SettingsFileCeilingBytes + 1L)]
+    public void AnOversizedSettingsFileIsNeverReadIntoMemory(long size)
+    {
+        using TempDirectory temp = new();
+        string downloads = Path.Combine(temp.Path, "downloads");
+        new Config { DownloadPath = downloads, BooruCatalogLimitMiB = 16, AutomaticUpdateChecks = false }.SaveConfig(temp.Path);
+        new Config { DownloadPath = downloads, BooruCatalogLimitMiB = 17, AutomaticUpdateChecks = false }.SaveConfig(temp.Path);
+        string primary = Path.Combine(temp.Path, "settings.json");
+        byte[] goodBackup = File.ReadAllBytes(primary + ".bak");
+        Damage.WriteSparse(primary, size);
+        string[] names = Directory.EnumerateFileSystemEntries(temp.Path).Order(StringComparer.Ordinal).ToArray();
+
+        long before = GC.GetTotalAllocatedBytes(precise: false);
+        Config config = Config.LoadConfig(temp.Path);
+        long used = GC.GetTotalAllocatedBytes(precise: false) - before;
+
+        Assert.True(used < Config.SettingsFileCeilingBytes, $"Loading allocated {used} bytes for a file of {size}.");
+        Assert.Equal(ProfileOrigin.BackupRecovery, config.Origin);
+        Assert.Equal(16, config.BooruCatalogLimitMiB);
+        Assert.Throws<InvalidOperationException>(() => config.SaveConfig(temp.Path));
+        Assert.Equal(names, Directory.EnumerateFileSystemEntries(temp.Path).Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal(size, new FileInfo(primary).Length);
+        Assert.Equal(goodBackup, File.ReadAllBytes(primary + ".bak"));
     }
 }
