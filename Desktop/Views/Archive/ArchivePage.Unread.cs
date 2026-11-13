@@ -64,16 +64,22 @@ public partial class ArchivePage
         if (line < 0) return false;
         if (line < _postOffset) return true; // The line is on an earlier page of posts.
         if (line >= _postOffset + PageSize) return false;
+        // The post that carries the line is asked directly: no walk over the realized cards on every scroll event.
+        int index = line - _postOffset;
+        if (index < 0 || index >= rows.Length || rows[index].Id != _unreadFirstNewId)
+        {
+            index = Array.FindIndex(rows, row => row.Id == _unreadFirstNewId);
+            if (index < 0) return false;
+        }
         ListBox list = ArchivePosts;
-        (ListBoxItem? Item, double Top) first = list.GetVisualDescendants().OfType<ListBoxItem>()
-            .Where(item => item.DataContext is ArchivePostRow)
-            .Select(item => (Item: (ListBoxItem?)item, Top: item.TranslatePoint(default, list)?.Y ?? double.NaN))
-            .Where(item => item.Top < list.Bounds.Height && item.Top + item.Item!.Bounds.Height > 0)
-            .OrderBy(item => item.Top).FirstOrDefault();
-        if (first.Item?.DataContext is not ArchivePostRow top) return false;
-        int visible = _thread.FindPostIndex(top.Id);
-        // At the post that carries the line, it is past once the line itself (its first rows) has scrolled out.
-        return visible > line || visible == line && first.Top < -UnreadLineHeight;
+        if (list.ContainerFromIndex(index) is Control container)
+        {
+            if (container.TranslatePoint(default, list)?.Y is not { } top) return false; // Not laid out yet.
+            // It is past once the line itself (its first rows) has scrolled out, or the whole post has.
+            return top < -UnreadLineHeight || top + container.Bounds.Height <= 0;
+        }
+        // Not realized: the panel realizes one contiguous range, so the post is above it (past) or below it.
+        return list.ItemsPanelRoot is VirtualizingStackPanel { FirstRealizedIndex: >= 0 and var firstRealized } && index < firstRealized;
     }
 
     private const double UnreadLineHeight = 28;
