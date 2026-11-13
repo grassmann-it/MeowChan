@@ -8,6 +8,8 @@ namespace MeowChan;
 
 public partial class MainWindow
 {
+    internal const string DefaultExampleSourceId = "4chan";
+
     private string? RefreshAdmissionRepair()
     {
         Control panel = WorkspaceControl<Control>("AdmissionRepairPanel");
@@ -25,11 +27,15 @@ public partial class MainWindow
         bool sessionExample = example != null;
         if (example == null)
         {
-            // These examples were validated by the source parsers on the single capture worker.
-            example = _session.Projection.AdmissionExamples
-                .OrderByDescending(url => rejected != null && Uri.TryCreate(url, UriKind.Absolute, out Uri? known)
-                    && string.Equals(known.Host, rejected.Host, StringComparison.OrdinalIgnoreCase))
-                .FirstOrDefault();
+            // These examples were validated by the source parsers on the single capture worker. A mistyped
+            // host never borrows another source's example: without a host match only the default source
+            // (4chan) is shown, never whichever plugin source happens to come first.
+            static bool OnHost(string url, Func<string, bool> host) => Uri.TryCreate(url, UriKind.Absolute, out Uri? known) && host(known.Host);
+            ProviderDescriptor? fallback = providers.FirstOrDefault(provider => provider.SourceId == DefaultExampleSourceId);
+            example = _session.Projection.AdmissionExamples.FirstOrDefault(url => rejected != null
+                    && OnHost(url, host => string.Equals(host, rejected.Host, StringComparison.OrdinalIgnoreCase)))
+                ?? (fallback == null ? null : _session.Projection.AdmissionExamples.FirstOrDefault(url => OnHost(url,
+                    host => fallback.SupportedHosts.Prepend(fallback.BaseUri.Host).Contains(host, StringComparer.OrdinalIgnoreCase))));
         }
         // Keep the cause and repair example visible together in compact windows.
         // The rejected URLs and complete source list belong to the scrollable report.

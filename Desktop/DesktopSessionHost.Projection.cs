@@ -238,7 +238,10 @@ internal sealed partial class DesktopSessionHost
         {
             foreach (string host in provider.SupportedHosts.Prepend(provider.BaseUri.Host).Distinct(StringComparer.OrdinalIgnoreCase))
             {
-                foreach (string path in new[] { "/b/thread/123456", "/b/res/123456.html", "/b/" })
+                // "board" is a placeholder that is clearly not a real board; the "/b/" forms remain only
+                // for sources that reject it. The shell shows them only for a matching host.
+                foreach (string path in new[] { "/board/thread/123456", "/board/res/123456.html", "/board/",
+                    "/b/thread/123456", "/b/res/123456.html", "/b/" })
                 {
                     try
                     {

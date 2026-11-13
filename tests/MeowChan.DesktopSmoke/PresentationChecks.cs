@@ -236,15 +236,16 @@ internal static class PresentationChecks
                 + Texts.T("admission.repairFormat", string.Empty);
             Require(repairText.StartsWith(repairPrefix, StringComparison.Ordinal),
                 "The small-window repair did not retain its complete immediate cause and localized URL-example label.");
-            // An unknown host can use any registered source's valid example. Plugin
-            // activation order must not turn one particular source into a UI contract.
+            // An unknown host shows the default source's placeholder example, never the
+            // first plugin source in activation order.
             string exampleUrl = repairText[repairPrefix.Length..];
             ProviderDescriptor[] providers = window.SessionHost.GetProviderDescriptors().ToArray();
             BoardAdmissionTarget? example = window.SessionHost.ClassifyAdmission(exampleUrl);
             Require(Uri.TryCreate(exampleUrl, UriKind.Absolute, out Uri? exampleUri)
                 && providers.Any(provider => provider.SupportedHosts.Prepend(provider.BaseUri.Host)
                     .Contains(exampleUri.Host, StringComparer.OrdinalIgnoreCase))
-                && example != null && example.Url == exampleUrl,
+                && example != null && example.Url == exampleUrl
+                && exampleUri.Host == "boards.4chan.org" && exampleUri.AbsolutePath.StartsWith("/board/", StringComparison.Ordinal),
                 "The displayed repair example was not a canonical URL accepted by a registered source: " + exampleUrl);
             Require(InViewport(window, repairViewport) && FitsVertically(repair, repairViewport),
                 "The small-window repair clipped the immediate cause or URL example.");

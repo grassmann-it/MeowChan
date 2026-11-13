@@ -76,7 +76,7 @@ public sealed class DesktopSessionAdmissionTests
             Assert.Null(host.Projection.CaptureError);
             Assert.Equal(0, host.ProjectionStats.Failures);
             Assert.Contains("https://boards.4chan.org/g/", host.Projection.AdmissionExamples);
-            Assert.Contains("https://8kun.top/b/res/123456.html", host.Projection.AdmissionExamples);
+            Assert.Contains("https://8kun.top/board/res/123456.html", host.Projection.AdmissionExamples);
             int initialProbes = provider.SyntheticThreadProbes;
             DesktopAdmissionResult admission = await host.AddAsync("https://boards.4chan.org/g/thread/123").WaitAsync(Deadline);
             Assert.Equal(AdmissionStatus.Added, admission.Status);
@@ -99,7 +99,7 @@ public sealed class DesktopSessionAdmissionTests
             await restored.StartAsync().WaitAsync(Deadline);
             Assert.Null(restored.Projection.CaptureError);
             Assert.Equal("123", Assert.Single(restored.GetView().Threads).Snapshot.Id.Thread);
-            Assert.Contains("https://8kun.top/b/res/123456.html", restored.Projection.AdmissionExamples);
+            Assert.Contains("https://8kun.top/board/res/123456.html", restored.Projection.AdmissionExamples);
         }
         Assert.Equal(0, transport.Requests);
     }
@@ -135,7 +135,7 @@ public sealed class DesktopSessionAdmissionTests
     }
 
     // Exactly the customization behind the integration failures: GetBoard intentionally returns /g/
-    // even when an optional /b/thread/... example was invented. Real /g/ watches remain valid.
+    // even when an optional /board/thread/... example was invented. Real /g/ watches remain valid.
     private sealed class FixedBoardProvider : FourChanImageBoard
     {
         private int _syntheticThreadProbes;
@@ -145,7 +145,8 @@ public sealed class DesktopSessionAdmissionTests
         public override IBoard GetBoard(Uri boardUri) => Board;
         public override IThread GetThread(Uri threadUri)
         {
-            if (threadUri.AbsolutePath.StartsWith("/b/thread/", StringComparison.Ordinal))
+            if (threadUri.AbsolutePath.StartsWith("/board/thread/", StringComparison.Ordinal)
+                || threadUri.AbsolutePath.StartsWith("/b/thread/", StringComparison.Ordinal))
                 Interlocked.Increment(ref _syntheticThreadProbes);
             return base.GetThread(threadUri);
         }
