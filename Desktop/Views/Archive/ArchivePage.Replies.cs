@@ -121,6 +121,6 @@ public partial class ArchivePage
         ArchiveQuoteRow row = new(quote, true, thread);
         if (PreviewPost(row) is not { } post) return row;
         (string header, string excerpt) = ArchivePresentation.PostExcerpt(post, ReplyCardMaxLines, ReplyCardMaxCharacters);
-        return row with { ReplyHeader = header, ReplyExcerpt = excerpt };
+        return row with { ReplyHeader = header, ReplyExcerpt = PostFilterReplyExcerpt(post, excerpt) };
     }
 }

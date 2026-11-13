@@ -193,6 +193,7 @@ public partial class ArchivePage
         QuotePreviewBody.Text = body;
         QuotePreviewBody.IsVisible = body.Length > 0;
         Avalonia.Automation.AutomationProperties.SetName(QuotePreviewPopup, header + (body.Length > 0 ? ": " + body : string.Empty));
+        UpdateQuotePreviewFilterNote(post);
         QuotePreviewPopup.PlacementTarget = target;
         QuotePreviewPopup.PlacementRect = _quotePreviewArea.Width > 0 ? _quotePreviewArea : null;
         QuotePreviewPopup.IsOpen = true;
