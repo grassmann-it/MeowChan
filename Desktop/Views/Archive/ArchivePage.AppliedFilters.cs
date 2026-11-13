@@ -29,7 +29,7 @@ public partial class ArchivePage
         string accessible = Texts.T("archive.removeFilter", label);
         ClosableTag tag = new()
         {
-            Content = new TextBlock { Text = label, MaxWidth = 235, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis },
+            Content = new TextBlock { Text = label, MaxWidth = 320, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis },
             Command = new FilterTagCommand(remove), Focusable = true
         };
         WorkspaceChips.MarkFilter(tag, exclude);
