@@ -306,7 +306,7 @@
     <Style Selector="TextBlock.section-title"><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Section}" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
     <Style Selector="TextBlock.mono"><Setter Property="FontFamily" Value="monospace" /></Style>
     <Style Selector="SelectableTextBlock.reader-body"><Setter Property="FontFamily" Value="{StaticResource Workspace.Font.Reading}" /></Style>
-    <Style Selector="Window.workspace-advanced TextBlock.inline-thread-id, Window.workspace-advanced TextBlock.media-state"><Setter Property="IsVisible" Value="False" /></Style>
+    <Style Selector="Window.workspace-advanced TextBlock.inline-thread-id"><Setter Property="IsVisible" Value="False" /></Style>
     <Style Selector="Border.panel, Border.raised, Border.shell-bar">
         <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
