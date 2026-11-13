@@ -25,69 +25,123 @@ namespace MeowChan.Booru;
 /// profile still accepts writes, and wait for both; queued downloads stay with the queue's own
 /// pause/restart contract.
 /// </para>
+/// <para>
+/// Profile transitions (F2): with a <see cref="BooruProducerLifecycle"/> the load waits for an open generation, every
+/// recovery run is a counted use of its generation (the cut cancels it, so a recovery parked at a suspended queue
+/// never pins the drain) and each newly opened generation starts a fresh recovery run for the requests that are
+/// still pending. The host stop is terminal; the lifecycle's own cut/resume is the reversible seam, and the session
+/// owner stops the lifecycle after this host stopped.
+/// </para>
 /// </summary>
 internal sealed class DanbooruWatcherHost : IAsyncDisposable
 {
     private const string CatalogUnreadableFault = "catalog_unreadable";
     private readonly BooruOriginalQueue _originals;
-    private readonly SemaphoreSlim _lifecycle = new(1, 1);
+    private readonly BooruProducerLifecycle? _lifecycle;
+    private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
+    // Guards the recovery run bookkeeping against the lifecycle's Changed callback, which can run on any thread.
+    private readonly object _recoverySync = new();
     private CancellationTokenSource? _recoveryCancellation;
     private Task<IReadOnlyList<BooruOriginalAdmission>> _recovery = Task.FromResult<IReadOnlyList<BooruOriginalAdmission>>([]);
+    private long _recoveryGeneration = -1;
+    private bool _recoveryEnabled;
     private bool _started;
     private bool _stopped;
 
     internal DanbooruWatcherHost(BooruCatalogStore catalog, BooruOriginalQueue originals,
         IDanbooruWatcherSearchPort search, TimeProvider? timeProvider = null,
-        DanbooruWatcherSchedulerOptions? options = null)
+        DanbooruWatcherSchedulerOptions? options = null, BooruProducerLifecycle? lifecycle = null)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         _originals = originals ?? throw new ArgumentNullException(nameof(originals));
+        _lifecycle = lifecycle;
         Scheduler = new DanbooruWatcherScheduler(catalog, search,
-            new DanbooruWatcherQueueAdmission(originals, catalog, timeProvider), timeProvider, options);
+            new DanbooruWatcherQueueAdmission(originals, catalog, timeProvider), timeProvider, options, lifecycle);
     }
 
     /// <summary>The bindable service surface for the UI (status, check now, pause, resume, remove).</summary>
     internal DanbooruWatcherScheduler Scheduler { get; }
 
     /// <summary>
-    /// The background re-admission of pending originals begun by the last successful start. A stop cancels it;
-    /// it then yields the admissions already handed to the queue. An expected failure (unreadable catalog,
-    /// profile closing) is logged and yields an empty list; only a programming error faults it.
+    /// The background re-admission of pending originals begun by the last successful start or, with a lifecycle, by
+    /// the last opened generation. A stop or cut cancels it; it then yields the admissions already handed to the
+    /// queue. An expected failure (unreadable catalog, profile closing) is logged and yields an empty list; only a
+    /// programming error faults it.
     /// </summary>
     internal Task<IReadOnlyList<BooruOriginalAdmission>> Recovery => Volatile.Read(ref _recovery);
 
+    /// <summary>The transient global session pause gate of the scheduler (F3); see <see cref="DanbooruWatcherScheduler.SetSessionPaused"/>.</summary>
+    internal void SetSessionPaused(bool paused) => Scheduler.SetSessionPaused(paused);
+
     internal async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (_started || _stopped) return;
             // Only mark started once the whole start order succeeded. A cancelled or failed start
             // must stay retryable; otherwise a transient failure permanently disables the watchers.
-            Scheduler.Load(cancellationToken);
+            // With a lifecycle the load (its restart-recovery writes) is a counted use of an open generation; an
+            // exclusive operation in progress delays the start instead of failing it.
+            BooruProducerUse? load = _lifecycle is null ? null : await _lifecycle.EnterAsync(cancellationToken).ConfigureAwait(false);
+            try { Scheduler.Load(cancellationToken, load); }
+            finally { load?.Dispose(); }
             cancellationToken.ThrowIfCancellationRequested();
-            CancellationTokenSource recovery = new();
             // An unreadable catalog is already the scheduler's visible load fault; a recovery would only fail on the
             // same read and report it a second time.
-            Task<IReadOnlyList<BooruOriginalAdmission>> recovering = Scheduler.GetSnapshot().FaultCode == CatalogUnreadableFault
-                ? Task.FromResult<IReadOnlyList<BooruOriginalAdmission>>([])
-                : Task.Run(() => RecoverAsync(recovery.Token), CancellationToken.None);
+            bool recover = Scheduler.GetSnapshot().FaultCode != CatalogUnreadableFault;
+            if (_lifecycle != null) _lifecycle.Changed += OnLifecycleChanged;
+            lock (_recoverySync)
+            {
+                _recoveryEnabled = recover;
+                if (recover) StartRecoveryLocked();
+            }
             try { await Scheduler.StartAsync(cancellationToken).ConfigureAwait(false); }
             catch
             {
-                recovery.Cancel();
-                await recovering.ConfigureAwait(false);
-                recovery.Dispose();
+                await EndRecoveryAsync().ConfigureAwait(false);
                 throw;
             }
-            _recoveryCancellation = recovery;
-            Volatile.Write(ref _recovery, recovering);
             _started = true;
         }
-        finally { _lifecycle.Release(); }
+        finally { _lifecycleGate.Release(); }
     }
 
-    private async Task<IReadOnlyList<BooruOriginalAdmission>> RecoverAsync(CancellationToken cancellationToken)
+    private void OnLifecycleChanged()
+    {
+        // A fresh generation re-admits what is still pending; the previous run was cut and drained before it opened.
+        lock (_recoverySync)
+            if (_recoveryEnabled) StartRecoveryLocked();
+    }
+
+    /// <summary>Caller holds <see cref="_recoverySync"/>. Starts one run per generation, never two at once.</summary>
+    private void StartRecoveryLocked()
+    {
+        BooruProducerUse? use = null;
+        if (_lifecycle != null)
+        {
+            if (_lifecycle.Generation == _recoveryGeneration) return;
+            use = _lifecycle.TryEnter();
+            if (use is null) return;
+            if (use.Generation == _recoveryGeneration)
+            {
+                use.Dispose();
+                return;
+            }
+            _recoveryGeneration = use.Generation;
+        }
+        else if (_recoveryCancellation != null) return;
+        CancellationTokenSource recovery = use is null ? new() : CancellationTokenSource.CreateLinkedTokenSource(use.Cut);
+        CancellationTokenSource? previous = _recoveryCancellation;
+        _recoveryCancellation = recovery;
+        Task<IReadOnlyList<BooruOriginalAdmission>> started = Task.Run(() => RecoverAsync(recovery.Token, use), CancellationToken.None);
+        Volatile.Write(ref _recovery, started);
+        // The previous run belonged to a drained generation, so it has already ended.
+        previous?.Dispose();
+    }
+
+    private async Task<IReadOnlyList<BooruOriginalAdmission>> RecoverAsync(CancellationToken cancellationToken,
+        BooruProducerUse? use)
     {
         try { return await _originals.RecoverPendingAsync(cancellationToken).ConfigureAwait(false); }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return []; }
@@ -99,29 +153,56 @@ internal sealed class DanbooruWatcherHost : IAsyncDisposable
             Log.Warning(exception, "Danbooru pending originals could not be re-admitted; they stay pending for the next start");
             return [];
         }
+        finally
+        {
+            // Last: the generation's drain waits for the recovery to have really ended.
+            use?.Dispose();
+        }
+    }
+
+    /// <summary>Stops starting recovery runs, cancels the current one and waits for it.</summary>
+    private Task EndRecoveryAsync() => AwaitRecoveryAsync(CancelRecovery());
+
+    /// <summary>Synchronously disables new recovery runs and cancels the current one.</summary>
+    private (CancellationTokenSource? Cancellation, Task<IReadOnlyList<BooruOriginalAdmission>> Run) CancelRecovery()
+    {
+        if (_lifecycle != null) _lifecycle.Changed -= OnLifecycleChanged;
+        CancellationTokenSource? recovery;
+        Task<IReadOnlyList<BooruOriginalAdmission>> running;
+        lock (_recoverySync)
+        {
+            _recoveryEnabled = false;
+            _recoveryGeneration = -1;
+            recovery = _recoveryCancellation;
+            _recoveryCancellation = null;
+            running = Recovery;
+        }
+        try { recovery?.Cancel(); }
+        catch (ObjectDisposedException) { }
+        return (recovery, running);
+    }
+
+    private static async Task AwaitRecoveryAsync(
+        (CancellationTokenSource? Cancellation, Task<IReadOnlyList<BooruOriginalAdmission>> Run) recovery)
+    {
+        // A recovery admission waiting at the queue observes the cancellation; one already handed over
+        // keeps its own queue job. Only a programming error faults RecoverAsync.
+        try { await recovery.Run.ConfigureAwait(false); }
+        finally { recovery.Cancellation?.Dispose(); }
     }
 
     internal async Task StopAsync()
     {
-        await _lifecycle.WaitAsync().ConfigureAwait(false);
+        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
         try
         {
             if (_stopped) return;
             _stopped = true;
-            CancellationTokenSource? recovery = _recoveryCancellation;
-            _recoveryCancellation = null;
-            try { recovery?.Cancel(); }
-            catch (ObjectDisposedException) { }
+            var recovery = CancelRecovery();
             try { await Scheduler.StopAsync().ConfigureAwait(false); }
-            finally
-            {
-                // A recovery admission waiting at the queue observes the cancellation; one already handed over
-                // keeps its own queue job. Only a programming error faults RecoverAsync.
-                try { await Recovery.ConfigureAwait(false); }
-                finally { recovery?.Dispose(); }
-            }
+            finally { await AwaitRecoveryAsync(recovery).ConfigureAwait(false); }
         }
-        finally { _lifecycle.Release(); }
+        finally { _lifecycleGate.Release(); }
     }
 
     public async ValueTask DisposeAsync() => await StopAsync().ConfigureAwait(false);
