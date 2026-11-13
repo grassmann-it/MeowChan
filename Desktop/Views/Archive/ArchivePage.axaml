@@ -184,10 +184,12 @@
                                 <MenuItem x:Name="ArchiveTableRemoveMenu" Tag="selection.remove" Classes="localized" Header="Remove selection" Click="OnArchiveRemoveSelection" />
                             </ContextMenu></DataGrid.ContextMenu>
                         </DataGrid>
-                        <StackPanel x:Name="ArchiveEmptyState" Margin="12" Spacing="8" IsVisible="False">
-                            <TextBlock x:Name="ArchiveEmpty" Classes="muted" TextWrapping="Wrap" />
-                            <Button x:Name="ArchiveGoDownloads" HorizontalAlignment="Left" Click="OnGoDownloadsClick" />
-                            <Button x:Name="ArchiveResetFilters" HorizontalAlignment="Left" Click="OnResetArchiveFiltersClick" />
+                        <!-- Same pattern as the empty Downloads list: centred, one sentence, one primary next step. -->
+                        <StackPanel x:Name="ArchiveEmptyState" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                    MaxWidth="360" Margin="20" Spacing="12" IsVisible="False">
+                            <TextBlock x:Name="ArchiveEmpty" Classes="muted" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+                            <Button x:Name="ArchiveGoDownloads" Classes="primary" HorizontalAlignment="Center" Click="OnGoDownloadsClick" />
+                            <Button x:Name="ArchiveResetFilters" Classes="primary" HorizontalAlignment="Center" Click="OnResetArchiveFiltersClick" />
                         </StackPanel>
                         <!-- ARCH-DENSE-01 slice 2: the pager is docked under the list inside the results
                              box; it is its own row, so it never covers a list row. -->
