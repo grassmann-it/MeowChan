@@ -303,6 +303,7 @@ def cleanup(owned):
             p.wait(timeout=max(.01, deadline-time.monotonic()))
         except subprocess.TimeoutExpired:
             pass
+    complete = True
     for _, p in reversed(owned):
         try:
             os.killpg(p.pid, signal.SIGKILL)
@@ -311,15 +312,16 @@ def cleanup(owned):
         try:
             p.wait(timeout=2)
         except subprocess.TimeoutExpired:
-            return False
+            # A stuck group must not prevent escalation/reaping of the rest.
+            complete = False
     # Include descendants left in a group after the direct child exited.
     for _, p in owned:
         try:
             os.killpg(p.pid, 0)
         except ProcessLookupError:
             continue
-        return False
-    return True
+        complete = False
+    return complete
 
 
 def execute(command, report_path, backend=BACKEND_PULSEAUDIO):

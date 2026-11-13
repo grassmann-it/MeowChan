@@ -1,10 +1,12 @@
 """Mock-only tests: never contact audio services or the user's session."""
+from contextlib import contextmanager
 import importlib.util
 import json
 from pathlib import Path
 import signal
 import subprocess
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
@@ -13,7 +15,20 @@ audio = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(audio)
 
 
-class PrivateAudioTests(unittest.TestCase):
+class MockOnlyTestCase(unittest.TestCase):
+    def setUp(self):
+        # A forgotten mock must fail the test, never start a native process or
+        # signal a real group. Nested scenario mocks replace these guards.
+        for owner, name in ((audio.subprocess, 'Popen'),
+                            (audio.subprocess, 'run'), (audio.os, 'killpg')):
+            guard = patch.object(owner, name, side_effect=AssertionError(
+                'unmocked process boundary: '+name))
+            mocked = guard.start()
+            self.addCleanup(guard.stop)
+            self.addCleanup(mocked.assert_not_called)
+
+
+class PrivateAudioTests(MockOnlyTestCase):
     def test_backend_detection_is_explicit_and_prefers_pulseaudio(self):
         available = {'dbus-daemon', 'pactl', 'pulseaudio', 'pipewire', 'pipewire-pulse', 'pw-dump'}
         with patch.object(audio.shutil, 'which',
@@ -280,6 +295,314 @@ class PrivateAudioTests(unittest.TestCase):
             self.assertEqual(len(cleanup.call_args.args[0]), service_count + 1)
             self.assertNotIn('cookie', report.read_text())
             self.assertEqual(set(data['services']), expected_services)
+
+
+class PipeWireContractTests(MockOnlyTestCase):
+    @contextmanager
+    def scenario(self, child_code=0):
+        """Exercise execute/proof/cleanup; only OS process boundaries are fake.
+
+        Socket stand-ins are ordinary files inside the test directory. No
+        native executable, socket connection, process or signal is involved.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            foreign = root/'foreign-session'
+            foreign.mkdir()
+            sentinel = foreign/'native'
+            sentinel.write_text('untouched foreign socket stand-in')
+            case = SimpleNamespace()
+            case.envs = []
+            case.processes = {}
+            case.base = None
+            case.hook = lambda command: None
+            case.bus_ready = True
+            case.child_polls = 0
+            case.stuck = set()
+            case.graph = [
+                {'type': 'PipeWire:Interface:Module',
+                 'info': {'props': {'module.name': name}}}
+                for name in sorted(audio.PIPEWIRE_MODULES)
+            ] + [
+                {'type': 'PipeWire:Interface:Node',
+                 'info': {'props': {'node.name': 'Dummy-Driver',
+                                    'factory.name': 'support.node.driver'}}},
+                {'type': 'PipeWire:Interface:Node',
+                 'info': {'props': {'node.name': audio.SINK,
+                                    'factory.name': 'support.null-audio-sink',
+                                    'media.class': 'Audio/Sink'}}},
+            ]
+            case.sinks = [{'name': audio.SINK, 'mute': True}]
+            inherited = {key: str(foreign) for key in (
+                'HOME', 'TMPDIR', 'XDG_RUNTIME_DIR', 'XDG_CONFIG_HOME',
+                'XDG_CONFIG_DIRS', 'XDG_CACHE_HOME', 'XDG_STATE_HOME',
+                'XDG_DATA_HOME', 'PIPEWIRE_RUNTIME_DIR', 'PIPEWIRE_REMOTE',
+                'PIPEWIRE_CONFIG_DIR', 'PIPEWIRE_CONFIG_NAME', 'PULSE_SERVER',
+                'PULSE_RUNTIME_PATH', 'PULSE_COOKIE', 'PULSE_CLIENTCONFIG',
+                'PULSE_SINK', 'DBUS_SESSION_BUS_ADDRESS', 'DBUS_SYSTEM_BUS_ADDRESS')}
+
+            def spawn(command, *, env, start_new_session, **kwargs):
+                self.assertTrue(start_new_session)
+                case.envs.append((command[0], env.copy()))
+                case.hook(command)
+                name = command[0]
+                self.assertIn(name, ('dbus-daemon', 'pipewire', 'pipewire-pulse', 'contract-child'))
+                case.base = Path(env['HOME']).parent
+                if name == 'dbus-daemon' and case.bus_ready:
+                    (case.base/'runtime/bus').touch()
+                elif name == 'pipewire':
+                    (case.base/'runtime/pipewire-0').touch()
+                elif name == 'pipewire-pulse':
+                    Path(env['PULSE_SOCKET']).parent.mkdir(exist_ok=True)
+                    Path(env['PULSE_SOCKET']).touch()
+                process = Mock(pid=100000+len(case.processes), returncode=None)
+                def poll():
+                    if name == 'contract-child' and process.returncode is None:
+                        if case.child_polls:
+                            case.child_polls -= 1
+                            return None
+                        process.returncode = child_code
+                    return process.returncode
+                def wait(timeout):
+                    if name in case.stuck:
+                        raise subprocess.TimeoutExpired(name, timeout)
+                    if process.returncode is None:
+                        process.returncode = -signal.SIGTERM
+                    return process.returncode
+                process.poll.side_effect = poll
+                process.wait.side_effect = wait
+                case.processes[name] = process
+                return process
+
+            def run(command, *, env, capture_output, text, timeout):
+                self.assertTrue(capture_output and text)
+                self.assertEqual(timeout, 3)
+                case.envs.append((command[0], env.copy()))
+                case.hook(command)
+                outputs = {
+                    ('pactl', '--format=json', 'list', 'sinks'): json.dumps(case.sinks),
+                    ('pactl', '--format=json', 'list', 'sources'):
+                        json.dumps([{'name': audio.SINK+'.monitor'}]),
+                    ('pactl', '--format=json', 'list', 'cards'): '[]',
+                    ('pactl', 'get-default-sink'): audio.SINK,
+                    ('pactl', 'set-default-sink', audio.SINK): '',
+                    ('pactl', 'set-sink-mute', audio.SINK, '1'): '',
+                    ('pw-dump', '-N'): json.dumps(case.graph),
+                }
+                self.assertIn(tuple(command), outputs)
+                return subprocess.CompletedProcess(command, 0, outputs[tuple(command)], '')
+
+            def killpg(pid, sig):
+                process = next(p for p in case.processes.values() if p.pid == pid)
+                if sig == 0 and process.returncode is not None:
+                    raise ProcessLookupError()
+
+            case.report_path = root/'report.json'
+            case.execute = lambda: audio.execute(
+                ['contract-child'], case.report_path, audio.BACKEND_PIPEWIRE)
+            handlers = {sig: signal.getsignal(sig) for sig in (signal.SIGTERM, signal.SIGINT)}
+            # The clock advances deterministically; timeout tests never sleep.
+            with patch.dict(audio.os.environ, inherited), \
+                 patch.object(audio.subprocess, 'Popen', side_effect=spawn) as popen, \
+                 patch.object(audio.subprocess, 'run', side_effect=run), \
+                 patch.object(audio.os, 'killpg', side_effect=killpg) as kill, \
+                 patch.object(audio.time, 'sleep'), \
+                 patch.object(audio.time, 'monotonic', side_effect=iter(range(10000))):
+                case.spawn = popen
+                case.kill = kill
+                yield case
+            for sig, handler in handlers.items():
+                self.assertEqual(signal.getsignal(sig), handler)
+            if case.base is not None:
+                self.assertFalse(case.base.exists(), 'private socket/config tree leaked')
+            self.assertEqual(sentinel.read_text(), 'untouched foreign socket stand-in')
+            self.assertEqual(list(foreign.iterdir()), [sentinel])
+
+    def assert_report(self, case, status, child_code=None, error=None, clean=True):
+        report = json.loads(case.report_path.read_text())
+        self.assertEqual(report['backend'], audio.BACKEND_PIPEWIRE)
+        self.assertEqual(report['status'], status)
+        self.assertEqual(report['child_exit_code'], child_code)
+        self.assertEqual(report['cleanup']['complete'], clean)
+        if error:
+            self.assertEqual(report['error_type'], error)
+        self.assertFalse(case.report_path.with_suffix('.json.tmp').exists())
+        self.assertNotIn('secret raw output', case.report_path.read_text())
+        self.assertEqual({c.args[0] for c in case.kill.call_args_list},
+                         {p.pid for p in case.processes.values()})
+        names = {'dbus-daemon': 'dbus', 'contract-child': 'child'}
+        expected = {names.get(name, name): process.pid
+                    for name, process in case.processes.items()}
+        self.assertEqual({name: data['pid'] for name, data in
+                          report['cleanup']['processes'].items()}, expected)
+        self.assertEqual(set(report['services']), set(expected)-{'child'})
+        return report
+
+    def test_inherited_session_is_replaced_at_every_process_boundary(self):
+        with self.scenario() as case:
+            self.assertEqual(case.execute(), 0)
+            report = self.assert_report(case, 'passed', 0)
+            self.assertIsNotNone(report['readiness']['before'])
+            self.assertIsNotNone(report['readiness']['after'])
+            self.assertEqual({name for name, _ in case.envs},
+                             {'dbus-daemon', 'pipewire', 'pipewire-pulse',
+                              'contract-child', 'pactl', 'pw-dump'})
+            for name, env in case.envs:
+                with self.subTest(process=name):
+                    self.assertFalse(any('foreign-session' in v for v in env.values()))
+                    runtime = str(case.base/'runtime')
+                    self.assertEqual(env['XDG_RUNTIME_DIR'], runtime)
+                    self.assertEqual(env['PIPEWIRE_RUNTIME_DIR'], runtime)
+                    self.assertEqual(env['PULSE_SERVER'], 'unix:'+runtime+'/pulse/native')
+                    self.assertEqual(env['DBUS_SESSION_BUS_ADDRESS'], 'unix:path='+runtime+'/bus')
+                    self.assertEqual(env['DBUS_SYSTEM_BUS_ADDRESS'], env['DBUS_SESSION_BUS_ADDRESS'])
+                    self.assertEqual(env['PIPEWIRE_REMOTE'], 'pipewire-0' if name in
+                                     ('pipewire', 'pipewire-pulse', 'pw-dump') else
+                                     'disabled-private-no-server')
+
+    def test_missing_pw_dump_preflight_starts_nothing(self):
+        available = {'dbus-daemon', 'pactl', 'pipewire', 'pipewire-pulse'}
+        with tempfile.TemporaryDirectory() as directory, \
+             patch.object(audio.sys, 'platform', 'linux'), \
+             patch.object(audio.shutil, 'which', side_effect=lambda name:
+                          '/mock/'+name if name in available else None):
+            report = Path(directory)/'report.json'
+            with self.assertRaisesRegex(RuntimeError, 'no supported private'):
+                audio.main(['--report', str(report), '--', 'contract-child'])
+            self.assertFalse(report.exists())  # Preflight has not entered execute.
+
+    def test_pw_dump_disappearing_before_graph_probe_fails_closed(self):
+        with self.scenario() as case:
+            def missing(command):
+                if command[0] == 'pw-dump':
+                    raise FileNotFoundError('secret raw output')
+            case.hook = missing
+            self.assertEqual(case.execute(), 1)
+            self.assertNotIn('contract-child', case.processes)
+            self.assert_report(case, 'failed', error='FileNotFoundError')
+
+    def test_missing_private_sink_never_starts_child(self):
+        for missing in ('pulse-view', 'native-graph'):
+            with self.subTest(missing=missing), self.scenario() as case:
+                if missing == 'pulse-view':
+                    case.sinks = []
+                else:
+                    case.graph.pop()
+                self.assertEqual(case.execute(), 1)
+                self.assertNotIn('contract-child', case.processes)
+                report = self.assert_report(case, 'failed', error='RuntimeError')
+                self.assertIsNone(report['readiness']['before'])
+
+    def test_bus_and_server_readiness_timeouts_clean_only_started_services(self):
+        for stage in ('bus', 'audio', 'default'):
+            with self.subTest(stage=stage), self.scenario() as case:
+                case.bus_ready = stage != 'bus'
+                if stage == 'audio':
+                    case.sinks = []
+                if stage == 'default':
+                    def timeout(command):
+                        if command[:2] == ['pactl', 'set-default-sink']:
+                            # Nonzero result, not an exception: exhaust 8s loop.
+                            return subprocess.CompletedProcess(command, 1, '', '')
+                    # Override only this response, retaining the boundary fake.
+                    normal_run = audio.subprocess.run.side_effect
+                    audio.subprocess.run.side_effect = lambda command, **kw: (
+                        timeout(command) or normal_run(command, **kw))
+                self.assertEqual(case.execute(), 1)
+                self.assertNotIn('contract-child', case.processes)
+                self.assertEqual(len(case.processes), 1 if stage == 'bus' else 3)
+                self.assert_report(case, 'failed', error='RuntimeError')
+
+    def test_partial_server_start_failure_cleans_only_owned_groups(self):
+        with self.scenario() as case:
+            def fail(command):
+                if command[0] == 'pipewire-pulse':
+                    raise OSError('secret raw output')
+            case.hook = fail
+            self.assertEqual(case.execute(), 1)
+            self.assertEqual(set(case.processes), {'dbus-daemon', 'pipewire'})
+            self.assert_report(case, 'failed', error='OSError')
+
+    def test_server_exit_before_readiness_fails_closed(self):
+        with self.scenario() as case:
+            def exit_core(command):
+                if command[0] == 'pipewire-pulse':
+                    case.processes['pipewire'].returncode = 17
+            case.hook = exit_core
+            self.assertEqual(case.execute(), 1)
+            self.assertNotIn('contract-child', case.processes)
+            report = self.assert_report(case, 'failed', error='RuntimeError')
+            self.assertEqual(report['cleanup']['processes']['pipewire']['exit_code'], 17)
+
+    def test_pulse_readiness_command_timeout_fails_closed(self):
+        with self.scenario() as case:
+            def timeout(command):
+                if command[0] == 'pactl':
+                    raise subprocess.TimeoutExpired(command, 3, output='secret raw output')
+            case.hook = timeout
+            self.assertEqual(case.execute(), 1)
+            self.assertNotIn('contract-child', case.processes)
+            self.assert_report(case, 'failed', error='TimeoutExpired')
+
+    def test_graph_probe_timeout_before_during_and_after_child(self):
+        for phase in ('before', 'during', 'after'):
+            with self.subTest(phase=phase), self.scenario() as case:
+                case.child_polls = 1 if phase == 'during' else 0
+                def timeout(command):
+                    if command[0] == 'pw-dump' and (
+                            phase == 'before' or 'contract-child' in case.processes):
+                        raise subprocess.TimeoutExpired(command, 3, output='secret raw output')
+                case.hook = timeout
+                self.assertEqual(case.execute(), 1)
+                report = self.assert_report(case, 'failed', 0 if phase == 'after' else None,
+                                            error='TimeoutExpired')
+                self.assertEqual('contract-child' in case.processes, phase != 'before')
+                self.assertIsNone(report['readiness']['after'])
+
+    def test_child_error_and_signal_exit_codes_are_preserved(self):
+        for code, expected in ((23, 23), (-signal.SIGTERM, 143), (-signal.SIGINT, 130)):
+            with self.subTest(code=code), self.scenario(code) as case:
+                self.assertEqual(case.execute(), expected)
+                report = self.assert_report(case, 'child_failed', expected)
+                self.assertEqual(report['cleanup']['processes']['child']['exit_code'], code)
+
+    def test_child_exec_failure_cleans_servers_and_reports_no_exit_code(self):
+        with self.scenario() as case:
+            def fail(command):
+                if command[0] == 'contract-child':
+                    raise OSError('secret raw output')
+            case.hook = fail
+            self.assertEqual(case.execute(), 1)
+            self.assertNotIn('contract-child', case.processes)
+            self.assert_report(case, 'failed', error='OSError')
+
+    def test_wrapper_signals_during_startup_and_child_restore_handlers(self):
+        for stage in ('startup', 'child'):
+            for sig in (signal.SIGTERM, signal.SIGINT):
+                with self.subTest(stage=stage, sig=sig), self.scenario() as case:
+                    case.child_polls = 1
+                    def interrupt(command):
+                        if ((stage == 'startup' and command[0] == 'pipewire-pulse') or
+                            (stage == 'child' and command[0] == 'pw-dump' and
+                             'contract-child' in case.processes)):
+                            signal.getsignal(sig)(sig, None)
+                    case.hook = interrupt
+                    self.assertEqual(case.execute(), 128+sig)
+                    self.assert_report(case, 'failed', error='InterruptedError')
+                    self.assertEqual('contract-child' in case.processes, stage == 'child')
+
+    def test_cleanup_timeout_still_escalates_all_other_owned_groups(self):
+        with self.scenario() as case:
+            case.stuck = {'pipewire-pulse'}
+            self.assertEqual(case.execute(), 1)
+            report = self.assert_report(case, 'cleanup_failed', 0, clean=False)
+            self.assertEqual(report['services']['pipewire-pulse']['status'], 'still_running')
+            self.assertIsNone(report['cleanup']['processes']['pipewire-pulse']['exit_code'])
+            for process in case.processes.values():
+                self.assertEqual(process.wait.call_count, 2)
+            killed = {call.args[0] for call in case.kill.call_args_list
+                      if call.args[1] == signal.SIGKILL}
+            self.assertEqual(killed, {p.pid for p in case.processes.values()})
 
 
 if __name__ == '__main__':
