@@ -8,10 +8,11 @@
         <Style Selector="TextBlock.stats-num"><Setter Property="TextAlignment" Value="Right" /><Setter Property="HorizontalAlignment" Value="Right" /><Setter Property="FontFeatures" Value="tnum" /></Style>
         <Style Selector="TextBlock.stats-value"><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Subtitle}" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="FontFeatures" Value="tnum" /></Style>
         <Style Selector="DataGridCell TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
+        <Style Selector="DataGridRow.stats-total-row DataGridCell"><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /><Setter Property="BorderThickness" Value="0,1,0,0" /></Style>
     </UserControl.Styles>
     <Grid>
     <ScrollViewer x:Name="StatisticsScroll" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="12" Spacing="12">
+        <StackPanel Margin="{StaticResource Workspace.Inset.Page}" Spacing="8">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                 <StackPanel Spacing="5">
                     <TextBlock x:Name="StatisticsTitle" Classes="page-title" Text="Statistics" />
@@ -56,8 +57,8 @@
                         <TextBlock x:Name="PeakText" Grid.Column="1" Classes="muted stats-num" />
                     </Grid>
                     <TextBlock x:Name="ActivityText" Classes="muted" TextWrapping="Wrap" />
-                    <StackPanel Spacing="10">
-                        <StackPanel Spacing="3">
+                    <StackPanel Spacing="8">
+                        <StackPanel Spacing="4">
                             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                                 <Panel Width="30" Height="14" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
                                     <Path Data="M 0,13 L 0,4 L 30,4 L 30,13 Z" Fill="{DynamicResource Workspace.AccentSurface}" />
@@ -81,7 +82,7 @@
                                 </Grid>
                             </Grid>
                         </StackPanel>
-                        <StackPanel Spacing="3">
+                        <StackPanel Spacing="4">
                             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                                 <Panel Width="30" Height="14" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
                                     <Path Data="M 0,13 L 0,4 L 30,4 L 30,13 Z" Fill="{DynamicResource Workspace.Stats.DiskSurface}" />
@@ -93,7 +94,7 @@
                             <controls:IoGraph x:Name="DiskWriteGraph" Source="DiskWrite" ShowDisk="False" Height="56" HorizontalAlignment="Stretch" LineThickness="1.6"
                                               Stroke="{DynamicResource Workspace.Stats.Disk}" Fill="{DynamicResource Workspace.Stats.DiskSurface}" GuideStroke="{DynamicResource Workspace.Border}" Focusable="False" />
                         </StackPanel>
-                        <StackPanel Spacing="3">
+                        <StackPanel Spacing="4">
                             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                                 <Panel Width="30" Height="14" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
                                     <Path Data="M 0,13 L 0,4 L 30,4 L 30,13 Z" Fill="{DynamicResource Workspace.Stats.ReadSurface}" />

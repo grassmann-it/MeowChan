@@ -38,6 +38,8 @@ public partial class StatisticsPage : UserControl
         InitializeComponent();
         StatisticsGrid.ItemsSource = _rows;
         StatisticsCompactList.ItemsSource = _rows;
+        // The total row is set off by a rule above it (style stats-total-row in the markup).
+        StatisticsGrid.LoadingRow += (_, e) => e.Row.Classes.Set("stats-total-row", e.Row.DataContext is StatisticsRow { IsTotal: true });
         ApplyLanguage();
         AttachedToVisualTree += (_, _) => Texts.Changed += OnLanguageChanged;
         DetachedFromVisualTree += (_, _) => Texts.Changed -= OnLanguageChanged;
