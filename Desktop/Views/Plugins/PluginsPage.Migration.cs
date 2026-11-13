@@ -300,15 +300,19 @@ public partial class PluginsPage
                             Texts.T("plugins.repair.paths", row.OldPath ?? Texts.T("plugins.repair.unknown"), row.NewPath ?? Texts.T("plugins.repair.unknown")) + "\n" +
                             Texts.T("plugins.repair.executions", row.OldExecutionRevision ?? Texts.T("plugins.repair.unknown"),
                                 row.NewExecutionRevision ?? Texts.T("plugins.repair.unknown"))) };
+                    AutomationProperties.SetAutomationId(technical, "BundledReselectionTechnical:" + row.PluginId);
                     content.Children.Add(technical);
-                    Expander configurationDetails = new() { Header = PluginChangeReviewCatalog.T("plugins.changeReview.technical"), IsExpanded = false };
+                    Expander configurationDetails = new() { Header = RepairText(Texts.T("plugins.reselection.configuration")), IsExpanded = false };
                     TextBox configuration = new()
                     {
-                        Text = Texts.T("plugins.reselection.configuration") + "\n" + (row.ConfigurationJson ?? Texts.T("plugins.reselection.configurationUnavailable")),
+                        // Keep the copyable configuration exact; its accessible label belongs outside the JSON.
+                        Text = row.ConfigurationJson ?? Texts.T("plugins.reselection.configurationUnavailable"),
                         IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 240,
                         HorizontalAlignment = HorizontalAlignment.Stretch
                     };
+                    AutomationProperties.SetAutomationId(configurationDetails, "BundledReselectionConfiguration:" + row.PluginId);
                     AutomationProperties.SetName(configurationDetails, Texts.T("plugins.reselection.configuration"));
+                    AutomationProperties.SetName(configuration, Texts.T("plugins.reselection.configuration"));
                     configurationDetails.Content = configuration;
                     content.Children.Add(configurationDetails);
                     content.Children.Add(RepairText(ReselectionReason(row)));

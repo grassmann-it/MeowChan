@@ -122,7 +122,13 @@ internal static class BundledChangeDialogChecks
                     await ClickAsync(modal, input, Save(modal));
                     await Program.WaitUntilAsync(() => store.Writes.Count == before + 1 &&
                         ById<Button>(modal, "BundledApprovalReload").IsEnabled &&
-                        modal.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == Texts.T("plugins.approval.reviewAgain")));
+                        ById<TextBlock>(modal, "BundledApprovalStatus").Text == Texts.T("plugins.changeReview.saved"),
+                        () => $"Change review writes={store.Writes.Count - before}; revision={store.Revision}; " +
+                            $"status={ById<TextBlock>(modal, "BundledApprovalStatus").Text}");
+                    TextBlock success = ById<TextBlock>(modal, "BundledApprovalStatus");
+                    Require(success.IsEffectivelyVisible && success.Classes.Contains("workspace-meta") &&
+                        AutomationProperties.GetLiveSetting(success) == AutomationLiveSetting.Polite && Close(modal).Classes.Contains("primary"),
+                        "Pending-only success must be a visible neutral receipt with Close as the next action.");
                     var write = store.Writes.Single(w => w.Revision == store.Revision - 1);
                     Require(write.Row == store.ValidRow && write.Revision == store.StartRevision && write.Changes && write.Rights,
                         "Save did not dispatch the exact frozen row/revision with separate consents.");

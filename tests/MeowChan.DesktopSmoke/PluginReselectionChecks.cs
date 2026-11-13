@@ -67,7 +67,7 @@ internal static class PluginReselectionChecks
                 store.ResetOffers();
                 int before = store.Calls;
                 Window modal = await OpenAsync(owner, page);
-                VerifyContents(modal, store);
+                await VerifyContentsAsync(modal, store);
                 using (MediaNativeInput input = new(modal))
                 {
                     Button confirm = NewConfirm(modal, store.Row.PluginId);
@@ -320,23 +320,48 @@ internal static class PluginReselectionChecks
             await Program.WaitUntilAsync(() => modal.IsActive && modal.GetVisualDescendants().OfType<CheckBox>().Any());
         return modal;
     }
-    private static void VerifyContents(Window modal, RecordingStore store)
+    private static async Task VerifyContentsAsync(Window modal, RecordingStore store)
     {
+        VerifyOrder(modal, newFirst: true); // Check initial ordering before scrolling to optional details.
+        Expander technical = modal.GetVisualDescendants().OfType<Expander>().Single(expander =>
+            AutomationProperties.GetAutomationId(expander) == "BundledReselectionTechnical:" + store.Row.PluginId);
+        Expander configurationDetails = modal.GetVisualDescendants().OfType<Expander>().Single(expander =>
+            AutomationProperties.GetAutomationId(expander) == "BundledReselectionConfiguration:" + store.Row.PluginId);
+        using MediaNativeInput input = new(modal);
+        foreach (Expander details in new[] { technical, configurationDetails })
+        {
+            Require(!details.IsExpanded, "Technical details should not overwhelm the initial repair review.");
+            ToggleButton header = details.GetVisualDescendants().OfType<ToggleButton>()
+                .Single(button => ReferenceEquals(button.TemplatedParent, details));
+            await ClickAsync(modal, input, header);
+            await Program.WaitUntilAsync(() => details.IsExpanded && (details.Content as Control)?.IsEffectivelyVisible == true);
+        }
         string[] labels = modal.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text ?? "").ToArray();
         Require(labels.Contains(Texts.T("plugins.reselection.repairSection")) && labels.Contains(Texts.T("plugins.reselection.section")),
             "Proven repair and new selection sections are not separately displayed.");
-        Require(labels.Contains(Texts.T("plugins.repair.identities", store.Row.OldCandidateId, store.Row.NewCandidateId!, store.Row.SlotId!)), "Exact IDs/slot missing.");
-        Require(labels.Contains(Texts.T("plugins.repair.paths", store.Row.OldPath!, store.Row.NewPath!)), "Exact paths missing.");
-        Require(labels.Contains(Texts.T("plugins.repair.executions", store.Row.OldExecutionRevision!, store.Row.NewExecutionRevision!)), "Exact execution revisions missing.");
-        TextBox configuration = modal.GetVisualDescendants().OfType<TextBox>().Single(t => t.Text == RecordingStore.Configuration);
-        Require(configuration.IsReadOnly && configuration.AcceptsReturn && configuration.MaxHeight == 240 && configuration.Text == store.Row.ConfigurationJson,
-            "Full exact configuration is not read-only and reviewable.");
+        string exactDetails = (technical.Content as TextBlock)?.Text ?? "";
+        Require(exactDetails.Contains(Texts.T("plugins.repair.identities", store.Row.OldCandidateId, store.Row.NewCandidateId!, store.Row.SlotId!), StringComparison.Ordinal), "Exact IDs/slot missing.");
+        Require(exactDetails.Contains(Texts.T("plugins.repair.paths", store.Row.OldPath!, store.Row.NewPath!), StringComparison.Ordinal), "Exact paths missing.");
+        Require(exactDetails.Contains(Texts.T("plugins.repair.executions", store.Row.OldExecutionRevision!, store.Row.NewExecutionRevision!), StringComparison.Ordinal), "Exact execution revisions missing.");
+        TextBox configuration = (TextBox)configurationDetails.Content!;
+        Require(configuration.IsReadOnly && configuration.AcceptsReturn && configuration.MaxHeight == 240 &&
+            configuration.Text == RecordingStore.Configuration && configuration.Text == store.Row.ConfigurationJson &&
+            configuration.IsEffectivelyVisible && AutomationProperties.GetName(configuration) == Texts.T("plugins.reselection.configuration"),
+            "Full exact configuration is not read-only, copyable and reviewable.");
         Require(labels.Contains(Texts.T("plugins.reselection.backup")) && labels.Contains(Texts.T("plugins.reselection.policy")), "Safety/backup explanation missing.");
         Require(labels.Contains(Texts.T("plugins.reselection.blocked.pinned")), "Blocked reason is not localized.");
-        VerifyOrder(modal, newFirst: true);
         foreach (BundledCandidateRepair repair in store.RepairRows.Where(row => !row.CanReauthorize))
             Require(Buttons(modal).Single(b => AutomationProperties.GetName(b) == Texts.T("plugins.repair.confirmNamed", repair.PluginId)).IsEnabled == repair.CanConfirm,
                 "A proven repair row disappeared or changed confirmability.");
+        Program.CaptureWindow(modal, "smoke-reselection-exact-details-" + Texts.Language + ".png");
+        // A second native click must return to the compact decision without discarding any review data.
+        foreach (Expander details in new[] { configurationDetails, technical })
+        {
+            ToggleButton header = details.GetVisualDescendants().OfType<ToggleButton>()
+                .Single(button => ReferenceEquals(button.TemplatedParent, details));
+            await ClickAsync(modal, input, header);
+            await Program.WaitUntilAsync(() => !details.IsExpanded);
+        }
     }
     private static void VerifyOrder(Window modal, bool newFirst)
     {
