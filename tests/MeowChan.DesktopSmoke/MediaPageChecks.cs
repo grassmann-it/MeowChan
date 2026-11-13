@@ -645,16 +645,38 @@ internal static partial class MediaPageChecks
                 "The tag must be on the three chosen occurrences.");
             Require(NamesOn(pairIn700).Length == 0 && NamesOn(Single("sel-z.png")).Length == 0, "The deselected occurrence and the unselected tile must stay untagged.");
             Require(stored.ThreadAssignments.Count == 0, "Media tags must not tag threads.");
-            await UntilAsync(() => dialog.RemovablePanel.Children.OfType<Button>().Count() == 1 && dialog.Status.Text == string.Empty);
+            TagToggleRow? PickedRow() => dialog.TagList.Rows.SingleOrDefault(row => row.Tag?.Name.Display == "picked");
+            await UntilAsync(() => PickedRow() is { State: TagToggleState.All, Carriers: 3, Total: 3 } && dialog.Status.Text == string.Empty);
+            Require(dialog.TagList.Rows.Count(row => !row.IsHeader && row.State != TagToggleState.None) == 1
+                && dialog.Surface.Notice.Text == Texts.T("tags.dialog.addedMany", "picked", 3) && dialog.UndoButton.IsVisible,
+                "The selection list must show the new tag on all three ticked occurrences, with an undo.");
+            // Ticking the fourth occurrence again makes the row partial ("some"), unticking makes it whole again; no write.
+            box700.IsChecked = true;
+            await UntilAsync(() => PickedRow() is { State: TagToggleState.Some, Carriers: 3, Total: 4 });
+            Require(PickedRow()!.IsChecked == null && PickedRow()!.CountText == Texts.T("tags.dialog.carriers", 3, 4), "A partial tag must show the indeterminate state.");
+            Program.CaptureWindow(dialog, "smoke-media-selection-tags-partial.png");
+            box700.IsChecked = false;
+            await UntilAsync(() => PickedRow() is { State: TagToggleState.All, Total: 3 });
+            Require(host.GetPublishedPrivateTagSnapshot().Snapshot!.MediaAssignments.Count == 3, "Ticking must not write.");
 
             // The deselected occurrence gets the tag on its own; removing it again from the chosen ones leaves that one alone.
             PrivateTagCommit picked = await host.DefinePrivateTagAsync("picked").WaitAsync(Deadline);
             await host.SetMediaTagAsync(picked.Tag, TargetOf(pairIn700)!, true).WaitAsync(Deadline);
             dialog.Session.Reload(); // The modal dialog has no other writer; the test is one.
             await UntilAsync(() => dialog.Session.Snapshot!.MediaAssignments.Count == 4);
-            Button chip = dialog.RemovablePanel.Children.OfType<Button>().Single();
-            Require(((chip.Content as TextBlock)?.Text ?? string.Empty).Contains("(3)"), "The tag must be offered for removal on the three chosen files only.");
-            ClickRaise(chip);
+            await UntilAsync(() => PickedRow() is { State: TagToggleState.All, Carriers: 3, Total: 3 });
+            dialog.TagList.ToggleForTests(PickedRow()!);
+            await UntilAsync(() => host.GetPublishedPrivateTagSnapshot().Snapshot?.MediaAssignments.Count == 1 && !dialog.Session.Busy);
+            // One undo gives the tag back to exactly the three it was taken from, whatever is ticked now.
+            box700.IsChecked = true;
+            await UntilAsync(() => dialog.Session.Chosen.Count == 4);
+            ClickRaise(dialog.UndoButton);
+            await UntilAsync(() => host.GetPublishedPrivateTagSnapshot().Snapshot?.MediaAssignments.Count == 4 && !dialog.Session.Busy);
+            Require(!dialog.UndoButton.IsVisible && dialog.Surface.Notice.Text == Texts.T("tags.dialog.undone") && PickedRow() is { State: TagToggleState.All, Total: 4 },
+                "Undo must restore the removed tag once.");
+            box700.IsChecked = false;
+            await UntilAsync(() => dialog.Session.Chosen.Count == 3 && PickedRow() is { State: TagToggleState.All, Total: 3 });
+            dialog.TagList.ToggleForTests(PickedRow()!);
             await UntilAsync(() => host.GetPublishedPrivateTagSnapshot().Snapshot?.MediaAssignments.Count == 1);
             Require(NamesOn(pairIn700).SequenceEqual(["picked"]) && NamesOn(pairIn800).Length == 0 && NamesOn(Single("sel-b.png")).Length == 0 && NamesOn(Single("sel-a.png")).Length == 0,
                 "Removing must reach only the chosen occurrences that had the tag.");

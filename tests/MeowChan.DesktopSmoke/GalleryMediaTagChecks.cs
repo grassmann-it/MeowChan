@@ -8,6 +8,7 @@ using Avalonia.VisualTree;
 using MeowChan.Archive;
 using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Interfaces;
@@ -51,22 +52,25 @@ internal static class GalleryMediaTagChecks
             await UntilAsync(() => window.GalleryMediaTagWindow?.IsVisible == true);
             MediaTagDialog dialog = window.GalleryMediaTagWindow!;
             Require(dialog.Session.Target == target, "Dialog is not bound to the shown media version.");
-            Require(Labels(dialog.AvailablePanel).SequenceEqual(new[] { "+ existing" }), "Existing tags are not offered.");
-            Require(dialog.AssignedPanel.Children.OfType<TextBlock>().Single().Text == Texts.T("tags.media.none"), "Empty state missing.");
+            Require(Rows(dialog).SequenceEqual(new[] { "#Other", "existing-" }), "Existing tags are not offered: " + string.Join("|", Rows(dialog)));
+            Require(dialog.Surface.Summary.Text == Texts.T("tags.dialog.summary", 0, 1), "Empty summary missing: " + dialog.Surface.Summary.Text);
+            Require(dialog.Input.IsKeyboardFocusWithin, "The tag field must have the focus when the dialog opens.");
 
-            // New tag by Enter, then an existing tag by one click.
+            // New tag by Enter, then an existing tag by Space on its list row.
             dialog.Input.Focus();
             dialog.Input.Text = "my_media";
             var enter = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter };
             dialog.Input.RaiseEvent(enter);
             Require(enter.Handled, "Enter was not handled by the tag field.");
             await IdleAsync(dialog);
-            Button existing = dialog.AvailablePanel.Children.OfType<Button>().Single();
-            existing.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await IdleAsync(dialog);
-            Require(Labels(dialog.AssignedPanel).SequenceEqual(new[] { "existing  ✕", "my_media  ✕" }),
-                "Assigned tags are wrong: " + string.Join("|", Labels(dialog.AssignedPanel)));
-            Require(string.IsNullOrEmpty(dialog.Input.Text) && !dialog.AvailablePanel.IsVisible, "Field or offers did not update.");
+            Require(Rows(dialog).SequenceEqual(new[] { "#Assigned", "my_media+", "#Other", "existing-" }), "New tag not on top: " + string.Join("|", Rows(dialog)));
+            object shownRows = dialog.TagList.ItemsSource!;
+            TagToggleRow existingRow = await PressSpaceAsync(dialog, "existing");
+            Require(existingRow.State == TagToggleState.All && ReferenceEquals(dialog.TagList.ItemsSource, shownRows),
+                "Space must toggle the row in place, without laying the list out again.");
+            Require(Rows(dialog).SequenceEqual(new[] { "#Assigned", "my_media+", "#Other", "existing+" }), "Assigned tags are wrong: " + string.Join("|", Rows(dialog)));
+            Require(string.IsNullOrEmpty(dialog.Input.Text) && dialog.Surface.Notice.Text == Texts.T("tags.dialog.added", "existing")
+                && dialog.UndoButton.IsVisible, "Field, notice or undo did not update.");
             Program.CaptureWindow(dialog, "smoke-gallery-media-tags.png");
 
             // An invalid name keeps the draft and changes nothing.
@@ -77,12 +81,21 @@ internal static class GalleryMediaTagChecks
             Require(dialog.Status.Text == Texts.T("tags.error.invalidName") && dialog.Input.Text == "bad\tname"
                 && window.SessionHost.GetPrivateTagSnapshot().Snapshot!.Revision == revision, "Invalid name was not refused cleanly.");
             dialog.Input.Text = string.Empty;
+            // A new filter (here: back to none) lays the sections out again, so "existing" is now on top.
+            Require(Rows(dialog).SequenceEqual(new[] { "#Assigned", "existing+", "my_media+" }), "Clearing the draft did not lay the list out again: " + string.Join("|", Rows(dialog)));
 
-            Button first = dialog.AssignedPanel.Children.OfType<Button>().First();
-            first.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            // Removing is the same toggle; one undo puts it back, and the row keeps its place.
+            await PressSpaceAsync(dialog, "existing");
+            Require(Rows(dialog).SequenceEqual(new[] { "#Assigned", "existing-", "my_media+" })
+                && dialog.Surface.Notice.Text == Texts.T("tags.dialog.removed", "existing"), "Removing did not untick the row: " + string.Join("|", Rows(dialog)));
+            dialog.UndoButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await IdleAsync(dialog);
-            Require(Labels(dialog.AssignedPanel).SequenceEqual(new[] { "my_media  ✕" }) && Labels(dialog.AvailablePanel).SequenceEqual(new[] { "+ existing" }),
-                "Removing a chip did not move the tag back to the offers.");
+            Require(Rows(dialog).SequenceEqual(new[] { "#Assigned", "existing+", "my_media+" }) && !dialog.UndoButton.IsVisible
+                && dialog.Surface.Notice.Text == Texts.T("tags.dialog.undone"), "Undo did not restore the removed tag once.");
+            Require(window.SessionHost.GetPrivateTagSnapshot().Snapshot!.TagsOf(target).Count == 2, "Undo was not written.");
+            Require(dialog.TagList.IsKeyboardFocusWithin && dialog.TagList.Current?.Label == "existing", "Focus must return to the undone row.");
+            await PressSpaceAsync(dialog, "existing");
+            Require(Rows(dialog).SequenceEqual(new[] { "#Assigned", "existing-", "my_media+" }), "Removing again failed.");
 
             // T4: typing offers the existing tag; the first Escape closes only that list, the next one the dialog.
             dialog.Input.Focus();
@@ -90,10 +103,12 @@ internal static class GalleryMediaTagChecks
             await UntilAsync(() => dialog.Input.IsDropDownOpen);
             Require(dialog.Input.ItemsSource!.OfType<IdentitySuggestion>().Select(item => item.Value).SequenceEqual(new[] { "existing", "XIST" }),
                 "The existing tag was not suggested, or an assigned tag was suggested again.");
+            Require(Rows(dialog).SequenceEqual(new[] { "#Matching", "existing-" }), "Typing must filter the list: " + string.Join("|", Rows(dialog)));
             var listEscape = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape };
             dialog.Input.RaiseEvent(listEscape);
             Require(listEscape.Handled && !dialog.Input.IsDropDownOpen && window.GalleryMediaTagWindow == dialog, "Escape must close the suggestion list first.");
             dialog.Input.Text = string.Empty;
+            Require(Rows(dialog).SequenceEqual(new[] { "#Assigned", "my_media+", "#Other", "existing-" }), "Clearing the field must show every tag again.");
 
             var escape = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape };
             dialog.Input.RaiseEvent(escape);
@@ -114,6 +129,7 @@ internal static class GalleryMediaTagChecks
 
             GalleryViewerChecksAccess.Click(viewer, "GalleryClose");
             await window.GalleryCleanupTask.WaitAsync(Deadline);
+            foreach (int count in new[] { 1_024, 20_000 }) await LargeVocabularyAsync(window, target, count);
             await ArchiveJourneyAsync(window, Path.Combine(root, "archive-profile"));
             Console.WriteLine("SMOKE gallery media tags [en]: bound target, new and existing tag, invalid name, remove, Escape, button count, unbound entry checked.");
         }
@@ -258,8 +274,105 @@ internal static class GalleryMediaTagChecks
         }
     }
 
-    private static string[] Labels(Panel panel) => panel.Children.OfType<Button>()
-        .Select(button => button.Content is TextBlock text ? text.Text ?? "" : button.Content?.ToString() ?? "").ToArray();
+    /// <summary>
+    /// C5 / performance hot spot #1: the real dialog over a synthetic vocabulary of <paramref name="count"/> tags (1,024 is the
+    /// store's cap today; 20,000 is the planned configurable maximum, so it is fed from memory). Opening, one toggle and one
+    /// filter must stay far below the former seconds-long freeze, and only a screenful of rows may be realized.
+    /// </summary>
+    private static async Task LargeVocabularyAsync(MainWindow owner, PrivateMediaTagTarget target, int count)
+    {
+        PrivateTagDefinition[] tags = Enumerable.Range(0, count).Select(index =>
+        {
+            Require(PrivateTagName.TryCreate("tag_" + index.ToString("D5"), out PrivateTagName? name, out _) && name != null, "Bad synthetic name.");
+            return new PrivateTagDefinition(new TagId(Guid.NewGuid()), name!);
+        }).ToArray();
+        // Three tags on the file, twelve used by threads (they fill "recently and often used").
+        PrivateThreadTagAssignment[] threads = tags.Skip(100).Take(12).Select((tag, at) => new PrivateThreadTagAssignment(tag.Id, new ResourceId("synthetic", "g", (at + 1).ToString()))).ToArray();
+        PrivateMediaTagAssignment[] media = tags.Skip(count / 2).Take(3).Select(tag => new PrivateMediaTagAssignment(tag.Id, target)).ToArray();
+        PrivateTagStoreSnapshot current = new(1, "synthetic", tags, threads, media);
+        int writes = 0;
+        Task<PrivateTagCommit> Set(TagId tag, MediaTagSubject subject, bool assigned, CancellationToken token)
+        {
+            writes++;
+            IEnumerable<PrivateMediaTagAssignment> next = current.MediaAssignments.Where(item => (TagId)item.TagId != tag);
+            if (assigned) next = next.Append(new PrivateMediaTagAssignment(tag, target));
+            current = new PrivateTagStoreSnapshot(current.Revision + 1, "synthetic", tags, threads, next);
+            return Task.FromResult(new PrivateTagCommit(true, tag, current));
+        }
+        MediaTagSession session = new(new MediaTagSubject.Bound(target),
+            () => new PrivateTagLoadSnapshot(PrivateTagLoadState.Ready, current, null),
+            (_, _, _) => throw new InvalidOperationException("The synthetic vocabulary takes no new names."), Set);
+
+        System.Diagnostics.Stopwatch open = System.Diagnostics.Stopwatch.StartNew();
+        MediaTagDialog dialog = new(session, "synthetic-" + count + ".png");
+        try
+        {
+            dialog.Show(owner);
+            await UntilAsync(() => dialog.IsVisible && dialog.TagList.GetRealizedContainers().Any());
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Render);
+            open.Stop();
+            int realized = dialog.TagList.GetRealizedContainers().Count();
+            Require(dialog.TagList.Rows.Count == count + 3, "Every tag must be listed once under three labels: " + dialog.TagList.Rows.Count);
+            Require(realized < 200, "The list must virtualize, but realized " + realized + " rows.");
+            Require(dialog.TagList.ItemsPanelRoot is VirtualizingStackPanel, "The list panel is not virtualizing.");
+            Require(Rows(dialog).Take(5).SequenceEqual(new[] { "#Assigned", Name(count / 2) + "+", Name(count / 2 + 1) + "+", Name(count / 2 + 2) + "+", "#Frequent" }),
+                "The assigned tags are not on top: " + string.Join("|", Rows(dialog).Take(5)));
+
+            object shown = dialog.TagList.ItemsSource!;
+            System.Diagnostics.Stopwatch toggle = System.Diagnostics.Stopwatch.StartNew();
+            TagToggleRow last = await PressSpaceAsync(dialog, Name(count - 1));
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Render);
+            toggle.Stop();
+            Require(last.State == TagToggleState.All && writes == 1 && ReferenceEquals(dialog.TagList.ItemsSource, shown), "The toggle was not one in-place write.");
+
+            System.Diagnostics.Stopwatch filter = System.Diagnostics.Stopwatch.StartNew();
+            dialog.Input.Text = "_0001";
+            dialog.Surface.FlushFilter();
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Render);
+            filter.Stop();
+            int matches = tags.Count(tag => tag.Name.Display.Contains("_0001", StringComparison.Ordinal));
+            Require(dialog.TagList.Rows.Count(row => !row.IsHeader) == matches, "The filter did not narrow the list to " + matches + " tags.");
+            dialog.Input.Text = string.Empty;
+            dialog.Surface.FlushFilter();
+            System.Diagnostics.Stopwatch sort = System.Diagnostics.Stopwatch.StartNew();
+            dialog.Surface.Sort.SelectedIndex = 1;
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Render);
+            sort.Stop();
+            Require(dialog.TagList.Rows.Count == count + 2 && dialog.TagList.Rows.SkipWhile(row => row.Section != TagListSection.Other || !row.IsHeader).Skip(1).First().Uses == 1,
+                "Most used first must list the used tags first in one section.");
+            dialog.Surface.Sort.SelectedIndex = 0;
+            if (count == 20_000) Program.CaptureWindow(dialog, "smoke-tag-dialog-20000.png");
+
+            Console.WriteLine($"SMOKE tag dialog timing [{count} tags, scale {dialog.RenderScaling}]: open {open.ElapsedMilliseconds} ms, toggle {toggle.ElapsedMilliseconds} ms, filter {filter.ElapsedMilliseconds} ms, sort {sort.ElapsedMilliseconds} ms, realized rows {realized}");
+            // Generous bounds for a loaded CI box; the former dialog took seconds per refresh at this size.
+            Require(open.ElapsedMilliseconds < 4_000 && toggle.ElapsedMilliseconds < 1_500 && filter.ElapsedMilliseconds < 1_500 && sort.ElapsedMilliseconds < 1_500,
+                "The tag dialog is too slow with " + count + " tags.");
+            dialog.Input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+            await UntilAsync(() => !dialog.IsVisible);
+        }
+        finally { dialog.CloseForLifetime(); }
+
+        static string Name(int index) => "tag_" + index.ToString("D5");
+    }
+
+    /// <summary>The list as "#Section" labels and "name+" (on) / "name-" (off) rows.</summary>
+    internal static string[] Rows(MediaTagDialog dialog) => dialog.TagList.Rows
+        .Select(row => row.IsHeader ? "#" + row.Section : row.Label + (row.State == TagToggleState.All ? "+" : "-")).ToArray();
+
+    /// <summary>Moves the list cursor to the tag and presses Space on its row, as the keyboard does.</summary>
+    internal static async Task<TagToggleRow> PressSpaceAsync(MediaTagDialog dialog, string name)
+    {
+        TagToggleRow row = dialog.TagList.Rows.Single(item => item.Tag?.Name.Display == name);
+        dialog.TagList.Focus(row);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        Require(dialog.TagList.Current == row, "The list cursor did not reach " + name);
+        Control target = dialog.TagList.ContainerFromItem(row) ?? dialog.TagList;
+        var space = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Space };
+        target.RaiseEvent(space);
+        Require(space.Handled, "Space was not handled by the tag list.");
+        await IdleAsync(dialog);
+        return row;
+    }
 
     private static async Task IdleAsync(MediaTagDialog dialog)
     {

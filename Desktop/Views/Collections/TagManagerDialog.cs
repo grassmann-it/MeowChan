@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
@@ -27,6 +28,7 @@ internal sealed class TagManagerDialog : Window
     private readonly WindowChromeBar _chrome = new() { Name = "TagManagerChrome" };
     private readonly TextBlock _intro = new() { TextWrapping = TextWrapping.Wrap };
     private readonly ListBox _list = new() { Name = "TagManagerList" };
+    private readonly ComboBox _sort = TagSortChoice.Create("TagManagerSort", TagListSort.Uses);
     private readonly TextBox _name = new() { Name = "TagManagerName" };
     private readonly Button _rename = new() { Name = "TagManagerRename" };
     private readonly Button _delete = new() { Name = "TagManagerDelete" };
@@ -48,6 +50,8 @@ internal sealed class TagManagerDialog : Window
 
     internal TagManagerSession Session => _session;
     internal ListBox List => _list;
+    /// <summary>Most used first (the default) or A–Z.</summary>
+    internal ComboBox SortChoice => _sort;
     internal TextBox NameInput => _name;
     internal Button RenameButton => _rename;
     internal Button DeleteButton => _delete;
@@ -86,6 +90,8 @@ internal sealed class TagManagerDialog : Window
         // body, outcome status and Close in the fixed footer.
         _list.MinHeight = 120; _list.MaxHeight = 280;
         var body = new StackPanel { Spacing = 8, Margin = new Thickness(16, 0, 16, 8) };
+        _sort.HorizontalAlignment = HorizontalAlignment.Right;
+        body.Children.Add(_sort);
         body.Children.Add(_list); body.Children.Add(edit); body.Children.Add(_delete); body.Children.Add(_confirm);
         var orphanActions = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
         orphanActions.Children.Add(_orphanCheck); orphanActions.Children.Add(_orphanRemove);
@@ -103,6 +109,7 @@ internal sealed class TagManagerDialog : Window
         Content = layout;
 
         _list.SelectionChanged += OnSelection;
+        _sort.SelectionChanged += OnSortChanged;
         _rename.Click += OnRename; _delete.Click += OnDelete; _confirmDelete.Click += OnConfirmDelete;
         _keep.Click += OnKeep; _close.Click += OnClose;
         _orphanCheck.Click += OnOrphanCheck; _orphanRemove.Click += OnOrphanRemove;
@@ -114,6 +121,8 @@ internal sealed class TagManagerDialog : Window
     }
 
     private TagManagerRow? Selected => _list.SelectedItem as TagManagerRow;
+
+    private void OnSortChanged(object? sender, SelectionChangedEventArgs e) { if (!_refreshing) Refresh(); }
 
     private void OnOpened(object? sender, EventArgs e) { _chrome.Attach(this); _list.Focus(); }
     private void OnSessionUpdated() => Dispatcher.UIThread.Post(Refresh);
@@ -199,7 +208,8 @@ internal sealed class TagManagerDialog : Window
         _refreshing = true;
         try
         {
-            TagManagerRow[] rows = _session.Rows.ToArray();
+            TagSortChoice.Localize(_sort);
+            IReadOnlyList<TagManagerRow> rows = TagManagerRow.Sorted(_session.Rows, TagSortChoice.Of(_sort));
             _list.ItemsSource = rows;
             _list.SelectedItem = rows.FirstOrDefault(row => selected != null && row.Id == selected);
         }
@@ -248,6 +258,7 @@ internal sealed class TagManagerDialog : Window
         _closed = true;
         _session.Updated -= OnSessionUpdated; Texts.Changed -= OnLanguageChanged;
         _list.SelectionChanged -= OnSelection;
+        _sort.SelectionChanged -= OnSortChanged;
         _rename.Click -= OnRename; _delete.Click -= OnDelete; _confirmDelete.Click -= OnConfirmDelete;
         _keep.Click -= OnKeep; _close.Click -= OnClose;
         _orphanCheck.Click -= OnOrphanCheck; _orphanRemove.Click -= OnOrphanRemove;

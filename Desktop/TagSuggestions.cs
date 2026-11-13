@@ -70,10 +70,26 @@ internal sealed class TagSuggestionIndex
 
     private static TagSuggestionIndex Build(PrivateTagStoreSnapshot snapshot)
     {
-        Dictionary<TagId, int> uses = snapshot.ThreadAssignments.GroupBy(item => (TagId)item.TagId)
-            .ToDictionary(group => group.Key, group => group.Select(item => item.Thread).Distinct().Count());
-        foreach ((TagId tag, int media) in snapshot.DistinctMediaCounts()) uses[tag] = uses.GetValueOrDefault(tag) + media;
+        IReadOnlyDictionary<TagId, int> uses = UsesOf(snapshot);
         return new TagSuggestionIndex(snapshot.Tags.Select(tag => (tag, uses.GetValueOrDefault(tag.Id))));
+    }
+
+    private static readonly ConditionalWeakTable<PrivateTagStoreSnapshot, IReadOnlyDictionary<TagId, int>> UsesCache = new();
+
+    /// <summary>
+    /// Uses per own tag in a snapshot: distinct threads plus distinct media files; unused tags are absent. One pass over the
+    /// assignments, no sorting, cached per snapshot (the tag dialogs ask after every write).
+    /// </summary>
+    internal static IReadOnlyDictionary<TagId, int> UsesOf(PrivateTagStoreSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        return UsesCache.GetValue(snapshot, static current =>
+        {
+            Dictionary<TagId, int> uses = current.ThreadAssignments.GroupBy(item => (TagId)item.TagId)
+                .ToDictionary(group => group.Key, group => group.Select(item => item.Thread).Distinct().Count());
+            foreach ((TagId tag, int media) in current.DistinctMediaCounts()) uses[tag] = uses.GetValueOrDefault(tag) + media;
+            return uses;
+        });
     }
 
     /// <summary>

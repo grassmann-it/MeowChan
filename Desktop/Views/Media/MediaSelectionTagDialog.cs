@@ -10,6 +10,7 @@ using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Threading;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Tags;
@@ -17,8 +18,11 @@ using MeowChan.Tags;
 namespace MeowChan.Desktop;
 
 /// <summary>
-/// Adds or removes one own tag on the occurrences of the media page selection. Every occurrence of a tile is listed
-/// and chosen by default; a deselected occurrence is left alone. Tags stay with each occurrence, threads are not tagged.
+/// Adds or removes own tags on the occurrences of the media page selection. Search first, like the single-file dialog: the
+/// tag field filters one virtualized list of tri-state rows (on all, some or none of the ticked occurrences); a toggle
+/// gives the tag to every ticked occurrence or takes it from all of them, in one write. Every occurrence of a tile is
+/// listed below the tags (collapsed) and ticked by default; an unticked one is left alone. Tags stay with each
+/// occurrence, threads are not tagged. The last change can be undone once.
 /// </summary>
 internal sealed class MediaSelectionTagDialog : Window
 {
@@ -27,30 +31,28 @@ internal sealed class MediaSelectionTagDialog : Window
     private readonly WindowChromeBar _chrome = new() { Name = "MediaSelectionTagChrome" };
     private readonly TextBlock _heading = new() { TextWrapping = TextWrapping.Wrap, FontWeight = FontWeight.SemiBold };
     private readonly TextBlock _scope = new() { TextWrapping = TextWrapping.Wrap };
-    private readonly TextBlock _occurrencesLabel = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly Expander _occurrenceFrame = new() { Name = "MediaSelectionOccurrencesExpander", IsExpanded = false, HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly Button _all = new() { Name = "MediaSelectionTagAll" };
     private readonly Button _none = new() { Name = "MediaSelectionTagNone" };
     private readonly StackPanel _occurrences = new() { Name = "MediaSelectionOccurrences", Spacing = 4 };
     private readonly List<(CheckBox Box, TextBlock Text)> _rows = new();
-    private readonly TextBlock _removeLabel = new() { TextWrapping = TextWrapping.Wrap };
-    private readonly WrapPanel _removable = new() { Name = "MediaSelectionTagRemovable", ItemSpacing = 6, LineSpacing = 6 };
-    private readonly TextBlock _addLabel = new() { TextWrapping = TextWrapping.Wrap };
-    private readonly WrapPanel _addable = new() { Name = "MediaSelectionTagAddable", ItemSpacing = 6, LineSpacing = 6 };
     private readonly IdentitySuggestionBox _input = new() { Name = "MediaSelectionTagInput" };
     private readonly Button _add = new() { Name = "MediaSelectionTagAdd" };
     private readonly TextBlock _status = new() { Name = "MediaSelectionTagStatus", TextWrapping = TextWrapping.Wrap };
     private readonly Button _close = new() { Name = "MediaSelectionTagClose" };
+    private readonly TagToggleSurface _surface;
     private bool _closed;
     private readonly SourceTagSuggestions _sources = new();
     private bool _syncing;
-    private HashSet<TagId>? _carried;
 
     internal MediaSelectionTagSession Session => _session;
     internal IReadOnlyList<CheckBox> OccurrenceBoxes => _rows.Select(row => row.Box).ToArray();
-    internal WrapPanel RemovablePanel => _removable;
-    internal WrapPanel AddablePanel => _addable;
+    internal Expander OccurrenceFrame => _occurrenceFrame;
     internal IdentitySuggestionBox Input => _input;
     internal Button AddButton => _add;
+    internal TagToggleSurface Surface => _surface;
+    internal TagToggleListBox TagList => _surface.List;
+    internal Button UndoButton => _surface.Undo;
     /// <summary>Danbooru source tags offered below the own tags, read once when the dialog opens.</summary>
     internal SourceTagSuggestions SourceTags => _sources;
     internal TextBlock Status => _status;
@@ -61,13 +63,14 @@ internal sealed class MediaSelectionTagDialog : Window
         _sources.Read = readSourceTags;
         _tiles = tiles;
         Name = "MediaSelectionTagDialog";
-        Width = 560; Height = 640; MinWidth = 380; MinHeight = 380;
+        Width = 560; Height = 640; MinWidth = 380; MinHeight = 420;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         WindowDecorations = WindowDecorations.BorderOnly;
         ExtendClientAreaToDecorationsHint = true; ExtendClientAreaTitleBarHeightHint = WorkspaceMetrics.TitleBarHeight;
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
-        AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
+        _surface = new TagToggleSurface(true, "MediaSelectionTag", _input, () => _session.Snapshot, _session.Coverage,
+            () => _session.LastChange, () => _session.Undone);
 
         for (int index = 0; index < session.Candidates.Count; index++)
         {
@@ -78,38 +81,46 @@ internal sealed class MediaSelectionTagDialog : Window
             _rows.Add((box, text));
             _occurrences.Children.Add(box);
         }
-        ScrollViewer list = new() { Content = _occurrences, MaxHeight = 200, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-        Border listFrame = new() { Child = list, Padding = new Thickness(8), Classes = { "panel" } };
+        ScrollViewer list = new() { Content = _occurrences, MaxHeight = 160, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
         WrapPanel choose = new() { ItemSpacing = 6, LineSpacing = 6, Children = { _all, _none } };
+        _occurrenceFrame.Content = new StackPanel { Spacing = 8, Children = { choose, list } };
         Grid input = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
         input.Children.Add(_input); input.Children.Add(_add); Grid.SetColumn(_add, 1);
-        StackPanel body = new() { Spacing = 10, Margin = new Thickness(16) };
-        foreach (Control control in new Control[] { _heading, _scope, _occurrencesLabel, choose, listFrame, _removeLabel, _removable, _addLabel, _addable, input, _status })
-            body.Children.Add(control);
-        WrapPanel footer = new() { Margin = new Thickness(16, 0, 16, 16), HorizontalAlignment = HorizontalAlignment.Right };
-        footer.Children.Add(_close);
-        Grid layout = new() { RowDefinitions = WorkspaceMetrics.TitleBarRows("*,Auto") };
+        // UX103 P7 frame as in the single-file dialog: the tags first, the occurrences as one collapsed line below them.
+        StackPanel header = new() { Spacing = 6 };
+        header.Children.Add(_heading); header.Children.Add(_scope);
+        Grid body = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto"), RowSpacing = 8, Margin = new Thickness(16, 0, 16, 8) };
+        body.Children.Add(input);
+        body.Children.Add(_surface.SummaryRow); Grid.SetRow(_surface.SummaryRow, 1);
+        body.Children.Add(_surface.ListArea); Grid.SetRow(_surface.ListArea, 2);
+        body.Children.Add(_occurrenceFrame); Grid.SetRow(_occurrenceFrame, 3);
+        Grid footer = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), ColumnSpacing = 8 };
+        footer.Children.Add(_surface.Notice);
+        footer.Children.Add(_surface.Undo); Grid.SetColumn(_surface.Undo, 1);
+        footer.Children.Add(_close); Grid.SetColumn(_close, 2);
+        Grid frame = DialogFrame.Build(header, body, footer, DialogFrame.ErrorStrip(_status), fillBody: true);
+        Grid layout = new() { RowDefinitions = WorkspaceMetrics.TitleBarRows("*") };
         layout.Children.Add(_chrome);
-        ScrollViewer scroll = new() { Content = body, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-        layout.Children.Add(scroll); Grid.SetRow(scroll, 1);
-        layout.Children.Add(footer); Grid.SetRow(footer, 2);
+        layout.Children.Add(frame); Grid.SetRow(frame, 1);
         Content = layout;
 
         _all.Click += (_, _) => _session.ChooseAll(true);
         _none.Click += (_, _) => _session.ChooseAll(false);
-        _add.Click += OnAdd; _close.Click += OnClose;
+        _add.Click += OnAdd; _close.Click += OnClose; _surface.Undo.Click += OnUndo;
+        _surface.List.Toggled += OnToggled;
         // Own tags as suggestions while typing; a tag every chosen file already carries is not offered again.
         TagSuggestionInput.Attach(_input, () => _session.Busy ? null : _session.Snapshot, CarriedByAllChosen, () => OnAdd(null, new RoutedEventArgs()), _sources);
         _input.AddHandler(KeyDownEvent, OnInputKey, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, OnKey, RoutingStrategies.Tunnel);
         Opened += OnOpened; Closed += OnClosed;
         _session.Updated += OnSessionUpdated; Texts.Changed += OnLanguageChanged;
+        Localize();
         Refresh();
     }
 
     private void OnOpened(object? sender, EventArgs e) { _chrome.Attach(this); _sources.Load(); _input.Focus(); }
     private void OnSessionUpdated() => Dispatcher.UIThread.Post(Refresh);
-    private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(Refresh);
+    private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() => { if (!_closed) { Localize(); Refresh(); } });
 
     private async void OnAdd(object? sender, RoutedEventArgs e)
     {
@@ -126,13 +137,34 @@ internal sealed class MediaSelectionTagDialog : Window
         if (_session.MessageKey == null && !_closed) _input.Text = string.Empty;
     }
 
-    // Computed once per refresh (every change of tags or choice refreshes), not per keystroke.
+    // On all ticked occurrences: take it from all of them; on some or none: give it to every ticked one (one write).
+    private async void OnToggled(TagToggleRow row)
+    {
+        if (row.Tag is not { } tag) return;
+        try
+        {
+            if (row.State == TagToggleState.All) await _session.RemoveAsync(tag.Id);
+            else await _session.AddExistingAsync(tag.Id);
+        }
+        catch (Exception error) when (UnhandledErrors.TryRecover(error, "media.selection.tags.toggle")) { /* Logged and shown. */ }
+    }
+
+    private async void OnUndo(object? sender, RoutedEventArgs e)
+    {
+        if (_session.LastChange is not { } change) return;
+        try
+        {
+            await _session.UndoAsync();
+            if (!_closed) _surface.FocusAfterUndo(change.Tag);
+        }
+        catch (Exception error) when (UnhandledErrors.TryRecover(error, "media.selection.tags.undo")) { /* Logged and shown. */ }
+    }
+
+    // A tag every chosen file already carries is not suggested again; computed from the session's cached coverage.
     private IReadOnlySet<TagId> CarriedByAllChosen()
     {
-        if (_carried != null) return _carried;
-        if (_session.Snapshot is not { } snapshot) return new HashSet<TagId>();
-        HashSet<TagId> addable = _session.Addable().Select(item => item.Tag.Id).ToHashSet();
-        return _carried = snapshot.Tags.Select(tag => tag.Id).Where(id => !addable.Contains(id)).ToHashSet();
+        TagCoverage coverage = _session.Coverage();
+        return coverage.Carriers.Where(item => coverage.Total > 0 && item.Value >= coverage.Total).Select(item => item.Key).ToHashSet();
     }
 
     // Runs after the field's own handler: an Enter that took a highlighted suggestion is already handled there.
@@ -149,6 +181,8 @@ internal sealed class MediaSelectionTagDialog : Window
 
     private void OnKey(object? sender, KeyEventArgs e)
     {
+        // Every change is saved as it is made: Enter on a list row only closes.
+        if (_surface.ClosesOnEnter(e)) { e.Handled = true; Close(); return; }
         if (e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None) return;
         e.Handled = true;
         // The first Escape closes an open suggestion list, the next one the dialog.
@@ -173,76 +207,54 @@ internal sealed class MediaSelectionTagDialog : Window
         };
     }
 
-    private void Refresh()
+    private void Localize()
     {
-        if (_closed) return;
-        _carried = null;
         Title = Texts.T("media.selection.tag.title");
         _heading.Text = Texts.T("media.selection.tag.heading", _tiles, _session.Candidates.Count);
         _scope.Text = Texts.T("media.selection.tag.scope");
-        _occurrencesLabel.Text = Texts.T("media.selection.tag.occurrences", _session.Chosen.Count, _session.Candidates.Count);
-        _removeLabel.Text = Texts.T("media.selection.tag.removeLabel");
-        _addLabel.Text = Texts.T("media.selection.tag.addLabel");
         TagSuggestionInput.Localize(_input);
         _add.Content = Texts.T("tags.add"); AutomationProperties.SetName(_add, Texts.T("tags.add"));
         _all.Content = Texts.T("media.selection.tag.all"); _none.Content = Texts.T("media.selection.tag.none");
         _close.Content = Texts.T("tags.media.close"); AutomationProperties.SetName(_close, Texts.T("tags.media.close"));
-        AutomationProperties.SetName(_occurrences, Texts.T("media.selection.tag.occurrences", _session.Chosen.Count, _session.Candidates.Count));
-        AutomationProperties.SetName(_removable, Texts.T("media.selection.tag.removeLabel"));
-        AutomationProperties.SetName(_addable, Texts.T("media.selection.tag.addLabel"));
+        for (int index = 0; index < _rows.Count; index++)
+        {
+            (CheckBox box, TextBlock text) = _rows[index];
+            text.Text = Describe(_session.Candidates[index]);
+            AutomationProperties.SetName(box, text.Text);
+        }
+        _surface.Localize();
+    }
+
+    // Only states change here: rows that differ repaint, and the list is laid out again only for a new vocabulary.
+    private void Refresh()
+    {
+        if (_closed) return;
+        string occurrences = Texts.T("media.selection.tag.occurrences", _session.Chosen.Count, _session.Candidates.Count);
+        _occurrenceFrame.Header = occurrences;
+        AutomationProperties.SetName(_occurrenceFrame, occurrences);
+        AutomationProperties.SetName(_occurrences, occurrences);
 
         bool ready = _session.Snapshot != null && !_session.Busy;
         bool chosen = _session.Chosen.Count > 0;
-        bool focusInChips = _removable.IsKeyboardFocusWithin || _addable.IsKeyboardFocusWithin;
         _syncing = true;
         try
         {
             for (int index = 0; index < _rows.Count; index++)
             {
-                (CheckBox box, TextBlock text) = _rows[index];
-                MediaTagCandidate candidate = _session.Candidates[index];
-                text.Text = Describe(candidate);
+                CheckBox box = _rows[index].Box;
                 box.IsChecked = _session.IsChosen(index);
-                box.IsEnabled = candidate.Subject != null && !_session.Busy;
-                AutomationProperties.SetName(box, text.Text);
+                box.IsEnabled = _session.Candidates[index].Subject != null && !_session.Busy;
             }
         }
         finally { _syncing = false; }
         _all.IsEnabled = _none.IsEnabled = !_session.Busy;
-
-        _removable.Children.Clear();
-        foreach ((PrivateTagDefinition tag, int count) in _session.Removable())
-        {
-            TagId id = tag.Id;
-            Button chip = new() { Content = new TextBlock { Text = tag.Name.Display + " (" + count + ")  ✕" }, IsEnabled = ready && chosen };
-            string hint = Texts.T("media.selection.tag.remove", tag.Name.Display, count);
-            AutomationProperties.SetName(chip, hint); ToolTip.SetTip(chip, hint);
-            chip.Click += async (_, _) => await _session.RemoveAsync(id);
-            _removable.Children.Add(chip);
-        }
-        if (_removable.Children.Count == 0)
-            _removable.Children.Add(new TextBlock { Text = Texts.T("media.selection.tag.none.assigned"), VerticalAlignment = VerticalAlignment.Center });
-
-        _addable.Children.Clear();
-        IReadOnlyList<(PrivateTagDefinition Tag, int Count)> addable = _session.Addable();
-        foreach ((PrivateTagDefinition tag, int count) in addable)
-        {
-            TagId id = tag.Id;
-            Button option = new() { Content = new TextBlock { Text = "+ " + tag.Name.Display + " (" + count + ")" }, IsEnabled = ready && chosen };
-            string hint = Texts.T("media.selection.tag.add", tag.Name.Display, count);
-            AutomationProperties.SetName(option, hint); ToolTip.SetTip(option, hint);
-            option.Click += async (_, _) => await _session.AddExistingAsync(id);
-            _addable.Children.Add(option);
-        }
-        _addLabel.IsVisible = _addable.IsVisible = addable.Count > 0;
+        _surface.Sync(ready);
 
         _input.IsEnabled = _add.IsEnabled = ready && chosen;
         if (!_input.IsEnabled) _input.Dismiss();
         _status.Text = _session.Snapshot == null ? Texts.T("tags.unavailable")
             : _session.MessageKey != null ? Texts.T(_session.MessageKey) : string.Empty;
         _status.IsVisible = _status.Text.Length > 0;
-        // The acted-on chip is gone after a rebuild; keep keyboard users in the dialog.
-        if (focusInChips && ready) _input.Focus();
     }
 
     private void OnClosed(object? sender, EventArgs e)
@@ -250,8 +262,9 @@ internal sealed class MediaSelectionTagDialog : Window
         if (_closed) return;
         _closed = true;
         _session.Updated -= OnSessionUpdated; Texts.Changed -= OnLanguageChanged;
-        _input.EndSuggestions(); _sources.End();
-        _add.Click -= OnAdd; _close.Click -= OnClose;
+        _input.EndSuggestions(); _sources.End(); _surface.Dispose();
+        _add.Click -= OnAdd; _close.Click -= OnClose; _surface.Undo.Click -= OnUndo;
+        _surface.List.Toggled -= OnToggled;
         _input.RemoveHandler(KeyDownEvent, OnInputKey); RemoveHandler(KeyDownEvent, OnKey);
         Opened -= OnOpened; Closed -= OnClosed;
     }

@@ -90,8 +90,8 @@ internal static partial class MediaPageChecks
             dialog.Input.Text = "from_page";
             dialog.Input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
             await IdleAsync(dialog);
-            Button offered = dialog.AvailablePanel.Children.OfType<Button>().Single(button => (button.Content as TextBlock)?.Text == "+ existing" || button.Content?.ToString() == "+ existing");
-            offered.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            TagToggleRow offered = await GalleryMediaTagChecks.PressSpaceAsync(dialog, "existing");
+            Require(offered.State == TagToggleState.All, "Space did not add the existing tag.");
             await IdleAsync(dialog);
             Require(Row("100").State!.MediaTags.Count == 0, "The tile must not change while the dialog is still open.");
             dialog.Input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });

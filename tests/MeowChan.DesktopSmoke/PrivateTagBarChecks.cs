@@ -635,6 +635,12 @@ internal static class PrivateTagBarChecks
         TagManagerDialog manager = await OpenManagerAsync();
         Require(!f.C<Button>("ReaderTagManage").IsEffectivelyEnabled, "A second manager could be opened.");
         Require(Listed(manager).SequenceEqual(new[] { "red:2:1", "blue:1:0", "typo:0:0" }), "Manager list is wrong: " + string.Join("|", Listed(manager)));
+        // Most used first is the manager's default; A–Z is one choice away and back.
+        Require(manager.SortChoice.SelectedIndex == 1, "The manager must start with the most used tags first.");
+        manager.SortChoice.SelectedIndex = 0;
+        Require(Listed(manager).SequenceEqual(new[] { "blue:1:0", "red:2:1", "typo:0:0" }), "A–Z order is wrong: " + string.Join("|", Listed(manager)));
+        manager.SortChoice.SelectedIndex = 1;
+        Require(Listed(manager)[0] == "red:2:1", "Most-used order did not come back.");
         Require(!manager.RenameButton.IsEffectivelyEnabled && !manager.DeleteButton.IsEffectivelyEnabled, "Actions are enabled without a selection.");
 
         // Rename, then a colliding rename.

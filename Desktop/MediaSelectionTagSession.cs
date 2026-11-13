@@ -20,6 +20,8 @@ internal sealed class MediaSelectionTagSession
     private readonly Func<string, IReadOnlyList<MediaTagSubject>, long?, CancellationToken, Task<PrivateTagCommit>> _defineAndSet;
     private readonly Func<TagId, IReadOnlyList<MediaTagSubject>, bool, long?, CancellationToken, Task<PrivateTagCommit>> _set;
     private readonly bool[] _chosen;
+    private int _choice;
+    private (PrivateTagStoreSnapshot Snapshot, int Choice, IReadOnlyList<MediaTagSubject> Subjects, HashSet<TagId>[] Tags, TagCoverage Coverage)? _carried;
 
     internal MediaSelectionTagSession(IReadOnlyList<MediaTagCandidate> candidates, Func<PrivateTagLoadSnapshot> load,
         Func<string, IReadOnlyList<MediaTagSubject>, long?, CancellationToken, Task<PrivateTagCommit>> defineAndSet,
@@ -36,6 +38,10 @@ internal sealed class MediaSelectionTagSession
     internal IReadOnlyList<MediaTagCandidate> Candidates { get; }
     /// <summary>Null while the tag index is unavailable; then nothing can be changed.</summary>
     internal PrivateTagStoreSnapshot? Snapshot { get; private set; }
+    /// <summary>The last accepted change in this dialog, until it is undone or another change is made.</summary>
+    internal TagDialogChange? LastChange { get; private set; }
+    /// <summary>True right after <see cref="UndoAsync"/> reverted the last change.</summary>
+    internal bool Undone { get; private set; }
     internal bool Busy { get; private set; }
     internal string? MessageKey { get; private set; }
     internal bool Changed { get; private set; }
@@ -49,6 +55,7 @@ internal sealed class MediaSelectionTagSession
     {
         if (Busy || index < 0 || index >= _chosen.Length || (chosen && Candidates[index].Subject == null)) return;
         _chosen[index] = chosen;
+        _choice++;
         Updated?.Invoke();
     }
 
@@ -56,15 +63,43 @@ internal sealed class MediaSelectionTagSession
     {
         if (Busy) return;
         for (int index = 0; index < _chosen.Length; index++) _chosen[index] = chosen && Candidates[index].Subject != null;
+        _choice++;
         Updated?.Invoke();
+    }
+
+    /// <summary>
+    /// How the distinct chosen subjects carry each tag (the tri-state rows of the dialog). Each subject's tags are read
+    /// once per snapshot and choice, so a vocabulary of thousands of tags costs one pass, not one per tag.
+    /// </summary>
+    internal TagCoverage Coverage() => Carried()?.Coverage ?? TagCoverage.Empty;
+
+    private (PrivateTagStoreSnapshot Snapshot, int Choice, IReadOnlyList<MediaTagSubject> Subjects, HashSet<TagId>[] Tags, TagCoverage Coverage)? Carried()
+    {
+        if (Snapshot is not { } snapshot) return null;
+        if (_carried is { } known && ReferenceEquals(known.Snapshot, snapshot) && known.Choice == _choice) return known;
+        // Two views of the same loose file (for example two legacy posts) are one occurrence: one subject.
+        IReadOnlyList<MediaTagSubject> subjects = Chosen.Select(candidate => candidate.Subject).OfType<MediaTagSubject>().Distinct().ToArray();
+        HashSet<TagId>[] tags = subjects.Select(subject => snapshot.TagsOf(subject).Select(tag => tag.Id).ToHashSet()).ToArray();
+        Dictionary<TagId, int> carriers = new();
+        foreach (HashSet<TagId> set in tags)
+            foreach (TagId tag in set) carriers[tag] = carriers.GetValueOrDefault(tag) + 1;
+        _carried = (snapshot, _choice, subjects, tags, new TagCoverage(carriers, subjects.Count));
+        return _carried;
+    }
+
+    /// <summary>The distinct chosen subjects that do (<paramref name="carrying"/>) or do not carry the tag.</summary>
+    private IReadOnlyList<MediaTagSubject> Subjects(TagId tag, bool carrying)
+    {
+        if (Carried() is not { } carried) return Array.Empty<MediaTagSubject>();
+        return carried.Subjects.Where((_, at) => carried.Tags[at].Contains(tag) == carrying).ToArray();
     }
 
     /// <summary>Tags that at least one chosen occurrence carries, with how many of the chosen ones do.</summary>
     internal IReadOnlyList<(PrivateTagDefinition Tag, int Count)> Removable()
     {
         if (Snapshot is not { } snapshot) return Array.Empty<(PrivateTagDefinition, int)>();
-        IReadOnlyList<MediaTagCandidate> chosen = Chosen;
-        return snapshot.Tags.Select(tag => (Tag: tag, Count: MediaLibraryTagging.TargetsToRemove(snapshot, tag.Id, chosen).Count))
+        TagCoverage coverage = Coverage();
+        return snapshot.Tags.Select(tag => (Tag: tag, Count: coverage.Carriers.GetValueOrDefault(tag.Id)))
             .Where(item => item.Count > 0).ToArray();
     }
 
@@ -72,8 +107,8 @@ internal sealed class MediaSelectionTagSession
     internal IReadOnlyList<(PrivateTagDefinition Tag, int Count)> Addable()
     {
         if (Snapshot is not { } snapshot) return Array.Empty<(PrivateTagDefinition, int)>();
-        IReadOnlyList<MediaTagCandidate> chosen = Chosen;
-        return snapshot.Tags.Select(tag => (Tag: tag, Count: MediaLibraryTagging.TargetsToAdd(snapshot, tag.Id, chosen).Count))
+        TagCoverage coverage = Coverage();
+        return snapshot.Tags.Select(tag => (Tag: tag, Count: coverage.Total - coverage.Carriers.GetValueOrDefault(tag.Id)))
             .Where(item => item.Count > 0).ToArray();
     }
 
@@ -101,8 +136,14 @@ internal sealed class MediaSelectionTagSession
         PrivateTagStoreSnapshot snapshot = Snapshot!;
         IReadOnlyList<MediaTagSubject> subjects = Chosen.Select(candidate => candidate.Subject).OfType<MediaTagSubject>()
             .Select(subject => MediaTagSubjects.Freeze(subject, snapshot)).Distinct().ToArray();
+        // The undo takes the tag off exactly the files that lacked it; files that already had it keep it.
+        PrivateTagDefinition? known = PrivateTagName.TryCreate(name, out PrivateTagName? parsed, out _) && parsed != null
+            ? snapshot.Tags.FirstOrDefault(tag => tag.Name.Key == parsed.Key) : null;
+        IReadOnlyList<MediaTagSubject> lacking = known == null ? subjects
+            : subjects.Where(subject => !snapshot.Carries(known.Id, subject)).ToArray();
         PrivateTagCommit commit = await _defineAndSet(name ?? string.Empty, subjects, null, token);
         Adopt(commit.Snapshot);
+        Remember(commit, lacking, assigned: true);
         return commit.Changed;
     });
 
@@ -115,21 +156,49 @@ internal sealed class MediaSelectionTagSession
     {
         PrivateTagStoreSnapshot snapshot = Snapshot!;
         // Local subjects are frozen to the registration this dialog shows, so a write is refused rather than redirected.
-        IReadOnlyList<MediaTagSubject> targets = (assigned
-            ? MediaLibraryTagging.TargetsToAdd(snapshot, tag, Chosen) : MediaLibraryTagging.TargetsToRemove(snapshot, tag, Chosen))
+        IReadOnlyList<MediaTagSubject> targets = Subjects(tag, carrying: !assigned)
             .Select(subject => MediaTagSubjects.Freeze(subject, snapshot)).ToArray();
         if (targets.Count == 0) return false;
         PrivateTagCommit commit = await _set(tag, targets, assigned, snapshot.Revision, token);
         Adopt(commit.Snapshot);
+        Remember(commit, targets, assigned);
         return commit.Changed;
     }
 
-    private async Task RunAsync(Func<Task<bool>> operation)
+    private void Remember(PrivateTagCommit commit, IReadOnlyList<MediaTagSubject> subjects, bool assigned)
+    {
+        if (!commit.Changed || subjects.Count == 0) return;
+        string name = commit.Snapshot.Find(commit.Tag)?.Name.Display ?? string.Empty;
+        LastChange = new TagDialogChange(commit.Tag, name, assigned, subjects);
+    }
+
+    /// <summary>
+    /// Reverts the last change of this dialog on exactly the files it changed, once, in one write bound to the shown
+    /// revision. It does not depend on which occurrences are ticked now. A tag the change created stays in the vocabulary.
+    /// </summary>
+    internal Task UndoAsync(CancellationToken token = default)
+    {
+        if (LastChange is not { } change) return Task.CompletedTask;
+        return RunAsync(async () =>
+        {
+            PrivateTagStoreSnapshot snapshot = Snapshot!;
+            PrivateTagCommit commit = await _set(change.Tag, change.Subjects, !change.Assigned, snapshot.Revision, token);
+            Adopt(commit.Snapshot);
+            LastChange = null;
+            Undone = true;
+            return commit.Changed;
+        }, undo: true);
+    }
+
+    private async Task RunAsync(Func<Task<bool>> operation, bool undo = false)
     {
         if (Busy || Snapshot == null) return;
-        if (Chosen.Count == 0) { MessageKey = "media.selection.tag.noneChosen"; Updated?.Invoke(); return; }
+        if (!undo && Chosen.Count == 0) { MessageKey = "media.selection.tag.noneChosen"; Updated?.Invoke(); return; }
         Busy = true;
         MessageKey = null;
+        Undone = false;
+        // Only the newest change can be undone; a new attempt retires the older one even when it fails.
+        if (!undo) LastChange = null;
         Updated?.Invoke();
         try { if (await operation()) Changed = true; }
         catch (OperationCanceledException) { }

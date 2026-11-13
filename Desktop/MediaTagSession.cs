@@ -8,6 +8,12 @@ using MeowChan.Tags;
 namespace MeowChan.Desktop;
 
 /// <summary>
+/// One accepted change of a tag dialog, kept for its one-step undo: the tag, whether it was given or taken away, and
+/// exactly the files that changed (others that already were in the wanted state are not touched by the undo).
+/// </summary>
+internal sealed record TagDialogChange(TagId Tag, string Name, bool Assigned, IReadOnlyList<MediaTagSubject> Subjects);
+
+/// <summary>
 /// Own tags of one exact media file: a bound post attachment version or a loose local occurrence. The subject is
 /// frozen when the session starts (a loose file additionally freezes the registration it resolves to, once known),
 /// so navigating the gallery meanwhile can never redirect a change to another medium, occurrence or revision.
@@ -40,6 +46,12 @@ internal sealed class MediaTagSession
     internal IReadOnlyList<PrivateTagDefinition> Assigned { get; private set; } = Array.Empty<PrivateTagDefinition>();
     /// <summary>Existing tags not yet on this media file, offered for one-click assignment.</summary>
     internal IReadOnlyList<PrivateTagDefinition> Available { get; private set; } = Array.Empty<PrivateTagDefinition>();
+    /// <summary>Ids of <see cref="Assigned"/>.</summary>
+    internal IReadOnlySet<TagId> AssignedIds { get; private set; } = new HashSet<TagId>();
+    /// <summary>The last accepted change in this dialog, until it is undone or another change is made.</summary>
+    internal TagDialogChange? LastChange { get; private set; }
+    /// <summary>True right after <see cref="UndoAsync"/> reverted the last change.</summary>
+    internal bool Undone { get; private set; }
     internal bool Busy { get; private set; }
     internal string? MessageKey { get; private set; }
     internal bool Changed { get; private set; }
@@ -56,41 +68,73 @@ internal sealed class MediaTagSession
         // An older acknowledgement must not hide a newer committed state.
         if (snapshot != null && Snapshot != null && snapshot.Revision < Snapshot.Revision) return;
         Snapshot = snapshot;
-        if (snapshot == null) { Assigned = Available = Array.Empty<PrivateTagDefinition>(); return; }
+        if (snapshot == null) { Assigned = Available = Array.Empty<PrivateTagDefinition>(); AssignedIds = new HashSet<TagId>(); return; }
         // A loose file freezes the first registration it is seen with; later writes must hit exactly that one.
         Subject = MediaTagSubjects.Freeze(Subject, snapshot);
         HashSet<TagId> on = snapshot.TagsOf(Subject).Select(tag => tag.Id).ToHashSet();
         Assigned = snapshot.Tags.Where(tag => on.Contains(tag.Id)).ToArray();
         Available = snapshot.Tags.Where(tag => !on.Contains(tag.Id)).ToArray();
+        AssignedIds = on;
     }
+
+    /// <summary>The tags of this file as the dialog's list shows them: one file, each tag on it or not.</summary>
+    internal TagCoverage Coverage() => new(AssignedIds.ToDictionary(id => id, _ => 1), Snapshot == null ? 0 : 1);
 
     /// <summary>Create-or-get by name and assign, in one write: a failed assignment never leaves a new unassigned tag.</summary>
     internal Task AddAsync(string? name, CancellationToken token = default) => RunAsync(async () =>
     {
-        PrivateTagCommit commit = await _defineAndSet(name ?? string.Empty, Subject, token);
+        MediaTagSubject subject = Subject;
+        PrivateTagCommit commit = await _defineAndSet(name ?? string.Empty, subject, token);
         Adopt(commit.Snapshot);
+        Remember(commit, subject, assigned: true);
         return commit.Changed;
     });
 
-    internal Task AddExistingAsync(TagId tag, CancellationToken token = default) => RunAsync(async () =>
+    internal Task AddExistingAsync(TagId tag, CancellationToken token = default) => SetAsync(tag, true, token);
+
+    internal Task RemoveAsync(TagId tag, CancellationToken token = default) => SetAsync(tag, false, token);
+
+    private Task SetAsync(TagId tag, bool assigned, CancellationToken token) => RunAsync(async () =>
     {
-        PrivateTagCommit commit = await _set(tag, Subject, true, token);
+        MediaTagSubject subject = Subject;
+        PrivateTagCommit commit = await _set(tag, subject, assigned, token);
         Adopt(commit.Snapshot);
+        Remember(commit, subject, assigned);
         return commit.Changed;
     });
 
-    internal Task RemoveAsync(TagId tag, CancellationToken token = default) => RunAsync(async () =>
+    private void Remember(PrivateTagCommit commit, MediaTagSubject subject, bool assigned)
     {
-        PrivateTagCommit commit = await _set(tag, Subject, false, token);
-        Adopt(commit.Snapshot);
-        return commit.Changed;
-    });
+        if (!commit.Changed) return;
+        string name = commit.Snapshot.Find(commit.Tag)?.Name.Display ?? string.Empty;
+        LastChange = new TagDialogChange(commit.Tag, name, assigned, new[] { subject });
+    }
 
-    private async Task RunAsync(Func<Task<bool>> operation)
+    /// <summary>
+    /// Reverts the last change of this dialog, once. A tag the change created stays in the vocabulary; it is only taken
+    /// off this file again.
+    /// </summary>
+    internal Task UndoAsync(CancellationToken token = default)
+    {
+        if (LastChange is not { } change) return Task.CompletedTask;
+        return RunAsync(async () =>
+        {
+            PrivateTagCommit commit = await _set(change.Tag, change.Subjects[0], !change.Assigned, token);
+            Adopt(commit.Snapshot);
+            LastChange = null;
+            Undone = true;
+            return commit.Changed;
+        }, undo: true);
+    }
+
+    private async Task RunAsync(Func<Task<bool>> operation, bool undo = false)
     {
         if (Busy || Snapshot == null) return;
         Busy = true;
         MessageKey = null;
+        Undone = false;
+        // Only the newest change can be undone; a new attempt retires the older one even when it fails.
+        if (!undo) LastChange = null;
         Updated?.Invoke();
         try { if (await operation()) Changed = true; }
         catch (OperationCanceledException) { }

@@ -8,7 +8,17 @@ using MeowChan.Tags;
 namespace MeowChan.Desktop;
 
 /// <summary>One tag with the number of threads and media versions that carry it.</summary>
-internal sealed record TagManagerRow(TagId Id, string Name, int Threads, int Media);
+internal sealed record TagManagerRow(TagId Id, string Name, int Threads, int Media)
+{
+    /// <summary>Threads plus distinct media files: the same count as the tag field's suggestions and the tag dialogs.</summary>
+    internal int Uses => Threads + Media;
+
+    /// <summary>The rows in the chosen order: most used first, or alphabetical.</summary>
+    internal static IReadOnlyList<TagManagerRow> Sorted(IEnumerable<TagManagerRow> rows, TagListSort sort) => sort == TagListSort.Uses
+        ? TagToggleRow.OrderByUses(rows, row => row.Uses, row => row.Name).ToArray()
+        : rows.OrderBy(row => row.Name, StringComparer.Create(MeowChan.Desktop.Localization.Texts.Culture, ignoreCase: true))
+            .ThenBy(row => row.Name, StringComparer.Ordinal).ToArray();
+}
 
 /// <summary>
 /// State behind the tag manager: the current tag index plus rename and delete, each bound to the

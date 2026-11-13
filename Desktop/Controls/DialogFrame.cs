@@ -23,13 +23,17 @@ internal static class DialogFrame
     internal const string FooterName = "DialogFrameFooter";
 
     /// <summary>Builds the four-row frame. A footer that is not already a dialog footer is wrapped in one.</summary>
-    internal static Grid Build(Control header, Control body, Control footer, Control? errorStrip = null)
+    /// <param name="fillBody">
+    /// The body gets exactly the height between header and footer instead of scrolling as a whole. For a body whose own
+    /// list scrolls (and virtualizes): inside a vertically scrolling body such a list would be measured at infinite height.
+    /// </param>
+    internal static Grid Build(Control header, Control body, Control footer, Control? errorStrip = null, bool fillBody = false)
     {
         Border headerHost = new() { Name = HeaderName, Child = header, Padding = new Thickness(16, 16, 16, 8) };
         ScrollViewer scroll = new()
         {
             Name = BodyName, Content = body, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+            VerticalScrollBarVisibility = fillBody ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto
         };
         Border footerHost = footer is Border border && border.Classes.Contains("workspace-dialog-footer")
             ? border : new Border { Child = footer };
