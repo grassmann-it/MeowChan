@@ -787,8 +787,9 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         await Drain(_mediaTagReconcile ?? Task.CompletedTask).ConfigureAwait(false);
         Task registryStopped = _registry.StopAsync();
         await Drain(Task.WhenAll(queueStopped, registryStopped)).ConfigureAwait(false);
-        ReleaseBooruAfterQueue();
+        // An unpublished start may still own a transport: drain its cleanup before releasing all owners.
         await Drain(booruStopped).ConfigureAwait(false);
+        ReleaseBooruAfterQueue();
         try { await Updates.DisposeAsync().ConfigureAwait(false); _updatesQuiescent = true; } catch (Exception error) { errors.Add(error); }
         if (errors.Count != 0) throw new AggregateException("Engine shutdown reported failures.", errors);
     }

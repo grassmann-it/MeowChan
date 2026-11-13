@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,6 +21,7 @@ internal sealed partial class DesktopSessionHost
     private readonly SemaphoreSlim _booruGate = new(1, 1);
     private readonly object _booruSync = new();
     private BooruSessionComposition? _booru;
+    private readonly List<BooruSessionComposition> _booruTransportOwners = new();
     private BooruProviderBinding? _booruBinding;
     private BooruWorkbenchServices? _booruServicesOverride;
     private bool _booruClosed;
@@ -140,6 +142,9 @@ internal sealed partial class DesktopSessionHost
             }
             BooruSessionComposition composition = BooruSessionComposition.Create(binding, _downloadQueue, catalog,
                 Path.GetFullPath(Config.DownloadPath), BooruClockForTests, BooruSchedulerOptionsForTests);
+            // Recovery may hand originals to the shared queue before StartAsync completes. The session owns
+            // their transport even if this composition never publishes; release only after both drains.
+            lock (_booruSync) _booruTransportOwners.Add(composition);
             try
             {
                 // Shutdown cancels this token before it waits for the gate, so a start never outlives the session.
@@ -149,7 +154,6 @@ internal sealed partial class DesktopSessionHost
             {
                 if (exception is not OperationCanceledException) _logger.Error(exception, "The Danbooru watchers could not be started.");
                 await composition.StopAsync().ConfigureAwait(false);
-                composition.ReleaseTransport();
                 return;
             }
             lock (_booruSync)
@@ -163,7 +167,6 @@ internal sealed partial class DesktopSessionHost
             if (!changed)
             {
                 await composition.StopAsync().ConfigureAwait(false);
-                composition.ReleaseTransport();
             }
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
@@ -221,11 +224,15 @@ internal sealed partial class DesktopSessionHost
         BooruChanged?.Invoke();
     }
 
-    /// <summary>After the queue stopped no job can use the original-media client any more.</summary>
+    /// <summary>After queue and Booru start/stop drain, release even transports that never published. Idempotent.</summary>
     private void ReleaseBooruAfterQueue()
     {
-        BooruSessionComposition? composition;
-        lock (_booruSync) composition = _booru;
-        composition?.ReleaseTransport();
+        BooruSessionComposition[] owners;
+        lock (_booruSync)
+        {
+            owners = _booruTransportOwners.ToArray();
+            _booruTransportOwners.Clear();
+        }
+        foreach (BooruSessionComposition composition in owners) composition.ReleaseTransport();
     }
 }

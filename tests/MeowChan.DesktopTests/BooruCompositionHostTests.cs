@@ -1,8 +1,11 @@
+using System.Net.Http;
+using System.Reflection;
 using MeowChan.Archive;
 using MeowChan.Booru;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Updates;
+using MeowChan.Downloader;
 using MeowChan.Interfaces;
 using MeowChan.PluginHost.Http;
 using MeowChan.Tests.Shared;
@@ -109,6 +112,84 @@ public sealed class BooruCompositionHostTests
         Assert.Null(host.BooruServices);
         await host.DisposeAsync();
         Assert.Empty(stub.Requests);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AbortedStartsRetainEveryUnpublishedTransportUntilSessionShutdown(bool cancelled)
+    {
+        using TempDirectory profile = new();
+        using DanbooruStub stub = new();
+        using DanbooruTestBinding binding = new(stub, enabled: false);
+        await using DesktopSessionHost host = await StartAsync(profile.Path, stub, () => binding.Binding, paused: true);
+        await Field<Task>(host, "_booruStart").WaitAsync(Deadline); // Finish the initial disabled-binding probe.
+        // The existing clock seam fails scheduler load before publication, without a new lifecycle test hook.
+        host.BooruClockForTests = new AbortedStartClock(cancelled);
+        List<BooruSessionComposition> aborted = new();
+        List<HttpClient> clients = new();
+        using CancellationTokenSource probe = new();
+        probe.Cancel();
+        const string original = "https://cdn.donmai.us/original/transport-lifetime.png";
+
+        for (int attempt = 1; attempt <= 2; attempt++)
+        {
+            if (attempt == 1) binding.SetEnabled(true);
+            else binding.Binding.RaiseAvailabilityChanged(); // Retry an optional start, not a second shared queue.
+            await WaitAsync(() => TransportOwners(host).Length == attempt, "the aborted composition's transport owner");
+            SemaphoreSlim gate = Field<SemaphoreSlim>(host, "_booruGate");
+            using CancellationTokenSource gateDeadline = new(Deadline);
+            await gate.WaitAsync(gateDeadline.Token);
+            try
+            {
+                // The gate is released only after the failed start's StopAsync cleanup really finished.
+                BooruSessionComposition composition = TransportOwners(host)[^1];
+                aborted.Add(composition);
+                clients.Add(Field<HttpClient>(composition, "_mediaClient"));
+                Assert.False(composition.IsAvailable);
+                Assert.Null(host.BooruComposition);
+                Assert.Null(host.BooruServices);
+                Assert.Same(Field<DownloadQueue>(host, "_downloadQueue"),
+                    Field<DownloadQueue>(composition.Originals, "_queue"));
+            }
+            finally { gate.Release(); }
+
+            // An already-cancelled send probes HttpClient lifetime without reaching even the in-memory transport.
+            foreach (HttpClient client in clients)
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.GetAsync(original, probe.Token));
+        }
+
+        await host.StopAsync().WaitAsync(Deadline);
+        Assert.Empty(TransportOwners(host));
+        foreach (HttpClient client in clients)
+            await Assert.ThrowsAsync<ObjectDisposedException>(() => client.GetAsync(original));
+        // Session stop and a late composition cleanup remain idempotent.
+        await host.StopAsync().WaitAsync(Deadline);
+        foreach (BooruSessionComposition composition in aborted)
+        {
+            await composition.StopAsync().WaitAsync(Deadline);
+            composition.ReleaseTransport();
+        }
+        Assert.Empty(stub.Requests);
+        Assert.Empty(stub.Violations);
+    }
+
+    private sealed class AbortedStartClock(bool cancelled) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow()
+        {
+            if (cancelled) throw new OperationCanceledException("Synthetic Booru start cancellation.");
+            throw new InvalidOperationException("Synthetic Booru start failure.");
+        }
+    }
+
+    private static T Field<T>(object owner, string name) =>
+        (T)owner.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(owner)!;
+
+    private static BooruSessionComposition[] TransportOwners(DesktopSessionHost host)
+    {
+        lock (Field<object>(host, "_booruSync"))
+            return Field<List<BooruSessionComposition>>(host, "_booruTransportOwners").ToArray();
     }
 
     [Fact]
