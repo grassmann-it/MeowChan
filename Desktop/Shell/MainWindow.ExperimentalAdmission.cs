@@ -145,15 +145,17 @@ public partial class MainWindow
     }
 
     private async Task<IReadOnlyDictionary<int, string>> FilterExperimentalAdmissionsAsync(IReadOnlyList<string> entries,
-        Action<Window>? observeExperimentalModal = null)
+        Action<Window>? observeExperimentalModal = null, IEnumerable<int>? ignoredIndexes = null)
     {
         var skipped = new Dictionary<int, string>();
+        HashSet<int> ignored = ignoredIndexes is null ? new() : new(ignoredIndexes);
         var groups = new Dictionary<(string Owner, string Source), (ExperimentalSourceActivationTarget Target, List<int> Entries)>();
         // Freeze the original URL grouping before any Enable can change projection results.
         // Invalid/unsupported URLs and existing watches keep normal per-entry feedback.
         for (int index = 0; index < entries.Count; index++)
         {
             if (_isClosing) throw new OperationCanceledException();
+            if (ignored.Contains(index)) continue;
             if (await _session.ClassifyAdmissionAsync(entries[index]) is { AlreadyWatching: true }) continue;
             ExperimentalSourceActivationProjection projection = await ReadExperimentalProjectionAsync(entries[index]);
             if (projection.Status == ExperimentalSourceActivationProjectionStatus.NotRequired) continue;

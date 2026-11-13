@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
 using Avalonia.Threading;
 using MeowChan.Admission;
+using MeowChan.Booru;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using Serilog;
@@ -31,14 +32,17 @@ public partial class MainWindow
     private async Task<bool> SubmitAdmissionBatchAsync(string? input, Action<Window>? observeExperimentalModal = null)
     {
         _admissionBatchCanceled = false;
+        _admissionBooruOpened = false;
         var entries = new List<string>();
         await AddInput.SubmitAsync(input, ReadClipboardAsync, url => { entries.Add(url); return Task.CompletedTask; });
-        IReadOnlyDictionary<int, string> skipped = await FilterExperimentalAdmissionsAsync(entries, observeExperimentalModal);
+        // Danbooru addresses are read as text first: they never reach the chan registry, its logs or the board dialog.
+        IReadOnlyDictionary<int, DanbooruAddress> booru = RecognizeBooruAddresses(entries);
+        IReadOnlyDictionary<int, string> skipped = await FilterExperimentalAdmissionsAsync(entries, observeExperimentalModal, booru.Keys);
         var boardUrls = new HashSet<string>(StringComparer.Ordinal);
         for (int index = 0; index < entries.Count; index++)
         {
             if (_isClosing) throw new OperationCanceledException();
-            if (skipped.ContainsKey(index)) continue;
+            if (skipped.ContainsKey(index) || booru.ContainsKey(index)) continue;
             // Sequential reads keep a large paste within the finite host admission budget.
             if (await _session.ClassifyAdmissionAsync(entries[index]) is { IsBoard: true, AlreadyWatching: false } target)
                 boardUrls.Add(target.Url);
@@ -66,6 +70,11 @@ public partial class MainWindow
             {
                 _admissionResults.Add(new AdmissionFeedback(url, null, reason, Skipped: true));
                 _admissionBatchCanceled = true;
+                continue;
+            }
+            if (booru.TryGetValue(index, out DanbooruAddress? address))
+            {
+                allAccepted &= await AdmitBooruAddressAsync(url, address);
                 continue;
             }
             DesktopAdmissionResult? result;

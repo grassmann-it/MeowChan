@@ -105,6 +105,11 @@ internal static class BooruUiCatalog
         ("booru.ui.notify.queued.title", "Danbooru watcher", "Danbooru-Suchbeobachtung"),
         ("booru.ui.notify.queued", "Watcher “{0}” found new posts. Originals added to the download queue: {1}.", "Beobachtung „{0}“ hat neue Posts gefunden. In die Downloadwarteschlange gelegte Originale: {1}."),
 
+        ("booru.ui.add.disabled", "No enabled source handles this address. It belongs to Danbooru, which is not enabled in this profile: enable the Danbooru plugin under Plugins, then add the address again.", "Keine aktivierte Quelle verarbeitet diese Adresse. Sie gehört zu Danbooru, das in diesem Profil nicht aktiviert ist: Das Danbooru-Plugin unter Plugins aktivieren und die Adresse erneut hinzufügen."),
+        ("booru.ui.add.opened", "The Danbooru window is open with the search from the address. Nothing is requested until you press Search.", "Das Danbooru-Fenster ist mit der Suche aus der Adresse geöffnet. Es wird erst etwas abgefragt, wenn Sie Suchen drücken."),
+        ("booru.ui.add.openedSafe", "The Danbooru window is open with the search from the address. Safebooru is Danbooru in safe mode, so the term rating:g was added to the search field; delete it to search without a rating. Nothing is requested until you press Search.", "Das Danbooru-Fenster ist mit der Suche aus der Adresse geöffnet. Safebooru ist Danbooru im Safe-Modus, deshalb wurde der Begriff rating:g ins Suchfeld eingefügt; zum Suchen ohne Einstufung löschen. Es wird erst etwas abgefragt, wenn Sie Suchen drücken."),
+        ("booru.ui.add.post", "Danbooru post #{0}: {1}", "Danbooru-Post #{0}: {1}"),
+
         ("booru.ui.load", "Load original", "Original laden"),
         ("booru.ui.loadFor", "Load original of post {0}", "Original von Post {0} laden"),
         ("booru.ui.load.Handing", "Handing over to the download queue…", "Übergabe an die Downloadwarteschlange …"),

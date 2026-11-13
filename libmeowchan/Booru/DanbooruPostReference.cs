@@ -15,9 +15,24 @@ internal sealed record DanbooruPostReference(string PostId, Uri CanonicalUrl)
 {
     internal const string ProviderId = "danbooru";
     internal const string MetadataHost = "danbooru.donmai.us";
+    /// <summary>
+    /// Danbooru's safe mode: the same server, post ids and CDN, not a second source. It is accepted only where a
+    /// user typed or pasted a link (<see cref="TryParseUserInput"/>); provider-supplied URLs stay strict.
+    /// </summary>
+    internal const string SafebooruHost = "safebooru.donmai.us";
     internal const int MaximumPostIdLength = 18;
 
     internal static bool TryParse(string? input, out DanbooruPostReference? reference,
+        out DanbooruPostReferenceError error) => TryParse(input, allowAliasHost: false, out reference, out error);
+
+    /// <summary>
+    /// Like <see cref="TryParse"/> for text the user typed or pasted: a post link on the Safebooru alias host is the same
+    /// post, so it yields the canonical Danbooru reference. Never use this for URLs a provider or a plugin reports.
+    /// </summary>
+    internal static bool TryParseUserInput(string? input, out DanbooruPostReference? reference,
+        out DanbooruPostReferenceError error) => TryParse(input, allowAliasHost: true, out reference, out error);
+
+    private static bool TryParse(string? input, bool allowAliasHost, out DanbooruPostReference? reference,
         out DanbooruPostReferenceError error)
     {
         reference = null;
@@ -30,7 +45,8 @@ internal sealed record DanbooruPostReference(string PostId, Uri CanonicalUrl)
 
         if (!Uri.TryCreate(value, UriKind.Absolute, out Uri? uri)
             || !uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
-            || !uri.Host.Equals(MetadataHost, StringComparison.OrdinalIgnoreCase)
+            || !(uri.Host.Equals(MetadataHost, StringComparison.OrdinalIgnoreCase)
+                || allowAliasHost && uri.Host.Equals(SafebooruHost, StringComparison.OrdinalIgnoreCase))
             || !string.IsNullOrEmpty(uri.UserInfo)
             || !string.IsNullOrEmpty(uri.Query)
             || !string.IsNullOrEmpty(uri.Fragment)

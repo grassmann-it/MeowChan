@@ -37,6 +37,7 @@ public partial class MainWindow
         Closed += (_, _) =>
         {
             _session.BooruWatcherQueued -= OnBooruWatcherQueued;
+            _booruAddLifetime.Cancel();
             _booruWindow?.Close();
         };
     }

@@ -181,4 +181,31 @@ public sealed class AddInputTests
         Assert.Equal(useClipboard ? 1 : 0, clipboardReads);
         Assert.Equal(0, admissions);
     }
+
+    [Fact]
+    public async Task DanbooruAddressKeepsItsOwnCommasWhileOtherEntriesStillSplit()
+    {
+        const string search = "https://danbooru.donmai.us/posts?tags=cat+rating:g,s&page=2";
+        const string post = "https://safebooru.donmai.us/posts/123?q=a,b";
+        const string thread = "https://boards.4chan.org/g/thread/123";
+        List<string> admitted = new List<string>();
+
+        await AddInput.SubmitAsync(
+            $"{thread},{search},{post}, {thread}\n{search}\r\nnot a url, {post},",
+            () => Task.FromResult<string?>(null),
+            entry =>
+            {
+                admitted.Add(entry);
+                return Task.CompletedTask;
+            });
+
+        Assert.Equal(new[] { thread, search, post, thread, search, "not a url", post }, admitted);
+    }
+
+    [Fact]
+    public void AddressesOnOtherHostsAreSplitAtCommasAsBefore()
+    {
+        Assert.Equal(new[] { "https://other.test/posts?tags=rating:g", "s" },
+            AddInput.Split("https://other.test/posts?tags=rating:g,s"));
+    }
 }

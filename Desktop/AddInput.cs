@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
+using MeowChan.Booru;
 
 namespace MeowChan.Desktop;
 
@@ -19,10 +21,30 @@ public static class AddInput
             return;
         }
 
-        string[] tokens = entries.Split(new[] { ',', '\r', '\n' }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-        foreach (string token in tokens)
+        foreach (string token in Split(entries))
         {
             await admitAsync(token);
+        }
+    }
+
+    /// <summary>
+    /// Splits at commas and line breaks. A Danbooru address is kept whole first: its query may hold commas of its own
+    /// (<c>tags=rating:g,s</c>), which a plain comma split would cut apart.
+    /// </summary>
+    internal static IEnumerable<string> Split(string entries)
+    {
+        char[] separators = { ',', '\r', '\n' };
+        const StringSplitOptions options = StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries;
+        foreach (string line in entries.Split(new[] { '\r', '\n' }, options))
+        {
+            int position = 0;
+            foreach ((int start, int length) in DanbooruAddress.FindSpans(line))
+            {
+                foreach (string token in line[position..start].Split(separators, options)) yield return token;
+                yield return line.Substring(start, length);
+                position = start + length;
+            }
+            foreach (string token in line[position..].Split(separators, options)) yield return token;
         }
     }
 }

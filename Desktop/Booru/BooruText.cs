@@ -149,7 +149,8 @@ internal static class BooruText
             "booru.ui.watcher.msg.rateLimited", "booru.ui.watcher.msg.cooldown", "booru.ui.watcher.msg.offline",
             "booru.ui.watcher.msg.failed", "booru.ui.watcher.reject",
             "booru.ui.watcher.restart", "booru.ui.watcher.restartFor", "booru.ui.watcher.msg.restarted",
-            "booru.ui.post.open", "booru.ui.post.openFor", "booru.ui.post.openTip", "booru.ui.post.copy", "booru.ui.post.copyFor", "booru.ui.link.copied", "booru.ui.link.openFailed", "booru.ui.link.copyFailed", "booru.ui.watcher.latest", "booru.ui.watcher.latestOpenFor", "booru.ui.watcher.latestCopyFor", "booru.ui.notify.queued.title", "booru.ui.notify.queued"
+            "booru.ui.post.open", "booru.ui.post.openFor", "booru.ui.post.openTip", "booru.ui.post.copy", "booru.ui.post.copyFor", "booru.ui.link.copied", "booru.ui.link.openFailed", "booru.ui.link.copyFailed", "booru.ui.watcher.latest", "booru.ui.watcher.latestOpenFor", "booru.ui.watcher.latestCopyFor", "booru.ui.notify.queued.title", "booru.ui.notify.queued",
+            "booru.ui.add.disabled", "booru.ui.add.opened", "booru.ui.add.openedSafe", "booru.ui.add.post"
         })
             yield return key;
         foreach (BooruInputIssue issue in Enum.GetValues<BooruInputIssue>().Where(issue => issue != BooruInputIssue.None))

@@ -45,7 +45,7 @@ internal static class BooruInput
 
     private static BooruParsedInput ParsePost(string text)
     {
-        if (DanbooruPostReference.TryParse(text, out DanbooruPostReference? reference, out DanbooruPostReferenceError error)
+        if (DanbooruPostReference.TryParseUserInput(text, out DanbooruPostReference? reference, out DanbooruPostReferenceError error)
             && reference is not null)
             return new BooruParsedInput(BooruInputKind.Post, PostId: reference.PostId);
         BooruInputIssue issue = error == DanbooruPostReferenceError.InvalidId ? BooruInputIssue.PostId : BooruInputIssue.PostLink;

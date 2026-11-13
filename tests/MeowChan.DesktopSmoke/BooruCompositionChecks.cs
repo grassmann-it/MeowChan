@@ -68,6 +68,13 @@ internal static class BooruCompositionChecks
             // Plugin disabled: nothing is constructed and the entry stays hidden.
             Require(host.BooruComposition is null && host.BooruServices is null, "Danbooru was composed although the plugin is disabled.");
             await RequireEntryVisibleAsync(menu, visible: false);
+            // A Danbooru address in the Add line while the plugin is disabled: the normal "no source" feedback plus the hint, no request.
+            await SubmitAddLineAsync(shell, "https://danbooru.donmai.us/posts/8003?q=secret");
+            Require(Find<SelectableTextBlock>(shell, "AdmissionRepairText").Text?.Contains("enable the Danbooru plugin under Plugins") == true,
+                "The disabled Danbooru address lacks the enable hint: " + Find<SelectableTextBlock>(shell, "AdmissionRepairText").Text);
+            Require(stub.Requests.IsEmpty && host.BooruServices is null && !OpenWindows().Any(), "A disabled Danbooru address caused a request or a window.");
+            Require(shell.FindControl<TextBox>("UrlInput")!.Text == "https://danbooru.donmai.us/posts/8003?q=secret", "A refused address was cleared from the Add line.");
+            shell.FindControl<TextBox>("UrlInput")!.Text = string.Empty;
             // Enabling the plugin in the running session composes the services and shows the entry.
             binding.SetEnabled(true);
             await Program.WaitUntilAsync(() => host.BooruServices != null, () => "no composition after enabling the plugin");
@@ -138,11 +145,45 @@ internal static class BooruCompositionChecks
             await Program.WaitUntilAsync(() => Cards(window).Count == 4 && Previews(window) == 4, () => "dark results not shown");
             Capture(window, shots, "composition-results-dark");
 
+            // ---- Danbooru addresses in the Add line (the shared path of typing, pasting, the clipboard monitor and dropping) --------
+            int before = stub.Requests.Count;
+            TextBox urlInput = shell.FindControl<TextBox>("UrlInput")!;
+            // A Safebooru search address: the existing window gets the query with the visible rating:g term; nothing is requested.
+            await SubmitAddLineAsync(shell, "https://safebooru.donmai.us/posts?tags=cat_ears&page=2");
+            await Program.WaitUntilAsync(() => Find<TextBox>(window, BooruWorkbenchWindow.InputName).Text == "cat_ears rating:g",
+                () => "search field: " + Find<TextBox>(window, BooruWorkbenchWindow.InputName).Text);
+            Require(stub.Requests.Count == before && urlInput.Text == string.Empty && OpenWindows().Count() == 1,
+                "A search address requested something, kept its text or opened a second window.");
+            // A Danbooru address with an unencoded comma list stays one entry; the query is shown exactly as written.
+            await SubmitAddLineAsync(shell, "https://danbooru.donmai.us/posts?tags=cat_ears+rating:g,s");
+            await Program.WaitUntilAsync(() => Find<TextBox>(window, BooruWorkbenchWindow.InputName).Text == "cat_ears rating:g,s",
+                () => "search field: " + Find<TextBox>(window, BooruWorkbenchWindow.InputName).Text);
+            Require(stub.Requests.Count == before, "A comma search address requested something.");
+            // A bare site address: empty field, still nothing requested.
+            await SubmitAddLineAsync(shell, "https://danbooru.donmai.us/");
+            await Program.WaitUntilAsync(() => Find<TextBox>(window, BooruWorkbenchWindow.InputName).Text == string.Empty, () => "field not emptied");
+            Require(stub.Requests.Count == before, "A site address requested something.");
+            // A Safebooru post address with a search context: one post read on Danbooru, one one-shot original in the shared queue.
+            await SubmitAddLineAsync(shell, "https://safebooru.donmai.us/posts/8003?q=secret");
+            await Program.WaitUntilAsync(() => AdmissionSummary(shell).StartsWith("1 added", StringComparison.Ordinal) && urlInput.Text == string.Empty,
+                () => "summary: " + AdmissionSummary(shell) + " | input=" + urlInput.Text + " | requests=" + string.Join(",", stub.Requests.Skip(before)));
+            Require(stub.Requests.Skip(before).Count(url => url.StartsWith("https://danbooru.donmai.us/", StringComparison.Ordinal)) == 1
+                && stub.Requests.Contains("https://danbooru.donmai.us/posts/8003.json"),
+                "The post address was not exactly one post read: " + string.Join(", ", stub.Requests.Skip(before)));
+            Require(!stub.Requests.Any(url => url.Contains("secret", StringComparison.Ordinal)),
+                "The search context of the post address leaked into a request.");
+            Require(host.BooruComposition.Originals.ActiveCount == 2, "The post address did not admit exactly one more queue job.");
+            Require(host.BooruComposition.Catalog.Read().Posts.Single(post => post.PostId == "8003").Findings.Any(finding => finding.Kind == BooruFindingKind.OneShot),
+                "The post address is not recorded as a one-shot.");
+            Require(host.BooruComposition.WatcherHost.Scheduler.GetSnapshot().Watchers.Count == 1, "An address created a watcher.");
+            Capture(shell, shots, "composition-add-line-light");
+
             // ---- the held original completes; the row's local state follows the catalog ------------------------------------
             stub.ReleaseOriginals();
-            await Program.WaitUntilAsync(() => host.BooruComposition.Catalog.Read().Posts.Single(post => post.PostId == "8004").LocalAssetId != null,
-                () => "the original was not linked");
-            Require(stub.OriginalRequests == 1, "The original was transferred more than once.");
+            await Program.WaitUntilAsync(() => host.BooruComposition.Catalog.Read().Posts.Where(post => post.PostId is "8004" or "8003").All(post => post.LocalAssetId != null)
+                && host.BooruComposition.Catalog.Read().Posts.Count(post => post.PostId is "8004" or "8003") == 2,
+                () => "the originals were not linked");
+            Require(stub.OriginalRequests == 2, "An original was transferred more than once.");
             Require(stub.Violations.IsEmpty, "Stub violations: " + string.Join(", ", stub.Violations));
             Require(!Text(window).Contains("booru.ui.") && !Text(window).Contains("booru.watcher."), "A raw key is visible.");
 
@@ -155,7 +196,7 @@ internal static class BooruCompositionChecks
             Require(host.BooruServices is null, "The Danbooru ports outlived the session.");
             host = null;
             Require(stub.Requests.Count == requests, "A request happened during shutdown.");
-            Console.WriteLine("SMOKE booru composition: plugin disabled -> nothing composed, entry hidden; enabled at runtime -> composed, entry shown; window from the Workspace menu; one exact search request through the real adapter and in-process plugin; 4 result cards with 4 previews via the bounded preview path (no sample/original); restricted post not loadable; copy link through the window clipboard path; one Load original -> exactly one queue job, Requested intent with search finding that keeps the query; watcher created, scheduler baseline, Check now -> no new posts; light and dark screenshots in " + shots + "; held original completed with one transfer; orderly shutdown without requests.");
+            Console.WriteLine("SMOKE booru composition: plugin disabled -> nothing composed, entry hidden, a Danbooru address in the Add line only shows the enable hint (no request); Add line with the plugin enabled: Safebooru search address prefills the open window with a visible rating:g, a Danbooru comma list stays one entry, a bare site address empties the field, none requests anything; a Safebooru post address with a search context sends exactly one Danbooru post read without the context and queues one one-shot original, no watcher; enabled at runtime -> composed, entry shown; window from the Workspace menu; one exact search request through the real adapter and in-process plugin; 4 result cards with 4 previews via the bounded preview path (no sample/original); restricted post not loadable; copy link through the window clipboard path; one Load original -> exactly one queue job, Requested intent with search finding that keeps the query; watcher created, scheduler baseline, Check now -> no new posts; light and dark screenshots in " + shots + "; held original completed with one transfer; orderly shutdown without requests.");
         }
         finally
         {
@@ -169,6 +210,22 @@ internal static class BooruCompositionChecks
             try { Directory.Delete(profile, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
     }
+
+    private static IEnumerable<BooruWorkbenchWindow> OpenWindows() =>
+        ((IClassicDesktopStyleApplicationLifetime)Application.Current!.ApplicationLifetime!).Windows.OfType<BooruWorkbenchWindow>().Where(candidate => candidate.IsVisible);
+
+    // Types into the Add line and presses Add, then waits until the busy state is over.
+    private static async Task SubmitAddLineAsync(MainWindow shell, string text)
+    {
+        shell.FindControl<TextBox>("UrlInput")!.Text = text;
+        Button add = shell.FindControl<Button>("AddUrlButton")!;
+        Click(add);
+        await Program.WaitUntilAsync(() => !add.IsEnabled || shell.FindControl<Border>("AdmissionResultsPanel")!.IsVisible || OpenWindows().Any(), () => "Add did not start");
+        await Program.WaitUntilAsync(() => add.IsEnabled, () => "Add stayed busy");
+        await SettleAsync();
+    }
+
+    private static string AdmissionSummary(MainWindow shell) => shell.FindControl<TextBlock>("AdmissionResultsTitle")?.Text ?? string.Empty;
 
     private static MenuItem Entry(MenuItem menu) => menu.Items.OfType<MenuItem>()
         .FirstOrDefault(item => item.Header as string == MeowChan.Desktop.Commands.CommandCatalog.Label("booru.open"))

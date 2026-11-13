@@ -472,7 +472,8 @@ public partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            Log.Error(exception, "Failed to add URL {Url}", url);
+            // A Danbooru address may carry a private search; it is not logged.
+            Log.Error(exception, "Failed to add URL {Url}", MeowChan.Booru.DanbooruAddress.RedactForLog(url));
             _admissionResults.Add(new AdmissionFeedback(url, null, exception.Message));
             return null;
         }
@@ -522,13 +523,13 @@ public partial class MainWindow : Window
         try
         {
             allAccepted = await SubmitAdmissionBatchAsync(input, observeExperimentalModal);
-            if (_admissionResults.Count == 0 && !_isClosing && !_admissionBatchCanceled)
+            if (_admissionResults.Count == 0 && !_isClosing && !_admissionBatchCanceled && !_admissionBooruOpened)
             {
                 bool fromClipboard = string.IsNullOrWhiteSpace(input);
                 ShowNotification(Texts.T(fromClipboard ? "clipboard.title" : "admission.results"),
                     Texts.T(fromClipboard ? "clipboard.empty" : "admission.empty"), NotificationType.Information, operation: "admission.empty");
             }
-            return allAccepted && _admissionResults.Count != 0;
+            return allAccepted && (_admissionResults.Count != 0 || _admissionBooruOpened);
         }
         catch (OperationCanceledException) when (_isClosing)
         {
@@ -537,7 +538,7 @@ public partial class MainWindow : Window
         catch (DesktopSessionBusyException exception)
         {
             ShowNotification(Texts.T("notification.error"), exception.Message, NotificationType.Error,
-                context: input, operation: "admission.busy");
+                context: MeowChan.Booru.DanbooruAddress.RedactForLog(input), operation: "admission.busy");
             return false;
         }
         catch (Exception exception)
