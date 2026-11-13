@@ -68,7 +68,9 @@
                 Directory.CreateDirectory(target);
                 foreach (string entry in Directory.GetFileSystemEntries(source, "*", SearchOption.AllDirectories)) {
                     FileAttributes attributes = File.GetAttributes(entry);
-                    string relative = Path.GetRelativePath(source, entry);
+                    string sourceRoot = source.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                    string relative = entry.StartsWith(sourceRoot, StringComparison.OrdinalIgnoreCase)
+                        ? entry.Substring(sourceRoot.Length) : entry;
                     if (relative.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries).Any(forbiddenComponents.Contains))
                         throw new InvalidDataException("Plugin helper output contains a build or profile artifact: " + relative);
                     if ((attributes & FileAttributes.ReparsePoint) != 0)
