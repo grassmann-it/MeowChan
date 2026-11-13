@@ -38,13 +38,13 @@
                         <Button x:Name="TransferSpeed" Classes="subtle header-graph" VerticalAlignment="Center" Click="OnTransferSpeedClick">
                             <StackPanel Spacing="2" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
                                 <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="8">
-                                    <controls:IoGraph x:Name="TransferSpeedGraph" Source="NetDown" Width="96" Height="13" IsHitTestVisible="False"
+                                    <controls:IoGraph x:Name="TransferSpeedGraph" Source="NetDown" Width="96" Height="15" VerticalAlignment="Center" IsHitTestVisible="False"
                                                       Stroke="{DynamicResource Workspace.Accent}" Fill="{DynamicResource Workspace.AccentSurface}" />
                                     <TextBlock x:Name="TransferSpeedLabel" Grid.Column="1" Width="96" FontSize="{StaticResource Workspace.Text.Caption}" Classes="mono muted"
                                                VerticalAlignment="Center" Text="↓ 0 B/s" />
                                 </Grid>
                                 <Grid x:Name="TransferDiskRow" ColumnDefinitions="Auto,Auto" ColumnSpacing="8">
-                                    <controls:IoGraph x:Name="TransferDiskGraph" Source="DiskWrite" Width="96" Height="13" IsHitTestVisible="False"
+                                    <controls:IoGraph x:Name="TransferDiskGraph" Source="DiskWrite" Width="96" Height="15" VerticalAlignment="Center" IsHitTestVisible="False"
                                                       Stroke="{DynamicResource Workspace.Stats.Disk}" Fill="{DynamicResource Workspace.Stats.DiskSurface}" />
                                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                                         <!-- A disk with an arrow into it: writing. -->

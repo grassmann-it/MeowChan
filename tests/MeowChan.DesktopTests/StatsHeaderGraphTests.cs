@@ -203,6 +203,6 @@ public sealed class StatsHeaderGraphTests : IDisposable
         float[] network = [1000f, 2000f];
         float[] disk = [4_000_000f, 1f];
         Assert.Equal(IoGraphGeometry.DefaultMinimumPeak, IoGraphGeometry.Peak(network));
-        Assert.Equal(4_194_304d, IoGraphGeometry.Peak(disk));
+        Assert.Equal(4_194_304d, IoGraphGeometry.Peak(disk));   // 4 MiB; its own scale
     }
 }

@@ -40,16 +40,22 @@ internal static class IoGraphGeometry
     }
 
     /// <summary>
-    /// The top of a row's scale: the smallest <paramref name="minimumPeak"/> times a power of two that holds
-    /// <paramref name="tracked"/>. The scale moves in binary steps (64 KiB, 128 KiB, ... 1 MiB, 2 MiB), so it stays put
-    /// while the values wander and a drawn guide always sits on a round value.
+    /// The top of a row's scale: the smallest step that holds <paramref name="tracked"/>, the steps being
+    /// <paramref name="minimumPeak"/> times 1, 1.5, 2, 3, 4, 6, 8 ... (so 64, 96, 128, 192, 256, 384 KiB ... 1, 1.5, 2 MiB).
+    /// The scale stays put while the values wander, never wastes more than a third of the height, and a drawn guide always
+    /// sits on a round value.
     /// </summary>
     internal static double Scale(double tracked, double minimumPeak = DefaultMinimumPeak)
     {
-        double scale = Math.Max(minimumPeak, 1);
-        if (!double.IsFinite(tracked)) return scale;
-        while (scale < tracked && scale < 1e15) scale *= 2;
-        return scale;
+        double step = Math.Max(minimumPeak, 1);
+        if (!double.IsFinite(tracked)) return step;
+        while (step < 1e15)
+        {
+            if (tracked <= step) return step;
+            if (tracked <= step * 1.5) return step * 1.5;
+            step *= 2;
+        }
+        return step;
     }
 
     /// <summary>The scale of one row for a history seen once: <see cref="Scale"/> of its largest value.</summary>

@@ -107,17 +107,18 @@ internal static class StatisticsChecks
     private static Button Speed(MainWindow window) => window.FindControl<Button>("TransferSpeed")!;
     private static IoGraph HeaderGraph(MainWindow window) => window.FindControl<IoGraph>("TransferSpeedGraph")!;
     private static IoGraph HeaderDiskGraph(MainWindow window) => window.FindControl<IoGraph>("TransferDiskGraph")!;
-    private static TextBlock DiskLabel(MainWindow window) => window.FindControl<TextBlock>("TransferDiskLabel")!;
+    // The disk row (graph, icon and value) is hidden as one; its own visibility is what the work view and the setting decide.
+    private static bool DiskRowShown(MainWindow window) => window.FindControl<Control>("TransferDiskRow")!.IsVisible;
 
     private static async Task RequireHeaderAsync(MainWindow window, bool disk, string scenario)
     {
-        await Program.WaitUntilAsync(() => DiskLabel(window).IsVisible == disk && window.FindControl<Control>("TransferDiskRow")!.IsVisible == disk
+        await Program.WaitUntilAsync(() => DiskRowShown(window) == disk
             && AutomationProperties.GetName(Speed(window)) is { Length: > 0 } name && name.Contains("disk", StringComparison.OrdinalIgnoreCase) == disk,
-            () => $"{scenario}: label {DiskLabel(window).IsVisible}, row {window.FindControl<Control>("TransferDiskRow")!.IsVisible}, name '{AutomationProperties.GetName(Speed(window))}'");
+            () => $"{scenario}: row {DiskRowShown(window)}, name '{AutomationProperties.GetName(Speed(window))}'");
         string text = AutomationProperties.GetName(Speed(window))!;
         Require(Texts.T("stats.graph.name", "", "", 0).Length > 0 && ToolTip.GetTip(Speed(window)) as string == text,
             scenario + ": the tooltip differs from the accessible name.");
-        Require(DiskLabel(window).IsVisible == disk && window.FindControl<Control>("TransferDiskIcon")!.IsVisible == disk,
+        Require(DiskRowShown(window) == disk && window.FindControl<Control>("TransferDiskIcon")!.IsVisible && window.FindControl<Control>("TransferDiskLabel")!.IsVisible,
             scenario + ": the disk value is " + (disk ? "missing" : "shown") + ".");
         // Barebones fits the window to its minimum, below the widths where the graph (1000) and the button (760) appear.
         if (window.Bounds.Width >= 1000)
@@ -213,7 +214,7 @@ internal static class StatisticsChecks
         // The header shows the new value without leaving Settings.
         string mode = window.SessionHost.Config.WorkspaceMode;
         bool disk = value == "NetworkAndDisk" || (value == "Auto" && mode == "Advanced");
-        await Program.WaitUntilAsync(() => DiskLabel(window).IsVisible == disk, () => $"{value}/{mode}: label {DiskLabel(window).IsVisible}");
+        await Program.WaitUntilAsync(() => DiskRowShown(window) == disk, () => $"{value}/{mode}: disk row {DiskRowShown(window)}");
         await ShowBehaviorAsync(settings);
     }
 

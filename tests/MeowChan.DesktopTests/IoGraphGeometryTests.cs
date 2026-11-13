@@ -22,13 +22,16 @@ public sealed class IoGraphGeometryTests
     }
 
     [Fact]
-    public void TheScaleMovesInBinarySteps()
+    public void TheScaleMovesInStepsOfOneAndAHalfAndTwoSoARowFillsAtLeastTwoThirdsOfItsHeight()
     {
-        Assert.Equal(131072, IoGraphGeometry.Scale(65537));
-        Assert.Equal(1_048_576, IoGraphGeometry.Scale(700_000));
+        Assert.Equal(98_304, IoGraphGeometry.Scale(65537));        // 96 KiB
+        Assert.Equal(131_072, IoGraphGeometry.Scale(98_305));
+        Assert.Equal(786_432, IoGraphGeometry.Scale(700_000));     // 768 KiB
         Assert.Equal(1_048_576, IoGraphGeometry.Scale(1_048_576));
-        Assert.Equal(2_097_152, IoGraphGeometry.Scale(1_048_577));
-        Assert.Equal(4_194_304, IoGraphGeometry.Peak([3_000_000f, 100f]));
+        Assert.Equal(1_572_864, IoGraphGeometry.Scale(1_048_577)); // 1.5 MiB
+        Assert.Equal(3_145_728, IoGraphGeometry.Peak([3_000_000f, 100f]));
+        for (double value = 70_000; value < 5e8; value *= 1.07)
+            Assert.True(value / IoGraphGeometry.Scale(value) > 2.0 / 3.0 - 1e-9, "a value fills at least two thirds of its scale: " + value);
     }
 
     [Fact]
@@ -36,12 +39,12 @@ public sealed class IoGraphGeometryTests
     {
         float[] network = [3_000_000f, 500_000f];
         float[] write = [40_000f, 90_000f];
-        Assert.Equal(4_194_304, IoGraphGeometry.Peak(network));
-        Assert.Equal(131072, IoGraphGeometry.Peak(write));
-        // The 90 000 B/s of the write row reaches 69 percent of its own height, not the 2 percent a shared axis would give it.
+        Assert.Equal(3_145_728, IoGraphGeometry.Peak(network));
+        Assert.Equal(98_304, IoGraphGeometry.Peak(write));
+        // The 90 000 B/s of the write row reaches 92 percent of its own height, not the 3 percent a shared axis would give it.
         double y = IoGraphGeometry.Points([90_000f, 90_000f], 2, 100, 100, IoGraphGeometry.Peak(write), bottom: 100)[0].Y;
-        Assert.Equal(100 - 90_000d / 131072 * 100, y, 6);
-        Assert.True(y < 40);
+        Assert.Equal(100 - 90_000d / 98_304 * 100, y, 6);
+        Assert.True(y < 10);
     }
 
     [Fact]
@@ -69,7 +72,7 @@ public sealed class IoGraphGeometryTests
         {
             next = IoGraphGeometry.Track(next, quiet);
             double scale = IoGraphGeometry.Scale(next);
-            Assert.True(scale == scaleNow || scale == scaleNow / 2, "the scale sinks one binary step at a time");
+            Assert.True(scale <= scaleNow && scale >= scaleNow * 0.66, "the scale sinks one step at a time");
             scaleNow = scale;
         }
         Assert.True(samples > 100, "a spike keeps its scale for a while: " + samples);
