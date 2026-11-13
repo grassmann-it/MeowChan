@@ -123,7 +123,7 @@ internal static class ManualImportPlanner
 
     internal static async Task<ManualImportPlan> PlanAsync(ManualImportRequest request, ManualImportLimits limits, string? downloadRoot,
         Func<CancellationToken, Task<ManualImportKnownMedia>> knownMedia, IProgress<ManualImportCheckProgress>? progress,
-        CancellationToken token)
+        CancellationToken token, bool? caseInsensitivePaths = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(limits);
@@ -131,7 +131,10 @@ internal static class ManualImportPlanner
         limits.Validate();
         string? library = downloadRoot == null ? null : Path.TrimEndingDirectorySeparator(Path.GetFullPath(downloadRoot));
         List<ManualImportCandidate> items = new();
-        HashSet<string> seen = new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        // Windows and macOS file systems ignore case by default, so "~/downloads" is the download folder "~/Downloads" there.
+        bool ignoreCase = caseInsensitivePaths ?? CaseInsensitiveFileSystem;
+        StringComparison comparison = ignoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        HashSet<string> seen = new(ignoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
         int importable = 0;
         long importableBytes = 0;
         bool overCount = false;
@@ -143,7 +146,7 @@ internal static class ManualImportPlanner
             string name = DisplayName(file.Name);
             string extension = Path.GetExtension(file.Name).ToLowerInvariant();
             SavedMediaKind kind = SavedMediaTypes.Classify(extension);
-            if (Inside(library, path) || (file.Attributes & FileAttributes.ReparsePoint) != 0)
+            if (Inside(library, path, comparison) || (file.Attributes & FileAttributes.ReparsePoint) != 0)
             { items.Add(new(path, name, 0, kind, extension, ManualImportDisposition.Skipped)); return; }
             // Only regular files are media: a pipe, socket or device must never be opened (a pipe's open waits for a writer).
             if (RegularProfileFile.IsUnixSpecialFile(path))
@@ -179,7 +182,7 @@ internal static class ManualImportPlanner
             }
             if ((attributes & FileAttributes.Directory) == 0) { Add(new FileInfo(full)); continue; }
             DirectoryInfo directory = new(full);
-            if ((attributes & FileAttributes.ReparsePoint) != 0 || Inside(library, full))
+            if ((attributes & FileAttributes.ReparsePoint) != 0 || Inside(library, full, comparison))
             {
                 if (seen.Add(full)) items.Add(new(full, DisplayName(directory.Name), 0, SavedMediaKind.Unknown, string.Empty, ManualImportDisposition.Skipped));
                 continue;
@@ -221,12 +224,12 @@ internal static class ManualImportPlanner
                 {
                     token.ThrowIfCancellationRequested();
                     // Dot files (Unix hidden files, MeowChan's own ".meowchan-*" metadata) are not the user's media.
-                    if (file.Name.StartsWith('.') || Inside(library, file.FullName)) continue;
+                    if (file.Name.StartsWith('.') || Inside(library, file.FullName, comparison)) continue;
                     Add(file);
                     if (overCount) break;
                 }
                 foreach (DirectoryInfo child in children)
-                    if (!child.Name.StartsWith('.') && !Inside(library, child.FullName)) pending.Push(child);
+                    if (!child.Name.StartsWith('.') && !Inside(library, child.FullName, comparison)) pending.Push(child);
             }
         }
         if (overCount)
@@ -307,16 +310,18 @@ internal static class ManualImportPlanner
         return RegularProfileFile.OpenRead(path);
     }
 
+    /// <summary>Whether paths on this platform's file systems compare without regard to case (Windows, macOS).</summary>
+    internal static bool CaseInsensitiveFileSystem => OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
+
     private static long SafeLength(FileInfo file)
     {
         try { return file.Length; }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return -1; }
     }
 
-    private static bool Inside(string? library, string path)
+    private static bool Inside(string? library, string path, StringComparison comparison)
     {
         if (library == null) return false;
-        StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         string normalized = Path.TrimEndingDirectorySeparator(path);
         return string.Equals(normalized, library, comparison)
             || normalized.StartsWith(library + Path.DirectorySeparatorChar, comparison);

@@ -382,6 +382,38 @@ public sealed class ManualImportTests
     }
 
     [Fact]
+    public async Task PathsAreComparedWithoutCaseOnCaseInsensitiveFileSystemsAndExactlyOtherwise()
+    {
+        using Fixture fixture = new();
+        string inside = Path.Combine(fixture.Downloads, "4chan", "g", "1", "x.png");
+        Directory.CreateDirectory(Path.GetDirectoryName(inside)!);
+        File.WriteAllBytes(inside, Png);
+        // The same download folder spelled in another case (what a case-insensitive volume accepts as the same folder).
+        string shouted = Path.Combine(fixture.Temp.Path, "DOWNLOADS");
+        Task<ManualImportPlan> Plan(bool? ignoreCase, string root) => ManualImportPlanner.PlanAsync(new ManualImportRequest(new[] { fixture.Temp.Path, inside }),
+            ManualImportLimits.Default, root, _ => Task.FromResult(ManualImportKnownMedia.Empty), null, default, ignoreCase);
+
+        ManualImportPlan insensitive = await Plan(true, shouted);
+        Assert.DoesNotContain(insensitive.Items, item => item.Disposition != ManualImportDisposition.Skipped && item.SourcePath.StartsWith(fixture.Downloads, StringComparison.Ordinal));
+        Assert.Equal(ManualImportDisposition.Skipped, insensitive.Items.Single(item => item.SourcePath == inside).Disposition);
+        // Exact comparison keeps the other spelling a different folder: its content would be walked and planned.
+        ManualImportPlan exact = await Plan(false, shouted);
+        Assert.Contains(exact.Items, item => item.SourcePath.StartsWith(fixture.Downloads, StringComparison.Ordinal) && item.Disposition == ManualImportDisposition.New);
+        // The real spelling is protected either way.
+        Assert.DoesNotContain((await Plan(false, fixture.Downloads)).Items, item => item.SourcePath.StartsWith(fixture.Downloads, StringComparison.Ordinal) && item.Disposition == ManualImportDisposition.New);
+
+        // The same file named twice in two spellings is one item on a case-insensitive file system.
+        string photo = fixture.Write("Photo.png", Png), other = fixture.Write("photo.png", Jpg);
+        ManualImportRequest both = new(new[] { photo, other });
+        Task<ManualImportPlan> Both(bool? ignoreCase) => ManualImportPlanner.PlanAsync(both, ManualImportLimits.Default, fixture.Downloads,
+            _ => Task.FromResult(ManualImportKnownMedia.Empty), null, default, ignoreCase);
+        Assert.Single((await Both(true)).Items);
+        Assert.Equal(2, (await Both(false)).Items.Count);
+        // The default follows the platform.
+        Assert.Equal(OperatingSystem.IsWindows() || OperatingSystem.IsMacOS(), ManualImportPlanner.CaseInsensitiveFileSystem);
+    }
+
+    [Fact]
     public async Task ACancelledCheckThrowsAndAnIncompleteIndexIsReported()
     {
         using Fixture fixture = new();
