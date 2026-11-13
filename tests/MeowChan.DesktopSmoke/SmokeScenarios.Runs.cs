@@ -288,7 +288,13 @@ internal static partial class SmokeScenarios
             await PowerUserCommandChecks.RunAsync(mainWindow);
             await ShortcutRebindingChecks.RunAsync(mainWindow);
             await RulesPageChecks.RunAsync(mainWindow);
-        })
+        }),
+        // Offline showcase archive (no providers); downloads rows are passive synthetic snapshots.
+        ["work-views"] = new(SmokeStage.AfterCommandRefresh, mainWindow => WorkViewCaptures.RunAsync(mainWindow))
+        {
+            App = AppBuilder.Configure<ShowcaseSmokeApp>,
+            Seed = ShowcaseData.SeedAsync
+        }
     };
 
     // Null when every Root/Branch entry has exactly one run and nothing else has one.

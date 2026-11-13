@@ -48,6 +48,10 @@ internal static partial class SmokeScenarios
     private const string ExternalDriver = "needs its independent native driver and exchange directory";
     private const string Provenance = "provenance-bound evidence run: needs an executed source digest and a fresh output directory";
 
+    // The pages of the work-views smoke, in capture order (declared before All, which reads it); each has its own alternative run (work-views-<page>).
+    internal static readonly string[] WorkViewPages =
+        ["downloads", "archive", "reader", "gallery", "media", "rules", "sources", "plugins", "diagnostics", "statistics", "settings", "dialogs"];
+
     // Modes in their historical usage order; roots and branches in their former dispatch order.
     internal static readonly SmokeScenario[] All =
     [
@@ -228,8 +232,20 @@ internal static partial class SmokeScenarios
         Root("window-chrome", "MEOWCHAN_WINDOW_CHROME_ONLY", "app chrome: isolated native geometry and right-edge pixels, own captions of About, Settings, ratings manager, rating prompt (Dialog variant), modeless bookmarks and ownerless startup error with square-corner request and Escape/caption close, modal lifetime; platform/scales as recorded"),
         Root("logo-theme", "MEOWCHAN_LOGO_THEME_ONLY", "logo by theme: orange cat in Light, grey cat in Dark for the main window icon, About icon, a plain dialog and a standalone tray icon, live Light/Dark/System switches and new windows; the header shows one theme-appropriate cat and About keeps both cats side by side, unclipped at 640x480/760x500 and the About minimum; asserted assets and rendered colour, private Xvfb, no native tray host or Windows/macOS claim"),
         Root("shortcut-presentation", "MEOWCHAN_SHORTCUT_PRESENTATION_ONLY"),
-        Root("poweruser", "MEOWCHAN_POWERUSER_ONLY")
+        Root("poweruser", "MEOWCHAN_POWERUSER_ONLY"),
+        // Work views (AP5/WV0): page x view x theme x language x size captures, index.html matrix and the reduced-shortcut probe.
+        Root("work-views", "MEOWCHAN_WORK_VIEWS_ONLY", env => "work views: offline showcase fixture, "
+            + (WorkViewPageSelector(env) ?? "every page") + " in Barebones/Simple/Advanced, "
+            + (env("MEOWCHAN_WORK_VIEWS_MATRIX") ?? (WorkViewPageSelector(env) == null ? "full" : "reduced"))
+            + " theme/language/size matrix with index.html, reduced-toolbar shortcut probe; managed input only, no network"),
+        .. WorkViewPages.Select(page => Alternative("work-views-" + page, WorkViewSelector(page), "MEOWCHAN_WORK_VIEWS_ONLY"))
     ];
+
+
+    internal static string WorkViewSelector(string page) => "MEOWCHAN_WORK_VIEWS_" + page.ToUpperInvariant() + "_ONLY";
+
+    private static string? WorkViewPageSelector(Func<string, string?> env) =>
+        WorkViewPages.FirstOrDefault(page => env(WorkViewSelector(page)) == "1");
 
     // The standalone run of one entry: its command-line arguments and NAME=value environment
     // (selectors plus NightlyEnvironment), and the inherited NightlySkip reason if any.

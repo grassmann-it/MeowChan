@@ -1,0 +1,360 @@
+using System.Text;
+using System.Windows.Input;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Media.Imaging;
+using Avalonia.Styling;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
+using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Localization;
+using MeowChan.Interfaces;
+
+namespace MeowChan.DesktopSmoke;
+
+/// <summary>
+/// Work views (AP5/WV0): every page in Barebones, Simple and Advanced, in Light and Dark, English and German, wide and at the
+/// minimum size, written as smoke-wv-&lt;page&gt;-&lt;view&gt;-&lt;theme&gt;-&lt;lang&gt;-&lt;W&gt;x&lt;H&gt;.png plus an index.html matrix.
+/// Offline showcase archive (no providers), passive synthetic download rows; no watches, no network.
+/// Before the captures a probe presses a bound shortcut of a toolbar action that the view moved into the toolbar's closed
+/// "More" menu and records whether the action still ran (R2 of the work-view plan).
+/// Environment: MEOWCHAN_WORK_VIEWS_&lt;PAGE&gt;_ONLY=1 runs one page (registry alternative work-views-&lt;page&gt;),
+/// MEOWCHAN_WORK_VIEWS_MATRIX=full|reduced (default full for every page, reduced for one page: Light in all views plus
+/// Barebones in Dark), MEOWCHAN_WORK_VIEWS_OUTPUT=&lt;dir&gt; writes captures and index.html there instead of next to the assembly.
+/// </summary>
+internal static class WorkViewCaptures
+{
+    private static readonly string[] Views = ["Barebones", "Simple", "Advanced"];
+    private static readonly string[] Themes = ["Light", "Dark"];
+    private static readonly string[] Languages = ["en", "de"];
+    private static readonly (string Name, double Width, double Height)[] Sizes = [("wide", 1380, 850), ("minimum", 640, 480)];
+    // A bindable gesture without a default owner; the probe binds it and restores the profile's bindings afterwards.
+    private const string ProbeGesture = "Primary+Shift+F9";
+    // Today's finding is recorded only; the foundation's shortcut route turns this into a requirement.
+    private const bool RequireReducedShortcuts = false;
+
+    private sealed record Cell(string Page, string View, string Theme, string Language, string Size, string File, string Client);
+
+    internal static async Task RunAsync(MainWindow window)
+    {
+        string? only = SmokeScenarios.WorkViewPages.FirstOrDefault(page =>
+            Environment.GetEnvironmentVariable(SmokeScenarios.WorkViewSelector(page)) == "1");
+        string matrix = Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_MATRIX") ?? (only == null ? "full" : "reduced");
+        if (matrix is not ("full" or "reduced"))
+            throw new InvalidOperationException("MEOWCHAN_WORK_VIEWS_MATRIX must be full or reduced, not " + matrix + ".");
+        string output = Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_OUTPUT") is { Length: > 0 } explicitOutput
+            ? Path.GetFullPath(explicitOutput) : AppContext.BaseDirectory;
+        Directory.CreateDirectory(output);
+        string[] pages = only == null ? SmokeScenarios.WorkViewPages : [only];
+        string modeBefore = window.SessionHost.Config.WorkspaceMode, themeBefore = window.SessionHost.Config.Theme;
+        string languageBefore = window.SessionHost.Config.Language;
+        List<Cell> cells = new();
+        SyntheticShellRows? rows = null;
+        try
+        {
+            rows = await SyntheticShellRows.CreateAsync(window, DownloadEntries());
+            await ShortcutProbeAsync(window);
+            foreach (string language in Languages)
+            {
+                await FooterNavigationChecks.PersistLanguageAsync(window, language);
+                foreach (string page in pages)
+                {
+                    foreach (string view in Views)
+                        foreach (string theme in Themes)
+                        {
+                            if (matrix == "reduced" && theme == "Dark" && view != "Barebones") continue;
+                            await PresentationChecks.SwitchModeAsync(window, view);
+                            await SetThemeAsync(window, theme);
+                            await EnterAsync(window, page);
+                            foreach ((string sizeName, double width, double height) in Sizes)
+                            {
+                                double w = Math.Max(width, Math.Ceiling(window.MinWidth)), h = Math.Max(height, Math.Ceiling(window.MinHeight));
+                                await ResizeAsync(window, w, h);
+                                await EnterAsync(window, page); // a resize may relayout the archive into its narrow reader layout
+                                await SettleAsync(window, page);
+                                RequireState(window, page, view, theme, language);
+                                string file = $"smoke-wv-{page}-{view.ToLowerInvariant()}-{theme.ToLowerInvariant()}-{language}-{w:0}x{h:0}.png";
+                                Program.CaptureWindow(window, file, output);
+                                cells.Add(new(page, view, theme, language, sizeName, file, $"{window.ClientSize.Width:0}x{window.ClientSize.Height:0}"));
+                            }
+                        }
+                    await LeaveAsync(window);
+                    Console.WriteLine($"SMOKE work-views page={page}; language={language}; matrix={matrix}; captures so far={cells.Count}.");
+                }
+            }
+        }
+        finally
+        {
+            await LeaveAsync(window);
+            WriteIndex(output, cells, only, matrix);
+            await SetThemeAsync(window, themeBefore);
+            await FooterNavigationChecks.PersistLanguageAsync(window, languageBefore);
+            await PresentationChecks.SwitchModeAsync(window, modeBefore);
+            if (rows != null) await rows.DisposeAsync();
+        }
+        int expected = pages.Length * Languages.Length * Sizes.Length * (matrix == "full" ? Views.Length * Themes.Length : Views.Length + 1);
+        if (cells.Count != expected)
+            throw new InvalidOperationException($"The work-view matrix wrote {cells.Count} captures instead of {expected}.");
+        Console.WriteLine($"SMOKE work-views: {cells.Count} captures of {string.Join(", ", pages)} ({matrix}); index in {output}.");
+    }
+
+    // ---- Pages ----
+
+    private static async Task EnterAsync(MainWindow window, string page)
+    {
+        ArchivePage archive = window.ArchivePage;
+        ContentControl reader = window.FindControl<ContentControl>("ReaderHost")!;
+        ContentControl gallery = window.FindControl<ContentControl>("GalleryHost")!;
+        bool exportOpen = ExportDialog(archive)?.IsVisible == true;
+        switch (page)
+        {
+            case "reader" when reader.IsVisible && !gallery.IsVisible && !exportOpen:
+            case "gallery" when gallery.IsVisible:
+            case "dialogs" when exportOpen && !reader.IsVisible && !gallery.IsVisible:
+                return;
+        }
+        await LeaveAsync(window);
+        switch (page)
+        {
+            case "downloads":
+                Click(window.FindControl<Button>("DownloadsNavigationButton")!);
+                window.FindControl<TabControl>("DownloadsTabs")!.SelectedIndex = 0;
+                await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Downloads);
+                return;
+            case "archive":
+                await OpenArchiveAsync(window);
+                return;
+            case "reader":
+                await OpenArchiveAsync(window);
+                await archive.LoadThreadAsync(ShowcaseData.Hero);
+                await archive.MediaLoadTask;
+                archive.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex = 0;
+                Click(archive.FindControl<Button>("ArchiveReadPosts")!);
+                await Program.WaitUntilAsync(() => reader.IsVisible && !archive.IsBusy
+                    && archive.CurrentThread?.Summary.Id == ShowcaseData.Hero);
+                await archive.MediaLoadTask;
+                return;
+            case "gallery":
+                await OpenArchiveAsync(window);
+                await archive.LoadThreadAsync(ShowcaseData.Hero);
+                await archive.MediaLoadTask;
+                await window.OpenGalleryAsync(ShowcaseData.Hero, origin: archive.FindControl<Button>("ArchiveResultsGallery"));
+                await Program.WaitUntilAsync(() => gallery.IsVisible && gallery.GetVisualDescendants().OfType<Image>()
+                    .Any(image => image.Name == "GalleryImage" && image.Source is Bitmap));
+                return;
+            case "dialogs":
+                // The in-page export card: the reduced dialog of the plan (§1.14, format and scope direct, extras collapsed).
+                await OpenArchiveAsync(window);
+                await archive.LoadThreadAsync(ShowcaseData.Hero);
+                await archive.OpenExportForThreadAsync(ShowcaseData.Hero, archive.FindControl<Button>("ExportArchiveButton"));
+                await Program.WaitUntilAsync(() => ExportDialog(archive)?.IsVisible == true && !archive.IsBusy);
+                return;
+        }
+        (string item, MainWindow.WorkspacePage target) = page switch
+        {
+            "media" => ("MediaMenuItem", MainWindow.WorkspacePage.Media),
+            "rules" => ("RulesMenuItem", MainWindow.WorkspacePage.Rules),
+            "sources" => ("SourcesMenuItem", MainWindow.WorkspacePage.Sources),
+            "plugins" => ("PluginsMenuItem", MainWindow.WorkspacePage.Plugins),
+            "diagnostics" => ("DiagnosticsMenuItem", MainWindow.WorkspacePage.Diagnostics),
+            "statistics" => ("StatisticsMenuItem", MainWindow.WorkspacePage.Statistics),
+            "settings" => ("SettingsMenuItem", MainWindow.WorkspacePage.Settings),
+            _ => throw new ArgumentOutOfRangeException(nameof(page), page, "Not a work-view page.")
+        };
+        window.FindControl<MenuItem>(item)!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        await Program.WaitUntilAsync(() => window.SelectedPage == target);
+    }
+
+    private static async Task OpenArchiveAsync(MainWindow window)
+    {
+        ArchivePage archive = window.ArchivePage;
+        if (window.SelectedPage != MainWindow.WorkspacePage.Archive)
+            window.FindControl<MenuItem>("ArchiveMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Archive && !archive.IsBusy
+            && archive.FindControl<ListBox>("ArchiveThreads")!.ItemCount > 0);
+    }
+
+    // Closes every overlay this smoke opens: export card, gallery, large reader.
+    private static async Task LeaveAsync(MainWindow window)
+    {
+        ArchivePage archive = window.ArchivePage;
+        if (ExportDialog(archive) is { IsVisible: true } export)
+        {
+            Click(export.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "ArchiveExportClose"));
+            await Program.WaitUntilAsync(() => !export.IsVisible);
+        }
+        ContentControl gallery = window.FindControl<ContentControl>("GalleryHost")!;
+        if (gallery.IsVisible)
+        {
+            Click(gallery.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryClose"));
+            await Program.WaitUntilAsync(() => !gallery.IsVisible);
+        }
+        ContentControl reader = window.FindControl<ContentControl>("ReaderHost")!;
+        if (reader.IsVisible)
+        {
+            Click(archive.FindControl<Button>("ArchiveCloseReader")!);
+            await Program.WaitUntilAsync(() => !reader.IsVisible);
+        }
+    }
+
+    private static Border? ExportDialog(ArchivePage archive) =>
+        archive.GetVisualDescendants().OfType<Border>().FirstOrDefault(border => border.Name == "ArchiveExportDialog");
+
+    private static async Task SettleAsync(MainWindow window, string page)
+    {
+        for (int pass = 0; pass < 3; pass++)
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+        // Thumbnails and lazily built pages finish on later frames; the same pause keeps before/after captures comparable.
+        await Task.Delay(page is "media" or "gallery" or "reader" or "archive" or "dialogs" ? 450 : 200);
+        await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+    }
+
+    private static void RequireState(MainWindow window, string page, string view, string theme, string language)
+    {
+        string scene = $"{page}/{view}/{theme}/{language}";
+        if (window.SessionHost.Config.WorkspaceMode != view || Texts.Language != language
+            || Application.Current?.RequestedThemeVariant != (theme == "Light" ? ThemeVariant.Light : ThemeVariant.Dark))
+            throw new InvalidOperationException(scene + ": the window is not in the requested view, theme and language.");
+        bool overlay = window.FindControl<ContentControl>("ReaderHost")!.IsVisible || window.FindControl<ContentControl>("GalleryHost")!.IsVisible;
+        if (overlay != (page is "reader" or "gallery"))
+            throw new InvalidOperationException(scene + ": the reader/gallery overlay state does not match the page.");
+    }
+
+    // ---- Shortcut probe (R2) ----
+
+    private static async Task ShortcutProbeAsync(MainWindow window)
+    {
+        Config current = window.SessionHost.Config;
+        ShortcutBindingsSection originalBindings = current.ShortcutBindings.Clone();
+        string modeBefore = current.WorkspaceMode;
+        Button copy = window.FindControl<Button>("CopyAllUrlsButton")!;
+        ActionToolBar toolbar = window.FindControl<ActionToolBar>("WorkspaceListActions")!;
+        ICommand? productCommand = copy.Command;
+        int executed = 0;
+        List<string> findings = new();
+        try
+        {
+            Click(window.FindControl<Button>("DownloadsNavigationButton")!);
+            await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Downloads);
+            Config candidate = current.Clone();
+            candidate.ShortcutBindings = candidate.ShortcutBindings.Set("watch.copy-all-links", [ShortcutGesture.Parse(ProbeGesture)]);
+            long revision = ShortcutService.Revision;
+            await window.SessionHost.ApplySettingsAsync(candidate);
+            await Program.WaitUntilAsync(() => ShortcutService.Revision > revision);
+            KeyGesture gesture = CommandBindings.Gesture("watch.copy-all-links")
+                ?? throw new InvalidOperationException("The probe gesture was not published.");
+            // Observe the existing executor without copying anything to the clipboard.
+            copy.Command = new DelegateCommand(() => executed++);
+            foreach ((string view, string expected) in new[] { ("Advanced", "direct"), ("Barebones", "overflow") })
+            {
+                await PresentationChecks.SwitchModeAsync(window, view);
+                for (int pass = 0; pass < 3; pass++)
+                    await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+                bool inOverflow = toolbar.OverflowHost?.Children.Contains(copy) == true;
+                bool popupOpen = toolbar.More?.IsChecked == true;
+                string placement = inOverflow ? (popupOpen ? "overflow-open" : "overflow-closed") : "direct";
+                if (placement != (expected == "direct" ? "direct" : "overflow-closed"))
+                    throw new InvalidOperationException($"Shortcut probe {view}: Copy URLs is {placement}, expected {expected}.");
+                Control source = window.FindControl<DataGrid>("ThreadsDataGrid")!;
+                int before = executed;
+                KeyEventArgs press = new() { RoutedEvent = InputElement.KeyDownEvent, Key = gesture.Key, KeyModifiers = gesture.KeyModifiers };
+                source.RaiseEvent(press);
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                bool ran = executed == before + 1;
+                findings.Add($"{view}:{placement}:handled={press.Handled}:ran={ran}");
+                Console.WriteLine($"SMOKE work-views shortcut probe: view={view}; Copy URLs placement={placement}; "
+                    + $"bound {ProbeGesture} handled={press.Handled}; action ran={ran}; effectively visible={copy.IsEffectivelyVisible}.");
+                if (!ran && (expected == "direct" || RequireReducedShortcuts))
+                    throw new InvalidOperationException($"Shortcut probe {view}: the bound shortcut did not run the {placement} action.");
+            }
+        }
+        finally
+        {
+            copy.Command = productCommand;
+            Config restore = window.SessionHost.Config.Clone();
+            restore.ShortcutBindings = originalBindings;
+            long revision = ShortcutService.Revision;
+            await window.SessionHost.ApplySettingsAsync(restore);
+            await Program.WaitUntilAsync(() => ShortcutService.Revision > revision);
+            await PresentationChecks.SwitchModeAsync(window, modeBefore);
+        }
+        Console.WriteLine("SMOKE work-views shortcut finding: " + string.Join("; ", findings) + ".");
+    }
+
+    // ---- Fixture, helpers, index ----
+
+    private static DesktopThreadEntry[] DownloadEntries()
+    {
+        (string Title, int Saved, int Total, ThreadActivity Activity, int Queued, int Active)[] scenes =
+        [
+            ("Landscape sketchbook — mountains & reflections", 8, 8, ThreadActivity.Finished, 0, 0),
+            ("Coastal light and quiet harbours", 38, 64, ThreadActivity.Downloading, 24, 2),
+            ("Forest colours through the seasons", 24, 24, ThreadActivity.Finished, 0, 0),
+            ("Architecture — lines, light & shadow", 17, 18, ThreadActivity.Pending, 0, 0),
+            ("Night skies and distant horizons", 56, 56, ThreadActivity.Finished, 0, 0),
+            ("Weekend drawing studies", 0, 12, ThreadActivity.Pending, 12, 0)
+        ];
+        return scenes.Select((scene, index) =>
+        {
+            DesktopThreadEntry entry = SnapshotFixtures.Thread(970000001 + index, (960000001 + index).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                scene.Title, scene.Saved, scene.Total, scene.Queued, scene.Active, "wg");
+            return entry with { Snapshot = entry.Snapshot with { Activity = scene.Activity,
+                SourceState = scene.Activity == ThreadActivity.Finished ? ThreadSourceState.Archived : ThreadSourceState.Active } };
+        }).ToArray();
+    }
+
+    private static async Task SetThemeAsync(MainWindow window, string theme)
+    {
+        if (window.SessionHost.Config.Theme != theme)
+            Click(window.FindControl<Button>("ThemeToggleButton")!);
+        ThemeVariant variant = theme == "Light" ? ThemeVariant.Light : ThemeVariant.Dark;
+        await Program.WaitUntilAsync(() => window.SessionHost.Config.Theme == theme && Application.Current?.RequestedThemeVariant == variant);
+    }
+
+    private static async Task ResizeAsync(MainWindow window, double width, double height)
+    {
+        if (window.WindowState != WindowState.Normal) window.WindowState = WindowState.Normal;
+        window.Width = width;
+        window.Height = height;
+        await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height),
+            () => $"client={window.ClientSize}; requested={width}x{height}; minimum={window.MinWidth}x{window.MinHeight}");
+    }
+
+    private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+    private static void WriteIndex(string output, IReadOnlyList<Cell> cells, string? only, string matrix)
+    {
+        if (cells.Count == 0) return;
+        string Escape(string text) => System.Net.WebUtility.HtmlEncode(text);
+        string[] columns = cells.Select(cell => cell.Theme + "|" + cell.Language + "|" + cell.Size).Distinct().ToArray();
+        StringBuilder html = new();
+        html.AppendLine("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>MeowChan work views</title><style>")
+            .AppendLine("body{font:13px system-ui,sans-serif;margin:16px;background:#f4f4f4;color:#222}table{border-collapse:collapse}")
+            .AppendLine("th,td{border:1px solid #ccc;padding:4px;vertical-align:top;background:#fff}th{position:sticky;top:0;background:#eee}")
+            .AppendLine("img{width:260px;height:auto;display:block}td.page{font-weight:600;white-space:nowrap}</style></head><body>")
+            .AppendLine($"<h1>Work views · {Escape(only ?? "all pages")} · {Escape(matrix)} matrix</h1>")
+            .AppendLine($"<p>{cells.Count} captures, {DateTimeOffset.Now:yyyy-MM-dd HH:mm}; click an image for full size.</p><table><tr><th>Page</th><th>View</th>");
+        foreach (string column in columns) html.Append("<th>").Append(Escape(column.Replace("|", " · "))).Append("</th>");
+        html.AppendLine("</tr>");
+        foreach (IGrouping<(string Page, string View), Cell> row in cells.GroupBy(cell => (cell.Page, cell.View)))
+        {
+            html.Append("<tr><td class=\"page\">").Append(Escape(row.Key.Page)).Append("</td><td>").Append(Escape(row.Key.View)).Append("</td>");
+            foreach (string column in columns)
+            {
+                Cell? cell = row.FirstOrDefault(candidate => candidate.Theme + "|" + candidate.Language + "|" + candidate.Size == column);
+                html.Append("<td>");
+                if (cell != null)
+                    html.Append($"<a href=\"{Escape(cell.File)}\"><img loading=\"lazy\" src=\"{Escape(cell.File)}\" alt=\"{Escape(cell.File)}\"></a>{Escape(cell.Client)}");
+                html.Append("</td>");
+            }
+            html.AppendLine("</tr>");
+        }
+        html.AppendLine("</table></body></html>");
+        string index = Path.Combine(output, output == AppContext.BaseDirectory ? "smoke-wv-index.html" : "index.html");
+        File.WriteAllText(index, html.ToString());
+        Console.WriteLine("SMOKE work-views index: " + index);
+    }
+}
