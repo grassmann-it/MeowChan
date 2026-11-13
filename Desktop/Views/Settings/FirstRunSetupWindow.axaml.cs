@@ -40,6 +40,7 @@ internal partial class FirstRunSetupWindow : Window
     {
         InitializeComponent();
         WindowChrome.Apply(this);
+        MeowChan.Desktop.DialogFit.OnOpen(this);
         AppCaption.Attach(this);
         ThemeLogo.Follow(this);
         _baseline = baseline.Clone();
