@@ -47,7 +47,7 @@
         <TabControl x:Name="AboutTabs" Margin="16,0,16,12">
             <TabItem x:Name="AboutTab">
                 <ScrollViewer x:Name="AboutScrollViewer" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="16" Margin="7,12,0,12">
+                    <StackPanel Spacing="16" Margin="12">
                         <TextBlock x:Name="TaglineText" Classes="muted" FontStyle="Italic" TextWrapping="Wrap"/>
                         <TextBlock x:Name="DescriptionText" FontSize="15" TextWrapping="Wrap"/>
                         <TextBlock x:Name="AuthorText"/>
@@ -60,7 +60,7 @@
                                 <TextBlock x:Name="UpdateStatusText" AutomationProperties.LiveSetting="Polite" />
                                 <TextBlock x:Name="LastUpdateCheckText" Classes="workspace-help" />
                                 <TextBlock x:Name="AvailableUpdateText" AutomationProperties.LiveSetting="Polite" />
-                                <WrapPanel x:Name="UpdateActions" ItemSpacing="8" LineSpacing="8">
+                                <WrapPanel x:Name="UpdateActions" ItemSpacing="16" LineSpacing="8">
                                     <Button x:Name="UpdateReleaseButton" Classes="link" Click="OnUpdateReleaseClick" />
                                     <Button x:Name="UpdateDownloadButton" Classes="link" Click="OnUpdateDownloadClick" />
                                     <Button x:Name="SkipUpdateButton" Classes="link" Click="OnSkipUpdateClick" />
@@ -70,8 +70,7 @@
                                 <TextBlock x:Name="UpdateActionErrorText" Classes="workspace-error" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Border>
-                        <!-- Link buttons carry 8 dip padding and a 1 dip clear frame: -9 puts their text on the text column. -->
-                        <WrapPanel ItemSpacing="8" LineSpacing="8" Margin="-9,0,0,0">
+                        <WrapPanel ItemSpacing="16" LineSpacing="8">
                             <Button x:Name="ProjectLink" Classes="link" Tag="https://github.com/grassmann-it/MeowChan" Click="OnLinkClick"/>
                             <Button x:Name="AuthorLink" Classes="link" Tag="https://github.com/grassmann-it" Click="OnLinkClick"/>
                         </WrapPanel>
@@ -79,7 +78,7 @@
                         <StackPanel Spacing="6" Margin="0,8,0,0">
                             <TextBlock x:Name="SupportTitle" Classes="section-title"/>
                             <TextBlock x:Name="SupportDescription"/>
-                            <Button x:Name="DonationLink" Classes="link" HorizontalAlignment="Left" Margin="-9,0,0,0"
+                            <Button x:Name="DonationLink" Classes="link" HorizontalAlignment="Left"
                                     Tag="https://www.paypal.com/donate/?hosted_button_id=5BR4MK748PDSQ" Click="OnLinkClick"/>
                         </StackPanel>
                     </StackPanel>
@@ -87,9 +86,9 @@
             </TabItem>
             <TabItem x:Name="CreditsTab">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="16" Margin="7,12,0,12">
+                    <StackPanel Spacing="16" Margin="12">
                         <TextBlock x:Name="HistoryText"/>
-                        <WrapPanel ItemSpacing="8" LineSpacing="8" Margin="-9,0,0,0">
+                        <WrapPanel ItemSpacing="16" LineSpacing="8">
                             <Button Content="YChan" Classes="link" Tag="https://sourceforge.net/projects/ychan/" Click="OnLinkClick"/>
                             <Button Content="Issung / GChan" Classes="link" Tag="https://github.com/Issung/GChan" Click="OnLinkClick"/>
                         </WrapPanel>
@@ -98,7 +97,7 @@
                         <TextBlock x:Name="IconsText"/>
                         <StackPanel Spacing="8">
                             <TextBlock x:Name="PhotoCreditText"/>
-                            <WrapPanel ItemSpacing="8" LineSpacing="8" Margin="-9,0,0,0">
+                            <WrapPanel ItemSpacing="16" LineSpacing="8">
                                 <Button x:Name="PhotoCreditLink" Classes="link"
                                         Tag="https://webentwicklung-huxel.de/" Click="OnLinkClick"/>
                                 <Button x:Name="PhotoCreditFlickrLink" Classes="link" Content="Flickr"

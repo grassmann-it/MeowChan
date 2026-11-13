@@ -667,9 +667,10 @@
     <Style Selector="Button, ToggleButton, TextBox, ComboBox, NumericUpDown, CheckBox, RadioButton, Slider, ListBoxItem, SelectableTextBlock">
         <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
     </Style>
+    <!-- An inline link: accent text only, no outline and no fill (the default button outline made About links look like boxes). -->
     <Style Selector="Button.link">
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" />
-        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Padding" Value="8,6" />
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /><Setter Property="Padding" Value="0,6" />
     </Style>
     <Style Selector="Button.danger">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Error}" />
