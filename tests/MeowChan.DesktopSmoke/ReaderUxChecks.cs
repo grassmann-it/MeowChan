@@ -108,6 +108,11 @@ internal static class ReaderUxChecks
             await ReaderRepliesChecks.RunAsync(window);
             return;
         }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_POST_FILTER_ONLY") == "1")
+        {
+            await ReaderPostFilterChecks.RunAsync(window);
+            return;
+        }
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_RETURNS_ONLY") == "1")
         {
             await ReaderReturnChecks.RunAsync(window);

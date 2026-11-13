@@ -70,6 +70,7 @@ internal static partial class SmokeScenarios
         Alternative("reader-returns", "MEOWCHAN_READER_RETURNS_ONLY", "--reader-ux"),
         Alternative("reader-ideas", "MEOWCHAN_READER_IDEAS_ONLY", "--reader-ux"),
         Alternative("reader-replies", "MEOWCHAN_READER_REPLIES_ONLY", "--reader-ux"),
+        Alternative("reader-post-filter", "MEOWCHAN_READER_POST_FILTER_ONLY", "--reader-ux"),
         Alternative("reader-stability", "MEOWCHAN_READER_STABILITY_ONLY", "--reader-ux"),
         Alternative("reader-post-width", "MEOWCHAN_READER_POST_WIDTH_ONLY", "--reader-ux"),
         Alternative("reader-navigation", "MEOWCHAN_READER_NAVIGATION_ONLY", "--reader-ux"),
