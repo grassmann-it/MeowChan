@@ -65,6 +65,7 @@ internal sealed class MediaSelectionTagDialog : Window
         Name = "MediaSelectionTagDialog";
         Width = 560; Height = 640; MinWidth = 380; MinHeight = 420;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        DialogFit.OnOpen(this);
         WindowChrome.Apply(this);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
@@ -75,7 +76,7 @@ internal sealed class MediaSelectionTagDialog : Window
         {
             int at = index;
             TextBlock text = new() { TextWrapping = TextWrapping.Wrap };
-            CheckBox box = new() { Name = "MediaSelectionOccurrence", Content = text };
+            CheckBox box = new() { Name = "MediaSelectionOccurrence:" + index.ToString(System.Globalization.CultureInfo.InvariantCulture), Content = text };
             box.IsCheckedChanged += (_, _) => { if (!_syncing) _session.Choose(at, box.IsChecked == true); };
             _rows.Add((box, text));
             _occurrences.Children.Add(box);

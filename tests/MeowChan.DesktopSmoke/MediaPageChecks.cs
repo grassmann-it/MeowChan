@@ -642,6 +642,8 @@ internal static partial class MediaPageChecks
             MediaSelectionTagDialog dialog = (MediaSelectionTagDialog)page.SelectionTagWindow!;
             await UntilAsync(() => dialog.OccurrenceBoxes.Count == 4);
             Require(dialog.OccurrenceBoxes.All(box => box.IsChecked == true) && dialog.Session.Chosen.Count == 4, "Every occurrence must be ticked by default.");
+            Require(dialog.OccurrenceBoxes.Select(box => box.Name).Distinct(StringComparer.Ordinal).Count() == 4,
+                "The occurrence check boxes share an automation id: " + string.Join(",", dialog.OccurrenceBoxes.Select(box => box.Name)));
             CheckBox box700 = dialog.OccurrenceBoxes.Single(box => ((box.Content as TextBlock)?.Text ?? string.Empty).Contains("dup-700.png"));
             box700.IsChecked = false;
             await UntilAsync(() => dialog.Session.Chosen.Count == 3 && dialog.Session.Chosen.All(candidate => candidate.Entry != pairIn700));
