@@ -74,6 +74,24 @@ internal sealed partial class DesktopSessionHost
     /// <summary>The write limits the profile's private lists currently enforce (tests, diagnostics).</summary>
     internal ProfileStoreLimits StoreLimits => _profileLease.StoreLimits;
 
+    /// <summary>
+    /// The favorite, thread favorite and rating lists that are 75 percent or more full against the limits in force (entries
+    /// from the loaded lists, sizes from the files). A list that is not loaded yet or cannot be read is left out, never an
+    /// error. Reads files: call it off the UI thread.
+    /// </summary>
+    internal IReadOnlyList<StoreLimitUsage.Item> ReadStoreLimitUsage()
+    {
+        if (_disposed) return Array.Empty<StoreLimitUsage.Item>();
+        List<long> counts = new(3), sizes = new(3);
+        try { counts.Add(GetFavorites().Count); } catch (Exception error) when (error is InvalidDataException or ObjectDisposedException) { }
+        try { if (GetPublishedThreadFavoriteSnapshot().Snapshot is { } threads) counts.Add(threads.Threads.Count); } catch (ObjectDisposedException) { }
+        try { counts.Add(GetMediaRatings().Count); } catch (Exception error) when (error is InvalidDataException or ObjectDisposedException) { }
+        foreach (string file in new[] { "media-favorites.json", "thread-favorites.json", "media-ratings.json" })
+            sizes.Add(ProfileStoreLimits.FileLength(Path.Combine(ProfileDirectory, file)));
+        ProfileStoreLimits limits = _profileLease.StoreLimits;
+        return StoreLimitUsage.Evaluate(counts, limits.FavoriteEntries, sizes, limits.FavoriteFileBytes);
+    }
+
     /// <summary>The reader group limit in force (the create command is disabled at it).</summary>
     internal int ReaderGroupLimit => _profileLease.StoreLimits.ReaderGroups;
 

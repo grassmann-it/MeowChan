@@ -1210,6 +1210,7 @@ public partial class MainWindow : Window
             _config.CopyFrom(_session.Config);
             InvalidateReadingResumeState();
             ApplyAppearance();
+            RefreshStoreLimitWarning(force: true);
         }
         finally
         {

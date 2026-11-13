@@ -2989,6 +2989,8 @@
     "budgets.importTotalHint": "El máximo de archivos importados entre todos los lotes juntos. Reducir el límite no borra nada: los archivos ya importados se conservan; solo se rechazan importaciones nuevas hasta que vuelvas a estar por debajo del límite. Permitido: de 1 a 500000.",
     "budgets.importCatalogMiB": "Importación: tamaño del archivo de catálogo (MiB)",
     "budgets.importCatalogMiBHint": "Límite de tamaño del archivo que enumera todos los archivos importados. Se rechaza una importación nueva que lo haría crecer. Reducir el límite no borra nada y el catálogo sigue siendo legible. Permitido: de 1 a 128 MiB.",
+    "limit.warn.favoriteEntries": "Una lista de favoritos, favoritos de hilos o valoraciones está llena al {0} % ({1} de {2} entradas). Aumenta «{3}» en {4} antes de que se llene.",
+    "limit.warn.favoriteFile": "Un archivo de favoritos, favoritos de hilos o valoraciones está lleno al {0} % ({1} de {2}). Aumenta «{3}» en {4} antes de que se llene.",
     "limit.favoriteEntries": "Esta lista ha alcanzado su límite de {0} entradas y no se puede añadir nada nuevo. Aumenta «{1}» en {2}; las entradas existentes no se ven afectadas.",
     "limit.favoriteFile": "El archivo de esta lista ha alcanzado su límite de tamaño de {0} y no se puede añadir nada nuevo. Aumenta «{1}» en {2}; quitar entradas sigue funcionando.",
     "limit.postBookmarks": "Se ha alcanzado el límite de {0} marcadores de publicaciones. Aumenta «{1}» en {2}; los marcadores y notas existentes se conservan.",

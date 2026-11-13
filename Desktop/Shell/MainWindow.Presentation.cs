@@ -303,6 +303,7 @@ public partial class MainWindow
         CommandBindings.ApplyLabeled(InspectorRemoveButton, "watch.remove", Texts.T("action.remove"));
         RefreshShellCommands();
         RefreshSpeedLabel();
+        ShowStoreLimitWarning();
         ToolTip.SetTip(WorkspaceSubtitle, Texts.T("shell.subtitle"));
         ToolTip.SetTip(InspectorCloseButton, Texts.T("action.hideDetails") + " · Esc");
         AutomationProperties.SetName(InspectorCloseButton, Texts.T("action.hideDetails"));
@@ -386,6 +387,7 @@ public partial class MainWindow
         };
         WorkspaceStatus.Text = Texts.T(stateKey);
         ToolTip.SetTip(WorkspaceStatus, _session.StartupError);
+        RefreshStoreLimitWarning();
     }
 
     private void RefreshDetailsToggleIcon()

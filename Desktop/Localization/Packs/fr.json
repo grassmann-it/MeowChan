@@ -2989,6 +2989,8 @@
     "budgets.importTotalHint": "Le maximum de fichiers importés sur tous les lots réunis. Abaisser la limite ne supprime rien : les fichiers déjà importés sont conservés ; seuls les nouveaux imports sont refusés tant que vous n’êtes pas repassé sous la limite. Autorisé : de 1 à 500000.",
     "budgets.importCatalogMiB": "Import : taille du fichier de catalogue (MiB)",
     "budgets.importCatalogMiBHint": "Limite de taille du fichier qui liste tous les fichiers importés. Un nouvel import qui l’agrandirait est refusé. Abaisser la limite ne supprime rien et le catalogue reste lisible. Autorisé : de 1 à 128 MiB.",
+    "limit.warn.favoriteEntries": "Une liste de favoris, de favoris de fils ou de notes est pleine à {0} % ({1} sur {2} entrées). Augmentez « {3} » dans {4} avant qu’elle ne soit pleine.",
+    "limit.warn.favoriteFile": "Un fichier de favoris, de favoris de fils ou de notes est plein à {0} % ({1} sur {2}). Augmentez « {3} » dans {4} avant qu’il ne soit plein.",
     "limit.favoriteEntries": "Cette liste a atteint sa limite de {0} entrées, rien de nouveau ne peut être ajouté. Augmentez « {1} » dans {2} ; les entrées existantes ne sont pas affectées.",
     "limit.favoriteFile": "Le fichier de cette liste a atteint sa limite de taille de {0}, rien de nouveau ne peut être ajouté. Augmentez « {1} » dans {2} ; retirer des entrées fonctionne toujours.",
     "limit.postBookmarks": "La limite de {0} signets de messages est atteinte. Augmentez « {1} » dans {2} ; les signets et notes existants sont conservés.",

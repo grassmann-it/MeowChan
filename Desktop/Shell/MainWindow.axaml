@@ -411,9 +411,12 @@
         <ContentControl Grid.Row="2" x:Name="PluginsPageHost" IsVisible="False" />
         </Grid>
         <Border Grid.Row="2" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="20,0">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalAlignment="Center">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12" VerticalAlignment="Center">
                 <TextBlock x:Name="WorkspaceStatus" Classes="muted" FontSize="12" TextTrimming="CharacterEllipsis" />
-                <TextBlock x:Name="WorkspaceCounts" Grid.Column="1" Classes="muted" FontSize="12" TextTrimming="CharacterEllipsis" />
+                <!-- Warns from 75 percent of the favorites, thread favorites and ratings limits and names the setting. -->
+                <TextBlock x:Name="WorkspaceStoreWarning" Grid.Column="1" IsVisible="False" MaxWidth="560" FontSize="12" TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource Workspace.Warning}" AutomationProperties.LiveSetting="Polite" />
+                <TextBlock x:Name="WorkspaceCounts" Grid.Column="2" Classes="muted" FontSize="12" TextTrimming="CharacterEllipsis" />
             </Grid>
         </Border>
         <Border x:Name="WorkspaceNavigation" Grid.Row="3" Classes="shell-bar" BorderThickness="0,1,0,0" Padding="12,5">
