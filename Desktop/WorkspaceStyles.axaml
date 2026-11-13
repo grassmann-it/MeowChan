@@ -733,6 +733,20 @@
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Warning}" />
     </Style>
 
+    <!-- The plugin lifecycle steps (Installed, Enabled, Active): a finished step in the success tone, the next one with the accent
+         outline; a step that is still ahead stays neutral. The label carries a mark and the automation name the state, so colour is only an addition. -->
+    <Style Selector="Border.chip-badge.chip-step-done">
+        <Setter Property="Background" Value="{DynamicResource Workspace.SuccessSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Success}" />
+    </Style>
+    <Style Selector="Border.chip-badge.chip-step-done TextBlock.chip-label"><Setter Property="Foreground" Value="{DynamicResource Workspace.Success}" /></Style>
+    <Style Selector="Border.chip-badge.chip-step-next">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="Border.chip-badge.chip-step-next TextBlock.chip-label"><Setter Property="FontWeight" Value="SemiBold" /></Style>
+
     <!-- Sources list: the selected card carries a bar at its start edge (as DataGrid and selection-bar lists do), not a text marker. -->
     <Style Selector="Button.source-card">
         <Setter Property="BorderThickness" Value="{StaticResource Workspace.ListCard.SelectionBar}" /><Setter Property="BorderBrush" Value="Transparent" />

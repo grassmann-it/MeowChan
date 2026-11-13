@@ -12,6 +12,7 @@
         </StackPanel>
         <WrapPanel x:Name="PluginsHeaderActions" Grid.Column="1" VerticalAlignment="Top" ItemSpacing="8" LineSpacing="8">
           <TextBlock x:Name="PluginsCount" Classes="muted" VerticalAlignment="Center" />
+          <Button x:Name="PluginsAdd" Click="OnAddClick" />
           <Button x:Name="PluginsRefresh" Click="OnRefreshClick" />
           <Button x:Name="PluginsFolder" Click="OnFolderClick" />
           <Button x:Name="PluginsReviewRepairs" Click="OnReviewBundledRepairsClick" />
@@ -78,6 +79,9 @@
                 <Border x:Name="PluginIdChip" Classes="chip chip-badge chip-neutral" MaxWidth="260" IsVisible="False"><TextBlock x:Name="PluginCompactId" Classes="chip-label" TextTrimming="CharacterEllipsis" MaxLines="1" /></Border>
               </WrapPanel>
               <TextBlock x:Name="PluginStatus" FontWeight="SemiBold" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+              <!-- Installed → Enabled → Active: three chips built in code, then the one next action as a sentence. -->
+              <WrapPanel x:Name="PluginStepChips" ItemSpacing="6" LineSpacing="6" />
+              <TextBlock x:Name="PluginLifecycleNext" Classes="workspace-help" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
               <WrapPanel x:Name="PluginPrimaryActions" Classes="workspace-toolbar">
                 <Button x:Name="PluginEnabled" Click="OnEnabledClick" />
                 <Button x:Name="PluginSelectCandidate" Click="OnSelectCandidateClick" />

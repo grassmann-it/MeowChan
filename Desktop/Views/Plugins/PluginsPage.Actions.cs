@@ -106,6 +106,7 @@ public partial class PluginsPage
             || !_busy && _selectedKey != _pluginMenuTarget.Key))
             ClosePluginActionMenu();
 
+        UpdateAddAction();
         PluginActionTarget? target = CaptureSelectedPluginActionTarget();
         foreach (string name in new[] { "PluginMoreActions", "PluginListActions" })
         {

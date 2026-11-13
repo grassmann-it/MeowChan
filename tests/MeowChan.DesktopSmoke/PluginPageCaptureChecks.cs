@@ -60,8 +60,20 @@ internal static class PluginPageCaptureChecks
                         await page.RefreshAsync();
                     }
                     await Capture(window, page, PluginUxFixture.SourceKey, "smoke-plugins-page-" + size + "-source-" + captureLanguage + "-" + suffix);
+                    // The steps of an installed, enabled and active plugin: all three done, nothing left to do.
+                    PluginAddChecks.RequireSteps(page, new[] { "✓", "✓", "✓" }, null, "source plugin " + captureLanguage + "/" + suffix);
                     if (captureLanguage == "de")
                         await Capture(window, page, PluginUxFixture.FilterKey, "smoke-plugins-page-" + size + "-filter-" + captureLanguage + "-" + suffix);
+                    if (captureLanguage == "de")
+                        // A disabled plugin: installed, "Enable plugin" is the next step, active comes after it.
+                        PluginAddChecks.RequireSteps(page, new[] { "✓", "→", "○" },
+                            Texts.T("plugins.step.next.enable", MeowChan.Desktop.Commands.CommandCatalog.Label("plugins.enable")), "filter plugin " + suffix);
+                    if (size == "1440")
+                    {
+                        // A file the app has not registered yet (just added): installed, and the restart is the next step.
+                        await Capture(window, page, PluginUxFixture.UnknownKey, "smoke-plugins-page-" + size + "-new-" + captureLanguage + "-" + suffix);
+                        PluginAddChecks.RequireSteps(page, new[] { "✓", "→", "○" }, Texts.T("plugins.step.next.restart"), "new file " + captureLanguage + "/" + suffix);
+                    }
                     if (size == "860" && captureLanguage == "de")
                     {
                         // Below the 886 dip switch point: one pane; Back returns to the list.

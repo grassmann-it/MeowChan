@@ -8,8 +8,11 @@ using MeowChan.PluginSdk;
 namespace MeowChan.PluginHost.Installation;
 
 /// <summary>Bounded nonrecursive inventory. Unknown and unreadable files remain visible; nothing is loaded or activated.</summary>
-public sealed class PluginInstallationInventory(int maximumCandidates = 256, int maximumSourceBytes = 4 * 1024 * 1024) : IPluginInstallationInventory
+public sealed class PluginInstallationInventory(int maximumCandidates = 256, int maximumSourceBytes = PluginInstallationInventory.DefaultMaximumSourceBytes) : IPluginInstallationInventory
 {
+    /// <summary>The source size limit of the inventory (4 MiB); a fixed ceiling, not a setting.</summary>
+    internal const int DefaultMaximumSourceBytes = 4 * 1024 * 1024;
+
     public Task<PluginInventory> ScanAsync(string directory, CancellationToken cancellationToken = default) =>
         Task.Run(() => ScanAsyncCore(directory, cancellationToken), cancellationToken);
 
@@ -79,6 +82,54 @@ public sealed class PluginInstallationInventory(int maximumCandidates = 256, int
         }
     }
 
+    /// <summary>The one per-entry inspection of the inventory: kind by name, regular-file, empty and size checks, a bounded
+    /// nonblocking open and the manifest shape. <see cref="ScanAsync"/> applies it to every entry of the plugin folder; the
+    /// Plugins page applies it to a file before and after it copies that file in, so an added file is judged exactly like a
+    /// file placed there by hand. Nothing is loaded or activated.</summary>
+    internal static async Task<PluginInstallationCandidate> InspectAsync(string path, int maximumSourceBytes = DefaultMaximumSourceBytes,
+        CancellationToken cancellationToken = default)
+    {
+        if (maximumSourceBytes is < 1 or > DefaultMaximumSourceBytes) throw new ArgumentOutOfRangeException(nameof(maximumSourceBytes));
+        List<PluginBuildDiagnostic> issues = new();
+        PluginCandidateKind kind = Path.GetExtension(path).Equals(".cs", StringComparison.OrdinalIgnoreCase) ? PluginCandidateKind.Source :
+            Path.GetFileName(path).EndsWith(".plugin.json", StringComparison.OrdinalIgnoreCase) ? PluginCandidateKind.PrebuiltManifest : PluginCandidateKind.Unsupported;
+        long? size = null;
+        try
+        {
+            FileAttributes attributes = File.GetAttributes(path);
+            if ((attributes & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0)
+                issues.Add(new("MCENTRY", "Symbolic links and directories are not plugin source candidates.", path));
+            else
+            {
+                size = new FileInfo(path).Length;
+                if (kind == PluginCandidateKind.Source && size == 0) issues.Add(new("MCEMPTY", "The source file is empty.", path));
+                if (kind == PluginCandidateKind.Source && size > maximumSourceBytes) issues.Add(new("MCLIMIT", $"Source exceeds {maximumSourceBytes} bytes.", path));
+                if (kind == PluginCandidateKind.Unsupported) issues.Add(new("MCUNSUPPORTED", "Expected one .cs source file or a delivered .plugin.json bundle manifest.", path));
+                using (Microsoft.Win32.SafeHandles.SafeFileHandle probe = CompilerWire.OpenRead(path))
+                {
+                    _ = RandomAccess.Read(probe, Span<byte>.Empty, 0);
+                }
+                if (kind == PluginCandidateKind.PrebuiltManifest)
+                {
+                    if (size > 1024 * 1024) issues.Add(new("MCLIMIT", "Bundle manifest exceeds 1 MiB.", path));
+                    else
+                    {
+                        byte[] bytes = await CompilerWire.ReadBoundedAsync(path, 1024 * 1024, cancellationToken).ConfigureAwait(false);
+                        PluginBundleManifest? bundle = JsonSerializer.Deserialize<PluginBundleManifest>(bytes, CompilerWire.JsonOptions);
+                        if (bundle is null || bundle.SchemaVersion != 1 || !CompilerWire.IsHash(bundle.AssemblySha256) ||
+                            !CompilerWire.IsHash(bundle.SdkFingerprint) || !CompilerWire.IsHash(bundle.CompilerFingerprint) || bundle.Resources is null || bundle.Resources.Count > 128)
+                            issues.Add(new("MCMANIFEST", "The bundle manifest is unsupported or incomplete.", path));
+                    }
+                }
+            }
+        }
+        catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or NotSupportedException)
+        { issues.Add(new("MCIO", exception.Message, path)); }
+        string identityPath = OperatingSystem.IsWindows() ? path.ToUpperInvariant() : path;
+        string candidateId = CompilerWire.Hash(Encoding.UTF8.GetBytes(identityPath));
+        return new(candidateId, path, kind, size, issues);
+    }
+
     private async Task<PluginInventory> ScanAsyncCore(string directory, CancellationToken cancellationToken)
     {
         if (maximumCandidates is < 1 or > 4096 || maximumSourceBytes is < 1 or > 4 * 1024 * 1024) throw new ArgumentOutOfRangeException();
@@ -93,44 +144,7 @@ public sealed class PluginInstallationInventory(int maximumCandidates = 256, int
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (candidates.Count == maximumCandidates) { truncated = true; break; }
-                List<PluginBuildDiagnostic> issues = new();
-                PluginCandidateKind kind = Path.GetExtension(path).Equals(".cs", StringComparison.OrdinalIgnoreCase) ? PluginCandidateKind.Source :
-                    Path.GetFileName(path).EndsWith(".plugin.json", StringComparison.OrdinalIgnoreCase) ? PluginCandidateKind.PrebuiltManifest : PluginCandidateKind.Unsupported;
-                long? size = null;
-                try
-                {
-                    FileAttributes attributes = File.GetAttributes(path);
-                    if ((attributes & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0)
-                        issues.Add(new("MCENTRY", "Symbolic links and directories are not plugin source candidates.", path));
-                    else
-                    {
-                        size = new FileInfo(path).Length;
-                        if (kind == PluginCandidateKind.Source && size == 0) issues.Add(new("MCEMPTY", "The source file is empty.", path));
-                        if (kind == PluginCandidateKind.Source && size > maximumSourceBytes) issues.Add(new("MCLIMIT", $"Source exceeds {maximumSourceBytes} bytes.", path));
-                        if (kind == PluginCandidateKind.Unsupported) issues.Add(new("MCUNSUPPORTED", "Expected one .cs source file or a delivered .plugin.json bundle manifest.", path));
-                        using (Microsoft.Win32.SafeHandles.SafeFileHandle probe = CompilerWire.OpenRead(path))
-                        {
-                            _ = RandomAccess.Read(probe, Span<byte>.Empty, 0);
-                        }
-                        if (kind == PluginCandidateKind.PrebuiltManifest)
-                        {
-                            if (size > 1024 * 1024) issues.Add(new("MCLIMIT", "Bundle manifest exceeds 1 MiB.", path));
-                            else
-                            {
-                                byte[] bytes = await CompilerWire.ReadBoundedAsync(path, 1024 * 1024, cancellationToken).ConfigureAwait(false);
-                                PluginBundleManifest? bundle = JsonSerializer.Deserialize<PluginBundleManifest>(bytes, CompilerWire.JsonOptions);
-                                if (bundle is null || bundle.SchemaVersion != 1 || !CompilerWire.IsHash(bundle.AssemblySha256) ||
-                                    !CompilerWire.IsHash(bundle.SdkFingerprint) || !CompilerWire.IsHash(bundle.CompilerFingerprint) || bundle.Resources is null || bundle.Resources.Count > 128)
-                                    issues.Add(new("MCMANIFEST", "The bundle manifest is unsupported or incomplete.", path));
-                            }
-                        }
-                    }
-                }
-                catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or NotSupportedException)
-                { issues.Add(new("MCIO", exception.Message, path)); }
-                string identityPath = OperatingSystem.IsWindows() ? path.ToUpperInvariant() : path;
-                string candidateId = CompilerWire.Hash(Encoding.UTF8.GetBytes(identityPath));
-                candidates.Add(new(candidateId, path, kind, size, issues));
+                candidates.Add(await InspectAsync(path, maximumSourceBytes, cancellationToken).ConfigureAwait(false));
             }
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or NotSupportedException)

@@ -181,6 +181,8 @@ public partial class PluginsPage : UserControl
                 CommandBindings.ApplyLabeled(button, key, Texts.T(key));
             else { button.Content = Texts.T(key); AutomationProperties.SetName(button, Texts.T(key)); }
         }
+        Button add = C<Button>("PluginsAdd");
+        add.Content = Texts.T("plugins.add"); AutomationProperties.SetName(add, Texts.T("plugins.add")); ToolTip.SetTip(add, Texts.T("plugins.add.help"));
         C<TextBlock>("PluginInventoryHeader").Text = Texts.T("plugins.inventoryProblems");
         AutomationProperties.SetName(C<SelectionList>("PluginCards"), Texts.T("nav.plugins"));
         C<Expander>("PluginInfoExpander").Header = Texts.T("plugins.information");
@@ -413,6 +415,7 @@ public partial class PluginsPage : UserControl
         C<TextBlock>("PluginCapabilities").Text = functions;
         C<TextBlock>("PluginCapabilities").IsVisible = functions.Length > 0;
         C<TextBlock>("PluginStatus").Text = PluginContentPresentation.DescribeStatus(presentation);
+        RenderLifecycle(entry, presentation);
         // Problems belong beside the normal actions. Paths, fingerprints and full
         // compiler diagnostics remain available in the optional developer details.
         string attention = string.Join("\n", new[] { presentation.CandidateProblem, presentation.ActivationProblem,
