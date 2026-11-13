@@ -51,11 +51,11 @@ public sealed class VideoPosterCacheTests
         Assert.False(VideoPosterCache.Valid(new byte[] { 1, 2, 3 }));
         Assert.False(VideoPosterCache.Valid(new byte[VideoPosterCache.MaximumPngBytes + 1]));
         using TempDirectory temp = new();
-        for (int index = 0; index < 260; index++)
+        for (int index = 0; index < 2100; index++)
         {
             string path = Path.Combine(temp.Path, index.ToString("D4") + ".png");
             using var stream = File.Create(path); stream.SetLength(600_000);
-            File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(index - 300));
+            File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(index - 3000));
         }
         VideoPosterCache.Trim(temp.Path, VideoPosterCache.MaximumPngBytes);
         var files = Directory.GetFiles(temp.Path).Select(path => new FileInfo(path)).ToArray();

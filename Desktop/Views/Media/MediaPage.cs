@@ -139,7 +139,8 @@ public sealed partial class MediaPage : UserControl
         Border filterSurface = BuildFilterSurface(BuildFilterRow());
         header.Children.Add(BuildFilterChipRow()); header.Children.Add(_filterError); header.Children.Add(BuildStatusRow(_status)); header.Children.Add(BuildExportAllAsk()); header.Children.Add(BuildSelectionBar());
         _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { ItemHeight = MediaLibraryTileView.TileHeight });
-        _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThreadFilter = FilterToThread,
+        _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThumbnailCached = MediaTileThumbnails.TryGetCached,
+            ThumbnailRelease = MediaTileThumbnails.Release, ThreadFilter = FilterToThread,
             TagFilter = FilterToTag, ShowOccurrences = ShowOccurrences, FavoriteToggle = ToggleTileFavoriteAsync,
             CanToggleFavorite = () => ExecuteMediaMenuActionAsync != null });
         ScrollViewer.SetHorizontalScrollBarVisibility(_grid, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
@@ -524,8 +525,10 @@ public sealed partial class MediaPage : UserControl
 
     internal string PosterCacheDirectory { get; set; } = System.IO.Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1");
 
-    private Task<Bitmap?> LoadThumbnailAsync(MediaLibraryTile tile, CancellationToken token) =>
-        MediaTileThumbnails.LoadAsync(tile, OpenManifestAsync, PosterCacheDirectory, token);
+    // A decoded preview is kept by its bytes (the tile view gets a lease and gives it back), so scrolling back does not decode it again.
+    private async Task<Bitmap?> LoadThumbnailAsync(MediaLibraryTile tile, CancellationToken token) =>
+        await MediaTileThumbnails.LoadAsync(tile, OpenManifestAsync, PosterCacheDirectory, token).ConfigureAwait(false) is { } bitmap
+            ? MediaTileThumbnails.Remember(tile, bitmap) : null;
 
     private Task<MediaAssetSnapshot> OpenManifestAsync(string directory, CancellationToken token) => _manifests.OpenAsync(directory, token);
 

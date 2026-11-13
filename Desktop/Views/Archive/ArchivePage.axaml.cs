@@ -744,7 +744,8 @@ public partial class ArchivePage : UserControl
         return resolved == null ? null : assets.FirstOrDefault(asset => ReferenceEquals(asset.Manifest, resolved.Snapshot) && asset.Asset == resolved.Asset);
     }
 
-    internal static async Task<Bitmap?> DecodeThumbnailAsync(ArchiveAssetRow row, CancellationToken cancellationToken, int maximumWidth = 240, int maximumHeight = 180)
+    internal static async Task<Bitmap?> DecodeThumbnailAsync(ArchiveAssetRow row, CancellationToken cancellationToken, int maximumWidth = 240, int maximumHeight = 180,
+        VerifiedFileMemo? verifiedFiles = null)
     {
         string extension = System.IO.Path.GetExtension(row.Asset.Path).ToLowerInvariant();
         if (extension is not (".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp")) return null;
@@ -752,7 +753,7 @@ public partial class ArchivePage : UserControl
         long request = PerformanceDiagnostics.NextId();
         Stream verified;
         using (PerformanceDiagnostics.Measure("gallery.thumbnail.verify", request, asset: row.Asset.AssetId))
-            verified = await row.Manifest.OpenVerifiedReadAsync(row.Asset.AssetId, cancellationToken).ConfigureAwait(false);
+            verified = await row.Manifest.OpenSessionVerifiedReadAsync(row.Asset.AssetId, verifiedFiles, cancellationToken).ConfigureAwait(false);
         PerformanceDiagnostics.Record("gallery.thumbnail.verified-bytes", request: request, asset: row.Asset.AssetId, value: row.Asset.Length);
         await using Stream stream = verified;
         using var decode = PerformanceDiagnostics.Measure("gallery.thumbnail.decode", request, asset: row.Asset.AssetId);

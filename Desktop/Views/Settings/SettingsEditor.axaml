@@ -321,7 +321,7 @@
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="PosterCacheLimitMiBFieldLabel" Text="{Binding PosterCacheLimitMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                                <desktop:SettingsNumberInput x:Name="PosterCacheLimitMiBInput" Value="{Binding PosterCacheLimitMiB, Mode=TwoWay}" Minimum="16" Maximum="2048" Increment="16" AutomationProperties.LabeledBy="{Binding ElementName=PosterCacheLimitMiBFieldLabel}" AutomationProperties.Name="{Binding PosterCacheLimitMiBLabel}" AutomationProperties.HelpText="{Binding PosterCacheLimitMiBHelp}" />
+                                <desktop:SettingsNumberInput x:Name="PosterCacheLimitMiBInput" Value="{Binding PosterCacheLimitMiB, Mode=TwoWay}" Minimum="16" Maximum="8192" Increment="16" AutomationProperties.LabeledBy="{Binding ElementName=PosterCacheLimitMiBFieldLabel}" AutomationProperties.Name="{Binding PosterCacheLimitMiBLabel}" AutomationProperties.HelpText="{Binding PosterCacheLimitMiBHelp}" />
                                 <TextBlock x:Name="PosterCacheLimitMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
@@ -329,11 +329,19 @@
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="PosterCacheFileLimitFieldLabel" Text="{Binding PosterCacheFileLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                                <desktop:SettingsNumberInput x:Name="PosterCacheFileLimitInput" Value="{Binding PosterCacheFileLimit, Mode=TwoWay}" Minimum="32" Maximum="10000" Increment="32" AutomationProperties.LabeledBy="{Binding ElementName=PosterCacheFileLimitFieldLabel}" AutomationProperties.Name="{Binding PosterCacheFileLimitLabel}" AutomationProperties.HelpText="{Binding PosterCacheFileLimitHelp}" />
+                                <desktop:SettingsNumberInput x:Name="PosterCacheFileLimitInput" Value="{Binding PosterCacheFileLimit, Mode=TwoWay}" Minimum="32" Maximum="50000" Increment="32" AutomationProperties.LabeledBy="{Binding ElementName=PosterCacheFileLimitFieldLabel}" AutomationProperties.Name="{Binding PosterCacheFileLimitLabel}" AutomationProperties.HelpText="{Binding PosterCacheFileLimitHelp}" />
                                 <TextBlock x:Name="PosterCacheFileLimitInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding PosterCacheFileLimitHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="ThumbnailCacheTilesFieldLabel" Text="{Binding ThumbnailCacheTilesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="ThumbnailCacheTilesInput" Value="{Binding ThumbnailCacheTiles, Mode=TwoWay}" Minimum="32" Maximum="8192" Increment="32" AutomationProperties.LabeledBy="{Binding ElementName=ThumbnailCacheTilesFieldLabel}" AutomationProperties.Name="{Binding ThumbnailCacheTilesLabel}" AutomationProperties.HelpText="{Binding ThumbnailCacheTilesHelp}" />
+                                <TextBlock x:Name="ThumbnailCacheTilesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding ThumbnailCacheTilesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
                     <TextBlock x:Name="LimitsImportHeading" Text="{Binding ImportGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,14,0,0" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ImportMaxFilesPerBatchFieldLabel" Text="{Binding ImportMaxFilesPerBatchLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />

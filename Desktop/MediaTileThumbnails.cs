@@ -18,6 +18,31 @@ internal static class MediaTileThumbnails
 {
     internal const int MaximumPosterCandidates = 4;
     internal const int PosterWidth = 170, PosterHeight = 125;
+    /// <summary>Verified files kept per preview in the memory set: a file whose check is remembered is not hashed again this session.</summary>
+    internal const int VerifiedFilesPerPreview = 32;
+
+    /// <summary>Decoded previews of this session, shared by every media page (see <see cref="MediaThumbnailCache"/>).</summary>
+    internal static MediaThumbnailCache<Bitmap> Cache { get; } = new();
+    /// <summary>Files fully verified for a preview in this session and unchanged since (see <see cref="VerifiedFileMemo"/>).</summary>
+    internal static VerifiedFileMemo Verified { get; } = new(MediaThumbnailCache.DefaultCapacity * VerifiedFilesPerPreview);
+
+    /// <summary>Sets how many previews stay in memory (a setting); the memory of verified files follows it.</summary>
+    internal static void Configure(int tiles)
+    {
+        Cache.Capacity = Math.Max(1, tiles);
+        Verified.Capacity = Math.Max(1, tiles) * VerifiedFilesPerPreview;
+    }
+
+    /// <summary>The kept preview of a tile's bytes, leased to the caller (give it back with <see cref="Release"/>); null when none is kept.</summary>
+    internal static Bitmap? TryGetCached(MediaLibraryTile tile) =>
+        MediaLibraryGrouping.ByteKey(tile.Entry) is { } key ? Cache.TryAcquire(key) : null;
+
+    /// <summary>Keeps a decoded preview of a tile's bytes and leases the bitmap to show to the caller; a tile without proven bytes is not kept.</summary>
+    internal static Bitmap Remember(MediaLibraryTile tile, Bitmap bitmap) =>
+        MediaLibraryGrouping.ByteKey(tile.Entry) is { } key ? Cache.Add(key, bitmap) : bitmap;
+
+    /// <summary>Gives back a preview from <see cref="TryGetCached"/>, <see cref="Remember"/> or <see cref="LoadAsync"/>.</summary>
+    internal static void Release(Bitmap bitmap) => Cache.Release(bitmap);
 
     /// <summary>Opens the manifest of an entry's media directory.</summary>
     internal delegate Task<MediaAssetSnapshot> ManifestOpener(string directory, CancellationToken token);
@@ -39,7 +64,7 @@ internal static class MediaTileThumbnails
         MediaAssetSnapshot manifest = await openManifest(entry.Directory, token).ConfigureAwait(false);
         MediaAssetReference? asset = Matching(manifest, entry);
         if (asset != null && SavedMediaTypes.Classify(asset.OriginalFileName ?? asset.Path) != SavedMediaKind.Video)
-            return await ArchivePage.DecodeThumbnailAsync(new ArchiveAssetRow(manifest, asset), token).ConfigureAwait(false);
+            return await ArchivePage.DecodeThumbnailAsync(new ArchiveAssetRow(manifest, asset), token, verifiedFiles: Verified).ConfigureAwait(false);
         if (entry.Kind != SavedMediaKind.Video && asset == null) return null;
         (byte[] png, string assetId)? poster = await PosterPngAsync(tile, openManifest, posterCacheDirectory, token).ConfigureAwait(false);
         return poster == null ? null
@@ -57,7 +82,7 @@ internal static class MediaTileThumbnails
             try { manifest = await openManifest(entry.Directory!, token).ConfigureAwait(false); }
             catch (Exception exception) when (exception is not OperationCanceledException) { continue; }
             if (Matching(manifest, entry) is not { } asset) continue;
-            byte[]? png = await VideoPosterCache.GetPngAsync(manifest, asset, posterCacheDirectory, token).ConfigureAwait(false);
+            byte[]? png = await VideoPosterCache.GetPngAsync(manifest, asset, posterCacheDirectory, token, Verified).ConfigureAwait(false);
             if (png != null) return (png, asset.AssetId);
         }
         return null;

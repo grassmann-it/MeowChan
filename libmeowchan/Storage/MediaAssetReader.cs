@@ -117,7 +117,17 @@ public sealed class MediaAssetSnapshot
     /// fail without repair or network access; external programs ignoring file sharing remain outside
     /// the store's coordination contract. Symlink files are not followed.
     /// </summary>
-    public async Task<Stream> OpenVerifiedReadAsync(string assetId, CancellationToken cancellationToken = default)
+    public Task<Stream> OpenVerifiedReadAsync(string assetId, CancellationToken cancellationToken = default) =>
+        OpenVerifiedReadCoreAsync(assetId, null, cancellationToken);
+
+    /// <summary>
+    /// Like <see cref="OpenVerifiedReadAsync"/>, but a file that <paramref name="memo"/> remembers as fully verified with the same length
+    /// and last write time is not hashed again. For derived previews only; opening a file for the user keeps the full check.
+    /// </summary>
+    internal Task<Stream> OpenSessionVerifiedReadAsync(string assetId, VerifiedFileMemo? memo, CancellationToken cancellationToken = default) =>
+        OpenVerifiedReadCoreAsync(assetId, memo, cancellationToken);
+
+    private async Task<Stream> OpenVerifiedReadCoreAsync(string assetId, VerifiedFileMemo? memo, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         using var verification = Diagnostics.PerformanceDiagnostics.Measure("media.original.verify", asset: assetId);
@@ -125,16 +135,24 @@ public sealed class MediaAssetSnapshot
             ?? throw new ArgumentException("The asset does not belong to this manifest snapshot.", nameof(assetId));
         if ((File.GetAttributes(asset.Path) & FileAttributes.ReparsePoint) != 0)
             throw new InvalidDataException("A recorded media asset must not be a symbolic link.");
+        // The time is read before the bytes: a file that changes while it is hashed is remembered with the older time and is checked again.
+        long writeTicks = memo == null ? 0 : File.GetLastWriteTimeUtc(asset.Path).Ticks;
         FileStream stream = new FileStream(asset.Path, FileMode.Open, FileAccess.Read, FileShare.Read,
             81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
         try
         {
             if (stream.Length != asset.Length)
                 throw new InvalidDataException("The recorded media asset has changed length.");
+            if (memo != null && memo.IsVerified(asset.Path, asset.Length, writeTicks, asset.Sha256))
+            {
+                Diagnostics.PerformanceDiagnostics.Record("media.original.verify", "remembered", asset: assetId, value: asset.Length);
+                return stream;
+            }
             byte[] digest = await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false);
             if (!string.Equals(Convert.ToHexString(digest), asset.Sha256, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("The recorded media asset no longer matches its committed checksum.");
             cancellationToken.ThrowIfCancellationRequested();
+            memo?.Remember(asset.Path, asset.Length, writeTicks, asset.Sha256);
             stream.Position = 0;
             Diagnostics.PerformanceDiagnostics.Record("media.original.verify", "verified", asset: assetId, value: asset.Length);
             return stream;

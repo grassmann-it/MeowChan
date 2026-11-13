@@ -144,6 +144,7 @@ public partial class SettingsEditor
     public string ExportConfirmGiBHelp => FieldHelp(nameof(ExportConfirmGiBInput), Texts.T("settings.unitGiB") + ". " + ExportConfirmGiBHint);
     public string PosterCacheLimitMiBHelp => FieldHelp(nameof(PosterCacheLimitMiBInput), Texts.T("settings.unitMiB") + ". " + PosterCacheLimitMiBHint);
     public string PosterCacheFileLimitHelp => FieldHelp(nameof(PosterCacheFileLimitInput), Texts.T("settings.unitCount") + ". " + PosterCacheFileLimitHint);
+    public string ThumbnailCacheTilesHelp => FieldHelp(nameof(ThumbnailCacheTilesInput), Texts.T("settings.unitCount") + ". " + ThumbnailCacheTilesHint);
     public string ImportMaxFilesPerBatchHelp => FieldHelp(nameof(ImportMaxFilesPerBatchInput), Texts.T("settings.unitCount") + ". " + ImportMaxFilesPerBatchHint);
     public string ImportMaxBatchGiBHelp => FieldHelp(nameof(ImportMaxBatchGiBInput), Texts.T("settings.unitGiB") + ". " + ImportMaxBatchGiBHint);
     public string ImportMaxFileMiBHelp => FieldHelp(nameof(ImportMaxFileMiBInput), Texts.T("settings.unitMiB") + ". " + ImportMaxFileMiBHint);
@@ -160,7 +161,7 @@ public partial class SettingsEditor
             nameof(ParallelDownloadsHelp), nameof(ParallelDownloadsSafetyHelp), nameof(ReserveInputHelp), nameof(ProductionWorkersHelp),
             nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp), nameof(BooruCatalogMiBHelp),
             nameof(PrivateTagLimitHelp), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBHelp),
-            nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitHelp), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitHelp), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesHelp), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsHelp) })
+            nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitHelp), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitHelp), nameof(ThumbnailCacheTilesHelp), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesHelp), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsHelp) })
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
     }
 
@@ -220,6 +221,8 @@ public partial class SettingsEditor
             Config.PosterCacheLimitMiBMinimum, Config.PosterCacheLimitMiBMaximum, true);
         yield return (PosterCacheFileLimitInput, PosterCacheFileLimit, PosterCacheFileLimitLabel, Texts.T("settings.unitCount"),
             Config.PosterCacheFileLimitMinimum, Config.PosterCacheFileLimitMaximum, true);
+        yield return (ThumbnailCacheTilesInput, ThumbnailCacheTiles, ThumbnailCacheTilesLabel, Texts.T("settings.unitCount"),
+            Config.ThumbnailCacheTilesMinimum, Config.ThumbnailCacheTilesMaximum, true);
         yield return (ImportMaxFilesPerBatchInput, ImportMaxFilesPerBatch, ImportMaxFilesPerBatchLabel, Texts.T("settings.unitCount"),
             Config.ImportMaxFilesPerBatchMinimum, Config.ImportMaxFilesPerBatchMaximum, true);
         yield return (ImportMaxBatchGiBInput, ImportMaxBatchGiB, ImportMaxBatchGiBLabel, Texts.T("settings.unitGiB"),

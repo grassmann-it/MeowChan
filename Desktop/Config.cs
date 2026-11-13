@@ -187,12 +187,17 @@ namespace MeowChan
         public int PosterCacheLimitMiB { get; set; } = PosterCacheLimitMiBDefault;
         internal const int PosterCacheLimitMiBDefault = (int)(Desktop.VideoPosterCache.DefaultCacheBytes / (1024 * 1024));
         internal const int PosterCacheLimitMiBMinimum = 16;
-        internal const int PosterCacheLimitMiBMaximum = 2048;
+        internal const int PosterCacheLimitMiBMaximum = 8192;
         /// <summary>Most preview files the video preview cache keeps.</summary>
         public int PosterCacheFileLimit { get; set; } = PosterCacheFileLimitDefault;
         internal const int PosterCacheFileLimitDefault = Desktop.VideoPosterCache.DefaultCacheFiles;
         internal const int PosterCacheFileLimitMinimum = 32;
-        internal const int PosterCacheFileLimitMaximum = 10_000;
+        internal const int PosterCacheFileLimitMaximum = 50_000;
+        /// <summary>How many decoded tile previews of the Media page stay in memory (about 0.2 MiB each), so scrolling back shows them at once.</summary>
+        public int ThumbnailCacheTiles { get; set; } = ThumbnailCacheTilesDefault;
+        internal const int ThumbnailCacheTilesDefault = Desktop.MediaThumbnailCache.DefaultCapacity;
+        internal const int ThumbnailCacheTilesMinimum = 32;
+        internal const int ThumbnailCacheTilesMaximum = 8192;
 
         // Manual import limits (contract manual-import-v1 §4). Every limit is a setting; the stores enforce technical ceilings.
         /// <summary>Most files (new and already present) one import batch may hold.</summary>
@@ -635,6 +640,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(PosterCacheLimitMiB), "PosterCacheLimitMiB is outside its supported range (" + PosterCacheLimitMiBMinimum + " to " + PosterCacheLimitMiBMaximum + ").");
             if (PosterCacheFileLimit is < PosterCacheFileLimitMinimum or > PosterCacheFileLimitMaximum)
                 throw new ArgumentOutOfRangeException(nameof(PosterCacheFileLimit), "PosterCacheFileLimit is outside its supported range (" + PosterCacheFileLimitMinimum + " to " + PosterCacheFileLimitMaximum + ").");
+            if (ThumbnailCacheTiles is < ThumbnailCacheTilesMinimum or > ThumbnailCacheTilesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ThumbnailCacheTiles), "ThumbnailCacheTiles is outside its supported range (" + ThumbnailCacheTilesMinimum + " to " + ThumbnailCacheTilesMaximum + ").");
             if (ImportMaxFilesPerBatch is < ImportMaxFilesPerBatchMinimum or > ImportMaxFilesPerBatchMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ImportMaxFilesPerBatch), "ImportMaxFilesPerBatch is outside its supported range (" + ImportMaxFilesPerBatchMinimum + " to " + ImportMaxFilesPerBatchMaximum + ").");
             if (ImportMaxBatchGiB is < ImportMaxBatchGiBMinimum or > ImportMaxBatchGiBMaximum)
@@ -723,6 +730,7 @@ namespace MeowChan
                 ExportConfirmGiB = ExportConfirmGiB,
                 PosterCacheLimitMiB = PosterCacheLimitMiB,
                 PosterCacheFileLimit = PosterCacheFileLimit,
+                ThumbnailCacheTiles = ThumbnailCacheTiles,
                 ImportMaxFilesPerBatch = ImportMaxFilesPerBatch,
                 ImportMaxBatchGiB = ImportMaxBatchGiB,
                 ImportMaxFileMiB = ImportMaxFileMiB,
@@ -837,6 +845,7 @@ namespace MeowChan
             ExportConfirmGiB = source.ExportConfirmGiB;
             PosterCacheLimitMiB = source.PosterCacheLimitMiB;
             PosterCacheFileLimit = source.PosterCacheFileLimit;
+            ThumbnailCacheTiles = source.ThumbnailCacheTiles;
             ImportMaxFilesPerBatch = source.ImportMaxFilesPerBatch;
             ImportMaxBatchGiB = source.ImportMaxBatchGiB;
             ImportMaxFileMiB = source.ImportMaxFileMiB;
@@ -915,6 +924,7 @@ namespace MeowChan
             ExportConfirmGiB = source.ExportConfirmGiB;
             PosterCacheLimitMiB = source.PosterCacheLimitMiB;
             PosterCacheFileLimit = source.PosterCacheFileLimit;
+            ThumbnailCacheTiles = source.ThumbnailCacheTiles;
             ImportMaxFilesPerBatch = source.ImportMaxFilesPerBatch;
             ImportMaxBatchGiB = source.ImportMaxBatchGiB;
             ImportMaxFileMiB = source.ImportMaxFileMiB;

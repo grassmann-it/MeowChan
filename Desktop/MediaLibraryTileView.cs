@@ -73,7 +73,8 @@ internal sealed record MediaLibraryTileRow(MediaLibraryTile Tile, int Index, Fun
 /// </summary>
 internal sealed class MediaLibraryTileView : UserControl
 {
-    private static readonly SemaphoreSlim ThumbnailGate = new(2, 2);
+    // Four loads at a time: with the file check remembered per session a load is mostly decoding, which spreads over the cores.
+    private static readonly SemaphoreSlim ThumbnailGate = new(4, 4);
     private readonly Image _image = new() { Stretch = Stretch.Uniform, MaxWidth = 174, MaxHeight = 120 };
     private readonly TextBlock _placeholder = new TextBlock { TextWrapping = TextWrapping.Wrap,
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Center }.CaptionText();
@@ -114,6 +115,15 @@ internal sealed class MediaLibraryTileView : UserControl
 
     /// <summary>Set by the page: loads a verified thumbnail (image, or the local video poster) for a tile, or null when none can be shown.</summary>
     internal Func<MediaLibraryTile, CancellationToken, Task<Bitmap?>>? ThumbnailLoader { get; set; }
+    /// <summary>Set by the page: a kept preview of the tile's bytes leased to this tile, or null. A hit shows at once, without the load queue.</summary>
+    internal Func<MediaLibraryTile, Bitmap?>? ThumbnailCached { get; set; }
+    /// <summary>Set by the page: takes back a bitmap that came from the page's cache instead of disposing it (other tiles may show it).</summary>
+    internal Action<Bitmap>? ThumbnailRelease { get; set; }
+    /// <summary>
+    /// True when the preview now shown came from the page's cache (it appeared in the same turn the tile was bound), false when it was
+    /// loaded asynchronously. A fade-in belongs only to the loaded ones.
+    /// </summary>
+    internal bool ThumbnailWasCached { get; private set; }
     /// <summary>Set by the page: shows only the media of the tile's thread.</summary>
     internal Action<MediaLibraryEntry>? ThreadFilter { get; set; }
     /// <summary>Set by the page: shows only the media that carry this own tag.</summary>
@@ -334,6 +344,14 @@ internal sealed class MediaLibraryTileView : UserControl
         if (DataContext is not MediaLibraryTileRow { Entry.Presence: MediaLibraryPresence.Present } row
             || ThumbnailLoader is not { } loader || _loading != null || _bitmap != null) return;
         int request = _request;
+        if (ThumbnailCached?.Invoke(row.Tile) is { } cached)
+        {
+            _bitmap = cached;
+            _image.Source = cached;
+            _placeholder.Text = string.Empty;
+            ThumbnailWasCached = true;
+            return;
+        }
         using CancellationTokenSource loading = new();
         _loading = loading;
         _placeholder.Text = Texts.T("archive.loadingThumbnail");
@@ -343,8 +361,9 @@ internal sealed class MediaLibraryTileView : UserControl
             Bitmap? bitmap;
             try { bitmap = await Task.Run(() => loader(row.Tile, loading.Token), loading.Token); }
             finally { ThumbnailGate.Release(); }
-            if (request != _request || !_visible || !ReferenceEquals(DataContext, row)) { bitmap?.Dispose(); return; }
+            if (request != _request || !_visible || !ReferenceEquals(DataContext, row)) { Discard(bitmap); return; }
             _bitmap = bitmap;
+            ThumbnailWasCached = false;
             _image.Source = bitmap;
             _placeholder.Text = bitmap == null ? Texts.T("archive.previewUnavailable") : string.Empty;
         }
@@ -353,11 +372,17 @@ internal sealed class MediaLibraryTileView : UserControl
         finally { if (ReferenceEquals(_loading, loading)) _loading = null; }
     }
 
+    private void Discard(Bitmap? bitmap)
+    {
+        if (bitmap == null) return;
+        if (ThumbnailRelease is { } release) release(bitmap); else bitmap.Dispose();
+    }
+
     private void Reset()
     {
         ++_request;
         _loading?.Cancel(); _loading = null;
-        _image.Source = null; _bitmap?.Dispose(); _bitmap = null;
+        _image.Source = null; Discard(_bitmap); _bitmap = null; ThumbnailWasCached = false;
         MediaLibraryTileRow? row = DataContext as MediaLibraryTileRow;
         _placeholder.Text = row?.Entry.Presence == MediaLibraryPresence.Missing ? Texts.T("media.tile.missing") : string.Empty;
     }

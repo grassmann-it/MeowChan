@@ -18,9 +18,9 @@ internal static class VideoPosterCache
 {
     internal const int MaximumPngBytes = 4 * 1024 * 1024;
     /// <summary>Default size of the cache (the limit is a setting, Settings, Storage and limits).</summary>
-    internal const long DefaultCacheBytes = 128L * 1024 * 1024;
+    internal const long DefaultCacheBytes = 512L * 1024 * 1024;
     /// <summary>Default number of files in the cache (the limit is a setting).</summary>
-    internal const int DefaultCacheFiles = 256;
+    internal const int DefaultCacheFiles = 2048;
     // Fixed technical limit (documented in Help.md): videos above this size never get a preview.
     private const long MaximumVideoBytes = 512L * 1024 * 1024;
     private static long _cacheBytes = DefaultCacheBytes;
@@ -66,7 +66,7 @@ internal static class VideoPosterCache
 
     // Kept independent of Avalonia initialization so native decoder/cache acceptance can run without any display.
     internal static async Task<byte[]?> GetPngAsync(MediaAssetSnapshot manifest, MediaAssetReference asset,
-        string cacheDirectory, CancellationToken token)
+        string cacheDirectory, CancellationToken token, VerifiedFileMemo? verifiedFiles = null)
     {
         token.ThrowIfCancellationRequested();
         if (manifest.FindById(asset.AssetId) != asset) return null;
@@ -93,10 +93,11 @@ internal static class VideoPosterCache
                 try
                 {
                     bounded.Token.ThrowIfCancellationRequested();
-                    // Even a cache hit requires the recorded original to be present and fully verified.
+                    // Even a cache hit requires the recorded original to be present and fully verified; a caller that keeps a memory of
+                    // verified files (the media page's tiles) does not hash a video again that is unchanged since it was verified.
                     Stream? video;
                     using (PerformanceDiagnostics.Measure("gallery.poster.verify", request, asset: asset.AssetId))
-                        video = await manifest.OpenVerifiedReadAsync(asset.AssetId, bounded.Token).ConfigureAwait(false);
+                        video = await manifest.OpenSessionVerifiedReadAsync(asset.AssetId, verifiedFiles, bounded.Token).ConfigureAwait(false);
                     PerformanceDiagnostics.Record("gallery.poster.verified-bytes", request: request, asset: asset.AssetId, value: asset.Length);
                     byte[] png;
                     try
