@@ -78,10 +78,6 @@ internal sealed class ManualImportDialog : Window
     internal TextBox BatchNameBox => _name;
     internal IdentitySuggestionBox TagInput => _tagInput;
     internal Button TagAddButton => _tagAdd;
-    internal CheckBox OtherFilesBox => _otherFiles;
-    internal CheckBox SubfoldersBox => _subfolders;
-    internal StackPanel RootsPanel => _roots;
-
     /// <summary>Set by the owner: "show this batch" on the Media page after a finished import.</summary>
     internal Action<ManualImportBatch>? ShowBatch { get; set; }
     /// <summary>Test seams for the pickers; the defaults use this window's storage provider.</summary>

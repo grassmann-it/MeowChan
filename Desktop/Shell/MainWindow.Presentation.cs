@@ -610,7 +610,6 @@ public partial class MainWindow
         RefreshWorkspace();
     }
 
-    private void OnOpenWorkspaceDetailsClick(object? sender, RoutedEventArgs e) => OpenWorkspaceDetails();
     private void OnWorkspaceSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_refreshingDownloadSearch) return;

@@ -60,10 +60,6 @@ internal sealed class TagManagerDialog : Window
     internal Button ConfirmDeleteButton => _confirmDelete;
     internal Button KeepButton => _keep;
     internal TextBlock Status => _status;
-    internal Button OrphanCheckButton => _orphanCheck;
-    internal Button OrphanRemoveButton => _orphanRemove;
-    internal TextBlock OrphanText => _orphanText;
-
     internal TagManagerDialog(TagManagerSession session)
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));

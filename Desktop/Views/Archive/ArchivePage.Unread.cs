@@ -23,8 +23,6 @@ public partial class ArchivePage
     private string? _unreadFirstNewId;
 
     internal string? UnreadFirstNewPostId => _unreadFirstNewId;
-    internal bool UnreadReturnVisible => ReaderUnreadReturn.IsVisible;
-
     private void InitializeUnreadLine()
     {
         ArchivePosts.AddHandler(ScrollViewer.ScrollChangedEvent, (_, _) => UpdateUnreadReturn(), RoutingStrategies.Bubble);
@@ -46,8 +44,6 @@ public partial class ArchivePage
         if (last < 0 || last + 1 >= _thread.PostCount) return (null, 0);
         return (_thread.GetPosts(last + 1, 1).FirstOrDefault()?.PostId, _thread.PostCount - last - 1);
     }
-
-    internal void SetUnreadMark(ResourceId thread, string lastReadPostId) => _unreadMark = (thread, lastReadPostId);
 
     // The posts after the later of the saved anchor and the saved selection were not read yet.
     private static string LastReadOf(ArchivedThreadView view, LocalReadingPosition position)

@@ -85,8 +85,6 @@ public partial class MainWindow
     private long? _threadLeadId;
     private long? _boardLeadId;
     private bool _selectionCommandRunning;
-    private static KeyModifiers ListCommandModifier => OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
-
     // Commands belong to the list itself. Editors, controls, popups and overlays
     // keep their native keys, including text selection and clipboard commands.
     internal static bool IsListCommandSource(object? source, Control list)
@@ -141,15 +139,6 @@ public partial class MainWindow
             ThreadRow? row = _threadRows.Values.FirstOrDefault(row => row.Snapshot.Id == id);
             if (row != null) OpenDiagnosticWatch(new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId));
         };
-    }
-
-    internal static void NormalizeSelectionMenu(ContextMenu menu)
-    {
-        foreach (MenuItem item in menu.Items.OfType<MenuItem>())
-        {
-            if (item.Tag is string key && item.Classes.Contains("localized")) item.Header = Texts.T(key);
-
-        }
     }
 
     private DataGrid DownloadList(bool boards) => this.FindControl<DataGrid>(boards ? "BoardsDataGrid" : "ThreadsDataGrid")!;
@@ -465,12 +454,4 @@ public partial class MainWindow
             }, DispatcherPriority.Loaded);
         };
     }
-
-    private async void OnExportDownloadSelection(object? sender, RoutedEventArgs e) => await ExportDownloadSelectionAsync(DownloadList(false));
-    private async void OnReadDownloadSelection(object? sender, RoutedEventArgs e)
-    { if (SelectedThreads().Length == 1 && LeadThread is ThreadRow row) await OpenDownloadReaderAsync(row.Snapshot.Id, DownloadList(false)); }
-    private async void OnGalleryDownloadSelection(object? sender, RoutedEventArgs e)
-    { if (LeadThread is ThreadRow row) await OpenGalleryAsync(row.Snapshot.Id, origin: DownloadList(false)); }
-    private async void OnBoardAdmissionSelection(object? sender, RoutedEventArgs e)
-    { if (LeadBoard is BoardRow row) await OpenBoardAdmissionAsync(row); }
 }

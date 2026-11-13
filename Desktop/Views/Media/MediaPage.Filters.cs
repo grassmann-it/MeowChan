@@ -393,8 +393,6 @@ public sealed partial class MediaPage
         else Dispatcher.UIThread.Post(Focus, DispatcherPriority.Loaded);
     }
 
-    internal SearchBox NameFilterBox => _nameFilter;
-
     // The shortcut in the tooltip follows the user's current binding.
     private void UpdateSearchTip() => ToolTip.SetTip(_nameFilter, CommandBindings.Tooltip("input.focus-media-search"));
 

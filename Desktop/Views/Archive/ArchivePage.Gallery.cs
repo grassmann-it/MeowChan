@@ -48,8 +48,6 @@ public partial class ArchivePage
     internal Action? MediaReturn { get; set; }
     internal void ShowMediaReturn(bool visible) => ArchiveMediaReturn.IsVisible = visible;
     private void OnMediaReturnClick(object? sender, RoutedEventArgs e) => MediaReturn?.Invoke();
-    internal void ShowGalleryError(string message) => Message(message, true);
-
     private static GalleryEntry[] BuildVisibleGalleryEntries(ArchivedThreadView thread,
         ArchiveAssetRow[] assets, ArchiveAssetRow[] visible)
     {
@@ -229,8 +227,6 @@ public partial class ArchivePage
         return null;
     }
 
-    private void OnThreadTablePointerPressed(object? sender, PointerPressedEventArgs e) => OnArchiveListPointerPressed(sender, e);
-
     private async void OnThreadDoubleTapped(object? sender, TappedEventArgs e)
     {
         if (IsFilenameSearchOpen) return;
@@ -243,7 +239,6 @@ public partial class ArchivePage
         await LoadThreadAsync(row.Summary.Id);
     }
 
-    private void OnThreadKeyDown(object? sender, KeyEventArgs e) => OnArchiveListKeyDown(sender, e);
     private void OnThreadTableSelected(object? sender, SelectionChangedEventArgs e) => ArchiveSelectionChanged(sender);
 
     private async void OnThreadTableDoubleTapped(object? sender, TappedEventArgs e)
@@ -257,15 +252,6 @@ public partial class ArchivePage
         e.Handled = true;
         OpenReaderRequested?.Invoke(target);
         await LoadThreadAsync(row.Summary.Id);
-    }
-
-    private void OnThreadTableKeyDown(object? sender, KeyEventArgs e) => OnArchiveListKeyDown(sender, e);
-
-    private void OnThreadModeClick(object? sender, RoutedEventArgs e)
-    {
-        _threadTable = !_threadTable;
-        RestoreArchiveSelection(ArchiveVisibleRows);
-        UpdateLayoutMode();
     }
 
     private async void OnThreadGalleryMenu(object? sender, RoutedEventArgs e)

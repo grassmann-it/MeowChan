@@ -153,7 +153,6 @@ internal sealed class TagToggleRowView : Grid
     }
 
     internal CheckBox Box => _box;
-    internal TextBlock NameText => _name;
     internal TextBlock CountText => _count;
     internal TextBlock UsesText => _uses;
 

@@ -23,11 +23,7 @@ public partial class ArchivePage
         var editor = Control<IdentitySuggestionBox>(name);
         return IdentitySuggestions.CurrentSelection(editor.Text, editor.AcceptedCandidate);
     }
-    internal void WriteIdentityEditor(string name, string? value) => Control<IdentitySuggestionBox>(name).SetCurrentValue(IdentitySuggestionBox.TextProperty, value);
-
     // URSA-14 adapters can consume qualified candidates without parsing display labels.
-    internal Task<IdentitySuggestion[]> GetIdentityCandidatesAsync(bool boards, string text, CancellationToken token) => ReadSuggestionsAsync(boards, text, token);
-
     internal void InvalidateBoardSuggestions()
     {
         string? source = ReadBoardSuggestionSource();

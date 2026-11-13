@@ -72,9 +72,6 @@ internal sealed class TagToggleSurface : IDisposable
     internal Grid SummaryRow { get; }
     /// <summary>The list with the empty text over it; the body's growing row.</summary>
     internal Grid ListArea { get; }
-    /// <summary>True while a typed filter waits for a pause before the list follows it.</summary>
-    internal bool FilterPending => _filter.IsPending;
-
     private void OnTextChanged(object? sender, EventArgs e)
     {
         if (_ended) return;

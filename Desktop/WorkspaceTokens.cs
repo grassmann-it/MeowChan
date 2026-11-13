@@ -12,7 +12,6 @@ internal static class WorkspaceTokens
 {
     internal const string TextCaption = "Workspace.Text.Caption";
     internal const string RadiusBadge = "Workspace.Radius.Badge";
-    internal const string RadiusChip = "Workspace.Radius.Chip";
 
     /// <summary>Caption size (Workspace.Text.Caption, 11) for a text block or a button.</summary>
     internal static T CaptionText<T>(this T control) where T : Control
@@ -25,13 +24,6 @@ internal static class WorkspaceTokens
     internal static Border BadgeCorners(this Border border)
     {
         border[!Border.CornerRadiusProperty] = new DynamicResourceExtension(RadiusBadge);
-        return border;
-    }
-
-    /// <summary>Pill corners (Workspace.Radius.Chip, full round up to 24 dip high).</summary>
-    internal static Border PillCorners(this Border border)
-    {
-        border[!Border.CornerRadiusProperty] = new DynamicResourceExtension(RadiusChip);
         return border;
     }
 }

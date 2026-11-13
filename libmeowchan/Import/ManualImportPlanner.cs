@@ -74,7 +74,6 @@ internal sealed record ManualImportPlan(IReadOnlyList<ManualImportCandidate> Ite
 {
     internal int Count(ManualImportDisposition disposition) => Items.Count(item => item.Disposition == disposition);
     internal IEnumerable<ManualImportCandidate> New => Items.Where(item => item.Disposition == ManualImportDisposition.New);
-    internal long NewBytes => New.Sum(item => item.Length);
 }
 
 /// <summary>Progress of the check: files and bytes hashed so far of the importable total.</summary>

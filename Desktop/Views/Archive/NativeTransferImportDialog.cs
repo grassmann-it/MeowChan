@@ -150,8 +150,6 @@ internal sealed class NativeTransferImportDialog : Window
     internal Button ConflictsButton => _conflicts;
     internal Func<MediaConflictsDialog, Task>? ConflictsShowForTests { get; set; }
     internal TextBlock StateText => _state;
-    internal ComboBox ScopeSelector => _scope;
-    internal NativeTransferImportScope ScopeForTests => SelectedScope;
     internal TextBlock SummaryText => _summary;
     internal TextBlock NoticeText => _notice;
     internal TextBlock ErrorText => _error;

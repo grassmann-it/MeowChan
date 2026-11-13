@@ -1030,10 +1030,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
             exception => Post(generation, () => _ = FailAsync(generation))).ConfigureAwait(true);
     }
 
-    internal long NoOpStopCount => _lifetime.NoOpStops;
-    internal long FullStopCount => _lifetime.FullStops;
     // Readable without entering the native semaphore, even while native Stop is blocked.
-    internal VideoCleanupEvidence CleanupEvidence => _lifetime.Cleanup.Evidence;
     internal Task StopUnavailableAsync()
     {
         EnableTransport(false);

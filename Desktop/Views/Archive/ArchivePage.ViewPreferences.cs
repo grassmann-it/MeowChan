@@ -65,8 +65,6 @@ public partial class ArchivePage
 
     private static string[] ColumnKeys(DataGrid grid) => grid.Name == "ArchiveMediaGrid" ? MediaColumnKeys : ThreadColumnKeys;
     private static string ColumnPreferenceKey(DataGrid grid, string column) => grid.Name + "." + column;
-    private bool DefaultVisible(DataGrid grid, string key) => DefaultColumnVisible(grid.Name!, _archiveColumnMode, key);
-
     // Tags is appended as the last key: saved numeric widths and column orders of older versions stay valid.
     internal static bool DefaultColumnVisible(string gridName, string mode, string key) => gridName == "ArchiveMediaGrid"
         ? mode != "Barebones" || key is "name" or "size"

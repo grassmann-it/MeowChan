@@ -47,7 +47,6 @@ internal sealed class MediaSelectionTagDialog : Window
 
     internal MediaSelectionTagSession Session => _session;
     internal IReadOnlyList<CheckBox> OccurrenceBoxes => _rows.Select(row => row.Box).ToArray();
-    internal Expander OccurrenceFrame => _occurrenceFrame;
     internal IdentitySuggestionBox Input => _input;
     internal Button AddButton => _add;
     internal TagToggleSurface Surface => _surface;

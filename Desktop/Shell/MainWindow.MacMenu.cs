@@ -21,8 +21,6 @@ public partial class MainWindow
     private readonly List<(NativeMenuItem Item, string Key)> _macMenuTitles = new();
     private EventHandler? _macMenuTextsChanged;
 
-    internal NativeMenu? MacMenuForTests => _macMenu;
-
     private void InstallMacMenu()
     {
         if (!OperatingSystem.IsMacOS() || _macMenu != null) return;

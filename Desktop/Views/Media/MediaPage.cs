@@ -122,7 +122,6 @@ public sealed partial class MediaPage : UserControl
     /// </summary>
     internal MediaManifestCache CreateManifestCache() => new(_manifests.UsesIdentity ? null : _openManifest);
     internal bool LoadingCache => _loadingCache;
-    internal MediaLibraryIndexCacheWrite? LastCacheWrite => _cacheWrite;
     /// <summary>One entry per tile: the occurrence each tile shows. Gallery windows are made from this list.</summary>
     internal IReadOnlyList<MediaLibraryEntry> ShownEntries => _shown;
     internal IReadOnlyList<MediaLibraryTile> Tiles => _tiles;

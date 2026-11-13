@@ -25,8 +25,6 @@ internal static class MediaAudioProbe
     /// <summary>Upper bound of bytes read from the file; seeking over payload is free.</summary>
     internal const int MaximumReadBytes = 4 * 1024 * 1024;
     private const int MaximumElements = 100_000;
-    private const int MaximumDepth = 8;
-
     /// <summary>
     /// The stream must be readable and seekable. IO errors of the stream itself propagate (the file is
     /// then unavailable, which is not the same as undecidable); a short file is a truncated file.

@@ -217,15 +217,6 @@ public partial class ArchivePage
         if (previous.Anchor != null) await RestoreReaderAnchorAsync(previous.Anchor);
         ReaderPositionChanged(deliberate: true);
     }
-    private async void OnBacklinksClick(object? sender, RoutedEventArgs e)
-    {
-        if (_thread == null || sender is not Button { DataContext: ArchivePostRow row }) return;
-        _backlinkOriginAnchor = CaptureReaderAnchor();
-        CancelReferences();
-        _backlinkPost = new ArchivePostId(_thread.Summary.Id, row.Id);
-        _referenceOffset = 0;
-        await LoadBacklinksAsync();
-    }
     private async Task LoadBacklinksAsync()
     {
         if (_busy || _ended || !CanRead || _openReader == null || _backlinkPost == null) return;

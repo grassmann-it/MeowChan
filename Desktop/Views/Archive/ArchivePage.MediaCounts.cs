@@ -26,7 +26,6 @@ public partial class ArchivePage
     internal long ArchiveMediaCountScansSkippedWhileObscured { get; private set; }
     internal long ArchiveMediaCountScanStarts => _archiveMediaCounts?.Starts ?? 0;
     internal long ArchiveMediaCountScanCancellations => _archiveMediaCounts?.Cancellations ?? 0;
-    internal long ArchiveMediaCountFollowUpReplacements => _archiveMediaCounts?.Replacements ?? 0;
     internal long ArchiveMediaCountApplications { get; private set; }
     internal long ArchiveMediaCountStaleResults { get; private set; }
 
