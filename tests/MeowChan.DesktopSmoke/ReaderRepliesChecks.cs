@@ -162,9 +162,11 @@ internal static class ReaderRepliesChecks
         await Program.WaitUntilAsync(() => opening.BacklinkCount == 25);
         ListBoxItem Container(ArchivePostRow row) => list.GetVisualDescendants().OfType<ListBoxItem>()
             .Single(item => ReferenceEquals(item.DataContext, row));
-        // Neither the OP nor the sampled reply may be the active card; selection auto-scroll is asynchronous,
-        // so keep bringing the top of the thread into view until both rows are realized.
-        list.SelectedItem = rows.Single(row => row.Id == "120");
+        // The preceding async quote click can still be settling its focus/layout passes after selecting 101.
+        // Supersede that request through the reader API and await its completion before sampling inactive cards.
+        await page.FocusPostAsync("120");
+        Require(list.SelectedItem is ArchivePostRow { Id: "120" },
+            "The inactive-card fixture did not finish moving selection away from the sampled posts.");
         await Program.WaitUntilAsync(() =>
         {
             list.ScrollIntoView(opening); list.UpdateLayout();
@@ -179,6 +181,9 @@ internal static class ReaderRepliesChecks
             && value is ISolidColorBrush brush ? brush.Color : throw new InvalidOperationException("Missing token " + key);
         Color? Surface(ListBoxItem item) => (item.GetVisualDescendants().OfType<ContentPresenter>().First().Background as ISolidColorBrush)?.Color;
         ListBoxItem opItem = Container(opening), replyItem = Container(reply);
+        Require(!opItem.IsSelected && !replyItem.IsSelected,
+            "Inactive-card fixture lost selection: selected=" + (list.SelectedItem as ArchivePostRow)?.Id);
+        Program.CaptureWindow(window, "smoke-reader-cards-inactive-" + window.ActualThemeVariant.Key + ".png");
         Require(opItem.Classes.Contains("reader-op") && Surface(opItem) == Colors.Transparent,
             "The opening post did not sit directly on the page: " + Surface(opItem));
         Require(!replyItem.Classes.Contains("reader-op") && Surface(replyItem) == Token("Workspace.Card")
@@ -189,17 +194,20 @@ internal static class ReaderRepliesChecks
             "The reply count was not shown in the opening post header.");
 
         ReaderBodyTextBlock body = replyItem.GetVisualDescendants().OfType<ReaderBodyTextBlock>().Single();
-        Require(body.Text == null && body.Inlines is { Count: 2 } && body.PlainText == reply.Body,
-            "The reply body was not rendered as runs over its plain text.");
+        // P3 adds a separate, selectable marker run after a quote of the opening post; the stored body stays raw.
+        string expectedBody = ">>100 " + MeowChan.Desktop.Localization.Texts.T("reader.quote.opMarker") + " reply 101";
+        Require(reply.Body == ">>100 reply 101" && body.Text == null && body.Inlines is { Count: 3 }
+            && body.PlainText == expectedBody && body.Document!.Segments.Count(segment => segment.Kind == ReaderBodySegmentKind.QuoteMarker) == 1,
+            "The reply body did not retain its quote, OP-marker and text runs: " + body.PlainText);
         Require(body.LineHeight == Math.Round(body.FontSize * 1.45), "The reading line height did not follow the font size.");
         Require(FontManager.Current.TryGetGlyphTypeface(new Typeface(body.FontFamily), out var glyphs)
             && glyphs!.FamilyName == "Noto Sans", "The post body did not resolve the bundled Noto Sans: " + body.FontFamily);
-        body.SelectionStart = 0; body.SelectionEnd = reply.Body.Length;
-        Require(body.SelectedText == reply.Body, "Selecting a formatted body did not copy its plain text: " + body.SelectedText);
+        body.SelectionStart = 0; body.SelectionEnd = expectedBody.Length;
+        Require(body.SelectedText == expectedBody, "Selecting a formatted body did not copy its plain text: " + body.SelectedText);
         body.SelectionStart = body.SelectionEnd = 0;
         Rect caret = body.TextLayout.HitTestTextPosition(2);
         ReaderBodySegment? link = body.QuoteAt(new Point(caret.X + 1, caret.Y + caret.Height / 2));
-        Rect plain = body.TextLayout.HitTestTextPosition(reply.Body.Length - 2);
+        Rect plain = body.TextLayout.HitTestTextPosition(expectedBody.Length - 2);
         Require(link?.Quote == reply.Quotes[0] && body.QuoteAt(new Point(plain.X + 1, plain.Y + plain.Height / 2)) == null,
             "Inline >>100 hit-testing did not map to its quote: " + caret);
 
