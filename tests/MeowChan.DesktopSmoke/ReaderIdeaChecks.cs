@@ -182,8 +182,8 @@ internal static class ReaderIdeaChecks
         // A reference to a post that was never captured has nothing to preview.
         ArchiveQuoteRow dead = second.Quotes.Single(quote => quote.IsDead);
         secondBody.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, dead, new Rect(0, 0, 40, 18)));
-        await Task.Delay(500);
-        Require(!page.IsQuotePreviewOpen, "A dead reference opened a preview.");
+        // A reference without a captured post is refused synchronously: no popup, no pending delay timer, no remembered row.
+        Require(!page.IsQuotePreviewOpen && !page.IsQuotePreviewPending && page.QuotePreviewRow == null, "A dead reference opened or scheduled a preview.");
 
         // Focus: the keyboard quote button previews after the delay; Escape closes only the preview.
         Button key = Container(fixture, "312").GetVisualDescendants().OfType<Button>().First(button => button.Classes.Contains("reader-quote") && button.DataContext is ArchiveQuoteRow row && row.Quote == second.Quotes[0].Quote);
@@ -213,7 +213,8 @@ internal static class ReaderIdeaChecks
         {
             await page.NavigateQuoteAsync(second.Quotes[0]);
             await Program.WaitUntilAsync(() => flash.IsVisible, () => "no static highlight under reduced motion");
-            await Task.Delay(200);
+            // No timed sample: FlashPostAsync sets the static wash (opacity, no transition) before it shows the flash, so these hold
+            // on the first poll that sees the flash, however slowly that poll returns.
             Require(flash.IsVisible && Math.Abs(flash.Opacity - 0.35) < 0.001 && flash.Transitions == null, "Reduced motion did not keep the highlight static: " + flash.Opacity);
             await Program.WaitUntilAsync(() => !flash.IsVisible, () => "the static highlight never ended");
         }
