@@ -259,7 +259,7 @@
                                                     <TextBlock Text="{Binding SelectedMedia}" Classes="mono" FontSize="{StaticResource Workspace.Text.Meta}" />
                                                 </StackPanel>
                                             </Grid>
-                                            <ProgressBar AutomationProperties.Name="{Binding Progress}" Value="{Binding Completion}" Minimum="0" Maximum="100" Height="3" MinHeight="0" MaxHeight="3" />
+                                            <ProgressBar AutomationProperties.Name="{Binding Progress}" Value="{Binding Completion}" Minimum="0" Maximum="100" Height="4" MinHeight="0" MaxHeight="4" />
                                         </StackPanel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -399,7 +399,7 @@
                                         <TextBlock Tag="detail.progress" Classes="localized muted" FontSize="{StaticResource Workspace.Text.Meta}" />
                                         <SelectableTextBlock x:Name="InspectorProgress" FontWeight="Medium" TextWrapping="Wrap" />
                                         <TextBlock x:Name="InspectorKnownMedia" Classes="muted" TextWrapping="Wrap" />
-                                        <ProgressBar x:Name="InspectorProgressBar" Minimum="0" Maximum="100" Height="3" MinHeight="0" MaxHeight="3" />
+                                        <ProgressBar x:Name="InspectorProgressBar" Minimum="0" Maximum="100" Height="4" MinHeight="0" MaxHeight="4" />
                                         <TextBlock x:Name="InspectorQueue" Classes="muted" />
                                     </StackPanel>
                                     <Expander x:Name="InspectorSourceDetails">

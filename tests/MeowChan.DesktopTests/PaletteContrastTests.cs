@@ -90,8 +90,8 @@ public sealed class PaletteContrastTests
         }
     }
 
-    // The charcoal bars of the Light theme are the download progress bars (Workspace.Progress is #333333 there; title bar, header,
-    // footer and toolbars are warm Panel/Background tones, not dark grey). The fill is the bar: it needs 3:1 against every surface it
+    // The dark bars of the Light theme are the download progress bars (Workspace.Progress is the dark accent brown #4A2203 there; title
+    // bar, header, footer and toolbars are warm Panel/Background tones). The fill is the bar: it needs 3:1 against every surface it
     // is drawn on and against its own track. Scrollbar thumbs are bars too.
     [Theory, InlineData("Dark"), InlineData("Light")]
     public void ProgressBarFillReadsOnItsTrackAndOnEverySurfaceItIsDrawnOn(string theme)
@@ -101,16 +101,53 @@ public sealed class PaletteContrastTests
             AssertContrast(theme, "Workspace.Progress", surface, 3.0);
     }
 
-    // Owner decision: the Dark fill is the accent blue again (it was a light grey), and it reads on its track at well over 3:1.
+    // Owner decision: the Dark fill is the accent blue again (it was a light grey). UX review 2026-11-13: the track moved from #30363E
+    // (the Hover fill, 1.00:1, so the empty part vanished on a hovered row) to #424A54; the fill reads on it at 3.67:1.
     [Fact]
     public void DarkProgressFillIsTheAccentBlueAndReadsOnItsTrack()
     {
         Assert.Equal(Color("Dark", "Workspace.Accent"), Color("Dark", "Workspace.Progress"));
-        AssertContrast("Dark", "Workspace.Progress", "Workspace.ProgressTrack", 4.5);
+        AssertContrast("Dark", "Workspace.Progress", "Workspace.ProgressTrack", 3.5);
+    }
+
+    // The empty part must not be the colour of any row fill, and stays faintly visible on the row states of the Downloads list.
+    [Theory]
+    [InlineData("Workspace.Panel", 1.8), InlineData("Workspace.Raised", 1.6), InlineData("Workspace.Hover", 1.3), InlineData("Workspace.AccentSurface", 1.35)]
+    public void DarkProgressTrackIsNotTheHoverFillAndStaysVisibleOnTheRowStates(string surface, double minimum)
+    {
+        Assert.Equal("#424A54", Color("Dark", "Workspace.ProgressTrack"));
+        Assert.NotEqual(Color("Dark", "Workspace.Hover"), Color("Dark", "Workspace.ProgressTrack"));
+        AssertContrast("Dark", "Workspace.ProgressTrack", surface, minimum);
+    }
+
+    // Light progress variant A: the fill is the dark accent brown (one step below the pressed accent #662F05), not a neutral grey, and
+    // 3.4:1 or more on the track and 8.5:1 or more on every row state; the count text beside it stays readable on the weakest row (Hover).
+    [Fact]
+    public void LightProgressFillIsTheDarkAccentBrownAndReadsOnTheTrackAndEveryRowState()
+    {
+        Assert.Equal("#4A2203", Color("Light", "Workspace.Progress"));
+        double red = Channel(Color("Light", "Workspace.Progress"), 0), blue = Channel(Color("Light", "Workspace.Progress"), 2);
+        Assert.True(red > blue, "the Light progress fill is warm (brown), not a neutral grey");
+        AssertContrast("Light", "Workspace.Progress", "Workspace.ProgressTrack", 3.4);
+        foreach (string surface in new[] { "Workspace.Panel", "Workspace.Raised", "Workspace.Hover", "Workspace.AccentSurface", "Workspace.Card", "Workspace.Background" })
+            AssertContrast("Light", "Workspace.Progress", surface, 8.4);
+        AssertContrast("Light", "Workspace.Text", "Workspace.Hover", 10.7);
+        AssertContrast("Light", "Workspace.Muted", "Workspace.Hover", 4.8);
+    }
+
+    // The Downloads progress bar and the inspector bar are 4 dip high (3 dip left one clean pixel row after antialiasing) and the
+    // saved count is the SemiBold number over the bar end.
+    [Fact]
+    public void ProgressBarsAreFourDipHighAndTheSavedCountIsSemiBold()
+    {
+        string window = File.ReadAllText(Root("Desktop/Shell/MainWindow.axaml"));
+        Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(window, "<ProgressBar [^>]*Height=\"4\" MinHeight=\"0\" MaxHeight=\"4\"").Count);
+        Assert.DoesNotContain("MaxHeight=\"3\"", window);
+        Assert.Contains("Text=\"{Binding CompletedMedia}\" Classes=\"mono\" FontSize=\"{StaticResource Workspace.Text.Meta}\" FontWeight=\"SemiBold\"", window);
     }
 
     // Owner decision: the empty track is clearly visible in Light, a warm mid-grey (#857D74). 3:1 against the surfaces of the lists and
-    // panels is pinned; against Raised, Hover and AccentSurface 3:1 cannot hold together with a 3:1 #333333 fill (that needs a track
+    // panels is pinned; against Raised, Hover and AccentSurface 3:1 cannot hold together with a 3:1 progress fill (that needs a track
     // luminance of at most 0.19 and at least 0.199), so those three are held to 2.4:1, well above the earlier 1.05 to 1.45.
     [Theory]
     [InlineData("Workspace.Background", 3.0), InlineData("Workspace.Panel", 3.0), InlineData("Workspace.Card", 3.0), InlineData("Workspace.Overlay", 3.0)]

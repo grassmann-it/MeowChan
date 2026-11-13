@@ -56,9 +56,11 @@
                     <SolidColorBrush x:Key="Workspace.WarningSurface">#352C1D</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Success">#A7EFCB</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.SuccessSurface">#20382D</SolidColorBrush>
-                    <!-- The fill is the accent blue again (same value as Workspace.Accent): 4.98:1 on the track, 4.98 to 7.55:1 on the surfaces. -->
+                    <!-- The fill is the accent blue again (same value as Workspace.Accent): 3.67:1 on the track, 4.98 to 7.55:1 on the surfaces.
+                         UX review 2026-11-13: the track was #30363E, the same value as Workspace.Hover, so the empty part vanished on a hovered
+                         row (1.00:1). #424A54 stays off every row fill: 1.86:1 on Panel, 1.65:1 on Raised, 1.36:1 on Hover, 1.40:1 on AccentSurface. -->
                     <SolidColorBrush x:Key="Workspace.Progress">#6AA7FF</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.ProgressTrack">#30363E</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ProgressTrack">#424A54</SolidColorBrush>
                     <!-- Rows of the header and page graphs, each opaque with its own area colour, drawn as separate rows (own scale, own
                          value label), so no row is told apart by colour alone. Disk write (what MeowChan archives) is teal, disk read
                          violet; strokes are at least 3:1 on Panel, Background and Card (the tests measure it). -->
@@ -235,10 +237,12 @@
                          on Panel, 4.57:1 on Raised, 6.24:1 on Card, 5.72:1 on SuccessSurface; simulated distance to Error 8.2 -> 14.4. -->
                     <SolidColorBrush x:Key="Workspace.Success">#1D6941</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.SuccessSurface">#E8F0E4</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.Progress">#333333</SolidColorBrush>
-                    <!-- The empty part of a bar is visible: 3.05:1 on Background, 3.44:1 on Panel/Overlay, 3.79:1 on Card, and the #333333 fill is 3.12:1 on it.
-                         3:1 on Raised (2.78), Hover (2.50) and AccentSurface (2.81) is not reachable together with a 3:1 fill: that would need a track
-                         luminance of at most 0.19 and at least 0.199. -->
+                    <SolidColorBrush x:Key="Workspace.Progress">#4A2203</SolidColorBrush>
+                    <!-- UX review 2026-11-13 (progress variant A): the fill is a dark accent brown one step below the pressed accent (#662F05),
+                         no longer a foreign neutral grey (#333333, 3.12:1 on the track). The empty part of a bar is visible: 3.05:1 on
+                         Background, 3.44:1 on Panel/Overlay, 3.79:1 on Card, and the #4A2203 fill is 3.41:1 on it (11.71:1 on Panel, 8.50:1 on Hover,
+                         9.57:1 on AccentSurface). 3:1 on Raised (2.78), Hover (2.50) and AccentSurface (2.81) is not reachable together with a 3:1
+                         fill: that would need a track luminance of at most 0.19 and at least 0.199. -->
                     <SolidColorBrush x:Key="Workspace.ProgressTrack">#857D74</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Stats.Disk">#1F6B5C</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Stats.DiskSurface">#C5DDD5</SolidColorBrush>
