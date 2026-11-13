@@ -123,6 +123,16 @@ internal static class ReaderUxChecks
             await ReaderStabilityChecks.RunAsync(window);
             return;
         }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_CONVERSATION_ONLY") == "1")
+        {
+            await ReaderConversationChecks.RunAsync(window);
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_DISPLAY_ONLY") == "1")
+        {
+            await ReaderDisplayChecks.RunAsync(window);
+            return;
+        }
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_VIEW_ONLY") == "1")
         {
             await ReaderViewChecks.RunAsync(window);
