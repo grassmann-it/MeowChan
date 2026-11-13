@@ -100,25 +100,25 @@ if (phase.StartsWith("start-", StringComparison.Ordinal) && Plugin(final) is { E
     string dotnet = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "/usr/share/dotnet/dotnet";
     try
     {
-    await using (var worker = await manager.StartAsync(new(dotnet, [workerPath], workspace), active.Artifact, active.Configuration, services, cancellationToken: lifetime.Token))
-    {
-        workerPid = worker.Snapshot.ProcessId;
-        await File.WriteAllTextAsync(Path.Combine(root, phase + ".worker-pid"), workerPid!.Value.ToString());
-        if (!SdkJson.Serialize(active.Description).AsSpan().SequenceEqual(SdkJson.Serialize(worker.Description)))
-            throw new InvalidDataException("Worker did not describe the exact approved release.");
-        var operation = new PluginOperationContext("shared/b/1", 1);
-        var snapshot = (ThreadSnapshot)await worker.ReadThreadAsync(new(new("shared", "b", "1")), operation, lifetime.Token);
-        text = snapshot.Snapshot.Posts.Single().Text;
-        var grant = PluginGrantAuthorization.Resolve(final, "process.plugin", "bytes", "shared", "b", "rule");
-        var request = new ImageFilterRequest("bytes", new(new(new("shared", "b", "1"), "image"), "1", 0,
-            new("https://fixture.invalid/a.png"), MimeType: "image/png"), "input", "media", "asset", 4,
-            Hash([1, 2, 3, 4]), "rule", new("1", []), active.ExecutionRevision, active.Configuration.Revision, grant.Revision);
-        if ((await worker.EvaluateAsync(request, operation with { RuleRevision = "rule", GrantRevision = grant.Revision }, lifetime.Token)).Outcome != ImageFilterOutcome.Match)
-            throw new InvalidDataException("Approved exact grant did not reach the synthetic image service.");
-        imageReads = services.ImageReads; httpRequests = services.HttpRequests;
-    }
+        await using (var worker = await manager.StartAsync(new(dotnet, [workerPath], workspace), active.Artifact, active.Configuration, services, cancellationToken: lifetime.Token))
+        {
+            workerPid = worker.Snapshot.ProcessId;
+            await File.WriteAllTextAsync(Path.Combine(root, phase + ".worker-pid"), workerPid!.Value.ToString());
+            if (!SdkJson.Serialize(active.Description).AsSpan().SequenceEqual(SdkJson.Serialize(worker.Description)))
+                throw new InvalidDataException("Worker did not describe the exact approved release.");
+            var operation = new PluginOperationContext("shared/b/1", 1);
+            var snapshot = (ThreadSnapshot)await worker.ReadThreadAsync(new(new("shared", "b", "1")), operation, lifetime.Token);
+            text = snapshot.Snapshot.Posts.Single().Text;
+            var grant = PluginGrantAuthorization.Resolve(final, "process.plugin", "bytes", "shared", "b", "rule");
+            var request = new ImageFilterRequest("bytes", new(new(new("shared", "b", "1"), "image"), "1", 0,
+                new("https://fixture.invalid/a.png"), MimeType: "image/png"), "input", "media", "asset", 4,
+                Hash([1, 2, 3, 4]), "rule", new("1", []), active.ExecutionRevision, active.Configuration.Revision, grant.Revision);
+            if ((await worker.EvaluateAsync(request, operation with { RuleRevision = "rule", GrantRevision = grant.Revision }, lifetime.Token)).Outcome != ImageFilterOutcome.Match)
+                throw new InvalidDataException("Approved exact grant did not reach the synthetic image service.");
+        }
     }
     catch (Exception error) when (error is PluginWorkerException or IOException) { rejection = error.GetType().Name; }
+    imageReads = services.ImageReads; httpRequests = services.HttpRequests;
     // Disposal must have reaped this privately owned worker before reporting success.
     try { if (workerPid is int pid) { using var child = Process.GetProcessById(pid); if (!child.HasExited) throw new InvalidOperationException("Worker still running."); } }
     catch (ArgumentException) { }
