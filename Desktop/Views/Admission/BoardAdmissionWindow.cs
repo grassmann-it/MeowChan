@@ -106,7 +106,8 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
             var matches = Help(string.Empty); matches.Name = "BoardAdmissionMatches"; matches.IsVisible = false;
             var reinclude = new Button { Name = "BoardAdmissionReinclude", IsEnabled = false, IsVisible = false };
             var status = Help(Texts.T("wizard.loading")); status.Name = "BoardAdmissionStatus";
-            var list = new ListBox { Name = "BoardAdmissionPreview", ItemTemplate = MakeTemplate(), MinHeight = 160, MaxHeight = 400 };
+            var list = Localized(new ListBox { Name = "BoardAdmissionPreview", ItemTemplate = MakeTemplate(), MinHeight = 160, MaxHeight = 400 },
+                c => AutomationProperties.SetName(c, Texts.T("wizard.previewTitle")));
             var retry = Localized(new Button { Name = "BoardAdmissionRetry", IsVisible = false }, c => c.Content = Texts.T("wizard.retry"));
             var draft = new Draft { Url = url, Initial = readPolicy(url), RulePanel = rulePanel, Summary = summary,
                 Status = status, List = list, Matches = matches, Reinclude = reinclude, Retry = retry };

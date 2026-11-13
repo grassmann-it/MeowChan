@@ -603,6 +603,8 @@ public partial class MainWindow : Window
                 return Texts.T(key) + " · " + item.Url + (item.Error == null ? string.Empty : " · " + item.Error);
             }))
         };
+        // The read-only report is a bare TextBox: without a name a screen reader announces only "edit, read only".
+        Avalonia.Automation.AutomationProperties.SetName(report, Texts.T("admission.results"));
         rows.Children.Add(report);
         // A URL that is already watched says where: one link per duplicate (the first few) selects its row.
         foreach (AdmissionFeedback known in _admissionResults
