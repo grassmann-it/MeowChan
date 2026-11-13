@@ -13,6 +13,7 @@ namespace MeowChan.Desktop;
 internal static class PlatformDiagnostics
 {
     internal const string MotionKey = "platform:motion-signal";
+    internal const string SummaryKey = "platform:summary";
 
     internal static IReadOnlyList<DiagnosticEntry> Entries()
     {
@@ -22,11 +23,14 @@ internal static class PlatformDiagnostics
             + "Effective: animations " + (MotionPolicy.IsOff ? "OFF" : "ON") + " (setting " + MotionPolicy.Setting
             + ", environment " + (MotionPolicy.FromEnvironment(Environment.GetEnvironmentVariable) is { } env ? (env ? "off" : "on") : "unset") + ")"
             + Environment.NewLine + "Detail: " + motion;
-        return new[]
-        {
+        List<DiagnosticEntry> entries = new();
+        if (PlatformSummary.Line is { } line)
+            entries.Add(new DiagnosticEntry(SummaryKey, Texts.T("diagnostics.platform"), "MeowChan", "Platform summary (paste into a report)", line, null)
+            { Kind = DiagnosticKind.Information });
+        entries.Add(
             new DiagnosticEntry(MotionKey, Texts.T("diagnostics.platform"), "MeowChan", summary, details, null)
-            { Kind = DiagnosticKind.Information }
-        };
+            { Kind = DiagnosticKind.Information });
+        return entries;
     }
 
     /// <summary>Short state word: tells "signal not read" apart from "signal says off".</summary>

@@ -184,6 +184,7 @@ public partial class MainWindow : Window
         Opened -= OnMainWindowOpened;
         _hasOpened = true;
         _mainWindowOpened.TrySetResult();
+        PlatformSummary.LogOnce(this);
         RefreshClipboardMonitor();
         TryOfferFirstRunSetup();
         RestoreWindowPreferences();

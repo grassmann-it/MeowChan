@@ -79,6 +79,24 @@ internal static class MotionPolicy
         Raise();
     }
 
+    /// <summary>
+    /// Who decides right now, for the start-up summary: <c>animations OFF, decided by the environment (MEOWCHAN_MOTION=off)</c>,
+    /// <c>... by the setting (Off)</c> or <c>... by the OS signal (detected OFF)</c>.
+    /// </summary>
+    internal static string DescribeSource() => DescribeSource(Environment.GetEnvironmentVariable, _setting, _osReduced, OsMotionSignal.Status);
+
+    internal static string DescribeSource(Func<string, string?> environment, string setting, bool osReduced, OsMotionStatus os)
+    {
+        bool? fromEnvironment = FromEnvironment(environment);
+        string state = "animations " + (Resolve(fromEnvironment, setting, osReduced) ? "OFF" : "ON");
+        if (fromEnvironment != null)
+            return state + ", decided by the environment (" + (environment("MEOWCHAN_MOTION") is { Length: > 0 } motion
+                ? "MEOWCHAN_MOTION=" + motion : "MEOWCHAN_REDUCED_MOTION=" + environment("MEOWCHAN_REDUCED_MOTION")) + ")";
+        string normalized = NormalizeSetting(setting);
+        if (normalized != System) return state + ", decided by the setting (" + normalized + ")";
+        return state + ", decided by the OS signal (" + PlatformDiagnostics.MotionSummary(os) + ")";
+    }
+
     /// <summary>Re-evaluates now, for example after the environment changed in a test.</summary>
     internal static void Refresh() => Raise();
 
