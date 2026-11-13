@@ -62,6 +62,22 @@ public sealed class BooruLocalizationTests : IDisposable
         }
     }
 
+    [BooruSharedTheory]
+    [InlineData("en")]
+    [InlineData("de")]
+    [InlineData("es")]
+    [InlineData("fr")]
+    [InlineData("ru")]
+    public void TheWorkbenchAndTheDetailDialogNameTheProviderRatingAndTagCategoryAlike(string code)
+    {
+        Texts.SetLanguage(code);
+        // "Unknown" differs on purpose: the workbench says the provider sent none, the dialog says it is unknown.
+        foreach (BooruRating rating in Enum.GetValues<BooruRating>().Where(value => value != BooruRating.Unknown))
+            Assert.Equal(BooruMessages.Rating(rating), BooruText.Rating(rating));
+        foreach (BooruTagCategory category in Enum.GetValues<BooruTagCategory>())
+            Assert.Equal(BooruMessages.TagCategory(category), BooruText.TagCategory(category));
+    }
+
     [BooruSharedFact]
     public void TheBundledPacksCarryTheBooruKeysAsMachineTranslations()
     {
