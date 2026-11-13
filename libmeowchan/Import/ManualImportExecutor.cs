@@ -160,12 +160,12 @@ internal sealed class ManualImportExecutor
         FileStream stream;
         try
         {
-            if ((File.GetAttributes(source.SourcePath) & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0)
-                return item with { State = ManualImportItemState.Failed, Failure = ManualImportFailure.Changed };
-            stream = new FileStream(source.SourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024,
-                FileOptions.Asynchronous | FileOptions.SequentialScan);
+            stream = ManualImportPlanner.OpenSource(source.SourcePath);
         }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        // Replaced by a link, folder, pipe or device since the check: changed, and nothing was opened blocking.
+        catch (InvalidDataException)
+        { return item with { State = ManualImportItemState.Failed, Failure = ManualImportFailure.Changed }; }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
         { return item with { State = ManualImportItemState.Failed, Failure = ManualImportFailure.Unreadable }; }
         await using (stream)
         {

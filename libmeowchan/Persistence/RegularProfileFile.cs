@@ -57,6 +57,30 @@ internal static partial class RegularProfileFile
         }
     }
 
+    /// <summary>
+    /// True when <paramref name="path"/> is, without following a final link, a Unix FIFO, socket, character or block device:
+    /// an entry whose open can block or read endlessly. False for regular files, folders, links, missing entries, every
+    /// error and all other platforms (the open itself is still guarded by <see cref="OpenRead"/>). Never opens the entry.
+    /// </summary>
+    internal static bool IsUnixSpecialFile(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        try
+        {
+            if ((!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+                || RuntimeInformation.ProcessArchitecture is not (Architecture.X64 or Architecture.Arm64))
+                return false;
+            if (UnixLStat(path, out FileStatus status) != 0) return false;
+            // S_IFIFO, S_IFCHR, S_IFBLK, S_IFSOCK.
+            return (status.Mode & UnixSpecialFileMask) is 0x1000 or 0x2000 or 0x6000 or 0xC000;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException
+            or DllNotFoundException or EntryPointNotFoundException or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
     private static FileStream OpenWindows(string path)
     {
         // Inspect the opened object itself, never a second path lookup. Opening

@@ -322,6 +322,65 @@ public sealed class ManualImportTests
         Assert.Equal(ManualImportDisposition.Unreadable, plan.Items.Single(item => item.Name == "gone.png").Disposition);
     }
 
+    private static void MakeFifo(string path)
+    {
+        using System.Diagnostics.Process process = System.Diagnostics.Process.Start(
+            new System.Diagnostics.ProcessStartInfo("mkfifo") { ArgumentList = { path }, RedirectStandardError = true })!;
+        process.WaitForExit();
+        Assert.Equal(0, process.ExitCode);
+    }
+
+    // A reader blocked in open(2) on a FIFO is released by a read-write open (which never blocks on Linux).
+    private static void ReleaseFifo(string path)
+    {
+        try { File.OpenHandle(path, FileMode.Open, FileAccess.ReadWrite).Dispose(); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+    }
+
+    [Fact]
+    public async Task APipeWithAMediaNameIsNeverOpenedByTheCheckAndIsLeftOut()
+    {
+        if (!OperatingSystem.IsLinux()) return; // mkfifo is a Unix tool; other systems have no such entry in a folder.
+        using Fixture fixture = new();
+        fixture.Write("ok.png", Png);
+        string pipe = Path.Combine(fixture.Source, "pipe.png");
+        MakeFifo(pipe);
+        try
+        {
+            ManualImportPlan folder = await fixture.PlanAsync().WaitAsync(TimeSpan.FromSeconds(20));
+            Assert.Equal(ManualImportDisposition.Unsupported, folder.Items.Single(item => item.Name == "pipe.png").Disposition);
+            Assert.Equal(ManualImportDisposition.New, folder.Items.Single(item => item.Name == "ok.png").Disposition);
+            Assert.Equal(1, folder.ImportableFiles);
+
+            // Selected directly (a drop of the pipe itself) it is left out the same way.
+            ManualImportPlan single = await fixture.PlanAsync(new ManualImportRequest(new[] { pipe })).WaitAsync(TimeSpan.FromSeconds(20));
+            Assert.Equal(ManualImportDisposition.Unsupported, single.Items.Single().Disposition);
+            Assert.Equal(0, single.ImportableFiles);
+        }
+        finally { ReleaseFifo(pipe); }
+    }
+
+    [Fact]
+    public async Task ASourceReplacedByAPipeAfterTheCheckFailsAsChangedWithoutBlocking()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        using Fixture fixture = new();
+        string a = fixture.Write("a.png", Png);
+        fixture.Write("b.jpg", Jpg);
+        ManualImportPlan plan = await fixture.PlanAsync();
+        File.Delete(a);
+        MakeFifo(a);
+        try
+        {
+            using ProfileAdmissionToken admission = fixture.Lease.Admission.EnterStoreWriter();
+            ManualImportResult result = await fixture.Executor().ExecuteAsync(plan, new ManualImportOptions("X", Array.Empty<string>()),
+                fixture.Downloads, admission, null, default).WaitAsync(TimeSpan.FromSeconds(20));
+            Assert.Equal(ManualImportFailure.Changed, result.Batch.Items.Single(item => item.Name == "a.png").Failure);
+            Assert.Equal(ManualImportItemState.Committed, result.Batch.Items.Single(item => item.Name == "b.jpg").State);
+        }
+        finally { ReleaseFifo(a); }
+    }
+
     [Fact]
     public async Task ACancelledCheckThrowsAndAnIncompleteIndexIsReported()
     {

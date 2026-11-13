@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Gallery;
+using MeowChan.Persistence;
 
 namespace MeowChan.Import;
 
@@ -144,6 +145,9 @@ internal static class ManualImportPlanner
             SavedMediaKind kind = SavedMediaTypes.Classify(extension);
             if (Inside(library, path) || (file.Attributes & FileAttributes.ReparsePoint) != 0)
             { items.Add(new(path, name, 0, kind, extension, ManualImportDisposition.Skipped)); return; }
+            // Only regular files are media: a pipe, socket or device must never be opened (a pipe's open waits for a writer).
+            if (RegularProfileFile.IsUnixSpecialFile(path))
+            { items.Add(new(path, name, 0, SavedMediaKind.Unknown, extension, ManualImportDisposition.Unsupported)); return; }
             if (kind == SavedMediaKind.Unknown || !ManualImportCatalogStore.ValidExtension(extension))
             { items.Add(new(path, name, SafeLength(file), SavedMediaKind.Unknown, extension, ManualImportDisposition.Unsupported)); return; }
             if (kind == SavedMediaKind.Other && !request.IncludeOtherFiles)
@@ -249,7 +253,7 @@ internal static class ManualImportPlanner
                 result[index] = length > limits.MaximumFileBytes ? item with { Length = length, Disposition = ManualImportDisposition.TooLarge }
                     : item with { Length = length, Sha256 = sha };
             }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException or PlatformNotSupportedException)
             { result[index] = item with { Disposition = ManualImportDisposition.Unreadable }; }
             bytesDone = before + item.Length;
             progress?.Report(new(++done, total, bytesDone, bytesTotal));
@@ -277,11 +281,7 @@ internal static class ManualImportPlanner
     private static async Task<(string Sha256, long Length)> HashAsync(string path, byte[] buffer, long maximum, Action<long> report,
         CancellationToken token)
     {
-        // Final links are refused at open time too: the file may have been replaced since it was listed.
-        if ((File.GetAttributes(path) & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0)
-            throw new IOException("The selected file is no regular file.");
-        await using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        await using FileStream stream = OpenSource(path);
         using IncrementalHash sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         long length = 0, reported = 0;
         int read;
@@ -293,6 +293,18 @@ internal static class ManualImportPlanner
             if (length - reported >= 16 * BufferSize) { report(length); reported = length; }
         }
         return (Convert.ToHexString(sha.GetHashAndReset()).ToLowerInvariant(), length);
+    }
+
+    /// <summary>
+    /// Opens a selected file for reading, only if it is a regular file at open time (the entry may have been replaced since it
+    /// was listed): final links, folders, pipes, sockets and devices are refused with <see cref="InvalidDataException"/>
+    /// before anything can block. On Unix the open itself is non-blocking and the opened object is checked, not the name.
+    /// </summary>
+    internal static FileStream OpenSource(string path)
+    {
+        if ((File.GetAttributes(path) & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0)
+            throw new InvalidDataException("The selected file is no regular file.");
+        return RegularProfileFile.OpenRead(path);
     }
 
     private static long SafeLength(FileInfo file)
