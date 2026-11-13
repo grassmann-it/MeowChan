@@ -6,6 +6,7 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Localization;
+using MeowChan.Downloader;
 using MeowChan.Persistence;
 
 namespace MeowChan.DesktopTests;
@@ -22,7 +23,7 @@ public sealed class DownloadsFeedbackTests
     public async Task ToastActionRunsOnceThenClosesTheToastAndKeepsItsLiveRegionAndName()
     {
         int runs = 0, closes = 0;
-        FeedbackToastContent toast = new("Title", "Removed 2", null, _ => closes++, new FeedbackToastAction("Undo", () => { runs++; return Task.CompletedTask; }));
+        FeedbackToastContent toast = new("Title", "Removed 2", null, _ => closes++, new[] { new FeedbackToastAction("Undo", () => { runs++; return Task.CompletedTask; }) });
         Assert.NotNull(toast.ActionButton);
         Assert.Equal("FeedbackToastActionButton", toast.ActionButton!.Name);
         Assert.Equal("Undo", toast.ActionButton.Content);
@@ -44,7 +45,7 @@ public sealed class DownloadsFeedbackTests
     public async Task ToastActionThatThrowsStillClosesTheToast()
     {
         int closes = 0;
-        FeedbackToastContent toast = new("T", "M", null, _ => closes++, new FeedbackToastAction("Go", () => throw new InvalidOperationException("boom")));
+        FeedbackToastContent toast = new("T", "M", null, _ => closes++, new[] { new FeedbackToastAction("Go", () => throw new InvalidOperationException("boom")) });
         await toast.RunActionAsync();
         Assert.Equal(1, closes);
     }
@@ -65,7 +66,7 @@ public sealed class DownloadsFeedbackTests
         Assert.Equal(2, undo.Count);
         int closes = 0;
         FeedbackToastContent toast = new(Texts.T("notification.session"), Texts.T("watch.removed", undo.Count), null, _ => closes++,
-            new FeedbackToastAction(Texts.T("watch.undo"), () => undo.RunAsync()));
+            new[] { new FeedbackToastAction(Texts.T("watch.undo"), () => undo.RunAsync()) });
         await toast.RunActionAsync();
         string only = Assert.Single(submitted);
         Assert.Equal("https://fixture.invalid/a/thread/1" + Environment.NewLine + "https://fixture.invalid/a/thread/2", only);
@@ -76,13 +77,13 @@ public sealed class DownloadsFeedbackTests
     }
 
     [Theory]
-    [InlineData(3, 3, WatchUndoOutcome.Restored)]
-    [InlineData(1, 3, WatchUndoOutcome.Partial)]
-    [InlineData(0, 3, WatchUndoOutcome.Partial)]
-    public async Task UndoOutcomeFollowsHowManyAddressesAreWatchedAgain(int watching, int total, WatchUndoOutcome expected)
+    [InlineData(3, 3, "Restored")]
+    [InlineData(1, 3, "Partial")]
+    [InlineData(0, 3, "Partial")]
+    public async Task UndoOutcomeFollowsHowManyAddressesAreWatchedAgain(int watching, int total, string expectedName)
     {
         WatchRemovalUndo undo = new(Enumerable.Range(1, total).Select(i => "https://fixture.invalid/a/thread/" + i), _ => Task.FromResult<int?>(watching));
-        Assert.Equal(expected, await undo.RunAsync());
+        Assert.Equal(Enum.Parse<WatchUndoOutcome>(expectedName), await undo.RunAsync());
         Assert.Equal(watching, undo.Restored);
     }
 
@@ -243,7 +244,7 @@ public sealed class DownloadsFeedbackTests
     [Fact]
     public void BoardSearchFindsTheBoardStatus()
     {
-        using BoardRow board = new(new DesktopBoardEntry(2, new MeowChan.Interfaces.BoardSnapshot(new ResourceId("fixture", "sci"),
+        using BoardRow board = new(new DesktopBoardEntry(2, new BoardSnapshot(new ResourceId("fixture", "sci"),
             "https://fixture.invalid/sci/", "Science", "/never/read", null, null), "Fixture", ""));
         Assert.NotEmpty(board.Status);
         Assert.True(DownloadSearch.Matches(board, board.Status));

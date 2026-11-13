@@ -30,6 +30,7 @@ internal static class DownloadsFeedbackChecks
                 Texts.SetLanguage(current);
                 await CheckActionToastAsync(window, current);
             }
+            await CheckUpdateToastAsync(window);
             CheckTrayPauseEntry(window);
             await CheckDuplicateLinkAsync(window);
         }
@@ -49,7 +50,7 @@ internal static class DownloadsFeedbackChecks
         MethodInfo show = typeof(MainWindow).GetMethod("ShowActionNotification", Instance)!;
         string label = Texts.T("watch.undo");
         show.Invoke(window, new object?[] { Texts.T("notification.session"), Texts.T("watch.removed", 2), NotificationType.Information,
-            new FeedbackToastAction(label, () => { runs++; return Task.CompletedTask; }), null, "smoke.watch-removed-" + language });
+            new[] { new FeedbackToastAction(label, () => { runs++; return Task.CompletedTask; }) }, null, "smoke.watch-removed-" + language });
         FeedbackToastContent? toast = null;
         await Program.WaitUntilAsync(() =>
         {
@@ -68,6 +69,35 @@ internal static class DownloadsFeedbackChecks
         SmokeActionClick.Execute(action);
         await Program.WaitUntilAsync(() => !Cards(window).Any(card => ReferenceEquals(card.Content, toast)));
         Require(runs == 1, "The toast action ran " + runs + " times.");
+    }
+
+    // Fake release only. "Release notes" is not clicked: it would start the real browser.
+    private static async Task CheckUpdateToastAsync(MainWindow window)
+    {
+        MeowChan.Desktop.Updates.UpdateInfo update = new(MeowChan.Desktop.Updates.SemanticVersion.Parse("99.0.0"),
+            new Uri("https://fixture.invalid/releases/v99.0.0"), new Uri("https://fixture.invalid/releases/v99.0.0"));
+        foreach (string current in new[] { "en", "de" })
+        {
+            Texts.SetLanguage(current);
+            typeof(MainWindow).GetMethod("ShowUpdateAvailableToast", Instance)!.Invoke(window, new object?[] { update });
+            FeedbackToastContent? toast = null;
+            await Program.WaitUntilAsync(() =>
+            {
+                window.UpdateLayout();
+                toast = Cards(window).Select(card => card.Content).OfType<FeedbackToastContent>().FirstOrDefault(content => content.ActionButtons.Count == 3);
+                return toast != null && toast.ActionButtons.All(button => button.IsEffectivelyVisible && button.Bounds.Width > 0);
+            });
+            Require(toast!.Title == Texts.T("updates.toastTitle", update.Version)
+                && toast.ActionButtons.Select(button => (string)button.Content!).SequenceEqual(
+                    new[] { Texts.T("updates.toastNotes"), Texts.T("updates.toastLater"), Texts.T("updates.skip") }),
+                "The update toast lost its title or actions in " + current + ".");
+            Program.CaptureWindow(window, "smoke-update-toast-" + current + ".png");
+            SmokeActionClick.Execute(toast.ActionButtons[1]);
+            await Program.WaitUntilAsync(() => !Cards(window).Any(card => ReferenceEquals(card.Content, toast)));
+        }
+        Avalonia.Controls.NativeMenuItem? item = (Avalonia.Controls.NativeMenuItem?)typeof(MainWindow).GetField("_trayUpdateItem", Instance)!.GetValue(window);
+        if (typeof(MainWindow).GetField("_trayIcon", Instance)!.GetValue(window) != null)
+            Require(item is { IsVisible: false } || window.SessionHost.Updates.View.Update != null, "The tray update entry shows without an update.");
     }
 
     private static void CheckTrayPauseEntry(MainWindow window)

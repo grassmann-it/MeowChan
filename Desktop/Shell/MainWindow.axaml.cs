@@ -54,6 +54,8 @@ public partial class MainWindow : Window
     private NativeMenuItem? _trayFolderItem;
     private NativeMenuItem? _trayExitItem;
     private NativeMenuItem? _trayPauseItem;
+    private NativeMenuItem? _trayUpdateItem;
+    private string _trayUpdateKey = string.Empty;
     private bool? _trayPauseIconPaused;
     private IPlatformSettings? _trayPlatformSettings;
     private readonly Dictionary<string, Bitmap> _trayMenuIcons = new Dictionary<string, Bitmap>();
@@ -589,9 +591,9 @@ public partial class MainWindow : Window
         };
         rows.Children.Add(report);
         // A URL that is already watched says where: one link per duplicate (the first few) selects its row.
-        foreach (AdmissionFeedback duplicate in _admissionResults
+        foreach (AdmissionFeedback known in _admissionResults
                      .Where(item => item.Status == AdmissionStatus.AlreadyPresent && item.WatchId != null).Take(MaxDuplicateLinks))
-            rows.Children.Add(CreateShowInListLink(duplicate));
+            rows.Children.Add(CreateShowInListLink(known));
         if (repairSources != null)
         {
             rows.Children.Add(new SelectableTextBlock
@@ -609,12 +611,12 @@ public partial class MainWindow : Window
         string label = Texts.T("admission.showInList");
         Button link = new()
         {
-            Name = "AdmissionShowInListButton", HorizontalAlignment = HorizontalAlignment.Left, MinHeight = 28,
+            Name = "AdmissionShowInListButton", HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left, MinHeight = 28,
             Padding = new Thickness(10, 2), MaxWidth = 460,
             Content = new TextBlock { Text = label + " · " + duplicate.Url, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 12 }
         };
         link.Classes.Add("subtle");
-        AutomationProperties.SetName(link, label + ": " + duplicate.Url);
+        Avalonia.Automation.AutomationProperties.SetName(link, label + ": " + duplicate.Url);
         ToolTip.SetTip(link, duplicate.Url);
         long watchId = duplicate.WatchId!.Value;
         link.Click += (_, _) => ShowAdmissionDuplicate(watchId);
@@ -757,6 +759,10 @@ public partial class MainWindow : Window
         _trayPauseIconPaused = null;
         _trayPauseItem.Click += (sender, e) => OnPauseClick(sender, new RoutedEventArgs());
         menu.Items.Add(_trayPauseItem);
+        // Quiet reminder while an update is available; it only opens the update section of About.
+        _trayUpdateItem = new NativeMenuItem { IsVisible = false };
+        _trayUpdateItem.Click += OnTrayUpdateClick;
+        menu.Items.Add(_trayUpdateItem);
         NativeMenuItem exitItem = CreateTrayCommandItem("app.quit");
         _trayExitItem = exitItem;
         exitItem.Click += async (sender, e) => await CloseApplicationAsync();
@@ -853,6 +859,8 @@ public partial class MainWindow : Window
         _trayFolderItem = null;
         _trayExitItem = null;
         _trayPauseItem = null;
+        _trayUpdateItem = null;
+        _trayUpdateKey = string.Empty;
         _trayPauseIconPaused = null;
         _trayMinimizeRequest++;
         _trayHostMonitor?.Stop();
@@ -944,6 +952,18 @@ public partial class MainWindow : Window
                 _trayPauseIconPaused = paused;
                 ApplyTrayCommandItem(pause, "session.pause", TrayMenuModel.PauseIcon(paused));
             }
+        }
+        if (_trayUpdateItem is NativeMenuItem updateItem)
+        {
+            MeowChan.Desktop.Updates.UpdateView updates = _session.Updates.View;
+            bool available = updates.Update != null && !updates.EnvironmentDisabled;
+            string key = available ? Texts.Language + "|" + updates.Update!.Version : string.Empty;
+            if (key != _trayUpdateKey)
+            {
+                _trayUpdateKey = key;
+                updateItem.Header = available ? Texts.T("updates.available", updates.Update!.Version) : string.Empty;
+            }
+            if (updateItem.IsVisible != available) updateItem.IsVisible = available;
         }
         int active = paused ? 0 : UrlList.Sum(row => row.Active);
         string tip = TrayMenuModel.Tooltip(paused, active);

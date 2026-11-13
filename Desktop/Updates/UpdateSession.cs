@@ -114,12 +114,13 @@ internal sealed class UpdateSession : IAsyncDisposable
         }
     }
 
-    internal async Task SkipAsync()
+    /// <param name="expected">When given, only that version is skipped; a newer release found meanwhile stays visible.</param>
+    internal async Task SkipAsync(SemanticVersion? expected = null)
     {
         await _operations.WaitAsync(_lifetime.Token).ConfigureAwait(false);
         try
         {
-            if (View.Update is not { } update) return;
+            if (View.Update is not { } update || expected != null && !update.Version.Equals(expected)) return;
             await _service.SkipVersionAsync(update.Version, _lifetime.Token).ConfigureAwait(false);
             await RefreshCoreAsync(clearManual: true).ConfigureAwait(false);
         }

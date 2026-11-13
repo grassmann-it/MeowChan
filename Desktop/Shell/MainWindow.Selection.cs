@@ -319,7 +319,7 @@ public partial class MainWindow
 
     private void ShowWatchRemovedToast(WatchRemovalUndo undo) => ShowActionNotification(
         Texts.T("notification.session"), Texts.T("watch.removed", undo.Count), NotificationType.Information,
-        new FeedbackToastAction(Texts.T("watch.undo"), () => UndoWatchRemovalAsync(undo)), operation: "watch.removed");
+        new[] { new FeedbackToastAction(Texts.T("watch.undo"), () => UndoWatchRemovalAsync(undo)) }, operation: "watch.removed");
 
     private async Task UndoWatchRemovalAsync(WatchRemovalUndo undo)
     {

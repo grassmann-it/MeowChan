@@ -6,8 +6,11 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Desktop;
+using Avalonia.Controls.Notifications;
+using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Updates;
+using Serilog;
 
 namespace MeowChan;
 
@@ -15,6 +18,7 @@ public partial class MainWindow
 {
     private Button? _updateNotice;
     private MenuItem? _checkUpdatesMenu;
+    private readonly UpdateNotifier _updateNotifier = new();
 
     private void InitializeUpdates()
     {
@@ -50,6 +54,11 @@ public partial class MainWindow
     private void RefreshUpdates()
     {
         UpdateView view = _session.Updates.View;
+        RefreshTray();
+        // The footer notice and tray entry stay while an update is available; the toast is the one interruption.
+        if (_updateNotifier.Evaluate(view, _config.AutomaticUpdateChecks,
+                SessionFeedbackStore.AllowsPopup(_config, FeedbackCategory.Information)) is { } announced)
+            ShowUpdateAvailableToast(announced);
         if (_updateNotice != null)
         {
             _updateNotice.IsVisible = view.Update != null && !view.EnvironmentDisabled;
@@ -65,6 +74,33 @@ public partial class MainWindow
             // The entry stays reachable when packaging disabled checks: About explains the reason.
             _checkUpdatesMenu.IsEnabled = !view.IsChecking;
         }
+    }
+
+    // Release notes open in the browser through the same launcher as every other link; nothing is downloaded or installed.
+    private void ShowUpdateAvailableToast(UpdateInfo update) => ShowActionNotification(
+        Texts.T("updates.toastTitle", update.Version), Texts.T("updates.toastMessage"), NotificationType.Information,
+        new[]
+        {
+            new FeedbackToastAction(Texts.T("updates.toastNotes"), () => { OpenTarget(update.ReleaseUri.AbsoluteUri); return Task.CompletedTask; }),
+            new FeedbackToastAction(Texts.T("updates.toastLater"), () => Task.CompletedTask),
+            new FeedbackToastAction(Texts.T("updates.skip"), () => SkipAnnouncedUpdateAsync(update))
+        }, operation: "update.available");
+
+    private async Task SkipAnnouncedUpdateAsync(UpdateInfo update)
+    {
+        try { await _session.Updates.SkipAsync(update.Version); }
+        catch (OperationCanceledException) { }
+        catch (Exception error)
+        {
+            Log.Warning(error, "Could not skip update.");
+            if (!_isClosing) ShowNotification(Texts.T("notification.error"), Texts.T("updates.error.skip"), NotificationType.Warning, operation: "update.skip");
+        }
+    }
+
+    private async void OnTrayUpdateClick(object? sender, EventArgs e)
+    {
+        RestoreWindow();
+        await ShowUpdatesAsync(false);
     }
 
     private async void OnUpdateNoticeClick(object? sender, RoutedEventArgs e) => await ShowUpdatesAsync(false);
