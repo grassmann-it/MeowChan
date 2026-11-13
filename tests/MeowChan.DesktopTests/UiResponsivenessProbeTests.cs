@@ -40,7 +40,9 @@ public sealed class UiResponsivenessProbeTests
     {
         using FakeUi ui = new();
         List<UiStallReport> reports = new();
-        using UiResponsivenessProbe probe = new(ui.Post, TimeSpan.FromMilliseconds(10), TimeSpan.FromMilliseconds(150),
+        // The hard-stall threshold must stay far above the scheduling delays of a loaded machine: a 150 ms threshold let
+        // a starved (but not blocked) fake UI thread report a stall of its own before Block() and break the count of one.
+        using UiResponsivenessProbe probe = new(ui.Post, TimeSpan.FromMilliseconds(10), TimeSpan.FromSeconds(2),
             report => { lock (reports) reports.Add(report); });
         probe.Start();
         Assert.True(SpinWait.SpinUntil(() => probe.Samples.Count >= 3, TimeSpan.FromSeconds(10)));

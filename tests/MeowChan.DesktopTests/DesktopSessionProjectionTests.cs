@@ -123,10 +123,10 @@ public sealed class DesktopSessionProjectionTests
             try
             {
                 SpinWait.SpinUntil(() => host.CaptureLockHeldForTest, Timeout);
-                long begin = Stopwatch.GetTimestamp();
-                DesktopSessionProjection read = host.Projection;
+                // The gate stays closed until after this read: a read that waited for the held capture could only finish once
+                // the gate opens, so completing at all on a worker thread is the proof, with no timing sample involved.
+                DesktopSessionProjection read = await Task.Run(() => host.Projection).WaitAsync(Timeout);
                 Assert.Equal(DesktopSessionState.Ready, read.View.State);
-                Assert.True(Stopwatch.GetElapsedTime(begin) < TimeSpan.FromSeconds(1));
                 Assert.False(host.CanRequestCheck(new DiagnosticTarget(DiagnosticTargetKind.Thread, 12345)));
             }
             finally { gate.Set(); await holder.WaitAsync(Timeout); }

@@ -210,33 +210,48 @@ public sealed class TagToggleListTests : IDisposable
         TagCoverage coverage = On(1, tags.Skip(count / 2).Take(5).Select(tag => (tag, 1)).ToArray());
         TagToggleList list = new(many: false);
 
-        Stopwatch open = Stopwatch.StartNew();
+        // Correctness is asserted on the first, single run of every step. The cost bound is asserted on the fastest of a few
+        // repeated runs: a scheduling or GC pause on a loaded machine hits one run, a real regression (one control per tag
+        // on every refresh) hits all of them.
         list.Build(snapshot, coverage, null);
-        open.Stop();
         Assert.Equal(count + 3, list.Rows.Count);
 
-        Stopwatch toggle = Stopwatch.StartNew();
         PrivateTagStoreSnapshot next = Snapshot(tags, tags.Skip(10).Take(20).Select((tag, at) => (tag, at + 1)), revision: 2);
-        int changed = list.Apply(next, On(1, tags.Skip(count / 2).Take(5).Append(tags[^1]).Select(tag => (tag, 1)).ToArray()));
-        toggle.Stop();
+        TagCoverage toggledOn = On(1, tags.Skip(count / 2).Take(5).Append(tags[^1]).Select(tag => (tag, 1)).ToArray());
+        int changed = list.Apply(next, toggledOn);
         Assert.Equal(1, changed);
 
-        Stopwatch filter = Stopwatch.StartNew();
         list.Build(next, list.Coverage, "_0001");
-        filter.Stop();
         Assert.Equal(tags.Count(tag => tag.Name.Display.Contains("_0001", StringComparison.Ordinal)), list.Rows.Count(row => !row.IsHeader));
 
-        Stopwatch byUses = Stopwatch.StartNew();
         list.Build(next, list.Coverage, null, TagListSort.Uses);
-        byUses.Stop();
         Assert.Equal(count + 2, list.Rows.Count);
 
-        _output.WriteLine($"{count} tags: layout {open.Elapsed.TotalMilliseconds:F1} ms, toggle {toggle.Elapsed.TotalMilliseconds:F1} ms, filter {filter.Elapsed.TotalMilliseconds:F1} ms, most-used order {byUses.Elapsed.TotalMilliseconds:F1} ms");
-        Assert.True(byUses.ElapsedMilliseconds < 2_000, "most-used order took " + byUses.ElapsedMilliseconds + " ms");
+        double open = Fastest(() => list.Build(snapshot, coverage, null));
+        // The timed layout above left the baseline coverage showing; Apply alternates to the toggled one and back, one row each time.
+        bool toBaseline = false;
+        double toggle = Fastest(() => { Assert.Equal(1, list.Apply(next, toBaseline ? coverage : toggledOn)); toBaseline = !toBaseline; });
+        double filter = Fastest(() => list.Build(next, list.Coverage, "_0001"));
+        double byUses = Fastest(() => list.Build(next, list.Coverage, null, TagListSort.Uses));
+
+        _output.WriteLine($"{count} tags: layout {open:F1} ms, toggle {toggle:F1} ms, filter {filter:F1} ms, most-used order {byUses:F1} ms");
+        Assert.True(byUses < 2_000, "most-used order took " + byUses + " ms");
         // Generous bounds for a loaded test machine; the former dialog built one button per tag on every refresh.
-        Assert.True(open.ElapsedMilliseconds < 2_000, "layout took " + open.ElapsedMilliseconds + " ms");
-        Assert.True(toggle.ElapsedMilliseconds < 500, "toggle took " + toggle.ElapsedMilliseconds + " ms");
-        Assert.True(filter.ElapsedMilliseconds < 1_000, "filter took " + filter.ElapsedMilliseconds + " ms");
+        Assert.True(open < 2_000, "layout took " + open + " ms");
+        Assert.True(toggle < 500, "toggle took " + toggle + " ms");
+        Assert.True(filter < 1_000, "filter took " + filter + " ms");
+    }
+
+    private static double Fastest(Action step, int runs = 5)
+    {
+        double best = double.MaxValue;
+        for (int run = 0; run < runs; run++)
+        {
+            Stopwatch watch = Stopwatch.StartNew();
+            step();
+            best = Math.Min(best, watch.Elapsed.TotalMilliseconds);
+        }
+        return best;
     }
 
     // --- Sessions: one-step undo and the selection coverage. ---
