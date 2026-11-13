@@ -83,7 +83,7 @@
         </ScrollViewer>
         <StackPanel Grid.Row="1" Spacing="8">
             <ScrollViewer MaxHeight="64" HorizontalScrollBarVisibility="Disabled">
-                <TextBlock x:Name="DiagnosticsActionError" Classes="error workspace-error" TextWrapping="Wrap" VerticalAlignment="Center" />
+                <TextBlock x:Name="DiagnosticsActionError" Classes="workspace-error" TextWrapping="Wrap" VerticalAlignment="Center" />
             </ScrollViewer>
             <TextBlock x:Name="DiagnosticCopyPrivacy" Tag="diagnostics.copyPrivacy" Classes="workspace-help localized"
                        TextWrapping="Wrap" />

@@ -94,7 +94,7 @@ public partial class ArchivePage
         Message(message, error);
         _readingPositionStatus.Text = message;
         _readingPositionStatus.IsVisible = !string.IsNullOrEmpty(message);
-        _readingPositionStatus.Classes.Set("error", error);
+        _readingPositionStatus.Classes.Set("workspace-error", error);
     }
 
     internal async Task ResumeReadingPositionAsync(LocalReadingPosition position, Func<bool>? stillRequested = null)

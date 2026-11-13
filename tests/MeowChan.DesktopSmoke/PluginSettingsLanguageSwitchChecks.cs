@@ -198,7 +198,7 @@ internal static class PluginSettingsLanguageSwitchChecks
         Field<ComboBox>(editor, "mode").ItemsSource!.Cast<ComboBoxItem>().First();
 
     private static TextBlock Error(PluginSettingsEditor editor, string key) =>
-        Content(editor, key).Children.OfType<TextBlock>().Single(text => text.Classes.Contains("error"));
+        Content(editor, key).Children.OfType<TextBlock>().Single(text => text.Classes.Contains("workspace-error"));
 
     private static T Field<T>(PluginSettingsEditor editor, string key) where T : Control =>
         Need<T>(editor.FindField(key), key + ": field");

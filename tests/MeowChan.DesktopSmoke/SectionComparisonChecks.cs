@@ -226,7 +226,7 @@ internal static partial class SectionComparisonChecks
                 string currentHelp = AutomationProperties.GetHelpText(limit) ?? string.Empty;
                 bool retainedHelp = currentHelp == errorHelp;
                 bool visibleError = limit.Parent is Panel fieldContent && fieldContent.Children.OfType<TextBlock>()
-                    .Any(text => text.Classes.Contains("error") && text.IsEffectivelyVisible && text.Text == visibleErrorBeforeLanguage);
+                    .Any(text => text.Classes.Contains("workspace-error") && text.IsEffectivelyVisible && text.Text == visibleErrorBeforeLanguage);
                 string refreshLabel = AutomationProperties.GetName(page.FindControl<Button>("PluginsRefresh")!)
                     ?? throw new InvalidOperationException("Plugin refresh has no accessible name after language change.");
                 bool localizedChrome = Texts.Language == "de" && refreshLabel == Texts.T("plugins.refresh")

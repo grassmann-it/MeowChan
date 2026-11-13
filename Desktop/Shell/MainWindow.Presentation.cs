@@ -494,7 +494,6 @@ public partial class MainWindow
         workContext.IsVisible = !string.IsNullOrWhiteSpace(context);
         SelectableTextBlock errors = InspectorError;
         errors.Text = string.IsNullOrWhiteSpace(error) ? Texts.T("detail.noError") : error;
-        errors.Classes.Set("error", !string.IsNullOrWhiteSpace(error));
         InspectorErrorSection.IsVisible = !string.IsNullOrWhiteSpace(error);
         // A retry is the one useful action when the work needs it: it gets the primary look and a named next step.
         bool needsRetry = selected is ThreadRow { NeedsIntervention: true } && !_isClosing;

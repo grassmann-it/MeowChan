@@ -103,7 +103,7 @@ internal static class PluginSettingsPostUrsaChecks
                 Require(editor.TryFocusFirstError(), "Long-help SDK error could not be targeted.");
                 await SmokeDispatcher.SettleAsync(backgroundTurns: 2);
                 window.UpdateLayout();
-                TextBlock error = editor.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Classes.Contains("error"));
+                TextBlock error = editor.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Classes.Contains("workspace-error"));
                 TextBlock helpControl = editor.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Text == help);
                 bool focused = ReferenceEquals(window.FocusManager?.GetFocusedElement(), field);
                 bool fieldVisible = VisibleInScroll(field, scroll);
@@ -186,6 +186,6 @@ internal static class PluginSettingsPostUrsaChecks
         return control.IsAttachedToVisualTree() && control.IsEffectivelyVisible && control.Bounds.Width > 0 && control.Bounds.Height > 0 && point.HasValue
             && point.Value.Y >= -1 && point.Value.Y + control.Bounds.Height <= scroll.Bounds.Height + 1;
     }
-    private static bool HasError(PluginSettingsEditor editor, string message) => editor.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Classes.Contains("error") && text.IsVisible && (text.Text ?? "").Contains(message, StringComparison.Ordinal));
+    private static bool HasError(PluginSettingsEditor editor, string message) => editor.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Classes.Contains("workspace-error") && text.IsVisible && (text.Text ?? "").Contains(message, StringComparison.Ordinal));
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 }

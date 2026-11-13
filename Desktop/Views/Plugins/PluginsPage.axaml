@@ -29,7 +29,7 @@
         <ScrollViewer MaxHeight="100"><TextBlock x:Name="PluginInventoryDiagnostics" TextWrapping="Wrap" /></ScrollViewer>
       </Expander>
       <ursa:Banner x:Name="PluginErrorBanner" Type="Error" CanClose="False" IsVisible="False" HorizontalContentAlignment="Stretch" Margin="0,8,0,0">
-        <ScrollViewer MaxHeight="96"><TextBlock x:Name="PluginPageError" TextWrapping="Wrap" Classes="error" AutomationProperties.LiveSetting="Assertive" /></ScrollViewer>
+        <ScrollViewer MaxHeight="96"><TextBlock x:Name="PluginPageError" TextWrapping="Wrap" Classes="workspace-error" AutomationProperties.LiveSetting="Assertive" /></ScrollViewer>
       </ursa:Banner>
     </StackPanel>
     <!-- List and detail as on the Sources page: a 280 dip column of cards beside one detail card. -->
@@ -51,8 +51,8 @@
         </ScrollViewer>
         <Expander x:Name="PluginDirectoryExpander" Grid.Row="2" HorizontalAlignment="Stretch">
           <StackPanel Spacing="8" Margin="0,4,0,0">
-            <TextBlock x:Name="PluginDirectory" TextWrapping="Wrap" Classes="muted" />
-            <TextBlock x:Name="PluginLocalStatusHint" TextWrapping="Wrap" Classes="muted" />
+            <TextBlock x:Name="PluginDirectory" TextWrapping="Wrap" Classes="workspace-help" />
+            <TextBlock x:Name="PluginLocalStatusHint" TextWrapping="Wrap" Classes="workspace-help" />
           </StackPanel>
         </Expander>
       </Grid>
@@ -124,13 +124,13 @@
               <ursa:Descriptions x:Name="PluginIdentity" LabelPosition="Top" />
               <Button x:Name="PluginCopyTechnicalDetails" Click="OnCopyTechnicalDetailsClick" HorizontalAlignment="Left" />
               <TextBlock x:Name="PluginTechnicalCopyStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
-              <TextBlock x:Name="PluginCandidateDiagnostics" TextWrapping="Wrap" Classes="error" />
+              <TextBlock x:Name="PluginCandidateDiagnostics" TextWrapping="Wrap" Classes="workspace-error" />
               <Button x:Name="PluginRollback" Click="OnRollbackClick" HorizontalAlignment="Left" />
               <SelectableTextBlock x:Name="PluginRecoveryReasons" TextWrapping="Wrap" Focusable="True" />
               <StackPanel x:Name="PluginSourceExpander" Spacing="8">
                 <TextBlock x:Name="PluginSourceToolsHeading" Classes="section-title" TextWrapping="Wrap" />
                 <TextBlock x:Name="PluginSourcePath" TextWrapping="Wrap" />
-                <TextBlock x:Name="PluginTestHint" TextWrapping="Wrap" Classes="muted" />
+                <TextBlock x:Name="PluginTestHint" TextWrapping="Wrap" Classes="workspace-help" />
                 <WrapPanel ItemSpacing="8" LineSpacing="6">
                   <Button x:Name="PluginEdit" Click="OnEditClick" />
                   <Button x:Name="PluginDefaultEditor" Click="OnDefaultEditorClick" />

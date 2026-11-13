@@ -52,7 +52,7 @@
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                         <StackPanel Spacing="3">
                             <TextBlock x:Name="HistoryTitle" Classes="section-title" TextWrapping="Wrap" />
-                            <TextBlock x:Name="HistoryNote" Classes="muted" TextWrapping="Wrap" />
+                            <TextBlock x:Name="HistoryNote" Classes="workspace-help" TextWrapping="Wrap" />
                         </StackPanel>
                         <TextBlock x:Name="PeakText" Grid.Column="1" Classes="muted stats-num" />
                     </Grid>

@@ -236,7 +236,7 @@ internal static class SourceFilterWaveChecks
                 await page.SaveCurrentAsync(); // Revalidate with the actual delivered worker in every locale/theme cell.
                 field = Editor(page).FindField(key)!;
                 TextBlock error = Editor(page).GetLogicalDescendants().OfType<TextBlock>().Single(label =>
-                    label.Classes.Contains("error") && !string.IsNullOrWhiteSpace(label.Text));
+                    label.Classes.Contains("workspace-error") && !string.IsNullOrWhiteSpace(label.Text));
                 error.BringIntoView();
                 await SmokeDispatcher.SettleAsync();
                 await Program.WaitUntilAsync(() => FullyVisible(window, error) && FullyVisible(window, field));

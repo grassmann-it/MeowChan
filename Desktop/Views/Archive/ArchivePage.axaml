@@ -599,7 +599,7 @@
                                         </ListBox>
                                         <TextBlock x:Name="ArchiveNoMedia" Tag="archive.noMedia" Classes="muted localized" TextWrapping="Wrap" Margin="8,40,8,8" />
                                     </Grid>
-                                    <StackPanel x:Name="ArchiveMediaFooter" Grid.Row="2" Spacing="6"><TextBlock x:Name="ArchiveRatingStatus" Classes="error" TextWrapping="Wrap" IsVisible="False" />
+                                    <StackPanel x:Name="ArchiveMediaFooter" Grid.Row="2" Spacing="6"><TextBlock x:Name="ArchiveRatingStatus" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" />
                                         <!-- T3: the selection status of the Media tab; shown from two selected files on. -->
                                         <WrapPanel x:Name="ArchiveMediaSelectionBar" ItemSpacing="8" LineSpacing="6" IsVisible="False">
                                             <TextBlock x:Name="ArchiveMediaSelectionStatus" VerticalAlignment="Center" TextWrapping="Wrap" />
@@ -674,7 +674,7 @@
              loading messages are an overlay inside ArchiveSplit instead. -->
         <StackPanel x:Name="ArchiveStatusStrip" Grid.Row="2" Spacing="6" IsVisible="False">
             <ursa:Banner x:Name="ArchiveErrorBanner" Type="Error" CanClose="False" IsVisible="False" HorizontalContentAlignment="Stretch">
-                <ScrollViewer MaxHeight="104" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="ArchiveErrorText" TextWrapping="Wrap" Classes="error" AutomationProperties.LiveSetting="Assertive" /></ScrollViewer>
+                <ScrollViewer MaxHeight="104" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="ArchiveErrorText" TextWrapping="Wrap" Classes="workspace-error" AutomationProperties.LiveSetting="Assertive" /></ScrollViewer>
             </ursa:Banner>
         </StackPanel>
         <Border x:Name="ArchivePreview" Grid.RowSpan="3" Classes="panel" Padding="12" IsVisible="False">
