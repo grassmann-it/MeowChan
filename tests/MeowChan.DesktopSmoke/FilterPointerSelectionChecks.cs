@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
@@ -84,6 +85,15 @@ internal static class FilterPointerSelectionChecks
             // and return focus to the editor. It must not be confused with clicking Add or Search.
             await TypeWithNativeFocusAsync(source, sourceInput, "2");
             Control sourceRow = await SuggestionRowAsync(source, "2ch", null);
+            // Observe the real event order: the platform can move focus before the routed press.
+            string SourceState() => $"text={source.Text}; open={source.IsDropDownOpen}; draft=[{string.Join(",", page.DraftSources)}]; editorFocus={sourceInput.IsKeyboardFocusWithin}";
+            string ControlName(object? value) => value is Control control ? control.GetType().Name + ":" + control.Name : value?.GetType().Name ?? "null";
+            source.LostFocus += (_, e) => Console.WriteLine($"SMOKE pointer trace focus -> {ControlName(e.NewFocusedElement)}; {SourceState()}");
+            var sourcePopupList = sourceRow.GetVisualAncestors().OfType<SelectingItemsControl>().First();
+            object? attached = typeof(IdentitySuggestionBox).GetField("_popupList", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.GetValue(source);
+            Console.WriteLine($"SMOKE pointer trace attachment matches={ReferenceEquals(attached, sourcePopupList)}; list={ControlName(sourcePopupList)}; row={ControlName(sourceRow)}");
+            sourcePopupList.AddHandler(InputElement.PointerPressedEvent, (_, e) => Console.WriteLine($"SMOKE pointer trace press {e.Route}; source={ControlName(e.Source)}; {SourceState()}"), RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
+            sourcePopupList.AddHandler(InputElement.PointerReleasedEvent, (_, e) => Console.WriteLine($"SMOKE pointer trace release {e.Route}; source={ControlName(e.Source)}; {SourceState()}"), RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
             await native.ClickAsync(sourceRow);
             Console.WriteLine($"SMOKE source after native click: text={source.Text}; open={source.IsDropDownOpen}; draft=[{string.Join(",", page.DraftSources)}]; editorFocus={sourceInput.IsKeyboardFocusWithin}");
             await Program.WaitUntilAsync(() => page.DraftSources.Contains("2ch", StringComparer.Ordinal)
