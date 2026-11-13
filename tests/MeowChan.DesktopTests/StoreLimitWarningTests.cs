@@ -56,6 +56,13 @@ public sealed class StoreLimitWarningTests
             string german = StoreLimitUsage.Describe(new StoreLimitUsage.Item(PrivateStoreLimitKind.FavoriteEntries, 8_000, 10_000));
             Assert.DoesNotContain("Sie ", german);
             Assert.DoesNotContain("Beitrag", german);
+            // MS-R4: the advice addresses the user in the du form, not as an infinitive instruction.
+            foreach (PrivateStoreLimitKind kind in new[] { PrivateStoreLimitKind.FavoriteEntries, PrivateStoreLimitKind.FavoriteFile })
+            {
+                string advice = StoreLimitUsage.Describe(new StoreLimitUsage.Item(kind, 8_000, 10_000));
+                Assert.Contains("Erhöhe „" + Texts.T(kind == PrivateStoreLimitKind.FavoriteEntries ? "budgets.favoriteEntries" : "budgets.favoriteFile") + "“", advice);
+                Assert.DoesNotContain("erhöhen,", advice);
+            }
         }
         finally { Texts.SetLanguage(previous); }
     }
