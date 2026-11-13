@@ -3,6 +3,7 @@ using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.LogicalTree;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Styling;
@@ -11,6 +12,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Interfaces;
 
 namespace MeowChan.DesktopSmoke;
@@ -33,15 +35,32 @@ internal static class WorkViewCaptures
     private static readonly (string Name, double Width, double Height)[] Sizes = [("wide", 1380, 850), ("minimum", 640, 480)];
     // A bindable gesture without a default owner; the probe binds it and restores the profile's bindings afterwards.
     private const string ProbeGesture = "Primary+Shift+F9";
-    // Today's finding is recorded only; the foundation's shortcut route turns this into a requirement.
-    private const bool RequireReducedShortcuts = false;
+    // Before the foundation this was recorded only (a closed-overflow shortcut did not run); now it is required.
+    private const bool RequireReducedShortcuts = true;
 
     private sealed record Cell(string Page, string View, string Theme, string Language, string Size, string File, string Client);
 
     internal static async Task RunAsync(MainWindow window)
     {
-        string? only = SmokeScenarios.WorkViewPages.FirstOrDefault(page =>
-            Environment.GetEnvironmentVariable(SmokeScenarios.WorkViewSelector(page)) == "1");
+        // Literal reads: the registry tests check that every nested selector is read by the driver.
+        (string Page, string? Value)[] selectors =
+        [
+            ("downloads", Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_DOWNLOADS_ONLY")),
+            ("archive", Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_ARCHIVE_ONLY")),
+            ("reader", Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_READER_ONLY")),
+            ("gallery", Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_GALLERY_ONLY")),
+            ("media", Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_MEDIA_ONLY")),
+            ("rules", Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_RULES_ONLY")),
+            ("sources", Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_SOURCES_ONLY")),
+            ("plugins", Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_PLUGINS_ONLY")),
+            ("diagnostics", Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_DIAGNOSTICS_ONLY")),
+            ("statistics", Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_STATISTICS_ONLY")),
+            ("settings", Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_SETTINGS_ONLY")),
+            ("dialogs", Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_DIALOGS_ONLY")),
+        ];
+        if (!selectors.Select(selector => selector.Page).SequenceEqual(SmokeScenarios.WorkViewPages))
+            throw new InvalidOperationException("The work-view page selectors disagree with SmokeScenarios.WorkViewPages.");
+        string? only = selectors.Where(selector => selector.Value == "1").Select(selector => selector.Page).FirstOrDefault();
         string matrix = Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_MATRIX") ?? (only == null ? "full" : "reduced");
         if (matrix is not ("full" or "reduced"))
             throw new InvalidOperationException("MEOWCHAN_WORK_VIEWS_MATRIX must be full or reduced, not " + matrix + ".");
@@ -56,6 +75,7 @@ internal static class WorkViewCaptures
         try
         {
             rows = await SyntheticShellRows.CreateAsync(window, DownloadEntries());
+            CheckRegistrations(window);
             await ShortcutProbeAsync(window);
             foreach (string language in Languages)
             {
@@ -76,6 +96,7 @@ internal static class WorkViewCaptures
                                 await EnterAsync(window, page); // a resize may relayout the archive into its narrow reader layout
                                 await SettleAsync(window, page);
                                 RequireState(window, page, view, theme, language);
+                                CheckPresence(window, page, view);
                                 string file = $"smoke-wv-{page}-{view.ToLowerInvariant()}-{theme.ToLowerInvariant()}-{language}-{w:0}x{h:0}.png";
                                 Program.CaptureWindow(window, file, output);
                                 cells.Add(new(page, view, theme, language, sizeName, file, $"{window.ClientSize.Width:0}x{window.ClientSize.Height:0}"));
@@ -270,6 +291,27 @@ internal static class WorkViewCaptures
                 if (!ran && (expected == "direct" || RequireReducedShortcuts))
                     throw new InvalidOperationException($"Shortcut probe {view}: the bound shortcut did not run the {placement} action.");
             }
+            // "K": omitted from bar and popup (a context or app menu carries it), and hidden by WorkViewGate.
+            foreach (string reduction in new[] { "omitted", "gate-hidden" })
+            {
+                // Synchronous: a coalesced page refresh re-applies the view and must not run between placing and pressing.
+                if (reduction == "omitted") ActionToolBar.SetOmitted(copy, true);
+                else WorkViewGate.Apply(copy, WorkView.Barebones);
+                window.UpdateLayout();
+                bool placed = reduction == "omitted"
+                    ? toolbar.OmittedHost.Children.Contains(copy) && toolbar.OverflowHost?.Children.Contains(copy) != true && !toolbar.DirectHost!.Children.Contains(copy)
+                    : !copy.IsVisible && WorkViewGate.HiddenByView(copy);
+                int before = executed;
+                KeyEventArgs press = new() { RoutedEvent = InputElement.KeyDownEvent, Key = gesture.Key, KeyModifiers = gesture.KeyModifiers };
+                window.FindControl<DataGrid>("ThreadsDataGrid")!.RaiseEvent(press);
+                bool ran = executed == before + 1;
+                findings.Add($"Barebones:{reduction}:placed={placed}:handled={press.Handled}:ran={ran}");
+                Console.WriteLine($"SMOKE work-views shortcut probe: Copy URLs {reduction}; placed={placed}; handled={press.Handled}; action ran={ran}.");
+                if (reduction == "omitted") ActionToolBar.SetOmitted(copy, false);
+                else { copy.IsVisible = true; WorkViewElement.SetStateVisible(copy, true); }
+                if (!placed || !ran)
+                    throw new InvalidOperationException($"Shortcut probe: the {reduction} Copy URLs action was not placed or its shortcut did not run it.");
+            }
         }
         finally
         {
@@ -282,6 +324,44 @@ internal static class WorkViewCaptures
             await PresentationChecks.SwitchModeAsync(window, modeBefore);
         }
         Console.WriteLine("SMOKE work-views shortcut finding: " + string.Join("; ", findings) + ".");
+    }
+
+    // ---- Policy self-checks (plan §3.3) ----
+
+    // No orphaned rows: every control-backed row of the policy is registered by a control of this window.
+    private static void CheckRegistrations(MainWindow window)
+    {
+        Control[] mine = WorkViewElement.All().Where(control => ReferenceEquals(TopLevel.GetTopLevel(control), window)
+            || control.FindLogicalAncestorOfType<MainWindow>() == window).ToArray();
+        HashSet<string> registered = mine.Select(control => WorkViewElement.GetId(control)!).ToHashSet(StringComparer.Ordinal);
+        string[] orphaned = WorkViewPolicy.Entries
+            .Where(entry => entry.Kind is WorkViewKind.Action or WorkViewKind.Element or WorkViewKind.Section
+                && !entry.Id.EndsWith(".other", StringComparison.Ordinal) && !registered.Contains(entry.Id))
+            .Select(entry => entry.Id).ToArray();
+        if (orphaned.Length > 0)
+            throw new InvalidOperationException("Work-view rows without a registered control: " + string.Join(", ", orphaned));
+        Console.WriteLine($"SMOKE work-views registrations: {registered.Count} ids registered, no orphaned policy row.");
+    }
+
+    // The toolbar items of the visible surfaces are placed as the policy says for this view.
+    private static void CheckPresence(MainWindow window, string page, string view)
+    {
+        WorkView workView = WorkViewSetting.Parse(view);
+        foreach (ActionToolBar toolbar in window.GetVisualDescendants().OfType<ActionToolBar>().Where(toolbar => toolbar.IsEffectivelyVisible))
+        {
+            string? fallback = toolbar.Name == "ArchiveResultActions" ? "archive.results.other" : null;
+            foreach (Control item in toolbar.Items.OfType<Control>())
+            {
+                string? id = WorkViewElement.GetId(item) ?? fallback;
+                if (id == null) continue;
+                Presence presence = WorkViewPolicy.Resolve(id, workView);
+                if (Ursa.Controls.ToolBar.GetOverflowMode(item) != WorkViewPresenter.ToolBarMode(presence)
+                    || ActionToolBar.GetOmitted(item) != (presence == Presence.Hidden))
+                    throw new InvalidOperationException($"{page}/{view}: {item.Name ?? id} is not placed as {id} says ({presence}).");
+                if (presence == Presence.Overflow && item.IsVisible && toolbar.DirectHost?.Children.Contains(item) == true)
+                    throw new InvalidOperationException($"{page}/{view}: {item.Name ?? id} belongs under More but sits on the bar.");
+            }
+        }
     }
 
     // ---- Fixture, helpers, index ----
