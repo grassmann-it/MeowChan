@@ -68,6 +68,11 @@ internal static class ReaderNavigationOverlayChecks
                     window.UpdateLayout();
                     CheckGeometry(window, page);
                     CheckMediaCard(page, size.Width);
+                    // Over the content the cross rests faded; in the free side lane it is solid.
+                    WrapPanel cross = page.FindControl<WrapPanel>("ReaderNavigation")!;
+                    if (!cross.IsKeyboardFocusWithin)
+                        Require(page.FindControl<ListBox>("ArchivePosts")!.Margin.Right > 0 ? cross.Opacity == 1 : cross.Opacity < 1,
+                            $"The navigation cross had the wrong resting opacity {cross.Opacity} at {size.Width}.");
                     await CheckOverlayTailReadabilityAsync(window, page);
                     string name = $"smoke-reader-navigation-{size.Mode.ToLowerInvariant()}-{size.Width}x{size.Height}-{code}-{variant.ToString().ToLowerInvariant()}.png";
                     Program.CaptureWindow(window, name);

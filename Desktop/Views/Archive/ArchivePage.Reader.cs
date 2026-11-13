@@ -206,6 +206,11 @@ public partial class ArchivePage
             media.AddHandler(KeyDownEvent, OnMediaKeyDown, RoutingStrategies.Tunnel);
         }
         ReaderContentSurface.LayoutUpdated += (_, _) => UpdateReaderNavigationLayout();
+        // Over the content (no free lane) the cross rests faded and comes forward under the pointer or the keyboard focus.
+        ReaderNavigation.PointerEntered += (_, _) => { _readerNavigationPointerOver = true; UpdateReaderNavigationOpacity(); };
+        ReaderNavigation.PointerExited += (_, _) => { _readerNavigationPointerOver = false; UpdateReaderNavigationOpacity(); };
+        ReaderNavigation.GotFocus += (_, _) => UpdateReaderNavigationOpacity();
+        ReaderNavigation.LostFocus += (_, _) => UpdateReaderNavigationOpacity();
         ListBox posts = ArchivePosts;
         posts.ContainerPrepared += (_, e) => UpdateReaderPostTailSpace();
         posts.ContainerIndexChanged += (_, e) => UpdateReaderPostTailSpace();
@@ -432,6 +437,7 @@ public partial class ArchivePage
         ReaderNavigationLayout layout = ReaderNavigationLayout.Resolve(_largeReader, surface.Bounds.Width, ReaderNavigationLayout.MinimumCardWidth);
         posts.Margin = layout.PostMargin;
         _readerPostTailInset = layout.TailInset;
+        UpdateReaderNavigationOpacity();
         UpdateReaderPostTailSpace();
         // Secondary tabs keep full-width filters and footers. Reserve only
         // their scrolling surface, so the cross cannot consume their height
@@ -456,6 +462,18 @@ public partial class ArchivePage
             && posts.TranslatePoint(default, surface) is Point postPosition)
             right = layout.RightInset(surface.Bounds.Width, postPosition.X + posts.Bounds.Width);
         ReaderNavigation.Margin = new Thickness(0, 0, right, bottom);
+    }
+
+    private bool _readerNavigationPointerOver;
+    internal const double ReaderNavigationRestingOpacity = 0.4;
+
+    // In the free side lane the cross covers nothing and stays solid; over the content it is faded until the pointer or the
+    // keyboard focus is on it, so it does not hide text and pictures it floats above.
+    private void UpdateReaderNavigationOpacity()
+    {
+        bool overContent = _largeReader && _readerPostTailInset > 0;
+        ReaderNavigation.Opacity = !overContent || _readerNavigationPointerOver || ReaderNavigation.IsKeyboardFocusWithin
+            ? 1 : ReaderNavigationRestingOpacity;
     }
 
     private void UpdateReaderPostTailSpace()
