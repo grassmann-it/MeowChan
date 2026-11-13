@@ -14,7 +14,7 @@ namespace MeowChan.DesktopSmoke;
 // Post filters (plan P2 part B) in a private profile with a detached reader: "Post filters…" in the View menu, a rule as
 // placeholder, highlight and hide (with replies), "Hide post" with its replies from the post menu, a reveal of a hidden
 // post, the quote preview note, the reply card note, "Show post again", the dialog, and the store after a reopen.
-internal static class ReaderPostFilterChecks
+internal static partial class ReaderPostFilterChecks
 {
     private const string ThreadId = "700";
 

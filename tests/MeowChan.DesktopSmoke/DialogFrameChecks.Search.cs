@@ -24,7 +24,7 @@ internal static partial class DialogFrameChecks
         string language = Texts.Language;
         try
         {
-            Texts.SetLanguage("en");
+            if (!DialogGallery.Active) Texts.SetLanguage("en");
             await FilenameSearchFrameAsync(owner);
             await FilenameSearchFailureFrameAsync(owner);
             await MediaHashSearchFrameAsync(owner);

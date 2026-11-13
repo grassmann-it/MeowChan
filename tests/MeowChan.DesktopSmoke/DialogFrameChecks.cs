@@ -15,7 +15,7 @@ internal static partial class DialogFrameChecks
 {
     private static readonly List<object> Evidence = new();
 
-    private static readonly (string Name, Func<MainWindow, Task> Run)[] Groups =
+    internal static readonly (string Name, Func<MainWindow, Task> Run)[] Groups =
     [
         ("archive", RunArchiveAsync),
         ("transfer", RunTransferAsync),
@@ -75,6 +75,18 @@ internal static partial class DialogFrameChecks
     /// </summary>
     internal static async Task VerifyFrameAsync(Control root, string label, string? capture = null)
     {
+        if (!DialogGallery.Active) { await VerifyFrameCoreAsync(root, label, capture); return; }
+        // Gallery runs record the surface even when its frame contract is violated, list the violation as a finding and go on.
+        try { await VerifyFrameCoreAsync(root, label, capture); }
+        catch (InvalidOperationException violation)
+        {
+            DialogGallery.RecordFrame(root, label, "LAYOUT FINDING: " + violation.Message);
+            DialogGallery.Finding(label, violation.Message);
+        }
+    }
+
+    private static async Task VerifyFrameCoreAsync(Control root, string label, string? capture)
+    {
         await Settle();
         Control header = Part<Control>(root, DialogFrame.HeaderName, label);
         ScrollViewer body = Part<ScrollViewer>(root, DialogFrame.BodyName, label);
@@ -111,6 +123,7 @@ internal static partial class DialogFrameChecks
             errorStrip = strip is { IsEffectivelyVisible: true } ? BoundsIn(strip, root).ToString() : null,
             root = root.Bounds.ToString(), scale = TopLevel.GetTopLevel(root)?.RenderScaling
         });
+        if (DialogGallery.Active) DialogGallery.RecordFrame(root, label);
         Console.WriteLine("SMOKE dialog frame PASS: " + label + (scrollable ? " (scrolled)" : ""));
     }
 

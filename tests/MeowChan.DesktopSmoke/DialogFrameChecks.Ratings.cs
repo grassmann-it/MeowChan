@@ -25,10 +25,10 @@ internal static partial class DialogFrameChecks
             // longest packs must keep the footer inside the window as well.
             foreach (string frameLanguage in new[] { "en", "de", "ru", "fr" })
             {
-                Texts.SetLanguage(frameLanguage);
+                if (!DialogGallery.Active || frameLanguage == "en") Texts.SetLanguage(frameLanguage);
                 await RatingDialogFrameAsync(owner);
             }
-            Texts.SetLanguage("en");
+            if (!DialogGallery.Active) Texts.SetLanguage("en");
             await RatingsManagerFrameAsync(owner);
             await RatingsManagerLoadErrorFrameAsync(owner);
         }

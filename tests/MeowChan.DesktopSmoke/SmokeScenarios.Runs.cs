@@ -95,6 +95,7 @@ internal static partial class SmokeScenarios
         ["gallery-volume-routed"] = new(SmokeStage.Ready, mainWindow => GalleryVolumeNativeEditingChecks.RunAsync(mainWindow)),
         ["first-run-reopen"] = new(SmokeStage.Ready, mainWindow => FirstRunSettingsReopenChecks.RunAsync(mainWindow)),
         ["dialog-frame"] = new(SmokeStage.Ready, mainWindow => DialogFrameChecks.RunAsync(mainWindow)),
+        ["dialog-gallery"] = new(SmokeStage.Ready, mainWindow => DialogGalleryChecks.RunAsync(mainWindow)),
         ["html-export-action-layout"] = new(SmokeStage.Ready, mainWindow => HtmlExportActionLayoutChecks.RunAsync(mainWindow)),
         ["shortcut-issue-language"] = new(SmokeStage.Ready, mainWindow => ShortcutIssueLanguageRefreshChecks.RunAsync(mainWindow)),
         ["export-status-language"] = new(SmokeStage.Ready, mainWindow => ArchiveExportStatusLanguageRefreshChecks.RunAsync(mainWindow)),

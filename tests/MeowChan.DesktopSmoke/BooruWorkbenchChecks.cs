@@ -19,7 +19,7 @@ namespace MeowChan.DesktopSmoke;
 
 // Root scenario "booru-workbench": the Danbooru window opened through its real app-menu command over
 // fake ports. No provider, queue, scheduler or network exists in this run; every fake counts its calls.
-internal static class BooruWorkbenchChecks
+internal static partial class BooruWorkbenchChecks
 {
     internal static async Task RunAsync(MainWindow owner)
     {

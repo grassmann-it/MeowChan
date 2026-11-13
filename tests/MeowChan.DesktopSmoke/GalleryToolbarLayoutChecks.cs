@@ -20,7 +20,7 @@ namespace MeowChan.DesktopSmoke;
 
 // Root dispatch only: MEOWCHAN_GALLERY_TOOLBAR_ONLY. A real main-window gallery with a decoded picture and a post is
 // captured at the two reference sizes in both themes, with the post panel closed and open.
-internal static class GalleryToolbarLayoutChecks
+internal static partial class GalleryToolbarLayoutChecks
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(20);
     private static readonly ResourceId Resource = new("toolbar-fixture", "g", "77");
