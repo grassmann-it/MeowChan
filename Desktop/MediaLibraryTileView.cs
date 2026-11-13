@@ -30,10 +30,12 @@ internal sealed record MediaLibraryTileRow(MediaLibraryTile Tile, int Index, Fun
     public string Name => Entry.Name ?? Entry.MediaId ?? string.Empty;
     /// <summary>True for a downloaded provider medium (Danbooru): it has a post of the provider, not a chan thread.</summary>
     public bool IsProviderMedium => Entry.BooruPostId != null;
+    public bool IsImported => Entry.ImportItemId != null;
     public string ThreadLabel => IsProviderMedium ? Texts.T("booru.media.tile.post", Entry.BooruPostId!)
+        : IsImported ? Texts.T("import.media.tile", Entry.ThreadTitle)
         : Texts.T("media.tile.thread", string.IsNullOrWhiteSpace(Entry.ThreadTitle) ? "#" + Entry.Thread.Thread : Entry.ThreadTitle);
     public string Detail => Entry.Presence == MediaLibraryPresence.Missing ? Texts.T("media.tile.missing")
-        : Entry.Unassigned && !IsProviderMedium ? Texts.T("media.tile.unassigned")
+        : Entry.Unassigned && !IsProviderMedium && !IsImported ? Texts.T("media.tile.unassigned")
         : Entry.Length is long length ? SizeText.Format(length) : string.Empty;
     public string DetailWithState => State is { } state && MediaLibraryStateText.Compact(state, Tile.IsGroup) is { Length: > 0 } compact
         ? (Detail.Length == 0 ? compact : Detail + " · " + compact) : Detail;

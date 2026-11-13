@@ -143,7 +143,8 @@ internal static class MediaLibraryIndexBuilder
         Func<Import.ManualImportCatalogSnapshot?>? readImportCatalog = null)
     {
         ArgumentNullException.ThrowIfNull(openManifest);
-        return BuildAsync(openReader, new MediaManifestCache(openManifest, identity: false), previous, progress, cancellationToken, readBooruCatalog);
+        return BuildAsync(openReader, new MediaManifestCache(openManifest, identity: false), previous, progress, cancellationToken, readBooruCatalog,
+            readImportCatalog);
     }
 
     /// <summary>
@@ -155,7 +156,8 @@ internal static class MediaLibraryIndexBuilder
         Func<CancellationToken, Task<ArchiveReader>> openReader,
         MediaManifestCache manifests,
         MediaLibrarySnapshot? previous = null, IProgress<MediaLibraryProgress>? progress = null,
-        CancellationToken cancellationToken = default, Func<BooruCatalogSnapshot?>? readBooruCatalog = null)
+        CancellationToken cancellationToken = default, Func<BooruCatalogSnapshot?>? readBooruCatalog = null,
+        Func<Import.ManualImportCatalogSnapshot?>? readImportCatalog = null)
     {
         ArgumentNullException.ThrowIfNull(openReader);
         ArgumentNullException.ThrowIfNull(manifests);
@@ -292,7 +294,7 @@ internal static class MediaLibraryIndexBuilder
             }
             else
             {
-                (IReadOnlyList<MediaLibraryEntry> imported, int unreadable) = await ManualImportMediaProjection.EntriesAsync(imports, openManifest, cancellationToken).ConfigureAwait(false);
+                (IReadOnlyList<MediaLibraryEntry> imported, int unreadable) = await ManualImportMediaProjection.EntriesAsync(imports, manifests.OpenAsync, cancellationToken).ConfigureAwait(false);
                 entries.AddRange(imported);
                 if (unreadable > 0) { complete = false; warnings.Add("Imports: " + unreadable + " media folder(s) could not be read."); }
             }

@@ -43,6 +43,7 @@ public partial class MainWindow
             ReadUserData = ReadMediaLibraryUserData,
             ReadBooruCatalog = _session.ReadBooruCatalog,
             CacheLimitBytes = () => (long)_session.Config.MediaIndexCacheLimitMiB * 1024 * 1024,
+            ReadImportCatalog = _session.ReadManualImportCatalog,
             TagServices = new(_session.GetPublishedPrivateTagSnapshot,
                 (name, subjects, expectedRevision, token) => _session.DefineAndSetMediaSubjectTagsAsync(name, subjects, expectedRevision, token),
                 (tag, subjects, assigned, expectedRevision, token) => _session.SetMediaSubjectTagsAsync(tag, subjects, assigned, expectedRevision, token)),
@@ -92,7 +93,7 @@ public partial class MainWindow
         try
         {
             IReadOnlyList<GalleryEntry> entries = await MediaLibraryGallery.ResolveAsync(window, _session.OpenArchiveReaderAsync,
-                Storage.MediaAssetReader.OpenAsync, readBooruCatalog: _session.ReadBooruCatalog);
+                Storage.MediaAssetReader.OpenAsync, readBooruCatalog: _session.ReadBooruCatalog, readImportCatalog: _session.ReadManualImportCatalog);
             GalleryEntry? first = entries.FirstOrDefault(entry => MediaMenuIdentity.Matches(chosen, entry));
             if (!Current()) return;
             if (first == null)
@@ -141,7 +142,7 @@ public partial class MainWindow
         try
         {
             GalleryEntry? entry = await MediaMenuIdentity.ResolveAsync(indexed, _session.OpenArchiveReaderAsync,
-                Storage.MediaAssetReader.OpenAsync, Current, CancellationToken.None, _session.ReadBooruCatalog);
+                Storage.MediaAssetReader.OpenAsync, Current, CancellationToken.None, _session.ReadBooruCatalog, _session.ReadManualImportCatalog);
             if (!Current()) return;
             if (entry == null)
             {
@@ -202,7 +203,8 @@ public partial class MainWindow
         try
         {
             GalleryEntry? match = alreadyResolved ?? await MediaMenuIdentity.ResolveAsync(indexed,
-                _session.OpenArchiveReaderAsync, Storage.MediaAssetReader.OpenAsync, Current, CancellationToken.None, _session.ReadBooruCatalog);
+                _session.OpenArchiveReaderAsync, Storage.MediaAssetReader.OpenAsync, Current, CancellationToken.None, _session.ReadBooruCatalog,
+                _session.ReadManualImportCatalog);
             if (!Current()) return;
             MediaTagSubject? target = MediaTagSubjects.Of(match, out GalleryMediaTagUnavailable reason);
             if (match == null || target == null)
@@ -271,11 +273,28 @@ internal static class MediaMenuIdentity
     internal static async Task<GalleryEntry?> ResolveAsync(MediaLibraryEntry indexed,
         Func<CancellationToken, Task<ArchiveReader>> openReader,
         Func<string, CancellationToken, Task<MediaAssetSnapshot>> openManifest,
-        Func<bool> isCurrent, CancellationToken token, Func<BooruCatalogSnapshot?>? readBooruCatalog = null)
+        Func<bool> isCurrent, CancellationToken token, Func<BooruCatalogSnapshot?>? readBooruCatalog = null,
+        Func<Import.ManualImportCatalogSnapshot?>? readImportCatalog = null)
     {
         if (!isCurrent() || token.IsCancellationRequested || indexed.Presence != MediaLibraryPresence.Present
             || indexed.Directory == null) return null;
         GalleryEntry? resolved;
+        if (indexed.ImportItemId != null)
+        {
+            // An imported file is no archived thread: its entry comes from the import catalog and the batch manifest.
+            Import.ManualImportCatalogSnapshot? imports = null;
+            try { imports = readImportCatalog?.Invoke(); }
+            catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException
+                or Import.ManualImportException) { }
+            resolved = await ManualImportMediaGallery.ResolveAsync(indexed, imports, openManifest, token);
+            if (resolved == null || !Matches(indexed, resolved) || !isCurrent() || token.IsCancellationRequested) return null;
+            try
+            {
+                await using Stream verified = await resolved.Manifest.OpenVerifiedReadAsync(resolved.Asset.AssetId, token);
+                return isCurrent() && !token.IsCancellationRequested ? resolved : null;
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException) { return null; }
+        }
         if (indexed.BooruPostId != null)
         {
             // A downloaded provider post is no archived thread: its entry comes from the catalog's own link and the manifest.

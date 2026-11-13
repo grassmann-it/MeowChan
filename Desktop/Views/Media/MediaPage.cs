@@ -90,6 +90,8 @@ public sealed partial class MediaPage : UserControl
     /// An unreadable catalog (the function returns null) keeps the provider media the previous index showed.
     /// </summary>
     internal Func<BooruCatalogSnapshot?>? ReadBooruCatalog { get; set; }
+    /// <summary>Read-only access to the import catalog (manually imported files). Null: the page shows no imports.</summary>
+    internal Func<Import.ManualImportCatalogSnapshot?>? ReadImportCatalog { get; set; }
     /// <summary>Opens a provider post page; the shell supplies the browser launcher, tests a recorder.</summary>
     internal Func<Uri, Task>? OpenProviderPage { get; set; }
     /// <summary>Copies a provider post address to the clipboard; the default uses this page's clipboard.</summary>
@@ -184,6 +186,9 @@ public sealed partial class MediaPage : UserControl
         _providerEntries = snapshot.Entries.Count(entry => entry.BooruPostId != null);
     }
 
+    /// <summary>Rebuilds the index (reusing unchanged threads), for example after an import added files.</summary>
+    internal Task RebuildAsync() => BuildTask = BuildAsync(force: false);
+
     private async Task BuildAsync(bool force)
     {
         if (_lifetime.IsCancellationRequested) return;
@@ -217,10 +222,11 @@ public sealed partial class MediaPage : UserControl
             }
             MediaLibrarySnapshot? previous = force ? null : _snapshot;
             Func<BooruCatalogSnapshot?>? readBooru = ReadBooruCatalog;
+            Func<Import.ManualImportCatalogSnapshot?>? readImports = ReadImportCatalog;
             // A refresh reads every manifest again (no reuse of kept views); identities are still recorded for the next open.
             MediaManifestCache manifests = force ? new MediaManifestCache(_manifests.UsesIdentity ? null : _openManifest, building.Token) : _manifests;
             MediaLibrarySnapshot built = await Task.Run(() => MediaLibraryIndexBuilder.BuildAsync(_openReader, manifests,
-                previous, progress, building.Token, readBooru), building.Token);
+                previous, progress, building.Token, readBooru, readImports), building.Token);
             if (!ReferenceEquals(_building, building)) return;
             SetSnapshot(built);
             _progress = null;

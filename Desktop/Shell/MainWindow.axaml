@@ -58,6 +58,7 @@
                         <MenuItem x:Name="WorkspaceMenuItem" Header="⋯">
                             <MenuItem x:Name="ArchiveMenuItem" Tag="nav.archive" Classes="localized" Header="Archive" Click="OnArchiveNavigationClick" />
                             <MenuItem x:Name="MediaMenuItem" Tag="nav.media" Classes="localized" Header="Media" Click="OnMediaNavigationClick" />
+                            <MenuItem x:Name="ManualImportMenuItem" Tag="import.menu" Classes="localized" Header="Import files…" Click="OnManualImportMenuClick" />
                             <!-- URSA-12 shared shell hunk: group manager entry in every workspace mode. -->
                             <MenuItem x:Name="ReaderGroupsMenuItem" Header="Reader groups" />
                             <MenuItem x:Name="RulesMenuItem" Tag="nav.rules" Classes="localized" Header="Rules" Click="OnRulesNavigationClick" />

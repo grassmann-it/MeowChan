@@ -9,10 +9,14 @@ namespace MeowChan.Desktop;
 
 internal enum DroppedContentKind { Empty, Links, Files }
 
-/// <summary>What a drag over the main window carries. <see cref="Text"/> is set only for links.</summary>
+/// <summary>
+/// What a drag over the main window carries. <see cref="Text"/> is set only for links; <see cref="Paths"/> only for
+/// files: the local paths of the dropped files and folders, in memory only (never logged or stored).
+/// </summary>
 internal sealed record DroppedContent(DroppedContentKind Kind, string? Text = null, int FileCount = 0)
 {
     public static readonly DroppedContent Empty = new(DroppedContentKind.Empty);
+    public IReadOnlyList<string> Paths { get; init; } = Array.Empty<string>();
 }
 
 /// <summary>
@@ -49,12 +53,14 @@ internal static class DroppedLinks
     /// </summary>
     public static DroppedContent Classify(string? text, IReadOnlyList<Uri> items)
     {
-        int localItems = items.Count(uri => !uri.IsAbsoluteUri || uri.IsFile);
-        if (localItems > 0) return new(DroppedContentKind.Files, FileCount: localItems);
+        Uri[] local = items.Where(uri => !uri.IsAbsoluteUri || uri.IsFile).ToArray();
+        if (local.Length > 0)
+            return new(DroppedContentKind.Files, FileCount: local.Length) { Paths = local.Select(LocalPath).Where(path => path != null).Select(path => path!).ToArray() };
         string[] entries = (text ?? string.Empty).Split(Separators,
             StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         if (entries.Length > 0 && entries.All(IsLocalPath))
-            return new(DroppedContentKind.Files, FileCount: entries.Length);
+            return new(DroppedContentKind.Files, FileCount: entries.Length)
+            { Paths = entries.Select(entry => Uri.TryCreate(entry, UriKind.Absolute, out Uri? uri) ? LocalPath(uri) : null).Where(path => path != null).Select(path => path!).ToArray() };
         if (!string.IsNullOrWhiteSpace(text)) return new(DroppedContentKind.Links, text);
         string[] remote = items.Select(uri => uri.AbsoluteUri).ToArray();
         return remote.Length > 0 ? new(DroppedContentKind.Links, string.Join("\n", remote)) : DroppedContent.Empty;
@@ -81,6 +87,17 @@ internal static class DroppedLinks
     private static bool IsWindowsPath(string entry) =>
         entry.Length >= 3 && char.IsAsciiLetter(entry[0]) && entry[1] == ':' && (entry[2] == '\\' || entry[2] == '/')
         || entry.StartsWith(@"\\", StringComparison.Ordinal);
+
+    /// <summary>The local file system path of a dropped item; null when it names none (a relative or empty reference).</summary>
+    private static string? LocalPath(Uri uri)
+    {
+        try
+        {
+            string? path = uri.IsAbsoluteUri ? uri.LocalPath : null;
+            return !string.IsNullOrWhiteSpace(path) && System.IO.Path.IsPathFullyQualified(path) ? path : null;
+        }
+        catch (InvalidOperationException) { return null; }
+    }
 
     private static string? ReadUrlFormat(IDataTransfer transfer)
     {

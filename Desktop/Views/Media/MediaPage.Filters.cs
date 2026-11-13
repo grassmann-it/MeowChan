@@ -242,6 +242,14 @@ public sealed partial class MediaPage
     }
 
     /// <summary>Thread as a meta tag: only the media of this thread.</summary>
+    /// <summary>Shows only one import batch (or any borrowed thread identity) by its identity and title.</summary>
+    internal void FilterToThread(ResourceId thread, string title)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        _threadFilter = (thread, string.IsNullOrWhiteSpace(title) ? "#" + thread.Thread : title);
+        FilterEdited();
+    }
+
     internal void FilterToThread(MediaLibraryEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -364,7 +372,8 @@ public sealed partial class MediaPage
     }
 
     // The provider source is shown by its name; chan sources keep their identifier.
-    private static string SourceLabel(string source) => source == BooruMediaIdentity.Source ? Texts.T("booru.media.source") : source;
+    private static string SourceLabel(string source) => source == BooruMediaIdentity.Source ? Texts.T("booru.media.source")
+        : source == Import.ManualImportIdentity.Source ? Texts.T("import.media.source") : source;
 
     private void RenderBoardOptions()
     {

@@ -12,8 +12,8 @@ using Serilog;
 
 namespace MeowChan;
 
-// Links dropped anywhere on the workspace are submitted like the Add line's text; files are
-// refused until local import exists. Platform notes (Avalonia 12.1.4, not natively verified here):
+// Links dropped anywhere on the workspace are submitted like the Add line's text; dropped files and
+// folders open the import dialog prefilled with them (contract manual-import-v1). Platform notes (Avalonia 12.1.4, not natively verified here):
 // X11/XWayland uses XDND; browsers offer text/plain or UTF8_STRING beside text/uri-list, which
 // Avalonia reads as files (file: entries only). Drops from native Wayland apps cross the
 // compositor bridge. Windows uses OLE (CF_UNICODETEXT, CF_HDROP). macOS Finder drops arrive
@@ -53,9 +53,9 @@ public partial class MainWindow
         e.Handled = true;
         ++_dropGeneration;
         DroppedContent? content = CanAcceptDrop ? ReadDrop(e.DataTransfer) : null;
-        e.DragEffects = content?.Kind == DroppedContentKind.Links
+        e.DragEffects = content?.Kind is DroppedContentKind.Links || content is { Kind: DroppedContentKind.Files, Paths.Count: > 0 }
             ? DroppedLinks.AcceptedEffect(e.DragEffects) : DragDropEffects.None;
-        ShowDropOverlay(content?.Kind);
+        ShowDropOverlay(content?.Kind, content?.FileCount ?? 0);
     }
 
     private void OnWorkspaceDragLeave(object? sender, DragEventArgs e)
@@ -74,11 +74,13 @@ public partial class MainWindow
         // Read before the first await: the platform disposes the transfer once this handler returns.
         DroppedContent? content = CanAcceptDrop ? ReadDrop(e.DataTransfer) : null;
         EndDrop();
-        e.DragEffects = content?.Kind == DroppedContentKind.Links
+        e.DragEffects = content?.Kind is DroppedContentKind.Links || content is { Kind: DroppedContentKind.Files, Paths.Count: > 0 }
             ? DroppedLinks.AcceptedEffect(e.DragEffects) : DragDropEffects.None;
         // Most platforms skip Drop after DragOver answered None; these notices cover the ones that do not.
-        if (content?.Kind == DroppedContentKind.Files)
-            ShowNotification(Texts.T("drop.files.title"), Texts.T("drop.files.detail"), NotificationType.Information, operation: "drop.files");
+        if (content is { Kind: DroppedContentKind.Files, Paths.Count: > 0 })
+            OpenManualImportDialog(content.Paths);
+        else if (content?.Kind == DroppedContentKind.Files)
+            ShowNotification(Texts.T("drop.files.title"), Texts.T("drop.files.unreadable"), NotificationType.Information, operation: "drop.files");
         else if (content?.Kind == DroppedContentKind.Empty)
             ShowNotification(Texts.T("drop.empty.title"), Texts.T("drop.empty.detail"), NotificationType.Information, operation: "drop.empty");
         else if (content?.Text is { } text)
@@ -128,7 +130,7 @@ public partial class MainWindow
         ShowDropOverlay(null);
     }
 
-    private void ShowDropOverlay(DroppedContentKind? kind)
+    private void ShowDropOverlay(DroppedContentKind? kind, int files = 0)
     {
         if (kind == _dropOverlayKind) return;
         _dropOverlayKind = kind;
@@ -140,9 +142,9 @@ public partial class MainWindow
             DroppedContentKind.Files => "drop.files",
             _ => "drop.empty"
         };
-        DropOverlayTitle.Text = Texts.T(prefix + ".title");
+        DropOverlayTitle.Text = Texts.T(prefix + ".title", files);
         DropOverlayDetail.Text = Texts.T(prefix + ".detail");
         DropOverlayCard[!Border.BorderBrushProperty] = new DynamicResourceExtension(
-            kind == DroppedContentKind.Links ? "Workspace.Accent" : "Workspace.Warning");
+            kind is DroppedContentKind.Links or DroppedContentKind.Files ? "Workspace.Accent" : "Workspace.Warning");
     }
 }

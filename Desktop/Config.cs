@@ -148,6 +148,22 @@ namespace MeowChan
         internal const int MediaIndexCacheMinimumLimitMiB = (int)(Gallery.MediaLibraryIndexCache.MinimumLimitBytes / (1024 * 1024));
         internal const int MediaIndexCacheMaximumLimitMiB = (int)(Gallery.MediaLibraryIndexCache.MaximumBytes / (1024 * 1024));
 
+        // Manual import limits (contract manual-import-v1 §4). Every limit is a setting; the stores enforce technical ceilings.
+        /// <summary>Most files (new and already present) one import batch may hold.</summary>
+        public int ImportMaxFilesPerBatch { get; set; } = Import.ManualImportLimits.DefaultMaximumFiles;
+        /// <summary>Most bytes one import batch may hold, in GiB.</summary>
+        public int ImportMaxBatchGiB { get; set; } = (int)(Import.ManualImportLimits.DefaultMaximumBatchBytes / (1024L * 1024 * 1024));
+        /// <summary>Largest single file an import accepts, in MiB.</summary>
+        public int ImportMaxFileMiB { get; set; } = (int)(Import.ManualImportLimits.DefaultMaximumFileBytes / (1024L * 1024));
+        /// <summary>Most imported files over all batches.</summary>
+        public int ImportMaxTotalFiles { get; set; } = Import.ManualImportCatalogStore.DefaultMaximumTotalItems;
+        /// <summary>Write limit of the import catalog file in MiB; lowering it only stops growth.</summary>
+        public int ImportCatalogLimitMiB { get; set; } = Import.ManualImportCatalogStore.DefaultDocumentLimitBytes / (1024 * 1024);
+        internal const int ImportMaxBatchGiBCeiling = 16 * 1024, ImportMaxFileMiBCeiling = 1024 * 1024;
+
+        internal Import.ManualImportLimits ImportLimits => new(ImportMaxFilesPerBatch, ImportMaxBatchGiB * 1024L * 1024 * 1024,
+            ImportMaxFileMiB * 1024L * 1024);
+
         public string? PluginEditorExecutable { get; set; }
         public string[] PluginEditorArguments { get; set; } = ["{file}"];
 
@@ -528,6 +544,16 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(PrivateTagFileLimitMiB), "The own tag file limit must be between 8 and 128 MiB.");
             if (MediaIndexCacheLimitMiB is < MediaIndexCacheMinimumLimitMiB or > MediaIndexCacheMaximumLimitMiB)
                 throw new ArgumentOutOfRangeException(nameof(MediaIndexCacheLimitMiB), "The media index cache limit must be between 16 and 1024 MiB.");
+            if (ImportMaxFilesPerBatch is < 1 or > Import.ManualImportCatalogStore.MaximumItemsPerBatch)
+                throw new ArgumentOutOfRangeException(nameof(ImportMaxFilesPerBatch), "The files per import batch must be between 1 and 20000.");
+            if (ImportMaxBatchGiB is < 1 or > ImportMaxBatchGiBCeiling)
+                throw new ArgumentOutOfRangeException(nameof(ImportMaxBatchGiB), "The import batch size must be between 1 and 16384 GiB.");
+            if (ImportMaxFileMiB is < 1 or > ImportMaxFileMiBCeiling)
+                throw new ArgumentOutOfRangeException(nameof(ImportMaxFileMiB), "The imported file size must be between 1 and 1048576 MiB.");
+            if (ImportMaxTotalFiles is < 1 or > Import.ManualImportCatalogStore.MaximumTotalItemsCeiling)
+                throw new ArgumentOutOfRangeException(nameof(ImportMaxTotalFiles), "The total of imported files must be between 1 and 500000.");
+            if (ImportCatalogLimitMiB is < 1 or > Import.ManualImportCatalogStore.MaximumDocumentBytes / (1024 * 1024))
+                throw new ArgumentOutOfRangeException(nameof(ImportCatalogLimitMiB), "The import catalog limit must be between 1 and 128 MiB.");
             if (PluginEditorExecutable is { Length: > 4096 } || PluginEditorExecutable?.Any(char.IsControl) == true
                 || PluginEditorArguments == null || PluginEditorArguments.Length > 32
                 || PluginEditorArguments.Any(value => value == null || value.Length > 4096 || value.Any(char.IsControl)))
@@ -589,6 +615,11 @@ namespace MeowChan
                 PrivateTagLimit = PrivateTagLimit,
                 PrivateTagFileLimitMiB = PrivateTagFileLimitMiB,
                 MediaIndexCacheLimitMiB = MediaIndexCacheLimitMiB,
+                ImportMaxFilesPerBatch = ImportMaxFilesPerBatch,
+                ImportMaxBatchGiB = ImportMaxBatchGiB,
+                ImportMaxFileMiB = ImportMaxFileMiB,
+                ImportMaxTotalFiles = ImportMaxTotalFiles,
+                ImportCatalogLimitMiB = ImportCatalogLimitMiB,
 
                 ShortcutBindings = ShortcutBindings.Clone(),
                 PluginEditorExecutable = PluginEditorExecutable,
@@ -684,6 +715,11 @@ namespace MeowChan
             PrivateTagLimit = source.PrivateTagLimit;
             PrivateTagFileLimitMiB = source.PrivateTagFileLimitMiB;
             MediaIndexCacheLimitMiB = source.MediaIndexCacheLimitMiB;
+            ImportMaxFilesPerBatch = source.ImportMaxFilesPerBatch;
+            ImportMaxBatchGiB = source.ImportMaxBatchGiB;
+            ImportMaxFileMiB = source.ImportMaxFileMiB;
+            ImportMaxTotalFiles = source.ImportMaxTotalFiles;
+            ImportCatalogLimitMiB = source.ImportCatalogLimitMiB;
 
             ShortcutBindings = source.ShortcutBindings.Clone();
             Theme = source.Theme;
@@ -743,6 +779,11 @@ namespace MeowChan
             PrivateTagLimit = source.PrivateTagLimit;
             PrivateTagFileLimitMiB = source.PrivateTagFileLimitMiB;
             MediaIndexCacheLimitMiB = source.MediaIndexCacheLimitMiB;
+            ImportMaxFilesPerBatch = source.ImportMaxFilesPerBatch;
+            ImportMaxBatchGiB = source.ImportMaxBatchGiB;
+            ImportMaxFileMiB = source.ImportMaxFileMiB;
+            ImportMaxTotalFiles = source.ImportMaxTotalFiles;
+            ImportCatalogLimitMiB = source.ImportCatalogLimitMiB;
 
             ShortcutBindings = source.ShortcutBindings.Clone();
             Theme = source.Theme;
