@@ -44,6 +44,7 @@ internal static class ReaderIdeaChecks
     {
         await CheckFormattingAsync(owner);
         await CheckQuotePreviewAsync(owner);
+        await CheckUnreadLineAsync(owner);
     }
 
     private static async Task<Fixture> OpenAsync(MainWindow owner, string thread, Func<int, CapturedPost[]> posts, int initialCount = int.MaxValue)
@@ -217,6 +218,60 @@ internal static class ReaderIdeaChecks
         }
         finally { Environment.SetEnvironmentVariable("MEOWCHAN_REDUCED_MOTION", null); }
         Console.WriteLine("SMOKE reader I1: delayed hover/focus preview, one at a time, dead reference, Space/Escape and the jump highlight passed.");
+    }
+
+
+    private static CapturedPost[] Numbered(int firstNumber, int count, int lines = 7) => Enumerable.Range(firstNumber, count).Select((number, index) =>
+        new CapturedPost(number.ToString(), index, PostFieldPresence.All,
+            Html: "<p>" + string.Join("<br>", Enumerable.Range(1, lines).Select(line => "Post " + number + " line " + line + " of saved text.")) + "</p>")).ToArray();
+
+    private static ScrollViewer ListScroll(Fixture fixture) => fixture.List.GetVisualDescendants().OfType<ScrollViewer>().First();
+
+    // I3: the line "N new posts since last time" after the last read post (from the saved reading position and from a
+    // manual "Show new posts"), and the toolbar button that returns to it once the view is past it.
+    private static async Task CheckUnreadLineAsync(MainWindow owner)
+    {
+        await using Fixture fixture = await OpenAsync(owner, "320", _ => Numbered(320, 10));
+        ArchivePage page = fixture.Page;
+        ListBox list = fixture.List;
+        Button back = page.FindControl<Button>("ReaderUnreadReturn")!;
+        Require(page.UnreadFirstNewPostId == null && !back.IsVisible, "A thread opened from the list had a reading mark.");
+        // Continue reading at post 323: posts 324..329 (six) were not read since.
+        await page.ResumeReadingPositionAsync(new LocalReadingPosition("4chan", "g", "320", "323", 0, null));
+        await Program.WaitUntilAsync(() => !page.IsBusy && page.UnreadFirstNewPostId == "324", () => "no mark after resume: " + page.UnreadFirstNewPostId);
+        ArchivePostRow[] rows = list.ItemsSource!.Cast<ArchivePostRow>().ToArray();
+        Require(rows.Single(row => row.UnreadCount > 0).Id == "324" && rows.Single(row => row.Id == "324").UnreadCount == 6, "The line was not on the first unread post.");
+        string label = MeowChan.Desktop.Localization.Texts.Count("reader.unreadLine", 6);
+        list.ScrollIntoView(rows.Single(row => row.Id == "324"));
+        await Program.WaitUntilAsync(() => list.GetVisualDescendants().OfType<ListBoxItem>().Any(item => (item.DataContext as ArchivePostRow)?.Id == "324"));
+        await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
+        Require(Container(fixture, "324").GetVisualDescendants().OfType<TextBlock>().Any(text => text.IsEffectivelyVisible && text.Text == label),
+            "The reading-mark line did not show its label: " + label);
+        Require(!Container(fixture, "325").GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == label), "A second line appeared.");
+        Program.CaptureWindow(fixture.Window, "smoke-reader-i3-unread-line.png");
+        // Scrolling past the line shows the way back; the button returns to the line and disappears there.
+        ScrollViewer scroll = ListScroll(fixture);
+        scroll.Offset = new Vector(0, scroll.Extent.Height);
+        await Program.WaitUntilAsync(() => back.IsVisible, () => "no return button after scrolling past the line");
+        Require(back.Content as string == MeowChan.Desktop.Localization.Texts.T("reader.unreadReturn"), "The return button had the wrong label.");
+        Program.CaptureWindow(fixture.Window, "smoke-reader-i3-return-button.png");
+        back.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Program.WaitUntilAsync(() => list.SelectedItem is ArchivePostRow { Id: "324" } && !back.IsVisible, () => "the button did not return to the line");
+
+        // A manual "Show new posts" marks the end of the old view.
+        await CaptureAsync(fixture, Numbered(320, 13));
+        await page.CheckReaderUpdatesAsync();
+        Button show = page.FindControl<Button>("ReaderShowNewPosts")!;
+        await Program.WaitUntilAsync(() => show.IsVisible);
+        show.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Program.WaitUntilAsync(() => page.CurrentThread?.PostCount == 13 && page.UnreadFirstNewPostId == "330", () => "no mark after showing new posts: " + page.UnreadFirstNewPostId);
+        rows = list.ItemsSource!.Cast<ArchivePostRow>().ToArray();
+        Require(rows.Single(row => row.UnreadCount > 0) is { Id: "330", UnreadCount: 3 }, "The refresh line did not count the three new posts.");
+        // Opening the thread again from the list starts without a mark.
+        await page.LoadThreadAsync(fixture.Id);
+        await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.PostCount == 13);
+        Require(page.UnreadFirstNewPostId == null && list.ItemsSource!.Cast<ArchivePostRow>().All(row => row.UnreadCount == 0), "A fresh open kept the old mark.");
+        Console.WriteLine("SMOKE reader I3: resume mark, line label, return button, manual refresh mark and fresh open passed.");
     }
 
     private static void Require(bool condition, string message)

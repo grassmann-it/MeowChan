@@ -115,6 +115,8 @@ public partial class ArchivePage
             int index = view.FindPostIndex(position.PostId);
             bool fallback = index < 0;
             string postId = fallback ? view.GetPosts(0, 1).First().PostId : position.PostId;
+            // The saved anchor is the reading mark: the posts after it have not been read since.
+            if (!fallback) _unreadMark = (position.ThreadId, LastReadOf(view, position));
             ShowCapturedView(view, fallback ? 0 : index / PageSize * PageSize, postId);
             OpenReaderRequested?.Invoke(null);
             await RestoreReaderAnchorAsync(new ReaderAnchor(position.ThreadId, postId,

@@ -177,6 +177,7 @@ public partial class ArchivePage
     private void ShowCapturedView(ArchivedThreadView view, int offset, string? postId = null)
     {
         InvalidateFilenameSearch();
+        if (_unreadMark?.Thread != view.Summary.Id) _unreadMark = null;
         ++_contentRequest;
         BeginContentFeedback();
         _contentCancellation?.Cancel();

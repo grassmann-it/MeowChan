@@ -86,6 +86,10 @@ internal sealed record ArchivePostRow(string Id, string Subject, string Body,
     public string Author { get; init; } = string.Empty;
     public string Posted { get; init; } = string.Empty;
     public bool IsDeleted { get; init; }
+    // Posts that follow the last one read, set on the first of them (the reading-mark line above its header).
+    public int UnreadCount { get; init; }
+    public bool HasUnreadLine => UnreadCount > 0;
+    public string UnreadLabel => Texts.Count("reader.unreadLine", UnreadCount);
     // The opening post sits directly on the page (classic imageboard); replies are cards.
     public bool IsOpeningPost { get; init; }
     public bool HasSubject => Subject.Length > 0;

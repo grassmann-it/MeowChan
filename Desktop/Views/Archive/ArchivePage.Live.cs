@@ -40,6 +40,7 @@ public partial class ArchivePage
     {
         ReaderFollowLive.Content = CommandCatalog.Label("watch.follow-live");
         ReaderShowNewPosts.Content = CommandCatalog.Label("reader.show-new-posts");
+        LocalizeReaderUnread();
         UpdateReaderUpdateControls();
     }
 
@@ -192,6 +193,9 @@ public partial class ArchivePage
         // Guard the inner anchor restoration as well as the final follow target. Capturing
         // permission after LoadThreadAsync returns would already be too late for its focus write.
         using ReaderFocusIntent? focusIntent = deliberate ? null : new(this, requireRefreshAllowed: true);
+        // A manual refresh marks where the old view ended; following live keeps its position and sets no mark.
+        if (deliberate && previousCount > 0 && _thread.GetPosts(previousCount - 1, 1).FirstOrDefault() is { } lastRead)
+            _unreadMark = (id, lastRead.PostId);
         await LoadThreadAsync(id, resetPage: false, preparedThread: null, focusIntent: focusIntent);
         if (_ended || _thread?.Summary.Id != id || _thread.PostCount == 0
             || (!deliberate && (interactionRevision != _readerInteractionRevision || !MayRefreshReaderNow))) return;

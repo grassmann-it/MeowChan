@@ -144,7 +144,8 @@ public sealed class ReaderPostSurfaceTests
     [Fact]
     public void HeaderIsOneLineInImageboardOrderWithACopyableNumber()
     {
-        XElement header = PostRoot().Elements().First();
+        // The reading-mark line (a Grid with a label and a rule) may sit above the header; the header is the next Grid.
+        XElement header = PostRoot().Elements(A + "Grid").First(element => (string?)element.Attribute("ColumnDefinitions") == "*,Auto");
         Assert.Equal(A + "Grid", header.Name);
         Assert.Equal("*,Auto", (string?)header.Attribute("ColumnDefinitions"));
         XElement line = Assert.Single(header.Elements(A + "WrapPanel"));
@@ -240,6 +241,17 @@ public sealed class ReaderPostSurfaceTests
         Assert.Equal(green, Resource(dictionary, "Workspace.ReaderGreentext").Value);
         foreach (string surface in new[] { "Workspace.ReaderPostSurface", "Workspace.AccentSurface", "Workspace.ReaderPage" })
             Assert.True(Contrast(green, Resource(dictionary, surface).Value) >= 4.5, $"{theme}: greentext on {surface}");
+    }
+
+    [Fact]
+    public void ReadingMarkLineSitsAboveTheHeaderAndIsOnlyVisibleOnTheMarkedPost()
+    {
+        XElement line = PostRoot().Elements().First();
+        Assert.Equal(A + "Grid", line.Name);
+        Assert.Equal("{Binding HasUnreadLine}", (string?)line.Attribute("IsVisible"));
+        Assert.Equal("{Binding UnreadLabel}", (string?)line.Attribute("AutomationProperties.Name"));
+        Assert.Equal("{Binding UnreadLabel}", (string?)line.Element(A + "TextBlock")!.Attribute("Text"));
+        Assert.Equal("{DynamicResource Workspace.Accent}", (string?)line.Element(A + "Rectangle")!.Attribute("Fill"));
     }
 
     [Theory]

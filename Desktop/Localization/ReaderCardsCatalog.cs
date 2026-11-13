@@ -12,5 +12,7 @@ internal static class ReaderCardsCatalog
         ("reader.replyCount", "Replies: {0}", "Antworten: {0}"),
         ("reader.quotedPosts", "Quoted posts", "Zitierte Posts"),
         ("reader.quoteNotCaptured", "(not captured)", "(nicht erfasst)"),
+        ("reader.unreadLine", "{0} new posts since last time", "{0} neue Posts seit zuletzt"),
+        ("reader.unreadReturn", "Back to last read", "Zurück zum Lesestand"),
     };
 }

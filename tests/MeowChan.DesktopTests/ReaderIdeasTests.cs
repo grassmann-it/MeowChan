@@ -39,4 +39,17 @@ public sealed class ReaderIdeasTests
 
     [Fact]
     public void HighlightLastsFourHundredMilliseconds() => Assert.Equal(400, ReaderMotion.Highlight.TotalMilliseconds);
+
+    [Fact]
+    public void UnreadLineShowsOnlyOnTheRowThatCarriesACount()
+    {
+        ArchivePostRow plain = new("1", "", "text", Array.Empty<ArchiveAttachmentRow>());
+        ArchivePostRow one = plain with { UnreadCount = 1 }, many = plain with { UnreadCount = 6 };
+        Assert.False(plain.HasUnreadLine);
+        Assert.True(one.HasUnreadLine && many.HasUnreadLine);
+        Assert.Equal(MeowChan.Desktop.Localization.Texts.Count("reader.unreadLine", 1), one.UnreadLabel);
+        Assert.Equal(MeowChan.Desktop.Localization.Texts.Count("reader.unreadLine", 6), many.UnreadLabel);
+        Assert.Contains("6", many.UnreadLabel);
+        Assert.NotEqual(one.UnreadLabel.Replace("1", "{0}"), many.UnreadLabel.Replace("6", "{0}")); // Singular and plural differ.
+    }
 }

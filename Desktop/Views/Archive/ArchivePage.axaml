@@ -227,6 +227,7 @@
                     <desktop:ArchiveThreadFavoriteButton x:Name="ArchiveCurrentThreadFavorite" ursa:ToolBar.OverflowMode="Never" />
                     <Button x:Name="ReaderTagsOpen" ursa:ToolBar.OverflowMode="Never" Click="OnOpenThreadTags" />
                     <Button x:Name="ArchiveOpenGallery" ursa:ToolBar.OverflowMode="Never" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
+                    <Button x:Name="ReaderUnreadReturn" ursa:ToolBar.OverflowMode="Never" IsVisible="False" Click="OnReaderUnreadReturnClick" />
                     <Button x:Name="ReaderFindOpen" ursa:ToolBar.OverflowMode="AsNeeded" Click="OnOpenThreadFind" />
                     <Button x:Name="ArchiveReadPosts" ursa:ToolBar.OverflowMode="Never" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
                     <Button x:Name="ArchiveGalleryReturn" ursa:ToolBar.OverflowMode="Never" Content="Back to gallery" IsVisible="False" Click="OnGalleryReturnClick" />
@@ -372,6 +373,11 @@
                                             <ListBox.ItemTemplate>
                                                 <DataTemplate x:DataType="desktop:ArchivePostRow">
                                                     <StackPanel Margin="8,8,8,12" Spacing="6">
+                                                        <!-- Reading mark: a thin accent line above the first post after the last one read. -->
+                                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" IsVisible="{Binding HasUnreadLine}" AutomationProperties.Name="{Binding UnreadLabel}">
+                                                            <TextBlock Text="{Binding UnreadLabel}" Classes="workspace-meta" FontWeight="SemiBold" Foreground="{DynamicResource Workspace.Accent}" VerticalAlignment="Center" />
+                                                            <Rectangle Grid.Column="1" Height="2" Fill="{DynamicResource Workspace.Accent}" VerticalAlignment="Center" />
+                                                        </Grid>
                                                         <!-- One header line: Subject · Name · Date · No.; the number copies ">>No.".
                                                              The reply count sits at the right; the expander below stays the source. -->
                                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">

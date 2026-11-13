@@ -122,7 +122,7 @@ public partial class ArchivePage : UserControl
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         ArchivePosts.AutoScrollToSelectedItem = false;
         ArchiveMediaTiles.AutoScrollToSelectedItem = false;
-        InitializeReaderInteraction(); InitializeQuotePreview(); InitializeReaderUpdates(); InitializeReadingPositionInput(); InitializePostBookmarks();
+        InitializeReaderInteraction(); InitializeQuotePreview(); InitializeUnreadLine(); InitializeReaderUpdates(); InitializeReadingPositionInput(); InitializePostBookmarks();
         InitializePaginationFocus();
         InitializeArchivePresentation();
         InitializeFilterSurface();
@@ -317,6 +317,7 @@ public partial class ArchivePage : UserControl
     {
         if (!ReferenceEquals(_filenameSearchOwner, filenameNavigation)) InvalidateFilenameSearch();
         if (_ended || !CanRead || _openReader == null) return;
+        if (resetPage || _unreadMark?.Thread != id) _unreadMark = null;
         ReaderAnchor? retainedAnchor = !resetPage && _thread?.Summary.Id == id ? CaptureReaderAnchor() : null;
         CancelReferences();
         CancelInlineReplies();
@@ -489,6 +490,8 @@ public partial class ArchivePage : UserControl
         if (_thread != null)
         {
             string? openingPost = ArchivePresentation.OpeningPostId(_thread);
+            (string? unreadFirst, int unreadCount) = UnreadBoundary();
+            _unreadFirstNewId = unreadFirst;
             Dictionary<string, bool> capturedIds = new(StringComparer.Ordinal);
             bool IsDead(ArchiveQuote quote) => quote.Target is { } target && target.Thread == _thread.Summary.Id
                 && !(capturedIds.TryGetValue(target.PostId, out bool captured) ? captured
@@ -504,6 +507,7 @@ public partial class ArchivePage : UserControl
                     Posted = post.PostedAt?.ToLocalTime().ToString("g", Texts.Culture) ?? string.Empty,
                     IsDeleted = post.IsDeleted,
                     IsOpeningPost = post.PostId == openingPost,
+                    UnreadCount = post.PostId == unreadFirst ? unreadCount : 0,
                     Marks = marks,
                     Quotes = Array.AsReadOnly(ArchiveQuoteParser.Parse(_thread.Summary.Id, _thread.Summary.Url, post)
                         .Select(quote => new ArchiveQuoteRow(quote) { IsDead = IsDead(quote) }).ToArray())
@@ -519,8 +523,9 @@ public partial class ArchivePage : UserControl
             UpdateReaderNavigation();
             RefreshInlineReplies(posts);
         }
-        else { ArchivePosts.ItemsSource = null; CancelInlineReplies(); }
+        else { ArchivePosts.ItemsSource = null; CancelInlineReplies(); _unreadFirstNewId = null; }
         ArchiveNoPosts.IsVisible = _thread?.PostCount == 0;
+        Dispatcher.UIThread.Post(UpdateUnreadReturn, DispatcherPriority.Background);
         RenderMedia();
     }
 
