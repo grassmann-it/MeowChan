@@ -55,13 +55,6 @@ public static class CommandBindings
         return item;
     }
 
-    public static NativeMenuItem CreateNativeMenuItem(string id, Action execute, Func<bool>? canExecute = null)
-    {
-        var item = new NativeMenuItem { Command = new DelegateCommand(execute, canExecute) };
-        Apply(item, id);
-        return item;
-    }
-
     public static Button CreateButton(string id, Action execute, Func<bool>? canExecute = null,
         Func<string?>? unavailableReason = null, bool iconOnly = false, int iconSize = 16,
         bool iconWithLabel = false)

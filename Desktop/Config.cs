@@ -826,16 +826,6 @@ namespace MeowChan
             Log.Information("Configuration saved to {ConfigFilePath}", filePath);
         }
 
-        public void PrintConfig()
-        {
-            Log.Information("Download Path: {DownloadPath}", DownloadPath);
-            Log.Information("Recheck Timer: {RecheckTimer} seconds", RecheckTimer);
-            Log.Information("Save URLs on Exit: {SaveUrlsOnExit}", SaveUrlsOnExit);
-            Log.Information("Minimize to Tray: {MinimizeToTray}; Close to Tray: {CloseToTray}", MinimizeToTray, CloseToTray);
-            Log.Information("Bandwidth Limiter: {BandwidthLimiter} bytes per second", BandwidthLimiter);
-            Log.Information("Parallel downloads: {MaxParallelDownloads}", MaxParallelDownloads);
-        }
-
         private static Config BindProfile(Config config, string directory, string relativePathBaseDirectory, ProfileOrigin origin)
         {
             config.Origin = origin;

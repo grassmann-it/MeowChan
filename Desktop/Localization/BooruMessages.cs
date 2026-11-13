@@ -81,22 +81,6 @@ internal static class BooruMessages
         return Texts.T("booru.watcher.problem.unknown", string.IsNullOrWhiteSpace(code) ? "?" : code);
     }
 
-    internal static string WatcherCreate(DanbooruWatcherCreateError error) =>
-        error == DanbooruWatcherCreateError.None ? string.Empty : Named("booru.watcher.create.", error, "booru.watcher.create.unknown");
-
-    internal static string QueryProblem(DanbooruTagQueryError error) => error switch
-    {
-        DanbooruTagQueryError.None => string.Empty,
-        DanbooruTagQueryError.NullInput => Texts.T("booru.query.problem.Empty"),
-        _ => Named("booru.query.problem.", error, "booru.failure.invalid_query")
-    };
-
-    internal static string PostReferenceProblem(DanbooruPostReferenceError error) =>
-        error == DanbooruPostReferenceError.None ? string.Empty : Named("booru.post.problem.", error, "booru.post.problem.unknown");
-
-    internal static string OriginalProblem(BooruOriginalSelectionError error) =>
-        error == BooruOriginalSelectionError.None ? string.Empty : Named("booru.original.problem.", error, "booru.original.problem.unknown");
-
     /// <summary>Provider rating label. Works for the SDK and the archive rating enums (same member names).</summary>
     internal static string Rating<TRating>(TRating rating) where TRating : struct, Enum => Named("booru.rating.", rating, "booru.rating.Unknown");
 
