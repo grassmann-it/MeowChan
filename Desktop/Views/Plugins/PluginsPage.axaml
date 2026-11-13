@@ -2,12 +2,13 @@
              xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:plugins="using:MeowChan.Desktop.Plugins" xmlns:ursa="https://irihi.tech/ursa" x:Class="MeowChan.PluginsPage" SizeChanged="OnPageSizeChanged">
   <Grid RowDefinitions="Auto,*" Margin="12" RowSpacing="8">
     <StackPanel Classes="workspace-page-header">
-      <Grid x:Name="PluginsPageHeader" ColumnDefinitions="*,Auto" ColumnSpacing="12">
-        <StackPanel Spacing="5">
+      <!-- Below 900 dip the header actions move under the title, so the title and description keep the full width. -->
+      <Grid x:Name="PluginsPageHeader" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12">
+        <StackPanel Spacing="5" MinWidth="200">
           <TextBlock x:Name="PluginsTitle" Classes="page-title" />
           <TextBlock x:Name="PluginsSubtitle" TextWrapping="Wrap" Classes="muted" />
         </StackPanel>
-        <WrapPanel Grid.Column="1" VerticalAlignment="Top" ItemSpacing="8" LineSpacing="6">
+        <WrapPanel x:Name="PluginsHeaderActions" Grid.Column="1" VerticalAlignment="Top" ItemSpacing="8" LineSpacing="6">
           <Button x:Name="PluginsRefresh" Click="OnRefreshClick" />
           <Button x:Name="PluginsFolder" Click="OnFolderClick" />
           <Button x:Name="PluginsReviewRepairs" Click="OnReviewBundledRepairsClick" />

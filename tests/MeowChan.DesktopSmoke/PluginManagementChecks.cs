@@ -168,6 +168,13 @@ internal static partial class PluginManagementChecks
                     matrixWidth, matrixHeight, requireDetails: true);
                 Require(page.FindControl<TextBlock>("PluginTestStatus")!.Text == Texts.T("plugins.probeFinished"), "Test status did not follow the selected UI language.");
                 Program.CaptureWindow(window, "smoke-plugins-" + mode.ToLowerInvariant() + "-" + language + "-" + theme.Key.ToString()!.ToLowerInvariant() + ".png");
+                // UX round 2 #3: below 900 dip the header actions sit under the title, which keeps its full width.
+                TextBlock pluginsTitle = page.FindControl<TextBlock>("PluginsTitle")!;
+                TextBlock pluginsSubtitle = page.FindControl<TextBlock>("PluginsSubtitle")!;
+                Require(Grid.GetRow(page.FindControl<WrapPanel>("PluginsHeaderActions")!) == 1
+                    && pluginsTitle.Bounds.Width >= pluginsTitle.DesiredSize.Width - 1
+                    && pluginsSubtitle.Bounds.Width >= page.Bounds.Width * 0.6,
+                    $"Plugins header is cramped at {matrixWidth} dip: title {pluginsTitle.Bounds.Width}/{pluginsTitle.DesiredSize.Width}, subtitle {pluginsSubtitle.Bounds.Width} of {page.Bounds.Width}.");
                 page.FindControl<Button>("PluginBack")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 SelectionList list = page.FindControl<SelectionList>("PluginCards")!;
                 SelectionListItem card = (SelectionListItem)list.SelectedItem!;

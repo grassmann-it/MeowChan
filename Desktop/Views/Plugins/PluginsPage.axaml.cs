@@ -461,6 +461,12 @@ public partial class PluginsPage : UserControl
             else if (listHadFocus) _showDetails = false;
         }
         _narrow = narrow;
+        bool stackedHeader = Bounds.Width < 900;
+        WrapPanel headerActions = C<WrapPanel>("PluginsHeaderActions");
+        Grid.SetColumn(headerActions, stackedHeader ? 0 : 1);
+        Grid.SetRow(headerActions, stackedHeader ? 1 : 0);
+        headerActions.Margin = stackedHeader ? new Thickness(0, 8, 0, 0) : default;
+        C<Grid>("PluginsPageHeader").ColumnSpacing = stackedHeader ? 0 : 12;
         C<Grid>("PluginSplit").ColumnDefinitions[0].Width = new GridLength(_narrow ? 0 : 240);
         C<Grid>("PluginSplit").ColumnSpacing = _narrow ? 0 : 14;
         Grid.SetColumn(C<Grid>("PluginListPane"), _narrow ? 1 : 0); ApplyPaneVisibility();
