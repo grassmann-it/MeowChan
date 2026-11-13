@@ -649,6 +649,6 @@
                 </Grid>
             </Grid>
         </Border>
-        <Border x:Name="ArchiveExportDialog" IsVisible="False" Background="#A6000000" Grid.RowSpan="3" ZIndex="20" />
+        <Border x:Name="ArchiveExportDialog" IsVisible="False" Background="{DynamicResource Workspace.Scrim}" Grid.RowSpan="3" ZIndex="20" />
     </Grid>
 </UserControl>

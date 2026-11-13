@@ -371,7 +371,11 @@ internal sealed partial class GalleryViewer
     private void ApplyOverlayBackgrounds()
     {
         bool light = ActualThemeVariant == ThemeVariant.Light;
-        var background = new SolidColorBrush(light ? Color.FromArgb(238, 248, 249, 252) : Color.FromArgb(232, 28, 31, 38));
+        // The overlay tone comes from the theme (Workspace.Overlay: warm in Light, blue-grey in Dark) with the translucency of
+        // the former literals; the literal Light value was a cool white that did not match the warm palette.
+        Color tone = this.TryFindResource("Workspace.Overlay", ActualThemeVariant, out object? resource) && resource is ISolidColorBrush brush
+            ? brush.Color : light ? Color.FromRgb(239, 236, 230) : Color.FromRgb(27, 30, 34);
+        var background = new SolidColorBrush(Color.FromArgb(light ? (byte)238 : (byte)232, tone.R, tone.G, tone.B));
         SetOverlayBackground(_chrome, OverlayControlsEffective, background);
         SetOverlayBackground(_infoOverlay, OverlayControlsEffective, background);
         SetOverlayBackground(_contextPanel, PostOverlayEffective, background);
