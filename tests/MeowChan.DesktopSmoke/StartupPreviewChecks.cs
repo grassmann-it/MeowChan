@@ -3,7 +3,6 @@ using System.Reflection;
 using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Documents;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -204,6 +203,10 @@ internal static class StartupPreviewChecks
             .Any(text => text.IsEffectivelyVisible && text.Text == CachedTitle));
         Require(grid.GetVisualDescendants().OfType<TextBlock>().Any(text => text.IsEffectivelyVisible && text.Text == Texts.T("shell.lastKnownStatus")),
             "Last-known marking not rendered by the real DataTemplate.");
+        // The counts the former preview list rendered through Inlines ("12 / 25") are three TextBlocks in the table's progress cell.
+        Require(grid.GetVisualDescendants().OfType<StackPanel>().Any(cell => cell.IsEffectivelyVisible
+                && cell.Children.OfType<TextBlock>().Select(text => text.Text).SequenceEqual(new[] { "12", "/", "25" })),
+            "Cached counts not rendered by the real DataTemplate.");
         Require(!grid.GetVisualDescendants().OfType<Button>().Any(button => button.IsEffectivelyVisible && button.Name != null && button.Name.Contains("Retry")),
             "Display-only rows acquired an action control.");
         grid.SelectedIndex = 0; // selecting a display row must never select/create an authoritative watch
@@ -480,8 +483,6 @@ internal static class StartupPreviewChecks
         await pulse.Task.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
-    private static string? InlineText(TextBlock text) => text.Inlines is { Count: > 0 } inlines
-        ? string.Concat(inlines.OfType<Run>().Select(run => run.Text)) : text.Text;
     private static T Control<T>(MainWindow window, string name) where T : Control
         => window.FindControl<T>(name) ?? throw new InvalidOperationException("Missing real shell control: " + name);
     private static Task RestoreTask(MainWindow window) => Read<Task>(window, "_restoreTask");
