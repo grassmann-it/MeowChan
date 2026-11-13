@@ -393,6 +393,84 @@ public sealed partial class PluginProfileStoreTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BundledChangeBoundary_ConfigurationIsOwnedBeforeWaitingForPermissionGate(bool samePath)
+    {
+        var f = await ChangeBoundaryFixtureAsync(samePath);
+        using SemaphoreSlim gate = new(1, 1);
+        var store = new PluginProfileStore(profile, _ => true, () => ["shared"], gate);
+        List<SettingValue> pluginValues = [new("count", SettingKind.Integer, Integer: 19)];
+        List<SettingValue> sourceValues = [];
+        Dictionary<string, SettingsSnapshot> sources = new() { ["shared"] = new("1", sourceValues) };
+        PluginConfiguration correction = new("exact displayed correction", new("1", pluginValues), sources);
+        Assert.Empty(SdkValidation.ValidateConfiguration(f.Target.Description!, correction));
+        byte[] expected = SdkJson.Serialize(correction);
+        byte[] original = await File.ReadAllBytesAsync(store.StorePath);
+        var files = await ChangeBoundaryFilesAsync(store);
+        Task<PluginProfileSnapshot> confirm;
+        await gate.WaitAsync();
+        try
+        {
+            confirm = store.ConfirmBundledChangeAsync(f.Row, correction, true, true, f.State.Revision);
+            Assert.False(confirm.IsCompleted);
+            pluginValues[0] = new("count", SettingKind.Integer, Integer: 31);
+            sourceValues.Add(new("unreviewed", SettingKind.Text, Text: "must not leak"));
+            sources.Clear();
+            await AssertChangeBoundaryFilesAsync(store, files);
+        }
+        finally { gate.Release(); }
+        var state = await confirm.WaitAsync(TimeSpan.FromSeconds(10));
+        var plugin = Assert.Single(state.Plugins);
+        Assert.Equal(f.State.Revision + 1, state.Revision);
+        Assert.Equal(expected, SdkJson.Serialize(plugin.Pending!.Configuration));
+        Assert.Null(plugin.Active); // A local repair write is still only next-start consent, not activation.
+        Assert.False(plugin.Enabled);
+        Assert.Equal(SdkJson.Serialize(f.State.Plugins[0].LastGood), SdkJson.Serialize(plugin.LastGood));
+        Assert.Equal(SdkJson.Serialize(f.State.Grants), SdkJson.Serialize(state.Grants));
+        Assert.Equal(SdkJson.Serialize(f.State.SelectedSourceOwners), SdkJson.Serialize(state.SelectedSourceOwners));
+        Assert.Equal(original, await File.ReadAllBytesAsync(store.PreReselectionBackupPath));
+        Assert.Equal(expected, SdkJson.Serialize((await Store().ReadAsync()).Plugins[0].Pending!.Configuration));
+    }
+
+    [Fact]
+    public async Task BundledChangeBoundary_NewLiveSourceRestrictionWhileQueuedInvalidatesConsentWithoutProfileWrite()
+    {
+        var f = await ChangeBoundaryFixtureAsync(filterRights: false, sourceRights: false);
+        using SemaphoreSlim gate = new(1, 1);
+        List<string> restrictions = [];
+        var store = new PluginProfileStore(profile, _ => true, () => restrictions.ToArray(), gate);
+        var preview = await store.PreviewBundledRepairsAsync();
+        Assert.Equal(f.Row, Assert.Single(preview.Rows));
+        var before = await ChangeBoundaryFilesAsync(store);
+        Task<PluginProfileSnapshot> confirm;
+        await gate.WaitAsync();
+        try
+        {
+            confirm = store.ConfirmBundledChangeAsync(f.Row, f.Configuration, true, true, f.State.Revision);
+            Assert.False(confirm.IsCompleted);
+            restrictions.Add("shared"); // Permission authority changes without changing the profile revision.
+        }
+        finally { gate.Release(); }
+        await Assert.ThrowsAsync<InvalidOperationException>(() => confirm.WaitAsync(TimeSpan.FromSeconds(10)));
+        await AssertChangeBoundaryFilesAsync(store, before);
+        var fresh = await store.PreviewBundledRepairsAsync();
+        var row = Assert.Single(fresh.Rows);
+        Assert.Equal(preview.ProfileRevision, fresh.ProfileRevision);
+        Assert.Equal(f.Row.NewExecutionRevision, row.NewExecutionRevision);
+        Assert.NotEqual(f.Row.ChangeFingerprint, row.ChangeFingerprint);
+        var review = SdkJson.Deserialize<BundledPluginChangeReview>(Encoding.UTF8.GetBytes(row.ChangeReviewJson!));
+        Assert.Equal(new[] { "shared" }, review.Permissions.SourceIds.ToArray());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.ConfirmBundledChangeAsync(
+            row, f.Configuration, true, false, fresh.ProfileRevision));
+        await AssertChangeBoundaryFilesAsync(store, before);
+        var saved = await store.ConfirmBundledChangeAsync(row, f.Configuration, true, true, fresh.ProfileRevision);
+        Assert.Null(saved.Plugins[0].Active);
+        Assert.False(saved.Plugins[0].Enabled);
+        Assert.Equal(SdkJson.Serialize(f.Configuration), SdkJson.Serialize(saved.Plugins[0].Pending!.Configuration));
+    }
+
     private sealed record ChangeBoundaryFixture(PluginProfileStore Store, PluginProfileSnapshot State,
         PluginCandidateObservation Old, PluginCandidateObservation Target, DeliveredCandidateProvenance Proof,
         BundledCandidateRepair Row, PluginConfiguration Configuration);

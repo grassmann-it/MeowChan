@@ -137,6 +137,50 @@ public sealed class BundledChangeApprovalTests
         Assert.Equal(expected, SdkJson.Serialize(receipt.Choice.ChangeConfiguration!));
     }
 
+    [Theory]
+    [InlineData("description")]
+    [InlineData("configuration")]
+    [InlineData("permissions")]
+    public async Task RehashedMaterialRefreshAtSameExecutionNeedsANewAcknowledgedChoice(string material)
+    {
+        RecordingStore store = new();
+        var oldChoice = Choice(store);
+        var review = SdkJson.Deserialize<BundledPluginChangeReview>(Encoding.UTF8.GetBytes(store.Row.ChangeReviewJson!));
+        review = material switch
+        {
+            "description" => review with { NewDescription = review.NewDescription with { Name = "Newly displayed name" } },
+            "configuration" => review with { PreviousConfiguration = review.PreviousConfiguration with { Revision = "new basis" } },
+            _ => review with { Permissions = new([], ["newly-restricted-source"]) }
+        };
+        string json = Encoding.UTF8.GetString(SdkJson.Serialize(review));
+        store.Row = store.Row with { ChangeReviewJson = json,
+            ChangeFingerprint = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(json))) };
+        Assert.Equal(oldChoice.Repair!.NewExecutionRevision, store.Row.NewExecutionRevision);
+        Assert.True(PluginsPage.TryReadBundledChangeReview(store.Row, out _)); // Not malformed/stale-hash rejection.
+
+        PluginMultiApproval session = new(store);
+        await session.SubmitAsync([oldChoice], () => true);
+        Assert.Empty(store.Writes);
+        Assert.Equal(PluginApprovalState.NeedsReview, Assert.Single(session.Receipts).State);
+        Assert.True(session.MayOffer(store.Row.PluginId));
+
+        var refreshed = Choice(store) with { ChangeConfiguration = oldChoice.ChangeConfiguration! with { Revision = "fresh correction" },
+            AcknowledgeChanges = false, AuthorizePermissions = true };
+        await session.SubmitAsync([refreshed], () => true);
+        Assert.Empty(store.Writes); // Refresh and separate rights consent cannot resurrect the old acknowledgement.
+        Assert.Equal(PluginApprovalState.NotExecuted, session.Receipts[1].State);
+        Assert.Equal("plugins.approval.needsReview", session.IssueKey);
+
+        await session.SubmitAsync([refreshed with { AcknowledgeChanges = true }], () => true);
+        var write = Assert.Single(store.Writes);
+        Assert.Equal(store.Row, write.Row);
+        Assert.Equal(SdkJson.Serialize(refreshed.ChangeConfiguration!), SdkJson.Serialize(write.Configuration));
+        Assert.Equal(new[] { PluginApprovalState.NeedsReview, PluginApprovalState.NotExecuted, PluginApprovalState.Saved },
+            session.Receipts.Select(receipt => receipt.State));
+        Assert.Equal(74L, session.Receipts[2].Revision);
+        Assert.Null(session.IssueKey);
+    }
+
     private static PluginApprovalChoice Choice(RecordingStore store) => new(PluginApprovalKind.ChangeReview, 73,
         Repair: store.Row, ChangeConfiguration: new("edited", new("1", [new("label", SettingKind.Text, Text: "corrected")]),
             new Dictionary<string, SettingsSnapshot>()), AcknowledgeChanges: true);

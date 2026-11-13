@@ -94,6 +94,77 @@ public sealed class PluginChangeReviewTests
             Assert.Equal(Placeholders(english), Placeholders(german));
     }
 
+    [Fact]
+    public void SourceAndPluginEditsProduceIndependentExactLocalSnapshots()
+    {
+        var review = ScopedSettingsReview();
+        Assert.Empty(SdkValidation.ValidateDescription(review.PreviousDescription));
+        Assert.Empty(SdkValidation.ValidateDescription(review.NewDescription));
+        byte[] original = SdkJson.Serialize(review);
+        BundledPluginChangeDraft draft = new(review);
+        draft.AcknowledgeRemovedValues();
+        const string exactText = "  corrected · λ\nsecond line  ";
+        draft.Plugin.Set("label", exactText);
+        draft.Sources["source"].Set("limit", "17");
+        var first = draft.Configuration(out var firstErrors);
+        Assert.Empty(firstErrors);
+        Assert.Empty(SdkValidation.ValidateConfiguration(review.NewDescription, first));
+        byte[] firstBytes = SdkJson.Serialize(first);
+        Assert.Equal(exactText, Assert.Single(first.PluginSettings.Values).Text);
+        Assert.Equal(17L, Assert.Single(first.SourceSettings["source"].Values).Integer);
+
+        draft.Sources["source"].Set("limit", "23");
+        var second = draft.Configuration(out var secondErrors);
+        Assert.Empty(secondErrors);
+        Assert.Equal(exactText, Assert.Single(second.PluginSettings.Values).Text);
+        Assert.Equal(23L, Assert.Single(second.SourceSettings["source"].Values).Integer);
+        Assert.NotEqual(first.Revision, second.Revision);
+        Assert.Equal(firstBytes, SdkJson.Serialize(first));
+        Assert.Equal(original, SdkJson.Serialize(review)); // Local repair never rewrites the displayed material basis.
+        // Serialization used for copyable technical data must retain the exact text and typed source value.
+        Assert.Equal(firstBytes, SdkJson.Serialize(SdkJson.Deserialize<PluginConfiguration>(firstBytes)));
+    }
+
+    [Fact]
+    public void RecreatedReviewDraftDoesNotInheritRemovedSourceSettingConsentOrUnsavedEdits()
+    {
+        var review = ScopedSettingsReview();
+        BundledPluginChangeDraft edited = new(review);
+        Assert.True(edited.NeedsRemovedValueAcknowledgement);
+        edited.AcknowledgeRemovedValues();
+        edited.Plugin.Set("label", "unsaved correction");
+        edited.Sources["source"].Set("limit", "29");
+        _ = edited.Configuration(out var editedErrors);
+        Assert.Empty(editedErrors);
+        Assert.False(edited.NeedsRemovedValueAcknowledgement);
+
+        // RenderRows recreates this local buffer on refresh; no acknowledgement belongs to the payload itself.
+        BundledPluginChangeDraft refreshed = new(SdkJson.Deserialize<BundledPluginChangeReview>(SdkJson.Serialize(review)));
+        Assert.True(refreshed.NeedsRemovedValueAcknowledgement);
+        Assert.False(refreshed.RemovedValuesAcknowledged);
+        Assert.Equal("original label", refreshed.Plugin.Text("label"));
+        Assert.Equal("7", refreshed.Sources["source"].Text("limit"));
+        Assert.Contains("removed", refreshed.Sources["source"].UnmappedValues.Keys);
+        _ = refreshed.Configuration(out var errors);
+        Assert.Contains(errors, error => error.Scope == "source" && error.Error.Code == "removed_setting");
+    }
+
+    private static BundledPluginChangeReview ScopedSettingsReview()
+    {
+        SourceDescription source = new("source", "Offline review source", new Uri("https://review.test/"),
+            SourceCapabilities.ThreadRead, [new(SourceResourceKind.Thread, "review.test", "/{board}/thread/{thread}", IsCanonical: true)],
+            [new("review.test", HttpHostPurpose.Metadata)],
+            new("1", [new("limit", SettingScope.Source, SettingKind.Integer, "Limit", IsRequired: true, Minimum: 1),
+                new("removed", SettingScope.Source, SettingKind.Text, "Removed")]));
+        var previous = Description(new SettingDefinition("label", SettingScope.Plugin, SettingKind.Text, "Label")) with
+            { Sources = [source], DeclarationStatus = PluginDeclarationStatus.Available };
+        var next = previous with { Sources = [source with { Settings = new("2", [source.Settings.Fields[0]]) }] };
+        PluginConfiguration configuration = new("old", new("1", [new("label", SettingKind.Text, Text: "original label")]),
+            new Dictionary<string, SettingsSnapshot> { ["source"] = new("1", [new("limit", SettingKind.Integer, Integer: 7),
+                new("removed", SettingKind.Text, Text: "must be reviewed")]) });
+        return new(previous, next, configuration, new([], []));
+    }
+
     private static PluginDescription Description(params SettingDefinition[] fields) => new PluginDescription(
         "fixture", "Fixture plugin", "1.0.0", SdkContract.Version, "Synthetic description",
         Array.Empty<SourceDescription>(), Array.Empty<FilterDescription>(), new SettingsSchema("1", fields),
