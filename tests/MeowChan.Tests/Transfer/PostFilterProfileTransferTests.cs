@@ -100,6 +100,27 @@ public sealed class PostFilterProfileTransferTests
     }
 
     [Fact]
+    public void UnsupportedTargetStoreFailsClosedAndKeepsItsDocument()
+    {
+        using TempDirectory sourceDirectory = new();
+        using TempDirectory targetDirectory = new();
+        byte[] exported;
+        using (ProfileLease sourceLease = ProfileLease.Acquire(sourceDirectory.Path))
+            exported = PostFilterProfileTransfer.Export(new PostFilterStore(sourceDirectory.Path, sourceLease)).Bytes!;
+
+        using ProfileLease targetLease = ProfileLease.Acquire(targetDirectory.Path);
+        string path = Path.Combine(targetDirectory.Path, PostFilterStore.FileName);
+        const string unsupported = "{\"schemaVersion\":99,\"revision\":7,\"hiddenPostsAction\":\"stub\",\"rules\":[],\"hiddenPosts\":[]}";
+        File.WriteAllText(path, unsupported);
+        PostFilterStore target = new(targetDirectory.Path, targetLease);
+        Assert.Equal(PostFilterStoreState.Unsupported, target.Load().State);
+
+        PostFilterTransferImport result = PostFilterProfileTransfer.Import(target, exported, 0);
+        Assert.Equal(PostFilterTransferError.UnsupportedVersion, result.Error);
+        Assert.Equal(unsupported, File.ReadAllText(path));
+    }
+
+    [Fact]
     public void UnknownTransferVersionFailsClosedAndLeavesTargetUntouched()
     {
         using TempDirectory directory = new();

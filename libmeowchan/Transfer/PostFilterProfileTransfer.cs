@@ -169,8 +169,9 @@ internal static class PostFilterProfileTransfer
             PostFilterSnapshot restored = target.RestoreSnapshot(snapshot.AsStoreSnapshot(), expectedRevision, cancellationToken);
             return new(restored, PostFilterTransferError.None);
         }
-        catch (PostFilterRevisionException) { return new(null, PostFilterTransferError.Conflict); }
+        catch (PostFilterRevisionException error) { return new(null, RevisionError(error.Current)); }
         catch (InvalidDataException) { return new(null, PostFilterTransferError.InvalidDocument); }
+        catch (ArgumentException) { return new(null, PostFilterTransferError.InvalidDocument); }
     }
 
     internal static PostFilterTransferImport ImportAdmitted(PostFilterStore target,
@@ -179,16 +180,17 @@ internal static class PostFilterProfileTransfer
     {
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(snapshot);
-        cancellationToken.ThrowIfCancellationRequested();
-        ValidateSnapshot(snapshot, cancellationToken);
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            ValidateSnapshot(snapshot, cancellationToken);
             PostFilterSnapshot restored = target.RestoreSnapshotAdmitted(snapshot.AsStoreSnapshot(), expectedRevision,
                 admission, cancellationToken);
             return new(restored, PostFilterTransferError.None);
         }
-        catch (PostFilterRevisionException) { return new(null, PostFilterTransferError.Conflict); }
+        catch (PostFilterRevisionException error) { return new(null, RevisionError(error.Current)); }
         catch (InvalidDataException) { return new(null, PostFilterTransferError.InvalidDocument); }
+        catch (ArgumentException) { return new(null, PostFilterTransferError.InvalidDocument); }
     }
 
     // The explicit backup API uses the same bounded image and restore path. Keeping it
@@ -210,6 +212,11 @@ internal static class PostFilterProfileTransfer
             return new(null, inspected.Error);
         return ImportAdmitted(target, inspected.Snapshot!, expectedRevision, admission, cancellationToken);
     }
+
+    private static PostFilterTransferError RevisionError(PostFilterSnapshot current) =>
+        current.State == PostFilterStoreState.Unsupported ? PostFilterTransferError.UnsupportedVersion
+        : !current.CanWrite ? PostFilterTransferError.StoreUnavailable
+        : PostFilterTransferError.Conflict;
 
     private static PostFilterTransferSnapshot FromStore(PostFilterSnapshot source, CancellationToken token)
     {
@@ -349,8 +356,16 @@ internal static class PostFilterProfileTransfer
             token.ThrowIfCancellationRequested();
             if (rule == null || rule.Id == Guid.Empty || !rule.CanApply || rule.RawDefinition != null || !ids.Add(rule.Id))
                 throw new InvalidDataException("The post filter transfer snapshot contains an invalid rule.");
-            PostFilterRuleDraft normalized = PostFilterRules.Normalize(new(rule.Field, rule.Match, rule.Pattern,
-                rule.Action, rule.Replies, rule.Source, rule.Board, rule.Enabled));
+            PostFilterRuleDraft normalized;
+            try
+            {
+                normalized = PostFilterRules.Normalize(new(rule.Field, rule.Match, rule.Pattern,
+                    rule.Action, rule.Replies, rule.Source, rule.Board, rule.Enabled));
+            }
+            catch (ArgumentException error)
+            {
+                throw new InvalidDataException("The post filter transfer snapshot contains an invalid rule.", error);
+            }
             if (normalized.Field != rule.Field || normalized.Match != rule.Match || normalized.Pattern != rule.Pattern
                 || normalized.Action != rule.Action || normalized.Source != rule.Source || normalized.Board != rule.Board
                 || !duplicateRules.Add(rule.DuplicateKey))
@@ -361,7 +376,11 @@ internal static class PostFilterProfileTransfer
         {
             token.ThrowIfCancellationRequested();
             if (entry == null) throw new InvalidDataException("The post filter transfer snapshot contains an invalid hidden post.");
-            PostFilterRules.ValidateHiddenPost(entry.Thread, entry.Post);
+            try { PostFilterRules.ValidateHiddenPost(entry.Thread, entry.Post); }
+            catch (ArgumentException error)
+            {
+                throw new InvalidDataException("The post filter transfer snapshot contains an invalid hidden post.", error);
+            }
             if (!hidden.Add(entry.Key)) throw new InvalidDataException("Duplicate hidden post.");
         }
     }

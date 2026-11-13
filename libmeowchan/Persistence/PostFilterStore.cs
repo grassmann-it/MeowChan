@@ -264,8 +264,16 @@ internal sealed class PostFilterStore
             if (rule == null || !rule.CanApply || rule.RawDefinition != null || rule.Id == Guid.Empty
                 || !ruleIds.Add(rule.Id))
                 throw new InvalidDataException("The post filter transfer snapshot contains an invalid rule.");
-            PostFilterRuleDraft normalized = PostFilterRules.Normalize(new(rule.Field, rule.Match, rule.Pattern,
-                rule.Action, rule.Replies, rule.Source, rule.Board, rule.Enabled));
+            PostFilterRuleDraft normalized;
+            try
+            {
+                normalized = PostFilterRules.Normalize(new(rule.Field, rule.Match, rule.Pattern,
+                    rule.Action, rule.Replies, rule.Source, rule.Board, rule.Enabled));
+            }
+            catch (ArgumentException error)
+            {
+                throw new InvalidDataException("The post filter transfer snapshot contains an invalid rule.", error);
+            }
             if (normalized.Field != rule.Field || normalized.Match != rule.Match || normalized.Pattern != rule.Pattern
                 || normalized.Action != rule.Action || normalized.Source != rule.Source || normalized.Board != rule.Board)
                 throw new InvalidDataException("The post filter transfer snapshot contains an unnormalized rule.");
@@ -277,7 +285,11 @@ internal sealed class PostFilterStore
         foreach (HiddenPost entry in snapshot.HiddenPosts)
         {
             if (entry == null) throw new InvalidDataException("The post filter transfer snapshot contains an invalid hidden post.");
-            PostFilterRules.ValidateHiddenPost(entry.Thread, entry.Post);
+            try { PostFilterRules.ValidateHiddenPost(entry.Thread, entry.Post); }
+            catch (ArgumentException error)
+            {
+                throw new InvalidDataException("The post filter transfer snapshot contains an invalid hidden post.", error);
+            }
             if (!hidden.Add(entry.Key))
                 throw new InvalidDataException("The post filter transfer snapshot contains duplicate hidden posts.");
         }
