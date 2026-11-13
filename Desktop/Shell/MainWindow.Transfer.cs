@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
@@ -16,12 +17,52 @@ public partial class MainWindow
     private DownloadRateHistory? _downloadRate;
     private long _speedTimestamp;
 
+    // A silent, hidden or minimized window must not wake the UI thread every second.
+    // The sampling window is 60 samples; once all of them are zero nothing visible changes.
+    private const int SpeedGraphSamples = 60;
+    private int _speedIdleTicks;
+
     private void StartSpeedSampling()
     {
         _downloadRate = new DownloadRateHistory(_session.ReceivedMediaBytes);
         _speedTimestamp = Stopwatch.GetTimestamp();
         _speedTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, OnSpeedSample);
+        PropertyChanged += OnSpeedWindowPropertyChanged;
         RefreshSpeedLabel();
+        UpdateSpeedSamplingState();
+    }
+
+    private void StopSpeedSampling()
+    {
+        PropertyChanged -= OnSpeedWindowPropertyChanged;
+        _speedTimer?.Stop();
+        if (_speedTimer != null) _speedTimer.Tick -= OnSpeedSample;
+        _speedTimer = null;
+        _downloadRate = null;
+    }
+
+    private bool SpeedSamplingWanted => !_isClosing && IsVisible && WindowState != WindowState.Minimized;
+
+    private void OnSpeedWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == IsVisibleProperty || e.Property == WindowStateProperty) UpdateSpeedSamplingState();
+    }
+
+    private void UpdateSpeedSamplingState()
+    {
+        if (_speedTimer == null || _downloadRate == null) return;
+        if (SpeedSamplingWanted)
+        {
+            if (_speedTimer.IsEnabled) return;
+            // Bytes received while hidden are not a rate: start a fresh window instead of one huge spike.
+            _downloadRate = new DownloadRateHistory(_session.ReceivedMediaBytes);
+            _speedTimestamp = Stopwatch.GetTimestamp();
+            _speedIdleTicks = 0;
+            TransferSpeedGraph.SetSamples(_downloadRate.Samples);
+            RefreshSpeedLabel();
+            _speedTimer.Start();
+        }
+        else _speedTimer.Stop();
     }
 
     private void OnSpeedSample(object? sender, EventArgs e)
@@ -30,6 +71,8 @@ public partial class MainWindow
         long now = Stopwatch.GetTimestamp();
         _downloadRate.Sample(_session.ReceivedMediaBytes, Stopwatch.GetElapsedTime(_speedTimestamp, now));
         _speedTimestamp = now;
+        _speedIdleTicks = _downloadRate.BytesPerSecond > 0 ? 0 : Math.Min(_speedIdleTicks + 1, SpeedGraphSamples + 1);
+        if (_speedIdleTicks > SpeedGraphSamples) return;
         TransferSpeedGraph.SetSamples(_downloadRate.Samples);
         RefreshSpeedLabel();
     }

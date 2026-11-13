@@ -65,10 +65,7 @@ public partial class MainWindow
         CloseLargeReader(restoreOrigin: false);
         if (!_workspaceInitialized) return;
         _workspaceInitialized = false;
-        _speedTimer?.Stop();
-        if (_speedTimer != null) _speedTimer.Tick -= OnSpeedSample;
-        _speedTimer = null;
-        _downloadRate = null;
+        StopSpeedSampling();
         DisposeWorkspacePages();
         _workspaceRefresh?.Dispose();
         UrlList.CollectionChanged -= OnWorkspaceCollectionChanged;
