@@ -6,6 +6,11 @@
   [draft release notes](docs/releases/v1.1.0.md), which mark what is still pending.
 - Add a Media page over every saved file with filters, duplicate grouping by SHA-256,
   multi-select tagging, gallery and original export, and a way back from the thread.
+  Tiles show favorite, rating, own tags and the video poster, and tags can be edited on
+  the tile.
+- Share one right-click menu across the Media page, Archive table, tiles, inline
+  attachments, gallery and video overlay (same order, labels and reasons; also via
+  Shift+F10 and the Menu key); the gallery menu now offers own tags.
 - Add private own tags for threads and exact media versions, with Reader and gallery
   editing, Archive tag filters, a Tag manager, cleanup protection and tag hand-over
   when a source changes an attachment key. Loose and legacy files that no captured post
@@ -18,12 +23,30 @@
   reachable from the Workspace menu and bundled with the plugin package. Downloaded
   Danbooru originals show in the Media page, gallery and favorites; own tags on them are
   not available.
+- Danbooru window: a search shows at most 5 pages of 20 results; every result and watcher
+  card offers **Open post in browser** and **Copy link**; a **Danbooru watcher**
+  notification reports originals that a check added to the download queue; the detail
+  dialog copies source tags and uses up to two of them as a search; pending originals
+  are picked up in the background at start.
+- Add the setting **Danbooru catalog limit (MiB)** under **Advanced: plugin process
+  limits** (default 32, 8 to 128) with a watcher-list warning from 75 %; lowering it
+  deletes nothing.
 - Add plugin SDK 1.1.0 (booru post search, blocked-declaration status), reviewed and
   moved to Shipped, with a one-time automatic transition for bundled plugins that only
-  change the declared SDK version. Pending: rename `SourcePostId` to `BooruPostId`.
+  change the declared SDK version. The booru post identity is `BooruPostId` (renamed before
+  the freeze; JSON shape unchanged).
 - Bundle five further experimental chan sources (disabled by default) and two documented
   technical blocks; stop passing the 2ch provider MD5 as an integrity expectation, so archived
   2ch originals are fetched once more on re-check.
+- Add **Inspect transfer package…** in the Archive header: packages are verified and staged
+  before any write, planned as a new thread or a merge, applied only on confirmation;
+  several threads apply one after another with a receipt; **Check again** re-reads a
+  package changed on disk.
+- Record byte-level merge conflicts and review them under **Manage conflicts** (keep,
+  discard, or use as the active version, each after confirmation); reclaim unreferenced
+  discarded alternatives after a confirmation.
+- Offer to discard an import or merge that stopped before its commit, in a two-step
+  question at startup.
 - Accept picked or typed Archive source/board/state filters immediately; show archive status
   as an overlay; open filters over the results; keep the Reader toolbar on one row.
 - Show the orange cat in the light theme and the grey cat in the dark theme; soften the light theme
@@ -31,14 +54,21 @@
 - Show both cats side by side in the header logo and the About window in either theme (window,
   tray and dialog icons keep following the theme), and credit the photographer of both cats (Simba, orange; Mila, grey),
   Alexander Huxel · Webentwicklung Huxel, in THIRD-PARTY-NOTICES, the README and About > Credits.
+- Keep Archive, Downloads and Settings usable while the session is still starting; writes
+  wait for Ready.
+- Write a rolling per-user log file outside the profile and show unexpected UI-thread
+  errors as a banner instead of crashing.
+- Restore every readable watch past an unreadable work journal row, restart failed
+  download loops on the next signal, and open Ctrl/Cmd+F find in the large Reader.
 - Return focus to the export button or **More** after closing export, scroll the settings
   validation error into view in small windows, and keep secondary windows at normal size
   after a title-bar restore on Linux/X11.
-- Upgrade: archive schema 5 to 12, media manifest 4 to 5, work journal pruning with one
-  backup, new `private-tags.json`, media index cache and `booru-catalog.json`.
-  `private-tags.json` becomes version 2 at the first tag on a loose file; a permanent
-  version 1 backup is pending. Back up the whole profile first; there is no supported
-  downgrade.
+- Upgrade: archive schema 5 to 12, media manifest 4 to 5 (6 for imported representations),
+  work journal pruning with one backup and a `user_version` stamp, new `private-tags.json`,
+  media index cache, `booru-catalog.json` and the catalog limit setting.
+  `private-tags.json` becomes version 2 at the first tag on a loose file; the exact version
+  1 file is kept permanently as `private-tags.v1.bak`. Back up the whole profile first;
+  there is no supported downgrade.
 
 ## 1.0.2 — 2026-10-31 — stability, media controls and startup recovery
 
