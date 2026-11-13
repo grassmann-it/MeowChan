@@ -53,7 +53,7 @@ public partial class RulesPage
         {
             _filterRenderedDraft = _draft; panel.Children.Clear(); _filterEditor = null;
             panel.IsEnabled = IsEditable && RuleEnabled;
-            panel.Children.Add(RuleFieldLabel(Texts.T("plugins.ruleFilter")));
+            { TextBlock cardTitle = RuleFieldLabel(Texts.T("plugins.ruleFilter")); cardTitle.Classes.Remove("workspace-field-label"); cardTitle.Classes.Add("section-title"); panel.Children.Add(cardTitle); }
             ComboBox mode = new() { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
                 ItemsSource = new[] { Texts.T("plugins.filterInherit"), Texts.T("plugins.filterDisabled"), Texts.T("plugins.filterPlugin") }, SelectedIndex = (int)_draft.ImageFilter.Mode };
             AutomationProperties.SetName(mode, Texts.T("plugins.ruleFilter"));

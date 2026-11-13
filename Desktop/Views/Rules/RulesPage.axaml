@@ -6,30 +6,42 @@
              xmlns:controls="clr-namespace:MeowChan.Desktop.Controls"
              x:Class="MeowChan.RulesPage" x:DataType="local:RulesPage"
              SizeChanged="OnRulesSizeChanged">
+    <UserControl.Resources>
+        <!-- The "Choose another scope" header starts on the content column's left edge (Semi insets it by 16 dip) and so do its fields. -->
+        <Thickness x:Key="ExpanderHeaderPadding">0,10</Thickness>
+        <Thickness x:Key="ExpanderContentPadding">0</Thickness>
+    </UserControl.Resources>
     <UserControl.Styles>
         <!-- R6: the extensions field has the 32 dip input height of the fields around it (Ursa's tags and close buttons default to a 44 dip field);
              its tags stay readable and centred, the close button keeps a 16 dip hit area inside the tag. -->
+        <!-- One 8 dip rhythm: a divider row has 8 dip above and below its content (the shared rule is 10). -->
+        <Style Selector="Border.settings-divider"><Setter Property="Padding" Value="0,8" /></Style>
         <Style Selector="ursa|TagInput /template/ Border#PART_RootBorder"><Setter Property="MinHeight" Value="32" /></Style>
         <Style Selector="ursa|TagInput /template/ :is(Control)#PART_ItemsControl"><Setter Property="VerticalAlignment" Value="Center" /></Style>
         <Style Selector="ursa|TagInput ursa|ClosableTag /template/ Button#PART_CloseButton"><Setter Property="MinHeight" Value="16" /><Setter Property="MinWidth" Value="16" /><Setter Property="Padding" Value="4,0" /></Style>
     </UserControl.Styles>
     <Grid RowDefinitions="Auto,*,Auto">
-        <StackPanel x:Name="RulesHeader" Margin="20,12,20,4" Spacing="5" MaxWidth="880" HorizontalAlignment="Center">
-            <TextBlock x:Name="RulesTitle" Text="{Binding Title}" Classes="page-title" />
-            <TextBlock x:Name="RulesSubtitle" Text="{Binding Subtitle}" Classes="muted" TextWrapping="Wrap" />
+        <!-- Header like Sources: title and one-line subtitle, then the scope picker with its Edit scope action as one row. -->
+        <StackPanel x:Name="RulesHeader" Margin="12,12,12,8" Spacing="8" MaxWidth="880" HorizontalAlignment="Center">
+            <StackPanel Spacing="5">
+                <TextBlock x:Name="RulesTitle" Text="{Binding Title}" Classes="page-title" />
+                <TextBlock x:Name="RulesSubtitle" Text="{Binding Subtitle}" Classes="muted" TextWrapping="Wrap" />
+            </StackPanel>
+            <StackPanel Spacing="4" IsEnabled="{Binding IsEditable}">
+                <TextBlock Text="{Binding SavedScopesLabel}" Classes="workspace-field-label" />
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <ComboBox x:Name="RulesScopeList" HorizontalAlignment="Stretch"
+                              ItemsSource="{Binding ScopeChoices}" SelectedItem="{Binding SelectedScopeChoice, Mode=TwoWay}">
+                        <ComboBox.ItemTemplate><DataTemplate x:DataType="local:RuleScopeChoice"><TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Button x:Name="OpenSavedRuleButton" Grid.Column="1" Click="OnOpenSavedScope" />
+                </Grid>
+                <TextBlock Text="{Binding ScopeCountLabel}" Classes="workspace-help" TextWrapping="Wrap" />
+            </StackPanel>
         </StackPanel>
-        <ScrollViewer x:Name="RulesScroll" Grid.Row="1" Margin="20,0,20,16" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer x:Name="RulesScroll" Grid.Row="1" Margin="12,0,12,12" HorizontalScrollBarVisibility="Disabled">
             <StackPanel x:Name="RulesContent" MaxWidth="880" HorizontalAlignment="Center" Spacing="12">
-                <Border Classes="workspace-section"><StackPanel Spacing="8" IsEnabled="{Binding IsEditable}">
-                    <TextBlock Text="{Binding SavedScopesLabel}" Classes="section-title" />
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                        <ComboBox x:Name="RulesScopeList" HorizontalAlignment="Stretch"
-                                  ItemsSource="{Binding ScopeChoices}" SelectedItem="{Binding SelectedScopeChoice, Mode=TwoWay}">
-                            <ComboBox.ItemTemplate><DataTemplate x:DataType="local:RuleScopeChoice"><TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
-                        </ComboBox>
-                        <Button x:Name="OpenSavedRuleButton" Grid.Column="1" Click="OnOpenSavedScope" />
-                    </Grid>
-                    <TextBlock Text="{Binding ScopeCountLabel}" Classes="workspace-help" TextWrapping="Wrap" />
+                <StackPanel IsEnabled="{Binding IsEditable}">
                     <Expander x:Name="NewRuleScopeExpander" Header="{Binding NewScopeLabel}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                         <StackPanel Spacing="8" Margin="0,8,0,0">
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
@@ -56,9 +68,8 @@
                             </Grid>
                         </StackPanel>
                     </Expander>
-                </StackPanel></Border>
-                <Border Classes="workspace-section"><StackPanel Spacing="12">
-                <StackPanel Spacing="0" IsEnabled="{Binding IsEditable}">
+                </StackPanel>
+                <Border Classes="workspace-section"><StackPanel Spacing="0" IsEnabled="{Binding IsEditable}">
                     <TextBlock Text="{Binding EditingLabel}" Classes="section-title" TextWrapping="Wrap" Margin="0,0,0,8" />
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,0,8">
                         <ursa:Breadcrumb x:Name="RuleScopeBreadcrumb" VerticalAlignment="Center"><ursa:Breadcrumb.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ursa:Breadcrumb.ItemsPanel></ursa:Breadcrumb>
@@ -72,8 +83,11 @@
                                 <TextBlock Text="{Binding TypesLabel}" Classes="workspace-field-label" VerticalAlignment="Top" Margin="0,6,0,0" TextWrapping="Wrap" />
                                 <StackPanel Grid.Column="1" Classes="workspace-field">
                                     <ComboBox x:Name="RuleTypesModeInput" ItemsSource="{Binding TypesModeChoices}" SelectedIndex="{Binding TypesMode, Mode=TwoWay}" HorizontalAlignment="Stretch" />
-                                    <TextBlock Text="{Binding EffectiveTypesLabel}" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding TypesOriginLabel}" Classes="workspace-help" TextWrapping="Wrap" />
+                                    <!-- The inherited or own value as a quiet chip, its origin as a muted line beside it. -->
+                                    <WrapPanel ItemSpacing="8" LineSpacing="4">
+                                        <Border Classes="chip chip-badge chip-neutral" VerticalAlignment="Center"><TextBlock Text="{Binding EffectiveTypesLabel}" Classes="chip-label" TextWrapping="Wrap" /></Border>
+                                        <TextBlock Text="{Binding TypesOriginLabel}" Classes="workspace-help" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                    </WrapPanel>
                                 </StackPanel>
                 <StackPanel Grid.Row="1" Grid.ColumnSpan="2" IsVisible="{Binding HasTypeSelection}" Classes="workspace-field" Margin="0,8,0,0">
                     <TextBlock Text="{Binding ExtensionsLabel}" Classes="workspace-field-label" />
@@ -88,8 +102,11 @@
                                 <TextBlock Text="{Binding SizeLabel}" Classes="workspace-field-label" VerticalAlignment="Top" Margin="0,6,0,0" TextWrapping="Wrap" />
                                 <StackPanel Grid.Column="1" Classes="workspace-field">
                                     <ComboBox x:Name="RuleSizeModeInput" ItemsSource="{Binding SizeModeChoices}" SelectedIndex="{Binding SizeMode, Mode=TwoWay}" HorizontalAlignment="Stretch" />
-                                    <TextBlock Text="{Binding EffectiveSizeLabel}" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding SizeOriginLabel}" Classes="workspace-help" TextWrapping="Wrap" />
+                                    <!-- The inherited or own value as a quiet chip, its origin as a muted line beside it. -->
+                                    <WrapPanel ItemSpacing="8" LineSpacing="4">
+                                        <Border Classes="chip chip-badge chip-neutral" VerticalAlignment="Center"><TextBlock Text="{Binding EffectiveSizeLabel}" Classes="chip-label" TextWrapping="Wrap" /></Border>
+                                        <TextBlock Text="{Binding SizeOriginLabel}" Classes="workspace-help" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                    </WrapPanel>
                                 </StackPanel>
                 <StackPanel Grid.Row="1" Grid.ColumnSpan="2" IsVisible="{Binding HasSizeLimit}" Classes="workspace-field" Margin="0,8,0,0">
                     <TextBlock Text="{Binding MegabytesLabel}" Classes="workspace-field-label" />
@@ -100,10 +117,9 @@
                             </Grid>
                         </Border>
                     </StackPanel>
-                </StackPanel>
-                <StackPanel x:Name="RulePluginPanel" Spacing="8" />
-                <StackPanel x:Name="RuleTemplatesPanel" Spacing="8" />
                 </StackPanel></Border>
+                <Border Classes="workspace-section"><StackPanel x:Name="RulePluginPanel" Spacing="8" /></Border>
+                <Border Classes="workspace-section"><StackPanel x:Name="RuleTemplatesPanel" Spacing="8" /></Border>
                 <Border Classes="workspace-section"><StackPanel Spacing="8">
                     <TextBlock Text="{Binding PreviewTitle}" Classes="section-title" />
                     <controls:WorkspaceBanner Type="Error" IsVisible="{Binding HasValidationBanner}">
