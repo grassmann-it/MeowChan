@@ -395,6 +395,30 @@
                             </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding ThumbnailCacheTilesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="GalleryImageCacheMiBFieldLabel" Text="{Binding GalleryImageCacheMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="GalleryImageCacheMiBInput" Value="{Binding GalleryImageCacheMiB, Mode=TwoWay}" Minimum="0" Maximum="4096" Increment="64" AutomationProperties.LabeledBy="{Binding ElementName=GalleryImageCacheMiBFieldLabel}" AutomationProperties.Name="{Binding GalleryImageCacheMiBLabel}" AutomationProperties.HelpText="{Binding GalleryImageCacheMiBHelp}" />
+                                <TextBlock x:Name="GalleryImageCacheMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding GalleryImageCacheMiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="GalleryPreloadAheadFieldLabel" Text="{Binding GalleryPreloadAheadLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="GalleryPreloadAheadInput" Value="{Binding GalleryPreloadAhead, Mode=TwoWay}" Minimum="0" Maximum="20" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=GalleryPreloadAheadFieldLabel}" AutomationProperties.Name="{Binding GalleryPreloadAheadLabel}" AutomationProperties.HelpText="{Binding GalleryPreloadAheadHelp}" />
+                                <TextBlock x:Name="GalleryPreloadAheadInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding GalleryPreloadAheadHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="GalleryPreloadBehindFieldLabel" Text="{Binding GalleryPreloadBehindLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="GalleryPreloadBehindInput" Value="{Binding GalleryPreloadBehind, Mode=TwoWay}" Minimum="0" Maximum="20" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=GalleryPreloadBehindFieldLabel}" AutomationProperties.Name="{Binding GalleryPreloadBehindLabel}" AutomationProperties.HelpText="{Binding GalleryPreloadBehindHelp}" />
+                                <TextBlock x:Name="GalleryPreloadBehindInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding GalleryPreloadBehindHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
                     <TextBlock x:Name="LimitsImportHeading" Text="{Binding ImportGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,14,0,0" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ImportMaxFilesPerBatchFieldLabel" Text="{Binding ImportMaxFilesPerBatchLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />

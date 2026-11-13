@@ -272,6 +272,21 @@ namespace MeowChan
             set => _statsHeaderGraph = Desktop.Stats.IoStatsDisplay.NormalizeHeaderGraph(value);
         }
         private string _statsHeaderGraph = Desktop.Stats.IoStatsDisplay.HeaderGraphAuto;
+        /// <summary>Memory in MiB for the decoded images of the gallery (decoded at display size), so stepping back and forth shows them at once; 0 keeps nothing.</summary>
+        public int GalleryImageCacheMiB { get; set; } = GalleryImageCacheMiBDefault;
+        internal const int GalleryImageCacheMiBDefault = (int)(Desktop.GalleryImageCache.DefaultBudgetBytes / (1024 * 1024));
+        internal const int GalleryImageCacheMiBMinimum = 0;
+        internal const int GalleryImageCacheMiBMaximum = 4096;
+        /// <summary>How many images after the shown one the gallery decodes in the background; 0 turns it off.</summary>
+        public int GalleryPreloadAhead { get; set; } = GalleryPreloadAheadDefault;
+        internal const int GalleryPreloadAheadDefault = Desktop.GalleryImageCache.DefaultPreloadAhead;
+        internal const int GalleryPreloadAheadMinimum = 0;
+        internal const int GalleryPreloadAheadMaximum = 20;
+        /// <summary>How many images before the shown one the gallery decodes in the background; 0 turns it off.</summary>
+        public int GalleryPreloadBehind { get; set; } = GalleryPreloadBehindDefault;
+        internal const int GalleryPreloadBehindDefault = Desktop.GalleryImageCache.DefaultPreloadBehind;
+        internal const int GalleryPreloadBehindMinimum = 0;
+        internal const int GalleryPreloadBehindMaximum = 20;
 
         // Manual import limits (contract manual-import-v1 §4). Every limit is a setting; the stores enforce technical ceilings.
         /// <summary>Most files (new and already present) one import batch may hold.</summary>
@@ -774,6 +789,12 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(StatsPersistIntervalMinutes), "StatsPersistIntervalMinutes is outside its supported range (" + StatsPersistIntervalMinutesMinimum + " to " + StatsPersistIntervalMinutesMaximum + ").");
             if (StatsMaxSources is < StatsMaxSourcesMinimum or > StatsMaxSourcesMaximum)
                 throw new ArgumentOutOfRangeException(nameof(StatsMaxSources), "StatsMaxSources is outside its supported range (" + StatsMaxSourcesMinimum + " to " + StatsMaxSourcesMaximum + ").");
+            if (GalleryImageCacheMiB is < GalleryImageCacheMiBMinimum or > GalleryImageCacheMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(GalleryImageCacheMiB), "GalleryImageCacheMiB is outside its supported range (" + GalleryImageCacheMiBMinimum + " to " + GalleryImageCacheMiBMaximum + ").");
+            if (GalleryPreloadAhead is < GalleryPreloadAheadMinimum or > GalleryPreloadAheadMaximum)
+                throw new ArgumentOutOfRangeException(nameof(GalleryPreloadAhead), "GalleryPreloadAhead is outside its supported range (" + GalleryPreloadAheadMinimum + " to " + GalleryPreloadAheadMaximum + ").");
+            if (GalleryPreloadBehind is < GalleryPreloadBehindMinimum or > GalleryPreloadBehindMaximum)
+                throw new ArgumentOutOfRangeException(nameof(GalleryPreloadBehind), "GalleryPreloadBehind is outside its supported range (" + GalleryPreloadBehindMinimum + " to " + GalleryPreloadBehindMaximum + ").");
             if (ImportMaxFilesPerBatch is < ImportMaxFilesPerBatchMinimum or > ImportMaxFilesPerBatchMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ImportMaxFilesPerBatch), "ImportMaxFilesPerBatch is outside its supported range (" + ImportMaxFilesPerBatchMinimum + " to " + ImportMaxFilesPerBatchMaximum + ").");
             if (ImportMaxBatchGiB is < ImportMaxBatchGiBMinimum or > ImportMaxBatchGiBMaximum)
@@ -878,6 +899,9 @@ namespace MeowChan
                 StatsPersistIntervalMinutes = StatsPersistIntervalMinutes,
                 StatsMaxSources = StatsMaxSources,
                 StatsHeaderGraph = StatsHeaderGraph,
+                GalleryImageCacheMiB = GalleryImageCacheMiB,
+                GalleryPreloadAhead = GalleryPreloadAhead,
+                GalleryPreloadBehind = GalleryPreloadBehind,
                 ImportMaxFilesPerBatch = ImportMaxFilesPerBatch,
                 ImportMaxBatchGiB = ImportMaxBatchGiB,
                 ImportMaxFileMiB = ImportMaxFileMiB,
@@ -1011,6 +1035,9 @@ namespace MeowChan
             StatsPersistIntervalMinutes = source.StatsPersistIntervalMinutes;
             StatsMaxSources = source.StatsMaxSources;
             StatsHeaderGraph = source.StatsHeaderGraph;
+            GalleryImageCacheMiB = source.GalleryImageCacheMiB;
+            GalleryPreloadAhead = source.GalleryPreloadAhead;
+            GalleryPreloadBehind = source.GalleryPreloadBehind;
             ImportMaxFilesPerBatch = source.ImportMaxFilesPerBatch;
             ImportMaxBatchGiB = source.ImportMaxBatchGiB;
             ImportMaxFileMiB = source.ImportMaxFileMiB;
@@ -1108,6 +1135,9 @@ namespace MeowChan
             StatsPersistIntervalMinutes = source.StatsPersistIntervalMinutes;
             StatsMaxSources = source.StatsMaxSources;
             StatsHeaderGraph = source.StatsHeaderGraph;
+            GalleryImageCacheMiB = source.GalleryImageCacheMiB;
+            GalleryPreloadAhead = source.GalleryPreloadAhead;
+            GalleryPreloadBehind = source.GalleryPreloadBehind;
             ImportMaxFilesPerBatch = source.ImportMaxFilesPerBatch;
             ImportMaxBatchGiB = source.ImportMaxBatchGiB;
             ImportMaxFileMiB = source.ImportMaxFileMiB;

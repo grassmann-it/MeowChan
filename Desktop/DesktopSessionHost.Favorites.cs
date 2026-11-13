@@ -70,6 +70,7 @@ internal sealed partial class DesktopSessionHost
         limits.ReaderGroups = Config.ReaderGroupLimit;
         VideoPosterCache.Configure((long)Config.PosterCacheLimitMiB * 1024 * 1024, Config.PosterCacheFileLimit);
         MediaTileThumbnails.Configure(Config.ThumbnailCacheTiles);
+        GalleryImageCache.Configure(Config.GalleryImageCacheMiB, Config.GalleryPreloadAhead, Config.GalleryPreloadBehind);
     }
 
     /// <summary>The write limits the profile's private lists currently enforce (tests, diagnostics).</summary>
