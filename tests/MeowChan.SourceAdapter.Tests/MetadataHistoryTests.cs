@@ -48,6 +48,29 @@ public sealed class MetadataHistoryTests
         Assert.Equal(1, harness.Sends);
     }
 
+    [Fact]
+    public async Task BindingAnOperationAgainReplacesTheEarlierHistoryAndIsSafeUnderConcurrency()
+    {
+        using IDisposable first = NewHistory();
+        using IDisposable second = NewHistory();
+        var context = new PluginOperationContext("rebind", 7);
+        Bind(first, context);
+        Bind(second, context);
+        using (Resume(context)) Assert.Same(second, Current);
+
+        // Racing binds of one operation never throw (a plain Add throws when the key exists).
+        IDisposable[] histories = Enumerable.Range(0, 8).Select(_ => NewHistory()).ToArray();
+        try
+        {
+            await Task.WhenAll(histories.Select(history => Task.Run(() =>
+            {
+                for (int round = 0; round < 500; round++) Bind(history, context);
+            })));
+            using (Resume(context)) Assert.Contains(histories, candidate => ReferenceEquals(candidate, Current));
+        }
+        finally { foreach (IDisposable history in histories) history.Dispose(); }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

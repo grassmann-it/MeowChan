@@ -203,7 +203,15 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
         private static readonly AsyncLocal<MetadataHistory?> Slot = new();
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Contracts.PluginOperationContext, MetadataHistory> Operations = new();
         private static readonly object OperationsLock = new();
-        internal void Bind(Contracts.PluginOperationContext operation) => Operations.Add(operation, this);
+        /// <summary>
+        /// Binds this history to <paramref name="operation"/>, replacing an earlier binding of the same operation.
+        /// Like every other access to the table it runs under <see cref="OperationsLock"/>, so it cannot race a
+        /// concurrent <c>Remove</c> (a plain <c>Add</c> throws when the key exists).
+        /// </summary>
+        internal void Bind(Contracts.PluginOperationContext operation)
+        {
+            lock (OperationsLock) Operations.AddOrUpdate(operation, this);
+        }
 
         /// <summary>
         /// Binds a non-ambient history to a typed operation for exactly the caller's scope,
