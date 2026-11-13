@@ -103,6 +103,14 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
                     message.Options.Set(RequestPolicyHandler.ObserverKey, history.ReportProgress);
                 if (request.Headers != null)
                     foreach ((string key, string value) in request.Headers) message.Headers.TryAddWithoutValidation(key, value);
+                // The shared transport does not decompress, so advertise exactly what ReadDecodedBodyAsync decodes
+                // (bounded); without this header servers send chan catalogs and thread JSON uncompressed.
+                if (message.Headers.AcceptEncoding.Count == 0)
+                {
+                    message.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("gzip"));
+                    message.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("deflate"));
+                    message.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("br"));
+                }
                 if (request.Validators?.EntityTag is string entityTag) message.Headers.TryAddWithoutValidation("If-None-Match", entityTag);
                 if (request.Validators?.LastModified is DateTimeOffset modified) message.Headers.IfModifiedSince = modified;
                 using HttpResponseMessage response = await client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
@@ -434,8 +442,9 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
         UseDefaultCredentials = false,
         Credentials = null,
         // Keep wire bytes observable for the Booru path. PluginHostHttp performs
-        // explicit bounded decoding for ordinary metadata; OriginalMedia requests
-        // advertise identity and therefore keep their payload bytes unchanged.
+        // explicit bounded decoding for ordinary metadata and advertises
+        // Accept-Encoding itself; OriginalMedia requests advertise identity and
+        // therefore keep their payload bytes unchanged.
         AutomaticDecompression = DecompressionMethods.None
     }) { Timeout = Timeout.InfiniteTimeSpan };
 }
