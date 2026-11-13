@@ -83,6 +83,8 @@ public static class CommandBindings
         item.InputGesture = Gesture(definition);
         var tip = Tooltip(id, unavailableReason?.Invoke(), visibleLabel);
         ToolTip.SetTip(item, tip);
+        // A disabled entry explains itself: the reason is part of its tip and help text, so it must show while disabled.
+        ToolTip.SetShowOnDisabled(item, true);
         AutomationProperties.SetName(item, visibleLabel);
         AutomationProperties.SetHelpText(item, tip);
     }

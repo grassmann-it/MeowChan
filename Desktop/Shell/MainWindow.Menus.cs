@@ -71,21 +71,7 @@ public partial class MainWindow
                 () => count is { } number && number != 1 ? CommandCatalog.Label(id) + " (" + number + ")" : CommandCatalog.Label(id));
             item.Tag = id;
             menu.Items.Add(item);
-            if (!ready || !available)
-            {
-                // Disabled menu entries are skipped by native keyboard navigation.
-                // This enabled explanatory item exposes the reason without hovering.
-                string reason = CommandCatalog.Label(id) + ": " + Unavailable(id);
-                var explanation = new MenuItem
-                {
-                    Header = reason,
-                    Icon = CommandBindings.Icon("thread.details"),
-                    Command = new DelegateCommand(() => ShowNotification(Texts.T("notification.session"), reason,
-                        Avalonia.Controls.Notifications.NotificationType.Information, operation: "command.unavailable"))
-                };
-                Avalonia.Automation.AutomationProperties.SetName(explanation, reason);
-                menu.Items.Add(explanation);
-            }
+            // The reason is the disabled entry's own tooltip and help text (CommandBindings.Apply), not a second menu row.
             return item;
         }
         if (!frozen.Boards)

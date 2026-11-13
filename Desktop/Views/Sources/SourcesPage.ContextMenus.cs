@@ -44,7 +44,6 @@ public partial class SourcesPage
                 var item = CommandBindings.CreateMenuItem(id, action, () => Ready() && available,
                     () => Ready() && available ? null : reason);
                 menu.Items.Add(item);
-                if (!Ready() || !available) AddReason(menu, CommandCatalog.Label(id), reason);
             }
             Add("sources.select", () =>
             {
@@ -92,17 +91,7 @@ public partial class SourcesPage
             if (_ended || _openWatch?.Invoke(frozen.Target) != false) return;
             this.FindControl<TextBlock>("SourcesActionError")!.Text = Texts.T("diagnostics.removed");
         }, Ready, () => Ready() ? null : reason));
-        if (!Ready()) AddReason(menu, CommandCatalog.Label("watch.show-in-downloads"), reason);
     }
 
     private static string UnavailableReason() => Texts.T("menu.unavailable.target");
-
-    private static void AddReason(ContextMenu menu, string label, string reason)
-    {
-        string explanation = label + ": " + reason;
-        var info = new MenuItem { Header = explanation };
-        AutomationProperties.SetName(info, explanation);
-        AutomationProperties.SetHelpText(info, explanation);
-        menu.Items.Add(info);
-    }
 }

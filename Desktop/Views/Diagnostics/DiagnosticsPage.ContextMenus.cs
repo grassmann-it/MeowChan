@@ -79,14 +79,6 @@ public partial class DiagnosticsPage
             var item = CommandBindings.CreateMenuItem(id, execute, () => !_ended && _available && available,
                 () => !_ended && _available && available ? null : unavailable);
             menu.Items.Add(item);
-            if (!_available || !available)
-            {
-                string explanation = CommandCatalog.Label(id) + ": " + unavailable;
-                var info = new MenuItem { Header = explanation };
-                AutomationProperties.SetName(info, explanation);
-                AutomationProperties.SetHelpText(info, explanation);
-                menu.Items.Add(info);
-            }
         }
         DiagnosticRetryTarget[] selection = DiagnosticRetryScope.Capture(SelectedDiagnostics());
         DiagnosticRetryTarget[] filtered = DiagnosticRetryScope.Capture(_visibleDiagnostics);
