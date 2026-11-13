@@ -43,17 +43,73 @@ public sealed class DroppedLinksTests
     [Fact]
     public void FilesAndFoldersAreRefusedEvenWhenTheirPathsComeAsText()
     {
-        string folder = Path.Combine(Path.GetTempPath(), "dropped folder");
-        string file = Path.Combine(folder, "image.png");
-        var transfer = Transfer(DataTransferItem.CreateFile(new FixtureFolder(new Uri(folder))),
-            DataTransferItem.CreateFile(new FixtureFolder(new Uri(file))), DataTransferItem.CreateText(file));
+        string folder = Path.Combine(Path.GetTempPath(), "dropped folder " + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            string file = Path.Combine(folder, "image.png");
+            File.WriteAllText(file, "x");
+            var transfer = Transfer(DataTransferItem.CreateFile(new FixtureFolder(new Uri(folder))),
+                DataTransferItem.CreateFile(new FixtureFolder(new Uri(file))), DataTransferItem.CreateText(file));
 
-        DroppedContent content = DroppedLinks.Read(transfer);
+            DroppedContent content = DroppedLinks.Read(transfer);
 
+            Assert.Equal(DroppedContentKind.Files, content.Kind);
+            Assert.Equal(2, content.FileCount);
+            Assert.Null(content.Text);
+            // A file: URI and an existing absolute path are files when they arrive as text.
+            Assert.Equal(DroppedContentKind.Files, DroppedLinks.Classify(new Uri(file).AbsoluteUri + "\n" + file, []).Kind);
+        }
+        finally { Directory.Delete(folder, recursive: true); }
+    }
+
+    [Theory]
+    [InlineData("/g/")]
+    [InlineData("/rpt/")]
+    [InlineData("/g/, /rpt/")]
+    [InlineData("/definitely/not/here/a.png")]
+    public void BoardShortTextAndUnknownPathsAreLinksNotFiles(string text)
+    {
+        // .NET on Unix would read these as implicit file:// URIs; they must reach the normal Add path.
+        DroppedContent content = DroppedLinks.Classify(text, []);
+        Assert.Equal(DroppedContentKind.Links, content.Kind);
+        Assert.Equal(text, content.Text);
+    }
+
+    [Fact]
+    public void UnixUriParsingReallyTreatsBoardShortTextAsAFileUri()
+    {
+        // Documents the .NET behaviour the classification above must not rely on.
+        if (OperatingSystem.IsWindows()) return;
+        Assert.True(Uri.TryCreate("/g/", UriKind.Absolute, out Uri? uri) && uri.IsFile);
+    }
+
+    [Fact]
+    public void AnExistingAbsolutePathAsTextIsAFileButAMissingOneIsNot()
+    {
+        string file = Path.Combine(Path.GetTempPath(), "dropped-" + Guid.NewGuid().ToString("N") + ".png");
+        Assert.Equal(DroppedContentKind.Links, DroppedLinks.Classify(file, []).Kind);
+        File.WriteAllText(file, "x");
+        try
+        {
+            DroppedContent content = DroppedLinks.Classify(file, []);
+            Assert.Equal(DroppedContentKind.Files, content.Kind);
+            Assert.Equal(1, content.FileCount);
+        }
+        finally { File.Delete(file); }
+    }
+
+    [Theory]
+    [InlineData("file:///home/x/a.png", 1)]
+    [InlineData("FILE:///home/x/a.png\nfile:///home/x/b.png", 2)]
+    [InlineData(@"C:\Users\x\a.png", 1)]
+    [InlineData("C:/Users/x/a.png", 1)]
+    [InlineData(@"\\server\share\a.png", 1)]
+    public void FileUrisAndWindowsPathsAreFilesOnEveryPlatform(string text, int count)
+    {
+        DroppedContent content = DroppedLinks.Classify(text, []);
         Assert.Equal(DroppedContentKind.Files, content.Kind);
-        Assert.Equal(2, content.FileCount);
-        Assert.Null(content.Text);
-        Assert.Equal(DroppedContentKind.Files, DroppedLinks.Classify(new Uri(file).AbsoluteUri + "\n" + file, []).Kind);
+        Assert.Equal(count, content.FileCount);
     }
 
     [Fact]

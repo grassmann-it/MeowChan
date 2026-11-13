@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using Avalonia.Input;
@@ -66,8 +67,20 @@ internal static class DroppedLinks
         // X11 reports only the source's suggested action; answering Copy to a Move suggestion is allowed.
         : DragDropEffects.Copy;
 
-    private static bool IsLocalPath(string entry) =>
-        Uri.TryCreate(entry, UriKind.Absolute, out Uri? uri) && uri.IsFile;
+    // .NET on Unix reads any string that starts with '/' ("/g/", "/rpt/") as an implicit file:// URI, so Uri alone cannot
+    // tell a dragged board name from a path. Text counts as a local path only when it says so (a file: URI, a Windows
+    // drive or UNC path) or names something that exists here.
+    private static bool IsLocalPath(string entry)
+    {
+        if (entry.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+            return Uri.TryCreate(entry, UriKind.Absolute, out Uri? uri) && uri.IsFile;
+        if (IsWindowsPath(entry)) return true;
+        return Path.IsPathRooted(entry) && (File.Exists(entry) || Directory.Exists(entry));
+    }
+
+    private static bool IsWindowsPath(string entry) =>
+        entry.Length >= 3 && char.IsAsciiLetter(entry[0]) && entry[1] == ':' && (entry[2] == '\\' || entry[2] == '/')
+        || entry.StartsWith(@"\\", StringComparison.Ordinal);
 
     private static string? ReadUrlFormat(IDataTransfer transfer)
     {
