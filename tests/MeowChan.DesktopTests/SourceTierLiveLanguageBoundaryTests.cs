@@ -22,9 +22,9 @@ public sealed class SourceTierLiveLanguageBoundaryTests : IDisposable
     [Theory]
     [InlineData("es", "Adaptador de fuente 4chan:", "Terceros · Estable", "MeowChan · experimental",
         "Fuente Same (stable): mantenimiento Terceros · madurez Estable", "Ninguna etiqueta implica aprobación del operador")]
-    [InlineData("fr", "Adaptateur de source 4chan :", "Tiers · Stable", "MeowChan · experimental",
+    [InlineData("fr", "Adaptateur de source 4chan :", "Tiers · Stable", "MeowChan · expérimental",
         "Source Same (stable) : responsable Tiers · maturité Stable", "Aucune de ces étiquettes ne vaut approbation de l’exploitant")]
-    [InlineData("ru", "Адаптер источника 4chan:", "Сторонний · Стабильный", "MeowChan · experimental",
+    [InlineData("ru", "Адаптер источника 4chan:", "Сторонний · Стабильный", "MeowChan · экспериментальный",
         "Источник Same (stable): сопровождающий Сторонний · зрелость Стабильный", "Ни одна метка не означает одобрение оператором")]
     public void MaterializedCatalogPresentationReformatsWithoutChangingEvidenceOrProviderMetadata(
         string language, string prefix, string stable, string experimental, string detailedStable, string disclaimer)
