@@ -130,8 +130,9 @@ internal static class UnifiedSearchChecks
         archiveTextBox.Focus();
         Press(archiveTextBox, Avalonia.Input.Key.Down, KeyModifiers.Alt); // the field opens its chip menu
         await SettleAsync(window);
-        Require(archiveChip.OpenMenu is { IsOpen: true } menu && menu.Items.OfType<MenuItem>().Select(item => item.Tag).SequenceEqual(
-            new object[] { SearchScope.Text, SearchScope.FileName, SearchScope.Sha256 }), "Scope menu does not list Text, File name, SHA-256.");
+        Require(archiveChip.OpenMenu is { IsOpen: true } menu && menu.Items.OfType<MenuItem>().Where(item => item.Tag is SearchScope).Select(item => item.Tag).SequenceEqual(
+            new object[] { SearchScope.Text, SearchScope.FileName, SearchScope.Sha256 })
+            && menu.Items.OfType<MenuItem>().Any(item => item.Name == "ArchiveSearchInThread"), "Scope menu does not list Text, File name, SHA-256 and the carry-over.");
         Program.CaptureWindow(window, $"smoke-unified-search-scope-menu-{theme}.png");
         MenuItem fileName = archiveChip.OpenMenu!.Items.OfType<MenuItem>().Single(item => Equals(item.Tag, SearchScope.FileName));
         fileName.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));

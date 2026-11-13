@@ -67,16 +67,17 @@ internal static class FilenameSearchHostLifetimeChecks
         f.BookmarksEntry.Command!.Execute(null); // Command-only button: RaiseEvent alone cannot dispatch ICommand.
         Require(f.ReaderGroups == 1 && f.PostBookmarkManagers == 1,
             "Actual reader-group/bookmark entries did not reach their instance callbacks before reservation.");
-        Click(f.C<Button>("ReaderFindOpen"));
+        // AP2: the product entry is the reader find bar in the File name scope; its Search button is the origin.
+        UnifiedSearchEntry.ReaderScope(f.Page, SearchScope.FileName);
         await f.Page.ThreadFindTask.WaitAsync(Deadline);
-        Require(f.C<StackPanel>("ReaderFindBar").IsVisible, "Find baseline never opened.");
+        Require(f.C<StackPanel>("ReaderFindBar").IsVisible && f.Origin.IsEffectivelyVisible, "Find baseline never opened.");
 
         // Click handler enters the real host synchronously. No UI turn or await precedes this oracle.
         Click(f.Origin);
         Task run = f.Page.FilenameSearchTask;
         Require(f.Shows == 1 && f.ReservedAtShow && f.Page.IsFilenameSearchOpen
             && f.Page.IsReaderDialogOpen && !run.IsCompleted
-            && !f.C<StackPanel>("ReaderFindBar").IsVisible,
+            && f.C<SearchScopeChip>("ReaderFindScope").Scope == SearchScope.FileName,
             "Filename host did not own/refresh the reservation before its first Show await.");
         FilenameSearchDialog dialog = await f.Shown.Task.WaitAsync(Deadline);
         await CheckCompetitorsAsync("visible-show");
@@ -191,7 +192,7 @@ internal static class FilenameSearchHostLifetimeChecks
                 && Volatile.Read(ref f.Readers) == reads && f.UrlReads == 0 && f.UrlShows == 0
                 && f.PreviewRoots == 0 && f.PreviewShows == 0 && f.ExternalActions == 0
                 && !f.Page.IsArchiveCleanupOpen && !f.C<Border>("ArchiveExportDialog").IsVisible
-                && !f.C<StackPanel>("ReaderFindBar").IsVisible
+                && f.C<SearchScopeChip>("ReaderFindScope").Scope == SearchScope.FileName // forced find entry refused
                 && !f.Window.OwnedWindows.OfType<SavedArchiveSearchesDialog>().Any()
                 && f.Window.OwnedWindows.All(window => ReferenceEquals(window, dialog))
                 && f.ReaderGroups == groups && f.PostBookmarkManagers == bookmarks
@@ -521,8 +522,8 @@ internal static class FilenameSearchHostLifetimeChecks
         internal TaskCompletionSource<bool> ShowReturned { get; private set; } = Signal<bool>();
         internal Task<ArchiveFilenameHit?>? NativeShow { get; private set; }
         internal Task? ShowFailure;
-        // AP2: the archive field in the File name scope is the product entry; its Search button is the origin.
-        internal Button Origin => C<Button>("SearchArchiveButton");
+        // AP2: the reader find bar in the File name scope is the product entry; its Search button is the origin.
+        internal Button Origin => C<Button>("ReaderFindSearch");
         internal SplitButton SavedSearches => C<SplitButton>("ArchiveSavedSearches");
         internal MenuItem SaveSearch => Page.SaveCurrentSearchMenuItem;
         internal void DispatchSavedSearch(bool saveCurrent)
@@ -549,7 +550,6 @@ internal static class FilenameSearchHostLifetimeChecks
             Page.ReadArchiveMediaInventoryAsync = (_, _) => Task.FromResult(new ArchiveThreadMediaCount(null));
             Page.AttachArchiveCleanup(owner.SessionHost);
             Page.AttachSavedSearches(owner.SessionHost);
-            C<SearchScopeChip>("ArchiveSearchScope").Scope = SearchScope.FileName;
             Page.OpenReaderGroupsRequested = _ => { ReaderGroups++; return Task.CompletedTask; };
             Page.OpenPostBookmarks = () => PostBookmarkManagers++;
             Page.OpenGallery = (_, _, _) => { ExternalActions++; return Task.CompletedTask; };
@@ -598,6 +598,8 @@ internal static class FilenameSearchHostLifetimeChecks
                 await f.Page.MediaLoadTask.WaitAsync(Deadline);
                 await counts.Task.WaitAsync(Deadline);
                 await TurnAsync();
+                UnifiedSearchEntry.ReaderScope(f.Page, SearchScope.FileName);
+                await f.Page.ThreadFindTask.WaitAsync(Deadline);
                 f.Window.UpdateLayout();
                 Require(f.Window.IsVisible && f.Page.IsEffectivelyVisible && f.Page.CurrentThread?.Summary.Id == Baseline
                     && f.Window.TryGetPlatformHandle()?.Handle is nint handle && handle != 0
