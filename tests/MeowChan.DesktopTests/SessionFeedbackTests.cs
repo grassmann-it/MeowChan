@@ -291,7 +291,8 @@ public sealed class SessionFeedbackTests
         FeedbackToastContent content = new("Title", a.Summary, a, toast => store.Dismiss(toast.Entry!));
         Assert.Same(a, content.Entry);
         Assert.Equal("FeedbackToastDismissButton", content.DismissButton.Name);
-        Assert.Equal("×", content.DismissButton.Content);
+        Assert.IsType<Avalonia.Controls.Shapes.Path>(content.DismissButton.Content); // an icon, not a glyph character
+        Assert.Contains("icon-square", content.DismissButton.Classes);
         Assert.Equal(Texts.T("feedback.dismiss"), AutomationProperties.GetName(content.DismissButton));
         Assert.Equal(Texts.T("feedback.dismiss"), ToolTip.GetTip(content.DismissButton));
         Assert.False(store.IsDismissed(a)); // Publication alone is not acknowledgement.

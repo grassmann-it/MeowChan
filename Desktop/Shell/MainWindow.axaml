@@ -118,12 +118,12 @@
                     <ScrollViewer x:Name="ShellActionErrorScroll" Grid.ColumnSpan="2" MaxHeight="64" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="ShellActionError" TextWrapping="Wrap" /></ScrollViewer>
                     <Button x:Name="ShellFeedbackDiagnosticsButton" Grid.Row="1" Click="OnDiagnosticsNavigationClick" HorizontalAlignment="Left"><TextBlock Tag="feedback.open" Classes="localized" /></Button>
                 </Grid>
-                <Button x:Name="ShellFeedbackDismissButton" Grid.Column="1" Classes="subtle"
-                        Margin="8,0,0,0" Padding="8,2" MinWidth="32" MinHeight="32" VerticalAlignment="Top"
+                <Button x:Name="ShellFeedbackDismissButton" Grid.Column="1" Classes="subtle icon-square"
+                        Margin="8,0,0,0" VerticalAlignment="Top"
                         AutomationProperties.Name="{Binding #ShellFeedbackDismissLabel.Text}"
                         ToolTip.Tip="{Binding #ShellFeedbackDismissLabel.Text}">
                     <Grid>
-                        <TextBlock Text="×" FontSize="{StaticResource Workspace.Text.Title}" HorizontalAlignment="Center" />
+                        <Path Classes="workspace-icon icon-close" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         <!-- The normal workspace localizer also refreshes this accessible-only label. -->
                         <TextBlock x:Name="ShellFeedbackDismissLabel" Tag="feedback.dismiss" Classes="localized" IsVisible="False" />
                     </Grid>
