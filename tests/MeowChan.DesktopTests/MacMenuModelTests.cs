@@ -38,7 +38,7 @@ public sealed class MacMenuModelTests
         Assert.Equal(MainPageOrder.CommandIds, view.Take(MainPageOrder.CommandIds.Count).Select(node => node.CommandId!));
         Assert.Equal("window.fullscreen", view[^1].CommandId);
         var digits = view.Take(MainPageOrder.CommandIds.Count).Select(node => MacMenuModel.Shortcut(Mac, node)).ToArray();
-        Assert.Equal(new[] { "⌘1", "⌘2", "⌘3", "⌘4", "⌘5", "⌘6", "⌘7" }, digits);
+        Assert.Equal(new[] { "⌘1", "⌘2", "⌘3", "⌘4", "⌘5", "⌘6", "⌘7", "⌘8" }, digits);
     }
 
     [Fact]

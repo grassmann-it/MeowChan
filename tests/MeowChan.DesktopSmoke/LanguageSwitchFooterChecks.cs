@@ -22,6 +22,7 @@ internal static class LanguageSwitchFooterChecks
         new("SourcesNavigationButton", "SourcesMenuItem", "navigation.sources", "command.navigation.sources"),
         new("PluginsNavigationButton", "PluginsMenuItem", "navigation.plugins", "command.navigation.plugins"),
         new("DiagnosticsNavigationButton", "DiagnosticsMenuItem", "navigation.diagnostics", "command.navigation.diagnostics"),
+        new("StatisticsNavigationButton", "StatisticsMenuItem", "navigation.statistics", "command.navigation.statistics"),
         new("SettingsNavigationButton", "SettingsMenuItem", "navigation.settings", "command.navigation.settings"),
         new("DownloadsNavigationButton", null, "navigation.downloads", "command.navigation.downloads"),
         new("ToolsNavigationButton", null, "navigation.tools-menu", "command.navigation.tools-menu")
