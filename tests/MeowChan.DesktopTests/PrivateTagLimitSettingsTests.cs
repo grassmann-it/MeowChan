@@ -108,7 +108,7 @@ public sealed class PrivateTagLimitSettingsTests
             foreach (string language in new[] { "en", "de", "es", "fr", "ru" })
             {
                 Texts.SetLanguage(language);
-                string category = Texts.T("budgets.advanced");
+                string category = Texts.T("settings.storageLimits");
                 string settings = Texts.T("settings.title");
                 foreach ((string message, string setting) in new[] { ("tags.error.tagLimit", "budgets.privateTags"),
                     ("tags.error.fileLimit", "budgets.privateTagFile") })
