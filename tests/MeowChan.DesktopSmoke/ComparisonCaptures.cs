@@ -209,8 +209,8 @@ internal static class ComparisonCaptures
         };
         Border fixture = new() { Child = contents, BorderThickness = new Thickness(1), HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, ZIndex = 1000 };
-        fixture[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Panel");
-        fixture[!Border.BorderBrushProperty] = new DynamicResourceExtension("Workspace.Border");
+        fixture.Bind(Border.BackgroundProperty, fixture.GetResourceObservable("Workspace.Panel"));
+        fixture.Bind(Border.BorderBrushProperty, fixture.GetResourceObservable("Workspace.Border"));
         Grid root = window.FindControl<Grid>("WorkspaceRoot")!;
         Grid.SetRow(fixture, 1);
         root.Children.Add(fixture);
