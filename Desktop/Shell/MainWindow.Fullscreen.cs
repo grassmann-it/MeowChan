@@ -86,6 +86,10 @@ public partial class MainWindow
             + $"expected={_fullscreenRestoreClient}; from={_fullscreenRestoreFromClient}; pending-max={_fullscreenMaximizeRestoreClient}/{_fullscreenMaximizeRestoreQueued}/{_fullscreenMaximizeSizeCorrectionQueued}/{_fullscreenMaximizeRestoreCancelled}; repair={_fullscreenExitRepairQueued}/{_fullscreenExitRepairConsumed}/{_fullscreenExitSizeCorrectionQueued}; exit-generation={_fullscreenExitGeneration}; mode={_config.WorkspaceMode}.");
     }
 
+    /// <summary>The theme to switch to, or null when the app already requests it.</summary>
+    internal static Avalonia.Styling.ThemeVariant? ThemeChangeNeeded(Avalonia.Styling.ThemeVariant? current, Avalonia.Styling.ThemeVariant next)
+        => Equals(current ?? Avalonia.Styling.ThemeVariant.Default, next) ? null : next;
+
     internal static Avalonia.Styling.ThemeVariant ThemeForPreference(string theme) => theme switch
     {
         "Light" => Avalonia.Styling.ThemeVariant.Light,

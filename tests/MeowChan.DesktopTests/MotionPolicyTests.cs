@@ -204,7 +204,22 @@ public sealed class MotionPolicyTests
         Assert.Contains("AddClassHandler<PopupRoot>", policy);
         Assert.Contains("ConditionalWeakTable<TopLevel", policy);
         Assert.Contains("WeakReference<TopLevel>", policy);
-        Assert.Contains("MotionPolicy.WhileThemeChanges(() => Application.Current.RequestedThemeVariant", File.ReadAllText(Root("Desktop/Shell/MainWindow.axaml.cs")));
+        string appearance = File.ReadAllText(Root("Desktop/Shell/MainWindow.axaml.cs"));
+        Assert.Contains("MotionPolicy.WhileThemeChanges(() => app.RequestedThemeVariant = next)", appearance);
+        Assert.Contains("ThemeChangeNeeded(app.RequestedThemeVariant, ThemeForPreference(_config.Theme))", appearance);
+    }
+
+    [Fact]
+    public void SavingSettingsWithoutAThemeChangeDoesNotSwitchMotionOff()
+    {
+        Avalonia.Styling.ThemeVariant dark = Avalonia.Styling.ThemeVariant.Dark, light = Avalonia.Styling.ThemeVariant.Light, system = Avalonia.Styling.ThemeVariant.Default;
+        Assert.Null(MainWindow.ThemeChangeNeeded(dark, MainWindow.ThemeForPreference("Dark")));
+        Assert.Null(MainWindow.ThemeChangeNeeded(light, MainWindow.ThemeForPreference("Light")));
+        Assert.Null(MainWindow.ThemeChangeNeeded(system, MainWindow.ThemeForPreference("System")));
+        Assert.Null(MainWindow.ThemeChangeNeeded(null, MainWindow.ThemeForPreference("System"))); // Unset is the default variant.
+        Assert.Equal(light, MainWindow.ThemeChangeNeeded(dark, MainWindow.ThemeForPreference("Light")));
+        Assert.Equal(system, MainWindow.ThemeChangeNeeded(light, MainWindow.ThemeForPreference("System")));
+        Assert.Equal(dark, MainWindow.ThemeChangeNeeded(null, MainWindow.ThemeForPreference("Dark")));
     }
 
     [Fact]

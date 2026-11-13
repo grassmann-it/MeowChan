@@ -1241,8 +1241,9 @@ public partial class MainWindow : Window
     private void ApplyAppearance()
     {
         if (_isClosing) return;
-        if (Application.Current != null)
-            MeowChan.Desktop.Motion.MotionPolicy.WhileThemeChanges(() => Application.Current.RequestedThemeVariant = ThemeForPreference(_config.Theme));
+        // Motion is switched off only for a real theme change; saving other settings must not cut running transitions short.
+        if (Application.Current is { } app && ThemeChangeNeeded(app.RequestedThemeVariant, ThemeForPreference(_config.Theme)) is { } next)
+            MeowChan.Desktop.Motion.MotionPolicy.WhileThemeChanges(() => app.RequestedThemeVariant = next);
         if (OperatingSystem.IsWindows()) RefreshTrayMenuIcons();
         MeowChan.Desktop.Motion.MotionPolicy.SetSetting(_config.Animations);
         Texts.SetLanguage(_config.Language);
