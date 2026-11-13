@@ -36,6 +36,9 @@ internal sealed partial class GalleryViewer
     private Action<string>? _videoNoticeHandler;
     private Action<bool>? _videoPlaybackHandler;
     private readonly ComboBox _playbackMode = new() { Name = "GalleryPlaybackModeSelector", MinWidth = 120 };
+    // How long each image stays in the slideshow; shown only in slideshow mode, written through the same preferences as the settings page.
+    private readonly ComboBox _slideshowSeconds = new() { Name = "GallerySlideshowSecondsSelector", MinWidth = 72, IsVisible = false };
+    private int[] _slideshowSecondChoices = Array.Empty<int>();
     private readonly ToggleButton _slideshowToggle = new() { Name = "GallerySlideshowToggle" };
     private readonly ToggleButton _overlayToggle = new() { Name = "GalleryOverlayToggle" };
     private readonly ToggleButton _autoHideToggle = new() { Name = "GalleryAutoHideToggle" };
@@ -92,6 +95,15 @@ internal sealed partial class GalleryViewer
         _slideshow.SetImageDuration(TimeSpan.FromSeconds(_playbackPreferences.ImageSeconds));
         StackPanel playback = new() { Name = "GalleryPlaybackTools", Classes = { "workspace-tool-group" } };
         playback.Children.Add(_playbackMode);
+        playback.Children.Add(_slideshowSeconds);
+        _slideshowSeconds.SelectionChanged += (_, _) =>
+        {
+            int index = _slideshowSeconds.SelectedIndex;
+            if (!_updatingPlaybackControls && index >= 0 && index < _slideshowSecondChoices.Length)
+                ChangePlaybackPreferences(_playbackPreferences with { ImageSeconds = _slideshowSecondChoices[index] });
+        };
+        _slideshowSeconds.DropDownOpened += (_, _) => { HoldSlideshowAdvance(); RefreshPlaybackControls(); };
+        _slideshowSeconds.DropDownClosed += (_, _) => RefreshPlaybackControls();
         toolbar.Children.Add(playback);
         _secondaryTools.Add(playback);
         // Pause remains reachable even when the optional secondary tools are collapsed.
@@ -206,6 +218,7 @@ internal sealed partial class GalleryViewer
             RefreshPlaybackModeChoices(new[] { GalleryPlaybackCatalog.Get("viewer.playback.manual"), GalleryPlaybackCatalog.Get("viewer.playback.repeat"), GalleryPlaybackCatalog.Get("viewer.playback.slideshow") });
             AutomationProperties.SetName(_playbackMode, GalleryPlaybackCatalog.Get("viewer.playback.mode"));
             ToolTip.SetTip(_playbackMode, GalleryPlaybackCatalog.Get("viewer.playback.modeHelp"));
+            RefreshSlideshowSecondsChoices();
             SetToggleLabel(_slideshowToggle, _slideshow.IsRunning ? GalleryPlaybackCatalog.Get("viewer.playback.pause") : GalleryPlaybackCatalog.Get("viewer.playback.start"));
             _slideshowToggle.IsChecked = _slideshow.IsRunning;
             _slideshowToggle.IsEnabled = _slideshow.IsRunning || CanRunSlideshow && !_navigationPending;
@@ -234,6 +247,28 @@ internal sealed partial class GalleryViewer
         }
         finally { _updatingPlaybackControls = false; }
         UpdateViewerInteractionTimer();
+    }
+
+    /// <summary>The offered slide durations: the usual ones plus the saved one when it is none of them.</summary>
+    internal static int[] SlideshowSecondChoices(int current) =>
+        new[] { 3, 5, 10, 30 }.Append(current).Distinct().Order().ToArray();
+
+    private void RefreshSlideshowSecondsChoices()
+    {
+        int[] choices = SlideshowSecondChoices(_playbackPreferences.ImageSeconds);
+        string[] labels = choices.Select(seconds => Texts.T("gallery.slideshow.seconds", seconds)).ToArray();
+        if (!choices.SequenceEqual(_slideshowSecondChoices) || _slideshowSeconds.ItemsSource is not string[] current
+            || !current.SequenceEqual(labels, StringComparer.Ordinal))
+        {
+            _slideshowSecondChoices = choices;
+            _slideshowSeconds.ItemsSource = labels;
+        }
+        int selected = Array.IndexOf(choices, _playbackPreferences.ImageSeconds);
+        if (_slideshowSeconds.SelectedIndex != selected) _slideshowSeconds.SelectedIndex = selected;
+        _slideshowSeconds.IsVisible = _playbackPreferences.Mode == GalleryPlaybackMode.Slideshow;
+        string name = Texts.T("gallery.slideshow.secondsLabel");
+        AutomationProperties.SetName(_slideshowSeconds, name);
+        ToolTip.SetTip(_slideshowSeconds, name);
     }
 
     // Compare resolved text rather than a language code: Texts.Changed also fires

@@ -65,6 +65,19 @@ public partial class ArchivePage
         _mediaRatingFilter = combo.SelectedIndex;
         if (this.FindControl<DataGrid>("ArchiveMediaGrid") != null) RenderMedia();
     }
+    /// <summary>Opens the saved-ratings manager (also reachable from Diagnostics); supplied by the shell.</summary>
+    internal Func<Task>? ManageMediaRatingsAsync
+    {
+        get => _manageMediaRatings;
+        set { _manageMediaRatings = value; ArchiveManageRatingsButton.IsEnabled = !_ended && value != null; }
+    }
+    private Func<Task>? _manageMediaRatings;
+    private async void OnManageMediaRatingsClick(object? sender, RoutedEventArgs e)
+    {
+        if (_ended || ManageMediaRatingsAsync == null) return;
+        try { await ManageMediaRatingsAsync(); }
+        catch (Exception error) { if (!_ended) Message(error.Message, true); }
+    }
     private async void OnEditMediaRatingClick(object? sender, RoutedEventArgs e)
     {
         if (_selectedThread == null || SelectedMediaRow() is not ArchiveAssetRow row || EditMediaRatingAsync == null || _mediaRatingError != null) return;
@@ -82,6 +95,8 @@ public partial class ArchivePage
     private void LocalizeMediaRatings()
     {
         MeowChan.Desktop.Commands.CommandBindings.Apply(ArchiveEditRatingButton, "media.rating.edit");
+        MeowChan.Desktop.Commands.CommandBindings.Apply(ArchiveManageRatingsButton, "media.rating.manage");
+        ArchiveManageRatingsButton.IsEnabled = !_ended && ManageMediaRatingsAsync != null;
         ComboBox filter = ArchiveRatingFilter;
         filter.ItemsSource = new[] { MediaRatingText.LocalizedFilterAll, MediaRatingText.LocalizedValue(null) }
             .Concat(Enumerable.Range(1, 5).Select(value => MediaRatingText.LocalizedFilterAtLeast(value))).ToArray();

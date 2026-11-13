@@ -5,6 +5,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop;
 
@@ -64,10 +65,14 @@ public sealed class ArchiveThreadFavoriteButton : Button
     {
         bool marked = _row?.ThreadFavorite == true;
         IsEnabled = _row?.CanToggleThreadFavorite == true;
-        Content = new TextBlock { Text = _row?.ThreadFavorite == null ? "?" : marked ? "★" : "☆", FontSize = 18,
+        // An unknown state is an unmarked star, dimmed, that says it is loading; a "?" reads as help or as an error.
+        bool loading = _row?.ThreadFavorite == null;
+        Content = new TextBlock { Text = marked ? "★" : "☆", FontSize = 18, Opacity = loading ? 0.5 : 1,
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         string label = ThreadFavoriteText.Action(marked);
-        string description = ThreadFavoriteText.Hint(marked);
+        string description = loading && _row?.ThreadFavoriteError == null && _row != null
+            ? Texts.T("archive.threadFavorite.loading") : ThreadFavoriteText.Hint(marked);
+        ToolTip.SetShowOnDisabled(this, true);
         if (CommandCatalog.ShortcutDisplay("thread.favorite-toggle") is string shortcut)
             description += " · " + shortcut;
         if (_row?.ThreadFavoriteError is string error) description += "\n" + error;

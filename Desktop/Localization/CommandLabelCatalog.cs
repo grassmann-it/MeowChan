@@ -169,8 +169,12 @@ internal static class CommandLabelCatalog
         ("command.media.export-original", "Export original…", "Original exportieren…"),
         ("command.media.show-in-folder", "Show in folder", "Im Ordner anzeigen"),
         ("command.media.details", "Show media details", "Mediendetails anzeigen"),
+        ("command.media.copy-path", "Copy file path", "Dateipfad kopieren"),
+        ("command.media.open-external", "Open with default program", "Mit Standardprogramm öffnen"),
         ("command.post.copy-link", "Copy post link", "Post-Link kopieren"),
         ("command.post.open-source", "Open post on source", "Post auf Quelle öffnen"),
+        ("command.post.copy-text", "Copy post text", "Post-Text kopieren"),
+        ("command.post.copy-number", "Copy post number", "Post-Nummer kopieren"),
         ("command.video.play-pause", "Play / pause", "Wiedergabe / Pause"),
         ("command.video.volume-up", "Increase video volume", "Videolautstärke erhöhen"),
         ("command.video.volume-down", "Decrease video volume", "Videolautstärke verringern"),
@@ -213,6 +217,6 @@ internal static class CommandLabelCatalog
         // MEDIA103-NAV P1: the same gallery.close, when the gallery was opened from the Medien page and closes back to it.
         ("command.gallery.close.media", "To media", "Zu Medien"),
         ("command.gallery.favorite.compact", "Favorite", "Favorit"),
-        ("command.gallery.export-original.compact", "Export", "Export"),
+        ("command.gallery.export-original.compact", "Original…", "Original …"),
     };
 }

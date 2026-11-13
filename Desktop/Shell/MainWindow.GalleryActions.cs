@@ -15,6 +15,7 @@ using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Favorites;
 using MeowChan.Archive;
 using MeowChan.Gallery;
@@ -39,6 +40,8 @@ public partial class MainWindow
             string? directory = Path.GetDirectoryName(entry.Asset.Path);
             if (directory != null) OpenDirectory(directory);
         };
+        _gallery.CopyPathRequested += entry => _ = RunGalleryActionAsync(() => CopyMediaPathAsync(entry), entry.Key.ToString());
+        _gallery.OpenExternalRequested += entry => _ = RunGalleryActionAsync(() => OpenMediaFileExternallyAsync(entry), entry.Key.ToString());
         _gallery.DetailsRequested += entry => _ = RunGalleryActionAsync(() => ShowGalleryDetailsAsync(entry), entry.Key.ToString());
         _gallery.TagsRequested += entry => _ = RunGalleryActionAsync(() => EditGalleryMediaTagsAsync(entry), entry.Key.ToString());
         // The gallery menu's provider post actions and its summary of unavailable actions, like the media page's.
@@ -47,6 +50,45 @@ public partial class MainWindow
         _gallery.ProviderPostCopyRequested += entry => _ = RunGalleryActionAsync(() => CopyGalleryProviderPostAsync(entry), entry.Key.ToString());
         _gallery.MenuExplanationRequested += text => ShowNotification(Texts.T("archive.command.unavailable"), text,
             NotificationType.Information, operation: "gallery.menu");
+    }
+
+    // Test seam: no program is ever started; the path that would have been handed to the desktop is passed instead.
+    internal Func<string, Task>? OpenFileForTests { get; set; }
+
+    private Task CopyMediaPathAsync(GalleryEntry entry) => CopyFilePathAsync(entry.Asset.Path);
+
+    // The saved file's path as plain text: the way to chat or an editor until drag-out exists. Local only.
+    private async Task CopyFilePathAsync(string path)
+    {
+        try
+        {
+            if (CopyTextForTests is { } seam) await seam(path);
+            else if (Clipboard is { } clipboard) await clipboard.SetTextAsync(path);
+            else throw new InvalidOperationException("The clipboard is unavailable.");
+            ShowNotification(Texts.T("media.copyPath.done"), path, NotificationType.Information, operation: "media.copy-path");
+        }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        { ShowNotification(Texts.T("notification.error"), Texts.T("media.copyPath.failed"), NotificationType.Warning, operation: "media.copy-path"); }
+    }
+
+    // A file the gallery cannot show is handed to the system's default program, except types that could run as a
+    // program; those can only be shown in their folder.
+    private async Task OpenMediaFileExternallyAsync(GalleryEntry entry)
+    {
+        string path = entry.Asset.Path;
+        if (!MediaFileActions.CanOpenWithDefaultProgram(path))
+        {
+            ShowNotification(Texts.T("notification.error"), Texts.T("gallery.fileOnly.blocked"), NotificationType.Warning, operation: "media.open-external");
+            return;
+        }
+        if (!File.Exists(path))
+        {
+            ShowNotification(Texts.T("notification.error"), Texts.T("gallery.fileOnly.missing"), NotificationType.Warning, operation: "media.open-external");
+            return;
+        }
+        try { await (OpenFileForTests?.Invoke(path) ?? ExternalLauncher.OpenAsync(path)); }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        { ShowNotification(Texts.T("notification.error"), Texts.T("location.openFailed"), NotificationType.Warning, operation: "media.open-external"); }
     }
 
     private Uri? GalleryProviderPostUrl(GalleryEntry entry)

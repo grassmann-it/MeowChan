@@ -29,6 +29,7 @@ internal enum MediaMenuAction
     Tags,
     Export,
     ShowInFolder,
+    CopyPath,
     Details,
     ShowInThread,
     OpenProviderPost,
@@ -93,6 +94,7 @@ internal sealed record MediaMenuFacts(MediaMenuSurface Surface, MediaMenuTarget?
     internal string? TagsBlocked { get; init; }
     internal bool ExportWired { get; init; } = true;
     internal bool FolderWired { get; init; } = true;
+    internal bool CopyPathWired { get; init; } = true;
     internal bool DetailsWired { get; init; } = true;
     internal MediaMenuPostScope Posts { get; init; } = MediaMenuPostScope.None;
     internal bool ShowInThreadWired { get; init; } = true;
@@ -112,7 +114,7 @@ internal sealed record MediaMenuItemModel(MediaMenuAction Action, string? Comman
     internal int Group => Action switch
     {
         MediaMenuAction.Open or MediaMenuAction.Favorite or MediaMenuAction.Rating or MediaMenuAction.Tags => 0,
-        MediaMenuAction.Export or MediaMenuAction.ShowInFolder or MediaMenuAction.Details => 1,
+        MediaMenuAction.Export or MediaMenuAction.ShowInFolder or MediaMenuAction.CopyPath or MediaMenuAction.Details => 1,
         _ => 2
     };
 }
@@ -193,6 +195,8 @@ internal static class MediaMenuComposition
             facts.Present && facts.ExportWired, NeedsFile() ?? MediaMenuReasons.Unavailable);
         Add(MediaMenuAction.ShowInFolder, "media.show-in-folder", CommandCatalog.Label("media.show-in-folder"),
             facts.Present && facts.FolderWired, NeedsFile() ?? MediaMenuReasons.Unavailable);
+        Add(MediaMenuAction.CopyPath, "media.copy-path", CommandCatalog.Label("media.copy-path"),
+            facts.Present && facts.CopyPathWired, NeedsFile() ?? MediaMenuReasons.Unavailable);
         Add(MediaMenuAction.Details, "media.details", CommandCatalog.Label("media.details"),
             facts.Present && facts.DetailsWired, NeedsFile() ?? MediaMenuReasons.Unavailable);
         // A post-dependent action never picks one of several posts and never acts without one.

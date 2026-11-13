@@ -24,6 +24,8 @@ public partial class ArchivePage
     internal Func<GalleryEntry, bool>? IsArchiveFavorite { get; set; }
     internal Func<GalleryEntry, Task>? ToggleArchiveFavoriteAsync { get; set; }
     internal Func<GalleryEntry, Task>? EditArchiveMediaTagsAsync { get; set; }
+    /// <summary>Copies a saved file's path to the clipboard and says so; supplied by the shell.</summary>
+    internal Func<string, Task>? CopyFilePathAsync { get; set; }
     private readonly Dictionary<FavoriteAssetKey, string> _favoriteErrors = new();
     internal void ClearFavoriteError(FavoriteAssetKey key)
     {
@@ -146,7 +148,7 @@ public partial class ArchivePage
     private bool TryRouteArchiveMediaShortcut(Control owner, KeyEventArgs e)
     {
         if (e.Handled || CommandRouter.IsNativeInput(e.Source, e.Key) || IsReaderDialogOpen) return false;
-        string[] ids = { "favorites.toggle", "media.tags.edit", "media.export-original", "media.show-in-folder", "media.details", "gallery.show-in-thread" };
+        string[] ids = { "favorites.toggle", "media.tags.edit", "media.export-original", "media.show-in-folder", "media.copy-path", "media.details", "gallery.show-in-thread" };
         if (!ids.Any(id => CommandBindings.Matches(e, id))) return false;
         if (_ended || !_available || _busy || _thread == null || _selectedThread == null) { e.Handled = true; return true; }
         var ancestors = (e.Source as Avalonia.Visual)?.GetSelfAndVisualAncestors().OfType<Control>().ToArray() ?? Array.Empty<Control>();
@@ -209,6 +211,7 @@ public partial class ArchivePage
             TagsWired = EditArchiveMediaTagsAsync != null,
             TagsBlocked = taggable ? null : MediaMenuReasons.Tags(tagReason, ambiguous: ambiguousTagTarget),
             FolderWired = _openFolder != null,
+            CopyPathWired = CopyFilePathAsync != null,
             Posts = severalPosts ? MediaMenuPostScope.Several : postIds.Length == 1 ? MediaMenuPostScope.Single : MediaMenuPostScope.None
         };
         MediaMenuModel model = MediaMenuComposition.Compose(facts);
@@ -235,6 +238,10 @@ public partial class ArchivePage
             {
                 if (target != null && Path.GetDirectoryName(target.Asset.Path) is string directory) _openFolder?.Invoke(directory);
                 return Task.CompletedTask;
+            },
+            [MediaMenuAction.CopyPath] = async () =>
+            {
+                if (target != null && CopyFilePathAsync != null) await CopyFilePathAsync(target.Asset.Path);
             },
             [MediaMenuAction.Details] = () =>
             {

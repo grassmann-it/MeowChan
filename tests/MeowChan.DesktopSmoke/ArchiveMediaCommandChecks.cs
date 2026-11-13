@@ -51,7 +51,7 @@ internal static class ArchiveMediaCommandChecks
                 .Select(item => new { item.Tag, header = item.Header?.ToString(), item.IsEnabled,
                     canExecute = item.Command?.CanExecute(item.CommandParameter) })));
             // The common media section comes first, in the one shared order; the page's own post-bookmark action follows it.
-            Require(page.EditPostBookmark != null && items.Length == 9 && items[^1].Tag == null
+            Require(page.EditPostBookmark != null && items.Length == 10 && items[^1].Tag == null
                 && Equals(items[^1].Header, CommandCatalog.Label("post-bookmarks.edit-post")),
                 "The real reader media menu lost its trailing post-bookmark action or contains unexpected actions.");
             MenuItem bookmark = items[^1];
@@ -61,7 +61,7 @@ internal static class ArchiveMediaCommandChecks
             MenuItem[] commands = items.Take(items.Length - 1).ToArray();
             string[] actualTags = commands.Select(item => item.Tag as string ?? "<untagged>").ToArray();
             Require(actualTags.SequenceEqual(new[]
-            { "gallery.open", "favorites.toggle", "media.rating.edit", "media.tags.edit", "media.export-original", "media.show-in-folder", "media.details", "gallery.show-in-thread" }),
+            { "gallery.open", "favorites.toggle", "media.rating.edit", "media.tags.edit", "media.export-original", "media.show-in-folder", "media.copy-path", "media.details", "gallery.show-in-thread" }),
                 "Inline media menu lacks the shared media actions or order: " + string.Join(", ", actualTags));
             MenuItem rating = commands.Single(item => (string)item.Tag! == "media.rating.edit");
             Require(rating.IsEnabled && rating.Command?.CanExecute(rating.CommandParameter) == true,
@@ -97,9 +97,27 @@ internal static class ArchiveMediaCommandChecks
             Require(!hiddenGallery.IsEnabled, "A hidden inline asset remained navigable in the visible gallery.");
             page.ArchiveMediaMenu.Close();
             favorites.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+            // The post menu copies text, number and (where the address scheme is known) the link; clipboard faked, local only.
+            List<string> copied = new();
+            page.CopyTextForTests = text => { copied.Add(text); return Task.CompletedTask; };
+            ArchivePostRow post = posts.ItemsSource!.Cast<ArchivePostRow>().First();
+            ContextMenu postMenu = page.BuildPostMenu(post, posts);
+            MenuItem[] postItems = postMenu.Items.OfType<MenuItem>().ToArray();
+            string link = PostMenuText.Link(page.CurrentThread!.Summary.Id, page.CurrentThread.Summary.Url, post.Id) ?? "";
+            string[] expectedHeaders = new[] { "post.copy-text", "post.copy-number" }.Concat(link.Length > 0 ? new[] { "post.copy-link" } : Array.Empty<string>())
+                .Append("post-bookmarks.edit-post").Select(CommandCatalog.Label).ToArray();
+            Require(postItems.Select(item => item.Header?.ToString()).SequenceEqual(expectedHeaders),
+                "The post menu items are wrong: " + string.Join(" | ", postItems.Select(item => item.Header)));
+            foreach (MenuItem item in postItems.Take(expectedHeaders.Length - 1))
+                Require(item.IsEnabled && item.Command!.CanExecute(null), "A post copy action is disabled: " + item.Header);
+            foreach (MenuItem item in postItems.Take(expectedHeaders.Length - 1)) item.Command!.Execute(null);
+            string[] expectedCopies = new[] { PostMenuText.Text(post), PostMenuText.Number(post.Id) }.Concat(link.Length > 0 ? new[] { link } : Array.Empty<string>()).ToArray();
+            Require(copied.SequenceEqual(expectedCopies), "The post menu copied: " + string.Join(" | ", copied));
         }
         finally
         {
+            page.CopyTextForTests = null;
             page.ArchiveMediaMenu?.Close();
             page.IsArchiveFavorite = oldMarked; page.ToggleArchiveFavoriteAsync = oldToggle; page.OpenMediaGallery = oldGallery;
             page.RefreshArchiveFavoriteControls();

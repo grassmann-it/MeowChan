@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -36,16 +37,54 @@ public partial class ArchivePage
 
     private void OnPostBookmarkContext(object? sender, ContextRequestedEventArgs e)
     {
-        if (e.Handled || _ended || IsFilenameSearchOpen || !_available || _thread == null || EditPostBookmark == null || e.Source is not Control source) return;
+        if (e.Handled || _ended || IsFilenameSearchOpen || !_available || _thread == null || e.Source is not Control source) return;
         Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (ancestors.OfType<ArchiveAttachmentView>().Any()) return; // Existing media menu carries the same action.
         ArchivePostRow? row = ancestors.Select(node => node.DataContext).OfType<ArchivePostRow>().FirstOrDefault();
         if (row == null && !e.TryGetPosition(this, out _)) row = ArchivePosts.SelectedItem as ArchivePostRow;
         if (row == null || _thread.FindPostIndex(row.Id) < 0) return;
-        var frozen = new PostBookmarkKey(_thread.Summary.Id, row.Id);
-        ContextMenu menu = new();
-        menu.Items.Add(CreatePostBookmarkMenuItem(frozen, source));
+        ContextMenu menu = BuildPostMenu(row, source);
         e.Handled = true; menu.Open(source);
+    }
+
+    /// <summary>
+    /// The post menu: copy text, number and (where the source's address scheme is known) link, then the bookmark action.
+    /// Everything is frozen to the post it was opened on; copying is local only and never starts a network request.
+    /// </summary>
+    internal ContextMenu BuildPostMenu(ArchivePostRow row, Control origin)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        ResourceId thread = _thread!.Summary.Id;
+        string? link = PostMenuText.Link(thread, _thread.Summary.Url, row.Id);
+        ContextMenu menu = new();
+        menu.Items.Add(CreatePostCopyItem("post.copy-text", PostMenuText.Text(row), "post.copy.textDone"));
+        menu.Items.Add(CreatePostCopyItem("post.copy-number", PostMenuText.Number(row.Id), "post.copy.numberDone"));
+        if (link != null) menu.Items.Add(CreatePostCopyItem("post.copy-link", link, "post.copy.linkDone"));
+        if (EditPostBookmark != null)
+        {
+            menu.Items.Add(new Separator());
+            menu.Items.Add(CreatePostBookmarkMenuItem(new PostBookmarkKey(thread, row.Id), origin));
+        }
+        return menu;
+    }
+
+    /// <summary>Test seam: receives the copied text instead of the clipboard.</summary>
+    internal Func<string, Task>? CopyTextForTests { get; set; }
+
+    private MenuItem CreatePostCopyItem(string commandId, string text, string doneKey)
+        => CommandBindings.CreateMenuItem(commandId, () => _ = CopyPostTextAsync(text, doneKey), () => !_ended);
+
+    private async Task CopyPostTextAsync(string text, string doneKey)
+    {
+        try
+        {
+            if (CopyTextForTests is { } seam) await seam(text);
+            else if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard) await clipboard.SetTextAsync(text);
+            else throw new InvalidOperationException("The clipboard is unavailable.");
+            if (!_ended) Message(Texts.T(doneKey));
+        }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        { if (!_ended) Message(Texts.T("post.copy.failed"), true); }
     }
 
     private MenuItem CreatePostBookmarkMenuItem(PostBookmarkKey frozen, Control origin)

@@ -7,6 +7,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
@@ -30,7 +31,7 @@ internal static class MediaMenuSurfacesChecks
     private static readonly string[] Order =
     {
         "gallery.open", "favorites.toggle", "media.rating.edit", "media.tags.edit",
-        "media.export-original", "media.show-in-folder", "media.details", "gallery.show-in-thread"
+        "media.export-original", "media.show-in-folder", "media.copy-path", "media.details", "gallery.show-in-thread"
     };
 
     internal static async Task RunAsync(MainWindow owner)
@@ -386,6 +387,49 @@ internal static class MediaMenuSurfacesChecks
         viewer.MediaMenu.Close();
         GalleryViewerChecksAccess.Click(viewer, "GalleryClose");
         await shell.GalleryCleanupTask.WaitAsync(Deadline);
+        await FileOnlyJourneyAsync(shell, fixtures);
+    }
+
+    // A saved file without a viewer (a PDF) is no dead end: the plate offers the default program and the folder, the
+    // menu copies its path. Fakes only: no program is started, the clipboard is not touched.
+    private static async Task FileOnlyJourneyAsync(MainWindow shell, string fixtures)
+    {
+        GalleryEntry pdf = await GalleryMediaTagChecks.OtherFileAsync(Path.Combine(fixtures, "pdf"), "document.pdf", "903");
+        string? launched = null, copied = null;
+        shell.OpenFileForTests = path => { launched = path; return Task.CompletedTask; };
+        shell.CopyTextForTests = text => { copied = text; return Task.CompletedTask; };
+        try
+        {
+            await shell.OpenMediaGalleryAsync([pdf], pdf.EntryKey);
+            ContentControl host = shell.FindControl<ContentControl>("GalleryHost")!;
+            await UntilAsync(() => host.Content is GalleryViewer);
+            GalleryViewer viewer = (GalleryViewer)host.Content!;
+            await UntilAsync(() => viewer.CurrentEntry != null && viewer.FileOnlyShown);
+            string expected = Texts.T("gallery.fileOnly.body", Texts.T("gallery.fileOnly.type", "PDF"), Utils.ToHumanReadableSize(pdf.Asset.Length));
+            Require(viewer.FileOnlyTextValue == expected, "The viewer-less file plate says '" + viewer.FileOnlyTextValue + "' instead of '" + expected + "'.");
+            Require(viewer.OpenExternalButton.IsEffectivelyEnabled && viewer.FileOnlyFolderButton.IsEffectivelyEnabled,
+                "The viewer-less file plate does not offer both ways forward.");
+            Require(Equals(viewer.OpenExternalButton.Content, CommandCatalog.Label("media.open-external"))
+                && Equals(viewer.FileOnlyFolderButton.Content, CommandCatalog.Label("media.show-in-folder")),
+                "The viewer-less file buttons are not labeled by their commands.");
+            viewer.OpenExternalButton.Command!.Execute(null);
+            await UntilAsync(() => launched != null);
+            Require(launched == pdf.Asset.Path, "The default program was asked to open '" + launched + "' instead of the shown file.");
+
+            Grid? viewport = null;
+            await UntilAsync(() => (viewport = viewer.GetGalleryVisualDescendants().OfType<Grid>().FirstOrDefault(grid => grid.Name == "GalleryViewport")) != null);
+            await RightClickAsync(viewport!, shell);
+            MenuItem copy = viewer.MediaMenu!.Items.OfType<MenuItem>().Single(item => item.Tag as string == "media.copy-path");
+            Require(copy.IsEnabled && copy.Command!.CanExecute(null), "The gallery menu cannot copy the shown file's path.");
+            copy.Command!.Execute(null);
+            await UntilAsync(() => copied != null);
+            Require(copied == pdf.Asset.Path, "The copied path is '" + copied + "' instead of the shown file's.");
+            viewer.MediaMenu.Close();
+            GalleryViewerChecksAccess.Click(viewer, "GalleryClose");
+            await shell.GalleryCleanupTask.WaitAsync(Deadline);
+            Console.WriteLine("SMOKE media menu file without viewer: plate '" + expected + "' with default-program and folder actions; path copy via the gallery menu; fakes only");
+        }
+        finally { shell.OpenFileForTests = null; shell.CopyTextForTests = null; }
     }
 
     // ---- helpers ----------------------------------------------------------------------------------------------------------

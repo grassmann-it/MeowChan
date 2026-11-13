@@ -410,7 +410,7 @@ internal static class GalleryMediaTagChecks
         return new(new(Resource, directory, asset.AssetId), snapshot, asset, null, null, false, true);
     }
 
-    private static async Task<(MediaAssetSnapshot, MediaAssetReference, object, string)> WriteAsync(string directory, string file, string mediaId)
+    internal static async Task<(MediaAssetSnapshot, MediaAssetReference, object, string)> WriteAsync(string directory, string file, string mediaId)
     {
         Directory.CreateDirectory(directory);
         await File.WriteAllBytesAsync(Path.Combine(directory, file), Png);
@@ -421,6 +421,13 @@ internal static class GalleryMediaTagChecks
         await File.WriteAllTextAsync(path, JsonSerializer.Serialize(new { Version = 1, Entries = new Dictionary<string, object> { [file] = entry } }));
         MediaAssetSnapshot snapshot = await MediaAssetReader.OpenAsync(directory);
         return (snapshot, snapshot.GetPage().Single(), entry, path);
+    }
+
+    /// <summary>A loose saved file of a kind the gallery has no viewer for (bytes are irrelevant, only the type counts).</summary>
+    internal static async Task<GalleryEntry> OtherFileAsync(string directory, string file, string mediaId)
+    {
+        (MediaAssetSnapshot snapshot, MediaAssetReference asset, _, _) = await WriteAsync(directory, file, mediaId);
+        return new(new(Resource, directory, asset.AssetId), snapshot, asset, null, null, false, true);
     }
 
     private static async Task UntilAsync(Func<bool> condition)

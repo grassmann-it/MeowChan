@@ -347,6 +347,7 @@ internal sealed partial class GalleryViewer : UserControl
         _viewport.Children.Add(_image);
         _statusPlate.Child = _status;
         _viewport.Children.Add(_statusPlate);
+        InitializeFileOnlyPlate();
         _status.PropertyChanged += (_, e) =>
         {
             if (e.Property == TextBlock.TextProperty || e.Property == IsVisibleProperty)
@@ -455,6 +456,7 @@ internal sealed partial class GalleryViewer : UserControl
             { button.Content = Texts.T(key); AutomationProperties.SetName(button, Texts.T(key)); }
         }
         ApplyCloseLabel();
+        RefreshFileOnlyText();
         UpdateHelpButtonTooltip();
         UpdateContext(); UpdateQuality(); UpdateFavorite(); UpdateContextButton(); UpdateHelp(); UpdateMediaFocusPresentation();
         RefreshPlaybackControls();
@@ -479,6 +481,7 @@ internal sealed partial class GalleryViewer : UserControl
         "GalleryReadPosts" => "thread.read", "GalleryFullscreen" => "window.fullscreen",
         "GalleryHelp" => "viewer.shortcut-help", "GalleryFavorite" => "favorites.toggle",
         "GalleryExportOriginal" => "media.export-original",
+        "GalleryOpenExternal" => "media.open-external", "GalleryFileOnlyFolder" => "media.show-in-folder",
         "GalleryToolsToggle" => "gallery.tools-toggle",
         "GalleryReturnImage" => "gallery.context-close", "GalleryReadPost" => "gallery.show-in-thread",
         _ => null
@@ -597,6 +600,7 @@ internal sealed partial class GalleryViewer : UserControl
         SetImageCommands(false); _exportOriginal.IsEnabled = false;
         _info = null; ClearBitmaps();
         StopSlideshow();
+        HideFileOnlyPlate();
         _status.Text = Texts.T("gallery.mediaUnavailable");
         _status.IsVisible = true;
         GalleryVideoPlayer? retiring = _video;
@@ -845,6 +849,7 @@ internal sealed partial class GalleryViewer : UserControl
         _sessionCancellation = cancellationToken; _videoSuspended = false;
         if (_entry?.Key != entry.Key) SetFavoriteError(null);
         InvalidateMediaMenu(); // The menu belongs to the medium it was opened on.
+        HideFileOnlyPlate();
         _entry = entry; _manualZoom = _actualZoom = false; _panX = _panY = 0;
         _exportOriginal.IsEnabled = true;
         ResetMediaTags(); // A new medium's tags are unknown until the owner reports them.
@@ -906,7 +911,7 @@ internal sealed partial class GalleryViewer : UserControl
             return;
         }
         ApplyOverlayPlacement();
-        if (entry.Kind == SavedMediaKind.Other) { StopSlideshow(); _status.Text = Texts.T("gallery.fileOnly"); return; }
+        if (entry.Kind == SavedMediaKind.Other) { StopSlideshow(); ShowFileOnlyPlate(entry); return; }
         await RequestDecodeAsync(CurrentFitRequest(), debounce: false);
     }
 
@@ -1183,6 +1188,8 @@ internal sealed partial class GalleryViewer : UserControl
         else if (CommandBindings.Matches(e, "gallery.zoom-out")) Zoom(1 / 1.1);
         else if (CommandBindings.Matches(e, "gallery.close")) CloseRequested?.Invoke();
         else if (CommandBindings.Matches(e, "media.show-in-folder")) { if (_entry != null) ShowInFolderRequested?.Invoke(_entry); }
+        else if (CommandBindings.Matches(e, "media.copy-path")) { if (_entry != null) CopyPathRequested?.Invoke(_entry); }
+        else if (CommandBindings.Matches(e, "media.open-external")) { if (_entry != null) OpenExternalRequested?.Invoke(_entry); }
         else if (CommandBindings.Matches(e, "media.details")) { if (_entry != null) DetailsRequested?.Invoke(_entry); }
         else if (CommandBindings.Matches(e, "gallery.show-in-thread")) { if (_entry?.Post != null) { PauseSlideshow(); ReadPostRequested?.Invoke(_entry); } }
         else { CommandBindings.RouteVisibleActions(this, e); return; }

@@ -34,7 +34,7 @@ public sealed class MediaMenuCompositionTests : IDisposable
     public void EverySurfaceListsTheSameCommonActionsInTheSameOrder()
     {
         string[] expected = { "gallery.open", "favorites.toggle", "media.rating.edit", "media.tags.edit", "media.export-original",
-            "media.show-in-folder", "media.details", "gallery.show-in-thread" };
+            "media.show-in-folder", "media.copy-path", "media.details", "gallery.show-in-thread" };
         foreach (MediaMenuSurface surface in All.Where(item => item is not (MediaMenuSurface.MediaPage or MediaMenuSurface.Gallery or MediaMenuSurface.NativeVideoOverlay)))
             Assert.Equal(expected, Ids(MediaMenuComposition.Compose(Full(surface))));
         // The media page's open command is its own (Enter), the entry stays the same action in the same place.
@@ -210,7 +210,7 @@ public sealed class MediaMenuCompositionTests : IDisposable
     public void TheCommonActionsAreGroupedIntoThreeSectionsByTheirDeclaredGroup()
     {
         MediaMenuModel model = MediaMenuComposition.Compose(Full(MediaMenuSurface.MediaPage) with { ProviderMedia = true, ProviderPostKnown = true });
-        Assert.Equal(new[] { 0, 0, 0, 0, 1, 1, 1, 2, 2, 2 }, model.Items.Select(item => item.Group));
+        Assert.Equal(new[] { 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2 }, model.Items.Select(item => item.Group));
     }
 
     [Fact]

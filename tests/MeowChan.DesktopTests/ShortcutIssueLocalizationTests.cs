@@ -56,7 +56,7 @@ public sealed class ShortcutIssueLocalizationTests : IDisposable
         entries.Add(ActionId, new { Mode = "Unbound", Gestures = Array.Empty<object>() });
         reasons.Add(ReasonFor(Read(JsonSerializer.Serialize(new { SchemaVersion = 1, Overrides = entries })), "limitsExceeded"));
         reasons.Add(ReasonFor(new ShortcutBindingsSection().Set("gallery.previous", [ShortcutGesture.Parse("Up")]), "defaultYields"));
-        reasons.Add(ReasonFor(new ShortcutBindingsSection().Set("post.copy-link", [ShortcutGesture.Parse("Shift+F10")]), "notImplemented"));
+        reasons.Add(ReasonFor(new ShortcutBindingsSection().Set("post.open-source", [ShortcutGesture.Parse("Shift+F10")]), "notImplemented"));
         reasons.Add(ReasonFor(ConflictDraft(), "conflictingActions"));
 
         Assert.Equal(16, ShortcutIssueCatalog.Entries.Length);
@@ -277,7 +277,7 @@ public sealed class ShortcutIssueLocalizationTests : IDisposable
         {
             "unknownAction" => Read("""{"SchemaVersion":1,"Overrides":{"future.command":{"future":[1,2]}}}"""),
             "defaultYields" => new ShortcutBindingsSection().Set("gallery.previous", [ShortcutGesture.Parse("Up")]),
-            "notImplemented" => new ShortcutBindingsSection().Set("post.copy-link", [ShortcutGesture.Parse("Shift+F10")]),
+            "notImplemented" => new ShortcutBindingsSection().Set("post.open-source", [ShortcutGesture.Parse("Shift+F10")]),
             _ => throw new ArgumentOutOfRangeException(nameof(code))
         };
         editor.Load(warningDraft);

@@ -145,7 +145,6 @@ public sealed class ShortcutBindingsTests
     }
 
     [Theory]
-    [InlineData("post.copy-link")]
     [InlineData("post.open-source")]
     [InlineData("viewer.focus-mode")]
     [InlineData("table.reset-layout")]

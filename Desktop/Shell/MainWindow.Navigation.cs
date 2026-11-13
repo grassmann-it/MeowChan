@@ -129,6 +129,8 @@ public partial class MainWindow
         _archivePage.CanChangeMediaRating = key => !_isClosing && !_ratingChanges.Contains(key);
         _archivePage.EditMediaRatingAsync = EditMediaRatingAsync;
         _archivePage.EditArchiveMediaTagsAsync = EditGalleryMediaTagsAsync;
+        _archivePage.CopyFilePathAsync = CopyFilePathAsync;
+        _archivePage.ManageMediaRatingsAsync = ManageMediaRatingsAsync;
         _archivePage.IsArchiveFavorite = _session.IsFavorite;
         _archivePage.ToggleArchiveFavoriteAsync = async entry =>
         {

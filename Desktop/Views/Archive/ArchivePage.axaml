@@ -483,7 +483,7 @@
                                             <Button x:Name="ArchiveMediaSelectionGallery" Click="OnMediaSelectionGalleryClick" />
                                             <Button x:Name="ArchiveMediaSelectionExport" Click="OnMediaSelectionExportClick" />
                                             <Button x:Name="ArchiveMediaSelectionClear" Click="OnMediaSelectionClearClick" />
-                                        </WrapPanel><WrapPanel HorizontalAlignment="Right" ItemSpacing="8" LineSpacing="6"><Button x:Name="ArchiveEditRatingButton" IsEnabled="False" Click="OnEditMediaRatingClick" /><Button x:Name="PreviewArchiveMediaButton" Tag="archive.preview" Classes="localized" Click="OnPreviewClick" /></WrapPanel></StackPanel>
+                                        </WrapPanel><WrapPanel HorizontalAlignment="Right" ItemSpacing="8" LineSpacing="6"><Button x:Name="ArchiveEditRatingButton" IsEnabled="False" Click="OnEditMediaRatingClick" /><Button x:Name="PreviewArchiveMediaButton" Tag="archive.preview" Classes="localized" Click="OnPreviewClick" /><Button x:Name="ArchiveManageRatingsButton" Click="OnManageMediaRatingsClick" /></WrapPanel></StackPanel>
                                 </Grid>
                             </TabItem>
                             <TabItem x:Name="ArchiveReferencesTab">

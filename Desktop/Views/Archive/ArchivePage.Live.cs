@@ -39,7 +39,6 @@ public partial class ArchivePage
     private void LocalizeReaderUpdates()
     {
         ReaderFollowLive.Content = CommandCatalog.Label("watch.follow-live");
-        ToolTip.SetTip(ReaderFollowLive, Texts.T("reader.liveHint"));
         ReaderShowNewPosts.Content = CommandCatalog.Label("reader.show-new-posts");
         UpdateReaderUpdateControls();
     }
@@ -61,12 +60,33 @@ public partial class ArchivePage
     private bool MayFollow(ArchiveThreadSummary? summary) => summary != null && summary.CaptureEnabled
         && summary.SourceState == ThreadSourceState.Active && CanFollowLive?.Invoke(summary.Id) == true;
 
+    /// <summary>Why following live is impossible for this thread, or null when nothing but a transient state is in the way.</summary>
+    internal static string? FollowLiveReason(ArchiveThreadSummary? summary, bool watched)
+    {
+        if (summary == null) return null;
+        if (!watched) return Texts.T("reader.live.reason.notWatched");
+        if (!summary.CaptureEnabled) return Texts.T("reader.live.reason.captureOff");
+        return summary.SourceState switch
+        {
+            ThreadSourceState.Archived => Texts.T("reader.live.reason.sourceArchived"),
+            ThreadSourceState.NotFound => Texts.T("reader.live.reason.sourceGone"),
+            _ => null
+        };
+    }
+
     private void UpdateReaderUpdateControls()
     {
         ArchiveThreadSummary? summary = _latestReaderSummary;
         CheckBox follow = ReaderFollowLive;
         follow.IsEnabled = !_busy && MayFollow(summary);
         if (!MayFollow(summary)) { _followReader = false; follow.IsChecked = false; }
+        // The tip names the one cause that is missing right now, and is shown on the disabled box too.
+        string tip = Texts.T("reader.liveHint");
+        bool watched = summary != null && CanFollowLive?.Invoke(summary.Id) == true;
+        if (FollowLiveReason(summary, watched) is { } reason) tip += Environment.NewLine + reason;
+        ToolTip.SetTip(follow, tip);
+        ToolTip.SetShowOnDisabled(follow, true);
+        Avalonia.Automation.AutomationProperties.SetHelpText(follow, tip);
         ReaderShowNewPosts.IsVisible = _pendingReaderUpdate != null;
         ReaderShowNewPosts.IsEnabled = !_busy;
         TextBlock notice = ReaderNewPostsNotice;
