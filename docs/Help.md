@@ -12,8 +12,12 @@ For the separate collection-workflow and transfer preview, see
 [Deutsch](user-guide/collection-workflow-preview.md). Inspecting a transfer package
 is not the same as [importing your own files](#importing-your-own-files).
 
-The supplied source plugins support 4chan, 8kun, Lainchan, Kohlchan,
-Wizchan, Endchan, 2ch, Leftypol, Uboachan, ZZZchan and SushiChan. Open **Plugins**
+The supplied payload contains **24 plugins**: **19 source-plugin entries**
+(including two blocked placeholders) and **5 image filters**. It includes
+**21 editable example/filter source files**; official plugins are prebuilt,
+with their source code available in the repository, not the application package.
+See the [packaged inventory](plugins/README.md#packaged-inventory) for the split;
+the entry count is not a count of usable or enabled sources. Open **Plugins**
 from the app menu or footer (under **Tools** in compact views), then select a
 plugin to see its purpose, status and actions. The [plugin guide](plugins/README.md)
 and [first-session recipe](plugins/using-plugins.md#first-session) explain the
