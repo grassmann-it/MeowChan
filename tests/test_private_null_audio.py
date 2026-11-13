@@ -14,6 +14,19 @@ spec.loader.exec_module(audio)
 
 
 class PrivateAudioTests(unittest.TestCase):
+    def test_backend_detection_is_explicit_and_prefers_pulseaudio(self):
+        available = {'dbus-daemon', 'pactl', 'pulseaudio', 'pipewire', 'pipewire-pulse'}
+        with patch.object(audio.shutil, 'which',
+                          side_effect=lambda name: '/usr/bin/'+name if name in available else None):
+            self.assertEqual(audio.detect_backend(), audio.BACKEND_PULSEAUDIO)
+        available.remove('pulseaudio')
+        with patch.object(audio.shutil, 'which',
+                          side_effect=lambda name: '/usr/bin/'+name if name in available else None):
+            self.assertEqual(audio.detect_backend(), audio.BACKEND_PIPEWIRE)
+        available.remove('pipewire-pulse')
+        with patch.object(audio.shutil, 'which', return_value=None), self.assertRaises(RuntimeError):
+            audio.detect_backend()
+
     def test_cli(self):
         args = audio.cli(['--report', 'out.json', '--', 'test', '--flag'])
         self.assertEqual(args.command, ['test', '--flag'])
@@ -41,6 +54,21 @@ class PrivateAudioTests(unittest.TestCase):
             self.assertEqual(Path(env['PIPEWIRE_RUNTIME_DIR']), Path(tmp)/'runtime')
             self.assertEqual((Path(tmp)/'config/pulse/client.conf').read_text(), 'autospawn = no\n')
 
+    def test_pipewire_environment_is_closed_and_never_loads_a_session_manager(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env = audio.environment(Path(tmp), audio.BACKEND_PIPEWIRE)
+            pipewire = (Path(tmp)/'pipewire.conf').read_text()
+            pulse = (Path(tmp)/'pipewire-pulse.conf').read_text()
+            self.assertEqual(env['PIPEWIRE_REMOTE'], 'disabled-private-no-server')
+            self.assertIn('support.null-audio-sink', pipewire)
+            self.assertIn('libpipewire-module-access', pipewire)
+            self.assertNotIn('session-manager', pipewire)
+            self.assertNotIn('alsa', pipewire.lower())
+            self.assertNotIn('wireplumber', pipewire.lower())
+            self.assertIn('pulse.allow-module-loading = false', pulse)
+            self.assertIn('unix:'+str(Path(tmp)/'runtime/pulse/native'), pulse)
+
+
     def check_proof(self, sinks=None, modules=None, sources=None, cards=None, default=None, short_modules=None):
         values = [sinks if sinks is not None else [
                       {'name': audio.SINK, 'mute': True, 'owner_module': 1,
@@ -61,6 +89,46 @@ class PrivateAudioTests(unittest.TestCase):
 
     def test_valid_proof(self):
         self.assertTrue(self.check_proof()['muted'])
+
+    def test_valid_pipewire_proof(self):
+        graph = [
+            {'type': 'PipeWire:Interface:Module',
+             'info': {'props': {'module.name': name}}}
+            for name in audio.PIPEWIRE_MODULES
+        ] + [
+            {'type': 'PipeWire:Interface:Node',
+             'info': {'props': {'node.name': 'Dummy-Driver',
+                                'factory.name': 'support.node.driver'}}},
+            {'type': 'PipeWire:Interface:Node',
+             'info': {'props': {'node.name': audio.SINK,
+                                'factory.name': 'support.null-audio-sink',
+                                'media.class': 'Audio/Sink'}}},
+        ]
+        with patch.object(audio, 'checked', side_effect=[
+                json.dumps([{'name': audio.SINK, 'mute': True}]),
+                json.dumps([{'name': audio.SINK+'.monitor'}]),
+                '[]', audio.SINK, json.dumps(graph)]):
+            self.assertTrue(audio.pipewire_proof({})['muted'])
+
+    def test_pipewire_proof_rejects_device_backed_graph(self):
+        graph = [
+            {'type': 'PipeWire:Interface:Module',
+             'info': {'props': {'module.name': name}}}
+            for name in audio.PIPEWIRE_MODULES
+        ] + [
+            {'type': 'PipeWire:Interface:Node',
+             'info': {'props': {'node.name': 'Dummy-Driver'}}},
+            {'type': 'PipeWire:Interface:Node',
+             'info': {'props': {'node.name': audio.SINK,
+                                'factory.name': 'support.null-audio-sink',
+                                'media.class': 'Audio/Sink',
+                                'api.alsa.path': 'hw:0'}}},
+        ]
+        with patch.object(audio, 'checked', side_effect=[
+                json.dumps([{'name': audio.SINK, 'mute': True}]),
+                json.dumps([{'name': audio.SINK+'.monitor'}]),
+                '[]', audio.SINK, json.dumps(graph)]), self.assertRaises(RuntimeError):
+            audio.pipewire_proof({})
 
     def test_reject_hardware(self):
         for module in ('module-udev-detect', 'module-alsa-sink',
@@ -123,6 +191,9 @@ class PrivateAudioTests(unittest.TestCase):
     def test_cleanup_failure_overrides_success(self):
         self.execute_mock(0, False, 1)
 
+    def test_pipewire_execute_owns_both_daemons(self):
+        self.execute_mock(0, True, 0, audio.BACKEND_PIPEWIRE)
+
     def test_sigterm_and_startup_timeout_cleanup(self):
         for error, expected in ((InterruptedError(signal.SIGTERM), 143),
                                 (subprocess.TimeoutExpired('pactl', 3), 1)):
@@ -141,10 +212,11 @@ class PrivateAudioTests(unittest.TestCase):
                 self.assertIsNone(data['child_exit_code'])
                 self.assertEqual(data['status'], 'failed')
 
-    def execute_mock(self, child_code, clean, expected):
+    def execute_mock(self, child_code, clean, expected, backend=audio.BACKEND_PULSEAUDIO):
         with tempfile.TemporaryDirectory() as tmp:
             report = Path(tmp)/'report.json'
-            services = [Mock(pid=100+i) for i in range(2)]
+            service_count = 2 if backend == audio.BACKEND_PULSEAUDIO else 3
+            services = [Mock(pid=100+i) for i in range(service_count)]
             for service in services:
                 service.poll.return_value = None
             child = Mock(pid=105, returncode=child_code)
@@ -162,30 +234,40 @@ class PrivateAudioTests(unittest.TestCase):
                  patch.object(audio, 'checked', return_value=''), \
                  patch.object(audio, 'proof', return_value={'muted': True}), \
                  patch.object(audio, 'cleanup', return_value=clean) as cleanup:
-                self.assertEqual(audio.execute(['child'], report), expected)
+                self.assertEqual(audio.execute(['child'], report, backend), expected)
             import xml.etree.ElementTree as ET
             bus = ET.fromstring(bus_configs[0])
             rules = [node.attrib for node in bus.findall('policy/allow')]
             self.assertIn({'receive_sender': '*'}, rules)
             self.assertIn({'send_destination': '*'}, rules)
             self.assertIn({'own': '*'}, rules)
-            self.assertTrue(bus.find('listen').text.startswith('unix:path=/tmp/ci-audio-'))
+            self.assertTrue(bus.find('listen').text.startswith(
+                'unix:path='+str(Path(tempfile.gettempdir()))+'/ci-audio-'))
             self.assertEqual(bus.find('auth').text, 'EXTERNAL')
             bus_env = spawn.call_args_list[0].kwargs['env']
             self.assertEqual(bus_env['DBUS_SESSION_BUS_ADDRESS'],
                              bus_env['DBUS_SYSTEM_BUS_ADDRESS'])
-            self.assertTrue(bus_env['DBUS_SYSTEM_BUS_ADDRESS'].startswith('unix:path=/tmp/ci-audio-'))
-            pulse_args = spawn.call_args_list[1].args[0]
-            self.assertEqual(pulse_args[:2], ['pulseaudio', '-n'])
-            for flag in ('--daemonize=no', '--use-pid-file=no', '--exit-idle-time=-1', '--disallow-module-loading=yes'):
-                self.assertIn(flag, pulse_args)
-            self.assertTrue(any(a.startswith('--file=/') for a in pulse_args))
+            self.assertTrue(bus_env['DBUS_SYSTEM_BUS_ADDRESS'].startswith(
+                'unix:path='+str(Path(tempfile.gettempdir()))+'/ci-audio-'))
+            if backend == audio.BACKEND_PULSEAUDIO:
+                pulse_args = spawn.call_args_list[1].args[0]
+                self.assertEqual(pulse_args[:2], ['pulseaudio', '-n'])
+                for flag in ('--daemonize=no', '--use-pid-file=no', '--exit-idle-time=-1', '--disallow-module-loading=yes'):
+                    self.assertIn(flag, pulse_args)
+                self.assertTrue(any(a.startswith('--file=/') for a in pulse_args))
+                expected_services = {'dbus', 'pulseaudio'}
+            else:
+                self.assertEqual(spawn.call_args_list[1].args[0][:2], ['pipewire', '-c'])
+                self.assertEqual(spawn.call_args_list[2].args[0][:2], ['pipewire-pulse', '-c'])
+                self.assertEqual(spawn.call_args_list[1].kwargs['env']['PIPEWIRE_REMOTE'], 'pipewire-0')
+                self.assertEqual(spawn.call_args_list[2].kwargs['env']['PIPEWIRE_REMOTE'], 'pipewire-0')
+                expected_services = {'dbus', 'pipewire', 'pipewire-pulse'}
             data = json.loads(report.read_text())
             self.assertEqual(data['child_exit_code'], child_code)
             self.assertEqual(data['cleanup']['complete'], clean)
-            self.assertEqual(len(cleanup.call_args.args[0]), 3)
+            self.assertEqual(len(cleanup.call_args.args[0]), service_count + 1)
             self.assertNotIn('cookie', report.read_text())
-            self.assertEqual(set(data['services']), {'dbus', 'pulseaudio'})
+            self.assertEqual(set(data['services']), expected_services)
 
 
 if __name__ == '__main__':
