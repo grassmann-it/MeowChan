@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using MeowChan.Archive;
@@ -76,16 +78,26 @@ public partial class ArchivePage
         MenuFlyout menu = (MenuFlyout)ArchiveSavedSearches.Flyout!;
         menu.Items.Add(_saveCurrentSearchItem);
         menu.Items.Add(_openSavedSearchesItem);
-        ArchiveSavedSearches.TemplateApplied += (_, e) =>
+        // The arrow part names itself, so assistive technology does not read a bare "button": at the first template pass here, and again
+        // from ApplySavedSearchSplit (a template that was applied before this ran, and a language change).
+        ArchiveSavedSearches.TemplateApplied += (_, _) => NameSavedSearchArrow();
+        // The arrow part is not focusable (Semi template), so the keyboard opens its menu from the split button like the scope chip of the
+        // search field: Alt+Down or F4. Enter and Space keep opening the saved searches (the main part).
+        ArchiveSavedSearches.AddHandler(KeyDownEvent, (_, e) =>
         {
-            // The arrow part names itself, so assistive technology does not read a bare "button".
-            if (e.NameScope.Find<Button>("PART_SecondaryButton") is { } more)
-            {
-                AutomationProperties.SetName(more, MeowChan.Desktop.Localization.Texts.T("savedSearch.split.more"));
-                ToolTip.SetTip(more, MeowChan.Desktop.Localization.Texts.T("savedSearch.split.more"));
-            }
-        };
+            if (e.Handled || !((e.Key == Key.Down && e.KeyModifiers == KeyModifiers.Alt) || (e.Key == Key.F4 && e.KeyModifiers == KeyModifiers.None))) return;
+            if (ArchiveSavedSearches.IsEnabled && ArchiveSavedSearches.Flyout is { } flyout) { flyout.ShowAt(ArchiveSavedSearches); e.Handled = true; }
+        }, RoutingStrategies.Tunnel);
         return (_saveCurrentSearchItem, _openSavedSearchesItem);
+    }
+    private void NameSavedSearchArrow()
+    {
+        string name = MeowChan.Desktop.Localization.Texts.T("savedSearch.split.more");
+        foreach (Button more in ArchiveSavedSearches.GetTemplateChildren().OfType<Button>().Where(button => button.Name == "PART_SecondaryButton"))
+        {
+            AutomationProperties.SetName(more, name);
+            ToolTip.SetTip(more, name);
+        }
     }
     private void RunSavedSearchMenu(bool saveCurrent)
     {
@@ -142,5 +154,6 @@ public partial class ArchivePage
         AutomationProperties.SetName(split, label);
         AutomationProperties.SetHelpText(split, tip);
         split.IsEnabled = CanOpenSavedSearches();
+        NameSavedSearchArrow();
     }
 }
