@@ -511,7 +511,7 @@
     "preferences.failed": "Не удалось сохранить настройки отображения: {0}",
     "tray.tooltipPaused": "пауза",
     "tray.tooltipActive": "Активных загрузок: {0}",
-    "stats.tray.rates": "↓ {0} · Диск {1}",
+    "stats.tray.rates": "↓ {0} · Запись на диск {1}",
     "stats.tray.activeCount": "Активных загрузок: {0}",
     "stats.tray.activeCount.one": "Активных загрузок: {0}",
     "stats.tray.waiting": "в очереди: {0}",

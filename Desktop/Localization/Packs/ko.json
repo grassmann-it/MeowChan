@@ -3160,7 +3160,7 @@
     "stats.tray.idle": "대기 중",
     "stats.tray.menuIdle": "대기 중",
     "stats.tray.menuPaused": "일시 정지됨",
-    "stats.tray.rates": "↓ {0} · 디스크 {1}",
+    "stats.tray.rates": "↓ {0} · 디스크 쓰기 {1}",
     "stats.tray.today": "오늘 ↓ {0}",
     "stats.tray.waiting": "{0}개 대기 중",
     "postFilter.title": "게시물 필터",

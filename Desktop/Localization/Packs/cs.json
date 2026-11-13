@@ -3219,7 +3219,7 @@
     "stats.tray.idle": "nečinný",
     "stats.tray.menuIdle": "Nečinný",
     "stats.tray.menuPaused": "Pozastaveno",
-    "stats.tray.rates": "↓ {0} · Disk {1}",
+    "stats.tray.rates": "↓ {0} · Zápis na disk {1}",
     "stats.tray.today": "Dnes ↓ {0}",
     "stats.tray.waiting": "{0} čeká",
     "stats.tray.activeCount.one": "{0} aktivní stahování",

@@ -3194,7 +3194,7 @@
     "stats.tray.idle": "inattivo",
     "stats.tray.menuIdle": "Inattivo",
     "stats.tray.menuPaused": "In pausa",
-    "stats.tray.rates": "↓ {0} · Disco {1}",
+    "stats.tray.rates": "↓ {0} · Scrittura su disco {1}",
     "stats.tray.today": "Oggi ↓ {0}",
     "stats.tray.waiting": "{0} in attesa",
     "stats.tray.activeCount.one": "{0} download attivo",

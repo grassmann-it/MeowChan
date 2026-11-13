@@ -511,7 +511,7 @@
     "preferences.failed": "No se pudieron guardar las preferencias de visualización: {0}",
     "tray.tooltipPaused": "en pausa",
     "tray.tooltipActive": "Descargas activas: {0}",
-    "stats.tray.rates": "↓ {0} · Disco {1}",
+    "stats.tray.rates": "↓ {0} · Disco escrito {1}",
     "stats.tray.activeCount": "{0} descargas activas",
     "stats.tray.activeCount.one": "{0} descarga activa",
     "stats.tray.waiting": "{0} en espera",

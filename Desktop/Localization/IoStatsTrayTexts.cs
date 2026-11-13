@@ -8,7 +8,7 @@ internal static class IoStatsTrayTexts
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     [
-        ("stats.tray.rates", "↓ {0} · Disk {1}", "↓ {0} · Platte {1}"),
+        ("stats.tray.rates", "↓ {0} · Disk written {1}", "↓ {0} · Platte geschrieben {1}"),
         ("stats.tray.activeCount", "{0} downloads active", "{0} Downloads aktiv"),
         ("stats.tray.activeCount.one", "{0} download active", "{0} Download aktiv"),
         ("stats.tray.waiting", "{0} waiting", "{0} wartend"),

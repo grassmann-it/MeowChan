@@ -3160,7 +3160,7 @@
     "stats.tray.idle": "待機中",
     "stats.tray.menuIdle": "待機中",
     "stats.tray.menuPaused": "一時停止中",
-    "stats.tray.rates": "↓ {0} · ディスク {1}",
+    "stats.tray.rates": "↓ {0} · ディスク書き込み {1}",
     "stats.tray.today": "今日 ↓ {0}",
     "stats.tray.waiting": "{0}件待機中",
     "postFilter.title": "投稿フィルター",

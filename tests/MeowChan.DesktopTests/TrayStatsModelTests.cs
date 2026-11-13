@@ -22,8 +22,8 @@ public sealed class TrayStatsModelTests : IDisposable
         new(paused, 0, 0, IoRates.Zero, new IoCounts(today, 450 * MiB, 0, 0, 0), RatesKnown: false);
 
     [Theory]
-    [InlineData("en", "MeowChan · ↓ 2.4 MiB/s · Disk 12.0 MiB/s · 3 downloads active")]
-    [InlineData("de", "MeowChan · ↓ 2,4 MiB/s · Platte 12,0 MiB/s · 3 Downloads aktiv")]
+    [InlineData("en", "MeowChan · ↓ 2.4 MiB/s · Disk written 12.0 MiB/s · 3 downloads active")]
+    [InlineData("de", "MeowChan · ↓ 2,4 MiB/s · Platte geschrieben 12,0 MiB/s · 3 Downloads aktiv")]
     public void TheActiveTooltipShowsBinaryRatesAndTheDownloadCount(string language, string expected)
     {
         Texts.SetLanguage(language);
@@ -31,9 +31,9 @@ public sealed class TrayStatsModelTests : IDisposable
     }
 
     [Theory]
-    [InlineData("en", "MeowChan · ↓ 512 KiB/s · Disk 1.5 MiB/s · 1 download active")]
-    [InlineData("de", "MeowChan · ↓ 512 KiB/s · Platte 1,5 MiB/s · 1 Download aktiv")]
-    public void TheDiskRateAddsWritingAndReadingAndTheSingularIsUsed(string language, string expected)
+    [InlineData("en", "MeowChan · ↓ 512 KiB/s · Disk written 1.0 MiB/s · 1 download active")]
+    [InlineData("de", "MeowChan · ↓ 512 KiB/s · Platte geschrieben 1,0 MiB/s · 1 Download aktiv")]
+    public void TheDiskRateIsWritingOnlyReadingNeverCountsAndTheSingularIsUsed(string language, string expected)
     {
         Texts.SetLanguage(language);
         Assert.Equal(expected, TrayStatsModel.Tooltip(Running(active: 1, net: 512 * KiB, write: MiB, read: 0.5 * MiB)));
@@ -94,8 +94,8 @@ public sealed class TrayStatsModelTests : IDisposable
     }
 
     [Theory]
-    [InlineData("en", "↓ 2.4 MiB/s · Disk 12.0 MiB/s", "3 downloads active · 41 waiting · Today ↓ 1.2 GiB")]
-    [InlineData("de", "↓ 2,4 MiB/s · Platte 12,0 MiB/s", "3 Downloads aktiv · 41 wartend · Heute ↓ 1,2 GiB")]
+    [InlineData("en", "↓ 2.4 MiB/s · Disk written 12.0 MiB/s", "3 downloads active · 41 waiting · Today ↓ 1.2 GiB")]
+    [InlineData("de", "↓ 2,4 MiB/s · Platte geschrieben 12,0 MiB/s", "3 Downloads aktiv · 41 wartend · Heute ↓ 1,2 GiB")]
     public void TheMenuLinesShowRatesAndCountsWhileDownloadsRunAndAreMeasured(string language, string rates, string detail)
     {
         Texts.SetLanguage(language);

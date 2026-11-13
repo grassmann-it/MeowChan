@@ -511,7 +511,7 @@
     "preferences.failed": "Impossible d’enregistrer les préférences d’affichage : {0}",
     "tray.tooltipPaused": "en pause",
     "tray.tooltipActive": "Téléchargements actifs : {0}",
-    "stats.tray.rates": "↓ {0} · Disque {1}",
+    "stats.tray.rates": "↓ {0} · Disque écrit {1}",
     "stats.tray.activeCount": "{0} téléchargements actifs",
     "stats.tray.activeCount.one": "{0} téléchargement actif",
     "stats.tray.waiting": "{0} en attente",

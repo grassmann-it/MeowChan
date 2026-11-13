@@ -3160,7 +3160,7 @@
     "stats.tray.idle": "空闲",
     "stats.tray.menuIdle": "空闲",
     "stats.tray.menuPaused": "已暂停",
-    "stats.tray.rates": "↓ {0} · 磁盘 {1}",
+    "stats.tray.rates": "↓ {0} · 磁盘写入 {1}",
     "stats.tray.today": "今天 ↓ {0}",
     "stats.tray.waiting": "{0} 个等待中",
     "postFilter.title": "帖子筛选",

@@ -3224,7 +3224,7 @@
     "stats.tray.idle": "bezczynny",
     "stats.tray.menuIdle": "Bezczynny",
     "stats.tray.menuPaused": "Wstrzymano",
-    "stats.tray.rates": "↓ {0} · Dysk {1}",
+    "stats.tray.rates": "↓ {0} · Zapis na dysk {1}",
     "stats.tray.today": "Dziś ↓ {0}",
     "stats.tray.waiting": "{0} oczekuje",
     "stats.tray.activeCount.one": "{0} aktywne pobieranie",
