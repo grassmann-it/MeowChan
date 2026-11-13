@@ -61,6 +61,8 @@ internal static class BuiltInCatalog
         ("check.stopping", "This watch is stopping or no longer has an active polling lifetime.", "Diese Beobachtung wird beendet oder hat keinen aktiven Prüflauf mehr."),
         ("check.failed", "Could not request a check: {0}", "Prüfung konnte nicht angefordert werden: {0}"),
         ("nav.downloads", "Downloads", "Downloads"),
+        ("nav.goDownloads", "Go to Downloads", "Zu Downloads"),
+        ("nav.goArchive", "Go to Archive", "Zum Archiv"),
         ("nav.diagnostics", "Diagnostics", "Diagnose"),
         ("nav.tools", "Tools", "Werkzeuge"),
         ("diagnostics.hint", "Current requests, errors and the latest session warnings. This is a live snapshot, not an event history.", "Aktuelle Anfragen, Fehler und die letzten Sitzungswarnungen. Die Ansicht zeigt den jetzigen Zustand, keinen Ereignisverlauf."),

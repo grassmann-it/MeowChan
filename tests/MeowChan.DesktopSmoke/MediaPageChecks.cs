@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -10,6 +11,7 @@ using Avalonia.VisualTree;
 using MeowChan.Archive;
 using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
@@ -820,6 +822,37 @@ internal static partial class MediaPageChecks
             await page.BuildTask.WaitAsync(Deadline);
             Require(media.Classes.Contains("selected") && !archive.Classes.Contains("selected"), "Media navigation is not marked as selected.");
             Require(C<TextBlock>(page, "MediaEmpty").IsVisible, "An empty archive must say that there are no saved media.");
+            // Empty states name the next step and reach it with the footer's own navigation.
+            Button goDownloads = C<Button>(page, "MediaGoDownloads"), goArchive = C<Button>(page, "MediaGoArchive");
+            Require(goDownloads.IsEffectivelyVisible && goArchive.IsEffectivelyVisible
+                && AutomationProperties.GetName(goDownloads) == Texts.T("nav.goDownloads")
+                && AutomationProperties.GetName(goArchive) == Texts.T("nav.goArchive"),
+                "The empty media page did not offer labelled Downloads and Archive buttons.");
+            Program.CaptureWindow(owner, "smoke-empty-media.png");
+            goArchive.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            ContentControl archiveHost = owner.FindControl<ContentControl>("ArchivePageHost")!;
+            await UntilAsync(() => !host.IsVisible && archiveHost.IsVisible);
+            Button archiveGo = C<Button>(owner.ArchivePage, "ArchiveGoDownloads");
+            await UntilAsync(() => archiveGo.IsEffectivelyVisible);
+            Require(AutomationProperties.GetName(archiveGo) == Texts.T("nav.goDownloads")
+                && !C<Button>(owner.ArchivePage, "ArchiveResetFilters").IsVisible,
+                "The empty archive did not offer a labelled Go to Downloads button instead of Reset filters.");
+            await UntilAsync(() => !owner.ArchivePage.IsBusy);
+            owner.UpdateLayout();
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            Program.CaptureWindow(owner, "smoke-empty-archive.png");
+            archiveGo.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await UntilAsync(() => !archiveHost.IsVisible && owner.FindControl<Control>("WorkspaceBody")!.IsVisible);
+            Button importEmpty = C<Button>(owner, "ThreadsEmptyImportButton");
+            await UntilAsync(() => importEmpty.IsEffectivelyVisible);
+            Require(AutomationProperties.GetName(importEmpty) == CommandCatalog.Label("watch.import-clipboard"),
+                "The empty Downloads list did not offer the clipboard import under its command name.");
+            Program.CaptureWindow(owner, "smoke-empty-downloads.png");
+            media.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await UntilAsync(() => host.IsVisible);
+            await page.BuildTask.WaitAsync(Deadline);
+            goDownloads.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await UntilAsync(() => !host.IsVisible && owner.FindControl<Control>("WorkspaceBody")!.IsVisible);
             archive.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => !host.IsVisible && owner.FindControl<ContentControl>("ArchivePageHost")!.IsVisible);
             // Barebones moves Media into the Tools menu, next to Archive.

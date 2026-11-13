@@ -45,7 +45,9 @@ public partial class MainWindow
             TagServices = new(_session.GetPublishedPrivateTagSnapshot,
                 (name, subjects, expectedRevision, token) => _session.DefineAndSetMediaSubjectTagsAsync(name, subjects, expectedRevision, token),
                 (tag, subjects, assigned, expectedRevision, token) => _session.SetMediaSubjectTagsAsync(tag, subjects, assigned, expectedRevision, token)),
-            ExportOriginals = ExportMediaLibraryOriginalsAsync
+            ExportOriginals = ExportMediaLibraryOriginalsAsync,
+            GoToDownloadsRequested = GoToDownloads,
+            GoToArchiveRequested = () => NavigateWorkspace(WorkspacePage.Archive)
         };
         _mediaPage.InitializeSharedMediaMenus();
         MediaPageHost.Content = _mediaPage;

@@ -236,6 +236,7 @@ public partial class MainWindow : Window
             _archivePage.IsReadable = !_isClosing && _session.CatalogReadable;
         }
         AddUrlButton.IsEnabled = ready && !_importing;
+        ThreadsEmptyImportButton.IsEnabled = ready && !_importing;
         UrlInput.IsEnabled = ready;
         SettingsMenuItem.IsEnabled = earlyPages;
         DownloadsNavigationButton.IsEnabled = earlyPages;
@@ -633,6 +634,9 @@ public partial class MainWindow : Window
             await ImportClipboardAsync();
         }
     }
+
+    // The Downloads empty state offers the same clipboard import as the tray item and the paste shortcut.
+    private async void OnEmptyStateImportClick(object? sender, RoutedEventArgs e) => await ImportClipboardAsync();
 
     private async Task ImportClipboardAsync()
     {

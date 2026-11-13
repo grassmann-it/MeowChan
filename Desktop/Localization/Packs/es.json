@@ -262,6 +262,8 @@
     "check.stopping": "Este seguimiento se está deteniendo o ya no tiene un ciclo de consulta activo.",
     "check.failed": "No se pudo solicitar una comprobación: {0}",
     "nav.downloads": "Descargas",
+    "nav.goDownloads": "Ir a Descargas",
+    "nav.goArchive": "Ir al Archivo",
     "nav.diagnostics": "Diagnóstico",
     "nav.tools": "Herramientas",
     "diagnostics.hint": "Solicitudes actuales, errores y últimas advertencias de la sesión. Es una instantánea en vivo, no un historial de eventos.",

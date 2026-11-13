@@ -977,6 +977,7 @@ public partial class ArchivePage : UserControl
         LocalizePrivateTags();
         LocalizeExport();
         LocalizeSearch();
+        LocalizeEmptyState();
         UpdateArchiveEmptyState();
         Control<Button>("ArchiveLayoutList").Content = Texts.T("gallery.list");
         Control<Button>("ArchiveLayoutTable").Content = Texts.T("gallery.table");

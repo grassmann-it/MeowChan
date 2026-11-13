@@ -46,6 +46,11 @@ public sealed partial class MediaPage : UserControl
     private readonly TextBlock _status = new() { Name = "MediaStatus", TextWrapping = Avalonia.Media.TextWrapping.Wrap };
     private readonly ListBox _grid = new() { Name = "MediaGrid", SelectionMode = SelectionMode.Multiple };
     private readonly TextBlock _empty = new() { Name = "MediaEmpty", TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(8, 40, 8, 8), IsVisible = false, Classes = { "muted" } };
+    // An empty library points back to where media comes from; a filter that matches nothing shows only its sentence.
+    private readonly Button _goDownloads = new() { Name = "MediaGoDownloads", Classes = { "primary" } };
+    private readonly Button _goArchive = new() { Name = "MediaGoArchive" };
+    private readonly WrapPanel _emptyActions = new() { Name = "MediaEmptyActions", ItemSpacing = 8, LineSpacing = 8, Margin = new Thickness(8, 0, 8, 8) };
+    private readonly StackPanel _emptyState = new() { Name = "MediaEmptyState", VerticalAlignment = VerticalAlignment.Top, IsVisible = false };
     private MediaLibrarySnapshot? _snapshot;
     private IReadOnlyList<MediaLibraryEntry> _shown = Array.Empty<MediaLibraryEntry>();
     private IReadOnlyList<MediaLibraryTile> _tiles = Array.Empty<MediaLibraryTile>();
@@ -63,6 +68,9 @@ public sealed partial class MediaPage : UserControl
 
     /// <summary>Opens the gallery for a window of shown entries; the int is the chosen entry inside it.</summary>
     internal Func<IReadOnlyList<MediaLibraryEntry>, int, Task>? OpenGallery { get; set; }
+    /// <summary>Set by the shell: the footer destinations offered by the empty state.</summary>
+    internal Action? GoToDownloadsRequested { get; set; }
+    internal Action? GoToArchiveRequested { get; set; }
     internal Func<MediaLibraryEntry, Task>? ShowInThread { get; set; }
     /// <summary>Edits the own media tags of one entry through the host's tag commands.</summary>
     internal Func<MediaLibraryEntry, Task>? EditTags { get; set; }
@@ -106,7 +114,9 @@ public sealed partial class MediaPage : UserControl
         _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThreadFilter = FilterToThread, ShowOccurrences = ShowOccurrences });
         ScrollViewer.SetHorizontalScrollBarVisibility(_grid, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
         Panel body = new();
-        body.Children.Add(_grid); body.Children.Add(_empty);
+        _emptyActions.Children.Add(_goDownloads); _emptyActions.Children.Add(_goArchive);
+        _emptyState.Children.Add(_empty); _emptyState.Children.Add(_emptyActions);
+        body.Children.Add(_grid); body.Children.Add(_emptyState);
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
         layout.Children.Add(header);
         Border surface = new() { Name = "MediaGridSurface", Child = body, Margin = new Thickness(12, 0, 12, 8), Classes = { "panel" } };
@@ -118,6 +128,8 @@ public sealed partial class MediaPage : UserControl
         _shuffle.Click += (_, _) => { _seed = unchecked(_seed * 31 + 17); Present(); };
         _missing.IsCheckedChanged += (_, _) => { if (!_localizing) Present(); };
         _refresh.Click += (_, _) => BuildTask = BuildAsync(force: true);
+        _goDownloads.Click += (_, _) => GoToDownloadsRequested?.Invoke();
+        _goArchive.Click += (_, _) => GoToArchiveRequested?.Invoke();
         _grid.DoubleTapped += (_, _) => _ = OpenSelectedAsync();
         _grid.KeyDown += OnGridKeyDown;
         _grid.SelectionChanged += (_, _) => { if (_restoring) return; ShowSelectionNote(null); UpdateSelectionBar(); };
@@ -228,7 +240,10 @@ public sealed partial class MediaPage : UserControl
         _status.Text = string.Join(" · ", parts);
         _empty.Text = Texts.T(_filterActive ? "media.filter.noMatch" : "media.empty");
         // A refused filter explains itself above the grid; the grid stays empty.
-        _empty.IsVisible = _snapshot != null && _shown.Count == 0 && _building == null && !_filterFailed;
+        bool showEmpty = _snapshot != null && _shown.Count == 0 && _building == null && !_filterFailed;
+        _empty.IsVisible = showEmpty;
+        _emptyState.IsVisible = showEmpty;
+        _emptyActions.IsVisible = showEmpty && !_filterActive;
         _refresh.IsEnabled = !_lifetime.IsCancellationRequested;
         UpdateFilterToggle();
         UpdateSelectionBar();
@@ -586,6 +601,8 @@ public sealed partial class MediaPage : UserControl
         _shuffle.Content = Texts.T("media.shuffle");
         _missing.Content = Texts.T("media.showMissing");
         _refresh.Content = Texts.T("media.refresh");
+        CommandBindings.ApplyLabeled(_goDownloads, "navigation.downloads", Texts.T("nav.goDownloads"));
+        CommandBindings.ApplyLabeled(_goArchive, "navigation.archive", Texts.T("nav.goArchive"));
         AutomationProperties.SetName(_grid, Texts.T("media.title"));
         LocalizeFilters();
         LocalizeFilterSurface();

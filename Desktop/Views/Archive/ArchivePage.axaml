@@ -186,7 +186,7 @@
                         </DataGrid>
                         <StackPanel x:Name="ArchiveEmptyState" Margin="12" Spacing="8" IsVisible="False">
                             <TextBlock x:Name="ArchiveEmpty" Classes="muted" TextWrapping="Wrap" />
-                            <Button x:Name="ArchiveReaderGroupsEmpty" Content="Reader groups" Click="OnReaderGroupsClick" />
+                            <Button x:Name="ArchiveGoDownloads" HorizontalAlignment="Left" Click="OnGoDownloadsClick" />
                             <Button x:Name="ArchiveResetFilters" HorizontalAlignment="Left" Click="OnResetArchiveFiltersClick" />
                         </StackPanel>
                         <!-- ARCH-DENSE-01 slice 2: the pager is docked under the list inside the results

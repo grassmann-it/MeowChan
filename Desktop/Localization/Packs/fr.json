@@ -262,6 +262,8 @@
     "check.stopping": "Cette surveillance s’arrête ou n’a plus de cycle de vérification actif.",
     "check.failed": "Impossible de demander une vérification : {0}",
     "nav.downloads": "Téléchargements",
+    "nav.goDownloads": "Aller aux Téléchargements",
+    "nav.goArchive": "Aller à l’Archive",
     "nav.diagnostics": "Diagnostic",
     "nav.tools": "Outils",
     "diagnostics.hint": "Requêtes en cours, erreurs et derniers avertissements de la session. Il s’agit d’un état instantané, pas d’un historique des événements.",

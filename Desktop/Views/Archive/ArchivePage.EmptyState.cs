@@ -2,6 +2,7 @@ using System;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using MeowChan.Archive;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -28,7 +29,18 @@ public partial class ArchivePage
         Button reset = ArchiveResetFilters;
         reset.Content = Texts.T("archive.resetFilters");
         reset.IsVisible = constrained;
+        // An archive that has nothing yet is filled from Downloads; a filter that matches nothing is reset instead.
+        ArchiveGoDownloads.IsVisible = !constrained;
     }
+
+    /// <summary>The empty archive's next step: the Downloads command, labelled as a destination.</summary>
+    private void LocalizeEmptyState() =>
+        CommandBindings.ApplyLabeled(ArchiveGoDownloads, "navigation.downloads", Texts.T("nav.goDownloads"));
+
+    /// <summary>Set by the shell: opens Downloads like the footer button does.</summary>
+    internal Action? GoToDownloadsRequested { get; set; }
+
+    private void OnGoDownloadsClick(object? sender, RoutedEventArgs e) => GoToDownloadsRequested?.Invoke();
 
     private async void OnResetArchiveFiltersClick(object? sender, RoutedEventArgs e)
     {

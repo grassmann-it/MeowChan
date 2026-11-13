@@ -203,6 +203,9 @@ public partial class MainWindow
         ThreadsEmptyState.Text = current ? Texts.T(active ? "downloads.searchEmpty" : "downloads.empty") : pending;
         BoardsEmptyState.Text = current ? Texts.T(active ? "downloads.searchEmpty" : "downloads.boardsEmpty") : pending;
         ThreadsEmptyState.IsVisible = _startupPreviewShown ? HistoricThreads.Count == 0 : VisibleThreads.Count == 0;
+        ThreadsEmptyPanel.IsVisible = ThreadsEmptyState.IsVisible;
+        // The next step is offered only for a truly empty, current list; not for a search without hits or a pending claim.
+        ThreadsEmptyImportButton.IsVisible = ThreadsEmptyState.IsVisible && current && !active;
         BoardsEmptyState.IsVisible = VisibleBoards.Count == 0;
         TextBox input = DownloadSearchInput;
         input.PlaceholderText = Texts.T("downloads.searchPlaceholder");

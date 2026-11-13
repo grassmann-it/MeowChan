@@ -251,9 +251,15 @@
                         <!-- ContextMenu for right-clicking on a row -->
                         <DataGrid.ContextMenu><ContextMenu /></DataGrid.ContextMenu>
                     </DataGrid>
-                                    <TextBlock x:Name="ThreadsEmptyState" Tag="downloads.empty" Classes="localized muted"
-                                               VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center"
-                                               MaxWidth="360" Margin="28" TextWrapping="Wrap" IsHitTestVisible="False" />
+                                    <!-- The text never takes input; only the next-step button below it does. -->
+                                    <StackPanel x:Name="ThreadsEmptyPanel" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                MaxWidth="360" Margin="28" Spacing="12">
+                                        <TextBlock x:Name="ThreadsEmptyState" Tag="downloads.empty" Classes="localized muted"
+                                                   HorizontalAlignment="Center" TextAlignment="Center"
+                                                   TextWrapping="Wrap" IsHitTestVisible="False" />
+                                        <Button x:Name="ThreadsEmptyImportButton" Classes="primary" HorizontalAlignment="Center"
+                                                Click="OnEmptyStateImportClick" />
+                                    </StackPanel>
                                 </Grid>
                                 <Grid x:Name="BoardsResultPanel" Grid.Row="2" Grid.ColumnSpan="2" IsVisible="False">
 <DataGrid x:Name="BoardsDataGrid"

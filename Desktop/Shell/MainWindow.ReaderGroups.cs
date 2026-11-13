@@ -47,10 +47,8 @@ public partial class MainWindow
             CommandBindings.Apply(menu, "reader-groups.open-manager");
             menu.IsEnabled = CanOpenReaderGroups;
         }
-        if (_archivePage != null)
-            foreach (string name in new[] { "ArchiveReaderGroups", "ArchiveReaderGroupsEmpty" })
-                if (_archivePage.FindControl<Button>(name) is Button button)
-                { CommandBindings.Apply(button, "reader-groups.open-manager"); button.IsEnabled = CanOpenReaderGroups; }
+        if (_archivePage?.FindControl<Button>("ArchiveReaderGroups") is Button button)
+        { CommandBindings.Apply(button, "reader-groups.open-manager"); button.IsEnabled = CanOpenReaderGroups; }
     }
 
     internal async Task OpenReaderGroupsAsync(Control? origin = null)

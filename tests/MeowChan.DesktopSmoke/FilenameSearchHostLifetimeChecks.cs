@@ -59,13 +59,12 @@ internal static class FilenameSearchHostLifetimeChecks
         // Open/close both actual managers without saving, applying, or substituting a store/Show.
         await CheckSavedSearchBaselineAsync("ArchiveSavedSearches", saveCurrent: false);
         await CheckSavedSearchBaselineAsync("ArchiveSaveSearch", saveCurrent: true);
-        Require(f.C<Button>("ArchiveReaderGroups").IsEnabled && f.C<Button>("ArchiveReaderGroupsEmpty").IsEnabled
+        Require(f.C<Button>("ArchiveReaderGroups").IsEnabled
             && f.BookmarksEntry.Command?.CanExecute(null) == true,
             "Reader-group/bookmark manager baseline was already ineligible.");
         Dispatch(f.C<Button>("ArchiveReaderGroups"));
-        Dispatch(f.C<Button>("ArchiveReaderGroupsEmpty"));
         f.BookmarksEntry.Command!.Execute(null); // Command-only button: RaiseEvent alone cannot dispatch ICommand.
-        Require(f.ReaderGroups == 2 && f.PostBookmarkManagers == 1,
+        Require(f.ReaderGroups == 1 && f.PostBookmarkManagers == 1,
             "Actual reader-group/bookmark entries did not reach their instance callbacks before reservation.");
         Click(f.C<Button>("ReaderFindOpen"));
         await f.Page.ThreadFindTask.WaitAsync(Deadline);
@@ -182,7 +181,6 @@ internal static class FilenameSearchHostLifetimeChecks
             Dispatch(f.C<Button>("ArchiveSavedSearches"));
             Dispatch(f.C<Button>("ArchiveSaveSearch"));
             Dispatch(f.C<Button>("ArchiveReaderGroups"));
-            Dispatch(f.C<Button>("ArchiveReaderGroupsEmpty"));
             f.BookmarksEntry.Command!.Execute(null); // Force real DelegateCommand admission despite disabled appearance.
             Require(!f.Window.OwnedWindows.OfType<SavedArchiveSearchesDialog>().Any(window => window.IsVisible)
                 && f.ReaderGroups == groups && f.PostBookmarkManagers == bookmarks,

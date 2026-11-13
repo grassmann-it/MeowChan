@@ -157,6 +157,7 @@ public partial class MainWindow
         };
         _archivePage.OpenReaderRequested = OpenLargeReader;
         _archivePage.CloseReaderRequested = () => CloseLargeReader();
+        _archivePage.GoToDownloadsRequested = GoToDownloads;
         _archivePage.OpenGallery = (id, key, origin) => OpenGalleryAsync(id, key, origin);
         _archivePage.OpenMediaGallery = (entries, start, origin) => OpenMediaGalleryAsync(entries, start, origin);
         _archivePage.OpenResultsGallery = (query, workFilter, origin) => OpenSearchGalleryAsync(query, workFilter, origin);

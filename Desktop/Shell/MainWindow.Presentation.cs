@@ -292,6 +292,7 @@ public partial class MainWindow
         RefreshBrandNavigation();
         LocalizeDownloadsColumnsButton();
         CommandBindings.ApplyLabeled(AddUrlButton, "watch.add-url", Texts.T("action.add"));
+        CommandBindings.Apply(ThreadsEmptyImportButton, "watch.import-clipboard", iconWithLabel: true);
         CommandBindings.ApplyLabeled(DownloadSearchButton, "input.focus-download-search", Texts.T("downloads.search"));
         CommandBindings.ApplyLabeled(CopyAllUrlsButton, "watch.copy-all-links", Texts.T("downloads.copySessionUrls", UrlList.Count + BoardsList.Count));
         CommandBindings.ApplyLabeled(InspectorOpenFolderButton, "location.open-folder", Texts.T("action.openFolder"));
@@ -592,7 +593,10 @@ public partial class MainWindow
         RefreshWorkspace();
     }
     private void OnWorkspaceTabChanged(object? sender, SelectionChangedEventArgs e) => RefreshWorkspace();
-    private void OnDownloadsNavigationClick(object? sender, RoutedEventArgs e)
+    private void OnDownloadsNavigationClick(object? sender, RoutedEventArgs e) => GoToDownloads();
+
+    // The footer button and the empty states of Archive and Media share this destination.
+    private void GoToDownloads()
     {
         if (NavigateWorkspace(WorkspacePage.Downloads)) UrlInput.Focus();
     }
