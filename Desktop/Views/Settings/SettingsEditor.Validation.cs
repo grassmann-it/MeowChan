@@ -150,6 +150,9 @@ public partial class SettingsEditor
     public string ThumbnailCacheTilesHelp => FieldHelp(nameof(ThumbnailCacheTilesInput), Texts.T("settings.unitCount") + ". " + ThumbnailCacheTilesHint);
     public string ClipboardUrlLimitHelp => FieldHelp(nameof(ClipboardUrlLimitInput), Texts.T("settings.unitCount") + ". " + ClipboardUrlLimitHint);
     public string ClipboardTextLimitKiBHelp => FieldHelp(nameof(ClipboardTextLimitKiBInput), Texts.T("settings.unitKiB") + ". " + ClipboardTextLimitKiBHint);
+    public string GalleryImageCacheMiBHelp => FieldHelp(nameof(GalleryImageCacheMiBInput), Texts.T("settings.unitMiB") + ". " + GalleryImageCacheMiBHint);
+    public string GalleryPreloadAheadHelp => FieldHelp(nameof(GalleryPreloadAheadInput), Texts.T("settings.unitCount") + ". " + GalleryPreloadAheadHint);
+    public string GalleryPreloadBehindHelp => FieldHelp(nameof(GalleryPreloadBehindInput), Texts.T("settings.unitCount") + ". " + GalleryPreloadBehindHint);
     public string ImportMaxFilesPerBatchHelp => FieldHelp(nameof(ImportMaxFilesPerBatchInput), Texts.T("settings.unitCount") + ". " + ImportMaxFilesPerBatchHint);
     public string ImportMaxBatchGiBHelp => FieldHelp(nameof(ImportMaxBatchGiBInput), Texts.T("settings.unitGiB") + ". " + ImportMaxBatchGiBHint);
     public string ImportMaxFileMiBHelp => FieldHelp(nameof(ImportMaxFileMiBInput), Texts.T("settings.unitMiB") + ". " + ImportMaxFileMiBHint);
@@ -166,7 +169,7 @@ public partial class SettingsEditor
             nameof(ParallelDownloadsHelp), nameof(ParallelDownloadsSafetyHelp), nameof(ReserveInputHelp), nameof(ProductionWorkersHelp),
             nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp), nameof(BooruCatalogMiBHelp),
             nameof(PrivateTagLimitHelp), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBHelp),
-            nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitHelp), nameof(SourcesWatchPreviewRowsHelp), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitHelp), nameof(AudioProbeCacheLimitMiBHelp), nameof(AudioProbeCacheEntriesHelp), nameof(ThumbnailCacheTilesHelp), nameof(ClipboardUrlLimitHelp), nameof(ClipboardTextLimitKiBHelp), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesHelp), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsHelp) })
+            nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitHelp), nameof(SourcesWatchPreviewRowsHelp), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitHelp), nameof(AudioProbeCacheLimitMiBHelp), nameof(AudioProbeCacheEntriesHelp), nameof(ThumbnailCacheTilesHelp), nameof(GalleryImageCacheMiBHelp), nameof(GalleryPreloadAheadHelp), nameof(GalleryPreloadBehindHelp), nameof(ClipboardUrlLimitHelp), nameof(ClipboardTextLimitKiBHelp), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesHelp), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsHelp) })
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
         NotifyStatisticsHelpChanged();
     }
@@ -239,6 +242,12 @@ public partial class SettingsEditor
             Config.ClipboardUrlLimitMinimum, Config.ClipboardUrlLimitMaximum, true);
         yield return (ClipboardTextLimitKiBInput, ClipboardTextLimitKiB, ClipboardTextLimitKiBLabel, Texts.T("settings.unitKiB"),
             Config.ClipboardTextLimitKiBMinimum, Config.ClipboardTextLimitKiBMaximum, true);
+        yield return (GalleryImageCacheMiBInput, GalleryImageCacheMiB, GalleryImageCacheMiBLabel, Texts.T("settings.unitMiB"),
+            Config.GalleryImageCacheMiBMinimum, Config.GalleryImageCacheMiBMaximum, true);
+        yield return (GalleryPreloadAheadInput, GalleryPreloadAhead, GalleryPreloadAheadLabel, Texts.T("settings.unitCount"),
+            Config.GalleryPreloadAheadMinimum, Config.GalleryPreloadAheadMaximum, true);
+        yield return (GalleryPreloadBehindInput, GalleryPreloadBehind, GalleryPreloadBehindLabel, Texts.T("settings.unitCount"),
+            Config.GalleryPreloadBehindMinimum, Config.GalleryPreloadBehindMaximum, true);
         yield return (ImportMaxFilesPerBatchInput, ImportMaxFilesPerBatch, ImportMaxFilesPerBatchLabel, Texts.T("settings.unitCount"),
             Config.ImportMaxFilesPerBatchMinimum, Config.ImportMaxFilesPerBatchMaximum, true);
         yield return (ImportMaxBatchGiBInput, ImportMaxBatchGiB, ImportMaxBatchGiBLabel, Texts.T("settings.unitGiB"),
