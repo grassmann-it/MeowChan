@@ -210,3 +210,37 @@ carries no `.one`/`.few` keys. Fixed terms:
 
 Booru, Danbooru, MeowChan, keyboard keys and units stay unchanged. Japanese sentences
 use full-width 、。「」？！ and （）; label colons stay half-width (`ラベル: {0}`).
+
+### Korean (`ko`) glossary
+
+`ko.json` (`한국어 (Untested)`) is an **unreviewed AI-authored preview** like es/fr/ru;
+no native Korean review, CJK font, wrapping or IME QA is claimed by the pack itself.
+Korean has no plural forms, so the pack carries no `.one`/`.few` variants. Messages use
+the polite 합니다/습니다 style (instructions as ~하세요); labels, buttons and menus stay
+short (저장, 설정, 삭제). Fixed terms:
+
+| English | Korean |
+| --- | --- |
+| post | 게시물 |
+| thread | 스레드 |
+| board | 게시판 |
+| archive (local archive) | 보관함 (archived: 보관됨) |
+| media | 미디어 |
+| gallery | 갤러리 |
+| reader | 리더 (a media viewer is 뷰어) |
+| watch / watcher | 감시 / 감시자 |
+| download | 다운로드 |
+| tag / own tags | 태그 / 내 태그 |
+| plugin | 플러그인 |
+| source / provider | 소스 / 제공자 |
+| settings | 설정 |
+| favorite | 즐겨찾기 |
+| rating (own) / provider rating | 평가 / 등급 |
+| spoiler | 스포일러 |
+| Storage and limits | 저장 공간 및 한도 |
+| capture | 캡처 |
+| Booru, Danbooru | unchanged |
+
+Particles after a placeholder or other variable text use the neutral software notation
+`을(를)`, `이(가)`, `은(는)`, `(으)로`; particles that do not change (`의`, `에`, `에서`) are
+written plainly. Keyboard keys, units and placeholders are kept unchanged.
