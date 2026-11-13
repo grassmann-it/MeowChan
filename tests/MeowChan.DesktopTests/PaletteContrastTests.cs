@@ -106,6 +106,25 @@ public sealed class PaletteContrastTests
             }
     }
 
+    // The export dialog card (Panel) must still stand out from the page the Scrim dims behind it (WCAG 1.4.11).
+    // Dark is a documented soft edge (the card has CardEdge); Light is held to 3:1.
+    [Theory, InlineData("Dark", 1.1), InlineData("Light", 3.0)]
+    public void ExportDialogCardStandsOutFromTheScrimBackdrop(string theme, double minimum)
+    {
+        string scrim = Color(theme, "Workspace.Scrim");
+        Assert.Equal(9, scrim.Length); // #AARRGGBB
+        double alpha = Channel(scrim, 0) / 255d;
+        string under = Color(theme, "Workspace.Background");
+        // Blend in sRGB space like the compositor does, then measure the result against the card.
+        string dimmed = "#" + string.Concat(Enumerable.Range(1, 3).Select(index =>
+            ((int)Math.Round(Channel(under, index - 1) * (1 - alpha) + Channel(scrim, index) * alpha)).ToString("X2", CultureInfo.InvariantCulture)));
+        double ratio = Contrast(Color(theme, "Workspace.Panel"), dimmed);
+        Assert.True(ratio >= minimum, $"{theme}: dialog card on the dimmed background is {ratio:0.00}:1, needs {minimum:0.0}:1");
+    }
+
+    private static int Channel(string hex, int index) =>
+        int.Parse(hex.AsSpan(1 + index * 2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+
     private static void AssertContrast(string theme, string foreground, string background, double minimum)
     {
         double ratio = Contrast(Color(theme, foreground), Color(theme, background));

@@ -134,7 +134,7 @@
                     <BoxShadows x:Key="ComboBoxPopupBoxShadow">0 4 16 0 #26000000</BoxShadows>
                     <BoxShadows x:Key="AutoCompleteBoxPopupBoxShadow">0 4 16 0 #26000000</BoxShadows>
                     <BoxShadows x:Key="NotificationCardBoxShadows">0 4 16 0 #26000000</BoxShadows>
-                    <SolidColorBrush x:Key="Workspace.Scrim">#33000000</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Scrim">#66000000</SolidColorBrush>
                     <!-- Reader post cards are workspace cards (D3): warm near-white Card on the Background page. Edge = ControlBorder
                          (= CardEdge), 3.66:1 against the page; card 1.24:1 above it. Active card: AccentSurface + accent edge. -->
                     <!-- Greentext: the study's #3F6D1A fell to 4.26:1 on the active card (AccentSurface); #386217
