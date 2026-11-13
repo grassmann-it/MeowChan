@@ -75,9 +75,10 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     internal DesktopSessionHost(string profileDirectory, IEnumerable<IImageBoard>? providers = null,
         Func<string, ProfileLease, ISessionStore>? sessionStoreFactory = null, ILogger? logger = null,
         Func<string, Config, UpdateSession>? updateSessionFactory = null, Func<System.Net.Http.HttpClient>? pluginTransportFactory = null,
-        Func<string, ProfileLease, IWorkStateStore>? workStoreFactory = null)
+        Func<string, ProfileLease, IWorkStateStore>? workStoreFactory = null, Stats.IoStatsHub? ioStats = null)
     {
         _logger = logger ?? Log.Logger;
+        _ioStats = ioStats ?? Stats.IoStatsHub.Shared;
         _profileLease = ProfileLease.Acquire(profileDirectory);
         DownloadQueue? queue = null;
         try
@@ -128,6 +129,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             Updates = updateSessionFactory?.Invoke(_profileLease.ProfileDirectory, Config)
                 ?? new UpdateSession(_profileLease.ProfileDirectory, Config);
             MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.host.ctor", "updates-done");
+            StartIoStats();
         }
         catch
         {
@@ -565,6 +567,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             ApplyBooruCatalogLimit();
             ApplyPrivateTagLimits();
             ApplyStoreLimits();
+            ApplyIoStatsOptions();
             await Updates.ConfigureAsync(Config).ConfigureAwait(false);
         }
         finally { _commands.Release(); }
@@ -829,6 +832,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             catch (Exception error) { errors.Add(error); if (ownsLifetime) quiescent = false; }
         }
         await Observe(() => Task.WhenAll(engineStopped, _acceptedDrain, finalWrites)).ConfigureAwait(false);
+        await Observe(() => { StopIoStats(); return Task.CompletedTask; }).ConfigureAwait(false);
         // The optional cache belongs to the existing TerminalOpen authority, before
         // releasing the host family and BEFORE the kernel's final admission drain.
         ProfileProducerEpoch.Use? terminalUse;
@@ -915,7 +919,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         }
     }
 
-    private void OnRegistryChanged() => SignalChanged();
+    private void OnRegistryChanged() { QueueIoActivityRefresh(); SignalChanged(); }
 
     private void SignalChanged() => RequestProjection();
 
