@@ -313,6 +313,14 @@ public sealed partial class Registry : IAsyncDisposable
     }
 
     /// <summary>Explicitly restores before user admissions. No partial restore snapshot is saved.</summary>
+    /// <remarks>
+    /// This method does not bootstrap a freshly acquired profile lease. For a new
+    /// profile-bound session, await <see cref="StartAsync"/> instead: it performs
+    /// recovery and restore before activating producers, including when persistence
+    /// is disabled. Calling RestoreAsync after successful startup is a no-op.
+    /// Unbound registries and new registries borrowing an already-ready lease may
+    /// use RestoreAsync directly. A stopped registry cannot be restarted.
+    /// </remarks>
     public async Task RestoreAsync()
     {
         using ProfileAdmissionToken? admission = EnterRegistryWriter();
