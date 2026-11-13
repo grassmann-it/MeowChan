@@ -222,10 +222,10 @@ one-shot and watcher findings retain their provenance.
   baseline **from now**; it does not download the historical result list.
   Automatic checks normally run once an hour while the app and source are ready.
 - **Check now.** Requests one bounded check independent of that interval. On a
-  paused watcher it sends exactly one request, leaves the watcher paused and
-  schedules nothing further. On an active watcher, paging and bounded retries can
-  require more than one request. Removed watchers and provider cooldowns send
-  nothing.
+  paused watcher it leaves the watcher paused and schedules nothing further.
+  One check can require more than one HTTP request because of paging and bounded
+  retries, including on a paused watcher. Removed watchers and provider cooldowns
+  send nothing.
 - **Pause and Resume.** Pause stops automatic checks for this watcher; originals
   already admitted follow the ordinary queue rules. Resume enables the schedule
   again without bypassing a cooldown. Global session Pause also gates requests.
@@ -684,7 +684,7 @@ Use **View** in the reader toolbar to switch on **Hide media** or **Only posts w
 switches apply to every thread in the reader. A deliberate jump to a hidden post (for example through a quote, find,
 bookmark or reading position) shows it temporarily; **Hide again** hides it once more. **Show as conversation** places
 replies beneath the earlier post they quote, with indentation; the opening post stays first and the separate reply
-counter is omitted in this mode. The conversation switch is session-only; its depth limit is not a visible 1.1 setting.
+counter is omitted in this mode. The conversation switch is session-only; its depth limit is not yet available in Settings.
 
 The app header and window controls remain available above the large reader
 and gallery.
@@ -832,7 +832,9 @@ at a time; **Show more replies** loads five more. Clicking the counter again clo
 them, and reopening reuses what was already loaded. A post without replies shows no
 counter. Replies always come from the saved posts; the source is never queried for
 them. The integrated 1.1 reader currently uses these display defaults; the settings page for changing the reader
-limits and modes is not wired in yet.
+limits and modes is not wired in yet. Pages contain 50 posts; dates use the system-style format, with the full
+date in a tooltip. Preview widths default to 240 pixels in the embedded reader and 360 pixels in the large reader.
+These defaults are not additional Settings choices in this checkout.
 
 **View → Post filters…** can match post text, subject, file name or MD5 and then hide, replace with a placeholder or
 highlight matching posts. You can also hide one post from its post menu, optionally with its replies, and show it again.
@@ -1321,7 +1323,7 @@ or missing delivery proof cannot be overridden by this confirmation.
 ### Missing legacy plugin candidates
 
 If an older profile reports **Candidate is missing from the startup inventory**,
-open **Plugins → Review bundled updates**. For supported, unambiguous entries,
+open **Plugins → Review bundled repairs**. For supported, unambiguous entries,
 **NEW selection** offers a currently delivered bundled build. Inspect its exact
 identity and the complete settings, explicitly check the acknowledgement, confirm,
 and restart the application. Enabled/disabled choices are preserved. This does

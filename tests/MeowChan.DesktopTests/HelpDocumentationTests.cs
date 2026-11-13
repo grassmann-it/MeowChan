@@ -2,7 +2,9 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using MeowChan.Archive;
 using MeowChan.Booru;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Import;
@@ -121,7 +123,76 @@ public sealed class HelpDocumentationTests
         Assert.Contains("translated for English, German", text);
         Assert.Contains("Simplified Chinese", text);
         Assert.Contains("**Plugins → Review bundled repairs**", text);
+        Assert.DoesNotContain("Review bundled updates", text);
         Assert.Contains("not a claim that 1.1.0 packages have passed release acceptance", text);
+    }
+
+    [Fact]
+    public void ReaderDisplayDefaultsAndLinkLengthMatchTheImplementedSeams()
+    {
+        string cards = Plain(Section(Read(Help), "Reading posts as cards"));
+        AssertNumber(cards, @"Pages contain (?<value>\d+) posts", ArchivePage.ReaderPageSizeDefault);
+        AssertNumber(cards, @"widths default to (?<value>\d+) pixels", ReaderDisplayPreferences.ReaderThumbnailWidthDefault);
+        AssertNumber(cards, @"and (?<value>\d+) pixels in the large reader",
+            ReaderDisplayPreferences.EffectiveThumbnailWidth(ReaderDisplayPreferences.ReaderThumbnailWidthDefault, true));
+        AssertNumber(cards, @"longer than (?<value>\d+) UTF-16 code units", ReaderExternalLink.MaxLength);
+        Assert.Contains("not additional Settings choices in this checkout", cards);
+        Assert.Contains("only for this app session, not after a restart", cards);
+    }
+
+    [Fact]
+    public void ExportFrameLanguagesMatchTheImplementedLocales()
+    {
+        string export = Plain(Section(Read(Help), "Portable HTML export"));
+        Match languages = Capture(export, @"translated for (?<languages>.*?)\. Unsupported languages use English");
+        string[] names = Regex.Split(languages.Groups["languages"].Value, @",\s*|\s+and\s+");
+        (string Name, string Code)[] expected =
+        [
+            ("English", "en"), ("German", "de"), ("Spanish", "es"), ("French", "fr"),
+            ("Russian", "ru"), ("Czech", "cs"), ("Italian", "it"), ("Japanese", "ja"),
+            ("Korean", "ko"), ("Polish", "pl"), ("Brazilian Portuguese", "pt-BR"), ("Simplified Chinese", "zh-Hans")
+        ];
+        Assert.Equal(expected.Select(locale => locale.Name), names);
+        Assert.Equal(Texts.BundledPackCodes().Concat(["en", "de"]).Order(StringComparer.Ordinal),
+            expected.Select(locale => locale.Code).Order(StringComparer.Ordinal));
+        foreach ((string _, string code) in expected)
+        {
+            HtmlExportLocalization locale = new(code);
+            Assert.Equal(code, locale.Language);
+            Assert.False(string.IsNullOrWhiteSpace(locale.Get(HtmlExportText.Theme)));
+            Assert.False(string.IsNullOrWhiteSpace(locale.Get(HtmlExportText.About)));
+        }
+        HtmlExportLocalization fallback = new("unsupported");
+        Assert.Equal("en", fallback.Language);
+        Assert.Equal("Theme", fallback.Get(HtmlExportText.Theme));
+    }
+
+    [Fact]
+    public void PausedWatcherGuidancePromisesOneCheckNotOneHttpRequest()
+    {
+        // A pure domain example: an established, paused watcher can need a second page in
+        // its manual check. No provider, transport, profile or scheduler is opened here.
+        DateTimeOffset now = DateTimeOffset.UnixEpoch;
+        Assert.True(DanbooruWatcher.TryCreate("help-watcher", "cat", now, out var watcher, out _));
+        watcher = DanbooruWatcher.BeginCheck(watcher!, now).Watcher;
+        watcher = DanbooruWatcher.ApplyPage(watcher,
+            new(DanbooruWatcher.ProviderId, "cat", 1, ["100"], true), now).Watcher;
+        watcher = DanbooruWatcher.Pause(watcher).Watcher;
+        watcher = DanbooruWatcher.BeginCheck(watcher, now, manual: true).Watcher;
+        watcher = DanbooruWatcher.ApplyPage(watcher,
+            new(DanbooruWatcher.ProviderId, "cat", 1, ["102"], false), now).Watcher;
+        Assert.Equal(DanbooruWatcherState.Checking, watcher.State);
+        Assert.Equal(2, watcher.Progress.NextPage);
+        watcher = DanbooruWatcher.ApplyPage(watcher,
+            new(DanbooruWatcher.ProviderId, "cat", 2, ["101", "100"], true), now).Watcher;
+        Assert.Equal(DanbooruWatcherState.Paused, watcher.State);
+
+        string help = Plain(Section(Read(Help), "Saved watchers"));
+        string guide = Plain(Read(DanbooruGuide));
+        Assert.Contains("including on a paused watcher", help);
+        Assert.DoesNotContain("exactly one request", help);
+        Assert.Contains("auch bei einer pausierten Beobachtung", guide);
+        Assert.DoesNotContain("genau eine Anfrage", guide);
     }
 
     [Fact]
