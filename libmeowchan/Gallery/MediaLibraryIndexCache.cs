@@ -50,6 +50,15 @@ internal static class MediaLibraryIndexCache
     // read again, and the item id ("Im") of manually imported files. A version 3 document is still read (it simply has
     // neither identities nor imported files: the next build reads the manifests once, as before, and writes version 4;
     // no cold rebuild). An older or newer document is no cache: rebuild.
+    /// <summary>
+    /// Longest string value (UTF-16 chars) a cache document may hold: thread titles, folders, file names, ids, tags. The writer
+    /// refuses to save an index with a longer value and the reader treats a longer one as a damaged document, so a manipulated
+    /// file cannot make the load allocate a huge string and a value the writer produced is never rejected on load. The longest
+    /// legitimate values (a title of 160 text elements, a folder path, a 255-character file name) stay far below it.
+    /// </summary>
+    internal const int MaximumStringChars = 32 * 1024;
+    // The JSON writer escapes every non-ASCII char as \uXXXX (a pair as 12 bytes): the longest raw token a legal value can have.
+    private const int MaximumRawStringBytes = MaximumStringChars * 6;
     private const int CurrentVersion = 4;
     private const int PreviousVersion = 3;
     private static readonly JsonSerializerOptions WriteOptions = CreateOptions(null);
@@ -161,7 +170,9 @@ internal static class MediaLibraryIndexCache
             {
                 LimitedWriteStream limited = new(file, limit);
                 try { await JsonSerializer.SerializeAsync(limited, document, WriteOptions, token).ConfigureAwait(false); }
-                catch (LimitExceededException) { return new(MediaLibraryIndexCacheWriteStatus.TooLarge, limited.Written, limit, null); }
+                // A value longer than any a cache may hold is refused like an index over the limit: nothing is written.
+                catch (Exception error) when (error is LimitExceededException or ValueTooLongException)
+                { return new(MediaLibraryIndexCacheWriteStatus.TooLarge, limited.Written, limit, null); }
                 written = limited.Written;
                 file.Flush(flushToDisk: true);
             }
@@ -215,8 +226,15 @@ internal static class MediaLibraryIndexCache
         {
             if (json.TokenType == JsonTokenType.Null) return null;
             if (json.TokenType != JsonTokenType.String) throw Damaged();
-            int length = json.HasValueSequence ? checked((int)json.ValueSequence.Length) : json.ValueSpan.Length;
-            if (length > 4096) return Intern(json.GetString()!);
+            long raw = json.HasValueSequence ? json.ValueSequence.Length : json.ValueSpan.Length;
+            if (raw > MaximumRawStringBytes) throw Damaged();
+            int length = (int)raw;
+            if (length > 4096)
+            {
+                string text = json.GetString()!;
+                if (text.Length > MaximumStringChars) throw Damaged();
+                return Intern(text);
+            }
             if (_buffer.Length < length) _buffer = new char[Math.Max(length, _buffer.Length * 2)];
             int count = json.CopyString(_buffer);
             ReadOnlySpan<char> value = _buffer.AsSpan(0, count);
@@ -249,7 +267,9 @@ internal static class MediaLibraryIndexCache
     {
         if (json.TokenType == JsonTokenType.Null) return null;
         if (json.TokenType != JsonTokenType.String) throw Damaged();
-        return json.GetString();
+        if ((json.HasValueSequence ? json.ValueSequence.Length : json.ValueSpan.Length) > MaximumRawStringBytes) throw Damaged();
+        string text = json.GetString()!;
+        return text.Length > MaximumStringChars ? throw Damaged() : text;
     }
 
     private static long Int64(ref Utf8JsonReader json) =>
@@ -321,7 +341,9 @@ internal static class MediaLibraryIndexCache
 
     private static void Optional(Utf8JsonWriter writer, string name, string? value)
     {
-        if (value != null) writer.WriteString(name, value);
+        if (value == null) return;
+        if (value.Length > MaximumStringChars) throw new ValueTooLongException();
+        writer.WriteString(name, value);
     }
 
     /// <summary>{"D": folder, "G": generation, "I": identity}; G and I are left out when unknown.</summary>
@@ -353,6 +375,7 @@ internal static class MediaLibraryIndexCache
         public override void Write(Utf8JsonWriter writer, MediaLibraryManifestState value, JsonSerializerOptions options)
         {
             writer.WriteStartObject();
+            if (value.Directory.Length > MaximumStringChars) throw new ValueTooLongException();
             writer.WriteString("D", value.Directory);
             Optional(writer, "G", value.Generation);
             if (value.Identity is { } identity) WriteIdentity(writer, identity);
@@ -507,6 +530,11 @@ internal static class MediaLibraryIndexCache
             Optional(writer, "Im", entry.ImportItemId);
             writer.WriteEndObject();
         }
+    }
+
+    private sealed class ValueTooLongException : IOException
+    {
+        internal ValueTooLongException() : base("A media index cache value is longer than a cache may hold.") { }
     }
 
     private sealed class LimitExceededException : IOException

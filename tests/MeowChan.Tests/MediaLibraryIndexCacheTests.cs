@@ -191,6 +191,74 @@ public sealed class MediaLibraryIndexCacheTests
     }
 
     [Fact]
+    public async Task AStringValueLongerThanACacheMayHoldIsADamagedDocumentAndNeverApplied()
+    {
+        using TempDirectory temp = new();
+        string path = Path.Combine(temp.Path, MediaLibraryIndexCache.FileName);
+        MediaLibrarySnapshot synthetic = MediaLibraryIndexBenchmark.Synthetic(10);
+        MediaLibraryIndexCacheSync.Save(path, synthetic);
+        string document = await File.ReadAllTextAsync(path);
+        string title = synthetic.Entries[0].ThreadTitle;
+        int max = MediaLibraryIndexCache.MaximumStringChars;
+
+        // Exactly the maximum still loads, with the title unchanged except for its filler.
+        await File.WriteAllTextAsync(path, document.Replace("\"Title\":\"" + title, "\"Title\":\"" + new string('x', max - title.Length) + title));
+        MediaLibrarySnapshot loaded = MediaLibraryIndexCacheSync.Load(path)!;
+        Assert.NotNull(loaded);
+        Assert.Equal(max, loaded.Entries[0].ThreadTitle.Length);
+
+        // One char more in any string field makes the whole document damaged: nothing is applied partially.
+        foreach (string field in new[] { "Title", "Dir", "Key", "Name", "Var", "Asset", "Mid", "D" })
+        {
+            string needle = "\"" + field + "\":\"";
+            Assert.Contains(needle, document);
+            int at = document.IndexOf(needle, StringComparison.Ordinal);
+            string longer = document.Insert(at + needle.Length, new string('x', max + 1));
+            await File.WriteAllTextAsync(path, longer);
+            Assert.Null(MediaLibraryIndexCacheSync.Load(path));
+            // Even escaped (six bytes per char) and far over the cap it is refused, not read.
+            await File.WriteAllTextAsync(path, document.Insert(at + needle.Length, string.Concat(Enumerable.Repeat("\\u00e4", max * 2))));
+            Assert.Null(MediaLibraryIndexCacheSync.Load(path));
+        }
+        // The valid document still loads, so the failures above are the length alone.
+        await File.WriteAllTextAsync(path, document);
+        Assert.NotNull(MediaLibraryIndexCacheSync.Load(path));
+    }
+
+    [Fact]
+    public async Task TheWriterKeepsTheSameMaximumSoEveryWrittenIndexLoadsAndALongerValueIsNotSaved()
+    {
+        using TempDirectory temp = new();
+        string path = Path.Combine(temp.Path, "cache", MediaLibraryIndexCache.FileName);
+        MediaLibrarySnapshot synthetic = MediaLibraryIndexBenchmark.Synthetic(10);
+        int max = MediaLibraryIndexCache.MaximumStringChars;
+        MediaLibrarySnapshot With(string title, string? name = null) => new(
+            synthetic.Entries.Select((entry, index) => index == 0 ? entry with { ThreadTitle = title, Name = name ?? entry.Name } : entry).ToArray(),
+            synthetic.Threads, Array.Empty<string>(), complete: true);
+
+        // The longest value in its widest JSON form (every char escaped) is written and read back unchanged.
+        foreach (string longest in new[] { new string('t', max), new string('\u732b', max), string.Concat(Enumerable.Repeat("\U0001F408", max / 2)) })
+        {
+            MediaLibrarySnapshot snapshot = With(longest, longest);
+            Assert.Equal(MediaLibraryIndexCacheWriteStatus.Written, (await MediaLibraryIndexCache.SaveAsync(path, snapshot, MediaLibraryIndexCache.MaximumBytes)).Status);
+            MediaLibrarySnapshot? loaded = MediaLibraryIndexCacheSync.Load(path);
+            Assert.NotNull(loaded);
+            Assert.Equal(snapshot.Entries, loaded!.Entries);
+        }
+
+        // A longer value is not saved: no file is created and an existing cache stays as it was.
+        string other = Path.Combine(temp.Path, "none", MediaLibraryIndexCache.FileName);
+        Assert.Equal(MediaLibraryIndexCacheWriteStatus.TooLarge,
+            (await MediaLibraryIndexCache.SaveAsync(other, With(new string('t', max + 1)), MediaLibraryIndexCache.MaximumBytes)).Status);
+        Assert.False(File.Exists(other));
+        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(other)!));
+        byte[] before = await File.ReadAllBytesAsync(path);
+        Assert.Equal(MediaLibraryIndexCacheWriteStatus.TooLarge,
+            (await MediaLibraryIndexCache.SaveAsync(path, With("ok", new string('n', max + 1)), MediaLibraryIndexCache.MaximumBytes)).Status);
+        Assert.Equal(before, await File.ReadAllBytesAsync(path));
+    }
+
+    [Fact]
     public async Task AnUnchangedIndexIsNotWrittenAgainButAReplacedOrRemovedFileIs()
     {
         using TempDirectory temp = new();
