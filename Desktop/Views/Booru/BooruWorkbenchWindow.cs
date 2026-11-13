@@ -643,7 +643,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         BooruPostView post = row.Post;
         // The title line names the card; the border itself carries no name, so "Post #n" is read once.
         Border card = new() { Name = "BooruResult:" + post.PostId };
-        card.Classes.Add("workspace-section");
+        card.Classes.Add("workspace-card");
 
         Grid grid = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 12 };
         grid.Children.Add(WithPreviewCorners(CreatePreview(row), post));
@@ -766,9 +766,9 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
             Width = PreviewSize, Height = PreviewSize, VerticalAlignment = VerticalAlignment.Top, ClipToBounds = true,
             CornerRadius = new CornerRadius(5)
         };
-        frame.Classes.Add("raised");
         if (row.Preview == BooruPreviewState.Ready && PreviewBitmap(row) is { } bitmap)
         {
+            // D3: the thumbnail is flat on the card (no box, no edge of its own); only the placeholder has a quiet slot.
             // Decorative next to the card's title line; not a second "Post #n".
             Image image = new() { Source = bitmap, Stretch = Stretch.Uniform };
             AutomationProperties.SetAccessibilityView(image, AccessibilityView.Raw);
@@ -776,6 +776,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         }
         else
         {
+            frame.Classes.Add("workspace-thumb-placeholder");
             string key = row.Preview switch
             {
                 BooruPreviewState.Loading => "booru.ui.post.previewLoading",
@@ -985,7 +986,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         DateTimeOffset? cooling = model.ActiveCooldown(watcher);
         // The query line names the card; the border itself carries no name, so the query is read once.
         Border card = new() { Name = "BooruWatcher:" + watcher.WatcherId };
-        card.Classes.Add("workspace-section");
+        card.Classes.Add("workspace-card");
         StackPanel panel = new() { Spacing = 6 };
 
         Grid head = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };

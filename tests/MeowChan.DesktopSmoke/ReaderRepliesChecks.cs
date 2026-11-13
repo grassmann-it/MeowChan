@@ -181,10 +181,10 @@ internal static class ReaderRepliesChecks
         ListBoxItem opItem = Container(opening), replyItem = Container(reply);
         Require(opItem.Classes.Contains("reader-op") && Surface(opItem) == Colors.Transparent,
             "The opening post did not sit directly on the page: " + Surface(opItem));
-        Require(!replyItem.Classes.Contains("reader-op") && Surface(replyItem) == Token("Workspace.ReaderPostSurface")
-            && (replyItem.GetVisualDescendants().OfType<ContentPresenter>().First().BorderBrush as ISolidColorBrush)?.Color == Token("Workspace.ReaderPostEdge"),
+        Require(!replyItem.Classes.Contains("reader-op") && Surface(replyItem) == Token("Workspace.Card")
+            && (replyItem.GetVisualDescendants().OfType<ContentPresenter>().First().BorderBrush as ISolidColorBrush)?.Color == Token("Workspace.CardEdge"),
             "A reply was not a card with its edge: " + Surface(replyItem));
-        Require((list.Background as ISolidColorBrush)?.Color == Token("Workspace.ReaderPage"), "The post list was not on the page tone.");
+        Require((list.Background as ISolidColorBrush)?.Color == Token("Workspace.Background"), "The post list was not on the page tone.");
         Require(opItem.GetVisualDescendants().OfType<TextBlock>().Any(text => text.IsEffectivelyVisible && text.Text == opening.BacklinkCountLabel),
             "The reply count was not shown in the opening post header.");
 

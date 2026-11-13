@@ -21,16 +21,12 @@
                          Dark CardEdge is deliberately softer than a 3:1 edge (computed 2.3:1 on Background, 2.0:1 on Card;
                          not measured natively); adjust it here only. -->
                     <SolidColorBrush x:Key="Workspace.Card">#20242A</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.CardEdge">#4A525C</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.CardEdge">#5A636E</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Overlay">#1B1E22</SolidColorBrush>
                     <BoxShadows x:Key="Workspace.Shadow.Overlay">0 4 16 0 #66000000</BoxShadows>
                     <SolidColorBrush x:Key="Workspace.Scrim">#66000000</SolidColorBrush>
-                    <!-- Reader post cards (study 2026-11-13, variant A): cards on the darker page tone. The edge is
-                         3.03:1 against the page (non-text minimum 3:1), the card 1.18:1 above it. The active card
-                         uses Workspace.AccentSurface with the accent edge. -->
-                    <SolidColorBrush x:Key="Workspace.ReaderPage">#121416</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.ReaderPostSurface">#20242A</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.ReaderPostEdge">#5A636E</SolidColorBrush>
+                    <!-- Reader post cards are workspace cards (D3): Card on the Background page, CardEdge 3.03:1 against the page
+                         (non-text minimum 3:1), the card 1.18:1 above it. The active card uses Workspace.AccentSurface with the accent edge. -->
                     <!-- Greentext ('>' lines) in post bodies: 8.29:1 on the card, 6.69:1 on the active card. -->
                     <SolidColorBrush x:Key="Workspace.ReaderGreentext">#9CCB6A</SolidColorBrush>
                     <!-- Code runs sit on a darker area than the card; a spoiler is one area that hides its text in its own
@@ -112,11 +108,8 @@
                     <SolidColorBrush x:Key="Workspace.Overlay">#EFECE6</SolidColorBrush>
                     <BoxShadows x:Key="Workspace.Shadow.Overlay">0 4 16 0 #26000000</BoxShadows>
                     <SolidColorBrush x:Key="Workspace.Scrim">#33000000</SolidColorBrush>
-                    <!-- Reader post cards: warm near-white cards on the page tone. Edge = ControlBorder, 3.66:1
-                         against the page; card 1.24:1 above it. Active card: AccentSurface + accent edge. -->
-                    <SolidColorBrush x:Key="Workspace.ReaderPage">#E3DFD8</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.ReaderPostSurface">#FAF7F1</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.ReaderPostEdge">#7A7062</SolidColorBrush>
+                    <!-- Reader post cards are workspace cards (D3): warm near-white Card on the Background page. Edge = ControlBorder
+                         (= CardEdge), 3.66:1 against the page; card 1.24:1 above it. Active card: AccentSurface + accent edge. -->
                     <!-- Greentext: the study's #3F6D1A fell to 4.26:1 on the active card (AccentSurface); #386217
                          is 6.71:1 on the card, 4.97:1 on the active card and 5.40:1 on the page (opening post). -->
                     <SolidColorBrush x:Key="Workspace.ReaderGreentext">#386217</SolidColorBrush>
@@ -751,6 +744,28 @@
         <Setter Property="Width" Value="12" /><Setter Property="Height" Value="12" />
         <Setter Property="Stroke" Value="{DynamicResource Workspace.OnAccent}" /><Setter Property="StrokeThickness" Value="2" />
         <Setter Property="StrokeLineCap" Value="Round" /><Setter Property="StrokeJoin" Value="Round" />
+    </Style>
+
+    <!-- D3 surfaces (design language 5, 6.2). workspace-card: content card on Panel or Background (Booru hit, watcher, reader post
+         through the same tokens): Card + CardEdge 1 px, radius 5, no shadow, never a card inside a card. workspace-card-active: the
+         selected card, AccentSurface with the accent edge 3,1,1,1 (never the tint alone). workspace-overlay: the in-window overlay
+         level (filter surface): Overlay + ControlBorder + radius 8; D6 adds the one shadow. workspace-thumb-placeholder: the quiet
+         static slot behind a thumbnail that has not arrived (no box once the image is there). -->
+    <Style Selector="Border.workspace-card">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Card}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.CardEdge}" />
+        <Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
+        <Setter Property="Padding" Value="{StaticResource Workspace.Inset.Card}" />
+    </Style>
+    <Style Selector="Border.workspace-card.workspace-card-active">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="BorderThickness" Value="3,1,1,1" />
+    </Style>
+    <Style Selector="Border.workspace-overlay">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Overlay}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Group}" />
+    </Style>
+    <Style Selector="Border.workspace-thumb-placeholder">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
     </Style>
 
     <!-- D1 motion (design language 4.5, E4/E5). Every rule below applies only under a TopLevel WITHOUT the class motion-off

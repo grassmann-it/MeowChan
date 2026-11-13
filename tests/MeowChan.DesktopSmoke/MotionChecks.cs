@@ -159,6 +159,27 @@ internal static class MotionChecks
             MotionPolicy.WhileThemeChanges(() => app.RequestedThemeVariant = originalTheme);
             await UntilAsync(() => !window.Classes.Contains("motion-off"), "motion back after restoring the theme");
 
+            // OverlayReveal (filter surfaces): the class follows visibility; entering fades in, leaving is immediate, motion-off is instant.
+            Border surface = new() { Width = 220, Height = 40, Background = Brushes.DimGray, IsVisible = false, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom, ZIndex = 10 };
+            OverlayReveal.Follow(surface);
+            content.Children.Add(surface);
+            Require(surface.Classes.Contains(OverlayReveal.StyleClass) && !surface.Classes.Contains(OverlayReveal.ShownClass), "A hidden followed overlay must not carry 'shown'.");
+            MotionPolicy.SetSetting(MotionPolicy.On);
+            await UntilAsync(() => !window.Classes.Contains("motion-off"), "motion on for the overlay reveal");
+            surface.IsVisible = true;
+            await UntilAsync(() => surface.Classes.Contains(OverlayReveal.ShownClass) && Math.Abs(surface.Opacity - 1) < 0.001, "the followed overlay never faded in");
+            surface.IsVisible = false;
+            Require(!surface.Classes.Contains(OverlayReveal.ShownClass), "Leaving must drop 'shown' at once.");
+            MotionPolicy.SetSetting(MotionPolicy.Off);
+            await UntilAsync(() => window.Classes.Contains("motion-off"), "motion off for the overlay reveal");
+            surface.IsVisible = true;
+            Require(surface.Classes.Contains(OverlayReveal.ShownClass) && surface.Opacity == 1, "Under motion-off a followed overlay must be fully shown at once.");
+            surface.IsVisible = false;
+            content.Children.Remove(surface);
+            MotionPolicy.SetSetting(MotionPolicy.On);
+            await UntilAsync(() => !window.Classes.Contains("motion-off"), "motion on after the overlay reveal");
+
             // Image fade: only an asynchronous, visible arrival fades; the helper leaves Opacity at 1 once it has finished.
             Require(!ImageFade.ShouldFade(false, true, true, false) && !ImageFade.ShouldFade(true, false, true, false)
                 && !ImageFade.ShouldFade(true, true, false, false) && !ImageFade.ShouldFade(true, true, true, true) && ImageFade.ShouldFade(true, true, true, false),

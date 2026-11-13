@@ -60,7 +60,7 @@ public sealed class ChipStyleTests
     [Theory, InlineData("Dark"), InlineData("Light")]
     public void ChipEdgesReachThreeToOneAndLabelsFourPointFiveToOne(string theme)
     {
-        string[] surfaces = { "Workspace.Background", "Workspace.Panel", "Workspace.Raised", "Workspace.AccentSurface", "Workspace.Card", "Workspace.Overlay", "Workspace.ReaderPostSurface" };
+        string[] surfaces = { "Workspace.Background", "Workspace.Panel", "Workspace.Raised", "Workspace.AccentSurface", "Workspace.Card", "Workspace.Overlay" };
         foreach (string edge in new[] { "Workspace.ChipBorder", "Workspace.ChipSourceBorder", "Workspace.ChipExcludeBorder", "Workspace.ChipSelectedBorder",
             "Workspace.TagCategory.Artist", "Workspace.TagCategory.Copyright", "Workspace.TagCategory.Character", "Workspace.TagCategory.Meta", "Workspace.TagCategory.General" })
             foreach (string surface in surfaces)
@@ -68,7 +68,7 @@ public sealed class ChipStyleTests
         foreach ((string text, string fill) in new[] { ("Workspace.Text", "Workspace.ChipSurface"), ("Workspace.Text", "Workspace.Hover"),
             ("Workspace.Text", "Workspace.ChipSelectedSurface"), ("Workspace.Text", "Workspace.AccentSurface"), ("Workspace.Muted", "Workspace.ChipSurface"),
             ("Workspace.Muted", "Workspace.Background"), ("Workspace.Muted", "Workspace.Panel"), ("Workspace.Muted", "Workspace.Raised"), ("Workspace.Muted", "Workspace.Hover"),
-            ("Workspace.Muted", "Workspace.Card"), ("Workspace.Muted", "Workspace.Overlay"), ("Workspace.Muted", "Workspace.ReaderPostSurface") })
+            ("Workspace.Muted", "Workspace.Card"), ("Workspace.Muted", "Workspace.Overlay") })
             AssertContrast(theme, text, fill, 4.5);
         // The filter chip's close mark (Ursa resource) is the muted label colour.
         Assert.Equal(Color(theme, "Workspace.Muted"), Color(theme, "ClosableTagCloseButtonForeground"));

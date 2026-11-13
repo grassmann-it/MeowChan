@@ -41,8 +41,9 @@ public sealed partial class MediaPage
         Border surface = new()
         {
             Name = "MediaFilterSurface", Child = content, Padding = new Thickness(10, 8), Margin = new Thickness(12, 0, 12, 8),
-            VerticalAlignment = VerticalAlignment.Top, ZIndex = 10, IsVisible = false, Classes = { "raised" }
+            VerticalAlignment = VerticalAlignment.Top, ZIndex = 10, IsVisible = false, Classes = { "workspace-overlay" }
         };
+        MeowChan.Desktop.Motion.OverlayReveal.Follow(surface);
         KeyboardNavigation.SetTabNavigation(surface, KeyboardNavigationMode.Cycle);
         surface.KeyDown += OnFilterSurfaceKeyDown;
         _filterClose.Click += (_, _) => CloseFilterSurface(restoreFocus: true);

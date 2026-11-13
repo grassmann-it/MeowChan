@@ -19,7 +19,7 @@ public sealed class WorkspaceTokenTests
 
     [Theory]
     [InlineData("Dark", "Workspace.Card", "#20242A")]
-    [InlineData("Dark", "Workspace.CardEdge", "#4A525C")]
+    [InlineData("Dark", "Workspace.CardEdge", "#5A636E")]
     [InlineData("Dark", "Workspace.Scrim", "#66000000")]
     [InlineData("Dark", "Workspace.Shadow.Overlay", "0 4 16 0 #66000000")]
     [InlineData("Light", "Workspace.Card", "#FAF7F1")]
@@ -48,7 +48,7 @@ public sealed class WorkspaceTokenTests
     {
         XElement dictionary = Theme(theme);
         double edge = Luminance(Entry(dictionary, "Workspace.CardEdge").Value.Trim());
-        // Computed, not natively measured: Dark is deliberately below 3:1 (design language 4.3).
+        // Computed, not natively measured. Dark keeps the reader study's 3.03:1 edge (design language 4.3 proposed a softer #4A525C; D3 kept the shipped reader edge).
         Assert.True(Contrast(edge, Luminance(Entry(dictionary, "Workspace.Card").Value.Trim())) >= 1.9);
         Assert.True(Contrast(edge, Luminance(Entry(dictionary, "Workspace.Background").Value.Trim())) >= 2.3);
         Assert.NotEqual(Entry(dictionary, "Workspace.Card").Value, Entry(dictionary, "Workspace.Panel").Value);
@@ -96,7 +96,7 @@ public sealed class WorkspaceTokenTests
         {
             "Workspace.Background", "Workspace.Panel", "Workspace.Raised", "Workspace.Border", "Workspace.ControlBorder",
             "Workspace.Text", "Workspace.Muted", "Workspace.Accent", "Workspace.AccentSurface",
-            "Workspace.ReaderPage", "Workspace.ReaderPostSurface", "Workspace.ReaderPostEdge", "Workspace.Hover", "Workspace.OnAccent", "Workspace.AccentHover",
+            "Workspace.Card", "Workspace.CardEdge", "Workspace.Hover", "Workspace.OnAccent", "Workspace.AccentHover",
             "Workspace.Error", "Workspace.ErrorSurface", "Workspace.Warning", "Workspace.WarningSurface",
             "Workspace.Success", "Workspace.SuccessSurface", "Workspace.Progress", "Workspace.ProgressTrack"
         };

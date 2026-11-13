@@ -58,7 +58,7 @@
                 </Grid></ScrollViewer>
                 <!-- P2: local filter surface anchored over the result list. Same controls and
                      names as before; Search applies via the existing path, Escape closes. -->
-                <Border x:Name="ArchiveFilterSurface" Grid.Row="1" ZIndex="10" Classes="raised" Padding="10"
+                <Border x:Name="ArchiveFilterSurface" Grid.Row="1" ZIndex="10" Classes="workspace-overlay" Padding="10"
                         VerticalAlignment="Top" IsVisible="{Binding #ArchiveFilters.IsExpanded}"
                         KeyboardNavigation.TabNavigation="Cycle" KeyDown="OnFilterSurfaceKeyDown">
                     <!-- The toggle directly above names the surface; no repeated title. -->
@@ -287,29 +287,29 @@
                                              AccentSurface card with the accent edge; keyboard focus adds a heavier edge and the
                                              shared focus adorner. Semi's hover/pressed tints are suppressed on cards. -->
                                         <ListBox x:Name="ArchivePosts" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                                 Background="{DynamicResource Workspace.ReaderPage}" Padding="2,4"
+                                                 Background="{DynamicResource Workspace.Background}" Padding="2,4"
                                                  ContainerPrepared="OnReaderPostContainerPrepared">
                                             <ListBox.Styles>
                                                 <Style Selector="ListBoxItem">
                                                     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                                    <Setter Property="Background" Value="{DynamicResource Workspace.ReaderPostSurface}" />
-                                                    <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ReaderPostEdge}" />
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.Card}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Workspace.CardEdge}" />
                                                     <Setter Property="BorderThickness" Value="1" />
-                                                    <Setter Property="CornerRadius" Value="4" />
+                                                    <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
                                                     <Setter Property="Margin" Value="6,4" />
                                                     <Setter Property="Padding" Value="2,0" />
                                                 </Style>
                                                 <Style Selector="ListBoxItem /template/ ContentPresenter">
-                                                    <Setter Property="Background" Value="{DynamicResource Workspace.ReaderPostSurface}" />
-                                                    <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ReaderPostEdge}" />
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.Card}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Workspace.CardEdge}" />
                                                     <Setter Property="BorderThickness" Value="1" />
-                                                    <Setter Property="CornerRadius" Value="4" />
+                                                    <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
                                                 </Style>
                                                 <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
-                                                    <Setter Property="Background" Value="{DynamicResource Workspace.ReaderPostSurface}" />
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.Card}" />
                                                 </Style>
                                                 <Style Selector="ListBoxItem:pressed /template/ ContentPresenter">
-                                                    <Setter Property="Background" Value="{DynamicResource Workspace.ReaderPostSurface}" />
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.Card}" />
                                                 </Style>
                                                 <!-- Opening post: no card, directly on the page (classic imageboard order: OP, then
                                                      reply cards). The transparent 1-px edge keeps its geometry; selected, it becomes
@@ -373,7 +373,7 @@
                                                 <Style Selector="Button.reader-reply-card">
                                                     <Setter Property="Background" Value="{DynamicResource Workspace.ReaderCodeSurface}" />
                                                     <Setter Property="BorderThickness" Value="0" />
-                                                    <Setter Property="CornerRadius" Value="4" />
+                                                    <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
                                                     <Setter Property="Padding" Value="10,6" />
                                                     <Setter Property="MinHeight" Value="0" />
                                                     <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
@@ -482,11 +482,11 @@
                                         <TextBlock x:Name="ArchiveNoPosts" Tag="archive.noPosts" Classes="muted localized" TextWrapping="Wrap" Margin="16" />
                                         <!-- One accent wash for the post a jump lands on (fades out once in 400 ms; never per post). -->
                                         <Border x:Name="ReaderJumpFlash" IsVisible="False" IsHitTestVisible="False" Opacity="0" HorizontalAlignment="Left" VerticalAlignment="Top"
-                                                CornerRadius="4" Background="{DynamicResource Workspace.Accent}" />
+                                                CornerRadius="{StaticResource Workspace.Radius.Control}" Background="{DynamicResource Workspace.Accent}" />
                                         <!-- The quote preview: one at a time, filled from the thread's post index when it opens. -->
                                         <Popup x:Name="QuotePreviewPopup" Placement="Bottom" IsLightDismissEnabled="False">
-                                            <Border IsHitTestVisible="False" Background="{DynamicResource Workspace.ReaderPostSurface}" BorderBrush="{DynamicResource Workspace.Accent}"
-                                                    BorderThickness="1" CornerRadius="4" Padding="10,8" MaxWidth="480" MaxHeight="320">
+                                            <Border IsHitTestVisible="False" Background="{DynamicResource Workspace.Card}" BorderBrush="{DynamicResource Workspace.Accent}"
+                                                    BorderThickness="1" CornerRadius="{StaticResource Workspace.Radius.Control}" Padding="10,8" MaxWidth="480" MaxHeight="320">
                                                 <StackPanel Spacing="4">
                                                     <TextBlock x:Name="QuotePreviewHeader" Classes="workspace-meta" TextWrapping="Wrap" />
                                                     <TextBlock x:Name="QuotePreviewSubject" Classes="section-title" TextWrapping="Wrap" />

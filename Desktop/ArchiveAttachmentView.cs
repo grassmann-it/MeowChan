@@ -52,7 +52,7 @@ public sealed class ArchiveAttachmentView : UserControl
     // Imageboard file line above the preview: "name.ext (size)" when the capture knows the size.
     private readonly TextBlock _label = new() { TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 12 };
     // A quiet slot surface only while no thumbnail is shown (loading, missing, unsupported).
-    private readonly Border _placeholder = new() { CornerRadius = new CornerRadius(4), IsHitTestVisible = false };
+    private readonly Border _placeholder = new() { CornerRadius = new CornerRadius(5), IsHitTestVisible = false };
     private readonly TextBlock _provenance = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12, IsVisible = false };
     private readonly Button _button;
     private readonly ArchiveFavoriteButton _favorite = new() { HorizontalAlignment = HorizontalAlignment.Right };

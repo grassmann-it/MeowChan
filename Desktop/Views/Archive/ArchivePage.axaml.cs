@@ -118,7 +118,7 @@ public partial class ArchivePage : UserControl
 
     public ArchivePage()
     {
-        InitializeComponent(); InitializeThreadFind(); InitializePostPageKeys(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeMediaSelection(); InitializeThreadFavoriteCommands(); InitializePrivateTags(); InitializeStatusOverlay();
+        InitializeComponent(); InitializeThreadFind(); InitializePostPageKeys(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeMediaSelection(); InitializeThreadFavoriteCommands(); InitializePrivateTags(); InitializeStatusOverlay(); MeowChan.Desktop.Motion.OverlayReveal.Follow(ArchiveFilterSurface);
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         ArchivePosts.AutoScrollToSelectedItem = false;
         ArchiveMediaTiles.AutoScrollToSelectedItem = false;

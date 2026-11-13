@@ -16,14 +16,13 @@ public sealed class ReaderPostSurfaceTests
     public void PostCardTokensReplaceTheSeparatorWithoutChangingThePalette(string theme, string page, string card, string edge)
     {
         XElement dictionary = Theme(theme);
-        Assert.Equal(page, Resource(dictionary, "Workspace.ReaderPage").Value);
-        Assert.Equal(card, Resource(dictionary, "Workspace.ReaderPostSurface").Value);
-        Assert.Equal(edge, Resource(dictionary, "Workspace.ReaderPostEdge").Value);
-        // The page is the window background tone; the shared palette roles stay as they were.
         Assert.Equal(page, Resource(dictionary, "Workspace.Background").Value);
+        Assert.Equal(card, Resource(dictionary, "Workspace.Card").Value);
+        Assert.Equal(edge, Resource(dictionary, "Workspace.CardEdge").Value);
+        // The page is the window background tone; the shared palette roles stay as they were.
         Assert.Equal(theme == "Dark" ? "#2D3239" : "#A89F92", Resource(dictionary, "Workspace.Border").Value);
         Assert.Equal(theme == "Dark" ? "#1B1E22" : "#EFECE6", Resource(dictionary, "Workspace.Panel").Value);
-        foreach (string retired in new[] { "Workspace.ReaderActiveSurface", "Workspace.ReaderPostSeparatorHeight" })
+        foreach (string retired in new[] { "Workspace.ReaderActiveSurface", "Workspace.ReaderPostSeparatorHeight", "Workspace.ReaderPage", "Workspace.ReaderPostSurface", "Workspace.ReaderPostEdge" })
             Assert.DoesNotContain(dictionary.Elements(), element => (string?)element.Attribute(X + "Key") == retired);
     }
 
@@ -36,9 +35,9 @@ public sealed class ReaderPostSurfaceTests
     {
         XElement dictionary = Theme(theme);
         string Hex(string key) => Resource(dictionary, key).Value;
-        Assert.True(Contrast(Hex("Workspace.ReaderPostEdge"), Hex("Workspace.ReaderPage")) >= 3.0);
-        Assert.True(Contrast(Hex("Workspace.Accent"), Hex("Workspace.ReaderPage")) >= 3.0);
-        foreach (string surface in new[] { "Workspace.ReaderPostSurface", "Workspace.AccentSurface", "Workspace.ReaderPage" })
+        Assert.True(Contrast(Hex("Workspace.CardEdge"), Hex("Workspace.Background")) >= 3.0);
+        Assert.True(Contrast(Hex("Workspace.Accent"), Hex("Workspace.Background")) >= 3.0);
+        foreach (string surface in new[] { "Workspace.Card", "Workspace.AccentSurface", "Workspace.Background" })
             foreach (string text in new[] { "Workspace.Text", "Workspace.Muted", "Workspace.Accent" })
                 Assert.True(Contrast(Hex(text), Hex(surface)) >= 4.5, $"{theme}: {text} on {surface}");
     }
@@ -47,7 +46,7 @@ public sealed class ReaderPostSurfaceTests
     public void PostsSitOnThePageToneWithoutASeparatorRule()
     {
         XElement posts = Posts();
-        Assert.Equal("{DynamicResource Workspace.ReaderPage}", (string?)posts.Attribute("Background"));
+        Assert.Equal("{DynamicResource Workspace.Background}", (string?)posts.Attribute("Background"));
         Assert.Equal("2,4", (string?)posts.Attribute("Padding"));
         XElement root = PostRoot();
         Assert.Equal(A + "StackPanel", root.Name);
@@ -65,10 +64,10 @@ public sealed class ReaderPostSurfaceTests
     public void InactivePostIsACardWithAnEdge(string selector)
     {
         XElement style = PostStyle(selector);
-        Assert.Equal("{DynamicResource Workspace.ReaderPostSurface}", Setting(style, "Background"));
-        Assert.Equal("{DynamicResource Workspace.ReaderPostEdge}", Setting(style, "BorderBrush"));
+        Assert.Equal("{DynamicResource Workspace.Card}", Setting(style, "Background"));
+        Assert.Equal("{DynamicResource Workspace.CardEdge}", Setting(style, "BorderBrush"));
         Assert.Equal("1", Setting(style, "BorderThickness"));
-        Assert.Equal("4", Setting(style, "CornerRadius"));
+        Assert.Equal("{StaticResource Workspace.Radius.Control}", Setting(style, "CornerRadius"));
         if (selector == "ListBoxItem")
         {
             Assert.Equal("6,4", Setting(style, "Margin"));
@@ -81,7 +80,7 @@ public sealed class ReaderPostSurfaceTests
     [InlineData("ListBoxItem:pressed /template/ ContentPresenter")]
     public void SemiHoverAndPressedTintsDoNotRecolourCards(string selector)
     {
-        Assert.Equal("{DynamicResource Workspace.ReaderPostSurface}", Setting(PostStyle(selector), "Background"));
+        Assert.Equal("{DynamicResource Workspace.Card}", Setting(PostStyle(selector), "Background"));
     }
 
     [Theory]
@@ -249,7 +248,7 @@ public sealed class ReaderPostSurfaceTests
     {
         XElement dictionary = Theme(theme);
         Assert.Equal(green, Resource(dictionary, "Workspace.ReaderGreentext").Value);
-        foreach (string surface in new[] { "Workspace.ReaderPostSurface", "Workspace.AccentSurface", "Workspace.ReaderPage" })
+        foreach (string surface in new[] { "Workspace.Card", "Workspace.AccentSurface", "Workspace.Background" })
             Assert.True(Contrast(green, Resource(dictionary, surface).Value) >= 4.5, $"{theme}: greentext on {surface}");
     }
 
@@ -279,8 +278,8 @@ public sealed class ReaderPostSurfaceTests
             Assert.True(Contrast(Resource(dictionary, text).Value, code) >= 4.5, $"{theme}: {text} on code");
         }
         Assert.True(Contrast(Resource(dictionary, "Workspace.Muted").Value, code) >= 4.5, $"{theme}: muted on code");
-        Assert.True(Contrast(spoiler, Resource(dictionary, "Workspace.ReaderPostSurface").Value) >= 1.3, $"{theme}: the spoiler area against the card");
-        Assert.True(Contrast(code, Resource(dictionary, "Workspace.ReaderPostSurface").Value) >= 1.1, $"{theme}: the code area against the card");
+        Assert.True(Contrast(spoiler, Resource(dictionary, "Workspace.Card").Value) >= 1.3, $"{theme}: the spoiler area against the card");
+        Assert.True(Contrast(code, Resource(dictionary, "Workspace.Card").Value) >= 1.1, $"{theme}: the code area against the card");
     }
 
     [Fact]
