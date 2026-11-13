@@ -54,6 +54,8 @@ namespace MeowChan
         }
     }
 
+    /// <summary>What a settings load that failed fell back to.</summary>
+    internal enum SettingsLoadProblem { None, RecoveredFromBackup, DefaultsInUse }
     internal enum ProfileOrigin { Unbound, ConfirmedNew, ExistingValid, BackupRecovery, ExistingMissingSettings, Damaged, Unsupported }
 
     public class Config : IJsonOnDeserialized
@@ -426,8 +428,27 @@ namespace MeowChan
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string LastExportDirectory { get => _lastExportDirectory; set => _lastExportDirectory = value ?? string.Empty; }
 
+        /// <summary>English, path-free description of a failed load for the log; the window shows <see cref="LocalizedLoadWarning"/>.</summary>
         [JsonIgnore]
         public string? LoadWarning { get; private set; }
+        /// <summary>What a failed load fell back to; drives the localized warning.</summary>
+        [JsonIgnore] internal SettingsLoadProblem LoadProblem { get; private set; }
+        /// <summary>The recovered backup carried source media exceptions, which were switched off.</summary>
+        [JsonIgnore] internal bool LoadDisabledSourceGrants { get; private set; }
+
+        /// <summary>The load warning in the current language, naming only file names, or null after a clean load.</summary>
+        internal string? LocalizedLoadWarning()
+        {
+            string? text = LoadProblem switch
+            {
+                SettingsLoadProblem.RecoveredFromBackup => Desktop.Localization.Texts.T("settings.load.recovered", SettingsFileName, SettingsFileName + ".bak"),
+                SettingsLoadProblem.DefaultsInUse => Desktop.Localization.Texts.T("settings.load.defaults", SettingsFileName),
+                _ => null
+            };
+            return text != null && LoadDisabledSourceGrants ? text + " " + Desktop.Localization.Texts.T("settings.load.grantsDisabled") : text;
+        }
+
+        private const string SettingsFileName = "settings.json";
 
         /// <summary>Resolves the profile without creating files or directories.</summary>
         public static string GetConfigDirectory()
@@ -543,8 +564,10 @@ namespace MeowChan
                         pair => pair.Value.AllowProviderSizeMd5Mismatch
                             ? pair.Value with { AllowProviderSizeMd5Mismatch = false } : pair.Value,
                         StringComparer.Ordinal);
-                recovered.LoadWarning = $"Settings could not be loaded from '{filePath}' ({error ?? "file missing"}). " +
-                    $"Recovered settings from backup '{backupPath}'. The original files were preserved." +
+                recovered.LoadProblem = SettingsLoadProblem.RecoveredFromBackup;
+                recovered.LoadDisabledSourceGrants = disabledSourceGrants;
+                recovered.LoadWarning = $"Settings could not be loaded from '{Path.GetFileName(filePath)}' ({error ?? "file missing"}). " +
+                    $"Recovered settings from backup '{Path.GetFileName(backupPath)}'. The original files were preserved." +
                     (disabledSourceGrants ? " Source media exception permissions from the backup were disabled and require explicit confirmation in Sources." : string.Empty);
                 Log.Warning("{LoadWarning}", recovered.LoadWarning);
                 return recovered;
@@ -562,7 +585,8 @@ namespace MeowChan
                 defaults.DownloadPath = GetDefaultDownloadPath("oChan");
             if (status != LoadStatus.Missing || backupStatus != LoadStatus.Missing)
             {
-                defaults.LoadWarning = $"Settings could not be loaded from '{filePath}' ({error ?? "file missing"}); " +
+                defaults.LoadProblem = SettingsLoadProblem.DefaultsInUse;
+                defaults.LoadWarning = $"Settings could not be loaded from '{Path.GetFileName(filePath)}' ({error ?? "file missing"}); " +
                     $"no valid backup was available ({backupError ?? "file missing"}). " +
                     "Default settings are in use. The original files were preserved.";
                 Log.Warning("{LoadWarning}", defaults.LoadWarning);
@@ -782,6 +806,8 @@ namespace MeowChan
                 LayoutProfiles = _layoutProfiles.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal),
                 LastExportDirectory = LastExportDirectory,
                 LoadWarning = LoadWarning,
+                LoadProblem = LoadProblem,
+                LoadDisabledSourceGrants = LoadDisabledSourceGrants,
                 _profileDirectory = _profileDirectory,
                 _writeLease = _writeLease,
                 _relativePathBaseDirectory = _relativePathBaseDirectory,
@@ -883,6 +909,8 @@ namespace MeowChan
             PluginEditorExecutable = source.PluginEditorExecutable;
             PluginEditorArguments = (string[])source.PluginEditorArguments.Clone();
             LoadWarning = source.LoadWarning;
+            LoadProblem = source.LoadProblem;
+            LoadDisabledSourceGrants = source.LoadDisabledSourceGrants;
         }
 
         /// <summary>Copies only fields edited by Settings, preserving direct view preferences.</summary>
@@ -1028,6 +1056,8 @@ namespace MeowChan
             _profileDirectory = directory;
             Origin = ProfileOrigin.ExistingValid;
             LoadWarning = null;
+            LoadProblem = SettingsLoadProblem.None;
+            LoadDisabledSourceGrants = false;
             Log.Information("Configuration saved to {ConfigFilePath}", filePath);
         }
 

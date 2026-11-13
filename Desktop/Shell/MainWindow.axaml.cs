@@ -191,9 +191,10 @@ public partial class MainWindow : Window
         TryOfferFirstRunSetup();
         RestoreWindowPreferences();
         BeginStartupWindowFit();
-        if (!string.IsNullOrWhiteSpace(_config.LoadWarning))
+        // The localized sentence names file names only; the technical detail stays in the log (Config.LoadWarning).
+        if (_config.LocalizedLoadWarning() is { } loadWarning)
         {
-            ShowNotification(Texts.T("notification.settings"), _config.LoadWarning, NotificationType.Warning, operation: "config.load");
+            ShowNotification(Texts.T("notification.settings"), loadWarning, NotificationType.Warning, operation: "config.load");
         }
 
         if (EffectiveShortcutBindings.Build(_config.ShortcutBindings).Issues.Any(EffectiveShortcutBindings.NeedsStartupWarning))

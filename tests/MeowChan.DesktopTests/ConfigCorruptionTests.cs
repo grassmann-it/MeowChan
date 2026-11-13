@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Nodes;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
 using MeowChan.Tests.PersistenceCorruption;
 
 namespace MeowChan.DesktopTests;
@@ -309,14 +310,60 @@ public sealed class ConfigCorruptionTests
         Assert.Equal(ProfileOrigin.ExistingValid, config.Origin);
         Assert.Equal(17, config.BooruCatalogLimitMiB);
     }
+}
 
-    [Fact(Skip = "BUG: Config.LoadWarning is an English text built from the exception message and the full file path, and MainWindow shows it as is (MainWindow.axaml.cs:193) instead of a localized text.")]
-    public void TheLoadWarningShownToTheUserComesFromTheLocalizedTexts()
+/// <summary>The settings load warning the window shows: a localized sentence in every language, naming file names only.</summary>
+[Collection("Localization")]
+public sealed class ConfigLoadWarningLocalizationTests : IDisposable
+{
+    private readonly string _previous = Texts.Language;
+    public ConfigLoadWarningLocalizationTests() { Texts.Initialize(); Texts.SetLanguage("en"); }
+    public void Dispose() { Texts.Initialize(); Texts.SetLanguage(_previous); }
+
+    private static Config LoadDamaged(TempDirectory temp, bool damageBackupToo)
     {
-        using Profile profile = new();
-        File.WriteAllBytes(profile.Primary, Damage.Make("truncated-half", profile.GoodPrimary, VersionProperty));
-        Config config = Load(profile.Directory);
-        Assert.DoesNotContain(profile.Directory, config.LoadWarning ?? "", StringComparison.Ordinal);
-        Assert.DoesNotContain("could not be loaded", config.LoadWarning ?? "", StringComparison.Ordinal);
+        string downloads = Path.Combine(temp.Path, "downloads");
+        new Config { DownloadPath = downloads, AutomaticUpdateChecks = false }.SaveConfig(temp.Path);
+        new Config { DownloadPath = downloads, AutomaticUpdateChecks = false, BooruCatalogLimitMiB = 17 }.SaveConfig(temp.Path);
+        string primary = Path.Combine(temp.Path, "settings.json");
+        File.WriteAllBytes(primary, Damage.Make("truncated-half", File.ReadAllBytes(primary), "SchemaVersion"));
+        if (damageBackupToo) File.WriteAllText(primary + ".bak", "{");
+        return Config.LoadConfig(temp.Path);
+    }
+
+    [Theory]
+    [InlineData(false, "settings.load.recovered")]
+    [InlineData(true, "settings.load.defaults")]
+    public void TheLoadWarningShownToTheUserComesFromTheLocalizedTexts(bool damageBackupToo, string key)
+    {
+        using TempDirectory temp = new();
+        Config config = LoadDamaged(temp, damageBackupToo);
+        Assert.NotEqual(SettingsLoadProblem.None, config.LoadProblem);
+        // The log text keeps the technical detail but never the profile path either.
+        Assert.DoesNotContain(temp.Path, config.LoadWarning ?? "", StringComparison.Ordinal);
+        string? english = null;
+        foreach (string language in new[] { "en", "de", "es", "fr", "ru" })
+        {
+            Texts.SetLanguage(language);
+            string? shown = config.LocalizedLoadWarning();
+            Assert.NotNull(shown);
+            Assert.Equal(Texts.T(key, "settings.json", "settings.json.bak"), shown);
+            Assert.DoesNotContain(key, shown, StringComparison.Ordinal);
+            Assert.Contains("settings.json", shown, StringComparison.Ordinal);
+            Assert.DoesNotContain(temp.Path, shown, StringComparison.Ordinal);
+            Assert.DoesNotContain(Path.DirectorySeparatorChar.ToString(), shown, StringComparison.Ordinal);
+            if (language == "en") english = shown;
+            else Assert.NotEqual(english, shown);
+        }
+    }
+
+    [Fact]
+    public void ACleanLoadAndASuccessfulSaveShowNoWarning()
+    {
+        using TempDirectory temp = new();
+        new Config { DownloadPath = Path.Combine(temp.Path, "downloads"), AutomaticUpdateChecks = false }.SaveConfig(temp.Path);
+        Config config = Config.LoadConfig(temp.Path);
+        Assert.Null(config.LocalizedLoadWarning());
+        Assert.Equal(SettingsLoadProblem.None, config.LoadProblem);
     }
 }
