@@ -78,6 +78,9 @@ internal sealed class TagToggleSurface : IDisposable
     private void OnTextChanged(object? sender, EventArgs e)
     {
         if (_ended) return;
+        // The field also reports changes that leave the filter as it is (for example no text becoming empty text when it
+        // loses the focus): those must not lay 20,000 rows out again under the cursor.
+        if (string.Equals(_input.Text ?? string.Empty, Model.Filter, StringComparison.Ordinal)) { _filter.Cancel(); return; }
         if (Model.TagCount > ImmediateFilterLimit) _filter.Request(FilterDelay);
         else { _filter.Cancel(); Relayout(); }
     }
