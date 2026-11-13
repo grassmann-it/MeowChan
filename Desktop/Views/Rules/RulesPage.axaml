@@ -68,7 +68,7 @@
                         <StackPanel IsVisible="{Binding HasTypeSelection}" Classes="workspace-field" Margin="0,10,0,0">
                             <TextBlock Text="{Binding ExtensionsLabel}" Classes="workspace-field-label" />
                             <controls:RuleExtensionsInput x:Name="RuleExtensionsInput" PlaceholderText="JPG, PNG, WebM" />
-                            <TextBlock Text="{Binding ExtensionsError}" Classes="workspace-error" TextWrapping="Wrap" />
+                            <TextBlock x:Name="RuleExtensionsErrorText" Text="{Binding ExtensionsError}" Classes="workspace-error" TextWrapping="Wrap" IsVisible="{Binding HasExtensionsError}" AutomationProperties.LiveSetting="Assertive" />
                             <TextBlock Text="{Binding ExtensionsHint}" Classes="workspace-help" TextWrapping="Wrap" />
                         </StackPanel>
                         <Border Classes="settings-divider">
@@ -84,7 +84,7 @@
                         <StackPanel IsVisible="{Binding HasSizeLimit}" Classes="workspace-field" Margin="0,10,0,0">
                             <TextBlock Text="{Binding MegabytesLabel}" Classes="workspace-field-label" />
                             <TextBox AutomationProperties.Name="{Binding MegabytesLabel}" AutomationProperties.HelpText="{Binding MegabytesHint}" x:Name="RuleMegabytesInput" Text="{Binding MegabytesText, Mode=TwoWay}" PlaceholderText="10" />
-                            <TextBlock Text="{Binding MegabytesError}" Classes="workspace-error" TextWrapping="Wrap" IsVisible="{Binding HasMegabytesError}" />
+                            <TextBlock x:Name="RuleMegabytesErrorText" Text="{Binding MegabytesError}" Classes="workspace-error" TextWrapping="Wrap" IsVisible="{Binding HasMegabytesError}" AutomationProperties.LiveSetting="Assertive" />
                             <TextBlock Text="{Binding MegabytesHint}" Classes="workspace-help" TextWrapping="Wrap" />
                         </StackPanel>
                     </StackPanel>
@@ -93,9 +93,13 @@
                 <StackPanel x:Name="RuleTemplatesPanel" Spacing="8" />
                 <StackPanel Spacing="8">
                     <TextBlock Text="{Binding PreviewTitle}" Classes="section-title" />
-                    <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="{Binding HasValidationError}">
+                    <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="{Binding HasValidationBanner}">
                         <TextBlock x:Name="RuleValidationSummary" Focusable="True" Text="{Binding ValidationMessage}" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
                     </ursa:Banner>
+                    <WrapPanel x:Name="RulePreviewBlocked" IsVisible="{Binding HasPreviewBlocked}" ItemSpacing="12" LineSpacing="6">
+                        <TextBlock Text="{Binding PreviewBlockedLabel}" Classes="workspace-meta" VerticalAlignment="Center" TextWrapping="Wrap" />
+                        <Button x:Name="RuleGoToInvalidFieldButton" Content="{Binding GoToFieldLabel}" Click="OnGoToInvalidField" />
+                    </WrapPanel>
                     <StackPanel Spacing="0" IsVisible="{Binding HasPreview}">
                         <Border Classes="settings-divider">
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
@@ -132,7 +136,7 @@
                     <StackPanel VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <ursa:LoadingIcon Width="16" Height="16" VerticalAlignment="Center" IsVisible="{Binding IsBusy}" IsLoading="{Binding IsBusy}" Focusable="False" />
-                            <TextBlock x:Name="RuleStatusText" Text="{Binding StatusMessage}" VerticalAlignment="Center" Classes="muted" TextWrapping="Wrap" IsVisible="{Binding HasStatus}" AutomationProperties.LiveSetting="Polite" />
+                            <TextBlock x:Name="RuleStatusText" Text="{Binding StatusMessage}" VerticalAlignment="Center" Classes="muted" TextWrapping="Wrap" IsVisible="{Binding HasStatus}" AutomationProperties.LiveSetting="{Binding StatusLiveSetting}" />
                         </StackPanel>
                         <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="{Binding HasError}">
                             <TextBlock x:Name="RuleActionError" Focusable="True" Text="{Binding ErrorMessage}" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />

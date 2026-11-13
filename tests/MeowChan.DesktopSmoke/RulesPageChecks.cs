@@ -139,12 +139,21 @@ internal static partial class RulesPageChecks
             page.FindControl<ComboBox>("RuleSizeModeInput")!.SelectedIndex = (int)MediaSizeLimitMode.Limited;
             page.FindControl<TextBox>("RuleMegabytesInput")!.Text = "not-a-number";
             await FlushAsync();
-            Require(page.HasValidationError && !page.CanSave, "Invalid rule values did not block save.");
+            Require(page.HasValidationError && page.CanSave, "Save was disabled by an invalid field instead of explaining it on click.");
+            Require(page.FindControl<TextBlock>("RuleExtensionsErrorText")!.IsEffectivelyVisible
+                && page.FindControl<TextBlock>("RuleMegabytesErrorText")!.Text == string.Empty
+                && page.FindControl<Control>("RuleGoToInvalidFieldButton")!.IsEffectivelyVisible,
+                "An invalid extension did not show its error text and the field link in the Rules page.");
             string revisionBeforeInvalidDraft = window.SessionHost.MediaRules.Revision;
             Click(page.FindControl<Button>("SaveRuleButton")!);
             await FlushAsync();
             Require(window.SessionHost.MediaRules.Revision == revisionBeforeInvalidDraft,
                 "A disabled or invalid Rules save still changed durable rules.");
+            Require(FocusWithin(window, page.FindControl<Control>("RuleExtensionsInput")!),
+                "Saving an invalid Rules draft did not move focus to the invalid field.");
+            Require(page.StatusMessage == Texts.T("rules.saveRejected", page.ExtensionsLabel)
+                && page.StatusLiveSetting == Avalonia.Automation.AutomationLiveSetting.Assertive,
+                "The footer did not name the invalid field after a refused save.");
 
             intake.Text = retainedUrl;
             settings.DownloadPath = retainedSettings;
@@ -435,6 +444,9 @@ internal static partial class RulesPageChecks
             host.Content = retained;
         }
     }
+
+    private static bool FocusWithin(Window window, Control control) =>
+        window.FocusManager?.GetFocusedElement() is Visual focused && (ReferenceEquals(focused, control) || focused.GetVisualAncestors().Contains(control));
 
     /// <summary>The footer text starts on the body column and the buttons end on it (880 dip column, not the old 1088 grid).</summary>
     private static void RequireFooterOnContentColumn(Window window, RulesPage page)

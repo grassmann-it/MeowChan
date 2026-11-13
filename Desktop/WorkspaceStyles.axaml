@@ -566,6 +566,10 @@
     <Style Selector="TextBox.workspace-invalid, ComboBox.workspace-invalid, NumericUpDown.workspace-invalid">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Error}" />
     </Style>
+    <!-- The Ursa TagInput draws its edge on a template border that does not follow the control's own BorderBrush. -->
+    <Style Selector="ursa|TagInput.workspace-invalid /template/ Border">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Error}" />
+    </Style>
 
     <!-- C1 chips (TAG-SUCHE-CHIPS-ZIELBILD 3.1/3.2). Own tag = filled, offered own tag = solid outline without fill,
          source tag = dashed outline + category mark, filter value = filled + close mark, exclusion = thicker error outline.

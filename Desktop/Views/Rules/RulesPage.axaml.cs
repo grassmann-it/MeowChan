@@ -35,6 +35,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     private bool _busy;
     private bool _ended;
     private string? _validationKey;
+    private string? _saveRejectedKey;
     private string? _operationErrorKey;
     private string? _operationErrorDetail;
     private string? _statusKey;
@@ -87,16 +88,31 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     }
     public bool IsBusy => _busy;
     public bool IsEditable => !_ended && _available && _hasConfirmed && !_busy;
-    public bool CanSave => IsEditable && _draft.Dirty && !_draft.Stale && _preview != null;
+    // Save stays available while a field is invalid: the click validates, moves focus to the first invalid
+    // field and explains in the footer. A silently disabled button gave no reason and no way to the field.
+    public bool CanSave => IsEditable && _draft.Dirty && !_draft.Stale;
     public bool HasPreview => _preview != null && !_draft.Stale;
     public bool HasValidationError => _draft.Stale || _validationKey != null;
+    /// <summary>The banner below "Effective after saving" is only for errors that belong to no single field.</summary>
+    public bool HasValidationBanner => _draft.Stale || (_validationKey != null && !HasExtensionsError && !HasMegabytesError);
+    public bool HasPreviewBlocked => !_draft.Stale && FieldErrorLabel != null;
+    public string PreviewBlockedLabel => FieldErrorLabel is { } label ? Texts.T("rules.previewBlocked", label) : string.Empty;
+    public string GoToFieldLabel => Texts.T("rules.goToField");
     public string? ValidationMessage => _draft.Stale ? Texts.T("rules.stale") : _validationKey == null ? null : Texts.T(_validationKey);
     public string? ErrorMessage => _operationErrorKey == null ? null : Texts.T(_operationErrorKey, _operationErrorDetail);
     public bool HasError => ErrorMessage != null;
     public bool HasStatus => !HasError;
-    public string StatusMessage => Texts.T(!_available || !_hasConfirmed ? "rules.unavailable" : _busy ? "rules.saving"
+    public string StatusMessage => SaveRejected && InvalidFieldLabel is { } invalid ? Texts.T("rules.saveRejected", invalid)
+        : Texts.T(!_available || !_hasConfirmed ? "rules.unavailable" : _busy ? "rules.saving"
         : _draft.Stale ? "rules.stale" : _statusKey ?? (_draft.Dirty ? "rules.unsaved" :
             FindRule(_confirmed, _draft.Scope) == null ? "rules.inherited" : "rules.confirmed"));
+    // A refused save is announced assertively once; ordinary status changes stay polite.
+    public Avalonia.Automation.AutomationLiveSetting StatusLiveSetting => SaveRejected && InvalidFieldLabel != null
+        ? Avalonia.Automation.AutomationLiveSetting.Assertive : Avalonia.Automation.AutomationLiveSetting.Polite;
+    private bool SaveRejected => IsEditable && !_draft.Stale && _saveRejectedKey != null && _saveRejectedKey == _validationKey;
+    /// <summary>Name of the field the current validation error belongs to, or null for errors without a field.</summary>
+    private string? InvalidFieldLabel => FieldErrorLabel ?? (_validationKey == "plugins.invalidFilterSettings" ? Texts.T("plugins.ruleFilter") : null);
+    private string? FieldErrorLabel => HasExtensionsError ? ExtensionsLabel : HasMegabytesError ? MegabytesLabel : null;
 
     public IReadOnlyList<RuleScopeChoice> ScopeChoices { get; private set; } = Array.Empty<RuleScopeChoice>();
     public IReadOnlyList<string> ScopeKindChoices { get; private set; } = Array.Empty<string>();
@@ -162,7 +178,8 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             DraftChanged();
         }
     }
-    public string ExtensionsError => _draft.TypesMode == MediaTypeSelectionMode.Selected && _validationKey == "rules.invalidTypes" ? Texts.T("rules.invalidTypes") : string.Empty;
+    public bool HasExtensionsError => _draft.TypesMode == MediaTypeSelectionMode.Selected && _validationKey == "rules.invalidTypes";
+    public string ExtensionsError => HasExtensionsError ? Texts.T("rules.invalidTypes") : string.Empty;
     public bool HasMegabytesError => _draft.SizeMode == MediaSizeLimitMode.Limited && _validationKey == "rules.invalidSize";
     public string MegabytesError => HasMegabytesError ? Texts.T("rules.invalidSize") : string.Empty;
     public bool HasTypeSelection => _draft.TypesMode == MediaTypeSelectionMode.Selected;
@@ -288,7 +305,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         DeactivateRuleDecisions();
         _draft = draft;
         _selectedScope = null;
-        _statusKey = null;
+        _statusKey = null; _saveRejectedKey = null;
         ClearOperationError();
         UpdatePreview();
         RefreshScopeChoices();
@@ -389,7 +406,12 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         if (!IsEditable || _draft.Stale) return;
         MediaRule rule;
         try { rule = BuildDraft(); }
-        catch (RuleInputException exception) { _validationKey = exception.Key; RaiseAll(); if (exception.Key == "plugins.invalidFilterSettings") FocusFilterSettingError(); else if (exception.Key == "rules.invalidTypes") RuleExtensionsInput.FocusInput(); return; }
+        catch (RuleInputException exception)
+        {
+            _validationKey = exception.Key; _saveRejectedKey = exception.Key; RaiseAll();
+            if (exception.Key == "plugins.invalidFilterSettings") FocusFilterSettingError(); else FocusInvalidField();
+            return;
+        }
         if (!_draft.Dirty) return;
         MediaRule[] proposed = _draft.Baseline.Rules.Where(item => item.Scope != _draft.Scope).Append(rule).ToArray();
         string revision = _draft.Baseline.Revision;
@@ -405,7 +427,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             _drafts[scope] = new RuleDraft(scope, saved);
             _draft = _drafts[scope];
             AcceptConfirmed(saved);
-            _statusKey = "rules.saved";
+            _statusKey = "rules.saved"; _saveRejectedKey = null;
         }
         catch (Exception exception)
         {
@@ -430,7 +452,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             AcceptConfirmed(_getRules());
             _drafts[scope] = new RuleDraft(scope, _confirmed);
             _draft = _drafts[scope];
-            _statusKey = null;
+            _statusKey = null; _saveRejectedKey = null;
             ClearOperationError();
             UpdatePreview();
             RefreshScopeChoices();
@@ -440,6 +462,16 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     }
 
     private async void OnSaveRule(object? sender, RoutedEventArgs e) => await SaveCurrentAsync();
+    private void OnGoToInvalidField(object? sender, RoutedEventArgs e) => FocusInvalidField();
+
+    /// <summary>Moves focus to the field the current error belongs to. A disabled rule cannot take focus in its fields, so the
+    /// checkbox that enables them receives it instead.</summary>
+    private void FocusInvalidField()
+    {
+        if (HasExtensionsError && RuleExtensionsInput.IsEffectivelyEnabled) RuleExtensionsInput.FocusInput();
+        else if (HasMegabytesError && RuleMegabytesInput.IsEffectivelyEnabled) { RuleMegabytesInput.Focus(); RuleMegabytesInput.BringIntoView(); }
+        else if (HasExtensionsError || HasMegabytesError) { RuleEnabledInput.Focus(); RuleEnabledInput.BringIntoView(); }
+    }
     private void OnDiscardDraft(object? sender, RoutedEventArgs e) => RequestDiscardCurrentDraft();
     private void OnOpenSavedScope(object? sender, RoutedEventArgs e)
     {
@@ -587,6 +619,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         Raise(string.Empty);
         SynchronizeModeSelections();
         RuleMegabytesInput.Classes.Set("workspace-invalid", HasMegabytesError);
+        RuleExtensionsInput.Classes.Set("workspace-invalid", HasExtensionsError);
         RefreshOriginActionLabels();
         RefreshFilterEditor();
         RuleExtensionsInput.Bind(_draft.ExtensionInput);
