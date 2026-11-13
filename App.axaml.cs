@@ -19,6 +19,7 @@ public partial class App : Application
     {
         LinuxHarfBuzzBootstrap.EnsureLoaded();
         AvaloniaXamlLoader.Load(this);
+        MeowChan.Desktop.Controls.HeadingLevels.Install(Styles);
         ThemeLogo.FollowAllWindows();
         ApplyControlLanguage();
         Texts.Changed += OnLanguageChanged;
