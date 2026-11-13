@@ -69,8 +69,11 @@
                 foreach (string entry in Directory.GetFileSystemEntries(source, "*", SearchOption.AllDirectories)) {
                     FileAttributes attributes = File.GetAttributes(entry);
                     string sourceRoot = source.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
-                    string relative = entry.StartsWith(sourceRoot, StringComparison.OrdinalIgnoreCase)
-                        ? entry.Substring(sourceRoot.Length) : entry;
+                    // RoslynCodeTaskFactory's reference surface does not expose Path.GetRelativePath.
+                    // Enumeration uses this exact root; fail closed rather than using an absolute fallback.
+                    if (!entry.StartsWith(sourceRoot, StringComparison.Ordinal))
+                        throw new InvalidDataException("Plugin helper entry escaped its output root: " + entry);
+                    string relative = entry.Substring(sourceRoot.Length);
                     if (relative.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries).Any(forbiddenComponents.Contains))
                         throw new InvalidDataException("Plugin helper output contains a build or profile artifact: " + relative);
                     if ((attributes & FileAttributes.ReparsePoint) != 0)
