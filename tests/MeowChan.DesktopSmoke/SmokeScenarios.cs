@@ -179,6 +179,7 @@ internal static partial class SmokeScenarios
         Root("statistics", "MEOWCHAN_STATISTICS_ONLY", "statistics: header graph in every work view and the Header graph setting, the statistics page with synthetic counters, reset question, sampling claim and light/dark/German captures; no request leaves the process"),
         Root("picker-lifetime", "MEOWCHAN_PICKER_LIFETIME_ONLY"),
         Root("settings-category", "MEOWCHAN_SETTINGS_CATEGORY_ONLY"),
+        Root("settings-statistics", "MEOWCHAN_SETTINGS_STATISTICS_ONLY", "settings statistics: nine rows with ranges, switch dependencies, refusal outside the ranges, save/reload/discard through the production path and hub options, EN/DE light/dark captures"),
         Root("settings-lifetime", "MEOWCHAN_SETTINGS_LIFETIME_ONLY"),
         Root("path-input", "MEOWCHAN_PATH_INPUT_ONLY"),
         Root("numeric-focus", "MEOWCHAN_NUMERIC_FOCUS_ONLY"),
