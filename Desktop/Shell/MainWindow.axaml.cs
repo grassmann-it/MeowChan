@@ -758,6 +758,7 @@ public partial class MainWindow : Window
         _trayLogo = ThemeLogo.Follow(trayIcon);
         trayIcon.ToolTipText = TrayMenuModel.BaseTooltip;
         NativeMenu menu = new NativeMenu();
+        AddTrayStats(); // tooltip statistics, text only
         NativeMenuItem openItem = CreateTrayCommandItem("app.show");
         _trayOpenItem = openItem;
         openItem.Click += (sender, e) =>
@@ -856,6 +857,8 @@ public partial class MainWindow : Window
 
     private void OnTrayWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
+        // Hidden or minimized claims the statistics for the tooltip; shown releases it again (the window samples for itself).
+        if ((e.Property == IsVisibleProperty || e.Property == WindowStateProperty) && _trayIcon != null) RefreshTray();
         // A user can restore from the taskbar while the host check is pending.
         if (e.Property == WindowStateProperty && !Equals(e.OldValue, e.NewValue)
             && WindowState != WindowState.Minimized && IsVisible)
@@ -870,6 +873,7 @@ public partial class MainWindow : Window
         _trayPlatformSettings = null;
         _trayLogo?.Dispose();
         _trayLogo = null;
+        DisposeTrayStats();
         TrayIcon? trayIcon = _trayIcon;
         _trayIcon = null;
         _clipboardMenuItem = null;
@@ -983,9 +987,8 @@ public partial class MainWindow : Window
             }
             if (updateItem.IsVisible != available) updateItem.IsVisible = available;
         }
-        int active = paused ? 0 : UrlList.Sum(row => row.Active);
-        string tip = TrayMenuModel.Tooltip(paused, active);
-        if (_trayIcon.ToolTipText != tip) _trayIcon.ToolTipText = tip;
+        // Tooltip text (with the statistics when set), the statistics claim and the menu lines: MainWindow.TrayStats.cs.
+        _trayStats?.Refresh();
     }
 
     protected override async void OnClosing(WindowClosingEventArgs e)
