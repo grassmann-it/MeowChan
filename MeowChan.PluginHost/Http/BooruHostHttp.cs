@@ -17,8 +17,8 @@ public sealed class BooruHostHttp : IDisposable
     public const int MaximumWireBytes = 2 * 1024 * 1024;
     public const int MaximumDecodedBytes = 4 * 1024 * 1024;
     public const int MaximumSendsPerJob = BooruJob.MaximumSends;
-    public const int MaximumSearchPage = 5;
-    public const int MaximumSearchLimit = 20;
+    public const int MaximumSearchPage = MeowChan.Booru.DanbooruTagQuery.MaximumSearchPages;
+    public const int MaximumSearchLimit = MeowChan.Booru.DanbooruTagQuery.MaximumSearchPageSize;
     public static readonly TimeSpan MinimumStartSpacing = TimeSpan.FromSeconds(1);
     public static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(2);
     public static readonly TimeSpan MaximumJobLifetime = BooruJob.MaximumLifetime;

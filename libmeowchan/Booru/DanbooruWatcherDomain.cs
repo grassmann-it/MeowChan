@@ -73,10 +73,10 @@ internal sealed record DanbooruWatcherTransition(
 internal sealed record DanbooruWatcher
 {
     internal const string ProviderId = DanbooruPostReference.ProviderId;
-    internal const int DefaultPageSize = 20;
-    internal const int MaximumPageSize = 20;
-    internal const int DefaultPageBudget = 5;
-    internal const int MaximumPageBudget = 5;
+    internal const int DefaultPageSize = MaximumPageSize;
+    internal const int MaximumPageSize = DanbooruTagQuery.MaximumSearchPageSize;
+    internal const int DefaultPageBudget = MaximumPageBudget;
+    internal const int MaximumPageBudget = DanbooruTagQuery.MaximumSearchPages;
 
     private DanbooruWatcher(string watcherId, DanbooruTagQuery query,
         DateTimeOffset createdAtUtc, int pageSize, int pageBudget)
