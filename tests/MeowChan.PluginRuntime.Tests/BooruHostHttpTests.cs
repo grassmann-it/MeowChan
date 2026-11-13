@@ -627,10 +627,14 @@ public sealed class BooruHostHttpTests
     public async Task RetryAfterDeltaSaturatesOnlyAtTechnicalDateLimit()
     {
         ManualClock clock = new();
+        // HttpClient correctly rejects delta-seconds above Int32.MaxValue. Exercise saturation
+        // with a valid wire-representable delta near the calendar limit, while keeping room
+        // for the normal job/response deadlines rather than bypassing header validation.
+        clock.Advance(DateTimeOffset.MaxValue - clock.GetUtcNow() - TimeSpan.FromMinutes(5));
         using HttpClient transport = new(new Handler((_, _) =>
         {
             HttpResponseMessage response = Response(HttpStatusCode.TooManyRequests, "busy");
-            response.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.MaxValue);
+            response.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromSeconds(int.MaxValue));
             return Task.FromResult(response);
         }));
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
