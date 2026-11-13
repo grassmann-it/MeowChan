@@ -318,7 +318,7 @@ public sealed class OriginalMediaHttpTests
         { lock (_sync) { Timer timer = new(this, callback, state); _timers.Add(timer); timer.Change(dueTime, period); return timer; } }
         internal async Task WaitForDelayAsync(TimeSpan maximumDelay)
         {
-            using CancellationTokenSource watchdog = new(TimeSpan.FromSeconds(5));
+            using CancellationTokenSource watchdog = new(TimeSpan.FromSeconds(30)); // hang guard only
             while (true)
             {
                 lock (_sync)

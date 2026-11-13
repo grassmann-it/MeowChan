@@ -155,7 +155,9 @@ public sealed class CompilerIntegrationTests : IDisposable
         Assert.Equal(PluginBuildStatus.Cancelled, cancelled.Status);
         AssertProcessGone(pid);
         File.Delete(marker);
-        PluginBuildResult timedOut = await Service(wrapper, TimeSpan.FromMilliseconds(300)).BuildAsync(path);
+        // The timeout has to outlast the shell's start so that its first command (the marker) has run; the sleep that follows
+        // keeps the build running until the timeout kills it, however long that takes.
+        PluginBuildResult timedOut = await Service(wrapper, TimeSpan.FromSeconds(3)).BuildAsync(path);
         Assert.Equal(PluginBuildStatus.TimedOut, timedOut.Status);
         pid = int.Parse(await File.ReadAllTextAsync(marker));
         AssertProcessGone(pid);
@@ -465,11 +467,12 @@ public sealed class CompilerIntegrationTests : IDisposable
             ProcessStartInfo start = new("/usr/bin/mkfifo") { UseShellExecute = false }; start.ArgumentList.Add(path);
             using Process process = Process.Start(start)!; await process.WaitForExitAsync(); Assert.Equal(0, process.ExitCode);
         }
-        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(5));
-        PluginInventory inventory = await new PluginInstallationInventory().ScanAsync(plugins, timeout.Token).WaitAsync(TimeSpan.FromSeconds(5));
+        // Reading a FIFO blocks for ever, so the limits only need to tell "never returns" from "returns"; they are no speed bound.
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(30));
+        PluginInventory inventory = await new PluginInstallationInventory().ScanAsync(plugins, timeout.Token).WaitAsync(TimeSpan.FromSeconds(30));
         Assert.Equal(2, inventory.Candidates.Count);
         Assert.All(inventory.Candidates, candidate => Assert.NotEmpty(candidate.Diagnostics));
-        PluginBuildResult result = await Service().BuildAsync(sourceFifo, cancellationToken: timeout.Token).WaitAsync(TimeSpan.FromSeconds(5));
+        PluginBuildResult result = await Service().BuildAsync(sourceFifo, cancellationToken: timeout.Token).WaitAsync(TimeSpan.FromSeconds(30));
         Assert.False(result.Succeeded);
         Assert.NotEqual(PluginBuildStatus.Cancelled, result.Status);
         Assert.False(timeout.IsCancellationRequested);
@@ -481,7 +484,7 @@ public sealed class CompilerIntegrationTests : IDisposable
         if (!OperatingSystem.IsLinux()) return;
         string path = await SourceAsync();
         string wrapper = await WrapperAsync("head -c 1100000 /dev/zero\nsleep 30\n");
-        PluginBuildResult result = await Service(wrapper, TimeSpan.FromSeconds(5)).BuildAsync(path);
+        PluginBuildResult result = await Service(wrapper, TimeSpan.FromSeconds(20)).BuildAsync(path);
         Assert.Equal(PluginBuildStatus.CompilerError, result.Status);
         Assert.Contains(result.Diagnostics, d => d.Message.Contains("size limit", StringComparison.Ordinal));
         Assert.Empty(Directory.GetDirectories(Path.Combine(Cache, "artifacts")));
