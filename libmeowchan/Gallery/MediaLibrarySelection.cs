@@ -50,7 +50,21 @@ internal static class MediaLibrarySelection
     {
         ArgumentNullException.ThrowIfNull(tiles);
         ArgumentNullException.ThrowIfNull(positions);
-        return positions.Where(index => index >= 0 && index < tiles.Count).Distinct().Order().Select(index => tiles[index]).ToArray();
+        // The grid reports its selection ascending and without repeats: one pass, no sort. Anything else is ordered first.
+        List<int> valid = new();
+        bool ascending = true;
+        int last = -1;
+        foreach (int index in positions)
+        {
+            if (index < 0 || index >= tiles.Count) continue;
+            if (index <= last) ascending = false;
+            last = index;
+            valid.Add(index);
+        }
+        IEnumerable<int> ordered = ascending ? valid : valid.Distinct().Order();
+        List<MediaLibraryTile> picked = new(valid.Count);
+        foreach (int index in ordered) picked.Add(tiles[index]);
+        return picked;
     }
 
     /// <summary>

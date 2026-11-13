@@ -64,16 +64,36 @@ internal static class MediaLibraryView
     /// and the position of the chosen entry inside that window. Missing entries are skipped: they have no file.
     /// </summary>
     internal static (IReadOnlyList<MediaLibraryEntry> Window, int Start) GalleryWindow(IReadOnlyList<MediaLibraryEntry> shown,
-        int index, int maximum = 200)
+        int index, int maximum = 200) => GalleryWindow(shown, PresentIndex(shown), index, maximum);
+
+    /// <summary>The positions of the saved entries in <paramref name="shown"/>, ascending. A page builds this once per presentation.</summary>
+    internal static int[] PresentIndex(IReadOnlyList<MediaLibraryEntry> shown)
     {
         ArgumentNullException.ThrowIfNull(shown);
+        List<int> present = new();
+        for (int i = 0; i < shown.Count; i++)
+            if (shown[i].Presence == MediaLibraryPresence.Present) present.Add(i);
+        return present.ToArray();
+    }
+
+    /// <summary>
+    /// <see cref="GalleryWindow(IReadOnlyList{MediaLibraryEntry}, int, int)"/> with the positions of the saved entries given
+    /// (<see cref="PresentIndex"/>): a binary search and a slice, no pass over every shown entry.
+    /// </summary>
+    internal static (IReadOnlyList<MediaLibraryEntry> Window, int Start) GalleryWindow(IReadOnlyList<MediaLibraryEntry> shown,
+        int[] presentIndex, int index, int maximum = 200)
+    {
+        ArgumentNullException.ThrowIfNull(shown);
+        ArgumentNullException.ThrowIfNull(presentIndex);
         if (index < 0 || index >= shown.Count || shown[index].Presence != MediaLibraryPresence.Present || maximum < 1)
             return (Array.Empty<MediaLibraryEntry>(), -1);
-        List<int> present = Enumerable.Range(0, shown.Count).Where(i => shown[i].Presence == MediaLibraryPresence.Present).ToList();
-        int at = present.IndexOf(index);
-        int first = Math.Clamp(at - maximum / 2, 0, Math.Max(0, present.Count - maximum));
-        int[] taken = present.Skip(first).Take(maximum).ToArray();
-        return (taken.Select(i => shown[i]).ToArray(), Array.IndexOf(taken, index));
+        int at = Array.BinarySearch(presentIndex, index);
+        if (at < 0) return (Array.Empty<MediaLibraryEntry>(), -1);
+        int first = Math.Clamp(at - maximum / 2, 0, Math.Max(0, presentIndex.Length - maximum));
+        int count = Math.Min(maximum, presentIndex.Length - first);
+        MediaLibraryEntry[] window = new MediaLibraryEntry[count];
+        for (int i = 0; i < count; i++) window[i] = shown[presentIndex[first + i]];
+        return (window, at - first);
     }
 }
 

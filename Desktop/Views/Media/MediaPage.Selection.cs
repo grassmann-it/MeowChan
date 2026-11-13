@@ -93,8 +93,9 @@ public sealed partial class MediaPage
 
     private void UpdateSelectionBar()
     {
-        IReadOnlyList<MediaLibraryTile> selected = SelectedTiles;
-        int count = selected.Count, notSaved = selected.Count(tile => tile.Entry.Presence != MediaLibraryPresence.Present);
+        // The status line only needs two numbers: the grid knows the count, and the unsaved ones are one pass over the positions
+        // (no tile list is built, which for a selected library of 200,000 tiles would be copied and sorted on every update).
+        int count = _grid.Selection.Count, notSaved = count == 0 ? 0 : NotSavedSelected();
         bool building = _building != null;
         string? reason = count == 0 ? Texts.T("media.selection.reason.none") : building ? Texts.T("media.selection.reason.building") : null;
         _selectionText.Text = count == 0 ? Texts.T("media.selection.none")
@@ -107,6 +108,26 @@ public sealed partial class MediaPage
         _selClear.IsEnabled = count > 0;
         UpdateExportAll();
         if (count == 0 && !_selectionBusy) ShowSelectionNote(null);
+    }
+
+    private int NotSavedSelected()
+    {
+        int notSaved = 0, shown = _tiles.Count;
+        foreach (int index in _grid.Selection.SelectedIndexes)
+            if (index >= 0 && index < shown && _tiles[index].Entry.Presence != MediaLibraryPresence.Present) notSaved++;
+        return notSaved;
+    }
+
+    /// <summary>Selects the given positions (ascending as <see cref="MediaLibrarySelection.Restore"/> gives them) as ranges, not one by one.</summary>
+    private void SelectIndexes(IReadOnlyList<int> indexes)
+    {
+        int at = 0;
+        while (at < indexes.Count)
+        {
+            int start = indexes[at], end = start;
+            for (at++; at < indexes.Count && indexes[at] == end + 1; at++) end = indexes[at];
+            if (start == end) _grid.Selection.Select(start); else _grid.Selection.SelectRange(start, end);
+        }
     }
 
     // A disabled action says why in its tooltip and accessible description.

@@ -68,7 +68,7 @@ public sealed partial class MediaPage
         try
         {
             _grid.Selection.Clear();
-            foreach (int index in match.Selected) _grid.Selection.Select(index);
+            SelectIndexes(match.Selected);
         }
         finally { _restoring = false; }
         UpdateSelectionBar();

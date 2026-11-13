@@ -100,8 +100,8 @@ public sealed partial class MediaPage : UserControl
     internal ContextMenu? MediaMenu => _mediaMenuPresenter.Menu;
     internal MediaMenuSession? MediaMenuSession => _mediaMenuPresenter.Session;
     internal Task BuildTask { get; private set; } = Task.CompletedTask;
-    /// <summary>At most this often does a running build update the status line (the build reports once per thread).</summary>
-    internal static readonly TimeSpan ProgressInterval = TimeSpan.FromMilliseconds(100);
+    /// <summary>At most this often (5 times a second) does a running build update the status line (the build reports once per thread).</summary>
+    internal static readonly TimeSpan ProgressInterval = TimeSpan.FromMilliseconds(200);
     /// <summary>Write limit of the saved index in bytes; the shell reads the setting each time. Null: the default limit.</summary>
     internal Func<long>? CacheLimitBytes { get; set; }
     /// <summary>The configured limits of entries and threads the saved index may hold (settings).</summary>
@@ -117,6 +117,8 @@ public sealed partial class MediaPage : UserControl
     /// <summary>One entry per tile: the occurrence each tile shows. Gallery windows are made from this list.</summary>
     internal IReadOnlyList<MediaLibraryEntry> ShownEntries => _shown;
     internal IReadOnlyList<MediaLibraryTile> Tiles => _tiles;
+    /// <summary>Positions of the saved tiles in <see cref="ShownEntries"/>, found once per presentation for the gallery window of a menu.</summary>
+    internal int[] PresentPositions { get; private set; } = Array.Empty<int>();
     internal MediaLibrarySnapshot? Snapshot => _snapshot;
     internal ListBox Grid => _grid;
 
@@ -275,6 +277,7 @@ public sealed partial class MediaPage : UserControl
         // Filter the occurrences first; a tile of equal bytes stays when any of its occurrences passed.
         _tiles = MediaLibraryGrouping.Build(all, ApplyFilter(all), Sort, includeMissing, _seed, _userData.IsFavorite);
         _shown = _tiles.Select(tile => tile.Entry).ToArray();
+        PresentPositions = MediaLibraryView.PresentIndex(_shown);
         _shownMissing = _shown.Count(entry => entry.Presence == MediaLibraryPresence.Missing);
         _unfiltered = _filterActive ? MediaLibraryGrouping.CountTiles(all, includeMissing) : _shown.Count;
         // Own state is read from the data this presentation was built with, so a row never mixes two reads.
@@ -285,7 +288,7 @@ public sealed partial class MediaPage : UserControl
         try
         {
             _grid.ItemsSource = rows;
-            foreach (int index in MediaLibrarySelection.Restore(selected, _tiles)) _grid.Selection.Select(index);
+            SelectIndexes(MediaLibrarySelection.Restore(selected, _tiles));
         }
         finally { _restoring = false; }
         _shuffle.IsVisible = Sort == MediaLibrarySort.Random;
@@ -360,7 +363,7 @@ public sealed partial class MediaPage : UserControl
     internal async Task OpenSelectedAsync()
     {
         if (SelectedRow is not { } row || OpenGallery == null) return;
-        (IReadOnlyList<MediaLibraryEntry> window, int start) = MediaLibraryView.GalleryWindow(_shown, row.Index);
+        (IReadOnlyList<MediaLibraryEntry> window, int start) = MediaLibraryView.GalleryWindow(_shown, PresentPositions, row.Index);
         if (start < 0) return;
         await OpenGallery(window, start);
     }
@@ -406,7 +409,7 @@ public sealed partial class MediaPage : UserControl
 
     internal async Task EditSelectedTagsAsync()
     {
-        if (SelectedTiles.Count == 1 && SelectedRow is { State.CanEditMediaTags: true } row && EditTags != null) await EditTags(row.Entry);
+        if (_grid.Selection.Count == 1 && SelectedRow is { State.CanEditMediaTags: true } row && EditTags != null) await EditTags(row.Entry);
     }
 
     /// <summary>The post address of a provider medium as the catalog states it, validated; null for any other entry.</summary>
@@ -457,7 +460,7 @@ public sealed partial class MediaPage : UserControl
             if (CommandBindings.Matches(e, "gallery.show-in-thread"))
             {
                 e.Handled = true;
-                if (SelectedTiles.Count == 1) await ShowSelectedInThreadAsync();
+                if (_grid.Selection.Count == 1) await ShowSelectedInThreadAsync();
                 return;
             }
             // media.tags.edit: several selected tiles tag together (the selection bar's action), one edits its own tags.
@@ -478,7 +481,7 @@ public sealed partial class MediaPage : UserControl
             if (e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None || SelectedRow == null) return;
             e.Handled = true;
             // Several selected tiles open together; one opens around itself.
-            if (SelectedTiles.Count > 1) await OpenSelectionGalleryAsync(); else await OpenSelectedAsync();
+            if (_grid.Selection.Count > 1) await OpenSelectionGalleryAsync(); else await OpenSelectedAsync();
         }
         catch (Exception error) when (UnhandledErrors.TryRecover(error, "media.grid.key")) { /* Logged and shown. */ }
     }
@@ -487,7 +490,7 @@ public sealed partial class MediaPage : UserControl
     internal async Task EditTagsByShortcutAsync()
     {
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy) return;
-        if (SelectedTiles.Count > 1) { await TagSelectionAsync(); return; }
+        if (_grid.Selection.Count > 1) { await TagSelectionAsync(); return; }
         if (SelectedRow is not { } row || row.State?.CanEditMediaTags != true) return;
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
         MediaLibraryEntry entry = row.Entry;
@@ -502,8 +505,8 @@ public sealed partial class MediaPage : UserControl
     internal async Task RunMediaCommandByShortcutAsync(string id)
     {
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy || ExecuteMediaMenuActionAsync == null) return;
-        if (id == "media.export-original" && SelectedTiles.Count > 1) { await ExportSelectionAsync(); return; }
-        if (SelectedTiles.Count != 1 || SelectedRow is not { } row || row.Entry.Presence != MediaLibraryPresence.Present) return;
+        if (id == "media.export-original" && _grid.Selection.Count > 1) { await ExportSelectionAsync(); return; }
+        if (_grid.Selection.Count != 1 || SelectedRow is not { } row || row.Entry.Presence != MediaLibraryPresence.Present) return;
         if (id == "media.rating.edit" && row.State?.RatingKnown != true) return;
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
         await ExecuteMediaActionAsync(id, row.Entry, Current);
@@ -627,10 +630,10 @@ public sealed partial class MediaPage : UserControl
         }
         MediaLibraryEntry entry = row.Entry;
         MediaLibraryTile tile = row.Tile;
-        MediaLibraryEntry[] shown = _shown.ToArray();
-        (IReadOnlyList<MediaLibraryEntry> galleryWindow, int galleryStart) = MediaLibraryView.GalleryWindow(shown, row.Index);
+        // The page replaces its lists, never changes them in place: no copy, and the saved positions were found once per presentation.
+        (IReadOnlyList<MediaLibraryEntry> galleryWindow, int galleryStart) = MediaLibraryView.GalleryWindow(_shown, PresentPositions, row.Index);
         MediaLibraryEntryState? state = row.State;
-        int selectedCount = SelectedTiles.Count;
+        int selectedCount = _grid.Selection.Count;
         bool several = selectedCount > 1;
         bool hostActions = ExecuteMediaMenuActionAsync != null;
         MediaMenuFacts facts = new(MediaMenuSurface.MediaPage, MediaMenuTarget.Of(entry))
