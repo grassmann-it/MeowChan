@@ -7,20 +7,28 @@ using MeowChan.Http;
 namespace MeowChan.Desktop.Stats;
 
 /// <summary>Raw byte and request totals. Units are applied by the display (<see cref="ByteUnits"/>), never here.</summary>
-internal readonly record struct IoCounts(long NetDown, long DiskWritten, long DiskRead, long Requests, long Errors)
+internal readonly record struct IoCounts(long NetDown, long NetUp, long DiskWritten, long DiskRead, long Requests, long Errors)
 {
+    // Preserve the positional meaning of existing down-only callers.
+    internal IoCounts(long NetDown, long DiskWritten, long DiskRead, long Requests, long Errors)
+        : this(NetDown, 0, DiskWritten, DiskRead, Requests, Errors) { }
+
     internal static IoCounts Zero => default;
     internal bool IsZero => this == default;
 
-    internal IoCounts Plus(in IoCounts other) => new(Sat(NetDown, other.NetDown), Sat(DiskWritten, other.DiskWritten),
+    internal IoCounts Plus(in IoCounts other) => new(Sat(NetDown, other.NetDown), Sat(NetUp, other.NetUp), Sat(DiskWritten, other.DiskWritten),
         Sat(DiskRead, other.DiskRead), Sat(Requests, other.Requests), Sat(Errors, other.Errors));
 
     private static long Sat(long a, long b) => a > long.MaxValue - b ? long.MaxValue : a + b;
 }
 
-/// <summary>Per second: bytes for the first three, requests for the last.</summary>
-internal readonly record struct IoRates(double NetDown, double DiskWrite, double DiskRead, double Requests)
+/// <summary>Per second: bytes for the first four, requests for the last.</summary>
+internal readonly record struct IoRates(double NetDown, double NetUp, double DiskWrite, double DiskRead, double Requests)
 {
+    // Existing down-only callers must not shift disk rates into NetUp.
+    internal IoRates(double NetDown, double DiskWrite, double DiskRead, double Requests)
+        : this(NetDown, 0, DiskWrite, DiskRead, Requests) { }
+
     internal static IoRates Zero => default;
 }
 
@@ -28,7 +36,7 @@ internal readonly record struct IoRates(double NetDown, double DiskWrite, double
 internal readonly record struct IoActivity(int Active, int Pending, int WaitingAdmission);
 
 /// <summary>One source's monotonic counters at one moment, as read from the transport side.</summary>
-internal readonly record struct IoCounterReading(string Key, long NetDown, long DiskWritten, long DiskRead, long Requests, long Errors);
+internal readonly record struct IoCounterReading(string Key, long NetDown, long NetUp, long DiskWritten, long DiskRead, long Requests, long Errors);
 
 /// <summary>Where the hub reads its counters. The product source is <see cref="TransferMeterSource"/>.</summary>
 internal interface IIoCounterSource

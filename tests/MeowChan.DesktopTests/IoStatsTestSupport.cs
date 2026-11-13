@@ -67,13 +67,15 @@ internal sealed class IoFakeSource : IIoCounterSource
     private readonly Dictionary<string, IoCounterReading> _readings = new(StringComparer.Ordinal);
     internal int Reads;
 
-    internal void Add(string key, long net = 0, long diskWritten = 0, long diskRead = 0, long requests = 0, long errors = 0)
+    // Append the optional upload parameter so existing positional disk/request arguments keep their meaning.
+    internal void Add(string key, long net = 0, long diskWritten = 0, long diskRead = 0, long requests = 0, long errors = 0, long netUp = 0)
     {
         _readings.TryGetValue(key, out IoCounterReading r);
-        _readings[key] = new IoCounterReading(key, r.NetDown + net, r.DiskWritten + diskWritten, r.DiskRead + diskRead, r.Requests + requests, r.Errors + errors);
+        _readings[key] = new IoCounterReading(key, r.NetDown + net, r.NetUp + netUp, r.DiskWritten + diskWritten, r.DiskRead + diskRead, r.Requests + requests, r.Errors + errors);
     }
 
-    internal void Set(string key, long net) => _readings[key] = new IoCounterReading(key, net, 0, 0, 0, 0);
+    internal void Set(string key, long net, long netUp = 0, long diskWritten = 0, long diskRead = 0, long requests = 0, long errors = 0)
+        => _readings[key] = new IoCounterReading(key, net, netUp, diskWritten, diskRead, requests, errors);
 
     public void Read(List<IoCounterReading> into)
     {

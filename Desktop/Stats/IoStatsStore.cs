@@ -14,7 +14,7 @@ internal enum IoStatsLoadStatus { Ok, RestoredFromBackup, Damaged, Unreadable }
 internal sealed record IoStatsLoadResult(IoStatsLoadStatus Status, IoDays Days, string? Notice, string? SetAsidePath);
 
 /// <summary>
-/// The per-day network and disk totals of the profile (<c>io-stats.json</c>): per local day and source the five raw counters.
+/// The per-day network and disk totals of the profile (<c>io-stats.json</c>): per local day and source the six raw counters.
 /// Writes are atomic (temporary file, replace, <c>.bak</c>) under the profile lease. Reading is bounded, rejects duplicate
 /// properties and never throws for bad content: a damaged file is set aside as <c>.bad</c>, the backup is tried, and
 /// otherwise the statistics start empty. Statistics are derived data, so a failed write is reported and retried, never fatal.
@@ -24,6 +24,8 @@ internal sealed class IoStatsStore
     internal const string FileName = "io-stats.json";
     /// <summary>Fixed technical ceiling when reading; far above 365 days of 256 sources of realistic size.</summary>
     internal const long MaximumFileBytes = 16L * 1024 * 1024;
+    // Additive v1: "up" is optional like the other counters. Missing/unknown historical upload is zero.
+    // Write it only when nonzero, preserving the down-only v1 serialization shape and exact fixtures.
     internal const int FormatVersion = 1;
     private const int MaximumDays = 400;
     private const int MaximumSourcesPerDay = 4096;
@@ -142,7 +144,7 @@ internal sealed class IoStatsStore
                 if (key.Length is 0 or > IoStatsKeys.MaximumKeyLength || ContainsControl(key))
                     throw new InvalidDataException("A statistics source key is invalid.");
                 if (source.Value.ValueKind != JsonValueKind.Object) throw new InvalidDataException("A statistics source is not an object.");
-                parsed[key] = new IoCounts(Counter(source.Value, "down"), Counter(source.Value, "diskWrite"),
+                parsed[key] = new IoCounts(Counter(source.Value, "down"), Counter(source.Value, "up"), Counter(source.Value, "diskWrite"),
                     Counter(source.Value, "diskRead"), Counter(source.Value, "requests"), Counter(source.Value, "errors"));
             }
             if (day < oldestKept || day > newestKept) continue;
@@ -248,6 +250,7 @@ internal sealed class IoStatsStore
                 {
                     writer.WriteStartObject(key);
                     writer.WriteNumber("down", c.NetDown);
+                    if (c.NetUp != 0) writer.WriteNumber("up", c.NetUp);
                     writer.WriteNumber("diskWrite", c.DiskWritten);
                     writer.WriteNumber("diskRead", c.DiskRead);
                     writer.WriteNumber("requests", c.Requests);

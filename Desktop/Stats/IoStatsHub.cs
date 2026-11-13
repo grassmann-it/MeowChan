@@ -376,17 +376,17 @@ internal sealed class IoStatsHub : IDisposable
         IoCounts total = default;
         foreach ((string key, IoCounts counts) in _pending)
         {
-            rates[key] = new IoRates(counts.NetDown / seconds, counts.DiskWritten / seconds, counts.DiskRead / seconds, counts.Requests / seconds);
+            rates[key] = new IoRates(counts.NetDown / seconds, counts.NetUp / seconds, counts.DiskWritten / seconds, counts.DiskRead / seconds, counts.Requests / seconds);
             total = total.Plus(counts);
         }
         _rates = rates;
         _previousTotalRate = _totalRate;
-        _totalRate = new IoRates(total.NetDown / seconds, total.DiskWritten / seconds, total.DiskRead / seconds, total.Requests / seconds);
+        _totalRate = new IoRates(total.NetDown / seconds, total.NetUp / seconds, total.DiskWritten / seconds, total.DiskRead / seconds, total.Requests / seconds);
         _pending.Clear();
         _lastSampleTimestamp = now;
         bool zero = _totalRate == IoRates.Zero;
         if (!intoRing) return !(zero && _previousTotalRate == IoRates.Zero);
-        _ring.Add(new IoSample((float)_totalRate.NetDown, (float)_totalRate.DiskWrite, (float)_totalRate.DiskRead, (float)_totalRate.Requests));
+        _ring.Add(new IoSample((float)_totalRate.NetDown, (float)_totalRate.NetUp, (float)_totalRate.DiskWrite, (float)_totalRate.DiskRead, (float)_totalRate.Requests));
         _zeroRun = zero ? Math.Min(_zeroRun + 1, int.MaxValue - 1) : 0;
         // Once the whole buffer is zero, redrawing it shows nothing new.
         return _zeroRun <= _ring.Capacity;
@@ -408,7 +408,7 @@ internal sealed class IoStatsHub : IDisposable
         foreach (IoCounterReading reading in _readings)
         {
             string key = IoStatsKeys.Normalize(reading.Key);
-            IoCounts counts = new(reading.NetDown, reading.DiskWritten, reading.DiskRead, reading.Requests, reading.Errors);
+            IoCounts counts = new(reading.NetDown, reading.NetUp, reading.DiskWritten, reading.DiskRead, reading.Requests, reading.Errors);
             _current[key] = _current.TryGetValue(key, out IoCounts existing) ? existing.Plus(counts) : counts;
         }
         int maxSources = _options.MaxSources;
@@ -417,7 +417,8 @@ internal sealed class IoStatsHub : IDisposable
             _last.TryGetValue(key, out IoCounts before);
             _last[key] = now;
             // A counter that went backwards (a restarted source) contributes nothing for that field.
-            IoCounts delta = new(Math.Max(0, now.NetDown - before.NetDown), Math.Max(0, now.DiskWritten - before.DiskWritten),
+            IoCounts delta = new(Math.Max(0, now.NetDown - before.NetDown), Math.Max(0, now.NetUp - before.NetUp),
+                Math.Max(0, now.DiskWritten - before.DiskWritten),
                 Math.Max(0, now.DiskRead - before.DiskRead), Math.Max(0, now.Requests - before.Requests), Math.Max(0, now.Errors - before.Errors));
             if (delta.IsZero) continue;
             IoDays.AddTo(_session, key, delta, maxSources);
@@ -562,7 +563,7 @@ internal sealed class IoStatsHub : IDisposable
     }
 
     private static IoSourceStats Combine(string key, IoSourceStats a, IoSourceStats b) => new(key, a.Session.Plus(b.Session), a.Today.Plus(b.Today),
-        a.Retained.Plus(b.Retained), new IoRates(a.Rate.NetDown + b.Rate.NetDown, a.Rate.DiskWrite + b.Rate.DiskWrite,
+        a.Retained.Plus(b.Retained), new IoRates(a.Rate.NetDown + b.Rate.NetDown, a.Rate.NetUp + b.Rate.NetUp, a.Rate.DiskWrite + b.Rate.DiskWrite,
             a.Rate.DiskRead + b.Rate.DiskRead, a.Rate.Requests + b.Rate.Requests));
 
     public void Dispose()
