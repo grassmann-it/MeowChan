@@ -12,6 +12,9 @@ internal readonly record struct ReaderNavigationLayout(Thickness PostMargin, dou
     // The post list has no maximum width (cards use the whole surface; only a post without media keeps its reading
     // width, inside the card). The free lane for the cross exists while the cards keep at least this much.
     internal const double MinimumCardWidth = 760;
+    // Post width "fit to content": a card is as wide as its content needs, up to this reading width. The same number
+    // is the MaxWidth setter of the "ListBox.reader-fit-width ListBoxItem" style in ArchivePage.axaml (a test pins both).
+    internal const double CardMaxWidth = 1120;
 
     internal double RightInset(double surfaceWidth, double postRight) => TailInset > 0
         && double.IsFinite(surfaceWidth) && double.IsFinite(postRight)

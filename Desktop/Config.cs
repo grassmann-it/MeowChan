@@ -424,6 +424,20 @@ namespace MeowChan
             set => ActiveProfile.ArchiveThreadLayout = string.Equals(value?.Trim(), "Table", StringComparison.OrdinalIgnoreCase) ? "Table" : "List";
         }
 
+        // Reader post cards: "Fit" (default) sizes a card to its content up to the reading width, "Full" uses the whole list,
+        // "Column" makes every card as wide as the reading width allows and centres that column.
+        private string _readerPostWidth = ReaderPostWidthFit;
+        public const string ReaderPostWidthFit = "Fit";
+        public const string ReaderPostWidthFull = "Full";
+        public const string ReaderPostWidthColumn = "Column";
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string ReaderPostWidth
+        {
+            get => _readerPostWidth;
+            set => _readerPostWidth = string.Equals(value?.Trim(), ReaderPostWidthFull, StringComparison.OrdinalIgnoreCase) ? ReaderPostWidthFull
+                : string.Equals(value?.Trim(), ReaderPostWidthColumn, StringComparison.OrdinalIgnoreCase) ? ReaderPostWidthColumn : ReaderPostWidthFit;
+        }
+
         [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
         public bool VideoAutoplay { get; set; } = true;
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
@@ -878,6 +892,7 @@ namespace MeowChan
                 ArchiveMediaTiles = ArchiveMediaTiles,
                 ArchiveThreadLayout = ArchiveThreadLayout,
                 ReadingFontSize = ReadingFontSize,
+                ReaderPostWidth = ReaderPostWidth,
                 VideoAutoplay = VideoAutoplay,
                 VideoStartMuted = VideoStartMuted,
                 VideoVolume = VideoVolume,
@@ -997,6 +1012,7 @@ namespace MeowChan
             ArchiveMediaTiles = source.ArchiveMediaTiles;
             ArchiveThreadLayout = source.ArchiveThreadLayout;
             ReadingFontSize = source.ReadingFontSize;
+            ReaderPostWidth = source.ReaderPostWidth;
             VideoAutoplay = source.VideoAutoplay;
             VideoStartMuted = source.VideoStartMuted;
             VideoVolume = source.VideoVolume;
@@ -1099,6 +1115,7 @@ namespace MeowChan
                     liveEdited.CompactDensity = edited.CompactDensity;
             }
             WorkspaceMode = source.WorkspaceMode;
+            ReaderPostWidth = source.ReaderPostWidth;
             VideoAutoplay = source.VideoAutoplay;
             VideoStartMuted = source.VideoStartMuted;
             // Gallery volume is also a direct preference. An unchanged settings

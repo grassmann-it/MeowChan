@@ -17,8 +17,12 @@ public sealed class ReaderPostLayout : Panel
     private bool Beside(double width) => width >= (GetValue(LargeReaderProperty) ? 760 : 600);
     private double MediaWidth => GetValue(LargeReaderProperty) ? 376 : 268;
 
+    // Smoke seam: how many times the post layouts were measured (scroll cost of the card width modes).
+    internal static long MeasurePasses;
+
     protected override Size MeasureOverride(Size availableSize)
     {
+        MeasurePasses++;
         if (Children.Count != 2) return default;
         Control media = Children[0], body = Children[1];
         double width = availableSize.Width;

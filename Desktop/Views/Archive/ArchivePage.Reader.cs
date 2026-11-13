@@ -63,6 +63,21 @@ public partial class ArchivePage
         get => _readingFontSizePreference;
         set { _readingFontSizePreference = value; ArchivePosts.FontSize = value; }
     }
+    // "Fit": a post card is as wide as its content, left-aligned, up to ReaderNavigationLayout.CardMaxWidth (a style on the
+    // list sets alignment and maximum on the containers, so a change is one class switch and costs no extra layout pass per
+    // scroll). "Column": cards stretch up to the same cap and the column is centred. "Full": cards use the whole list.
+    private string _readerPostWidthPreference = Config.ReaderPostWidthFit;
+    internal string ReaderPostWidthPreference
+    {
+        get => _readerPostWidthPreference;
+        set
+        {
+            string width = value is Config.ReaderPostWidthFull or Config.ReaderPostWidthColumn ? value : Config.ReaderPostWidthFit;
+            _readerPostWidthPreference = width;
+            ArchivePosts.Classes.Set("reader-fit-width", width == Config.ReaderPostWidthFit);
+            ArchivePosts.Classes.Set("reader-column-width", width == Config.ReaderPostWidthColumn);
+        }
+    }
     private bool _largeReader;
     private readonly ReaderPostTailSpace _readerPostTailSpace = new();
     private double _readerPostTailInset;

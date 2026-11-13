@@ -296,7 +296,7 @@
                                              1-px edge (>= 3:1 against the page) on the darker page tone. The active post is an
                                              AccentSurface card with the accent edge; keyboard focus adds a heavier edge and the
                                              shared focus adorner. Semi's hover/pressed tints are suppressed on cards. -->
-                                        <ListBox x:Name="ArchivePosts" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                        <ListBox x:Name="ArchivePosts" Classes="reader-fit-width" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                                  Background="{DynamicResource Workspace.Background}" Padding="2,4"
                                                  ContainerPrepared="OnReaderPostContainerPrepared">
                                             <ListBox.Styles>
@@ -337,6 +337,16 @@
                                                 </Style>
                                                 <Style Selector="ListBoxItem.reader-op:pressed /template/ ContentPresenter">
                                                     <Setter Property="Background" Value="Transparent" />
+                                                </Style>
+                                                <!-- Post width "fit to content" (default): a card is as wide as its header, text and media need, left-aligned and
+                                                     capped at the reading width (ReaderNavigationLayout.CardMaxWidth); "full width" omits this class on the list. -->
+                                                <Style Selector="ListBox.reader-fit-width ListBoxItem">
+                                                    <Setter Property="HorizontalAlignment" Value="Left" />
+                                                    <Setter Property="MaxWidth" Value="1120" />
+                                                </Style>
+                                                <!-- Post width "centred column": cards stretch to the same cap, so the column sits in the middle. -->
+                                                <Style Selector="ListBox.reader-column-width ListBoxItem">
+                                                    <Setter Property="MaxWidth" Value="1120" />
                                                 </Style>
                                                 <Style Selector="ListBoxItem:selected">
                                                     <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
