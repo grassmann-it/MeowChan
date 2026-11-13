@@ -134,7 +134,8 @@ public sealed partial class MediaPage : UserControl
         header.Children.Add(BuildFilterChipRow()); header.Children.Add(_filterError); header.Children.Add(BuildStatusRow(_status)); header.Children.Add(BuildExportAllAsk()); header.Children.Add(BuildSelectionBar());
         _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { ItemHeight = MediaLibraryTileView.TileHeight });
         _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThreadFilter = FilterToThread,
-            TagFilter = FilterToTag, ShowOccurrences = ShowOccurrences });
+            TagFilter = FilterToTag, ShowOccurrences = ShowOccurrences, FavoriteToggle = ToggleTileFavoriteAsync,
+            CanToggleFavorite = () => ExecuteMediaMenuActionAsync != null });
         ScrollViewer.SetHorizontalScrollBarVisibility(_grid, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
         Panel body = new();
         _emptyActions.Children.Add(_goDownloads); _emptyActions.Children.Add(_goArchive);
@@ -385,6 +386,14 @@ public sealed partial class MediaPage : UserControl
                 && origin.Focus()) return;
             FocusGrid(Current);
         }, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>I7: the star of a tile corner runs the shared "favorites.toggle" media action for the shown occurrence.</summary>
+    private Task ToggleTileFavoriteAsync(MediaLibraryEntry entry)
+    {
+        if (ExecuteMediaMenuActionAsync is not { } execute || _lifetime.IsCancellationRequested) return Task.CompletedTask;
+        object? rows = _grid.ItemsSource;
+        return execute("favorites.toggle", entry, () => !_lifetime.IsCancellationRequested && ReferenceEquals(rows, _grid.ItemsSource));
     }
 
     internal async Task EditSelectedTagsAsync()

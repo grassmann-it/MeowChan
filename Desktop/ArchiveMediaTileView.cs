@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -17,7 +18,11 @@ namespace MeowChan.Desktop;
 public sealed class ArchiveMediaTileView : UserControl
 {
     private static readonly SemaphoreSlim ThumbnailGate = new(2, 2);
-    private readonly ArchiveFavoriteButton _favorite = new() { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top };
+    // I7: the favourite star sits in the bottom-right corner of the preview and shows when set or while the tile is hovered or
+    // focused (opacity only); the top-right corner names the type (GIF, video, other file) from the file name alone.
+    private readonly ArchiveFavoriteButton _favorite = new() { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom,
+        Classes = { MeowChan.Desktop.Controls.WorkspaceChips.FavoriteToggleClass }, Margin = new Thickness(0, 0, 2, 2) };
+    private readonly Border _kind = MeowChan.Desktop.Controls.WorkspaceChips.CreateCornerBadge("ArchiveMediaKind", HorizontalAlignment.Right, VerticalAlignment.Top);
     private readonly Image _image = new() { Stretch = Stretch.Uniform, MaxWidth = 170, MaxHeight = 125 };
     private readonly TextBlock _rating = new TextBlock().CaptionText();
     private readonly TextBlock _title = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
@@ -39,6 +44,18 @@ public sealed class ArchiveMediaTileView : UserControl
     internal bool HasThumbnail => _bitmap != null;
     internal static bool UsesVideoPoster(ArchiveAssetRow row) =>
         MeowChan.Gallery.SavedMediaTypes.Classify(row.Asset.OriginalFileName ?? row.Asset.Path) == MeowChan.Gallery.SavedMediaKind.Video;
+    /// <summary>I7: GIF, video or other file by the saved name (no file is read); empty for still images.</summary>
+    internal static string KindLabel(ArchiveAssetRow row)
+    {
+        string name = row.Asset.OriginalFileName ?? row.Asset.Path;
+        return MeowChan.Gallery.SavedMediaTypes.Classify(name) switch
+        {
+            MeowChan.Gallery.SavedMediaKind.Image => string.Equals(System.IO.Path.GetExtension(name), ".gif", StringComparison.OrdinalIgnoreCase)
+                ? Texts.T("media.tile.kind.gif") : string.Empty,
+            MeowChan.Gallery.SavedMediaKind.Video => Texts.T("media.tile.kind.video"),
+            _ => Texts.T("media.tile.kind.other")
+        };
+    }
     internal static string UnavailableKey(ArchiveAssetRow row) =>
         UsesVideoPoster(row) ? "archive.tileVideoPosterUnavailable" : "archive.tilePreviewUnavailable";
     internal static Task<Bitmap?> DecodeAsync(ArchiveAssetRow row, CancellationToken token, string posterCacheDirectory) =>
@@ -50,7 +67,8 @@ public sealed class ArchiveMediaTileView : UserControl
     {
         MaxWidth = 190; Height = 210;
         Grid preview = new() { Height = 125, MaxWidth = 170 };
-        preview.Children.Add(_image); preview.Children.Add(_message); preview.Children.Add(_favorite);
+        _kind.Margin = new Thickness(0, 2, 2, 0);
+        preview.Children.Add(_image); preview.Children.Add(_message); preview.Children.Add(_kind); preview.Children.Add(_favorite);
         Grid grid = new() { Margin = new Thickness(8), RowDefinitions = new RowDefinitions("125,Auto,Auto,*"), RowSpacing = 5 };
         grid.Children.Add(preview); grid.Children.Add(_title); Grid.SetRow(_title, 1);
         grid.Children.Add(_rating); Grid.SetRow(_rating, 2);
@@ -60,6 +78,9 @@ public sealed class ArchiveMediaTileView : UserControl
             Reset(); RefreshFavorite(); RefreshRating();
             ArchiveAssetRow? row = DataContext as ArchiveAssetRow;
             _title.Text = row?.Name; _status.Text = row?.TileSummary;
+            string kind = row == null ? string.Empty : KindLabel(row);
+            _kind.IsVisible = kind.Length > 0;
+            ((TextBlock)_kind.Child!).Text = kind;
             UpdateDescription();
             if (_visible && IsEffectivelyVisible) _ = LoadAsync();
         };
@@ -142,7 +163,8 @@ public sealed class ArchiveMediaTileView : UserControl
 
     private void UpdateDescription()
     {
-        string description = string.Join(Environment.NewLine, new[] { _title.Text, _status.Text, _rating.Text, _message.Text });
+        string kind = DataContext is ArchiveAssetRow row ? KindLabel(row) : string.Empty;
+        string description = string.Join(Environment.NewLine, new[] { _title.Text, kind, _status.Text, _rating.Text, _message.Text }.Where(part => !string.IsNullOrEmpty(part)));
         ToolTip.SetTip(this, description);
         AutomationProperties.SetName(this, description);
     }

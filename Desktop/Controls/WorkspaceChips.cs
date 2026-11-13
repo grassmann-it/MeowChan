@@ -2,7 +2,9 @@ using System;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
+using Avalonia.VisualTree;
 using Avalonia.Media;
 
 namespace MeowChan.Desktop.Controls;
@@ -88,6 +90,69 @@ internal static class WorkspaceChips
         AutomationProperties.SetAccessibilityView(mark, AccessibilityView.Raw);
         mark.AttachedToVisualTree += (_, _) => mark.Data ??= Geometry.Parse("M1,6 L6,1 L11,6 M2.5,4.8 L2.5,11 L9.5,11 L9.5,4.8");
         return mark;
+    }
+
+    // ---- I7 tile corners -------------------------------------------------------------------------------------------
+    internal const string Corner = "tile-corner";
+    internal const string FavoriteToggleClass = "tile-favorite";
+    internal const string MarkMissing = "M6,1 A5,5 0 1 1 5.99,1 Z M2.5,2.5 L9.5,9.5";
+    internal const string MarkUntagged = "M1,1 L6,1 L11,6 L6,11 L1,6 Z M3.6,3.6 L3.7,3.7 M1,11 L11,1";
+    internal const string MarkWithdrawn = "M1,1 L11,11 M11,1 L1,11";
+    private const string StarGeometry = "M6,0.6 L7.6,4.2 L11.4,4.5 L8.5,7 L9.4,10.9 L6,8.8 L2.6,10.9 L3.5,7 L0.6,4.5 L4.4,4.2 Z";
+
+    /// <summary>A compact badge for a fixed corner of a preview (type, provider). Static; its text is also in the tile's name.</summary>
+    internal static Border CreateCornerBadge(string name, HorizontalAlignment horizontal, VerticalAlignment vertical)
+    {
+        Border badge = CreateBadge(name, string.Empty, compact: true);
+        badge.Classes.Add(Corner);
+        badge.HorizontalAlignment = horizontal; badge.VerticalAlignment = vertical;
+        badge.IsVisible = false; badge.IsHitTestVisible = false;
+        AutomationProperties.SetAccessibilityView(badge, AccessibilityView.Raw);
+        return badge;
+    }
+
+    /// <summary>
+    /// A glyph badge for a corner ("not saved", "no media tags", "withdrawn"): a shape, not a font glyph, with its meaning in the
+    /// tooltip. Hit-testable for the tooltip, never focusable; the tile's own name carries the same text.
+    /// </summary>
+    internal static Border CreateCornerMark(string name, HorizontalAlignment horizontal, VerticalAlignment vertical)
+    {
+        Avalonia.Controls.Shapes.Path glyph = new() { Classes = { "tile-mark-glyph" }, Stretch = Stretch.Uniform, IsHitTestVisible = false };
+        glyph.AttachedToVisualTree += (_, _) => ApplyMark(glyph);
+        Border mark = new() { Name = name, Child = glyph, Classes = { Chip, Badge, Compact, Corner, "tile-mark" }, IsVisible = false,
+            HorizontalAlignment = horizontal, VerticalAlignment = vertical };
+        AutomationProperties.SetAccessibilityView(mark, AccessibilityView.Raw);
+        return mark;
+    }
+
+    /// <summary>Shows the corner mark with this geometry and tooltip, or hides it when <paramref name="geometry"/> is null.</summary>
+    internal static void SetCornerMark(Border mark, string? geometry, string? tip)
+    {
+        mark.IsVisible = geometry != null;
+        mark.Tag = geometry;
+        ToolTip.SetTip(mark, geometry == null ? null : tip);
+        if (mark.Child is Avalonia.Controls.Shapes.Path glyph) ApplyMark(glyph);
+    }
+
+    private static void ApplyMark(Avalonia.Controls.Shapes.Path glyph)
+    {
+        if (!glyph.IsAttachedToVisualTree() || glyph.Parent is not Border { Tag: string geometry }) return;
+        if (!Equals(glyph.Tag, geometry)) { glyph.Data = Geometry.Parse(geometry); glyph.Tag = geometry; }
+    }
+
+    /// <summary>
+    /// The favourite star of a tile corner: a toggle with a drawn star (filled when set). Shown when set, or while the tile is
+    /// hovered or holds keyboard focus (WorkspaceStyles: opacity only, no extra layout). The caller names it and handles Click.
+    /// </summary>
+    internal static ToggleButton CreateFavoriteToggle(string name)
+    {
+        Avalonia.Controls.Shapes.Path star = new() { Classes = { "tile-favorite-star" }, Stretch = Stretch.Uniform, IsHitTestVisible = false };
+        star.AttachedToVisualTree += (_, _) => star.Data ??= Geometry.Parse(StarGeometry);
+        return new ToggleButton
+        {
+            Name = name, Content = star, Classes = { FavoriteToggleClass }, IsVisible = false,
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom
+        };
     }
 
     private static T Add<T>(T control, params string?[] classes) where T : Control

@@ -107,6 +107,21 @@ public sealed class ChipStyleTests
             Assert.False(selector.Contains(',') && selector.Contains("/template/"), selector);
     }
 
+    [Fact]
+    public void TileFavouriteStarAppearsByOpacityOnlyWhenSetHoveredOrFocused()
+    {
+        Assert.Equal("0", Setting("ToggleButton.tile-favorite", "Opacity"));
+        foreach (string shown in new[] { "ToggleButton.tile-favorite:checked", "ToggleButton.tile-favorite:focus-visible",
+            "ListBoxItem:pointerover ToggleButton.tile-favorite", "ListBoxItem:focus-within ToggleButton.tile-favorite" })
+            Assert.Equal("1", Setting(shown, "Opacity"));
+        // Static frame, no shadow; the set star is filled with the warning colour (≥ 3:1 on the chip surface in both themes).
+        Assert.Equal("{DynamicResource Workspace.ChipBorder}", Setting("ToggleButton.tile-favorite", "BorderBrush"));
+        Assert.DoesNotContain(Styles().Descendants(A + "Setter"), setter => (string?)setter.Attribute("Property") == "BoxShadow"
+            && ((string?)setter.Parent!.Attribute("Selector"))!.Contains("tile-", StringComparison.Ordinal));
+        Assert.Equal("{DynamicResource Workspace.Warning}", Setting("ToggleButton.tile-favorite:checked Path.tile-favorite-star", "Fill"));
+        foreach (string theme in new[] { "Dark", "Light" }) AssertContrast(theme, "Workspace.Warning", "Workspace.ChipSurface", 3.0);
+    }
+
     [Theory]
     [InlineData(BooruTagCategory.Artist, "chip-source-artist"), InlineData(BooruTagCategory.Copyright, "chip-source-copyright")]
     [InlineData(BooruTagCategory.Character, "chip-source-character"), InlineData(BooruTagCategory.Meta, "chip-source-meta")]

@@ -641,7 +641,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         card.Classes.Add("workspace-section");
 
         Grid grid = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 12 };
-        grid.Children.Add(CreatePreview(row));
+        grid.Children.Add(WithPreviewCorners(CreatePreview(row), post));
 
         StackPanel info = new() { Spacing = 4 };
         info.Children.Add(new TextBlock { Text = Texts.T("booru.ui.post.title", post.PostId), FontWeight = FontWeight.SemiBold, FontSize = 14 });
@@ -816,6 +816,33 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
             if (media.Length > 0) parts.Add(media.ToString());
         }
         return string.Join(" · ", parts);
+    }
+
+    /// <summary>
+    /// I7: fixed corners on the result preview, from the post data already shown (no request): the type (GIF, video) at the top
+    /// right and a "deleted"/"banned" mark at the bottom left. Static borders over the preview; the card keeps its size.
+    /// </summary>
+    private static Control WithPreviewCorners(Control preview, BooruPostView post)
+    {
+        string? kind = post.Original?.Extension?.TrimStart('.').ToLowerInvariant() switch
+        {
+            "gif" => Texts.T("media.tile.kind.gif"),
+            "mp4" or "webm" or "zip" => Texts.T("media.tile.kind.video"),
+            _ => null
+        };
+        string? withdrawn = post.IsDeleted ? Texts.T("booru.post.deleted") : post.IsBanned ? Texts.T("booru.post.banned") : null;
+        if (kind == null && withdrawn == null) return preview;
+        Panel corners = new() { Width = PreviewSize, Height = PreviewSize, VerticalAlignment = VerticalAlignment.Top, Children = { preview } };
+        Border badge = WorkspaceChips.CreateCornerBadge("BooruResultKind:" + post.PostId, HorizontalAlignment.Right, VerticalAlignment.Top);
+        badge.Margin = new Thickness(0, 3, 3, 0);
+        badge.IsVisible = kind != null;
+        ((TextBlock)badge.Child!).Text = kind;
+        corners.Children.Add(badge);
+        Border mark = WorkspaceChips.CreateCornerMark("BooruResultWithdrawn:" + post.PostId, HorizontalAlignment.Left, VerticalAlignment.Bottom);
+        mark.Margin = new Thickness(3, 0, 0, 3);
+        WorkspaceChips.SetCornerMark(mark, withdrawn == null ? null : WorkspaceChips.MarkWithdrawn, withdrawn);
+        corners.Children.Add(mark);
+        return corners;
     }
 
     private static string Size(long bytes)

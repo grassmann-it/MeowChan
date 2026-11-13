@@ -631,5 +631,47 @@
         <Setter Property="Stroke" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
         <Setter Property="StrokeThickness" Value="2" /><Setter Property="IsDashed" Value="False" />
     </Style>
+    <!-- I7 tile corners: static chip badges and marks; the favourite star appears by opacity only (set, hover, keyboard focus),
+         so nothing moves and the tile keeps its height. -->
+    <Style Selector="Border.tile-mark"><Setter Property="Padding" Value="3" /></Style>
+    <!-- D0: a corner mark is under 20 dip high, so it takes the badge corners (like the selection check), not the pill. -->
+    <Style Selector="Border.chip-badge.tile-corner"><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Badge}" /></Style>
+    <Style Selector="Path.tile-mark-glyph">
+        <Setter Property="Width" Value="10" /><Setter Property="Height" Value="10" />
+        <Setter Property="Stroke" Value="{DynamicResource Workspace.Text}" /><Setter Property="StrokeThickness" Value="1.4" />
+    </Style>
+    <Style Selector="ToggleButton.tile-favorite">
+        <Setter Property="Width" Value="26" /><Setter Property="Height" Value="26" /><Setter Property="MinHeight" Value="0" />
+        <Setter Property="Padding" Value="0" /><Setter Property="Opacity" Value="0" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.ChipSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipBorder}" /><Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="13" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
+    </Style>
+    <Style Selector="ToggleButton.tile-favorite:checked"><Setter Property="Opacity" Value="1" /></Style>
+    <Style Selector="ToggleButton.tile-favorite:focus-visible"><Setter Property="Opacity" Value="1" /></Style>
+    <Style Selector="ListBoxItem:pointerover ToggleButton.tile-favorite"><Setter Property="Opacity" Value="1" /></Style>
+    <Style Selector="ListBoxItem:focus-within ToggleButton.tile-favorite"><Setter Property="Opacity" Value="1" /></Style>
+    <Style Selector="ToggleButton.tile-favorite /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.ChipSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipBorder}" />
+    </Style>
+    <Style Selector="ToggleButton.tile-favorite:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipBorder}" />
+    </Style>
+    <Style Selector="ToggleButton.tile-favorite:checked /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.ChipSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipBorder}" />
+    </Style>
+    <Style Selector="Path.tile-favorite-star">
+        <Setter Property="Width" Value="13" /><Setter Property="Height" Value="13" />
+        <Setter Property="Stroke" Value="{DynamicResource Workspace.Text}" /><Setter Property="StrokeThickness" Value="1.3" />
+        <Setter Property="Fill" Value="Transparent" />
+    </Style>
+    <Style Selector="ToggleButton.tile-favorite:checked Path.tile-favorite-star">
+        <Setter Property="Fill" Value="{DynamicResource Workspace.Warning}" /><Setter Property="Stroke" Value="{DynamicResource Workspace.Warning}" />
+    </Style>
     <Style Selector="ListBoxItem.chip-item:selected controls|ChipOutline.chip-source TextBlock.chip-label"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
 </Styles>
