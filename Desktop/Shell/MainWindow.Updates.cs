@@ -5,6 +5,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Updates;
 
@@ -25,8 +26,8 @@ public partial class MainWindow
             _updateNotice = new Button
             {
                 Name = "UpdateNoticeButton", Padding = new Thickness(4, 0), MinHeight = 0,
-                FontSize = 11, IsVisible = false, Classes = { "subtle" }
-            };
+                IsVisible = false, Classes = { "subtle" }
+            }.CaptionText();
             Grid.SetColumn(_updateNotice, 1);
             _updateNotice.Click += OnUpdateNoticeClick;
             status.Children.Add(_updateNotice);

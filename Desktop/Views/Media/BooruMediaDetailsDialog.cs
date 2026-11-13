@@ -112,11 +112,11 @@ internal sealed class BooruMediaDetailsDialog : Window
     {
         TextBlock label = new() { Text = text, FontSize = 12, TextWrapping = TextWrapping.Wrap };
         label[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
-        Border chip = new()
+        Border chip = new Border
         {
-            Name = name, Child = label, Padding = new Thickness(8, 2), CornerRadius = new CornerRadius(10),
+            Name = name, Child = label, Padding = new Thickness(8, 2),
             BorderThickness = new Thickness(1)
-        };
+        }.PillCorners();
         chip[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.AccentSurface");
         chip[!Border.BorderBrushProperty] = new DynamicResourceExtension("Workspace.Border");
         AutomationProperties.SetName(chip, text);

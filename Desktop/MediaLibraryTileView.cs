@@ -59,31 +59,31 @@ internal sealed class MediaLibraryTileView : UserControl
 {
     private static readonly SemaphoreSlim ThumbnailGate = new(2, 2);
     private readonly Image _image = new() { Stretch = Stretch.Uniform, MaxWidth = 174, MaxHeight = 120 };
-    private readonly TextBlock _placeholder = new() { TextWrapping = TextWrapping.Wrap, FontSize = 11,
-        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Center };
+    private readonly TextBlock _placeholder = new TextBlock { TextWrapping = TextWrapping.Wrap,
+        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Center }.CaptionText();
     private readonly TextBlock _name = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
-    private readonly TextBlock _thread = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 11 };
+    private readonly TextBlock _thread = new TextBlock { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis }.CaptionText();
     // The thread acts like a meta tag: its label filters the page to that thread.
     private readonly Button _threadLink = new() { Name = "MediaTileThread", Padding = new Thickness(0), Classes = { "link" },
         HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Left };
-    private readonly TextBlock _detail = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 11 };
+    private readonly TextBlock _detail = new TextBlock { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis }.CaptionText();
     // Equal bytes in several places: the hint opens the list of all occurrences.
-    private readonly TextBlock _duplicates = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 11 };
+    private readonly TextBlock _duplicates = new TextBlock { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis }.CaptionText();
     private readonly Button _duplicatesLink = new() { Name = "MediaTileDuplicates", Padding = new Thickness(0), Classes = { "link" }, IsVisible = false,
         HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Left };
     // Selected tiles carry a check mark besides the list's highlight, so the state does not depend on color alone.
-    private readonly Border _selectedMark = new() { Name = "MediaTileSelected", IsVisible = false, Padding = new Thickness(5, 1), CornerRadius = new CornerRadius(8),
+    private readonly Border _selectedMark = new Border { Name = "MediaTileSelected", IsVisible = false, Padding = new Thickness(5, 1),
         HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 2, 0),
-        Child = new TextBlock { Text = "✓", FontWeight = FontWeight.Bold, FontSize = 12 } };
+        Child = new TextBlock { Text = "✓", FontWeight = FontWeight.Bold, FontSize = 12 } }.BadgeCorners();
     // Downloaded provider media carry a small source badge next to the preview, so they are told apart without opening anything.
-    private readonly Border _providerBadge = new() { Name = "MediaTileProvider", IsVisible = false, Padding = new Thickness(5, 1), CornerRadius = new CornerRadius(8),
+    private readonly Border _providerBadge = new Border { Name = "MediaTileProvider", IsVisible = false, Padding = new Thickness(5, 1),
         HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(2, 2, 0, 0),
-        Child = new TextBlock { FontWeight = FontWeight.SemiBold, FontSize = 11 } };
-    private readonly TextBlock _favorite = new() { Name = "MediaTileFavorite", MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 11, IsVisible = false };
+        Child = new TextBlock { FontWeight = FontWeight.SemiBold }.CaptionText() }.BadgeCorners();
+    private readonly TextBlock _favorite = new TextBlock { Name = "MediaTileFavorite", MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, IsVisible = false }.CaptionText();
     // Own tags act like the thread label beside them: each chip filters the page to that tag. The row is the favorite row of grouped tiles,
     // so the cell keeps its height; what does not fit is summarized as "+N" with the names in its tooltip.
     private readonly Button[] _tagChips = new Button[2];
-    private readonly TextBlock _moreTags = new() { Name = "MediaTileMoreTags", MaxLines = 1, FontSize = 11, IsVisible = false, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _moreTags = new TextBlock { Name = "MediaTileMoreTags", MaxLines = 1, IsVisible = false, VerticalAlignment = VerticalAlignment.Center }.CaptionText();
     private IDisposable? _selection;
     private Bitmap? _bitmap;
     /// <summary>True while the tile shows a verified thumbnail or video poster.</summary>
@@ -136,7 +136,7 @@ internal sealed class MediaLibraryTileView : UserControl
         {
             Button chip = _tagChips[index] = new Button { Name = "MediaTileTag", Padding = new Thickness(0), MinHeight = 0,
                 Classes = { "link" }, IsVisible = false, VerticalAlignment = VerticalAlignment.Center,
-                Content = new TextBlock { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 11, Classes = { "workspace-meta" } } };
+                Content = new TextBlock { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, Classes = { "workspace-meta" } }.CaptionText() };
             chip.Click += (_, e) => { e.Handled = true; if (chip.Tag is PrivateTagDefinition tag) TagFilter?.Invoke(tag.Id.Value); };
             tags.Children.Add(chip);
         }

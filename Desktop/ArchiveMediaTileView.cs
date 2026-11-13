@@ -19,10 +19,10 @@ public sealed class ArchiveMediaTileView : UserControl
     private static readonly SemaphoreSlim ThumbnailGate = new(2, 2);
     private readonly ArchiveFavoriteButton _favorite = new() { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top };
     private readonly Image _image = new() { Stretch = Stretch.Uniform, MaxWidth = 170, MaxHeight = 125 };
-    private readonly TextBlock _rating = new() { FontSize = 11 };
+    private readonly TextBlock _rating = new TextBlock().CaptionText();
     private readonly TextBlock _title = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
-    private readonly TextBlock _status = new() { MaxLines = 2, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 11 };
-    private readonly TextBlock _message = new() { MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.Wrap, FontSize = 11 };
+    private readonly TextBlock _status = new TextBlock { MaxLines = 2, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis }.CaptionText();
+    private readonly TextBlock _message = new TextBlock { MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.Wrap }.CaptionText();
     private Bitmap? _bitmap;
     private CancellationTokenSource? _loading;
     private int _request;

@@ -15,6 +15,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Admission;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
@@ -270,9 +271,9 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
         var reset = new Button
         {
             Name = "BoardAdmissionResetChoice",
-            FontSize = 11, Padding = new Thickness(8, 4), MinHeight = 32,
+            Padding = new Thickness(8, 4), MinHeight = 32,
             HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center
-        };
+        }.CaptionText();
         reset.Bind(ContentControl.ContentProperty, new Binding(nameof(PreviewRow.ResetLabel)));
         reset.Bind(AutomationProperties.NameProperty, new Binding(nameof(PreviewRow.ResetName)));
         reset.Bind(AutomationProperties.HelpTextProperty, new Binding(nameof(PreviewRow.ResetHint)));

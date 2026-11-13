@@ -57,7 +57,7 @@ public partial class MainWindow
                 {
                     new TextBlock { Text = title },
                     new TextBlock { Text = Texts.T("mode." + mode + "Description"), FontSize = 12, TextWrapping = Avalonia.Media.TextWrapping.Wrap },
-                    new TextBlock { Text = Texts.T("mode.sameSession"), FontSize = 11, TextWrapping = Avalonia.Media.TextWrapping.Wrap }
+                    new TextBlock { Text = Texts.T("mode.sameSession"), TextWrapping = Avalonia.Media.TextWrapping.Wrap }.CaptionText()
                 }};
             }
             else item.Content = title;

@@ -18,18 +18,18 @@ internal sealed partial class GalleryViewer
     private bool _favoritePending;
     internal event Action<GalleryEntry, bool>? FavoriteSetRequested;
 
-    internal static Border CreateFavoriteIndicator(string name) => new()
+    internal static Border CreateFavoriteIndicator(string name) => new Border
     {
         Name = name, HorizontalAlignment = HorizontalAlignment.Left,
         // The expandable post context is docked on the right. Keep the passive
         // persisted-state badge in the opposite, fixed safe area so opening the
         // context can never paint it underneath an opaque panel.
         VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12),
-        Padding = new Thickness(7, 3), CornerRadius = new CornerRadius(4),
+        Padding = new Thickness(7, 3),
         Background = new SolidColorBrush(Color.FromArgb(210, 24, 26, 31)),
         IsHitTestVisible = false, Focusable = false, IsVisible = false, ZIndex = 16,
         Child = new TextBlock { FontSize = 16, Foreground = Brushes.White, IsHitTestVisible = false }
-    };
+    }.BadgeCorners();
 
     private void InitializeFavoriteIndicators()
     {
