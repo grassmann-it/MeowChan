@@ -155,6 +155,37 @@ public sealed class PaletteContrastTests
     public void LightProgressTrackIsVisibleAgainstTheSurfaces(string surface, double minimum) =>
         AssertContrast("Light", "Workspace.ProgressTrack", surface, minimum);
 
+    // UX review 2026-11-13: the decorative line colour was #A89F92 in Light (2.22:1 on Panel, 1.79:1 on Raised); #948A7D keeps lines visible
+    // on the column head and the selected row. Still decorative (below 3:1, the interactive outline is ControlBorder), and the mirrored
+    // Semi keys follow it so grid lines and disabled outlines are one value.
+    [Theory]
+    [InlineData("Workspace.Panel", 2.8), InlineData("Workspace.Background", 2.5), InlineData("Workspace.Raised", 2.3), InlineData("Workspace.AccentSurface", 2.3), InlineData("Workspace.Card", 3.1)]
+    public void LightDecorativeBorderIsVisibleOnEverySurfaceAndTheMirroredKeysFollowIt(string surface, double minimum)
+    {
+        Assert.Equal("#948A7D", Color("Light", "Workspace.Border"));
+        AssertContrast("Light", "Workspace.Border", surface, minimum);
+        foreach (string key in new[] { "DataGridLineBrush", "ButtonDefaultDisabledBorderBrush", "ButtonSolidDisabledBorderBrush" })
+            Assert.Equal(Color("Light", "Workspace.Border"), Color("Light", key));
+    }
+
+    // The status chips (Border.workspace-status-*) have a 1-px outline in the tone colour: the tint alone is 1.0 to 1.3:1 on Panel.
+    [Theory, InlineData("Dark"), InlineData("Light")]
+    public void StatusChipOutlineInTheToneReadsOnItsOwnTint(string theme)
+    {
+        foreach (string tone in new[] { "Warning", "Error", "Success", "Accent" })
+        {
+            string surface = tone == "Accent" ? "Workspace.AccentSurface" : "Workspace." + tone + "Surface";
+            AssertContrast(theme, "Workspace." + tone, surface, theme == "Dark" ? 5.0 : 5.5);
+        }
+        string styles = File.ReadAllText(Root("Desktop/WorkspaceStyles.axaml"));
+        foreach ((string state, string tone) in new[] { ("active", "Accent"), ("warning", "Warning"), ("error", "Error"), ("success", "Success") })
+        {
+            string line = styles.Split('\n').Single(l => l.Contains("Selector=\"Border.workspace-status-" + state + "\""));
+            Assert.Contains("Property=\"BorderBrush\" Value=\"{DynamicResource Workspace." + tone + "}\"", line);
+            Assert.Contains("Property=\"BorderThickness\" Value=\"1\"", line);
+        }
+    }
+
     [Fact]
     public void LightScrollbarThumbsReadOnTheSurfacesTheyScrollOver()
     {
