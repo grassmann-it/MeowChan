@@ -357,7 +357,7 @@ public partial class RulesPage
     internal static void ReplaceTemplateGroups(RuleDraft target, RuleTemplate template)
     {
         if (template.Types is { } types) { target.TypesMode = types.Mode; target.ExtensionInput = new(); target.ExtensionInput.Tags.AddRange(types.Extensions); }
-        if (template.SizeLimit is { } size) { target.SizeMode = size.Mode; target.Megabytes = size.Bytes.HasValue ? FormatMegabytes(size.Bytes.Value, Texts.Culture) : "10"; target.NumberCulture = Texts.Culture; }
+        if (template.SizeLimit is { } size) { target.SizeMode = size.Mode; target.NumberCulture = Texts.Culture; target.Exact = null; target.Megabytes = "10"; if (size.Bytes is long limit) target.SetLimit(limit, Texts.Culture); }
         if (template.ImageFilter is { } filter)
         {
             target.ImageFilter = filter; target.LastPluginFilter = null; target.FilterParameters = null; target.BoundFilterParameters = null;

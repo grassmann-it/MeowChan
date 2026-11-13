@@ -181,7 +181,8 @@
   limit and bandwidth settings: tiles, export, import, the gallery file plate, attachments and
   the Danbooru window now use one format ("1,5 MiB" in German, "1.5 MiB" in English). The size
   limit of a Rules editor is entered in MiB; saved rules keep their exact byte count, so an old
-  "10 MB" rule now shows as 9.536743 MiB. A language pack may be 2 MiB.
+  "10 MB" rule now shows as 9.537 MiB (rounded to three decimals for display only; an unedited
+  field keeps its exact byte count). A language pack may be 2 MiB.
 - Add seven bundled UI languages next to English, German, Spanish, French and Russian: Simplified
   Chinese (简体中文), Japanese (日本語), Korean (한국어), Brazilian Portuguese (Português (Brasil)),
   Czech (Čeština), Italian (Italiano) and Polish (Polski). They are AI-authored translation

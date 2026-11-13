@@ -379,7 +379,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         long? maximum = null;
         if (draft.SizeMode == MediaSizeLimitMode.Limited)
         {
-            if (!TryReadMegabytes(draft.Megabytes, draft.NumberCulture, out long bytes))
+            if (!draft.TryReadBytes(out long bytes))
                 throw new RuleInputException("rules.invalidSize");
             maximum = bytes;
         }
@@ -557,11 +557,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             foreach (RuleDraft draft in _drafts.Values)
             {
                 draft.ReformatInitialNumber(Texts.Culture);
-                if (TryReadMegabytes(draft.Megabytes, draft.NumberCulture, out long bytes))
-                {
-                    draft.Megabytes = FormatMegabytes(bytes, Texts.Culture);
-                    draft.NumberCulture = Texts.Culture;
-                }
+                if (draft.TryReadBytes(out long bytes)) draft.SetLimit(bytes, Texts.Culture);
             }
             ReformatTemplateEditor();
             RefreshChoiceLabels();
@@ -671,11 +667,23 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     private static string FormatMegabytes(long bytes, CultureInfo culture)
     {
         decimal mebibytes = bytes / BytesPerMebibyte;
-        // Six decimals when they give the same byte count back; otherwise the exact value (at most 20 decimals), so
-        // opening and saving a rule never moves its limit by a byte.
-        decimal shown = Math.Round(mebibytes, 6, MidpointRounding.AwayFromZero);
-        if (Math.Round(shown * BytesPerMebibyte, 0, MidpointRounding.AwayFromZero) != bytes) shown = mebibytes;
-        return shown.ToString("0.####################", culture);
+        // The display is rounded to three decimals (an old 11 MB rule reads 10.49 MiB, not 10.49041748046875). A limit
+        // below 0.0005 MiB would round to 0, which means "empty files only", so it keeps six. The rounding is display
+        // only: an untouched field keeps its exact byte count (ExactMebibytes), so opening and saving never moves it.
+        decimal shown = Math.Round(mebibytes, 3, MidpointRounding.AwayFromZero);
+        if (shown == 0 && bytes > 0) return Math.Round(mebibytes, 6, MidpointRounding.AwayFromZero).ToString("0.######", culture);
+        return shown.ToString("0.###", culture);
+    }
+
+    /// <summary>A byte limit with the rounded text shown for it. While the field still holds that text (and the number format), the byte count is exact.</summary>
+    internal readonly record struct ExactMebibytes(long Bytes, string Text, string Culture)
+    {
+        internal static ExactMebibytes Of(long bytes, CultureInfo culture) => new(bytes, FormatMegabytes(bytes, culture), culture.Name);
+        internal static bool TryRead(ExactMebibytes? exact, string text, CultureInfo culture, out long bytes)
+        {
+            if (exact is { } known && known.Text == text && known.Culture == culture.Name) { bytes = known.Bytes; return true; }
+            return TryReadMegabytes(text, culture, out bytes);
+        }
     }
     private static string FormatOrigin(MediaRuleOrigin origin) => origin.Scope == null ? Texts.T("rules.builtin") : FormatScope(origin.Scope);
     private static string FormatScope(MediaRuleScope scope) => MeowChan.Desktop.Plugins.PluginGrantPresentation.ScopeLabel(scope);
@@ -696,7 +704,15 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         internal MeowChan.Desktop.Controls.ExtensionTagDraft ExtensionInput { get; set; } = new();
         internal MediaSizeLimitMode SizeMode { get; set; }
         internal string Megabytes { get; set; }
+        internal ExactMebibytes? Exact { get; set; }
         internal CultureInfo NumberCulture { get; set; }
+        internal bool TryReadBytes(out long bytes) => ExactMebibytes.TryRead(Exact, Megabytes, NumberCulture, out bytes);
+        internal void SetLimit(long bytes, CultureInfo culture)
+        {
+            NumberCulture = culture;
+            Exact = ExactMebibytes.Of(bytes, culture);
+            Megabytes = Exact.Value.Text;
+        }
         internal MediaImageFilterRule ImageFilter { get; set; }
         internal bool FilterSchemaAcknowledged { get; set; }
         internal System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.FieldValidationError> FilterValidationErrors { get; set; } = Array.Empty<MeowChan.PluginSdk.FieldValidationError>();
@@ -716,7 +732,8 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             ExtensionInput.Tags.AddRange(rule.Types.Extensions);
             SizeMode = rule.SizeLimit.Mode;
             NumberCulture = Texts.Culture;
-            Megabytes = rule.SizeLimit.Bytes.HasValue ? FormatMegabytes(rule.SizeLimit.Bytes.Value, NumberCulture) : "10";
+            Megabytes = "10";
+            if (rule.SizeLimit.Bytes is long limit) SetLimit(limit, NumberCulture);
             CaptureInitial();
         }
     }

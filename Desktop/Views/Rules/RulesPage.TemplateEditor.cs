@@ -27,6 +27,7 @@ public partial class RulesPage
         internal ExtensionTagDraft Extensions = new();
         internal MediaSizeLimitMode SizeMode;
         internal string Megabytes = "10";
+        internal ExactMebibytes? Exact;
         internal System.Globalization.CultureInfo Culture = Texts.Culture;
         internal MediaImageFilterRule Filter = MediaImageFilterRule.Inherit;
         internal PluginSettingsDraft? Parameters;
@@ -51,7 +52,7 @@ public partial class RulesPage
         if (template == null)
         {
             editor.TypesMode = _draft.TypesMode; editor.Extensions = _draft.ExtensionInput.Clone();
-            editor.SizeMode = _draft.SizeMode; editor.Megabytes = _draft.Megabytes; editor.Culture = _draft.NumberCulture;
+            editor.SizeMode = _draft.SizeMode; editor.Megabytes = _draft.Megabytes; editor.Exact = _draft.Exact; editor.Culture = _draft.NumberCulture;
             editor.Filter = _draft.ImageFilter; editor.Parameters = _draft.FilterParameters?.DeepClone(); editor.SchemaAcknowledged = _draft.FilterSchemaAcknowledged;
         }
         else
@@ -60,7 +61,7 @@ public partial class RulesPage
             editor.IncludeTypes = template.Types != null; editor.IncludeSize = template.SizeLimit != null; editor.IncludeFilter = template.ImageFilter != null;
             editor.TypesMode = template.Types?.Mode ?? MediaTypeSelectionMode.Inherit; editor.Extensions.Tags.AddRange(template.Types?.Extensions ?? Array.Empty<string>());
             editor.SizeMode = template.SizeLimit?.Mode ?? MediaSizeLimitMode.Inherit;
-            editor.Megabytes = template.SizeLimit?.Bytes is long bytes ? FormatMegabytes(bytes, editor.Culture) : "10";
+            if (template.SizeLimit?.Bytes is long bytes) { editor.Exact = ExactMebibytes.Of(bytes, editor.Culture); editor.Megabytes = editor.Exact.Value.Text; }
             editor.Filter = template.ImageFilter ?? MediaImageFilterRule.Inherit;
         }
         InitializeTemplateParameters(editor);
@@ -258,7 +259,7 @@ public partial class RulesPage
                 long? bytes = null;
                 if (editor.SizeMode == MediaSizeLimitMode.Limited)
                 {
-                    if (!TryReadMegabytes(editor.Megabytes, editor.Culture, out long parsed)) throw new RuleInputException("rules.invalidSize");
+                    if (!ExactMebibytes.TryRead(editor.Exact, editor.Megabytes, editor.Culture, out long parsed)) throw new RuleInputException("rules.invalidSize");
                     bytes = parsed;
                 }
                 size = new(editor.SizeMode, bytes);

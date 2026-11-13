@@ -48,6 +48,7 @@ public partial class RulesPage
     {
         private string _initial = string.Empty;
         private string _initialMegabytes = string.Empty;
+        private long? _initialBytes;
         private CultureInfo _initialCulture = CultureInfo.InvariantCulture;
         internal Desktop.Plugins.PluginSettingsDraft? BoundFilterParameters { get; set; }
         internal long Generation { get; set; }
@@ -59,10 +60,11 @@ public partial class RulesPage
             + "\0" + FilterSchemaAcknowledged + "\0" + (LastPluginFilter == null || ImageFilter.Mode == MediaImageFilterMode.Plugin ? "" : LastPluginFilter.Mode + ":" + LastPluginFilter.PluginId + ":" + LastPluginFilter.FilterKey);
         internal bool HasDiscardableChanges => ValuesFingerprint != _initial || Megabytes != _initialMegabytes
             || NumberCulture.Name != _initialCulture.Name || FilterParameters?.HasDiscardableChanges == true;
-        internal void CaptureInitial() { _initial = ValuesFingerprint; _initialMegabytes = Megabytes; _initialCulture = NumberCulture; }
+        internal void CaptureInitial() { _initial = ValuesFingerprint; _initialMegabytes = Megabytes; _initialCulture = NumberCulture; _initialBytes = TryReadBytes(out long bytes) ? bytes : null; }
         internal void ReformatInitialNumber(CultureInfo culture)
         {
-            if (TryReadMegabytes(_initialMegabytes, _initialCulture, out long bytes))
+            // The captured exact byte count, not the rounded text, so the baseline text always matches a reformatted draft.
+            if (_initialBytes is long bytes || TryReadMegabytes(_initialMegabytes, _initialCulture, out bytes))
             { _initialMegabytes = FormatMegabytes(bytes, culture); _initialCulture = culture; }
         }
         internal RuleDraft DeepClone()
@@ -72,7 +74,7 @@ public partial class RulesPage
         internal void Restore(RuleDraft copy)
         {
             Enabled = copy.Enabled; TypesMode = copy.TypesMode; ExtensionInput = copy.ExtensionInput.Clone();
-            SizeMode = copy.SizeMode; Megabytes = copy.Megabytes; NumberCulture = copy.NumberCulture;
+            SizeMode = copy.SizeMode; Megabytes = copy.Megabytes; Exact = copy.Exact; NumberCulture = copy.NumberCulture;
             ImageFilter = copy.ImageFilter; LastPluginFilter = copy.LastPluginFilter; FilterParameters = copy.FilterParameters?.DeepClone();
             FilterSchemaAcknowledged = copy.FilterSchemaAcknowledged; FilterValidationErrors = copy.FilterValidationErrors;
             BoundFilterParameters = null;
