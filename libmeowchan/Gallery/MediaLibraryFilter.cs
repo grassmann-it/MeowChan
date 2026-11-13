@@ -27,7 +27,8 @@ internal sealed record MediaLibraryFilter
 
     internal MediaLibraryFilter(ArchiveTagFilter? tags = null, MediaLibraryKindFilter kind = MediaLibraryKindFilter.Any,
         bool favoritesOnly = false, int? minimumRating = null, string? source = null, string? board = null,
-        string? nameContains = null, ResourceId? thread = null, MediaLibrarySoundFilter sound = MediaLibrarySoundFilter.Any)
+        string? nameContains = null, ResourceId? thread = null, MediaLibrarySoundFilter sound = MediaLibrarySoundFilter.Any,
+        bool withoutOwnTags = false)
     {
         if (!Enum.IsDefined(kind)) throw new ArgumentOutOfRangeException(nameof(kind));
         if (minimumRating is < 1 or > 5) throw new ArgumentOutOfRangeException(nameof(minimumRating), "Ratings are whole values from 1 to 5.");
@@ -46,6 +47,7 @@ internal sealed record MediaLibraryFilter
         NameContains = name;
         Thread = thread;
         Sound = sound;
+        WithoutOwnTags = withoutOwnTags;
     }
 
     internal static MediaLibraryFilter None { get; } = new();
@@ -61,9 +63,11 @@ internal sealed record MediaLibraryFilter
     internal ResourceId? Thread { get; }
     /// <summary>With or without sound; videos whose sound is not known are shown for neither choice.</summary>
     internal MediaLibrarySoundFilter Sound { get; }
+    /// <summary>Only media that could carry own tags but carry none yet (<see cref="MediaLibraryUserData.LacksOwnTags"/>).</summary>
+    internal bool WithoutOwnTags { get; }
 
     internal bool IsEmpty => Tags == null && Kind == MediaLibraryKindFilter.Any && !FavoritesOnly && MinimumRating == null
-        && Source == null && Board == null && NameContains == null && Thread == null && Sound == MediaLibrarySoundFilter.Any;
+        && Source == null && Board == null && NameContains == null && Thread == null && Sound == MediaLibrarySoundFilter.Any && !WithoutOwnTags;
 }
 
 /// <summary>Why a filter could not be applied. The page then shows nothing instead of a wider list.</summary>
@@ -138,20 +142,38 @@ internal sealed class MediaLibraryUserData
     /// </summary>
     internal IReadOnlySet<Guid> TagsOf(MediaLibraryEntry entry)
     {
-        if (_threadTags == null || _mediaTags == null) throw new MediaLibraryFilterException(MediaLibraryFilterError.TagsUnavailable);
+        (HashSet<Guid>? threadTags, HashSet<Guid>? ownTags, _) = Carried(entry);
         HashSet<Guid> result = new();
-        if (_threadTags.TryGetValue(entry.Thread, out var threadTags)) result.UnionWith(threadTags);
-        switch (MediaTagSubjects.Of(entry))
-        {
-            case MediaTagSubject.Bound bound when _mediaTags.TryGetValue(bound.Target, out var mediaTags):
-                result.UnionWith(mediaTags);
-                break;
-            case MediaTagSubject.Local local when TagSnapshot!.ResolveLocal(local.Observation) is { IsRegistered: true, Target: { } target }
-                && _localTags!.TryGetValue(target, out var localTags):
-                result.UnionWith(localTags);
-                break;
-        }
+        if (threadTags != null) result.UnionWith(threadTags);
+        if (ownTags != null) result.UnionWith(ownTags);
         return result;
+    }
+
+    /// <summary>
+    /// True when the occurrence could carry own media tags (it has a <see cref="MediaTagSubjects"/> subject) but carries none of the
+    /// tags <see cref="TagsOf"/> reads: no media tag and no tag of its thread. A file that cannot carry media tags (missing, invalid
+    /// binding, downloaded provider media) is never "without own tags": there is nothing to tag. Provider tags of a Booru medium are
+    /// catalog claims, never own tags. Requires available tags.
+    /// </summary>
+    internal bool LacksOwnTags(MediaLibraryEntry entry)
+    {
+        (HashSet<Guid>? threadTags, HashSet<Guid>? ownTags, MediaTagSubject? subject) = Carried(entry);
+        return subject != null && threadTags == null && ownTags == null;
+    }
+
+    // The one reading of an occurrence's own tags: its thread's tags and those of its media subject (null: none; sets are never empty).
+    private (HashSet<Guid>? Thread, HashSet<Guid>? Own, MediaTagSubject? Subject) Carried(MediaLibraryEntry entry)
+    {
+        if (_threadTags == null || _mediaTags == null) throw new MediaLibraryFilterException(MediaLibraryFilterError.TagsUnavailable);
+        MediaTagSubject? subject = MediaTagSubjects.Of(entry);
+        HashSet<Guid>? own = subject switch
+        {
+            MediaTagSubject.Bound bound => _mediaTags.GetValueOrDefault(bound.Target),
+            MediaTagSubject.Local local when TagSnapshot!.ResolveLocal(local.Observation) is { IsRegistered: true, Target: { } target } =>
+                _localTags!.GetValueOrDefault(target),
+            _ => null
+        };
+        return (_threadTags.GetValueOrDefault(entry.Thread), own, subject);
     }
 
     internal bool IsFavorite(MediaLibraryEntry entry)
@@ -217,6 +239,8 @@ internal static class MediaLibraryFilterEngine
             if (tags.Include.Concat(tags.Exclude).Any(id => !known.Contains(id)))
                 throw new MediaLibraryFilterException(MediaLibraryFilterError.UnknownTag);
         }
+        // "Without own tags" needs the tags as much as a tag filter: unavailable tags never read as "no tags".
+        if (filter.WithoutOwnTags && data.TagSnapshot == null) throw new MediaLibraryFilterException(MediaLibraryFilterError.TagsUnavailable);
         if (filter.FavoritesOnly && data.FavoriteSource == null) throw new MediaLibraryFilterException(MediaLibraryFilterError.FavoritesUnavailable);
         if (filter.MinimumRating != null && data.RatingSource == null) throw new MediaLibraryFilterException(MediaLibraryFilterError.RatingsUnavailable);
     }
@@ -247,6 +271,7 @@ internal static class MediaLibraryFilterEngine
             || entry.Name.IndexOf(filter.NameContains, StringComparison.OrdinalIgnoreCase) < 0)) return false;
         if (filter.FavoritesOnly && !data.IsFavorite(entry)) return false;
         if (filter.MinimumRating is int minimum && !(data.RatingOf(entry) >= minimum)) return false;
+        if (filter.WithoutOwnTags && !data.LacksOwnTags(entry)) return false;
         if (filter.Tags is { } tags)
         {
             IReadOnlySet<Guid> carried = data.TagsOf(entry);

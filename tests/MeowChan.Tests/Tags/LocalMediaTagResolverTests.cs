@@ -133,6 +133,30 @@ public sealed class LocalMediaTagResolverTests
         Assert.Equal(3, MediaLibraryTagging.TargetsToAdd(tags, cat, candidates).Count);
     }
 
+    // T1: a loose file counts as untagged until its own local registration carries a tag; its equal-byte twins stay untagged.
+    [Fact]
+    public async Task WithoutOwnTagsResolvesLooseFilesThroughTheirLocalRegistration()
+    {
+        using TempDirectory temp = new();
+        (string first, _) = await SeedLooseAsync(temp.Path);
+        MediaLibrarySnapshot index = await MediaLibraryIndexTests.BuildAsync(temp.Path);
+        MediaLibraryEntry a1 = index.Entries.Single(e => e.Directory == first && e.LocalSlot == "a.png");
+        PrivateTagStoreSnapshot tags;
+        using (ProfileLease lease = ProfileLease.Acquire(temp.Path))
+        {
+            PrivateTagStore store = new(temp.Path, lease);
+            TagId cat = store.Define("cat").Tag;
+            tags = store.SetMediaSubjects(cat, [MediaTagSubjects.Of(a1)!], true).Snapshot;
+        }
+        MediaLibraryUserData data = new(tags, [], []);
+
+        IReadOnlyList<MediaLibraryEntry> untagged = MediaLibraryFilterEngine.Apply(index.Entries, new MediaLibraryFilter(withoutOwnTags: true), data);
+        Assert.Equal(index.Entries.Where(entry => entry != a1).OrderBy(entry => entry.AssetId + entry.Directory),
+            untagged.OrderBy(entry => entry.AssetId + entry.Directory));
+        // The tagged copy's twins keep the shared bytes' tile in the count; the other file is a tile of its own.
+        Assert.Equal(2, MediaLibraryUntagged.Of(index.Entries, data)!.CountTiles(index.Entries));
+    }
+
     [Fact]
     public void ALegacyViewOfAFileThatIsShownBoundStaysInTheBoundNamespaceAndADamagedManifestOffersNothing()
     {

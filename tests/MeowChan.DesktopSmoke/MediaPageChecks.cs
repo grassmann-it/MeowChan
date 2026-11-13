@@ -81,7 +81,7 @@ internal static partial class MediaPageChecks
             await AudioJourneyAsync(owner, audioProfile);
             Console.WriteLine("SMOKE media sound [en]: three videos (real MP4 with sound, real MP4 without, bytes no probe can decide) are probed in the background from their headers; 'with sound' shows exactly one, 'without sound' exactly one, the undecidable one is counted as not checked and never shown or called silent; a sound choice sets the type to videos and another type drops it; reset clears it; results are cached and a second page starts from the cache.");
             Console.WriteLine("SMOKE media videos [en]: a video tile shows the local reader poster (cache keyed by verified bytes), also when it is a grouped tile; nothing fetched.");
-            Console.WriteLine("SMOKE media page [en]: index build, saved/missing toggle, three orders, verified thumbnail, gallery window, show in thread, cache reuse, own state on tiles (favorite, rating, media vs thread tags, unknown wording, tag edit reload, language switch), filters (thread and media tags all/any/exclude, favorites, rating, type, name, source, board, thread chip, reset, deleted tag refused), duplicates (same bytes in three threads: one tile, 'in 3 threads' hint, details with three occurrences and their own tags, jump into a thread, filter matches by one occurrence, gallery gets one entry per tile), selection (click, Ctrl+click, Shift+click, Ctrl+A, Esc, check mark on selected tiles, three tiles tagged and untagged with one occurrence of a duplicate deselected, gallery with exactly the selection, export of exactly their originals, selection kept or dropped by filters and order, actions disabled while building), export all (exactly the originals of the tiles the filter shows, independent of the selection; question above a lowered limit with confirm, cancel, Esc and dropped by a filter change; disabled with a reason without tiles and while building), navigation button in Simple and Tools menu in Barebones checked.");
+            Console.WriteLine("SMOKE media page [en]: index build, saved/missing toggle, three orders, verified thumbnail, gallery window, show in thread, cache reuse, own state on tiles (favorite, rating, media vs thread tags, unknown wording, tag edit reload, language switch), 'N without tags' status link (counts bound and loose files, applies the filter, removable chip, focus on the grid, thread tags count as tags, combines with type, reset), filters (thread and media tags all/any/exclude, without own tags, favorites, rating, type, name, source, board, thread chip, reset, deleted tag refused), duplicates (same bytes in three threads: one tile, 'in 3 threads' hint, details with three occurrences and their own tags, jump into a thread, filter matches by one occurrence, gallery gets one entry per tile), selection (click, Ctrl+click, Shift+click, Ctrl+A, Esc, check mark on selected tiles, three tiles tagged and untagged with one occurrence of a duplicate deselected, gallery with exactly the selection, export of exactly their originals, selection kept or dropped by filters and order, actions disabled while building), export all (exactly the originals of the tiles the filter shows, independent of the selection; question above a lowered limit with confirm, cancel, Esc and dropped by a filter change; disabled with a reason without tiles and while building), navigation button in Simple and Tools menu in Barebones checked.");
         }
         finally { Texts.SetLanguage(language); }
     }
@@ -179,15 +179,43 @@ internal static partial class MediaPageChecks
             MediaLibraryEntry one = page.ShownEntries.Single(entry => entry.PostId == "100");
             MediaLibraryEntry two = page.ShownEntries.Single(entry => entry.PostId == "200");
 
+            // T1: before any tag the status line counts all three files as untagged (bound and loose alike). The link applies
+            // "without own tags" on top of the other filters, hides itself, hands the keyboard to the tiles and is removable as a chip.
+            Button untagged = C<Button>(page, "MediaUntaggedCount");
+            CheckBox withoutTags = C<CheckBox>(page, "MediaWithoutOwnTags");
+            Require(untagged.IsVisible && (untagged.Content as TextBlock)?.Text == Texts.T("media.untagged.count", 3)
+                && Equals(ToolTip.GetTip(untagged), Texts.T("media.untagged.hint", 3))
+                && C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.count", 3, 2), "The status line must offer the three untagged files.");
+            Program.CaptureWindow(window, "smoke-media-untagged-link.png");
+            Require(untagged.Focus(), "The untagged count link must take keyboard focus.");
+            untagged.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(withoutTags.IsChecked == true && page.ShownEntries.Count == 3 && !untagged.IsVisible && page.FilterChips.Children.Count == 1
+                && C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.filter.count", 3, 3), "The untagged link did not apply its filter.");
+            await UntilAsync(() => window.FocusManager?.GetFocusedElement() is Visual focused && focused.GetSelfAndVisualAncestors().Contains(page.Grid));
+            RemoveChip(page.FilterChips, 0);
+            Require(withoutTags.IsChecked == false && untagged.IsVisible && !page.FilterChips.IsVisible, "Removing the untagged chip did not widen back.");
+
             // Real stores: a thread tag on A, a media tag on B's file, a favorite on A's file, a rating on B's file.
             PrivateTagCommit rpt = await host.DefinePrivateTagAsync("rpt").WaitAsync(Deadline);
             PrivateTagCommit cute = await host.DefinePrivateTagAsync("cute").WaitAsync(Deadline);
             await host.SetThreadTagAsync(rpt.Tag, A, true).WaitAsync(Deadline);
+            // A thread tag tags every file of its thread; only B's file is left, also together with another filter.
+            page.RefreshUserData();
+            Require((untagged.Content as TextBlock)?.Text == Texts.T("media.untagged.count", 1), "A thread tag must count its files as tagged.");
+            C<ComboBox>(page, "MediaKindFilter").SelectedIndex = (int)MediaLibraryKindFilter.Image;
+            withoutTags.IsChecked = true;
+            Require(page.ShownEntries.Count == 1 && page.ShownEntries[0] == two, "Without own tags and the type filter must combine.");
+            C<Button>(page, "MediaFilterReset").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(withoutTags.IsChecked == false && page.ShownEntries.Count == 3, "Reset did not clear without own tags.");
             await host.SetMediaTagAsync(cute.Tag, MediaLibraryFilterEngine.TagTarget(two)!, true).WaitAsync(Deadline);
             Require(await host.SetFavoriteAsync(new FavoriteEntry(MediaLibraryFilterEngine.AssetKey(one)!, one.Length!.Value, one.Name), true).WaitAsync(Deadline),
                 "Favorite was not stored.");
             await host.SetMediaRatingAsync(MediaLibraryFilterEngine.AssetKey(two)!, 4).WaitAsync(Deadline);
             page.RefreshUserData();
+            Require(!untagged.IsVisible, "With every file tagged the status line offers nothing to tag.");
+            withoutTags.IsChecked = true;
+            Require(page.ShownEntries.Count == 0 && C<TextBlock>(page, "MediaEmpty").IsVisible, "Every file is tagged now.");
+            withoutTags.IsChecked = false;
 
             ComboBox tags = C<ComboBox>(page, "MediaTagChoice"), mode = C<ComboBox>(page, "MediaTagMode");
             Button include = C<Button>(page, "MediaTagInclude"), exclude = C<Button>(page, "MediaTagExclude");

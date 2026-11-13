@@ -159,4 +159,55 @@ public sealed class MediaLibraryFilterTests
         Assert.True(first.SameSourcesAs(new MediaLibraryUserData(first.TagSnapshot, first.FavoriteSource, first.RatingSource)));
         Assert.False(first.SameSourcesAs(Data()));
     }
+
+    // T1: "without own tags" is the start of tagging. It reads the same tags as the tag filter (media and thread tags), only for files
+    // that can carry media tags, and combines with every other part of the filter.
+    [Fact]
+    public void WithoutOwnTagsKeepsOnlyTaggableFilesWithoutMediaOrThreadTagsAndCombines()
+    {
+        MediaLibraryEntry threadTagged = Entry("a", "1", 'a'), mediaTagged = Entry("b", "1", 'b'), plain = Entry("b", "2", 'c', name: "plain.png"),
+            plainFavorite = Entry("b", "3", 'd'), missing = Entry("b", "4", 'e', missing: true),
+            // An occurrence without a bound version and without a manifest slot has no tag subject (as downloaded provider media):
+            // nothing can be tagged there, so it is never offered as untagged.
+            noSubject = Entry("b", "5", 'f', unassigned: true);
+        MediaLibraryUserData data = Data(threads: [new(new TagId(Rpt), threadTagged.Thread)], media: [MediaTag(Cute, mediaTagged)], favorites: [plainFavorite]);
+        MediaLibraryEntry[] all = [threadTagged, mediaTagged, plain, plainFavorite, missing, noSubject];
+        Assert.Null(MediaTagSubjects.Of(noSubject));
+
+        Assert.False(new MediaLibraryFilter(withoutOwnTags: true).IsEmpty);
+        Assert.Equal(new[] { "b:2", "b:3" }, Posts(MediaLibraryFilterEngine.Apply(all, new(withoutOwnTags: true), data)));
+        Assert.Equal(new[] { "b:3" }, Posts(MediaLibraryFilterEngine.Apply(all, new(withoutOwnTags: true, favoritesOnly: true), data)));
+        Assert.Equal(new[] { "b:2" }, Posts(MediaLibraryFilterEngine.Apply(all, new(withoutOwnTags: true, nameContains: "plain"), data)));
+        // An included tag and "without own tags" contradict each other: nothing, never the wider list.
+        Assert.Empty(MediaLibraryFilterEngine.Apply(all, new(tags: new ArchiveTagFilter([Cute], null), withoutOwnTags: true), data));
+        Assert.All(all, entry => Assert.Equal(entry == plain || entry == plainFavorite, data.LacksOwnTags(entry)));
+        // Unavailable tags are unknown, never "no tags".
+        Assert.Equal(MediaLibraryFilterError.TagsUnavailable, Assert.Throws<MediaLibraryFilterException>(() =>
+            MediaLibraryFilterEngine.Apply(all, new(withoutOwnTags: true), new MediaLibraryUserData(null, [], []))).Error);
+        Assert.Null(MediaLibraryUntagged.Of(all, MediaLibraryUserData.Unavailable));
+    }
+
+    [Fact]
+    public void UntaggedCountIsTheTileCountTheFilterWouldShowAndIsBuiltOncePerIndexAndTagState()
+    {
+        // Equal bytes in two threads: one copy tagged, the other not. The tile counts once, like the grid shows it.
+        MediaLibraryEntry tagged = Entry("a", "1", 'a'), twin = Entry("b", "1", 'a'), plain = Entry("b", "2", 'c'),
+            other = Entry("c", "1", 'd', name: "other.gif"), done = Entry("c", "2", 'e');
+        MediaLibraryUserData data = Data(media: [MediaTag(Cute, tagged), MediaTag(Rpt, done)]);
+        MediaLibraryEntry[] all = [tagged, twin, plain, other, done];
+        MediaLibraryUntagged untagged = MediaLibraryUntagged.Of(all, data)!;
+
+        foreach (MediaLibraryFilter filter in new MediaLibraryFilter[] { MediaLibraryFilter.None, new(kind: MediaLibraryKindFilter.Gif), new(thread: twin.Thread) })
+        {
+            IReadOnlyList<MediaLibraryEntry> passing = MediaLibraryFilterEngine.Apply(all, filter, data);
+            MediaLibraryFilter narrowed = new(filter.Tags, filter.Kind, filter.FavoritesOnly, filter.MinimumRating, filter.Source, filter.Board,
+                filter.NameContains, filter.Thread, filter.Sound, withoutOwnTags: true);
+            int shown = MediaLibraryGrouping.Build(all, MediaLibraryFilterEngine.Apply(all, narrowed, data), MediaLibrarySort.ByThread, includeMissing: false).Count;
+            Assert.Equal(shown, untagged.CountTiles(passing));
+        }
+        Assert.Equal(3, untagged.CountTiles(all));
+        Assert.True(untagged.IsFor(all, data));
+        Assert.False(untagged.IsFor(all, Data()));
+        Assert.False(untagged.IsFor(all.ToArray(), data));
+    }
 }

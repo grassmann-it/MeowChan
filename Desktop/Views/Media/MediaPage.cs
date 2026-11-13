@@ -109,7 +109,7 @@ public sealed partial class MediaPage : UserControl
         header.Children.Add(_title); header.Children.Add(_subtitle); header.Children.Add(tools);
         // The filter fields open as a surface over the grid (MediaPage.FilterSurface.cs); what is applied stays in the header.
         Border filterSurface = BuildFilterSurface(BuildFilterRow());
-        header.Children.Add(_filterChips); header.Children.Add(_filterError); header.Children.Add(_status); header.Children.Add(BuildExportAllAsk()); header.Children.Add(BuildSelectionBar());
+        header.Children.Add(_filterChips); header.Children.Add(_filterError); header.Children.Add(BuildStatusRow(_status)); header.Children.Add(BuildExportAllAsk()); header.Children.Add(BuildSelectionBar());
         _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { ItemHeight = MediaLibraryTileView.TileHeight });
         _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThreadFilter = FilterToThread, ShowOccurrences = ShowOccurrences });
         ScrollViewer.SetHorizontalScrollBarVisibility(_grid, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
@@ -245,6 +245,7 @@ public sealed partial class MediaPage : UserControl
         _emptyState.IsVisible = showEmpty;
         _emptyActions.IsVisible = showEmpty && !_filterActive;
         _refresh.IsEnabled = !_lifetime.IsCancellationRequested;
+        UpdateUntaggedLink();
         UpdateFilterToggle();
         UpdateSelectionBar();
     }
