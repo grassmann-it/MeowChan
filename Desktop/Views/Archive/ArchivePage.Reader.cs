@@ -80,6 +80,7 @@ public partial class ArchivePage
     }
     private bool _largeReader;
     private readonly ReaderPostTailSpace _readerPostTailSpace = new();
+    private readonly ReaderPostTailSpace _referencesTailSpace = new();
     private double _readerPostTailInset;
     private IReadOnlyList<ResourceId> _readerThreads = Array.Empty<ResourceId>();
     private int _readerScopeRequest;
@@ -221,7 +222,7 @@ public partial class ArchivePage
             media.AddHandler(KeyDownEvent, OnMediaKeyDown, RoutingStrategies.Tunnel);
         }
         ReaderContentSurface.LayoutUpdated += (_, _) => UpdateReaderNavigationLayout();
-        // Over the content (no free lane) the cross rests faded and comes forward under the pointer or the keyboard focus.
+        // The cross floats over the content: it rests faded and comes forward under the pointer or the keyboard focus.
         ReaderNavigation.PointerEntered += (_, _) => { _readerNavigationPointerOver = true; UpdateReaderNavigationOpacity(); };
         ReaderNavigation.PointerExited += (_, _) => { _readerNavigationPointerOver = false; UpdateReaderNavigationOpacity(); };
         ReaderNavigation.GotFocus += (_, _) => UpdateReaderNavigationOpacity();
@@ -231,6 +232,11 @@ public partial class ArchivePage
         posts.ContainerIndexChanged += (_, e) => UpdateReaderPostTailSpace();
         posts.ContainerClearing += (_, e) => _readerPostTailSpace.Release(e.Container);
         posts.DetachedFromVisualTree += (_, _) => _readerPostTailSpace.Update(null, 0);
+        ListBox references = ArchiveReferences;
+        references.ContainerPrepared += (_, _) => UpdateReferencesTailSpace();
+        references.ContainerIndexChanged += (_, _) => UpdateReferencesTailSpace();
+        references.ContainerClearing += (_, e) => _referencesTailSpace.Release(e.Container);
+        references.DetachedFromVisualTree += (_, _) => _referencesTailSpace.Update(null, 0);
         posts.SelectionChanged += (_, _) =>
         {
             CancelReaderMediaActivation();
@@ -488,18 +494,21 @@ public partial class ArchivePage
         ReaderStatusLine.IsVisible = !_largeReader || tabs.SelectedIndex == 0;
         Grid surface = ReaderContentSurface;
         ListBox posts = ArchivePosts;
-        ReaderNavigationLayout layout = ReaderNavigationLayout.Resolve(_largeReader, surface.Bounds.Width, ReaderNavigationLayout.MinimumCardWidth);
-        posts.Margin = layout.PostMargin;
+        ReaderNavigationLayout layout = ReaderNavigationLayout.Resolve(_largeReader);
+        // Content always uses the full width; the cross is an overlay and only adds scroll extent at the end of a list.
+        posts.Margin = default;
         _readerPostTailInset = layout.TailInset;
         UpdateReaderNavigationOpacity();
         UpdateReaderPostTailSpace();
-        // Secondary tabs keep full-width filters and footers. Reserve only
-        // their scrolling surface, so the cross cannot consume their height
-        // or force another line of media filters in a narrow window.
         tabs.Margin = default;
-        Thickness secondaryLane = _largeReader ? new Thickness(0, 0, ReaderNavigationLayout.SideReserve, 0) : default;
-        ArchiveMediaSurface.Margin = secondaryLane;
-        ArchiveReferences.Margin = secondaryLane;
+        ArchiveMediaSurface.Margin = default;
+        ArchiveReferences.Margin = default;
+        // Media tiles are one plain panel, so padding below it is plain scroll extent; the references list virtualizes like the
+        // posts and gets the same tail margin on its last realized entry.
+        _mediaTilesPadding ??= ArchiveMediaTiles.Padding;
+        Thickness tilesPadding = _mediaTilesPadding.Value;
+        ArchiveMediaTiles.Padding = new Thickness(tilesPadding.Left, tilesPadding.Top, tilesPadding.Right, tilesPadding.Bottom + layout.TailInset);
+        UpdateReferencesTailSpace();
         if (!_largeReader) return;
         Control footer = tabs.SelectedIndex switch
         {
@@ -510,24 +519,27 @@ public partial class ArchivePage
         double bottom = 16;
         if (footer.IsEffectivelyVisible && footer.TranslatePoint(default, surface) is Point position)
             bottom = Math.Max(bottom, surface.Bounds.Height - position.Y + 8);
-        double right = 24;
-        // Anchor inside the post list's right edge, leaving the scrollbar clear.
-        if (tabs.SelectedIndex == 0 && posts.IsEffectivelyVisible && posts.Bounds.Width > 0
-            && posts.TranslatePoint(default, surface) is Point postPosition)
-            right = layout.RightInset(surface.Bounds.Width, postPosition.X + posts.Bounds.Width);
-        ReaderNavigation.Margin = new Thickness(0, 0, right, bottom);
+        ReaderNavigation.Margin = new Thickness(0, 0, ReaderNavigationLayout.RightInset, bottom);
     }
 
+    private Thickness? _mediaTilesPadding;
     private bool _readerNavigationPointerOver;
-    internal const double ReaderNavigationRestingOpacity = 0.4;
+    internal const double ReaderNavigationRestingOpacity = 0.6;
 
-    // In the free side lane the cross covers nothing and stays solid; over the content it is faded until the pointer or the
-    // keyboard focus is on it, so it does not hide text and pictures it floats above.
+    // The cross always floats over the content: it rests faded and comes forward under the pointer or the keyboard focus,
+    // so it does not hide text and pictures it floats above.
     private void UpdateReaderNavigationOpacity()
     {
         bool overContent = _largeReader && _readerPostTailInset > 0;
         ReaderNavigation.Opacity = !overContent || _readerNavigationPointerOver || ReaderNavigation.IsKeyboardFocusWithin
             ? 1 : ReaderNavigationRestingOpacity;
+    }
+
+    private void UpdateReferencesTailSpace()
+    {
+        ListBox references = ArchiveReferences;
+        Control? tail = references.ItemCount > 0 ? references.ContainerFromIndex(references.ItemCount - 1) : null;
+        _referencesTailSpace.Update(tail, _readerPostTailInset);
     }
 
     private void UpdateReaderPostTailSpace()

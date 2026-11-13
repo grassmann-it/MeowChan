@@ -4,32 +4,23 @@ using Avalonia.Controls;
 
 namespace MeowChan.Desktop;
 
-internal readonly record struct ReaderNavigationLayout(Thickness PostMargin, double TailInset)
+/// <summary>
+/// The arrow cross is always an overlay floating at the lower right of the reader surface. Content (post list, media
+/// tiles and table, references) uses the whole width up to the right edge; there is no reserved lane. The only space the
+/// cross asks for is extra scroll extent at the end of a list (<see cref="TailInset"/>), so the last item can be
+/// scrolled out from under it.
+/// </summary>
+internal readonly record struct ReaderNavigationLayout(double TailInset)
 {
     internal const double NavigationSize = 108;
-    internal const double SideReserve = NavigationSize + 24 + 12;
     internal const double OverlayTailInset = NavigationSize + 12;
-    // The post list has no maximum width (cards use the whole surface; only a post without media keeps its reading
-    // width, inside the card). The free lane for the cross exists while the cards keep at least this much.
-    internal const double MinimumCardWidth = 760;
+    // Distance of the cross from the right edge of the reader surface (it floats inside the list's scrollbar edge).
+    internal const double RightInset = 24;
     // Post width "fit to content": a card is as wide as its content needs, up to this reading width. The same number
     // is the MaxWidth setter of the "ListBox.reader-fit-width ListBoxItem" style in ArchivePage.axaml (a test pins both).
     internal const double CardMaxWidth = 1120;
 
-    internal double RightInset(double surfaceWidth, double postRight) => TailInset > 0
-        && double.IsFinite(surfaceWidth) && double.IsFinite(postRight)
-        ? Math.Max(24, surfaceWidth - postRight + 24) : 24;
-
-    internal static ReaderNavigationLayout Resolve(bool largeReader, double surfaceWidth, double postMaxWidth)
-    {
-        if (!largeReader) return default;
-        // A genuinely free wide-screen lane stays outside the text. A narrow reader
-        // overlays the cross instead of subtracting a permanent full-width footer.
-        bool sideSpace = double.IsFinite(surfaceWidth) && double.IsFinite(postMaxWidth)
-            && surfaceWidth >= postMaxWidth + SideReserve;
-        return sideSpace ? new(new Thickness(0, 0, SideReserve, 0), 0)
-            : new(default, OverlayTailInset);
-    }
+    internal static ReaderNavigationLayout Resolve(bool largeReader) => largeReader ? new(OverlayTailInset) : default;
 }
 
 /// <summary>
