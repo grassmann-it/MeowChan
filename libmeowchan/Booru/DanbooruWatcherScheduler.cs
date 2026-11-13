@@ -367,7 +367,6 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     internal void SetSessionPaused(bool paused)
     {
         List<ManualRequest> dropped = new();
-        DateTimeOffset now = _time.GetUtcNow();
         lock (_sync)
         {
             if (_sessionPaused == paused) return;
@@ -379,6 +378,8 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
             }
             _wake.TrySetResult();
         }
+        // The clock is read only when a queued request must be answered (composition may set the gate early).
+        DateTimeOffset now = dropped.Count == 0 ? default : _time.GetUtcNow();
         foreach (ManualRequest request in dropped)
             request.Completion.TrySetResult(Rejected(SessionPausedCode, now, true));
         RaiseChanged();
@@ -387,7 +388,6 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     private void OnLifecycleChanged()
     {
         List<ManualRequest> dropped = new();
-        DateTimeOffset now = _time.GetUtcNow();
         lock (_sync)
         {
             if (_lifecycle is { IsOpen: false })
@@ -398,6 +398,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
             }
             _wake.TrySetResult();
         }
+        DateTimeOffset now = dropped.Count == 0 ? default : _time.GetUtcNow();
         foreach (ManualRequest request in dropped)
             request.Completion.TrySetResult(Rejected(ProfileSuspendedCode, now, true));
         RaiseChanged();
