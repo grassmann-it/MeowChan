@@ -261,7 +261,7 @@ public sealed class SearchBoxTests : IDisposable
     }
 
     [Fact]
-    public void MediaSearchFollowsARebindingAndCollidesWithCommandsOfTheMediaPage()
+    public void MediaSearchFollowsARebindingAndYieldsToSavedMediaCommands()
     {
         var section = new ShortcutBindingsSection().Set("input.focus-media-search", new[] { ShortcutGesture.Parse("Primary+K") });
         var bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
@@ -273,8 +273,11 @@ public sealed class SearchBoxTests : IDisposable
         // disabling the user's binding.
         var gesture = new[] { ShortcutGesture.Parse("Primary+F") };
         var saved = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set("media.rating.edit", gesture), ShortcutPlatform.Linux);
-        Assert.DoesNotContain(saved.Issues, issue => issue.BlocksSave);
-        Assert.True(saved.Matches(new KeyEventArgs { Key = Key.F, KeyModifiers = KeyModifiers.Control }, "media.rating.edit"));
+        // The global search keeps its own Ctrl+F conflict; only the media search default steps aside without blocking.
+        Assert.DoesNotContain(saved.Issues, issue => issue.BlocksSave
+            && (issue.CommandId == "input.focus-media-search" || issue.OtherCommandId == "input.focus-media-search"));
+        Assert.Contains(saved.Issues, issue => !issue.BlocksSave && issue.CommandId == "input.focus-media-search"
+            && issue.OtherCommandId == "media.rating.edit");
         Assert.False(saved.Matches(new KeyEventArgs { Key = Key.F, KeyModifiers = KeyModifiers.Control }, "input.focus-media-search"));
     }
 

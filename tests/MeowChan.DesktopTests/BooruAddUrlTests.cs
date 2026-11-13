@@ -95,11 +95,15 @@ public sealed class BooruAddUrlTests : IDisposable
     }
 
     [BooruSharedFact]
-    public async Task CancellationPropagates()
+    public async Task CallerCancellationPropagatesAndAForeignOneFailsOnlyThePost()
     {
         using CancellationTokenSource cancel = new();
-        _h.Search.OnPost = (_, token) => Task.FromCanceled<BooruCallResult<BooruPostView>>(new CancellationToken(true));
+        cancel.Cancel();
+        _h.Search.OnPost = (_, token) => Task.FromCanceled<BooruCallResult<BooruPostView>>(token);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => BooruAddUrl.LoadPostAsync(_h.Services, "13", cancel.Token));
+
+        _h.Search.OnPost = (_, _) => Task.FromCanceled<BooruCallResult<BooruPostView>>(new CancellationToken(true));
+        Assert.Null((await BooruAddUrl.LoadPostAsync(_h.Services, "14", CancellationToken.None)).Status);
     }
 
     [BooruSharedFact]
