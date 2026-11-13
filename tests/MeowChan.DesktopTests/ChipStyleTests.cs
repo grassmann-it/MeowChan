@@ -50,8 +50,9 @@ public sealed class ChipStyleTests
             Assert.Equal(Color(theme, "Workspace.Accent"), Color(theme, "Workspace.ChipSelectedBorder"));
             Assert.Equal(Color(theme, "Workspace.Error"), Color(theme, "Workspace.ChipExcludeBorder"));
             Assert.Equal(Color(theme, "Workspace.Muted"), Color(theme, "Workspace.TagCategory.General"));
+            // One interactive outline per theme: Dark took the chip grey for ControlBorder in the palette review (2026-11-13).
+            Assert.Equal(Color(theme, "Workspace.ControlBorder"), Color(theme, "Workspace.ChipBorder"));
         }
-        Assert.Equal(Color("Light", "Workspace.ControlBorder"), Color("Light", "Workspace.ChipBorder"));
         Assert.Equal(Color("Light", "Workspace.Warning"), Color("Light", "Workspace.TagCategory.Meta"));
     }
 

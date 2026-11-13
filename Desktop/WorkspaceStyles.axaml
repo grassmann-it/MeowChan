@@ -9,8 +9,12 @@
                     <SolidColorBrush x:Key="Workspace.Panel">#1B1E22</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Raised">#24282D</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Border">#2D3239</SolidColorBrush>
-                    <!-- Interactive outlines (buttons, seek rail); Dark keeps the decorative border value. -->
-                    <SolidColorBrush x:Key="Workspace.ControlBorder">#2D3239</SolidColorBrush>
+                    <!-- Interactive outlines (buttons, fields, seek rail). Palette review 2026-11-13: the decorative border
+                         value (#2D3239) was 1.15-1.43:1 on Background, Panel, Raised and Card, so Dark buttons and fields had no
+                         visible boundary (WCAG 1.4.11 asks 3:1). Now the chip outline grey: 5.06:1 on Background, 4.59:1 on
+                         Panel, 4.07:1 on Raised, 4.27:1 on Card, 3.34:1 on Hover and 3.45:1 on AccentSurface; one interactive
+                         outline per theme, as in Light (ControlBorder = ChipBorder). Decorative lines stay on Workspace.Border. -->
+                    <SolidColorBrush x:Key="Workspace.ControlBorder">#7D8793</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Text">#EEF1F4</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Muted">#A4ADB8</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Accent">#6AA7FF</SolidColorBrush>
@@ -54,8 +58,9 @@
                     <SolidColorBrush x:Key="ButtonDefaultPointeroverBackground">#30363E</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPressedBackground">#25344A</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultDisabledForeground">#A4ADB8</SolidColorBrush>
-                    <SolidColorBrush x:Key="ButtonDefaultDisabledBorderBrush">#2D3239</SolidColorBrush>
-                    <SolidColorBrush x:Key="ButtonDefaultPointeroverBorderBrush">#2D3239</SolidColorBrush>
+                    <!-- Disabled outline one step below the interactive one (Light: Border under ControlBorder); hover keeps it. -->
+                    <SolidColorBrush x:Key="ButtonDefaultDisabledBorderBrush">#4A525C</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonDefaultPointeroverBorderBrush">#7D8793</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPressedBorderBrush">#6AA7FF</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidForeground">#121416</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidPrimaryBackground">#6AA7FF</SolidColorBrush>
@@ -67,14 +72,20 @@
                     <SolidColorBrush x:Key="ButtonSolidPrimaryPressedBorderBrush">#6AA7FF</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidDisabledBackground">#24282D</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidDisabledForeground">#A4ADB8</SolidColorBrush>
-                    <SolidColorBrush x:Key="ButtonSolidDisabledBorderBrush">#2D3239</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidDisabledBorderBrush">#4A525C</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridRowPointeroverBackground">#24282D</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridRowSelectedBackground">#25344A</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridRowSelectedPointeroverBackground">#25344A</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridCellFocusBorderBrush">#6AA7FF</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridLineBrush">#2D3239</SolidColorBrush>
-                    <!-- C1 chips. Dark Workspace.ControlBorder (#2D3239) is 1.2:1 on Panel, so the chip outline has its own value:
-                         #7D8793 is 3.3:1 or more on Background, Panel, Raised, Hover and AccentSurface (selected tiles). -->
+                    <!-- Semi's dark fields have no outline either (a translucent fill, about 1.4:1 on Panel); like Light (LW-06 N7)
+                         text boxes and combo boxes take Workspace.ControlBorder so the field boundary reaches 3:1. -->
+                    <SolidColorBrush x:Key="TextBoxDefaultBorderBrush">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="TextBoxPointeroverBorderBrush">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorBorderBrush">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorPointeroverBorderBrush">#7D8793</SolidColorBrush>
+                    <!-- C1 chips: the outline is Workspace.ControlBorder (#7D8793, 3.3:1 or more on Background, Panel, Raised,
+                         Hover and AccentSurface (selected tiles)). -->
                     <SolidColorBrush x:Key="Workspace.ChipSurface">#24282D</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ChipBorder">#7D8793</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ChipSourceBorder">#7D8793</SolidColorBrush>
