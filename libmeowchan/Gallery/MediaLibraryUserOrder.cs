@@ -56,7 +56,7 @@ internal sealed class MediaLibraryUserOrder
 
     /// <summary>
     /// True when these keys were made from exactly these index entries and from the same tag state (the same snapshot, or one of equal
-    /// revision and fingerprint) and the same rating list. A page keeps the instance until this is false, as it does for
+    /// revision, fingerprint and assignment counts) and the same rating list (by reference: the session publishes a new list on every change). A page keeps the instance until this is false, as it does for
     /// <see cref="MediaLibraryUntagged.IsFor"/>; favorites do not matter here.
     /// </summary>
     internal bool IsFor(IReadOnlyList<MediaLibraryEntry> entries, MediaLibraryUserData data)
@@ -64,8 +64,11 @@ internal sealed class MediaLibraryUserOrder
         ArgumentNullException.ThrowIfNull(data);
         if (!ReferenceEquals(Entries, entries) || !ReferenceEquals(Data.RatingSource, data.RatingSource)) return false;
         PrivateTagStoreSnapshot? mine = Data.TagSnapshot, theirs = data.TagSnapshot;
+        // Equal revision and fingerprint name one committed state; the sizes only guard against a placeholder fingerprint.
         return ReferenceEquals(mine, theirs)
-            || (mine != null && theirs != null && mine.Revision == theirs.Revision && string.Equals(mine.Fingerprint, theirs.Fingerprint, StringComparison.Ordinal));
+            || (mine != null && theirs != null && mine.Revision == theirs.Revision && string.Equals(mine.Fingerprint, theirs.Fingerprint, StringComparison.Ordinal)
+                && mine.Tags.Count == theirs.Tags.Count && mine.ThreadAssignments.Count == theirs.ThreadAssignments.Count
+                && mine.MediaAssignments.Count == theirs.MediaAssignments.Count && mine.LocalAssignments.Count == theirs.LocalAssignments.Count);
     }
 
     /// <summary>The group maximum of the tag count, or <see cref="Unknown"/>. An entry that is not part of <see cref="Entries"/> is unknown.</summary>

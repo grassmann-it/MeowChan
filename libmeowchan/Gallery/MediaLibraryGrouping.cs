@@ -80,14 +80,19 @@ internal static class MediaLibraryGrouping
 
     private static Func<MediaLibraryEntry, int> OccurrenceCounter(ILookup<string, MediaLibraryEntry> byHash)
     {
-        Dictionary<string, int> counts = new(StringComparer.Ordinal);
+        // Per bytes key: what byHash holds, read once. The "+1" for an entry the caller's "all" left out is decided per
+        // entry and never shared through the key, so the count of an entry does not depend on which entry was asked first (a permuted
+        // "passing" must give the same order). Membership uses the same value equality as the tile's own occurrence list in Build.
+        Dictionary<string, (int Count, HashSet<MediaLibraryEntry> Members)> groups = new(StringComparer.Ordinal);
         return entry =>
         {
             if (ByteKey(entry) is not { } key) return 1;
-            if (counts.TryGetValue(key, out int known)) return known;
-            IEnumerable<MediaLibraryEntry> group = byHash[key];
-            // The shown entry is always part of its list, even if the caller's "all" left it out.
-            return counts[key] = group.Count() + (group.Contains(entry) ? 0 : 1);
+            if (!groups.TryGetValue(key, out (int Count, HashSet<MediaLibraryEntry> Members) group))
+            {
+                MediaLibraryEntry[] members = byHash[key].ToArray();
+                groups[key] = group = (members.Length, new HashSet<MediaLibraryEntry>(members));
+            }
+            return group.Count + (group.Members.Contains(entry) ? 0 : 1);
         };
     }
 

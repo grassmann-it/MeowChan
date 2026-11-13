@@ -71,7 +71,7 @@ internal sealed class MediaLibraryPresentIndex
     /// Tiles in page order, as <see cref="MediaLibraryGrouping.Build"/> gives them for this index's entries. <paramref name="passing"/>
     /// are the occurrences that passed the filter: null or the index's own list means all of them. Entries that are not part of this
     /// index are handled by the general path. <paramref name="direction"/> walks the sort's order backwards; <paramref name="userOrder"/>
-    /// (made from this index's entries, else <see cref="ArgumentException"/>) serves the tag count and rating sorts, which without it are
+    /// (made from this index's entries, else <see cref="ArgumentException"/> for those two sorts) serves the tag count and rating sorts, which without it are
     /// all unknown and keep the by-thread order.
     /// </summary>
     internal IReadOnlyList<MediaLibraryTile> Build(IReadOnlyList<MediaLibraryEntry>? passing, MediaLibrarySort sort, bool includeMissing,
@@ -79,7 +79,8 @@ internal sealed class MediaLibraryPresentIndex
         MediaLibrarySortDirection direction = MediaLibrarySortDirection.Default, MediaLibraryUserOrder? userOrder = null)
     {
         if (!Enum.IsDefined(sort)) throw new ArgumentOutOfRangeException(nameof(sort));
-        if (userOrder != null && !ReferenceEquals(userOrder.Entries, _entries))
+        // Only the sorts that read it are checked: a caller may hand the same user order to every sort.
+        if ((sort is MediaLibrarySort.TagCount or MediaLibrarySort.Rating) && userOrder != null && !ReferenceEquals(userOrder.Entries, _entries))
             throw new ArgumentException("The user order was made from other entries than this index.", nameof(userOrder));
         bool[]? mask = null;
         if (passing != null && !ReferenceEquals(passing, _entries))
@@ -140,10 +141,12 @@ internal sealed class MediaLibraryPresentIndex
                 case MediaLibrarySort.References: return _references ??= ByKey(ReferenceCounts());
                 case MediaLibrarySort.TagCount:
                     if (userOrder == null) return new Ranked(_byThread!, 0);
-                    return _tagCount?.Owner == userOrder ? _tagCount : _tagCount = ByKey(UserKeys(userOrder, sort), userOrder);
+                    if (_tagCount == null || !ReferenceEquals(_tagCount.Owner, userOrder)) _tagCount = ByKey(UserKeys(userOrder, sort), userOrder);
+                    return _tagCount;
                 case MediaLibrarySort.Rating:
                     if (userOrder == null) return new Ranked(_byThread!, 0);
-                    return _rating?.Owner == userOrder ? _rating : _rating = ByKey(UserKeys(userOrder, sort), userOrder);
+                    if (_rating == null || !ReferenceEquals(_rating.Owner, userOrder)) _rating = ByKey(UserKeys(userOrder, sort), userOrder);
+                    return _rating;
                 default: throw new ArgumentOutOfRangeException(nameof(sort));
             }
         }
