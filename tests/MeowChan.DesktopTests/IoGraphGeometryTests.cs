@@ -7,7 +7,7 @@ using MeowChan.Desktop.Stats;
 
 namespace MeowChan.DesktopTests;
 
-/// <summary>The shared scale and the sample positions of the network and disk graph, and the colour contract of its disk row.</summary>
+/// <summary>The stepped scale and the sample positions of every graph, the shared write/read scale of the disk graph, and the colour contract of its rows.</summary>
 public sealed class IoGraphGeometryTests
 {
     private static readonly XNamespace X = "http://schemas.microsoft.com/winfx/2006/xaml";
@@ -77,6 +77,18 @@ public sealed class IoGraphGeometryTests
         }
         Assert.True(samples > 100, "a spike keeps its scale for a while: " + samples);
         Assert.Equal(IoGraphGeometry.DefaultMinimumPeak, scaleNow);
+    }
+
+    [Fact]
+    public void TwoDirectionsShareTheLargerValueAsOneScaleAndAreNeverAdded()
+    {
+        Assert.Equal(1_000_000d, IoGraphGeometry.Track(0, [1_000_000f], [250_000f]));
+        Assert.Equal(1_048_576d, IoGraphGeometry.Scale(IoGraphGeometry.Track(0, [1_000_000f], [250_000f]))); // a sum would need 1.5 MiB
+        Assert.Equal(300_000d, IoGraphGeometry.Track(0, [0f, 0f], [300_000f]));   // reading alone still sets the scale
+        Assert.Equal(300_000d, IoGraphGeometry.Track(0, [300_000f], [0f, 0f]));
+        Assert.Equal(8_000_000d * IoGraphGeometry.DefaultDecay, IoGraphGeometry.Track(8_000_000, [10f], [20f]), 3);
+        Assert.Equal(0, IoGraphGeometry.Track(double.NaN, [], []));
+        Assert.Equal(0, IoGraphGeometry.Track(0, [float.NaN], [float.PositiveInfinity]));
     }
 
     [Fact]

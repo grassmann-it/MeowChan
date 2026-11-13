@@ -76,15 +76,23 @@ public sealed class StatisticsReadabilityTests : IDisposable
     public void DiskScaleIgnoresOldSpikesAndNetworkOnlyIgnoresDisk()
     {
         float[] disk = new float[300];
-        disk[0] = 50_000_000;
+        disk[0] = 50_000_000; // 750 s ago: outside the 60 s window
         disk[^1] = 2_000_000;
-        IoGraph graph = new() { HistoryWindowSeconds = 60, SampleIntervalMs = () => 2500 };
-        graph.SetSeries(Series(300, new float[300], disk));
-        Assert.Equal(2_000_000, graph.Peak);
-        graph.ShowDisk = false;
-        Assert.False(graph.HasTraffic);
-        Assert.Equal(0, graph.TrafficPeak);
-        Assert.Equal(IoGraphGeometry.DefaultMinimumPeak, graph.Peak);
+        IoSeries series = Series(300, new float[300], disk);
+        IoGraph write = new() { Source = IoGraphSource.DiskWrite, HistoryWindowSeconds = 60, SampleIntervalMs = () => 2500 };
+        write.SetSeries(series);
+        Assert.Equal(2_000_000, write.TrafficPeak);
+        Assert.Equal(2_097_152, write.Peak); // the 2 MiB step of the visible value, not the old 48 MiB spike
+        IoGraph network = new() { HistoryWindowSeconds = 60, SampleIntervalMs = () => 2500 };
+        network.SetSeries(series);
+        Assert.False(network.HasTraffic);
+        Assert.Equal(0, network.TrafficPeak);
+        Assert.Equal(IoGraphGeometry.DefaultMinimumPeak, network.Peak);
+        // ShowDisk only keeps old markup compiling: it switches no combined network-plus-disk graph on.
+        network.ShowDisk = true;
+        network.SetSeries(series);
+        Assert.False(network.HasTraffic);
+        Assert.Equal(IoGraphGeometry.DefaultMinimumPeak, network.Peak);
     }
 
     [Fact]
