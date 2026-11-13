@@ -173,6 +173,37 @@ public sealed class BooruHostHttpTests
     }
 
     [Fact]
+    public async Task InvalidRetryAfterOnFiveOhThreeFallsBackToTwoSecondRetry()
+    {
+        ManualClock clock = new();
+        int sends = 0;
+        using HttpClient transport = new(new Handler((request, _) =>
+        {
+            if (++sends == 1)
+            {
+                HttpResponseMessage response = Response(HttpStatusCode.ServiceUnavailable, "retry");
+                response.Headers.TryAddWithoutValidation("Retry-After", "not-a-date");
+                return Task.FromResult(response);
+            }
+            return Task.FromResult(Response(HttpStatusCode.OK, "ok"));
+        }));
+        using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
+        BooruHostServices services = new(new Inner(), http);
+        BooruJob job = services.OpenJob();
+        try
+        {
+            Task<HostHttpResult> pending = services.SendHttpAsync(Get(), job.Operation, default);
+            await EventuallyAsync(() => sends == 1);
+            await clock.WaitForTimerAsync(BooruHostHttp.RetryDelay);
+            Assert.False(pending.IsCompleted);
+            clock.Advance(BooruHostHttp.RetryDelay);
+            Assert.Equal(200, Assert.IsType<HostHttpResponse>(await pending.WaitAsync(Bound)).StatusCode);
+            Assert.Equal(2, sends);
+        }
+        finally { services.CloseJob(job); }
+    }
+
+    [Fact]
     public async Task TooManyRequestsStartsSourceCooldownAndDoesNotTouchTransportAgain()
     {
         ManualClock clock = new();
@@ -202,6 +233,33 @@ public sealed class BooruHostHttpTests
         Assert.Equal(first.RetryAt, second.RetryAt);
         Assert.Equal(1, sends);
         Assert.Equal(1, worker.SearchCalls);
+    }
+
+    [Fact]
+    public async Task InvalidRetryAfterOnTooManyRequestsFallsBackToTheSixtySecondFloor()
+    {
+        ManualClock clock = new();
+        int sends = 0;
+        using HttpClient transport = new(new Handler((request, _) =>
+        {
+            ++sends;
+            HttpResponseMessage response = Response(HttpStatusCode.TooManyRequests, "busy");
+            response.Headers.TryAddWithoutValidation("Retry-After", "not-a-date");
+            return Task.FromResult(response);
+        }));
+        using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
+        BooruHostServices services = new(new Inner(), http);
+        BooruJob job = services.OpenJob();
+        try
+        {
+            DateTimeOffset expected = clock.GetUtcNow() + BooruHostHttp.MinimumCooldown;
+            HostHttpDeferred result = Assert.IsType<HostHttpDeferred>(await services.SendHttpAsync(Get(), job.Operation, default));
+            Assert.Equal(expected, result.RetryAt);
+            Assert.True(services.TryGetCooldown("danbooru", out DateTimeOffset retryAt));
+            Assert.Equal(expected, retryAt);
+            Assert.Equal(1, sends);
+        }
+        finally { services.CloseJob(job); }
     }
 
     [Fact]

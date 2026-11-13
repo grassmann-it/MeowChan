@@ -24,8 +24,6 @@ public sealed class BooruHostHttp : IDisposable
     public static readonly TimeSpan MaximumJobLifetime = BooruJob.MaximumLifetime;
     public static readonly TimeSpan ResponseTimeout = TimeSpan.FromSeconds(15);
     public static readonly TimeSpan MinimumCooldown = TimeSpan.FromSeconds(60);
-    /// <summary>Legacy compatibility value; valid provider cooldowns are no longer capped at this duration.</summary>
-    public static readonly TimeSpan MaximumCooldown = TimeSpan.FromHours(24);
     /// <summary>Danbooru post ids fit a signed 64-bit integer: at most 18 canonical decimal digits are accepted.</summary>
     private const int MaximumPostIdDigits = 18;
 
@@ -104,7 +102,7 @@ public sealed class BooruHostHttp : IDisposable
 
                 if (!job.TryReserveSend())
                     return JobEnded(job) ?? Failure("booru-budget", "The booru job send budget is exhausted.");
-                state.NextStart = _clock.GetUtcNow() + MinimumStartSpacing;
+                state.NextStart = AddSaturating(_clock.GetUtcNow(), MinimumStartSpacing);
                 return await SendWithRetryAsync(request, source, job, state, cancellationToken, token).ConfigureAwait(false);
             }
         }
@@ -153,7 +151,7 @@ public sealed class BooruHostHttp : IDisposable
         {
             HttpResponseMessage? response = null;
             using AttemptWindow window = new(_clock, abort,
-                Min(_clock.GetUtcNow() + ResponseTimeout, job.Deadline));
+                Min(AddSaturating(_clock.GetUtcNow(), ResponseTimeout), job.Deadline));
             try
             {
                 response = await SendAttemptAsync(request, window.Token).ConfigureAwait(false);
@@ -173,7 +171,7 @@ public sealed class BooruHostHttp : IDisposable
                     return Failure("http-redirect", "Metadata redirects are not followed.", status);
                 if (status == 429)
                 {
-                    DateTimeOffset cooldown = CooldownUntil(response.Headers.RetryAfter, _clock.GetUtcNow());
+                    DateTimeOffset cooldown = CooldownUntil(ReadRetryAfter(response), _clock.GetUtcNow());
                     lock (state.Gate)
                         if (cooldown > state.CooldownUntil) state.CooldownUntil = cooldown;
                     HostHttpDeferred deferred = new(cooldown, "booru-cooldown", status);
@@ -183,7 +181,7 @@ public sealed class BooruHostHttp : IDisposable
                 if (status is 502 or 503 && !retried)
                 {
                     retried = true;
-                    DateTimeOffset retryAt = RetryAt(response.Headers.RetryAfter, _clock.GetUtcNow());
+                    DateTimeOffset retryAt = RetryAt(ReadRetryAfter(response), _clock.GetUtcNow());
                     if (retryAt >= job.Deadline || job.IsExpired)
                         return Failure("booru-budget", "The booru job budget is exhausted.", status);
                     response.Dispose();
@@ -192,7 +190,7 @@ public sealed class BooruHostHttp : IDisposable
                     if (JobEnded(job, status) is HostHttpFailure ended) return ended;
                     if (!job.TryReserveSend())
                         return JobEnded(job, status) ?? Failure("booru-budget", "The booru job send budget is exhausted.", status);
-                    state.NextStart = _clock.GetUtcNow() + MinimumStartSpacing;
+                    state.NextStart = AddSaturating(_clock.GetUtcNow(), MinimumStartSpacing);
                     continue;
                 }
 
@@ -265,7 +263,7 @@ public sealed class BooruHostHttp : IDisposable
     /// <summary>Waits for the single transport retry; returns the stop failure when the job cannot send again.</summary>
     private async Task<HostHttpFailure?> DelayTransportRetryAsync(BooruJob job, SourceState state, CancellationToken abort)
     {
-        DateTimeOffset retryAt = _clock.GetUtcNow() + RetryDelay;
+        DateTimeOffset retryAt = AddSaturating(_clock.GetUtcNow(), RetryDelay);
         if (retryAt >= job.Deadline || job.IsExpired)
             return Failure("booru-budget", "The booru job budget is exhausted.");
         // A cancellation here propagates to SendAsync, which maps a job end to its failure.
@@ -273,7 +271,7 @@ public sealed class BooruHostHttp : IDisposable
         if (JobEnded(job) is HostHttpFailure ended) return ended;
         if (!job.TryReserveSend())
             return JobEnded(job) ?? Failure("booru-budget", "The booru job budget is exhausted.");
-        state.NextStart = _clock.GetUtcNow() + MinimumStartSpacing;
+        state.NextStart = AddSaturating(_clock.GetUtcNow(), MinimumStartSpacing);
         return null;
     }
 
@@ -454,6 +452,25 @@ public sealed class BooruHostHttp : IDisposable
                 || response.Content.Headers.TryGetValues(name, out values))
                 headers[name] = string.Join(", ", values);
         return headers;
+    }
+
+    /// <summary>
+    /// Reads Retry-After without asking HttpClient to materialize an invalid header as a typed value.
+    /// Provider input is untrusted: an invalid value means that only the contractual minimum applies.
+    /// </summary>
+    private static RetryConditionHeaderValue? ReadRetryAfter(HttpResponseMessage response)
+    {
+        try
+        {
+            if (!response.Headers.TryGetValues("Retry-After", out IEnumerable<string>? values)) return null;
+            foreach (string value in values)
+                if (RetryConditionHeaderValue.TryParse(value, out RetryConditionHeaderValue? parsed)) return parsed;
+        }
+        catch (FormatException)
+        {
+            // A malformed provider header must not turn a 429/503 into an unhandled host fault.
+        }
+        return null;
     }
 
     private static bool IsTerminalStatus(HttpResponseMessage? response) =>
