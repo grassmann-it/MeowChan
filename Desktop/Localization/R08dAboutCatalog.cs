@@ -23,5 +23,7 @@ internal static class R08dAboutCatalog
         ("about.licenseHint", "Full local texts and source/replacement pointers from the packaged notices. Select a component to read it offline.", "Vollständige lokale Texte und Quellen-/Austauschhinweise aus den mitgelieferten Notices. Eine Komponente zum Offline-Lesen auswählen."),
         ("about.licenseReadFailed", "Packaged license inventory could not be read: {0}", "Das mitgelieferte Lizenzinventar konnte nicht gelesen werden: {0}"),
         ("about.sources", "Sources and replacement", "Quellen und Austausch"),
+        ("about.licenseList", "Licensed components", "Komponenten mit Lizenz"),
+        ("about.licenseText", "License text", "Lizenztext"),
     };
 }

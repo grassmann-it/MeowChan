@@ -1502,6 +1502,8 @@
     "about.licenseHint": "Textos locales completos y referencias al código fuente y a su sustitución procedentes de los avisos incluidos. Seleccione un componente para leerlo sin conexión.",
     "about.licenseReadFailed": "No se pudo leer el inventario de licencias incluido: {0}",
     "about.sources": "Código fuente y sustitución",
+    "about.licenseList": "Componentes con licencia",
+    "about.licenseText": "Texto de la licencia",
     "setup.title": "Preparar descargas",
     "setup.intro": "Elija la carpeta de descargas y dos límites. Todo se puede cambiar después en Configuración → Descargas.",
     "setup.bandwidth": "Límite de ancho de banda (MiB/s)",

@@ -90,6 +90,10 @@ public partial class AboutWindow : Window
         AutomationProperties.SetName(PhotoCreditFlickrLink, Texts.T("about.photoCreditFlickr", PhotoCreditName));
         LicenseText.Text = Texts.T("about.license");
         LicenseSearchBox.PlaceholderText = Texts.T("about.licenseSearch");
+        // The placeholder vanishes while typing and the list and text box have no label of their own.
+        AutomationProperties.SetName(LicenseSearchBox, Texts.T("about.licenseSearch"));
+        AutomationProperties.SetName(LicenseList, Texts.T("about.licenseList"));
+        AutomationProperties.SetName(LicenseFullText, Texts.T("about.licenseText"));
         LicenseMetadataExpander.Header = Texts.T("about.sources");
         LicenseHintText.Text = _legal.Error is null ? Texts.T("about.licenseHint") : Texts.T("about.licenseReadFailed", _legal.Error);
         CloseButton.Content = Texts.T("action.close");

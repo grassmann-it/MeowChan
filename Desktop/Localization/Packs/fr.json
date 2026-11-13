@@ -1502,6 +1502,8 @@
     "about.licenseHint": "Textes locaux complets et liens vers les sources ou leur remplacement, issus des notices fournies. Sélectionnez un composant pour le lire hors ligne.",
     "about.licenseReadFailed": "Impossible de lire l’inventaire des licences fourni : {0}",
     "about.sources": "Sources et remplacement",
+    "about.licenseList": "Composants sous licence",
+    "about.licenseText": "Texte de la licence",
     "setup.title": "Configurer les téléchargements",
     "setup.intro": "Choisissez le dossier de téléchargement et deux limites. Tout reste modifiable plus tard dans Paramètres → Téléchargements.",
     "setup.bandwidth": "Limite de bande passante (MiB/s)",
