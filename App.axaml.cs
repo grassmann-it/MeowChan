@@ -56,6 +56,7 @@ public partial class App : Application
         {
             // D1: every window that opens follows the motion policy (class motion-off); the saved setting arrives with the main window.
             MeowChan.Desktop.Motion.MotionPolicy.Install();
+            WindowChrome.LogStartup();
             desktop.Exit += (_, _) => Texts.Changed -= OnLanguageChanged;
             LinuxVideoPreflightResult? video = null;
             try

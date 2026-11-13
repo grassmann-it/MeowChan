@@ -46,6 +46,61 @@ public sealed class WindowChromeCoverageTests
         Assert.Equal(Avalonia.Controls.Win32Properties.WindowCornerPreference.Default, WindowChrome.CornerPreference(windows: false));
     }
 
+    [Theory]
+    [InlineData("system", true), InlineData(" Custom ", true), InlineData("SYSTEM", true)]
+    [InlineData(null, false), InlineData("", false), InlineData("native", false), InlineData("1", false), InlineData("system custom", false)]
+    public void OnlySystemAndCustomAreRecognised(string? value, bool recognised) =>
+        Assert.Equal(recognised, WindowChrome.IsRecognised(value));
+
+    [Theory]
+    [InlineData(null, false, "Custom", "not set")]
+    [InlineData(null, true, "NativeCaptionButtons", "not set")]
+    [InlineData("system", false, "System", "set by MEOWCHAN_WINDOW_CHROME")]
+    [InlineData("custom", true, "Custom", "set by MEOWCHAN_WINDOW_CHROME")]
+    [InlineData("bogus", false, "Custom", "is neither system nor custom and is ignored")]
+    [InlineData("bogus", true, "NativeCaptionButtons", "is neither system nor custom and is ignored")]
+    public void TheStartupLineNamesTheModeAndWhereItCameFrom(string? value, bool macOS, string mode, string origin)
+    {
+        string line = WindowChrome.Describe(value, macOS);
+        Assert.Contains("Window chrome mode " + mode + " (", line);
+        Assert.Contains(origin, line);
+        Assert.DoesNotContain("\n", line);
+    }
+
+    [Fact]
+    public void AnUnknownValueIsEchoedShortAndPrintableOnly()
+    {
+        string line = WindowChrome.Describe("\u001b[31m" + new string('x', 200), macOS: false);
+        Assert.DoesNotContain("\u001b", line, StringComparison.Ordinal);
+        Assert.True(line.Length < 220, line);
+    }
+
+    [Fact]
+    public void TheModeIsLoggedExactlyOnceAtStartupAndAnUnknownValueWarns()
+    {
+        WindowChrome.ResetStartupLogForTests();
+        try
+        {
+            List<Serilog.Events.LogEvent> events = [];
+            Serilog.ILogger logger = new Serilog.LoggerConfiguration().WriteTo.Sink(new Capture(events)).CreateLogger();
+            WindowChrome.LogStartup(logger, "bogus", macOS: false);
+            WindowChrome.LogStartup(logger, "system", macOS: false); // a second call in the same process stays silent
+            Serilog.Events.LogEvent logged = Assert.Single(events);
+            Assert.Equal(Serilog.Events.LogEventLevel.Warning, logged.Level);
+            Assert.Contains("Window chrome mode Custom", logged.RenderMessage());
+            WindowChrome.ResetStartupLogForTests();
+            events.Clear();
+            WindowChrome.LogStartup(logger, "system", macOS: false);
+            Assert.Equal(Serilog.Events.LogEventLevel.Information, Assert.Single(events).Level);
+        }
+        finally { WindowChrome.ResetStartupLogForTests(); }
+    }
+
+    private sealed class Capture(List<Serilog.Events.LogEvent> events) : Serilog.Core.ILogEventSink
+    {
+        public void Emit(Serilog.Events.LogEvent logEvent) => events.Add(logEvent);
+    }
+
     [Fact]
     public void FallbackSwitchIsTheDocumentedEnvironmentVariable() =>
         Assert.Equal("MEOWCHAN_WINDOW_CHROME", WindowChrome.EnvironmentVariable);

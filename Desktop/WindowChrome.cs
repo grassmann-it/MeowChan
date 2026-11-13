@@ -1,6 +1,8 @@
 using System;
+using System.Threading;
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml.MarkupExtensions;
+using Serilog;
 
 namespace MeowChan.Desktop;
 
@@ -54,6 +56,45 @@ internal static class WindowChrome
         "custom" => WindowChromeMode.Custom,
         _ => macOS ? WindowChromeMode.NativeCaptionButtons : WindowChromeMode.Custom
     };
+
+    /// <summary>True for the two values the switch documents (case-insensitive); anything else is ignored.</summary>
+    internal static bool IsRecognised(string? value) => value?.Trim().ToLowerInvariant() is "system" or "custom";
+
+    /// <summary>One line for the log and for bug reports: the active mode and where it came from.</summary>
+    internal static string Describe(string? value, bool macOS)
+    {
+        WindowChromeMode mode = Resolve(value, macOS);
+        string text = value?.Trim() ?? string.Empty;
+        string origin = text.Length == 0 ? EnvironmentVariable + " not set, platform default"
+            : IsRecognised(text) ? "set by " + EnvironmentVariable
+            : EnvironmentVariable + "='" + Printable(text) + "' is neither system nor custom and is ignored, platform default";
+        return "Window chrome mode " + mode + " (" + origin + ")";
+    }
+
+    // The value comes from the environment: keep it to a short printable fragment.
+    private static string Printable(string text)
+    {
+        string shown = text.Length <= 24 ? text : text[..24] + "...";
+        return string.Create(shown.Length, shown, static (span, source) =>
+        {
+            for (int index = 0; index < source.Length; index++) span[index] = char.IsControl(source[index]) ? '?' : source[index];
+        });
+    }
+
+    private static int _startupLogged;
+
+    /// <summary>Logs the active mode once per process, at startup (a warning when the variable holds an unknown value).</summary>
+    internal static void LogStartup() => LogStartup(Log.Logger, Environment.GetEnvironmentVariable(EnvironmentVariable), OperatingSystem.IsMacOS());
+
+    internal static void LogStartup(ILogger logger, string? value, bool macOS)
+    {
+        if (Interlocked.Exchange(ref _startupLogged, 1) != 0) return;
+        string line = Describe(value, macOS);
+        if (!string.IsNullOrWhiteSpace(value) && !IsRecognised(value)) logger.Warning("{WindowChromeStartup:l}", line);
+        else logger.Information("{WindowChromeStartup:l}", line);
+    }
+
+    internal static void ResetStartupLogForTests() => Volatile.Write(ref _startupLogged, 0);
 
     /// <summary>The app caption is shown (own or native caption buttons).</summary>
     internal static bool ShowsCaption(WindowChromeMode mode) => mode != WindowChromeMode.System;
