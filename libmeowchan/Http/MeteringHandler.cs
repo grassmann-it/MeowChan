@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 namespace MeowChan.Http;
 
 /// <summary>
-/// Counts requests, errors and response body bytes of the transport below it per source. It forwards every request and
+/// Counts requests, errors and request/response body bytes of the transport below it per source. It forwards every request and
 /// response unchanged: status, headers (including <c>Content-Length</c>) and body bytes are the transport's own. The
 /// source comes from <see cref="SourceKey"/> (set by <see cref="RequestPolicyHandler"/> or the booru host); a request
 /// without it is counted under its host name. The per-chunk cost is one <see cref="Interlocked"/> add.
@@ -47,6 +47,12 @@ internal sealed class MeteringHandler : DelegatingHandler
             key = request.RequestUri is { IsAbsoluteUri: true } uri ? uri.IdnHost : null;
         SourceCounters counters = TransferMeter.For(key);
         Interlocked.Increment(ref counters.Requests);
+        if (request.Content is { } content)
+        {
+            // A new send must not nest meters or reuse a wrapper's HttpContent buffer. The original
+            // content still decides whether it can be replayed; every actual serialization counts.
+            request.Content = new UploadMeteringContent(content, counters);
+        }
         return counters;
     }
 
@@ -62,6 +68,111 @@ internal sealed class MeteringHandler : DelegatingHandler
     {
         if (exception is not OperationCanceledException) Interlocked.Increment(ref counters.Errors);
         return false;
+    }
+
+    /// <summary>
+    /// Counts at the serialization destination, not by pre-reading the content. HttpClient's transport
+    /// uses CopyTo/CopyToAsync, including for already-buffered content and repeated serialization.
+    /// The inner content keeps its own sync/async serialization, cancellation and replay behavior.
+    /// Failures propagate to Send/SendAsync's existing error accounting (never counted twice here).
+    /// </summary>
+    private sealed class UploadMeteringContent : HttpContent
+    {
+        internal HttpContent Inner { get; }
+        private readonly SourceCounters _counters;
+
+        internal UploadMeteringContent(HttpContent inner, SourceCounters counters)
+        {
+            _counters = counters;
+            foreach (KeyValuePair<string, IEnumerable<string>> header in inner.Headers)
+                Headers.TryAddWithoutValidation(header.Key, header.Value);
+            // Preserve the currently presented headers, including edits made between sends, but
+            // serialize the original content rather than a previous meter (or its cached buffer).
+            while (inner is UploadMeteringContent previous) inner = previous.Inner;
+            Inner = inner;
+        }
+
+        protected override bool TryComputeLength(out long length)
+        {
+            long? known = Inner.Headers.ContentLength;
+            length = known.GetValueOrDefault();
+            return known.HasValue;
+        }
+
+        protected override void SerializeToStream(Stream stream, TransportContext? context, CancellationToken cancellationToken)
+        {
+            using UploadCountingStream target = new(stream, _counters);
+            Inner.CopyTo(target, context, cancellationToken);
+        }
+
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context)
+            => SerializeToStreamAsync(stream, context, CancellationToken.None);
+
+        protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken cancellationToken)
+        {
+            using UploadCountingStream target = new(stream, _counters);
+            await Inner.CopyToAsync(target, context, cancellationToken).ConfigureAwait(false);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) Inner.Dispose();
+            base.Dispose(disposing);
+        }
+    }
+
+    /// <summary>
+    /// Non-owning serialization destination: only successfully completed writes count. Like reads on
+    /// CountingStream, a failed operation cannot report a partial byte count; earlier chunks remain.
+    /// No per-chunk allocation on the synchronously completing path, no length-based estimates.
+    /// </summary>
+    private sealed class UploadCountingStream(Stream inner, SourceCounters counters) : Stream
+    {
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => inner.CanWrite;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() => inner.Flush();
+        public override Task FlushAsync(CancellationToken cancellationToken) => inner.FlushAsync(cancellationToken);
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => Write(buffer.AsSpan(offset, count));
+
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            inner.Write(buffer);
+            if (!buffer.IsEmpty) Interlocked.Add(ref counters.NetUp, buffer.Length);
+        }
+
+        public override void WriteByte(byte value)
+        {
+            inner.WriteByte(value);
+            Interlocked.Increment(ref counters.NetUp);
+        }
+
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+            => WriteAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            ValueTask pending = inner.WriteAsync(buffer, cancellationToken);
+            if (!pending.IsCompletedSuccessfully) return AwaitWrite(pending, buffer.Length);
+            pending.GetAwaiter().GetResult();
+            if (!buffer.IsEmpty) Interlocked.Add(ref counters.NetUp, buffer.Length);
+            return ValueTask.CompletedTask;
+        }
+
+        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
+        private async ValueTask AwaitWrite(ValueTask pending, int count)
+        {
+            await pending.ConfigureAwait(false);
+            if (count > 0) Interlocked.Add(ref counters.NetUp, count);
+        }
+
+        // Stream's base disposal is intentionally used: the transport owns the destination.
     }
 
     /// <summary>Response content whose every read path goes through one counting stream; headers are copied from the original.</summary>

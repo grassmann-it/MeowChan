@@ -12,6 +12,8 @@ internal sealed class SourceCounters
 {
     /// <summary>Response body bytes delivered by the transport (after decompression where the transport decompresses).</summary>
     public long NetDown;
+    /// <summary>Request content bytes serialized for the transport; excludes HTTP headers, TLS and socket overhead.</summary>
+    public long NetUp;
     /// <summary>Media bytes MeowChan wrote to disk itself.</summary>
     public long DiskWritten;
     /// <summary>Media bytes MeowChan read back from disk itself (hash and integrity reads).</summary>

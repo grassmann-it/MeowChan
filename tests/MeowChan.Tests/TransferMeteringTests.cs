@@ -84,6 +84,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
         if (path is "bytes" or "buffered-by-client") await response.Content.ReadAsByteArrayAsync();
 
         SourceCounters counters = TransferMeter.For(key);
+        Assert.Equal(0, Read(ref counters.NetUp));
         Assert.Equal(payload.Length, Read(ref counters.NetDown));
         Assert.Equal(1, Read(ref counters.Requests));
         Assert.Equal(0, Read(ref counters.Errors));
@@ -142,6 +143,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
         using HttpResponseMessage response = await client.SendAsync(Get(key), HttpCompletionOption.ResponseHeadersRead);
         await response.Content.ReadAsByteArrayAsync();
         SourceCounters counters = TransferMeter.For(key);
+        Assert.Equal(0, Read(ref counters.NetUp));
         Assert.Equal(errors, Read(ref counters.Errors));
         Assert.Equal(1, Read(ref counters.Requests));
         Assert.Equal(3, Read(ref counters.NetDown));
@@ -154,6 +156,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
         using HttpClient client = Metered((_, _) => throw new HttpRequestException("connection refused"));
         await Assert.ThrowsAsync<HttpRequestException>(() => client.SendAsync(Get(key)));
         SourceCounters counters = TransferMeter.For(key);
+        Assert.Equal(0, Read(ref counters.NetUp));
         Assert.Equal(1, Read(ref counters.Requests));
         Assert.Equal(1, Read(ref counters.Errors));
         Assert.Equal(0, Read(ref counters.NetDown));
@@ -172,6 +175,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
         });
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.SendAsync(Get(key), cancellation.Token));
         SourceCounters counters = TransferMeter.For(key);
+        Assert.Equal(0, Read(ref counters.NetUp));
         Assert.Equal(1, Read(ref counters.Requests));
         Assert.Equal(0, Read(ref counters.Errors));
     }
@@ -184,6 +188,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
         using HttpResponseMessage response = await client.SendAsync(Get(key, method: HttpMethod.Head), HttpCompletionOption.ResponseHeadersRead);
         Assert.Empty(await response.Content.ReadAsByteArrayAsync());
         SourceCounters counters = TransferMeter.For(key);
+        Assert.Equal(0, Read(ref counters.NetUp));
         Assert.Equal(1, Read(ref counters.Requests));
         Assert.Equal(0, Read(ref counters.NetDown));
     }
@@ -203,6 +208,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
         SourceCounters counters = TransferMeter.For(key);
+        Assert.Equal(0, Read(ref counters.NetUp));
         Assert.Equal(1000, Read(ref counters.NetDown));
         Assert.Equal(0, Read(ref counters.Errors));
     }
@@ -220,6 +226,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
         await Assert.ThrowsAsync<IOException>(async () => await body.ReadAsync(buffer));
         await Assert.ThrowsAsync<IOException>(async () => await body.ReadAsync(buffer));
         SourceCounters counters = TransferMeter.For(key);
+        Assert.Equal(0, Read(ref counters.NetUp));
         Assert.Equal(500, Read(ref counters.NetDown));
         Assert.Equal(1, Read(ref counters.Errors));
     }
@@ -238,6 +245,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
             Assert.Equal(payload, await response.Content.ReadAsByteArrayAsync());
         }));
         SourceCounters counters = TransferMeter.For(key);
+        Assert.Equal(0, Read(ref counters.NetUp));
         Assert.Equal((long)Responses * Length, Read(ref counters.NetDown));
         Assert.Equal(Responses, Read(ref counters.Requests));
     }
@@ -266,6 +274,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
         using HttpResponseMessage response = await client.GetAsync("https://meter-" + Guid.NewGuid().ToString("N") + ".test/media.bin");
         Assert.Equal(777, (await response.Content.ReadAsByteArrayAsync()).Length);
         SourceCounters counters = TransferMeter.For(key);
+        Assert.Equal(0, Read(ref counters.NetUp));
         Assert.Equal(1, Read(ref counters.Requests));
         Assert.Equal(777, Read(ref counters.NetDown));
         Assert.Equal(0, Read(ref counters.Errors));
@@ -301,6 +310,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
 
         // The default transport decompresses below the metering handler: bytes are counted after decompression.
         SourceCounters counters = TransferMeter.For(key);
+        Assert.Equal(0, Read(ref counters.NetUp));
         Assert.Equal(plain.Length, Read(ref counters.NetDown));
         Assert.Equal(1, Read(ref counters.Requests));
     }
