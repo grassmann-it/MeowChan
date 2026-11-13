@@ -17,7 +17,7 @@ internal static class ShortcutIssueCatalog
         ("shortcuts.issue.duplicateModifiers", "Duplicate modifiers", "Doppelte Modifikatoren"),
         ("shortcuts.issue.repeatedPlatformModifier", "Repeated platform modifier", "Doppelte Plattformtaste"),
         ("shortcuts.issue.fixedNavigation", "Tab and Escape are fixed navigation", "Tab und Escape bleiben feste Navigation"),
-        ("shortcuts.issue.altGrText", "Ctrl+Alt can produce AltGr text", "Ctrl+Alt kann AltGr-Text erzeugen"),
+        ("shortcuts.issue.altGrText", "Ctrl+Alt can produce AltGr text", "Strg+Alt kann AltGr-Text erzeugen"),
         ("shortcuts.issue.reservedSystem", "Reserved system shortcut", "Reserviertes Systemkürzel"),
         ("shortcuts.issue.unsupportedSymbol", "Unsupported symbol", "Nicht unterstütztes Symbol"),
         ("shortcuts.issue.unsupportedSchema", "Unsupported shortcut schema; defaults active", "Unbekanntes Kürzelschema; Standards aktiv"),

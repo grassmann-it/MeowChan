@@ -104,25 +104,25 @@ public sealed class NavigationMediaShortcutTests : IDisposable
     }
 
     [Theory]
-    [InlineData("en", "Media")]
-    [InlineData("de", "Medien")]
-    public void TheFooterButtonTooltipNamesTheShortcutAndFollowsRebinding(string language, string label)
+    [InlineData("en", "Media", "Ctrl", "Shift")]
+    [InlineData("de", "Medien", "Strg", "Umschalt")]
+    public void TheFooterButtonTooltipNamesTheShortcutAndFollowsRebinding(string language, string label, string ctrl, string shift)
     {
         Texts.SetLanguage(language);
         SetBindings(EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux));
         Button footer = new();
         CommandBindings.Apply(footer, "navigation.media");
         string initial = Assert.IsType<string>(ToolTip.GetTip(footer));
-        Assert.StartsWith(label + " · Ctrl+3", initial);
+        Assert.StartsWith(label + " · " + ctrl + "+3", initial);
         Assert.Equal(CommandBindings.Tooltip("navigation.media"), initial);
 
         Rebind(new ShortcutBindingsSection().Set("navigation.media", [ShortcutGesture.Parse("Primary+Shift+M")]));
         string moved = Assert.IsType<string>(ToolTip.GetTip(footer));
-        Assert.StartsWith(label + " · Ctrl+Shift+M", moved);
-        Assert.DoesNotContain("Ctrl+3", moved);
+        Assert.StartsWith(label + " · " + ctrl + "+" + shift + "+M", moved);
+        Assert.DoesNotContain(ctrl + "+3", moved);
 
         Rebind(new ShortcutBindingsSection().Set("navigation.media", []));
-        Assert.DoesNotContain("Ctrl", Assert.IsType<string>(ToolTip.GetTip(footer)));
+        Assert.DoesNotContain(ctrl, Assert.IsType<string>(ToolTip.GetTip(footer)));
     }
 
     [Fact]

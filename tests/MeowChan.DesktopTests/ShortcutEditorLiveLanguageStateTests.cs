@@ -135,7 +135,9 @@ public sealed class ShortcutEditorLiveLanguageStateTests : IDisposable
             Assert.Same(lease, Get<object>(editor, "_captureLease"));
             Assert.Same(pending, Get<ShortcutGesture?>(editor, "_pending"));
             Assert.Same(gesture, capture.Gesture);
-            Assert.Equal(pendingText, Get<TextBlock>(editor, "_pendingLabel").Text);
+            // Modifier names follow the language (Strg/Umschalt in German); the pending gesture itself is unchanged.
+            Assert.Equal(pending is { } shown ? shown.Display(EffectiveShortcutBindings.CurrentPlatform) : pendingText,
+                Get<TextBlock>(editor, "_pendingLabel").Text);
             Assert.Equal((bool?)keepExplicit, explicitModifiers.IsChecked);
             Assert.Same(selection, actions.SelectedItem);
             Assert.Same(draft, editor.Draft);

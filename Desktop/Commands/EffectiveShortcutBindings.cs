@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Avalonia.Input;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop.Commands;
 
@@ -35,7 +36,9 @@ public sealed record ShortcutGesture(string Key, IReadOnlyList<string> Modifiers
         if (platform == ShortcutPlatform.MacOS) return DisplayMac(resolved);
         string key = Key.StartsWith("D", StringComparison.Ordinal) && Key.Length == 2 && char.IsDigit(Key[1]) ? Key[1..] : Key;
         key = key switch { "OemComma" => ",", "OemPlus" => "+", "OemMinus" => "−", "Apps" => "Menu", _ => key };
-        string prefix = string.Join("+", Modifiers.Select(m => m == "Primary" ? "Ctrl" : m == "Control" ? "Ctrl" : m));
+        // Key names follow the interface language (German: Strg, Umschalt); the stored gesture stays unchanged.
+        string prefix = string.Join("+", Modifiers.Select(m => m is "Primary" or "Control" or "Ctrl" ? Texts.T("key.ctrl")
+            : m == "Shift" ? Texts.T("key.shift") : m));
         return prefix.Length == 0 ? Symbol ?? key : prefix + "+" + (Symbol ?? key);
     }
 
@@ -229,7 +232,7 @@ public sealed class EffectiveShortcutBindings
             var g = gesture.Resolve(platform);
             if (gesture.Modifiers.Contains("Primary") && gesture.Modifiers.Contains(platform == ShortcutPlatform.MacOS ? "Meta" : "Control")) return new("repeatedPlatformModifier", "Repeated platform modifier / Doppelte Plattformtaste");
             if (g.Key is Key.Tab or Key.Escape) return new("fixedNavigation", "Tab and Escape are fixed navigation / Tab und Escape bleiben feste Navigation");
-            if ((g.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Alt)) == (KeyModifiers.Control | KeyModifiers.Alt)) return new("altGrText", "Ctrl+Alt can produce AltGr text / Ctrl+Alt kann AltGr-Text erzeugen");
+            if ((g.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Alt)) == (KeyModifiers.Control | KeyModifiers.Alt)) return new("altGrText", "Ctrl+Alt can produce AltGr text / Strg+Alt kann AltGr-Text erzeugen");
             if (platform != ShortcutPlatform.MacOS && g.KeyModifiers.HasFlag(KeyModifiers.Meta) ||
                 platform == ShortcutPlatform.MacOS && g.KeyModifiers.HasFlag(KeyModifiers.Meta) && g.Key == Key.Space ||
                 g.KeyModifiers.HasFlag(KeyModifiers.Alt) && g.Key == Key.F4)
