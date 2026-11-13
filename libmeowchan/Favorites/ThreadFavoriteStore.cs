@@ -33,10 +33,12 @@ public sealed record ThreadFavoriteCommit(ResourceId Thread, bool Favorite, bool
 /// <summary>Profile-owned thread marks, independent of media, archive membership and watch state.</summary>
 public sealed partial class ThreadFavoriteStore
 {
-    /// <summary>Default entry limit. The limit is a setting; reads accept up to a fixed technical ceiling.</summary>
-    public const int MaximumEntries = 50_000;
-    /// <summary>The former fixed size limit, kept for API compatibility. The limit is now a setting (default 8 MiB); reads accept up to a fixed technical ceiling.</summary>
-    public const int MaximumBytes = 8_000_000;
+    /// <summary>The default entry limit, not a maximum: the limit is the FavoriteEntryLimit setting (<see cref="ProfileStoreLimits.FavoriteEntries"/>); reads accept up to <see cref="ProfileStoreLimits.FavoriteEntryCeiling"/>.</summary>
+    [Obsolete("Use ProfileStoreLimits.DefaultFavoriteEntries; the effective limit is the FavoriteEntryLimit setting.")]
+    public const int MaximumEntries = ProfileStoreLimits.DefaultFavoriteEntries;
+    /// <summary>The default file limit (8 MiB), not a maximum: the limit is the FavoriteFileLimitMiB setting (<see cref="ProfileStoreLimits.FavoriteFileBytes"/>); reads accept up to <see cref="ProfileStoreLimits.FavoriteFileCeilingBytes"/>.</summary>
+    [Obsolete("Use ProfileStoreLimits.DefaultFavoriteFileBytes; the effective limit is the FavoriteFileLimitMiB setting.")]
+    public const int MaximumBytes = ProfileStoreLimits.DefaultFavoriteFileBytes;
     private sealed record Document(int Version, long Revision, List<ResourceId> Threads,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? InstanceId = null,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PrivateStoreOperationMarker? OperationMarker = null);

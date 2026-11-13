@@ -273,13 +273,13 @@ public sealed class ThreadFavoriteStoreTests
         using TempDirectory temp = new();
         using ProfileLease lease = ProfileLease.Acquire(temp.Path);
         string path = Path.Combine(temp.Path, "thread-favorites.json");
-        ResourceId[] ids = Enumerable.Range(0, ThreadFavoriteStore.MaximumEntries + 1)
+        ResourceId[] ids = Enumerable.Range(0, ProfileStoreLimits.DefaultFavoriteEntries + 1)
             .Select(index => new ResourceId("s", "b", index.ToString(System.Globalization.CultureInfo.InvariantCulture))).ToArray();
         byte[] exact = JsonSerializer.SerializeToUtf8Bytes(new { Version = 1, Revision = 0L, Threads = ids[..^1] });
         Assert.True(exact.Length < ProfileStoreLimits.DefaultFavoriteFileBytes);
         File.WriteAllBytes(path, exact);
         ThreadFavoriteStore store = new(temp.Path, lease);
-        Assert.Equal(ThreadFavoriteStore.MaximumEntries, store.ReadSnapshot().Threads.Count);
+        Assert.Equal(ProfileStoreLimits.DefaultFavoriteEntries, store.ReadSnapshot().Threads.Count);
         Assert.Throws<InvalidDataException>(() => store.Set(ids[^1], true));
         Assert.Equal(exact, File.ReadAllBytes(path));
         // The reading ceiling, not the write limit, bounds the file: one entry more than the ceiling is one document too many.
