@@ -46,7 +46,10 @@ internal static partial class MediaPageChecks
         }
         async Task CloseToMediaAsync()
         {
-            GalleryViewerChecksAccess.Click((GalleryViewer)galleryHost.Content!, "GalleryClose");
+            GalleryViewer opened = (GalleryViewer)galleryHost.Content!;
+            // A kept image is shown in the same turn the gallery opens, before the first layout has attached its controls.
+            await UntilAsync(() => opened.GetGalleryVisualDescendants().OfType<Button>().Any(item => item.Name == "GalleryClose"));
+            GalleryViewerChecksAccess.Click(opened, "GalleryClose");
             await UntilAsync(() => !galleryHost.IsVisible);
             await shell.GalleryCleanupTask.WaitAsync(Deadline);
         }
