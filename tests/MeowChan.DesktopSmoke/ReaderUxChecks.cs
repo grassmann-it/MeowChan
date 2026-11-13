@@ -123,6 +123,11 @@ internal static class ReaderUxChecks
             await ReaderStabilityChecks.RunAsync(window);
             return;
         }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_VIEW_ONLY") == "1")
+        {
+            await ReaderViewChecks.RunAsync(window);
+            return;
+        }
         window.Width = 1520; window.Height = 920;
         // Exercise the hidden ArchivePage before it has ever been navigated to.
         await CheckDownloadOriginAsync(window);
