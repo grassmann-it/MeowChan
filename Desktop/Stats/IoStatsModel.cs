@@ -53,7 +53,8 @@ internal sealed class TransferMeterSource : IIoCounterSource
         foreach (KeyValuePair<string, SourceCounters> pair in TransferMeter.All)
         {
             SourceCounters c = pair.Value;
-            into.Add(new IoCounterReading(pair.Key, System.Threading.Volatile.Read(ref c.NetDown), System.Threading.Volatile.Read(ref c.DiskWritten),
+            into.Add(new IoCounterReading(pair.Key, System.Threading.Volatile.Read(ref c.NetDown), System.Threading.Volatile.Read(ref c.NetUp),
+                System.Threading.Volatile.Read(ref c.DiskWritten),
                 System.Threading.Volatile.Read(ref c.DiskRead), System.Threading.Volatile.Read(ref c.Requests), System.Threading.Volatile.Read(ref c.Errors)));
         }
     }
