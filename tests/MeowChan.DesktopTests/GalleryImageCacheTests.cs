@@ -155,6 +155,59 @@ public sealed class GalleryImageCacheTests
     }
 
     [Fact]
+    public void AnImageWhoseFileChangedIsDroppedAtTheNextUseAndNeverShown()
+    {
+        GalleryImageCache<Img> cache = Cache(Hundred * 10);
+        bool unchanged = true;
+        Img old = new(100, 100);
+        cache.Release(cache.Add("k", old, Info(), () => unchanged));
+        Assert.True(cache.TryAcquire("k", Fit(), out Img? hit, out _));
+        cache.Release(hit);
+        unchanged = false;
+        Assert.Equal(-1, cache.Touch("k", Fit()));
+        Assert.True(old.Disposed); // nobody showed it: gone at once
+        Assert.False(cache.TryAcquire("k", Fit(), out _, out _));
+        Assert.Equal(0, cache.Count);
+        // A fresh decode replaces a kept image whose file changed since, instead of sharing it.
+        unchanged = true;
+        Img first = cache.Add("j", new Img(100, 100), Info(), () => unchanged);
+        unchanged = false;
+        Img fresh = cache.Add("j", new Img(100, 100), Info(), () => true);
+        Assert.NotSame(first, fresh);
+        Assert.False(first.Disposed); // still leased by its viewer
+        cache.Release(first);
+        Assert.True(first.Disposed);
+        Assert.True(cache.TryAcquire("j", Fit(), out Img? again, out _));
+        Assert.Same(fresh, again);
+    }
+
+    [Fact]
+    public async Task AFileThatChangedAfterItWasVerifiedIsDecodedAndVerifiedAgainNotShownFromTheCache()
+    {
+        using TempDirectory temp = new();
+        GalleryEntry entry = (await EntriesAsync(temp.Path, "a.png"))[0];
+        GalleryImageCache<Img> cache = Cache(Hundred * 10);
+        int calls = 0;
+        Task<(Img Bitmap, GalleryImageInfo Info)> Decode(GalleryEntry _, GalleryDecodeRequest __, CancellationToken ___)
+        { calls++; return Task.FromResult((new Img(100, 100), Info())); }
+        (Img first, _) = await GalleryImageCache.DecodeThrough(cache, Decode, entry, Fit(), default);
+        cache.Release(first);
+        (Img again, _) = await GalleryImageCache.DecodeThrough(cache, Decode, entry, Fit(), default);
+        cache.Release(again);
+        Assert.Equal(1, calls); // unchanged file: a hit
+        await File.WriteAllBytesAsync(entry.Asset.Path, "changed"u8.ToArray());
+        (Img third, _) = await GalleryImageCache.DecodeThrough(cache, Decode, entry, Fit(), default);
+        Assert.Equal(2, calls); // the decode path (which verifies the bytes) runs again
+        Assert.NotSame(first, third);
+        // Same length, later time: also not trusted.
+        byte[] same = new byte[entry.Asset.Length];
+        File.SetLastWriteTimeUtc(entry.Asset.Path, DateTime.UtcNow.AddHours(-3));
+        Assert.Null(GalleryImageCache.Validity(entry)); // length differs from the manifest: nothing is kept for it
+        File.Delete(entry.Asset.Path);
+        Assert.Null(GalleryImageCache.Validity(entry));
+    }
+
+    [Fact]
     public async Task EqualBytesInAnotherFolderShareTheKeptImage()
     {
         using TempDirectory temp = new();
