@@ -673,9 +673,9 @@
              important); its row takes space only while an error is shown. Status and
              loading messages are an overlay inside ArchiveSplit instead. -->
         <StackPanel x:Name="ArchiveStatusStrip" Grid.Row="2" Spacing="6" IsVisible="False">
-            <ursa:Banner x:Name="ArchiveErrorBanner" Type="Error" CanClose="False" IsVisible="False" HorizontalContentAlignment="Stretch">
+            <controls:WorkspaceBanner x:Name="ArchiveErrorBanner" Type="Error" IsVisible="False">
                 <ScrollViewer MaxHeight="104" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="ArchiveErrorText" TextWrapping="Wrap" Classes="workspace-error" AutomationProperties.LiveSetting="Assertive" /></ScrollViewer>
-            </ursa:Banner>
+            </controls:WorkspaceBanner>
         </StackPanel>
         <Border x:Name="ArchivePreview" Grid.RowSpan="3" Classes="panel" Padding="12" IsVisible="False">
             <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">

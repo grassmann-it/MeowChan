@@ -93,9 +93,9 @@
                 <StackPanel x:Name="RuleTemplatesPanel" Spacing="8" />
                 <StackPanel Spacing="8">
                     <TextBlock Text="{Binding PreviewTitle}" Classes="section-title" />
-                    <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="{Binding HasValidationBanner}">
+                    <controls:WorkspaceBanner Type="Error" IsVisible="{Binding HasValidationBanner}">
                         <TextBlock x:Name="RuleValidationSummary" Focusable="True" Text="{Binding ValidationMessage}" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
-                    </ursa:Banner>
+                    </controls:WorkspaceBanner>
                     <WrapPanel x:Name="RulePreviewBlocked" IsVisible="{Binding HasPreviewBlocked}" ItemSpacing="12" LineSpacing="6">
                         <TextBlock Text="{Binding PreviewBlockedLabel}" Classes="workspace-meta" VerticalAlignment="Center" TextWrapping="Wrap" />
                         <Button x:Name="RuleGoToInvalidFieldButton" Content="{Binding GoToFieldLabel}" Click="OnGoToInvalidField" />
@@ -138,9 +138,9 @@
                             <ursa:LoadingIcon Width="16" Height="16" VerticalAlignment="Center" IsVisible="{Binding IsBusy}" IsLoading="{Binding IsBusy}" Focusable="False" />
                             <TextBlock x:Name="RuleStatusText" Text="{Binding StatusMessage}" VerticalAlignment="Center" Classes="muted" TextWrapping="Wrap" IsVisible="{Binding HasStatus}" AutomationProperties.LiveSetting="{Binding StatusLiveSetting}" />
                         </StackPanel>
-                        <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="{Binding HasError}">
+                        <controls:WorkspaceBanner Type="Error" IsVisible="{Binding HasError}">
                             <TextBlock x:Name="RuleActionError" Focusable="True" Text="{Binding ErrorMessage}" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
-                        </ursa:Banner>
+                        </controls:WorkspaceBanner>
                     </StackPanel>
                 </ScrollViewer>
                 <StackPanel x:Name="RulesFooterActions" Classes="workspace-actions" Grid.Column="1" HorizontalAlignment="Right">

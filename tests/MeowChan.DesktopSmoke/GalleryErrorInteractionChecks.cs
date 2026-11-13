@@ -593,7 +593,7 @@ internal static partial class GalleryPlaybackFeatureChecks
             NotificationType.Warning, "gallery-reader-fixture", operation);
         SessionFeedbackStore store = ShellErrorField<SessionFeedbackStore>(shell, "_feedback");
         await UntilAsync(() => store.Entries.Any(entry => entry.Operation == operation)
-            && shell.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!.IsVisible
+            && shell.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ShellActionErrorBanner")!.IsVisible
             && ShellErrorCards(shell).Any(card => card.Content is FeedbackToastContent { Entry: { } entry }
                 && entry.Operation == operation), "Real Reader warning did not produce its actual shell banner/toast.");
         SessionFeedback warning = store.Entries.Single(entry => entry.Operation == operation);
@@ -722,7 +722,7 @@ internal static partial class GalleryPlaybackFeatureChecks
                 overlay = _overlay?.Bounds.ToString(), overlayWidth = _overlay?.Width.ToString(),
                 overlayHeight = _overlay?.Height.ToString(), sizeToContent = _overlay?.SizeToContent.ToString(),
                 overlayValid = native.IsArrangeValid,
-                banner = _shell.GetVisualDescendants().OfType<Ursa.Controls.Banner>()
+                banner = _shell.GetVisualDescendants().OfType<MeowChan.Desktop.Controls.WorkspaceBanner>()
                     .FirstOrDefault(control => control.Name == "ShellActionErrorBanner")?.IsVisible
             });
             if (phase.EndsWith("layout", StringComparison.Ordinal) && state == _last) return;
@@ -750,7 +750,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         .OfType<NotificationCard>().Where(card => !card.IsClosing && !card.IsClosed).ToArray();
     private static void RequireNoShellErrorPresentation(MainWindow shell)
     {
-        Require(!shell.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!.IsVisible
+        Require(!shell.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ShellActionErrorBanner")!.IsVisible
             && !ShellErrorCards(shell).Any(card => card.Content is FeedbackToastContent { Entry: { } entry }
                 && entry.Category is FeedbackCategory.Warning or FeedbackCategory.Error),
             "Shell banner/toast overlays the active gallery after an actual shell error/return.");

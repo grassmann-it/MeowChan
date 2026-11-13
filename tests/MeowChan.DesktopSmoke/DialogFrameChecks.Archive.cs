@@ -106,7 +106,7 @@ internal static partial class DialogFrameChecks
         Click(start);
         await Program.WaitUntilAsync(() => !page.IsExportRunning
             && page.FindControl<TextBlock>("ArchiveExportError")!.Text?.Contains("fixture archive reader failure") == true);
-        Ursa.Controls.Banner banner = page.FindControl<Ursa.Controls.Banner>("ArchiveExportErrorBanner")!;
+        MeowChan.Desktop.Controls.WorkspaceBanner banner = page.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ArchiveExportErrorBanner")!;
         Require(banner.IsEffectivelyVisible && card.GetVisualDescendants().Contains(banner), "Export failure banner is not shown in the card.");
         await VerifyErrorStripAsync(card, "archive html export failure", "fixture archive reader failure");
         Capture(card, "archive-export-error");

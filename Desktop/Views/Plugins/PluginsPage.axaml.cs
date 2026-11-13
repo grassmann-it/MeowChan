@@ -618,7 +618,7 @@ public partial class PluginsPage : UserControl
         AutomationProperties.SetHelpText(summary, detail ?? string.Empty);
         summary.Focusable = !string.IsNullOrEmpty(text);
         AutomationProperties.SetName(summary, text);
-        C<Ursa.Controls.Banner>("PluginErrorBanner").IsVisible = !string.IsNullOrEmpty(text);
+        C<MeowChan.Desktop.Controls.WorkspaceBanner>("PluginErrorBanner").IsVisible = !string.IsNullOrEmpty(text);
     }
     private (long Generation, CancellationToken Token) BeginOperation()
     {

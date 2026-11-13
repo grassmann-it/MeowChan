@@ -1,6 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:desktop="clr-namespace:MeowChan.Desktop"
+             xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:controls="clr-namespace:MeowChan.Desktop.Controls"
              xmlns:feedback="clr-namespace:MeowChan.Desktop.Feedback"
              x:Class="MeowChan.DiagnosticsPage" SizeChanged="OnDiagnosticPageSizeChanged">
     <UserControl.Styles>
@@ -82,9 +82,13 @@
             </StackPanel>
         </ScrollViewer>
         <StackPanel Grid.Row="1" Spacing="8">
-            <ScrollViewer MaxHeight="64" HorizontalScrollBarVisibility="Disabled">
-                <TextBlock x:Name="DiagnosticsActionError" Classes="workspace-error" TextWrapping="Wrap" VerticalAlignment="Center" />
-            </ScrollViewer>
+            <!-- The result of the last action: a message surface while there is a text (error for a failure, information otherwise). -->
+            <controls:WorkspaceBanner x:Name="DiagnosticsActionBanner" Type="Error"
+                                      IsVisible="{Binding #DiagnosticsActionError.Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <ScrollViewer MaxHeight="64" HorizontalScrollBarVisibility="Disabled">
+                    <TextBlock x:Name="DiagnosticsActionError" Classes="workspace-error" TextWrapping="Wrap" VerticalAlignment="Center" />
+                </ScrollViewer>
+            </controls:WorkspaceBanner>
             <TextBlock x:Name="DiagnosticCopyPrivacy" Tag="diagnostics.copyPrivacy" Classes="workspace-help localized"
                        TextWrapping="Wrap" />
             <WrapPanel Classes="workspace-toolbar">

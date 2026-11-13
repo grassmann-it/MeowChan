@@ -49,7 +49,7 @@ internal static class ArchiveResultsExportChecks
         string Summary() => page.FindControl<TextBlock>("ArchiveExportSummary")!.Text!;
         string Status() => page.FindControl<TextBlock>("ArchiveExportStatus")!.Text!;
         string Error() => page.FindControl<TextBlock>("ArchiveExportError")!.Text ?? string.Empty;
-        bool ErrorVisible() => page.FindControl<Ursa.Controls.Banner>("ArchiveExportErrorBanner") is { IsVisible: true, IsEffectivelyVisible: true };
+        bool ErrorVisible() => page.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ArchiveExportErrorBanner") is { IsVisible: true, IsEffectivelyVisible: true };
         await CheckFormatAndScopeAsync(page, origin, Summary);
         await page.OpenExportForAllResultsAsync(origin);
         window.UpdateLayout();

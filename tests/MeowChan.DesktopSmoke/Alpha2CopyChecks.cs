@@ -112,7 +112,7 @@ internal static class Alpha2CopyChecks
             failSave = false;
             sources.SelectSource(Second);
             AssertSource(sources, providers[1], granted: false, active: true, hasPolicy: true);
-            Require(!C<Ursa.Controls.Banner>(sources, "SourceMediaIntegrityErrorBanner").IsVisible,
+            Require(!C<MeowChan.Desktop.Controls.WorkspaceBanner>(sources, "SourceMediaIntegrityErrorBanner").IsVisible,
                 "An old source's save error followed selection.");
 
             // A failed grant must never display a successful grant's retry guidance.
@@ -147,8 +147,8 @@ internal static class Alpha2CopyChecks
             await FinishPendingOnSelectionAsync(window, sources, pending);
             pending = null; failSave = false;
             AssertSource(sources, providers[1], granted: false, active: true, hasPolicy: true);
-            Require(first.GetView().IsGranted && !C<Ursa.Controls.Banner>(sources, "SourceMediaIntegrityErrorBanner").IsVisible
-                && !C<Ursa.Controls.Banner>(sources, "SourcesActionErrorBanner").IsVisible,
+            Require(first.GetView().IsGranted && !C<MeowChan.Desktop.Controls.WorkspaceBanner>(sources, "SourceMediaIntegrityErrorBanner").IsVisible
+                && !C<MeowChan.Desktop.Controls.WorkspaceBanner>(sources, "SourcesActionErrorBanner").IsVisible,
                 "Late failure changed consent or attached another source's error to the selection.");
             Observation(window, "late-failure-strict-selection", new { action = saves[^1], first = first.GetView(), second = second.GetView() });
 
@@ -308,10 +308,10 @@ internal static class Alpha2CopyChecks
         TextBlock error = C<TextBlock>(page, "SourceMediaIntegrityError");
         // Product code owns revealing failures: do not scroll/reveal after action.
         await Program.WaitUntilAsync(() => error.IsEffectivelyVisible && InViewport(window, error));
-        Require(C<Ursa.Controls.Banner>(page, "SourceMediaIntegrityErrorBanner").IsVisible
+        Require(C<MeowChan.Desktop.Controls.WorkspaceBanner>(page, "SourceMediaIntegrityErrorBanner").IsVisible
             && error.Text == Texts.T("sources.providerMismatchSaveFailed", Failure)
             && C<CheckBox>(page, "SourceAllowProviderMismatch").IsChecked == expectedSaved
-            && !C<Ursa.Controls.Banner>(page, "SourcesActionErrorBanner").IsVisible,
+            && !C<MeowChan.Desktop.Controls.WorkspaceBanner>(page, "SourcesActionErrorBanner").IsVisible,
             "Save failure lost its local identity, saved state or visible error banner.");
         AssertTextFits(error);
     }

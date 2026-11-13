@@ -194,6 +194,11 @@ public partial class DiagnosticsPage : UserControl
         TextBlock text = this.FindControl<TextBlock>("DiagnosticsActionError")!;
         text.Text = !current ? string.Empty
             : _actionFeedback!.MessageKey is { } key ? Texts.T(key) : _actionFeedback.Message;
+        // A failure is an error surface with error text; every other result (a batch count, a removed watch) is information.
+        bool failed = !current || _actionFeedback!.Failed;
+        text.Classes.Set("workspace-error", failed);
+        this.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("DiagnosticsActionBanner")!.Type =
+            failed ? Avalonia.Controls.Notifications.NotificationType.Error : Avalonia.Controls.Notifications.NotificationType.Information;
     }
     private async void OnCopyClick(object? sender, RoutedEventArgs e)
     {

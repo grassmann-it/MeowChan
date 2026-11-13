@@ -112,7 +112,7 @@
             </Grid>
         </Border>
         <Grid x:Name="WorkspacePages" Grid.Row="1" RowDefinitions="Auto,Auto,*">
-        <ursa:Banner Grid.Row="0" x:Name="ShellActionErrorBanner" Type="Error" CanClose="False" IsVisible="False" HorizontalContentAlignment="Stretch" Margin="12,8,12,0">
+        <controls:WorkspaceBanner Grid.Row="0" x:Name="ShellActionErrorBanner" Type="Error" IsVisible="False" Margin="12,8,12,0">
             <Grid ColumnDefinitions="*,Auto">
                 <Grid x:Name="ShellFeedbackLayout" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="4">
                     <ScrollViewer x:Name="ShellActionErrorScroll" Grid.ColumnSpan="2" MaxHeight="64" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="ShellActionError" TextWrapping="Wrap" /></ScrollViewer>
@@ -129,7 +129,7 @@
                     </Grid>
                 </Button>
             </Grid>
-        </ursa:Banner>
+        </controls:WorkspaceBanner>
         <Border x:Name="ClipboardSuggestionPanel" Grid.Row="1" IsVisible="False" Classes="panel" Margin="12,8,12,0" Padding="12,8"
                 KeyDown="OnClipboardSuggestionKeyDown">
             <Grid ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="4">
@@ -162,9 +162,9 @@
                                 MinWidth="100" MinHeight="{StaticResource Workspace.Size.InputProminent}" VerticalAlignment="Stretch" Click="OnAddUrl" />
                     </Grid>
                     <TextBlock x:Name="UrlInputHint" Tag="downloads.inputHint" Classes="localized workspace-help" TextWrapping="Wrap" />
-                    <ursa:Banner x:Name="AdmissionRepairPanel" IsVisible="False" Type="Error" CanClose="False" HorizontalContentAlignment="Stretch">
+                    <controls:WorkspaceBanner x:Name="AdmissionRepairPanel" IsVisible="False" Type="Error">
                         <ScrollViewer x:Name="AdmissionRepairScroll" MaxHeight="84" HorizontalScrollBarVisibility="Disabled"><SelectableTextBlock x:Name="AdmissionRepairText" TextWrapping="Wrap" FontSize="{StaticResource Workspace.Text.Meta}" /></ScrollViewer>
-                    </ursa:Banner>
+                    </controls:WorkspaceBanner>
                     <Border x:Name="AdmissionResultsPanel" IsVisible="False">
                         <Expander x:Name="AdmissionResultsExpander" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="False">
                             <Expander.Header><TextBlock x:Name="AdmissionResultsTitle" Text="URL results" /></Expander.Header>

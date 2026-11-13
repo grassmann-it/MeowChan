@@ -100,9 +100,9 @@ public partial class ArchivePage
         TextBlock error = ExportName(new TextBlock { TextWrapping = TextWrapping.Wrap }, "ArchiveExportError");
         error.Classes.Add("workspace-error");
         Avalonia.Automation.AutomationProperties.SetLiveSetting(error, Avalonia.Automation.AutomationLiveSetting.Assertive);
-        Ursa.Controls.Banner errorBanner = ExportName(new Ursa.Controls.Banner { Type = Avalonia.Controls.Notifications.NotificationType.Error,
-            CanClose = false, IsVisible = false, HorizontalContentAlignment = HorizontalAlignment.Stretch,
-            Content = new ScrollViewer { Content = error, MaxHeight = 120, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } }, "ArchiveExportErrorBanner");
+        MeowChan.Desktop.Controls.WorkspaceBanner errorBanner = ExportName(new MeowChan.Desktop.Controls.WorkspaceBanner { Type = Avalonia.Controls.Notifications.NotificationType.Error,
+            IsVisible = false,
+            Child = new ScrollViewer { Content = error, MaxHeight = 120, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } }, "ArchiveExportErrorBanner");
         TextBlock fixedScope = ExportName(new TextBlock { FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap }, "ArchiveExportFixedScope");
         StackPanel header = new() { Spacing = 8 };
         header.Children.Add(title); header.Children.Add(BuildExportChoices()); header.Children.Add(compactScope); header.Children.Add(fixedScope);

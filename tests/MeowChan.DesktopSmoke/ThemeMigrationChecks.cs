@@ -75,7 +75,7 @@ internal static class ThemeMigrationChecks
                     TextBlock megabytesError = rules.FindControl<TextBlock>("RuleMegabytesErrorText")!;
                     await Program.WaitUntilAsync(() => rules.HasValidationError && rules.CanSave
                         && megabytesError.IsEffectivelyVisible && megabytesError.Bounds.Height > 0
-                        && !rules.GetVisualDescendants().OfType<Banner>().Any(control => control.IsVisible));
+                        && !rules.GetVisualDescendants().OfType<WorkspaceBanner>().Any(control => control.IsVisible));
                     megabytesError.BringIntoView();
                     window.UpdateLayout();
                     Program.CaptureWindow(window, $"smoke-theme-validation-{language}-{theme.ToLowerInvariant()}.png");

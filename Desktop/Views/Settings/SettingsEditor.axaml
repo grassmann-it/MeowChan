@@ -3,7 +3,7 @@
              xmlns:ursa="https://irihi.tech/ursa"
              xmlns:local="clr-namespace:MeowChan"
              xmlns:commands="clr-namespace:MeowChan.Desktop.Commands"
-             xmlns:desktop="clr-namespace:MeowChan.Desktop"
+             xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:controls="clr-namespace:MeowChan.Desktop.Controls"
              xmlns:localization="clr-namespace:MeowChan.Desktop.Localization"
              x:Class="MeowChan.SettingsEditor" x:DataType="local:SettingsEditor"
              SizeChanged="OnEditorSizeChanged">
@@ -791,12 +791,12 @@
                     <Button x:Name="AboutSettingsButton" Click="OnAboutButtonClick" HorizontalAlignment="Left" />
                 </StackPanel>
                 <commands:ShortcutEditor x:Name="ShortcutsEditor" IsVisible="False" IsEnabled="{Binding IsEditable}" />
-                <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="{Binding HasError}"><StackPanel Spacing="6">
+                <controls:WorkspaceBanner Type="Error" IsVisible="{Binding HasError}"><StackPanel Spacing="6">
                     <TextBlock x:Name="SettingsError" Text="{Binding ErrorMessage}" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
                     <Expander x:Name="SettingsErrorDetails" Header="{Binding ErrorDetailsLabel}" IsVisible="{Binding HasErrorDetails}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                         <TextBox Text="{Binding ErrorDetails}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="150" />
                     </Expander>
-                </StackPanel></ursa:Banner>
+                </StackPanel></controls:WorkspaceBanner>
             </StackPanel>
         </ScrollViewer>
         </Grid>

@@ -368,7 +368,7 @@ internal static class PreferenceStartupChecks
                 "Shutdown left a writer/pending loop running after profile ownership was released.");
             Require(shell.IsVisible && Get<bool>(shell, "_isClosing") && !shell.FindControl<Button>("AddUrlButton")!.IsEnabled
                 && Get<SessionFeedbackStore>(shell, "_feedback").Entries.Any(e => e.Operation == "session.shutdown")
-                && shell.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!.IsVisible,
+                && shell.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ShellActionErrorBanner")!.IsVisible,
                 "Failed preferences did not leave the defined inert visible shutdown-error window.");
             if (scenario == "restore-fails")
                 Require(host.StartupError?.Contains("Owned F03 restore failure", StringComparison.Ordinal) == true,

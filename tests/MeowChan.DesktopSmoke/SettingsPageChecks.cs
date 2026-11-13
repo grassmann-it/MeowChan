@@ -239,7 +239,7 @@ internal static class SettingsPageChecks
     // section. The page body scrolls; the Save/Discard footer stays above the status bar.
     private static async Task CheckAdvancedMinimumWithBannerAsync(MainWindow window, SettingsEditor editor)
     {
-        Ursa.Controls.Banner banner = window.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!;
+        MeowChan.Desktop.Controls.WorkspaceBanner banner = window.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ShellActionErrorBanner")!;
         TextBlock bannerText = window.FindControl<TextBlock>("ShellActionError")!;
         bool bannerVisible = banner.IsVisible;
         string? bannerMessage = bannerText.Text;

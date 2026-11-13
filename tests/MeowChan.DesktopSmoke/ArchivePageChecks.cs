@@ -216,7 +216,7 @@ internal static class ArchivePageChecks
                 Grid root = page.FindControl<Grid>("ArchiveRoot")!;
                 Border readerContent = page.FindControl<Border>("ArchiveReaderContent")!;
                 double blankBelowReader = page.Bounds.Height - (readerContent.TranslatePoint(default, page)!.Value.Y + readerContent.Bounds.Height);
-                bool errorShown = page.FindControl<Ursa.Controls.Banner>("ArchiveErrorBanner")!.IsVisible;
+                bool errorShown = page.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ArchiveErrorBanner")!.IsVisible;
                 Console.WriteLine($"SMOKE archive stacked footer {mode}/{language}: listVisible={page.FindControl<Grid>("ArchiveListPane")!.IsVisible}, readerRows={readerPane.RowDefinitions.Count}, statusStrip={root.RowDefinitions[2].ActualHeight}, blankBelowReader={blankBelowReader}, errorShown={errorShown}");
                 Require(readerPane.RowDefinitions.Count == 2 && page.FindControl<TextBlock>("ArchivePartialHint") == null
                     && (errorShown || blankBelowReader <= root.Margin.Bottom + 1),

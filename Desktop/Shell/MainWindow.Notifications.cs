@@ -182,7 +182,7 @@ public partial class MainWindow
     {
         if (source is not Control control || !control.Focusable) return;
         // Focus inside the banner or a toast is the feedback surface itself, not a place to return to.
-        if (control.GetSelfAndVisualAncestors().Any(v => v is Ursa.Controls.Banner or FeedbackToastContent or NotificationCard)) return;
+        if (control.GetSelfAndVisualAncestors().Any(v => v is MeowChan.Desktop.Controls.WorkspaceBanner or FeedbackToastContent or NotificationCard)) return;
         _feedbackReturnTarget = new WeakReference<Control>(control);
     }
 

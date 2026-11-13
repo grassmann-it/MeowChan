@@ -711,7 +711,7 @@ internal static class ReaderUxChecks
                 // at the page margin. Showing a message must not move list, pager or reader.
                 Grid root = page.FindControl<Grid>("ArchiveRoot")!;
                 double rootMargin = root.Margin.Bottom;
-                Require(page.FindControl<Ursa.Controls.Banner>("ArchiveErrorBanner")!.IsVisible
+                Require(page.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ArchiveErrorBanner")!.IsVisible
                     // The split spans the empty status row, so measure the visible edges, not the row.
                     || (Bounds(page).Bottom - left.Bottom <= rootMargin + 1
                         && Bounds(page).Bottom - right.Bottom <= rootMargin + 1),
