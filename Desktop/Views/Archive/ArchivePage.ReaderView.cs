@@ -27,9 +27,9 @@ public partial class ArchivePage
     internal const int ReaderPageSizeMinimum = 20;
     internal const int ReaderPageSizeMaximum = 200;
     // Conversation indentation: a local left margin on the post container, set before it is measured.
-    internal const double ReaderIndentStep = 20;
+    internal const double ReaderIndentStep = ReaderNavigationLayout.ConversationIndentStep;
     internal const int ReaderIndentMaximumLevels = 16;
-    internal const double ReaderIndentMaximumShare = 0.4;
+    internal const double ReaderIndentMaximumShare = ReaderNavigationLayout.ConversationIndentMaximumShare;
     // Mirrors the ListBoxItem margin of the post list's style ("6,4"); a local value replaces the whole margin.
     private static readonly Thickness ReaderPostCardMargin = new(6, 4);
 
@@ -365,7 +365,8 @@ public partial class ArchivePage
             Log.Warning(error, "The reader view for {Thread} could not be built; showing every post.", thread.Summary.Id);
             _failedProjectionInputs = inputs;
             FinishProjectionBuild();
-            Message(error.Message, true);
+            string message = ordering != null ? Texts.T("reader.conversation.failed", error.Message) : error.Message;
+            Message(message, true);
             ApplyProjection(ReaderPostProjection.Identity(thread));
         }
         finally
@@ -450,8 +451,7 @@ public partial class ArchivePage
 
     internal static Thickness ReaderPostIndentMargin(int depth, double listWidth)
     {
-        double indent = Math.Clamp(depth, 0, ReaderIndentMaximumLevels) * ReaderIndentStep;
-        if (listWidth > 0) indent = Math.Min(indent, listWidth * ReaderIndentMaximumShare);
+        double indent = ReaderNavigationLayout.ConversationIndent(depth, listWidth, ReaderNavigationLayout.CardMaxWidth);
         return new Thickness(ReaderPostCardMargin.Left + indent, ReaderPostCardMargin.Top, ReaderPostCardMargin.Right, ReaderPostCardMargin.Bottom);
     }
 
