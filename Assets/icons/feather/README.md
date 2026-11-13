@@ -10,6 +10,8 @@ with rsvg-convert 2.62.3 / Cairo 1.18.4. Use their alpha channel with the existi
 Avalonia `ImageBrush`/`OpacityMask` approach and a theme foreground color. They
 cover 16–24 logical pixels through 200% display scaling. Larger sizes need larger
 derivatives or vector rendering. The original SVGs remain unchanged.
+`masks/star-filled.png` is the one filled derivative: `star.svg` rendered the same way
+with `fill="currentColor"` instead of `fill="none"`, for the marked favorite state.
 
 These are prepared assets, not a record of completed UI integration. The local
 0.9.0 architecture handoff contains the action map, source and derivative SHA-256

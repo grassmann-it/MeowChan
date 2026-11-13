@@ -731,13 +731,13 @@ internal static class ReaderInteractionChecks
             Click(star);
             page.RefreshArchiveFavoriteControls();
             Require(star.IsChecked == false && (AutomationProperties.GetName(star) ?? string.Empty).Contains("Fixture favorite write denied"), "Favorite refresh hid the failure or claimed success.");
-            Require(star.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == "Fixture favorite write denied"), "Favorite failure is not visible at the medium.");
+            // The reason is in the star's tooltip (opened once for a new error) and its error edge, not in the card layout.
+            Require((ToolTip.GetTip(star) as string)?.Contains("Fixture favorite write denied") == true
+                && !star.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == "Fixture favorite write denied"),
+                "Favorite failure is not in the star's tooltip or still pushes text into the card.");
             Require(star.Focusable && AutomationProperties.GetLiveSetting(star) == AutomationLiveSetting.Assertive, "Favorite failure is not keyboard/automation reachable.");
             await FlushAsync();
             await Task.Delay(120);
-            Require(star.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == "Fixture favorite write denied"
-                    && text.Bounds.Height > 0 && text.Foreground?.Opacity > 0 && text.IsEffectivelyVisible),
-                "Favorite failure has no laid-out visible text.");
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
             Point? top = star.TranslatePoint(default, posts);
             Require(top != null && top.Value.Y >= 0 && top.Value.Y + star.Bounds.Height <= posts.Bounds.Height,
