@@ -67,8 +67,8 @@ public sealed class LocalMediaTagResolverTests
         IReadOnlyList<GalleryEntry> gallery = await GalleryAsync(temp.Path, Loose);
         MediaLibrarySnapshot index = await MediaLibraryIndexTests.BuildAsync(temp.Path);
         string cache = Path.Combine(temp.Path, "cache", MediaLibraryIndexCache.FileName);
-        MediaLibraryIndexCache.Save(cache, index);
-        MediaLibrarySnapshot cached = MediaLibraryIndexCache.Load(cache)!;
+        MediaLibraryIndexCacheSync.Save(cache, index);
+        MediaLibrarySnapshot cached = MediaLibraryIndexCacheSync.Load(cache)!;
 
         Assert.Equal(4, gallery.Count);
         Assert.All(gallery, entry => Assert.True(entry.LocalTagEligible));

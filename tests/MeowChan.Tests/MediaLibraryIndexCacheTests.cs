@@ -129,7 +129,7 @@ public sealed class MediaLibraryIndexCacheTests
 
         // A file the earlier code wrote (version 3) is read as it is: no cold rebuild after the update.
         BaselineMediaLibraryIndexCache.Save(path, built);
-        MediaLibrarySnapshot? fromV3 = MediaLibraryIndexCache.Load(path);
+        MediaLibrarySnapshot? fromV3 = MediaLibraryIndexCacheSync.Load(path);
         Assert.NotNull(fromV3);
         Assert.Equal(built.Entries, fromV3!.Entries);
         Assert.Equal(built.Threads.Select(thread => (thread.Thread, thread.Revision, thread.Complete, thread.Manifests.Count)),
@@ -141,7 +141,7 @@ public sealed class MediaLibraryIndexCacheTests
         Assert.Equal(2, progress.Last().Reused);
 
         // Without identities the new document is the old one with another version number: the earlier code reads it too.
-        MediaLibraryIndexCache.Save(path, built);
+        MediaLibraryIndexCacheSync.Save(path, built);
         string written = await File.ReadAllTextAsync(path);
         Assert.Contains("\"Version\":4", written);
         await File.WriteAllTextAsync(path, written.Replace("\"Version\":4", "\"Version\":3"));
@@ -151,17 +151,17 @@ public sealed class MediaLibraryIndexCacheTests
         if (IdentitiesAvailable(temp.Path))
         {
             MediaLibrarySnapshot pinned = await MediaLibraryIndexBuilder.BuildAsync(Reader(temp.Path), new MediaManifestCache());
-            MediaLibraryIndexCache.Save(path, pinned);
+            MediaLibraryIndexCacheSync.Save(path, pinned);
             string withIdentity = await File.ReadAllTextAsync(path);
             Assert.Contains("\"I\":[", withIdentity);
-            Assert.True(MediaLibrarySnapshot.SameContent(pinned, MediaLibraryIndexCache.Load(path)));
+            Assert.True(MediaLibrarySnapshot.SameContent(pinned, MediaLibraryIndexCacheSync.Load(path)));
             await File.WriteAllTextAsync(path, withIdentity.Replace("\"Version\":4", "\"Version\":3"));
-            Assert.Null(MediaLibraryIndexCache.Load(path));
+            Assert.Null(MediaLibraryIndexCacheSync.Load(path));
             foreach (string damaged in new[] { withIdentity.Replace("\"I\":[", "\"I\":[1,"), withIdentity.Replace("\"I\":[", "\"I\":\"x\",\"J\":["),
                          withIdentity.Replace("\"D\":", "\"Dx\":") })
             {
                 await File.WriteAllTextAsync(path, damaged);
-                Assert.Null(MediaLibraryIndexCache.Load(path));
+                Assert.Null(MediaLibraryIndexCacheSync.Load(path));
             }
         }
     }
@@ -172,8 +172,8 @@ public sealed class MediaLibraryIndexCacheTests
         using TempDirectory temp = new();
         string path = Path.Combine(temp.Path, MediaLibraryIndexCache.FileName);
         MediaLibrarySnapshot synthetic = MediaLibraryIndexBenchmark.Synthetic(1_000);
-        MediaLibraryIndexCache.Save(path, synthetic);
-        MediaLibrarySnapshot loaded = MediaLibraryIndexCache.Load(path)!;
+        MediaLibraryIndexCacheSync.Save(path, synthetic);
+        MediaLibrarySnapshot loaded = MediaLibraryIndexCacheSync.Load(path)!;
         Assert.Equal(synthetic.Entries, loaded.Entries);
         foreach (IGrouping<ResourceId, MediaLibraryEntry> thread in loaded.Entries.GroupBy(entry => entry.Thread))
         {
@@ -222,7 +222,7 @@ public sealed class MediaLibraryIndexCacheTests
         await WriteManifestAsync(Path.Combine(temp.Path, "media", "b"), B, new File_("copy.png", "x1", [9, 9], "200"));
         MediaLibrarySnapshot changed = await PlainAsync(temp.Path, again);
         Assert.Equal(MediaLibraryIndexCacheWriteStatus.Written, (await store.SaveAsync(changed, MediaLibraryIndexCache.DefaultLimitBytes)).Status);
-        Assert.Equal(changed.Entries, MediaLibraryIndexCache.Load(path)!.Entries);
+        Assert.Equal(changed.Entries, MediaLibraryIndexCacheSync.Load(path)!.Entries);
         Assert.Equal(new[] { path }, Directory.GetFiles(Path.GetDirectoryName(path)!));
     }
 
@@ -269,7 +269,7 @@ public sealed class MediaLibraryIndexCacheTests
         Assert.Equal(MediaLibraryIndexCacheWriteStatus.TooLarge, refused.Status);
         Assert.True(refused.NearOrOverLimit);
         Assert.InRange(refused.Bytes, limit + 1, limit + 1024 * 1024);
-        Assert.Equal(small.Entries, MediaLibraryIndexCache.Load(path)!.Entries);
+        Assert.Equal(small.Entries, MediaLibraryIndexCacheSync.Load(path)!.Entries);
         Assert.Equal(new[] { path }, Directory.GetFiles(Path.GetDirectoryName(path)!));
         // The same refused index is not written up to the limit on every visit.
         Assert.Same(refused, await store.SaveAsync(large, limit));
@@ -287,7 +287,7 @@ public sealed class MediaLibraryIndexCacheTests
         MediaLibraryIndexCacheWrite unchanged = await lowered.SaveAsync(read, MediaLibraryIndexCache.MinimumLimitBytes / 1024);
         Assert.Equal(MediaLibraryIndexCacheWriteStatus.Unchanged, unchanged.Status);
         Assert.True(unchanged.NearOrOverLimit);
-        Assert.Equal(large.Entries, MediaLibraryIndexCache.Load(path)!.Entries);
+        Assert.Equal(large.Entries, MediaLibraryIndexCacheSync.Load(path)!.Entries);
     }
 
     [Fact]
@@ -297,7 +297,7 @@ public sealed class MediaLibraryIndexCacheTests
         await SeedAsync(temp.Path);
         string path = Path.Combine(temp.Path, "cache", MediaLibraryIndexCache.FileName);
         MediaLibrarySnapshot built = await MediaLibraryIndexBuilder.BuildAsync(Reader(temp.Path), new MediaManifestCache());
-        MediaLibraryIndexCache.Save(path, built);
+        MediaLibraryIndexCacheSync.Save(path, built);
         using CancellationTokenSource cancelled = new();
         cancelled.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new MediaLibraryIndexCacheFile(path).LoadAsync(cancelled.Token));
@@ -305,7 +305,7 @@ public sealed class MediaLibraryIndexCacheTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => MediaLibraryIndexBuilder.BuildAsync(Reader(temp.Path), new MediaManifestCache(), built,
             cancellationToken: cancelled.Token));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new MediaLibraryIndexCacheFile(path).SaveAsync(built, MediaLibraryIndexCache.DefaultLimitBytes, cancelled.Token));
-        Assert.Equal(built.Entries, MediaLibraryIndexCache.Load(path)!.Entries);
+        Assert.Equal(built.Entries, MediaLibraryIndexCacheSync.Load(path)!.Entries);
     }
 
     private sealed class ManualTime : TimeProvider

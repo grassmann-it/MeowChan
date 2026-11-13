@@ -133,7 +133,7 @@ public sealed class MediaLibraryIndexBenchmark
         MeasureSave(size, report, "after.saveAgain", () => again = reopened.SaveAsync(loaded, MediaLibraryIndexCache.DefaultLimitBytes).GetAwaiter().GetResult());
         Line(report, size, "after.saveAgain.status", again.Status);
         // The new reader also reads the file the earlier code wrote (version 3).
-        Assert.Equal(snapshot.Entries, MediaLibraryIndexCache.Load(before)!.Entries);
+        Assert.Equal(snapshot.Entries, MediaLibraryIndexCacheSync.Load(before)!.Entries);
         GC.KeepAlive(loaded);
     }
 

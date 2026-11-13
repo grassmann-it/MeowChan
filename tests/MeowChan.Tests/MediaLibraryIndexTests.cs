@@ -198,8 +198,8 @@ public sealed class MediaLibraryIndexTests
         MediaLibrarySnapshot built = await BuildAsync(temp.Path);
         string path = Path.Combine(temp.Path, "cache", MediaLibraryIndexCache.FileName);
 
-        MediaLibraryIndexCache.Save(path, built);
-        MediaLibrarySnapshot? loaded = MediaLibraryIndexCache.Load(path);
+        MediaLibraryIndexCacheSync.Save(path, built);
+        MediaLibrarySnapshot? loaded = MediaLibraryIndexCacheSync.Load(path);
 
         Assert.NotNull(loaded);
         Assert.Equal(built.Entries.OrderBy(Key), loaded!.Entries.OrderBy(Key));
@@ -212,19 +212,19 @@ public sealed class MediaLibraryIndexTests
         string valid = await File.ReadAllTextAsync(path);
         // Version 4 is current (manifest file identities); version 3 is still read; an older or a newer document is no cache and rebuilds.
         Assert.Contains("\"Version\":4", valid);
-        Assert.NotNull(MediaLibraryIndexCache.Load(path));
+        Assert.NotNull(MediaLibraryIndexCacheSync.Load(path));
         foreach (string damaged in new[] { "{bad", valid.Replace("\"Version\":4", "\"Version\":5"), valid.Replace("\"Version\":4", "\"Version\":2"),
                      valid.Replace("\"Threads\":[", "\"Extra\":1,\"Threads\":["),
                      valid.Replace("\"Sha\":\"" + Sha(Shared) + "\"", "\"Sha\":\"nothex\"") })
         {
             await File.WriteAllTextAsync(path, damaged);
-            Assert.Null(MediaLibraryIndexCache.Load(path));
+            Assert.Null(MediaLibraryIndexCacheSync.Load(path));
         }
         File.Delete(path);
-        Assert.Null(MediaLibraryIndexCache.Load(path));
+        Assert.Null(MediaLibraryIndexCacheSync.Load(path));
         // Saving again replaces without leaving backups or preserved copies behind.
-        MediaLibraryIndexCache.Save(path, built);
-        MediaLibraryIndexCache.Save(path, built);
+        MediaLibraryIndexCacheSync.Save(path, built);
+        MediaLibraryIndexCacheSync.Save(path, built);
         Assert.Equal(new[] { path }, Directory.GetFiles(Path.GetDirectoryName(path)!));
     }
 

@@ -70,9 +70,6 @@ internal static class MediaLibraryIndexCache
         public IReadOnlyList<MediaLibraryManifestState>? Pm { get; set; }
     }
 
-    /// <summary>Null when there is no usable cache. Never throws for file content problems.</summary>
-    internal static MediaLibrarySnapshot? Load(string path) => LoadAsync(path).GetAwaiter().GetResult()?.Snapshot;
-
     /// <summary>The cached index, the file's size and its identity while it was read; null when there is no usable cache.</summary>
     internal static async Task<MediaLibraryIndexCacheRead?> LoadAsync(string path, CancellationToken cancellationToken = default)
     {
@@ -131,10 +128,6 @@ internal static class MediaLibraryIndexCache
         return new MediaLibrarySnapshot(document.Entries, document.Threads, Array.Empty<string>(),
             complete: document.Threads.All(thread => thread.Complete), providerManifests: document.Pm);
     }
-
-    /// <summary>Atomic replace within the default limit. Failures are ignored by callers: the index is rebuilt next time.</summary>
-    internal static void Save(string path, MediaLibrarySnapshot snapshot, CancellationToken token = default) =>
-        SaveAsync(path, snapshot, DefaultLimitBytes, DefaultEntryLimit, DefaultThreadLimit, token).GetAwaiter().GetResult();
 
     /// <summary>
     /// Writes the index as a stream to a temporary file and replaces the cache atomically. Stops as soon as the document

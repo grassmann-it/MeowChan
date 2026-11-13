@@ -458,14 +458,14 @@ public sealed class ManualImportTests
         Assert.All(gallery, entry => Assert.IsType<MediaTagSubject.Local>(MediaTagSubjects.Of(entry)));
 
         string cache = Path.Combine(fixture.Temp.Path, "media-index.json");
-        MediaLibraryIndexCache.Save(cache, index);
-        MediaLibrarySnapshot cached = MediaLibraryIndexCache.Load(cache)!;
+        MediaLibraryIndexCacheSync.Save(cache, index);
+        MediaLibrarySnapshot cached = MediaLibraryIndexCacheSync.Load(cache)!;
         Assert.Equal(index.Entries.Select(entry => entry.ImportItemId), cached.Entries.Select(entry => entry.ImportItemId));
         // Imported files are a version 4 feature: a version 3 document never carries them and is no cache.
         string document = File.ReadAllText(cache);
         Assert.Contains("\"Im\":", document);
         File.WriteAllText(cache, document.Replace("\"Version\":4", "\"Version\":3"));
-        Assert.Null(MediaLibraryIndexCache.Load(cache));
+        Assert.Null(MediaLibraryIndexCacheSync.Load(cache));
         File.WriteAllText(cache, document);
 
         // Revalidation reads the import catalog and the batch manifest, never the archive.

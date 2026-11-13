@@ -221,14 +221,14 @@ public sealed class BooruMediaProjectionTests
             store.UpsertPost(Claim("123"), Observed);
             await SaveAsync(temp.Path, store, "123", Png);
             built = await BuildAsync(temp.Path, store);
-            MediaLibraryIndexCache.Save(cache, built);
+            MediaLibraryIndexCacheSync.Save(cache, built);
         }
 
         // A new process: no provider, no network, only the files the profile holds.
         string json = await File.ReadAllTextAsync(cache);
         Assert.Contains("\"Version\":4", json);
         Assert.Contains("\"Bp\":\"123\"", json);
-        MediaLibrarySnapshot? loaded = MediaLibraryIndexCache.Load(cache);
+        MediaLibrarySnapshot? loaded = MediaLibraryIndexCacheSync.Load(cache);
         Assert.NotNull(loaded);
         Assert.Equal(built.Entries, loaded!.Entries);
         Assert.Equal("123", Assert.Single(loaded.Entries).BooruPostId);
@@ -275,8 +275,8 @@ public sealed class BooruMediaProjectionTests
         Assert.Equal((await BuildAsync(temp.Path, store)).Entries, first.Entries);
 
         opens = 0;
-        MediaLibraryIndexCache.Save(Path.Combine(temp.Path, "c.json"), first);
-        MediaLibrarySnapshot second = await Pinned(MediaLibraryIndexCache.Load(Path.Combine(temp.Path, "c.json")));
+        MediaLibraryIndexCacheSync.Save(Path.Combine(temp.Path, "c.json"), first);
+        MediaLibrarySnapshot second = await Pinned(MediaLibraryIndexCacheSync.Load(Path.Combine(temp.Path, "c.json")));
         Assert.Equal(0, opens);
         Assert.Equal(first.Entries, second.Entries);
 
@@ -306,10 +306,10 @@ public sealed class BooruMediaProjectionTests
             BooruCatalogStore store = new(temp.Path, lease);
             store.UpsertPost(Claim("123"), Observed);
             await SaveAsync(temp.Path, store, "123", Png);
-            MediaLibraryIndexCache.Save(cache, await BuildAsync(temp.Path, store));
+            MediaLibraryIndexCacheSync.Save(cache, await BuildAsync(temp.Path, store));
         }
         string valid = await File.ReadAllTextAsync(cache);
-        Assert.NotNull(MediaLibraryIndexCache.Load(cache));
+        Assert.NotNull(MediaLibraryIndexCacheSync.Load(cache));
 
         // An older (v2) cache has no provider media and a newer one (v5) is unknown: both mean rebuild.
         foreach (string damaged in new[]
@@ -320,7 +320,7 @@ public sealed class BooruMediaProjectionTests
                  })
         {
             await File.WriteAllTextAsync(cache, damaged);
-            Assert.Null(MediaLibraryIndexCache.Load(cache));
+            Assert.Null(MediaLibraryIndexCacheSync.Load(cache));
         }
     }
 
