@@ -16,6 +16,3 @@ These are prepared assets, not a record of completed UI integration. The local
 inventory, preview and portable kit under
 `docs/architecture/0.9.0/references/ui-icons/`. That planning directory is ignored
 by Git. The source/version and license above remain with the asset tree.
-
-The older PNGs in the parent directory have an unknown export revision. This
-source pin applies only to this `feather/` subtree.

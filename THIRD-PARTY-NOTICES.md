@@ -254,9 +254,9 @@ proprietary theme assemblies are no longer dependencies or distributed assets.
 
 ## Bundled visual assets
 
-- `Assets/icons/*.png`: Feather Icons, attributed by the application's existing
-  About window. The original export revision is unknown. The verified upstream
-  MIT text and Cole Bemis attribution are included below.
+- `Assets/icons/feather/`: Feather Icons v4.29.2 (unchanged SVG originals and
+  derived PNG alpha masks), attributed by the application's About window. The
+  verified upstream MIT text and Cole Bemis attribution are included below.
 - `Avalonia.Fonts.Inter`: Inter font version `3.019;git-0a5106e0b`, verified from
   the font metadata at the package source commit. Font files are covered by SIL
   Open Font License 1.1; the Avalonia wrapper's MIT declaration does not replace
@@ -450,17 +450,11 @@ Source: [LICENSE](https://raw.githubusercontent.com/feathericons/feather/1b00239
 
 Original SHA-256: `308028e93fcf84972523cdf6e616f73168546b4953895f516d01287f16fe7bee`.
 
-Applies to `Assets/icons/*.png`, `Assets/icons/feather/*.svg`, and the derived
-`Assets/icons/feather/masks/*.png`. The new `feather/` SVGs are unchanged originals
+Applies to `Assets/icons/feather/*.svg` and the derived
+`Assets/icons/feather/masks/*.png`. The `feather/` SVGs are unchanged originals
 from Feather v4.29.2, commit `1b002399e8758fb2bccea4d07312dc9e0f43dcb8`; their
 48 × 48 PNG alpha masks are local raster derivatives. The original MIT license
 also accompanies those assets as `Assets/icons/feather/LICENSE`.
-
-The existing About window identifies Feather as the source of the older
-`Assets/icons/*.png`. Their original PNG export revision is not recorded;
-v4.29.2 is the verified upstream license source, not a claim about their exporter
-version. The pinned source of the new `feather/` assets does not change that
-historical limitation.
 
 ````text
 The MIT License (MIT)
