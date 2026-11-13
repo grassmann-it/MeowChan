@@ -2056,7 +2056,7 @@
     "tags.rowLabel": "Etiquetas: {0}",
     "tags.unavailable": "No se pudieron cargar las etiquetas propias. No se cambió nada.",
     "tags.notReady": "Las etiquetas se pueden cambiar cuando la sesión esté lista.",
-    "tags.error.invalidName": "Este nombre de etiqueta no está permitido. Use de 1 a 128 caracteres sin saltos de línea ni caracteres de control.",
+    "tags.error.invalidName": "Este nombre de etiqueta no está permitido. Use de 1 a 128 caracteres (puntos de código Unicode; un emoji puede contar como varios) sin saltos de línea ni caracteres de control.",
     "tags.error.capacity": "Se alcanzó un límite técnico fijo de las etiquetas propias: como máximo 50000 asignaciones de etiquetas para hilos, medios y archivos locales cada uno, y como máximo 50000 archivos locales etiquetados con 64 versiones cada uno (100000 en total). Solo el número de etiquetas es un ajuste: «Límite de etiquetas propias» en Configuración → Almacenamiento y límites, como máximo 20000. No se cambió nada.",
     "tags.error.tagLimit": "Se alcanzó el límite de etiquetas propias. No se cambió nada. Puede aumentarlo en Configuración → Almacenamiento y límites → «Límite de etiquetas propias».",
     "tags.error.fileLimit": "El archivo de etiquetas propias alcanzó su límite de tamaño. No se cambió nada. Puede aumentarlo en Configuración → Almacenamiento y límites → «Límite del archivo de etiquetas propias (MiB)».",
@@ -2987,7 +2987,7 @@
     "budgets.favoriteFileHint": "Límite de tamaño de cada uno de los tres archivos de lista. Se rechaza un cambio que haría crecer un archivo por encima de este valor; quitar entradas siempre funciona. Si sube mucho el límite de entradas, suba también este. Permitido: de 1 a 128 MiB.",
 
     "budgets.postBookmarks": "Marcadores de publicaciones",
-    "budgets.postBookmarksHint": "Cuántas publicaciones pueden tener un marcador. La longitud de la nota (8000 caracteres) y el tamaño del archivo (32 MiB) son límites técnicos fijos. Permitido: de 1000 a 100000.",
+    "budgets.postBookmarksHint": "Cuántas publicaciones pueden tener un marcador. La longitud de la nota (8000 caracteres, contados como puntos de código Unicode; un emoji puede contar como varios) y el tamaño del archivo (32 MiB) son límites técnicos fijos. Permitido: de 1000 a 100000.",
     "budgets.savedSearches": "Búsquedas guardadas",
     "budgets.savedSearchesHint": "Cuántas búsquedas del archivo puede guardar. El tamaño del archivo (8 MiB) es un límite técnico fijo. Permitido: de 50 a 5000.",
     "budgets.readerGroups": "Grupos de lectura",
