@@ -488,7 +488,6 @@
     </Style>
     <Style Selector="ProgressBar"><Setter Property="Background" Value="{DynamicResource Workspace.ProgressTrack}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Progress}" /></Style>
     <Style Selector="TextBlock.muted, SelectableTextBlock.muted"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /></Style>
-    <Style Selector="TextBlock.error, SelectableTextBlock.error"><Setter Property="Foreground" Value="{DynamicResource Workspace.Error}" /></Style>
     <Style Selector="TextBlock.brand"><Setter Property="FontSize" Value="19" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
     <Style Selector="TextBlock.page-title"><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Title}" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
     <Style Selector="TextBlock.section-title"><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Section}" /><Setter Property="FontWeight" Value="SemiBold" /></Style>

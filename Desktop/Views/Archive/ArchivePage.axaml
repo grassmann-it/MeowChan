@@ -558,7 +558,7 @@
                                                     <CheckBox x:Name="ReaderLinkRemember" />
                                                     <WrapPanel HorizontalAlignment="Right" ItemSpacing="8" LineSpacing="6">
                                                         <Button x:Name="ReaderLinkCancel" Click="OnReaderLinkCancel" />
-                                                        <Button x:Name="ReaderLinkOpen" Classes="accent" Click="OnReaderLinkOpen" />
+                                                        <Button x:Name="ReaderLinkOpen" Classes="primary" Click="OnReaderLinkOpen" />
                                                     </WrapPanel>
                                                 </StackPanel>
                                             </Border>
