@@ -12,6 +12,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
@@ -281,11 +282,11 @@ internal sealed class FeedbackToastContent : Grid
             HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled });
         DismissButton = new Button
         {
-            Name = "FeedbackToastDismissButton", Content = "×", FontSize = 20,
+            Name = "FeedbackToastDismissButton", Content = "×",
             MinWidth = 32, MinHeight = 32, Padding = new Avalonia.Thickness(8, 2),
             Margin = new Avalonia.Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top,
             Command = new DelegateCommand(() => dismiss(this))
-        };
+        }.TitleText();
         DismissButton.Classes.Add("subtle");
         LocalizeDismissButton();
         SetColumn(DismissButton, 1);

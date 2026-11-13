@@ -28,7 +28,7 @@ internal sealed partial class GalleryViewer
         Padding = new Thickness(7, 3),
         Background = new SolidColorBrush(Color.FromArgb(210, 24, 26, 31)),
         IsHitTestVisible = false, Focusable = false, IsVisible = false, ZIndex = 16,
-        Child = new TextBlock { FontSize = 16, Foreground = Brushes.White, IsHitTestVisible = false }
+        Child = new TextBlock { Foreground = Brushes.White, IsHitTestVisible = false }.SubtitleText()
     }.BadgeCorners();
 
     private void InitializeFavoriteIndicators()

@@ -37,7 +37,7 @@ internal sealed class ManualImportDialog : Window
     private readonly ManualImportSession _session;
     private readonly Func<PrivateTagStoreSnapshot?> _tagSnapshot;
     private readonly WindowChromeBar _chrome = new() { Name = "ManualImportChrome" };
-    private readonly TextBlock _heading = new() { TextWrapping = TextWrapping.Wrap, FontWeight = FontWeight.SemiBold, FontSize = 16 };
+    private readonly TextBlock _heading = new() { TextWrapping = TextWrapping.Wrap, Classes = { "card-title" } };
     private readonly TextBlock _intro = new() { TextWrapping = TextWrapping.Wrap, Classes = { "muted" } };
     private readonly TextBlock _target = new() { Name = "ManualImportTarget", TextWrapping = TextWrapping.Wrap, Classes = { "muted" } };
     private readonly TextBlock _rootsLabel = new() { TextWrapping = TextWrapping.Wrap };

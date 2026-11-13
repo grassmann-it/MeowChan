@@ -16,7 +16,8 @@
         <Grid Grid.Row="1" RowDefinitions="Auto,Auto,*,Auto">
             <Border x:Name="DialogFrameHeader" Padding="20,16,20,8">
                 <StackPanel Spacing="6">
-                    <TextBlock x:Name="SetupHeading" Classes="section-title" FontSize="23" />
+                    <!-- The welcome heading stays one step above the 16 dip dialog headings: Title (20), the nearest scale step to the former 23. -->
+                    <TextBlock x:Name="SetupHeading" Classes="page-title" FontSize="{StaticResource Workspace.Text.Title}" />
                     <TextBlock x:Name="SetupIntroduction" Classes="workspace-help" />
                 </StackPanel>
             </Border>

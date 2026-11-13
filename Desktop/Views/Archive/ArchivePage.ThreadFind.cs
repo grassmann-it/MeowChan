@@ -199,7 +199,7 @@ public partial class ArchivePage
             excerpt.Inlines.Add(new Run { Text = Texts.T("readerFind.location", text.PostId,
                 field, hit.Offset + 1, hit.Length) + "\n" });
             excerpt.Inlines.Add(new Run { Text = snippet.Before });
-            excerpt.Inlines.Add(new Run { Text = snippet.Match, FontWeight = FontWeight.Bold });
+            excerpt.Inlines.Add(new Run { Text = snippet.Match, FontWeight = FontWeight.SemiBold });
             excerpt.Inlines.Add(new Run { Text = snippet.After });
             if (text.Field == ReaderFindField.Body && hit.Offset + hit.Length > 65536)
                 excerpt.Inlines.Add(new Run { Text = "\n" + Texts.T("readerFind.beyondDisplay") });

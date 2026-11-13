@@ -56,7 +56,7 @@ public partial class MainWindow
                 item.Content = new StackPanel { Spacing = 3, MaxWidth = 320, Children =
                 {
                     new TextBlock { Text = title },
-                    new TextBlock { Text = Texts.T("mode." + mode + "Description"), FontSize = 12, TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                    new TextBlock { Text = Texts.T("mode." + mode + "Description"), TextWrapping = Avalonia.Media.TextWrapping.Wrap }.MetaText(),
                     new TextBlock { Text = Texts.T("mode.sameSession"), TextWrapping = Avalonia.Media.TextWrapping.Wrap }.CaptionText()
                 }};
             }

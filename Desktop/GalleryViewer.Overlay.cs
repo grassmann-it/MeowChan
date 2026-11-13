@@ -97,16 +97,16 @@ internal sealed partial class GalleryViewer
             HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center,
             Margin = new Thickness(4), Padding = new Thickness(0),
             Background = Brushes.Transparent, BorderBrush = Brushes.Transparent, BorderThickness = new Thickness(0),
-            FontSize = 24, Focusable = true, FocusAdorner = null, IsVisible = false, ZIndex = 15,
+            Focusable = true, FocusAdorner = null, IsVisible = false, ZIndex = 15,
             // Own the complete template: theme hover/pressed presenters must never
             // introduce a filled rectangle or white border around these hints.
             Template = new FuncControlTemplate<Button>((button, _) => new TextBlock
             {
-                Text = button.Content?.ToString(), FontSize = 24,
+                Text = button.Content?.ToString(),
                 Foreground = new SolidColorBrush(Color.FromArgb(100, 150, 150, 150)),
                 HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
                 IsHitTestVisible = false, Opacity = 0
-            })
+            }.TitleText())
         };
         SetEdgeIndicatorLabel(indicator, EdgeIndicatorLabel(post));
         return indicator;

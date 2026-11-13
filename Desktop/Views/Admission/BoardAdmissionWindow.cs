@@ -103,7 +103,7 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
         foreach (string url in urls.Distinct(StringComparer.Ordinal))
         {
             var rulePanel = new StackPanel { Spacing = 8 };
-            var summary = new TextBlock { Name = "BoardAdmissionSummary", FontWeight = FontWeight.SemiBold, FontSize = 14, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+            var summary = new TextBlock { Name = "BoardAdmissionSummary", Classes = { "section-title" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
             var matches = Help(string.Empty); matches.Name = "BoardAdmissionMatches"; matches.IsVisible = false;
             var reinclude = new Button { Name = "BoardAdmissionReinclude", IsEnabled = false, IsVisible = false };
             var status = Help(Texts.T("wizard.loading")); status.Name = "BoardAdmissionStatus";

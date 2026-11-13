@@ -617,8 +617,8 @@ public partial class MainWindow : Window
             rows.Children.Add(new SelectableTextBlock
             {
                 Name = "AdmissionSourcesHelp", Text = repairSources,
-                TextWrapping = TextWrapping.Wrap, FontSize = 12
-            });
+                TextWrapping = TextWrapping.Wrap
+            }.MetaText());
         }
     }
 
@@ -631,7 +631,7 @@ public partial class MainWindow : Window
         {
             Name = "AdmissionShowInListButton", HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
             Padding = new Thickness(10, 2), MaxWidth = 460,
-            Content = new TextBlock { Text = label + " · " + duplicate.Url, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 12 }
+            Content = new TextBlock { Text = label + " · " + duplicate.Url, TextTrimming = TextTrimming.CharacterEllipsis }.MetaText()
         };
         link.Classes.Add("subtle");
         Avalonia.Automation.AutomationProperties.SetName(link, label + ": " + duplicate.Url);

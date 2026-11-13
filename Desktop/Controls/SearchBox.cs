@@ -44,8 +44,8 @@ public class SearchBox : TextBox
     private readonly Button _clear = new() { Name = "SearchBoxClear", Width = 22, Height = 22, MinWidth = 0, MinHeight = 0, Padding = new Thickness(0),
         Background = Brushes.Transparent, BorderThickness = new Thickness(0), Focusable = true, IsTabStop = false, VerticalAlignment = VerticalAlignment.Center,
         HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center, IsVisible = false };
-    private readonly TextBlock _count = new() { Name = "SearchBoxCount", FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0),
-        TextTrimming = TextTrimming.CharacterEllipsis, IsVisible = false };
+    private readonly TextBlock _count = new TextBlock { Name = "SearchBoxCount", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0),
+        TextTrimming = TextTrimming.CharacterEllipsis, IsVisible = false }.MetaText();
     private readonly StackPanel _tail = new() { Orientation = Orientation.Horizontal, Spacing = 2 };
     private QueryDebounce? _debounce;
     private bool _silent, _geometryApplied;

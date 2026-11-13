@@ -281,7 +281,7 @@
                         <TextBlock x:Name="ReaderTagStatus" TextWrapping="Wrap" IsVisible="False" />
                     </StackPanel>
                     <WrapPanel x:Name="ReaderStatusLine" Orientation="Horizontal">
-                        <TextBlock x:Name="ArchiveReaderStatus" Classes="muted" TextWrapping="Wrap" FontSize="12" VerticalAlignment="Center" Margin="0,0,16,0" />
+                        <TextBlock x:Name="ArchiveReaderStatus" Classes="workspace-meta" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" />
                         <CheckBox x:Name="ReaderFollowLive" IsEnabled="False" IsCheckedChanged="OnReaderFollowLiveChanged" Margin="0,0,12,0" />
                         <TextBlock x:Name="ReaderNewPostsNotice" IsVisible="False" VerticalAlignment="Center" Margin="0,0,12,0" />
                         <Button x:Name="ReaderShowNewPosts" IsVisible="False" Click="OnShowReaderUpdates" />

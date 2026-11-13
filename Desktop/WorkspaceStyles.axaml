@@ -1142,10 +1142,14 @@
     <!-- D5 typography. Subtitle (16, SemiBold): the heading of a DialogFrame (whatever class the dialog gave it: page-title 20 or
          section-title 14 before) and the title of a content card (Booru hit, watcher). tnum: tabular figures for counters, tables
          and transfer numbers, so a changing number does not make its neighbours jump (Inter ships the feature). -->
-    <Style Selector="Border#DialogFrameHeader TextBlock.page-title, Border#DialogFrameHeader TextBlock.section-title, TextBlock.card-title">
+    <Style Selector="Border#DialogFrameHeader TextBlock.page-title, Border#DialogFrameHeader TextBlock.section-title, TextBlock.card-title, SelectableTextBlock.card-title">
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Subtitle}" /><Setter Property="FontWeight" Value="SemiBold" />
     </Style>
     <Style Selector="TextBlock.tnum, SelectableTextBlock.tnum, DataGrid TextBlock"><Setter Property="FontFeatures" Value="tnum" /></Style>
+    <!-- Figures (D5 / P5): figure columns line up (right-aligned, tabular figures); a headline figure (statistics value tiles,
+         counters, transfer numbers) is one Subtitle step, SemiBold, tabular. -->
+    <Style Selector="TextBlock.stats-num"><Setter Property="TextAlignment" Value="Right" /><Setter Property="HorizontalAlignment" Value="Right" /><Setter Property="FontFeatures" Value="tnum" /></Style>
+    <Style Selector="TextBlock.stats-value"><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Subtitle}" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="FontFeatures" Value="tnum" /></Style>
 
     <!-- D3 surfaces (design language 5, 6.2). workspace-card: content card on Panel or Background (Booru hit, watcher, reader post
          through the same tokens): Card + CardEdge 1 px, radius 5, no shadow, never a card inside a card. workspace-card-active: the

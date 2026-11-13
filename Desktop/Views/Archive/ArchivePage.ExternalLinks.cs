@@ -45,7 +45,7 @@ public partial class ArchivePage
         (string prefix, string host, string tail) = ReaderExternalLink.Display(uri);
         InlineCollection inlines = new();
         inlines.Add(new Run(prefix) { [!TextElement.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted") });
-        inlines.Add(new Run(host) { FontWeight = FontWeight.Bold, [!TextElement.ForegroundProperty] = new DynamicResourceExtension("Workspace.Accent") });
+        inlines.Add(new Run(host) { FontWeight = FontWeight.SemiBold, [!TextElement.ForegroundProperty] = new DynamicResourceExtension("Workspace.Accent") });
         inlines.Add(new Run(tail) { [!TextElement.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted") });
         ReaderLinkUrl.Inlines = inlines;
         ReaderLinkRemember.IsChecked = false;

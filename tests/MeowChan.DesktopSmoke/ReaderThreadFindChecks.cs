@@ -262,7 +262,7 @@ internal static class ReaderThreadFindChecks
                         && runs.Length == 4 && runs[0].Text == Texts.T("readerFind.location", postId,
                             Texts.T("readerFind.body"), 1, 512) + "\n"
                         && runs[1].Text == "" && runs[2].Text == expected
-                        && runs[2].FontWeight == FontWeight.Bold && runs[3].Text == "",
+                        && runs[2].FontWeight == FontWeight.SemiBold && runs[3].Text == "",
                         "Boundary query was not searched/displayed as the exact complete saved-text hit.");
                 }
             }
@@ -290,7 +290,7 @@ internal static class ReaderThreadFindChecks
                 Run[] runs = C<TextBlock>("ReaderFindExcerpt").Inlines!.OfType<Run>().ToArray();
                 Require(runs.Length == 4 && runs[0].Text == Texts.T("readerFind.location", "1650",
                     Texts.T("readerFind.body"), position, Needle.Length) + "\n"
-                    && runs[2].Text == Needle && runs[2].FontWeight == FontWeight.Bold
+                    && runs[2].Text == Needle && runs[2].FontWeight == FontWeight.SemiBold
                     && string.Concat(runs.Skip(1).Select(run => run.Text)) == Body,
                     "Exact inert excerpt/location does not identify the selected occurrence.");
             }
@@ -497,7 +497,7 @@ internal static class ReaderThreadFindChecks
                     && C<TextBlock>("ReaderFindStatus").Text == Texts.T("readerFind.count", selected, 3)
                     && runs.Length == 4 && runs[0].Text == Texts.T("readerFind.location", "3650",
                         Texts.T("readerFind.body"), 1 + (selected - 1) * 12, Needle.Length) + "\n"
-                    && runs[2].Text == Needle && runs[2].FontWeight == FontWeight.Bold
+                    && runs[2].Text == Needle && runs[2].FontWeight == FontWeight.SemiBold
                     && string.Concat(runs.Skip(1).Select(run => run.Text)) == triple
                     && C<ListBox>("ArchivePosts").SelectedItem is ArchivePostRow { Id: "3650" }
                     && unexpectedClicks == 0,

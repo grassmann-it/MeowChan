@@ -67,8 +67,8 @@ public sealed class ArchiveThreadFavoriteButton : Button
         IsEnabled = _row?.CanToggleThreadFavorite == true;
         // An unknown state is an unmarked star, dimmed, that says it is loading; a "?" reads as help or as an error.
         bool loading = _row?.ThreadFavorite == null;
-        Content = new TextBlock { Text = marked ? "★" : "☆", FontSize = 18, Opacity = loading ? 0.5 : 1,
-            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        Content = new TextBlock { Text = marked ? "★" : "☆", Opacity = loading ? 0.5 : 1,
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }.SubtitleText();
         string label = ThreadFavoriteText.Action(marked);
         string description = loading && _row?.ThreadFavoriteError == null && _row != null
             ? Texts.T("archive.threadFavorite.loading") : ThreadFavoriteText.Hint(marked);

@@ -35,8 +35,8 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private readonly VideoView _video = new() { Name = "GalleryNativeVideo", MinHeight = 100 };
     private readonly Image _softwareVideo = new() { Name = "GallerySoftwareVideo", MinHeight = 100, Stretch = Avalonia.Media.Stretch.Uniform };
     // Status and time belong to the themed transport below the black media viewport.
-    private readonly TextBlock _status = new() { Name = "GalleryVideoStatus", FontSize = 12, Margin = new Thickness(0, 4, 0, 0), TextWrapping = Avalonia.Media.TextWrapping.Wrap, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text") };
-    private readonly TextBlock _time = new() { Name = "GalleryVideoTime", FontSize = 12, MinWidth = 76, TextAlignment = Avalonia.Media.TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted") };
+    private readonly TextBlock _status = new TextBlock { Name = "GalleryVideoStatus", Margin = new Thickness(0, 4, 0, 0), TextWrapping = Avalonia.Media.TextWrapping.Wrap, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text") }.MetaText();
+    private readonly TextBlock _time = new TextBlock { Name = "GalleryVideoTime", MinWidth = 76, TextAlignment = Avalonia.Media.TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted") }.MetaText();
     private readonly Button _playPause = new() { Name = "GalleryVideoPlayPause", Classes = { "media-control", "media-play" }, Width = 40, Height = 40, CornerRadius = new CornerRadius(20), Padding = new Thickness(10) };
     private readonly ToggleButton _mute = new() { Name = "GalleryVideoMute", Classes = { "media-control" }, Width = 32, Height = 32, Padding = new Thickness(7) };
     private readonly ToggleButton _loop = new() { Name = "GalleryVideoLoop", Classes = { "media-control" }, Width = 32, Height = 32, Padding = new Thickness(7) };

@@ -302,7 +302,9 @@ public sealed class GalleryFavoriteStateTests
         Assert.Equal(new Thickness(7, 3), badge.Padding);
         Assert.Equal(16, badge.ZIndex);
         TextBlock glyph = Assert.IsType<TextBlock>(badge.Child);
-        Assert.Equal(16, glyph.FontSize);
+        // The size is the Subtitle token (bound dynamically, so a headless control has no resolved size yet).
+        Assert.Contains("Foreground = Brushes.White, IsHitTestVisible = false }.SubtitleText()",
+            File.ReadAllText(Path.Combine(Path.GetDirectoryName(SourceFile())!, "../../Desktop/GalleryViewer.Favorites.cs")));
         Assert.False(glyph.IsHitTestVisible);
         Assert.False(glyph.Focusable);
     }
@@ -480,6 +482,8 @@ public sealed class GalleryFavoriteStateTests
         }
         finally { SynchronizationContext.SetSynchronizationContext(previous); }
     });
+
+    private static string SourceFile([System.Runtime.CompilerServices.CallerFilePath] string path = "") => path;
 
     private sealed class QueueOwnerContext : SynchronizationContext, IDisposable
     {

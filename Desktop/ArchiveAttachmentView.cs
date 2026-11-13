@@ -50,8 +50,8 @@ public sealed class ArchiveAttachmentView : UserControl
 
     private readonly MediaFramePanel _slot = new();
     private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false };
-    private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12,
-        VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+    private readonly TextBlock _status = new TextBlock { TextWrapping = TextWrapping.Wrap,
+        VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center }.MetaText();
     private readonly Border _play = new()
     {
         Name = "VideoPlayOverlay", Width = 44, Height = 44, CornerRadius = new CornerRadius(22),
@@ -68,11 +68,11 @@ public sealed class ArchiveAttachmentView : UserControl
     };
     // Imageboard file line above the preview: "name.ext (size)" when the capture knows the size.
     // It takes the block's width and wraps to two lines, then trims: a long name never widens the block beyond the picture.
-    private readonly TextBlock _label = new() { TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.Wrap, MaxLines = 2, FontSize = 12,
-        VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) };
+    private readonly TextBlock _label = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.Wrap, MaxLines = 2,
+        VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) }.MetaText();
     // A quiet slot surface only while no thumbnail is shown (loading, missing, unsupported).
     private readonly Border _placeholder = new() { CornerRadius = new CornerRadius(5), IsHitTestVisible = false };
-    private readonly TextBlock _provenance = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12, IsVisible = false };
+    private readonly TextBlock _provenance = new TextBlock { TextWrapping = TextWrapping.Wrap, IsVisible = false }.MetaText();
     private readonly Button _button;
     private readonly ArchiveFavoriteButton _favorite = new() { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
 

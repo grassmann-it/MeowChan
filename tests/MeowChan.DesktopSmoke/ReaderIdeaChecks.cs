@@ -613,7 +613,7 @@ internal static class ReaderIdeaChecks
         await Enter(two);
         Require(page.IsExternalLinkDialogOpen && page.PendingExternalLink == new Uri("https://second.example/b") && launched.Count == 0,
             "A selection inside the second link did not ask about exactly that address.");
-        Require(page.FindControl<SelectableTextBlock>("ReaderLinkUrl")!.Inlines!.OfType<Run>().Any(run => run.Text == "second.example" && run.FontWeight == FontWeight.Bold),
+        Require(page.FindControl<SelectableTextBlock>("ReaderLinkUrl")!.Inlines!.OfType<Run>().Any(run => run.Text == "second.example" && run.FontWeight == FontWeight.SemiBold),
             "The confirmation did not highlight the host.");
         Require(Named("ReaderLinkCancel").IsFocused, "The link confirmation did not start with the focus on Cancel.");
         // Assistive technology gets the address; the dialog counts as an open reader dialog (shortcuts stand still) and Tab cycles inside it.
@@ -650,7 +650,7 @@ internal static class ReaderIdeaChecks
         ReaderBodyTextBlock lookAlike = await Realize("354");
         await Enter(lookAlike);
         Require(page.IsExternalLinkDialogOpen && page.FindControl<SelectableTextBlock>("ReaderLinkUrl")!.Inlines!.OfType<Run>().Any(run =>
-            run.Text == "xn--bcher-kva.example" && run.FontWeight == FontWeight.Bold), "The confirmation did not show the host in punycode.");
+            run.Text == "xn--bcher-kva.example" && run.FontWeight == FontWeight.SemiBold), "The confirmation did not show the host in punycode.");
         page.CloseExternalLinkDialog();
 
         // A link inside a hidden spoiler: Enter reveals first and opens nothing; the next Enter asks.

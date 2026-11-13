@@ -29,9 +29,9 @@
                                    AutomationProperties.AccessibilityView="Raw" />
                         </Button>
                         <TextBlock Classes="brand" VerticalAlignment="Center" AutomationProperties.Name="MeowChan"><Run Text="Meow" /><Run Text="Chan" Foreground="{DynamicResource Workspace.Accent}" /></TextBlock>
-                        <TextBlock x:Name="WorkspaceVersion" Classes="muted" FontSize="12" VerticalAlignment="Center" />
+                        <TextBlock x:Name="WorkspaceVersion" Classes="muted" FontSize="{StaticResource Workspace.Text.Meta}" VerticalAlignment="Center" />
                     </StackPanel>
-                    <TextBlock x:Name="WorkspaceSubtitle" Grid.Column="1" Tag="shell.subtitle" Classes="localized muted" FontSize="12"
+                    <TextBlock x:Name="WorkspaceSubtitle" Grid.Column="1" Tag="shell.subtitle" Classes="localized muted" FontSize="{StaticResource Workspace.Text.Meta}"
                                VerticalAlignment="Center" FontStyle="Italic" TextTrimming="CharacterEllipsis" />
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                         <!-- A button, so keyboard and screen reader reach it: the name is the current values and a click opens the
@@ -123,7 +123,7 @@
                         AutomationProperties.Name="{Binding #ShellFeedbackDismissLabel.Text}"
                         ToolTip.Tip="{Binding #ShellFeedbackDismissLabel.Text}">
                     <Grid>
-                        <TextBlock Text="×" FontSize="20" HorizontalAlignment="Center" />
+                        <TextBlock Text="×" FontSize="{StaticResource Workspace.Text.Title}" HorizontalAlignment="Center" />
                         <!-- The normal workspace localizer also refreshes this accessible-only label. -->
                         <TextBlock x:Name="ShellFeedbackDismissLabel" Tag="feedback.dismiss" Classes="localized" IsVisible="False" />
                     </Grid>
@@ -152,7 +152,7 @@
                     <Border x:Name="StartupPreviewPanel" Classes="panel" Padding="10,6" IsVisible="False">
                         <StackPanel Spacing="2">
                             <TextBlock x:Name="StartupPreviewTitle" FontWeight="SemiBold" TextWrapping="Wrap" />
-                            <TextBlock x:Name="StartupPreviewDetails" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                            <TextBlock x:Name="StartupPreviewDetails" Classes="workspace-meta" TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
@@ -163,7 +163,7 @@
                     </Grid>
                     <TextBlock x:Name="UrlInputHint" Tag="downloads.inputHint" Classes="localized workspace-help" TextWrapping="Wrap" />
                     <ursa:Banner x:Name="AdmissionRepairPanel" IsVisible="False" Type="Error" CanClose="False" HorizontalContentAlignment="Stretch">
-                        <ScrollViewer x:Name="AdmissionRepairScroll" MaxHeight="84" HorizontalScrollBarVisibility="Disabled"><SelectableTextBlock x:Name="AdmissionRepairText" TextWrapping="Wrap" FontSize="12" /></ScrollViewer>
+                        <ScrollViewer x:Name="AdmissionRepairScroll" MaxHeight="84" HorizontalScrollBarVisibility="Disabled"><SelectableTextBlock x:Name="AdmissionRepairText" TextWrapping="Wrap" FontSize="{StaticResource Workspace.Text.Meta}" /></ScrollViewer>
                     </ursa:Banner>
                     <Border x:Name="AdmissionResultsPanel" IsVisible="False">
                         <Expander x:Name="AdmissionResultsExpander" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="False">
@@ -181,7 +181,7 @@
                     <Grid RowDefinitions="Auto,Auto,*" ColumnDefinitions="Auto,*">
                         <TabControl x:Name="DownloadsTabs" MinHeight="38" Padding="0" SelectionChanged="OnWorkspaceTabChanged">
                             <TabControl.Styles>
-                                <Style Selector="TabItem"><Setter Property="MinHeight" Value="38" /><Setter Property="Padding" Value="12,8" /><Setter Property="FontSize" Value="12" /></Style>
+                                <Style Selector="TabItem"><Setter Property="MinHeight" Value="38" /><Setter Property="Padding" Value="12,8" /><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /></Style>
                             </TabControl.Styles>
                             <TabItem x:Name="ThreadsTab" Header="Threads" />
                             <TabItem x:Name="BoardsTab" Header="Boards" />
@@ -226,7 +226,7 @@
                                             <TextBlock Text="{Binding Title}" VerticalAlignment="Center" FontWeight="Medium" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}" />
                                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
                                                 <TextBlock Text="{Binding PriorityBadge}" IsVisible="{Binding IsHighPriority}" ToolTip.Tip="{Binding PriorityDescription}" AutomationProperties.Name="{Binding PriorityDescription}" />
-                                                <TextBlock Text="{Binding ThreadId, StringFormat='#{0}'}" VerticalAlignment="Center" Classes="muted inline-thread-id" FontSize="12" />
+                                                <TextBlock Text="{Binding ThreadId, StringFormat='#{0}'}" VerticalAlignment="Center" Classes="muted inline-thread-id" FontSize="{StaticResource Workspace.Text.Meta}" />
                                             </StackPanel>
                                         </Grid>
                                     </DataTemplate>
@@ -248,11 +248,11 @@
                                     <DataTemplate x:DataType="desktop:ThreadRow">
                                         <StackPanel VerticalAlignment="Center" Spacing="0" ToolTip.Tip="{Binding CompactDetails}" AutomationProperties.Name="{Binding CompactDetails}">
                                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                                                <TextBlock Text="{Binding CompactStatus}" IsVisible="{Binding ShowCompactStatus}" VerticalAlignment="Center" FontSize="12" Classes="muted compact-work-status" TextTrimming="CharacterEllipsis" AutomationProperties.Name="{Binding CompactStatus}" />
+                                                <TextBlock Text="{Binding CompactStatus}" IsVisible="{Binding ShowCompactStatus}" VerticalAlignment="Center" FontSize="{StaticResource Workspace.Text.Meta}" Classes="muted compact-work-status" TextTrimming="CharacterEllipsis" AutomationProperties.Name="{Binding CompactStatus}" />
                                                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center" ToolTip.Tip="{Binding Progress}" AutomationProperties.Name="{Binding SavedProgress}">
-                                                    <TextBlock Text="{Binding CompletedMedia}" Classes="mono" FontSize="12" />
-                                                    <TextBlock Text="/" Classes="muted mono" FontSize="12" />
-                                                    <TextBlock Text="{Binding SelectedMedia}" Classes="mono" FontSize="12" />
+                                                    <TextBlock Text="{Binding CompletedMedia}" Classes="mono" FontSize="{StaticResource Workspace.Text.Meta}" />
+                                                    <TextBlock Text="/" Classes="muted mono" FontSize="{StaticResource Workspace.Text.Meta}" />
+                                                    <TextBlock Text="{Binding SelectedMedia}" Classes="mono" FontSize="{StaticResource Workspace.Text.Meta}" />
                                                 </StackPanel>
                                             </Grid>
                                             <ProgressBar AutomationProperties.Name="{Binding Progress}" Value="{Binding Completion}" Minimum="0" Maximum="100" Height="3" MinHeight="0" MaxHeight="3" />
@@ -340,10 +340,10 @@
                                 </Grid>
                         <desktop:ActionToolBar x:Name="WorkspaceListActions" Grid.Column="1"
                                     HorizontalAlignment="Stretch" VerticalAlignment="Center" Margin="8,0,8,0">
-                            <Button x:Name="DownloadSearchButton" Classes="localized subtle" Tag="downloads.search" Click="OnDownloadSearchClick" ursa:ToolBar.OverflowMode="Never" FontSize="12" />
-                            <Button x:Name="DownloadsColumnsButton" Classes="subtle" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="12" />
-                            <Button x:Name="CopyAllUrlsButton" Tag="action.copyAllUrls" Classes="localized subtle" Content="Copy URLs" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="12" />
-                            <Button x:Name="DetailsToggleButton" Classes="subtle" Content="Details" Click="OnDetailsToggleClick" ursa:ToolBar.OverflowMode="Never" FontSize="12" />
+                            <Button x:Name="DownloadSearchButton" Classes="localized subtle" Tag="downloads.search" Click="OnDownloadSearchClick" ursa:ToolBar.OverflowMode="Never" FontSize="{StaticResource Workspace.Text.Meta}" />
+                            <Button x:Name="DownloadsColumnsButton" Classes="subtle" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="{StaticResource Workspace.Text.Meta}" />
+                            <Button x:Name="CopyAllUrlsButton" Tag="action.copyAllUrls" Classes="localized subtle" Content="Copy URLs" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="{StaticResource Workspace.Text.Meta}" />
+                            <Button x:Name="DetailsToggleButton" Classes="subtle" Content="Details" Click="OnDetailsToggleClick" ursa:ToolBar.OverflowMode="Never" FontSize="{StaticResource Workspace.Text.Meta}" />
                         </desktop:ActionToolBar>
                         <Grid x:Name="DownloadSearchBar" Grid.Row="1" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6" Margin="8,2,8,6" IsVisible="False">
                             <controls:SearchBox x:Name="DownloadSearchInput" MinWidth="100" TextChanged="OnDownloadSearchChanged" />
@@ -366,8 +366,8 @@
                                 <TextBlock x:Name="InspectorEmptyState" Tag="detail.empty" Classes="localized muted" TextWrapping="Wrap" />
                                 <StackPanel x:Name="InspectorSelection" Classes="workspace-section-body" IsVisible="False">
                                     <StackPanel Spacing="5">
-                                        <TextBlock x:Name="InspectorKind" Classes="muted" FontSize="12" />
-                                        <SelectableTextBlock x:Name="InspectorTitle" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="InspectorKind" Classes="muted" FontSize="{StaticResource Workspace.Text.Meta}" />
+                                        <SelectableTextBlock x:Name="InspectorTitle" Classes="card-title" TextWrapping="Wrap" />
                                         <SelectableTextBlock x:Name="InspectorSource" Classes="muted" TextWrapping="Wrap" />
                                     </StackPanel>
                                     <StackPanel Classes="workspace-field">
@@ -375,7 +375,7 @@
                                         <SelectableTextBlock x:Name="InspectorStatus" TextWrapping="Wrap" />
                                     </StackPanel>
                                     <StackPanel x:Name="InspectorErrorSection" Spacing="8">
-                                        <TextBlock Tag="detail.error" Classes="localized muted" FontSize="12" />
+                                        <TextBlock Tag="detail.error" Classes="localized muted" FontSize="{StaticResource Workspace.Text.Meta}" />
                                         <SelectableTextBlock x:Name="InspectorError" Classes="workspace-error" TextWrapping="Wrap" />
                                     </StackPanel>
                                     <SelectableTextBlock x:Name="InspectorContext" Classes="workspace-warning" TextWrapping="Wrap" IsVisible="False" />
@@ -396,8 +396,8 @@
                                         </WrapPanel>
                                     </StackPanel>
                                     <StackPanel x:Name="InspectorMediaSection" Classes="workspace-section-header">
-                                        <TextBlock Tag="detail.progress" Classes="localized muted" FontSize="12" />
-                                        <SelectableTextBlock x:Name="InspectorProgress" FontSize="13" FontWeight="Medium" TextWrapping="Wrap" />
+                                        <TextBlock Tag="detail.progress" Classes="localized muted" FontSize="{StaticResource Workspace.Text.Meta}" />
+                                        <SelectableTextBlock x:Name="InspectorProgress" FontWeight="Medium" TextWrapping="Wrap" />
                                         <TextBlock x:Name="InspectorKnownMedia" Classes="muted" TextWrapping="Wrap" />
                                         <ProgressBar x:Name="InspectorProgressBar" Minimum="0" Maximum="100" Height="3" MinHeight="0" MaxHeight="3" />
                                         <TextBlock x:Name="InspectorQueue" Classes="muted" />
@@ -407,11 +407,11 @@
                                         <StackPanel Spacing="12">
                                             <StackPanel Spacing="4">
                                                 <TextBlock Tag="detail.url" Classes="localized workspace-meta" />
-                                                <SelectableTextBlock x:Name="InspectorUrl" TextWrapping="Wrap" FontSize="12" />
+                                                <SelectableTextBlock x:Name="InspectorUrl" TextWrapping="Wrap" FontSize="{StaticResource Workspace.Text.Meta}" />
                                             </StackPanel>
                                             <StackPanel Spacing="4">
                                                 <TextBlock Tag="detail.directory" Classes="localized workspace-meta" />
-                                                <SelectableTextBlock x:Name="InspectorDirectory" TextWrapping="Wrap" FontSize="12" />
+                                                <SelectableTextBlock x:Name="InspectorDirectory" TextWrapping="Wrap" FontSize="{StaticResource Workspace.Text.Meta}" />
                                             </StackPanel>
                                             <Button x:Name="InspectorCopyUrlButton" Tag="action.copyUrl" Classes="localized subtle" Content="Copy URL" />
                                         </StackPanel>
@@ -420,7 +420,7 @@
                                     <Border BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
                                         <StackPanel Spacing="8">
                                             <Button x:Name="InspectorRemoveButton" Tag="action.remove" Classes="localized subtle danger" Content="Remove" Click="OnInspectorRemoveClick" />
-                                            <TextBlock x:Name="InspectorRemoveHint" Classes="muted" TextWrapping="Wrap" FontSize="12" />
+                                            <TextBlock x:Name="InspectorRemoveHint" Classes="workspace-meta" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
@@ -441,11 +441,11 @@
         </Grid>
         <Border Grid.Row="2" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="20,0">
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12" VerticalAlignment="Center">
-                <TextBlock x:Name="WorkspaceStatus" Classes="muted" FontSize="12" TextTrimming="CharacterEllipsis" />
+                <TextBlock x:Name="WorkspaceStatus" Classes="muted" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis" />
                 <!-- Warns from 75 percent of the favorites, thread favorites and ratings limits and names the setting. -->
-                <TextBlock x:Name="WorkspaceStoreWarning" Grid.Column="1" IsVisible="False" MaxWidth="560" FontSize="12" TextTrimming="CharacterEllipsis"
+                <TextBlock x:Name="WorkspaceStoreWarning" Grid.Column="1" IsVisible="False" MaxWidth="560" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis"
                            Foreground="{DynamicResource Workspace.Warning}" AutomationProperties.LiveSetting="Polite" />
-                <TextBlock x:Name="WorkspaceCounts" Grid.Column="2" Classes="muted tnum" FontSize="12" TextTrimming="CharacterEllipsis" />
+                <TextBlock x:Name="WorkspaceCounts" Grid.Column="2" Classes="muted tnum" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis" />
             </Grid>
         </Border>
         <Border x:Name="WorkspaceNavigation" Grid.Row="3" Classes="shell-bar" BorderThickness="0,1,0,0" Padding="12,5">

@@ -4,9 +4,6 @@
              xmlns:stats="clr-namespace:MeowChan.Desktop.Stats"
              x:Class="MeowChan.StatisticsPage">
     <UserControl.Styles>
-        <!-- Numbers line up: right-aligned, tabular figures. -->
-        <Style Selector="TextBlock.stats-num"><Setter Property="TextAlignment" Value="Right" /><Setter Property="HorizontalAlignment" Value="Right" /><Setter Property="FontFeatures" Value="tnum" /></Style>
-        <Style Selector="TextBlock.stats-value"><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Subtitle}" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="FontFeatures" Value="tnum" /></Style>
         <Style Selector="DataGridCell TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
         <Style Selector="DataGridRow.stats-total-row DataGridCell"><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /><Setter Property="BorderThickness" Value="0,1,0,0" /></Style>
     </UserControl.Styles>
