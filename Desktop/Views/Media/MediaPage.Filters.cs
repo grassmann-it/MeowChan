@@ -152,54 +152,6 @@ public sealed partial class MediaPage
             _withoutMediaTags.IsChecked == true);
     }
 
-    /// <summary>Entries that pass the filter; empty with an explanation when the filter cannot be applied.</summary>
-    private IReadOnlyList<MediaLibraryEntry> ApplyFilter(IReadOnlyList<MediaLibraryEntry> entries)
-    {
-        if (!ReferenceEquals(_optionsFor, _snapshot)) RenderSourceOptions();
-        string? error = null;
-        IReadOnlyList<MediaLibraryEntry> passing;
-        _audioUnknown = 0;
-        try
-        {
-            MediaLibraryFilter filter = CurrentFilter();
-            _filterActive = !filter.IsEmpty;
-            MediaLibraryFilterResult result = MediaLibraryFilterEngine.Evaluate(entries, filter, _userData, _audio);
-            passing = result.Passing;
-            _audioUnknown = result.UnknownSoundVideos;
-            _untaggedTiles = filter.WithoutMediaTags ? null : UntaggedOf(entries)?.CountTiles(passing);
-        }
-        catch (MediaLibraryFilterException exception)
-        {
-            error = Texts.T(exception.Error switch
-            {
-                MediaLibraryFilterError.UnknownTag => "media.filter.error.unknownTag",
-                MediaLibraryFilterError.TagsUnavailable => "media.filter.error.tags",
-                MediaLibraryFilterError.FavoritesUnavailable => "media.filter.error.favorites",
-                _ => "media.filter.error.ratings"
-            });
-            passing = Array.Empty<MediaLibraryEntry>();
-        }
-        catch (ArgumentException)
-        {
-            error = Texts.T("media.filter.error.invalid");
-            _filterActive = true;
-            passing = Array.Empty<MediaLibraryEntry>();
-        }
-        _filterFailed = error != null;
-        if (_filterFailed) _untaggedTiles = null;
-        _filterError.Text = error;
-        _filterError.IsVisible = error != null;
-        _filterReset.IsEnabled = _filterActive;
-        UpdateAudioNote();
-        return passing;
-    }
-
-    private MediaLibraryUntagged? UntaggedOf(IReadOnlyList<MediaLibraryEntry> entries)
-    {
-        if (_untagged?.IsFor(entries, _userData) != true) _untagged = MediaLibraryUntagged.Of(entries, _userData);
-        return _untagged;
-    }
-
     /// <summary>The "N without media tags" link of the status line: shown while it would narrow the matches to untagged media.</summary>
     private Control BuildStatusRow(TextBlock status)
     {

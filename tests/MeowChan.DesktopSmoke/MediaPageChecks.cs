@@ -291,6 +291,33 @@ internal static partial class MediaPageChecks
             name.Text = "  TWO ";
             await UntilAsync(() => Shown() == "200:200");
             reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            // A large library presents off the UI thread: the grid keeps its rows until the new ones are ready, only the newest of
+            // several requests is applied, and the selection is carried over.
+            page.BackgroundPresentEntries = 0;
+            try
+            {
+                MediaLibraryTile picked = page.Tiles[1];
+                page.Grid.Selection.Select(1);
+                int presentedInBackground = page.PresentCount;
+                object? rowsBefore = page.Grid.ItemsSource;
+                kind.SelectedIndex = (int)MediaLibraryKindFilter.Gif;
+                kind.SelectedIndex = (int)MediaLibraryKindFilter.Image;
+                Require(page.PresentCount == presentedInBackground && ReferenceEquals(page.Grid.ItemsSource, rowsBefore),
+                    "A background presentation must not change the grid before it is ready.");
+                await page.PresentTask.WaitAsync(TimeSpan.FromSeconds(30));
+                Require(page.PresentCount == presentedInBackground + 1 && page.ShownEntries.Count == 3,
+                    "Two requests in a row must apply once, with the newest filter: " + (page.PresentCount - presentedInBackground) + "/" + page.ShownEntries.Count);
+                Require(page.SelectedTiles.Count == 1 && MediaLibraryTileKey.Of(page.SelectedTiles[0]) == MediaLibraryTileKey.Of(picked),
+                    "The selection must survive a background presentation.");
+                kind.SelectedIndex = (int)MediaLibraryKindFilter.Gif;
+                await page.PresentTask.WaitAsync(TimeSpan.FromSeconds(30));
+                Require(page.ShownEntries.Count == 0 && page.SelectedTiles.Count == 0,
+                    "A filter that matches nothing must empty the grid and drop the selection.");
+                kind.SelectedIndex = 0;
+                await page.PresentTask.WaitAsync(TimeSpan.FromSeconds(30));
+                Require(page.ShownEntries.Count == 3, "Clearing the type must show everything again.");
+            }
+            finally { page.BackgroundPresentEntries = 2000; }
             Require(name.Text == string.Empty && kind.SelectedIndex == 0, "Reset did not clear name and type.");
             Require(source.Items.Count == 2 && source.Items[1]!.ToString() == "media-fixture", "Source choice must list the archived source.");
             Require(board.Items.Count == 2 && board.Items[1]!.ToString() == Texts.T("media.filter.boardOfSource", "g", "media-fixture"),

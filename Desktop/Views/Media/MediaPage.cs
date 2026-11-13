@@ -162,7 +162,7 @@ public sealed partial class MediaPage : UserControl
         _goArchive.Click += (_, _) => GoToArchiveRequested?.Invoke();
         _grid.DoubleTapped += (_, _) => _ = OpenSelectedAsync();
         _grid.KeyDown += OnGridKeyDown;
-        _grid.SelectionChanged += (_, _) => { if (_restoring) return; ShowSelectionNote(null); UpdateSelectionBar(); };
+        _grid.SelectionChanged += (_, _) => { if (_restoring) return; _selectionStamp++; ShowSelectionNote(null); UpdateSelectionBar(); };
         InstallReturnInterruption();
         Texts.Changed += OnLanguageChanged;
         Localize();
@@ -265,30 +265,200 @@ public sealed partial class MediaPage : UserControl
     /// <summary>How often the grid has been rebuilt; lets a test see that typing does not rebuild it per keystroke.</summary>
     internal int PresentCount { get; private set; }
 
+    /// <summary>
+    /// From this many entries on, filtering, ordering and grouping run off the UI thread; only the swap of the rows happens on it.
+    /// Smaller libraries present at once, so a click shows its result in the same turn.
+    /// </summary>
+    internal int BackgroundPresentEntries { get; set; } = 2000;
+    /// <summary>Completes when the presentation that is running now (if any) has been applied or was replaced by a newer one.</summary>
+    internal Task PresentTask { get; private set; } = Task.CompletedTask;
+    private CancellationTokenSource? _presenting;
+    private bool _presentPending;
+    // Counts the user's own selection changes: a presentation computed in the background keeps the selection it was started with
+    // only when nothing was selected or unselected meanwhile.
+    private long _selectionStamp;
+    private PresentIndexHolder? _presentIndex;
+
+    private sealed class PresentIndexHolder(MediaLibrarySnapshot snapshot)
+    {
+        internal MediaLibrarySnapshot Snapshot { get; } = snapshot;
+        private readonly Lazy<MediaLibraryPresentIndex> _index = new(() => new MediaLibraryPresentIndex(snapshot.Entries), LazyThreadSafetyMode.ExecutionAndPublication);
+        internal MediaLibraryPresentIndex Index => _index.Value;
+    }
+
+    // Everything a presentation reads from the page and its controls, taken on the UI thread; the computation touches nothing else.
+    private sealed record PresentInputs(IReadOnlyList<MediaLibraryEntry> All, PresentIndexHolder? Holder, MediaLibraryFilter? Filter,
+        bool InvalidFilter, MediaLibrarySort Sort, bool IncludeMissing, int Seed, MediaLibraryUserData UserData, MediaAudioMap Audio,
+        MediaLibraryUntagged? Untagged, IReadOnlyList<MediaLibraryTile> OldTiles, int[] SelectedPositions, long SelectionStamp);
+
+    private sealed record PresentResult(IReadOnlyList<MediaLibraryTile> Tiles, MediaLibraryEntry[] Shown, int[] PresentPositions,
+        MediaLibraryTileRow[] Rows, int ShownMissing, int Unfiltered, bool FilterActive, string? ErrorKey, int AudioUnknown,
+        int? UntaggedTiles, MediaLibraryUntagged? Untagged, IReadOnlyList<int> Restored);
+
     private void Present()
+    {
+        _presenting?.Cancel();
+        _presenting = null;
+        PresentInputs inputs = CapturePresentInputs();
+        if (inputs.All.Count < BackgroundPresentEntries)
+        {
+            _presentPending = false;
+            PresentTask = Task.CompletedTask;
+            ApplyPresent(inputs, ComputePresent(inputs, CancellationToken.None));
+            return;
+        }
+        CancellationTokenSource presenting = new();
+        _presenting = presenting;
+        _presentPending = true;
+        PresentTask = PresentInBackgroundAsync(inputs, presenting);
+    }
+
+    private async Task PresentInBackgroundAsync(PresentInputs inputs, CancellationTokenSource presenting)
+    {
+        try
+        {
+            PresentResult result = await Task.Run(() => ComputePresent(inputs, presenting.Token), presenting.Token);
+            if (presenting.IsCancellationRequested || _lifetime.IsCancellationRequested) return;
+            _presentPending = false;
+            ApplyPresent(inputs, result);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception error) when (UnhandledErrors.TryRecover(error, "media.present"))
+        {
+            // Logged and shown; the grid keeps what it had.
+            if (ReferenceEquals(_presenting, presenting)) { _presentPending = false; UpdateStatus(); }
+        }
+        finally
+        {
+            if (ReferenceEquals(_presenting, presenting)) _presenting = null;
+            presenting.Dispose();
+        }
+    }
+
+    private PresentInputs CapturePresentInputs()
+    {
+        // The source and board choices belong to the index; they are rebuilt here, on the UI thread, when the index changed.
+        if (!ReferenceEquals(_optionsFor, _snapshot)) RenderSourceOptions();
+        MediaLibrarySnapshot? snapshot = _snapshot;
+        if (snapshot != null && !ReferenceEquals(_presentIndex?.Snapshot, snapshot)) _presentIndex = new PresentIndexHolder(snapshot);
+        MediaLibraryFilter? filter = null;
+        bool invalid = false;
+        try { filter = CurrentFilter(); }
+        catch (ArgumentException) { invalid = true; }
+        // Selected tiles that are still shown stay selected; the others drop out (see MediaPage.Selection.cs).
+        return new PresentInputs(snapshot?.Entries ?? Array.Empty<MediaLibraryEntry>(), snapshot == null ? null : _presentIndex, filter, invalid,
+            Sort, _missing.IsChecked == true, _seed, _userData, _audio, _untagged, _tiles, _grid.Selection.SelectedIndexes.ToArray(), _selectionStamp);
+    }
+
+    // Filter, group and order (the index), and make the rows. Touches no control and no page state, so it may run on any thread.
+    private static PresentResult ComputePresent(PresentInputs input, CancellationToken token)
+    {
+        IReadOnlyList<MediaLibraryEntry> all = input.All;
+        string? errorKey = null;
+        IReadOnlyList<MediaLibraryEntry> passing;
+        int audioUnknown = 0;
+        int? untaggedTiles = null;
+        bool filterActive = false;
+        MediaLibraryUntagged? untagged = input.Untagged;
+        if (input.InvalidFilter)
+        {
+            errorKey = "media.filter.error.invalid";
+            filterActive = true;
+            passing = Array.Empty<MediaLibraryEntry>();
+        }
+        else
+        {
+            try
+            {
+                MediaLibraryFilter filter = input.Filter!;
+                filterActive = !filter.IsEmpty;
+                MediaLibraryFilterResult result = MediaLibraryFilterEngine.Evaluate(all, filter, input.UserData, input.Audio);
+                passing = result.Passing;
+                audioUnknown = result.UnknownSoundVideos;
+                if (!filter.WithoutMediaTags)
+                {
+                    if (untagged?.IsFor(all, input.UserData) != true) untagged = MediaLibraryUntagged.Of(all, input.UserData);
+                    untaggedTiles = untagged?.CountTiles(passing);
+                }
+            }
+            catch (MediaLibraryFilterException exception)
+            {
+                errorKey = exception.Error switch
+                {
+                    MediaLibraryFilterError.UnknownTag => "media.filter.error.unknownTag",
+                    MediaLibraryFilterError.TagsUnavailable => "media.filter.error.tags",
+                    MediaLibraryFilterError.FavoritesUnavailable => "media.filter.error.favorites",
+                    _ => "media.filter.error.ratings"
+                };
+                passing = Array.Empty<MediaLibraryEntry>();
+            }
+            catch (ArgumentException)
+            {
+                errorKey = "media.filter.error.invalid";
+                filterActive = true;
+                passing = Array.Empty<MediaLibraryEntry>();
+            }
+        }
+        if (errorKey != null) untaggedTiles = null;
+        token.ThrowIfCancellationRequested();
+        // Filter the occurrences first; a tile of equal bytes stays when any of its occurrences passed.
+        MediaLibraryUserData userData = input.UserData;
+        IReadOnlyList<MediaLibraryTile> tiles = input.Holder is { } holder
+            ? holder.Index.Build(passing, input.Sort, input.IncludeMissing, input.Seed, userData.IsFavorite, token)
+            : MediaLibraryGrouping.Build(all, passing, input.Sort, input.IncludeMissing, input.Seed, userData.IsFavorite);
+        MediaLibraryEntry[] shown = new MediaLibraryEntry[tiles.Count];
+        int missing = 0;
+        for (int i = 0; i < shown.Length; i++)
+        {
+            shown[i] = tiles[i].Entry;
+            if (shown[i].Presence == MediaLibraryPresence.Missing) missing++;
+        }
+        int unfiltered = !filterActive ? shown.Length
+            : input.Holder is { } counted ? counted.Index.CountTiles(input.IncludeMissing) : MediaLibraryGrouping.CountTiles(all, input.IncludeMissing);
+        token.ThrowIfCancellationRequested();
+        // Own state is read from the data this presentation was built with, so a row never mixes two reads.
+        Func<MediaLibraryEntry, MediaLibraryEntryState> state = entry => MediaLibraryEntryState.Of(entry, userData);
+        MediaLibraryTileRow[] rows = new MediaLibraryTileRow[tiles.Count];
+        for (int i = 0; i < rows.Length; i++) rows[i] = new MediaLibraryTileRow(tiles[i], i, state);
+        IReadOnlyList<int> restored = RestoredSelection(input, tiles);
+        return new PresentResult(tiles, shown, MediaLibraryView.PresentIndex(shown), rows, missing, unfiltered, filterActive, errorKey,
+            audioUnknown, untaggedTiles, untagged, restored);
+    }
+
+    private static IReadOnlyList<int> RestoredSelection(PresentInputs input, IReadOnlyList<MediaLibraryTile> tiles)
+    {
+        if (input.SelectedPositions.Length == 0) return Array.Empty<int>();
+        MediaLibraryTileKey[] selected = MediaLibrarySelection.Pick(input.OldTiles, input.SelectedPositions).Select(MediaLibraryTileKey.Of).ToArray();
+        return MediaLibrarySelection.Restore(selected, tiles);
+    }
+
+    private void ApplyPresent(PresentInputs input, PresentResult result)
     {
         PresentCount++;
         InvalidateSharedMediaMenu();
         DismissExportAllAsk(); // A pending "export all" question was about tiles that may no longer be shown.
-        // Selected tiles that are still shown stay selected; the others drop out (see MediaPage.Selection.cs).
-        MediaLibraryTileKey[] selected = SelectedTiles.Select(MediaLibraryTileKey.Of).ToArray();
-        IReadOnlyList<MediaLibraryEntry> all = _snapshot?.Entries ?? Array.Empty<MediaLibraryEntry>();
-        bool includeMissing = _missing.IsChecked == true;
-        // Filter the occurrences first; a tile of equal bytes stays when any of its occurrences passed.
-        _tiles = MediaLibraryGrouping.Build(all, ApplyFilter(all), Sort, includeMissing, _seed, _userData.IsFavorite);
-        _shown = _tiles.Select(tile => tile.Entry).ToArray();
-        PresentPositions = MediaLibraryView.PresentIndex(_shown);
-        _shownMissing = _shown.Count(entry => entry.Presence == MediaLibraryPresence.Missing);
-        _unfiltered = _filterActive ? MediaLibraryGrouping.CountTiles(all, includeMissing) : _shown.Count;
-        // Own state is read from the data this presentation was built with, so a row never mixes two reads.
-        MediaLibraryUserData userData = _userData;
-        Func<MediaLibraryEntry, MediaLibraryEntryState> state = entry => MediaLibraryEntryState.Of(entry, userData);
-        MediaLibraryTileRow[] rows = _tiles.Select((tile, index) => new MediaLibraryTileRow(tile, index, state)).ToArray();
+        _filterActive = result.FilterActive;
+        _filterFailed = result.ErrorKey != null;
+        _untaggedTiles = result.UntaggedTiles;
+        _untagged = result.Untagged;
+        _audioUnknown = result.AudioUnknown;
+        _filterError.Text = result.ErrorKey == null ? null : Texts.T(result.ErrorKey);
+        _filterError.IsVisible = result.ErrorKey != null;
+        _filterReset.IsEnabled = _filterActive;
+        UpdateAudioNote();
+        // The selection may have changed while the rows were made; then it is carried over from what is selected now.
+        IReadOnlyList<int> restored = input.SelectionStamp == _selectionStamp ? result.Restored
+            : MediaLibrarySelection.Restore(SelectedTiles.Select(MediaLibraryTileKey.Of).ToArray(), result.Tiles);
+        _tiles = result.Tiles;
+        _shown = result.Shown;
+        PresentPositions = result.PresentPositions;
+        _shownMissing = result.ShownMissing;
+        _unfiltered = result.Unfiltered;
         _restoring = true;
         try
         {
-            _grid.ItemsSource = rows;
-            SelectIndexes(MediaLibrarySelection.Restore(selected, _tiles));
+            _grid.ItemsSource = result.Rows;
+            SelectIndexes(restored);
         }
         finally { _restoring = false; }
         _shuffle.IsVisible = Sort == MediaLibrarySort.Random;
@@ -300,7 +470,7 @@ public sealed partial class MediaPage : UserControl
         UpdateStatusText();
         _empty.Text = Texts.T(_filterActive ? "media.filter.noMatch" : "media.empty");
         // A refused filter explains itself above the grid; the grid stays empty.
-        bool showEmpty = _snapshot != null && _shown.Count == 0 && _building == null && !_filterFailed;
+        bool showEmpty = _snapshot != null && _shown.Count == 0 && _building == null && !_filterFailed && !_presentPending;
         _empty.IsVisible = showEmpty;
         _emptyState.IsVisible = showEmpty;
         // An empty library points to Downloads and Archive; a filter that matches nothing offers to reset it (C3).

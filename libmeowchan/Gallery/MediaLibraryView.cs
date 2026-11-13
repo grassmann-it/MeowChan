@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -48,15 +49,31 @@ internal static class MediaLibraryView
         return ordered.ToArray();
     }
 
-    // Deterministic per entry and seed, independent of input order and process hash randomization.
-    private static ulong StableKey(MediaLibraryEntry entry, int seed)
+    // Deterministic per entry and seed, independent of input order and process hash randomization. The hash runs over the characters of
+    // the entry's identity fields joined by U+001F, without building that string (200,000 entries would be 60 MB of garbage per shuffle).
+    internal static ulong StableKey(MediaLibraryEntry entry, int seed)
     {
-        string identity = string.Join("\u001f", entry.Thread.Source, entry.Thread.Board, entry.Thread.Thread,
-            entry.PostId, entry.Position, entry.Directory, entry.AssetId, entry.MediaId);
         ulong hash = 14695981039346656037UL ^ (uint)seed;
-        foreach (char character in identity) { hash ^= character; hash *= 1099511628211UL; }
+        Span<char> number = stackalloc char[16];
+        Mix(ref hash, entry.Thread.Source); Separate(ref hash);
+        Mix(ref hash, entry.Thread.Board); Separate(ref hash);
+        Mix(ref hash, entry.Thread.Thread); Separate(ref hash);
+        Mix(ref hash, entry.PostId); Separate(ref hash);
+        if (entry.Position is int position && position.TryFormat(number, out int written, default, CultureInfo.CurrentCulture))
+            Mix(ref hash, number[..written]);
+        Separate(ref hash);
+        Mix(ref hash, entry.Directory); Separate(ref hash);
+        Mix(ref hash, entry.AssetId); Separate(ref hash);
+        Mix(ref hash, entry.MediaId);
         hash ^= hash >> 33; hash *= 0xff51afd7ed558ccdUL; hash ^= hash >> 33;
         return hash;
+    }
+
+    private static void Separate(ref ulong hash) { hash ^= '\u001f'; hash *= 1099511628211UL; }
+
+    private static void Mix(ref ulong hash, ReadOnlySpan<char> text)
+    {
+        foreach (char character in text) { hash ^= character; hash *= 1099511628211UL; }
     }
 
     /// <summary>

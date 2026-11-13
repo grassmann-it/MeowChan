@@ -89,7 +89,7 @@ internal static class MediaLibraryGrouping
     internal static bool HasHash(MediaLibraryEntry entry) => ByteKey(entry) != null;
 
     // Unreadable favorites are "unknown", never "none": once one read fails the rest are not tried again.
-    private static MediaLibraryFavoriteState FavoriteOf(IReadOnlyList<MediaLibraryEntry> occurrences, Func<MediaLibraryEntry, bool>? isFavorite, ref bool readable)
+    internal static MediaLibraryFavoriteState FavoriteOf(IReadOnlyList<MediaLibraryEntry> occurrences, Func<MediaLibraryEntry, bool>? isFavorite, ref bool readable)
     {
         if (!readable || isFavorite == null) return MediaLibraryFavoriteState.Unknown;
         try
