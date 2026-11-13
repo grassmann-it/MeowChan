@@ -44,7 +44,7 @@ internal sealed class MediaRatingDialog : Window
     {
         _commit = commit; _key = key; _confirmed = value;
         Name = "MediaRatingDialog"; Title = MediaRatingText.LocalizedLabel;
-        Width = 520; Height = 330; MinWidth = 320; MinHeight = 280;
+        Width = 520; Height = 440; MinWidth = 360; MinHeight = 380;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         _rating = new() { Name = "MediaRatingEditor", Count = 5, AllowHalf = false, AllowClear = false,
             DefaultValue = value ?? 0, Value = value ?? 0, Focusable = true, Size = 28 };
@@ -72,7 +72,7 @@ internal sealed class MediaRatingDialog : Window
         body.Children.Add(_identity); body.Children.Add(_confirmedValue);
         body.Children.Add(_rating); body.Children.Add(_value);
         _help.Classes.Add("workspace-help"); body.Children.Add(_help);
-        Content = WindowChrome.Frame(this, DialogFrame.Build(_heading, body, actions, DialogFrame.ErrorStrip(_error, maxHeight: 96)),
+        Content = WindowChrome.Frame(this, DialogFrame.Build(_heading, body, actions, DialogFrame.ErrorStrip(_error, maxHeight: 72)),
             WindowChromeKind.Dialog);
         _rating.AddHandler(PointerReleasedEvent, async (_, e) =>
         {

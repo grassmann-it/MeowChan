@@ -116,6 +116,20 @@ internal static partial class DialogFrameChecks
             await VerifyFrameAsync(dialog, "saved searches list", "collections-saved-searches");
             SavedArchiveSearchesDialog manager = dialog;
             await CollectionsAtMinimumAsync(manager, () => VerifyFrameAsync(manager, "saved searches list minimum", "collections-saved-searches-min"));
+            // The long German (and the other longest) labels wrap the eight footer actions onto several lines at the minimum
+            // size; the footer must still lie inside the window (the bug: footer clipped at the minimum in German).
+            string frameLanguage = Texts.Language;
+            try
+            {
+                foreach (string language in new[] { "de", "ru", "fr", "pl" })
+                {
+                    Texts.SetLanguage(language);
+                    await Settle();
+                    await CollectionsAtMinimumAsync(manager, () => VerifyFrameAsync(manager, "saved searches list minimum " + language,
+                        language == "de" ? "collections-saved-searches-min-de" : null));
+                }
+            }
+            finally { Texts.SetLanguage(frameLanguage); await Settle(); }
 
             Button rename = dialog.FindControl<Button>("SavedSearchRename")!;
             rename.Command!.Execute(null);

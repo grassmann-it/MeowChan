@@ -21,8 +21,14 @@ internal static partial class DialogFrameChecks
         string language = Texts.Language;
         try
         {
+            // The error state at the minimum size is the tightest layout (strip + wrapped footer); German and the other
+            // longest packs must keep the footer inside the window as well.
+            foreach (string frameLanguage in new[] { "en", "de", "ru", "fr" })
+            {
+                Texts.SetLanguage(frameLanguage);
+                await RatingDialogFrameAsync(owner);
+            }
             Texts.SetLanguage("en");
-            await RatingDialogFrameAsync(owner);
             await RatingsManagerFrameAsync(owner);
             await RatingsManagerLoadErrorFrameAsync(owner);
         }

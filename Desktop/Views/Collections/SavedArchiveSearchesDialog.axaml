@@ -1,14 +1,16 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="MeowChan.SavedArchiveSearchesDialog" Width="650" Height="510" MinWidth="360" MinHeight="380"
+        x:Class="MeowChan.SavedArchiveSearchesDialog" Width="650" Height="510" MinWidth="480" MinHeight="500"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
-    <!-- UX103 P7 dialog frame: fixed header, local error strip, scrolling body, fixed footer. -->
+    <!-- UX103 P7 dialog frame: fixed header, local error strip, scrolling body, fixed footer.
+         The footer wraps its eight actions; the minimum size is sized so that, in the longest of the 12 languages, header,
+         error strip (or status), wrapped footer and a usable body fit together (SavedSearchesFooterBudgetTests). -->
     <Grid RowDefinitions="Auto,Auto,*,Auto" KeyboardNavigation.TabNavigation="Cycle">
         <Border x:Name="DialogFrameHeader" Padding="16,16,16,8">
             <TextBlock x:Name="SavedSearchHint" TextWrapping="Wrap" />
         </Border>
         <Border x:Name="DialogFrameErrorStrip" Grid.Row="1" Padding="16,0,16,8" IsVisible="False">
             <Border Classes="workspace-error">
-                <ScrollViewer MaxHeight="120" HorizontalScrollBarVisibility="Disabled">
+                <ScrollViewer MaxHeight="72" HorizontalScrollBarVisibility="Disabled">
                     <TextBlock x:Name="SavedSearchError" Classes="workspace-error" TextWrapping="Wrap" />
                 </ScrollViewer>
             </Border>
@@ -45,7 +47,7 @@
         </ScrollViewer>
         <Border x:Name="DialogFrameFooter" Grid.Row="3" Classes="workspace-dialog-footer">
             <StackPanel Spacing="8">
-                <ScrollViewer x:Name="SavedSearchStatusHost" MaxHeight="96" HorizontalScrollBarVisibility="Disabled">
+                <ScrollViewer x:Name="SavedSearchStatusHost" MaxHeight="48" HorizontalScrollBarVisibility="Disabled">
                     <TextBlock x:Name="SavedSearchStatus" TextWrapping="Wrap" />
                 </ScrollViewer>
                 <WrapPanel ItemSpacing="8" LineSpacing="8">
