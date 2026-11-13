@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Fast failure-contract checks; these do not execute an apphost or desktop."""
 import importlib.util
+import ast
+import re
 from pathlib import Path
 import tempfile
 import struct
@@ -40,8 +42,8 @@ class PluginWorkflowRunnerTests(unittest.TestCase):
         self.assertEqual(['bound'], self.validate(self.metrics()))
         self.assertEqual(['bound'], self.validate(self.metrics('restore')))
 
-    def test_sixteen_exact_plugin_ids_and_twelve_exact_requests_are_required(self):
-        self.assertEqual(16, len(runner.PLUGIN_IDS))
+    def test_twenty_four_exact_plugin_ids_and_twelve_exact_requests_are_required(self):
+        self.assertEqual(24, len(runner.PLUGIN_IDS))
         self.assertEqual(12, len(runner.REQUESTS))
         for source in ('wizchan', 'endchan'):
             metrics = self.metrics()
@@ -50,6 +52,45 @@ class PluginWorkflowRunnerTests(unittest.TestCase):
             metrics = self.metrics()
             metrics['requests'] = [uri for uri in metrics['requests'] if source not in uri]
             with self.assertRaises(ValueError): self.validate(metrics)
+
+    def test_inventory_matches_delivery_probe_and_host_defaults_offline(self):
+        repository = Path(__file__).resolve().parents[1]
+        probe = ast.parse((repository / 'tests/PluginDeliverySmoke/sdk_free_worker_probe.py').read_text())
+        expected = next(ast.literal_eval(node.value) for node in ast.walk(probe)
+                        if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'expected_ids' for target in node.targets))
+        self.assertEqual(24, len(expected))
+        self.assertEqual(set(expected.values()), runner.PLUGIN_IDS)
+        smoke = (repository / 'Desktop/Shell/MainWindow.ApphostPluginWorkflowSmoke.cs').read_text()
+        def cs_array(name):
+            body = smoke.split(name + ' =', 1)[1].split('{', 1)[1].split('}', 1)[0]
+            values = re.findall(r'"([^"\n]+)"', body)
+            self.assertEqual(len(values), len(set(values)), name)
+            return set(values)
+        self.assertEqual(runner.PLUGIN_IDS, cs_array('ApphostBundledPluginIds'))
+        policy = (repository / 'Desktop/ExperimentalSourceActivationPolicy.cs').read_text()
+        default_off = set(re.findall(r'\["(meowchan[^"]+)"\] =', policy))
+        self.assertEqual(15, len(default_off))
+        self.assertEqual(default_off, runner.DEFAULT_OFF_PLUGIN_IDS)
+        self.assertEqual(default_off, cs_array('ApphostDefaultOffPluginIds'))
+        blocked = {'meowchan.source.anonimageboards', 'meowchan.source.gurocx'}
+        filters = {value for value in expected.values() if value.startswith('meowchan.filter.')} | {'meowchan.example.image-dimensions'}
+        booru = {'meowchan.official.danbooru'}
+        chan = runner.PLUGIN_IDS - blocked - filters - booru
+        self.assertEqual(5, len(filters))
+        self.assertEqual(16, len(chan))
+        self.assertEqual({value.rsplit('.', 1)[1] for value in chan}, cs_array('ApphostChanSourceIds'))
+        self.assertEqual(12, len(runner.FIXTURE_ENABLED_PLUGIN_IDS))
+        self.assertTrue(blocked.isdisjoint(runner.FIXTURE_ENABLED_PLUGIN_IDS))
+        self.assertTrue(booru <= runner.FIXTURE_ENABLED_PLUGIN_IDS)
+
+    def test_each_delivered_identity_is_required_without_foreign_or_extra_ids(self):
+        for plugin_id in runner.PLUGIN_IDS:
+            for fault in ('missing', 'foreign', 'extra'):
+                with self.subTest(plugin_id=plugin_id, fault=fault):
+                    metrics = self.metrics()
+                    if fault != 'extra': metrics['revisions'].pop(plugin_id)
+                    if fault != 'missing': metrics['revisions']['foreign'] = 'revision'
+                    with self.assertRaises(ValueError): self.validate(metrics)
 
     def test_missing_compiler_proof_fails(self):
         metrics = self.metrics()

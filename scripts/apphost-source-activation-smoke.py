@@ -48,12 +48,12 @@ def validate_startup(metrics, phase):
     if not isinstance(startup, dict) or startup.get('paused') is not True:
         raise ValueError('Source activation startup was not paused')
     rows = startup.get('plugins')
-    if (not isinstance(rows, list) or len(rows) != 16
+    if (not isinstance(rows, list) or len(rows) != 24
             or {row.get('pluginId') for row in rows} != set(metrics['revisions'])):
         raise ValueError('Source activation startup plugin inventory differs')
     expected = []
     for row in rows:
-        if row.get('enabled') is not True or not row.get('activeCandidateId') or row.get('activeExecutionRevision') != metrics['revisions'][row['pluginId']]:
+        if row.get('enabled') is not (row['pluginId'] in plugin.FIXTURE_ENABLED_PLUGIN_IDS) or not row.get('activeCandidateId') or row.get('activeExecutionRevision') != metrics['revisions'][row['pluginId']]:
             raise ValueError('Source activation startup active inventory differs')
         if phase != 'install' and row['pluginId'] in SOURCES:
             if (row.get('problem') != SELECTED_ADVISORY or row.get('selectedCandidateId') != row['activeCandidateId']

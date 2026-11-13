@@ -64,11 +64,12 @@ public partial class MainWindow
             // The author workflow requires active delivered adapters; establish that
             // prerequisite explicitly without granting a source-integrity exception.
             installed = await EnableApphostFixtureSourcesAsync(plugins, installed);
+            RequireApphostBundledInventory(plugins, installed);
             startupProfile = installed;
             RequireAuthorStartupState(installed, startupWarnings, startupPaused.Value, phase);
             foreach (var plugin in installed.Plugins)
             {
-                RequireWorkflow(plugin.Enabled && plugin.Active != null, "Source activation inventory is unavailable: " + plugin.PluginId);
+                RequireWorkflow(plugin.Enabled == ApphostFixturePluginEnabled(plugin.PluginId) && plugin.Active != null, "Source activation inventory is unavailable: " + plugin.PluginId);
                 revisions[plugin.PluginId] = plugin.Active!.ExecutionRevision;
             }
             if (phase == "install")
@@ -243,7 +244,7 @@ public partial class MainWindow
         List<string> expectedWarnings = new();
         foreach (var plugin in installed.Plugins)
         {
-            RequireWorkflow(plugin.Enabled && plugin.Active != null, "Source activation inventory is unavailable: " + plugin.PluginId);
+            RequireWorkflow(plugin.Enabled == ApphostFixturePluginEnabled(plugin.PluginId) && plugin.Active != null, "Source activation inventory is unavailable: " + plugin.PluginId);
             if (phase != "install" && authorIds.Contains(plugin.PluginId, StringComparer.Ordinal))
             {
                 RequireWorkflow(plugin.Problem == selectedAdvisory && plugin.SelectedCandidateId == plugin.Active!.CandidateId

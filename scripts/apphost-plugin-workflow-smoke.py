@@ -34,11 +34,25 @@ REQUESTS = {'https://lainchan.org/demo/res/123.json', 'https://kohlchan.net/demo
             'https://wizchan.org/demo/res/123.json', 'https://wizchan.org/demo/src/1000-0.png',
             'https://wizchan.org/demo/src/1001-1.png', 'https://endchan.net/demo/res/123.json',
             'https://endchan.net/.media/endchan-keep.png', 'https://endchan.net/.media/endchan-drop.png'}
-PLUGIN_IDS = {'meowchan.official.4chan', 'meowchan.official.8kun', 'meowchan.source.lainchan',
-              'meowchan.source.kohlchan', 'meowchan.source.wizchan', 'meowchan.source.endchan',
-              'meowchan.example.image-dimensions',
-              'meowchan.filter.file-rules', 'meowchan.filter.hash-blocklist', 'meowchan.filter.animation-format', 'meowchan.filter.png-metadata',
-              'meowchan.source.leftypol', 'meowchan.source.2ch', 'meowchan.source.uboachan', 'meowchan.source.zzzchan', 'meowchan.source.sushichan'}
+PLUGIN_IDS = {
+    'meowchan.official.4chan', 'meowchan.official.8kun', 'meowchan.official.danbooru',
+    'meowchan.source.lainchan', 'meowchan.source.kohlchan', 'meowchan.source.wizchan',
+    'meowchan.source.endchan', 'meowchan.example.image-dimensions', 'meowchan.filter.file-rules',
+    'meowchan.filter.hash-blocklist', 'meowchan.filter.animation-format', 'meowchan.filter.png-metadata',
+    'meowchan.source.leftypol', 'meowchan.source.2ch', 'meowchan.source.uboachan',
+    'meowchan.source.zzzchan', 'meowchan.source.sushichan', 'meowchan.source.sevenchan',
+    'meowchan.source.bbwchan', 'meowchan.source.anonimageboards', 'meowchan.source.capybarachan',
+    'meowchan.source.eightchanmoe', 'meowchan.source.fchan', 'meowchan.source.gurocx',
+}
+DEFAULT_OFF_PLUGIN_IDS = {
+    'meowchan.source.kohlchan', 'meowchan.source.wizchan', 'meowchan.source.endchan',
+    'meowchan.source.leftypol', 'meowchan.source.2ch', 'meowchan.source.uboachan',
+    'meowchan.source.zzzchan', 'meowchan.source.sushichan', 'meowchan.source.sevenchan',
+    'meowchan.source.bbwchan', 'meowchan.source.anonimageboards', 'meowchan.source.eightchanmoe',
+    'meowchan.source.gurocx', 'meowchan.source.fchan', 'meowchan.source.capybarachan',
+}
+FIXTURE_ENABLED_PLUGIN_IDS = (PLUGIN_IDS - DEFAULT_OFF_PLUGIN_IDS) | {
+    'meowchan.source.kohlchan', 'meowchan.source.wizchan', 'meowchan.source.endchan'}
 COMMON = {'delivered-plugins-activated', 'archive-verified', 'filter-match-and-no-match-durable',
           'normal-shutdown', 'lease-released'}
 
