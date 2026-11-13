@@ -14,6 +14,7 @@ public partial class MainWindow
         _shortcutRouter ??= new CommandRouter(this);
         ShortcutService.Changed += OnShortcutsChanged;
     }
+    // Settings and Plugins are built after the first frame, so their registrations are installed with them.
     private void RegisterSectionCommands()
     {
         if (_shortcutRouter == null) return;

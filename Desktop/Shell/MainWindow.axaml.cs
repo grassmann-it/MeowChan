@@ -71,7 +71,7 @@ public partial class MainWindow : Window
     internal MainWindow(DesktopSessionHost? session)
     {
         RecordStartupTiming(StartupTimingPoint.ConstructorBegin);
-        try { InitializeComponent(); }
+        try { using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.xaml")) InitializeComponent(); }
         catch
         {
             // A supplied session is already owned by this window, including a failed view construction.
@@ -84,7 +84,7 @@ public partial class MainWindow : Window
         try
         {
             AttachStartupTiming();
-            Texts.Initialize(Path.Combine(_session.ProfileDirectory, "LanguagePacks"));
+            using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.texts-init")) Texts.Initialize(Path.Combine(_session.ProfileDirectory, "LanguagePacks"));
             Texts.SetLanguage(_config.Language);
             if (Application.Current != null)
             {
@@ -123,26 +123,28 @@ public partial class MainWindow : Window
                 Margin = new Thickness(0, WorkspaceMetrics.TitleBarHeight, 0, 0),
                 MaxItems = 3
             };
-            InitializeWorkspacePages();
+            using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.pages")) InitializeWorkspacePages();
             InitializeReaderGroups(); // URSA-12 shared initialization hunk.
-            InitializeWorkspace();
+            using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.workspace")) InitializeWorkspace();
             RegisterReadingResumeCommand();
             RegisterReaderGroupCommands();
             RegisterPostBookmarkCommands();
-            RegisterSectionCommands();
-            RegisterRuleTemplateCommands();
+            // Section and rule-template registrations belong to pages built after the first frame
+            // (EnsureDeferredWorkspacePages installs them there).
             RegisterTagAndFilterCommands();
             WireWorkspaceCommands();
             InitializeSelectionCommands();
             InitializeStatusColumnRedundancy();
             Texts.Changed += OnLanguageChanged;
             RecordStartupTiming(StartupTimingPoint.TrayBegin);
-            try { SetupTrayIcon(); }
+            try { using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.tray")) SetupTrayIcon(); }
             finally { RecordStartupTiming(StartupTimingPoint.TrayEnd); }
             InitializeClipboardMonitor();
             InitializeUrlDrop();
             Opened += OnMainWindowOpened;
             UpdateInteractionState();
+            // Pages no gate offers before the shell is interactive follow the first frame, one per pass.
+            Dispatcher.UIThread.Post(PumpDeferredWorkspacePages, DispatcherPriority.Background);
             _restoreTask = RestoreSessionAsync();
             RecordStartupTiming(StartupTimingPoint.ConstructorEnd);
         }
@@ -430,6 +432,8 @@ public partial class MainWindow : Window
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
             if (_isClosing) return;
+            // Never let a restored session offer a page that has not been built yet.
+            EnsureDeferredWorkspacePages();
             RefreshSession();
             _restoreCompleted = _session.Projection.View.State == DesktopSessionState.Ready;
             if (!_restoreCompleted)

@@ -33,12 +33,27 @@ public partial class MainWindow
     private PluginsPage? _pluginsPage;
     private WorkspacePage _selectedPage;
     private int _mediaPageNavigationRevision;
-    internal SettingsEditor SettingsEditor => _settingsEditor
-        ?? throw new InvalidOperationException("The settings page has not been initialized.");
+    // Built after the first frame; asking for the page is reason enough to build it now.
+    internal SettingsEditor SettingsEditor
+    {
+        get
+        {
+            EnsureDeferredWorkspacePages();
+            return _settingsEditor ?? throw new InvalidOperationException("The settings page has not been initialized.");
+        }
+    }
     internal bool SettingsPageVisible => _selectedPage == WorkspacePage.Settings;
     internal WorkspacePage SelectedPage => _selectedPage;
     internal DesktopSessionHost SessionHost => _session;
-    internal RulesPage RulesPage => _rulesPage ?? throw new InvalidOperationException("The rules page is not initialized.");
+    // Built after the first frame; asking for the page is reason enough to build it now.
+    internal RulesPage RulesPage
+    {
+        get
+        {
+            EnsureDeferredWorkspacePages();
+            return _rulesPage ?? throw new InvalidOperationException("The rules page is not initialized.");
+        }
+    }
 
     internal ArchivePage ArchivePage => _archivePage ?? throw new InvalidOperationException("The archive page is not initialized.");
     private bool WorkspaceEditorBusy => _isClosing || _applyingPreferences || (_settingsEditor?.IsBusy ?? false) || (_rulesPage?.IsBusy ?? false) || (_sourcesPage?.IsBusy ?? false);
@@ -48,29 +63,8 @@ public partial class MainWindow
 
     private void InitializeWorkspacePages()
     {
+        MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.pages", "begin");
         InitializeUpdates();
-        _settingsEditor = new SettingsEditor(_config, ApplySettingsAsync, ForgetReadingPositionAsync);
-        _settingsEditor.Updates = _session.Updates;
-        _settingsEditor.BusyChanged += OnSettingsBusyChanged;
-        SettingsPageHost.Content = _settingsEditor;
-        _diagnosticsPage = new DiagnosticsPage(OpenDiagnosticWatch, async text =>
-        {
-            if (_isClosing) return;
-            if (Clipboard == null) throw new InvalidOperationException("Clipboard is unavailable.");
-            await Clipboard.SetTextAsync(text);
-        }, _session.RequestCheckAsync, _session.CanRequestCheck);
-        _diagnosticsPage.RetryMediaAsync = target => !_isClosing && target.Kind == DiagnosticTargetKind.Thread
-            ? _session.RetryMissingMediaAsync(target.WatchId) : System.Threading.Tasks.Task.FromResult(0);
-        _diagnosticsPage.CanRetryMedia = target => !_isClosing && target.Kind == DiagnosticTargetKind.Thread
-            && _session.CanRetryMissingMedia(target.WatchId);
-        _diagnosticsPage.AttachFeedback(_feedback);
-        _diagnosticsPage.ManageMediaRatingsAsync = ManageMediaRatingsAsync;
-        DiagnosticsPageHost.Content = _diagnosticsPage;
-        _rulesPage = new RulesPage(() => _session.MediaRules, _session.SaveRulesAsync);
-        _rulesPage.GetSuggestionContexts = GetRuleSuggestionContexts;
-        _rulesPage.AttachTemplateServices(_session.LoadRuleTemplatesAsync, _session.SaveRuleTemplatesAsync);
-        _rulesPage.BusyChanged += OnSettingsBusyChanged;
-        RulesPageHost.Content = _rulesPage;
         _archivePage = new ArchivePage(_session.OpenArchiveReaderAsync, _session.SetCaptureEnabledAsync, directory => OpenDirectory(directory, _archivePage?.CaptureActionErrorReporter()));
         _archivePage.AttachTransferImport(_session);
         _archivePage.AttachSavedSearches(_session);
@@ -173,18 +167,102 @@ public partial class MainWindow
         _archivePage.OpenMediaGallery = (entries, start, origin) => OpenMediaGalleryAsync(entries, start, origin);
         _archivePage.OpenResultsGallery = (query, workFilter, origin) => OpenSearchGalleryAsync(query, workFilter, origin);
         ArchivePageHost.Content = _archivePage;
+        MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.pages", "archive-done");
         InitializeMediaPage();
+        MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.pages", "media-done");
         InitializeReadingResume();
         InitializePostBookmarks();
         InitializeBooru();
-        _sourcesPage = new SourcesPage(OpenDiagnosticWatch, source =>
+        MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.pages", "resume-bookmarks-booru-done");
+    }
+
+    private int _deferredPageStep;
+    private bool _deferredWorkspacePages;
+
+    /// <summary>
+    /// Pages whose control trees are built after the shell's first frame. No gate offers any of them
+    /// before the shell is interactive: Diagnostics, Rules, Sources and Plugins stay behind
+    /// <c>navigationReady</c>/<c>diagnosticsReady</c>, and the early Settings choice reaches its page only
+    /// through <see cref="NavigateWorkspace"/>, which builds it first. Keeping them out of the constructor
+    /// takes their construction off the path to the first frame.
+    /// </summary>
+    private bool BuildNextDeferredWorkspacePage()
+    {
+        switch (_deferredPageStep++)
         {
-            if (NavigateWorkspace(WorkspacePage.Rules)) _rulesPage.EditScope(Rules.MediaRuleScope.ForSource(source));
-        }, () => NavigateWorkspace(WorkspacePage.Diagnostics), () => NavigateWorkspace(WorkspacePage.Downloads),
-            (input, observeModal) => SubmitInputAsync(input, observeModal));
-        _sourcesPage.BusyChanged += OnSettingsBusyChanged;
-        SourcesPageHost.Content = _sourcesPage;
-        InitializePluginPage();
+            case 0:
+                _settingsEditor = new SettingsEditor(_config, ApplySettingsAsync, ForgetReadingPositionAsync);
+                _settingsEditor.Updates = _session.Updates;
+                _settingsEditor.BusyChanged += OnSettingsBusyChanged;
+                SettingsPageHost.Content = _settingsEditor;
+                return true;
+            case 1:
+                _diagnosticsPage = new DiagnosticsPage(OpenDiagnosticWatch, async text =>
+                {
+                    if (_isClosing) return;
+                    if (Clipboard == null) throw new InvalidOperationException("Clipboard is unavailable.");
+                    await Clipboard.SetTextAsync(text);
+                }, _session.RequestCheckAsync, _session.CanRequestCheck);
+                _diagnosticsPage.RetryMediaAsync = target => !_isClosing && target.Kind == DiagnosticTargetKind.Thread
+                    ? _session.RetryMissingMediaAsync(target.WatchId) : System.Threading.Tasks.Task.FromResult(0);
+                _diagnosticsPage.CanRetryMedia = target => !_isClosing && target.Kind == DiagnosticTargetKind.Thread
+                    && _session.CanRetryMissingMedia(target.WatchId);
+                _diagnosticsPage.AttachFeedback(_feedback);
+                _diagnosticsPage.ManageMediaRatingsAsync = ManageMediaRatingsAsync;
+                DiagnosticsPageHost.Content = _diagnosticsPage;
+                return true;
+            case 2:
+                _rulesPage = new RulesPage(() => _session.MediaRules, _session.SaveRulesAsync);
+                _rulesPage.GetSuggestionContexts = GetRuleSuggestionContexts;
+                _rulesPage.AttachTemplateServices(_session.LoadRuleTemplatesAsync, _session.SaveRuleTemplatesAsync);
+                _rulesPage.BusyChanged += OnSettingsBusyChanged;
+                RulesPageHost.Content = _rulesPage;
+                return true;
+            case 3:
+                _sourcesPage = new SourcesPage(OpenDiagnosticWatch, source =>
+                {
+                    if (NavigateWorkspace(WorkspacePage.Rules)) _rulesPage!.EditScope(Rules.MediaRuleScope.ForSource(source));
+                }, () => NavigateWorkspace(WorkspacePage.Diagnostics), () => NavigateWorkspace(WorkspacePage.Downloads),
+                    (input, observeModal) => SubmitInputAsync(input, observeModal));
+                _sourcesPage.BusyChanged += OnSettingsBusyChanged;
+                SourcesPageHost.Content = _sourcesPage;
+                return true;
+            case 4:
+                InitializePluginPage();
+                // The registrations the constructor used to install, now that their owners exist.
+                RegisterSectionCommands();
+                RegisterRuleTemplateCommands();
+                _deferredWorkspacePages = true;
+                return false;
+            default:
+                _deferredWorkspacePages = true;
+                return false;
+        }
+    }
+
+    /// <summary>Builds every page that is still missing, right now. Idempotent.</summary>
+    private void EnsureDeferredWorkspacePages()
+    {
+        if (_deferredWorkspacePages || _isClosing) return;
+        using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.pages.deferred"))
+            while (BuildNextDeferredWorkspacePage()) { }
+        if (!_isClosing) UpdateInteractionState();
+    }
+
+    /// <summary>
+    /// Builds one page per background dispatcher pass, so the shell that has just shown its first frame
+    /// stays responsive instead of blocking in one long construction. Any earlier demand (navigation, the
+    /// page accessors, the end of restoration) completes the rest synchronously through
+    /// <see cref="EnsureDeferredWorkspacePages"/>.
+    /// </summary>
+    private void PumpDeferredWorkspacePages()
+    {
+        if (_deferredWorkspacePages || _isClosing) return;
+        bool more;
+        using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.pages.deferred.slice"))
+            more = BuildNextDeferredWorkspacePage();
+        if (more) Dispatcher.UIThread.Post(PumpDeferredWorkspacePages, DispatcherPriority.Background);
+        else if (!_isClosing) UpdateInteractionState();
     }
 
     private void ApplyArchiveModePreferences()
@@ -214,6 +292,10 @@ public partial class MainWindow
         if ((!_restoreCompleted && !(page == WorkspacePage.Diagnostics && _session.Projection.View.State == DesktopSessionState.RecoveryFailed)
                 && !(EarlyPageChoice && IsEarlyPage(page)))
             || WorkspaceCommandBusy) return false;
+        // Settings is an early page and the recovery-failure route reaches Diagnostics without a
+        // completed restore: both can arrive before the background pass has built their page.
+        if (page != WorkspacePage.Downloads && page != WorkspacePage.Archive && page != WorkspacePage.Media)
+            EnsureDeferredWorkspacePages();
         if (page != WorkspacePage.Archive) _archivePage?.CancelPendingGalleryOpen();
         if (page != WorkspacePage.Archive) ForgetMediaReturn(); // the way back belongs to the archive the Medien page opened
         if (page != _selectedPage)
