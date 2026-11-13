@@ -47,7 +47,7 @@ public sealed partial class MediaPage : UserControl
     private readonly TextBlock _status = new() { Name = "MediaStatus", TextWrapping = Avalonia.Media.TextWrapping.Wrap };
     private readonly ListBox _grid = new() { Name = "MediaGrid", SelectionMode = SelectionMode.Multiple, Classes = { "workspace-selection-bar" } };
     private readonly TextBlock _empty = new() { Name = "MediaEmpty", TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(8, 40, 8, 8), IsVisible = false, Classes = { "muted" } };
-    // An empty library points back to where media comes from; a filter that matches nothing shows only its sentence.
+    // An empty library points back to where media comes from; a filter that matches nothing offers its reset (MediaPage.FilterChips.cs).
     private readonly Button _goDownloads = new() { Name = "MediaGoDownloads", Classes = { "primary" } };
     private readonly Button _goArchive = new() { Name = "MediaGoArchive" };
     private readonly WrapPanel _emptyActions = new() { Name = "MediaEmptyActions", ItemSpacing = 8, LineSpacing = 8, Margin = new Thickness(8, 0, 8, 8) };
@@ -131,7 +131,7 @@ public sealed partial class MediaPage : UserControl
         header.Children.Add(_title); header.Children.Add(_subtitle); header.Children.Add(tools);
         // The filter fields open as a surface over the grid (MediaPage.FilterSurface.cs); what is applied stays in the header.
         Border filterSurface = BuildFilterSurface(BuildFilterRow());
-        header.Children.Add(_filterChips); header.Children.Add(_filterError); header.Children.Add(BuildStatusRow(_status)); header.Children.Add(BuildExportAllAsk()); header.Children.Add(BuildSelectionBar());
+        header.Children.Add(BuildFilterChipRow()); header.Children.Add(_filterError); header.Children.Add(BuildStatusRow(_status)); header.Children.Add(BuildExportAllAsk()); header.Children.Add(BuildSelectionBar());
         _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { ItemHeight = MediaLibraryTileView.TileHeight });
         _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThreadFilter = FilterToThread,
             TagFilter = FilterToTag, ShowOccurrences = ShowOccurrences });
@@ -294,7 +294,10 @@ public sealed partial class MediaPage : UserControl
         bool showEmpty = _snapshot != null && _shown.Count == 0 && _building == null && !_filterFailed;
         _empty.IsVisible = showEmpty;
         _emptyState.IsVisible = showEmpty;
-        _emptyActions.IsVisible = showEmpty && !_filterActive;
+        // An empty library points to Downloads and Archive; a filter that matches nothing offers to reset it (C3).
+        _emptyActions.IsVisible = showEmpty;
+        _goDownloads.IsVisible = _goArchive.IsVisible = !_filterActive;
+        _emptyReset.IsVisible = _filterActive;
         _refresh.IsEnabled = !_lifetime.IsCancellationRequested;
         UpdateUntaggedLink();
         UpdateSearchResult();

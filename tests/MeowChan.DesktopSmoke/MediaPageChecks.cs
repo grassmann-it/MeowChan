@@ -223,7 +223,8 @@ internal static partial class MediaPageChecks
             string Untagged() => string.Join(",", page.ShownEntries.Select(entry => entry.Thread.Thread + ":" + (entry.PostId ?? "-")));
             Require(Untagged() == "100:100,100:-", "Without media tags and the type filter must combine: " + Untagged());
             page.FilterToTag(rpt.Tag.Value);
-            Require(Untagged() == "100:100,100:-" && page.FilterChips.Children.Count == 2, "The thread tag filter must still match untagged media: " + Untagged());
+            // C3: type, without media tags and the tag are three chips now (the type had none before).
+            Require(Untagged() == "100:100,100:-" && page.FilterChips.Children.Count == 3, "The thread tag filter must still match untagged media: " + Untagged());
             C<Button>(page, "MediaFilterReset").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Require(withoutTags.IsChecked == false && page.ShownEntries.Count == 3 && untagged.IsVisible, "Reset did not clear without media tags.");
 

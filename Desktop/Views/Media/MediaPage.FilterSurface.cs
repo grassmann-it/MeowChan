@@ -96,12 +96,13 @@ public sealed partial class MediaPage
         CloseFilterSurface(restoreFocus: true);
     }
 
-    // Filters apply live, so the toggle says whether any filter is on while the fields are hidden.
+    // Filters apply live, so the toggle says how many are on while the fields are hidden (C3: "Filters (3)", one per chip).
     private void UpdateFilterToggle()
     {
-        string header = Texts.T(_filterActive ? "media.filters.active" : "media.filters");
+        int count = ActiveFilterCount;
+        string header = count > 0 ? Texts.T("media.filters.count", count) : Texts.T("media.filters");
         if (!Equals(_filters.Header, header)) _filters.Header = header;
-        AutomationProperties.SetName(_filters, header);
+        AutomationProperties.SetName(_filters, count > 0 ? Texts.Count("media.filters.countName", count) : header);
     }
 
     private void LocalizeFilterSurface()

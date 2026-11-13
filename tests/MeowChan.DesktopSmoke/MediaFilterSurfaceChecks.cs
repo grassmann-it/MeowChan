@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Gallery;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Tags;
@@ -53,9 +54,78 @@ internal static partial class MediaPageChecks
             foreach (string code in new[] { "de", "en" })
             foreach ((double width, double height) in new[] { (1400d, 900d), (660d, 560d) })
                 await FilterSurfaceStateAsync(window, page, theme, code, width, height);
+            foreach (ThemeVariant theme in new[] { ThemeVariant.Dark, ThemeVariant.Light })
+            foreach (string code in new[] { "de", "en" })
+                await FilterChipRowAsync(window, page, theme, code);
+            Console.WriteLine("SMOKE media filter chips: every active filter is a removable chip in one row with the surface closed, Filters (n), Reset all, empty-state reset, error line style; DE/EN, Light/Dark passed.");
             Console.WriteLine("SMOKE media filter surface: toggle opens the fields over the grid (grid and header unmoved, chips/status/selection bar visible), live filtering from the surface, active marker, focus in/out, Tab cycle, Escape order (dropdown first), Close button, programmatic open keeps focus, tiles fit their cells; DE/EN, Light/Dark, 1400/660 passed.");
         }
         finally { Texts.SetLanguage(language); page.EndLifetime(); window.Close(); }
+    }
+
+    // C3: with the surface closed, type, name, rating and favourites appear as chips beside the tag chip, the toggle counts them,
+    // a chip resets exactly its field, "Reset all" clears everything and a filter that matches nothing offers its reset in the grid.
+    private static async Task FilterChipRowAsync(Window window, MediaPage page, ThemeVariant theme, string code)
+    {
+        string state = $"chips {theme}/{code}";
+        window.RequestedThemeVariant = theme;
+        Texts.SetLanguage(code);
+        window.Width = 1400; window.Height = 900;
+        Expander filters = C<Expander>(page, "MediaFilters");
+        ComboBox kind = C<ComboBox>(page, "MediaKindFilter");
+        TextBox name = C<TextBox>(page, "MediaNameFilter");
+        Button resetAll = page.FilterResetAll, emptyReset = C<Button>(page, "MediaEmptyReset");
+        TextBlock error = C<TextBlock>(page, "MediaFilterError");
+        string[] Labels() => page.FilterChips.Children.OfType<Ursa.Controls.ClosableTag>().Select(tag => (tag.Content as TextBlock)?.Text ?? string.Empty).ToArray();
+        // The language switch re-renders after a dispatcher turn.
+        await UntilAsync(() => resetAll.Content as string == Texts.T("media.filter.resetAll") && Labels().SequenceEqual(new[] { Texts.T("tags.filter.includeChip", "surface") }));
+        Require(!filters.IsExpanded && page.ActiveFilterCount == 1 && Equals(filters.Header, Texts.T("media.filters.count", 1)) && resetAll.IsEffectivelyVisible
+            && resetAll.Content as string == Texts.T("media.filter.resetAll") && error.Classes.Contains("workspace-error"), state + ": one tag chip with Reset all.");
+        kind.SelectedIndex = (int)MediaLibraryKindFilter.Image;
+        name.Text = "r-6";
+        await UntilAsync(() => page.ActiveFilterCount == 3 && page.Tiles.Count == 20); // r-600 ... r-619, not the loose file
+        string[] labels = Labels();
+        Require(labels.SequenceEqual(new[] { Texts.T("tags.filter.includeChip", "surface"), Texts.T("media.filter.nameChip", "r-6"),
+                Texts.T("media.filter.kindChip", Texts.T("media.filter.kind.image")) })
+            && Equals(filters.Header, Texts.T("media.filters.count", 3))
+            && Avalonia.Automation.AutomationProperties.GetName(filters) == Texts.Count("media.filters.countName", 3)
+            && page.FilterChips.Children.OfType<Ursa.Controls.ClosableTag>().All(tag => tag.Classes.Contains("chip-filter") && tag.IsEffectivelyVisible),
+            state + ": chip row " + string.Join(" | ", labels) + " / " + filters.Header);
+        window.UpdateLayout();
+        Program.CaptureWindow(window, $"smoke-media-filter-chips-{code}-{theme.ToString().ToLowerInvariant()}.png");
+
+        // Removing the type chip resets only the type; the name chip removes its text at once.
+        System.Windows.Input.ICommand Remove(int index) => ((Ursa.Controls.ClosableTag)page.FilterChips.Children[index]).Command!;
+        Remove(2).Execute(null);
+        Require(kind.SelectedIndex == 0 && name.Text == "r-6" && page.ActiveFilterCount == 2, state + ": the type chip must reset only the type.");
+        Remove(1).Execute(null);
+        Require(name.Text == string.Empty && page.ActiveFilterCount == 1 && page.Tiles.Count == SurfaceTagged + 1, state + ": the name chip must clear the name.");
+
+        // Nothing matches: the empty grid offers the reset; it and "Reset all" clear every filter, the toggle loses its count.
+        name.Text = "no-such-file";
+        await UntilAsync(() => page.Tiles.Count == 0 && emptyReset.IsEffectivelyVisible);
+        Require(!C<Button>(page, "MediaGoDownloads").IsVisible && emptyReset.Content as string == Texts.T("media.filter.reset"), state + ": empty filter result must offer reset, not navigation.");
+        window.UpdateLayout();
+        if (code == "en") Program.CaptureWindow(window, $"smoke-media-filter-empty-{theme.ToString().ToLowerInvariant()}.png");
+        emptyReset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Require(page.ActiveFilterCount == 0 && !resetAll.IsVisible && !page.FilterChips.IsVisible && name.Text == string.Empty
+            && Equals(filters.Header, Texts.T("media.filters")), state + ": the empty-state reset must clear every filter.");
+        await UntilAsync(() => page.Tiles.Count == ReturnThreads + 2);
+
+        // Back to the surface journey's starting point: the tag chip, then "Reset all" once and the tag again.
+        ComboBox choice = C<ComboBox>(page, "MediaTagChoice");
+        choice.SelectedItem = choice.Items.Cast<object>().Single(item => item.ToString() == "surface");
+        C<Button>(page, "MediaTagInclude").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        C<CheckBox>(page, "MediaFavoritesOnly").IsChecked = true;
+        C<ComboBox>(page, "MediaMinRating").SelectedIndex = 2;
+        C<ComboBox>(page, "MediaSourceFilter").SelectedIndex = 1;
+        Require(page.ActiveFilterCount == 4 && Labels().Skip(1).SequenceEqual(new[] { Texts.T("archive.sourceChip", "media-fixture"),
+            Texts.T("media.filter.ratingChip", 2), Texts.T("media.filter.favorites") }), state + ": source, rating and favourites chips: " + string.Join(" | ", Labels()));
+        resetAll.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Require(page.ActiveFilterCount == 0 && C<CheckBox>(page, "MediaFavoritesOnly").IsChecked == false && page.Tiles.Count == ReturnThreads + 2, state + ": Reset all.");
+        choice.SelectedItem = choice.Items.Cast<object>().Single(item => item.ToString() == "surface");
+        C<Button>(page, "MediaTagInclude").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Require(page.ActiveFilterCount == 1 && page.Tiles.Count == SurfaceTagged + 1, state + ": tag filter restored.");
     }
 
     private static async Task FilterSurfaceStateAsync(Window window, MediaPage page, ThemeVariant theme, string code, double width, double height)
@@ -75,7 +145,7 @@ internal static partial class MediaPageChecks
         {
             window.UpdateLayout();
             return PresentationChecks.MatchesRequestedSize(window, width, height) && grid.Bounds.Height > 0
-                && Equals(filters.Header, Texts.T("media.filters.active")) && close.Content as string == Texts.T("action.close");
+                && Equals(filters.Header, Texts.T("media.filters.count", 1)) && close.Content as string == Texts.T("action.close");
         });
         Rect Bounds(Control control) => new(control.TranslatePoint(default, window)
             ?? throw new InvalidOperationException(control.Name + " is detached."), control.Bounds.Size);
