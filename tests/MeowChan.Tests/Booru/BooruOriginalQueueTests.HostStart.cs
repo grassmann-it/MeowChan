@@ -62,4 +62,22 @@ public sealed partial class BooruOriginalQueueTests
         Assert.Equal("catalog_unreadable", host.Scheduler.GetSnapshot().FaultCode);
         Assert.Empty(await host.Recovery.WaitAsync(TestWait.Timeout));
     }
+
+    [Fact]
+    public async Task AnUnreadableCatalogIsReadAndReportedOnlyOnceAtHostStart()
+    {
+        using TempDirectory directory = new();
+        FakeCdn cdn = new();
+        await using Session session = new(directory.Path, cdn);
+        File.WriteAllText(session.Catalog.FilePath, "{ not json");
+        long readsBefore = session.Catalog.Counters.FullReads;
+        await using DanbooruWatcherHost host = new(session.Catalog, session.Booru, new FakeDanbooruSearch(TimeProvider.System));
+
+        await host.StartAsync().WaitAsync(TestWait.Timeout);
+        Assert.Empty(await host.Recovery.WaitAsync(TestWait.Timeout));
+
+        // The scheduler's load fault is the one report; the recovery does not fail on the same read and log it again.
+        Assert.Equal("catalog_unreadable", host.Scheduler.GetSnapshot().FaultCode);
+        Assert.Equal(readsBefore + 1, session.Catalog.Counters.FullReads);
+    }
 }

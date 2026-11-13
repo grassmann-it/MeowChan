@@ -28,6 +28,7 @@ namespace MeowChan.Booru;
 /// </summary>
 internal sealed class DanbooruWatcherHost : IAsyncDisposable
 {
+    private const string CatalogUnreadableFault = "catalog_unreadable";
     private readonly BooruOriginalQueue _originals;
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private CancellationTokenSource? _recoveryCancellation;
@@ -66,7 +67,11 @@ internal sealed class DanbooruWatcherHost : IAsyncDisposable
             Scheduler.Load(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             CancellationTokenSource recovery = new();
-            Task<IReadOnlyList<BooruOriginalAdmission>> recovering = Task.Run(() => RecoverAsync(recovery.Token), CancellationToken.None);
+            // An unreadable catalog is already the scheduler's visible load fault; a recovery would only fail on the
+            // same read and report it a second time.
+            Task<IReadOnlyList<BooruOriginalAdmission>> recovering = Scheduler.GetSnapshot().FaultCode == CatalogUnreadableFault
+                ? Task.FromResult<IReadOnlyList<BooruOriginalAdmission>>([])
+                : Task.Run(() => RecoverAsync(recovery.Token), CancellationToken.None);
             try { await Scheduler.StartAsync(cancellationToken).ConfigureAwait(false); }
             catch
             {
