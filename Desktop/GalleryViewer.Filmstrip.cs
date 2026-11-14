@@ -35,15 +35,11 @@ internal sealed partial class GalleryViewer
 
     private readonly GalleryFilmstrip _filmstrip = new();
     private readonly ToggleButton _filmstripToggle = new() { Name = "GalleryFilmstripToggle" };
+    // The old profile setting (GalleryFilmstrip): the View set's filmstrip choice where that has none. The layout choice is the owner (GL4).
     private bool _filmstripSetting = true;
-    // The user turned the filmstrip on in a view that leaves it away: it stays for this gallery (R6, state beats view).
-    private bool _filmstripForced;
     private int _filmstripHeight = Config.GalleryFilmstripHeightDefault, _filmstripPreload = Config.GalleryFilmstripPreloadDefault;
     private bool _filmstripPeek, _filmstripTopHot, _pointerInFilmstrip, _filmstripOverlayStyled, _filmstripStyleKnown;
     private long _lastFilmstripActivity = Stopwatch.GetTimestamp();
-
-    /// <summary>The user showed or hid the filmstrip (L, the ⋯ row): the new value of the profile setting, for the owning shell to save.</summary>
-    internal event Action<bool>? FilmstripPreferenceChanged;
 
     internal GalleryFilmstrip Filmstrip => _filmstrip;
     /// <summary>Whether the filmstrip is on the screen now (tests and smokes).</summary>
@@ -114,11 +110,15 @@ internal sealed partial class GalleryViewer
 
     // ---- visibility ----
 
+    // The user turned the filmstrip on in a view that leaves it away: it stays (R6, the choice beats the view). Saved in the layout choice (GL4).
+    private bool FilmstripForced => EffectiveLayoutChoice(ShownChromeMode).Filmstrip == true
+        && !WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve("gallery.filmstrip", _workView));
+
     private bool FilmstripPolicyVisible =>
-        WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve("gallery.filmstrip", _workView, nonDefaultState: _filmstripForced));
+        WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve("gallery.filmstrip", _workView, nonDefaultState: FilmstripForced));
 
     /// <summary>The user-visible choice: setting on and the view (or the user's own choice) shows it. Transient reasons (no media yet, tools hidden) are not part of it.</summary>
-    internal bool FilmstripWanted => _filmstripSetting && FilmstripPolicyVisible;
+    internal bool FilmstripWanted => EffectiveLayoutChoice(ShownChromeMode).Filmstrip != false && FilmstripPolicyVisible;
 
     private bool FilmstripFits => Bounds.Height <= 0 || Bounds.Height >= FilmstripMinimumHeight;
 
@@ -149,7 +149,7 @@ internal sealed partial class GalleryViewer
             ? Math.Min(_filmstripHeight, Config.GalleryFilmstripHeightMinimum) : _filmstripHeight;
         _filmstrip.Configure(tile, _filmstripPreload);
         ApplyFilmstripBackground(overlay);
-        WorkViewGate.Apply(_filmstrip, _workView, stateVisible: show, nonDefaultState: _filmstripForced);
+        WorkViewGate.Apply(_filmstrip, _workView, stateVisible: show, nonDefaultState: FilmstripForced);
         // Docked, the picture starts below the band; the overlay floats over it.
         double inset = show && !overlay ? TopRowClearance + GalleryFilmstripPlan.BandHeight(tile) + 2 : 0;
         if (_viewport.Margin.Top != inset) _viewport.Margin = new Thickness(0, inset, 0, 0);
@@ -221,21 +221,15 @@ internal sealed partial class GalleryViewer
         return true;
     }
 
-    /// <summary>Shows or hides the filmstrip (the L key and the ⋯ row); the choice is also the profile setting.</summary>
+    /// <summary>Shows or hides the filmstrip (the L key and the ⋯ row); the choice is the shown mode's layout choice, saved per profile and mode (GL4).</summary>
     internal void ToggleFilmstrip()
     {
         if (_terminalRetirement) return;
         bool show = !FilmstripWanted;
-        if (show)
-        {
-            _filmstripSetting = true;
-            // A view that leaves the strip away by default still shows it on the user's request.
-            _filmstripForced = !WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve("gallery.filmstrip", _workView));
-            _filmstripPeek = false;
-        }
-        else { _filmstripSetting = false; _filmstripForced = false; _filmstripPeek = false; }
+        _filmstripPeek = false;
         if (_filmstrip.IsKeyboardFocusWithin && !show) FocusGallerySurface();
-        FilmstripPreferenceChanged?.Invoke(_filmstripSetting);
+        GalleryChromeMode mode = ShownChromeMode;
+        ChangeLayoutChoice(mode, LayoutChoice(mode) with { Filmstrip = show });
         // In overlay mode the strip needs the controls up to be seen at all.
         if (show && OverlayControlsEffective) RevealOverlayControls();
         UpdateFilmstripPlacement();

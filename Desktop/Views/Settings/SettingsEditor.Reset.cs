@@ -215,7 +215,7 @@ public partial class SettingsEditor
         GalleryOverlayControls = playback.OverlayControls;
         GalleryOverlayPostContext = playback.OverlayPostContext;
         LoadGalleryVideoDraft(playback);
-        LoadViewerDraft(defaults);
+        LoadViewerDraft(defaults, layoutReset: true);
     }
 
     private void ResetDownloadsDraft()

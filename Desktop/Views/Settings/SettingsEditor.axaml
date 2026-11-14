@@ -553,6 +553,8 @@
                         </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding GalleryFilmstripPreloadHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Button x:Name="GalleryLayoutResetButton" Content="{Binding GalleryLayoutResetLabel}" AutomationProperties.Name="{Binding GalleryLayoutResetLabel}" AutomationProperties.HelpText="{Binding GalleryLayoutResetHint}" Click="OnGalleryLayoutResetClick" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Left" />
+                    <TextBlock Text="{Binding GalleryLayoutResetHint}" Classes="workspace-help" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                     <CheckBox Content="{Binding VideoAutoplayLabel}" IsChecked="{Binding VideoAutoplay, Mode=TwoWay}" />
                     <CheckBox Content="{Binding VideoStartMutedLabel}" IsChecked="{Binding VideoStartMuted, Mode=TwoWay}" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">

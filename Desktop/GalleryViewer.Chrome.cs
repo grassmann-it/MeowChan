@@ -95,18 +95,55 @@ internal sealed partial class GalleryViewer
         ApplyChrome();
     }
 
-    /// <summary>The person's layout choice of <paramref name="mode"/> (null members: the view's default). GL0 hook for GL3 and GL4.</summary>
+    /// <summary>The person's layout choice of <paramref name="mode"/> (null members: the view's default), as saved per profile and mode (GL4).</summary>
     internal GalleryLayoutChoice LayoutChoice(GalleryChromeMode mode) => mode == GalleryChromeMode.Tag ? _tagChoice : _viewChoice;
 
-    /// <summary>Sets the layout choice of one mode (GL4 on load, GL3's menu on a change); the chrome follows at once when it is the shown mode.</summary>
+    /// <summary>The mode the chrome is laid out for now.</summary>
+    private GalleryChromeMode ShownChromeMode => GalleryChromePlan.ResolveMode(IsTagMode);
+
+    /// <summary>
+    /// The choice the plan reads: the saved choice of the mode, and for the View set the old filmstrip setting where the set has none
+    /// (<see cref="ConfigureFilmstrip"/>: off is off). The window loads the migrated choice (GalleryLayoutPreferences.FromConfig), so
+    /// the two agree; this keeps a viewer that only got the old setting working.
+    /// </summary>
+    private GalleryLayoutChoice EffectiveLayoutChoice(GalleryChromeMode mode)
+    {
+        GalleryLayoutChoice choice = LayoutChoice(mode);
+        return mode == GalleryChromeMode.View && choice.Filmstrip == null && !_filmstripSetting ? choice with { Filmstrip = false } : choice;
+    }
+
+    /// <summary>Raised when the person changed the layout of a mode (the L key, the layout menu, the reset): the window saves it per profile and mode. Not raised by <see cref="SetLayoutChoice"/>.</summary>
+    internal event Action<GalleryChromeMode, GalleryLayoutChoice>? LayoutChoiceChanged;
+
+    /// <summary>Sets the layout choice of one mode without reporting it (the window on load); the chrome follows at once when it is the shown mode.</summary>
     internal void SetLayoutChoice(GalleryChromeMode mode, GalleryLayoutChoice choice)
     {
         ArgumentNullException.ThrowIfNull(choice);
+        // "The view decides" is authoritative once a choice is loaded: the old setting must not revive an "off" after a reset.
+        if (mode == GalleryChromeMode.View && choice.Filmstrip == null) _filmstripSetting = true;
         if (choice == LayoutChoice(mode)) return;
         if (mode == GalleryChromeMode.Tag) _tagChoice = choice; else _viewChoice = choice;
         ApplyChrome();
         UpdateFilmstripPlacement();
         RefreshSlideshowStatus();
+    }
+
+    /// <summary>The person changes the layout of one mode (GL3's menu rows, the L key): applies it and reports it for saving. An unchanged choice reports nothing.</summary>
+    internal void ChangeLayoutChoice(GalleryChromeMode mode, GalleryLayoutChoice choice)
+    {
+        ArgumentNullException.ThrowIfNull(choice);
+        if (_terminalRetirement || choice == LayoutChoice(mode)) return;
+        SetLayoutChoice(mode, choice);
+        LayoutChoiceChanged?.Invoke(mode, choice);
+    }
+
+    /// <summary>"Reset layout": the shown mode (or the given one) back to the work view's defaults; the other mode keeps its choice. GL3's menu row calls this and offers the undo with the returned previous choice.</summary>
+    internal GalleryLayoutChoice ResetLayout(GalleryChromeMode? mode = null)
+    {
+        GalleryChromeMode target = mode ?? ShownChromeMode;
+        GalleryLayoutChoice previous = LayoutChoice(target);
+        ChangeLayoutChoice(target, GalleryLayoutChoice.Default);
+        return previous;
     }
 
     // The switch is the first group of the toolbar: it names the mode the rest of the chrome follows.
@@ -166,10 +203,7 @@ internal sealed partial class GalleryViewer
     private GalleryChromeInput BuildChromeInput()
     {
         GalleryChromeMode mode = GalleryChromePlan.ResolveMode(IsTagMode);
-        GalleryLayoutChoice choice = LayoutChoice(mode);
-        // Until GL4 persists the filmstrip in the choice, the profile setting and the person's own L in a view that leaves it away (R6)
-        // are the filmstrip's choice: off, on, or the view's default.
-        if (choice.Filmstrip == null) choice = choice with { Filmstrip = !_filmstripSetting ? false : _filmstripForced ? true : null };
+        GalleryLayoutChoice choice = EffectiveLayoutChoice(mode);
         // ControlsHidden stays false here: the overlay footer hides as a whole (GalleryOverlayActivity); GL1/GL2 read it for their hosts.
         return new GalleryChromeInput(mode, _workView, choice, _mediaFocus, OverlayControlsEffective, ControlsHidden: false,
             _entry?.Kind == SavedMediaKind.Video, _contextOpen, _taggingSurface != null, Bounds.Width, Bounds.Height)

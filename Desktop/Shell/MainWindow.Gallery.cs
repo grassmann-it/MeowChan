@@ -214,7 +214,7 @@ public partial class MainWindow
         { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPreference(null, volume); };
         _gallery.PlaybackPreferencesChanged += preferences =>
         { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPlaybackPreference(preferences); };
-        _gallery.FilmstripPreferenceChanged += show => OnGalleryFilmstripPreferenceChanged(preferenceOwner, show);
+        _gallery.LayoutChoiceChanged += (mode, choice) => OnGalleryLayoutChoiceChanged(preferenceOwner, mode, choice);
         _gallery.CloseRequested += () => CloseGallery();
         _gallery.TaggingModeRequested += tag => { if (ReferenceEquals(_gallery, preferenceOwner)) SwitchGalleryTagging(tag); };
         _gallery.ReadPostsRequested += () => _ = ReadEmptyGalleryPostsAsync();

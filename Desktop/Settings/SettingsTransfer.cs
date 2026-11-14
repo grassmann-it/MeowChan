@@ -176,6 +176,7 @@ public static class SettingsTransfer
             FolderSourceMaxRoots = source.FolderSourceMaxRoots,
             FolderSourceRescanMinutes = source.FolderSourceRescanMinutes,
             GalleryFilmstrip = source.GalleryFilmstrip,
+            GalleryLayout = source.GalleryLayout, // GL4: the layout choice of both modes travels with the profile settings
             GalleryFilmstripHeight = source.GalleryFilmstripHeight,
             GalleryFilmstripPreload = source.GalleryFilmstripPreload,
             HeaderTagline = source.HeaderTagline,

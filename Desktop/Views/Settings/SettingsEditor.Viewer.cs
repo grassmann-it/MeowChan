@@ -25,6 +25,7 @@ public partial class SettingsEditor
     private bool _mediaFocusHidesHeader = true;
     private decimal? _galleryFilmstripHeight = Config.GalleryFilmstripHeightDefault;
     private decimal? _galleryFilmstripPreload = Config.GalleryFilmstripPreloadDefault;
+    private bool _galleryLayoutResetPending;
 
     public IReadOnlyList<SettingsChoice> GallerySlideshowVideoRuleChoices { get; private set; } = Array.Empty<SettingsChoice>();
 
@@ -48,6 +49,23 @@ public partial class SettingsEditor
     public bool MediaFocusHidesHeader { get => _mediaFocusHidesHeader; set => SetField(ref _mediaFocusHidesHeader, value, nameof(MediaFocusHidesHeader)); }
     public decimal? GalleryFilmstripHeight { get => _galleryFilmstripHeight; set => SetField(ref _galleryFilmstripHeight, value, nameof(GalleryFilmstripHeight)); }
     public decimal? GalleryFilmstripPreload { get => _galleryFilmstripPreload; set => SetField(ref _galleryFilmstripPreload, value, nameof(GalleryFilmstripPreload)); }
+
+    /// <summary>
+    /// GL4: "Reset gallery layout" was pressed in this draft: the layout choice of both modes (View and Tag) goes back to the work
+    /// view's defaults when the settings are saved. Draft only; a discard or a save clears it.
+    /// </summary>
+    public bool GalleryLayoutResetPending
+    {
+        get => _galleryLayoutResetPending;
+        set { SetField(ref _galleryLayoutResetPending, value, nameof(GalleryLayoutResetPending)); Raise(new[] { nameof(GalleryLayoutResetHint) }); }
+    }
+
+    private void OnGalleryLayoutResetClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_isClosed || !IsEditable) return;
+        GalleryLayoutResetPending = true;
+        GalleryFilmstrip = true; // the layout after the reset: the filmstrip follows the work view
+    }
 
     private SlideshowVideoRule SelectedVideoRule => GalleryPlaybackPreferences.ParseVideoRule(SelectedGallerySlideshowVideoRule?.Value);
     /// <summary>The seconds row is shown (and validated) only for the "at least X seconds" rule of a chosen slideshow.</summary>
@@ -75,6 +93,9 @@ public partial class SettingsEditor
     public string GalleryFilmstripHeightLabel => Texts.T("settings.galleryFilmstripHeight");
     public string GalleryFilmstripHeightHint => Texts.T("settings.galleryFilmstripHeightHint",
         Config.GalleryFilmstripHeightDefault, Config.GalleryFilmstripHeightMinimum, Config.GalleryFilmstripHeightMaximum);
+    public string GalleryLayoutResetLabel => Texts.T("settings.galleryLayoutReset");
+    // The caption names what the button does; once pressed it says what happens on save (read out: the text block is a polite live region).
+    public string GalleryLayoutResetHint => Texts.T(GalleryLayoutResetPending ? "settings.galleryLayoutResetDone" : "settings.galleryLayoutResetHint");
     public string GalleryFilmstripPreloadLabel => Texts.T("settings.galleryFilmstripPreload");
     public string GalleryFilmstripPreloadHint => Texts.T("settings.galleryFilmstripPreloadHint",
         Config.GalleryFilmstripPreloadDefault, Config.GalleryFilmstripPreloadMinimum, Config.GalleryFilmstripPreloadMaximum);
@@ -97,7 +118,8 @@ public partial class SettingsEditor
         nameof(GallerySlideshowVideoSecondsLabel), nameof(GallerySlideshowVideoSecondsHint), nameof(GallerySlideshowVideoRepeatsLabel),
         nameof(GallerySlideshowVideoRepeatsHint), nameof(ControlsIdleHideMsLabel), nameof(ControlsIdleHideMsHint),
         nameof(GalleryFilmstripLabel), nameof(GalleryFilmstripHint), nameof(GalleryFilmstripHeightLabel), nameof(GalleryFilmstripHeightHint),
-        nameof(GalleryFilmstripPreloadLabel), nameof(GalleryFilmstripPreloadHint), nameof(MediaFocusHidesHeaderLabel), nameof(MediaFocusHidesHeaderHint)
+        nameof(GalleryFilmstripPreloadLabel), nameof(GalleryFilmstripPreloadHint), nameof(MediaFocusHidesHeaderLabel), nameof(MediaFocusHidesHeaderHint),
+        nameof(GalleryLayoutResetLabel), nameof(GalleryLayoutResetHint)
     };
 
     private void RaiseViewerVisibilityChanged() => Raise(new[] { nameof(IsGallerySlideshowVideoSeconds), nameof(IsGallerySlideshowVideoRepeats) });
@@ -135,9 +157,10 @@ public partial class SettingsEditor
         RaiseViewerVisibilityChanged();
     }
 
-    /// <summary>The idle time from <paramref name="config"/> (start, discard, after a save).</summary>
-    private void LoadViewerDraft(Config config)
+    /// <summary>The idle time from <paramref name="config"/> (start, discard, after a save). <paramref name="layoutReset"/>: the section reset also resets the gallery layout.</summary>
+    private void LoadViewerDraft(Config config, bool layoutReset = false)
     {
+        GalleryLayoutResetPending = layoutReset;
         ControlsIdleHideMs = config.ControlsIdleHideMs;
         ResetNumber(ControlsIdleHideMsInput, config.ControlsIdleHideMs);
         GalleryFilmstrip = config.GalleryFilmstrip;
@@ -153,6 +176,7 @@ public partial class SettingsEditor
         candidate.ControlsIdleHideMs = GetInteger(ControlsIdleHideMs, ControlsIdleHideMsLabel, Config.ControlsIdleHideMsMinimum, Config.ControlsIdleHideMsMaximum);
         candidate.GalleryFilmstrip = GalleryFilmstrip;
         candidate.MediaFocusHidesHeader = MediaFocusHidesHeader;
+        candidate.GalleryLayoutResetRequested = GalleryLayoutResetPending;
         candidate.GalleryFilmstripHeight = GetInteger(GalleryFilmstripHeight, GalleryFilmstripHeightLabel, Config.GalleryFilmstripHeightMinimum, Config.GalleryFilmstripHeightMaximum);
         candidate.GalleryFilmstripPreload = GetInteger(GalleryFilmstripPreload, GalleryFilmstripPreloadLabel, Config.GalleryFilmstripPreloadMinimum, Config.GalleryFilmstripPreloadMaximum);
     }

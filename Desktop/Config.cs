@@ -942,6 +942,24 @@ namespace MeowChan
         /// <summary>How many thumbnails on each side of the visible ones the filmstrip decodes in advance.</summary>
         public int GalleryFilmstripPreload { get; set; } = GalleryFilmstripPreloadDefault;
         internal const int GalleryFilmstripPreloadDefault = 12, GalleryFilmstripPreloadMinimum = 4, GalleryFilmstripPreloadMaximum = 60;
+        /// <summary>
+        /// GL4: the person's layout choice of the gallery, one set per mode (the typed value; null = nothing chosen). A profile without it reads
+        /// <see cref="GalleryFilmstrip"/> instead (GalleryLayoutPreferences.FromConfig). Saved as "GalleryLayout" (<see cref="GalleryLayoutJson"/>).
+        /// </summary>
+        [JsonIgnore] internal GalleryLayoutPreferences? GalleryLayout { get; set; }
+        /// <summary>
+        /// The saved form of <see cref="GalleryLayout"/>, key "GalleryLayout": { "view": {...}, "tag": {...} } with the optional members filmstrip,
+        /// filmstripDock ("top"|"bottom"), tools, info and hints (absent = the work view's default). Any JSON is accepted on load: a value that
+        /// is no object reads as nothing chosen, and unknown or damaged members are dropped and logged, so the other settings are never lost.
+        /// </summary>
+        [JsonPropertyName("GalleryLayout")]
+        public System.Text.Json.Nodes.JsonNode? GalleryLayoutJson
+        {
+            get => GalleryLayout?.ToJsonNode();
+            set => GalleryLayout = GalleryLayoutPreferences.FromJsonNode(value);
+        }
+        /// <summary>Draft only (never saved): the settings page asked to reset the gallery layout of both modes; applied by <see cref="CopySettingsFieldsFrom"/>.</summary>
+        [JsonIgnore] internal bool GalleryLayoutResetRequested { get; set; }
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool GalleryMediaFocus { get; set; }
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
@@ -1219,6 +1237,7 @@ namespace MeowChan
         {
             GalleryAutoHideControls = GalleryOverlayControls;
             SettingsBaselineGalleryPlayback = SettingsBaselineGalleryPlayback?.Normalize();
+            GalleryLayout = GalleryLayout is { } layout && layout.Normalize() is { IsDefault: false } normalized ? normalized : null;
         }
 
         public void Validate()
@@ -1541,6 +1560,7 @@ namespace MeowChan
                 StatsSampleIntervalMs = StatsSampleIntervalMs,
                 ControlsIdleHideMs = ControlsIdleHideMs,
                 GalleryFilmstrip = GalleryFilmstrip,
+                GalleryLayout = GalleryLayout,
                 GalleryFilmstripHeight = GalleryFilmstripHeight,
                 GalleryFilmstripPreload = GalleryFilmstripPreload,
                 StatsHistorySamples = StatsHistorySamples,
@@ -1768,6 +1788,7 @@ namespace MeowChan
             StatsSampleIntervalMs = source.StatsSampleIntervalMs;
             ControlsIdleHideMs = source.ControlsIdleHideMs;
             GalleryFilmstrip = source.GalleryFilmstrip;
+            GalleryLayout = source.GalleryLayoutResetRequested ? null : source.GalleryLayout; // (a draft that asked for the reset: nothing chosen)
             GalleryFilmstripHeight = source.GalleryFilmstripHeight;
             GalleryFilmstripPreload = source.GalleryFilmstripPreload;
             StatsHistorySamples = source.StatsHistorySamples;
@@ -1957,6 +1978,12 @@ namespace MeowChan
             ClipboardTextLimitKiB = source.ClipboardTextLimitKiB;
             StatsSampleIntervalMs = source.StatsSampleIntervalMs;
             ControlsIdleHideMs = source.ControlsIdleHideMs;
+            // GL4: the layout is a direct preference of the gallery and is not taken from a draft, except its reset. The filmstrip box of the
+            // settings page is the old setting: a changed box (against the layout after the reset) sets the filmstrip choice of both modes.
+            bool filmstripShown = GalleryFilmstrip;
+            if (source.GalleryLayoutResetRequested) { GalleryLayoutPreferences.Default.ApplyTo(this); filmstripShown = GalleryFilmstrip; }
+            if (filmstripShown != source.GalleryFilmstrip)
+                GalleryLayoutPreferences.FromConfig(this).WithFilmstripSetting(source.GalleryFilmstrip).ApplyTo(this);
             GalleryFilmstrip = source.GalleryFilmstrip;
             GalleryFilmstripHeight = source.GalleryFilmstripHeight;
             GalleryFilmstripPreload = source.GalleryFilmstripPreload;

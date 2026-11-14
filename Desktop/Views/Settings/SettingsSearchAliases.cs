@@ -27,7 +27,7 @@ internal static class SettingsSearchAliases
         ["GalleryAutoHideControls"] = "hide idle auto ausblenden",
         ["GalleryOverlayPostContext"] = "post context kontext text",
         ["MediaFocusHidesHeader"] = "media focus mode fullscreen header title bar hide immersive medien fokusmodus vollbild kopfzeile titelleiste ausblenden",
-        ["GalleryFilmstrip"] = "filmstrip thumbnails strip thumbnail preview filmstreifen vorschau vorschaubilder miniaturen",
+        ["GalleryFilmstrip"] = "filmstrip thumbnails strip thumbnail preview filmstreifen vorschau vorschaubilder miniaturen layout reset gallery layout blocks galerie-layout zurücksetzen blöcke",
         ["VideoVolume"] = "audio sound volume lautstärke ton",
         ["RememberReadingPosition"] = "resume continue bookmark position weiterlesen lesestand",
         ["ReadingHistoryLimit"] = "history recent threads continue resume earlier places verlauf zuletzt gelesen weiterlesen frühere stellen",
