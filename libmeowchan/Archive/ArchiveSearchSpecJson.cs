@@ -66,12 +66,14 @@ public static class ArchiveSearchSpecJson
             Fields(tags, "match", "include", "exclude");
             try
             {
+                // A saved definition is read under the absolute technical ceiling, not the current UI admission
+                // preference. Lowering that preference must not make an existing filter disappear or become unreadable.
                 tagFilter = new ArchiveTagFilter(TagIds(tags.GetProperty("include")), TagIds(tags.GetProperty("exclude")),
                     Text(tags.GetProperty("match")) switch
                     {
                         "all" => ArchiveTagMatch.All, "any" => ArchiveTagMatch.Any,
                         _ => throw new JsonException("Unsupported tag match.")
-                    });
+                    }, ArchiveTagFilter.MaximumConfigurableTagsPerList);
             }
             catch (ArgumentException error) { throw new JsonException("Invalid tag filter: " + error.Message); }
         }
@@ -111,14 +113,23 @@ public static class ArchiveSearchSpecJson
     private static Guid[] TagIds(JsonElement array)
     {
         if (array.ValueKind != JsonValueKind.Array) throw new JsonException("A tag list is required.");
-        return array.EnumerateArray().Select(item =>
+        int count = array.GetArrayLength();
+        if (count > ArchiveTagFilter.MaximumConfigurableTagsPerList)
+            throw new JsonException("A tag list exceeds the supported reference limit.");
+
+        // Keep the reader bounded independently of ArchiveTagFilter's constructor. JsonElement arrays are already
+        // parsed, but do not allocate an unbounded managed array before the filter can reject abusive input.
+        Guid[] ids = new Guid[count];
+        int index = 0;
+        foreach (JsonElement item in array.EnumerateArray())
         {
             string text = Text(item);
             // Exactly the lowercase hyphenated form this contract writes.
             if (!Guid.TryParseExact(text, "D", out Guid id) || !string.Equals(id.ToString("D"), text, StringComparison.Ordinal))
                 throw new JsonException("A tag reference must be a canonical identifier.");
-            return id;
-        }).ToArray();
+            ids[index++] = id;
+        }
+        return ids;
     }
 
     private static void Fields(JsonElement element, params string[] names)

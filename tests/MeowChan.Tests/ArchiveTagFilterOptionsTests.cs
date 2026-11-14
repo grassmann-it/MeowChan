@@ -1,3 +1,4 @@
+using System.Text.Json;
 using MeowChan.Archive;
 
 namespace MeowChan.Tests;
@@ -70,7 +71,7 @@ public sealed class ArchiveTagFilterOptionsTests
         ArchiveTagFilter large = new([Id(1), Id(2)], null, ArchiveTagMatch.Any, 128);
         Assert.Equal(small, large);
         Assert.Equal(small.GetHashCode(), large.GetHashCode());
-        Assert.Equal(32, new ArchiveTagFilter(Ids(32), null).Include.Count);
+        Assert.Equal(ArchiveTagFilter.DefaultTagsPerList, new ArchiveTagFilter(Ids(32), null).Include.Count);
         Assert.Throws<ArgumentException>(() => new ArchiveTagFilter(Ids(33), null));
 
         ArchiveSearchSpec saved = new ArchiveSearchSpec().WithTags(new ArchiveTagFilter(Ids(32), null));
@@ -79,8 +80,48 @@ public sealed class ArchiveTagFilterOptionsTests
         ArchiveSearchSpec restored = ArchiveSearchSpecJson.Deserialize(json);
         Assert.Equal(saved, restored);
         Assert.Equal(json, ArchiveSearchSpecJson.Serialize(restored));
-        Assert.Throws<ArgumentException>(() => new ArchiveTagFilter(restored.Tags!.Include, null, ArchiveTagMatch.All, 8));
-        Assert.Equal(restored.Tags, new ArchiveTagFilter(restored.Tags!.Include, null, ArchiveTagMatch.All,
+    }
+
+    [Theory]
+    [InlineData(33)]
+    [InlineData(128)]
+    public void SavedFilterJsonReaderRoundTripsBeyondTheHistoricalDefault(int count)
+    {
+        ArchiveTagFilter original = new(Ids(count), Ids(count, 1000), ArchiveTagMatch.Any,
+            ArchiveTagFilter.MaximumConfigurableTagsPerList);
+        ArchiveSearchSpec saved = new ArchiveSearchSpec().WithTags(original);
+        string json = ArchiveSearchSpecJson.Serialize(saved);
+
+        ArchiveSearchSpec restored = ArchiveSearchSpecJson.Deserialize(json);
+        Assert.Equal(saved, restored);
+        Assert.Equal(original, restored.Tags);
+        Assert.Equal(json, ArchiveSearchSpecJson.Serialize(restored));
+    }
+
+    [Fact]
+    public void LoweringAdmissionToEightDoesNotDiscardAStored128TagFilter()
+    {
+        ArchiveSearchSpec saved = new ArchiveSearchSpec().WithTags(new ArchiveTagFilter(Ids(128), null, ArchiveTagMatch.Any,
             ArchiveTagFilter.MaximumConfigurableTagsPerList));
+        ArchiveSearchSpec restored = ArchiveSearchSpecJson.Deserialize(ArchiveSearchSpecJson.Serialize(saved));
+
+        // Eight is an admission limit for new growth only; reconstructing the stored definition uses the technical cap.
+        Assert.Throws<ArgumentException>(() => new ArchiveTagFilter(restored.Tags!.Include, restored.Tags.Exclude,
+            restored.Tags.Match, ArchiveTagFilter.MinimumTagsPerList));
+        ArchiveTagFilter reopened = new(restored.Tags.Include, restored.Tags.Exclude, restored.Tags.Match,
+            ArchiveTagFilter.MaximumConfigurableTagsPerList);
+        Assert.Equal(saved.Tags, reopened);
+    }
+
+    [Fact]
+    public void SavedFilterJsonReaderRejectsThe129thReferenceBeforeParsingIt()
+    {
+        ArchiveSearchSpec saved = new ArchiveSearchSpec().WithTags(new ArchiveTagFilter(Ids(128), null, ArchiveTagMatch.All,
+            ArchiveTagFilter.MaximumConfigurableTagsPerList));
+        System.Text.Json.Nodes.JsonNode json = System.Text.Json.Nodes.JsonNode.Parse(ArchiveSearchSpecJson.Serialize(saved))!;
+        json["tags"]!["include"]!.AsArray().Add("not-a-guid");
+
+        JsonException error = Assert.Throws<JsonException>(() => ArchiveSearchSpecJson.Deserialize(json.ToJsonString()));
+        Assert.Contains("exceeds", error.Message, StringComparison.Ordinal);
     }
 }
