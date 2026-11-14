@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Skia;
@@ -76,7 +77,7 @@ public sealed class ExifOrientationTests
     private static string Letters(Bitmap bitmap)
     {
         using MemoryStream png = new();
-        bitmap.Save(png);
+        bitmap.Save(png, PngBitmapEncoderOptions.Default);
         png.Position = 0;
         using SKBitmap decoded = SKBitmap.Decode(png);
         return Letters(decoded);
@@ -143,10 +144,113 @@ public sealed class ExifOrientationTests
         for (int y = 0; y < 2; y++)
             for (int x = 0; x < 3; x++)
                 Assert.Equal(raw.GetPixel(x, y), turned.GetPixel(1 - y, x));
-        using SKBitmap twice = ImageOrientation.Apply(ImageOrientation.Apply(raw, SKEncodedOrigin.BottomRight), SKEncodedOrigin.BottomRight);
+        using SKBitmap once = ImageOrientation.Apply(raw, SKEncodedOrigin.BottomRight);
+        using SKBitmap twice = ImageOrientation.Apply(once, SKEncodedOrigin.BottomRight);
         for (int y = 0; y < 2; y++)
             for (int x = 0; x < 3; x++)
                 Assert.Equal(raw.GetPixel(x, y), twice.GetPixel(x, y)); // turning by 180 twice is the identity
+    }
+
+    private static (int X, int Y) MovedPixel(int x, int y, int width, int height, int orientation) => orientation switch
+    {
+        2 => (width - 1 - x, y), 3 => (width - 1 - x, height - 1 - y), 4 => (x, height - 1 - y),
+        5 => (y, x), 6 => (height - 1 - y, x), 7 => (height - 1 - y, width - 1 - x), 8 => (y, width - 1 - x),
+        _ => (x, y),
+    };
+
+    [Theory, MemberData(nameof(Orientations))]
+    public void DestinationTransformPreservesEveryPixelAlphaAndBothRowPaddings(int orientation)
+    {
+        // Odd, non-square pixels and different padded strides catch addressing mistakes hidden by JPEG quadrants.
+        const int width = 3, height = 2;
+        SKEncodedOrigin origin = (SKEncodedOrigin)orientation;
+        PixelSize shown = ImageOrientation.DisplaySize(width, height, origin);
+        using SKBitmap source = new(new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul), (width + 2) * 4);
+        using SKBitmap target = new(new SKImageInfo(shown.Width, shown.Height, SKColorType.Bgra8888, SKAlphaType.Premul), (shown.Width + 3) * 4);
+        target.GetPixelSpan().Fill(0xCD);
+        source.GetPixelSpan().Fill(0xAB);
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+                Marshal.WriteInt32(source.GetPixels(), y * source.RowBytes + x * 4, unchecked((int)0x80402010) + y * 16 + x);
+        byte[] before = source.GetPixelSpan().ToArray();
+        IntPtr destination = target.GetPixels();
+
+        ImageOrientation.Apply(source, target, origin);
+
+        Assert.Equal(destination, target.GetPixels()); // writes into the caller's allocation, never replaces it
+        Assert.Equal(before, source.GetPixelSpan().ToArray());
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+            {
+                (int dx, int dy) = MovedPixel(x, y, width, height, orientation);
+                Assert.Equal(Marshal.ReadInt32(source.GetPixels(), y * source.RowBytes + x * 4),
+                    Marshal.ReadInt32(destination, dy * target.RowBytes + dx * 4));
+            }
+        byte[] after = target.GetPixelSpan().ToArray();
+        for (int y = 0; y < target.Height; y++)
+            for (int padding = target.Width * 4; padding < target.RowBytes && y * target.RowBytes + padding < after.Length; padding++)
+                Assert.Equal((byte)0xCD, after[y * target.RowBytes + padding]); // Skia need not allocate the last row's trailing padding
+    }
+
+    [Theory, MemberData(nameof(Orientations))]
+    public void DirectDisplayBufferKeepsExactPremultipliedPixelsAfterTheSourceIsDisposed(int orientation)
+    {
+        Platform();
+        using SKBitmap source = new(3, 2, SKColorType.Bgra8888, SKAlphaType.Premul);
+        int[] pixels = [0, 0x01010000, 0x40201008, unchecked((int)0x80402010), unchecked((int)0xFFFEFDFC), 0x7F7E7D7C];
+        Marshal.Copy(pixels, 0, source.GetPixels(), pixels.Length);
+        using Bitmap result = ImageOrientation.CopyUpright(source, (SKEncodedOrigin)orientation);
+        source.Dispose();
+        PixelSize shown = ImageOrientation.DisplaySize(3, 2, (SKEncodedOrigin)orientation);
+        Assert.Equal(shown, result.PixelSize);
+        if (orientation != 1)
+        {
+            using var framebuffer = Assert.IsType<WriteableBitmap>(result).Lock();
+            for (int y = 0; y < 2; y++)
+                for (int x = 0; x < 3; x++)
+                {
+                    (int dx, int dy) = MovedPixel(x, y, 3, 2, orientation);
+                    Assert.Equal(pixels[y * 3 + x], Marshal.ReadInt32(framebuffer.Address, dy * framebuffer.RowBytes + dx * 4));
+                }
+        }
+        using MemoryStream encoded = new();
+        result.Save(encoded, PngBitmapEncoderOptions.Default); // the returned bitmap, not the disposed borrowed SKBitmap view, owns the display pixels
+        Assert.True(encoded.Length > 0);
+    }
+
+    [Theory]
+    [InlineData(1, 7)]
+    [InlineData(7, 1)]
+    [InlineData(1, 1)]
+    public void EveryOrientationSupportsSinglePixelAxes(int width, int height)
+    {
+        using SKBitmap source = new(width, height, SKColorType.Bgra8888, SKAlphaType.Premul);
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+                source.SetPixel(x, y, new SKColor((byte)(x + 17), (byte)(y + 23), 42));
+        foreach (int orientation in Enumerable.Range(1, 8))
+        {
+            PixelSize shown = ImageOrientation.DisplaySize(width, height, (SKEncodedOrigin)orientation);
+            using SKBitmap target = new(shown.Width, shown.Height, source.ColorType, source.AlphaType);
+            ImageOrientation.Apply(source, target, (SKEncodedOrigin)orientation);
+            for (int y = 0; y < height; y++)
+                for (int x = 0; x < width; x++)
+                {
+                    (int dx, int dy) = MovedPixel(x, y, width, height, orientation);
+                    Assert.Equal(source.GetPixel(x, y), target.GetPixel(dx, dy));
+                }
+        }
+    }
+
+    [Fact]
+    public void DestinationTransformRejectsAliasingWrongSizeAndWrongPixelFormat()
+    {
+        using SKBitmap source = Quadrants();
+        using SKBitmap wrongSize = new(W, H, source.ColorType, source.AlphaType);
+        using SKBitmap wrongFormat = new(H, W, SKColorType.Gray8, SKAlphaType.Opaque);
+        Assert.Throws<ArgumentException>(() => ImageOrientation.Apply(source, source, SKEncodedOrigin.TopRight));
+        Assert.Throws<ArgumentException>(() => ImageOrientation.Apply(source, wrongSize, SKEncodedOrigin.RightTop));
+        Assert.Throws<ArgumentException>(() => ImageOrientation.Apply(source, wrongFormat, SKEncodedOrigin.RightTop));
     }
 
     // ---- the decode paths ----
@@ -179,6 +283,19 @@ public sealed class ExifOrientationTests
         }
     }
 
+    [Theory, MemberData(nameof(Orientations))]
+    public void AResizedFitUsesTheFinalOrientedBufferAndLeavesTheStreamOpen(int orientation)
+    {
+        Platform();
+        using MemoryStream stream = new(Jpeg(orientation));
+        PixelSize target = Expected[orientation - 1].Swapped ? new(13, 25) : new(25, 13);
+        using Bitmap fit = GalleryImageDecoder.DecodeFit(stream, target);
+        Assert.Equal(target, fit.PixelSize);
+        Assert.Equal(Expected[orientation - 1].Corners, Letters(fit));
+        if (orientation != 1) Assert.IsType<WriteableBitmap>(fit);
+        Assert.True(stream.CanRead);
+    }
+
     [Theory]
     [InlineData(1, 40, 40, 40, 20)]
     [InlineData(6, 40, 40, 20, 40)]
@@ -193,6 +310,66 @@ public sealed class ExifOrientationTests
         using Bitmap fit = GalleryImageDecoder.DecodeFit(new MemoryStream(bytes), target);
         Assert.Equal(target, fit.PixelSize);
         Assert.Equal(Expected[orientation - 1].Corners, Letters(fit));
+    }
+
+    [Theory, MemberData(nameof(Orientations))]
+    public void ScanlineOriginalMatchesTheWholeBufferDecoderPixelForPixel(int orientation)
+    {
+        Platform();
+        byte[] bytes = Jpeg(orientation);
+        using MemoryStream encoded = new(bytes);
+        using SKCodec codec = SKCodec.Create(encoded)!;
+        using SKBitmap stored = SKBitmap.Decode(codec, new SKImageInfo(W, H, SKColorType.Bgra8888, SKAlphaType.Premul));
+        using SKBitmap expected = ImageOrientation.Apply(stored, (SKEncodedOrigin)orientation);
+        using MemoryStream stream = new(bytes);
+        using SKCodec scanlineCodec = SKCodec.Create(stream)!;
+        // Require the small-scratch path itself to succeed, rather than letting a fallback hide a regression.
+        using Bitmap actual = Assert.IsType<WriteableBitmap>(ImageOrientation.TryDecodeScanlines(scanlineCodec));
+        using MemoryStream png = new();
+        actual.Save(png, PngBitmapEncoderOptions.Default);
+        png.Position = 0;
+        using SKBitmap decoded = SKBitmap.Decode(png);
+        Assert.Equal((expected.Width, expected.Height), (decoded.Width, decoded.Height));
+        for (int y = 0; y < expected.Height; y++)
+            for (int x = 0; x < expected.Width; x++)
+                Assert.Equal(expected.GetPixel(x, y), decoded.GetPixel(x, y));
+        Assert.True(stream.CanRead);
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(6)]
+    [InlineData(8)]
+    public void IncompleteJpegCanRewindForTheWholeBufferFallback(int orientation)
+    {
+        Platform();
+        byte[] bytes = Jpeg(orientation)[..^32];
+        using MemoryStream stream = new(bytes);
+        using SKCodec codec = SKCodec.Create(stream)!;
+        using SKBitmap stored = SKBitmap.Decode(codec, new SKImageInfo(W, H, SKColorType.Bgra8888, SKAlphaType.Premul));
+        Assert.NotNull(stored); // the old whole-buffer decoder accepts incomplete pixel input
+        using SKBitmap expected = ImageOrientation.Apply(stored, (SKEncodedOrigin)orientation);
+        using Bitmap actual = ImageOrientation.DecodeOriginal(new MemoryStream(bytes));
+        Assert.Equal(new PixelSize(expected.Width, expected.Height), actual.PixelSize);
+        Assert.Equal(Letters(expected), Letters(actual));
+    }
+
+    [Theory, MemberData(nameof(Orientations))]
+    public void NonJpegCodecPixelsUseTheDirectDestinationFallback(int orientation)
+    {
+        Platform();
+        using SKBitmap source = Quadrants();
+        using SKData png = source.Encode(SKEncodedImageFormat.Png, 100);
+        using SKCodec codec = SKCodec.Create(png)!;
+        Assert.Equal(SKEncodedImageFormat.Png, codec.EncodedFormat);
+        Assert.Null(ImageOrientation.TryDecodeScanlines(codec));
+        using SKBitmap stored = SKBitmap.Decode(codec, new SKImageInfo(W, H, SKColorType.Bgra8888, SKAlphaType.Premul));
+        // Supply the origin explicitly: the pinned PNG codec ignores standard eXIf chunks, so such a fixture cannot exercise rotation.
+        // This checks the codec-to-final-buffer fallback, not new PNG EXIF parsing/semantics.
+        using Bitmap original = ImageOrientation.CopyUpright(stored, (SKEncodedOrigin)orientation);
+        Assert.Equal(ImageOrientation.DisplaySize(W, H, (SKEncodedOrigin)orientation), original.PixelSize);
+        Assert.Equal(Expected[orientation - 1].Corners, Letters(original));
+        if (orientation != 1) Assert.IsType<WriteableBitmap>(original);
     }
 
     // ---- malformed and other formats ----
@@ -272,6 +449,57 @@ public sealed class ExifOrientationTests
         using Bitmap original = ImageOrientation.DecodeOriginal(new MemoryStream(bytes));
         Assert.Equal(new PixelSize(W, H), original.PixelSize);
         Assert.Equal("RGBY", Letters(original));
+    }
+
+    // ---- allocation boundaries (header-only fixtures; no giant pixel allocations) ----
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 0)]
+    [InlineData(-1, 1)]
+    [InlineData(10000, 8001)]
+    [InlineData(int.MaxValue, int.MaxValue)]
+    public void InvalidOrOverBudgetDisplayTargetsAreRejectedBeforeDecoding(int width, int height)
+    {
+        using MemoryStream stream = new(Jpeg(6));
+        using SKCodec codec = SKCodec.Create(stream)!;
+        Assert.Throws<InvalidDataException>(() => ImageOrientation.DecodeScaled(codec, new PixelSize(width, height)));
+    }
+
+    [Theory]
+    [InlineData(6)]
+    [InlineData(8)]
+    public void AThumbnailWidthCannotOverflowTheHeightOrAllocateAnUnboundedBuffer(int orientation)
+    {
+        using MemoryStream stream = new(Jpeg(orientation));
+        Assert.Throws<InvalidDataException>(() => ImageOrientation.DecodeToWidth(stream, int.MaxValue));
+        Assert.True(stream.CanRead);
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(6)]
+    [InlineData(8)]
+    public void OversizedStoredDimensionsAreRejectedBeforeAllocatingOriginalOrFitPixels(int orientation)
+    {
+        byte[] bytes = Jpeg(orientation);
+        // Rewrite the baseline JPEG's SOF dimensions, not the pixel payload. The codec reads this without allocating the image.
+        int sof = -1;
+        for (int i = 0; i < bytes.Length - 9; i++)
+            if (bytes[i] == 0xFF && bytes[i + 1] == 0xC0) { sof = i; break; }
+        Assert.True(sof >= 0);
+        const int width = 10000, height = 8001; // just over the existing 80 MP technical ceiling
+        bytes[sof + 5] = (byte)(height >> 8); bytes[sof + 6] = (byte)(height & 255);
+        bytes[sof + 7] = (byte)(width >> 8); bytes[sof + 8] = (byte)(width & 255);
+        using MemoryStream stream = new(bytes);
+        using SKCodec codec = SKCodec.Create(stream)!;
+        Assert.Equal((width, height), (codec.Info.Width, codec.Info.Height));
+        Assert.Throws<InvalidDataException>(() => ImageOrientation.TryDecodeScanlines(codec));
+        Assert.Throws<InvalidDataException>(() => ImageOrientation.DecodeScaled(codec, new PixelSize(16, 16)));
+        using MemoryStream original = new(bytes);
+        Assert.Throws<InvalidDataException>(() => ImageOrientation.DecodeOriginal(original));
+        using MemoryStream thumbnail = new(bytes);
+        Assert.Throws<InvalidDataException>(() => ImageOrientation.DecodeToWidth(thumbnail, 16));
     }
 
     // ---- cost ----
