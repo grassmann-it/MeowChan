@@ -941,6 +941,12 @@ internal sealed class BooruCatalogStore
             // would replace the whole catalog with an empty one, and this store has no backup to fall back to.
             if (JsonDuplicateProperties.Any(bytes, _json.MaxDepth))
                 throw new InvalidDataException("The Booru catalog repeats a property.");
+            // The DTOs retain caller-friendly null-to-empty normalization for programmatic construction. That
+            // initializer runs before the serializer's object is validated, however, so an explicit JSON null in
+            // one of the schema collections would otherwise look exactly like a valid empty array. Inspect the raw
+            // document first; missing keys keep their existing required/additive-key semantics below.
+            using (JsonDocument document = JsonDocument.Parse(bytes, new JsonDocumentOptions { MaxDepth = _json.MaxDepth }))
+                RejectExplicitNullCollections(document.RootElement);
             BooruCatalogSnapshot value = JsonSerializer.Deserialize<BooruCatalogSnapshot>(bytes, _json)
                 ?? throw new InvalidDataException("The Booru catalog is empty.");
             ValidateSnapshot(value);
@@ -952,6 +958,44 @@ internal sealed class BooruCatalogStore
         {
             throw new InvalidDataException("The Booru catalog is malformed.", exception);
         }
+    }
+
+    private static void RejectExplicitNullCollections(JsonElement root)
+    {
+        RejectExplicitNullCollection(root, "posts");
+        RejectExplicitNullCollection(root, "watchers");
+        if (root.ValueKind != JsonValueKind.Object) return;
+
+        if (root.TryGetProperty("posts", out JsonElement posts) && posts.ValueKind == JsonValueKind.Array)
+        {
+            foreach (JsonElement post in posts.EnumerateArray())
+            {
+                if (post.ValueKind != JsonValueKind.Object) continue;
+                RejectExplicitNullCollection(post, "findings");
+                if (post.TryGetProperty("post", out JsonElement claim) && claim.ValueKind == JsonValueKind.Object)
+                {
+                    RejectExplicitNullCollection(claim, "tags");
+                    RejectExplicitNullCollection(claim, "media");
+                }
+            }
+        }
+
+        if (root.TryGetProperty("watchers", out JsonElement watchers) && watchers.ValueKind == JsonValueKind.Array)
+        {
+            foreach (JsonElement watcher in watchers.EnumerateArray())
+            {
+                if (watcher.ValueKind == JsonValueKind.Object)
+                    RejectExplicitNullCollection(watcher, "knownPostIds");
+            }
+        }
+    }
+
+    private static void RejectExplicitNullCollection(JsonElement owner, string propertyName)
+    {
+        if (owner.ValueKind == JsonValueKind.Object
+            && owner.TryGetProperty(propertyName, out JsonElement value)
+            && value.ValueKind == JsonValueKind.Null)
+            throw new InvalidDataException($"The Booru catalog contains an explicit null collection: {propertyName}.");
     }
 
     private static void ValidateSnapshot(BooruCatalogSnapshot snapshot)
