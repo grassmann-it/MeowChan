@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using MeowChan.Archive;
+using MeowChan.Storage;
 
 namespace MeowChan.Booru;
 
@@ -30,6 +31,7 @@ internal sealed record BooruOriginalDownloadPlan(
     string? ExpectedMd5)
 {
     internal const string Variant = "original";
+    internal string? ExpectedMimeType => MediaMimeValidation.FromExtension(Extension);
     internal string MediaIdentifier => $"booru-{SourceId}-{PostId}";
 }
 

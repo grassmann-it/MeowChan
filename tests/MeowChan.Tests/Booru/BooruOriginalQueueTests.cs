@@ -148,6 +148,45 @@ public sealed partial class BooruOriginalQueueTests
         Assert.Equal(0, session.Queue.GetCapacitySnapshot().Pending);
     }
 
+    [Fact]
+    public async Task OriginalResponseContentTypeMustMatchTheClaimedExtension()
+    {
+        using TempDirectory directory = new();
+        byte[] bytes = Bytes(38);
+        FakeCdn cdn = new();
+        BooruPostClaim post = Post("89", bytes, cdn);
+        cdn.Responses[OriginalUrl("89")] = new FakeResponse(bytes) { ContentType = "image/jpeg" };
+        await using Session session = new(directory.Path, cdn);
+
+        BooruOriginalAdmission admission = await session.Booru.AdmitAsync(post, BooruFindingKind.OneShot);
+        BooruOriginalDownloadOutcome failed = await admission.Completion.WaitAsync(TestWait.Timeout);
+
+        Assert.Equal(BooruOriginalDownloadState.DownloadFailed, failed.State);
+        Assert.Contains("Content-Type", failed.Failure);
+        Assert.Null(Assert.Single(session.Catalog.Read().Posts).LocalAssetId);
+        Assert.Equal("89", Assert.Single(session.Booru.GetPendingOriginals()).PostId);
+        Assert.False(File.Exists(Path.Combine(session.OutputRoot, "danbooru", "89", "89.png")));
+    }
+
+    [Fact]
+    public async Task OriginalResponseSignatureMustMatchTheClaimedExtension()
+    {
+        using TempDirectory directory = new();
+        byte[] bytes = Enumerable.Range(0, 4096).Select(index => (byte)(index * 13 + 17)).ToArray();
+        FakeCdn cdn = new();
+        BooruPostClaim post = Post("88", bytes, cdn);
+        await using Session session = new(directory.Path, cdn);
+
+        BooruOriginalAdmission admission = await session.Booru.AdmitAsync(post, BooruFindingKind.OneShot);
+        BooruOriginalDownloadOutcome failed = await admission.Completion.WaitAsync(TestWait.Timeout);
+
+        Assert.Equal(BooruOriginalDownloadState.DownloadFailed, failed.State);
+        Assert.Contains("bytes", failed.Failure);
+        Assert.Null(Assert.Single(session.Catalog.Read().Posts).LocalAssetId);
+        Assert.Equal("88", Assert.Single(session.Booru.GetPendingOriginals()).PostId);
+        Assert.False(File.Exists(Path.Combine(session.OutputRoot, "danbooru", "88", "88.png")));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -496,7 +535,15 @@ public sealed partial class BooruOriginalQueueTests
 
     private static string OriginalUrl(string postId) => $"https://cdn.donmai.us/original/{postId}.png";
 
-    private static byte[] Bytes(int seed) => Enumerable.Range(0, 4096).Select(index => (byte)(index * 31 + seed)).ToArray();
+    private static byte[] Bytes(int seed)
+    {
+        byte[] bytes = Enumerable.Range(0, 4096).Select(index => (byte)(index * 31 + seed)).ToArray();
+        // The B4 CDN fixture represents a PNG original. The remaining bytes stay deterministic and
+        // intentionally are not a complete decoded image; the queue only needs the bounded signature.
+        byte[] signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+        signature.CopyTo(bytes, 0);
+        return bytes;
+    }
 
     private static string Md5(byte[] bytes) => Convert.ToBase64String(MD5.HashData(bytes));
 
@@ -518,7 +565,10 @@ public sealed partial class BooruOriginalQueueTests
             ]);
     }
 
-    private sealed record FakeResponse(byte[] Body, long? DeclaredLength = null);
+    private sealed record FakeResponse(byte[] Body, long? DeclaredLength = null)
+    {
+        internal string? ContentType { get; init; } = "image/png";
+    }
 
     /// <summary>In-memory CDN; it never opens a socket. An optional gate holds each response body.</summary>
     private sealed class FakeCdn : HttpMessageHandler
@@ -541,7 +591,8 @@ public sealed partial class BooruOriginalQueueTests
             if (!Responses.TryGetValue(url, out FakeResponse? response))
                 return new HttpResponseMessage(HttpStatusCode.NotFound);
             ByteArrayContent content = new(response.Body);
-            content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+            if (response.ContentType is string contentType)
+                content.Headers.ContentType = new MediaTypeHeaderValue(contentType);
             if (response.DeclaredLength is long declared) content.Headers.ContentLength = declared;
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
         }

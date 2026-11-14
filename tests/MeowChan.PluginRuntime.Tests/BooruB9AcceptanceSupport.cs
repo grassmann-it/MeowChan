@@ -38,8 +38,13 @@ internal sealed record B9Post(long Id, byte[] Bytes, string Rating = "g", string
     internal string PreviewUrl => $"https://cdn.donmai.us/180x180/{Md5Hex[..2]}/{Md5Hex[2..4]}/{Md5Hex}.jpg";
     internal string Sha256Hex => Convert.ToHexString(SHA256.HashData(Bytes)).ToLowerInvariant();
 
-    internal static byte[] SyntheticBytes(long seed, int length = 3072) =>
-        Enumerable.Range(0, length).Select(index => (byte)(index * 13 + seed * 7 + 1)).ToArray();
+    internal static byte[] SyntheticBytes(long seed, int length = 3072)
+    {
+        byte[] bytes = Enumerable.Range(0, length).Select(index => (byte)(index * 13 + seed * 7 + 1)).ToArray();
+        byte[] signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+        signature.CopyTo(bytes, 0);
+        return bytes;
+    }
 
     internal JsonObject ToJson()
     {
@@ -229,7 +234,7 @@ internal sealed class B9Cdn : HttpMessageHandler
             body[body.Length / 2] ^= 0xFF;
         }
         ByteArrayContent content = new(body);
-        content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        content.Headers.ContentType = new MediaTypeHeaderValue("image/png");
         return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
     }
 }

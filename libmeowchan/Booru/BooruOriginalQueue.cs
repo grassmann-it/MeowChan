@@ -737,7 +737,8 @@ internal sealed class BooruOriginalQueue
                 Plan.ExpectedSize, Plan.ExpectedMd5, originalFileName: null, legacyPath: null, BooruOriginalDownloadPlan.Variant)
             {
                 // The catalog's exact lease is the consumer identity; a different queue profile fails closed.
-                ContentProfileLease = lease
+                ContentProfileLease = lease,
+                ExpectedMimeType = Plan.ExpectedMimeType
             };
         }
 

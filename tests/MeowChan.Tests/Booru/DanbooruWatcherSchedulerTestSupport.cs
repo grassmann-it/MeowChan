@@ -315,6 +315,8 @@ internal sealed class SchedulerCdn : HttpMessageHandler
     {
         string postId = id.ToString(System.Globalization.CultureInfo.InvariantCulture);
         byte[] bytes = Enumerable.Range(0, 2048).Select(index => (byte)(index * 7 + id)).ToArray();
+        byte[] signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+        signature.CopyTo(bytes, 0);
         Responses[OriginalUrl(postId)] = bytes;
         return new BooruPostClaim("danbooru", postId, BooruPostClaimPresence.Media | BooruPostClaimPresence.Tags,
             PostUrl: $"https://danbooru.donmai.us/posts/{postId}",
@@ -330,7 +332,7 @@ internal sealed class SchedulerCdn : HttpMessageHandler
         if (!Responses.TryGetValue(url, out byte[]? body))
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
         ByteArrayContent content = new(body);
-        content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        content.Headers.ContentType = new MediaTypeHeaderValue("image/png");
         return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
     }
 }

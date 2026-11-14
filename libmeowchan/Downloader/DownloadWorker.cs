@@ -101,10 +101,14 @@ public sealed class DownloadWorker
         response.EnsureSuccessStatusCode();
         if (response.StatusCode == HttpStatusCode.PartialContent)
             throw new InvalidDataException("A partial media response cannot be accepted without range-resume support.");
+        MediaMimeValidation.ValidateContentType(acquiringItem.ExpectedMimeType,
+            response.Content.Headers.ContentType?.MediaType);
         long? contentLength = response.Content.Headers.ContentLength;
         // Transport completeness is independent of provider metadata, including absent provider size.
         DownloadItem verifiedItem = acquiringItem.WithTransportLength(contentLength);
         Stream opened = await OpenBodyAsync(response.Content, cancellationToken, drainLateBody).ConfigureAwait(false);
+        if (acquiringItem.ExpectedMimeType is string expectedMime)
+            opened = MediaMimeValidation.WrapBody(opened, expectedMime);
         await using Stream source = drainLateBody ? new ProfileBodyStream(opened) : opened;
         using IdleTimeoutReadStream timedSource = new IdleTimeoutReadStream(source, _bodyIdleTimeout, _timeProvider);
         MediaCommitResult completed = filterLease == null
