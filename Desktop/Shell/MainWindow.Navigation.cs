@@ -520,8 +520,8 @@ public partial class MainWindow
         if (_selectedPage != WorkspacePage.Status) return;
         if (_galleryCoversWorkspace || _sessionRowsApplying) { _sessionDirtyWhileCovered = true; return; }
         DesktopSessionView current = view ?? _session.Projection.View;
-        RefreshStatusCounts(current);
-        if (DiagnosticsSegmentShown) _diagnosticsPage?.Refresh(current, !WorkspaceCommandBusy);
+        DiagnosticsSnapshot? snapshot = RefreshStatusCounts(current);
+        if (DiagnosticsSegmentShown) _diagnosticsPage?.Refresh(current, !WorkspaceCommandBusy, snapshot);
     }
 
     private System.Collections.Generic.IEnumerable<MeowChan.Archive.ArchiveBoardIdentity> GetRuleSuggestionContexts()

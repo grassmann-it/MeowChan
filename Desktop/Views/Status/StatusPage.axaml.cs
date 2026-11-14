@@ -1,6 +1,7 @@
 using System;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Layout;
 using Avalonia.Threading;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Stats;
@@ -25,10 +26,22 @@ public partial class StatusPage : UserControl
     private (long Active, long Waiting, int Problems)? _counts;
     private IoRates? _rates;
     private string? _strip;
+    // The diagnostics tab shows its problem count as a badge (the chip language of the filter toggles), not as text in the name.
+    private readonly TextBlock _diagnosticsLabel = new() { VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _diagnosticsBadgeText = new() { Classes = { "chip-label" }, VerticalAlignment = VerticalAlignment.Center };
+    private readonly Border _diagnosticsBadge;
 
     public StatusPage()
     {
         InitializeComponent();
+        _diagnosticsBadge = new Border { Classes = { "chip-badge", "chip-compact" }, Child = _diagnosticsBadgeText, VerticalAlignment = VerticalAlignment.Center, IsVisible = false, IsHitTestVisible = false };
+        AutomationProperties.SetAccessibilityView(_diagnosticsBadge, AccessibilityView.Raw);
+        DiagnosticsSegmentTab.Header = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Children = { _diagnosticsLabel, _diagnosticsBadge }
+        };
         ShowSegment(_segment);
         ApplyLanguage();
         AttachedToVisualTree += (_, _) => Texts.Changed += OnLanguageChanged;
@@ -110,7 +123,8 @@ public partial class StatusPage : UserControl
             : counts;
     }
 
-    /// <summary>The header of the diagnostics segment: its name, with the number of current problems when there are any.</summary>
+    /// <summary>The name of the diagnostics segment as text: its name, with the number of current problems when there are any
+    /// (the tab shows the count as a badge; this is its accessible name).</summary>
     internal static string DiagnosticsHeader(int problems) =>
         problems > 0 ? Texts.T("status.segment.diagnosticsCount", problems) : Texts.T("nav.diagnostics");
 
@@ -127,7 +141,12 @@ public partial class StatusPage : UserControl
     private void ApplySegmentHeaders()
     {
         StatisticsSegmentTab.Header = Texts.T("nav.statistics");
-        DiagnosticsSegmentTab.Header = DiagnosticsHeader(_counts?.Problems ?? 0);
+        int problems = _counts?.Problems ?? 0;
+        _diagnosticsLabel.Text = Texts.T("nav.diagnostics");
+        _diagnosticsBadgeText.Text = problems.ToString(System.Globalization.CultureInfo.CurrentCulture);
+        _diagnosticsBadge.IsVisible = problems > 0;
+        // The badge alone is not read as a name: the tab's accessible name is the sentence with the count.
+        AutomationProperties.SetName(DiagnosticsSegmentTab, DiagnosticsHeader(problems));
     }
 
     private void ApplyLanguage()

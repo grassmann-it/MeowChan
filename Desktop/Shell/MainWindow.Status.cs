@@ -176,11 +176,13 @@ public partial class MainWindow
     }
 
     // The counts of the status line: the same session snapshot the diagnostics segment shows (active, waiting, problems).
-    private void RefreshStatusCounts(DesktopSessionView view)
+    // The snapshot is handed back so the table takes it instead of building a second one for the same view.
+    private DiagnosticsSnapshot? RefreshStatusCounts(DesktopSessionView view)
     {
-        if (_statusPage == null) return;
+        if (_statusPage == null) return null;
         DiagnosticsSnapshot snapshot = DiagnosticsSnapshot.From(view, _session.GetTargetWaitStates());
         _statusPage.ApplyCounts(snapshot.Active, snapshot.Queued, snapshot.Entries.Count(entry => entry.IsProblem));
+        return snapshot;
     }
 
     /// <summary>The old page commands open their segment: a binding the user saved for them keeps working (no default gesture).</summary>
