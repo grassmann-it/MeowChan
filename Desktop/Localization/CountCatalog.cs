@@ -35,7 +35,7 @@ internal static class CountCatalog
         ("import.done.failed.one", "{0} could not be copied (changed or unreadable).", "{0} konnte nicht kopiert werden (geändert oder nicht lesbar)."),
         ("tags.dialog.addedMany.one", "Added “{0}” to {1} occurrence.", "„{0}“ an {1} Fundstelle hinzugefügt."),
         ("wizard.boardSummary.one", "{0} thread in the catalog · {1} to watch · {2} excluded", "{0} Thread im Katalog · {1} zum Beobachten · {2} ausgeschlossen"),
-        ("wizard.batchReady.one", "Previews loaded: {0}/{1} · {2} thread to watch on all boards", "Vorschauen geladen: {0}/{1} · {2} Thread zum Beobachten auf allen Boards"),
+        ("wizard.batchReady.one", "Board previews loaded: {0}/{1} · {2} thread to watch across all boards", "Board-Vorschauen geladen: {0}/{1} · {2} Thread zum Beobachten auf allen Boards"),
         ("wizard.reinclude.one", "Include {0} previously excluded match again", "{0} zuvor ausgeschlossenen Treffer wieder aufnehmen"),
         ("tags.dialog.removedMany.one", "Removed “{0}” from {1} occurrence.", "„{0}“ von {1} Fundstelle entfernt.")
     };

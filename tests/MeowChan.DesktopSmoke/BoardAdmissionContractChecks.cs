@@ -113,6 +113,10 @@ internal static class BoardAdmissionContractChecks
             "The footer repeats the apply rules as visible text.");
         await Program.WaitUntilAsync(() => modal.GetVisualDescendants().OfType<Button>().Any(button => button.Name == "BoardAdmissionResetChoice"));
         CheckBox row = Find<CheckBox>(modal, "BoardAdmissionInclude");
+        // UX round 3: a row the rules (or a former removal) decide has no individual choice to take back, so no "Use rules again".
+        Button quietReset = Find<Button>(modal, "BoardAdmissionResetChoice");
+        Require(quietReset.Opacity == 0 && !quietReset.IsHitTestVisible && !quietReset.Focusable,
+            "A row without an individual choice offered 'Use rules again'.");
         row.IsChecked = true;
         await Program.WaitUntilAsync(() => row.IsChecked == true);
         Button reset = Find<Button>(modal, "BoardAdmissionResetChoice");
@@ -126,9 +130,9 @@ internal static class BoardAdmissionContractChecks
         Program.CaptureWindow(modal, "smoke-board-reset-minimum-" + Texts.Language + "-before.png");
         reset.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
         await Program.WaitUntilAsync(() => row.IsChecked == false);
-        Require(!result.IsCompleted && ReferenceEquals(modal.FocusManager!.GetFocusedElement(), reset), "Row reset committed the dialog or lost keyboard focus.");
-        // Reset remains reachable on an already rule-controlled row, with no new visibility rule.
-        Require(reset.IsEffectivelyVisible && reset.IsEnabled, "Reset disappeared after returning to rules.");
+        // The reset goes quiet with the choice; keyboard focus moved to the thread's own checkbox instead of getting lost.
+        Require(!result.IsCompleted && ReferenceEquals(modal.FocusManager!.GetFocusedElement(), row), "Row reset committed the dialog or lost keyboard focus.");
+        Require(reset.Opacity == 0 && !reset.IsHitTestVisible && !reset.Focusable, "Reset stayed offered after returning to rules.");
         Program.CaptureWindow(modal, "smoke-board-reset-minimum-" + Texts.Language + "-after.png");
         Click(Find<Button>(modal, "BoardAdmissionApply"));
         BoardAdmissionSelection accepted = await result ?? throw new InvalidOperationException("Reset prevented explicit joint apply.");

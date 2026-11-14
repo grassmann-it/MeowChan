@@ -8,6 +8,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Data;
 using Avalonia.Controls.Primitives;
@@ -65,6 +66,12 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
         public string ResetLabel => Texts.T("wizard.resetChoice");
         public string ResetName => Texts.T("wizard.resetChoiceForThread", Title);
         public string ResetHint => Texts.T("wizard.resetChoiceHint");
+        // "Use rules again" belongs to a thread with an individual choice of its own; on a row the text rules (or the
+        // defaults) decide there is nothing to take back. The control keeps its place, only quiet and out of reach, so the
+        // list does not jump when a choice is made or reset.
+        public bool ShowReset => _reasonKey == "wizard.reason.manual";
+        public double ResetOpacity => ShowReset ? 1 : 0;
+        public AccessibilityView ResetAccessibility => ShowReset ? AccessibilityView.Default : AccessibilityView.Raw;
         public void RefreshTexts() => PropertyChanged?.Invoke(this, new(string.Empty));
         public event PropertyChangedEventHandler? PropertyChanged;
         public void Update(BoardAdmissionDecision decision)
@@ -103,7 +110,7 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
         // the batch summary and joint actions stay fixed. Catalog failures stay tab-local next
         // to their Retry, so the frame's error strip is an empty slot.
         var intro = new StackPanel { Spacing = 8 };
-        intro.Children.Add(Localized(new TextBlock { Classes = { "page-title" }, TextWrapping = TextWrapping.Wrap }, c => c.Text = Texts.T("wizard.title")));
+        // No heading of its own: the window's title bar already names the dialog (UX round 3).
         intro.Children.Add(Localized(Help(string.Empty), c => c.Text = Texts.T("wizard.intro")));
         var body = new StackPanel { Spacing = 12 };
         body.Children.Add(Localized(new Expander { Content = Localized(Help(string.Empty), c => c.Text = Texts.T("wizard.semantics")) }, c => c.Header = Texts.T("wizard.rulesHelp")));
@@ -304,10 +311,19 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
         reset.Bind(ContentControl.ContentProperty, new Binding(nameof(PreviewRow.ResetLabel)));
         reset.Bind(AutomationProperties.NameProperty, new Binding(nameof(PreviewRow.ResetName)));
         reset.Bind(AutomationProperties.HelpTextProperty, new Binding(nameof(PreviewRow.ResetHint)));
+        reset.Bind(Visual.OpacityProperty, new Binding(nameof(PreviewRow.ResetOpacity)));
+        reset.Bind(InputElement.IsHitTestVisibleProperty, new Binding(nameof(PreviewRow.ShowReset)));
+        reset.Bind(InputElement.FocusableProperty, new Binding(nameof(PreviewRow.ShowReset)));
+        reset.Bind(AutomationProperties.AccessibilityViewProperty, new Binding(nameof(PreviewRow.ResetAccessibility)));
         // Initialize the tooltip at materialization time. The richer Name/HelpText
         // bindings remain owned by the row; the adapter only owns the tooltip.
         MeowChan.Desktop.Commands.CommandBindings.BindExisting(reset, "admission.reset-choice", preserveHelp: true);
-        reset.Click += (_, _) => row.Reset();
+        reset.Click += (_, _) =>
+        {
+            // The button goes quiet once the choice is gone: keyboard focus moves to the thread's own checkbox first.
+            if (reset.IsKeyboardFocusWithin) include.Focus(Avalonia.Input.NavigationMethod.Tab);
+            row.Reset();
+        };
         Grid.SetColumn(reset, 1); decision.Children.Add(reset);
         panel.Children.Add(include); panel.Children.Add(decision);
         if (!string.IsNullOrWhiteSpace(row.OpeningPost)) panel.Children.Add(new TextBlock
