@@ -100,6 +100,8 @@ internal sealed class ArchiveCleanupDialog : Window
         _candidatesHeading.Classes.Add("section-title");
         _lossHeading.Classes.Add("section-title"); _selectionSummary.Classes.Add("section-title");
         _review.Classes.Add("primary"); _confirm.Classes.Add("danger");
+        // I1b: the secondary tools carry a catalog icon before their text (primary and danger actions stay text).
+        MeowChan.Desktop.Controls.IconButtons.WithText(_refresh, "refresh-cw"); MeowChan.Desktop.Controls.IconButtons.WithText(_selectShown, "check-square"); MeowChan.Desktop.Controls.IconButtons.WithText(_clear, "x");
         _back.Classes.Add("subtle"); _close.Classes.Add("subtle");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
         AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive);

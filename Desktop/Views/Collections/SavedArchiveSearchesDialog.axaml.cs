@@ -61,6 +61,8 @@ public partial class SavedArchiveSearchesDialog : Window
     internal SavedArchiveSearchesDialog(DesktopSessionHost host, ArchivePage page, ArchiveSearchSpec? initialDefinition = null)
     {
         InitializeComponent();
+        // I1b: the secondary tools carry a catalog icon before their text (Apply, Delete, Close and the name editor stay text).
+        MeowChan.Desktop.Controls.IconButtons.WithText(Button("SavedSearchRename"), "edit-2"); MeowChan.Desktop.Controls.IconButtons.WithText(Button("SavedSearchReplace"), "search"); MeowChan.Desktop.Controls.IconButtons.WithText(Button("SavedSearchReload"), "refresh-cw");
         // Modals plan MD3: a modal dialog on the L step (size, centring, screen fit, no taskbar entry, no minimize); the
         // footer's eight actions need a little more height than the step's minimum in the longest languages.
         DialogWindow.Configure(this, DialogSize.L, modal: true);

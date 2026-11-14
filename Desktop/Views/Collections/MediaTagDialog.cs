@@ -75,6 +75,7 @@ internal sealed class MediaTagDialog : Window
         var frame = DialogFrame.Build(header, body, footer, DialogFrame.ErrorStrip(_status), fillBody: true);
         DialogWindow.Frame(this, frame, modal: true, captionName: "MediaTagChrome");
 
+        MeowChan.Desktop.Controls.IconButtons.WithText(_add, "plus"); // I1b: the add tool carries a catalog icon before its text.
         _add.Click += OnAdd; _close.Click += OnClose; _surface.Undo.Click += OnUndo;
         _surface.List.Toggled += OnToggled;
         // Own tags as suggestions while typing; the tags of this medium are not offered again.

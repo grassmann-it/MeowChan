@@ -59,6 +59,7 @@ internal partial class PostBookmarksDialog : Window
     internal PostBookmarksDialog(DesktopSessionHost owner, Func<PostBookmarkKey, CancellationToken, Task<bool>> open)
     {
         AvaloniaXamlLoader.Load(this);
+        MeowChan.Desktop.Controls.IconButtons.WithText(B("OpenTarget"), "external-link"); MeowChan.Desktop.Controls.IconButtons.WithText(B("Reload"), "refresh-cw"); // I1b: tools carry a catalog icon (Remove, Cancel and Save stay text).
         // Also shown modeless (bookmark list beside the reader), so it keeps minimize (modals plan MD3: L step, factory caption).
         MeowChan.Desktop.Controls.DialogWindow.Configure(this, DialogSize.L, modal: false);
         MeowChan.Desktop.Controls.DialogWindow.Wrap(this, modal: false);

@@ -176,6 +176,7 @@ internal sealed class MediaConflictsDialog : Window
         bool open = row.Status is MediaConflictUserStatus.Open or MediaConflictUserStatus.Kept;
         Button keep = new() { Name = "MediaConflictKeep", Content = Texts.T("transfer.conflicts.keep"),
             IsEnabled = row.Status == MediaConflictUserStatus.Open };
+        MeowChan.Desktop.Controls.IconButtons.WithText(keep, "check"); // I1b: keep and use-as-active carry a catalog icon; Discard stays text (no trash icon in the catalog).
         keep.Click += async (_, _) => await DecideAsync(row, MediaConflictUserAction.Keep);
         bool confirm = _confirming == row.Id;
         Button discard = new() { Name = "MediaConflictDiscard", IsEnabled = open,
@@ -190,6 +191,7 @@ internal sealed class MediaConflictsDialog : Window
         bool confirmPromote = _confirmingPromote == row.Id;
         Button promote = new() { Name = "MediaConflictPromote", IsEnabled = open,
             Content = confirmPromote ? Texts.T("transfer.conflicts.confirmPromote", row.CandidateBytes) : Texts.T("transfer.conflicts.promote") };
+        MeowChan.Desktop.Controls.IconButtons.WithText(promote, "check");
         promote.Click += async (_, _) =>
         {
             if (_confirmingPromote == row.Id) await DecideAsync(row, MediaConflictUserAction.Promote);

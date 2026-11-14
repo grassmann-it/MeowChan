@@ -96,7 +96,7 @@ public partial class ArchivePage
         TextBox destination = ExportName(new TextBox { MaxLength = 32768, HorizontalAlignment = HorizontalAlignment.Stretch }, "ArchiveExportDestination");
         Avalonia.Automation.AutomationProperties.SetLabeledBy(destination, targetLabel); content.Children.Add(destination);
         destination.PropertyChanged += (_, change) => { if (change.Property == TextBox.TextProperty) OnExportDestinationEdited(destination); };
-        Button browse = ExportName(new Button(), "ArchiveExportBrowse"); browse.Click += OnExportBrowse; content.Children.Add(browse);
+        Button browse = ExportName(new Button(), "ArchiveExportBrowse"); MeowChan.Desktop.Controls.IconButtons.WithText(browse, "folder"); browse.Click += OnExportBrowse; content.Children.Add(browse);
         content.Children.Add(ExportName(new CheckBox { IsChecked = true }, "ArchiveExportMedia"));
         // Target, media and the primary actions stay direct; updating a previous export (known exports, update mode,
         // older exports, backup) is one extras section that folds in Barebones and Simple (plan AP5 §1.14).
@@ -149,7 +149,7 @@ public partial class ArchivePage
         header.Children.Add(BuildExportChoices()); header.Children.Add(compactScope); header.Children.Add(fixedScope);
         WrapPanel actions = new() { HorizontalAlignment = HorizontalAlignment.Right, ItemSpacing = 8, LineSpacing = 8 };
         Button close = ExportName(new Button(), "ArchiveExportClose"); close.Click += OnExportClose;
-        Button open = ExportName(new Button(), "ArchiveExportOpen"); open.Click += OnExportOpen;
+        Button open = ExportName(new Button(), "ArchiveExportOpen"); MeowChan.Desktop.Controls.IconButtons.WithText(open, "folder"); open.Click += OnExportOpen;
         Button start = ExportName(new Button(), "ArchiveExportStart"); start.Click += OnExportStart;
         close.Classes.Add("subtle"); start.Classes.Add("primary"); actions.Classes.Add("workspace-actions");
         actions.Children.Add(close); actions.Children.Add(open); actions.Children.Add(start);
