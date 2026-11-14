@@ -30,7 +30,12 @@ public sealed record ShortcutGesture(string Key, IReadOnlyList<string> Modifiers
             throw new ShortcutIssueReason("unknownKey", "Unknown key or modifier-only gesture: " + Key, Key).ToException();
         return new(key, mods);
     }
-    public string Display(ShortcutPlatform platform)
+    public string Display(ShortcutPlatform platform) =>
+        string.Join(platform == ShortcutPlatform.MacOS ? "" : "+", DisplayParts(platform));
+
+    /// <summary>The keys of <see cref="Display"/> one by one (modifiers, then the key): the keycaps of the shortcuts window.
+    /// Joined with "+" (Apple: without separator) they give exactly <see cref="Display"/>.</summary>
+    public IReadOnlyList<string> DisplayParts(ShortcutPlatform platform)
     {
         var resolved = Resolve(platform);
         if (platform == ShortcutPlatform.MacOS) return DisplayMac(resolved);
@@ -41,18 +46,20 @@ public sealed record ShortcutGesture(string Key, IReadOnlyList<string> Modifiers
             "OemOpenBrackets" => "[", "OemCloseBrackets" => "]", "Back" => Texts.T("key.backspace"), _ => key
         };
         // Key names follow the interface language (German: Strg, Umschalt); the stored gesture stays unchanged.
-        string prefix = string.Join("+", Modifiers.Select(m => m is "Primary" or "Control" or "Ctrl" ? Texts.T("key.ctrl")
-            : m == "Shift" ? Texts.T("key.shift") : m));
-        return prefix.Length == 0 ? Symbol ?? key : prefix + "+" + (Symbol ?? key);
+        return Array.AsReadOnly(Modifiers.Select(m => m is "Primary" or "Control" or "Ctrl" ? Texts.T("key.ctrl")
+            : m == "Shift" ? Texts.T("key.shift") : m).Append(Symbol ?? key).ToArray());
     }
 
     // Apple's order and glyphs: ⌃ ⌥ ⇧ ⌘ directly before the key, no "+". A typed symbol such as "?" already carries
     // its Shift (⌘? and not ⇧⌘/). Function keys are marked because an Apple keyboard needs Fn for them by default.
-    private string DisplayMac(KeyGesture resolved)
+    private IReadOnlyList<string> DisplayMac(KeyGesture resolved)
     {
         KeyModifiers mods = resolved.KeyModifiers;
-        string prefix = (mods.HasFlag(KeyModifiers.Control) ? "⌃" : "") + (mods.HasFlag(KeyModifiers.Alt) ? "⌥" : "")
-            + (mods.HasFlag(KeyModifiers.Shift) && Symbol == null ? "⇧" : "") + (mods.HasFlag(KeyModifiers.Meta) ? "⌘" : "");
+        List<string> parts = new();
+        if (mods.HasFlag(KeyModifiers.Control)) parts.Add("⌃");
+        if (mods.HasFlag(KeyModifiers.Alt)) parts.Add("⌥");
+        if (mods.HasFlag(KeyModifiers.Shift) && Symbol == null) parts.Add("⇧");
+        if (mods.HasFlag(KeyModifiers.Meta)) parts.Add("⌘");
         string key = Symbol ?? Key switch
         {
             "Back" => "⌫", "Delete" => "⌦", "Enter" or "Return" => "↩", "Escape" => "⎋", "Space" => "␣", "Tab" => "⇥",
@@ -63,7 +70,8 @@ public sealed record ShortcutGesture(string Key, IReadOnlyList<string> Modifiers
             _ when Key.Length >= 2 && Key[0] == 'F' && int.TryParse(Key.AsSpan(1), out _) => Key + " (Fn)",
             _ => Key.ToUpperInvariant()
         };
-        return prefix + key;
+        parts.Add(key);
+        return parts.AsReadOnly();
     }
 }
 public sealed record ShortcutIssue(string CommandId, string Message, string? OtherCommandId = null, bool BlocksSave = true)

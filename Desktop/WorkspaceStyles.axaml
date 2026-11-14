@@ -1201,6 +1201,19 @@
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Caption}" /><Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
+    <!-- A key of a shortcut (KeyCapText, shortcuts window): one cap per key, 22 high, control radius, light and dark from tokens. -->
+    <Style Selector="Border.keycap">
+        <Setter Property="Height" Value="22" /><Setter Property="MinWidth" Value="22" /><Setter Property="Padding" Value="4,0" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
+        <Setter Property="BorderThickness" Value="1" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
+    </Style>
+    <Style Selector="Border.keycap > TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /><Setter Property="FontFeatures" Value="tnum" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="VerticalAlignment" Value="Center" /><Setter Property="HorizontalAlignment" Value="Center" />
+    </Style>
+
     <!-- A badge that marks a deviation (Sources list: "Experimental"). The tone is an addition: the word says it too. -->
     <Style Selector="Border.chip-badge.chip-warning">
         <Setter Property="Background" Value="{DynamicResource Workspace.WarningSurface}" />
