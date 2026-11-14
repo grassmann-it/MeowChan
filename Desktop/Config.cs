@@ -852,6 +852,12 @@ namespace MeowChan
         internal int? SettingsBaselineVideoVolume { get; set; }
         [JsonIgnore]
         internal GalleryPlaybackPreferences? SettingsBaselineGalleryPlayback { get; set; }
+        /// <summary>
+        /// Draft only: the settings page's filmstrip box as it was loaded (start, discard, after a save). The gallery changes the layout
+        /// directly (L, the ⋯ row), so an unchanged box of an older draft must not roll the layout of either mode back (H1).
+        /// </summary>
+        [JsonIgnore]
+        internal bool? SettingsBaselineGalleryFilmstrip { get; set; }
 
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool ArchiveMediaTiles { get => ActiveProfile.ArchiveMediaTiles; set => ActiveProfile.ArchiveMediaTiles = value; }
@@ -1658,6 +1664,7 @@ namespace MeowChan
                 SettingsBaselineReadingFontSize = ReadingFontSize,
                 SettingsBaselineWorkspaceMode = WorkspaceMode,
                 SettingsBaselineVideoVolume = VideoVolume,
+                SettingsBaselineGalleryFilmstrip = GalleryFilmstrip,
                 // A fresh draft captures the current normalized state. Session admission
                 // restores the editor's original baseline after freezing via Clone().
                 SettingsBaselineGalleryPlayback = GalleryPlaybackPreferences.FromConfig(this),
@@ -1979,12 +1986,14 @@ namespace MeowChan
             StatsSampleIntervalMs = source.StatsSampleIntervalMs;
             ControlsIdleHideMs = source.ControlsIdleHideMs;
             // GL4: the layout is a direct preference of the gallery and is not taken from a draft, except its reset. The filmstrip box of the
-            // settings page is the old setting: a changed box (against the layout after the reset) sets the filmstrip choice of both modes.
-            bool filmstripShown = GalleryFilmstrip;
-            if (source.GalleryLayoutResetRequested) { GalleryLayoutPreferences.Default.ApplyTo(this); filmstripShown = GalleryFilmstrip; }
-            if (filmstripShown != source.GalleryFilmstrip)
+            // settings page is the old setting: only a box the person changed sets the filmstrip choice of both modes. Changed means against
+            // the layout after the reset when the draft asked for one, otherwise against the box as the draft loaded it (its baseline); the
+            // live value is no measure, the gallery may have changed it since (H1). A draft without a baseline compares with the live value.
+            bool filmstripBaseline = source.SettingsBaselineGalleryFilmstrip ?? GalleryFilmstrip;
+            if (source.GalleryLayoutResetRequested) { GalleryLayoutPreferences.Default.ApplyTo(this); filmstripBaseline = GalleryFilmstrip; }
+            if (filmstripBaseline != source.GalleryFilmstrip)
                 GalleryLayoutPreferences.FromConfig(this).WithFilmstripSetting(source.GalleryFilmstrip).ApplyTo(this);
-            GalleryFilmstrip = source.GalleryFilmstrip;
+            // (GalleryFilmstrip itself follows the View set's filmstrip through ApplyTo; an unchanged box leaves both as they are.)
             GalleryFilmstripHeight = source.GalleryFilmstripHeight;
             GalleryFilmstripPreload = source.GalleryFilmstripPreload;
             StatsHistorySamples = source.StatsHistorySamples;

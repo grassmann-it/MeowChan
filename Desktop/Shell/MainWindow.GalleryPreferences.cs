@@ -101,9 +101,11 @@ public partial class MainWindow
         int? volume = _pendingGalleryVolume;
         GalleryPlaybackPreferences? playback = _pendingGalleryPlayback;
         GalleryPlaybackPreferences? baseline = _pendingGalleryPlaybackBaseline;
+        GalleryLayoutChoice? layoutView = _pendingGalleryLayoutView, layoutTag = _pendingGalleryLayoutTag;
         _pendingGalleryContext = null; _pendingGalleryVolume = null;
         _pendingGalleryPlayback = null; _pendingGalleryPlaybackBaseline = null;
-        if (!context.HasValue && !volume.HasValue && playback == null)
+        _pendingGalleryLayoutView = null; _pendingGalleryLayoutTag = null;
+        if (!context.HasValue && !volume.HasValue && playback == null && layoutView == null && layoutTag == null)
         {
             // A later explicit Settings/Close flush may retry a retained failed
             // host draft. Do not permanently chain the earlier faulted observer.
@@ -122,6 +124,7 @@ public partial class MainWindow
                 if (context.HasValue) current.GalleryContextOpen = context.Value;
                 if (volume.HasValue) current.VideoVolume = volume.Value;
                 if (playback != null && baseline != null) playback.ApplyChangesTo(current, baseline);
+                ApplyGalleryLayoutChanges(current, layoutView, layoutTag);
             });
         }
         catch (Exception error)
@@ -130,6 +133,8 @@ public partial class MainWindow
             _pendingGalleryVolume ??= volume;
             _pendingGalleryPlayback ??= playback;
             _pendingGalleryPlaybackBaseline ??= baseline;
+            _pendingGalleryLayoutView ??= layoutView;
+            _pendingGalleryLayoutTag ??= layoutTag;
             write = Task.FromException(error);
         }
         if (!ReferenceEquals(write, _galleryPreferenceWrite))
@@ -151,6 +156,8 @@ public partial class MainWindow
                 _desiredGalleryVolume = null;
             if (ReferenceEquals(write, _galleryPreferenceWrite) && _pendingGalleryPlayback == null)
                 _desiredGalleryPlayback = null;
+            if (ReferenceEquals(write, _galleryPreferenceWrite) && !GalleryLayoutPending)
+                _desiredGalleryLayout = null;
         }
         catch (Exception error)
         {

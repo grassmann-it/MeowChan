@@ -14,7 +14,10 @@ namespace MeowChan.Desktop;
 //
 // The older setting GalleryFilmstrip stays (a setting and an export field) and has one value with the View set's filmstrip:
 // legacy == (View.Filmstrip != false). A profile without a stored layout reads the old setting (FromConfig), and ApplyTo writes both,
-// so an older build and this one agree until 1.2.
+// so an older build and this one agree until 1.2. Where the two disagree, an older build switched the strip off (it changes only the old
+// setting and keeps the layout): an "off" old setting always wins for the View set (N5). The other way round ("on" in the old setting,
+// View.Filmstrip false stored) is not read as "on", because a settings file without the old key reads it as on too; a View "off" chosen
+// in this build stays until it is switched on here or in the settings page.
 
 /// <summary>The saved layout choices of the gallery: <see cref="View"/> and <see cref="Tag"/> are independent sets (null member = the view's default).</summary>
 internal sealed record GalleryLayoutPreferences(GalleryLayoutChoice View, GalleryLayoutChoice Tag)
@@ -57,7 +60,8 @@ internal sealed record GalleryLayoutPreferences(GalleryLayoutChoice View, Galler
 
     /// <summary>
     /// The profile's layout: the stored one, with the old GalleryFilmstrip setting as the filmstrip's choice where the profile has none
-    /// (a profile that never stored a layout: both modes, as the setting held for both; a stored layout without View.Filmstrip: the View set).
+    /// (a profile that never stored a layout: both modes, as the setting held for both). With a stored layout an "off" old setting always
+    /// makes the View set's filmstrip false, also over a stored true (an older build switched it off, N5); the Tag set is never touched.
     /// </summary>
     internal static GalleryLayoutPreferences FromConfig(Config config)
     {
@@ -65,7 +69,7 @@ internal sealed record GalleryLayoutPreferences(GalleryLayoutChoice View, Galler
         GalleryLayoutPreferences? stored = config.GalleryLayout?.Normalize();
         if (stored == null)
             return config.GalleryFilmstrip ? Default : Default.WithFilmstripSetting(false);
-        return !config.GalleryFilmstrip && stored.View.Filmstrip == null
+        return !config.GalleryFilmstrip && stored.View.Filmstrip != false
             ? stored with { View = stored.View with { Filmstrip = false } }
             : stored;
     }

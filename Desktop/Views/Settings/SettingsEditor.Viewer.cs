@@ -26,6 +26,9 @@ public partial class SettingsEditor
     private decimal? _galleryFilmstripHeight = Config.GalleryFilmstripHeightDefault;
     private decimal? _galleryFilmstripPreload = Config.GalleryFilmstripPreloadDefault;
     private bool _galleryLayoutResetPending;
+    // H1: the filmstrip box as this draft loaded it (start, discard, after a save). A save sets the layout of both modes only when the box
+    // differs from it; the gallery may have changed the live value since (L), and an untouched box must not roll that back.
+    private bool _initialGalleryFilmstrip = true;
 
     public IReadOnlyList<SettingsChoice> GallerySlideshowVideoRuleChoices { get; private set; } = Array.Empty<SettingsChoice>();
 
@@ -164,6 +167,7 @@ public partial class SettingsEditor
         ControlsIdleHideMs = config.ControlsIdleHideMs;
         ResetNumber(ControlsIdleHideMsInput, config.ControlsIdleHideMs);
         GalleryFilmstrip = config.GalleryFilmstrip;
+        if (!layoutReset) _initialGalleryFilmstrip = config.GalleryFilmstrip; // the section reset is an edit of this draft, not a new load
         MediaFocusHidesHeader = config.MediaFocusHidesHeader;
         GalleryFilmstripHeight = config.GalleryFilmstripHeight;
         GalleryFilmstripPreload = config.GalleryFilmstripPreload;
@@ -175,6 +179,7 @@ public partial class SettingsEditor
     {
         candidate.ControlsIdleHideMs = GetInteger(ControlsIdleHideMs, ControlsIdleHideMsLabel, Config.ControlsIdleHideMsMinimum, Config.ControlsIdleHideMsMaximum);
         candidate.GalleryFilmstrip = GalleryFilmstrip;
+        candidate.SettingsBaselineGalleryFilmstrip = _initialGalleryFilmstrip;
         candidate.MediaFocusHidesHeader = MediaFocusHidesHeader;
         candidate.GalleryLayoutResetRequested = GalleryLayoutResetPending;
         candidate.GalleryFilmstripHeight = GetInteger(GalleryFilmstripHeight, GalleryFilmstripHeightLabel, Config.GalleryFilmstripHeightMinimum, Config.GalleryFilmstripHeightMaximum);
