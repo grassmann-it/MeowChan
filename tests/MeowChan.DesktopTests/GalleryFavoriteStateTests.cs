@@ -309,7 +309,8 @@ public sealed class GalleryFavoriteStateTests
         Assert.Equal(MeowChan.Desktop.Controls.WorkspaceIcons.Star, MeowChan.Desktop.Controls.WorkspaceIcons.KeyOf(star));
         Assert.False(star.IsHitTestVisible);
         TextBlock pending = Assert.IsType<TextBlock>(glyph.Children[1]);
-        Assert.Equal(16, pending.FontSize);
+        // The size is the Subtitle design token (16), bound dynamically, so it resolves only once the badge is in the tree.
+        Assert.NotNull(pending.GetBindingObservable(Avalonia.Controls.Documents.TextElement.FontSizeProperty));
         Assert.False(pending.IsVisible);
         Assert.Equal((false, false), GalleryViewer.FavoriteBadgeState(badge));
     }

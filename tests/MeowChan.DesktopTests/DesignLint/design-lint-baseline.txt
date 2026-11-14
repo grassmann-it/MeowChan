@@ -15,7 +15,6 @@ control-height-literal	Desktop/Views/Diagnostics/DiagnosticsPage.axaml	1	TextBox
 control-height-literal	Desktop/Views/Rules/RulesPage.axaml	2	Button MinHeight="24"
 control-height-literal	Desktop/Views/Rules/RulesPage.axaml	1	TagInput style MinHeight="32"
 control-height-literal	Desktop/Views/Settings/SettingsEditor.axaml	1	ToggleButton style MinHeight="34"
-font-size-literal	Desktop/GalleryViewer.Favorites.cs	1	FontSize=16
 font-size-literal	Desktop/Views/Archive/ArchivePage.axaml	1	FontSize="12"
 glyph-icon	Desktop/GalleryViewer.cs	1	"−(U+2212)"
 glyph-icon	Desktop/Localization/ArchiveCatalog.cs	1	"←(U+2190) Previous thread"

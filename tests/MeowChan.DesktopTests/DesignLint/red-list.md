@@ -9,7 +9,7 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 
 | Rule | Violations | Files | Target (package) |
 | --- | ---: | ---: | --- |
-| `font-size-literal` | 2 | 2 | P5: token or class |
+| `font-size-literal` | 1 | 1 | P5: token or class |
 | `font-size-off-scale` | 0 | 0 | P5: onto the scale |
 | `color-hex` | 1 | 1 | Workspace brushes |
 | `color-code` | 0 | 0 | Workspace brushes |
@@ -18,7 +18,7 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 | `row-height-literal` | 2 | 2 | P7: WorkspaceMetrics |
 | `control-height-literal` | 15 | 7 | P1: Workspace.Size token |
 | `page-inset` | 3 | 3 | P2: Workspace.Inset.Page |
-| **total** | **248** | 63 | |
+| **total** | **247** | 63 | |
 
 ## Counts per file
 
@@ -52,7 +52,6 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 | `Desktop/ArchiveMediaTileView.cs` |  |  |  |  | 2 |  |  |  |  | 2 |
 | `Desktop/Commands/CommandBindings.cs` |  |  |  |  | 2 |  |  |  |  | 2 |
 | `Desktop/Controls/TagToggleListBox.cs` |  |  |  |  | 2 |  |  |  |  | 2 |
-| `Desktop/GalleryViewer.Favorites.cs` | 1 |  |  |  | 1 |  |  |  |  | 2 |
 | `Desktop/GalleryViewer.Overlay.cs` |  |  |  |  |  |  |  | 2 |  | 2 |
 | `Desktop/GalleryViewer.cs` |  |  |  |  | 1 | 1 |  |  |  | 2 |
 | `Desktop/SectionNavigationControl.cs` |  |  |  |  | 2 |  |  |  |  | 2 |
@@ -62,6 +61,7 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 | `Desktop/ArchiveAttachmentView.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
 | `Desktop/Controls/SearchScopeChip.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
 | `Desktop/Controls/WorkspaceChips.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
+| `Desktop/GalleryViewer.Favorites.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
 | `Desktop/GalleryViewer.FileOnly.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
 | `Desktop/GalleryViewer.Playback.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
 | `Desktop/MediaLibraryStateText.cs` |  |  |  |  |  | 1 |  |  |  | 1 |
@@ -122,9 +122,8 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 
 - `spacing-off-grid`: L40 `Padding=new Thickness(10)`, L41 `Padding=new Thickness(7)`, L42 `Padding=new Thickness(7)`
 
-### `Desktop/GalleryViewer.Favorites.cs` (2)
+### `Desktop/GalleryViewer.Favorites.cs` (1)
 
-- `font-size-literal`: L35 `FontSize=16`
 - `spacing-off-grid`: L29 `Padding=new Thickness(7, 3)`
 
 ### `Desktop/GalleryViewer.FileOnly.cs` (1)
@@ -358,7 +357,6 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 
 ## Permanent exceptions (documented, not debt)
 
-- `font-size-off-scale` in `Desktop/Views/About/AboutWindow.axaml` (FontSize="26"): Brand logo text of the About window (spec 1.1: only size outside the scale besides gallery overlay glyphs).
 - `color-code` in `Desktop/ArchiveAttachmentView.cs` (Color.FromArgb): Video play badge on arbitrary media (palette item 4).
 - `color-code` in `Desktop/ArchiveAttachmentView.cs` (Brushes.White): Play triangle of the video badge (palette item 4).
 - `color-code` in `Desktop/GalleryViewer.Favorites.cs` (Color.FromArgb): Favourite badge on media (palette item 5).
