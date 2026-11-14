@@ -91,13 +91,14 @@ public sealed partial class MediaPage
         _booruModeSyncing = true;
         try { _booruMode.IsChecked = on; }
         finally { _booruModeSyncing = false; }
+        // Keyboard focus in the list that goes away continues on the grid.
+        bool focusInList = !on && _tagSidebar.IsKeyboardFocusWithin;
         _tagSidebar.IsVisible = on;
         if (!on)
         {
             _tagCounting?.Cancel();
             _tagCounting = null;
-            // Keyboard focus in the list that just went away continues on the grid.
-            if (_tagSidebar.IsKeyboardFocusWithin) FocusGrid();
+            if (focusInList) FocusGrid();
         }
         else RefreshTagSidebar();
         if (changed && save) SaveBooruMode();
@@ -159,7 +160,10 @@ public sealed partial class MediaPage
                     catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException) { }
                 PrivateTagStoreSnapshot? tags = data.TagSnapshot;
                 Func<MediaLibraryEntry, IEnumerable<Guid>>? ownTags = tags == null ? null : entry => data.TagsOf(entry);
-                MediaTagCountIndex made = MediaTagCountIndex.Create(snapshot.Entries, data, ownTags, id => tags?.Find(new TagId(id))?.Name.Display,
+                // The names of the own tags by id, made once per count (the snapshot's own lookup is a scan per tag).
+                Dictionary<Guid, string> names = new();
+                foreach (PrivateTagDefinition tag in tags?.Tags ?? []) names.TryAdd(tag.Id.Value, tag.Name.Display);
+                MediaTagCountIndex made = MediaTagCountIndex.Create(snapshot.Entries, data, ownTags, id => names.GetValueOrDefault(id),
                     sourceTags, sourceTags == null ? null : sourceTags.TagsOf, previous);
                 return (made, made.Count(shown, counting.Token));
             }, counting.Token);
