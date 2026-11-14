@@ -388,14 +388,14 @@
                             <Button x:Name="CopyAllUrlsButton" wv:WorkViewElement.Id="downloads.toolbar.copy-urls" Tag="action.copyAllUrls" Classes="localized subtle" Content="Copy URLs" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="{StaticResource Workspace.Text.Meta}" />
                             <Button x:Name="DetailsToggleButton" wv:WorkViewElement.Id="downloads.toolbar.details" Classes="subtle" Content="Details" Click="OnDetailsToggleClick" ursa:ToolBar.OverflowMode="Never" FontSize="{StaticResource Workspace.Text.Meta}" />
                         </desktop:ActionToolBar>
-                        <!-- The search row's way out stands alone at its right edge (HeaderBar end slot, Tom's rule 14.11.). -->
+                        <!-- The search row's way out stands at its far left (HeaderBar back slot, Tom's rule 14.11.). -->
                         <controls:HeaderBar x:Name="DownloadSearchBar" Grid.Row="1" Grid.ColumnSpan="2" Margin="8,2,8,8" IsVisible="False">
+                            <Button x:Name="DownloadSearchClose" controls:HeaderBar.IsBack="True" Click="OnDownloadSearchClose" />
                             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
                                 <controls:SearchBox x:Name="DownloadSearchInput" MinWidth="100" TextChanged="OnDownloadSearchChanged" />
                                 <TextBlock x:Name="DownloadSearchSummary" Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="220" />
                                 <Button x:Name="DownloadSearchClear" Grid.Column="2" Classes="localized subtle" Tag="downloads.searchClear" Click="OnDownloadSearchClear" />
                             </Grid>
-                            <Button x:Name="DownloadSearchClose" controls:HeaderBar.IsEnd="True" Click="OnDownloadSearchClose" />
                         </controls:HeaderBar>
                     </Grid>
                 </Border>
@@ -404,8 +404,8 @@
                 <Border x:Name="WorkspaceInspector" Grid.Column="2" Classes="workspace-section-flush" MinWidth="260">
                     <Grid RowDefinitions="Auto,*">
                         <controls:HeaderBar Margin="16,8,8,8">
+                            <Button x:Name="InspectorCloseButton" Classes="subtle icon-square" controls:HeaderBar.IsBack="True" Click="OnDetailsToggleClick" />
                             <TextBlock Tag="detail.title" Classes="localized section-title" Text="Details" VerticalAlignment="Center" />
-                            <Button x:Name="InspectorCloseButton" Classes="subtle icon-square" controls:HeaderBar.IsEnd="True" Click="OnDetailsToggleClick" />
                         </controls:HeaderBar>
                         <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel Margin="16,2,16,16" Spacing="{StaticResource Workspace.Space.12}">
@@ -569,12 +569,12 @@
         <Border x:Name="ShellHelpOverlay" Grid.RowSpan="4" IsVisible="False" ZIndex="200"
                 Classes="workspace-overlay" Margin="16" MaxWidth="620"
                 HorizontalAlignment="Stretch" VerticalAlignment="Center">
-            <!-- Modal header bar: the title and, alone at the top right, the close cross (HeaderBar end slot). The footer held
+            <!-- Modal header bar: the close cross at the far left, then the title (HeaderBar back slot). The footer held
                  only this Close, so it is gone; Escape still dismisses the help (OnShellKeyDown). -->
             <Grid RowDefinitions="Auto,*">
                 <controls:HeaderBar x:Name="ShellHelpHeader" Margin="16,16,16,12">
+                    <Button x:Name="ShellHelpClose" Classes="subtle icon-square" controls:HeaderBar.IsBack="True" VerticalAlignment="Top" />
                     <TextBlock x:Name="ShellHelpTitle" Classes="section-title" VerticalAlignment="Center" TextWrapping="Wrap" />
-                    <Button x:Name="ShellHelpClose" Classes="subtle icon-square" controls:HeaderBar.IsEnd="True" VerticalAlignment="Top" />
                 </controls:HeaderBar>
                 <ScrollViewer Grid.Row="1" Margin="16,0,16,16" Classes="InsetContent"
                               HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">

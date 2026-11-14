@@ -54,8 +54,10 @@
                 </StackPanel>
                 <!-- Create/edit wizard (in-page detail like Sources and Plugins): 1 scope, 2 settings, 3 review. -->
                 <StackPanel x:Name="RuleWizardPanel" Spacing="{StaticResource Workspace.Space.12}" IsVisible="{Binding IsWizardOpen}">
-                    <!-- The editor's header row: title and steps on the left, More and then Close on the right edge (Close apart from actions). -->
-                    <Grid x:Name="RuleWizardHeader" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                    <!-- The editor's header row (Tom's rule 14.11. evening): Back to the rule overview at the far left, apart from the title and
+                         steps by a gap and a separator (HeaderBar back slot); More alone on the right (Save and Discard stay in the footer). -->
+                    <controls:HeaderBar x:Name="RuleWizardHeader">
+                        <Button x:Name="RuleWizardCloseButton" controls:HeaderBar.IsBack="True" wv:WorkViewElement.Id="rules.wizard.close" Click="OnCloseWizard" />
                         <StackPanel Spacing="{StaticResource Workspace.Space.8}">
                             <TextBlock x:Name="RulesEditingHeader" wv:WorkViewElement.Id="rules.scope.editing-header" Text="{Binding EditingLabel}" Classes="section-title" TextWrapping="Wrap" />
                             <WrapPanel x:Name="RuleWizardSteps" wv:WorkViewElement.Id="rules.wizard.steps" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}">
@@ -65,9 +67,8 @@
                             </WrapPanel>
                             <TextBlock x:Name="RuleWizardStepText" Text="{Binding WizardStepLabel}" Classes="workspace-help" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                         </StackPanel>
-                        <Button x:Name="RulesMoreButton" Grid.Column="1" Classes="subtle icon-square" VerticalAlignment="Top" IsVisible="False" Click="OnRulesMoreClick" />
-                        <Button x:Name="RuleWizardCloseButton" wv:WorkViewElement.Id="rules.wizard.close" Grid.Column="2" Margin="8,0,0,0" VerticalAlignment="Top" Click="OnCloseWizard" />
-                    </Grid>
+                        <Button x:Name="RulesMoreButton" controls:HeaderBar.IsEnd="True" Classes="subtle icon-square" VerticalAlignment="Top" IsVisible="False" Click="OnRulesMoreClick" />
+                    </controls:HeaderBar>
                     <!-- Step 1: the scope. Its identity stays fixed while its values are edited; an existing rule or draft opens from the overview or below. -->
                     <StackPanel x:Name="RuleWizardScopeStep" Spacing="{StaticResource Workspace.Space.12}" IsEnabled="{Binding IsEditable}">
                         <Border x:Name="NewRuleScopePanel" wv:WorkViewElement.Id="rules.scope.new" Classes="workspace-section">

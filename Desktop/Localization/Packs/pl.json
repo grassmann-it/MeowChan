@@ -3990,7 +3990,7 @@
     "rules.wizard.next": "Dalej",
     "rules.wizard.review": "Przejrzyj",
     "rules.wizard.back": "Wstecz",
-    "rules.wizard.close": "Zamknij",
+    "rules.wizard.toOverview": "Wróć do reguł",
     "rules.wizard.closeName": "Zamknij edytor i wróć do przeglądu reguł",
     "tags.quick.heading": "Tagi",
     "tags.quick.title": "Tagi · {0}",

@@ -22,16 +22,17 @@ public sealed class OverlayFrameTests
         new() { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers, Handled = handled };
 
     [Fact]
-    public void TheHeaderHoldsTheTitleOnTheLeftAndTheCrossAloneAtTheRightEdge()
+    public void TheHeaderHoldsTheCrossAloneAtTheFarLeftFirstInTabOrderThenTheTitle()
     {
         TextBlock title = new() { Text = "Export" };
         Button close = new();
         HeaderBar bar = OverlayFrame.Header(title, close, "Close");
         Assert.Equal(OverlayFrame.HeaderName, bar.Name);
-        Assert.Equal(new Control[] { title, close }, bar.Children);
-        Assert.Equal(new Control[] { close }, bar.EndChildren);
-        Assert.True(bar.EndSlotIsLast);
-        // Placement at the right edge after the 24 dip gap is HeaderBar's contract (HeaderBarContractTests); text needs a font backend.
+        Assert.Equal(new Control[] { close, title }, bar.Children);
+        Assert.Equal(new Control[] { close }, bar.BackChildren);
+        Assert.Empty(bar.EndChildren);
+        Assert.True(bar.BackSlotIsFirst);
+        // Placement at the far left, the 24 dip gap and the separator are HeaderBar's contract (HeaderBarContractTests); text needs a font backend.
         Assert.Contains("section-title", title.Classes);
     }
 
@@ -149,7 +150,7 @@ public sealed class OverlayFrameTests
         Assert.Null(scope.ReturnTo); // the next opening names its own origin
     }
 
-    // The overlays in markup: a header bar whose end slot holds the cross, first in their card.
+    // The overlays in markup: a header bar whose back slot holds the cross, before the title, first in their card.
     public static TheoryData<string, string, string, string> Headers => new()
     {
         { "Desktop/Views/Archive/ArchivePage.axaml", "ReaderLinkHeader", "ReaderLinkTitle", "ReaderLinkClose" },
@@ -159,13 +160,13 @@ public sealed class OverlayFrameTests
 
     [Theory]
     [MemberData(nameof(Headers))]
-    public void EveryXamlOverlayHasATitleAndACrossInAHeaderBarEndSlot(string file, string header, string title, string close)
+    public void EveryXamlOverlayHasACrossInAHeaderBarBackSlotBeforeItsTitle(string file, string header, string title, string close)
     {
         XElement bar = Named(file, header);
         Assert.Equal("HeaderBar", bar.Name.LocalName);
-        Assert.Equal(new[] { title, close }, bar.Elements().Select(element => (string?)element.Attribute(X + "Name")));
+        Assert.Equal(new[] { close, title }, bar.Elements().Select(element => (string?)element.Attribute(X + "Name")));
         XElement cross = Named(file, close);
-        Assert.Equal("True", cross.Attributes().Single(attribute => attribute.Name.LocalName == "HeaderBar.IsEnd").Value);
+        Assert.Equal("True", cross.Attributes().Single(attribute => attribute.Name.LocalName == "HeaderBar.IsBack").Value);
         Assert.Equal("Button", cross.Name.LocalName);
         // The cross is an icon named in code, so it carries no text of its own.
         Assert.DoesNotContain(cross.Attributes(), attribute => attribute.Name.LocalName is "Content" or "Tag");
@@ -226,7 +227,7 @@ public sealed class OverlayFrameTests
     public void TheFilterSurfaceFocusesContentFirstNeverItsOwnCross()
     {
         string surface = File.ReadAllText(Root("Desktop/Controls/FilterSurfaceController.cs"));
-        Assert.Contains("HeaderBar.GetIsEnd(control)", surface);
+        Assert.Contains("HeaderBar.GetIsBack(control)", surface);
     }
 
     private static XElement Named(string file, string name) =>

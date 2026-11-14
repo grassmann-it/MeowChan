@@ -3934,7 +3934,7 @@
     "rules.wizard.next": "Avanti",
     "rules.wizard.review": "Verifica",
     "rules.wizard.back": "Indietro",
-    "rules.wizard.close": "Chiudi",
+    "rules.wizard.toOverview": "Torna alle regole",
     "rules.wizard.closeName": "Chiudi l’editor e torna alla panoramica delle regole",
     "tags.quick.heading": "Tag",
     "tags.quick.title": "Tag · {0}",

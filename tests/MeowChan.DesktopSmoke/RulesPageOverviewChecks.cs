@@ -8,7 +8,7 @@ using MeowChan.Rules;
 namespace MeowChan.DesktopSmoke;
 
 // Overview first (14.11.2026): the page opens on its overview; Create opens the wizard at step 1 with focus on its first field,
-// Edit opens step 2, Close sits at the editor header's right edge and returns focus to the overview, Esc closes too.
+// Edit opens step 2, Back sits at the editor header's left edge and returns focus to the overview, Esc closes too.
 internal static partial class RulesPageChecks
 {
     private static async Task CheckOverviewFirstAsync(MainWindow window, RulesPage page)
@@ -33,9 +33,12 @@ internal static partial class RulesPageChecks
             "Create rule did not open step 1 (scope) with Next and without Save.");
         Control header = page.FindControl<Control>("RuleWizardHeader")!;
         Button close = page.FindControl<Button>("RuleWizardCloseButton")!;
-        double headerRight = header.TranslatePoint(new Point(header.Bounds.Width, 0), window)!.Value.X;
-        double closeRight = close.TranslatePoint(new Point(close.Bounds.Width, 0), window)!.Value.X;
-        Require(Math.Abs(headerRight - closeRight) <= 2, $"Close is not at the editor header's right edge: header ends {headerRight:0.#}, Close ends {closeRight:0.#}.");
+        // Tom's rule (14.11. evening): the way back to the overview stands at the header's far left, before the title.
+        double headerLeft = header.TranslatePoint(new Point(0, 0), window)!.Value.X;
+        double closeLeft = close.TranslatePoint(new Point(0, 0), window)!.Value.X;
+        double titleLeft = page.FindControl<Control>("RulesEditingHeader")!.TranslatePoint(new Point(0, 0), window)!.Value.X;
+        Require(Math.Abs(headerLeft - closeLeft) <= 2, $"Back is not at the editor header's left edge: header starts {headerLeft:0.#}, Back starts {closeLeft:0.#}.");
+        Require(titleLeft - (closeLeft + close.Bounds.Width) >= 24 - 1, $"The editor title is not set apart from Back by the gap: Back ends {closeLeft + close.Bounds.Width:0.#}, title starts {titleLeft:0.#}.");
         Program.CaptureWindow(window, "smoke-rules-wizard-scope.png");
         Click(close);
         await WaitLayoutAsync(window, () => page.IsOverviewVisible && FocusWithin(window, create));
@@ -53,7 +56,7 @@ internal static partial class RulesPageChecks
         page.FindControl<Control>("RuleEnabledInput")!.RaiseEvent(escape);
         await FlushAsync();
         Require(escape.Handled && page.IsOverviewVisible, "Esc did not close the rule wizard.");
-        Console.WriteLine("SMOKE rules overview: opens on the overview, Create opens step 1 with focus, Close at the header's right edge, Edit opens step 2, Esc closes.");
+        Console.WriteLine("SMOKE rules overview: opens on the overview, Create opens step 1 with focus, Back at the header's left edge, Edit opens step 2, Esc closes.");
     }
 
     // Tom's decision 14.11.2026: Save closes the wizard onto the overview, a polite status says "Rule for ... saved", focus lands on the

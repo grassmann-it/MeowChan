@@ -3909,7 +3909,7 @@
     "rules.wizard.next": "下一步",
     "rules.wizard.review": "检查",
     "rules.wizard.back": "上一步",
-    "rules.wizard.close": "关闭",
+    "rules.wizard.toOverview": "返回规则",
     "rules.wizard.closeName": "关闭编辑器并返回规则概览",
     "tags.quick.heading": "标签",
     "tags.quick.title": "标签 · {0}",

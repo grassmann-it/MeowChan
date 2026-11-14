@@ -3934,7 +3934,7 @@
     "rules.wizard.next": "Avançar",
     "rules.wizard.review": "Revisar",
     "rules.wizard.back": "Voltar",
-    "rules.wizard.close": "Fechar",
+    "rules.wizard.toOverview": "Voltar às regras",
     "rules.wizard.closeName": "Fechar o editor e voltar à visão geral das regras",
     "tags.quick.heading": "Tags",
     "tags.quick.title": "Tags · {0}",

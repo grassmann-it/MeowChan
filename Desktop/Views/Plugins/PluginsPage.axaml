@@ -67,13 +67,13 @@
         <StackPanel x:Name="PluginDetailContent" Spacing="{StaticResource Workspace.Space.12}">
           <Border x:Name="PluginPurposeCard">
             <StackPanel Classes="workspace-section-header">
-              <!-- Heading at the start, the way back alone at the right edge (HeaderBar end slot, Tom's rule 14.11.). -->
+              <!-- The way back at the far left, then the heading (HeaderBar back slot, Tom's rule 14.11.). -->
               <controls:HeaderBar>
+                <Button x:Name="PluginBack" controls:HeaderBar.IsBack="True" VerticalAlignment="Top" Click="OnBackClick" />
                 <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}">
                   <TextBlock x:Name="PluginHeading" VerticalAlignment="Center" Classes="section-title" TextWrapping="Wrap" />
                   <TextBlock x:Name="PluginAuthor" Classes="workspace-meta" VerticalAlignment="Center" TextWrapping="Wrap" IsVisible="False" />
                 </WrapPanel>
-                <Button x:Name="PluginBack" controls:HeaderBar.IsEnd="True" VerticalAlignment="Top" Click="OnBackClick" />
               </controls:HeaderBar>
               <TextBlock x:Name="PluginDescriptionOrigin" Classes="workspace-help" TextWrapping="Wrap" IsVisible="False" />
               <TextBlock x:Name="PluginDescription" TextWrapping="Wrap" />

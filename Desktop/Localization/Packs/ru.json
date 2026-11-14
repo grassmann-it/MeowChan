@@ -3964,7 +3964,7 @@
     "rules.wizard.next": "Далее",
     "rules.wizard.review": "Проверить",
     "rules.wizard.back": "Назад",
-    "rules.wizard.close": "Закрыть",
+    "rules.wizard.toOverview": "Назад к правилам",
     "rules.wizard.closeName": "Закрыть редактор и вернуться к обзору правил",
     "tags.quick.heading": "Теги",
     "tags.quick.title": "Теги · {0}",

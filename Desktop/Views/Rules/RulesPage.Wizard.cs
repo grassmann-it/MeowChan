@@ -200,7 +200,7 @@ public partial class RulesPage
         ApplyIconLabel(RuleWizardBackButton, "arrow-left", Texts.T("rules.wizard.back"));
         ApplyIconLabel(RuleWizardNextButton, "arrow-right", Texts.T("rules.wizard.review"));
         ApplyIconLabel(OpenNewRuleScopeButton, "arrow-right", Texts.T("rules.wizard.next"));
-        ApplyIconLabel(RuleWizardCloseButton, "x", Texts.T("rules.wizard.close"));
+        ApplyIconLabel(RuleWizardCloseButton, "arrow-left", Texts.T("rules.wizard.toOverview")); // the way back stands at the far left of the header (HeaderBar back slot)
         CommandBindings.EnsureIconBeforeText(RuleGoToInvalidFieldButton, "crosshair"); // Its label is bound (GoToFieldLabel); only the icon is added.
         AutomationProperties.SetName(RuleWizardCloseButton, Texts.T("rules.wizard.closeName"));
         ToolTip.SetTip(RuleWizardCloseButton, Texts.T("rules.wizard.closeName") + " · Esc");

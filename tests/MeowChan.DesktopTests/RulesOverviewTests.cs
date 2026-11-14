@@ -216,12 +216,11 @@ public sealed class RulesOverviewTests
     }
 
     [Fact]
-    public void EditorCloseSitsAtTheRightEdgeOfItsHeaderRowApartFromActions()
+    public void EditorBackSitsAtTheFarLeftOfItsHeaderRowApartFromActions()
     {
         string xaml = ReadSource("Desktop/Views/Rules/RulesPage.axaml");
-        string header = Between(xaml, "<Grid x:Name=\"RuleWizardHeader\"", "</Grid>");
-        Assert.Contains("ColumnDefinitions=\"*,Auto,Auto\"", header);
-        Assert.Matches(@"x:Name=""RuleWizardCloseButton""[^>]*Grid\.Column=""2""", header);
+        string header = Between(xaml, "<controls:HeaderBar x:Name=\"RuleWizardHeader\"", "</controls:HeaderBar>");
+        Assert.Matches(@"^[^>]*>\s*<Button x:Name=""RuleWizardCloseButton""[^>]*controls:HeaderBar\.IsBack=""True""", header);
         // Save/Discard stay in the footer, never next to Close.
         Assert.DoesNotContain("SaveRuleButton", header);
         Assert.DoesNotContain("DiscardRuleButton", header);

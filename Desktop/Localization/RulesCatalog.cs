@@ -143,7 +143,7 @@ internal static class RulesCatalog
         ("rules.wizard.next", "Next", "Weiter"),
         ("rules.wizard.review", "Review", "Prüfen"),
         ("rules.wizard.back", "Back", "Zurück"),
-        ("rules.wizard.close", "Close", "Schließen"),
+        ("rules.wizard.toOverview", "Back to rules", "Zurück zu Regeln"),
         ("rules.wizard.closeName", "Close editor and return to the rule overview", "Editor schließen und zur Regelübersicht zurückkehren")
     };
 }

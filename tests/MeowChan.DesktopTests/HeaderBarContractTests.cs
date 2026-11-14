@@ -9,9 +9,10 @@ using MeowChan.Desktop.WorkViews;
 namespace MeowChan.DesktopTests;
 
 /// <summary>
-/// Tom's rule (14.11.2026): back, close, "close details" and every "Back to …" stand at the far right edge of their header or
-/// tool row, apart from the actions (an isolating gap), last in the row's tab order, through the one shared <see cref="HeaderBar"/>. Layout runs
-/// without an Avalonia application (plain borders); the page rows are checked in their XAML.
+/// Tom's rule (14.11.2026 evening, reversing the right-edge rule of the same day): back, close, "close details" and every "Back to …"
+/// stand at the far left of their header or tool row, before the title, first in the row's tab order and set apart from the title by a
+/// gap and a thin separator; the remaining buttons are right-aligned. All through the one shared <see cref="HeaderBar"/>. Layout runs
+/// without an Avalonia application (plain borders); the page rows are checked in their XAML. The × of window dialogs (caption) stays at the right.
 /// </summary>
 public sealed class HeaderBarContractTests
 {
@@ -27,48 +28,115 @@ public sealed class HeaderBarContractTests
     }
 
     [Fact]
-    public void TheEndSlotStandsAtTheRightEdgeAfterAnIsolatingGap()
+    public void TheBackSlotStandsAtTheFarLeftBeforeTheContentAfterAnIsolatingGapWithASeparator()
     {
-        Border start = Box(300), back = Box(120), close = Box(32);
-        HeaderBar bar = HeaderBar.Create(start, back, close);
-        Layout(bar, 600);
-        Assert.Equal(600, close.Bounds.Right, 3);
-        Assert.Equal(close.Bounds.Left - HeaderBar.EndSpacing, back.Bounds.Right, 3);
-        // The start area ends EndGap before the way out (the 24 dip of the quick-tag header).
-        double startRight = back.Bounds.Left - HeaderBar.EndGap;
-        Assert.True(start.Bounds.Right <= startRight + 0.001, $"start {start.Bounds} reaches into the gap before {back.Bounds}");
-        Assert.Equal(startRight, bar.GapStart!.Value, 3);
-        Assert.Equal(24, HeaderBar.EndGap);
+        Border back = Box(120), close = Box(32), title = Box(300), more = Box(32);
+        title.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left; // a fixed width would otherwise be centred in the content area
+        HeaderBar bar = HeaderBar.Create(back, title, more);
+        HeaderBar.SetIsBack(close, true);
+        bar.Children.Insert(1, close);
+        Layout(bar, 700);
+        Assert.Equal(0, back.Bounds.Left, 3);
+        Assert.Equal(back.Bounds.Right + HeaderBar.BackSpacing, close.Bounds.Left, 3);
+        // The content starts BackGap (24 dip, the 8 dip grid) after the back slot; the separator stands in the middle of that gap.
+        double contentLeft = close.Bounds.Right + HeaderBar.BackGap;
+        Assert.True(title.Bounds.Left >= contentLeft - 0.001, $"title {title.Bounds} starts inside the gap after {close.Bounds}");
+        Assert.Equal(contentLeft, title.Bounds.Left, 3);
+        Assert.Equal(24, HeaderBar.BackGap);
+        double separator = bar.SeparatorX!.Value;
+        Assert.True(separator > close.Bounds.Right && separator + HeaderBar.SeparatorThickness < title.Bounds.Left,
+            $"separator at {separator} is not inside the gap between {close.Bounds} and {title.Bounds}");
+        Assert.Equal(Math.Round(close.Bounds.Right + (HeaderBar.BackGap - HeaderBar.SeparatorThickness) / 2), separator, 3);
+        Assert.Equal(32, bar.SeparatorHeight, 3);
+        // The remaining button is right-aligned.
+        Assert.Equal(700, more.Bounds.Right, 3);
     }
 
     [Fact]
-    public void AHiddenWayOutTakesNoRoomAndARowWithoutOneHasNoGap()
+    public void TheBackButtonIsTheFirstChildAndSeparatedFromTheRestOfTheRow()
     {
-        Border start = Box(200), back = Box(120), close = Box(32);
+        Border back = Box(120), title = Box(200), more = Box(32);
+        HeaderBar bar = HeaderBar.Create(back, title, more);
+        Assert.Same(back, bar.Children[0]);
+        Assert.True(HeaderBar.GetIsBack(back));
+        Assert.Contains(HeaderBar.BackClass, back.Classes);
+        Assert.True(bar.BackSlotIsFirst);
+        Assert.True(bar.EndSlotIsLast);
+        Assert.Equal([back], bar.BackChildren);
+        Assert.Equal([more], bar.EndChildren);
+        Layout(bar, 600);
+        // Set apart: the content never touches the back slot, and no other control stands left of it.
+        Assert.True(title.Bounds.Left - back.Bounds.Right >= HeaderBar.BackGap - 0.001);
+        Assert.NotNull(bar.SeparatorX);
+        Assert.All(new Control[] { title, more }, control => Assert.True(control.Bounds.Left > back.Bounds.Right));
+    }
+
+    [Fact]
+    public void ABackChildDeclaredAfterTheContentBreaksTheTabOrderCheck()
+    {
+        HeaderBar wrong = new();
+        Border content = Box(100), early = Box(32);
+        HeaderBar.SetIsBack(early, true);
+        wrong.Children.Add(content);
+        wrong.Children.Add(early);
+        Assert.False(wrong.BackSlotIsFirst);
+        HeaderBar endFirst = new();
+        Border end = Box(32);
+        HeaderBar.SetIsEnd(end, true);
+        endFirst.Children.Add(end);
+        endFirst.Children.Add(Box(100));
+        Assert.False(endFirst.EndSlotIsLast);
+    }
+
+    [Fact]
+    public void AHiddenBackSlotTakesNoRoomAndARowWithoutOneHasNoGapAndNoSeparator()
+    {
+        Border back = Box(120), close = Box(32), title = new() { Height = 32 };
+        HeaderBar bar = HeaderBar.Create(back, title);
+        HeaderBar.SetIsBack(close, true);
+        bar.Children.Insert(1, close);
         back.IsVisible = false;
-        HeaderBar bar = HeaderBar.Create(start, back, close);
         Layout(bar, 500);
-        Assert.Equal(500, close.Bounds.Right, 3);
-        Assert.NotNull(bar.GapStart);
+        Assert.Equal(0, close.Bounds.Left, 3); // the visible back child moves to the edge
+        Assert.NotNull(bar.SeparatorX);
         close.IsVisible = false;
         Layout(bar, 500);
-        Assert.Null(bar.GapStart); // nothing to set apart: the start content gets the whole row
+        Assert.Null(bar.SeparatorX); // nothing to set apart: the content gets the whole row
+        Assert.Equal(0, title.Bounds.Left, 3);
+        Assert.Equal(500, title.Bounds.Width, 3);
     }
 
     [Fact]
-    public void TheWayOutIsLastInTheRowsTabOrder()
+    public void ARowWithOnlyABackButtonHasNoSeparator()
     {
-        Button action = new(), close = new();
-        HeaderBar bar = HeaderBar.Create(new StackPanel { Children = { action } }, close);
-        Assert.True(bar.EndSlotIsLast);
-        Assert.Same(close, bar.Children[^1]);
-        Assert.Equal([close], bar.EndChildren);
-        HeaderBar wrong = new();
-        Button early = new();
-        HeaderBar.SetIsEnd(early, true);
-        wrong.Children.Add(early);
-        wrong.Children.Add(new TextBlock());
-        Assert.False(wrong.EndSlotIsLast);
+        Border back = Box(120);
+        HeaderBar bar = new();
+        HeaderBar.SetIsBack(back, true);
+        bar.Children.Add(back);
+        Layout(bar, 400);
+        Assert.Null(bar.SeparatorX);
+    }
+
+    [Fact]
+    public void TheContentShrinksBeforeTheBackSlotAndTheRemainingButtonsGiveWay()
+    {
+        Border back = Box(100), title = new() { Height = 32 }, more = Box(40);
+        HeaderBar bar = HeaderBar.Create(back, title, more);
+        Layout(bar, 400);
+        Assert.Equal(0, back.Bounds.Left, 3);
+        Assert.Equal(100, back.Bounds.Width, 3);
+        Assert.Equal(400, more.Bounds.Right, 3);
+        Assert.True(title.Bounds.Right <= more.Bounds.Left - HeaderBar.EndGap + 0.001, $"title {title.Bounds} runs into {more.Bounds}");
+    }
+
+    [Fact]
+    public void ANarrowBarIsCompactAndAWideOneIsNot()
+    {
+        HeaderBar bar = HeaderBar.Create(Box(120), Box(100));
+        Layout(bar, HeaderBar.CompactWidth - 8);
+        Assert.True(bar.IsCompact);
+        Layout(bar, HeaderBar.CompactWidth + 8);
+        Assert.False(bar.IsCompact);
     }
 
     [Fact]
@@ -87,8 +155,8 @@ public sealed class HeaderBarContractTests
         Assert.Equal("Suche schließen · Esc", ToolTip.GetTip(close));
     }
 
-    // Inventory (14.11.): every way out moved to an end slot. The gallery viewer keeps its own overlay placement (WV4), Rules,
-    // Diagnostics and Statistics are other workers' surfaces (Sources and Plugins joined on 14.11.); window modals have the caption's ×.
+    // Inventory (14.11. evening): every way out stands in a back slot at the far left. The gallery viewer keeps its own overlay placement
+    // (GL3), the popovers and the quick-tag surface their own headers; window modals have the caption's × at the right (OS convention).
     public static TheoryData<string, string> WaysOut => new()
     {
         { "Desktop/Views/Archive/ArchivePage.axaml", "ArchiveGalleryReturn" },
@@ -103,21 +171,28 @@ public sealed class HeaderBarContractTests
         { "Desktop/Shell/MainWindow.axaml", "ShellHelpClose" },
         { "Desktop/Views/Sources/SourcesPage.axaml", "SourceBackButton" },
         { "Desktop/Views/Plugins/PluginsPage.axaml", "PluginBack" },
+        { "Desktop/Views/Rules/RulesPage.axaml", "RuleWizardCloseButton" },
+        { "Desktop/Views/Archive/ArchivePage.axaml", "ArchiveFilterSurfaceClose" },
+        { "Desktop/Views/Archive/ArchivePage.axaml", "ReaderLinkClose" },
+        { "Desktop/Views/Statistics/StatisticsPage.axaml", "ResetConfirmClose" },
     };
 
     [Theory]
     [MemberData(nameof(WaysOut))]
-    public void EveryWayOutSitsInAHeaderBarEndSlot(string file, string name)
+    public void EveryWayOutSitsInAHeaderBarBackSlotAsItsFirstChild(string file, string name)
     {
         XElement control = Named(file, name);
-        Assert.Equal("True", EndAttribute(control));
+        Assert.Equal("True", BackAttribute(control));
         Assert.Equal("HeaderBar", control.Parent!.Name.LocalName);
+        Assert.Null(EndAttribute(control));
+        Assert.True(control.Parent.Elements().First() == control || BackAttribute(control.Parent.Elements().First()) == "True",
+            name + " is not in the leading run of its row.");
         // Text content would come back with the localizer: the closes take their names in code, the returns from their command.
         Assert.DoesNotContain(control.Attributes(), attribute => attribute.Name.LocalName == "Grid.Column");
     }
 
     [Fact]
-    public void EveryHeaderBarDeclaresItsEndSlotLastAndOnlyButtonsInIt()
+    public void EveryHeaderBarDeclaresItsBackSlotFirstItsEndSlotLastAndOnlyButtonsInThem()
     {
         int bars = 0;
         foreach (string file in Directory.EnumerateFiles(Root("Desktop"), "*.axaml", SearchOption.AllDirectories))
@@ -125,22 +200,32 @@ public sealed class HeaderBarContractTests
             {
                 bars++;
                 XElement[] children = bar.Elements().ToArray();
-                int firstEnd = Array.FindIndex(children, child => EndAttribute(child) == "True");
                 string where = Path.GetFileName(file) + "/" + ((string?)bar.Attribute(X + "Name") ?? "HeaderBar");
-                Assert.True(firstEnd > 0, where + " has no start content or no end slot.");
-                Assert.All(children.Skip(firstEnd), child => Assert.True(EndAttribute(child) == "True", where + ": start content after the way out."));
-                Assert.All(children.Skip(firstEnd), child => Assert.Contains(child.Name.LocalName, new[] { "Button", "ToggleButton" }));
+                int lastBack = Array.FindLastIndex(children, child => BackAttribute(child) == "True");
+                int firstEnd = Array.FindIndex(children, child => EndAttribute(child) == "True");
+                Assert.True(lastBack >= 0, where + " has no back slot.");
+                Assert.True(children.Length > lastBack + 1, where + " has no content after the back slot.");
+                Assert.All(children.Take(lastBack + 1), child => Assert.True(BackAttribute(child) == "True", where + ": content before the way back."));
+                Assert.All(children.Take(lastBack + 1), child => Assert.Contains(child.Name.LocalName, new[] { "Button", "ToggleButton" }));
+                if (firstEnd >= 0)
+                {
+                    Assert.True(firstEnd > lastBack + 1, where + " has no content between the back slot and the remaining buttons.");
+                    Assert.All(children.Skip(firstEnd), child => Assert.True(EndAttribute(child) == "True", where + ": content after the remaining buttons."));
+                    Assert.All(children.Skip(firstEnd), child => Assert.Contains(child.Name.LocalName, new[] { "Button", "ToggleButton" }));
+                }
+                Assert.DoesNotContain(children, child => BackAttribute(child) == "True" && EndAttribute(child) == "True");
             }
-        Assert.True(bars >= 7, "Expected the reader, find, tag, preview, search, inspector and help rows: " + bars);
+        Assert.True(bars >= 8, "Expected the reader, find, tag, preview, search, inspector, help and rules rows: " + bars);
     }
 
-    // The close of the large reader is the rightmost control of the reader header; the state returns sit directly left of it.
+    // The ways back of the reader are the first controls of its header row (left to right: the state returns, the narrow list return, the large reader's
+    // "Back to {origin}"), then the title; the toolbar below keeps no way out.
     [Fact]
-    public void TheReaderHeaderEndsWithTheCloseAndTheToolbarKeepsNoWayOut()
+    public void TheReaderHeaderStartsWithTheWaysBackAndTheToolbarKeepsNoWayOut()
     {
         XElement page = XDocument.Load(Root("Desktop/Views/Archive/ArchivePage.axaml")).Root!;
         XElement header = page.Descendants().Single(element => (string?)element.Attribute(X + "Name") == "ReaderHeaderBar");
-        Assert.Equal(["ArchiveReaderTitle", "ArchiveGalleryReturn", "ArchiveMediaReturn", "ArchiveBackButton", "ArchiveCloseReader"],
+        Assert.Equal(["ArchiveGalleryReturn", "ArchiveMediaReturn", "ArchiveBackButton", "ArchiveCloseReader", "ArchiveReaderTitle"],
             header.Elements().Select(element => (string?)element.Attribute(X + "Name")));
         XElement toolbar = page.Descendants().Single(element => (string?)element.Attribute(X + "Name") == "ReaderToolbar");
         string[] ids = toolbar.Descendants().Select(element => (string?)element.Attribute(XName.Get("WorkViewElement.Id", Wv))).OfType<string>().ToArray();
@@ -148,19 +233,46 @@ public sealed class HeaderBarContractTests
             Assert.DoesNotContain(wayOut, ids);
     }
 
-    // Work views never reduce a way out: an end-slot control with a work-view id is Required in every view.
+    // The rule assistant's way back to the overview is the first control of its editor header; the remaining More button is right-aligned.
+    [Fact]
+    public void TheRuleEditorHeaderStartsWithTheWayBackToTheOverviewAndKeepsMoreAtTheRight()
+    {
+        XElement header = Named("Desktop/Views/Rules/RulesPage.axaml", "RuleWizardHeader");
+        Assert.Equal("HeaderBar", header.Name.LocalName);
+        string?[] names = header.Elements().Select(element => (string?)element.Attribute(X + "Name")).ToArray();
+        Assert.Equal("RuleWizardCloseButton", names.First());
+        Assert.Equal("RulesMoreButton", names.Last());
+        Assert.Equal("True", EndAttribute(Named("Desktop/Views/Rules/RulesPage.axaml", "RulesMoreButton")));
+        // Save and Discard stay in the footer, never in the header.
+        Assert.DoesNotContain("SaveRuleButton", names);
+        Assert.DoesNotContain("DiscardRuleButton", names);
+    }
+
+    // The code-side texts no longer state the old rule.
+    [Fact]
+    public void TheHeaderBarSourcesDescribeTheLeftRuleNotTheRightEdgeRule()
+    {
+        string bar = File.ReadAllText(Root("Desktop/Controls/HeaderBar.cs"));
+        string overlay = File.ReadAllText(Root("Desktop/Controls/OverlayFrame.cs"));
+        Assert.Contains("far left", bar);
+        Assert.DoesNotContain("far right edge", bar);
+        Assert.DoesNotContain("alone at the top right", overlay);
+        Assert.Contains("HeaderBar.Create(close, title)", overlay);
+    }
+
+    // Work views never reduce a way out: a back-slot control with a work-view id is Required in every view.
     [Fact]
     public void EveryWayOutWithAWorkViewIdIsRequiredInEveryView()
     {
         int checkedIds = 0;
         foreach (string file in Directory.EnumerateFiles(Root("Desktop"), "*.axaml", SearchOption.AllDirectories))
-            foreach (XElement end in XDocument.Load(file).Descendants().Where(element => EndAttribute(element) == "True"))
+            foreach (XElement end in XDocument.Load(file).Descendants().Where(element => BackAttribute(element) == "True"))
                 if ((string?)end.Attribute(XName.Get("WorkViewElement.Id", Wv)) is { } id)
                 {
                     checkedIds++;
                     Assert.All(WorkViewSetting.All, view => Assert.Equal(Presence.Required, WorkViewPolicy.Resolve(id, view)));
                 }
-        Assert.Equal(4, checkedIds);
+        Assert.Equal(5, checkedIds); // the four reader ways back and the rule editor's way back to the overview
     }
 
     // The converted closes are named in code (MakeClose / an icon-only command), never given text content again.
@@ -179,6 +291,9 @@ public sealed class HeaderBarContractTests
         Assert.Contains("CommandBindings.Apply(ShellHelpClose, \"window.close\", iconOnly: true)", fullscreen);
         Assert.Contains("HeaderBar.MakeClose(ClosePreviewButton", File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.axaml.cs")));
     }
+
+    private static string? BackAttribute(XElement element) =>
+        element.Attributes().FirstOrDefault(attribute => attribute.Name.LocalName == "HeaderBar.IsBack")?.Value;
 
     private static string? EndAttribute(XElement element) =>
         element.Attributes().FirstOrDefault(attribute => attribute.Name.LocalName == "HeaderBar.IsEnd")?.Value;

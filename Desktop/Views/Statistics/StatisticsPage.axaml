@@ -44,11 +44,11 @@
                                 <Flyout Placement="BottomEdgeAlignedRight" Opened="OnResetConfirmationOpened" Closed="OnResetConfirmationClosed">
                                     <Border x:Name="ResetConfirmPanel" wv:WorkViewElement.Id="statistics.reset-confirm" MaxWidth="320" KeyDown="OnResetConfirmKeyDown">
                                         <StackPanel Spacing="{StaticResource Workspace.Space.12}">
-                                            <!-- MD4 overlay header: a short title and the cross (cancel) alone at the top right; the footer keeps the
+                                            <!-- MD4 overlay header: the cross (cancel) at the far left, then a short title; the footer keeps the
                                                  safe answer first and the destructive one right-most (OverlayFrame). -->
                                             <controls:HeaderBar x:Name="ResetConfirmHeader">
+                                                <Button x:Name="ResetConfirmClose" controls:HeaderBar.IsBack="True" Click="OnCancelResetClick" />
                                                 <TextBlock x:Name="ResetConfirmTitle" Classes="section-title" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                                <Button x:Name="ResetConfirmClose" controls:HeaderBar.IsEnd="True" Click="OnCancelResetClick" />
                                             </controls:HeaderBar>
                                             <TextBlock x:Name="ResetQuestion" TextWrapping="Wrap" />
                                             <WrapPanel Classes="workspace-toolbar" HorizontalAlignment="Right">

@@ -3891,7 +3891,7 @@
     "rules.wizard.next": "次へ",
     "rules.wizard.review": "確認",
     "rules.wizard.back": "戻る",
-    "rules.wizard.close": "閉じる",
+    "rules.wizard.toOverview": "ルールに戻る",
     "rules.wizard.closeName": "エディターを閉じてルールの一覧に戻る",
     "tags.quick.heading": "タグ",
     "tags.quick.title": "タグ · {0}",

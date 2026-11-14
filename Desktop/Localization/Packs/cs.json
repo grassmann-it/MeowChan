@@ -3984,7 +3984,7 @@
     "rules.wizard.next": "Další",
     "rules.wizard.review": "Zkontrolovat",
     "rules.wizard.back": "Zpět",
-    "rules.wizard.close": "Zavřít",
+    "rules.wizard.toOverview": "Zpět na pravidla",
     "rules.wizard.closeName": "Zavřít editor a vrátit se k přehledu pravidel",
     "tags.quick.heading": "Štítky",
     "tags.quick.title": "Štítky · {0}",

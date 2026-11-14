@@ -3891,7 +3891,7 @@
     "rules.wizard.next": "다음",
     "rules.wizard.review": "검토",
     "rules.wizard.back": "뒤로",
-    "rules.wizard.close": "닫기",
+    "rules.wizard.toOverview": "규칙으로 돌아가기",
     "rules.wizard.closeName": "편집기를 닫고 규칙 개요로 돌아가기",
     "tags.quick.heading": "태그",
     "tags.quick.title": "태그 · {0}",

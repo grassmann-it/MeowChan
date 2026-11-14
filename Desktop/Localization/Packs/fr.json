@@ -3931,7 +3931,7 @@
     "rules.wizard.next": "Suivant",
     "rules.wizard.review": "Vérifier",
     "rules.wizard.back": "Retour",
-    "rules.wizard.close": "Fermer",
+    "rules.wizard.toOverview": "Retour aux règles",
     "rules.wizard.closeName": "Fermer l’éditeur et revenir à la vue d’ensemble des règles",
     "tags.quick.heading": "Étiquettes",
     "tags.quick.title": "Étiquettes · {0}",
