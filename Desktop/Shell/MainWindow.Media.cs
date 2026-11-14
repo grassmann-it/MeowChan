@@ -69,11 +69,12 @@ public partial class MainWindow
                 (tag, subjects, assigned, expectedRevision, token) => _session.SetMediaSubjectTagsAsync(tag, subjects, assigned, expectedRevision, token)),
             ExportOriginals = ExportMediaLibraryOriginalsAsync,
             AddToTagQueue = AddMediaToTagQueueAsync,
+            AddToTagQueueInGroup = AddMediaToTagQueueInGroupAsync,
             TagQueueConfirmAboveSource = () => _session.Config.TagQueueConfirmAbove,
             // MP1/MP3: the queue as the tiles, the status line and the queue term see it, and the two ways to tagging under More.
             ReadTagQueue = _session.GetTagQueue,
             LoadTagQueue = () => _session.LoadTagQueueAsync(),
-            OpenTagQueueWalk = OpenTagQueueGalleryAsync,
+            OpenTagQueueWalk = () => OpenTagQueueGalleryAsync(),
             OpenTaggingPage = ShowTaggingPage,
             // MP4: the top-N of the Booru mode's tag groups (Settings, Storage and limits).
             TagListTopSource = () => _session.Config.MediaTagListTop,
@@ -119,12 +120,17 @@ public partial class MainWindow
     /// MP2: "Add to tagging queue" of the media page. The sentence goes to the page's status line as before; when something was really
     /// added a toast offers to go through the queue right away (the walk in the gallery's tagging mode).
     /// </summary>
-    private async Task<string> AddMediaToTagQueueAsync(IReadOnlyList<MediaLibraryEntry> entries)
+    private Task<string> AddMediaToTagQueueAsync(IReadOnlyList<MediaLibraryEntry> entries) => AddMediaToTagQueueAsync(entries, groupId: null);
+
+    private async Task<string> AddMediaToTagQueueInGroupAsync(IReadOnlyList<MediaLibraryEntry> entries, string groupId) =>
+        await AddMediaToTagQueueAsync(entries, groupId);
+
+    private async Task<string> AddMediaToTagQueueAsync(IReadOnlyList<MediaLibraryEntry> entries, string? groupId)
     {
-        (string message, int added) = await TagQueueActions.AddCountedAsync(_session, entries);
+        (string message, int added) = await TagQueueActions.AddCountedAsync(_session, entries, groupId);
         if (added > 0 && !_isClosing)
             ShowActionNotification(Texts.T("queue.title"), message, NotificationType.Information,
-                new[] { new FeedbackToastAction(Texts.T("media.queue.walkNow"), OpenTagQueueGalleryAsync) }, operation: "media.queue.add");
+                new[] { new FeedbackToastAction(Texts.T("media.queue.walkNow"), () => OpenTagQueueGalleryAsync(groupId)) }, operation: "media.queue.add");
         return message;
     }
 

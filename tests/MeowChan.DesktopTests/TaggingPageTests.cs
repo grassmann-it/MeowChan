@@ -46,6 +46,30 @@ public sealed class TaggingPageTests : IDisposable
     }
 
     [Fact]
+    public void NamedGroupRowsCountersAndStartPositionStayInsideTheSelectedScope()
+    {
+        TagQueueGroup group = new("group-1", "Review", 0, new[] { "common" });
+        TagQueueItem[] items =
+        {
+            Item(1, TagQueueState.Done) with { GroupId = group.Id },
+            Item(2) with { GroupId = group.Id },
+            Item(3),
+            Item(4, TagQueueState.Skipped) with { GroupId = group.Id },
+            Item(5)
+        };
+        TagQueueSnapshot queue = new(1, 1, Array.Empty<string>(), items, TagQueueLoadState.Ready, new[] { group });
+        IReadOnlyList<TaggingQueueRow> rows = TaggingQueueView.Rows(queue, TaggingQueueFilter.All, null, group.Id, false);
+        Assert.Equal(new[] { 1, 2, 4 }, rows.Select(row => row.Number));
+        Assert.Equal(new[] { "Review", "Review", "Review" }, rows.Select(row => row.GroupName));
+        Assert.Equal(1, rows.Count(row => row.Next));
+        Assert.Equal(new TaggingQueueCounts(1, 1, 1), TaggingQueueView.Counts(queue, group.Id));
+        Assert.Equal("Open: 1 · Finished: 1 · Skipped: 1", TaggingQueueView.ProgressText(queue, group.Id, false));
+        Assert.Equal("Continue at 2 of 3", TaggingQueueView.StartLabel(queue, group.Id, false));
+        Assert.Equal(new[] { "All entries", "Without group", "Review" }, TaggingQueueView.GroupChoices(queue).Select(choice => choice.Label));
+        Assert.Equal(new[] { 3, 5 }, TaggingQueueView.Rows(queue, TaggingQueueFilter.All, null, null, true).Select(row => row.Number));
+    }
+
+    [Fact]
     public void TheProgressCountsEveryStateAndNeverRoundsUpToAHundredPercent()
     {
         TagQueueSnapshot queue = Queue(0, Enumerable.Range(1, 200).Select(n => Item(n, n <= 199 ? TagQueueState.Done : TagQueueState.Open)).ToArray());

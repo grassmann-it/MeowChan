@@ -27,10 +27,12 @@ public sealed partial class TaggingPage
     private readonly Button _selTag = new() { Name = "TaggingSelectionTag" };
     private readonly Button _selStamp = new() { Name = "TaggingSelectionStamp" };
     private readonly Button _selState = new() { Name = "TaggingSelectionState" };
+    private readonly Button _selGroup = new() { Name = "TaggingSelectionGroup" };
     private readonly Button _selRemove = new() { Name = "TaggingSelectionRemove" };
     private readonly TextBlock _selStateText = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _selClear = new() { Name = "TaggingSelectionClear" };
     private ContextMenuHost? _stateMenuHost;
+    private ContextMenuHost? _groupMenuHost;
 
     internal Border SelectionBar => _selectionBar;
     internal TextBlock SelectionText => _selectionText;
@@ -38,13 +40,14 @@ public sealed partial class TaggingPage
     internal Button SelectionTagButton => _selTag;
     internal Button SelectionStampButton => _selStamp;
     internal Button SelectionStateButton => _selState;
+    internal Button SelectionGroupButton => _selGroup;
     internal Button SelectionRemoveButton => _selRemove;
     internal Button SelectionClearButton => _selClear;
 
     private Control BuildSelectionBar()
     {
         AutomationProperties.SetLiveSetting(_selectionText, AutomationLiveSetting.Polite);
-        foreach (Button button in new[] { _selTag, _selStamp, _selState, _selRemove })
+        foreach (Button button in new[] { _selTag, _selStamp, _selState, _selGroup, _selRemove })
         {
             ToolBar.SetOverflowMode(button, OverflowMode.AsNeeded);
             _selectionActions.Items.Add(button);
@@ -53,7 +56,10 @@ public sealed partial class TaggingPage
         _selStamp.Click += (_, _) => _ = ExecuteRowCommandAsync(TaggingCommands.ApplyStamp);
         _selRemove.Click += (_, _) => _ = ExecuteRowCommandAsync(TaggingCommands.Remove);
         _selState.Click += (_, _) => _stateMenuHost?.Show(atPointer: false);
+        _selGroup.Click += (_, _) => _groupMenuHost?.Show(atPointer: false);
         _stateMenuHost = new ContextMenuHost(_selState, ComposeStateMenu, fallbackFocus: () => FocusContent(), resolveOrigin: StateMenuOrigin);
+        _groupMenuHost = new ContextMenuHost(_selGroup, ComposeGroupMenu, fallbackFocus: () => FocusContent());
+        _selGroup.Content = Texts.T("tagging.page.group.assign");
         _selState.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _selStateText, CommandBindings.NamedIcon("chevron-down", 12) } };
         _selClear.Click += (_, _) => ClearSelection();
         _selClear.HorizontalAlignment = HorizontalAlignment.Right;
@@ -149,6 +155,9 @@ public sealed partial class TaggingPage
         ToolTip.SetShowOnDisabled(_selState, true);
         AutomationProperties.SetName(_selState, stateText);
         AutomationProperties.SetHelpText(_selState, stateTip);
+        _selGroup.Content = Texts.T("tagging.page.group.assign");
+        _selGroup.IsEnabled = count > 0 && CanChange && _queueWork.Queue.Groups.Count > 0;
+        AutomationProperties.SetName(_selGroup, Texts.T("tagging.page.group.assign"));
         WorkViewGate.Apply(_selectionBar, _workView, stateVisible: count > 0);
         _selClear.IsEnabled = count > 0;
         _selectionActions.RefreshOverflowLabel();

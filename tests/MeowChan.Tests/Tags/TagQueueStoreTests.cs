@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Nodes;
 using MeowChan.Gallery;
 using MeowChan.Persistence;
 using MeowChan.Storage;
@@ -373,11 +374,73 @@ public sealed class TagQueueStoreTests
     }
 
     [Fact]
+    public void GroupsAreNamedIndependentScopesWithPrivateStampsAndDeleteUnassigns()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        TagQueueStore store = new(temp.Path, lease);
+        store.Add(Items(1, 3));
+
+        TagQueueSnapshot grouped = store.CreateGroup("Review", new[] { Item(1).Key, Item(2).Key });
+        TagQueueGroup group = Assert.Single(grouped.Groups);
+        Assert.Equal(2, grouped.CountFor(group.Id));
+        Assert.Equal(group.Id, grouped.Items[0].GroupId);
+        Assert.Equal(group.Id, grouped.Items[1].GroupId);
+        Assert.Equal(0, grouped.ResumeIndex(group.Id));
+
+        grouped = store.SetGroupStamp(group.Id, new[] { "needs-review" });
+        Assert.Equal(new[] { "needs-review" }, grouped.Group(group.Id)!.Stamp);
+        grouped = store.RenameGroup(group.Id, "Reviewed");
+        Assert.Equal("Reviewed", grouped.Group(group.Id)!.Name);
+        grouped = store.DeleteGroup(group.Id);
+        Assert.Empty(grouped.Groups);
+        Assert.All(grouped.Items, item => Assert.Null(item.GroupId));
+        Assert.Contains("\"Version\":" + TagQueueStore.Version, File.ReadAllText(FileOf(temp)));
+    }
+
+    [Fact]
+    public void VersionOneQueueRemainsReadableAndIsUpgradedOnTheNextWrite()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        TagQueueStore store = new(temp.Path, lease);
+        store.Add(new[] { Item(1) });
+        JsonObject root = JsonNode.Parse(File.ReadAllText(FileOf(temp)))!.AsObject();
+        root["Version"] = TagQueueStore.LegacyVersion;
+        root.Remove("Groups");
+        foreach (JsonObject item in root["Items"]!.AsArray().OfType<JsonObject>()) item.Remove("GroupId");
+        File.WriteAllText(FileOf(temp), root.ToJsonString());
+
+        TagQueueSnapshot legacy = store.Read();
+        Assert.Empty(legacy.Groups);
+        Assert.Null(legacy.Items[0].GroupId);
+        store.SetStamp(new[] { "legacy" });
+        Assert.Equal(TagQueueStore.Version, JsonNode.Parse(File.ReadAllText(FileOf(temp)))!["Version"]!.GetValue<int>());
+    }
+
+    [Fact]
+    public void GroupLimitsAreValidatedAndLoweringDoesNotHideExistingGroups()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        lease.StoreLimits.TagQueueGroups = 1;
+        TagQueueStore store = new(temp.Path, lease);
+        store.Add(new[] { Item(1) });
+        TagQueueSnapshot first = store.CreateGroup("First group");
+        Assert.Throws<InvalidDataException>(() => store.CreateGroup("Second group"));
+        lease.StoreLimits.TagQueueGroups = ProfileStoreLimits.MinimumTagQueueGroups;
+        Assert.Single(store.Read().Groups);
+        Assert.Throws<ArgumentOutOfRangeException>(() => lease.StoreLimits.TagQueueGroups = 0);
+        Assert.Throws<ArgumentOutOfRangeException>(() => lease.StoreLimits.TagQueueGroupNameCharacters = ProfileStoreLimits.MinimumTagQueueGroupNameCharacters - 1);
+        Assert.Equal(first.Groups[0].Id, store.Read().Groups[0].Id);
+    }
+
+    [Fact]
     public void AFileOfANewerVersionReadsAsEmptyStaysUntouchedAndRefusesEveryWrite()
     {
         using TempDirectory temp = new();
         using ProfileLease lease = ProfileLease.Acquire(temp.Path);
-        const string newer = "{\"Version\":2,\"Anything\":[1,2,3]}";
+        string newer = $"{{\"Version\":{TagQueueStore.Version + 1},\"Anything\":[1,2,3]}}";
         File.WriteAllText(FileOf(temp), newer);
         TagQueueStore store = new(temp.Path, lease);
         TagQueueSnapshot read = store.Read();

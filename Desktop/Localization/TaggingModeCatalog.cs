@@ -21,6 +21,7 @@ internal static class TaggingModeCatalog
         ("tagging.progress", "Done: {0} · Skipped: {1} · Open: {2}", "Fertig: {0} · Übersprungen: {1} · Offen: {2}"),
         ("tagging.status.start", "Tagging mode: {0} finishes the medium, {1} skips it, {2} takes back the last decision.", "Tagging-Modus: {0} schließt das Medium ab, {1} überspringt es, {2} nimmt die letzte Entscheidung zurück."),
         ("tagging.status.unavailable", "Not shown because the file is missing right now (they stay open in the queue): {0}.", "Nicht gezeigt, weil die Datei gerade fehlt (sie bleiben in der Warteschlange offen): {0}."),
+        ("tagging.status.group", "Group “{0}”.", "Gruppe „{0}“.") ,
         ("tagging.status.done", "Done: “{0}”. Next: “{1}”.", "Fertig: „{0}“. Nächstes: „{1}“."),
         ("tagging.status.skipped", "Skipped: “{0}”. Next: “{1}”.", "Übersprungen: „{0}“. Nächstes: „{1}“."),
         ("tagging.status.doneLast", "Done: “{0}”. Every medium of this walk is decided.", "Fertig: „{0}“. Alle Medien dieses Durchgangs sind entschieden."),

@@ -205,6 +205,8 @@ public static class SettingsTransfer
             MediaTagListTop = source.MediaTagListTop,
             TagQueueFileLimitMiB = source.TagQueueFileLimitMiB,
             TagQueueHistory = source.TagQueueHistory,
+            TagQueueGroupLimit = source.TagQueueGroupLimit,
+            TagQueueGroupNameLimit = source.TagQueueGroupNameLimit,
             TagQueueLimit = source.TagQueueLimit,
             TagStamp = (string[])source.TagStamp.Clone(),
             GalleryMaxZoomPercent = source.GalleryMaxZoomPercent,

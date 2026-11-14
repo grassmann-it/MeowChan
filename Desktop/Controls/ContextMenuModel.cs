@@ -13,6 +13,8 @@ internal enum ContextMenuEntryKind
     Radio,
     /// <summary>A switch.</summary>
     Check,
+    /// <summary>A nested menu, used when a choice has a variable number of values.</summary>
+    Submenu,
     /// <summary>A disabled explanatory sentence.</summary>
     Note
 }
@@ -20,7 +22,8 @@ internal enum ContextMenuEntryKind
 /// <summary>One entry of a context menu, as plain data (no control); <see cref="Invoke"/> is what a click does.</summary>
 internal sealed record ContextMenuEntry(ContextMenuEntryKind Kind, string Id, string Label, string? CommandId, string? Group,
     bool Checked, bool Available, string? Reason, Action? Invoke, bool ShowShortcut = true,
-    Func<bool>? Availability = null, Func<string?>? ReasonFactory = null, Func<string>? LabelFactory = null);
+    Func<bool>? Availability = null, Func<string?>? ReasonFactory = null, Func<string>? LabelFactory = null,
+    IReadOnlyList<IReadOnlyList<ContextMenuEntry>>? Children = null);
 
 /// <summary>
 /// A composed context menu: sections of entries (a separator sits between two sections). Pure data, so what a menu offers can be

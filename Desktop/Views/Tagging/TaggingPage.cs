@@ -83,6 +83,7 @@ public sealed partial class TaggingPage : UserControl
         _filter.SelectionChanged += (_, _) => { if (!_localizing) { Render(); RefreshWorkView(); } };
         InitializeGrid();
         InitializeCommands();
+        InitializeGroups();
         InitializeStamp();
         InitializeEmptyStates();
         InitializeWorkView();
@@ -279,7 +280,7 @@ public sealed partial class TaggingPage : UserControl
         _rendering = true;
         try
         {
-            _rows = TaggingQueueView.Rows(queue, Filter, Scope);
+            _rows = TaggingQueueView.Rows(queue, Filter, EffectiveScope, _selectedGroupId, _ungroupedSelected);
             // Only the shown list is bound: the other one holds no rows (no tiles or rows built behind the scenes).
             ListBox hidden = _viewMode == TaggingViewMode.Grid ? _list : _grid;
             hidden.ItemsSource = null;
@@ -294,9 +295,10 @@ public sealed partial class TaggingPage : UserControl
             }
         }
         finally { _rendering = false; }
-        _progressText.Text = TaggingQueueView.ProgressText(queue);
-        _bar.Value = TaggingQueueView.Share(queue) * 100;
-        _percent.Text = TaggingQueueView.PercentText(queue);
+        _progressText.Text = TaggingQueueView.ProgressText(queue, _selectedGroupId, _ungroupedSelected, Scope);
+        _bar.Value = TaggingQueueView.Share(queue, _selectedGroupId, _ungroupedSelected, Scope) * 100;
+        _percent.Text = TaggingQueueView.PercentText(queue, _selectedGroupId, _ungroupedSelected, Scope);
+        RenderGroups();
         AutomationProperties.SetName(_bar, Texts.T("tagging.page.progressName"));
         AutomationProperties.SetHelpText(_bar, _progressText.Text + " · " + _percent.Text);
         bool empty = _rows.Count == 0;
@@ -314,7 +316,7 @@ public sealed partial class TaggingPage : UserControl
     // is the work view's call (WorkViewGate in RefreshWorkView) together with the queue's state.
     private void RenderLastShown(TagQueueSnapshot queue)
     {
-        string? text = TaggingQueueView.LastShownText(queue);
+        string? text = TaggingQueueView.LastShownText(queue, _selectedGroupId, _ungroupedSelected, Scope);
         _lastShown.Content = text; // its visibility is the work-view gate's (RefreshWorkView)
         _lastShown.IsEnabled = text != null && CanStart;
         if (text != null)
@@ -330,11 +332,11 @@ public sealed partial class TaggingPage : UserControl
     private bool CanChange => _queueWork.CanChange;
 
     private bool CanStart => _queueWork.Loaded && !_queueWork.Busy && !_queueWork.Loading && _queueWork.LoadError == null && !_queueWork.Ended
-        && StartTagging != null && _queueWork.HostReady && _queueWork.Queue.ResumeIndex() != null;
+        && StartTagging != null && _queueWork.HostReady && TaggingQueueView.Resume(_queueWork.Queue, _selectedGroupId, _ungroupedSelected, Scope) != null;
 
     private void UpdateActions()
     {
-        string? label = TaggingQueueView.StartLabel(_queueWork.Queue);
+        string? label = TaggingQueueView.StartLabel(_queueWork.Queue, _selectedGroupId, _ungroupedSelected, Scope);
         CommandBindings.ApplyLabeled(_start, "tagging.start", label ?? Texts.T("command.tagging.start"));
         _start.IsEnabled = label != null && CanStart;
         if (label == null)
@@ -369,6 +371,7 @@ public sealed partial class TaggingPage : UserControl
             AutomationProperties.SetName(_filter, Texts.T("tagging.page.filter"));
             AutomationProperties.SetName(_list, Texts.T("tagging.page.listName"));
             LocalizeEmptyStates();
+            LocalizeGroups();
             _help.Refresh();
             LocalizeColumns();
             LocalizeCommands();
@@ -382,13 +385,13 @@ public sealed partial class TaggingPage : UserControl
     private void LocalizeColumns()
     {
         _columnHeader.Children.Clear();
-        string[] keys = { "", "tagging.page.col.preview", "tagging.page.col.kind", "tagging.page.col.name", "tagging.page.col.source", "tagging.page.col.tags", "tagging.page.col.state" };
+        string[] keys = { "", "tagging.page.col.preview", "tagging.page.col.kind", "tagging.page.col.name", "tagging.page.col.source", "tagging.page.col.group", "tagging.page.col.tags", "tagging.page.col.state" };
         for (int column = 0; column < keys.Length; column++)
         {
             TextBlock header = new()
             {
                 Text = column == 0 ? "#" : Texts.T(keys[column]), Classes = { "workspace-meta" },
-                TextAlignment = column is 0 or 5 ? TextAlignment.Right : TextAlignment.Left, TextTrimming = TextTrimming.CharacterEllipsis
+                TextAlignment = column is 0 or 6 ? TextAlignment.Right : TextAlignment.Left, TextTrimming = TextTrimming.CharacterEllipsis
             };
             Grid.SetColumn(header, column);
             _columnHeader.Children.Add(header);
@@ -406,6 +409,7 @@ public sealed partial class TaggingPage : UserControl
         _menuHost?.Dispose();
         _gridMenuHost?.Dispose();
         _stateMenuHost?.Dispose();
+        _groupMenuHost?.Dispose();
         _lifetime.Cancel();
         Texts.Changed -= OnLanguageChanged;
         _host.StateChanged -= OnHostChanged;

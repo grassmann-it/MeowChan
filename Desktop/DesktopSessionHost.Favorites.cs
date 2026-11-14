@@ -74,6 +74,8 @@ internal sealed partial class DesktopSessionHost
         limits.TagQueueEntries = Config.TagQueueLimit;
         limits.TagQueueFileBytes = (long)Config.TagQueueFileLimitMiB * 1024 * 1024;
         limits.TagQueueHistory = Config.TagQueueHistory;
+        limits.TagQueueGroups = Config.TagQueueGroupLimit;
+        limits.TagQueueGroupNameCharacters = Config.TagQueueGroupNameLimit;
         VideoPosterCache.Configure((long)Config.PosterCacheLimitMiB * 1024 * 1024, Config.PosterCacheFileLimit);
         MediaTileThumbnails.Configure(Config.ThumbnailCacheTiles);
         Controls.MediaBadgeLimits.Configure(Config); // MB1: the thumbnail sizes at which the badges collapse or hide, and the corner capacity

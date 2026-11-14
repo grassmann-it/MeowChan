@@ -987,6 +987,7 @@ public sealed partial class MediaPage : UserControl
                 new Separator()
             };
             blankItems.AddRange(LayoutMenuItems());
+            if (QueueGroupMenu(blank, _tiles.Select(tile => tile.Entry).ToArray(), RunBlank) is { } blankGroups) blankItems.Add(blankGroups);
             ContextMenu blankMenu = new() { ItemsSource = blankItems };
             blank.Invalidated += () => blankMenu.Close();
             _mediaMenuPresenter.Show(blankMenu, blank, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
@@ -1071,8 +1072,31 @@ public sealed partial class MediaPage : UserControl
         context.Add(MediaMenuBuilder.ContextItem(session, "media.exportAll", ExportAllAsync, () => _exportAll.IsEnabled, Run));
         context.Add(MediaMenuBuilder.ContextItem(session, "media.queue.all", AddAllShownToQueueAsync, () => AddToTagQueue != null && _tiles.Count > 0, Run,
             MediaMenuReasons.Unavailable));
+        IReadOnlyList<MediaLibraryEntry> queueEntries = queueTiles is { Count: > 1 }
+            ? queueTiles.Select(tileEntry => tileEntry.Entry).ToArray() : new[] { entry };
+        if (QueueGroupMenu(session, queueEntries, Run) is { } groups) context.Add(groups);
         ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, ShowSelectionNote);
         _mediaMenuPresenter.Show(menu, session, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
+    }
+
+    private Control? QueueGroupMenu(MediaMenuSession session, IReadOnlyList<MediaLibraryEntry> entries, Func<Func<Task>, Task> run)
+    {
+        if (AddToTagQueueInGroup == null || ReadTagQueue is not { } read || entries.Count == 0) return null;
+        TagQueueSnapshot? queue;
+        try { queue = read(); }
+        catch (Exception error) when (error is InvalidDataException or IOException or ObjectDisposedException) { return null; }
+        if (queue is not { Groups.Count: > 0 }) return null;
+        MediaLibraryEntry[] frozen = entries.ToArray();
+        List<Control> choices = new();
+        foreach (TagQueueGroup group in queue.Groups.OrderBy(item => item.Order))
+        {
+            string groupId = group.Id;
+            choices.Add(MediaMenuBuilder.ContextItem(session, "media.queue.group:" + groupId, group.Name,
+                () => AddEntriesToQueueInGroupAsync(frozen, groupId),
+                () => AddToTagQueueInGroup != null && !_selectionBusy,
+                run, MediaMenuReasons.Unavailable));
+        }
+        return MediaMenuBuilder.Submenu(session, "media.queue.group", Texts.T("media.queue.group"), choices);
     }
 
     private readonly MediaMenuPresenter _mediaMenuPresenter = new();

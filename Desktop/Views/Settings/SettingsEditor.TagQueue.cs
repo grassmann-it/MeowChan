@@ -16,6 +16,10 @@ public partial class SettingsEditor
     public int TagQueueFileLimitMiBMaximum => Config.TagQueueFileLimitMiBMaximum;
     public int TagQueueHistoryMinimum => Config.TagQueueHistoryMinimum;
     public int TagQueueHistoryMaximum => Config.TagQueueHistoryMaximum;
+    public int TagQueueGroupLimitMinimum => Config.TagQueueGroupLimitMinimum;
+    public int TagQueueGroupLimitMaximum => Config.TagQueueGroupLimitMaximum;
+    public int TagQueueGroupNameLimitMinimum => Config.TagQueueGroupNameLimitMinimum;
+    public int TagQueueGroupNameLimitMaximum => Config.TagQueueGroupNameLimitMaximum;
     public int TagQueueConfirmAboveMinimum => Config.TagQueueConfirmAboveMinimum;
     public int TagQueueConfirmAboveMaximum => Config.TagQueueConfirmAboveMaximum;
     public int MediaTagListTopMinimum => Config.MediaTagListTopMinimum;
@@ -40,6 +44,18 @@ public partial class SettingsEditor
     public string TagQueueHistoryLabel => Texts.T("settings.limits.tagQueueHistory");
     public string TagQueueHistoryHint => Texts.T("settings.limits.tagQueueHistory.hint") + " " + Texts.T("settings.reader.range", Config.TagQueueHistoryMinimum, Config.TagQueueHistoryMaximum);
     public string TagQueueHistoryHelp => FieldHelp(nameof(TagQueueHistoryInput), TagQueueHistoryHint);
+
+    private decimal? _tagQueueGroupLimit;
+    public decimal? TagQueueGroupLimit { get => _tagQueueGroupLimit; set => SetField(ref _tagQueueGroupLimit, value, nameof(TagQueueGroupLimit)); }
+    public string TagQueueGroupLimitLabel => Texts.T("settings.limits.tagQueueGroups");
+    public string TagQueueGroupLimitHint => Texts.T("settings.limits.tagQueueGroups.hint") + " " + Texts.T("settings.reader.range", Config.TagQueueGroupLimitMinimum, Config.TagQueueGroupLimitMaximum);
+    public string TagQueueGroupLimitHelp => FieldHelp(nameof(TagQueueGroupLimitInput), TagQueueGroupLimitHint);
+
+    private decimal? _tagQueueGroupNameLimit;
+    public decimal? TagQueueGroupNameLimit { get => _tagQueueGroupNameLimit; set => SetField(ref _tagQueueGroupNameLimit, value, nameof(TagQueueGroupNameLimit)); }
+    public string TagQueueGroupNameLimitLabel => Texts.T("settings.limits.tagQueueGroupName");
+    public string TagQueueGroupNameLimitHint => Texts.T("settings.limits.tagQueueGroupName.hint") + " " + Texts.T("settings.reader.range", Config.TagQueueGroupNameLimitMinimum, Config.TagQueueGroupNameLimitMaximum);
+    public string TagQueueGroupNameLimitHelp => FieldHelp(nameof(TagQueueGroupNameLimitInput), TagQueueGroupNameLimitHint);
 
     private decimal? _tagQueueConfirmAbove;
     public decimal? TagQueueConfirmAbove { get => _tagQueueConfirmAbove; set => SetField(ref _tagQueueConfirmAbove, value, nameof(TagQueueConfirmAbove)); }
@@ -71,6 +87,10 @@ public partial class SettingsEditor
         ResetNumber(TagQueueFileLimitMiBInput, TagQueueFileLimitMiB.Value);
         TagQueueHistory = config.TagQueueHistory;
         ResetNumber(TagQueueHistoryInput, TagQueueHistory.Value);
+        TagQueueGroupLimit = config.TagQueueGroupLimit;
+        ResetNumber(TagQueueGroupLimitInput, TagQueueGroupLimit.Value);
+        TagQueueGroupNameLimit = config.TagQueueGroupNameLimit;
+        ResetNumber(TagQueueGroupNameLimitInput, TagQueueGroupNameLimit.Value);
         TagQueueConfirmAbove = config.TagQueueConfirmAbove;
         ResetNumber(TagQueueConfirmAboveInput, TagQueueConfirmAbove.Value);
         MediaTagListTop = config.MediaTagListTop;
@@ -85,6 +105,8 @@ public partial class SettingsEditor
         candidate.TagQueueLimit = GetInteger(TagQueueLimit, TagQueueLimitLabel, Config.TagQueueLimitMinimum, Config.TagQueueLimitMaximum);
         candidate.TagQueueFileLimitMiB = GetInteger(TagQueueFileLimitMiB, TagQueueFileLimitMiBLabel, Config.TagQueueFileLimitMiBMinimum, Config.TagQueueFileLimitMiBMaximum);
         candidate.TagQueueHistory = GetInteger(TagQueueHistory, TagQueueHistoryLabel, Config.TagQueueHistoryMinimum, Config.TagQueueHistoryMaximum);
+        candidate.TagQueueGroupLimit = GetInteger(TagQueueGroupLimit, TagQueueGroupLimitLabel, Config.TagQueueGroupLimitMinimum, Config.TagQueueGroupLimitMaximum);
+        candidate.TagQueueGroupNameLimit = GetInteger(TagQueueGroupNameLimit, TagQueueGroupNameLimitLabel, Config.TagQueueGroupNameLimitMinimum, Config.TagQueueGroupNameLimitMaximum);
         candidate.TagQueueConfirmAbove = GetInteger(TagQueueConfirmAbove, TagQueueConfirmAboveLabel, Config.TagQueueConfirmAboveMinimum, Config.TagQueueConfirmAboveMaximum);
         candidate.MediaTagListTop = GetInteger(MediaTagListTop, MediaTagListTopLabel, Config.MediaTagListTopMinimum, Config.MediaTagListTopMaximum);
         int tagListWidth = GetInteger(MediaTagListWidth, MediaTagListWidthLabel, Config.MediaTagListWidthMinimum, Config.MediaTagListWidthMaximum);
@@ -98,6 +120,8 @@ public partial class SettingsEditor
         yield return (TagQueueLimitInput, TagQueueLimit, TagQueueLimitLabel, string.Empty, Config.TagQueueLimitMinimum, Config.TagQueueLimitMaximum, true);
         yield return (TagQueueFileLimitMiBInput, TagQueueFileLimitMiB, TagQueueFileLimitMiBLabel, string.Empty, Config.TagQueueFileLimitMiBMinimum, Config.TagQueueFileLimitMiBMaximum, true);
         yield return (TagQueueHistoryInput, TagQueueHistory, TagQueueHistoryLabel, string.Empty, Config.TagQueueHistoryMinimum, Config.TagQueueHistoryMaximum, true);
+        yield return (TagQueueGroupLimitInput, TagQueueGroupLimit, TagQueueGroupLimitLabel, string.Empty, Config.TagQueueGroupLimitMinimum, Config.TagQueueGroupLimitMaximum, true);
+        yield return (TagQueueGroupNameLimitInput, TagQueueGroupNameLimit, TagQueueGroupNameLimitLabel, string.Empty, Config.TagQueueGroupNameLimitMinimum, Config.TagQueueGroupNameLimitMaximum, true);
         yield return (TagQueueConfirmAboveInput, TagQueueConfirmAbove, TagQueueConfirmAboveLabel, string.Empty, Config.TagQueueConfirmAboveMinimum, Config.TagQueueConfirmAboveMaximum, true);
         yield return (MediaTagListTopInput, MediaTagListTop, MediaTagListTopLabel, string.Empty, Config.MediaTagListTopMinimum, Config.MediaTagListTopMaximum, true);
         yield return (MediaTagListWidthInput, MediaTagListWidth, MediaTagListWidthLabel, string.Empty, Config.MediaTagListWidthMinimum, Config.MediaTagListWidthMaximum, true);
@@ -112,12 +136,16 @@ public partial class SettingsEditor
         nameof(TagQueueLimitLabel), nameof(TagQueueLimitHint), nameof(TagQueueLimitHelp),
         nameof(TagQueueFileLimitMiBLabel), nameof(TagQueueFileLimitMiBHint), nameof(TagQueueFileLimitMiBHelp),
         nameof(TagQueueHistoryLabel), nameof(TagQueueHistoryHint), nameof(TagQueueHistoryHelp),
+        nameof(TagQueueGroupLimitLabel), nameof(TagQueueGroupLimitHint), nameof(TagQueueGroupLimitHelp),
+        nameof(TagQueueGroupNameLimitLabel), nameof(TagQueueGroupNameLimitHint), nameof(TagQueueGroupNameLimitHelp),
         nameof(TagQueueConfirmAboveLabel), nameof(TagQueueConfirmAboveHint), nameof(TagQueueConfirmAboveHelp),
         nameof(MediaTagListTopLabel), nameof(MediaTagListTopHint), nameof(MediaTagListTopHelp),
         nameof(MediaTagListWidthLabel), nameof(MediaTagListWidthHint), nameof(MediaTagListWidthHelp),
     };
     private static readonly string[] TagQueueHelpProperties =
     {
-        nameof(TagQueueLimitHelp), nameof(TagQueueFileLimitMiBHelp), nameof(TagQueueHistoryHelp), nameof(TagQueueConfirmAboveHelp), nameof(MediaTagListTopHelp), nameof(MediaTagListWidthHelp),
+        nameof(TagQueueLimitHelp), nameof(TagQueueFileLimitMiBHelp), nameof(TagQueueHistoryHelp),
+        nameof(TagQueueGroupLimitHelp), nameof(TagQueueGroupNameLimitHelp), nameof(TagQueueConfirmAboveHelp),
+        nameof(MediaTagListTopHelp), nameof(MediaTagListWidthHelp),
     };
 }

@@ -26,8 +26,7 @@ public partial class MainWindow
     private TagRecentList? _quickTagRecent;
     private TagRecentList QuickTagRecent => _quickTagRecent ??= QuickTagSettings.NewRecentList(_config);
     // The one stamp set of this profile (PT5): the gallery panel and every tag popover share it, and each change is saved at once.
-    // It lives only in Config.TagStamp for now. TODO(PT3): tag-queue.json has a stamp set too (SetTagQueueStampAsync, unused);
-    // move the stamp there with the queue walk and read Config.TagStamp once as its seed.
+    // The general/ungrouped stamp stays in Config.TagStamp. A named queue walk supplies its own live stamp from tag-queue.json.
     private QuickTagStamp? _quickTagStamp;
     internal QuickTagStamp QuickTagStampSet
     {
@@ -148,7 +147,8 @@ public partial class MainWindow
             : null;
 
         public TagRecentList Recent => window.QuickTagRecent;
-        public QuickTagStamp? Stamp => window.QuickTagStampSet;
+        // Legacy source seam retained for free-gallery callers: public QuickTagStamp? Stamp => window.QuickTagStampSet;
+        public QuickTagStamp? Stamp => window.ActiveGalleryStamp;
 
         // New panels use the saved profile limits (TP5, MarkedMediaLimit included); an open panel retains its undo history and current operation.
         public QuickTagOptions Options => QuickTagSettings.SurfaceOptions(window._config);

@@ -89,6 +89,8 @@ internal sealed class TaggingWalk : IDisposable
     private readonly Dictionary<GalleryEntryKey, int> _byEntry = new();
     private readonly Dictionary<TagQueueKey, TagQueueState> _pending = new();
     private readonly List<Step> _steps = new();
+    private readonly string? _groupId;
+    private readonly bool _ungrouped;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private TagQueueSnapshot _snapshot;
     private int _running;
@@ -98,11 +100,14 @@ internal sealed class TaggingWalk : IDisposable
     private sealed record Step(int Index, TagQueueKey Key, long Stamp, TagQueueDecision Decision);
 
     internal TaggingWalk(IReadOnlyList<TaggingWalkItem> items, int unavailable, TagQueueSnapshot snapshot, ITaggingQueueWriter writer,
-        int depth = TagQueueDecisionLog.DefaultDepth)
+        int depth = TagQueueDecisionLog.DefaultDepth, string? groupId = null, bool ungrouped = false, string? groupName = null)
     {
         _items = items ?? throw new ArgumentNullException(nameof(items));
         _snapshot = snapshot ?? throw new ArgumentNullException(nameof(snapshot));
         _writer = writer ?? throw new ArgumentNullException(nameof(writer));
+        _groupId = groupId;
+        _ungrouped = groupId == null && ungrouped;
+        GroupName = groupName;
         Unavailable = Math.Max(0, unavailable);
         Depth = Math.Clamp(depth, TagQueueDecisionLog.MinimumDepth, TagQueueDecisionLog.MaximumDepth);
         for (int i = 0; i < items.Count; i++) _byEntry.TryAdd(items[i].Entry, i);
@@ -138,6 +143,9 @@ internal sealed class TaggingWalk : IDisposable
 
     internal IReadOnlyList<TaggingWalkItem> Items => _items;
     internal int Count => _items.Count;
+    internal string? GroupName { get; }
+
+    private bool InScope(TagQueueItem item) => TaggingQueueView.InGroup(item, _groupId, _ungrouped);
     /// <summary>Open queue entries of this walk whose file could not be shown; they stay open in the queue.</summary>
     internal int Unavailable { get; }
     internal int Depth { get; }
@@ -180,17 +188,22 @@ internal sealed class TaggingWalk : IDisposable
     {
         if (index < 0 || index >= _items.Count) return null;
         int position = _snapshot.IndexOf(_items[index].Key);
-        return position < 0 ? null : (position + 1, _snapshot.Count);
+        if (position < 0) return null;
+        int ordinal = _snapshot.Items.Take(position + 1).Count(InScope);
+        int count = _snapshot.Items.Count(InScope);
+        return (ordinal, count);
     }
 
     /// <summary>Done, skipped and open entries of the whole queue, with the states a running write is saving.</summary>
     internal (int Done, int Skipped, int Open) Progress()
     {
-        int done = _snapshot.Done, skipped = _snapshot.Skipped, open = _snapshot.Open;
+        int done = _snapshot.Items.Count(item => InScope(item) && item.State == TagQueueState.Done);
+        int skipped = _snapshot.Items.Count(item => InScope(item) && item.State == TagQueueState.Skipped);
+        int open = _snapshot.Items.Count(item => InScope(item) && item.State == TagQueueState.Open);
         foreach ((TagQueueKey key, TagQueueState state) in _pending)
         {
             int position = _snapshot.IndexOf(key);
-            if (position < 0) continue;
+            if (position < 0 || !InScope(_snapshot.Items[position])) continue;
             Count(_snapshot.Items[position].State, -1);
             Count(state, 1);
         }
@@ -206,7 +219,7 @@ internal sealed class TaggingWalk : IDisposable
     internal int OpenOutsideWalk()
     {
         HashSet<TagQueueKey> walk = _items.Select(item => item.Key).ToHashSet();
-        return _snapshot.Items.Count(item => item.State == TagQueueState.Open && !walk.Contains(item.Key));
+        return _snapshot.Items.Count(item => InScope(item) && item.State == TagQueueState.Open && !walk.Contains(item.Key));
     }
 
     /// <summary>
@@ -432,6 +445,7 @@ internal static class TaggingModeText
     internal static string Start(TaggingWalk walk)
     {
         string text = Texts.T("tagging.status.start", Key("tags.queue.done-next"), Key("tags.queue.skip"), Key("tags.queue.back"));
+        if (!string.IsNullOrEmpty(walk.GroupName)) text += " " + Texts.T("tagging.status.group", walk.GroupName);
         return walk.Unavailable > 0 ? text + " " + Texts.T("tagging.status.unavailable", walk.Unavailable.ToString(Texts.Culture)) : text;
     }
 }

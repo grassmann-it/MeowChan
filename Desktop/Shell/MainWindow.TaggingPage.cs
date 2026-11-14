@@ -88,7 +88,7 @@ public partial class MainWindow
     /// The seam of the tagging mode: the page has already moved the queue's cursor to where the walk starts. The queue walk opens the
     /// gallery in PT3's tagging mode (decision strip, keys, resume point; MainWindow.TagQueue.cs, StartTaggingMode).
     /// </summary>
-    private Task StartTaggingFromPageAsync() => OpenTagQueueGalleryAsync();
+    private Task StartTaggingFromPageAsync() => OpenTagQueueGalleryAsync(_taggingPage?.SelectedGroupId, _taggingPage?.UngroupedGroupSelected == true);
 
     private void AddToTaggingQueueFromPage()
     {

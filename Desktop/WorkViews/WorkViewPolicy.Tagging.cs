@@ -18,6 +18,7 @@ public static partial class WorkViewPolicy
         Same("tagging.clear-confirm", WorkViewPage.Tagging, WorkViewKind.Element, Required, safety: true),
         Same("tagging.stamp", WorkViewPage.Tagging, WorkViewKind.Element, Direct),
         Same("tagging.filter", WorkViewPage.Tagging, WorkViewKind.Element, Direct),
+        Same("tagging.group", WorkViewPage.Tagging, WorkViewKind.Element, Direct),
         // T1: "Last shown: file · position n of m" under the progress; a link that continues exactly there. Barebones leaves the
         // sentence out: its start button already says "Continue at n of m" and carries the same action.
         new("tagging.last-shown", WorkViewPage.Tagging, WorkViewKind.Element, Hidden, Direct, Direct, Alternative: "tagging.start"),

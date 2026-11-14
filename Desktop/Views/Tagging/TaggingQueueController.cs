@@ -30,8 +30,30 @@ internal sealed class TaggingQueueController
     /// </summary>
     internal QuickTagStamp? SharedStamp { get; set; }
 
-    /// <summary>The stamp names the page shows: the shared stamp, else the file's.</summary>
-    internal IReadOnlyList<string> StampNames => SharedStamp?.ToNames() ?? Queue.Stamp;
+    /// <summary>The selected named group; null with <see cref="ActiveUngrouped"/> false means the whole queue.</summary>
+    internal string? ActiveGroupId { get; private set; }
+    internal bool ActiveUngrouped { get; private set; }
+    internal void SelectGroup(string? groupId, bool ungrouped)
+    {
+        ActiveGroupId = groupId;
+        ActiveUngrouped = groupId == null && ungrouped;
+    }
+
+    internal TagQueueGroup? ActiveGroup => ActiveGroupId == null ? null : Queue.Group(ActiveGroupId);
+
+    /// <summary>The stamp names the page shows: the selected group's stamp, or the shared/general stamp.</summary>
+    internal IReadOnlyList<string> StampNames => ActiveGroup?.Stamp ?? SharedStamp?.ToNames() ?? Queue.Stamp;
+    internal bool UsesGroupStamp => ActiveGroup != null;
+
+    /// <summary>Returns the selected scope's stamp for a tagging session; group edits are written back to the queue.</summary>
+    internal QuickTagStamp? StampForActiveScope()
+    {
+        if (ActiveGroup is not { } group) return SharedStamp;
+        QuickTagStamp stamp = new(group.Stamp, QuickTagOptions.MaximumStampSize);
+        stamp.Changed += () => _ = _host.SetTagQueueGroupStampAsync(group.Id, stamp.ToNames());
+        return stamp;
+    }
+
     /// <summary>The reason the queue file cannot be read, or null.</summary>
     internal Exception? LoadError { get; private set; }
     internal bool Loaded { get; private set; }
@@ -162,6 +184,13 @@ internal sealed class TaggingQueueController
         Status = null;
         if (!PrivateTagName.TryCreate(candidate, out PrivateTagName? name, out _) || name == null)
             return Refuse(Texts.T("tagging.page.stamp.invalid", candidate));
+        if (ActiveGroup is { } group)
+        {
+            if (group.Stamp.Any(item => string.Equals(item, name.Display, StringComparison.Ordinal))) return Refuse(Texts.T("tagging.page.stamp.already", name.Display));
+            if (group.Stamp.Count >= capacity) return Refuse(Texts.T("tags.quick.stamp.full", capacity));
+            string[] groupNames = group.Stamp.Append(name.Display).ToArray();
+            return RunAsync(() => _host.SetTagQueueGroupStampAsync(group.Id, groupNames), _ => Texts.T("tags.quick.stamp.added", name.Display));
+        }
         if (SharedStamp is { } shared)
         {
             if (shared.Contains(name)) return Refuse(Texts.T("tagging.page.stamp.already", name.Display));
@@ -179,6 +208,12 @@ internal sealed class TaggingQueueController
 
     internal Task<bool> RemoveStampAsync(string name)
     {
+        if (ActiveGroup is { } group)
+        {
+            string[] groupNames = group.Stamp.Where(item => !string.Equals(item, name, StringComparison.Ordinal)).ToArray();
+            if (groupNames.Length == group.Stamp.Count) return Task.FromResult(false);
+            return RunAsync(() => _host.SetTagQueueGroupStampAsync(group.Id, groupNames), _ => Texts.T("tags.quick.stamp.removed", name));
+        }
         if (SharedStamp is { } shared)
         {
             if (Ended || !PrivateTagName.TryCreate(name, out PrivateTagName? parsed, out _) || parsed == null || !shared.Remove(parsed))
@@ -190,6 +225,18 @@ internal sealed class TaggingQueueController
         if (names.Length == Queue.Stamp.Count) return Task.FromResult(false);
         return RunAsync(() => _host.SetTagQueueStampAsync(names), _ => Texts.T("tags.quick.stamp.removed", name));
     }
+
+    internal Task<bool> CreateGroupAsync(string name, IReadOnlyCollection<TagQueueKey> keys) =>
+        RunAsync(() => _host.CreateTagQueueGroupAsync(name, keys), queue => Texts.T("tagging.page.group.created", queue.Groups[^1].Name));
+
+    internal Task<bool> RenameGroupAsync(string id, string name) =>
+        RunAsync(() => _host.RenameTagQueueGroupAsync(id, name), queue => Texts.T("tagging.page.group.renamed", queue.Group(id)?.Name ?? name));
+
+    internal Task<bool> DeleteGroupAsync(string id) =>
+        RunAsync(() => _host.DeleteTagQueueGroupAsync(id), _ => Texts.T("tagging.page.group.deleted"));
+
+    internal Task<bool> AssignGroupAsync(IReadOnlyCollection<TagQueueKey> keys, string? groupId) =>
+        RunAsync(() => _host.AssignTagQueueGroupAsync(keys, groupId), _ => Texts.T("tagging.page.group.assigned"));
 
     private Task<bool> Refuse(string sentence)
     {
