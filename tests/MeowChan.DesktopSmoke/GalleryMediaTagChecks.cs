@@ -78,6 +78,28 @@ internal static class GalleryMediaTagChecks
             viewer.SidePanel.TagsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => viewer.IsTagPanelOpen && viewer.SidePanel.Segment == MeowChan.Desktop.Controls.GallerySidePanelSegment.Tags);
             await UntilAsync(() => viewer.TagSurface!.IsVisible && viewer.TagSurface.AdvancedButton.IsEffectivelyEnabled);
+            // TP4: Shift+Page Down marks the shown medium and moves on, Shift+Page Up goes back and unmarks it. The counter chip shows
+            // "1 marked" with its clear button, the panel's target is the selection while a mark exists, and the panel is on the first medium again.
+            MeowChan.Desktop.Controls.QuickTagSurface marking = viewer.TagSurface!;
+            Require(viewer.Marks is { Count: 0 } && !marking.MarkBar.IsVisible && !marking.Session.IsSelection, "The tag panel starts with marks.");
+            Require(marking.Execute(new MeowChan.Desktop.Controls.QuickTagKeyRoute(MeowChan.Desktop.Controls.QuickTagKeyAction.MarkNext)),
+                "Shift+Page Down was not handled by the tag panel.");
+            Require(viewer.Marks.Count == 1 && marking.MarkBar.IsVisible && marking.Session.IsSelection && marking.MarkedCount == 1
+                && ((TextBlock)marking.MarkedBadge.Child!).Text == Texts.T("tags.quick.marked", "1"), "Marking did not show the counter chip and the selection.");
+            await UntilAsync(() => viewer.TagPanelController!.Entry.EntryKey == unbound.EntryKey);
+            Require(marking.Session.IsSelection && marking.MarkedCount == 1, "The selection did not follow the gallery to the next medium.");
+            Program.CaptureWindow(window, "smoke-gallery-marked.png");
+            Require(marking.Execute(new MeowChan.Desktop.Controls.QuickTagKeyRoute(MeowChan.Desktop.Controls.QuickTagKeyAction.UnmarkPrevious)),
+                "Shift+Page Up was not handled by the tag panel.");
+            await UntilAsync(() => viewer.TagPanelController!.Entry.EntryKey == bound.EntryKey);
+            Require(viewer.Marks.Count == 0 && !marking.MarkBar.IsVisible && !marking.Session.IsSelection, "Unmarking did not return the panel to the single medium.");
+            // The clear button ends a mark as well.
+            marking.Execute(new MeowChan.Desktop.Controls.QuickTagKeyRoute(MeowChan.Desktop.Controls.QuickTagKeyAction.MarkNext));
+            await UntilAsync(() => viewer.TagPanelController!.Entry.EntryKey == unbound.EntryKey && marking.MarkBar.IsVisible);
+            marking.MarkedClearButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(viewer.Marks.Count == 0 && !marking.MarkBar.IsVisible && !marking.Session.IsSelection, "The clear button left marks.");
+            viewer.TagSurface.Execute(new MeowChan.Desktop.Controls.QuickTagKeyRoute(MeowChan.Desktop.Controls.QuickTagKeyAction.Previous));
+            await UntilAsync(() => viewer.TagPanelController!.Entry.EntryKey == bound.EntryKey);
             viewer.TagSurface!.AdvancedButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => window.GalleryMediaTagWindow?.IsVisible == true);
             MediaTagDialog dialog = window.GalleryMediaTagWindow!;

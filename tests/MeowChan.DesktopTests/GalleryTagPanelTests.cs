@@ -247,6 +247,8 @@ public sealed class GalleryTagPanelTests : IDisposable
             unavailableReason = target == null ? "no tag target" : null;
             return target;
         }
+        public MediaTagSubject? SubjectOf(GalleryEntry entry, out string? unavailableReason) => throw new NotSupportedException();
+        public IQuickTagTarget? OpenSelectionTarget(IReadOnlyList<MediaTagSubject> subjects, out string? unavailableReason) => throw new NotSupportedException();
         public IReadOnlyList<GalleryEntry> Entries => List;
         public GalleryTagPanelPosition? Position => Index >= 0 && Index < List.Count ? new GalleryTagPanelPosition(Index + 1, List.Count, More) : null;
         public TagRecentList Recent { get; } = new();
@@ -418,17 +420,19 @@ public sealed class GalleryTagPanelTests : IDisposable
     // ---- commands and keys --------------------------------------------------------------------------------------
 
     [Fact]
-    public void OnlyTheCommandsThePanelHandlesAreWiredAndMarkingStaysWithTheBatchPackage()
+    public void EveryWiredQuickTagCommandHasAHandlerInThePanelIncludingTheMarking()
     {
         IReadOnlySet<string> awaiting = QuickTagCommands.AwaitingHandler;
         IEnumerable<string> wired = QuickTagCommands.All.Where(id => !awaiting.Contains(id));
         Assert.Equal(GalleryTagPanelCommands.Handled.OrderBy(x => x, StringComparer.Ordinal), wired.OrderBy(x => x, StringComparer.Ordinal));
-        Assert.Equal(14, GalleryTagPanelCommands.Handled.Count);
-        Assert.Contains(QuickTagCommands.MarkNext, awaiting);
-        Assert.Contains(QuickTagCommands.MarkPrevious, awaiting);
+        Assert.Equal(16, GalleryTagPanelCommands.Handled.Count);
+        Assert.DoesNotContain(QuickTagCommands.MarkNext, awaiting);
+        Assert.DoesNotContain(QuickTagCommands.MarkPrevious, awaiting);
         foreach (string id in GalleryTagPanelCommands.Handled) Assert.NotNull(GalleryTagPanelCommands.RouteOf(id));
         foreach (string id in awaiting) Assert.Null(GalleryTagPanelCommands.RouteOf(id));
         Assert.Null(GalleryTagPanelCommands.RouteOf("favorites.toggle"));
+        Assert.Equal(new QuickTagKeyRoute(QuickTagKeyAction.MarkNext), GalleryTagPanelCommands.RouteOf(QuickTagCommands.MarkNext));
+        Assert.Equal(new QuickTagKeyRoute(QuickTagKeyAction.UnmarkPrevious), GalleryTagPanelCommands.RouteOf(QuickTagCommands.MarkPrevious));
     }
 
     [Theory]
@@ -451,10 +455,11 @@ public sealed class GalleryTagPanelTests : IDisposable
         // Tag names stay typeable: a bare digit in the field is text, and Page Down in an open list belongs to the list.
         Assert.Equal(QuickTagKeyRoute.None, Route(Key.D3, KeyModifiers.None));
         Assert.Equal(QuickTagKeyRoute.None, QuickTagKeys.Route(Key.PageDown, KeyModifiers.None, QuickTagFocus.Field, listOpen: true, true, true, platform));
-        // Marking is raised for the host but moves nothing yet.
-        Assert.Equal(QuickTagKeyAction.MarkNext, Route(Key.PageDown, KeyModifiers.Shift).Action);
-        Assert.Equal(0, GalleryTagPanelCommands.Delta(QuickTagNavigation.MarkNext));
-        Assert.Equal(0, GalleryTagPanelCommands.Delta(QuickTagNavigation.UnmarkPrevious));
+        // Marking moves like paging and also changes the marks (the viewer does the second part).
+        Assert.Equal(GalleryTagPanelCommands.RouteOf(QuickTagCommands.MarkNext), Route(Key.PageDown, KeyModifiers.Shift));
+        Assert.Equal(GalleryTagPanelCommands.RouteOf(QuickTagCommands.MarkPrevious), Route(Key.PageUp, KeyModifiers.Shift));
+        Assert.Equal(1, GalleryTagPanelCommands.Delta(QuickTagNavigation.MarkNext));
+        Assert.Equal(-1, GalleryTagPanelCommands.Delta(QuickTagNavigation.UnmarkPrevious));
         Assert.Equal(1, GalleryTagPanelCommands.Delta(QuickTagNavigation.Next));
         Assert.Equal(-1, GalleryTagPanelCommands.Delta(QuickTagNavigation.Previous));
     }
