@@ -40,7 +40,6 @@ internal static class BooruBusyFallbackChecks
     {
         string profile = TemporaryWorkspacePaths.CreateDirectory(pauseFailure ? "booru-busy-failure-" : "booru-busy-guard-");
         string media = Path.Combine(profile, "media");
-        Directory.CreateDirectory(media);
         new Config
         {
             DownloadPath = media,
@@ -53,6 +52,8 @@ internal static class BooruBusyFallbackChecks
             WorkspaceMode = "Advanced",
             MaxParallelDownloads = 1
         }.SaveConfig(profile);
+        // Save into the empty profile first: even an empty media subfolder requires recovery without settings.
+        Directory.CreateDirectory(media);
 
         PauseFixtureSource? source = null;
         DanbooruStub? stub = null;
@@ -145,7 +146,6 @@ internal static class BooruBusyFallbackChecks
     {
         string profile = TemporaryWorkspacePaths.CreateDirectory("booru-busy-closing-");
         string media = Path.Combine(profile, "media");
-        Directory.CreateDirectory(media);
         new Config
         {
             DownloadPath = media,
@@ -158,6 +158,8 @@ internal static class BooruBusyFallbackChecks
             WorkspaceMode = "Advanced",
             MaxParallelDownloads = 1
         }.SaveConfig(profile);
+        // Save into the empty profile first: even an empty media subfolder requires recovery without settings.
+        Directory.CreateDirectory(media);
 
         PauseFixtureSource? source = null;
         DanbooruStub? stub = null;
