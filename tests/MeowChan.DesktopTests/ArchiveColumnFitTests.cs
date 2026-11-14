@@ -193,7 +193,8 @@ public sealed class ArchiveColumnFitTests : IDisposable
         Assert.Contains("SortMemberPath=\"FavoriteSortKey\"", favorite);
         Assert.Contains("Width=\"48\" MinWidth=\"48\" MaxWidth=\"48\"", favorite);
         Assert.Contains("CanUserResize=\"False\" CanUserReorder=\"False\"", favorite);
-        Assert.Contains("<desktop:ArchiveThreadFavoriteButton", favorite);
+        // 12 dip cell padding leaves 24 dip of the 48: the button is a 24 dip square (no negative margin, which the design lint forbids).
+        Assert.Contains("<desktop:ArchiveThreadFavoriteButton Width=\"24\" Height=\"24\" MinWidth=\"24\" MinHeight=\"24\"", favorite);
         int title = table.IndexOf("Header=\"Title / ID\"", StringComparison.Ordinal);
         string titleColumn = table[title..table.IndexOf("</DataGridTemplateColumn>", title, StringComparison.Ordinal)];
         Assert.DoesNotContain("ArchiveThreadFavoriteButton", titleColumn);
