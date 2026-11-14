@@ -8,6 +8,11 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
+
+
+class SyntheticBaseException(BaseException):
+    pass
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,6 +42,117 @@ class Legacy102ProcessTests(unittest.TestCase):
             timeout,
             "fixture command",
         )
+
+    @staticmethod
+    def process_tree_code(marker: Path) -> tuple[str, str, str]:
+        descendant_code = (
+            "import pathlib, sys, time; time.sleep(0.3); "
+            "pathlib.Path(sys.argv[1]).write_text('survived', encoding='utf-8')"
+        )
+        parent_code = (
+            "import subprocess, sys, time; "
+            "subprocess.Popen([sys.executable, '-c', sys.argv[1], sys.argv[2]]); "
+            "time.sleep(0.8)"
+        )
+        return parent_code, descendant_code, str(marker)
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX process groups")
+    def test_keyboard_interrupt_mid_wait_kills_fixture_process_group(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            marker = root / "keyboard-descendant-survived"
+            parent_code, descendant_code, marker_arg = self.process_tree_code(marker)
+            with mock.patch.object(
+                PROCESS.selectors.DefaultSelector,
+                "select",
+                side_effect=KeyboardInterrupt,
+            ):
+                with self.assertRaises(KeyboardInterrupt):
+                    self.run_command(
+                        root,
+                        "-c",
+                        parent_code,
+                        descendant_code,
+                        marker_arg,
+                        timeout=2.0,
+                    )
+            time.sleep(0.7)
+            self.assertFalse(marker.exists())
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX process groups")
+    def test_other_base_exception_mid_wait_kills_fixture_process_group(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            marker = root / "base-exception-descendant-survived"
+            parent_code, descendant_code, marker_arg = self.process_tree_code(marker)
+            with mock.patch.object(
+                PROCESS.selectors.DefaultSelector,
+                "select",
+                side_effect=SyntheticBaseException("synthetic wait failure"),
+            ):
+                with self.assertRaises(SyntheticBaseException):
+                    self.run_command(
+                        root,
+                        "-c",
+                        parent_code,
+                        descendant_code,
+                        marker_arg,
+                        timeout=2.0,
+                    )
+            time.sleep(0.7)
+            self.assertFalse(marker.exists())
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX process groups")
+    def test_read_error_cleans_up_child_and_bounded_output(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            marker = root / "read-error-child-survived"
+            code = (
+                "import pathlib, time; print('before-read-error', flush=True); "
+                "time.sleep(0.8); pathlib.Path(r'%s').write_text('survived', encoding='utf-8')"
+                % marker
+            )
+            with mock.patch.object(
+                PROCESS,
+                "_read_nonblocking",
+                side_effect=OSError("synthetic pipe read failure"),
+            ):
+                with self.assertRaisesRegex(OSError, "synthetic pipe read failure"):
+                    self.run_command(root, "-c", code, timeout=2.0)
+            time.sleep(0.7)
+            self.assertFalse(marker.exists())
+            self.assertLessEqual((root / "command.log").stat().st_size, PROCESS.MAX_TAIL_BYTES)
+
+    def test_zero_timeout_does_not_start_a_child(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with mock.patch.object(PROCESS.subprocess, "Popen", side_effect=AssertionError("started")):
+                with self.assertRaises(PROCESS.CommandTimedOut):
+                    PROCESS.run_bounded_command(
+                        [sys.executable, "-c", "raise SystemExit(99)"],
+                        root,
+                        self.command_environment(),
+                        root / "zero-timeout.log",
+                        0,
+                        "zero timeout",
+                    )
+            self.assertEqual(b"", (root / "zero-timeout.log").read_bytes())
+
+    def test_empty_and_invalid_argument_lists_are_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with self.assertRaises(ValueError):
+                PROCESS.run_bounded_command(
+                    [], root, self.command_environment(), root / "empty.log", 1.0, "empty"
+                )
+            with self.assertRaises(TypeError):
+                PROCESS.run_bounded_command(
+                    [sys.executable, 7], root, self.command_environment(), root / "invalid.log", 1.0, "invalid"
+                )
+            with self.assertRaises(TypeError):
+                PROCESS.run_bounded_command(
+                    (sys.executable,), root, self.command_environment(), root / "tuple.log", 1.0, "tuple"
+                )
 
     def test_success_captures_stdout_and_stderr_in_bounded_log(self):
         with tempfile.TemporaryDirectory() as temporary:

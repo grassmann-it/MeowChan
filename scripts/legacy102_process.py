@@ -5,8 +5,9 @@ The runner only needs one captured stream, so stdout and stderr are merged into
 one pipe.  The pipe is drained while the child is alive, while ``_TailBuffer``
 keeps only the final 2 MiB.  This is intentionally not a general process
 supervisor: POSIX process groups are the strong descendant-cleanup mechanism;
-Windows uses the stdlib-visible ``taskkill /T`` best effort and retains the
-normal Windows process-tree limitations.
+Windows uses the stdlib/Win32 ``PeekNamedPipe`` polling path plus
+``taskkill /T`` best effort, and retains the normal Windows process-tree
+limitations.
 """
 from __future__ import annotations
 
@@ -17,7 +18,6 @@ from pathlib import Path
 import selectors
 import signal
 import subprocess
-import threading
 import time
 from typing import Final
 
@@ -28,6 +28,7 @@ _MAX_READS_PER_TURN: Final = 16
 _POLL_INTERVAL_SECONDS: Final = 0.05
 _CLEANUP_GRACE_SECONDS: Final = 0.20
 _POST_EXIT_DRAIN_SECONDS: Final = 0.20
+_WINDOWS_PEEK_NAMED_PIPE = None
 
 
 class CommandError(RuntimeError):
@@ -190,58 +191,93 @@ def _wait_posix(process: subprocess.Popen[bytes], capture: _TailBuffer, deadline
         selector.close()
 
 
-def _windows_reader(
-    process: subprocess.Popen[bytes], capture: _TailBuffer
-) -> tuple[threading.Event, list[BaseException]]:
-    """Drain a Windows pipe in a daemon thread (selectors do not support pipes)."""
-    assert process.stdout is not None
-    finished = threading.Event()
-    errors: list[BaseException] = []
+def _windows_pipe_available(fd: int) -> int | None:
+    """Return ready bytes, or None when the Windows pipe reached EOF.
 
-    def read_pipe() -> None:
-        try:
-            while True:
-                data = process.stdout.read(_READ_CHUNK_BYTES)
-                if not data:
-                    return
-                capture.append(data)
-        except BaseException as error:  # report reader failure without masking cleanup
-            errors.append(error)
-        finally:
-            finished.set()
+    ``selectors`` cannot poll anonymous Windows pipes.  ``PeekNamedPipe`` is a
+    bounded, non-blocking stdlib/Win32 option; it lets the main thread use
+    ``os.read`` only when bytes are ready, avoiding a reader thread that could
+    remain blocked on a grandchild-owned write end.
+    """
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
 
-    thread = threading.Thread(target=read_pipe, name="legacy102-command-output", daemon=True)
-    thread.start()
-    return finished, errors
+    global _WINDOWS_PEEK_NAMED_PIPE
+    if _WINDOWS_PEEK_NAMED_PIPE is None:
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        peek = kernel32.PeekNamedPipe
+        peek.argtypes = [
+            wintypes.HANDLE,
+            wintypes.LPVOID,
+            wintypes.DWORD,
+            ctypes.POINTER(wintypes.DWORD),
+            ctypes.POINTER(wintypes.DWORD),
+            ctypes.POINTER(wintypes.DWORD),
+        ]
+        peek.restype = wintypes.BOOL
+        _WINDOWS_PEEK_NAMED_PIPE = peek
+    handle = msvcrt.get_osfhandle(fd)
+    available = wintypes.DWORD()
+    ok = _WINDOWS_PEEK_NAMED_PIPE(
+        wintypes.HANDLE(handle),
+        None,
+        0,
+        None,
+        ctypes.byref(available),
+        None,
+    )
+    if ok:
+        return int(available.value)
+    error = ctypes.get_last_error()
+    if error in (109, 232, 233):  # broken/no-data/not-connected pipe
+        return None
+    raise OSError(error, "PeekNamedPipe failed")
+
+
+def _read_windows_available(fd: int, capture: _TailBuffer, available: int) -> bool:
+    """Read at most one bounded turn of bytes known to be ready."""
+    for _ in range(_MAX_READS_PER_TURN):
+        if available <= 0:
+            return False
+        data = os.read(fd, min(_READ_CHUNK_BYTES, available))
+        if not data:
+            return True
+        capture.append(data)
+        available -= len(data)
+    return False
+
+
+def _drain_windows_after_exit(fd: int, capture: _TailBuffer, deadline: float) -> None:
+    """Drain ready bytes after exit, never waiting for descendant EOF."""
+    ends = min(time.monotonic() + _POST_EXIT_DRAIN_SECONDS, deadline)
+    while time.monotonic() < ends:
+        available = _windows_pipe_available(fd)
+        if available is None or available == 0:
+            return
+        if _read_windows_available(fd, capture, available):
+            return
 
 
 def _wait_windows(
-    process: subprocess.Popen[bytes],
-    capture: _TailBuffer,
-    deadline: float,
+    process: subprocess.Popen[bytes], capture: _TailBuffer, deadline: float
 ) -> int:
-    finished, reader_errors = _windows_reader(process, capture)
+    assert process.stdout is not None
+    fd = process.stdout.fileno()
     while True:
+        available = _windows_pipe_available(fd)
+        if available:
+            _read_windows_available(fd, capture, available)
         returncode = process.poll()
         if returncode is not None:
-            # Usually this is already set.  The short wait lets a normal direct
-            # child flush its final bytes, but never waits on a grandchild that
-            # inherited the pipe.
-            remaining = _remaining(deadline)
-            finished.wait(min(_POST_EXIT_DRAIN_SECONDS, remaining))
-            if not finished and process.stdout is not None:
-                try:
-                    process.stdout.close()
-                except OSError:
-                    pass
-                finished.wait(_POLL_INTERVAL_SECONDS)
-            if reader_errors:
-                raise CommandUnavailable(f"Could not read output from child: {reader_errors[0]}")
+            # No blocking read is in flight here.  A grandchild retaining the
+            # write end therefore cannot make cleanup or return wait forever.
+            _drain_windows_after_exit(fd, capture, deadline)
             return returncode
         remaining = _remaining(deadline)
         if remaining <= 0:
             raise CommandTimedOut("command", 0.0, Path("."), "")
-        finished.wait(min(_POLL_INTERVAL_SECONDS, remaining))
+        time.sleep(min(_POLL_INTERVAL_SECONDS, remaining))
 
 
 def _wait_reaped(process: subprocess.Popen[bytes], timeout: float) -> None:
@@ -310,10 +346,13 @@ def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
 
 
 def _cleanup_output(process: subprocess.Popen[bytes]) -> None:
-    """Close parent-side descriptors without waiting for inherited pipe ends."""
+    """Close the parent-side descriptor without waiting on inherited pipe ends."""
     stream = process.stdout
     if stream is None:
         return
+    # The Windows path uses PeekNamedPipe and performs no concurrent read, so
+    # BufferedReader.close() cannot contend with a reader thread.  A POSIX
+    # selector is likewise finished before this point.
     try:
         stream.close()
     except OSError:
@@ -334,9 +373,10 @@ def run_bounded_command(
     retained only as the final :data:`MAX_TAIL_BYTES` bytes.  That same bounded
     tail is written to ``log`` and returned as UTF-8 with replacement decoding.
     On POSIX the child starts a fresh process group; timeout and exceptional
-    exits kill that group before reaping the direct child.  Windows uses
-    ``taskkill /T`` where available and cannot promise the same process-group
-    semantics for every descendant creation pattern.
+    exits kill that group before reaping the direct child.  Windows polls the
+    pipe with ``PeekNamedPipe`` (no blocking reader thread), then uses
+    ``taskkill /T`` for best-effort descendant cleanup; it cannot promise the
+    same process-group semantics for every descendant creation pattern.
     """
     _validate_arguments(arguments)
     if not isinstance(cwd, Path):
@@ -358,6 +398,10 @@ def run_bounded_command(
         raise CommandUnavailable(f"Could not prepare log for {label}: {error}") from error
 
     capture = _TailBuffer()
+    if timeout_seconds == 0:
+        _write_log(log, b"")
+        raise CommandTimedOut(label, 0.0, log, "")
+
     process: subprocess.Popen[bytes] | None = None
     output = b""
     deadline = time.monotonic() + float(timeout_seconds)
