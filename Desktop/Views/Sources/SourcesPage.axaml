@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:controls="clr-namespace:MeowChan.Desktop.Controls"
              xmlns:ursa="https://irihi.tech/ursa"
+             xmlns:wv="using:MeowChan.Desktop.WorkViews"
              x:Class="MeowChan.SourcesPage" SizeChanged="OnPageSizeChanged">
     <ScrollViewer x:Name="SourcesScroll" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="{StaticResource Workspace.Inset.Page}" Spacing="8">
@@ -25,7 +26,7 @@
                     <TextBlock x:Name="SourceHeading" Classes="section-title" TextWrapping="Wrap" />
                     <TextBlock x:Name="SourceMeta" Classes="workspace-meta" TextWrapping="Wrap" />
                     <TextBlock x:Name="SourceExperimental" Classes="workspace-help" TextWrapping="Wrap" IsVisible="False" />
-                    <StackPanel x:Name="SourceMediaIntegrityPanel" Spacing="6" IsVisible="False">
+                    <StackPanel x:Name="SourceMediaIntegrityPanel" wv:WorkViewElement.Id="sources.detail.media-integrity" Spacing="6" IsVisible="False">
                         <TextBlock x:Name="SourceMediaIntegrityExplanation" TextWrapping="Wrap" />
                         <CheckBox x:Name="SourceAllowProviderMismatch" Click="OnSourceMediaPermissionClick">
                             <TextBlock x:Name="SourceAllowProviderMismatchLabel" TextWrapping="Wrap" />
@@ -39,11 +40,14 @@
                             </ScrollViewer>
                         </controls:WorkspaceBanner>
                     </StackPanel>
-                    <Button x:Name="SourceWebsiteButton" HorizontalAlignment="Left" Click="OnWebsiteClick" />
-                    <TextBlock Tag="ud.sources.capabilities" Classes="section-title localized" />
-                    <WrapPanel x:Name="CapabilityCards" ItemSpacing="8" LineSpacing="8" />
+                    <Button x:Name="SourceWebsiteButton" wv:WorkViewElement.Id="sources.detail.website" HorizontalAlignment="Left" Click="OnWebsiteClick" />
+                    <!-- The capability cards fold in Barebones; whether capture works at all stays visible below them. -->
+                    <Expander x:Name="CapabilitiesExpander" wv:WorkViewElement.Id="sources.detail.capabilities" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <Expander.Header><TextBlock Tag="ud.sources.capabilities" Classes="section-title localized" /></Expander.Header>
+                        <WrapPanel x:Name="CapabilityCards" ItemSpacing="8" LineSpacing="8" Margin="0,8,0,0" />
+                    </Expander>
                     <TextBlock x:Name="SourceCaptureAvailability" Classes="workspace-help" TextWrapping="Wrap" />
-                    <Expander x:Name="AdapterDetails" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                    <Expander x:Name="AdapterDetails" wv:WorkViewElement.Id="sources.detail.technical" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                         <StackPanel Spacing="8" Margin="0,8,0,0">
                             <TextBlock x:Name="SourceIdentity" Classes="workspace-meta mono" TextWrapping="Wrap" />
                             <TextBlock x:Name="SourceHosts" Classes="workspace-help" TextWrapping="Wrap" />
@@ -51,14 +55,16 @@
                         </StackPanel>
                     </Expander>
                     <WrapPanel Classes="workspace-toolbar">
-                        <Button x:Name="SourceAddToDownloadsButton" Click="OnAddToDownloadsClick" />
-                        <Button x:Name="SourceRulesButton" Tag="sources.rules" Classes="localized" Click="OnRulesClick" />
-                        <Button x:Name="SourcePluginButton" Click="OnPluginClick" />
-                        <Button x:Name="SourceDiagnosticsButton" Tag="sources.diagnostics" Classes="localized" Click="OnDiagnosticsClick" />
+                        <Button x:Name="SourceAddToDownloadsButton" wv:WorkViewElement.Id="sources.detail.add-downloads" Click="OnAddToDownloadsClick" />
+                        <Button x:Name="SourceRulesButton" wv:WorkViewElement.Id="sources.detail.rules" Tag="sources.rules" Classes="localized" Click="OnRulesClick" />
+                        <Button x:Name="SourcePluginButton" wv:WorkViewElement.Id="sources.detail.plugin" Click="OnPluginClick" />
+                        <Button x:Name="SourceDiagnosticsButton" wv:WorkViewElement.Id="sources.detail.diagnostics" Tag="sources.diagnostics" Classes="localized" Click="OnDiagnosticsClick" />
+                        <!-- What the work view moved off this row (rules, plugin settings, diagnostics): shown only when something is there. -->
+                        <Button x:Name="SourcesMoreButton" Classes="plugin-overflow" Width="32" Height="32" IsVisible="False" Click="OnSourcesMoreClick" />
                     </WrapPanel>
                     <TextBlock Tag="sources.watches" Classes="section-title localized" />
                     <TextBlock x:Name="SourceWatchSummary" Classes="workspace-help" TextWrapping="Wrap" />
-                    <ListBox x:Name="SourceWatchesList" SelectionMode="Single" ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                    <ListBox x:Name="SourceWatchesList" wv:WorkViewElement.Id="sources.detail.watches" SelectionMode="Single" ScrollViewer.VerticalScrollBarVisibility="Disabled"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionChanged="OnWatchSelectionChanged"
                              DoubleTapped="OnWatchDoubleTapped" KeyDown="OnWatchKeyDown">
                         <ListBox.ItemTemplate>
@@ -79,7 +85,7 @@
                         <ursa:LoadingIcon x:Name="SourcesOperationLoading" Width="16" Height="16" VerticalAlignment="Center" IsVisible="False" Focusable="False" />
                         <TextBlock x:Name="SourcesOperationStatus" VerticalAlignment="Center" Classes="muted" AutomationProperties.LiveSetting="Polite" TextWrapping="Wrap" />
                     </StackPanel>
-                    <controls:WorkspaceBanner Type="Error" x:Name="SourcesActionErrorBanner" IsVisible="False">
+                    <controls:WorkspaceBanner Type="Error" x:Name="SourcesActionErrorBanner" wv:WorkViewElement.Id="sources.detail.error" IsVisible="False">
                         <ScrollViewer MaxHeight="120" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="SourcesActionError" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" /></ScrollViewer>
                     </controls:WorkspaceBanner>
                 </StackPanel>

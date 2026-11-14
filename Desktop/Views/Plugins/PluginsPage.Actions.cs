@@ -13,6 +13,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Desktop.Plugins;
 using Ursa.Controls;
 
@@ -132,7 +133,8 @@ public partial class PluginsPage
         AutomationProperties.SetHelpText(sdkTransition, view.HasAutomaticSdkTransition && view.AutomaticSdkTransition is { } transition
             ? Texts.T("plugins.sdkTransition.automaticHint", transition.FromSdkVersion, transition.ToSdkVersion, transition.ExecutionRevision)
             : string.Empty);
-        C<Button>("PluginWatches").IsVisible = view.Sources.Count > 0;
+        // Watches: under the plugin's More actions in Barebones (the menu lists them in every view).
+        WorkViewGate.Apply(C<Button>("PluginWatches"), _workView, view.Sources.Count > 0);
         if (view.CandidateChoiceRequired) ShowReasons("PluginActivationReasons", "PluginEnabled", "PluginSelectCandidate");
         else ShowReasons("PluginActivationReasons", "PluginEnabled");
         if (this.FindControl<SelectableTextBlock>("PluginRecoveryReasons") != null)
@@ -204,7 +206,8 @@ public partial class PluginsPage
             case "plugins.show-grants":
                 Select(action.Target.Key); RevealPluginActionSection(action.Target, C<Expander>("PluginGrantExpander")); break;
             case "plugins.show-developer-tools":
-                Select(action.Target.Key); RevealPluginActionSection(action.Target, C<Expander>("PluginDeveloperExpander")); break;
+                Select(action.Target.Key); RevealDeveloperArea(expand: false);
+                RevealPluginActionSection(action.Target, C<Expander>("PluginDeveloperExpander")); break;
             case "plugins.watches":
                 var sources = PluginEntryPresentation.Create(PluginActionEntry(action.Target)!).Sources;
                 string? sourceId = action.SourceId ?? (sources.Count == 1 ? sources[0].SourceId : null);

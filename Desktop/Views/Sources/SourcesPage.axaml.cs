@@ -234,6 +234,7 @@ public partial class SourcesPage : UserControl
         foreach (string name in new[] { "SourceRulesButton", "SourceDiagnosticsButton", "SourceAddToDownloadsButton" })
             this.FindControl<Button>(name)!.IsEnabled = _available && !_busy;
         RefreshWatchSelection();
+        RefreshWorkViewPresentation();
     }
 
     private void RenderSourceMediaIntegrity(SourceRow row)

@@ -34,6 +34,15 @@ public partial class MainWindow
             ApplyDownloadsSections(view, viewChanged: true);
             RefreshReadingResumePresentation();
         };
+        _workViews.Changed += (_, view) => ApplyWorkViewToRulesSourcesPlugins(view, viewChanged: true);
+    }
+
+    // Rules, Sources and Plugins are built after the first frame: a page applies the view when it appears and again on every change (R13).
+    private void ApplyWorkViewToRulesSourcesPlugins(WorkView view, bool viewChanged)
+    {
+        _rulesPage?.ApplyWorkView(view, viewChanged);
+        _sourcesPage?.ApplyWorkView(view, viewChanged);
+        _pluginsPage?.ApplyWorkView(view, viewChanged);
     }
 
     // view-barebones|view-simple|view-advanced are for density only (margins, spacing), never for what is shown;

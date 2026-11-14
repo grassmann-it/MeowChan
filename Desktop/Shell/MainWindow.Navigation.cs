@@ -225,6 +225,7 @@ public partial class MainWindow
                 _rulesPage.GetSuggestionContexts = GetRuleSuggestionContexts;
                 _rulesPage.AttachTemplateServices(_session.LoadRuleTemplatesAsync, _session.SaveRuleTemplatesAsync);
                 _rulesPage.BusyChanged += OnSettingsBusyChanged;
+                _rulesPage.ApplyWorkView(ConfiguredWorkView, viewChanged: true);
                 RulesPageHost.Content = _rulesPage;
                 return true;
             case 3:
@@ -236,6 +237,7 @@ public partial class MainWindow
                     GetWatchPreviewRows = () => _session.Config.SourcesWatchPreviewRows
                 };
                 _sourcesPage.BusyChanged += OnSettingsBusyChanged;
+                _sourcesPage.ApplyWorkView(ConfiguredWorkView, viewChanged: true);
                 SourcesPageHost.Content = _sourcesPage;
                 return true;
             case 4:

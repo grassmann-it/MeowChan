@@ -1,5 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:controls="clr-namespace:MeowChan.Desktop.Controls" xmlns:plugins="using:MeowChan.Desktop.Plugins" xmlns:ursa="https://irihi.tech/ursa" x:Class="MeowChan.PluginsPage" SizeChanged="OnPageSizeChanged">
+             xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:controls="clr-namespace:MeowChan.Desktop.Controls" xmlns:plugins="using:MeowChan.Desktop.Plugins" xmlns:ursa="https://irihi.tech/ursa" xmlns:wv="using:MeowChan.Desktop.WorkViews" x:Class="MeowChan.PluginsPage" SizeChanged="OnPageSizeChanged">
   <Grid RowDefinitions="Auto,*" Margin="{StaticResource Workspace.Inset.Page}" RowSpacing="8">
     <!-- Spacing 0: each optional row brings its own 8 dip top margin, so hidden or empty rows add no gap above the list
          (as on the Sources page, the list starts 8 dip under the subtitle). -->
@@ -12,10 +12,12 @@
         </StackPanel>
         <WrapPanel x:Name="PluginsHeaderActions" Grid.Column="1" VerticalAlignment="Top" ItemSpacing="8" LineSpacing="8">
           <TextBlock x:Name="PluginsCount" Classes="muted" VerticalAlignment="Center" />
-          <Button x:Name="PluginsAdd" Click="OnAddClick" />
-          <Button x:Name="PluginsRefresh" Click="OnRefreshClick" />
-          <Button x:Name="PluginsFolder" Click="OnFolderClick" />
-          <Button x:Name="PluginsReviewRepairs" Click="OnReviewBundledRepairsClick" />
+          <Button x:Name="PluginsAdd" wv:WorkViewElement.Id="plugins.header.add" Click="OnAddClick" />
+          <Button x:Name="PluginsRefresh" wv:WorkViewElement.Id="plugins.header.refresh" Click="OnRefreshClick" />
+          <Button x:Name="PluginsFolder" wv:WorkViewElement.Id="plugins.header.folder" Click="OnFolderClick" />
+          <Button x:Name="PluginsReviewRepairs" wv:WorkViewElement.Id="plugins.header.review-repairs" Click="OnReviewBundledRepairsClick" />
+          <!-- What the work view moved off this row (add file, plugin folder): shown only when something is there. -->
+          <Button x:Name="PluginsMoreButton" Classes="plugin-overflow" Width="32" Height="32" IsVisible="False" Click="OnPluginsMoreClick" />
         </WrapPanel>
       </Grid>
       <!-- The status row stays in the tree (its live region keeps announcing) but takes no height while it is empty. -->
@@ -24,11 +26,11 @@
         <TextBlock x:Name="PluginTestStatus" VerticalAlignment="Center" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
       </StackPanel>
       <Button x:Name="PluginCancel" Click="OnCancelClick" HorizontalAlignment="Left" IsVisible="False" Margin="0,8,0,0" />
-      <Expander x:Name="PluginInventoryProblems" IsVisible="False" HorizontalAlignment="Stretch" Margin="0,8,0,0">
+      <Expander x:Name="PluginInventoryProblems" wv:WorkViewElement.Id="plugins.header.inventory-problems" IsVisible="False" HorizontalAlignment="Stretch" Margin="0,8,0,0">
         <Expander.Header><ursa:Badge x:Name="PluginInventoryBadge" OverflowCount="2147483647"><TextBlock x:Name="PluginInventoryHeader" Margin="0,0,14,0" /></ursa:Badge></Expander.Header>
         <ScrollViewer MaxHeight="100"><TextBlock x:Name="PluginInventoryDiagnostics" TextWrapping="Wrap" /></ScrollViewer>
       </Expander>
-      <controls:WorkspaceBanner x:Name="PluginErrorBanner" Type="Error" IsVisible="False" Margin="0,8,0,0">
+      <controls:WorkspaceBanner x:Name="PluginErrorBanner" wv:WorkViewElement.Id="plugins.header.error" Type="Error" IsVisible="False" Margin="0,8,0,0">
         <ScrollViewer MaxHeight="96"><TextBlock x:Name="PluginPageError" TextWrapping="Wrap" Classes="workspace-error" AutomationProperties.LiveSetting="Assertive" /></ScrollViewer>
       </controls:WorkspaceBanner>
     </StackPanel>
@@ -49,7 +51,7 @@
             <plugins:PluginSelectionList.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="10" /></ItemsPanelTemplate></plugins:PluginSelectionList.ItemsPanel>
           </plugins:PluginSelectionList>
         </ScrollViewer>
-        <Expander x:Name="PluginDirectoryExpander" Grid.Row="2" HorizontalAlignment="Stretch">
+        <Expander x:Name="PluginDirectoryExpander" wv:WorkViewElement.Id="plugins.directory" Grid.Row="2" HorizontalAlignment="Stretch">
           <StackPanel Spacing="8" Margin="0,4,0,0">
             <TextBlock x:Name="PluginDirectory" TextWrapping="Wrap" Classes="workspace-help" />
             <TextBlock x:Name="PluginLocalStatusHint" TextWrapping="Wrap" Classes="workspace-help" />
@@ -91,8 +93,8 @@
               <WrapPanel x:Name="PluginPrimaryActions" Classes="workspace-toolbar">
                 <Button x:Name="PluginEnabled" Click="OnEnabledClick" />
                 <Button x:Name="PluginSelectCandidate" Click="OnSelectCandidateClick" />
-                <Button x:Name="PluginApproveSdkTransition" Click="OnApproveSdkTransitionClick" IsVisible="False" />
-                <Button x:Name="PluginWatches" Click="OnWatchesClick" />
+                <Button x:Name="PluginApproveSdkTransition" wv:WorkViewElement.Id="plugins.detail.sdk-transition" Click="OnApproveSdkTransitionClick" IsVisible="False" />
+                <Button x:Name="PluginWatches" wv:WorkViewElement.Id="plugins.detail.watches" Click="OnWatchesClick" />
                 <Button x:Name="PluginMoreActions" Classes="icon-square" Click="OnPluginMoreActionsClick" />
               </WrapPanel>
               <TextBlock x:Name="PluginExperimentalHint" Classes="workspace-help" TextWrapping="Wrap" IsVisible="False" />
@@ -107,7 +109,7 @@
           <desktop:SectionNavigationControl x:Name="PluginSections" />
           <StackPanel x:Name="PluginSettings" Spacing="12" />
           <!-- The draft footer is a part of the card, set off by a rule, not a card in the card. -->
-          <Border x:Name="PluginDraftFooter" Classes="workspace-card-footer">
+          <Border x:Name="PluginDraftFooter" wv:WorkViewElement.Id="plugins.detail.draft-footer" Classes="workspace-card-footer">
             <StackPanel Classes="workspace-section-header">
               <TextBlock x:Name="PluginDraftStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
               <WrapPanel Classes="workspace-actions">
@@ -117,9 +119,9 @@
               <SelectableTextBlock x:Name="PluginDraftReasons" TextWrapping="Wrap" Focusable="True" Classes="workspace-help" />
             </StackPanel>
           </Border>
-          <Expander x:Name="PluginInfoExpander" HorizontalAlignment="Stretch"><StackPanel x:Name="PluginInformation" Spacing="8" /></Expander>
-          <Expander x:Name="PluginGrantExpander" HorizontalAlignment="Stretch"><StackPanel x:Name="PluginGrants" Spacing="8" /></Expander>
-          <Expander x:Name="PluginDeveloperExpander" HorizontalAlignment="Stretch">
+          <Expander x:Name="PluginInfoExpander" wv:WorkViewElement.Id="plugins.detail.info" HorizontalAlignment="Stretch"><StackPanel x:Name="PluginInformation" Spacing="8" /></Expander>
+          <Expander x:Name="PluginGrantExpander" wv:WorkViewElement.Id="plugins.detail.grants" HorizontalAlignment="Stretch"><StackPanel x:Name="PluginGrants" Spacing="8" /></Expander>
+          <Expander x:Name="PluginDeveloperExpander" wv:WorkViewElement.Id="plugins.detail.developer" HorizontalAlignment="Stretch">
             <StackPanel Spacing="12" Margin="0,4,0,0">
               <ursa:Descriptions x:Name="PluginIdentity" LabelPosition="Top" />
               <Button x:Name="PluginCopyTechnicalDetails" Click="OnCopyTechnicalDetailsClick" HorizontalAlignment="Left" />

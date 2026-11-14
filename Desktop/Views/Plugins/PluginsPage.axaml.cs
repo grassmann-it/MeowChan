@@ -453,7 +453,7 @@ public partial class PluginsPage : UserControl
         if (entry.Description != null && CurrentDraft == null) { BuildSettings(entry); RenderInformation(entry); }
         PluginGrantSnapshot[] currentGrants = _catalog!.Profile.Grants.Where(grant => grant.PluginId == entry.PluginId).ToArray();
         if (_renderedGrantsKey != entry.Key || !_displayedGrants.SequenceEqual(currentGrants)) RenderGrants(entry);
-        UpdateDraftState(); UpdateTestButtons(); UpdateGrantActions(); RefreshPluginSections(); RefreshPluginActions();
+        UpdateDraftState(); UpdateTestButtons(); UpdateGrantActions(); RefreshWorkViewPresentation(); RefreshPluginSections(); RefreshPluginActions();
     }
     private void UpdateDraftState()
     {

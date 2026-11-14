@@ -59,6 +59,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         _getRules = getRules ?? throw new ArgumentNullException(nameof(getRules));
         _saveRules = saveRules ?? throw new ArgumentNullException(nameof(saveRules));
         InitializeComponent();
+        InitializeWorkViewPresentation();
         InitializeRuleSuggestions();
         _drafts.Add(_draft.Scope, _draft);
         RuleExtensionsInput.Edited += DraftChanged;
@@ -591,7 +592,21 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         RulesFooter.Width = width;
         _subtitleHidden = (TopLevel.GetTopLevel(this)?.ClientSize.Height ?? e.NewSize.Height) < SubtitleMinWindowHeight;
         RefreshSubtitlePresentation();
-        bool narrow = width < 700;
+        _narrowRules = width < 700;
+        bool narrow = _narrowRules;
+        ApplyRuleRowLayout();
+        Grid.SetColumn(RulesFooterActions, narrow ? 0 : 1);
+        Grid.SetRow(RulesFooterActions, narrow ? 1 : 0);
+        Grid.SetColumnSpan(RulesFooterActions, narrow ? 2 : 1);
+        Grid.SetColumnSpan(RulesFooter.Children[0], narrow ? 2 : 1);
+    }
+
+    private bool _narrowRules;
+    // Rows inside a folded block exist only once it opened, so this also runs when a block opens.
+    private void ApplyRuleRowLayout()
+    {
+        if (_ended) return;
+        bool narrow = _narrowRules;
         foreach (Grid row in RulesContent.GetVisualDescendants().OfType<Grid>().Where(row => row.Classes.Contains("rule-row")))
         {
             row.ColumnDefinitions[1].Width = new GridLength(narrow ? 0 : 280);
@@ -601,10 +616,6 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             Grid.SetColumn(editor, narrow ? 0 : 1);
             Grid.SetRow(editor, narrow ? 1 : 0);
         }
-        Grid.SetColumn(RulesFooterActions, narrow ? 0 : 1);
-        Grid.SetRow(RulesFooterActions, narrow ? 1 : 0);
-        Grid.SetColumnSpan(RulesFooterActions, narrow ? 2 : 1);
-        Grid.SetColumnSpan(RulesFooter.Children[0], narrow ? 2 : 1);
     }
 
     private void SetBusy(bool busy)
@@ -628,6 +639,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         RuleExtensionsInput.Bind(_draft.ExtensionInput);
         RefreshBreadcrumb();
         RefreshTemplatesPanel();
+        RefreshWorkViewPresentation();
     }
     private void RefreshSubtitlePresentation()
     {

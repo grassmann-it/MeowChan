@@ -20,6 +20,7 @@ public partial class MainWindow
             }),
             OpenSourceWatches = source => { if (NavigateWorkspace(WorkspacePage.Sources)) _sourcesPage?.SelectSource(source); }
         };
+        _pluginsPage.ApplyWorkView(ConfiguredWorkView, viewChanged: true);
         PluginsPageHost.Content = _pluginsPage;
         _sourcesPage!.OpenPluginSettings = source =>
         {

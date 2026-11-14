@@ -33,7 +33,7 @@ public partial class RulesPage
     private bool _renderingTemplates;
     private ComboBox? _templateList;
     private TextBlock? _templateCatalogErrorView, _templateCatalogWarningView, _templateEmptyView, _templateUndoView;
-    private TextBlock? _templateTitleView, _templateHintView, _templatePreviewHeading;
+    private TextBlock? _templateHintView, _templatePreviewHeading;
     private Button? _templateReloadButton;
     private readonly Dictionary<string, Button> _templateActionButtons = new();
     private StackPanel? _templatePreviewHost, _templateEditorHost;
@@ -143,11 +143,11 @@ public partial class RulesPage
             // Replacing focused controls here used to strand keyboard focus on a detached element.
             if (_templateList == null)
             {
-                // The title and its hint sit left, the Reload action on the title row's right instead of a row of its own.
-                _templateTitleView = TemplateText(string.Empty, true);
+                // The title is the header of the block's expander (RuleTemplatesHeader); its hint sits left, the Reload action on
+                // the right instead of a row of its own.
                 _templateHintView = TemplateText(string.Empty); _templateHintView.Classes.Add("workspace-help");
                 StackPanel head = new() { Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-                head.Children.Add(_templateTitleView); head.Children.Add(_templateHintView);
+                head.Children.Add(_templateHintView);
                 Grid top = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 }; panel.Children.Add(top);
                 top.Children.Add(head);
                 _templateReloadButton = AddTemplateButton(top, "templates.reload", async () => await LoadTemplatesAsync());
@@ -184,7 +184,7 @@ public partial class RulesPage
                 _templatePreviewHost = new StackPanel { Spacing = 8 }; panel.Children.Add(_templatePreviewHost);
                 _templateEditorHost = new StackPanel { Spacing = 8 }; panel.Children.Add(_templateEditorHost);
             }
-            _templateTitleView!.Text = Texts.T("templates.title"); _templateHintView!.Text = Texts.T("templates.hint");
+            _templateHintView!.Text = Texts.T("templates.hint");
             _templateReloadButton!.Content = Texts.T("templates.reload");
             _templateReloadButton.IsEnabled = !_templateLoading && IsEditable && _loadTemplates != null;
             _templateCatalogErrorView!.Text = _templateError == null ? string.Empty
@@ -233,6 +233,8 @@ public partial class RulesPage
             UpdateTemplateEditorPresentation();
         }
         finally { _renderingTemplates = false; }
+        // The block opens by itself while an editor, a preview, a confirmation or a load error needs it (R6).
+        RefreshWorkViewPresentation();
     }
     private sealed record TemplateChoice(Guid Id, string Label) { public override string ToString() => Label; }
     private static TextBlock TemplateText(string text, bool heading = false)

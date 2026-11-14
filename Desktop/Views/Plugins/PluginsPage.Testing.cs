@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Desktop.Plugins;
 using MeowChan.PluginHost.Activation;
 using MeowChan.PluginHost.Compilation;
@@ -174,6 +175,7 @@ public partial class PluginsPage
                 panel.Children.Add(location);
             }
         }
+        RefreshWorkViewPresentation();
     }
     private async void OnProbeClick(object? sender, RoutedEventArgs e) => await ProbeAsync();
     internal async Task ProbeAsync()

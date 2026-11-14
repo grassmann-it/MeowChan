@@ -8,6 +8,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Desktop.Plugins;
 using MeowChan.PluginHost.Compilation;
 using MeowChan.PluginSdk;
@@ -149,9 +150,12 @@ public partial class PluginsPage
                 _editorOptionsLoaded = true;
             }
             var expansion = ExpansionState(entry.Key);
-            foreach (var item in new[] { ("PluginDeveloperExpander", "developer-details"), ("PluginInfoExpander", "information"),
-                ("PluginGrantExpander", "grants"), ("PluginEditorExpander", "editor-options") })
-                C<Expander>(item.Item1).IsExpanded = expansion.GetValueOrDefault(item.Item2);
+            // A disclosure the user has not touched for this plugin opens as the view says (Rights: open in Advanced).
+            foreach (var item in new[] { ("PluginDeveloperExpander", "developer-details", "plugins.detail.developer"),
+                ("PluginInfoExpander", "information", "plugins.detail.info"), ("PluginGrantExpander", "grants", "plugins.detail.grants"),
+                ("PluginEditorExpander", "editor-options", (string?)null) })
+                C<Expander>(item.Item1).IsExpanded = expansion.TryGetValue(item.Item2, out bool remembered) ? remembered
+                    : item.Item3 != null && DefaultOpen(item.Item3);
             PluginToolViewState state = ToolState(entry.Key);
             C<TextBox>("PluginProbeUrl").Text = state.Url;
             RenderPluginProbeResult();
@@ -166,12 +170,13 @@ public partial class PluginsPage
         if (_ended || _pluginToolKey is not { } key || key != _selectedKey) return;
         TextBox output = C<TextBox>("PluginProbeResult");
         string text = ToolState(key).Result?.Render() ?? string.Empty;
-        if (output.Text == text) return;
+        if (output.Text == text) { RefreshWorkViewPresentation(); return; }
         int start = output.SelectionStart, end = output.SelectionEnd, caret = output.CaretIndex;
         output.Text = text;
         output.CaretIndex = Math.Clamp(caret, 0, text.Length);
         output.SelectionStart = Math.Clamp(start, 0, text.Length);
         output.SelectionEnd = Math.Clamp(end, 0, text.Length);
+        RefreshWorkViewPresentation();
     }
 
     private void RenderTechnicalIdentity(PluginCatalogEntry entry)
@@ -217,7 +222,7 @@ public partial class PluginsPage
     internal void OpenPluginDeveloperDetails()
     {
         if (!_ended && Selected is { } entry && Included(entry))
-            C<Expander>("PluginDeveloperExpander").IsExpanded = true;
+            RevealDeveloperArea();
     }
 
     private void FocusPluginBuildDiagnostics()
