@@ -4754,6 +4754,25 @@
     "tagging.page.selection.name": "Actions pour la sélection",
     "tagging.page.selection.state": "État",
     "tagging.page.selection.state.hint": "Marquer les entrées sélectionnées comme terminées, à faire ou ignorées",
-    "tagging.page.selection.remove": "Retirer"
+    "tagging.page.selection.remove": "Retirer",
+    "media.badge.missing": "Fichier manquant",
+    "media.badge.favorite": "Favori",
+    "media.badge.video": "Vidéo",
+    "media.badge.videoDuration": "Vidéo {0}",
+    "media.badge.gif": "Image animée",
+    "media.badge.queued": "Dans la file d’étiquetage",
+    "media.badge.tagging.done": "Étiquetage terminé",
+    "media.badge.tagging.skipped": "Étiquetage ignoré",
+    "media.badge.tags": "{0} étiquettes",
+    "media.badge.tags.one": "{0} étiquette",
+    "media.badge.untagged": "Pas encore d’étiquettes",
+    "media.badge.rating": "Évaluation {0} sur 5",
+    "media.badge.booru": "Source Booru",
+    "settings.mediaBadgeCollapseBelow": "Taille de miniature en dessous de laquelle les pastilles se réduisent à des points",
+    "settings.mediaBadgeCollapseBelowHint": "Mesurée sur le petit côté de l’image affichée. En dessous de cette taille, chaque coin d’une miniature n’affiche plus qu’un point au lieu de ses petites pastilles. Par défaut {0}, de {1} à {2}.",
+    "settings.mediaBadgeHideBelow": "Taille de miniature en dessous de laquelle aucune pastille n’est affichée",
+    "settings.mediaBadgeHideBelowHint": "Mesurée sur le petit côté de l’image affichée. En dessous de cette taille, une miniature n’affiche aucune pastille, seulement son nom et son infobulle. Elle ne dépasse jamais la limite des points ci-dessus. Par défaut {0}, de {1} à {2}.",
+    "settings.mediaBadgeMaxPerCorner": "Pastilles par coin de miniature",
+    "settings.mediaBadgeMaxPerCornerHint": "Nombre de petites pastilles qu’un coin d’une miniature peut contenir ; les suivantes, de moindre priorité, sont omises. Par défaut {0}, de {1} à {2}."
   }
 }

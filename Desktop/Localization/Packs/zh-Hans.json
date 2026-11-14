@@ -4666,6 +4666,24 @@
     "tagging.page.selection.name": "所选项目的操作",
     "tagging.page.selection.state": "状态",
     "tagging.page.selection.state.hint": "将所选条目标记为已完成、待处理或已跳过",
-    "tagging.page.selection.remove": "移除"
+    "tagging.page.selection.remove": "移除",
+    "media.badge.missing": "文件缺失",
+    "media.badge.favorite": "收藏",
+    "media.badge.video": "视频",
+    "media.badge.videoDuration": "视频 {0}",
+    "media.badge.gif": "动态图片",
+    "media.badge.queued": "在标签队列中",
+    "media.badge.tagging.done": "标签已完成",
+    "media.badge.tagging.skipped": "已跳过打标签",
+    "media.badge.tags": "{0} 个标签",
+    "media.badge.untagged": "尚无标签",
+    "media.badge.rating": "评分 {0} / 5",
+    "media.badge.booru": "Booru 来源",
+    "settings.mediaBadgeCollapseBelow": "低于此缩略图尺寸时徽标缩成圆点",
+    "settings.mediaBadgeCollapseBelowHint": "按所显示图片的较短边测量。低于此尺寸时，缩略图的每个角只显示一个圆点，而不是其小徽标。默认 {0}，范围 {1} 到 {2}。",
+    "settings.mediaBadgeHideBelow": "低于此缩略图尺寸时不显示徽标",
+    "settings.mediaBadgeHideBelowHint": "按所显示图片的较短边测量。低于此尺寸时，缩略图完全不显示徽标，只有名称和提示。该值不会超过上方圆点的界限。默认 {0}，范围 {1} 到 {2}。",
+    "settings.mediaBadgeMaxPerCorner": "缩略图每个角的徽标数",
+    "settings.mediaBadgeMaxPerCornerHint": "缩略图的一个角最多容纳多少个小徽标；优先级较低的其余徽标不再显示。默认 {0}，范围 {1} 到 {2}。"
   }
 }

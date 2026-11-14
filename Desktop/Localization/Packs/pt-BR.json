@@ -4760,6 +4760,25 @@
     "tagging.page.selection.name": "Ações para a seleção",
     "tagging.page.selection.state": "Estado",
     "tagging.page.selection.state.hint": "Marcar as entradas selecionadas como concluídas, pendentes ou puladas",
-    "tagging.page.selection.remove": "Remover"
+    "tagging.page.selection.remove": "Remover",
+    "media.badge.missing": "Arquivo ausente",
+    "media.badge.favorite": "Favorito",
+    "media.badge.video": "Vídeo",
+    "media.badge.videoDuration": "Vídeo {0}",
+    "media.badge.gif": "Imagem animada",
+    "media.badge.queued": "Na fila de tags",
+    "media.badge.tagging.done": "Marcação concluída",
+    "media.badge.tagging.skipped": "Marcação ignorada",
+    "media.badge.tags": "{0} tags",
+    "media.badge.tags.one": "{0} tag",
+    "media.badge.untagged": "Ainda sem tags",
+    "media.badge.rating": "Avaliação {0} de 5",
+    "media.badge.booru": "Origem Booru",
+    "settings.mediaBadgeCollapseBelow": "Tamanho da miniatura abaixo do qual as marcas viram pontos",
+    "settings.mediaBadgeCollapseBelowHint": "Medido no lado mais curto da imagem exibida. Abaixo deste tamanho, cada canto de uma miniatura mostra um único ponto em vez de suas pequenas marcas. Padrão {0}, de {1} a {2}.",
+    "settings.mediaBadgeHideBelow": "Tamanho da miniatura abaixo do qual nenhuma marca é exibida",
+    "settings.mediaBadgeHideBelowHint": "Medido no lado mais curto da imagem exibida. Abaixo deste tamanho, uma miniatura não mostra nenhuma marca, apenas o nome e a dica. Nunca ultrapassa o limite dos pontos acima. Padrão {0}, de {1} a {2}.",
+    "settings.mediaBadgeMaxPerCorner": "Marcas por canto da miniatura",
+    "settings.mediaBadgeMaxPerCornerHint": "Quantas marcas pequenas cabem em um canto de uma miniatura; as demais, de menor prioridade, são omitidas. Padrão {0}, de {1} a {2}."
   }
 }

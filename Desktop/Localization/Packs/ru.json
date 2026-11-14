@@ -4776,6 +4776,26 @@
     "tagging.page.selection.name": "Действия для выбранного",
     "tagging.page.selection.state": "Состояние",
     "tagging.page.selection.state.hint": "Отметить выбранные записи как выполненные, открытые или пропущенные",
-    "tagging.page.selection.remove": "Убрать"
+    "tagging.page.selection.remove": "Убрать",
+    "media.badge.missing": "Файл отсутствует",
+    "media.badge.favorite": "Избранное",
+    "media.badge.video": "Видео",
+    "media.badge.videoDuration": "Видео {0}",
+    "media.badge.gif": "Анимированное изображение",
+    "media.badge.queued": "В очереди тегов",
+    "media.badge.tagging.done": "Теги расставлены",
+    "media.badge.tagging.skipped": "Расстановка тегов пропущена",
+    "media.badge.tags": "{0} тегов",
+    "media.badge.tags.one": "{0} тег",
+    "media.badge.tags.few": "{0} тега",
+    "media.badge.untagged": "Пока нет тегов",
+    "media.badge.rating": "Оценка {0} из 5",
+    "media.badge.booru": "Источник Booru",
+    "settings.mediaBadgeCollapseBelow": "Размер миниатюры, ниже которого значки сворачиваются в точки",
+    "settings.mediaBadgeCollapseBelowHint": "Измеряется по короткой стороне показанного изображения. Ниже этого размера в каждом углу миниатюры вместо маленьких значков показывается одна точка. По умолчанию {0}, от {1} до {2}.",
+    "settings.mediaBadgeHideBelow": "Размер миниатюры, ниже которого значки не показываются",
+    "settings.mediaBadgeHideBelowHint": "Измеряется по короткой стороне показанного изображения. Ниже этого размера миниатюра не показывает никаких значков, только имя и подсказку. Значение никогда не превышает границу для точек выше. По умолчанию {0}, от {1} до {2}.",
+    "settings.mediaBadgeMaxPerCorner": "Значков в одном углу миниатюры",
+    "settings.mediaBadgeMaxPerCornerHint": "Сколько маленьких значков помещается в одном углу миниатюры; остальные, с меньшим приоритетом, не показываются. По умолчанию {0}, от {1} до {2}."
   }
 }

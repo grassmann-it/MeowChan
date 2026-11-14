@@ -4760,6 +4760,25 @@
     "tagging.page.selection.name": "Azioni per la selezione",
     "tagging.page.selection.state": "Stato",
     "tagging.page.selection.state.hint": "Segna le voci selezionate come completate, da fare o saltate",
-    "tagging.page.selection.remove": "Rimuovi"
+    "tagging.page.selection.remove": "Rimuovi",
+    "media.badge.missing": "File mancante",
+    "media.badge.favorite": "Preferito",
+    "media.badge.video": "Video",
+    "media.badge.videoDuration": "Video {0}",
+    "media.badge.gif": "Immagine animata",
+    "media.badge.queued": "Nella coda di tagging",
+    "media.badge.tagging.done": "Tagging completato",
+    "media.badge.tagging.skipped": "Tagging saltato",
+    "media.badge.tags": "{0} tag",
+    "media.badge.tags.one": "{0} tag",
+    "media.badge.untagged": "Ancora nessun tag",
+    "media.badge.rating": "Valutazione {0} su 5",
+    "media.badge.booru": "Fonte Booru",
+    "settings.mediaBadgeCollapseBelow": "Dimensione della miniatura sotto la quale i contrassegni diventano punti",
+    "settings.mediaBadgeCollapseBelowHint": "Misurata sul lato più corto dell’immagine mostrata. Sotto questa dimensione ogni angolo di una miniatura mostra un solo punto invece dei suoi piccoli contrassegni. Predefinito {0}, da {1} a {2}.",
+    "settings.mediaBadgeHideBelow": "Dimensione della miniatura sotto la quale non appare alcun contrassegno",
+    "settings.mediaBadgeHideBelowHint": "Misurata sul lato più corto dell’immagine mostrata. Sotto questa dimensione una miniatura non mostra alcun contrassegno, solo il nome e il suggerimento. Non supera mai il limite dei punti indicato sopra. Predefinito {0}, da {1} a {2}.",
+    "settings.mediaBadgeMaxPerCorner": "Contrassegni per angolo della miniatura",
+    "settings.mediaBadgeMaxPerCornerHint": "Quanti piccoli contrassegni può contenere un angolo di una miniatura; gli altri, di priorità minore, vengono omessi. Predefinito {0}, da {1} a {2}."
   }
 }

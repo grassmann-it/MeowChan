@@ -4799,6 +4799,26 @@
     "tagging.page.selection.name": "Akce pro výběr",
     "tagging.page.selection.state": "Stav",
     "tagging.page.selection.state.hint": "Označit vybrané položky jako hotové, otevřené nebo přeskočené",
-    "tagging.page.selection.remove": "Odebrat"
+    "tagging.page.selection.remove": "Odebrat",
+    "media.badge.missing": "Soubor chybí",
+    "media.badge.favorite": "Oblíbené",
+    "media.badge.video": "Video",
+    "media.badge.videoDuration": "Video {0}",
+    "media.badge.gif": "Animovaný obrázek",
+    "media.badge.queued": "Ve frontě štítkování",
+    "media.badge.tagging.done": "Štítkování dokončeno",
+    "media.badge.tagging.skipped": "Štítkování přeskočeno",
+    "media.badge.tags": "{0} štítků",
+    "media.badge.tags.one": "{0} štítek",
+    "media.badge.tags.few": "{0} štítky",
+    "media.badge.untagged": "Zatím bez štítků",
+    "media.badge.rating": "Hodnocení {0} z 5",
+    "media.badge.booru": "Zdroj Booru",
+    "settings.mediaBadgeCollapseBelow": "Velikost náhledu, pod kterou se značky zmenší na tečky",
+    "settings.mediaBadgeCollapseBelowHint": "Měří se na kratší straně zobrazeného obrázku. Pod touto velikostí ukazuje každý roh náhledu místo svých malých značek jen jednu tečku. Výchozí {0}, od {1} do {2}.",
+    "settings.mediaBadgeHideBelow": "Velikost náhledu, pod kterou se žádné značky nezobrazují",
+    "settings.mediaBadgeHideBelowHint": "Měří se na kratší straně zobrazeného obrázku. Pod touto velikostí náhled neukazuje žádné značky, jen svůj název a popisek. Hodnota nikdy nepřekročí hranici pro tečky výše. Výchozí {0}, od {1} do {2}.",
+    "settings.mediaBadgeMaxPerCorner": "Značek na roh náhledu",
+    "settings.mediaBadgeMaxPerCornerHint": "Kolik malých značek se vejde do jednoho rohu náhledu; další, s nižší prioritou, se vynechají. Výchozí {0}, od {1} do {2}."
   }
 }

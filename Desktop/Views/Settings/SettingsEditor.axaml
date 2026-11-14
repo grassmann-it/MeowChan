@@ -582,6 +582,34 @@
                         </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding GalleryFilmstripPreloadHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <!-- Media badges (MB1): the thumbnail sizes below which the small badges shrink to dots or disappear, and how many fit in a corner. -->
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="MediaBadgeCollapseBelowFieldLabel" Text="{Binding MediaBadgeCollapseBelowLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="MediaBadgeCollapseBelowInput" Value="{Binding MediaBadgeCollapseBelow, Mode=TwoWay}" Minimum="24" Maximum="96" Increment="4"
+                                AutomationProperties.LabeledBy="{Binding ElementName=MediaBadgeCollapseBelowFieldLabel}" AutomationProperties.Name="{Binding MediaBadgeCollapseBelowLabel}" AutomationProperties.HelpText="{Binding MediaBadgeCollapseBelowHelp}" />
+                            <TextBlock x:Name="MediaBadgeCollapseBelowInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding MediaBadgeCollapseBelowHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="MediaBadgeHideBelowFieldLabel" Text="{Binding MediaBadgeHideBelowLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="MediaBadgeHideBelowInput" Value="{Binding MediaBadgeHideBelow, Mode=TwoWay}" Minimum="16" Maximum="64" Increment="4"
+                                AutomationProperties.LabeledBy="{Binding ElementName=MediaBadgeHideBelowFieldLabel}" AutomationProperties.Name="{Binding MediaBadgeHideBelowLabel}" AutomationProperties.HelpText="{Binding MediaBadgeHideBelowHelp}" />
+                            <TextBlock x:Name="MediaBadgeHideBelowInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding MediaBadgeHideBelowHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="MediaBadgeMaxPerCornerFieldLabel" Text="{Binding MediaBadgeMaxPerCornerLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="MediaBadgeMaxPerCornerInput" Value="{Binding MediaBadgeMaxPerCorner, Mode=TwoWay}" Minimum="1" Maximum="3" Increment="1"
+                                AutomationProperties.LabeledBy="{Binding ElementName=MediaBadgeMaxPerCornerFieldLabel}" AutomationProperties.Name="{Binding MediaBadgeMaxPerCornerLabel}" AutomationProperties.HelpText="{Binding MediaBadgeMaxPerCornerHelp}" />
+                            <TextBlock x:Name="MediaBadgeMaxPerCornerInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding MediaBadgeMaxPerCornerHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Button x:Name="GalleryLayoutResetButton" Content="{Binding GalleryLayoutResetLabel}" AutomationProperties.Name="{Binding GalleryLayoutResetLabel}" AutomationProperties.HelpText="{Binding GalleryLayoutResetHint}" Click="OnGalleryLayoutResetClick" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Left" />
                     <TextBlock Text="{Binding GalleryLayoutResetHint}" Classes="workspace-help" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                     <CheckBox Content="{Binding VideoAutoplayLabel}" IsChecked="{Binding VideoAutoplay, Mode=TwoWay}" />

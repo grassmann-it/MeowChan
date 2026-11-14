@@ -4754,6 +4754,25 @@
     "tagging.page.selection.name": "Acciones para la selección",
     "tagging.page.selection.state": "Estado",
     "tagging.page.selection.state.hint": "Marcar las entradas seleccionadas como terminadas, pendientes u omitidas",
-    "tagging.page.selection.remove": "Quitar"
+    "tagging.page.selection.remove": "Quitar",
+    "media.badge.missing": "Archivo ausente",
+    "media.badge.favorite": "Favorito",
+    "media.badge.video": "Vídeo",
+    "media.badge.videoDuration": "Vídeo {0}",
+    "media.badge.gif": "Imagen animada",
+    "media.badge.queued": "En la cola de etiquetado",
+    "media.badge.tagging.done": "Etiquetado completado",
+    "media.badge.tagging.skipped": "Etiquetado omitido",
+    "media.badge.tags": "{0} etiquetas",
+    "media.badge.tags.one": "{0} etiqueta",
+    "media.badge.untagged": "Aún sin etiquetas",
+    "media.badge.rating": "Valoración {0} de 5",
+    "media.badge.booru": "Origen Booru",
+    "settings.mediaBadgeCollapseBelow": "Tamaño de miniatura por debajo del cual las marcas se reducen a puntos",
+    "settings.mediaBadgeCollapseBelowHint": "Se mide en el lado más corto de la imagen mostrada. Por debajo de este tamaño, cada esquina de una miniatura muestra un solo punto en lugar de sus pequeñas marcas. Predeterminado {0}, de {1} a {2}.",
+    "settings.mediaBadgeHideBelow": "Tamaño de miniatura por debajo del cual no se muestran marcas",
+    "settings.mediaBadgeHideBelowHint": "Se mide en el lado más corto de la imagen mostrada. Por debajo de este tamaño, una miniatura no muestra ninguna marca, solo su nombre y su información emergente. Nunca supera el límite de los puntos indicado arriba. Predeterminado {0}, de {1} a {2}.",
+    "settings.mediaBadgeMaxPerCorner": "Marcas por esquina de la miniatura",
+    "settings.mediaBadgeMaxPerCornerHint": "Cuántas marcas pequeñas cabe en una esquina de una miniatura; las demás, de menor prioridad, se omiten. Predeterminado {0}, de {1} a {2}."
   }
 }

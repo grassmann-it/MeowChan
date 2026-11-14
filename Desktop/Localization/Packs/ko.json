@@ -4666,6 +4666,24 @@
     "tagging.page.selection.name": "선택 항목 작업",
     "tagging.page.selection.state": "상태",
     "tagging.page.selection.state.hint": "선택한 항목을 완료, 미처리 또는 건너뜀으로 표시",
-    "tagging.page.selection.remove": "제거"
+    "tagging.page.selection.remove": "제거",
+    "media.badge.missing": "파일 없음",
+    "media.badge.favorite": "즐겨찾기",
+    "media.badge.video": "동영상",
+    "media.badge.videoDuration": "동영상 {0}",
+    "media.badge.gif": "애니메이션 이미지",
+    "media.badge.queued": "태그 지정 대기열에 있음",
+    "media.badge.tagging.done": "태그 지정 완료",
+    "media.badge.tagging.skipped": "태그 지정 건너뜀",
+    "media.badge.tags": "태그 {0}개",
+    "media.badge.untagged": "아직 태그 없음",
+    "media.badge.rating": "평가 {0}/5",
+    "media.badge.booru": "Booru 출처",
+    "settings.mediaBadgeCollapseBelow": "배지가 점으로 줄어드는 미리보기 크기",
+    "settings.mediaBadgeCollapseBelowHint": "표시된 그림의 짧은 변을 기준으로 잰 값입니다. 이보다 작으면 미리보기의 각 모서리가 작은 배지 대신 점 하나만 보여 줍니다. 기본값 {0}, {1}~{2}.",
+    "settings.mediaBadgeHideBelow": "배지를 표시하지 않는 미리보기 크기",
+    "settings.mediaBadgeHideBelowHint": "표시된 그림의 짧은 변을 기준으로 잰 값입니다. 이보다 작으면 미리보기는 배지를 전혀 보여 주지 않고 이름과 툴팁만 남습니다. 위의 점 기준을 넘지 않습니다. 기본값 {0}, {1}~{2}.",
+    "settings.mediaBadgeMaxPerCorner": "미리보기 모서리당 배지 수",
+    "settings.mediaBadgeMaxPerCornerHint": "미리보기의 한 모서리에 들어가는 작은 배지의 수입니다. 우선순위가 낮은 배지는 생략됩니다. 기본값 {0}, {1}~{2}."
   }
 }

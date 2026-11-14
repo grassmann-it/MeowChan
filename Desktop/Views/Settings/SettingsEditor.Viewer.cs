@@ -26,6 +26,9 @@ public partial class SettingsEditor
     private decimal? _galleryFilmstripHeight = Config.GalleryFilmstripHeightDefault;
     private decimal? _galleryFilmstripPreload = Config.GalleryFilmstripPreloadDefault;
     private decimal? _galleryVideoSeekStepSeconds = Config.GalleryVideoSeekStepSecondsDefault;
+    private decimal? _mediaBadgeCollapseBelow = Config.MediaBadgeCollapseBelowDefault;
+    private decimal? _mediaBadgeHideBelow = Config.MediaBadgeHideBelowDefault;
+    private decimal? _mediaBadgeMaxPerCorner = Config.MediaBadgeMaxPerCornerDefault;
     private bool _galleryLayoutResetPending;
     // H1: the filmstrip box as this draft loaded it (start, discard, after a save). A save sets the layout of both modes only when the box
     // differs from it; the gallery may have changed the live value since (L), and an untouched box must not roll that back.
@@ -54,6 +57,9 @@ public partial class SettingsEditor
     public decimal? GalleryFilmstripHeight { get => _galleryFilmstripHeight; set => SetField(ref _galleryFilmstripHeight, value, nameof(GalleryFilmstripHeight)); }
     public decimal? GalleryFilmstripPreload { get => _galleryFilmstripPreload; set => SetField(ref _galleryFilmstripPreload, value, nameof(GalleryFilmstripPreload)); }
     public decimal? GalleryVideoSeekStepSeconds { get => _galleryVideoSeekStepSeconds; set => SetField(ref _galleryVideoSeekStepSeconds, value, nameof(GalleryVideoSeekStepSeconds)); }
+    public decimal? MediaBadgeCollapseBelow { get => _mediaBadgeCollapseBelow; set => SetField(ref _mediaBadgeCollapseBelow, value, nameof(MediaBadgeCollapseBelow)); }
+    public decimal? MediaBadgeHideBelow { get => _mediaBadgeHideBelow; set => SetField(ref _mediaBadgeHideBelow, value, nameof(MediaBadgeHideBelow)); }
+    public decimal? MediaBadgeMaxPerCorner { get => _mediaBadgeMaxPerCorner; set => SetField(ref _mediaBadgeMaxPerCorner, value, nameof(MediaBadgeMaxPerCorner)); }
 
     /// <summary>
     /// GL4: "Reset gallery layout" was pressed in this draft: the layout choice of both modes (View and Tag) goes back to the work
@@ -107,6 +113,15 @@ public partial class SettingsEditor
     public string GalleryVideoSeekStepSecondsLabel => Texts.T("settings.galleryVideoSeekStep");
     public string GalleryVideoSeekStepSecondsHint => Texts.T("settings.galleryVideoSeekStepHint",
         Config.GalleryVideoSeekStepSecondsDefault, Config.GalleryVideoSeekStepSecondsMinimum, Config.GalleryVideoSeekStepSecondsMaximum);
+    public string MediaBadgeCollapseBelowLabel => Texts.T("settings.mediaBadgeCollapseBelow");
+    public string MediaBadgeCollapseBelowHint => Texts.T("settings.mediaBadgeCollapseBelowHint",
+        Config.MediaBadgeCollapseBelowDefault, Config.MediaBadgeCollapseBelowMinimum, Config.MediaBadgeCollapseBelowMaximum);
+    public string MediaBadgeHideBelowLabel => Texts.T("settings.mediaBadgeHideBelow");
+    public string MediaBadgeHideBelowHint => Texts.T("settings.mediaBadgeHideBelowHint",
+        Config.MediaBadgeHideBelowDefault, Config.MediaBadgeHideBelowMinimum, Config.MediaBadgeHideBelowMaximum);
+    public string MediaBadgeMaxPerCornerLabel => Texts.T("settings.mediaBadgeMaxPerCorner");
+    public string MediaBadgeMaxPerCornerHint => Texts.T("settings.mediaBadgeMaxPerCornerHint",
+        Config.MediaBadgeMaxPerCornerDefault, Config.MediaBadgeMaxPerCornerMinimum, Config.MediaBadgeMaxPerCornerMaximum);
 
     public string GallerySlideshowVideoSecondsHelp => FieldHelp(nameof(GallerySlideshowVideoSecondsInput), Texts.T("settings.unitSeconds") + ". " + GallerySlideshowVideoSecondsHint);
     public string GallerySlideshowVideoRepeatsHelp => FieldHelp(nameof(GallerySlideshowVideoRepeatsInput), Texts.T("settings.unitCount") + ". " + GallerySlideshowVideoRepeatsHint);
@@ -114,11 +129,15 @@ public partial class SettingsEditor
     public string GalleryFilmstripHeightHelp => FieldHelp(nameof(GalleryFilmstripHeightInput), Texts.T("settings.unitDip") + ". " + GalleryFilmstripHeightHint);
     public string GalleryFilmstripPreloadHelp => FieldHelp(nameof(GalleryFilmstripPreloadInput), Texts.T("settings.unitCount") + ". " + GalleryFilmstripPreloadHint);
     public string GalleryVideoSeekStepSecondsHelp => FieldHelp(nameof(GalleryVideoSeekStepSecondsInput), Texts.T("settings.unitSeconds") + ". " + GalleryVideoSeekStepSecondsHint);
+    public string MediaBadgeCollapseBelowHelp => FieldHelp(nameof(MediaBadgeCollapseBelowInput), Texts.T("settings.unitDip") + ". " + MediaBadgeCollapseBelowHint);
+    public string MediaBadgeHideBelowHelp => FieldHelp(nameof(MediaBadgeHideBelowInput), Texts.T("settings.unitDip") + ". " + MediaBadgeHideBelowHint);
+    public string MediaBadgeMaxPerCornerHelp => FieldHelp(nameof(MediaBadgeMaxPerCornerInput), Texts.T("settings.unitCount") + ". " + MediaBadgeMaxPerCornerHint);
 
     private static readonly string[] ViewerHelpProperties =
     {
         nameof(GallerySlideshowVideoSecondsHelp), nameof(GallerySlideshowVideoRepeatsHelp), nameof(ControlsIdleHideMsHelp),
-        nameof(GalleryFilmstripHeightHelp), nameof(GalleryFilmstripPreloadHelp), nameof(GalleryVideoSeekStepSecondsHelp)
+        nameof(GalleryFilmstripHeightHelp), nameof(GalleryFilmstripPreloadHelp), nameof(GalleryVideoSeekStepSecondsHelp),
+        nameof(MediaBadgeCollapseBelowHelp), nameof(MediaBadgeHideBelowHelp), nameof(MediaBadgeMaxPerCornerHelp)
     };
 
     private static readonly string[] ViewerTextProperties =
@@ -128,7 +147,9 @@ public partial class SettingsEditor
         nameof(GallerySlideshowVideoRepeatsHint), nameof(ControlsIdleHideMsLabel), nameof(ControlsIdleHideMsHint),
         nameof(GalleryFilmstripLabel), nameof(GalleryFilmstripHint), nameof(GalleryFilmstripHeightLabel), nameof(GalleryFilmstripHeightHint),
         nameof(GalleryFilmstripPreloadLabel), nameof(GalleryFilmstripPreloadHint), nameof(MediaFocusHidesHeaderLabel), nameof(MediaFocusHidesHeaderHint),
-        nameof(GalleryLayoutResetLabel), nameof(GalleryLayoutResetHint), nameof(GalleryVideoSeekStepSecondsLabel), nameof(GalleryVideoSeekStepSecondsHint)
+        nameof(GalleryLayoutResetLabel), nameof(GalleryLayoutResetHint), nameof(GalleryVideoSeekStepSecondsLabel), nameof(GalleryVideoSeekStepSecondsHint),
+        nameof(MediaBadgeCollapseBelowLabel), nameof(MediaBadgeCollapseBelowHint), nameof(MediaBadgeHideBelowLabel), nameof(MediaBadgeHideBelowHint),
+        nameof(MediaBadgeMaxPerCornerLabel), nameof(MediaBadgeMaxPerCornerHint)
     };
 
     private void RaiseViewerVisibilityChanged() => Raise(new[] { nameof(IsGallerySlideshowVideoSeconds), nameof(IsGallerySlideshowVideoRepeats) });
@@ -181,6 +202,12 @@ public partial class SettingsEditor
         ResetNumber(GalleryFilmstripPreloadInput, config.GalleryFilmstripPreload);
         GalleryVideoSeekStepSeconds = config.GalleryVideoSeekStepSeconds;
         ResetNumber(GalleryVideoSeekStepSecondsInput, config.GalleryVideoSeekStepSeconds);
+        MediaBadgeCollapseBelow = config.MediaBadgeCollapseBelow;
+        ResetNumber(MediaBadgeCollapseBelowInput, config.MediaBadgeCollapseBelow);
+        MediaBadgeHideBelow = config.MediaBadgeHideBelow;
+        ResetNumber(MediaBadgeHideBelowInput, config.MediaBadgeHideBelow);
+        MediaBadgeMaxPerCorner = config.MediaBadgeMaxPerCorner;
+        ResetNumber(MediaBadgeMaxPerCornerInput, config.MediaBadgeMaxPerCorner);
     }
 
     private void ApplyViewerDraft(Config candidate)
@@ -193,6 +220,9 @@ public partial class SettingsEditor
         candidate.GalleryFilmstripHeight = GetInteger(GalleryFilmstripHeight, GalleryFilmstripHeightLabel, Config.GalleryFilmstripHeightMinimum, Config.GalleryFilmstripHeightMaximum);
         candidate.GalleryFilmstripPreload = GetInteger(GalleryFilmstripPreload, GalleryFilmstripPreloadLabel, Config.GalleryFilmstripPreloadMinimum, Config.GalleryFilmstripPreloadMaximum);
         candidate.GalleryVideoSeekStepSeconds = GetInteger(GalleryVideoSeekStepSeconds, GalleryVideoSeekStepSecondsLabel, Config.GalleryVideoSeekStepSecondsMinimum, Config.GalleryVideoSeekStepSecondsMaximum);
+        candidate.MediaBadgeCollapseBelow = GetInteger(MediaBadgeCollapseBelow, MediaBadgeCollapseBelowLabel, Config.MediaBadgeCollapseBelowMinimum, Config.MediaBadgeCollapseBelowMaximum);
+        candidate.MediaBadgeHideBelow = GetInteger(MediaBadgeHideBelow, MediaBadgeHideBelowLabel, Config.MediaBadgeHideBelowMinimum, Config.MediaBadgeHideBelowMaximum);
+        candidate.MediaBadgeMaxPerCorner = GetInteger(MediaBadgeMaxPerCorner, MediaBadgeMaxPerCornerLabel, Config.MediaBadgeMaxPerCornerMinimum, Config.MediaBadgeMaxPerCornerMaximum);
     }
 
     /// <summary>A hidden row keeps its draft when that is valid and the saved value otherwise; it never blocks a save.</summary>
@@ -217,5 +247,11 @@ public partial class SettingsEditor
             Config.GalleryFilmstripPreloadMinimum, Config.GalleryFilmstripPreloadMaximum, true);
         yield return (GalleryVideoSeekStepSecondsInput, GalleryVideoSeekStepSeconds, GalleryVideoSeekStepSecondsLabel, Texts.T("settings.unitSeconds"),
             Config.GalleryVideoSeekStepSecondsMinimum, Config.GalleryVideoSeekStepSecondsMaximum, true);
+        yield return (MediaBadgeCollapseBelowInput, MediaBadgeCollapseBelow, MediaBadgeCollapseBelowLabel, Texts.T("settings.unitDip"),
+            Config.MediaBadgeCollapseBelowMinimum, Config.MediaBadgeCollapseBelowMaximum, true);
+        yield return (MediaBadgeHideBelowInput, MediaBadgeHideBelow, MediaBadgeHideBelowLabel, Texts.T("settings.unitDip"),
+            Config.MediaBadgeHideBelowMinimum, Config.MediaBadgeHideBelowMaximum, true);
+        yield return (MediaBadgeMaxPerCornerInput, MediaBadgeMaxPerCorner, MediaBadgeMaxPerCornerLabel, Texts.T("settings.unitCount"),
+            Config.MediaBadgeMaxPerCornerMinimum, Config.MediaBadgeMaxPerCornerMaximum, true);
     }
 }

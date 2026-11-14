@@ -4666,6 +4666,24 @@
     "tagging.page.selection.name": "選択項目の操作",
     "tagging.page.selection.state": "状態",
     "tagging.page.selection.state.hint": "選択した項目を完了・未処理・スキップとしてマークする",
-    "tagging.page.selection.remove": "削除"
+    "tagging.page.selection.remove": "削除",
+    "media.badge.missing": "ファイルがありません",
+    "media.badge.favorite": "お気に入り",
+    "media.badge.video": "動画",
+    "media.badge.videoDuration": "動画 {0}",
+    "media.badge.gif": "アニメーション画像",
+    "media.badge.queued": "タグ付けキューにあります",
+    "media.badge.tagging.done": "タグ付け済み",
+    "media.badge.tagging.skipped": "タグ付けをスキップ",
+    "media.badge.tags": "タグ {0} 件",
+    "media.badge.untagged": "タグはまだありません",
+    "media.badge.rating": "評価 5段階の{0}",
+    "media.badge.booru": "Booru のソース",
+    "settings.mediaBadgeCollapseBelow": "バッジが点に縮むサムネイルの大きさ",
+    "settings.mediaBadgeCollapseBelowHint": "表示している画像の短い辺で測ります。これより小さいと、サムネイルの各隅は小さなバッジの代わりに点を 1 つだけ表示します。既定 {0}、{1}～{2}。",
+    "settings.mediaBadgeHideBelow": "バッジを表示しなくなるサムネイルの大きさ",
+    "settings.mediaBadgeHideBelowHint": "表示している画像の短い辺で測ります。これより小さいと、サムネイルはバッジを一切表示せず、名前とツールチップだけになります。上の点にする大きさを超えることはありません。既定 {0}、{1}～{2}。",
+    "settings.mediaBadgeMaxPerCorner": "サムネイルの隅ごとのバッジ数",
+    "settings.mediaBadgeMaxPerCornerHint": "サムネイルの 1 つの隅に入る小さなバッジの数です。優先度の低いものは表示されません。既定 {0}、{1}～{2}。"
   }
 }

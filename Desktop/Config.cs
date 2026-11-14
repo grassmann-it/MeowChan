@@ -1015,6 +1015,15 @@ namespace MeowChan
         /// <summary>How many seconds the "," and "." keys of a gallery video jump back and forward (the video seek step).</summary>
         public int GalleryVideoSeekStepSeconds { get; set; } = GalleryVideoSeekStepSecondsDefault;
         internal const int GalleryVideoSeekStepSecondsDefault = 5, GalleryVideoSeekStepSecondsMinimum = 1, GalleryVideoSeekStepSecondsMaximum = 60;
+        /// <summary>Media badges (MB1): below this shorter picture side (dip) every corner of a thumbnail shows one dot instead of its badges.</summary>
+        public int MediaBadgeCollapseBelow { get; set; } = MediaBadgeCollapseBelowDefault;
+        internal const int MediaBadgeCollapseBelowDefault = 48, MediaBadgeCollapseBelowMinimum = 24, MediaBadgeCollapseBelowMaximum = 96;
+        /// <summary>Media badges (MB1): below this shorter picture side (dip) a thumbnail shows no badges at all (never above the collapse limit).</summary>
+        public int MediaBadgeHideBelow { get; set; } = MediaBadgeHideBelowDefault;
+        internal const int MediaBadgeHideBelowDefault = 32, MediaBadgeHideBelowMinimum = 16, MediaBadgeHideBelowMaximum = 64;
+        /// <summary>Media badges (MB1): how many badges one corner of a thumbnail holds; the ones of lower priority drop out.</summary>
+        public int MediaBadgeMaxPerCorner { get; set; } = MediaBadgeMaxPerCornerDefault;
+        internal const int MediaBadgeMaxPerCornerDefault = 2, MediaBadgeMaxPerCornerMinimum = 1, MediaBadgeMaxPerCornerMaximum = 3;
         /// <summary>
         /// GL4: the person's layout choice of the gallery, one set per mode (the typed value; null = nothing chosen). A profile without it reads
         /// <see cref="GalleryFilmstrip"/> instead (GalleryLayoutPreferences.FromConfig). Saved as "GalleryLayout" (<see cref="GalleryLayoutJson"/>).
@@ -1426,6 +1435,12 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(GalleryFilmstripPreload), "GalleryFilmstripPreload is outside its supported range (" + GalleryFilmstripPreloadMinimum + " to " + GalleryFilmstripPreloadMaximum + ").");
             if (GalleryVideoSeekStepSeconds is < GalleryVideoSeekStepSecondsMinimum or > GalleryVideoSeekStepSecondsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryVideoSeekStepSeconds), "GalleryVideoSeekStepSeconds is outside its supported range (" + GalleryVideoSeekStepSecondsMinimum + " to " + GalleryVideoSeekStepSecondsMaximum + ").");
+            if (MediaBadgeCollapseBelow is < MediaBadgeCollapseBelowMinimum or > MediaBadgeCollapseBelowMaximum)
+                throw new ArgumentOutOfRangeException(nameof(MediaBadgeCollapseBelow), "MediaBadgeCollapseBelow is outside its supported range (" + MediaBadgeCollapseBelowMinimum + " to " + MediaBadgeCollapseBelowMaximum + ").");
+            if (MediaBadgeHideBelow is < MediaBadgeHideBelowMinimum or > MediaBadgeHideBelowMaximum)
+                throw new ArgumentOutOfRangeException(nameof(MediaBadgeHideBelow), "MediaBadgeHideBelow is outside its supported range (" + MediaBadgeHideBelowMinimum + " to " + MediaBadgeHideBelowMaximum + ").");
+            if (MediaBadgeMaxPerCorner is < MediaBadgeMaxPerCornerMinimum or > MediaBadgeMaxPerCornerMaximum)
+                throw new ArgumentOutOfRangeException(nameof(MediaBadgeMaxPerCorner), "MediaBadgeMaxPerCorner is outside its supported range (" + MediaBadgeMaxPerCornerMinimum + " to " + MediaBadgeMaxPerCornerMaximum + ").");
             if (StatsSampleIntervalMs is < StatsSampleIntervalMsMinimum or > StatsSampleIntervalMsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(StatsSampleIntervalMs), "StatsSampleIntervalMs is outside its supported range (" + StatsSampleIntervalMsMinimum + " to " + StatsSampleIntervalMsMaximum + ").");
             if (StatsHistorySamples is < StatsHistorySamplesMinimum or > StatsHistorySamplesMaximum)
@@ -1640,6 +1655,9 @@ namespace MeowChan
                 GalleryFilmstripHeight = GalleryFilmstripHeight,
                 GalleryFilmstripPreload = GalleryFilmstripPreload,
                 GalleryVideoSeekStepSeconds = GalleryVideoSeekStepSeconds,
+                MediaBadgeCollapseBelow = MediaBadgeCollapseBelow,
+                MediaBadgeHideBelow = MediaBadgeHideBelow,
+                MediaBadgeMaxPerCorner = MediaBadgeMaxPerCorner,
                 StatsHistorySamples = StatsHistorySamples,
                 StatsBackgroundIntervalMs = StatsBackgroundIntervalMs,
                 StatsTrayTooltip = StatsTrayTooltip,
@@ -1876,6 +1894,9 @@ namespace MeowChan
             GalleryFilmstripHeight = source.GalleryFilmstripHeight;
             GalleryFilmstripPreload = source.GalleryFilmstripPreload;
             GalleryVideoSeekStepSeconds = source.GalleryVideoSeekStepSeconds;
+            MediaBadgeCollapseBelow = source.MediaBadgeCollapseBelow;
+            MediaBadgeHideBelow = source.MediaBadgeHideBelow;
+            MediaBadgeMaxPerCorner = source.MediaBadgeMaxPerCorner;
             StatsHistorySamples = source.StatsHistorySamples;
             StatsBackgroundIntervalMs = source.StatsBackgroundIntervalMs;
             StatsTrayTooltip = source.StatsTrayTooltip;
@@ -2080,6 +2101,9 @@ namespace MeowChan
             GalleryFilmstripHeight = source.GalleryFilmstripHeight;
             GalleryFilmstripPreload = source.GalleryFilmstripPreload;
             GalleryVideoSeekStepSeconds = source.GalleryVideoSeekStepSeconds;
+            MediaBadgeCollapseBelow = source.MediaBadgeCollapseBelow;
+            MediaBadgeHideBelow = source.MediaBadgeHideBelow;
+            MediaBadgeMaxPerCorner = source.MediaBadgeMaxPerCorner;
             StatsHistorySamples = source.StatsHistorySamples;
             StatsBackgroundIntervalMs = source.StatsBackgroundIntervalMs;
             StatsTrayTooltip = source.StatsTrayTooltip;
