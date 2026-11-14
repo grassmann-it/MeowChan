@@ -176,6 +176,7 @@ public static class SettingsTransfer
             Language = source.Language,
             WorkspaceMode = source.WorkspaceMode,
             WorkViewSwitchNoticeSeconds = source.WorkViewSwitchNoticeSeconds,
+            ShowBooruTools = source.ShowBooruTools,
             ReaderPostWidth = source.ReaderPostWidth,
             VideoAutoplay = source.VideoAutoplay,
             VideoStartMuted = source.VideoStartMuted,

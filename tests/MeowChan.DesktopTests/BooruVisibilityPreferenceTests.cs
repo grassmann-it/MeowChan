@@ -1,3 +1,5 @@
+using MeowChan.Desktop;
+
 namespace MeowChan.DesktopTests;
 
 // BP2 storage contract. The page and global view-menu switch are composed separately.
@@ -28,6 +30,8 @@ public sealed class BooruVisibilityPreferenceTests
         Assert.Equal(visible, clone.ShowBooruTools);
         Assert.Equal(visible, copy.ShowBooruTools);
         Assert.Equal(visible, settings.ShowBooruTools);
+        Assert.Equal(visible, SettingsTransfer.CreatePortableSnapshot(source).ShowBooruTools);
+        Assert.Equal(visible, SettingsTransfer.Export(source)[nameof(Config.ShowBooruTools)]!.GetValue<bool>());
         copy.SaveConfig(directory.Path);
         Config loaded = Config.LoadConfig(directory.Path);
         Assert.Equal(visible, loaded.ShowBooruTools);
