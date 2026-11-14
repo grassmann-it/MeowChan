@@ -1,3 +1,5 @@
+using MeowChan.Interfaces;
+using MeowChan.Downloader;
 using System.Net;
 using System.Runtime.CompilerServices;
 using MeowChan.Booru;

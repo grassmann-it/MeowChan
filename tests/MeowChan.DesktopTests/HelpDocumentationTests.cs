@@ -463,7 +463,14 @@ public sealed class HelpDocumentationTests
 
         // The flow the new sentences describe: a free numbered name from the video name and position, only for a ready video, Under More.
         string unused = Path.Combine(Path.GetTempPath(), "help-frames-" + Guid.NewGuid().ToString("N"));
-        Assert.Equal("clip-1-12-345.png", Path.GetFileName(GalleryFrameFile.Path(unused, "clip.webm", 72_345)));
+        Directory.CreateDirectory(unused);
+        try
+        {
+            string temporary = GalleryFrameFile.TemporaryPath(unused);
+            File.WriteAllBytes(temporary, [1]);
+            Assert.Equal("clip-1-12-345.png", Path.GetFileName(GalleryFrameFile.Commit(temporary, unused, "clip.webm", 72_345)));
+        }
+        finally { Directory.Delete(unused, recursive: true); }
         Assert.Contains("named after the video and the playback position", frames, StringComparison.Ordinal);
         Assert.Contains("only while a video is shown and ready", frames, StringComparison.Ordinal);
         Assert.Contains("if (CanUseVideoTransport && _videoReadyRequest == _request && _entry != null) SaveFrameRequested", Read("Desktop/GalleryViewer.cs"), StringComparison.Ordinal);

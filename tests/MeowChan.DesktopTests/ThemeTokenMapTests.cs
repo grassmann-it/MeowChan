@@ -41,7 +41,7 @@ public sealed class ThemeTokenMapTests
         Dictionary<string, XElement> resources = Resources(theme);
         foreach (var (mirror, seed) in map.Mirrors)
         {
-            Assert.Contains(seed, ThemeTokens.Seeds);
+            Assert.Contains(seed, (IReadOnlySet<string>)ThemeTokens.Seeds);
             Assert.Equal(ThemeTokenClassification.Mirror, map.Classify(mirror));
             Assert.True(Value(resources, seed) == Value(resources, mirror),
                 $"{theme}: {mirror} ({Value(resources, mirror)}) must mirror {seed} ({Value(resources, seed)}).");
@@ -60,12 +60,12 @@ public sealed class ThemeTokenMapTests
             Assert.Equal(ThemeTokenClassification.Seed, ThemeTokens.ForTheme(theme).Classify(seed));
 
         // Equal-colour seeds are not interchangeable semantic identities.
-        Assert.Contains("Workspace.Panel", ThemeTokens.Seeds);
-        Assert.Contains("Workspace.Overlay", ThemeTokens.Seeds);
-        Assert.Contains("Workspace.Accent", ThemeTokens.Seeds);
-        Assert.Contains("Workspace.Progress", ThemeTokens.Seeds);
-        Assert.Contains("Workspace.AccentHoverText", ThemeTokens.Seeds);
-        Assert.Contains("Workspace.AccentHover", ThemeTokens.Seeds);
+        Assert.Contains("Workspace.Panel", (IReadOnlySet<string>)ThemeTokens.Seeds);
+        Assert.Contains("Workspace.Overlay", (IReadOnlySet<string>)ThemeTokens.Seeds);
+        Assert.Contains("Workspace.Accent", (IReadOnlySet<string>)ThemeTokens.Seeds);
+        Assert.Contains("Workspace.Progress", (IReadOnlySet<string>)ThemeTokens.Seeds);
+        Assert.Contains("Workspace.AccentHoverText", (IReadOnlySet<string>)ThemeTokens.Seeds);
+        Assert.Contains("Workspace.AccentHover", (IReadOnlySet<string>)ThemeTokens.Seeds);
     }
 
     [Theory, InlineData("Dark"), InlineData("Light")]
