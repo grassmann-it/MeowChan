@@ -124,7 +124,7 @@ internal sealed class WorkViewOverviewControl : UserControl, IDisposable
         }
         _status = Wrap("");
         _status.Name = "WorkViewOverviewStatus";
-        AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
+        AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Off); // live only while the result is empty (UpdateStatus)
         var layout = new Grid { RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto"), RowSpacing = 8 };
         layout.Children.Add(_description);
         Grid.SetRow(fields, 1); layout.Children.Add(fields);
@@ -270,7 +270,10 @@ internal sealed class WorkViewOverviewControl : UserControl, IDisposable
         if (_clearFilters != null)
             _clearFilters.IsEnabled = _differenceIds != null || _pageFilter.HasValue || _textFilter.Length != 0;
         if (_status == null || _view == null) return;
-        _status.Text = _view.Count == 0 ? T("workview.overview.empty") : T("workview.overview.count", _view.Count, _rows.Count);
+        // The count changes with every key typed into the filter; only the empty result is worth a spoken line, so only then the region is live.
+        bool empty = _view.Count == 0;
+        AutomationProperties.SetLiveSetting(_status, empty ? AutomationLiveSetting.Polite : AutomationLiveSetting.Off);
+        _status.Text = empty ? T("workview.overview.empty") : T("workview.overview.count", _view.Count, _rows.Count);
     }
 
     private void OnPageChanged(object? sender, SelectionChangedEventArgs e)
@@ -357,7 +360,7 @@ internal sealed class WorkViewOverviewControl : UserControl, IDisposable
         {
             bool active = _view == _owner._activeView;
             Text = _view.HasValue ? _row.Cell(_view.Value) : _row.ElementText;
-            FontWeight = active ? FontWeight.Bold : FontWeight.Normal;
+            FontWeight = active ? FontWeight.SemiBold : FontWeight.Normal; // Design weights only (Regular/Medium/SemiBold): no Bold
             string name = _view.HasValue ? _row.CellName(_view.Value, active) : _row.AccessibleName;
             AutomationProperties.SetName(this, name);
             // DataGrid's actual cell peer also needs the name, not only its TextBlock child.
