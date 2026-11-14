@@ -248,7 +248,7 @@ public partial class MainWindow
                 _sourcesPage = new SourcesPage(OpenDiagnosticWatch, source =>
                 {
                     if (NavigateWorkspace(WorkspacePage.Rules)) _rulesPage!.EditScope(Rules.MediaRuleScope.ForSource(source));
-                }, () => ShowStatus(StatusSegment.Diagnostics), GoToDownloads, () => NavigateWorkspace(WorkspacePage.Downloads))
+                }, sourceId => ShowStatus(StatusSegment.Diagnostics, sourceId), GoToDownloads, () => NavigateWorkspace(WorkspacePage.Downloads))
                 {
                     GetWatchPreviewRows = () => _session.Config.SourcesWatchPreviewRows
                 };

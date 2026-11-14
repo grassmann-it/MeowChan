@@ -54,7 +54,7 @@ public partial class SourcesPage
             });
             Add("location.open-source", () => _ = OpenFrozenSourceAsync(source.Address));
             Add("rules.edit-scope", () => _editRules?.Invoke(source.Id), _editRules != null);
-            Add("navigation.diagnostics", () => _openDiagnostics?.Invoke(), _openDiagnostics != null);
+            Add("navigation.diagnostics", () => _openDiagnostics?.Invoke(source.Id), _openDiagnostics != null);
             if (source.Plugin is { } plugin)
             {
                 if (!IsBusy) { SetSelectedSource(sourceId); RenderDetails(); }

@@ -22,7 +22,7 @@ public partial class SourcesPage : UserControl
 {
     private readonly Func<DiagnosticTarget, bool>? _openWatch;
     private readonly Action<string>? _editRules;
-    private readonly Action? _openDiagnostics;
+    private readonly Action<string>? _openDiagnostics;
     private readonly Action? _addToDownloads;
     private readonly Action? _openDownloads;
     private IReadOnlyList<SourceListRow> _rows = Array.Empty<SourceListRow>();
@@ -51,10 +51,11 @@ public partial class SourcesPage : UserControl
         InitializeComponent(); InitializeContextMenus(); InitializeMergedSources();
     }
 
+    /// <param name="openDiagnostics">Opens Status › Diagnostics with the source filter preset to the canonical id of the source.</param>
     /// <param name="addToDownloads">Goes to Downloads and focuses its URL field; the Sources page itself admits nothing.</param>
     /// <param name="openDownloads">Goes to Downloads for the watches beyond the preview. Downloads has no per-source filter, so none is applied.</param>
     internal SourcesPage(Func<DiagnosticTarget, bool> openWatch, Action<string> editRules,
-        Action openDiagnostics, Action addToDownloads, Action openDownloads) : this()
+        Action<string> openDiagnostics, Action addToDownloads, Action openDownloads) : this()
     {
         _openWatch = openWatch;
         _editRules = editRules;
@@ -410,7 +411,7 @@ public partial class SourcesPage : UserControl
         try { await ExternalLauncher.OpenAsync(row.Address); }
         catch (Exception exception) { if (!_ended && _selectedId == row.Id) SetActionError(exception.Message); }
     }
-    private void OnDiagnosticsClick(object? sender, RoutedEventArgs e) { if (_available && !IsBusy) _openDiagnostics?.Invoke(); }
+    private void OnDiagnosticsClick(object? sender, RoutedEventArgs e) { if (_available && !IsBusy && Selected is SourceListRow row) _openDiagnostics?.Invoke(row.Id); }
     private void OnOpenWatchClick(object? sender, RoutedEventArgs e)
     {
         if (!_available || IsBusy || SelectedWatch == null) return;

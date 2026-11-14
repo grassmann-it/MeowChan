@@ -94,9 +94,9 @@ internal static class SourcesChecks
                 "The Downloads field did not use the shared admission/reporting path for a link entered after the Sources hand-off: report=\"" + report.Text + "\" input=\"" + downloadsInput.Text + "\".");
             downloadsInput.Text = string.Empty;
         }
-        string? editedSource = null;
+        string? editedSource = null, diagnosticsSource = null;
         int handoffs = 0, showAll = 0;
-        SourcesPage page = new SourcesPage(_ => false, source => editedSource = source, () => { }, () => handoffs++, () => showAll++);
+        SourcesPage page = new SourcesPage(_ => false, source => editedSource = source, source => diagnosticsSource = source, () => handoffs++, () => showAll++);
         host.Content = page;
         DesktopThreadEntry thread = SnapshotFixtures.Thread(991, "123", "Source fixture") with
         {
@@ -171,6 +171,8 @@ internal static class SourcesChecks
                     if (mode == "Simple") await CaptureBothThemesAsync(window, $"smoke-sources-{mode.ToLowerInvariant()}-{language}");
                     page.FindControl<Button>("SourceRulesButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     Require(editedSource == "4chan", "Source rules targeted a display label instead of canonical source identity.");
+                    page.FindControl<Button>("SourceDiagnosticsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Require(diagnosticsSource == "4chan", "The Diagnostics button did not pass the canonical source id to Status › Diagnostics.");
                     int handoffsBefore = handoffs;
                     page.FindControl<Button>("SourceAddToDownloadsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     Require(handoffs == handoffsBefore + 1, "The add-in-Downloads button did not hand over to Downloads exactly once.");

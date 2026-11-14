@@ -47,7 +47,7 @@ internal static class R08dSettingsCatalog
         ("feedback.information", "Success and information popups (e.g. “URLs added”, new posts of a search watch)", "Erfolgs- und Informationshinweise als Popup (z. B. „URLs hinzugefügt“, neue Posts einer Suchbeobachtung)"),
         ("feedback.warnings", "Warning popups (e.g. folder not reachable)", "Warnhinweise als Popup (z. B. Ordner nicht erreichbar)"),
         ("feedback.errors", "Error popups", "Fehlermeldungen als Popup"),
-        ("feedback.hint", "Warnings and errors remain visible in Diagnostics and at the affected action.", "Warnungen und Fehler bleiben unter Diagnose und am betroffenen Vorgang sichtbar."),
+        ("feedback.hint", "Warnings and errors remain visible under Status › Diagnostics and at the affected action.", "Warnungen und Fehler bleiben unter Status › Diagnose und am betroffenen Vorgang sichtbar."),
         ("feedback.title", "Messages this session", "Meldungen dieser Sitzung"),
         ("feedback.empty", "No warnings or errors this session.", "Keine Warnungen oder Fehler in dieser Sitzung."),
         ("feedback.dismiss", "Dismiss message", "Meldung ausblenden"),

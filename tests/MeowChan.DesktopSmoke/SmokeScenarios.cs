@@ -203,6 +203,7 @@ internal static partial class SmokeScenarios
         Root("picker-lifetime", "MEOWCHAN_PICKER_LIFETIME_ONLY"),
         Root("settings-category", "MEOWCHAN_SETTINGS_CATEGORY_ONLY"),
         Root("settings-search", "MEOWCHAN_SETTINGS_SEARCH_ONLY", "settings search: typo, abbreviation, synonym and English-name hits across groups with group names, arrow keys, Enter into a collapsed section, empty state, Escape clears then leaves, EN/DE light/dark captures"),
+        Root("status-deep-links", "MEOWCHAN_STATUS_DEEP_LINKS_ONLY", "status deep links: the Sources page opens Status > Diagnostics with the source filter preset (clearable), the recovery route (failed restore) reaches the Diagnostics segment, Statistics falls back to it and the source link still applies; managed input only, no network"),
         Root("settings-statistics", "MEOWCHAN_SETTINGS_STATISTICS_ONLY", "settings statistics: nine rows with ranges, switch dependencies, refusal outside the ranges, save/reload/discard through the production path and hub options, EN/DE light/dark captures"),
         Root("settings-lifetime", "MEOWCHAN_SETTINGS_LIFETIME_ONLY"),
         Root("rules-settings-captures", "MEOWCHAN_RULES_SETTINGS_CAPTURES_ONLY", "rules and settings pages: evidence-only captures of the Rules page and every Settings category in Light/Dark, EN/DE at 1440 and 900 dip; nothing is saved"),
