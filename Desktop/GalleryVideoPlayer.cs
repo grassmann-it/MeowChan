@@ -30,7 +30,7 @@ namespace MeowChan.Desktop;
 /// Owns one local, verified media handle. Native calls are serialized off the UI thread;
 /// the video surface and the Avalonia transport toolbar occupy separate rows.
 /// </summary>
-internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
+internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
 {
     private readonly VideoView _video = new() { Name = "GalleryNativeVideo", MinHeight = 100 };
     private readonly Image _softwareVideo = new() { Name = "GallerySoftwareVideo", MinHeight = 100, Stretch = Avalonia.Media.Stretch.Uniform };
@@ -412,6 +412,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     internal GalleryVideoPlayer()
     {
         _lifetime = new VideoPlaybackLifetime(CleanupAsync, ReleaseEngineAsync);
+        InitializeScrubPreview();
         GalleryControlTransfer.Track(_transportPanel, () => !_transportPlacementRetired && !IsDisposed);
         _seeks = new VideoLatestSeekQueue(SeekAsync);
         PropertyChanged += (_, change) =>
@@ -673,6 +674,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _loopRestarts = 0;
         _rateIndex = NormalRateIndex; // A new medium starts at normal speed; its new native player does too.
         CancelSeekGesture();
+        BeginScrubSession(entry, generation);
         _timeline.Reset(generation);
         _isPlaying = false; _ended = false; _canSeek = _knownSeekable = false;
         _muteIntent.BeginMedia();
@@ -919,11 +921,16 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _timeline.Observe(_generation, _timeline.Revision, Math.Max(0, position));
         RenderTime();
     }
+    internal static string FormatVideoTime(long milliseconds)
+    {
+        TimeSpan value = TimeSpan.FromMilliseconds(Math.Max(0, milliseconds));
+        return value.ToString(milliseconds >= 3_600_000 ? @"h\:mm\:ss" : @"m\:ss");
+    }
+
     private void RenderTime()
     {
         long position = _timeline.DisplayPosition;
-        static string Clock(long milliseconds) => TimeSpan.FromMilliseconds(milliseconds).ToString(milliseconds >= 3_600_000 ? @"h\:mm\:ss" : @"m\:ss");
-        _time.Text = Clock(position) + " / " + (_length > 0 ? Clock(_length) : "–:––");
+        _time.Text = FormatVideoTime(position) + " / " + (_length > 0 ? FormatVideoTime(_length) : "–:––");
         _updatingSeek = true;
         try { _seek.Value = _length > 0 ? Math.Clamp(position * 1000d / _length, 0, 1000) : 0; }
         finally { _updatingSeek = false; }
@@ -1149,6 +1156,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     internal Task StopAsync()
     {
         _intent.Set(_generation, VideoPlaybackMode.Stopped);
+        CancelScrubPreviewRequest();
         CancelSeekGesture();
         return _lifetime.StopAsync();
     }
@@ -1242,6 +1250,8 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _intent.Set(_generation, VideoPlaybackMode.Stopped);
         CancelSeekGesture();
         Task cleanup = _lifetime.DisposeAsync();
+        Task scrubCleanup = DisposeScrubPreviewAsync();
+        cleanup = Task.WhenAll(cleanup, scrubCleanup);
         if (Dispatcher.UIThread.CheckAccess()) RetireTransportPlacement();
         else Dispatcher.UIThread.Post(RetireTransportPlacement);
         return new(DetachTransportAfterCleanupAsync(cleanup));
