@@ -156,8 +156,15 @@ internal static class BooruCompositionChecks
             Capture(shell, shots, "composition-results-light");
 
             // ---- copy link through the shell's own top-level clipboard (the harness fixture; opening would start a browser: covered with fakes in booru-workbench) ----
-            Click(Find<Button>(page, BooruWorkbenchView.CopyLinkPrefix + "8004"));
-            await Program.WaitUntilAsync(() => Text(page).Contains("Link copied: https://danbooru.donmai.us/posts/8004"), () => "copy note missing: " + Text(page));
+            const string copiedPostUrl = "https://danbooru.donmai.us/posts/8004";
+            Button copyLink = Find<Button>(page, BooruWorkbenchView.CopyLinkPrefix + "8004");
+            bool copiedLink = await ClipboardChecks.CheckIsolatedCopyAsync(shell, () =>
+            {
+                Click(copyLink);
+                return Task.CompletedTask;
+            }, new[] { copiedPostUrl }, new[] { "cat_ears", "draft_kept_across_hide", "draft_discarded_on_service_replacement" });
+            if (copiedLink)
+                await Program.WaitUntilAsync(() => Text(page).Contains("Link copied: " + copiedPostUrl), () => "copy note missing: " + Text(page));
             Require(Find<Button>(page, BooruWorkbenchView.OpenPostPrefix + "8004").IsEffectivelyEnabled, "Open post in browser is missing on the result card.");
             Require(stub.Requests.Count(url => url.StartsWith("https://danbooru.donmai.us/", StringComparison.Ordinal)) == 1, "Copying a link sent a request.");
             Capture(shell, shots, "composition-link-copied-light");

@@ -379,12 +379,17 @@ internal static class BooruMediaChecks
         open.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await UntilAsync(() => opened.Count == 1);
         Require(opened[0].AbsoluteUri == $"https://danbooru.donmai.us/posts/{post}", phase + ": the opened address is not the canonical post page: " + opened[0]);
+        const string copiedPostUrl = "https://danbooru.donmai.us/posts/" + post;
         Button copy = dialog.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "BooruCopyPost");
-        copy.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        await UntilAsync(() => dialog.Status.Text is { Length: > 0 });
-        Require(dialog.Status.Text == Texts.T("booru.media.copied") || dialog.Status.Text == Texts.T("booru.media.copyFailed"), phase + ": copy status: " + dialog.Status.Text);
-        // The smoke host's clipboard is a write-only fixture, so only the honest outcome is checked; the copied address is the
-        // same canonical URL the open action received (see Core tests for its derivation).
+        bool copiedPost = await ClipboardChecks.CheckIsolatedCopyAsync(dialog, () =>
+        {
+            copy.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            return Task.CompletedTask;
+        }, new[] { copiedPostUrl }, Array.Empty<string>());
+        if (copiedPost)
+            await UntilAsync(() => dialog.Status.Text == Texts.T("booru.media.copied"));
+        // Without the isolated fixture the helper uses the existing technical-copy skip convention and does not touch native
+        // clipboard state; a copyFailed notice is never accepted as a successful smoke result.
 
         List<string> copied = await SourceTagActionsAsync(shell, dialog, host, post, phase, searchAvailable: false);
 
@@ -488,8 +493,54 @@ internal static class BooruMediaChecks
         await ShowMediaAsync(shell);
     }
 
-    // Hiding the tools is independent of source availability. Local tags and explicit Copy still
-    // work, and enabling the tools later cannot retrofit a handoff into this already-open dialog.
+    private static async Task SetBooruToolsViaShellAsync(MainWindow shell, DesktopSessionHost host, bool visible, string phase)
+    {
+        Require(host.State == DesktopSessionState.Ready && shell.FindControl<Button>("AddUrlButton")!.IsEffectivelyEnabled,
+            phase + ": the shell must be restored and interactive before changing Booru presentation.");
+        CheckBox toggle = shell.FindControl<CheckBox>("ShowBooruToolsToggle")!;
+        await UntilAsync(() => toggle.IsVisible && toggle.IsEffectivelyEnabled && toggle.IsChecked == !visible);
+        toggle.IsChecked = visible;
+        await UntilAsync(() => host.Config.ShowBooruTools == visible && toggle.IsChecked == visible);
+    }
+
+    private static async Task<BooruPage> OpenBooruFromShellAsync(MainWindow shell, string phase)
+    {
+        MenuItem menu = shell.FindControl<MenuItem>("WorkspaceMenuItem")!;
+        MenuItem entry = shell.FindControl<MenuItem>("BooruMenuItem")!;
+        menu.IsSubMenuOpen = true;
+        await SettleAsync(shell);
+        Require(entry.IsVisible && entry.IsEnabled, phase + ": the shell menu did not expose the Booru entry.");
+        menu.IsSubMenuOpen = false;
+        entry.Command!.Execute(null);
+        ContentControl pageHost = shell.FindControl<ContentControl>("BooruPageHost")!;
+        await UntilAsync(() => shell.SelectedPage == MainWindow.WorkspacePage.Booru
+            && pageHost.IsVisible && shell.BooruPageForTests is not null);
+        BooruPage page = shell.BooruPageForTests!;
+        Require(ReferenceEquals(pageHost.Content, page) && TopLevel.GetTopLevel(page.View) == shell,
+            phase + ": the shell menu did not open its own hosted Booru page.");
+        return page;
+    }
+
+    private static void RequireBooruPresentation(MainWindow shell, bool visible, MainWindow.WorkspacePage selected,
+        bool pageHostVisible, bool pageRetained, string phase)
+    {
+        ContentControl pageHost = shell.FindControl<ContentControl>("BooruPageHost")!;
+        MenuItem appEntry = shell.FindControl<MenuItem>("BooruMenuItem")!;
+        MenuItem overflowEntry = shell.FindControl<MenuItem>("BooruMoreMenuItem")!;
+        Button navigationEntry = shell.FindControl<Button>("BooruNavigationButton")!;
+        bool entryVisible = appEntry.IsVisible || overflowEntry.IsVisible || navigationEntry.IsVisible;
+        Require(shell.SelectedPage == selected && pageHost.IsVisible == pageHostVisible
+            && (shell.BooruPageForTests is not null) == pageRetained && entryVisible == visible,
+            phase + ": Booru presentation is inconsistent (selected=" + shell.SelectedPage
+            + ", host=" + pageHost.IsVisible + ", page=" + (shell.BooruPageForTests != null)
+            + ", appEntry=" + appEntry.IsVisible + ", overflowEntry=" + overflowEntry.IsVisible
+            + ", navigationEntry=" + navigationEntry.IsVisible + ").");
+    }
+
+    // Hiding the tools is independent of source availability. The presentation is changed through
+    // the shell's real footer toggle, not by writing the preference behind the shell's back. The
+    // modal details window is closed before the toggle is restored because its owner is not a
+    // user-reachable surface while ShowDialog is active.
     private static async Task SearchToolsOffAsync(MainWindow shell, MediaPage media, MediaLibraryTileRow row,
         DesktopSessionHost host, string phase)
     {
@@ -499,24 +550,43 @@ internal static class BooruMediaChecks
         bool visible = host.Config.ShowBooruTools;
         try
         {
-            await host.SaveViewPreferencesAsync(config => config.ShowBooruTools = false).WaitAsync(Deadline);
-            Require(!host.Config.ShowBooruTools, phase + ": the tools-off fixture must actually hide Booru tools.");
+            Require(visible, phase + ": the tools-off fixture must start with the presentation enabled.");
+            BooruPage page = await OpenBooruFromShellAsync(shell, phase + " / menu open");
+            await SetBooruToolsViaShellAsync(shell, host, false, phase + " / shell toggle off");
+            RequireBooruPresentation(shell, visible: false, selected: MainWindow.WorkspacePage.Downloads,
+                pageHostVisible: false, pageRetained: true, phase + " / shell toggle off");
+            await ShowMediaAsync(shell);
+            RequireBooruPresentation(shell, visible: false, selected: MainWindow.WorkspacePage.Media,
+                pageHostVisible: false, pageRetained: true, phase + " / tools off media");
+            Require(ReferenceEquals(shell.FindControl<ContentControl>("BooruPageHost")!.Content, page),
+                phase + ": hiding the Booru presentation discarded the hosted page.");
             dialog = await OpenDetailsAsync(shell, media, row, phase + " / tools off");
             List<string> copied = await SourceTagActionsAsync(shell, dialog, host, row.Entry.BooruPostId!, phase + " / tools off", searchAvailable: false);
-            await host.SaveViewPreferencesAsync(config => config.ShowBooruTools = true).WaitAsync(Deadline);
-            TagList(dialog, BooruPostClaimTagCategory.Character).SelectedItems!.Clear();
-            Mark(dialog, BooruPostClaimTagCategory.Character, "main_character");
-            RequireSearchAbsent(dialog, phase + " / tools re-enabled");
-            Require(copied.Count == 7 && dialog.IsVisible && shell.SelectedPage == MainWindow.WorkspacePage.Media,
-                phase + ": re-enabling tools must not hand off or implicitly copy the old dialog's query.");
+            Require(!host.Config.ShowBooruTools && dialog.IsVisible && shell.SelectedPage == MainWindow.WorkspacePage.Media,
+                phase + ": the modal tools-off details view changed the shell presentation.");
             RequireNoDraftActions(harness, phase + " / tools off");
+            dialog.Close();
+            dialog = null;
+            await UntilAsync(() => shell.BooruDetailsWindow == null);
+            await SetBooruToolsViaShellAsync(shell, host, true, phase + " / shell toggle on");
+            RequireBooruPresentation(shell, visible: true, selected: MainWindow.WorkspacePage.Media,
+                pageHostVisible: false, pageRetained: true, phase + " / shell toggle on");
+            Require(copied.Count == 7, phase + ": the tools-off details actions copied an unexpected number of tag payloads.");
+            await OpenBooruFromShellAsync(shell, phase + " / menu reuse");
+            Require(ReferenceEquals(shell.FindControl<ContentControl>("BooruPageHost")!.Content, page),
+                phase + ": re-enabling the presentation replaced the retained page.");
+            await ShowMediaAsync(shell);
+            RequireBooruPresentation(shell, visible: true, selected: MainWindow.WorkspacePage.Media,
+                pageHostVisible: false, pageRetained: true, phase + " / restored presentation");
         }
         finally
         {
             dialog?.Close();
             shell.CopyTextForTests = null;
+            if (dialog != null) await UntilAsync(() => shell.BooruDetailsWindow == null);
+            if (host.BooruServices != null && host.Config.ShowBooruTools != visible)
+                await SetBooruToolsViaShellAsync(shell, host, visible, phase + " / restore shell presentation");
             host.BooruServices = null;
-            await host.SaveViewPreferencesAsync(config => config.ShowBooruTools = visible).WaitAsync(Deadline);
         }
         await UntilAsync(() => shell.BooruDetailsWindow == null);
     }
@@ -556,6 +626,8 @@ internal static class BooruMediaChecks
                     Require(host.BooruServices is null, phase + ": the provider services must really be unavailable.");
                     break;
                 case SearchRevocation.ToolsOff:
+                    // The details window is modal, so the owning shell toggle is not user-reachable here. Keep this
+                    // owner-level revocation for the stale click-time gate; SearchToolsOffAsync covers the real shell path.
                     await host.SaveViewPreferencesAsync(config => config.ShowBooruTools = false).WaitAsync(Deadline);
                     Require(!host.Config.ShowBooruTools, phase + ": the tools must really be off.");
                     break;
