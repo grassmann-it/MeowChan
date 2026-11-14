@@ -92,6 +92,7 @@ internal sealed class GalleryTagUnavailableTarget : IQuickTagTarget
     public bool Busy => false;
     public string? MessageKey => null;
     public TagDialogChange? LastChange => null;
+    public bool Undone => false;
     public bool IsSelection => false;
     public TagCoverage Coverage() => TagCoverage.Empty;
     public Task AddAsync(string name, CancellationToken token) => Task.CompletedTask;
