@@ -283,8 +283,9 @@ internal sealed partial class GalleryVideoPlayer
     {
         if (!Dispatcher.UIThread.CheckAccess())
         {
-            Task inner = await Dispatcher.UIThread.InvokeAsync(() => DisposeScrubPreviewAsync()).ConfigureAwait(false);
-            await inner.ConfigureAwait(false);
+            // Avalonia's Func<Task> overload unwraps the callback and completes only after
+            // every retired preview session has finished disposing.
+            await Dispatcher.UIThread.InvokeAsync((Func<Task>)DisposeScrubPreviewAsync).ConfigureAwait(false);
             return;
         }
 
