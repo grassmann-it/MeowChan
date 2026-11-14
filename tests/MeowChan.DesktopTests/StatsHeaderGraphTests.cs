@@ -219,10 +219,11 @@ public sealed class StatsHeaderGraphTests : IDisposable
     }
 
     [Fact]
-    public void TheGraphTextsExistInAllTwelveLanguagesWithTheirPlaceholdersAndTheOldOnesAreGone()
+    public void TheGraphTextsAndRetainedStatisticsLabelsResolveWithTheirPlaceholders()
     {
         string[] languages = ["en", "de", "es", "fr", "ru", "zh-Hans", "ja", "ko", "pt-BR", "cs", "it", "pl"];
-        (string Key, int Placeholders)[] keys = [("stats.graph.name", 3), ("stats.graph.nameNet", 2), ("stats.graph.page.name", 3), ("stats.scale", 1), ("stats.history.note", 0)];
+        (string Key, int Placeholders)[] keys = [("stats.graph.name", 3), ("stats.graph.nameNet", 2), ("stats.graph.page.name", 3), ("stats.scale", 1), ("stats.history.note", 0),
+            ("stats.peak", 1), ("stats.legend.net", 0), ("stats.legend.disk", 0)];
         foreach (string language in languages)
         {
             Texts.SetLanguage(language);
@@ -234,8 +235,8 @@ public sealed class StatsHeaderGraphTests : IDisposable
                 foreach (string argument in new[] { "A", "B", "C" }.Take(placeholders))
                     Assert.Contains(argument, text);
             }
-            foreach (string removed in new[] { "stats.peak", "stats.legend.net", "stats.legend.disk" })
-                Assert.Equal(removed, Texts.T(removed));
+            // The merged statistics page still uses stats.peak and keeps the legend vocabulary.
+            // A header layout change does not retire the page's localized labels.
         }
         Texts.SetLanguage("en");
         Assert.Equal("Scale up to 2 MiB/s", Texts.T("stats.scale", "2 MiB/s"));
